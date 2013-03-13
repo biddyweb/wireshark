@@ -233,7 +233,8 @@ plugin_src = \
 	../plugins/mgcp/packet-mgcp.c \
 	../plugins/rdm/packet-rdm.c \
 	../plugins/sercosiii/packet-sercosiii.c \
-        ../plugins/wimax/crc.c \
+	../plugins/tosam/packet-tosam.c \
+	../plugins/wimax/crc.c \
         ../plugins/wimax/crc_data.c \
         ../plugins/wimax/mac_hd_generic_decoder.c \
         ../plugins/wimax/mac_hd_type1_decoder.c \

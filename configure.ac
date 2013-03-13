@@ -2388,6 +2388,7 @@ AC_OUTPUT(
   plugins/wimax/Makefile
   plugins/wimaxasncp/Makefile
   plugins/wimaxmacphy/Makefile
+  tosam/Makefile
   tools/Makefile
   tools/lemon/Makefile
   wiretap/Makefile
