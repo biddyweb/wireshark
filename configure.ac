@@ -2384,11 +2384,11 @@ AC_OUTPUT(
   plugins/opcua/Makefile
   plugins/profinet/Makefile
   plugins/stats_tree/Makefile
+  plugins/tosam/Makefile
   plugins/unistim/Makefile
   plugins/wimax/Makefile
   plugins/wimaxasncp/Makefile
   plugins/wimaxmacphy/Makefile
-  tosam/Makefile
   tools/Makefile
   tools/lemon/Makefile
   wiretap/Makefile
