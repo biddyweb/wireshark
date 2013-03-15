@@ -210,7 +210,7 @@ dissect_tosam(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "TOS AM");
 
   if (check_col(pinfo->cinfo, COL_INFO))
-    col_prepend_fstr(pinfo->cinfo, COL_INFO, "AM: 0x%2x, ", am_type);
+    col_prepend_fstr(pinfo->cinfo, COL_INFO, "AM: 0x%02x, ", am_type);
 
   /* Calculate the available data in the packet,
    set this to -1 to use all the data in the tv_buffer */
@@ -255,7 +255,7 @@ proto_register_tosam(void)
   module_t *tosam_module;
 
   /* Register the protocol name and description */
-  proto_tosam = proto_register_protocol("TinyOS Active Message", "TOS AM", "tosam");
+  proto_tosam = proto_register_protocol("TinyOS AM Frame", "TOS AM", "tosam");
 
   tosam_module = prefs_register_protocol(proto_tosam, proto_reg_handoff_tosam);
 

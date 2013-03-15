@@ -32,7 +32,7 @@ proto_reg_handoff_tosdis(void);
 
 /* for subdissectors */
 static dissector_handle_t data_handle;
-static dissector_table_t tosdis_type_dissector_table;
+static dissector_table_t tosam_type_dissector_table;
 
 /* Initialize the protocol and registered fields */
 static int proto_tosdis = -1;
@@ -117,8 +117,7 @@ proto_register_tosdis(void)
   proto_register_subtree_array(ett, array_length(ett));
 
   /* subdissector code */
-  tosdis_type_dissector_table = register_dissector_table("tosdis.type",
-      "TOS AM type", FT_UINT8, BASE_HEX);
+  tosam_type_dissector_table = find_dissector_table("tosam.type");
 }
 
 /* If this dissector uses sub-dissector registration add a registration routine.
