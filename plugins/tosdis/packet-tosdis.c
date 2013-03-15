@@ -36,51 +36,53 @@ static dissector_table_t tosam_type_dissector_table;
 
 /* Initialize the protocol and registered fields */
 static int proto_tosdis = -1;
-static int hf_tosdis_id = -1;
-static int hf_tosdis_type = -1;
-static int hf_ieee802154_rssi = -1;
-static int hf_ieee802154_fcs_ok = -1;
-static int hf_ieee802154_correlation = -1;
-static int hf_ieee802154_fcs = -1;
+static int hf_tosdis_key = -1;
+static int hf_tosdis_seqno = -1;
 
 /* Initialize the subtree pointers */
 static gint ett_tosdis = -1;
-static gint ett_ieee802154_fcs = -1;
 
 /* Code to actually dissect the packets */
 static void
 dissect_tosdis(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
   tvbuff_t *next_tvb = tvb;
-//  int available_length;
-//  guint8 am_type;
+  guint16 am_type;
 
   /* Set up structures needed to add the protocol subtree and manage it */
-//  proto_item *ti;
-//  proto_tree *tosdis_tree;
+  proto_item *ti;
+  proto_tree *tosdis_tree;
 
   /* check if this is really a complete AM. If not call sub dissector. */
-//  if (tvb_length(tvb) < TOSAM_HEADER_LEN)
-//  {
-//    call_dissector(data_handle, tvb, pinfo, tree);
-//    return;
-//  }
+  if (tvb_length(tvb) < TOS_DIS_HEADER_LEN)
+  {
+    call_dissector(data_handle, tvb, pinfo, tree);
+    return;
+  }
 
-//  am_type = tvb_get_guint8(tvb, TOSAM_HEADER_TYPE_OFFSET);
-
-
+  am_type = tvb_get_guint8(tvb, TOSDIS_KEY_OFFSET);
 
   if (tree)
   {
-//    guint offset;
-//    /* create display subtree for the protocol */
-//    ti = proto_tree_add_item(tree, proto_tosdis, tvb, 0, -1, FALSE);
-//    tosdis_tree = proto_item_add_subtree(ti, ett_tosdis);
-
-    /* add items to the subtree */
-
+    /* create display subtree for the protocol */
+    ti = proto_tree_add_item(tree, proto_tosdis, tvb, 0, -1, FALSE);
+    proto_item_append_text(ti, " (Data)");
+    tosdis_tree = proto_item_add_subtree(ti, ett_tosdis);
+    proto_tree_add_item(tosdis_tree, hf_tosdis_key, tvb, TOSDIS_KEY_OFFSET, TOSDIS_KEY_LEN, FALSE);
+    proto_tree_add_item(tosdis_tree, hf_tosdis_seqno, tvb, TOSDIS_SEQNO_OFFSET, TOSDIS_SEQNO_LEN, FALSE);
   }
-  /* If the CRC is invalid, make a note of it in the info column. */
+
+  /* Make entries in Protocol column and Info column on summary display */
+  if (check_col(pinfo->cinfo, COL_PROTOCOL))
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, "TOS Dissemination Data");
+
+  /* Create the tvbuffer for the next dissector */
+  next_tvb = tvb_new_subset(tvb, TOS_DIS_HEADER_LEN,
+      tvb_length(tvb) - TOS_DIS_HEADER_LEN, tvb_length(tvb) - TOS_DIS_HEADER_LEN);
+
+  if (dissector_try_uint(tosam_type_dissector_table, am_type, next_tvb, pinfo, tree)) {
+    return;
+  }
 
   call_dissector(data_handle, next_tvb, pinfo, tree);
   return;
@@ -93,21 +95,13 @@ proto_register_tosdis(void)
   /* TinyOS2 Active Message Header */
   static hf_register_info hf[] =
   {
-  { &hf_tosdis_id,
-  { "Id", "tosdis.id", FT_UINT8, BASE_HEX, NULL, 0x0, "Unique Dispatch Id", HFILL } },
-  { &hf_tosdis_type,
-  { "Type", "tosdis.type", FT_UINT8, BASE_HEX, NULL, 0x0, "Active Message Type", HFILL } },
-  { &hf_ieee802154_fcs,
-  { "FCS", "tosdis.fcs", FT_UINT16, BASE_HEX, NULL, 0x0, "Frame Check Sequence", HFILL } },
-  { &hf_ieee802154_rssi,
-  { "RSSI", "tosdis.rssi", FT_INT8, BASE_DEC, NULL, 0x0, "Received Signal Strength", HFILL } },
-  { &hf_ieee802154_fcs_ok,
-  { "FCS Valid", "tosdis.fcs_ok", FT_BOOLEAN, BASE_NONE, NULL, 0x0, NULL, HFILL } },
-  { &hf_ieee802154_correlation,
-  { "LQI Correlation Value", "tosdis.correlation", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL } }};
+  { &hf_tosdis_key,
+  { "Key", "tosdis.key", FT_UINT16, BASE_HEX, NULL, 0x0, "Dispatch Key (AM Type)", HFILL } },
+  { &hf_tosdis_seqno,
+  { "Seqno", "tosctp.seqno", FT_UINT32, BASE_DEC, NULL, 0x0, "Seqno", HFILL } }};
 
   /* Setup protocol subtree array */
-  static gint *ett[] = { &ett_tosdis, &ett_ieee802154_fcs };
+  static gint *ett[] = { &ett_tosdis };
 
   /* Register the protocol name and description */
   proto_tosdis = proto_register_protocol("TinyOS Dissemination", "TOS Dissemination", "tosdis");
@@ -137,10 +131,13 @@ proto_reg_handoff_tosdis(void)
   if (!inited)
   {
     tosdis_handle = create_dissector_handle(dissect_tosdis, proto_tosdis);
+    dissector_add_uint("tosam.type", 0x60, tosdis_handle);
     inited = TRUE;
   }
   else
   {
+    dissector_delete_uint("tosam.type", 0x60, tosdis_handle);
   }
+  dissector_add_uint("tosam.type", 0x60, tosdis_handle);
   data_handle = find_dissector("data");
 }

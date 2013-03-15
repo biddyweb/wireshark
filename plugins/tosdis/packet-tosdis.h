@@ -19,6 +19,12 @@
 #ifndef PACKET_TOSDIS_H
 #define PACKET_TOSDIS_H
 
+#define TOSDIS_KEY_LEN 2
+#define TOSDIS_SEQNO_LEN 4
+
+#define TOSDIS_KEY_OFFSET 0
+#define TOSDIS_SEQNO_OFFSET (TOSDIS_KEY_OFFSET+TOSDIS_KEY_LEN)
+#define TOS_DIS_HEADER_LEN (TOSDIS_SEQNO_OFFSET+TOSDIS_SEQNO_LEN)
 
 static void dissect_tosdis(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 
