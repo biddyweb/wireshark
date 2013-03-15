@@ -58,7 +58,6 @@ static dissector_table_t tosam_type_dissector_table;
 static int proto_tosam = -1;
 static int hf_tosam_id = -1;
 static int hf_tosam_type = -1;
-static int hf_tosam_data = -1;
 static int hf_ieee802154_rssi = -1;
 static int hf_ieee802154_fcs_ok = -1;
 static int hf_ieee802154_correlation = -1;
@@ -247,9 +246,7 @@ proto_register_tosam(void)
   { &hf_ieee802154_fcs_ok,
   { "FCS Valid", "tosam.fcs_ok", FT_BOOLEAN, BASE_NONE, NULL, 0x0, NULL, HFILL } },
   { &hf_ieee802154_correlation,
-  { "LQI Correlation Value", "tosam.correlation", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL } },
-  { &hf_tosam_data,
-  { "Payload Data", "tosam.payload_data", FT_BYTES, BASE_NONE, NULL, 0x0, "", HFILL } } };
+  { "LQI Correlation Value", "tosam.correlation", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL } }};
 
   /* Setup protocol subtree array */
   static gint *ett[] = { &ett_tosam, &ett_ieee802154_fcs };
