@@ -293,6 +293,8 @@ plugin_ldadd = $(_CUSTOM_plugin_ldadd_) \
 	-dlopen plugins/profinet/profinet.la \
 	-dlopen plugins/stats_tree/stats_tree.la \
 	-dlopen plugins/tosam/tosam.la \
+	-dlopen plugins/tosam/tosctp.la \
+	-dlopen plugins/tosam/tosdis.la \
 	-dlopen plugins/unistim/unistim.la \
 	-dlopen plugins/wimax/wimax.la \
 	-dlopen plugins/wimaxmacphy/wimaxmacphy.la

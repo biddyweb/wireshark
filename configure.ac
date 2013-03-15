@@ -2385,6 +2385,8 @@ AC_OUTPUT(
   plugins/profinet/Makefile
   plugins/stats_tree/Makefile
   plugins/tosam/Makefile
+  plugins/tosctp/Makefile
+  plugins/tosdis/Makefile
   plugins/unistim/Makefile
   plugins/wimax/Makefile
   plugins/wimaxasncp/Makefile
