@@ -33,6 +33,7 @@ SUBDIRS = $(_CUSTOM_SUBDIRS_) \
 	mate \
 	opcua \
 	profinet \
+	rf212 \
 	stats_tree \
 	tosam \
 	tosctp \

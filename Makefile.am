@@ -291,6 +291,7 @@ plugin_ldadd = $(_CUSTOM_plugin_ldadd_) \
 	-dlopen plugins/mate/mate.la \
 	-dlopen plugins/opcua/opcua.la \
 	-dlopen plugins/profinet/profinet.la \
+	-dlopen plugins/rf212/rf212.la \
 	-dlopen plugins/stats_tree/stats_tree.la \
 	-dlopen plugins/tosam/tosam.la \
 	-dlopen plugins/tosam/tosctp.la \
