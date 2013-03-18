@@ -19,7 +19,7 @@
 #ifndef PACKET_RF212_H
 #define PACKET_RF212_H
 
-#define RF212_MIN_LEN (1+1+3)
+#define RF212_MIN_LEN (1+1+1+3)
 
 static void dissect_rf212(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 

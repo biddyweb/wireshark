@@ -202,8 +202,6 @@ proto_reg_handoff_tosctp(void)
   {
     tosctp_routing_handle = create_dissector_handle(dissect_ctp_routing, proto_tosctp);
     tosctp_data_handle = create_dissector_handle(dissect_ctp_data, proto_tosctp);
-    dissector_add_uint("tosam.type", 0x70, tosctp_routing_handle);
-    dissector_add_uint("tosam.type", 0x71, tosctp_data_handle);
     inited = TRUE;
   }
   else
