@@ -1,5 +1,5 @@
 # Makefile.am
-# Automake file for Gryphon plugin
+# Automake file for rf212 plugin
 # By Steve Limkemann <stevelim@dgtech.com>
 # Copyright 1998 Steve Limkemann
 #
