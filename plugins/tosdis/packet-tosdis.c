@@ -131,6 +131,7 @@ proto_reg_handoff_tosdis(void)
   if (!inited)
   {
     tosdis_handle = create_dissector_handle(dissect_tosdis, proto_tosdis);
+    data_handle = find_dissector("data");
     inited = TRUE;
   }
   else
@@ -138,5 +139,4 @@ proto_reg_handoff_tosdis(void)
     dissector_delete_uint("tosam.type", 0x60, tosdis_handle);
   }
   dissector_add_uint("tosam.type", 0x60, tosdis_handle);
-  data_handle = find_dissector("data");
 }

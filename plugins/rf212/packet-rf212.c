@@ -158,6 +158,8 @@ proto_reg_handoff_rf212(void)
   if (!inited)
   {
     rf212_handle = create_dissector_handle(dissect_rf212, proto_rf212);
+    ieee802154_handle = find_dissector(IEEE802154_PROTOABBREV_WPAN);
+    data_handle = find_dissector("data");
     inited = TRUE;
   }
   else
@@ -166,6 +168,4 @@ proto_reg_handoff_rf212(void)
   }
 
   dissector_add_uint("udp.port", 54321, rf212_handle);
-  ieee802154_handle = find_dissector(IEEE802154_PROTOABBREV_WPAN);
-  data_handle = find_dissector("data");
 }

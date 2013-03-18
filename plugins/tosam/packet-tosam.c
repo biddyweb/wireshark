@@ -169,6 +169,7 @@ proto_reg_handoff_tosam(void)
   if (!inited)
   {
     tosam_handle = create_dissector_handle(dissect_tosam, proto_tosam);
+    data_handle = find_dissector("data");
     inited = TRUE;
   }
   else
@@ -177,5 +178,4 @@ proto_reg_handoff_tosam(void)
   }
 
   heur_dissector_add(IEEE802154_PROTOABBREV_WPAN, dissect_tosam_heur, proto_tosam);
-  data_handle = find_dissector("data");
 }
