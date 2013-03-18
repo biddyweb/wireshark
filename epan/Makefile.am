@@ -232,9 +232,12 @@ plugin_src = \
 	../plugins/m2m/wimax_tlv.c \
 	../plugins/mgcp/packet-mgcp.c \
 	../plugins/rdm/packet-rdm.c \
+	../plugins/rf212/packet-rf212.c \
 	../plugins/sercosiii/packet-sercosiii.c \
 	../plugins/tosam/packet-tosam.c \
-	../plugins/wimax/crc.c \
+	../plugins/tosctp/packet-tosctp.c \
+	../plugins/tosdis/packet-tosdis.c \
+        ../plugins/wimax/crc.c \
         ../plugins/wimax/crc_data.c \
         ../plugins/wimax/mac_hd_generic_decoder.c \
         ../plugins/wimax/mac_hd_type1_decoder.c \
