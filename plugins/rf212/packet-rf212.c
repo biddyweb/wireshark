@@ -118,7 +118,7 @@ proto_register_rf212(void)
   { &hf_rf212_phy,
   { "PHY", "rf212.phy", FT_UINT8, BASE_HEX, NULL, 0x0, "PHY_STATUS value", HFILL } },
   { &hf_rf212_phr,
-  { "PHR", "rf212.key", FT_UINT8, BASE_DEC, NULL, 0x0, "Payload length", HFILL } },
+  { "PHR", "rf212.len", FT_UINT8, BASE_DEC, NULL, 0x0, "Payload length", HFILL } },
   { &hf_rf212_lqi,
   { "LQI", "rf212.lqi", FT_UINT8, BASE_DEC, NULL, 0x0, "Link Quality Indication", HFILL } },
   { &hf_rf212_ed,
@@ -164,8 +164,8 @@ proto_reg_handoff_rf212(void)
   }
   else
   {
-    dissector_delete_uint("udp.port", 54321, rf212_handle);
+    dissector_delete_uint("ip.proto", 0xfe, rf212_handle);
   }
 
-  dissector_add_uint("udp.port", 54321, rf212_handle);
+  dissector_add_uint("ip.proto", 0xfe, rf212_handle);
 }
