@@ -6,8 +6,6 @@
  *
  * Francesco Fondelli <francesco dot fondelli, gmail dot com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -58,7 +56,7 @@
 #include <epan/in_cksum.h>
 #include <epan/prefs.h>
 #include <epan/expert.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include "packet-ip.h"
 #include <epan/conversation.h>
 #include <epan/tap.h>
@@ -78,6 +76,9 @@
 #define DCCP_OPT_LEN_MAX 1008
 #define DCCP_HDR_LEN_MAX (DCCP_HDR_LEN + DCCP_HDR_PKT_TYPES_LEN_MAX + \
                           DCCP_OPT_LEN_MAX)
+
+void proto_register_dccp(void);
+void proto_reg_handoff_dccp(void);
 
 /*
  * FF: please keep this list in sync with
@@ -181,6 +182,10 @@ static int hf_dccp_data_checksum = -1;
 static gint ett_dccp = -1;
 static gint ett_dccp_options = -1;
 
+static expert_field ei_dccp_option_len_bad = EI_INIT;
+static expert_field ei_dccp_advertised_header_length_bad = EI_INIT;
+static expert_field ei_dccp_packet_type_reserved = EI_INIT;
+
 static dissector_table_t dccp_subdissector_table;
 static heur_dissector_list_t heur_subdissector_list;
 static dissector_handle_t data_handle;
@@ -196,6 +201,7 @@ decode_dccp_ports(tvbuff_t *tvb, int offset, packet_info *pinfo,
 {
     tvbuff_t *next_tvb;
     int       low_port, high_port;
+    heur_dtbl_entry_t *hdtbl_entry;
 
     next_tvb = tvb_new_subset_remaining(tvb, offset);
 
@@ -204,14 +210,14 @@ decode_dccp_ports(tvbuff_t *tvb, int offset, packet_info *pinfo,
      * for the conversation if available
      */
     if (try_conversation_dissector(&pinfo->src, &pinfo->dst, PT_DCCP, sport,
-                                   dport, next_tvb, pinfo, tree)) {
+                                   dport, next_tvb, pinfo, tree, NULL)) {
         return;
     }
 
     if (try_heuristic_first) {
         /* do lookup with the heuristic subdissector table */
         if (dissector_try_heuristic(heur_subdissector_list, next_tvb, pinfo,
-                                    tree, NULL)) {
+                                    tree, &hdtbl_entry, NULL)) {
             return;
         }
     }
@@ -255,7 +261,7 @@ decode_dccp_ports(tvbuff_t *tvb, int offset, packet_info *pinfo,
     if (!try_heuristic_first) {
         /* do lookup with the heuristic subdissector table */
         if (dissector_try_heuristic(heur_subdissector_list, next_tvb,
-                                    pinfo, tree, NULL)) {
+                                    pinfo, tree, &hdtbl_entry, NULL)) {
             return;
         }
     }
@@ -405,7 +411,7 @@ dissect_options(tvbuff_t *tvb, packet_info *pinfo _U_,
             option_len = tvb_get_guint8(tvb, offset + 1);
 
             if (option_len < 2) {
-                expert_add_info_format(pinfo, option_item, PI_MALFORMED, PI_ERROR,
+                expert_add_info_format(pinfo, option_item, &ei_dccp_option_len_bad,
                     "Option length incorrect, must be >= 2");
                 return;
             }
@@ -449,7 +455,7 @@ dissect_options(tvbuff_t *tvb, packet_info *pinfo _U_,
             break;
         case 37:
             if (option_len > 8)
-                expert_add_info_format(pinfo, option_item, PI_PROTOCOL, PI_WARN,
+                expert_add_info_format(pinfo, option_item, &ei_dccp_option_len_bad,
                                         "NDP Count too long (max 6 bytes)");
             else
                 proto_tree_add_text(dccp_options_tree, tvb, offset, option_len,
@@ -488,7 +494,7 @@ dissect_options(tvbuff_t *tvb, packet_info *pinfo _U_,
                                     offset + 2, 4,
                                     tvb_get_ntohl(tvb, offset + 2));
             else
-                expert_add_info_format(pinfo, option_item, PI_PROTOCOL, PI_WARN,
+                expert_add_info_format(pinfo, option_item, &ei_dccp_option_len_bad,
                                         "Timestamp too long [%u != 6]", option_len);
             break;
         case 42:
@@ -511,7 +517,7 @@ dissect_options(tvbuff_t *tvb, packet_info *pinfo _U_,
                                     tvb, offset + 6, 4,
                                     tvb_get_ntohl(tvb, offset + 6));
             } else
-                expert_add_info_format(pinfo, option_item, PI_PROTOCOL, PI_WARN,
+                expert_add_info_format(pinfo, option_item, &ei_dccp_option_len_bad,
                                         "Wrong Timestamp Echo length");
             break;
         case 43:
@@ -524,7 +530,7 @@ dissect_options(tvbuff_t *tvb, packet_info *pinfo _U_,
                                     tvb, offset + 2, 4,
                                     tvb_get_ntohl(tvb, offset + 2));
             else
-                expert_add_info_format(pinfo, option_item, PI_PROTOCOL, PI_WARN,
+                expert_add_info_format(pinfo, option_item, &ei_dccp_option_len_bad,
                                         "Wrong Elapsed Time length");
             break;
         case 44:
@@ -533,7 +539,7 @@ dissect_options(tvbuff_t *tvb, packet_info *pinfo _U_,
                                     tvb, offset + 2, 4,
                                     tvb_get_ntohl(tvb, offset + 2));
             } else
-                expert_add_info_format(pinfo, option_item, PI_PROTOCOL, PI_WARN,
+                expert_add_info_format(pinfo, option_item, &ei_dccp_option_len_bad,
                                         "Wrong Data checksum length");
             break;
         case 192: /* RFC 4342, 8.5 */
@@ -552,7 +558,7 @@ dissect_options(tvbuff_t *tvb, packet_info *pinfo _U_,
                                         option_len, "CCID3 Loss Event Rate: %u",
                                         p);
             } else
-                expert_add_info_format(pinfo, option_item, PI_PROTOCOL, PI_WARN,
+                expert_add_info_format(pinfo, option_item, &ei_dccp_option_len_bad,
                                         "Wrong CCID3 Loss Event Rate length");
             break;
         case 193: /* RFC 4342, 8.6 */
@@ -569,7 +575,7 @@ dissect_options(tvbuff_t *tvb, packet_info *pinfo _U_,
                                     "CCID3 Receive Rate: %u bytes/sec",
                                     tvb_get_ntohl(tvb, offset + 2));
             else
-                expert_add_info_format(pinfo, option_item, PI_PROTOCOL, PI_WARN,
+                expert_add_info_format(pinfo, option_item, &ei_dccp_option_len_bad,
                                         "Wrong CCID3 Receive Rate length");
             break;
         default:
@@ -629,7 +635,7 @@ dissect_dccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
     guint      options_len                = 0;
     e_dccphdr *dccph;
 
-    dccph = ep_alloc0(sizeof (e_dccphdr));
+    dccph = wmem_new0(wmem_packet_scope(), e_dccphdr);
 
     SET_ADDRESS(&dccph->ip_src, pinfo->src.type, pinfo->src.len,
                 pinfo->src.data);
@@ -647,14 +653,14 @@ dissect_dccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
     proto_tree_add_uint_format_value(dccp_tree, hf_dccp_srcport, tvb,
                                      offset, 2, dccph->sport,
                                      "%s (%u)",
-                                     get_dccp_port(dccph->sport),
+                                     ep_dccp_port_to_display(dccph->sport),
                                      dccph->sport);
     if (dccp_summary_in_tree) {
         proto_item_append_text(dccp_item, ", Src Port: %s (%u)",
-                               get_dccp_port(dccph->sport), dccph->sport);
+                               ep_dccp_port_to_display(dccph->sport), dccph->sport);
     }
     col_add_fstr(pinfo->cinfo, COL_INFO,
-                 "%s ", get_dccp_port(dccph->sport));
+                 "%s ", ep_dccp_port_to_display(dccph->sport));
     hidden_item =
         proto_tree_add_uint(dccp_tree, hf_dccp_port, tvb, offset, 2,
                             dccph->sport);
@@ -665,14 +671,14 @@ dissect_dccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
     proto_tree_add_uint_format_value(dccp_tree, hf_dccp_dstport, tvb,
                                      offset, 2, dccph->dport,
                                      "%s (%u)",
-                                     get_dccp_port(dccph->dport),
+                                     ep_dccp_port_to_display(dccph->dport),
                                      dccph->dport);
     if (dccp_summary_in_tree) {
         proto_item_append_text(dccp_item, ", Dst Port: %s (%u)",
-                               get_dccp_port(dccph->dport), dccph->dport);
+                               ep_dccp_port_to_display(dccph->dport), dccph->dport);
     }
     col_append_fstr(pinfo->cinfo, COL_INFO, " > %s",
-                    get_dccp_port(dccph->dport));
+                    ep_dccp_port_to_display(dccph->dport));
     hidden_item =
         proto_tree_add_uint(dccp_tree, hf_dccp_port, tvb, offset, 2,
                             dccph->dport);
@@ -718,9 +724,9 @@ dissect_dccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
             * reassembly? */
         if (dccp_check_checksum) {
             /* Set up the fields of the pseudo-header. */
-            cksum_vec[0].ptr = pinfo->src.data;
+            cksum_vec[0].ptr = (const guint8 *)pinfo->src.data;
             cksum_vec[0].len = pinfo->src.len;
-            cksum_vec[1].ptr = pinfo->dst.data;
+            cksum_vec[1].ptr = (const guint8 *)pinfo->dst.data;
             cksum_vec[1].len = pinfo->dst.len;
             cksum_vec[2].ptr = (const guint8 *) &phdr;
             switch (pinfo->src.type) {
@@ -800,7 +806,7 @@ dissect_dccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
     if (dccph->x) {
         if (advertised_dccp_header_len < DCCP_GEN_HDR_LEN_X) {
-            expert_add_info_format(pinfo, offset_item, PI_MALFORMED, PI_ERROR,
+            expert_add_info_format(pinfo, offset_item, &ei_dccp_advertised_header_length_bad,
                 "Advertised header length (%u) is smaller than the minimum (%u)",
                 advertised_dccp_header_len, DCCP_GEN_HDR_LEN_X);
             return tvb_length(tvb);
@@ -818,7 +824,7 @@ dissect_dccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
         offset += 6;
     } else {
         if (advertised_dccp_header_len < DCCP_GEN_HDR_LEN_NO_X) {
-            expert_add_info_format(pinfo, offset_item, PI_MALFORMED, PI_ERROR,
+            expert_add_info_format(pinfo, offset_item, &ei_dccp_advertised_header_length_bad,
                 "Advertised header length (%u) is smaller than the minimum (%u)",
                 advertised_dccp_header_len, DCCP_GEN_HDR_LEN_NO_X);
             return tvb_length(tvb);
@@ -832,7 +838,7 @@ dissect_dccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
         proto_item_append_text(dccp_item, " Seq=%" G_GINT64_MODIFIER "u",
                                dccph->seq);
     }
-    col_append_fstr(pinfo->cinfo, COL_INFO, 
+    col_append_fstr(pinfo->cinfo, COL_INFO,
                     " Seq=%" G_GINT64_MODIFIER "u",
                     dccph->seq);
 
@@ -841,7 +847,7 @@ dissect_dccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
     case 0x0: /* DCCP-Request */
     case 0xA: /* DCCP-Listen */
         if (advertised_dccp_header_len < offset + 4) {
-            expert_add_info_format(pinfo, offset_item, PI_MALFORMED, PI_ERROR,
+            expert_add_info_format(pinfo, offset_item, &ei_dccp_advertised_header_length_bad,
                 "Advertised header length (%u) is smaller than the minimum (%u) for %s",
                 advertised_dccp_header_len, offset + 4,
                 val_to_str(dccph->type, dccp_packet_type_vals, "Unknown (%u)"));
@@ -857,7 +863,7 @@ dissect_dccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
         break;
     case 0x1: /* DCCP-Response */
         if (advertised_dccp_header_len < offset + 12) {
-            expert_add_info_format(pinfo, offset_item, PI_MALFORMED, PI_ERROR,
+            expert_add_info_format(pinfo, offset_item, &ei_dccp_advertised_header_length_bad,
                 "Advertised header length (%u) is smaller than the minimum (%u) for Response",
                 advertised_dccp_header_len, offset + 12);
             return tvb_length(tvb);
@@ -897,7 +903,7 @@ dissect_dccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
     case 0x4: /* DCCP-DataAck */
         if (dccph->x) {
             if (advertised_dccp_header_len < offset + 8) {
-                expert_add_info_format(pinfo, offset_item, PI_MALFORMED, PI_ERROR,
+                expert_add_info_format(pinfo, offset_item, &ei_dccp_advertised_header_length_bad,
                     "Advertised header length (%u) is smaller than the minimum (%u) for %s",
                     advertised_dccp_header_len, offset + 8,
                     val_to_str(dccph->type, dccp_packet_type_vals, "Unknown (%u)"));
@@ -922,7 +928,7 @@ dissect_dccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
             offset += 8; /* move offset past the Ack Number Subheader */
         } else {
             if (advertised_dccp_header_len < offset + 4) {
-                expert_add_info_format(pinfo, offset_item, PI_MALFORMED, PI_ERROR,
+                expert_add_info_format(pinfo, offset_item, &ei_dccp_advertised_header_length_bad,
                     "Advertised header length (%u) is smaller than the minimum (%u) for %s",
                     advertised_dccp_header_len, offset + 4,
                     val_to_str(dccph->type, dccp_packet_type_vals, "Unknown (%u)"));
@@ -948,7 +954,7 @@ dissect_dccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
         break;
     case 0x7: /* DCCP-Reset */
         if (advertised_dccp_header_len < offset + 4) {
-            expert_add_info_format(pinfo, offset_item, PI_MALFORMED, PI_ERROR,
+            expert_add_info_format(pinfo, offset_item, &ei_dccp_advertised_header_length_bad,
                 "Advertised header length (%u) is smaller than the minimum (%u) for Reset",
                 advertised_dccp_header_len, offset + 4);
             return tvb_length(tvb);
@@ -999,7 +1005,7 @@ dissect_dccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
     case 0x8: /* DCCP-Sync */
     case 0x9: /* DCCP-SyncAck */
         if (advertised_dccp_header_len < offset + 8) {
-            expert_add_info_format(pinfo, offset_item, PI_MALFORMED, PI_ERROR,
+            expert_add_info_format(pinfo, offset_item, &ei_dccp_advertised_header_length_bad,
                 "Advertised header length (%u) is smaller than the minimum (%u) for %s",
                 advertised_dccp_header_len, offset + 8,
                 val_to_str(dccph->type, dccp_packet_type_vals, "Unknown (%u)"));
@@ -1023,8 +1029,7 @@ dissect_dccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
         offset += 8; /* move offset past the Ack. Number Subheader */
         break;
     default:
-        expert_add_info_format(pinfo, dccp_item, PI_PROTOCOL, PI_WARN, 
-                                "Reserved packet type: unable to dissect further");
+        expert_add_info(pinfo, dccp_item, &ei_dccp_packet_type_reserved);
         return tvb_length(tvb);
     }
 
@@ -1033,7 +1038,7 @@ dissect_dccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
      * DCCP header to the start of its application data area, in 32-bit words.
      */
     if (advertised_dccp_header_len > DCCP_HDR_LEN_MAX) {
-        expert_add_info_format(pinfo, offset_item, PI_PROTOCOL, PI_WARN,
+        expert_add_info_format(pinfo, offset_item, &ei_dccp_advertised_header_length_bad,
             "Advertised header length (%u) is larger than the maximum (%u)",
             advertised_dccp_header_len, DCCP_HDR_LEN_MAX);
         return tvb_length(tvb);
@@ -1314,11 +1319,21 @@ proto_register_dccp(void)
         &ett_dccp_options
     };
 
+    static ei_register_info ei[] = {
+        { &ei_dccp_option_len_bad, { "dccp.option.len.bad", PI_PROTOCOL, PI_WARN, "Bad option length", EXPFILL }},
+        { &ei_dccp_advertised_header_length_bad, { "dccp.advertised_header_length.bad", PI_MALFORMED, PI_ERROR, "Advertised header length bad", EXPFILL }},
+        { &ei_dccp_packet_type_reserved, { "dccp.packet_type.reserved", PI_PROTOCOL, PI_WARN, "Reserved packet type: unable to dissect further", EXPFILL }},
+    };
+
+    expert_module_t* expert_dccp;
+
     proto_dccp =
         proto_register_protocol("Datagram Congestion Control Protocol", "DCCP",
                                 "dccp");
     proto_register_field_array(proto_dccp, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_dccp = expert_register_protocol(proto_dccp);
+    expert_register_field_array(expert_dccp, ei, array_length(ei));
 
     /* subdissectors */
     dccp_subdissector_table =

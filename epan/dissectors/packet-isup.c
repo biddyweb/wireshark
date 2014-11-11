@@ -11,8 +11,6 @@
  *
  * Copyright 2004-2005, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -48,6 +46,7 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/stats_tree.h>
 #include <epan/asn1.h>
 #include <wsutil/str_util.h>
@@ -57,16 +56,22 @@
 #include "packet-e164.h"
 #include "packet-charging_ase.h"
 #include <epan/sctpppids.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/circuit.h>
 #include <epan/reassemble.h>
+#include <epan/to_str.h>
 #include <packet-mtp3.h>
 
+void proto_register_isup(void);
+void proto_reg_handoff_isup(void);
+void proto_register_bicc(void);
+void proto_reg_handoff_bicc(void);
+
 #define ISUP_ITU_STANDARD_VARIANT 0
-#define ISUP_FRENCH_VARIANT  1
-#define ISUP_ISRAELI_VARIANT 2
-#define ISUP_RUSSIAN_VARIANT 3
-#define ISUP_JAPAN_VARIANT   4
+#define ISUP_FRENCH_VARIANT       1
+#define ISUP_ISRAELI_VARIANT      2
+#define ISUP_RUSSIAN_VARIANT      3
+#define ISUP_JAPAN_VARIANT        4
 
 static gint isup_standard = ITU_STANDARD;
 /* Preference standard or national ISUP variants */
@@ -521,22 +526,22 @@ static const value_string japan_isup_message_type_value[] = {
   { MESSAGE_TYPE_CIRC_GRP_BL_ACK,             "Circuit group blocking acknowledgement"},
   { MESSAGE_TYPE_CIRC_GRP_UNBL_ACK,           "Circuit group unblocking acknowledgement"},
 
-  { 28,                                      "Reserved (used in 1988 version)"},
-  { 29,                                      "Reserved (used in 1988 version)"},
-  { 30,                                      "Reserved (used in 1988 version)"},
+  { 28,                                       "Reserved (used in 1988 version)"},
+  { 29,                                       "Reserved (used in 1988 version)"},
+  { 30,                                       "Reserved (used in 1988 version)"},
 
   { MESSAGE_TYPE_FACILITY_REQ,                "Facility request"},
   { MESSAGE_TYPE_FACILITY_ACC,                "Facility accepted"},
   { MESSAGE_TYPE_FACILITY_REJ,                "Facility reject"},
 
-  { 34,                                      "Reserved (used in 1984 version)"},
-  { 35,                                      "Reserved (used in 1984 version)"},
+  { 34,                                       "Reserved (used in 1984 version)"},
+  { 35,                                       "Reserved (used in 1984 version)"},
 
   { MESSAGE_TYPE_LOOP_BACK_ACK,               "Loop back acknowledgement (national use)"},
 
-  { 37,                                      "Reserved (used in 1984 version)"},
-  { 38,                                      "Reserved (used in 1984 version)"},
-  { 39,                                      "Reserved (used in 1984 version)"},
+  { 37,                                       "Reserved (used in 1984 version)"},
+  { 38,                                       "Reserved (used in 1984 version)"},
+  { 39,                                       "Reserved (used in 1984 version)"},
 
   { MESSAGE_TYPE_PASS_ALONG,                  "Pass-along (national use)"},
   { MESSAGE_TYPE_CIRC_GRP_RST_ACK,            "Circuit group reset acknowledgement"},
@@ -1147,7 +1152,6 @@ const value_string isup_parameter_type_value[] = {
 /*  23 */  { 23,                                   "Not used"},
 /*  24 */  { PARAM_TYPE_FACILITY_IND,              "Facility indicator"},
 /*  25 */  { 25,                                   "Not used"},
-/*  27 */  { 27,                                   "Not used"},
 /*  26 */  { PARAM_TYPE_CLSD_USR_GRP_ILOCK_CD,     "Closed user group interlock code"},
 /*  27 */  { 27,                                   "Not used"},
 /*  28 */  { 28,                                   "Not used"},
@@ -1299,7 +1303,6 @@ static const value_string japan_isup_parameter_type_value[] = {
 /*  23 */  { 23,                                   "Not used"},
 /*  24 */  { PARAM_TYPE_FACILITY_IND,              "Facility indicator"},
 /*  25 */  { 25,                                   "Not used"},
-/*  27 */  { 27,                                   "Not used"},
 /*  26 */  { PARAM_TYPE_CLSD_USR_GRP_ILOCK_CD,     "Closed user group interlock code"},
 /*  27 */  { 27,                                   "Not used"},
 /*  28 */  { 28,                                   "Not used"},
@@ -1448,7 +1451,6 @@ static const value_string ansi_isup_parameter_type_value[] = {
 /*  23 */  { 23,                                   "Not used"},
 /*  24 */  { PARAM_TYPE_FACILITY_IND,              "Facility indicator"},
 /*  25 */  { 25,                                   "Not used"},
-/*  27 */  { 27,                                   "Not used"},
 /*  26 */  { PARAM_TYPE_CLSD_USR_GRP_ILOCK_CD,     "Closed user group interlock code"},
 /*  27 */  { 27,                                   "Not used"},
 /*  28 */  { 28,                                   "Not used"},
@@ -2142,38 +2144,40 @@ static const value_string isup_screening_ind_enhanced_value[] = {
   { 0,     NULL}};
 
 static const value_string isup_called_party_address_digit_value[] = {
-  { 0,  "0"},
-  { 1,  "1"},
-  { 2,  "2"},
-  { 3,  "3"},
-  { 4,  "4"},
-  { 5,  "5"},
-  { 6,  "6"},
-  { 7,  "7"},
-  { 8,  "8"},
-  { 9,  "9"},
+  {  0, "0"},
+  {  1, "1"},
+  {  2, "2"},
+  {  3, "3"},
+  {  4, "4"},
+  {  5, "5"},
+  {  6, "6"},
+  {  7, "7"},
+  {  8, "8"},
+  {  9, "9"},
   { 10, "spare"},
   { 11, "code 11 "},
   { 12, "code 12"},
   { 15, "Stop sending"},
   { 0,  NULL}};
+static value_string_ext isup_called_party_address_digit_value_ext = VALUE_STRING_EXT_INIT(isup_called_party_address_digit_value);
 
 static const value_string isup_calling_party_address_digit_value[] = {
-  { 0,  "0"},
-  { 1,  "1"},
-  { 2,  "2"},
-  { 3,  "3"},
-  { 4,  "4"},
-  { 5,  "5"},
-  { 6,  "6"},
-  { 7,  "7"},
-  { 8,  "8"},
-  { 9,  "9"},
+  {  0, "0"},
+  {  1, "1"},
+  {  2, "2"},
+  {  3, "3"},
+  {  4, "4"},
+  {  5, "5"},
+  {  6, "6"},
+  {  7, "7"},
+  {  8, "8"},
+  {  9, "9"},
   { 10, "spare"},
   { 11, "code 11 "},
   { 12, "code 12"},
   { 15, "spare"},
   { 0,  NULL}};
+static value_string_ext isup_calling_party_address_digit_value_ext = VALUE_STRING_EXT_INIT(isup_calling_party_address_digit_value);
 
 /*End of Called/Calling party address definitions */
 
@@ -2188,11 +2192,11 @@ static const value_string isup_calling_party_address_digit_value[] = {
 #define CARRIER_INFO_IEC_TRANSFER_BACK                 2
 #define CARRIER_INFO_IEC_TRANSFER_BOTH_DIR             3
 static const value_string isup_carrier_info_iec_indic_value[] = {
-  { CARRIER_INFO_IEC_NO_TRANSFER, "No transfer"},
-  { CARRIER_INFO_IEC_TRANSFER_FORW,"Transfer in forward direction"},
-  { CARRIER_INFO_IEC_TRANSFER_BACK,"Transfer in backward direction"},
-  { CARRIER_INFO_IEC_TRANSFER_BOTH_DIR,"Transfer in both directions"},
-  { 0,NULL}};
+  { CARRIER_INFO_IEC_NO_TRANSFER,       "No transfer"},
+  { CARRIER_INFO_IEC_TRANSFER_FORW,     "Transfer in forward direction"},
+  { CARRIER_INFO_IEC_TRANSFER_BACK,     "Transfer in backward direction"},
+  { CARRIER_INFO_IEC_TRANSFER_BOTH_DIR, "Transfer in both directions"},
+  { 0, NULL}};
 
 
 /*      CATEGORY OF CARRIER    */
@@ -2203,13 +2207,13 @@ static const value_string isup_carrier_info_iec_indic_value[] = {
 #define CARRIER_INFO_CATEGORY_IEC                0xFE
 #define CARRIER_INFO_CATEGORY_SPARE              0xFF
 static const value_string isup_carrier_info_category_value[] = {
-  { CARRIER_INFO_CATEGORY_SCPC, "(Service Control Point Carrier)"},
-  { CARRIER_INFO_CATEGORY_OLEC, "(Originating Local Exchange Carrier)"},
-  { CARRIER_INFO_CATEGORY_TLEC, "(Terminating Local Exchange Carrier)"},
-  { CARRIER_INFO_CATEGORY_CIEC, "(Chosen Inter|Exchange Carrier)"},
-  { CARRIER_INFO_CATEGORY_IEC, "(Inter|Exchange Carrier)"},
+  { CARRIER_INFO_CATEGORY_SCPC,  "(Service Control Point Carrier)"},
+  { CARRIER_INFO_CATEGORY_OLEC,  "(Originating Local Exchange Carrier)"},
+  { CARRIER_INFO_CATEGORY_TLEC,  "(Terminating Local Exchange Carrier)"},
+  { CARRIER_INFO_CATEGORY_CIEC,  "(Chosen Inter|Exchange Carrier)"},
+  { CARRIER_INFO_CATEGORY_IEC,   "(Inter|Exchange Carrier)"},
   { CARRIER_INFO_CATEGORY_SPARE, "Spare"},
-  { 0,NULL}};
+  { 0, NULL}};
 static value_string_ext isup_carrier_info_category_vals_ext = VALUE_STRING_EXT_INIT(isup_carrier_info_category_value);
 
 /* TYPE OF CARRIER INFORMATION */
@@ -2219,10 +2223,10 @@ static value_string_ext isup_carrier_info_category_vals_ext = VALUE_STRING_EXT_I
 #define CARRIER_INFO_TYPE_OF_CARRIER_SPARE       0xFF
 static const value_string isup_carrier_info_type_of_carrier_value[] = {
   { CARRIER_INFO_TYPE_OF_CARRIER_POIHIE, "POI Hierarchy information"},
-  { CARRIER_INFO_TYPE_OF_CARRIER_POICA, "POI|CA information (Charge Area)"},
-  { CARRIER_INFO_TYPE_OF_CARRIER_CARID, "Carrier identification (ID) code"},
-  { CARRIER_INFO_TYPE_OF_CARRIER_SPARE, "Spare"},
-  { 0,NULL}};
+  { CARRIER_INFO_TYPE_OF_CARRIER_POICA,  "POI|CA information (Charge Area)"},
+  { CARRIER_INFO_TYPE_OF_CARRIER_CARID,  "Carrier identification (ID) code"},
+  { CARRIER_INFO_TYPE_OF_CARRIER_SPARE,  "Spare"},
+  { 0, NULL}};
 static value_string_ext isup_carrier_info_type_of_carrier_vals_ext = VALUE_STRING_EXT_INIT(isup_carrier_info_type_of_carrier_value);
 
 /* POI/HIE */
@@ -2231,10 +2235,11 @@ static value_string_ext isup_carrier_info_type_of_carrier_vals_ext = VALUE_STRIN
 #define CARRIER_INFO_POIHIE_HIE2                 2
 static const value_string isup_carrier_info_poihie_value[] = {
   { CARRIER_INFO_POIHIE_NOINDIC, "No indication"},
-  { CARRIER_INFO_POIHIE_HIE1, "Hierarchy level 1"},
-  { CARRIER_INFO_POIHIE_HIE2, "Hierarchy level 2"},
-  { 0,NULL}};
+  { CARRIER_INFO_POIHIE_HIE1,    "Hierarchy level 1"},
+  { CARRIER_INFO_POIHIE_HIE2,    "Hierarchy level 2"},
+  { 0, NULL}};
 
+#if 0
 /* POICA */
 /* ODD/EVEN */
 #define CARRIER_INFO_CA_OE_0                  0
@@ -2242,8 +2247,10 @@ static const value_string isup_carrier_info_poihie_value[] = {
 static const value_string isup_carrier_info_poica_oe_value[] = {
   { CARRIER_INFO_CA_OE_0, "Reserved"},
   { CARRIER_INFO_CA_OE_1, "Odd number of charge area digits"},
-  { 0,NULL}};
+  { 0, NULL}};
+#endif
 
+#if 0
 /* CARID */
 /* ODD/EVEN */
 #define CARRIER_INFO_CARID_OE_0                  0
@@ -2251,7 +2258,8 @@ static const value_string isup_carrier_info_poica_oe_value[] = {
 static const value_string isup_carrier_info_carid_oe_value[] = {
   { CARRIER_INFO_CARID_OE_0, "Even number of ID code digits"},
   { CARRIER_INFO_CARID_OE_1, "Odd number of ID code digits"},
-  { 0,NULL}};
+  { 0, NULL}};
+#endif
 
 /* CARRIER INFORMATION DIGITS */
 #define CARRIER_INFO_DIGIT_0                  0
@@ -2275,25 +2283,27 @@ static const value_string isup_carrier_info_digits_value[] = {
   { CARRIER_INFO_DIGIT_7, "Digit 7"},
   { CARRIER_INFO_DIGIT_8, "Digit 8"},
   { CARRIER_INFO_DIGIT_9, "Digit 9"},
-  { 0,NULL}};
+  { 0, NULL}};
 
 /*******************************/
 /*    CHARGE AREA INFORMATION  */
 /*******************************/
+#if 0
 /* ODD/EVEN */
 #define CHARGE_AREA_INFO_OE_0                  0
 #define CHARGE_AREA_INFO_OE_1                  1
 static const value_string isup_charge_area_info_oe_value[] = {
   { CHARGE_AREA_INFO_OE_0, "Even number of Charge Area digits"},
   { CHARGE_AREA_INFO_OE_1, "Odd number of Charge Area code digits"},
-  { 0,NULL}};
+  { 0, NULL}};
+#endif
 
 #define CHARGE_AREA_NAT_INFO_MA                0
 #define CHARGE_AREA_NAT_INFO_CA                1
 static const value_string isup_charge_area_info_nat_of_info_value[] = {
   { CHARGE_AREA_NAT_INFO_MA, "MA code (and optionally NC)"},
   { CHARGE_AREA_NAT_INFO_CA, "CA code"},
-  { 0,NULL}};
+  { 0, NULL}};
 
 static const true_false_string isup_calling_party_address_request_ind_value = {
   "calling party address requested",
@@ -2320,10 +2330,10 @@ static const true_false_string isup_malicious_call_identification_request_ind_va
 #define CALLING_PARTY_ADDRESS_NOT_AVAILABLE            1
 #define CALLING_PARTY_ADDRESS_INCLUDED                 3
 static const value_string isup_calling_party_address_response_ind_value[] = {
-  { CALLING_PARTY_ADDRESS_NOT_INCLUDED, "Calling party address not included"},
-  { CALLING_PARTY_ADDRESS_NOT_AVAILABLE,"Calling party address not available"},
-  { 4,                                  "spare"},
-  { CALLING_PARTY_ADDRESS_INCLUDED,     "Calling party address included"},
+  { CALLING_PARTY_ADDRESS_NOT_INCLUDED,  "Calling party address not included"},
+  { CALLING_PARTY_ADDRESS_NOT_AVAILABLE, "Calling party address not available"},
+  { 4,                                   "spare"},
+  { CALLING_PARTY_ADDRESS_INCLUDED,      "Calling party address included"},
   { 0,                                 NULL}};
 
 static const true_false_string isup_hold_provided_ind_value = {
@@ -2450,12 +2460,12 @@ static const value_string isup_HW_blocking_state_value[] = {
 #define EVENT_UNCONDITIONAL 6
 static const value_string isup_event_ind_value[] = {
   /* according 3.21/Q.763 */
-  {  EVENT_ALERTING,     "ALERTING"},
-  {  EVENT_PROGRESS,     "PROGRESS"},
-  {  EVENT_INBAND_INFO,  "in-band information or an appropriate pattern is now available"},
-  {  EVENT_ON_BUSY,      "call forwarded on busy (national use)"},
-  {  EVENT_ON_NO_REPLY,  "call forwarded on no reply (national use)"},
-  {  EVENT_UNCONDITIONAL,"call forwarded unconditional (national use)"},
+  {  EVENT_ALERTING,      "ALERTING"},
+  {  EVENT_PROGRESS,      "PROGRESS"},
+  {  EVENT_INBAND_INFO,   "in-band information or an appropriate pattern is now available"},
+  {  EVENT_ON_BUSY,       "call forwarded on busy (national use)"},
+  {  EVENT_ON_NO_REPLY,   "call forwarded on no reply (national use)"},
+  {  EVENT_UNCONDITIONAL, "call forwarded unconditional (national use)"},
   {  0,                NULL}};
 
 static const true_false_string isup_event_presentation_restricted_ind_value = {
@@ -2650,57 +2660,57 @@ static const true_false_string isup_Sequence_ind_value = {
 
 
 /* Generalized bit masks for 8 and 16 bits fields */
-#define A_8BIT_MASK  0x01
-#define B_8BIT_MASK  0x02
-#define C_8BIT_MASK  0x04
-#define D_8BIT_MASK  0x08
-#define E_8BIT_MASK  0x10
-#define F_8BIT_MASK  0x20
-#define G_8BIT_MASK  0x40
-#define H_8BIT_MASK  0x80
+#define A_8BIT_MASK       0x01
+#define B_8BIT_MASK       0x02
+#define C_8BIT_MASK       0x04
+#define D_8BIT_MASK       0x08
+#define E_8BIT_MASK       0x10
+#define F_8BIT_MASK       0x20
+#define G_8BIT_MASK       0x40
+#define H_8BIT_MASK       0x80
 
-#define BA_8BIT_MASK 0x03
-#define CB_8BIT_MASK 0x06
-#define DC_8BIT_MASK 0x0C
-#define ED_8BIT_MASK 0x18
-#define FE_8BIT_MASK 0x30
-#define GF_8BIT_MASK 0x60
-#define HG_8BIT_MASK 0xC0
-#define GFE_8BIT_MASK 0x70
-#define HGF_8BIT_MASK 0xE0
-#define DCBA_8BIT_MASK 0x0F
-#define EDCBA_8BIT_MASK 0x1F
-#define HGFE_8BIT_MASK 0xF0
+#define BA_8BIT_MASK      0x03
+#define CB_8BIT_MASK      0x06
+#define DC_8BIT_MASK      0x0C
+#define ED_8BIT_MASK      0x18
+#define FE_8BIT_MASK      0x30
+#define GF_8BIT_MASK      0x60
+#define HG_8BIT_MASK      0xC0
+#define GFE_8BIT_MASK     0x70
+#define HGF_8BIT_MASK     0xE0
+#define DCBA_8BIT_MASK    0x0F
+#define EDCBA_8BIT_MASK   0x1F
+#define HGFE_8BIT_MASK    0xF0
 #define GFEDCBA_8BIT_MASK 0x7F
-#define FEDCBA_8BIT_MASK 0x3F
+#define FEDCBA_8BIT_MASK  0x3F
 
-#define A_16BIT_MASK  0x0100
-#define B_16BIT_MASK  0x0200
-#define C_16BIT_MASK  0x0400
-#define D_16BIT_MASK  0x0800
-#define E_16BIT_MASK  0x1000
-#define F_16BIT_MASK  0x2000
-#define G_16BIT_MASK  0x4000
-#define H_16BIT_MASK  0x8000
-#define I_16BIT_MASK  0x0001
-#define J_16BIT_MASK  0x0002
-#define K_16BIT_MASK  0x0004
-#define L_16BIT_MASK  0x0008
-#define M_16BIT_MASK  0x0010
-#define N_16BIT_MASK  0x0020
-#define O_16BIT_MASK  0x0040
-#define P_16BIT_MASK  0x0080
+#define A_16BIT_MASK    0x0100
+#define B_16BIT_MASK    0x0200
+#define C_16BIT_MASK    0x0400
+#define D_16BIT_MASK    0x0800
+#define E_16BIT_MASK    0x1000
+#define F_16BIT_MASK    0x2000
+#define G_16BIT_MASK    0x4000
+#define H_16BIT_MASK    0x8000
+#define I_16BIT_MASK    0x0001
+#define J_16BIT_MASK    0x0002
+#define K_16BIT_MASK    0x0004
+#define L_16BIT_MASK    0x0008
+#define M_16BIT_MASK    0x0010
+#define N_16BIT_MASK    0x0020
+#define O_16BIT_MASK    0x0040
+#define P_16BIT_MASK    0x0080
 
-#define BA_16BIT_MASK 0x0300
-#define CB_16BIT_MASK 0x0600
-#define DC_16BIT_MASK 0x0C00
-#define FE_16BIT_MASK 0x3000
-#define HG_16BIT_MASK 0xC000
-#define KJ_16BIT_MASK 0x0006
-#define PO_16BIT_MASK 0x00C0
+#define BA_16BIT_MASK   0x0300
+#define CB_16BIT_MASK   0x0600
+#define DC_16BIT_MASK   0x0C00
+#define FE_16BIT_MASK   0x3000
+#define HG_16BIT_MASK   0xC000
+#define KJ_16BIT_MASK   0x0006
+#define PO_16BIT_MASK   0x00C0
 
-#define CBA_16BIT_MASK 0x0700
-#define KJI_16BIT_MASK 0x0007
+#define CBA_16BIT_MASK  0x0700
+#define KJI_16BIT_MASK  0x0007
 #define HGFE_16BIT_MASK 0xF000
 #define PONM_16BIT_MASK 0x00F0
 
@@ -3039,6 +3049,7 @@ static gint ett_isup_apm_msg_fragment = -1;
 static gint ett_isup_apm_msg_fragments = -1;
 static gint ett_isup_range = -1;
 
+static dissector_handle_t bicc_handle;
 
 static dissector_handle_t sdp_handle = NULL;
 static dissector_handle_t q931_ie_handle = NULL;
@@ -3069,15 +3080,14 @@ static const fragment_items isup_apm_msg_frag_items = {
   "ISUP APM Message fragments"
 };
 
-static GHashTable *isup_apm_msg_fragment_table = NULL;
-static GHashTable *isup_apm_msg_reassembled_table = NULL;
+static reassembly_table isup_apm_msg_reassembly_table;
 
 
 static void
 isup_apm_defragment_init(void)
 {
-  fragment_table_init (&isup_apm_msg_fragment_table);
-  reassembled_table_init(&isup_apm_msg_reassembled_table);
+  reassembly_table_init (&isup_apm_msg_reassembly_table,
+                         &addresses_reassembly_table_functions);
 }
 
 /* Info for the tap that must be passed between procedures */
@@ -3146,9 +3156,9 @@ dissect_isup_nature_of_connection_indicators_parameter(tvbuff_t *parameter_tvb, 
 
   nature_of_connection_ind = tvb_get_guint8(parameter_tvb, 0);
   proto_tree_add_item(parameter_tree, hf_isup_satellite_indicator,
-                         parameter_tvb, 0,NATURE_OF_CONNECTION_IND_LENGTH, ENC_BIG_ENDIAN);
+                         parameter_tvb, 0, NATURE_OF_CONNECTION_IND_LENGTH, ENC_BIG_ENDIAN);
   proto_tree_add_uint(parameter_tree, hf_isup_continuity_check_indicator,
-                         parameter_tvb, 0,NATURE_OF_CONNECTION_IND_LENGTH, nature_of_connection_ind);
+                         parameter_tvb, 0, NATURE_OF_CONNECTION_IND_LENGTH, nature_of_connection_ind);
   proto_tree_add_boolean(parameter_tree, hf_isup_echo_control_device_indicator,
                          parameter_tvb, 0,  NATURE_OF_CONNECTION_IND_LENGTH, nature_of_connection_ind);
 
@@ -3159,7 +3169,7 @@ dissect_isup_nature_of_connection_indicators_parameter(tvbuff_t *parameter_tvb, 
  Dissector Parameter Forward Call Indicators
  */
 static void
-dissect_isup_forward_call_indicators_parameter(tvbuff_t *parameter_tvb,proto_tree *parameter_tree, proto_item *parameter_item)
+dissect_isup_forward_call_indicators_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 {
   guint16 forward_call_ind;
 
@@ -3192,13 +3202,13 @@ dissect_isup_forward_call_indicators_parameter(tvbuff_t *parameter_tvb,proto_tre
  Dissector Parameter Calling Party's Category
  */
 static void
-dissect_isup_calling_partys_category_parameter(tvbuff_t *parameter_tvb,proto_tree *parameter_tree, proto_item *parameter_item, guint8 itu_isup_variant)
+dissect_isup_calling_partys_category_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item, guint8 itu_isup_variant)
 {
   guint8 calling_partys_category;
 
   calling_partys_category = tvb_get_guint8(parameter_tvb, 0);
 
-  if(itu_isup_variant == ISUP_RUSSIAN_VARIANT){
+  if (itu_isup_variant == ISUP_RUSSIAN_VARIANT) {
       proto_tree_add_uint(parameter_tree, hf_russian_isup_calling_partys_category,
                           parameter_tvb, 0, CALLING_PRTYS_CATEGORY_LENGTH, calling_partys_category);
 
@@ -3208,7 +3218,7 @@ dissect_isup_calling_partys_category_parameter(tvbuff_t *parameter_tvb,proto_tre
           &russian_isup_calling_partys_category_value_ext,
           "reserved/spare"));
 
-  }else{
+  } else {
       proto_tree_add_uint(parameter_tree, hf_isup_calling_partys_category,
                           parameter_tvb, 0, CALLING_PRTYS_CATEGORY_LENGTH, calling_partys_category);
 
@@ -3231,9 +3241,9 @@ dissect_isup_transmission_medium_requirement_parameter(tvbuff_t *parameter_tvb, 
 
   transmission_medium_requirement = tvb_get_guint8(parameter_tvb, 0);
   proto_tree_add_uint(parameter_tree, hf_isup_transmission_medium_requirement,
-                      parameter_tvb, 0, TRANSMISSION_MEDIUM_REQUIREMENT_LENGTH,transmission_medium_requirement);
+                      parameter_tvb, 0, TRANSMISSION_MEDIUM_REQUIREMENT_LENGTH, transmission_medium_requirement);
 
-  proto_item_set_text(parameter_item, "Transmission medium requirement: %u (%s)",  transmission_medium_requirement,
+  proto_item_set_text(parameter_item, "Transmission medium requirement: %u (%s)", transmission_medium_requirement,
                       val_to_str_ext_const(transmission_medium_requirement, &isup_transmission_medium_requirement_value_ext, "spare"));
 }
 /* ------------------------------------------------------------------
@@ -3273,7 +3283,7 @@ dissect_isup_called_party_number_parameter(tvbuff_t *parameter_tvb, proto_tree *
                                             offset, -1, "Called Party Number");
   address_digits_tree = proto_item_add_subtree(address_digits_item, ett_isup_address_digits);
 
-  while((length = tvb_reported_length_remaining(parameter_tvb, offset)) > 0) {
+  while ((length = tvb_reported_length_remaining(parameter_tvb, offset)) > 0) {
     address_digit_pair = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_uint(address_digits_tree, hf_isup_called_party_odd_address_signal_digit,
                         parameter_tvb, offset, 1, address_digit_pair);
@@ -3287,7 +3297,7 @@ dissect_isup_called_party_number_parameter(tvbuff_t *parameter_tvb, proto_tree *
       if (i > MAXDIGITS)
         THROW(ReportedBoundsError);
     }
-    offset++;
+    offset += 1;
   }
   if  (((indicators1 & 0x80) == 0) && (tvb_length(parameter_tvb) > 0)) { /* Even Indicator set -> last even digit is valid */
     proto_tree_add_uint(address_digits_tree, hf_isup_called_party_even_address_signal_digit,
@@ -3313,7 +3323,7 @@ dissect_isup_called_party_number_parameter(tvbuff_t *parameter_tvb, proto_tree *
     proto_tree_add_string(address_digits_tree, hf_isup_called, parameter_tvb,
                           offset - length, length, called_number);
   }
-  tap_called_number = ep_strdup(called_number);
+  tap_called_number = wmem_strdup(wmem_packet_scope(), called_number);
 }
 /* ------------------------------------------------------------------
   Dissector Parameter  Subsequent number
@@ -3339,7 +3349,7 @@ dissect_isup_subsequent_number_parameter(tvbuff_t *parameter_tvb, proto_tree *pa
                                             "Subsequent Number");
   address_digits_tree = proto_item_add_subtree(address_digits_item, ett_isup_address_digits);
 
-  while((length = tvb_reported_length_remaining(parameter_tvb, offset)) > 0) {
+  while ((length = tvb_reported_length_remaining(parameter_tvb, offset)) > 0) {
     address_digit_pair = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_uint(address_digits_tree, hf_isup_called_party_odd_address_signal_digit,
                         parameter_tvb, offset, 1, address_digit_pair);
@@ -3353,7 +3363,7 @@ dissect_isup_subsequent_number_parameter(tvbuff_t *parameter_tvb, proto_tree *pa
       if (i > MAXDIGITS)
         THROW(ReportedBoundsError);
     }
-    offset++;
+    offset += 1;
   }
 
   if (((indicators1 & 0x80) == 0) && (tvb_length(parameter_tvb) > 0)) {
@@ -3431,7 +3441,7 @@ dissect_isup_continuity_indicators_parameter(tvbuff_t *parameter_tvb, proto_tree
  Dissector Parameter Backward Call Indicators
  */
 static void
-dissect_isup_backward_call_indicators_parameter(tvbuff_t *parameter_tvb,proto_tree *parameter_tree, proto_item *parameter_item)
+dissect_isup_backward_call_indicators_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 {
   guint16 backward_call_ind;
 
@@ -3751,8 +3761,8 @@ static const value_string ansi_isup_coding_standard_vals[] = {
 void
 dissect_isup_cause_indicators_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 { guint length = tvb_reported_length(parameter_tvb);
-  proto_tree_add_text(parameter_tree, parameter_tvb,0, -1, "Cause indicators (-> Q.850)");
-  dissect_q931_cause_ie(parameter_tvb,0,length,
+  proto_tree_add_text(parameter_tree, parameter_tvb, 0, -1, "Cause indicators (-> Q.850)");
+  dissect_q931_cause_ie(parameter_tvb, 0, length,
                         parameter_tree,
                         hf_isup_cause_indicator, &tap_cause_value, isup_parameter_type_value);
   proto_item_set_text(parameter_item, "Cause indicators, see Q.850 (%u byte%s length)", length , plurality(length, "", "s"));
@@ -3774,30 +3784,30 @@ dissect_ansi_isup_cause_indicators_parameter(tvbuff_t *parameter_tvb, proto_tree
       proto_tree_add_item(parameter_tree, hf_isup_cause_location, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
       proto_tree_add_item(parameter_tree, hf_ansi_isup_coding_standard, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
       proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-      offset ++;
-      length--;
+      offset += 1;
+      length -= 1;
       if (length == 0)
         return;
       proto_tree_add_item(parameter_tree, hf_isup_cause_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
       cause_value = tvb_get_guint8(parameter_tvb, offset)&0x7f;
-      offset ++;
-      length--;
+      offset += 1;
+      length -= 1;
       proto_item_set_text(parameter_item, "Cause indicators: %s (%u)",
-                          val_to_str_ext_const(cause_value, &q850_cause_code_vals_ext, "spare"),cause_value);
+                          val_to_str_ext_const(cause_value, &q850_cause_code_vals_ext, "spare"), cause_value);
       if (length == 0) {
         return;
       }
       proto_tree_add_text(parameter_tree, parameter_tvb, offset,
                           length, "Diagnostic: %s",
-                          tvb_bytes_to_str(parameter_tvb, offset, length));
+                          tvb_bytes_to_ep_str(parameter_tvb, offset, length));
       return;
     case 2:
       /*ANSI*/
       proto_tree_add_item(parameter_tree, hf_isup_cause_location, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
       proto_tree_add_item(parameter_tree, hf_ansi_isup_coding_standard, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
       proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-      offset ++;
-      length--;
+      offset += 1;
+      length -= 1;
       if (length == 0)
         return;
       proto_tree_add_item(parameter_tree, hf_ansi_isup_cause_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -3805,14 +3815,14 @@ dissect_ansi_isup_cause_indicators_parameter(tvbuff_t *parameter_tvb, proto_tree
       proto_item_set_text(parameter_item, "Cause indicators: %s (%u)",
                           val_to_str_ext_const(cause_value, &ansi_isup_cause_code_vals_ext, "spare"),
                           cause_value);
-      offset ++;
-      length--;
+      offset += 1;
+      length -= 1;
       if (length == 0) {
         return;
       }
       proto_tree_add_text(parameter_tree, parameter_tvb, offset,
                           length, "Diagnostic: %s",
-                          tvb_bytes_to_str(parameter_tvb, offset, length));
+                          tvb_bytes_to_ep_str(parameter_tvb, offset, length));
       return;
     default:
       proto_tree_add_item(parameter_tree, hf_ansi_isup_coding_standard, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -3851,15 +3861,15 @@ dissect_isup_range_and_status_parameter(tvbuff_t *parameter_tvb, proto_tree *par
   offset = offset + RANGE_LENGTH;
 
   actual_status_length = tvb_reported_length_remaining(parameter_tvb, offset);
-  if (actual_status_length > 0){
+  if (actual_status_length > 0) {
     item = proto_tree_add_text(parameter_tree, parameter_tvb , offset, -1, "Status subfield");
-	range_tree = proto_item_add_subtree(item, ett_isup_range);
-	if(range<9){
-		proto_tree_add_text(range_tree, parameter_tvb , offset, 1, "Bit %u %s bit 1",
-			range, 
-			decode_bits_in_field(8-range, range, tvb_get_guint8(parameter_tvb,offset)));
-	}
-  }else{
+    range_tree = proto_item_add_subtree(item, ett_isup_range);
+    if (range<9) {
+      proto_tree_add_text(range_tree, parameter_tvb , offset, 1, "Bit %u %s bit 1",
+                          range,
+                          decode_bits_in_field(8-range, range, tvb_get_guint8(parameter_tvb, offset)));
+    }
+  } else {
     proto_tree_add_text(parameter_tree, parameter_tvb , 0, 0, "Status subfield is not present with this message type");
   }
 
@@ -3877,7 +3887,7 @@ dissect_isup_circuit_group_supervision_message_type_parameter(tvbuff_t *paramete
   proto_tree_add_uint(parameter_tree, hf_isup_cgs_message_type, parameter_tvb, 0, CIRC_GRP_SV_MSG_TYPE_LENGTH, cgs_message_type);
 
   proto_item_set_text(parameter_item, "Circuit group supervision message type: %s (%u)",
-                      val_to_str_const(cgs_message_type, isup_cgs_message_type_value,"unknown"), cgs_message_type);
+                      val_to_str_const(cgs_message_type, isup_cgs_message_type_value, "unknown"), cgs_message_type);
 }
 /* ------------------------------------------------------------------
   Dissector Parameter Facility indicator parameter
@@ -3889,7 +3899,7 @@ dissect_isup_facility_ind_parameter(tvbuff_t *parameter_tvb, proto_item *paramet
 
   indicator = tvb_get_guint8(parameter_tvb, 0);
 
-  proto_item_set_text(parameter_item, "Facility indicator: %s (%u)"  ,val_to_str_const(indicator, isup_facility_ind_value,"spare"), indicator);
+  proto_item_set_text(parameter_item, "Facility indicator: %s (%u)"  , val_to_str_const(indicator, isup_facility_ind_value, "spare"), indicator);
 }
 /* ------------------------------------------------------------------
   Dissector Parameter Circuit state indicator
@@ -3903,7 +3913,7 @@ dissect_isup_circuit_state_ind_parameter(tvbuff_t *parameter_tvb, proto_tree *pa
   gint        offset = 0;
   gint        i      = 0;
 
-  while(tvb_reported_length_remaining(parameter_tvb, offset) > 0) {
+  while (tvb_reported_length_remaining(parameter_tvb, offset) > 0) {
     circuit_state_item = proto_tree_add_text(parameter_tree, parameter_tvb,
                                              offset, -1,
                                              "Circuit# CIC+%u state", i);
@@ -3920,7 +3930,7 @@ dissect_isup_circuit_state_ind_parameter(tvbuff_t *parameter_tvb, proto_tree *pa
       proto_tree_add_uint(circuit_state_tree, hf_isup_hw_blocking_state, parameter_tvb, offset, 1, circuit_state);
       proto_item_set_text(circuit_state_item, "Circuit# CIC+%u state: %s", i++, val_to_str_const(circuit_state&BA_8BIT_MASK, isup_mtc_blocking_state_DCnot00_value, "unknown"));
     }
-    offset++;
+    offset += 1;
   }
   proto_item_set_text(parameter_item, "Circuit state indicator (national use)");
 }
@@ -3933,13 +3943,13 @@ dissect_isup_event_information_parameter(tvbuff_t *parameter_tvb, proto_tree *pa
   guint8 indicators;
 
   indicators = tvb_get_guint8(parameter_tvb, 0);
-  proto_tree_add_uint_format(parameter_tree, hf_isup_event_ind, parameter_tvb, 0, EVENT_INFO_LENGTH, indicators,
-                             "Event indicator: %s (%u)",
+  proto_tree_add_uint_format_value(parameter_tree, hf_isup_event_ind, parameter_tvb, 0, EVENT_INFO_LENGTH, indicators,
+                             "%s (%u)",
                              val_to_str_const(indicators & GFEDCBA_8BIT_MASK, isup_event_ind_value, "spare"),
                              indicators & GFEDCBA_8BIT_MASK);
   proto_tree_add_boolean(parameter_tree, hf_isup_event_presentation_restricted_ind, parameter_tvb, 0, EVENT_INFO_LENGTH, indicators);
 
-  proto_item_set_text(parameter_item,"Event information: %s (%u)", val_to_str_const(indicators & GFEDCBA_8BIT_MASK, isup_event_ind_value, "spare"),indicators);
+  proto_item_set_text(parameter_item, "Event information: %s (%u)", val_to_str_const(indicators & GFEDCBA_8BIT_MASK, isup_event_ind_value, "spare"), indicators);
 }
 /* ------------------------------------------------------------------
   Dissector Parameter User-to-user information- no detailed dissection since defined in Rec. Q.931
@@ -4070,7 +4080,7 @@ static const value_string iana_icp_values[] = {
  * "print_nsap_net_buf()" and "print_nsap_net()" in epan/osi_utils.c.
  */
 void
-dissect_nsap(tvbuff_t *parameter_tvb,gint offset,gint len, proto_tree *parameter_tree)
+dissect_nsap(tvbuff_t *parameter_tvb, gint offset, gint len, proto_tree *parameter_tree)
 {
   guint8 afi;
   guint8 length = 0;
@@ -4081,7 +4091,7 @@ dissect_nsap(tvbuff_t *parameter_tvb,gint offset,gint len, proto_tree *parameter
   switch (afi) {
     case 0x35:  /* IANA ICP Binary fortmat*/
       proto_tree_add_text(parameter_tree, parameter_tvb, offset, 3,
-                          "IDP = %s", tvb_bytes_to_str(parameter_tvb, offset, 3));
+                          "IDP = %s", tvb_bytes_to_ep_str(parameter_tvb, offset, 3));
 
       proto_tree_add_uint(parameter_tree, hf_afi, parameter_tvb, offset, 1, afi);
       offset = offset + 1;
@@ -4089,7 +4099,7 @@ dissect_nsap(tvbuff_t *parameter_tvb,gint offset,gint len, proto_tree *parameter
       proto_tree_add_uint(parameter_tree, hf_iana_icp, parameter_tvb, offset, 1, icp);
       if (icp == 0) { /* IPv6 addr */
         proto_tree_add_text(parameter_tree, parameter_tvb, offset + 2 , 17,
-                            "DSP = %s", tvb_bytes_to_str(parameter_tvb, offset + 2, 17));
+                            "DSP = %s", tvb_bytes_to_ep_str(parameter_tvb, offset + 2, 17));
         proto_tree_add_item(parameter_tree, hf_nsap_ipv6_addr, parameter_tvb, offset + 2,
                             16, ENC_NA);
 
@@ -4097,7 +4107,7 @@ dissect_nsap(tvbuff_t *parameter_tvb,gint offset,gint len, proto_tree *parameter
       else { /* IPv4 addr */
         /* XXX - this is really only for ICP 1 */
         proto_tree_add_text(parameter_tree, parameter_tvb, offset + 2, 17,
-                            "DSP = %s", tvb_bytes_to_str(parameter_tvb, offset + 2, 17));
+                            "DSP = %s", tvb_bytes_to_ep_str(parameter_tvb, offset + 2, 17));
         proto_tree_add_item(parameter_tree, hf_nsap_ipv4_addr, parameter_tvb, offset + 2, 4, ENC_BIG_ENDIAN);
       }
 
@@ -4105,20 +4115,20 @@ dissect_nsap(tvbuff_t *parameter_tvb,gint offset,gint len, proto_tree *parameter
     case 0x45:  /* E.164 ATM format */
     case 0xC3:  /* E.164 ATM group format */
       proto_tree_add_text(parameter_tree, parameter_tvb, offset, 9,
-                          "IDP = %s", tvb_bytes_to_str(parameter_tvb, offset, 9));
+                          "IDP = %s", tvb_bytes_to_ep_str(parameter_tvb, offset, 9));
 
       proto_tree_add_uint(parameter_tree, hf_afi, parameter_tvb, offset, 1, afi);
 
       proto_tree_add_text(parameter_tree, parameter_tvb, offset + 1, 8,
-                          "IDI = %s", tvb_bytes_to_str(parameter_tvb, offset + 1, 8));
+                          "IDI = %s", tvb_bytes_to_ep_str(parameter_tvb, offset + 1, 8));
       offset = offset +1;
       /* Dissect country code */
       cc_offset = offset;
       dissect_e164_cc(parameter_tvb, parameter_tree, 3, TRUE);
 
-      proto_tree_add_text(parameter_tree,parameter_tvb, cc_offset, length,"DSP length %u(len %u -9)",(len-9),len);
+      proto_tree_add_text(parameter_tree, parameter_tvb, cc_offset, length, "DSP length %u(len %u -9)", (len-9), len);
 
-      proto_tree_add_item(parameter_tree, hf_bicc_nsap_dsp, parameter_tvb, offset + 8, (len - 9),ENC_NA);
+      proto_tree_add_item(parameter_tree, hf_bicc_nsap_dsp, parameter_tvb, offset + 8, (len - 9), ENC_NA);
 
       break;
     default:
@@ -4298,6 +4308,7 @@ static const value_string ETSI_codec_type_subfield_vals[] = {
 };
 static value_string_ext ETSI_codec_type_subfield_vals_ext = VALUE_STRING_EXT_INIT(ETSI_codec_type_subfield_vals);
 
+#if 0
 static const value_string bat_initial_codec_mode_vals[] = {
   {0x7, "12.2 kbps"},
   {0x6, "10.2 kbps"},
@@ -4309,6 +4320,7 @@ static const value_string bat_initial_codec_mode_vals[] = {
   {0x0, "4.75 kbps"},
   {0, NULL}
 };
+#endif
 
 static const value_string optimisation_mode_vals[] = {
   { 0,  "Optimisation of the ACS not supported,"},
@@ -4517,7 +4529,7 @@ extern int dissect_codec_mode(proto_tree *tree, tvbuff_t *tvb, int offset, int l
         offset = offset + 1;
 
         acs_item = proto_tree_add_item(tree, hf_active_code_set, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-        acs_tree = proto_item_add_subtree(acs_item,ett_acs);
+        acs_tree = proto_item_add_subtree(acs_item, ett_acs);
         proto_tree_add_item(acs_tree, hf_active_code_set_12_2, tvb, offset, 1, ENC_LITTLE_ENDIAN);
         proto_tree_add_item(acs_tree, hf_active_code_set_10_2, tvb, offset, 1, ENC_LITTLE_ENDIAN);
         proto_tree_add_item(acs_tree, hf_active_code_set_7_95, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -4532,7 +4544,7 @@ extern int dissect_codec_mode(proto_tree *tree, tvbuff_t *tvb, int offset, int l
         offset = offset + 1;
 
         scs_item = proto_tree_add_item(tree, hf_supported_code_set, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-        scs_tree = proto_item_add_subtree(scs_item,ett_scs);
+        scs_tree = proto_item_add_subtree(scs_item, ett_scs);
         proto_tree_add_item(scs_tree, hf_supported_code_set_12_2, tvb, offset, 1, ENC_LITTLE_ENDIAN);
         proto_tree_add_item(scs_tree, hf_supported_code_set_10_2, tvb, offset, 1, ENC_LITTLE_ENDIAN);
         proto_tree_add_item(scs_tree, hf_supported_code_set_7_95, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -4563,7 +4575,7 @@ extern int dissect_codec_mode(proto_tree *tree, tvbuff_t *tvb, int offset, int l
 }
 
 static int
-dissect_codec(tvbuff_t *parameter_tvb, proto_tree *bat_ase_element_tree, gint length_indicator, gint offset,gint identifier)
+dissect_codec(tvbuff_t *parameter_tvb, proto_tree *bat_ase_element_tree, gint length_indicator, gint offset, gint identifier)
 {
 /* offset is at length indicator e.g 1 step past identifier */
   guint8 compatibility_info;
@@ -4581,7 +4593,7 @@ dissect_codec(tvbuff_t *parameter_tvb, proto_tree *bat_ase_element_tree, gint le
                          parameter_tvb, offset, 1, compatibility_info);
   proto_tree_add_boolean(bat_ase_element_tree, hf_isup_extension_ind , parameter_tvb, offset, 1, compatibility_info);
 
-  offset = dissect_codec_mode(bat_ase_element_tree, parameter_tvb, offset+1,length_indicator-1);
+  offset = dissect_codec_mode(bat_ase_element_tree, parameter_tvb, offset+1, length_indicator-1);
   return offset;
 }
 
@@ -4605,7 +4617,7 @@ dissect_bat_ase_Encapsulated_Application_Information(tvbuff_t *parameter_tvb, pa
   tvbuff_t   *next_tvb;
   proto_tree *bat_ase_tree, *bat_ase_element_tree, *bat_ase_iwfa_tree;
   proto_item *bat_ase_item, *bat_ase_element_item, *bat_ase_iwfa_item;
-  guint8      identifier,content, BCTP_Indicator_field_1, BCTP_Indicator_field_2;
+  guint8      identifier, content, BCTP_Indicator_field_1, BCTP_Indicator_field_2;
   guint8      tempdata, element_no, number_of_indicators;
   guint16     sdp_length;
   guint8      diagnostic_len;
@@ -4618,13 +4630,13 @@ dissect_bat_ase_Encapsulated_Application_Information(tvbuff_t *parameter_tvb, pa
 
   element_no = 0;
 
-  bat_ase_item = proto_tree_add_text(parameter_tree,parameter_tvb, offset, -1,
+  bat_ase_item = proto_tree_add_text(parameter_tree, parameter_tvb, offset, -1,
                                      "Bearer Association Transport (BAT) Application Service Element (ASE) Encapsulated Application Information:");
   bat_ase_tree = proto_item_add_subtree(bat_ase_item , ett_bat_ase);
 
   proto_tree_add_text(bat_ase_tree, parameter_tvb, offset, -1,
                       "BAT ASE Encapsulated Application Information, (%u byte%s length)", length, plurality(length, "", "s"));
-  while(tvb_reported_length_remaining(parameter_tvb, offset) > 0) {
+  while (tvb_reported_length_remaining(parameter_tvb, offset) > 0) {
     element_no = element_no + 1;
     identifier = tvb_get_guint8(parameter_tvb, offset);
 
@@ -4645,10 +4657,10 @@ dissect_bat_ase_Encapsulated_Application_Information(tvbuff_t *parameter_tvb, pa
       length_ind_len = 2;
     }
 
-    bat_ase_element_item = proto_tree_add_text(bat_ase_tree,parameter_tvb,
+    bat_ase_element_item = proto_tree_add_text(bat_ase_tree, parameter_tvb,
                                                (offset - length_ind_len), (length_indicator + 2),
-                                               "BAT ASE Element %u, Identifier: %s",element_no,
-                                               val_to_str_ext(identifier,&bat_ase_list_of_Identifiers_vals_ext,"unknown (%u)"));
+                                               "BAT ASE Element %u, Identifier: %s", element_no,
+                                               val_to_str_ext(identifier, &bat_ase_list_of_Identifiers_vals_ext, "unknown (%u)"));
     bat_ase_element_tree = proto_item_add_subtree(bat_ase_element_item ,
                                                   ett_bat_ase_element);
     if (identifier != CODEC) {
@@ -4677,7 +4689,7 @@ dissect_bat_ase_Encapsulated_Application_Information(tvbuff_t *parameter_tvb, pa
         content = tvb_get_guint8(parameter_tvb, offset);
         proto_tree_add_uint(bat_ase_element_tree, hf_Action_Indicator , parameter_tvb, offset, 1, content);
         proto_item_append_text(bat_ase_element_item, " - %s",
-                               val_to_str_ext(content,&bat_ase_action_indicator_field_vals_ext, "unknown (%u)"));
+                               val_to_str_ext(content, &bat_ase_action_indicator_field_vals_ext, "unknown (%u)"));
         offset = offset + 1;
         break;
       case BACKBONE_NETWORK_CONNECTION_IDENTIFIER :
@@ -4697,7 +4709,7 @@ dissect_bat_ase_Encapsulated_Application_Information(tvbuff_t *parameter_tvb, pa
           default:;
         }
         proto_tree_add_uint_format(bat_ase_element_tree, hf_bncid, parameter_tvb, offset, content_len, bncid, "BNCId: 0x%08x", bncid);
-        proto_item_append_text(bat_ase_element_item, " - 0x%08x",bncid);
+        proto_item_append_text(bat_ase_element_item, " - 0x%08x", bncid);
         offset = offset + content_len;
 
         break;
@@ -4752,7 +4764,7 @@ dissect_bat_ase_Encapsulated_Application_Information(tvbuff_t *parameter_tvb, pa
         proto_tree_add_uint(bat_ase_element_tree, hf_characteristics , parameter_tvb,
                             offset, 1, tempdata);
         proto_item_append_text(bat_ase_element_item, " - %s",
-                               val_to_str_ext(tempdata,&bearer_network_connection_characteristics_vals_ext, "unknown (%u)"));
+                               val_to_str_ext(tempdata, &bearer_network_connection_characteristics_vals_ext, "unknown (%u)"));
 
         offset = offset + content_len;
         break;
@@ -4779,16 +4791,16 @@ dissect_bat_ase_Encapsulated_Application_Information(tvbuff_t *parameter_tvb, pa
 
         sdp_length = (length_indicator) - 3;
 
-        if(sdp_length > tvb_length_remaining(parameter_tvb,offset)) {
+        if (sdp_length > tvb_length_remaining(parameter_tvb, offset)) {
           /* If this is a segmented message we may not have all the data */
           next_tvb = tvb_new_subset_remaining(parameter_tvb, offset);
         } else {
           next_tvb = tvb_new_subset(parameter_tvb, offset, sdp_length, sdp_length);
         }
-        if(BCTP_Indicator_field_2==0x20){
+        if (BCTP_Indicator_field_2==0x20) {
           /* IPBCP (text encoded) */
           call_dissector(sdp_handle, next_tvb, pinfo, bat_ase_element_tree);
-        }else{
+        } else {
           proto_tree_add_text(bat_ase_element_tree, next_tvb, 0, -1, "Tunnelled Protocol Data");
         }
         offset = offset + sdp_length;
@@ -4804,7 +4816,7 @@ dissect_bat_ase_Encapsulated_Application_Information(tvbuff_t *parameter_tvb, pa
         break;
       case BEARER_CONTROL_UNIT_IDENTIFIER :
         tempdata = tvb_get_guint8(parameter_tvb, offset);
-        proto_tree_add_text(bat_ase_element_tree, parameter_tvb, offset, 1, "Network ID Length indicator = %u",tempdata);
+        proto_tree_add_text(bat_ase_element_tree, parameter_tvb, offset, 1, "Network ID Length indicator = %u", tempdata);
         offset = offset + 1;
         if (tempdata > 0) {
 
@@ -4834,13 +4846,13 @@ dissect_bat_ase_Encapsulated_Application_Information(tvbuff_t *parameter_tvb, pa
 
 */
           proto_tree_add_text(bat_ase_element_tree, parameter_tvb, offset, tempdata , "Network ID: %s",
-                              tvb_bytes_to_str(parameter_tvb, offset, tempdata));
+                              tvb_bytes_to_ep_str(parameter_tvb, offset, tempdata));
           offset = offset + tempdata;
         } /* end if */
 
         Local_BCU_ID = tvb_get_letohl(parameter_tvb, offset);
-        proto_tree_add_uint_format(bat_ase_element_tree, hf_Local_BCU_ID , parameter_tvb, offset, 4,
-                                   Local_BCU_ID , "Local BCU ID : 0x%08x", Local_BCU_ID);
+        proto_tree_add_uint_format_value(bat_ase_element_tree, hf_Local_BCU_ID , parameter_tvb, offset, 4,
+                                   Local_BCU_ID , "0x%08x", Local_BCU_ID);
         offset = offset + 4;
         break;
       case SIGNAL :
@@ -4916,7 +4928,7 @@ dissect_isup_application_transport_parameter(tvbuff_t *parameter_tvb, packet_inf
 
   tvbuff_t      *new_tvb  = NULL;
   tvbuff_t      *next_tvb = NULL;
-  fragment_data *frag_msg = NULL;
+  fragment_head *frag_msg = NULL;
 
   proto_tree_add_text(parameter_tree, parameter_tvb, offset, -1, "Application transport parameter fields:");
   proto_item_set_text(parameter_item, "Application transport, (%u byte%s length)", length , plurality(length, "", "s"));
@@ -4961,33 +4973,33 @@ dissect_isup_application_transport_parameter(tvbuff_t *parameter_tvb, packet_inf
   /* For APM'98'-user applications. (aci 0 - 3), APM-user information field starts at octet 4 */
   if (aci16 > 3) {
     /* Octet 4 Originating Address length */
-    octet = tvb_get_guint8(parameter_tvb,offset);
+    octet = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_item(parameter_tree, hf_isup_orig_addr_len, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset++;
+    offset += 1;
     if (octet != 0) {
       /* 4b */
       proto_tree_add_item(parameter_tree, hf_isup_odd_even_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
       /* nature of address indicator */
-      offset++;
+      offset += 1;
       proto_tree_add_item(parameter_tree, hf_isup_inn_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
       proto_tree_add_item(parameter_tree, hf_isup_numbering_plan_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-      offset++;
+      offset += 1;
       /* Address digits */
       proto_tree_add_text(parameter_tree, parameter_tvb, offset, octet - 2, "Address digits");
       offset = offset + octet - 2;
     }
     /* Octet 5 Destination Address length */
-    octet = tvb_get_guint8(parameter_tvb,offset);
+    octet = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_item(parameter_tree, hf_isup_dest_addr_len, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset++;
+    offset += 1;
     if (octet != 0) {
       /* 4b */
       proto_tree_add_item(parameter_tree, hf_isup_odd_even_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
       /* nature of address indicator */
-      offset++;
+      offset += 1;
       proto_tree_add_item(parameter_tree, hf_isup_inn_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
       proto_tree_add_item(parameter_tree, hf_isup_numbering_plan_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-      offset++;
+      offset += 1;
       /* Address digits */
       proto_tree_add_text(parameter_tree, parameter_tvb, offset, octet - 2, "Address digits");
       offset = offset + octet - 2;
@@ -4999,7 +5011,7 @@ dissect_isup_application_transport_parameter(tvbuff_t *parameter_tvb, packet_inf
    */
   if (isup_apm_desegment) {
     if ((si_and_apm_seg_ind != 0xc0) && ((si_and_apm_seg_ind & H_8BIT_MASK)!=0x80)) {
-      /* debug g_warning("got here Frame %u",pinfo->fd->num); */
+      /* debug g_warning("got here Frame %u", pinfo->fd->num); */
       /* Segmented message */
       save_fragmented = pinfo->fragmented;
       pinfo->fragmented = TRUE;
@@ -5007,16 +5019,21 @@ dissect_isup_application_transport_parameter(tvbuff_t *parameter_tvb, packet_inf
       if (si_and_apm_seg_ind == 0)
         more_frag = FALSE;
 
-      frag_msg = fragment_add_seq_next(parameter_tvb, offset, pinfo,
+      frag_msg = fragment_add_seq_next(&isup_apm_msg_reassembly_table,
+                                       parameter_tvb, offset,
+                                       pinfo,
                                        (apm_Segmentation_local_ref & 0x7f),         /* ID for fragments belonging together */
-                                       isup_apm_msg_fragment_table,                 /* list of message fragments */
-                                       isup_apm_msg_reassembled_table,              /* list of reassembled messages */
+                                       NULL,
                                        tvb_length_remaining(parameter_tvb, offset), /* fragment length - to the end */
                                        more_frag);                                  /* More fragments? */
 
       if ((si_and_apm_seg_ind & 0x3f) !=0 && (si_and_apm_seg_ind &0x40) !=0) {
         /* First fragment set number of fragments */
-        fragment_set_tot_len(pinfo, apm_Segmentation_local_ref & 0x7f, isup_apm_msg_fragment_table, (si_and_apm_seg_ind & 0x3f));
+        fragment_set_tot_len(&isup_apm_msg_reassembly_table,
+                             pinfo,
+                             apm_Segmentation_local_ref & 0x7f,
+                             NULL,
+                             (si_and_apm_seg_ind & 0x3f));
       }
 
       new_tvb = process_reassembled_data(parameter_tvb, offset, pinfo,
@@ -5047,9 +5064,9 @@ dissect_isup_application_transport_parameter(tvbuff_t *parameter_tvb, packet_inf
   }
 
   proto_tree_add_text(parameter_tree, parameter_tvb, offset, -1,
-                      "APM-user information field (%u Bytes)",tvb_length_remaining(parameter_tvb, offset));
+                      "APM-user information field (%u Bytes)", tvb_length_remaining(parameter_tvb, offset));
 
-  switch(aci16 & 0x7fff) {
+  switch (aci16 & 0x7fff) {
     case 3:
       /* Charging ASE */
       dissect_charging_ase_ChargingMessageType_PDU(next_tvb, pinfo, parameter_tree, NULL);
@@ -5082,7 +5099,7 @@ dissect_isup_optional_forward_call_indicators_parameter(tvbuff_t *parameter_tvb,
                          parameter_tvb, 0, OPTIONAL_FORWARD_CALL_IND_LENGTH, indicators);
 
 
-  proto_item_set_text(parameter_item,"Optional forward call indicators: %s (%u)",
+  proto_item_set_text(parameter_item, "Optional forward call indicators: %s (%u)",
                       val_to_str_const(indicators & BA_8BIT_MASK, isup_CUG_call_ind_value, "spare"),
                       indicators);
 }
@@ -5127,7 +5144,7 @@ dissect_isup_calling_party_number_parameter(tvbuff_t *parameter_tvb, proto_tree 
                                             "Calling Party Number");
   address_digits_tree = proto_item_add_subtree(address_digits_item, ett_isup_address_digits);
 
-  while(length > 0) {
+  while (length > 0) {
     address_digit_pair = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_uint(address_digits_tree, hf_isup_calling_party_odd_address_signal_digit,
                         parameter_tvb, offset, 1, address_digit_pair);
@@ -5141,7 +5158,7 @@ dissect_isup_calling_party_number_parameter(tvbuff_t *parameter_tvb, proto_tree 
       if (i > MAXDIGITS)
         THROW(ReportedBoundsError);
     }
-    offset++;
+    offset += 1;
     length = tvb_length_remaining(parameter_tvb, offset);
   }
 
@@ -5170,7 +5187,7 @@ dissect_isup_calling_party_number_parameter(tvbuff_t *parameter_tvb, proto_tree 
   }
 
   proto_item_set_text(parameter_item, "Calling Party Number: %s", calling_number);
-  tap_calling_number = ep_strdup(calling_number);
+  tap_calling_number = wmem_strdup(wmem_packet_scope(), calling_number);
 }
 /* ------------------------------------------------------------------
   Dissector Parameter Original called  number
@@ -5209,7 +5226,7 @@ dissect_isup_original_called_number_parameter(tvbuff_t *parameter_tvb, proto_tre
   address_digits_tree = proto_item_add_subtree(address_digits_item, ett_isup_address_digits);
 
   length = tvb_length_remaining(parameter_tvb, offset);
-  while(length > 0) {
+  while (length > 0) {
     address_digit_pair = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_uint(address_digits_tree, hf_isup_calling_party_odd_address_signal_digit,
                         parameter_tvb, offset, 1, address_digit_pair);
@@ -5223,7 +5240,7 @@ dissect_isup_original_called_number_parameter(tvbuff_t *parameter_tvb, proto_tre
       if (i > MAXDIGITS)
         THROW(ReportedBoundsError);
     }
-    offset++;
+    offset += 1;
     length = tvb_length_remaining(parameter_tvb, offset);
   }
 
@@ -5278,7 +5295,7 @@ dissect_isup_redirecting_number_parameter(tvbuff_t *parameter_tvb, proto_tree *p
   address_digits_tree = proto_item_add_subtree(address_digits_item, ett_isup_address_digits);
 
   length = tvb_length_remaining(parameter_tvb, offset);
-  while(length > 0) {
+  while (length > 0) {
     address_digit_pair = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_uint(address_digits_tree, hf_isup_calling_party_odd_address_signal_digit,
                         parameter_tvb, offset, 1, address_digit_pair);
@@ -5292,7 +5309,7 @@ dissect_isup_redirecting_number_parameter(tvbuff_t *parameter_tvb, proto_tree *p
       if (i > MAXDIGITS)
         THROW(ReportedBoundsError);
     }
-    offset++;
+    offset += 1;
     length = tvb_length_remaining(parameter_tvb, offset);
   }
 
@@ -5339,7 +5356,7 @@ dissect_isup_redirection_number_parameter(tvbuff_t *parameter_tvb, proto_tree *p
   address_digits_tree = proto_item_add_subtree(address_digits_item, ett_isup_address_digits);
 
   length = tvb_length_remaining(parameter_tvb, offset);
-  while(length > 0) {
+  while (length > 0) {
     address_digit_pair = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_uint(address_digits_tree, hf_isup_called_party_odd_address_signal_digit,
                         parameter_tvb, offset, 1, address_digit_pair);
@@ -5353,7 +5370,7 @@ dissect_isup_redirection_number_parameter(tvbuff_t *parameter_tvb, proto_tree *p
       if (i > MAXDIGITS)
         THROW(ReportedBoundsError);
     }
-    offset++;
+    offset += 1;
     length = tvb_length_remaining(parameter_tvb, offset);
   }
 
@@ -5383,7 +5400,7 @@ dissect_isup_connection_request_parameter(tvbuff_t *parameter_tvb, proto_tree *p
   local_ref = tvb_get_ntoh24(parameter_tvb, 0);
   proto_tree_add_text(parameter_tree, parameter_tvb, offset, LOCAL_REF_LENGTH, "Local Reference: %u", local_ref);
   offset = LOCAL_REF_LENGTH;
-  spc = tvb_get_letohs(parameter_tvb,offset) & 0x3FFF; /*since 1st 2 bits spare */
+  spc = tvb_get_letohs(parameter_tvb, offset) & 0x3FFF; /*since 1st 2 bits spare */
   proto_tree_add_text(parameter_tree, parameter_tvb, offset, SPC_LENGTH, "Signalling Point Code: %u", spc);
   offset += SPC_LENGTH;
   protocol_class = tvb_get_guint8(parameter_tvb, offset);
@@ -5405,17 +5422,17 @@ dissect_isup_redirection_information_parameter(tvbuff_t *parameter_tvb, proto_tr
   if (tvb_length(parameter_tvb) == 2) {
     guint16 indicators;
     indicators = tvb_get_ntohs(parameter_tvb, 0);
-    proto_tree_add_uint(parameter_tree, hf_isup_redirecting_ind, parameter_tvb,0 , REDIRECTION_INFO_LENGTH, indicators);
-    proto_tree_add_uint(parameter_tree, hf_isup_original_redirection_reason, parameter_tvb,0 , REDIRECTION_INFO_LENGTH, indicators);
-    proto_tree_add_uint(parameter_tree, hf_isup_redirection_counter, parameter_tvb,0 , REDIRECTION_INFO_LENGTH, indicators);
-    proto_tree_add_uint(parameter_tree, hf_isup_redirection_reason, parameter_tvb,0 , REDIRECTION_INFO_LENGTH, indicators);
+    proto_tree_add_uint(parameter_tree, hf_isup_redirecting_ind, parameter_tvb, 0, REDIRECTION_INFO_LENGTH, indicators);
+    proto_tree_add_uint(parameter_tree, hf_isup_original_redirection_reason, parameter_tvb, 0, REDIRECTION_INFO_LENGTH, indicators);
+    proto_tree_add_uint(parameter_tree, hf_isup_redirection_counter, parameter_tvb, 0, REDIRECTION_INFO_LENGTH, indicators);
+    proto_tree_add_uint(parameter_tree, hf_isup_redirection_reason, parameter_tvb, 0, REDIRECTION_INFO_LENGTH, indicators);
     proto_item_set_text(parameter_item, "Redirection Information");
   }
   else { /* ISUP'88 (blue book) */
     guint16 indicators;
     indicators = tvb_get_guint8(parameter_tvb, 0) * 0x100; /*since 2nd octet isn't present*/
     proto_tree_add_uint(parameter_tree, hf_isup_redirecting_ind, parameter_tvb, 0, 1, indicators);
-    proto_tree_add_uint(parameter_tree, hf_isup_original_redirection_reason, parameter_tvb,0 , 1, indicators);
+    proto_tree_add_uint(parameter_tree, hf_isup_original_redirection_reason, parameter_tvb, 0, 1, indicators);
     proto_item_set_text(parameter_item, "Redirection Information (2nd octet not present since ISUP '88)");
   }
 }
@@ -5500,7 +5517,7 @@ dissect_isup_connected_number_parameter(tvbuff_t *parameter_tvb, proto_tree *par
                                             "Connected Number");
   address_digits_tree = proto_item_add_subtree(address_digits_item, ett_isup_address_digits);
 
-  while(length > 0) {
+  while (length > 0) {
     address_digit_pair = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_uint(address_digits_tree, hf_isup_calling_party_odd_address_signal_digit,
                         parameter_tvb, offset, 1, address_digit_pair);
@@ -5514,7 +5531,7 @@ dissect_isup_connected_number_parameter(tvbuff_t *parameter_tvb, proto_tree *par
       if (i > MAXDIGITS)
         THROW(ReportedBoundsError);
     }
-    offset++;
+    offset += 1;
     length = tvb_length_remaining(parameter_tvb, offset);
   }
 
@@ -5559,7 +5576,7 @@ dissect_isup_transit_network_selection_parameter(tvbuff_t *parameter_tvb, proto_
   address_digits_tree = proto_item_add_subtree(address_digits_item, ett_isup_address_digits);
 
   length = tvb_length_remaining(parameter_tvb, offset);
-  while(length > 0) {
+  while (length > 0) {
     address_digit_pair = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_uint(address_digits_tree, hf_isup_calling_party_odd_address_signal_digit,
                         parameter_tvb, offset, 1, address_digit_pair);
@@ -5573,7 +5590,7 @@ dissect_isup_transit_network_selection_parameter(tvbuff_t *parameter_tvb, proto_
       if (i > MAXDIGITS)
         THROW(ReportedBoundsError);
     }
-    offset++;
+    offset += 1;
     length = tvb_length_remaining(parameter_tvb, offset);
   }
 
@@ -5630,7 +5647,7 @@ dissect_isup_optional_backward_call_indicators_parameter(tvbuff_t *parameter_tvb
   proto_tree_add_boolean(parameter_tree, hf_isup_mlpp_user_ind, parameter_tvb, 0, OPTIONAL_BACKWARD_CALL_IND_LENGTH, indicators);
 
 
-  proto_item_set_text(parameter_item,"Optional backward call indicators: 0x%x", indicators);
+  proto_item_set_text(parameter_item, "Optional backward call indicators: 0x%x", indicators);
 }
 /* ------------------------------------------------------------------
   Dissector Parameter User-to-user indicators
@@ -5654,7 +5671,7 @@ static const value_string isup_UUI_response_service_values[] = {
   { 3,  "Spare"},
   { 0,  NULL}
 };
-static const true_false_string isup_UUI_network_discard_ind_value= {
+static const true_false_string isup_UUI_network_discard_ind_value = {
   "User-to-user information discarded by the network",
   "No information"
 };
@@ -5682,7 +5699,7 @@ dissect_isup_user_to_user_indicators_parameter(tvbuff_t *parameter_tvb,
     proto_tree_add_boolean(parameter_tree, hf_isup_UUI_network_discard_ind, parameter_tvb, 0, 1, indicators);
 
   }
-  proto_item_set_text(parameter_item,"User-to-user indicators: 0x%x", indicators);
+  proto_item_set_text(parameter_item, "User-to-user indicators: 0x%x", indicators);
 }
 /* ------------------------------------------------------------------
   Dissector Parameter Original ISC point code
@@ -5698,73 +5715,73 @@ dissect_isup_original_isc_point_code_parameter(tvbuff_t *parameter_tvb, proto_tr
   proto_item_set_text(parameter_item, "Origination ISC point code: %u", spc);
 }
 /* ------------------------------------------------------------------
-  Dissector Parameter Generic notification indicator
+   Dissector Parameter Generic notification indicator
 
-3.25 Generic notification indicator
+   3.25 Generic notification indicator
 
-a) Extension indicator (ext.)
-0 information continues in the next octet
-1 last octet
+   a) Extension indicator (ext.)
+   0 information continues in the next octet
+   1 last octet
 
-b) Notification indicator
-0 0 0 0 0 0 0 user suspended
-0 0 0 0 0 0 1 user resumed
-0 0 0 0 0 1 0 bearer service change
-0 0 0 0 0 1 1 encoded component discriminator for extension to ASN.1 (used in DSS1)
-0 0 0 0 1 0 0 call completion delay
-
-1 0 0 0 0 0 1
-to
-0 0 0 0 1 0 1 reserved
+   b) Notification indicator
+   0 0 0 0 0 0 0 user suspended
+   0 0 0 0 0 0 1 user resumed
+   0 0 0 0 0 1 0 bearer service change
+   0 0 0 0 0 1 1 encoded component discriminator for extension to ASN.1 (used in DSS1)
+   0 0 0 0 1 0 0 call completion delay
+   
+   1 0 0 0 0 0 1
+   to
+   0 0 0 0 1 0 1 reserved
 
-1 0 0 0 0 1 0 conference established
-1 0 0 0 0 1 1 conference disconnected
-1 0 0 0 1 0 0 other party added
-1 0 0 0 1 0 1 isolated
-1 0 0 0 1 1 0 reattached
-1 0 0 0 1 1 1 other party isolated
-1 0 0 1 0 0 0 other party reattached
-1 0 0 1 0 0 1 other party split
-1 0 0 1 0 1 0 other party disconnected
-1 0 0 1 0 1 1 conference floating
-
-1 0 1 1 1 1 1
-to
-1 0 0 1 1 0 0 reserved
+   1 0 0 0 0 1 0 conference established
+   1 0 0 0 0 1 1 conference disconnected
+   1 0 0 0 1 0 0 other party added
+   1 0 0 0 1 0 1 isolated
+   1 0 0 0 1 1 0 reattached
+   1 0 0 0 1 1 1 other party isolated
+   1 0 0 1 0 0 0 other party reattached
+   1 0 0 1 0 0 1 other party split
+   1 0 0 1 0 1 0 other party disconnected
+   1 0 0 1 0 1 1 conference floating
+   
+   1 0 1 1 1 1 1
+   to
+   1 0 0 1 1 0 0 reserved
 
-1 1 0 0 0 0 0 call is a waiting call
-
-1 1 0 0 1 1 1
-to
-1 1 0 0 0 0 1 reserved
+   1 1 0 0 0 0 0 call is a waiting call
+   
+   1 1 0 0 1 1 1
+   to
+   1 1 0 0 0 0 1 reserved
 
-1 1 0 1 0 0 0 diversion activated (used in DSS1)
-1 1 0 1 0 0 1 call transfer, alerting
-1 1 0 1 0 1 0 call transfer, active
-
-
-
-1 1 1 1 0 0 0
-to
-1 1 0 1 0 1 1
-reserved
-1 1 1 1 0 0 1 remote hold
-1 1 1 1 0 1 0 remote retrieval
-1 1 1 1 0 1 1 call is diverting
-
-
-
-1 1 1 1 1 1 1
-to
-1 1 1 1 1 0 0
-reserved
- */
+   1 1 0 1 0 0 0 diversion activated (used in DSS1)
+   1 1 0 1 0 0 1 call transfer, alerting
+   1 1 0 1 0 1 0 call transfer, active
+   
+   
+   
+   1 1 1 1 0 0 0
+   to
+   1 1 0 1 0 1 1
+   reserved
+   1 1 1 1 0 0 1 remote hold
+   1 1 1 1 0 1 0 remote retrieval
+   1 1 1 1 0 1 1 call is diverting
+   
+   
+   
+   1 1 1 1 1 1 1
+   to
+   1 1 1 1 1 0 0
+   reserved
+*/
 static const value_string q763_generic_notification_indicator_vals[] = {
-    { 0x0 , "User Suspended" },
-    { 0x1 , "User Resumed" },
-    { 0x2 , "Bearer service change" },
-    { 0x3 , "Discriminator for extension to ASN.1 encoded component (used in DSS1)" },
-    { 0x4 , "Call completion delay" },
+    { 0x00 , "User Suspended" },
+    { 0x01 , "User Resumed" },
+    { 0x02 , "Bearer service change" },
+    { 0x03 , "Discriminator for extension to ASN.1 encoded component (used in DSS1)" },
+    { 0x04 , "Call completion delay" },
     { 0x42 , "Conference established" },
     { 0x43 , "Conference disconnected" },
     { 0x44 , "Other party added" },
@@ -5784,6 +5801,7 @@ static const value_string q763_generic_notification_indicator_vals[] = {
     { 0x7B , "Call is diverting" },
     { 0 , NULL },
 };
+static value_string_ext q763_generic_notification_indicator_vals_ext = VALUE_STRING_EXT_INIT(q763_generic_notification_indicator_vals);
 
 static void
 dissect_isup_generic_notification_indicator_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
@@ -5793,8 +5811,8 @@ dissect_isup_generic_notification_indicator_parameter(tvbuff_t *parameter_tvb, p
   indicators = tvb_get_guint8(parameter_tvb, 0);
   proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
   proto_tree_add_item(parameter_tree, hf_isup_notification_indicator, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
-  proto_item_set_text(parameter_item,"Generic notification indicator: %s", 
-	  val_to_str((indicators&0x7f),q763_generic_notification_indicator_vals,"Reserved (0x%X)"));
+  proto_item_set_text(parameter_item, "Generic notification indicator: %s",
+                      val_to_str_ext((indicators&0x7f), &q763_generic_notification_indicator_vals_ext, "Reserved (0x%X)"));
 }
 /* ------------------------------------------------------------------
   Dissector Parameter Call history information
@@ -5806,7 +5824,7 @@ dissect_isup_call_history_information_parameter(tvbuff_t *parameter_tvb, proto_t
 
   info = tvb_get_ntohs(parameter_tvb, 0);
   proto_tree_add_text(parameter_tree, parameter_tvb, 0, CALL_HISTORY_INFO_LENGTH, "Call history info: propagation delay = %u ms", info);
-  proto_item_set_text(parameter_item,"Call history info: propagation delay = %u ms", info);
+  proto_item_set_text(parameter_item, "Call history info: propagation delay = %u ms", info);
 }
 /* ------------------------------------------------------------------
   Dissector Parameter Access delivery information
@@ -5854,7 +5872,7 @@ dissect_isup_propagation_delay_counter_parameter(tvbuff_t *parameter_tvb, proto_
 
   info = tvb_get_ntohs(parameter_tvb, 0);
   proto_tree_add_text(parameter_tree, parameter_tvb, 0, PROPAGATION_DELAY_COUNT_LENGTH, "Propagation delay counter = %u ms", info);
-  proto_item_set_text(parameter_item,"Propagation delay counter = %u ms", info);
+  proto_item_set_text(parameter_item, "Propagation delay counter = %u ms", info);
 }
 /* ------------------------------------------------------------------
   Dissector Parameter Remote operations
@@ -5906,7 +5924,7 @@ dissect_isup_transmission_medium_used_parameter(tvbuff_t *parameter_tvb, proto_t
 
   transmission_medium_requirement = tvb_get_guint8(parameter_tvb, 0);
   proto_tree_add_uint(parameter_tree, hf_isup_transmission_medium_requirement_prime,
-                      parameter_tvb, 0, TRANSMISSION_MEDIUM_RQMT_PRIME_LENGTH,transmission_medium_requirement);
+                      parameter_tvb, 0, TRANSMISSION_MEDIUM_RQMT_PRIME_LENGTH, transmission_medium_requirement);
 
   proto_item_set_text(parameter_item,
                       "Transmission medium used: %u (%s)",
@@ -6018,10 +6036,10 @@ dissect_isup_message_compatibility_information_parameter(tvbuff_t *parameter_tvb
                          parameter_tvb, offset, 1, instruction_indicators);
 
   proto_tree_add_boolean(parameter_tree, hf_isup_pass_on_not_possible_indicator2,
-                         parameter_tvb, offset, 1,instruction_indicators);
+                         parameter_tvb, offset, 1, instruction_indicators);
 
   proto_tree_add_uint(parameter_tree, hf_isup_Broadband_narrowband_interworking_ind2,
-                      parameter_tvb, offset, 1,instruction_indicators);
+                      parameter_tvb, offset, 1, instruction_indicators);
 
   proto_tree_add_boolean(parameter_tree, hf_isup_extension_ind ,
                          parameter_tvb, offset, 1, instruction_indicators);
@@ -6104,7 +6122,7 @@ dissect_isup_parameter_compatibility_information_parameter(tvbuff_t *parameter_t
 
  proto_tree_add_boolean(parameter_tree, hf_isup_Discard_parameter_ind, parameter_tvb, offset, 1, instruction_indicators);
 
- proto_tree_add_uint(parameter_tree, hf_isup_Pass_on_not_possible_indicator, parameter_tvb, offset, 1,instruction_indicators);
+ proto_tree_add_uint(parameter_tree, hf_isup_Pass_on_not_possible_indicator, parameter_tvb, offset, 1, instruction_indicators);
 
  proto_tree_add_boolean(parameter_tree, hf_isup_extension_ind , parameter_tvb, offset, 1, instruction_indicators);
 
@@ -6115,7 +6133,7 @@ dissect_isup_parameter_compatibility_information_parameter(tvbuff_t *parameter_t
       return;
     instruction_indicators = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_uint(parameter_tree, hf_isup_Broadband_narrowband_interworking_ind,
-                        parameter_tvb, offset, 1,instruction_indicators);
+                        parameter_tvb, offset, 1, instruction_indicators);
     offset += 1;
     len -= 1;
   }
@@ -6175,7 +6193,7 @@ dissect_isup_mlpp_precedence_parameter(tvbuff_t *parameter_tvb, proto_tree *para
   }
 
 
-  proto_tree_add_text(parameter_tree, parameter_tvb, 0, 1, "Precedence Level: %s",temp_text);
+  proto_tree_add_text(parameter_tree, parameter_tvb, 0, 1, "Precedence Level: %s", temp_text);
   digit_pair   = tvb_get_guint8(parameter_tvb, 1);
   NI_digits[0] = number_to_char((digit_pair & HGFE_8BIT_MASK) / 0x10);
   NI_digits[1] = number_to_char(digit_pair & DCBA_8BIT_MASK);
@@ -6197,7 +6215,7 @@ dissect_isup_mcid_request_indicators_parameter(tvbuff_t *parameter_tvb, proto_tr
 { guint8 indicator;
 
   indicator = tvb_get_guint8(parameter_tvb, 0);
-  proto_tree_add_text(parameter_tree, parameter_tvb, 0,MCID_REQUEST_IND_LENGTH,
+  proto_tree_add_text(parameter_tree, parameter_tvb, 0, MCID_REQUEST_IND_LENGTH,
                       "MCID request indicators: 0x%x (MCID requested by Bit1=1, Holding requested by Bit2=1 see 3.31/Q.763)", indicator);
   proto_item_set_text(parameter_item, "MCID request indicators: 0x%x", indicator);
 }
@@ -6209,7 +6227,7 @@ dissect_isup_mcid_response_indicators_parameter(tvbuff_t *parameter_tvb, proto_t
 { guint8 indicator;
 
   indicator = tvb_get_guint8(parameter_tvb, 0);
-  proto_tree_add_text(parameter_tree, parameter_tvb, 0,MCID_RESPONSE_IND_LENGTH,
+  proto_tree_add_text(parameter_tree, parameter_tvb, 0, MCID_RESPONSE_IND_LENGTH,
                       "MCID response indicators: 0x%x (MCID included if Bit1=1, Holding provided if Bit2=1 see 3.32/Q.763)", indicator);
   proto_item_set_text(parameter_item, "MCID response indicators: 0x%x", indicator);
 }
@@ -6245,7 +6263,7 @@ dissect_isup_transmission_medium_requirement_prime_parameter(tvbuff_t *parameter
 
   transmission_medium_requirement = tvb_get_guint8(parameter_tvb, 0);
   proto_tree_add_uint(parameter_tree, hf_isup_transmission_medium_requirement_prime,
-                      parameter_tvb, 0, TRANSMISSION_MEDIUM_RQMT_PRIME_LENGTH,transmission_medium_requirement);
+                      parameter_tvb, 0, TRANSMISSION_MEDIUM_RQMT_PRIME_LENGTH, transmission_medium_requirement);
 
   proto_item_set_text(parameter_item,
                       "Transmission medium requirement prime: %u (%s)",
@@ -6301,7 +6319,7 @@ dissect_isup_location_number_parameter(tvbuff_t *parameter_tvb, proto_tree *para
   address_digits_tree = proto_item_add_subtree(address_digits_item, ett_isup_address_digits);
 
   length = tvb_length_remaining(parameter_tvb, offset);
-  while(length > 0) {
+  while (length > 0) {
     address_digit_pair = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_uint(address_digits_tree, hf_isup_calling_party_odd_address_signal_digit,
                         parameter_tvb, offset, 1, address_digit_pair);
@@ -6315,7 +6333,7 @@ dissect_isup_location_number_parameter(tvbuff_t *parameter_tvb, proto_tree *para
       if (i > MAXDIGITS)
         THROW(ReportedBoundsError);
     }
-    offset++;
+    offset += 1;
     length = tvb_length_remaining(parameter_tvb, offset);
   }
 
@@ -6378,7 +6396,7 @@ dissect_isup_loop_prevention_indicators_parameter(tvbuff_t *parameter_tvb, proto
   guint8 indicator;
 
   indicator = tvb_get_guint8(parameter_tvb, 0);
-  if ((indicator & A_8BIT_MASK)==0) {
+  if ((indicator & A_8BIT_MASK) == 0) {
     proto_tree_add_text(parameter_tree, parameter_tvb, 0, LOOP_PREVENTION_IND_LENGTH, "Type: Request");
     proto_item_set_text(parameter_item, "Loop prevention indicators: Request (%u)", indicator);
   }
@@ -6422,7 +6440,7 @@ dissect_isup_call_transfer_number_parameter(tvbuff_t *parameter_tvb, proto_tree 
   address_digits_tree = proto_item_add_subtree(address_digits_item, ett_isup_address_digits);
 
   length = tvb_length_remaining(parameter_tvb, offset);
-  while(length > 0) {
+  while (length > 0) {
     address_digit_pair = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_uint(address_digits_tree, hf_isup_calling_party_odd_address_signal_digit,
                         parameter_tvb, offset, 1, address_digit_pair);
@@ -6436,7 +6454,7 @@ dissect_isup_call_transfer_number_parameter(tvbuff_t *parameter_tvb, proto_tree 
       if (i > MAXDIGITS)
         THROW(ReportedBoundsError);
     }
-    offset++;
+    offset += 1;
     length = tvb_length_remaining(parameter_tvb, offset);
   }
 
@@ -6461,7 +6479,7 @@ dissect_isup_ccss_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree,
   guint8 indicator;
 
   indicator = tvb_get_guint8(parameter_tvb, 0);
-  if ((indicator & A_8BIT_MASK)==0) {
+  if ((indicator & A_8BIT_MASK) == 0) {
     proto_tree_add_text(parameter_tree, parameter_tvb, 0, LOOP_PREVENTION_IND_LENGTH, "CCSS call indicator: no indication");
     proto_item_set_text(parameter_item, "CCSS call indicator: no indication (%u)", indicator);
   }
@@ -6500,14 +6518,14 @@ dissect_isup_redirect_capability_parameter(tvbuff_t *parameter_tvb, proto_tree *
 {
   guint length = tvb_length(parameter_tvb);
 
-  switch(itu_isup_variant) {
-        case ISUP_JAPAN_VARIANT:
-			proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
-			proto_tree_add_item(parameter_tree, hf_japan_isup_redirect_capability, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
-			break;
-		default:
-            proto_tree_add_text(parameter_tree, parameter_tvb, 0, length, "Redirect capability (format is a national matter)");
-			break;
+  switch (itu_isup_variant) {
+    case ISUP_JAPAN_VARIANT:
+      proto_tree_add_item(parameter_tree, hf_isup_extension_ind,             parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
+      proto_tree_add_item(parameter_tree, hf_japan_isup_redirect_capability, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
+      break;
+    default:
+      proto_tree_add_text(parameter_tree, parameter_tvb, 0, length, "Redirect capability (format is a national matter)");
+      break;
   }
 
   proto_item_set_text(parameter_item, "Redirect Capability (%u Byte%s)", length , plurality(length, "", "s"));
@@ -6535,7 +6553,7 @@ dissect_isup_network_management_controls_parameter(tvbuff_t *parameter_tvb, prot
   indicator = tvb_get_guint8(parameter_tvb, 0);
   proto_tree_add_boolean(parameter_tree, hf_isup_temporary_alternative_routing_ind,
                          parameter_tvb, 0, NETWORK_MANAGEMENT_CONTROLS_LENGTH, indicator);
-  proto_tree_add_boolean(parameter_tree, hf_isup_extension_ind, parameter_tvb, 0,NETWORK_MANAGEMENT_CONTROLS_LENGTH, indicator);
+  proto_tree_add_boolean(parameter_tree, hf_isup_extension_ind, parameter_tvb, 0, NETWORK_MANAGEMENT_CONTROLS_LENGTH, indicator);
   proto_item_set_text(parameter_item, "Network management controls: 0x%x", indicator);
 }
 /* ------------------------------------------------------------------
@@ -6564,7 +6582,7 @@ dissect_isup_call_diversion_treatment_indicators_parameter(tvbuff_t *parameter_t
 { guint8 indicator;
 
   indicator = tvb_get_guint8(parameter_tvb, 0);
-  proto_tree_add_uint(parameter_tree, hf_isup_call_to_be_diverted_ind, parameter_tvb, 0,CALL_DIV_TREATMENT_IND_LENGTH, indicator);
+  proto_tree_add_uint(parameter_tree, hf_isup_call_to_be_diverted_ind, parameter_tvb, 0, CALL_DIV_TREATMENT_IND_LENGTH, indicator);
   proto_tree_add_boolean(parameter_tree, hf_isup_extension_ind, parameter_tvb, 0, CALL_DIV_TREATMENT_IND_LENGTH, indicator);
   proto_item_set_text(parameter_item, "Call diversion treatment indicators: 0x%x", indicator);
 }
@@ -6597,7 +6615,7 @@ dissect_isup_called_in_number_parameter(tvbuff_t *parameter_tvb, proto_tree *par
   address_digits_tree = proto_item_add_subtree(address_digits_item, ett_isup_address_digits);
 
   length = tvb_length_remaining(parameter_tvb, offset);
-  while(length > 0) {
+  while (length > 0) {
     address_digit_pair = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_uint(address_digits_tree, hf_isup_calling_party_odd_address_signal_digit,
                         parameter_tvb, offset, 1, address_digit_pair);
@@ -6611,7 +6629,7 @@ dissect_isup_called_in_number_parameter(tvbuff_t *parameter_tvb, proto_tree *par
       if (i > MAXDIGITS)
         THROW(ReportedBoundsError);
     }
-    offset++;
+    offset += 1;
     length = tvb_length_remaining(parameter_tvb, offset);
   }
 
@@ -6635,7 +6653,7 @@ dissect_isup_call_offering_treatment_indicators_parameter(tvbuff_t *parameter_tv
 { guint8 indicator;
 
   indicator = tvb_get_guint8(parameter_tvb, 0);
-  proto_tree_add_uint(parameter_tree, hf_isup_call_to_be_offered_ind, parameter_tvb, 0,CALL_OFFERING_TREATMENT_IND_LENGTH, indicator);
+  proto_tree_add_uint(parameter_tree, hf_isup_call_to_be_offered_ind, parameter_tvb, 0, CALL_OFFERING_TREATMENT_IND_LENGTH, indicator);
   proto_tree_add_boolean(parameter_tree, hf_isup_extension_ind, parameter_tvb, 0, CALL_OFFERING_TREATMENT_IND_LENGTH, indicator);
   proto_item_set_text(parameter_item, "Call offering treatment indicators: 0x%x", indicator);
 }
@@ -6657,7 +6675,7 @@ dissect_isup_conference_treatment_indicators_parameter(tvbuff_t *parameter_tvb, 
 { guint8 indicator;
 
   indicator = tvb_get_guint8(parameter_tvb, 0);
-  proto_tree_add_uint(parameter_tree, hf_isup_conference_acceptance_ind, parameter_tvb, 0,CONFERENCE_TREATMENT_IND_LENGTH, indicator);
+  proto_tree_add_uint(parameter_tree, hf_isup_conference_acceptance_ind, parameter_tvb, 0, CONFERENCE_TREATMENT_IND_LENGTH, indicator);
   proto_tree_add_boolean(parameter_tree, hf_isup_extension_ind, parameter_tvb, 0, CONFERENCE_TREATMENT_IND_LENGTH, indicator);
   proto_item_set_text(parameter_item, "Conference treatment indicators: 0x%x", indicator);
 }
@@ -6714,18 +6732,18 @@ dissect_isup_uid_capability_indicators_parameter(tvbuff_t *parameter_tvb, proto_
  */
 static void
 dissect_isup_redirect_counter_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item, guint8 itu_isup_variant)
-{ 
+{
   guint length = tvb_length(parameter_tvb);
 
-  switch(itu_isup_variant) {
-        case ISUP_JAPAN_VARIANT:
-			proto_tree_add_item(parameter_tree, hf_japan_isup_redirect_counter, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
-			break;
-		default:
-            proto_tree_add_text(parameter_tree, parameter_tvb, 0, length, "Redirect counter (format is a national matter)");
-			break;
+  switch (itu_isup_variant) {
+    case ISUP_JAPAN_VARIANT:
+      proto_tree_add_item(parameter_tree, hf_japan_isup_redirect_counter, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
+      break;
+    default:
+      proto_tree_add_text(parameter_tree, parameter_tvb, 0, length, "Redirect counter (format is a national matter)");
+      break;
   }
-  
+
   proto_item_set_text(parameter_item, "Redirect counter (%u Byte%s)", length , plurality(length, "", "s"));
 }
 /* ------------------------------------------------------------------
@@ -6827,7 +6845,7 @@ dissect_isup_generic_number_parameter(tvbuff_t *parameter_tvb, proto_tree *param
                                             "Generic number");
   address_digits_tree = proto_item_add_subtree(address_digits_item, ett_isup_address_digits);
 
-  while(length > 0) {
+  while (length > 0) {
     address_digit_pair = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_uint(address_digits_tree, hf_isup_calling_party_odd_address_signal_digit,
                         parameter_tvb, offset, 1, address_digit_pair);
@@ -6841,7 +6859,7 @@ dissect_isup_generic_number_parameter(tvbuff_t *parameter_tvb, proto_tree *param
       if (i > MAXDIGITS)
         THROW(ReportedBoundsError);
     }
-    offset++;
+    offset += 1;
     length = tvb_length_remaining(parameter_tvb, offset);
   }
 
@@ -6861,7 +6879,7 @@ dissect_isup_generic_number_parameter(tvbuff_t *parameter_tvb, proto_tree *param
    */
   indicators1 = indicators1 & 0x7f;
   indicators2 = (indicators2 & 0x70)>>4;
-  if ((indicators1 == ISUP_CALLED_PARTY_NATURE_INTERNATNL_NR)&&(indicators2==ISDN_NUMBERING_PLAN))
+  if ((indicators1 == ISUP_CALLED_PARTY_NATURE_INTERNATNL_NR) && (indicators2 == ISDN_NUMBERING_PLAN))
     dissect_e164_cc(parameter_tvb, address_digits_tree, 3, TRUE);
 
   proto_item_set_text(address_digits_item, "Generic number: %s", calling_number);
@@ -6889,7 +6907,7 @@ dissect_isup_jurisdiction_parameter(tvbuff_t *parameter_tvb, proto_tree *paramet
                                             "Jurisdiction");
   address_digits_tree = proto_item_add_subtree(address_digits_item, ett_isup_address_digits);
 
-  while((length = tvb_reported_length_remaining(parameter_tvb, offset)) > 0) {
+  while ((length = tvb_reported_length_remaining(parameter_tvb, offset)) > 0) {
     address_digit_pair = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_uint(address_digits_tree, hf_isup_called_party_odd_address_signal_digit,
                         parameter_tvb, offset, 1, address_digit_pair);
@@ -6903,7 +6921,7 @@ dissect_isup_jurisdiction_parameter(tvbuff_t *parameter_tvb, proto_tree *paramet
       if (i > MAXDIGITS)
         THROW(ReportedBoundsError);
     }
-    offset++;
+    offset += 1;
   }
 
   if (tvb_length(parameter_tvb) > 0) {
@@ -6928,14 +6946,14 @@ dissect_isup_generic_name_parameter(tvbuff_t *parameter_tvb, proto_tree *paramet
   gint    gen_name_length;
   char   *gen_name = NULL;
 
-  gen_name = (char *)ep_alloc(MAXGNAME + 1);
+  gen_name = (char *)wmem_alloc(wmem_packet_scope(), MAXGNAME + 1);
   gen_name[0] = '\0';
   gen_name_length = tvb_length(parameter_tvb) - 1;
   indicator = tvb_get_guint8(parameter_tvb, 0);
   proto_tree_add_uint(parameter_tree, hf_isup_generic_name_presentation, parameter_tvb, 1, 1, indicator);
   proto_tree_add_boolean(parameter_tree, hf_isup_generic_name_availability, parameter_tvb, 1, 1, indicator);
   proto_tree_add_uint(parameter_tree, hf_isup_generic_name_type, parameter_tvb, 1, 1, indicator);
-  gen_name = tvb_get_ephemeral_string(parameter_tvb,1,gen_name_length);
+  gen_name = tvb_get_string(wmem_packet_scope(), parameter_tvb, 1, gen_name_length);
   gen_name[gen_name_length] = '\0';
   proto_tree_add_string(parameter_tree, hf_isup_generic_name_ia5, parameter_tvb, 2, gen_name_length, gen_name);
   proto_item_set_text(parameter_item, "Generic name: %s", gen_name);
@@ -6980,7 +6998,7 @@ dissect_isup_charge_number_parameter(tvbuff_t *parameter_tvb, proto_tree *parame
   address_digits_tree = proto_item_add_subtree(address_digits_item, ett_isup_address_digits);
 
   length = tvb_length_remaining(parameter_tvb, offset);
-  while(length > 0) {
+  while (length > 0) {
     address_digit_pair = tvb_get_guint8(parameter_tvb, offset);
     proto_tree_add_uint(address_digits_tree, hf_isup_calling_party_odd_address_signal_digit,
                         parameter_tvb, offset, 1, address_digit_pair);
@@ -6994,7 +7012,7 @@ dissect_isup_charge_number_parameter(tvbuff_t *parameter_tvb, proto_tree *parame
       if (i > MAXDIGITS)
         THROW(ReportedBoundsError);
     }
-    offset++;
+    offset += 1;
     length = tvb_length_remaining(parameter_tvb, offset);
   }
 
@@ -7022,135 +7040,134 @@ dissect_isup_unknown_parameter(tvbuff_t *parameter_tvb, proto_item *parameter_it
 /* Japan ISUP */
 
 /*
-8 7 6 5 4 3 2 1
-O/E Nature of address indicator 1
-INN NAPI Spare 2
-2nd address signal 1st address signal 3
-... ... :
-Filler (if necessary) nth address signal 15
+  8 7 6 5 4 3 2 1
+  O/E Nature of address indicator 1
+  INN NAPI Spare 2
+  2nd address signal 1st address signal 3
+  ... ... :
+  Filler (if necessary) nth address signal 15
 */
 static void
 dissect_japan_isup_called_dir_num(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 {
-    int offset = 0;
-	int parameter_length;
+  int offset = 0;
+  int parameter_length;
 
-    parameter_length = tvb_length_remaining(parameter_tvb, offset);
+  parameter_length = tvb_length_remaining(parameter_tvb, offset);
 
-	proto_tree_add_item(parameter_tree, hf_isup_odd_even_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-	proto_tree_add_item(parameter_tree, hf_isup_called_party_nature_of_address_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-	offset++;
+  proto_tree_add_item(parameter_tree, hf_isup_odd_even_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_item(parameter_tree, hf_isup_called_party_nature_of_address_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  offset += 1;
 
-	proto_tree_add_item(parameter_tree, hf_isup_inn_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-	proto_tree_add_item(parameter_tree, hf_isup_numbering_plan_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-	offset++;
+  proto_tree_add_item(parameter_tree, hf_isup_inn_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_item(parameter_tree, hf_isup_numbering_plan_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  offset += 1;
 
-	proto_tree_add_text(parameter_tree, parameter_tvb, offset, parameter_length-offset, "Number not dissected yet");
+  proto_tree_add_text(parameter_tree, parameter_tvb, offset, parameter_length-offset, "Number not dissected yet");
 
-    proto_item_set_text(parameter_item, "Called Directory Number");
+  proto_item_set_text(parameter_item, "Called Directory Number");
 
 }
 
 
 /*
-   8     7     6     5     4     3     2    1
-+-----+-----+-----+-----+-----+-----+-----+-----+
--            Information Type Tag               -  1
-+-----------------------------------------------+
--           Information Type Length             -  2
-+-----------------------------------------------+
--           Information Type Value              -  3
-+-----------------------------------------------+
- .                                              .
- .                                              .
- .                                              .
-+-----------------------------------------------+
--            Information Type Tag               -  n+1
-+-----------------------------------------------+
--           Information Type Length             -  n+2
-+-----------------------------------------------+
--           Information Type Value              -  n+3
-|-----------------------------------------------/
+  8     7     6     5     4     3     2    1
+  +-----+-----+-----+-----+-----+-----+-----+-----+
+  -            Information Type Tag               -  1
+  +-----------------------------------------------+
+  -           Information Type Length             -  2
+  +-----------------------------------------------+
+  -           Information Type Value              -  3
+  +-----------------------------------------------+
+  .                                              .
+  .                                              .
+  .                                              .
+  +-----------------------------------------------+
+  -            Information Type Tag               -  n+1
+  +-----------------------------------------------+
+  -           Information Type Length             -  n+2
+  +-----------------------------------------------+
+  -           Information Type Value              -  n+3
+  |-----------------------------------------------/
 
-Information Type Tag
+  Information Type Tag
 
-00000000  Reserved (Note)
-00000001  Reserved
-00000010  Reserved
-00000011  Performing redirect indicator
-00000100  Invoking redirect reason
-00000101
-   to     Spare
-11111111
+  00000000  Reserved (Note)
+  00000001  Reserved
+  00000010  Reserved
+  00000011  Performing redirect indicator
+  00000100  Invoking redirect reason
+  00000101
+  to     Spare
+  11111111
 
-Note: In standard this value is marked as -Not used-,
-      here is treated as reserved.
+  Note: In standard this value is marked as -Not used-,
+  here is treated as reserved.
 
-Performing redirect indicator
+  Performing redirect indicator
 
-   8     7     6     5     4     3     2     1
-+-----+-----+-----+-----+-----+-----+-----+-----+
-- ext -      Performing redirect reason         -  1
-+-----+-----------------------------------------+
--                             -Redirect possible-
--          Spare              -  indicator at   -  2
--                             -   performing    -
--                             -    exchange     -
-+-----------------------------+-----------------+
-:                       :                       :  :
-:                       :                       :
-+-----------------------------------------------+
-- ext -      Performing redirect reason         -  2n|1
-+-----+-----------------------|-----------------+    Reason n
--                             -Redirect possible-
--          Spare              -  indicator at   -  2n
--                             -   performing    -
--                             -    exchange     -
-|-----------------------------+-----------------/
+  8     7     6     5     4     3     2     1
+  +-----+-----+-----+-----+-----+-----+-----+-----+
+  - ext -      Performing redirect reason         -  1
+  +-----+-----------------------------------------+
+  -                             -Redirect possible-
+  -          Spare              -  indicator at   -  2
+  -                             -   performing    -
+  -                             -    exchange     -
+  +-----------------------------+-----------------+
+  :                       :                       :  :
+  :                       :                       :
+  +-----------------------------------------------+
+  - ext -      Performing redirect reason         -  2n|1
+  +-----+-----------------------|-----------------+    Reason n
+  -                             -Redirect possible-
+  -          Spare              -  indicator at   -  2n
+  -                             -   performing    -
+  -                             -    exchange     -
+  |-----------------------------+-----------------/
 
 
-Redirect possible indicator at performing exchange
-000      No indication
-001      Redirect possible before ACM
-010      Reserved
-011      Reserved
-100
-to       Spare
-111
+  Redirect possible indicator at performing exchange
+  000      No indication
+  001      Redirect possible before ACM
+  010      Reserved
+  011      Reserved
+  100
+  to       Spare
+  111
 
-Invoking redirect reason
+  Invoking redirect reason
 
-   8     7     6     5     4     3     2    1
-+-----+-----+-----+-----+-----+-----+-----+-----+
-- ext -        Invoking redirect reason         -  1
-+-----+-----------------------------------------+
-:     :                                         :
-:     :                                         :
-+-----------------------------------------------+
-- ext -        Invoking redirect reason         -  n
-|-----+-----------------------------------------/
+  8     7     6     5     4     3     2    1
+  +-----+-----+-----+-----+-----+-----+-----+-----+
+  - ext -        Invoking redirect reason         -  1
+  +-----+-----------------------------------------+
+  :     :                                         :
+  :     :                                         :
+  +-----------------------------------------------+
+  - ext -        Invoking redirect reason         -  n
+  |-----+-----------------------------------------/
 
-Extension indicator (ext)
+  Extension indicator (ext)
 
-0        Information continues in next octet
-1        Last octet
+  0        Information continues in next octet
+  1        Last octet
 
-Invoking redirect reason
+  Invoking redirect reason
 
-0000000  Unknown / not available
-0000001  Service provider portability (national use)
-0000010  Reserved for location portability
-0000011  Reserved for service portability
-0000100
-to       Spare
-0111111
-1000000
-to       Reserved for national use
-1111101
-1111110  Local number portability / Mobile number
-         portability
-1111111  Reserved for national use
-
+  0000000  Unknown / not available
+  0000001  Service provider portability (national use)
+  0000010  Reserved for location portability
+  0000011  Reserved for service portability
+  0000100
+  to       Spare
+  0111111
+  1000000
+  to       Reserved for national use
+  1111101
+  1111110  Local number portability / Mobile number
+  portability
+  1111111  Reserved for national use
 
 */
 
@@ -7170,12 +7187,12 @@ static const value_string perf_redir_reason_vals[] = {
   { 2,   "Reserved for location portability" },
   { 3,   "Reserved for service portability" },
 /*
-0000100
-to       Spare
-0111111
-1000000
-to       Reserved for national use
-1111101
+  0000100
+  to       Spare
+  0111111
+  1000000
+  to       Reserved for national use
+  1111101
 */
   { 0x7e,   "Local number portability / Mobile number portability" },
   { 0x7f,   "Reserved for national use" },
@@ -7199,54 +7216,54 @@ static const value_string redir_pos_ind_vals[] = {
 static void
 dissect_japan_isup_redirect_fwd_inf(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 {
-    int offset = 0;
-    guint8 tag, tag_len, ext_ind;
-    int parameter_length;
+  int    offset = 0;
+  guint8 tag, tag_len, ext_ind;
+  int    parameter_length;
 
-    parameter_length = tvb_length_remaining(parameter_tvb, offset);
+  parameter_length = tvb_length_remaining(parameter_tvb, offset);
 
-    while(offset<parameter_length){
-        /* Information Type Tag */
-        tag = tvb_get_guint8(parameter_tvb,offset);
-        proto_tree_add_item(parameter_tree, hf_japan_isup_rfi_info_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-        offset++;
-        /* Information Type Length */
-        tag_len = tvb_get_guint8(parameter_tvb,offset);
-        proto_tree_add_item(parameter_tree, hf_japan_isup_rfi_info_len, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-        offset++;
-        switch(tag){
-        case 3: /* Performing redirect indicator */
-            /* Performing redirect reason oct 1 */
-            ext_ind = 0;
-            while(ext_ind==0){
-                ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
-                proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-                proto_tree_add_item(parameter_tree, hf_japan_isup_perf_redir_reason, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-                offset++;
-                /* Redirect possible indicator at performing exchange */
-                proto_tree_add_item(parameter_tree, hf_japan_isup_redir_pos_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-                offset++;
-            }
-            break;
-        case 4:
-            /* Invoking redirect reason */
-            ext_ind = 0;
-            while(ext_ind==0){
-                ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
-                proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-                proto_tree_add_item(parameter_tree, hf_japan_isup_inv_redir_reason, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-                offset++;
-            }
-            break;
-        default:
-            /* Information Type Value */
-            proto_tree_add_text(parameter_tree, parameter_tvb, offset, tag_len, "Unknown(not dissected) tag");
-            offset = offset + tag_len;
-            break;
+  while (offset < parameter_length) {
+    /* Information Type Tag */
+    tag = tvb_get_guint8(parameter_tvb, offset);
+    proto_tree_add_item(parameter_tree, hf_japan_isup_rfi_info_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    /* Information Type Length */
+    tag_len = tvb_get_guint8(parameter_tvb, offset);
+    proto_tree_add_item(parameter_tree, hf_japan_isup_rfi_info_len, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    switch (tag) {
+      case 3: /* Performing redirect indicator */
+        /* Performing redirect reason oct 1 */
+        ext_ind = 0;
+        while (ext_ind == 0) {
+          ext_ind = tvb_get_guint8(parameter_tvb, offset) >> 7;
+          proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+          proto_tree_add_item(parameter_tree, hf_japan_isup_perf_redir_reason, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+          offset += 1;
+          /* Redirect possible indicator at performing exchange */
+          proto_tree_add_item(parameter_tree, hf_japan_isup_redir_pos_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+          offset += 1;
         }
+        break;
+      case 4:
+        /* Invoking redirect reason */
+        ext_ind = 0;
+        while (ext_ind == 0) {
+          ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
+          proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+          proto_tree_add_item(parameter_tree, hf_japan_isup_inv_redir_reason, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+          offset += 1;
+        }
+        break;
+      default:
+        /* Information Type Value */
+        proto_tree_add_text(parameter_tree, parameter_tvb, offset, tag_len, "Unknown(not dissected) tag");
+        offset = offset + tag_len;
+        break;
     }
+  }
 
-    proto_item_set_text(parameter_item, "Redirect forward information");
+  proto_item_set_text(parameter_item, "Redirect forward information");
 
 }
 
@@ -7262,41 +7279,41 @@ static const value_string japan_isup_bwd_info_type_vals[] = {
 static void
 dissect_japan_isup_redirect_backw_inf(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 {
-    int offset = 0;
-    guint8 tag, tag_len, ext_ind;
-    int parameter_length;
+  int    offset = 0;
+  guint8 tag, tag_len, ext_ind;
+  int    parameter_length;
 
-    parameter_length = tvb_length_remaining(parameter_tvb, offset);
+  parameter_length = tvb_length_remaining(parameter_tvb, offset);
 
-    while(offset<parameter_length){
-        /* Information Type Tag */
-        tag = tvb_get_guint8(parameter_tvb,offset);
-        proto_tree_add_item(parameter_tree, hf_japan_isup_bwd_info_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-        offset++;
-        /* Information Type Length */
-        tag_len = tvb_get_guint8(parameter_tvb,offset);
-        proto_tree_add_item(parameter_tree, hf_japan_isup_tag_len, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-        offset++;
-        switch(tag){
-        case 3: /* invoking redirect reason */
-            /* invoking redirect reason oct 1 */
-            ext_ind = 0;
-            while(ext_ind==0){
-                ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
-                proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-                proto_tree_add_item(parameter_tree, hf_japan_isup_inv_redir_reason, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-                offset++;
-            }
-            break;
-        default:
-            /* Information Type Value */
-            proto_tree_add_text(parameter_tree, parameter_tvb, offset, tag_len, "Unknown(not dissected) tag");
-            offset = offset + tag_len;
-            break;
+  while (offset < parameter_length) {
+    /* Information Type Tag */
+    tag = tvb_get_guint8(parameter_tvb, offset);
+    proto_tree_add_item(parameter_tree, hf_japan_isup_bwd_info_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    /* Information Type Length */
+    tag_len = tvb_get_guint8(parameter_tvb, offset);
+    proto_tree_add_item(parameter_tree, hf_japan_isup_tag_len, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    switch (tag) {
+      case 3: /* invoking redirect reason */
+        /* invoking redirect reason oct 1 */
+        ext_ind = 0;
+        while (ext_ind == 0) {
+          ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
+          proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+          proto_tree_add_item(parameter_tree, hf_japan_isup_inv_redir_reason, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+          offset += 1;
         }
+        break;
+      default:
+        /* Information Type Value */
+        proto_tree_add_text(parameter_tree, parameter_tvb, offset, tag_len, "Unknown(not dissected) tag");
+        offset = offset + tag_len;
+        break;
     }
+  }
 
-    proto_item_set_text(parameter_item, "Redirect backward information");
+  proto_item_set_text(parameter_item, "Redirect backward information");
 
 }
 static const value_string hold_at_emerg_call_disc_ind_vals[] = {
@@ -7310,115 +7327,115 @@ static const value_string hold_at_emerg_call_disc_ind_vals[] = {
 static void
 dissect_japan_isup_emergency_call_inf_ind(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 {
-    int offset = 0;
+  int offset = 0;
 
 
-    proto_tree_add_item(parameter_tree, hf_japan_isup_hold_at_emerg_call_disc_ind, parameter_tvb, offset, 2, ENC_BIG_ENDIAN);
-    proto_item_set_text(parameter_item, "Emergency Call Information Indicator");
+  proto_tree_add_item(parameter_tree, hf_japan_isup_hold_at_emerg_call_disc_ind, parameter_tvb, offset, 2, ENC_BIG_ENDIAN);
+  proto_item_set_text(parameter_item, "Emergency Call Information Indicator");
 
 }
 
 static void
 dissect_japan_isup_network_poi_cad(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 {
-    proto_item *digits_item;
-    proto_tree *digits_tree;
-    int offset = 0;
-    guint8 octet;
-    guint8 odd_even;
-    guint8 carrier_info_length;
-    gint num_octets_with_digits=0;
-    gint digit_index=0;
-    char ca_number[MAXDIGITS + 1]="";
+  proto_item *digits_item;
+  proto_tree *digits_tree;
+  int         offset = 0;
+  guint8      octet;
+  guint8      odd_even;
+  guint8      carrier_info_length;
+  gint        num_octets_with_digits = 0;
+  gint        digit_index = 0;
+  char ca_number[MAXDIGITS + 1] = "";
 
-	/* POI Hierarchy information
+  /* POI Hierarchy information
 
-        8     7     6     5     4     3     2    1
-    +-----------------------|-----------------------+
-    |  Entry POI Hierarchy  |  Exit POI Hierarchy   |  1
-    |                       |                       |
-    \-----------------------------------------------|
+     8     7     6     5     4     3     2    1
+     +-----------------------|-----------------------+
+     |  Entry POI Hierarchy  |  Exit POI Hierarchy   |  1
+     |                       |                       |
+     \-----------------------------------------------|
 
-    */
+  */
 
-    /* POI Hierarchy information */
-    proto_tree_add_item(parameter_tree, hf_isup_carrier_info_poi_entry_HEI, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-    proto_tree_add_item(parameter_tree, hf_isup_carrier_info_poi_exit_HEI, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset++;
+  /* POI Hierarchy information */
+  proto_tree_add_item(parameter_tree, hf_isup_carrier_info_poi_entry_HEI, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_item(parameter_tree, hf_isup_carrier_info_poi_exit_HEI, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  offset += 1;
 
-	/* length of CA information (in octets) */
-	carrier_info_length = tvb_get_guint8(parameter_tvb, offset);
-    proto_tree_add_item(parameter_tree, hf_japan_isup_carrier_info_length, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset++;
+  /* length of CA information (in octets) */
+  carrier_info_length = tvb_get_guint8(parameter_tvb, offset);
+  proto_tree_add_item(parameter_tree, hf_japan_isup_carrier_info_length, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  offset += 1;
 
-    /* POI|CA information (Charge Area)
+  /* POI|CA information (Charge Area)
 
-        8     7     6     5     4     3     2     1
-    +-----|-----------------------------------------+
-    |Odd/ |                Spare                    |  1
-    |even |                                         |
-    +-----------------------------------------------+
-    |   2nd CA code digit   |   1st CA code digit   |  2
-    |                       |                       |
-    +-----------------------+-----------------------+
-        .                      .                       .
-    .                      .                       .
-    .                      .                       .
-    +-----------------------+-----------------------+
-    |         Filler        |   5|th CA code digit  |  m
-    |                       |                       |
-    \-----------------------------------------------|
-    */
+     8     7     6     5     4     3     2     1
+     +-----|-----------------------------------------+
+     |Odd/ |                Spare                    |  1
+     |even |                                         |
+     +-----------------------------------------------+
+     |   2nd CA code digit   |   1st CA code digit   |  2
+     |                       |                       |
+     +-----------------------+-----------------------+
+     .                      .                       .
+     .                      .                       .
+     .                      .                       .
+     +-----------------------+-----------------------+
+     |         Filler        |   5|th CA code digit  |  m
+     |                       |                       |
+     \-----------------------------------------------|
+  */
 
-    digits_item = proto_tree_add_text(parameter_tree, parameter_tvb,offset, -1,"Charge Area:");
-    digits_tree = proto_item_add_subtree(digits_item, ett_isup_address_digits);
+  digits_item = proto_tree_add_text(parameter_tree, parameter_tvb, offset, -1, "Charge Area:");
+  digits_tree = proto_item_add_subtree(digits_item, ett_isup_address_digits);
 
-    /* Odd.Even Indicator*/
-    odd_even = tvb_get_guint8(parameter_tvb,offset);
-    proto_tree_add_boolean(digits_tree, hf_isup_odd_even_indicator, parameter_tvb, 0, 1, odd_even);
+  /* Odd.Even Indicator*/
+  odd_even = tvb_get_guint8(parameter_tvb, offset);
+  proto_tree_add_boolean(digits_tree, hf_isup_odd_even_indicator, parameter_tvb, 0, 1, odd_even);
 
-    /* Number of Octets containing digits*/
-    num_octets_with_digits = carrier_info_length - 1;
+  /* Number of Octets containing digits*/
+  num_octets_with_digits = carrier_info_length - 1;
 
-    /* Lets now load up the digits.*/
-    /* If the odd indicator is set... drop the Filler from the last octet.*/
-    /* This loop also loads up ca_number with the digits for display*/
-    digit_index=0;
-    while(num_octets_with_digits>0){
-        offset++;
-        octet = tvb_get_guint8(parameter_tvb,offset);
-        proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_odd_no_digits, parameter_tvb, 0, 1, octet);
-        ca_number[digit_index++] = number_to_char(octet & ISUP_ODD_ADDRESS_SIGNAL_DIGIT_MASK);
-        if(num_octets_with_digits==1){
-            if(odd_even==0){
-                proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_even_no_digits, parameter_tvb, 0, 1, octet);
-                ca_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
-            }
-        }
-        else{
-            proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_even_no_digits, parameter_tvb, 0, 1, octet);
-            ca_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
-        }
-
-        num_octets_with_digits --;
+  /* Lets now load up the digits.*/
+  /* If the odd indicator is set... drop the Filler from the last octet.*/
+  /* This loop also loads up ca_number with the digits for display*/
+  digit_index = 0;
+  while (num_octets_with_digits > 0) {
+    offset += 1;
+    octet = tvb_get_guint8(parameter_tvb, offset);
+    proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_odd_no_digits, parameter_tvb, 0, 1, octet);
+    ca_number[digit_index++] = number_to_char(octet & ISUP_ODD_ADDRESS_SIGNAL_DIGIT_MASK);
+    if (num_octets_with_digits == 1) {
+      if (odd_even == 0) {
+        proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_even_no_digits, parameter_tvb, 0, 1, octet);
+        ca_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
+      }
     }
-    ca_number[digit_index++] = '\0';
-    proto_item_set_text(digits_item, "Charge Area Number : %s", ca_number);
+    else {
+      proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_even_no_digits, parameter_tvb, 0, 1, octet);
+      ca_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
+    }
 
-    proto_item_set_text(parameter_item, "Network POI-CA");
+    num_octets_with_digits--;
+  }
+  ca_number[digit_index++] = '\0';
+  proto_item_set_text(digits_item, "Charge Area Number : %s", ca_number);
+
+  proto_item_set_text(parameter_item, "Network POI-CA");
 
 }
 
 static const range_string jpn_isup_add_user_cat_type_vals[] = {
-    {  0,    0,			"Spare" },
-    {  1,    0x80,		"Reserved for network specific use" },
-    {  0x81, 0xfa,		"Spare" },
-    {  0xfb, 0xfb,		"Type 3 of additional mobile service information" },
-    {  0xfc, 0xfc,		"Type 2 of additional mobile service information" },
-    {  0xfd, 0xfd,		"Type 1 of additional mobile service information" },
-    {  0xfe, 0xfe,		"Type 1 of additional fixed service information" },
-    {  0xff, 0xff,		"Spare" },
-    {  0,0,             NULL } };
+  {  0,    0,    "Spare" },
+  {  1,    0x80, "Reserved for network specific use" },
+  {  0x81, 0xfa, "Spare" },
+  {  0xfb, 0xfb, "Type 3 of additional mobile service information" },
+  {  0xfc, 0xfc, "Type 2 of additional mobile service information" },
+  {  0xfd, 0xfd, "Type 1 of additional mobile service information" },
+  {  0xfe, 0xfe, "Type 1 of additional fixed service information" },
+  {  0xff, 0xff, "Spare" },
+  {  0,    0,    NULL } };
 
 static const value_string jpn_isup_type_1_add_fixed_serv_inf_vals[] = {
   { 0,   "Spare" },
@@ -7451,48 +7468,49 @@ static const value_string jpn_isup_type_2_add_mobile_serv_inf_vals[] = {
   { 10,   "Spare" },
   { 0,   NULL}
 };
+static value_string_ext jpn_isup_type_2_add_mobile_serv_inf_vals_ext = VALUE_STRING_EXT_INIT(jpn_isup_type_2_add_mobile_serv_inf_vals);
 
 
 void
 dissect_japan_isup_additonal_user_cat(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 {
-    int offset = 0;
-    guint8 type;
-    int parameter_length;
+  int    offset = 0;
+  guint8 type;
+  int    parameter_length;
 
-    parameter_length = tvb_length_remaining(parameter_tvb, offset);
+  parameter_length = tvb_length_remaining(parameter_tvb, offset);
 
-    while(offset<parameter_length){
-		/* Type of Additional User/Service Information */
-		type = tvb_get_guint8(parameter_tvb,offset);
-		proto_tree_add_item(parameter_tree, hf_japan_isup_add_user_cat_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-		offset++;
-		/* Additional User/Service Information  */
-		switch(type){
-		case 0xfe:
-			/* Type 1 of additional fixed service information */
-			proto_tree_add_item(parameter_tree, hf_japan_isup_type_1_add_fixed_serv_inf, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-			break;
-		case 0xfd:
-			/* Type 1 of additional mobile service information */
-			proto_tree_add_item(parameter_tree, hf_japan_isup_type_1_add_mobile_serv_inf, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-			break;
-		case 0xfc:
-			/* Type 2 of additional mobile service information */
-			proto_tree_add_item(parameter_tree, hf_japan_isup_type_2_add_mobile_serv_inf, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-			break;
-		case 0xfb:
-			/* Type 3 of additional mobile service information */
-			proto_tree_add_item(parameter_tree, hf_japan_isup_type_3_add_mobile_serv_inf, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-			break;
-		default:
-			proto_tree_add_text(parameter_tree, parameter_tvb, offset, 1, "Unknown(not dissected) Additional User/Service Information");
-			break;
-		}
-		offset++;
-	}
-    /* Write to top of tree */
-    proto_item_set_text(parameter_item, "Additional User Category");
+  while (offset < parameter_length) {
+    /* Type of Additional User/Service Information */
+    type = tvb_get_guint8(parameter_tvb, offset);
+    proto_tree_add_item(parameter_tree, hf_japan_isup_add_user_cat_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    /* Additional User/Service Information  */
+    switch (type) {
+      case 0xfe:
+        /* Type 1 of additional fixed service information */
+        proto_tree_add_item(parameter_tree, hf_japan_isup_type_1_add_fixed_serv_inf, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+        break;
+      case 0xfd:
+        /* Type 1 of additional mobile service information */
+        proto_tree_add_item(parameter_tree, hf_japan_isup_type_1_add_mobile_serv_inf, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+        break;
+      case 0xfc:
+        /* Type 2 of additional mobile service information */
+        proto_tree_add_item(parameter_tree, hf_japan_isup_type_2_add_mobile_serv_inf, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+        break;
+      case 0xfb:
+        /* Type 3 of additional mobile service information */
+        proto_tree_add_item(parameter_tree, hf_japan_isup_type_3_add_mobile_serv_inf, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+        break;
+      default:
+        proto_tree_add_text(parameter_tree, parameter_tvb, offset, 1, "Unknown(not dissected) Additional User/Service Information");
+        break;
+    }
+    offset += 1;
+  }
+  /* Write to top of tree */
+  proto_item_set_text(parameter_item, "Additional User Category");
 
 }
 
@@ -7508,36 +7526,36 @@ static const value_string jpn_isup_reason_for_clip_fail_vals[] = {
 static void
 dissect_japan_isup_reason_for_clip_fail(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 {
-    int offset = 0;
+  int offset = 0;
 
 
-    proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-    proto_tree_add_item(parameter_tree, hf_japan_isup_reason_for_clip_fail, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_item(parameter_tree, hf_japan_isup_reason_for_clip_fail, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
 
-    proto_item_set_text(parameter_item, "Reason for CLIP failure");
+  proto_item_set_text(parameter_item, "Reason for CLIP failure");
 
 }
 
 static void
 dissect_japan_isup_contractor_number(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 {
-    int offset = 0;
-    int parameter_length;
-	const char *digit_str;
+  int         offset = 0;
+  int         parameter_length;
+  const char *digit_str;
 
-    parameter_length = tvb_length_remaining(parameter_tvb, offset);
+  parameter_length = tvb_length_remaining(parameter_tvb, offset);
 
-    proto_tree_add_item(parameter_tree, hf_isup_odd_even_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-    proto_tree_add_item(parameter_tree, hf_isup_called_party_nature_of_address_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset++;
+  proto_tree_add_item(parameter_tree, hf_isup_odd_even_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_item(parameter_tree, hf_isup_called_party_nature_of_address_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  offset += 1;
 
-    proto_tree_add_item(parameter_tree, hf_isup_numbering_plan_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset++;
+  proto_tree_add_item(parameter_tree, hf_isup_numbering_plan_indicator, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  offset += 1;
 
-	digit_str = tvb_bcd_dig_to_ep_str( parameter_tvb, offset, parameter_length-2, NULL, FALSE);
-	proto_tree_add_string(parameter_tree, hf_japan_isup_contractor_number,  parameter_tvb, offset, parameter_length-offset, digit_str);
+  digit_str = tvb_bcd_dig_to_wmem_packet_str( parameter_tvb, offset, parameter_length-2, NULL, FALSE);
+  proto_tree_add_string(parameter_tree, hf_japan_isup_contractor_number,  parameter_tvb, offset, parameter_length-offset, digit_str);
 
-    proto_item_set_text(parameter_item, "Contractor Number %s",digit_str);
+  proto_item_set_text(parameter_item, "Contractor Number %s", digit_str);
 
 }
 /* ------------------------------------------------------------------
@@ -7570,244 +7588,244 @@ dissect_japan_isup_contractor_number(tvbuff_t *parameter_tvb, proto_tree *parame
 static void
 dissect_japan_isup_carrier_information(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 {
-    proto_item *catagory_of_carrier;
-    proto_tree *carrier_info_tree;
+  proto_item *catagory_of_carrier;
+  proto_tree *carrier_info_tree;
 
-    proto_item *digits_item;
-    proto_tree *digits_tree;
+  proto_item *digits_item;
+  proto_tree *digits_tree;
 
-    proto_item *type_of_carrier;
-    proto_tree *type_of_carrier_tree;
+  proto_item *type_of_carrier;
+  proto_tree *type_of_carrier_tree;
 
-    guint8 octet;
-    guint8 odd_even;
-    guint8 type_of_carrier_info;
-    guint8 carrier_info_length;
-    guint8 carrierX_end_index;
+  guint8 octet;
+  guint8 odd_even;
+  guint8 type_of_carrier_info;
+  guint8 carrier_info_length;
+  guint8 carrierX_end_index;
 
-    gint offset=0;
-    gint length=0;
+  gint offset = 0;
+  gint length = 0;
 
-    gint num_octets_with_digits=0;
+  gint num_octets_with_digits = 0;
 
-    gint digit_index=0;
-    char cid_number[MAXDIGITS + 1]="";
-    char ca_number[MAXDIGITS + 1]="";
+  gint digit_index = 0;
+  char cid_number[MAXDIGITS + 1] = "";
+  char ca_number[MAXDIGITS + 1]  = "";
 
-    /*Octet 1 : IEC Indicator*/
-    octet = tvb_get_guint8(parameter_tvb, 0);
-    proto_tree_add_uint(parameter_tree, hf_isup_carrier_info_iec, parameter_tvb, 0, 1, octet);
+  /*Octet 1 : IEC Indicator*/
+  octet = tvb_get_guint8(parameter_tvb, 0);
+  proto_tree_add_uint(parameter_tree, hf_isup_carrier_info_iec, parameter_tvb, 0, 1, octet);
 
 
-    length = tvb_length_remaining(parameter_tvb, 2);
-    if (length == 0) {
-      proto_tree_add_text(parameter_tree, parameter_tvb, offset, 0, "Carrier Information (empty)");
-      proto_item_set_text(parameter_item, "Carrier Information (empty)");
-      return;
-    }
+  length = tvb_length_remaining(parameter_tvb, 2);
+  if (length == 0) {
+    proto_tree_add_text(parameter_tree, parameter_tvb, offset, 0, "Carrier Information (empty)");
+    proto_item_set_text(parameter_item, "Carrier Information (empty)");
+    return;
+  }
 
-    offset = 1;
+  offset = 1;
 
-    /* Lets loop through the Carrier Information*/
+  /* Lets loop through the Carrier Information*/
 
-    while(length > 0){
+  while (length > 0) {
 
-        catagory_of_carrier = proto_tree_add_text(parameter_tree, parameter_tvb,offset, -1,"Category of Carrier:");
-        carrier_info_tree = proto_item_add_subtree(catagory_of_carrier, ett_isup_carrier_info);
+    catagory_of_carrier = proto_tree_add_text(parameter_tree, parameter_tvb, offset, -1, "Category of Carrier:");
+    carrier_info_tree = proto_item_add_subtree(catagory_of_carrier, ett_isup_carrier_info);
 
-        /*Octet 2 : Category of Carrier*/
+    /*Octet 2 : Category of Carrier*/
+    octet = tvb_get_guint8(parameter_tvb, offset);
+    /*proto_tree_add_uint(carrier_info_tree, hf_isup_carrier_info_cat_of_carrier, parameter_tvb, 0, 1, octet);*/
+    proto_item_set_text(catagory_of_carrier, "%s (%u)", val_to_str_ext_const(octet, &isup_carrier_info_category_vals_ext, "spare"), octet );
+
+
+    /*Octet 3 : Length of Category Information No.x*/
+    offset += 1;
+    carrierX_end_index = tvb_get_guint8(parameter_tvb, offset)+offset;
+
+    while (offset < carrierX_end_index) {
+
+      type_of_carrier = proto_tree_add_text(carrier_info_tree, parameter_tvb, offset, -1, "Type of Carrier:");
+      type_of_carrier_tree = proto_item_add_subtree(type_of_carrier, ett_isup_carrier_info);
+
+      /* Type of Carrier Information*/
+      offset += 1;
+      type_of_carrier_info = tvb_get_guint8(parameter_tvb, offset);
+      /*proto_tree_add_uint(type_of_carrier_tree, hf_isup_carrier_info_type_of_carrier_info, parameter_tvb, 0, 1, type_of_carrier_info);*/
+      proto_item_set_text(type_of_carrier, "%s (%u)", val_to_str_ext_const(type_of_carrier_info, &isup_carrier_info_type_of_carrier_vals_ext, "spare"), type_of_carrier_info );
+
+
+      /* Carrier Information Length */
+      offset += 1;
+      carrier_info_length = tvb_get_guint8(parameter_tvb, offset);
+
+      /* POI Hierarchy information
+
+         8     7     6     5     4     3     2    1
+         +-----------------------|-----------------------+
+         |  Entry POI Hierarchy  |  Exit POI Hierarchy   |  1
+         |                       |                       |
+         \-----------------------------------------------|
+
+      */
+
+      if (type_of_carrier_info == CARRIER_INFO_TYPE_OF_CARRIER_POIHIE) {
+        /* POI Hierarchy information */
+        offset += 1;
         octet = tvb_get_guint8(parameter_tvb, offset);
-        /*proto_tree_add_uint(carrier_info_tree, hf_isup_carrier_info_cat_of_carrier, parameter_tvb, 0, 1, octet);*/
-        proto_item_set_text(catagory_of_carrier, "%s (%u)", val_to_str_ext_const(octet, &isup_carrier_info_category_vals_ext, "spare"),octet );
+        proto_tree_add_uint(type_of_carrier_tree, hf_isup_carrier_info_poi_entry_HEI, parameter_tvb, 0, 1, octet);
+        proto_tree_add_uint(type_of_carrier_tree, hf_isup_carrier_info_poi_exit_HEI, parameter_tvb, 0, 1, octet);
+      }
 
+      /* POI|CA information (Charge Area)
 
-        /*Octet 3 : Length of Category Information No.x*/
-        offset++;
-        carrierX_end_index = tvb_get_guint8(parameter_tvb, offset)+offset;
+         8     7     6     5     4     3     2     1
+         +-----|-----------------------------------------+
+         |Odd/ |                Spare                    |  1
+         |even |                                         |
+         +-----------------------------------------------+
+         |   2nd CA code digit   |   1st CA code digit   |  2
+         |                       |                       |
+         +-----------------------+-----------------------+
+         .                      .                       .
+         .                      .                       .
+         .                      .                       .
+         +-----------------------+-----------------------+
+         |         Filler        |   5|th CA code digit  |  m
+         |                       |                       |
+         \-----------------------------------------------|
+      */
+      if (type_of_carrier_info == CARRIER_INFO_TYPE_OF_CARRIER_POICA) {
 
-        while(offset<carrierX_end_index){
+        digits_item = proto_tree_add_text(type_of_carrier_tree, parameter_tvb, offset, -1, "Charge Area:");
+        digits_tree = proto_item_add_subtree(digits_item, ett_isup_address_digits);
 
-            type_of_carrier = proto_tree_add_text(carrier_info_tree, parameter_tvb,offset, -1,"Type of Carrier:");
-            type_of_carrier_tree = proto_item_add_subtree(type_of_carrier, ett_isup_carrier_info);
+        /* Odd.Even Indicator*/
+        offset += 1;
+        odd_even = tvb_get_guint8(parameter_tvb, offset);
+        proto_tree_add_boolean(digits_tree, hf_isup_odd_even_indicator, parameter_tvb, 0, 1, odd_even);
 
-            /* Type of Carrier Information*/
-            offset++;
-            type_of_carrier_info = tvb_get_guint8(parameter_tvb, offset);
-            /*proto_tree_add_uint(type_of_carrier_tree, hf_isup_carrier_info_type_of_carrier_info, parameter_tvb, 0, 1, type_of_carrier_info);*/
-            proto_item_set_text(type_of_carrier, "%s (%u)", val_to_str_ext_const(type_of_carrier_info, &isup_carrier_info_type_of_carrier_vals_ext, "spare"),type_of_carrier_info );
+        /* Number of Octets containing digits*/
+        num_octets_with_digits = carrier_info_length - 1;
 
-
-            /* Carrier Information Length */
-            offset++;
-            carrier_info_length = tvb_get_guint8(parameter_tvb, offset);
-
-            /* POI Hierarchy information
-
-               8     7     6     5     4     3     2    1
-            +-----------------------|-----------------------+
-            |  Entry POI Hierarchy  |  Exit POI Hierarchy   |  1
-            |                       |                       |
-            \-----------------------------------------------|
-
-            */
-
-            if(type_of_carrier_info==CARRIER_INFO_TYPE_OF_CARRIER_POIHIE){
-                /* POI Hierarchy information */
-                offset++;
-                octet = tvb_get_guint8(parameter_tvb,offset);
-                proto_tree_add_uint(type_of_carrier_tree, hf_isup_carrier_info_poi_entry_HEI, parameter_tvb, 0, 1, octet);
-                proto_tree_add_uint(type_of_carrier_tree, hf_isup_carrier_info_poi_exit_HEI, parameter_tvb, 0, 1, octet);
+        /* Lets now load up the digits.*/
+        /* If the odd indicator is set... drop the Filler from the last octet.*/
+        /* This loop also loads up ca_number with the digits for display*/
+        digit_index = 0;
+        while (num_octets_with_digits > 0) {
+          offset += 1;
+          octet = tvb_get_guint8(parameter_tvb, offset);
+          proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_odd_no_digits, parameter_tvb, 0, 1, octet);
+          ca_number[digit_index++] = number_to_char(octet & ISUP_ODD_ADDRESS_SIGNAL_DIGIT_MASK);
+          if (num_octets_with_digits == 1) {
+            if (odd_even == 0) {
+              proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_even_no_digits, parameter_tvb, 0, 1, octet);
+              ca_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
             }
+          }
+          else {
+            proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_even_no_digits, parameter_tvb, 0, 1, octet);
+            ca_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
+          }
 
-            /* POI|CA information (Charge Area)
-
-               8     7     6     5     4     3     2     1
-            +-----|-----------------------------------------+
-            |Odd/ |                Spare                    |  1
-            |even |                                         |
-            +-----------------------------------------------+
-            |   2nd CA code digit   |   1st CA code digit   |  2
-            |                       |                       |
-            +-----------------------+-----------------------+
-             .                      .                       .
-         .                      .                       .
-         .                      .                       .
-            +-----------------------+-----------------------+
-            |         Filler        |   5|th CA code digit  |  m
-            |                       |                       |
-            \-----------------------------------------------|
-            */
-            if(type_of_carrier_info==CARRIER_INFO_TYPE_OF_CARRIER_POICA){
-
-                digits_item = proto_tree_add_text(type_of_carrier_tree, parameter_tvb,offset, -1,"Charge Area:");
-                digits_tree = proto_item_add_subtree(digits_item, ett_isup_address_digits);
-
-                /* Odd.Even Indicator*/
-                offset++;
-                odd_even = tvb_get_guint8(parameter_tvb,offset);
-                proto_tree_add_boolean(digits_tree, hf_isup_odd_even_indicator, parameter_tvb, 0, 1, odd_even);
-
-                /* Number of Octets containing digits*/
-                num_octets_with_digits = carrier_info_length - 1;
-
-                /* Lets now load up the digits.*/
-                /* If the odd indicator is set... drop the Filler from the last octet.*/
-                /* This loop also loads up ca_number with the digits for display*/
-                digit_index=0;
-                while(num_octets_with_digits>0){
-                    offset++;
-                    octet = tvb_get_guint8(parameter_tvb,offset);
-                    proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_odd_no_digits, parameter_tvb, 0, 1, octet);
-                    ca_number[digit_index++] = number_to_char(octet & ISUP_ODD_ADDRESS_SIGNAL_DIGIT_MASK);
-                    if(num_octets_with_digits==1){
-                        if(odd_even==0){
-                            proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_even_no_digits, parameter_tvb, 0, 1, octet);
-                            ca_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
-                        }
-                    }
-                    else{
-                        proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_even_no_digits, parameter_tvb, 0, 1, octet);
-                        ca_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
-                    }
-
-                    num_octets_with_digits --;
-                }
-                ca_number[digit_index++] = '\0';
-                proto_item_set_text(digits_item, "Charge Area Number : %s", ca_number);
-
-            }
-
-            /* Carrier Identification Code
-             8     7     6     5     4     3     2     1
-            +-----|-----------------------------------------+
-            |Odd/ |                Spare                    |  1
-            |even |                                         |
-            +-----------------------------------------------+
-            |   2nd ID code digit   |   1st ID code digit   |  2
-            |                       |                       |
-            +-----------------------+-----------------------+
-         .                      .                       .
-         .                      .                       .
-         .                      .                       .
-            +-----------------------+-----------------------+
-            | Filler (if necessary) |   n|th ID code digit  |  m
-            |                       |                       |
-            \-----------------------------------------------|
-            */
-
-            if(type_of_carrier_info==CARRIER_INFO_TYPE_OF_CARRIER_CARID){
-                digits_item = proto_tree_add_text(type_of_carrier_tree, parameter_tvb,offset, -1,"Carrier ID Code:");
-                digits_tree = proto_item_add_subtree(digits_item, ett_isup_address_digits);
-
-                offset++;
-                /* Odd.Even Indicator*/
-                odd_even = tvb_get_guint8(parameter_tvb,offset);
-                proto_tree_add_boolean(digits_tree, hf_isup_odd_even_indicator, parameter_tvb, 0, 1, odd_even);
-
-                /* Number of Octets containing digits*/
-                num_octets_with_digits = carrier_info_length - 1;
-
-                /* Lets now load up the digits.*/
-                /* If the odd indicator is set... drop the Filler from the last octet.*/
-                /* This loop also loads up cid_number with the digits for display*/
-                digit_index=0;
-                while(num_octets_with_digits>0){
-                    offset++;
-                    octet = tvb_get_guint8(parameter_tvb,offset);
-                    proto_tree_add_uint(digits_tree, hf_isup_carrier_info_odd_no_digits, parameter_tvb, 0, 1, octet);
-                    cid_number[digit_index++] = number_to_char(octet & ISUP_ODD_ADDRESS_SIGNAL_DIGIT_MASK);
-                    if(num_octets_with_digits==1){
-                        if(odd_even==0){
-                            proto_tree_add_uint(digits_tree, hf_isup_carrier_info_even_no_digits, parameter_tvb, 0, 1, octet);
-                            cid_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
-                        }
-                    }
-                    else{
-                        proto_tree_add_uint(digits_tree, hf_isup_carrier_info_even_no_digits, parameter_tvb, 0, 1, octet);
-                        cid_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
-                    }
-                    num_octets_with_digits --;
-                }
-                cid_number[digit_index++] = '\0';
-                proto_item_set_text(digits_item, "Carrier ID Code : %s", cid_number);
-            }
+          num_octets_with_digits--;
         }
+        ca_number[digit_index++] = '\0';
+        proto_item_set_text(digits_item, "Charge Area Number : %s", ca_number);
 
-        offset++;
-        length = tvb_length_remaining(parameter_tvb, offset);
+      }
+
+      /* Carrier Identification Code
+         8     7     6     5     4     3     2     1
+         +-----|-----------------------------------------+
+         |Odd/ |                Spare                    |  1
+         |even |                                         |
+         +-----------------------------------------------+
+         |   2nd ID code digit   |   1st ID code digit   |  2
+         |                       |                       |
+         +-----------------------+-----------------------+
+         .                      .                       .
+         .                      .                       .
+         .                      .                       .
+         +-----------------------+-----------------------+
+         | Filler (if necessary) |   n|th ID code digit  |  m
+         |                       |                       |
+         \-----------------------------------------------|
+      */
+
+      if (type_of_carrier_info == CARRIER_INFO_TYPE_OF_CARRIER_CARID) {
+        digits_item = proto_tree_add_text(type_of_carrier_tree, parameter_tvb, offset, -1, "Carrier ID Code:");
+        digits_tree = proto_item_add_subtree(digits_item, ett_isup_address_digits);
+
+        offset += 1;
+        /* Odd.Even Indicator*/
+        odd_even = tvb_get_guint8(parameter_tvb, offset);
+        proto_tree_add_boolean(digits_tree, hf_isup_odd_even_indicator, parameter_tvb, 0, 1, odd_even);
+
+        /* Number of Octets containing digits*/
+        num_octets_with_digits = carrier_info_length - 1;
+
+        /* Lets now load up the digits.*/
+        /* If the odd indicator is set... drop the Filler from the last octet.*/
+        /* This loop also loads up cid_number with the digits for display*/
+        digit_index = 0;
+        while (num_octets_with_digits > 0) {
+          offset += 1;
+          octet = tvb_get_guint8(parameter_tvb, offset);
+          proto_tree_add_uint(digits_tree, hf_isup_carrier_info_odd_no_digits, parameter_tvb, 0, 1, octet);
+          cid_number[digit_index++] = number_to_char(octet & ISUP_ODD_ADDRESS_SIGNAL_DIGIT_MASK);
+          if (num_octets_with_digits == 1) {
+            if (odd_even == 0) {
+              proto_tree_add_uint(digits_tree, hf_isup_carrier_info_even_no_digits, parameter_tvb, 0, 1, octet);
+              cid_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
+            }
+          }
+          else {
+            proto_tree_add_uint(digits_tree, hf_isup_carrier_info_even_no_digits, parameter_tvb, 0, 1, octet);
+            cid_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
+          }
+          num_octets_with_digits--;
+        }
+        cid_number[digit_index++] = '\0';
+        proto_item_set_text(digits_item, "Carrier ID Code : %s", cid_number);
+      }
     }
 
-    /* Write to top of tree */
-    proto_item_set_text(parameter_item, "Carrier Information");
+    offset += 1;
+    length = tvb_length_remaining(parameter_tvb, offset);
+  }
+
+  /* Write to top of tree */
+  proto_item_set_text(parameter_item, "Carrier Information");
 
 }
 
 
 static const range_string japan_isup_charge_delay_type_value[] = {
-    {  0,    0,			"Spare" },
-    {  1,    0xfc,		"Reserved for network specific use" },
-    {  0x81, 0xfa,		"Spare" },
-    {  0xfd, 0xfd,		"Charge rate transfer" },
-    {  0xfe, 0xfe,		"Terminating charge area information" },
-    {  0xff, 0xff,		"Spare" },
-    {  0,0,             NULL } };
+  {  0,    0,    "Spare" },
+  {  1,    0xfc, "Reserved for network specific use" },
+  {  0x81, 0xfa, "Spare" },
+  {  0xfd, 0xfd, "Charge rate transfer" },
+  {  0xfe, 0xfe, "Terminating charge area information" },
+  {  0xff, 0xff, "Spare" },
+  {  0,    0,    NULL } };
 
 static void
 dissect_japan_isup_charge_inf_delay(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 {
 
-    int offset = 0;
-    int parameter_length;
+  int offset = 0;
+  int parameter_length;
 
-    parameter_length = tvb_length_remaining(parameter_tvb, offset);
+  parameter_length = tvb_length_remaining(parameter_tvb, offset);
 
-    while(offset<parameter_length){
-		proto_tree_add_item(parameter_tree, hf_japan_isup_charge_delay_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-		offset++;
-	}
+  while (offset < parameter_length) {
+    proto_tree_add_item(parameter_tree, hf_japan_isup_charge_delay_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+  }
 
-    /* Write to top of tree */
-    proto_item_set_text(parameter_item, "Carrier Information");
+  /* Write to top of tree */
+  proto_item_set_text(parameter_item, "Carrier Information");
 
 }
 
@@ -7864,99 +7882,99 @@ dissect_japan_isup_charge_inf_delay(tvbuff_t *parameter_tvb, proto_tree *paramet
 static void
 dissect_japan_isup_charge_area_info(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 {
-    proto_item *digits_item;
-    proto_tree *digits_tree;
+  proto_item *digits_item;
+  proto_tree *digits_tree;
 
-    guint8 octet;
+  guint8 octet;
 
-    gint nat_of_info_indic =0;
-    gint length=0;
-    gint offset=0;
-    gint odd_even=0;
-    gint digit_index=0;
+  gint nat_of_info_indic;
+  gint length;
+  gint offset;
+  gint odd_even;
+  gint digit_index = 0;
 
-    char ca_number[MAXDIGITS + 1]="";
+  char ca_number[MAXDIGITS + 1] = "";
 
-    /*Octet 1 : Indicator*/
-    octet = tvb_get_guint8(parameter_tvb, 0);
-    nat_of_info_indic = octet & 0x7F;
-    odd_even = octet & 0x80;
-    proto_tree_add_boolean(parameter_tree, hf_isup_odd_even_indicator, parameter_tvb, 0, 1, octet);
-    proto_tree_add_uint(parameter_tree, hf_japan_isup_charge_area_nat_of_info_value, parameter_tvb, 0, 1, octet);
+  /*Octet 1 : Indicator*/
+  octet = tvb_get_guint8(parameter_tvb, 0);
+  nat_of_info_indic = octet & 0x7F;
+  odd_even = octet & 0x80;
+  proto_tree_add_boolean(parameter_tree, hf_isup_odd_even_indicator, parameter_tvb, 0, 1, octet);
+  proto_tree_add_uint(parameter_tree, hf_japan_isup_charge_area_nat_of_info_value, parameter_tvb, 0, 1, octet);
 
-    offset=1;
+  offset = 1;
+  length = tvb_length_remaining(parameter_tvb, offset);
+
+  /*Only CA code digits.*/
+  if (nat_of_info_indic == CHARGE_AREA_NAT_INFO_CA) {
+    digits_item = proto_tree_add_text(parameter_tree, parameter_tvb, offset, -1, "Charge Area:");
+    digits_tree = proto_item_add_subtree(digits_item, ett_isup_address_digits);
+
+    while (length > 0) {
+      octet = tvb_get_guint8(parameter_tvb, offset);
+      proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_odd_no_digits, parameter_tvb, 0, 1, octet);
+      ca_number[digit_index++] = number_to_char(octet & ISUP_ODD_ADDRESS_SIGNAL_DIGIT_MASK);
+      if (length == 1) {
+        if (odd_even == 0) {
+          proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_even_no_digits, parameter_tvb, 0, 1, octet);
+          ca_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
+        }
+      }
+      else {
+        proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_even_no_digits, parameter_tvb, 0, 1, octet);
+        ca_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
+      }
+      offset += 1;
+      length -= 1;
+    }
+    ca_number[digit_index++] = '\0';
+    proto_item_set_text(digits_item, "Charge Area : %s", ca_number);
+  }
+  /*Only MA code digits.*/
+  if (nat_of_info_indic == CHARGE_AREA_NAT_INFO_MA) {
+    digits_item = proto_tree_add_text(parameter_tree, parameter_tvb, offset, -1, "Message Area:");
+    digits_tree = proto_item_add_subtree(digits_item, ett_isup_address_digits);
+
+    /* First two octets contains*/
+    /* four NC digits*/
+    octet = tvb_get_guint8(parameter_tvb, offset);
+    proto_tree_add_uint(digits_tree, hf_japan_isup_charging_info_nc_odd_digits, parameter_tvb, 0, 1, octet);
+    proto_tree_add_uint(digits_tree, hf_japan_isup_charging_info_nc_even_digits, parameter_tvb, 0, 1, octet);
+    octet++;
+    octet = tvb_get_guint8(parameter_tvb, offset);
+    proto_tree_add_uint(digits_tree, hf_japan_isup_charging_info_nc_odd_digits, parameter_tvb, 0, 1, octet);
+    proto_tree_add_uint(digits_tree, hf_japan_isup_charging_info_nc_even_digits, parameter_tvb, 0, 1, octet);
+    octet++;
+
+    /* Now loop through MA/CA digits.*/
     length = tvb_length_remaining(parameter_tvb, offset);
 
-    /*Only CA code digits.*/
-    if(nat_of_info_indic==CHARGE_AREA_NAT_INFO_CA){
-        digits_item = proto_tree_add_text(parameter_tree, parameter_tvb,offset, -1,"Charge Area:");
-        digits_tree = proto_item_add_subtree(digits_item, ett_isup_address_digits);
-
-        while(length>0){
-            octet = tvb_get_guint8(parameter_tvb,offset);
-            proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_odd_no_digits, parameter_tvb, 0, 1, octet);
-            ca_number[digit_index++] = number_to_char(octet & ISUP_ODD_ADDRESS_SIGNAL_DIGIT_MASK);
-            if(length==1){
-                if(odd_even==0){
-                    proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_even_no_digits, parameter_tvb, 0, 1, octet);
-                    ca_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
-                }
-            }
-            else{
-                proto_tree_add_uint(digits_tree, hf_isup_carrier_info_ca_even_no_digits, parameter_tvb, 0, 1, octet);
-                ca_number[digit_index++] = number_to_char((octet & ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK) / 0x10);
-            }
-            offset++;
-            length --;
+    while (length > 0) {
+      octet = tvb_get_guint8(parameter_tvb, offset);
+      proto_tree_add_uint(digits_tree, hf_isup_charging_info_maca_odd_digits, parameter_tvb, 0, 1, octet);
+      if (length == 1) {
+        if (odd_even == 0) {
+          proto_tree_add_uint(digits_tree, hf_isup_charging_info_maca_even_digits, parameter_tvb, 0, 1, octet);
         }
-        ca_number[digit_index++] = '\0';
-        proto_item_set_text(digits_item, "Charge Area : %s", ca_number);
-    }
-    /*Only MA code digits.*/
-    if(nat_of_info_indic==CHARGE_AREA_NAT_INFO_MA){
-        digits_item = proto_tree_add_text(parameter_tree, parameter_tvb,offset, -1,"Message Area:");
-        digits_tree = proto_item_add_subtree(digits_item, ett_isup_address_digits);
-
-        /* First two octets contains*/
-        /* four NC digits*/
-        octet = tvb_get_guint8(parameter_tvb,offset);
-        proto_tree_add_uint(digits_tree, hf_japan_isup_charging_info_nc_odd_digits, parameter_tvb, 0, 1, octet);
-        proto_tree_add_uint(digits_tree, hf_japan_isup_charging_info_nc_even_digits, parameter_tvb, 0, 1, octet);
-        octet++;
-        octet = tvb_get_guint8(parameter_tvb,offset);
-        proto_tree_add_uint(digits_tree, hf_japan_isup_charging_info_nc_odd_digits, parameter_tvb, 0, 1, octet);
-        proto_tree_add_uint(digits_tree, hf_japan_isup_charging_info_nc_even_digits, parameter_tvb, 0, 1, octet);
-        octet++;
-
-        /* Now loop through MA/CA digits.*/
-        length = tvb_length_remaining(parameter_tvb, offset);
-
-        while(length>0){
-            octet = tvb_get_guint8(parameter_tvb,offset);
-            proto_tree_add_uint(digits_tree, hf_isup_charging_info_maca_odd_digits, parameter_tvb, 0, 1, octet);
-            if(length==1){
-                if(odd_even==0){
-                    proto_tree_add_uint(digits_tree, hf_isup_charging_info_maca_even_digits, parameter_tvb, 0, 1, octet);
-                }
-            }
-            else{
-                proto_tree_add_uint(digits_tree, hf_isup_charging_info_maca_even_digits, parameter_tvb, 0, 1, octet);
-            }
-            offset++;
-            length --;
-        }
-
+      }
+      else {
+        proto_tree_add_uint(digits_tree, hf_isup_charging_info_maca_even_digits, parameter_tvb, 0, 1, octet);
+      }
+      offset += 1;
+      length -= 1;
     }
 
-    /* Write to top of tree */
-    proto_item_set_text(parameter_item, "Charge Area Information");
+  }
+
+  /* Write to top of tree */
+  proto_item_set_text(parameter_item, "Charge Area Information");
 }
 
 static const value_string japan_isup_chg_info_type_value[] = {
-  { 0,   "Spare" },
-  { 1,   "Reserved" },
-  { 2,   "Reserved" },
-  { 3,   "Advanced Charge Rate Transfer(TDS Service)" },
+  { 0,      "Spare" },
+  { 1,      "Reserved" },
+  { 2,      "Reserved" },
+  { 3,      "Advanced Charge Rate Transfer(TDS Service)" },
   { 0xfe,   "Charge rate transfer (flexible charging)" },
   { 0xff,   "Spare" },
   { 0,   NULL}
@@ -7965,14 +7983,14 @@ static const value_string japan_isup_chg_info_type_value[] = {
 static guint16
 dissect_japan_chg_inf_type(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item)
 {
-	guint16 chg_inf_type;
+  guint16 chg_inf_type;
 
-	chg_inf_type = tvb_get_guint8(parameter_tvb, 0);
-	proto_tree_add_item(parameter_tree, hf_japan_isup_charge_info_type, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
+  chg_inf_type = tvb_get_guint8(parameter_tvb, 0);
+  proto_tree_add_item(parameter_tree, hf_japan_isup_charge_info_type, parameter_tvb, 0, 1, ENC_BIG_ENDIAN);
 
-	proto_item_set_text(parameter_item, "Charge information type");
+  proto_item_set_text(parameter_item, "Charge information type");
 
-	return chg_inf_type;
+  return chg_inf_type;
 }
 
 static const value_string japan_isup_sig_elem_type_values[] = {
@@ -8011,37 +8029,38 @@ static const value_string japan_isup_tariff_rate_pres_values[] = {
 static void
 dissect_japan_chg_inf_type_acr(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item _U_)
 {
-    int offset = 0;
-    guint8 ext_ind;
-    /* length : 2-5 octets */
+  int    offset = 0;
+  guint8 ext_ind;
+
+  /* length : 2-5 octets */
+  ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
+  proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_item(parameter_tree, hf_japan_isup_sig_elem_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  offset += 1;
+  if (!ext_ind) {
+    /* Activation ID */
     ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
     proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-    proto_tree_add_item(parameter_tree, hf_japan_isup_sig_elem_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset++;
+    proto_tree_add_item(parameter_tree, hf_japan_isup_activation_id, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
     if (!ext_ind) {
-        /* Activation ID */
-        ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
+      /* Operation type and class */
+      ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
+      proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+      proto_tree_add_item(parameter_tree, hf_japan_isup_op_cls, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+      proto_tree_add_item(parameter_tree, hf_japan_isup_op_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+      offset += 1;
+      if (!ext_ind) {
+        /* Tariff collecting method and charging party type */
         proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-        proto_tree_add_item(parameter_tree, hf_japan_isup_activation_id, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-        offset++;
-        if (!ext_ind) {
-            /* Operation type and class */
-            ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
-            proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-            proto_tree_add_item(parameter_tree, hf_japan_isup_op_cls, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-            proto_tree_add_item(parameter_tree, hf_japan_isup_op_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-            offset++;
-            if (!ext_ind) {
-                /* Tariff collecting method and charging party type */
-                proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-                proto_tree_add_item(parameter_tree, hf_japan_isup_charging_party_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-                proto_tree_add_item(parameter_tree, hf_japan_isup_collecting_metod, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-                offset++;
-            }
-        }
+        proto_tree_add_item(parameter_tree, hf_japan_isup_charging_party_type, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+        proto_tree_add_item(parameter_tree, hf_japan_isup_collecting_metod, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+        offset += 1;
+      }
     }
-    /* Tariff rate presentation */
-    proto_tree_add_item(parameter_tree, hf_japan_isup_tariff_rate_pres, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  }
+  /* Tariff rate presentation */
+  proto_tree_add_item(parameter_tree, hf_japan_isup_tariff_rate_pres, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
 
 }
 
@@ -8067,82 +8086,82 @@ static const value_string japan_isup_crci1_values[] = {
 static void
 dissect_japan_chg_inf_type_crt(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item _U_)
 {
-    int offset = 0;
-    guint8 ext_ind;
-    guint8 len;
-    int parameter_length;
+  int    offset = 0;
+  guint8 ext_ind;
+  guint8 len;
+  int    parameter_length;
 
-    parameter_length = tvb_length_remaining(parameter_tvb, offset);
+  parameter_length = tvb_length_remaining(parameter_tvb, offset);
 
 
-    /* Unit per Time Period (UTP) */
-    proto_tree_add_item(parameter_tree, hf_japan_isup_utp, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset++;
+  /* Unit per Time Period (UTP) */
+  proto_tree_add_item(parameter_tree, hf_japan_isup_utp, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  offset += 1;
 
-    /* Charge rate information category 1 (CRIC 1) */
+  /* Charge rate information category 1 (CRIC 1) */
+  ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
+  proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  proto_tree_add_item(parameter_tree, hf_japan_isup_crci1, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+  offset += 1;
+  if (!ext_ind) {
+    len = tvb_get_guint8(parameter_tvb, offset);
+    proto_tree_add_item(parameter_tree, hf_japan_isup_crci1_len, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+    /* Initial units (IU) IA5 coded in two octets */
+    proto_tree_add_item(parameter_tree, hf_japan_isup_iu, parameter_tvb, offset, 2, ENC_NA|ENC_ASCII);
+    offset += 2;
+    /* Daytime Charge rate (DCR) (Octets A, B, C) IA5 coded in three octets */
+    proto_tree_add_item(parameter_tree, hf_japan_isup_dcr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
+    offset+=3;
+    if (len > 5) {
+      /* Evening Charge rate (ECR) (Octets B, E, F) IA5 coded in three octets */
+      proto_tree_add_item(parameter_tree, hf_japan_isup_ecr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
+      offset += 3;
+    }
+    if (len > 8) {
+      /* Nighttime Charge rate (NCR) (Octet G,H,I) IA5 coded in three octets */
+      proto_tree_add_item(parameter_tree, hf_japan_isup_ncr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
+      offset += 3;
+    }
+    if (len > 11) {
+      /* Spare charge rate (SCR) (Octets J,K,L) IA5 coded in three octets */
+      proto_tree_add_item(parameter_tree, hf_japan_isup_scr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
+      offset += 3;
+    }
+  }
+  if (parameter_length > offset) {
+    /* Charge rate information category 2 (CRIC 2) */
     ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
     proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-    proto_tree_add_item(parameter_tree, hf_japan_isup_crci1, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset++;
+    proto_tree_add_item(parameter_tree, hf_japan_isup_crci2, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
     if (!ext_ind) {
-        len = tvb_get_guint8(parameter_tvb, offset);
-        proto_tree_add_item(parameter_tree, hf_japan_isup_crci1_len, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-        offset++;
-        /* Initial units (IU) IA5 coded in two octets */
-        proto_tree_add_item(parameter_tree, hf_japan_isup_iu, parameter_tvb, offset, 2, ENC_NA|ENC_ASCII);
-        offset+=2;
-        /* Daytime Charge rate (DCR) (Octets A, B, C) IA5 coded in three octets */
-        proto_tree_add_item(parameter_tree, hf_japan_isup_dcr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
-        offset+=3;
-        if(len>5){
-            /* Evening Charge rate (ECR) (Octets B, E, F) IA5 coded in three octets */
-            proto_tree_add_item(parameter_tree, hf_japan_isup_ecr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
-            offset+=3;
-        }
-        if(len>8){
-            /* Nighttime Charge rate (NCR) (Octet G,H,I) IA5 coded in three octets */
-            proto_tree_add_item(parameter_tree, hf_japan_isup_ncr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
-            offset+=3;
-        }
-        if(len>11){
-            /* Spare charge rate (SCR) (Octets J,K,L) IA5 coded in three octets */
-            proto_tree_add_item(parameter_tree, hf_japan_isup_scr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
-            offset+=3;
-        }
+      len = tvb_get_guint8(parameter_tvb, offset);
+      proto_tree_add_item(parameter_tree, hf_japan_isup_crci1_len, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
+      offset += 1;
+      /* Initial units (IU) IA5 coded in two octets */
+      proto_tree_add_item(parameter_tree, hf_japan_isup_iu, parameter_tvb, offset, 2, ENC_NA|ENC_ASCII);
+      offset += 2;
+      /* Daytime Charge rate (DCR) (Octets A, B, C) IA5 coded in three octets */
+      proto_tree_add_item(parameter_tree, hf_japan_isup_dcr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
+      offset += 3;
+      if (len > 5) {
+        /* Evening Charge rate (ECR) (Octets B, E, F) IA5 coded in three octets */
+        proto_tree_add_item(parameter_tree, hf_japan_isup_ecr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
+        offset += 3;
+      }
+      if (len > 8) {
+        /* Nighttime Charge rate (NCR) (Octet G,H,I) IA5 coded in three octets */
+        proto_tree_add_item(parameter_tree, hf_japan_isup_ncr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
+        offset += 3;
+      }
+      if (len > 11) {
+        /* Spare charge rate (SCR) (Octets J,K,L) IA5 coded in three octets */
+        proto_tree_add_item(parameter_tree, hf_japan_isup_scr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
+        /*offset += 3;*/
+      }
     }
-    if(parameter_length>offset){
-        /* Charge rate information category 2 (CRIC 2) */
-        ext_ind = tvb_get_guint8(parameter_tvb, offset)>>7;
-        proto_tree_add_item(parameter_tree, hf_isup_extension_ind, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-        proto_tree_add_item(parameter_tree, hf_japan_isup_crci2, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-        offset++;
-        if (!ext_ind) {
-            len = tvb_get_guint8(parameter_tvb, offset);
-            proto_tree_add_item(parameter_tree, hf_japan_isup_crci1_len, parameter_tvb, offset, 1, ENC_BIG_ENDIAN);
-            offset++;
-            /* Initial units (IU) IA5 coded in two octets */
-            proto_tree_add_item(parameter_tree, hf_japan_isup_iu, parameter_tvb, offset, 2, ENC_NA|ENC_ASCII);
-            offset+=2;
-            /* Daytime Charge rate (DCR) (Octets A, B, C) IA5 coded in three octets */
-            proto_tree_add_item(parameter_tree, hf_japan_isup_dcr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
-            offset+=3;
-            if(len>5){
-                /* Evening Charge rate (ECR) (Octets B, E, F) IA5 coded in three octets */
-                proto_tree_add_item(parameter_tree, hf_japan_isup_ecr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
-                offset+=3;
-            }
-            if(len>8){
-                /* Nighttime Charge rate (NCR) (Octet G,H,I) IA5 coded in three octets */
-                proto_tree_add_item(parameter_tree, hf_japan_isup_ncr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
-                offset+=3;
-            }
-            if(len>11){
-                /* Spare charge rate (SCR) (Octets J,K,L) IA5 coded in three octets */
-                proto_tree_add_item(parameter_tree, hf_japan_isup_scr, parameter_tvb, offset, 3, ENC_NA|ENC_ASCII);
-                offset+=3;
-            }
-        }
-    }
+  }
 }
 
 
@@ -8150,21 +8169,21 @@ static void
 dissect_japan_chg_inf_param(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, proto_item *parameter_item, guint16 chg_inf_type)
 {
 
-    switch(chg_inf_type){
+  switch (chg_inf_type) {
     case 3:
-        /* Advanced Charge Rate Transfer (TDS service) */
-        dissect_japan_chg_inf_type_acr(parameter_tvb, parameter_tree, parameter_item);
-        break;
+      /* Advanced Charge Rate Transfer (TDS service) */
+      dissect_japan_chg_inf_type_acr(parameter_tvb, parameter_tree, parameter_item);
+      break;
     case 254:
-        /* Charge rate transfer (flexible charging) */
-        dissect_japan_chg_inf_type_crt(parameter_tvb, parameter_tree, parameter_item);
-        break;
+      /* Charge rate transfer (flexible charging) */
+      dissect_japan_chg_inf_type_crt(parameter_tvb, parameter_tree, parameter_item);
+      break;
     default:
-        proto_tree_add_text(parameter_tree, parameter_tvb, 0, -1, "Charge information data, not dissected yet");
-        break;
-    }
+      proto_tree_add_text(parameter_tree, parameter_tvb, 0, -1, "Charge information data, not dissected yet");
+      break;
+  }
 
-    proto_item_set_text(parameter_item, "Charge information");
+  proto_item_set_text(parameter_item, "Charge information");
 
 }
 
@@ -8174,8 +8193,9 @@ dissect_japan_chg_inf_param(tvbuff_t *parameter_tvb, proto_tree *parameter_tree,
   Dissector all optional parameters
 */
 static void
-dissect_isup_optional_parameter(tvbuff_t *optional_parameters_tvb,packet_info *pinfo, proto_tree *isup_tree, guint8 itu_isup_variant)
-{ proto_item *parameter_item;
+dissect_isup_optional_parameter(tvbuff_t *optional_parameters_tvb, packet_info *pinfo, proto_tree *isup_tree, guint8 itu_isup_variant)
+{
+  proto_item *parameter_item;
   proto_tree *parameter_tree;
   gint        offset = 0;
   guint       parameter_type, parameter_length, actual_length;
@@ -8199,29 +8219,29 @@ dissect_isup_optional_parameter(tvbuff_t *optional_parameters_tvb,packet_info *p
                                            parameter_type);
       parameter_tree = proto_item_add_subtree(parameter_item, ett_isup_parameter);
       /* Handle national extensions here */
-      switch(itu_isup_variant) {
+      switch (itu_isup_variant) {
         case ISUP_JAPAN_VARIANT:
-            proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_type, optional_parameters_tvb, offset, PARAMETER_TYPE_LENGTH,
-                                 parameter_type,
-                                 "Optional Parameter: %u (%s)",
-                                 parameter_type,
-                                 val_to_str_ext_const(parameter_type, &japan_isup_parameter_type_value_ext,"unknown"));
-            break;
+          proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_type, optional_parameters_tvb, offset, PARAMETER_TYPE_LENGTH,
+                                     parameter_type,
+                                     "Optional Parameter: %u (%s)",
+                                     parameter_type,
+                                     val_to_str_ext_const(parameter_type, &japan_isup_parameter_type_value_ext, "unknown"));
+          break;
         default:
-            proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_type, optional_parameters_tvb, offset, PARAMETER_TYPE_LENGTH,
-                                 parameter_type,
-                                 "Optional Parameter: %u (%s)",
-                                 parameter_type,
-                                 val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext,"unknown"));
-            break;
+          proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_type, optional_parameters_tvb, offset, PARAMETER_TYPE_LENGTH,
+                                     parameter_type,
+                                     "Optional Parameter: %u (%s)",
+                                     parameter_type,
+                                     val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "unknown"));
+          break;
 
       }
       offset += PARAMETER_TYPE_LENGTH;
 
-      octet = tvb_get_guint8(optional_parameters_tvb,offset);
+      octet = tvb_get_guint8(optional_parameters_tvb, offset);
 
-      proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_length, optional_parameters_tvb, offset,
-                                 PARAMETER_LENGTH_IND_LENGTH, parameter_length, "Parameter length: %u", parameter_length);
+      proto_tree_add_uint(parameter_tree, hf_isup_parameter_length, optional_parameters_tvb, offset,
+                                 PARAMETER_LENGTH_IND_LENGTH, parameter_length);
       offset += PARAMETER_LENGTH_IND_LENGTH;
       if (octet == 0)
         continue;
@@ -8475,60 +8495,59 @@ dissect_isup_optional_parameter(tvbuff_t *optional_parameters_tvb,packet_info *p
             break;
 
           default:
-            switch(itu_isup_variant) {
-            case ISUP_JAPAN_VARIANT:
+            switch (itu_isup_variant) {
+              case ISUP_JAPAN_VARIANT:
                 switch (parameter_type) {
-                case JAPAN_ISUP_PARAM_CALLED_DIRECTORY_NUMBER:
+                  case JAPAN_ISUP_PARAM_CALLED_DIRECTORY_NUMBER:
                     dissect_japan_isup_called_dir_num(parameter_tvb, parameter_tree, parameter_item);
                     break;
-                case JAPAN_ISUP_PARAM_REDIRECT_FORWARD_INF: /* 0x8B */
+                  case JAPAN_ISUP_PARAM_REDIRECT_FORWARD_INF: /* 0x8B */
                     dissect_japan_isup_redirect_fwd_inf(parameter_tvb, parameter_tree, parameter_item);
                     break;
-                case JAPAN_ISUP_PARAM_REDIRECT_BACKWARD_INF:  /* 0x8C */
+                  case JAPAN_ISUP_PARAM_REDIRECT_BACKWARD_INF:  /* 0x8C */
                     dissect_japan_isup_redirect_backw_inf(parameter_tvb, parameter_tree, parameter_item);
                     break;
-                case JAPAN_ISUP_PARAM_EMERGENCY_CALL_INF_IND: /* EC */
+                  case JAPAN_ISUP_PARAM_EMERGENCY_CALL_INF_IND: /* EC */
                     dissect_japan_isup_emergency_call_inf_ind(parameter_tvb, parameter_tree, parameter_item);
                     break;
-                case JAPAN_ISUP_PARAM_NETWORK_POI_CA: /* EE */
+                  case JAPAN_ISUP_PARAM_NETWORK_POI_CA: /* EE */
                     dissect_japan_isup_network_poi_cad(parameter_tvb, parameter_tree, parameter_item);
                     break;
-                case JAPAN_ISUP_PARAM_TYPE_CARRIER_INFO: /* 241 F1 */
+                  case JAPAN_ISUP_PARAM_TYPE_CARRIER_INFO: /* 241 F1 */
                     dissect_japan_isup_carrier_information(parameter_tvb, parameter_tree, parameter_item);
                     break;
-                case JAPAN_ISUP_PARAM_CHARGE_INF_DELAY:  /* 242 F2 */
+                  case JAPAN_ISUP_PARAM_CHARGE_INF_DELAY:  /* 242 F2 */
                     dissect_japan_isup_charge_inf_delay(parameter_tvb, parameter_tree, parameter_item);
                     break;
-                case JAPAN_ISUP_PARAM_TYPE_ADDITONAL_USER_CAT: /* F3 */
+                  case JAPAN_ISUP_PARAM_TYPE_ADDITONAL_USER_CAT: /* F3 */
                     dissect_japan_isup_additonal_user_cat(parameter_tvb, parameter_tree, parameter_item);
                     break;
-                case JAPAN_ISUP_PARAM_REASON_FOR_CLIP_FAIL: /* F5 */
+                  case JAPAN_ISUP_PARAM_REASON_FOR_CLIP_FAIL: /* F5 */
                     dissect_japan_isup_reason_for_clip_fail(parameter_tvb, parameter_tree, parameter_item);
                     break;
-                case JAPAN_ISUP_PARAM_TYPE_CONTRACTOR_NUMBER: /* F9 */
+                  case JAPAN_ISUP_PARAM_TYPE_CONTRACTOR_NUMBER: /* F9 */
                     dissect_japan_isup_contractor_number(parameter_tvb, parameter_tree, parameter_item);
                     break;
-                case JAPAN_ISUP_PARAM_TYPE_CHARGE_INF_TYPE: /* FA */
+                  case JAPAN_ISUP_PARAM_TYPE_CHARGE_INF_TYPE: /* FA */
                     chg_inf_type = dissect_japan_chg_inf_type(parameter_tvb, parameter_tree, parameter_item);
                     break;
-                case JAPAN_ISUP_PARAM_TYPE_CHARGE_INF:
+                  case JAPAN_ISUP_PARAM_TYPE_CHARGE_INF:
                     dissect_japan_chg_inf_param(parameter_tvb, parameter_tree, parameter_item, chg_inf_type);
                     break;
-                case JAPAN_ISUP_PARAM_TYPE_CHARGE_AREA_INFO:
+                  case JAPAN_ISUP_PARAM_TYPE_CHARGE_AREA_INFO:
                     dissect_japan_isup_charge_area_info(parameter_tvb, parameter_tree, parameter_item);
                     break;
-                default:
+                  default:
                     dissect_isup_unknown_parameter(parameter_tvb, parameter_item);
                     break;
                 }
                 break;
-            default:
+              default:
                 dissect_isup_unknown_parameter(parameter_tvb, parameter_item);
                 break;
             }
             break;
         }
-
 
         offset += MIN(parameter_length, actual_length);
       }
@@ -8547,7 +8566,7 @@ dissect_isup_optional_parameter(tvbuff_t *optional_parameters_tvb,packet_info *p
   TODO: Actullay make this dissect ANSI :) - It's still plain old ITU for now
 */
 static void
-dissect_ansi_isup_optional_parameter(tvbuff_t *optional_parameters_tvb,packet_info *pinfo, proto_tree *isup_tree, guint8 itu_isup_variant)
+dissect_ansi_isup_optional_parameter(tvbuff_t *optional_parameters_tvb, packet_info *pinfo, proto_tree *isup_tree, guint8 itu_isup_variant)
 { proto_item *parameter_item;
   proto_tree *parameter_tree;
   gint        offset = 0;
@@ -8573,14 +8592,13 @@ dissect_ansi_isup_optional_parameter(tvbuff_t *optional_parameters_tvb,packet_in
       proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_type, optional_parameters_tvb, offset,
                                  PARAMETER_TYPE_LENGTH, parameter_type,
                                  "Optional Parameter: %u (%s)", parameter_type,
-                                 val_to_str_ext_const(parameter_type, &ansi_isup_parameter_type_value_ext,"unknown"));
+                                 val_to_str_ext_const(parameter_type, &ansi_isup_parameter_type_value_ext, "unknown"));
       offset += PARAMETER_TYPE_LENGTH;
 
-      octet = tvb_get_guint8(optional_parameters_tvb,offset);
+      octet = tvb_get_guint8(optional_parameters_tvb, offset);
 
-      proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_length, optional_parameters_tvb, offset,
-                                 PARAMETER_LENGTH_IND_LENGTH, parameter_length,
-                                 "Parameter length: %u", parameter_length);
+      proto_tree_add_uint(parameter_tree, hf_isup_parameter_length, optional_parameters_tvb, offset,
+                                 PARAMETER_LENGTH_IND_LENGTH, parameter_length);
       offset += PARAMETER_LENGTH_IND_LENGTH;
       if (octet == 0)
         continue;
@@ -8853,7 +8871,6 @@ dissect_ansi_isup_optional_parameter(tvbuff_t *optional_parameters_tvb,packet_in
             break;
         }
 
-
         offset += MIN(parameter_length, actual_length);
       }
 
@@ -8865,6 +8882,7 @@ dissect_ansi_isup_optional_parameter(tvbuff_t *optional_parameters_tvb,packet_in
     }
   }
 }
+
 /* ------------------------------------------------------------------ */
 /* Dissectors for all used message types                              */
 /* Called by dissect_isup_message(),                                  */
@@ -8880,7 +8898,7 @@ dissect_ansi_isup_circuit_validation_test_resp_message(tvbuff_t *message_tvb, pr
   proto_tree *parameter_tree;
   tvbuff_t   *parameter_tvb;
   gint        offset = 0;
-  gint        parameter_type,actual_length;
+  gint        parameter_type, actual_length;
 
   /* Do stuff for first mandatory fixed parameter: CVR Repsonse Indicator */
   parameter_type = ANSI_ISUP_PARAM_TYPE_CVR_RESP_IND;
@@ -8890,7 +8908,7 @@ dissect_ansi_isup_circuit_validation_test_resp_message(tvbuff_t *message_tvb, pr
   proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_type, message_tvb, 0, 0, parameter_type,
                              "Mandatory Parameter: %u (%s)",
                              parameter_type,
-                             val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext,"CVR Response Indicator"));
+                             val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "CVR Response Indicator"));
 
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
 
@@ -8915,6 +8933,7 @@ dissect_ansi_isup_circuit_validation_test_resp_message(tvbuff_t *message_tvb, pr
 
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type Circuit Reservation
  */
@@ -8935,7 +8954,7 @@ dissect_ansi_isup_circuit_reservation_message(tvbuff_t *message_tvb, proto_tree 
   proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_type, message_tvb, 0, 0, parameter_type,
                              "Mandatory Parameter: %u (%s)",
                              parameter_type,
-                             val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext,"unknown"));
+                             val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "unknown"));
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
   parameter_tvb = tvb_new_subset(message_tvb, offset, MIN(NATURE_OF_CONNECTION_IND_LENGTH, actual_length), NATURE_OF_CONNECTION_IND_LENGTH);
   dissect_isup_nature_of_connection_indicators_parameter(parameter_tvb, parameter_tree, parameter_item);
@@ -8943,6 +8962,7 @@ dissect_ansi_isup_circuit_reservation_message(tvbuff_t *message_tvb, proto_tree 
 
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type Initial address message
  */
@@ -8995,7 +9015,7 @@ dissect_isup_initial_address_message(tvbuff_t *message_tvb, proto_tree *isup_tre
                              parameter_type,
                              val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "unknown"));
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
-  parameter_tvb = tvb_new_subset(message_tvb, offset, MIN(CALLING_PRTYS_CATEGORY_LENGTH, actual_length),CALLING_PRTYS_CATEGORY_LENGTH);
+  parameter_tvb = tvb_new_subset(message_tvb, offset, MIN(CALLING_PRTYS_CATEGORY_LENGTH, actual_length), CALLING_PRTYS_CATEGORY_LENGTH);
   dissect_isup_calling_partys_category_parameter(parameter_tvb, parameter_tree, parameter_item, itu_isup_variant);
   offset += CALLING_PRTYS_CATEGORY_LENGTH;
 
@@ -9033,10 +9053,10 @@ dissect_isup_initial_address_message(tvbuff_t *message_tvb, proto_tree *isup_tre
                                  "Mandatory Parameter: %u (%s)",
                                  parameter_type,
                                  val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "unknown"));
-      proto_tree_add_uint_format(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
-                                 PARAMETER_POINTER_LENGTH, parameter_pointer, "Pointer to Parameter: %u", parameter_pointer);
-      proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
-                                 PARAMETER_LENGTH_IND_LENGTH, parameter_length, "Parameter length: %u", parameter_length);
+      proto_tree_add_uint(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
+                                 PARAMETER_POINTER_LENGTH, parameter_pointer);
+      proto_tree_add_uint(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
+                                 PARAMETER_LENGTH_IND_LENGTH, parameter_length);
       actual_length = tvb_ensure_length_remaining(message_tvb, offset);
       parameter_tvb = tvb_new_subset(message_tvb,
                                      offset + parameter_pointer + PARAMETER_LENGTH_IND_LENGTH,
@@ -9061,10 +9081,10 @@ dissect_isup_initial_address_message(tvbuff_t *message_tvb, proto_tree *isup_tre
                              "Mandatory Parameter: %u (%s)",
                              parameter_type,
                              val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "unknown"));
-  proto_tree_add_uint_format(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
-                             PARAMETER_POINTER_LENGTH, parameter_pointer, "Pointer to Parameter: %u", parameter_pointer);
-  proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
-                             PARAMETER_LENGTH_IND_LENGTH, parameter_length, "Parameter length: %u", parameter_length);
+  proto_tree_add_uint(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
+                             PARAMETER_POINTER_LENGTH, parameter_pointer);
+  proto_tree_add_uint(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
+                             PARAMETER_LENGTH_IND_LENGTH, parameter_length);
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
   parameter_tvb = tvb_new_subset(message_tvb,
                                  offset + parameter_pointer + PARAMETER_LENGTH_IND_LENGTH,
@@ -9075,6 +9095,7 @@ dissect_isup_initial_address_message(tvbuff_t *message_tvb, proto_tree *isup_tre
 
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type subsequent address message
  */
@@ -9100,10 +9121,10 @@ static gint dissect_isup_subsequent_address_message(tvbuff_t *message_tvb, proto
                              "Mandatory Parameter: %u (%s)",
                              parameter_type,
                              val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "unknown"));
-  proto_tree_add_uint_format(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
-                             PARAMETER_POINTER_LENGTH, parameter_pointer, "Pointer to Parameter: %u", parameter_pointer);
-  proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
-                             PARAMETER_LENGTH_IND_LENGTH, parameter_length, "Parameter length: %u", parameter_length);
+  proto_tree_add_uint(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
+                             PARAMETER_POINTER_LENGTH, parameter_pointer);
+  proto_tree_add_uint(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
+                             PARAMETER_LENGTH_IND_LENGTH, parameter_length);
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
   parameter_tvb = tvb_new_subset(message_tvb,
                                  offset + parameter_pointer + PARAMETER_LENGTH_IND_LENGTH,
@@ -9142,6 +9163,7 @@ dissect_isup_information_request_message(tvbuff_t *message_tvb, proto_tree *isup
   offset += INFO_REQUEST_IND_LENGTH;
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type Information
  */
@@ -9169,6 +9191,7 @@ dissect_isup_information_message(tvbuff_t *message_tvb, proto_tree *isup_tree)
   offset += INFO_IND_LENGTH;
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type Continuity
  */
@@ -9196,6 +9219,7 @@ dissect_isup_continuity_message(tvbuff_t *message_tvb, proto_tree *isup_tree)
   offset += CONTINUITY_IND_LENGTH;
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type Address complete
  */
@@ -9223,6 +9247,7 @@ dissect_isup_address_complete_message(tvbuff_t *message_tvb, proto_tree *isup_tr
   offset += BACKWARD_CALL_IND_LENGTH;
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type Connect
  */
@@ -9250,6 +9275,7 @@ dissect_isup_connect_message(tvbuff_t *message_tvb, proto_tree *isup_tree)
   offset += BACKWARD_CALL_IND_LENGTH;
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type release message
  */
@@ -9276,10 +9302,10 @@ dissect_isup_release_message(tvbuff_t *message_tvb, proto_tree *isup_tree)
                              "Mandatory Parameter: %u (%s)",
                              parameter_type,
                              val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "unknown"));
-  proto_tree_add_uint_format(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
-                             PARAMETER_POINTER_LENGTH, parameter_pointer, "Pointer to Parameter: %u", parameter_pointer);
-  proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
-                             PARAMETER_LENGTH_IND_LENGTH, parameter_length, "Parameter length: %u", parameter_length);
+  proto_tree_add_uint(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
+                             PARAMETER_POINTER_LENGTH, parameter_pointer);
+  proto_tree_add_uint(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
+                             PARAMETER_LENGTH_IND_LENGTH, parameter_length);
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
   parameter_tvb = tvb_new_subset(message_tvb,
                                  offset + parameter_pointer + PARAMETER_LENGTH_IND_LENGTH,
@@ -9297,6 +9323,7 @@ dissect_isup_release_message(tvbuff_t *message_tvb, proto_tree *isup_tree)
 
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type Resume/Suspend
  */
@@ -9324,6 +9351,7 @@ dissect_isup_suspend_resume_message(tvbuff_t *message_tvb, proto_tree *isup_tree
   offset += SUSPEND_RESUME_IND_LENGTH;
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type Circuit group reset/query message
  */
@@ -9350,10 +9378,10 @@ dissect_isup_circuit_group_reset_query_message(tvbuff_t *message_tvb, proto_tree
                              "Mandatory Parameter: %u (%s)",
                              parameter_type,
                              val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "unknown"));
-  proto_tree_add_uint_format(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
-                             PARAMETER_POINTER_LENGTH, parameter_pointer, "Pointer to Parameter: %u", parameter_pointer);
-  proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
-                             PARAMETER_LENGTH_IND_LENGTH, parameter_length, "Parameter length: %u", parameter_length);
+  proto_tree_add_uint(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
+                             PARAMETER_POINTER_LENGTH, parameter_pointer);
+  proto_tree_add_uint(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
+                             PARAMETER_LENGTH_IND_LENGTH, parameter_length);
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
   parameter_tvb = tvb_new_subset(message_tvb,
                                  offset + parameter_pointer + PARAMETER_LENGTH_IND_LENGTH,
@@ -9364,6 +9392,7 @@ dissect_isup_circuit_group_reset_query_message(tvbuff_t *message_tvb, proto_tree
 
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type Circuit group blocking/blocking ack/unblocking/unblocking ack messages
  */
@@ -9405,10 +9434,10 @@ dissect_isup_circuit_group_blocking_messages(tvbuff_t *message_tvb, proto_tree *
                              "Mandatory Parameter: %u (%s)",
                              parameter_type,
                              val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "unknown"));
-  proto_tree_add_uint_format(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
-                             PARAMETER_POINTER_LENGTH, parameter_pointer, "Pointer to Parameter: %u", parameter_pointer);
-  proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
-                             PARAMETER_LENGTH_IND_LENGTH, parameter_length, "Parameter length: %u", parameter_length);
+  proto_tree_add_uint(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
+                             PARAMETER_POINTER_LENGTH, parameter_pointer);
+  proto_tree_add_uint(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
+                             PARAMETER_LENGTH_IND_LENGTH, parameter_length);
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
   parameter_tvb = tvb_new_subset(message_tvb,
                                  offset + parameter_pointer + PARAMETER_LENGTH_IND_LENGTH,
@@ -9447,6 +9476,7 @@ dissect_isup_facility_request_accepted_message(tvbuff_t *message_tvb, proto_tree
   offset += FACILITY_IND_LENGTH;
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type Facility reject
  */
@@ -9488,10 +9518,10 @@ dissect_isup_facility_reject_message(tvbuff_t *message_tvb, proto_tree *isup_tre
                              "Mandatory Parameter: %u (%s)",
                              parameter_type,
                              val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "unknown"));
-  proto_tree_add_uint_format(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb,
-                             offset, PARAMETER_POINTER_LENGTH, parameter_pointer, "Pointer to Parameter: %u", parameter_pointer);
-  proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
-                             PARAMETER_LENGTH_IND_LENGTH, parameter_length, "Parameter length: %u", parameter_length);
+  proto_tree_add_uint(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb,
+                             offset, PARAMETER_POINTER_LENGTH, parameter_pointer);
+  proto_tree_add_uint(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
+                             PARAMETER_LENGTH_IND_LENGTH, parameter_length);
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
   parameter_tvb = tvb_new_subset(message_tvb,
                                  offset + parameter_pointer + PARAMETER_LENGTH_IND_LENGTH,
@@ -9509,6 +9539,7 @@ dissect_isup_facility_reject_message(tvbuff_t *message_tvb, proto_tree *isup_tre
 
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type Circuit group reset acknowledgement message
  */
@@ -9535,10 +9566,10 @@ dissect_isup_circuit_group_reset_acknowledgement_message(tvbuff_t *message_tvb, 
                              "Mandatory Parameter: %u (%s)",
                              parameter_type,
                              val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "unknown"));
-  proto_tree_add_uint_format(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
-                             PARAMETER_POINTER_LENGTH, parameter_pointer, "Pointer to Parameter: %u", parameter_pointer);
-  proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
-                             PARAMETER_LENGTH_IND_LENGTH, parameter_length, "Parameter length: %u", parameter_length);
+  proto_tree_add_uint(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
+                             PARAMETER_POINTER_LENGTH, parameter_pointer);
+  proto_tree_add_uint(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
+                             PARAMETER_LENGTH_IND_LENGTH, parameter_length);
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
   parameter_tvb = tvb_new_subset(message_tvb,
                                  offset + parameter_pointer + PARAMETER_LENGTH_IND_LENGTH,
@@ -9549,6 +9580,7 @@ dissect_isup_circuit_group_reset_acknowledgement_message(tvbuff_t *message_tvb, 
 
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type Circuit group query response message
  */
@@ -9575,10 +9607,10 @@ dissect_isup_circuit_group_query_response_message(tvbuff_t *message_tvb, proto_t
                              "Mandatory Parameter: %u (%s)",
                              parameter_type,
                              val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "unknown"));
-  proto_tree_add_uint_format(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
-                             PARAMETER_POINTER_LENGTH, parameter_pointer, "Pointer to Parameter: %u", parameter_pointer);
-  proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
-                             PARAMETER_LENGTH_IND_LENGTH, parameter_length, "Parameter length: %u", parameter_length);
+  proto_tree_add_uint(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
+                             PARAMETER_POINTER_LENGTH, parameter_pointer);
+  proto_tree_add_uint(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
+                             PARAMETER_LENGTH_IND_LENGTH, parameter_length);
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
   parameter_tvb = tvb_new_subset(message_tvb,
                                  offset + parameter_pointer + PARAMETER_LENGTH_IND_LENGTH,
@@ -9602,10 +9634,10 @@ dissect_isup_circuit_group_query_response_message(tvbuff_t *message_tvb, proto_t
                              "Mandatory Parameter: %u (%s)",
                              parameter_type,
                              val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "unknown"));
-  proto_tree_add_uint_format(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
-                             PARAMETER_POINTER_LENGTH, parameter_pointer, "Pointer to Parameter: %u", parameter_pointer);
-  proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
-                             PARAMETER_LENGTH_IND_LENGTH, parameter_length, "Parameter length: %u", parameter_length);
+  proto_tree_add_uint(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
+                             PARAMETER_POINTER_LENGTH, parameter_pointer);
+  proto_tree_add_uint(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
+                             PARAMETER_LENGTH_IND_LENGTH, parameter_length);
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
   parameter_tvb = tvb_new_subset(message_tvb,
                                  offset + parameter_pointer + PARAMETER_LENGTH_IND_LENGTH,
@@ -9616,6 +9648,7 @@ dissect_isup_circuit_group_query_response_message(tvbuff_t *message_tvb, proto_t
 
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type Call Progress
 */
@@ -9643,6 +9676,7 @@ dissect_isup_call_progress_message(tvbuff_t *message_tvb, proto_tree *isup_tree)
   offset += EVENT_INFO_LENGTH;
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type User-to-User information
  */
@@ -9669,10 +9703,10 @@ dissect_isup_user_to_user_information_message(tvbuff_t *message_tvb, packet_info
                              "Mandatory Parameter: %u (%s)",
                              parameter_type,
                              val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "unknown"));
-  proto_tree_add_uint_format(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
-                             PARAMETER_POINTER_LENGTH, parameter_pointer, "Pointer to Parameter: %u", parameter_pointer);
-  proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
-                             PARAMETER_LENGTH_IND_LENGTH, parameter_length, "Parameter length: %u", parameter_length);
+  proto_tree_add_uint(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
+                             PARAMETER_POINTER_LENGTH, parameter_pointer);
+  proto_tree_add_uint(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
+                             PARAMETER_LENGTH_IND_LENGTH, parameter_length);
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
   parameter_tvb = tvb_new_subset(message_tvb,
                                  offset + parameter_pointer + PARAMETER_LENGTH_IND_LENGTH,
@@ -9683,6 +9717,7 @@ dissect_isup_user_to_user_information_message(tvbuff_t *message_tvb, packet_info
 
   return offset;
 }
+
 /* ------------------------------------------------------------------
   Dissector Message Type Confusion
  */
@@ -9709,11 +9744,11 @@ dissect_isup_confusion_message(tvbuff_t *message_tvb, proto_tree *isup_tree)
                              "Mandatory Parameter: %u (%s)",
                              parameter_type,
                              val_to_str_ext_const(parameter_type, &isup_parameter_type_value_ext, "unknown"));
-  proto_tree_add_uint_format(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
-                             PARAMETER_POINTER_LENGTH, parameter_pointer, "Pointer to Parameter: %u", parameter_pointer);
-  proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_length,
+  proto_tree_add_uint(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
+                             PARAMETER_POINTER_LENGTH, parameter_pointer);
+  proto_tree_add_uint(parameter_tree, hf_isup_parameter_length,
                              message_tvb, offset + parameter_pointer, PARAMETER_LENGTH_IND_LENGTH,
-                             parameter_length, "Parameter length: %u", parameter_length);
+                             parameter_length);
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
   parameter_tvb = tvb_new_subset(message_tvb,
                                  offset + parameter_pointer + PARAMETER_LENGTH_IND_LENGTH,
@@ -9740,9 +9775,9 @@ dissect_french_isup_charging_pulse_message(tvbuff_t *message_tvb, proto_tree *is
   gint offset = 0;
 
   proto_tree_add_item(isup_tree, hf_isup_french_coll_field, message_tvb, offset, 1, ENC_BIG_ENDIAN);
-  offset++;
+  offset += 1;
   proto_tree_add_item(isup_tree, hf_isup_french_msg_num, message_tvb, offset, 1, ENC_BIG_ENDIAN);
-  offset++;
+  offset += 1;
 
   return offset;
 }
@@ -9762,16 +9797,16 @@ static const value_string israeli_cmi_next_rate[] = {
   { 0,   NULL}
 };
 static const value_string israeli_time_indicators[] = {
-  { 0,    "spare" },
-  { 1,    "00.30 H" },
-  { 2,    "01.00 H" },
-  { 3,    "01.30 H" },
-  { 4,    "02.00 H" },
-  { 5,    "02.30 H" },
-  { 6,    "03.00 H" },
-  { 7,    "03.30 H" },
-  { 8,    "04.00 H" },
-  { 9,    "04.30 H" },
+  {  0,   "spare" },
+  {  1,   "00.30 H" },
+  {  2,   "01.00 H" },
+  {  3,   "01.30 H" },
+  {  4,   "02.00 H" },
+  {  5,   "02.30 H" },
+  {  6,   "03.00 H" },
+  {  7,   "03.30 H" },
+  {  8,   "04.00 H" },
+  {  9,   "04.30 H" },
   { 10,   "05.00 H" },
   { 11,   "05.30 H" },
   { 12,   "06.00 H" },
@@ -9813,39 +9848,40 @@ static const value_string israeli_time_indicators[] = {
   { 48,   "24.00 H" },
   { 0,   NULL}
 };
+static value_string_ext israeli_time_indicators_ext = VALUE_STRING_EXT_INIT(israeli_time_indicators);
 
 static int
 dissect_israeli_backward_charging_message(tvbuff_t *message_tvb, proto_tree *isup_tree)
 {
-    gint offset = 0;
+  gint offset = 0;
 
-    proto_tree_add_item(isup_tree, hf_isup_israeli_charging_message_indicators_current, message_tvb, offset, 1, ENC_LITTLE_ENDIAN);
-    proto_tree_add_item(isup_tree, hf_isup_israeli_charging_message_indicators_next, message_tvb, offset, 1, ENC_LITTLE_ENDIAN);
-    offset++;
-    proto_tree_add_item(isup_tree, hf_isup_israeli_current_rate, message_tvb, offset, 2, ENC_LITTLE_ENDIAN);
-    offset += 2;
-    proto_tree_add_item(isup_tree, hf_isup_israeli_time_indicator, message_tvb, offset, 1, ENC_LITTLE_ENDIAN);
-    offset++;
-    proto_tree_add_item(isup_tree, hf_isup_israeli_next_rate, message_tvb, offset, 2, ENC_LITTLE_ENDIAN);
-    offset += 2;
+  proto_tree_add_item(isup_tree, hf_isup_israeli_charging_message_indicators_current, message_tvb, offset, 1, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(isup_tree, hf_isup_israeli_charging_message_indicators_next, message_tvb, offset, 1, ENC_LITTLE_ENDIAN);
+  offset += 1;
+  proto_tree_add_item(isup_tree, hf_isup_israeli_current_rate, message_tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  offset += 2;
+  proto_tree_add_item(isup_tree, hf_isup_israeli_time_indicator, message_tvb, offset, 1, ENC_LITTLE_ENDIAN);
+  offset += 1;
+  proto_tree_add_item(isup_tree, hf_isup_israeli_next_rate, message_tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  offset += 2;
 
-    return offset;
+  return offset;
 }
 
 static int
 dissect_israeli_traffic_change_message(tvbuff_t *message_tvb, proto_tree *isup_tree)
 {
-    gint offset = 0;
+  gint offset = 0;
 
-    proto_tree_add_item(isup_tree, hf_isup_israeli_charging_message_indicators_current, message_tvb, offset, 1, ENC_LITTLE_ENDIAN);
-    proto_tree_add_item(isup_tree, hf_isup_israeli_charging_message_indicators_next, message_tvb, offset, 1, ENC_LITTLE_ENDIAN);
-    offset++;
-    proto_tree_add_item(isup_tree, hf_isup_israeli_time_indicator, message_tvb, offset, 1, ENC_LITTLE_ENDIAN);
-    offset++;
-    proto_tree_add_item(isup_tree, hf_isup_israeli_next_rate, message_tvb, offset, 2, ENC_LITTLE_ENDIAN);
-    offset += 2;
+  proto_tree_add_item(isup_tree, hf_isup_israeli_charging_message_indicators_current, message_tvb, offset, 1, ENC_LITTLE_ENDIAN);
+  proto_tree_add_item(isup_tree, hf_isup_israeli_charging_message_indicators_next, message_tvb, offset, 1, ENC_LITTLE_ENDIAN);
+  offset += 1;
+  proto_tree_add_item(isup_tree, hf_isup_israeli_time_indicator, message_tvb, offset, 1, ENC_LITTLE_ENDIAN);
+  offset += 1;
+  proto_tree_add_item(isup_tree, hf_isup_israeli_next_rate, message_tvb, offset, 2, ENC_LITTLE_ENDIAN);
+  offset += 2;
 
-    return offset;
+  return offset;
 }
 
 static int
@@ -9868,7 +9904,7 @@ dissect_japan_chg_inf(tvbuff_t *message_tvb, proto_tree *isup_tree)
                              val_to_str_ext_const(parameter_type, &japan_isup_parameter_type_value_ext, "unknown"));
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
   parameter_tvb = tvb_new_subset(message_tvb, offset, MIN(1, actual_length), 1);
-  chg_inf_type = tvb_get_guint8(parameter_tvb,0);
+  chg_inf_type = tvb_get_guint8(parameter_tvb, 0);
   dissect_japan_chg_inf_type(parameter_tvb, parameter_tree, parameter_item);
   offset += 1;
 
@@ -9886,10 +9922,10 @@ dissect_japan_chg_inf(tvbuff_t *message_tvb, proto_tree *isup_tree)
                              "Mandatory Parameter: %u (%s)",
                              parameter_type,
                              val_to_str_ext_const(parameter_type, &japan_isup_parameter_type_value_ext, "unknown"));
-  proto_tree_add_uint_format(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
-                             PARAMETER_POINTER_LENGTH, parameter_pointer, "Pointer to Parameter: %u", parameter_pointer);
-  proto_tree_add_uint_format(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
-                             PARAMETER_LENGTH_IND_LENGTH, parameter_length, "Parameter length: %u", parameter_length);
+  proto_tree_add_uint(parameter_tree, hf_isup_mandatory_variable_parameter_pointer, message_tvb, offset,
+                      PARAMETER_POINTER_LENGTH, parameter_pointer);
+  proto_tree_add_uint(parameter_tree, hf_isup_parameter_length, message_tvb, offset + parameter_pointer,
+                      PARAMETER_LENGTH_IND_LENGTH, parameter_length);
   actual_length = tvb_ensure_length_remaining(message_tvb, offset);
   parameter_tvb = tvb_new_subset(message_tvb,
                                  offset + parameter_pointer + PARAMETER_LENGTH_IND_LENGTH,
@@ -9897,18 +9933,18 @@ dissect_japan_chg_inf(tvbuff_t *message_tvb, proto_tree *isup_tree)
                                  parameter_length);
 
   /* TODO: Dissect the parameter here, switch on type */
-  switch(chg_inf_type){
-  case 3:
-	  /* Advanced Charge Rate Transfer (TDS service) */
-	  dissect_japan_chg_inf_type_acr(parameter_tvb, parameter_tree, parameter_item);
-	  break;
-  case 254:
-	  /* Charge rate transfer (flexible charging) */
-	  dissect_japan_chg_inf_type_crt(parameter_tvb, parameter_tree, parameter_item);
-	  break;
-  default:
+  switch (chg_inf_type) {
+    case 3:
+      /* Advanced Charge Rate Transfer (TDS service) */
+      dissect_japan_chg_inf_type_acr(parameter_tvb, parameter_tree, parameter_item);
+      break;
+    case 254:
+      /* Charge rate transfer (flexible charging) */
+      dissect_japan_chg_inf_type_crt(parameter_tvb, parameter_tree, parameter_item);
+      break;
+    default:
       proto_tree_add_text(parameter_tree, parameter_tvb, 0, -1, "Charge information data, not dissected yet");
-	  break;
+      break;
   }
 
 
@@ -9931,262 +9967,262 @@ dissect_ansi_isup_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree 
   gint        offset, bufferlength;
   guint8      message_type, opt_parameter_pointer;
   gint        opt_part_possible = FALSE; /* default setting - for message types allowing optional
-                                             params explicitely set to TRUE in case statement */
+                                            params explicitly set to TRUE in case statement */
   tap_calling_number            = NULL;
   offset                        = 0;
 
   /* Extract message type field */
-  message_type = tvb_get_guint8(message_tvb,0);
+  message_type = tvb_get_guint8(message_tvb, 0);
 
   proto_tree_add_uint_format(isup_tree, hf_isup_message_type, message_tvb, 0, MESSAGE_TYPE_LENGTH, message_type, "Message type: %s (%u)",
-                                 val_to_str_ext_const(message_type, &ansi_isup_message_type_value_ext, "reserved"), message_type);
+                             val_to_str_ext_const(message_type, &ansi_isup_message_type_value_ext, "reserved"), message_type);
 
   offset +=  MESSAGE_TYPE_LENGTH;
 
-   tap_rec = (isup_tap_rec_t *)ep_alloc(sizeof(isup_tap_rec_t));
-   tap_rec->message_type = message_type;
-   tap_rec->calling_number = NULL;
-   tap_rec->called_number = NULL;
+  tap_rec = (isup_tap_rec_t *)wmem_alloc(wmem_packet_scope(), sizeof(isup_tap_rec_t));
+  tap_rec->message_type   = message_type;
+  tap_rec->calling_number = NULL;
+  tap_rec->called_number  = NULL;
 
-   parameter_tvb = tvb_new_subset_remaining(message_tvb, offset);
+  parameter_tvb = tvb_new_subset_remaining(message_tvb, offset);
 
-   /* distinguish between message types:*/
-    switch (message_type) {
-        case MESSAGE_TYPE_INITIAL_ADDR:
-        offset += dissect_isup_initial_address_message(parameter_tvb, isup_tree, itu_isup_variant);
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_SUBSEQ_ADDR:
-        offset += dissect_isup_subsequent_address_message(parameter_tvb, isup_tree);
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_INFO_REQ:
-        offset += dissect_isup_information_request_message(parameter_tvb, isup_tree);
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_INFO:
-        offset += dissect_isup_information_message(parameter_tvb, isup_tree);
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_CONTINUITY:
-        offset += dissect_isup_continuity_message(parameter_tvb, isup_tree);
-        break;
-        case MESSAGE_TYPE_ADDR_CMPL:
-        offset += dissect_isup_address_complete_message(parameter_tvb, isup_tree);
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_CONNECT:
-        offset += dissect_isup_connect_message(parameter_tvb, isup_tree);
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_FORW_TRANS:
-        /* no dissector necessary since no mandatory parameters included */
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_ANSWER:
-        /* no dissector necessary since no mandatory parameters included */
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_RELEASE:
-        offset += dissect_isup_release_message(parameter_tvb, isup_tree);
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_SUSPEND:
-        offset += dissect_isup_suspend_resume_message(parameter_tvb, isup_tree);
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_RESUME:
-        offset += dissect_isup_suspend_resume_message(parameter_tvb, isup_tree);
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_REL_CMPL:
-        /* no dissector necessary since no mandatory parameters included */
-        break;
-        case MESSAGE_TYPE_CONT_CHECK_REQ:
-        /* no dissector necessary since no mandatory parameters included */
-        break;
-        case MESSAGE_TYPE_RESET_CIRCUIT:
-        /* no dissector necessary since no mandatory parameters included */
-        break;
-        case MESSAGE_TYPE_BLOCKING:
-        /* no dissector necessary since no mandatory parameters included */
-        break;
-        case MESSAGE_TYPE_UNBLOCKING:
-        /* no dissector necessary since no mandatory parameters included */
-        break;
-        case MESSAGE_TYPE_BLOCK_ACK:
-        /* no dissector necessary since no mandatory parameters included */
-        break;
-        case MESSAGE_TYPE_UNBLOCK_ACK:
-        /* no dissector necessary since no mandatory parameters included */
-        break;
-        case MESSAGE_TYPE_CIRC_GRP_RST:
-        offset += dissect_isup_circuit_group_reset_query_message(parameter_tvb, isup_tree);
-        break;
-        case MESSAGE_TYPE_CIRC_GRP_BLCK:
-        offset += dissect_isup_circuit_group_blocking_messages(parameter_tvb, isup_tree);
-        break;
-        case MESSAGE_TYPE_CIRC_GRP_UNBL:
-        offset += dissect_isup_circuit_group_blocking_messages(parameter_tvb, isup_tree);
-        break;
-        case MESSAGE_TYPE_CIRC_GRP_BL_ACK:
-        offset += dissect_isup_circuit_group_blocking_messages(parameter_tvb, isup_tree);
-        break;
-        case MESSAGE_TYPE_CIRC_GRP_UNBL_ACK:
-        offset += dissect_isup_circuit_group_blocking_messages(parameter_tvb, isup_tree);
-        break;
-        case MESSAGE_TYPE_FACILITY_REQ:
-        offset += dissect_isup_facility_request_accepted_message(parameter_tvb, isup_tree);
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_FACILITY_ACC:
-        offset += dissect_isup_facility_request_accepted_message(parameter_tvb, isup_tree);
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_FACILITY_REJ:
-        offset += dissect_isup_facility_reject_message(parameter_tvb, isup_tree);
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_LOOP_BACK_ACK:
-        /* no dissector necessary since no mandatory parameters included */
-        break;
-        case MESSAGE_TYPE_PASS_ALONG:
-        /* call dissect_isup_message recursively */
-        {
-        guint8 pa_message_type;
-        pa_message_type = tvb_get_guint8(parameter_tvb, 0);
-        pass_along_item = proto_tree_add_text(isup_tree, parameter_tvb, offset, -1,
-                                                "Pass-along: %s Message (%u)",
-                                                val_to_str_ext_const(pa_message_type, &isup_message_type_value_acro_ext, "reserved"),
-                                                pa_message_type);
-        pass_along_tree = proto_item_add_subtree(pass_along_item, ett_isup_pass_along_message);
-        dissect_ansi_isup_message(parameter_tvb, pinfo, pass_along_tree, itu_isup_variant);
-        break;
-        }
-        case MESSAGE_TYPE_CIRC_GRP_RST_ACK:
-        offset += dissect_isup_circuit_group_reset_acknowledgement_message(parameter_tvb, isup_tree);
-        break;
-        case MESSAGE_TYPE_CIRC_GRP_QRY:
-        offset += dissect_isup_circuit_group_reset_query_message(parameter_tvb, isup_tree);
-        break;
-        case MESSAGE_TYPE_CIRC_GRP_QRY_RSP:
-        offset += dissect_isup_circuit_group_query_response_message(parameter_tvb, isup_tree);
-        break;
-        case MESSAGE_TYPE_CALL_PROGRSS:
-        offset += dissect_isup_call_progress_message(parameter_tvb, isup_tree);
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_USER2USER_INFO:
-        offset += dissect_isup_user_to_user_information_message(parameter_tvb, pinfo, isup_tree);
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_UNEQUIPPED_CIC:
-        /* no dissector necessary since no mandatory parameters included */
-        break;
-        case MESSAGE_TYPE_CONFUSION:
-        offset += dissect_isup_confusion_message(parameter_tvb, isup_tree);
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_OVERLOAD:
-        /* no dissector necessary since no mandatory parameters included */
-        break;
-        case MESSAGE_TYPE_CHARGE_INFO:
-        /* do nothing since format is a national matter */
-        bufferlength = tvb_length_remaining(message_tvb, offset);
-        if (bufferlength != 0)
-            proto_tree_add_text(isup_tree, parameter_tvb, 0, bufferlength, "Format is a national matter");
-        break;
-        case MESSAGE_TYPE_NETW_RESRC_MGMT:
-        /* no dissector necessary since no mandatory parameters included */
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_FACILITY:
-        /* no dissector necessary since no mandatory parameters included */
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_USER_PART_TEST:
-        /* no dissector necessary since no mandatory parameters included */
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_USER_PART_AVAIL:
-        /* no dissector necessary since no mandatory parameters included */
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_IDENT_REQ:
-        /* no dissector necessary since no mandatory parameters included */
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_IDENT_RSP:
-        /* no dissector necessary since no mandatory parameters included */
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_SEGMENTATION:
-        /* no dissector necessary since no mandatory parameters included */
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_LOOP_PREVENTION:
-        /* no dissector necessary since no mandatory parameters included */
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_APPLICATION_TRANS:
-        /* no dissector necessary since no mandatory parameters included */
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_PRE_RELEASE_INFO:
-        /* no dissector necessary since no mandatory parameters included */
-        opt_part_possible = TRUE;
-        break;
-        case MESSAGE_TYPE_SUBSEQUENT_DIR_NUM:
-        /* do nothing since format is a national matter */
-        bufferlength = tvb_length_remaining(message_tvb, offset);
-        if (bufferlength != 0)
-            proto_tree_add_text(isup_tree, parameter_tvb, 0, bufferlength, "Format is a national matter");
-        break;
-        case ANSI_ISUP_MESSAGE_TYPE_CIRCUIT_RES_ACK:
-        /* no dissector necessary since no mandatory parameters included */
-        break;
-        case ANSI_ISUP_MESSAGE_TYPE_CIRCUIT_RES:
-        offset += dissect_ansi_isup_circuit_reservation_message(parameter_tvb, isup_tree);
-        break;
-        case ANSI_ISUP_MESSAGE_TYPE_CCT_VAL_TEST_RSP:
-        opt_part_possible = TRUE;
-        offset += dissect_ansi_isup_circuit_validation_test_resp_message(parameter_tvb, isup_tree);
-        break;
-        case ANSI_ISUP_MESSAGE_TYPE_CCT_VAL_TEST:
-        /* no dissector necessary since no mandatory parameters included */
-        break;
-        default:
-        bufferlength = tvb_length_remaining(message_tvb, offset);
-        if (bufferlength != 0)
-            proto_tree_add_text(isup_tree, parameter_tvb, 0, bufferlength,
-                                "Unknown Message type (possibly reserved/used in former ISUP version)");
-        break;
+  /* distinguish between message types:*/
+  switch (message_type) {
+    case MESSAGE_TYPE_INITIAL_ADDR:
+      offset += dissect_isup_initial_address_message(parameter_tvb, isup_tree, itu_isup_variant);
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_SUBSEQ_ADDR:
+      offset += dissect_isup_subsequent_address_message(parameter_tvb, isup_tree);
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_INFO_REQ:
+      offset += dissect_isup_information_request_message(parameter_tvb, isup_tree);
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_INFO:
+      offset += dissect_isup_information_message(parameter_tvb, isup_tree);
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_CONTINUITY:
+      offset += dissect_isup_continuity_message(parameter_tvb, isup_tree);
+      break;
+    case MESSAGE_TYPE_ADDR_CMPL:
+      offset += dissect_isup_address_complete_message(parameter_tvb, isup_tree);
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_CONNECT:
+      offset += dissect_isup_connect_message(parameter_tvb, isup_tree);
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_FORW_TRANS:
+      /* no dissector necessary since no mandatory parameters included */
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_ANSWER:
+      /* no dissector necessary since no mandatory parameters included */
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_RELEASE:
+      offset += dissect_isup_release_message(parameter_tvb, isup_tree);
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_SUSPEND:
+      offset += dissect_isup_suspend_resume_message(parameter_tvb, isup_tree);
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_RESUME:
+      offset += dissect_isup_suspend_resume_message(parameter_tvb, isup_tree);
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_REL_CMPL:
+      /* no dissector necessary since no mandatory parameters included */
+      break;
+    case MESSAGE_TYPE_CONT_CHECK_REQ:
+      /* no dissector necessary since no mandatory parameters included */
+      break;
+    case MESSAGE_TYPE_RESET_CIRCUIT:
+      /* no dissector necessary since no mandatory parameters included */
+      break;
+    case MESSAGE_TYPE_BLOCKING:
+      /* no dissector necessary since no mandatory parameters included */
+      break;
+    case MESSAGE_TYPE_UNBLOCKING:
+      /* no dissector necessary since no mandatory parameters included */
+      break;
+    case MESSAGE_TYPE_BLOCK_ACK:
+      /* no dissector necessary since no mandatory parameters included */
+      break;
+    case MESSAGE_TYPE_UNBLOCK_ACK:
+      /* no dissector necessary since no mandatory parameters included */
+      break;
+    case MESSAGE_TYPE_CIRC_GRP_RST:
+      offset += dissect_isup_circuit_group_reset_query_message(parameter_tvb, isup_tree);
+      break;
+    case MESSAGE_TYPE_CIRC_GRP_BLCK:
+      offset += dissect_isup_circuit_group_blocking_messages(parameter_tvb, isup_tree);
+      break;
+    case MESSAGE_TYPE_CIRC_GRP_UNBL:
+      offset += dissect_isup_circuit_group_blocking_messages(parameter_tvb, isup_tree);
+      break;
+    case MESSAGE_TYPE_CIRC_GRP_BL_ACK:
+      offset += dissect_isup_circuit_group_blocking_messages(parameter_tvb, isup_tree);
+      break;
+    case MESSAGE_TYPE_CIRC_GRP_UNBL_ACK:
+      offset += dissect_isup_circuit_group_blocking_messages(parameter_tvb, isup_tree);
+      break;
+    case MESSAGE_TYPE_FACILITY_REQ:
+      offset += dissect_isup_facility_request_accepted_message(parameter_tvb, isup_tree);
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_FACILITY_ACC:
+      offset += dissect_isup_facility_request_accepted_message(parameter_tvb, isup_tree);
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_FACILITY_REJ:
+      offset += dissect_isup_facility_reject_message(parameter_tvb, isup_tree);
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_LOOP_BACK_ACK:
+      /* no dissector necessary since no mandatory parameters included */
+      break;
+    case MESSAGE_TYPE_PASS_ALONG:
+      /* call dissect_isup_message recursively */
+    {
+      guint8 pa_message_type;
+      pa_message_type = tvb_get_guint8(parameter_tvb, 0);
+      pass_along_item = proto_tree_add_text(isup_tree, parameter_tvb, offset, -1,
+                                            "Pass-along: %s Message (%u)",
+                                            val_to_str_ext_const(pa_message_type, &isup_message_type_value_acro_ext, "reserved"),
+                                            pa_message_type);
+      pass_along_tree = proto_item_add_subtree(pass_along_item, ett_isup_pass_along_message);
+      dissect_ansi_isup_message(parameter_tvb, pinfo, pass_along_tree, itu_isup_variant);
+      break;
     }
+    case MESSAGE_TYPE_CIRC_GRP_RST_ACK:
+      offset += dissect_isup_circuit_group_reset_acknowledgement_message(parameter_tvb, isup_tree);
+      break;
+    case MESSAGE_TYPE_CIRC_GRP_QRY:
+      offset += dissect_isup_circuit_group_reset_query_message(parameter_tvb, isup_tree);
+      break;
+    case MESSAGE_TYPE_CIRC_GRP_QRY_RSP:
+      offset += dissect_isup_circuit_group_query_response_message(parameter_tvb, isup_tree);
+      break;
+    case MESSAGE_TYPE_CALL_PROGRSS:
+      offset += dissect_isup_call_progress_message(parameter_tvb, isup_tree);
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_USER2USER_INFO:
+      offset += dissect_isup_user_to_user_information_message(parameter_tvb, pinfo, isup_tree);
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_UNEQUIPPED_CIC:
+      /* no dissector necessary since no mandatory parameters included */
+      break;
+    case MESSAGE_TYPE_CONFUSION:
+      offset += dissect_isup_confusion_message(parameter_tvb, isup_tree);
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_OVERLOAD:
+      /* no dissector necessary since no mandatory parameters included */
+      break;
+    case MESSAGE_TYPE_CHARGE_INFO:
+      /* do nothing since format is a national matter */
+      bufferlength = tvb_length_remaining(message_tvb, offset);
+      if (bufferlength != 0)
+        proto_tree_add_text(isup_tree, parameter_tvb, 0, bufferlength, "Format is a national matter");
+      break;
+    case MESSAGE_TYPE_NETW_RESRC_MGMT:
+      /* no dissector necessary since no mandatory parameters included */
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_FACILITY:
+      /* no dissector necessary since no mandatory parameters included */
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_USER_PART_TEST:
+      /* no dissector necessary since no mandatory parameters included */
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_USER_PART_AVAIL:
+      /* no dissector necessary since no mandatory parameters included */
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_IDENT_REQ:
+      /* no dissector necessary since no mandatory parameters included */
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_IDENT_RSP:
+      /* no dissector necessary since no mandatory parameters included */
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_SEGMENTATION:
+      /* no dissector necessary since no mandatory parameters included */
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_LOOP_PREVENTION:
+      /* no dissector necessary since no mandatory parameters included */
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_APPLICATION_TRANS:
+      /* no dissector necessary since no mandatory parameters included */
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_PRE_RELEASE_INFO:
+      /* no dissector necessary since no mandatory parameters included */
+      opt_part_possible = TRUE;
+      break;
+    case MESSAGE_TYPE_SUBSEQUENT_DIR_NUM:
+      /* do nothing since format is a national matter */
+      bufferlength = tvb_length_remaining(message_tvb, offset);
+      if (bufferlength != 0)
+        proto_tree_add_text(isup_tree, parameter_tvb, 0, bufferlength, "Format is a national matter");
+      break;
+    case ANSI_ISUP_MESSAGE_TYPE_CIRCUIT_RES_ACK:
+      /* no dissector necessary since no mandatory parameters included */
+      break;
+    case ANSI_ISUP_MESSAGE_TYPE_CIRCUIT_RES:
+      offset += dissect_ansi_isup_circuit_reservation_message(parameter_tvb, isup_tree);
+      break;
+    case ANSI_ISUP_MESSAGE_TYPE_CCT_VAL_TEST_RSP:
+      opt_part_possible = TRUE;
+      offset += dissect_ansi_isup_circuit_validation_test_resp_message(parameter_tvb, isup_tree);
+      break;
+    case ANSI_ISUP_MESSAGE_TYPE_CCT_VAL_TEST:
+      /* no dissector necessary since no mandatory parameters included */
+      break;
+    default:
+      bufferlength = tvb_length_remaining(message_tvb, offset);
+      if (bufferlength != 0)
+        proto_tree_add_text(isup_tree, parameter_tvb, 0, bufferlength,
+                            "Unknown Message type (possibly reserved/used in former ISUP version)");
+      break;
+  }
 
-   /* extract pointer to start of optional part (if any) */
-   if (opt_part_possible == TRUE) {
-     opt_parameter_pointer = tvb_get_guint8(message_tvb, offset);
-     if (opt_parameter_pointer > 0) {
-       proto_tree_add_uint_format(isup_tree, hf_isup_pointer_to_start_of_optional_part, message_tvb, offset,
-                                  PARAMETER_POINTER_LENGTH, opt_parameter_pointer,
-                                  "Pointer to start of optional part: %u", opt_parameter_pointer);
-       offset += opt_parameter_pointer;
-       optional_parameter_tvb = tvb_new_subset_remaining(message_tvb, offset);
-       dissect_ansi_isup_optional_parameter(optional_parameter_tvb, pinfo, isup_tree, itu_isup_variant);
-     }
-     else
-       proto_tree_add_uint_format(isup_tree, hf_isup_pointer_to_start_of_optional_part, message_tvb, offset,
-                                  PARAMETER_POINTER_LENGTH, opt_parameter_pointer,
-                                  "No optional parameter present (Pointer: %u)", opt_parameter_pointer);
-   }
-   else if (message_type !=MESSAGE_TYPE_CHARGE_INFO)
-     proto_tree_add_text(isup_tree, message_tvb, 0, 0, "No optional parameters are possible with this message type");
+  /* extract pointer to start of optional part (if any) */
+  if (opt_part_possible == TRUE) {
+    opt_parameter_pointer = tvb_get_guint8(message_tvb, offset);
+    if (opt_parameter_pointer > 0) {
+      proto_tree_add_uint_format(isup_tree, hf_isup_pointer_to_start_of_optional_part, message_tvb, offset,
+                                 PARAMETER_POINTER_LENGTH, opt_parameter_pointer,
+                                 "Pointer to start of optional part: %u", opt_parameter_pointer);
+      offset += opt_parameter_pointer;
+      optional_parameter_tvb = tvb_new_subset_remaining(message_tvb, offset);
+      dissect_ansi_isup_optional_parameter(optional_parameter_tvb, pinfo, isup_tree, itu_isup_variant);
+    }
+    else
+      proto_tree_add_uint_format(isup_tree, hf_isup_pointer_to_start_of_optional_part, message_tvb, offset,
+                                 PARAMETER_POINTER_LENGTH, opt_parameter_pointer,
+                                 "No optional parameter present (Pointer: %u)", opt_parameter_pointer);
+  }
+  else if (message_type != MESSAGE_TYPE_CHARGE_INFO)
+    proto_tree_add_text(isup_tree, message_tvb, 0, 0, "No optional parameters are possible with this message type");
 
-   /* if there are calling/called number, we'll get them for the tap */
-   tap_rec->calling_number = tap_calling_number ? tap_calling_number : ep_strdup("");
-   tap_rec->called_number  = tap_called_number;
-   tap_rec->cause_value    = tap_cause_value;
-   tap_queue_packet(isup_tap, pinfo, tap_rec);
+  /* if there are calling/called number, we'll get them for the tap */
+  tap_rec->calling_number = tap_calling_number ? tap_calling_number : wmem_strdup(wmem_packet_scope(), "");
+  tap_rec->called_number  = tap_called_number;
+  tap_rec->cause_value    = tap_cause_value;
+  tap_queue_packet(isup_tap, pinfo, tap_rec);
 }
 
 static void
@@ -10206,9 +10242,9 @@ dissect_isup_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *isup
   offset                        = 0;
 
   /* Extract message type field */
-  message_type = tvb_get_guint8(message_tvb,0);
+  message_type = tvb_get_guint8(message_tvb, 0);
 
-  switch(itu_isup_variant) {
+  switch (itu_isup_variant) {
     case ISUP_ITU_STANDARD_VARIANT:
       proto_tree_add_uint_format(isup_tree, hf_isup_message_type, message_tvb, 0, MESSAGE_TYPE_LENGTH, message_type,
                                  "Message type: %s (%u)",
@@ -10243,7 +10279,7 @@ dissect_isup_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *isup
 
   offset +=  MESSAGE_TYPE_LENGTH;
 
-  tap_rec = (isup_tap_rec_t *)ep_alloc(sizeof(isup_tap_rec_t));
+  tap_rec = (isup_tap_rec_t *)wmem_alloc(wmem_packet_scope(), sizeof(isup_tap_rec_t));
   tap_rec->message_type   = message_type;
   tap_rec->calling_number = NULL;
   tap_rec->called_number  = NULL;
@@ -10394,8 +10430,8 @@ dissect_isup_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *isup
     case MESSAGE_TYPE_CHARGE_INFO:
       /* do nothing since format is a national matter */
       bufferlength = tvb_length_remaining(message_tvb, offset);
-      if (bufferlength != 0){
-        switch(itu_isup_variant){
+      if (bufferlength != 0) {
+        switch (itu_isup_variant) {
           case ISUP_RUSSIAN_VARIANT:
             proto_tree_add_text(isup_tree, parameter_tvb, 0, bufferlength, "Format is a national matter");
             break;
@@ -10453,7 +10489,7 @@ dissect_isup_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *isup
       break;
     default:
       /* Handle national extensions here */
-      switch(itu_isup_variant) {
+      switch (itu_isup_variant) {
         case ISUP_ITU_STANDARD_VARIANT:
           bufferlength = tvb_length_remaining(message_tvb, offset);
           if (bufferlength != 0)
@@ -10527,7 +10563,7 @@ dissect_isup_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *isup
               break;
           }
           break;
-      } /* switch(itu_isup_variant) */
+      } /* switch (itu_isup_variant) */
       break;
   }
 
@@ -10551,7 +10587,7 @@ dissect_isup_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *isup
     proto_tree_add_text(isup_tree, message_tvb, 0, 0, "No optional parameters are possible with this message type");
 
   /* if there are calling/called number, we'll get them for the tap */
-  tap_rec->calling_number = tap_calling_number ? tap_calling_number : ep_strdup("");
+  tap_rec->calling_number = tap_calling_number ? tap_calling_number : wmem_strdup(wmem_packet_scope(), "");
   tap_rec->called_number  = tap_called_number;
   tap_rec->cause_value    = tap_cause_value;
   tap_queue_packet(isup_tap, pinfo, tap_rec);
@@ -10580,7 +10616,7 @@ dissect_isup(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   pinfo->ctype = CT_ISUP;
 
-  switch(mtp3_standard) {
+  switch (mtp3_standard) {
     case ANSI_STANDARD:
       isup_standard = ANSI_STANDARD;
       col_set_str(pinfo->cinfo, COL_PROTOCOL, "ISUP(ANSI)");
@@ -10605,7 +10641,7 @@ dissect_isup(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       break;
     default:
       isup_standard = ITU_STANDARD;
-      switch(itu_isup_variant) {
+      switch (itu_isup_variant) {
         case ISUP_FRENCH_VARIANT:
           col_set_str(pinfo->cinfo, COL_PROTOCOL, "ISUP(French)");
           used_value_string_ext = &french_isup_message_type_value_acro_ext;
@@ -10666,28 +10702,28 @@ dissect_bicc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   /*circuit_t *circuit;*/
 
 /* Make entries in Protocol column and Info column on summary display */
-	switch(itu_isup_variant) {
-	case ISUP_FRENCH_VARIANT:
-		col_set_str(pinfo->cinfo, COL_PROTOCOL, "BICC(French)");
-		used_value_string_ext = &french_isup_message_type_value_acro_ext;
-		break;
-	case ISUP_ISRAELI_VARIANT:
-		col_set_str(pinfo->cinfo, COL_PROTOCOL, "BICC(Israeli)");
-		used_value_string_ext = &israeli_isup_message_type_value_acro_ext;
-		break;
-	case ISUP_RUSSIAN_VARIANT:
-		col_set_str(pinfo->cinfo, COL_PROTOCOL, "BICC(Russian)");
-		used_value_string_ext = &russian_isup_message_type_value_acro_ext;
-		break;
-	case ISUP_JAPAN_VARIANT:
-		col_set_str(pinfo->cinfo, COL_PROTOCOL, "BICC(Japan)");
-		used_value_string_ext = &japan_isup_message_type_value_acro_ext;
-		break;
-	default:
-		col_set_str(pinfo->cinfo, COL_PROTOCOL, "BICC(ITU)");
-		used_value_string_ext = &isup_message_type_value_acro_ext;
-		break;
-	}
+  switch (itu_isup_variant) {
+    case ISUP_FRENCH_VARIANT:
+      col_set_str(pinfo->cinfo, COL_PROTOCOL, "BICC(French)");
+      used_value_string_ext = &french_isup_message_type_value_acro_ext;
+      break;
+    case ISUP_ISRAELI_VARIANT:
+      col_set_str(pinfo->cinfo, COL_PROTOCOL, "BICC(Israeli)");
+      used_value_string_ext = &israeli_isup_message_type_value_acro_ext;
+      break;
+    case ISUP_RUSSIAN_VARIANT:
+      col_set_str(pinfo->cinfo, COL_PROTOCOL, "BICC(Russian)");
+      used_value_string_ext = &russian_isup_message_type_value_acro_ext;
+      break;
+    case ISUP_JAPAN_VARIANT:
+      col_set_str(pinfo->cinfo, COL_PROTOCOL, "BICC(Japan)");
+      used_value_string_ext = &japan_isup_message_type_value_acro_ext;
+      break;
+    default:
+      col_set_str(pinfo->cinfo, COL_PROTOCOL, "BICC(ITU)");
+      used_value_string_ext = &isup_message_type_value_acro_ext;
+      break;
+  }
 
 /* Extract message type field */
   message_type = tvb_get_guint8(tvb, BICC_CIC_OFFSET + BICC_CIC_LENGTH);
@@ -10700,13 +10736,13 @@ dissect_bicc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   col_clear(pinfo->cinfo, COL_INFO);
   if (isup_show_cic_in_info) {
     col_append_sep_fstr(pinfo->cinfo, COL_INFO, ", ",
-                 "%s (CIC %u)",
-                 val_to_str_ext_const(message_type, used_value_string_ext, "reserved"),
-                 bicc_cic);
+                        "%s (CIC %u)",
+                        val_to_str_ext_const(message_type, used_value_string_ext, "reserved"),
+                        bicc_cic);
   } else {
     col_append_sep_fstr(pinfo->cinfo, COL_INFO, ", ",
-                 "%s",
-                 val_to_str_ext_const(message_type, used_value_string_ext, "reserved"));
+                        "%s",
+                        val_to_str_ext_const(message_type, used_value_string_ext, "reserved"));
   }
   /* dissect CIC in main dissector since pass-along message type carrying complete BICC/ISUP message w/o CIC needs
    * recursive message dissector call
@@ -10725,8 +10761,8 @@ dissect_bicc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   col_set_fence(pinfo->cinfo, COL_INFO);
 }
 
-static void
-dissect_application_isup(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_application_isup(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 /* Set up structures needed to add the protocol subtree and manage it */
   proto_item *ti;
@@ -10736,9 +10772,9 @@ dissect_application_isup(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   gchar      *content_type_parameter_str;
   guint8      itu_isup_variant = ISUP_ITU_STANDARD_VARIANT; /* Default */
 
-  if(pinfo->private_data) {
+  if (pinfo->private_data) {
     content_type_parameter_str = ascii_strdown_inplace((gchar *)pinfo->private_data);
-    if(strstr(content_type_parameter_str,"ansi")) {
+    if (strstr(content_type_parameter_str, "ansi")) {
       isup_standard = ANSI_STANDARD;
       col_append_str(pinfo->cinfo, COL_PROTOCOL, "/ISUP(ANSI)");
       message_type = tvb_get_guint8(tvb, 0);
@@ -10753,9 +10789,9 @@ dissect_application_isup(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
       message_tvb = tvb_new_subset_remaining(tvb, 0);
       dissect_ansi_isup_message(message_tvb, pinfo, isup_tree, ISUP_ITU_STANDARD_VARIANT);
-      return;
-    } else if(strstr(content_type_parameter_str,"spirou")) {
-      isup_standard = ITU_STANDARD;
+      return tvb_length(tvb);
+    } else if (strstr(content_type_parameter_str, "spirou")) {
+      isup_standard    = ITU_STANDARD;
       itu_isup_variant = ISUP_FRENCH_VARIANT;
     } else {
       isup_standard = ITU_STANDARD;
@@ -10769,7 +10805,7 @@ dissect_application_isup(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   /* Extract message type field */
   message_type = tvb_get_guint8(tvb, 0);
 
-  switch(itu_isup_variant) {
+  switch (itu_isup_variant) {
     case ISUP_ITU_STANDARD_VARIANT:
       /* Make entries in Protocol column and Info column on summary display */
       col_append_str(pinfo->cinfo, COL_PROTOCOL, "/ISUP(ITU)");
@@ -10815,6 +10851,7 @@ dissect_application_isup(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   message_tvb = tvb_new_subset_remaining(tvb, 0);
   dissect_isup_message(message_tvb, pinfo, isup_tree, itu_isup_variant);
+  return tvb_length(tvb);
 }
 /* ---------------------------------------------------- stats tree
 */
@@ -10831,12 +10868,12 @@ msg_stats_tree_init(stats_tree *st)
 static int
 msg_stats_tree_packet(stats_tree *st, packet_info *pinfo, epan_dissect_t *edt _U_, const void *p)
 {
-  const gchar *msg = match_strval_ext(((const isup_tap_rec_t*)p)->message_type, &isup_message_type_value_acro_ext);
+  const gchar *msg = try_val_to_str_ext(((const isup_tap_rec_t*)p)->message_type, &isup_message_type_value_acro_ext);
   gchar       *dir;
   int          msg_node;
   int          dir_node;
 
-  dir = ep_strdup_printf("%s->%s", ep_address_to_str(&pinfo->src), ep_address_to_str(&pinfo->dst));
+  dir = wmem_strdup_printf(wmem_packet_scope(), "%s->%s", ep_address_to_str(&pinfo->src), ep_address_to_str(&pinfo->dst));
 
   msg_node = tick_stat_node(st, msg, st_node_msg, TRUE);
   tick_stat_node(st, dir, msg_node, FALSE);
@@ -10896,12 +10933,12 @@ proto_register_isup(void)
 
     { &hf_isup_echo_control_device_indicator,
       { "Echo Control Device Indicator",  "isup.echo_control_device_indicator",
-        FT_BOOLEAN, 8, TFS(&isup_echo_control_device_ind_value),E_8BIT_MASK,
+        FT_BOOLEAN, 8, TFS(&isup_echo_control_device_ind_value), E_8BIT_MASK,
         NULL, HFILL }},
 
     { &hf_isup_forw_call_natnl_inatnl_call_indicator,
       { "National/international call indicator",  "isup.forw_call_natnl_inatnl_call_indicator",
-        FT_BOOLEAN, 16, TFS(&isup_natnl_inatnl_call_ind_value),A_16BIT_MASK,
+        FT_BOOLEAN, 16, TFS(&isup_natnl_inatnl_call_ind_value), A_16BIT_MASK,
         NULL, HFILL }},
 
     { &hf_isup_forw_call_end_to_end_method_indicator,
@@ -11036,22 +11073,22 @@ proto_register_isup(void)
 
     { &hf_isup_called_party_odd_address_signal_digit,
       { "Address signal digit",  "isup.called_party_odd_address_signal_digit",
-        FT_UINT8, BASE_DEC, VALS(isup_called_party_address_digit_value), ISUP_ODD_ADDRESS_SIGNAL_DIGIT_MASK,
+        FT_UINT8, BASE_DEC | BASE_EXT_STRING, &isup_called_party_address_digit_value_ext, ISUP_ODD_ADDRESS_SIGNAL_DIGIT_MASK,
         NULL, HFILL }},
 
     { &hf_isup_calling_party_odd_address_signal_digit,
       { "Address signal digit",  "isup.calling_party_odd_address_signal_digit",
-        FT_UINT8, BASE_DEC, VALS(isup_calling_party_address_digit_value), ISUP_ODD_ADDRESS_SIGNAL_DIGIT_MASK,
+        FT_UINT8, BASE_DEC | BASE_EXT_STRING, &isup_calling_party_address_digit_value_ext, ISUP_ODD_ADDRESS_SIGNAL_DIGIT_MASK,
         NULL, HFILL }},
 
     { &hf_isup_called_party_even_address_signal_digit,
       { "Address signal digit",  "isup.called_party_even_address_signal_digit",
-        FT_UINT8, BASE_DEC, VALS(isup_called_party_address_digit_value), ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK,
+        FT_UINT8, BASE_DEC | BASE_EXT_STRING, &isup_called_party_address_digit_value_ext, ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK,
         NULL, HFILL }},
 
     { &hf_isup_calling_party_even_address_signal_digit,
       { "Address signal digit",  "isup.calling_party_even_address_signal_digit",
-        FT_UINT8, BASE_DEC, VALS(isup_calling_party_address_digit_value), ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK,
+        FT_UINT8, BASE_DEC | BASE_EXT_STRING, &isup_calling_party_address_digit_value_ext, ISUP_EVEN_ADDRESS_SIGNAL_DIGIT_MASK,
         NULL, HFILL }},
 
     { &hf_isup_calling_party_address_request_indicator,
@@ -11346,7 +11383,7 @@ proto_register_isup(void)
 
     { &hf_isup_notification_indicator,
       { "Notification indicator",  "isup.notification_indicator",
-        FT_UINT8, BASE_DEC, VALS(q763_generic_notification_indicator_vals), 0x7f,
+        FT_UINT8, BASE_DEC | BASE_EXT_STRING, &q763_generic_notification_indicator_vals_ext, 0x7f,
         NULL, HFILL }},
 
     { &hf_isup_UUI_network_discard_ind,
@@ -11406,42 +11443,42 @@ proto_register_isup(void)
 
     { &hf_isup_Send_notification_ind,
       { "Send notification indicator", "isup.Send_notification_ind",
-        FT_BOOLEAN, 8, TFS(&isup_Send_notification_ind_value),C_8BIT_MASK,
+        FT_BOOLEAN, 8, TFS(&isup_Send_notification_ind_value), C_8BIT_MASK,
         NULL, HFILL }},
 
     { &hf_isup_Discard_message_ind_value,
-      { "Discard message indicator","isup.Discard_message_ind_value",
+      { "Discard message indicator", "isup.Discard_message_ind_value",
         FT_BOOLEAN, 8, TFS(&isup_Discard_message_ind_value), D_8BIT_MASK,
         NULL, HFILL }},
 
     { &hf_isup_Discard_parameter_ind,
-      { "Discard parameter indicator","isup.Discard_parameter_ind",
+      { "Discard parameter indicator", "isup.Discard_parameter_ind",
         FT_BOOLEAN, 8, TFS(&isup_Discard_parameter_ind_value), E_8BIT_MASK,
         NULL, HFILL }},
 
     { &hf_isup_Pass_on_not_possible_indicator,
       { "Pass on not possible indicator",  "isup.Pass_on_not_possible_ind",
-        FT_UINT8, BASE_HEX, VALS(isup_Pass_on_not_possible_indicator_vals),GF_8BIT_MASK,
+        FT_UINT8, BASE_HEX, VALS(isup_Pass_on_not_possible_indicator_vals), GF_8BIT_MASK,
         NULL, HFILL }},
 
     { &hf_isup_pass_on_not_possible_indicator2,
       { "Pass on not possible indicator",  "isup.Pass_on_not_possible_val",
-        FT_BOOLEAN, 8, TFS(&isup_pass_on_not_possible_indicator_value),E_8BIT_MASK,
+        FT_BOOLEAN, 8, TFS(&isup_pass_on_not_possible_indicator_value), E_8BIT_MASK,
         NULL, HFILL }},
 
     { &hf_isup_Broadband_narrowband_interworking_ind,
       { "Broadband narrowband interworking indicator Bits JF",  "isup.broadband_narrowband_interworking_ind",
-        FT_UINT8, BASE_HEX, VALS(ISUP_Broadband_narrowband_interworking_indicator_vals),BA_8BIT_MASK,
+        FT_UINT8, BASE_HEX, VALS(ISUP_Broadband_narrowband_interworking_indicator_vals), BA_8BIT_MASK,
         NULL, HFILL }},
 
     { &hf_isup_Broadband_narrowband_interworking_ind2,
       { "Broadband narrowband interworking indicator Bits GF",  "isup.broadband_narrowband_interworking_ind2",
-        FT_UINT8, BASE_HEX, VALS(ISUP_Broadband_narrowband_interworking_indicator_vals),GF_8BIT_MASK,
+        FT_UINT8, BASE_HEX, VALS(ISUP_Broadband_narrowband_interworking_indicator_vals), GF_8BIT_MASK,
         NULL, HFILL }},
 
     { &hf_isup_app_cont_ident,
       { "Application context identifier",  "isup.app_context_identifier",
-        FT_UINT16, BASE_DEC, VALS(isup_application_transport_parameter_value),GFEDCBA_8BIT_MASK,
+        FT_UINT16, BASE_DEC, VALS(isup_application_transport_parameter_value), GFEDCBA_8BIT_MASK,
         NULL, HFILL }},
 
     { &hf_isup_app_Release_call_ind,
@@ -11476,7 +11513,7 @@ proto_register_isup(void)
 
     { &hf_isup_apm_slr,
       { "Segmentation local reference (SLR)",  "isup.APM_slr",
-        FT_UINT8, BASE_DEC, NULL,GFEDCBA_8BIT_MASK,
+        FT_UINT8, BASE_DEC, NULL, GFEDCBA_8BIT_MASK,
         NULL, HFILL }},
     { &hf_isup_cause_location,
       { "Cause location", "isup.cause_location",
@@ -11485,26 +11522,26 @@ proto_register_isup(void)
 
     { &hf_ansi_isup_coding_standard,
       { "Coding standard", "ansi_isup.coding_standard", FT_UINT8, BASE_HEX,
-        VALS(ansi_isup_coding_standard_vals), 0x60,NULL, HFILL }},
+        VALS(ansi_isup_coding_standard_vals), 0x60, NULL, HFILL }},
 
     { &hf_bat_ase_identifier,
       { "BAT ASE Identifiers",  "bicc.bat_ase_identifier",
-        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &bat_ase_list_of_Identifiers_vals_ext,0x0,
+        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &bat_ase_list_of_Identifiers_vals_ext, 0x0,
         NULL, HFILL }},
 
     { &hf_length_indicator,
       { "BAT ASE Element length indicator",  "bicc.bat_ase_length_indicator",
-        FT_UINT16, BASE_DEC, NULL,0x0,
+        FT_UINT16, BASE_DEC, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_Action_Indicator,
       { "BAT ASE action indicator field",  "bicc.bat_ase_bat_ase_action_indicator_field",
-        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &bat_ase_action_indicator_field_vals_ext,0x00,
+        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &bat_ase_action_indicator_field_vals_ext, 0x00,
         NULL, HFILL }},
 
     { &hf_Instruction_ind_for_general_action,
       { "BAT ASE Instruction indicator for general action",  "bicc.bat_ase_Instruction_ind_for_general_action",
-        FT_UINT8, BASE_HEX, VALS(Instruction_indicator_for_general_action_vals),0x03,
+        FT_UINT8, BASE_HEX, VALS(Instruction_indicator_for_general_action_vals), 0x03,
         NULL, HFILL }},
 
     { &hf_Send_notification_ind_for_general_action,
@@ -11514,7 +11551,7 @@ proto_register_isup(void)
 
     { &hf_Instruction_ind_for_pass_on_not_possible,
       { "Instruction ind for pass-on not possible",  "bicc.bat_ase_Instruction_ind_for_pass_on_not_possible",
-        FT_UINT8, BASE_HEX, VALS(Instruction_indicator_for_pass_on_not_possible_vals),0x30,
+        FT_UINT8, BASE_HEX, VALS(Instruction_indicator_for_pass_on_not_possible_vals), 0x30,
         NULL, HFILL }},
 
     { &hf_Send_notification_ind_for_pass_on_not_possible,
@@ -11524,7 +11561,7 @@ proto_register_isup(void)
 
     { &hf_BCTP_Version_Indicator,
       { "BCTP Version Indicator",  "bicc.bat_ase_BCTP_Version_Indicator",
-        FT_UINT8, BASE_DEC, NULL,0x1f,
+        FT_UINT8, BASE_DEC, NULL, 0x1f,
         NULL, HFILL }},
 
     { &hf_BVEI,
@@ -11534,7 +11571,7 @@ proto_register_isup(void)
 
     { &hf_Tunnelled_Protocol_Indicator,
       { "Tunnelled Protocol Indicator",  "bicc.bat_ase_BCTP_Tunnelled_Protocol_Indicator",
-        FT_UINT8, BASE_DEC, VALS(BCTP_Tunnelled_Protocol_Indicator_vals),0x3f,
+        FT_UINT8, BASE_DEC, VALS(BCTP_Tunnelled_Protocol_Indicator_vals), 0x3f,
         NULL, HFILL }},
 
     { &hf_TPEI,
@@ -11554,153 +11591,153 @@ proto_register_isup(void)
 
     { &hf_afi,
       { "X.213 Address Format Information (AFI)",  "x213.afi",
-        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &x213_afi_value_ext,0x0,
+        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &x213_afi_value_ext, 0x0,
         NULL, HFILL }},
 
     { &hf_bicc_nsap_dsp,
       { "X.213 Address Format Information (DSP)",  "x213.dsp",
-        FT_BYTES, BASE_NONE, NULL,0x0,
+        FT_BYTES, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
     { &hf_characteristics,
       { "Backbone network connection characteristics", "bat_ase.char",
-        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &bearer_network_connection_characteristics_vals_ext,0x0,
+        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &bearer_network_connection_characteristics_vals_ext, 0x0,
         NULL, HFILL }},
 
     { &hf_Organization_Identifier,
       { "Organization identifier subfield",  "bat_ase.organization_identifier_subfield",
-        FT_UINT8, BASE_DEC, VALS(bat_ase_organization_identifier_subfield_vals),0x0,
+        FT_UINT8, BASE_DEC, VALS(bat_ase_organization_identifier_subfield_vals), 0x0,
         NULL, HFILL }},
 
     { &hf_codec_type,
       { "ITU-T codec type subfield",  "bat_ase.ITU_T_codec_type_subfield",
-        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &ITU_T_codec_type_subfield_vals_ext,0x0,
+        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &ITU_T_codec_type_subfield_vals_ext, 0x0,
         NULL, HFILL }},
 
     { &hf_etsi_codec_type,
       { "ETSI codec type subfield",  "bat_ase.ETSI_codec_type_subfield",
-        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &ETSI_codec_type_subfield_vals_ext,0x0,
+        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &ETSI_codec_type_subfield_vals_ext, 0x0,
         NULL, HFILL }},
 
     { &hf_active_code_set,
       { "Active Code Set",  "bat_ase.acs",
-        FT_UINT8, BASE_HEX, NULL,0x0,
+        FT_UINT8, BASE_HEX, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_active_code_set_12_2,
       { "12.2 kbps rate",  "bat_ase.acs.12_2",
-        FT_UINT8, BASE_HEX, NULL,0x80,
+        FT_UINT8, BASE_HEX, NULL, 0x80,
         NULL, HFILL }},
 
     { &hf_active_code_set_10_2,
       { "10.2 kbps rate",  "bat_ase.acs.10_2",
-        FT_UINT8, BASE_HEX, NULL,0x40,
+        FT_UINT8, BASE_HEX, NULL, 0x40,
         NULL, HFILL }},
 
     { &hf_active_code_set_7_95,
       { "7.95 kbps rate",  "bat_ase.acs.7_95",
-        FT_UINT8, BASE_HEX, NULL,0x20,
+        FT_UINT8, BASE_HEX, NULL, 0x20,
         NULL, HFILL }},
 
     { &hf_active_code_set_7_40,
       { "7.40 kbps rate",  "bat_ase.acs.7_40",
-        FT_UINT8, BASE_HEX, NULL,0x10,
+        FT_UINT8, BASE_HEX, NULL, 0x10,
         NULL, HFILL }},
 
     { &hf_active_code_set_6_70,
       { "6.70 kbps rate",  "bat_ase.acs.6_70",
-        FT_UINT8, BASE_HEX, NULL,0x08,
+        FT_UINT8, BASE_HEX, NULL, 0x08,
         NULL, HFILL }},
 
     { &hf_active_code_set_5_90,
       { "5.90 kbps rate",  "bat_ase.acs.5_90",
-        FT_UINT8, BASE_HEX, NULL,0x04,
+        FT_UINT8, BASE_HEX, NULL, 0x04,
         NULL, HFILL }},
 
     { &hf_active_code_set_5_15,
       { "5.15 kbps rate",  "bat_ase.acs.5_15",
-        FT_UINT8, BASE_HEX, NULL,0x02,
+        FT_UINT8, BASE_HEX, NULL, 0x02,
         NULL, HFILL }},
 
     { &hf_active_code_set_4_75,
       { "4.75 kbps rate",  "bat_ase.acs.4_75",
-        FT_UINT8, BASE_HEX, NULL,0x01,
+        FT_UINT8, BASE_HEX, NULL, 0x01,
         NULL, HFILL }},
 
     { &hf_supported_code_set,
       { "Supported Code Set",  "bat_ase.scs",
-        FT_UINT8, BASE_HEX, NULL,0x0,
+        FT_UINT8, BASE_HEX, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_supported_code_set_12_2,
       { "12.2 kbps rate",  "bat_ase.scs.12_2",
-        FT_UINT8, BASE_HEX, NULL,0x80,
+        FT_UINT8, BASE_HEX, NULL, 0x80,
         NULL, HFILL }},
 
     { &hf_supported_code_set_10_2,
       { "10.2 kbps rate",  "bat_ase.scs.10_2",
-        FT_UINT8, BASE_HEX, NULL,0x40,
+        FT_UINT8, BASE_HEX, NULL, 0x40,
         NULL, HFILL }},
 
     { &hf_supported_code_set_7_95,
       { "7.95 kbps rate",  "bat_ase.scs.7_95",
-        FT_UINT8, BASE_HEX, NULL,0x20,
+        FT_UINT8, BASE_HEX, NULL, 0x20,
         NULL, HFILL }},
 
     { &hf_supported_code_set_7_40,
       { "7.40 kbps rate",  "bat_ase.scs.7_40",
-        FT_UINT8, BASE_HEX, NULL,0x10,
+        FT_UINT8, BASE_HEX, NULL, 0x10,
         NULL, HFILL }},
 
     { &hf_supported_code_set_6_70,
       { "6.70 kbps rate",  "bat_ase.scs.6_70",
-        FT_UINT8, BASE_HEX, NULL,0x08,
+        FT_UINT8, BASE_HEX, NULL, 0x08,
         NULL, HFILL }},
 
     { &hf_supported_code_set_5_90,
       { "5.90 kbps rate",  "bat_ase.scs.5_90",
-        FT_UINT8, BASE_HEX, NULL,0x04,
+        FT_UINT8, BASE_HEX, NULL, 0x04,
         NULL, HFILL }},
 
     { &hf_supported_code_set_5_15,
       { "5.15 kbps rate",  "bat_ase.scs.5_15",
-        FT_UINT8, BASE_HEX, NULL,0x02,
+        FT_UINT8, BASE_HEX, NULL, 0x02,
         NULL, HFILL }},
 
     { &hf_supported_code_set_4_75,
       { "4.75 kbps rate",  "bat_ase.scs.4_75",
-        FT_UINT8, BASE_HEX, NULL,0x01,
+        FT_UINT8, BASE_HEX, NULL, 0x01,
         NULL, HFILL }},
 
     { &hf_optimisation_mode,
       { "Optimisation Mode for ACS , OM",  "bat_ase.optimisation_mode",
-        FT_UINT8, BASE_HEX, VALS(optimisation_mode_vals),0x8,
+        FT_UINT8, BASE_HEX, VALS(optimisation_mode_vals), 0x8,
         NULL, HFILL }},
 
     { &hf_max_codec_modes,
       { "Maximal number of Codec Modes, MACS",  "bat_ase.macs",
-        FT_UINT8, BASE_DEC, NULL,0x07,
+        FT_UINT8, BASE_DEC, NULL, 0x07,
         NULL, HFILL }},
 
 
     { &hf_bearer_control_tunneling,
       { "Bearer control tunneling",  "bat_ase.bearer_control_tunneling",
-        FT_BOOLEAN, 8, TFS(&Bearer_Control_Tunnelling_ind_value),0x01,
+        FT_BOOLEAN, 8, TFS(&Bearer_Control_Tunnelling_ind_value), 0x01,
         NULL, HFILL }},
 
     { &hf_BAT_ASE_Comp_Report_Reason,
       { "Compatibility report reason",  "bat_ase.Comp_Report_Reason",
-        FT_UINT8, BASE_HEX, VALS(BAT_ASE_Report_Reason_vals),0x0,
+        FT_UINT8, BASE_HEX, VALS(BAT_ASE_Report_Reason_vals), 0x0,
         NULL, HFILL }},
 
 
     { &hf_BAT_ASE_Comp_Report_ident,
       { "Bearer control tunneling",  "bat_ase.bearer_control_tunneling",
-        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &bat_ase_list_of_Identifiers_vals_ext,0x0,
+        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &bat_ase_list_of_Identifiers_vals_ext, 0x0,
         NULL, HFILL }},
 
     { &hf_BAT_ASE_Comp_Report_diagnostic,
       { "Diagnostics",  "bat_ase.Comp_Report_diagnostic",
-        FT_UINT16, BASE_HEX, NULL,0x0,
+        FT_UINT16, BASE_HEX, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_Local_BCU_ID,
@@ -11710,22 +11747,22 @@ proto_register_isup(void)
 
     { &hf_late_cut_trough_cap_ind,
       { "Late Cut-through capability indicator",  "bat_ase.late_cut_trough_cap_ind",
-        FT_BOOLEAN, 8, TFS(&late_cut_trough_cap_ind_value),0x01,
+        FT_BOOLEAN, 8, TFS(&late_cut_trough_cap_ind_value), 0x01,
         NULL, HFILL }},
 
     { &hf_bat_ase_signal,
       { "Q.765.5 - Signal Type",  "bat_ase.signal_type",
-        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &BAT_ASE_Signal_Type_vals_ext,0x0,
+        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &BAT_ASE_Signal_Type_vals_ext, 0x0,
         NULL, HFILL }},
 
     { &hf_bat_ase_duration,
       { "Duration in ms",  "bat_ase.signal_type",
-        FT_UINT16, BASE_DEC, NULL,0x0,
+        FT_UINT16, BASE_DEC, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_bat_ase_bearer_redir_ind,
       { "Redirection Indicator",  "bat_ase.bearer_redir_ind",
-        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &Bearer_Redirection_Indicator_vals_ext,0x0,
+        FT_UINT8, BASE_HEX|BASE_EXT_STRING, &Bearer_Redirection_Indicator_vals_ext, 0x0,
         NULL, HFILL }},
 
     { &hf_nsap_ipv4_addr,
@@ -11740,88 +11777,103 @@ proto_register_isup(void)
 
     { &hf_iana_icp,
       { "IANA ICP",  "nsap.iana_icp",
-        FT_UINT16, BASE_HEX, VALS(iana_icp_values),0x0,
+        FT_UINT16, BASE_HEX, VALS(iana_icp_values), 0x0,
         NULL, HFILL }},
 
     { &hf_isup_called,
       { "ISUP Called Number",  "isup.called",
-        FT_STRING, BASE_NONE, NULL,0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_calling,
       { "ISUP Calling Number",  "isup.calling",
-        FT_STRING, BASE_NONE, NULL,0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_redirecting,
       { "ISUP Redirecting Number",  "isup.redirecting",
-        FT_STRING, BASE_NONE, NULL,0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
-    {&hf_isup_apm_msg_fragments,
-     {"Message fragments", "isup.apm.msg.fragments",
-      FT_NONE, BASE_NONE, NULL, 0x00, NULL, HFILL }
-    },
-    {&hf_isup_apm_msg_fragment,
-     {"Message fragment", "isup.apm.msg.fragment",
-      FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL }
-    },
-    {&hf_isup_apm_msg_fragment_overlap,
-     {"Message fragment overlap", "isup.apm.msg.fragment.overlap",
-      FT_BOOLEAN, BASE_NONE, NULL, 0x0, NULL, HFILL }
-    },
-    {&hf_isup_apm_msg_fragment_overlap_conflicts,
-     {"Message fragment overlapping with conflicting data","isup.apm.msg.fragment.overlap.conflicts",
-      FT_BOOLEAN, BASE_NONE, NULL, 0x0, NULL, HFILL }
-    },
-    {&hf_isup_apm_msg_fragment_multiple_tails,
-     {"Message has multiple tail fragments", "isup.apm.msg.fragment.multiple_tails",
-      FT_BOOLEAN, BASE_NONE, NULL, 0x0, NULL, HFILL }
-    },
-    {&hf_isup_apm_msg_fragment_too_long_fragment,
-     {"Message fragment too long", "isup.apm.msg.fragment.too_long_fragment",
-      FT_BOOLEAN, BASE_NONE, NULL, 0x0, NULL, HFILL }
-    },
-    {&hf_isup_apm_msg_fragment_error,
-     {"Message defragmentation error", "isup.apm.msg.fragment.error",
-      FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL }
-    },
-    {&hf_isup_apm_msg_fragment_count,
-     {"Message fragment count", "isup.apm.msg.fragment.count",
-      FT_UINT32, BASE_DEC, NULL, 0x00, NULL, HFILL }
-    },
-    {&hf_isup_apm_msg_reassembled_in,
-     {"Reassembled in", "isup.apm.msg.reassembled.in",
-      FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL }
-    },
-    {&hf_isup_apm_msg_reassembled_length,
-     {"Reassembled ISUP length", "isup.apm.msg.reassembled.length",
-      FT_UINT32, BASE_DEC, NULL, 0x00, NULL, HFILL }
-    },
-    {&hf_isup_cvr_rsp_ind,
-     {"CVR Response Ind", "isup.conn_rsp_ind",
-      FT_UINT8, BASE_DEC, VALS(isup_cvr_rsp_ind_value), BA_8BIT_MASK,
+
+    { &hf_isup_apm_msg_fragments,
+     { "Message fragments", "isup.apm.msg.fragments",
+      FT_NONE, BASE_NONE, NULL, 0x00,
       NULL, HFILL }},
-    {&hf_isup_cvr_cg_car_ind,
-     {"CVR Circuit Group Carrier","isup.cg_carrier_ind",
-      FT_UINT8, BASE_HEX, VALS(isup_cvr_cg_car_ind_value), BA_8BIT_MASK,
-      NULL, HFILL }},
-    {&hf_isup_cvr_cg_double_seize,
-     {"Double Seize Control", "isup.cg_char_ind.doubleSeize",
-      FT_UINT8, BASE_HEX, VALS(isup_cvr_cg_double_seize_value), DC_8BIT_MASK,
-      NULL, HFILL }},
-    {&hf_isup_cvr_cg_alarm_car_ind,
-     {"Alarm Carrier Indicator", "isup.cg_alarm_car_ind",
-      FT_UINT8, BASE_HEX, VALS(isup_cvr_alarm_car_ind_value), FE_8BIT_MASK,
-      NULL, HFILL }},
-    {&hf_isup_cvr_cont_chk_ind,
-     {"Continuity Check Indicator","isup.cg_alarm_cnt_chk",
-      FT_UINT8, BASE_HEX, VALS(isup_cvr_cont_chk_ind_value), HG_8BIT_MASK,
-      NULL,HFILL }},
+
+    { &hf_isup_apm_msg_fragment,
+      { "Message fragment", "isup.apm.msg.fragment",
+        FT_FRAMENUM, BASE_NONE, NULL, 0x00,
+        NULL, HFILL }},
+
+    { &hf_isup_apm_msg_fragment_overlap,
+      { "Message fragment overlap", "isup.apm.msg.fragment.overlap",
+        FT_BOOLEAN, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_isup_apm_msg_fragment_overlap_conflicts,
+      { "Message fragment overlapping with conflicting data", "isup.apm.msg.fragment.overlap.conflicts",
+        FT_BOOLEAN, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_isup_apm_msg_fragment_multiple_tails,
+      { "Message has multiple tail fragments", "isup.apm.msg.fragment.multiple_tails",
+        FT_BOOLEAN, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_isup_apm_msg_fragment_too_long_fragment,
+      { "Message fragment too long", "isup.apm.msg.fragment.too_long_fragment",
+        FT_BOOLEAN, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
+
+    { &hf_isup_apm_msg_fragment_error,
+      { "Message defragmentation error", "isup.apm.msg.fragment.error",
+        FT_FRAMENUM, BASE_NONE, NULL, 0x00,
+        NULL, HFILL }},
+
+    { &hf_isup_apm_msg_fragment_count,
+      { "Message fragment count", "isup.apm.msg.fragment.count",
+        FT_UINT32, BASE_DEC, NULL, 0x00,
+        NULL, HFILL }},
+
+    { &hf_isup_apm_msg_reassembled_in,
+      { "Reassembled in", "isup.apm.msg.reassembled.in",
+        FT_FRAMENUM, BASE_NONE, NULL, 0x00,
+        NULL, HFILL }},
+
+    { &hf_isup_apm_msg_reassembled_length,
+      { "Reassembled ISUP length", "isup.apm.msg.reassembled.length",
+        FT_UINT32, BASE_DEC, NULL, 0x00, NULL, HFILL }},
+
+    { &hf_isup_cvr_rsp_ind,
+      { "CVR Response Ind", "isup.conn_rsp_ind",
+        FT_UINT8, BASE_DEC, VALS(isup_cvr_rsp_ind_value), BA_8BIT_MASK,
+        NULL, HFILL }},
+
+    { &hf_isup_cvr_cg_car_ind,
+      { "CVR Circuit Group Carrier", "isup.cg_carrier_ind",
+        FT_UINT8, BASE_HEX, VALS(isup_cvr_cg_car_ind_value), BA_8BIT_MASK,
+        NULL, HFILL }},
+
+    { &hf_isup_cvr_cg_double_seize,
+      { "Double Seize Control", "isup.cg_char_ind.doubleSeize",
+        FT_UINT8, BASE_HEX, VALS(isup_cvr_cg_double_seize_value), DC_8BIT_MASK,
+        NULL, HFILL }},
+
+    { &hf_isup_cvr_cg_alarm_car_ind,
+      { "Alarm Carrier Indicator", "isup.cg_alarm_car_ind",
+        FT_UINT8, BASE_HEX, VALS(isup_cvr_alarm_car_ind_value), FE_8BIT_MASK,
+        NULL, HFILL }},
+
+    { &hf_isup_cvr_cont_chk_ind,
+      { "Continuity Check Indicator", "isup.cg_alarm_cnt_chk",
+        FT_UINT8, BASE_HEX, VALS(isup_cvr_cont_chk_ind_value), HG_8BIT_MASK,
+        NULL, HFILL }},
 
     { &hf_isup_geo_loc_presentation_restricted_ind,
       { "Calling Geodetic Location presentation restricted indicator",  "isup.location_presentation_restr_ind",
         FT_UINT8, BASE_DEC, VALS(isup_location_presentation_restricted_ind_value), DC_8BIT_MASK,
         NULL, HFILL }},
+
     { &hf_isup_geo_loc_screening_ind,
       { "Calling Geodetic Location screening indicator",  "isup.location_screening_ind",
         FT_UINT8, BASE_DEC, VALS(isup_screening_ind_enhanced_value), BA_8BIT_MASK,        /* using previously defined screening values */
@@ -11832,6 +11884,7 @@ proto_register_isup(void)
       { "Collection field",  "isup.french.coll_field",
         FT_UINT8, BASE_DEC, NULL, 0x0,
         NULL, HFILL }},
+
     { &hf_isup_french_msg_num,
       { "Message number",  "isup.french.msg_num",
         FT_UINT8, BASE_DEC, NULL, 0x0,
@@ -11842,262 +11895,282 @@ proto_register_isup(void)
       { "Current Tariff",  "isup.israeli.cmi_current",
         FT_UINT8, BASE_DEC, VALS(israeli_cmi_current_rate), 0x03,
         NULL, HFILL }},
+
     { &hf_isup_israeli_charging_message_indicators_next,
       { "Next Tariff",  "isup.israeli.cmi_next",
         FT_UINT8, BASE_DEC, VALS(israeli_cmi_next_rate), 0x0C,
         NULL, HFILL }},
+
     { &hf_isup_israeli_current_rate,
       { "Current Rate",  "isup.israeli.current_rate",
         FT_UINT16, BASE_DEC, NULL, 0x0,
         NULL, HFILL }},
+
     { &hf_isup_israeli_time_indicator,
       { "Time Indicator",  "isup.israeli.time_indicator",
-        FT_UINT8, BASE_DEC, VALS(israeli_time_indicators), 0x0,
+        FT_UINT8, BASE_DEC | BASE_EXT_STRING, &israeli_time_indicators_ext, 0x0,
         NULL, HFILL }},
+
     { &hf_isup_israeli_next_rate,
       { "Next Rate",  "isup.israeli.next_ratej",
         FT_UINT16, BASE_DEC, NULL, 0x0,
         NULL, HFILL }},
+
     /* Japan ISUP */
     { &hf_japan_isup_redirect_capability,
-      {"Redirect possible indicator",  "isup.jpn.redirect_capability",
-       FT_UINT8, BASE_DEC, VALS(isup_jpn_redirect_capabilit_vals), 0x07,
-       NULL, HFILL }},
+      { "Redirect possible indicator",  "isup.jpn.redirect_capability",
+        FT_UINT8, BASE_DEC, VALS(isup_jpn_redirect_capabilit_vals), 0x07,
+        NULL, HFILL }},
+
     { &hf_japan_isup_redirect_counter,
-      {"Redirect counter",  "isup.jpn.redirect_counter",
-       FT_UINT8, BASE_DEC, NULL, 0x0f,
-       NULL, HFILL }},
+      { "Redirect counter",  "isup.jpn.redirect_counter",
+        FT_UINT8, BASE_DEC, NULL, 0x0f,
+        NULL, HFILL }},
+
     { &hf_japan_isup_rfi_info_type,
-      {"Information Type Tag",  "isup.rfi.info_type",
-       FT_UINT8, BASE_DEC, VALS(isup_rfi_info_type_values), 0x0,
-       NULL, HFILL }},
+      { "Information Type Tag",  "isup.rfi.info_type",
+        FT_UINT8, BASE_DEC, VALS(isup_rfi_info_type_values), 0x0,
+        NULL, HFILL }},
+
     { &hf_japan_isup_rfi_info_len,
-      {"Length",  "isup.rfi.info_len",
-       FT_UINT8, BASE_DEC, NULL, 0x0,
-       NULL, HFILL }},
+      { "Length",  "isup.rfi.info_len",
+        FT_UINT8, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }},
+
     { &hf_japan_isup_perf_redir_reason,
-      {"Performing redirect reason",  "isup.rfi.perf_redir_reason",
-       FT_UINT8, BASE_DEC, VALS(perf_redir_reason_vals), 0x7f,
-       NULL, HFILL }},
+      { "Performing redirect reason",  "isup.rfi.perf_redir_reason",
+        FT_UINT8, BASE_DEC, VALS(perf_redir_reason_vals), 0x7f,
+        NULL, HFILL }},
+
     { &hf_japan_isup_redir_pos_ind,
-      {"Redirect possible indicator at performing exchange",  "isup.rfi.redir_pos_ind",
-       FT_UINT8, BASE_DEC, VALS(redir_pos_ind_vals), 0x07,
-       NULL, HFILL }},
+      { "Redirect possible indicator at performing exchange",  "isup.rfi.redir_pos_ind",
+        FT_UINT8, BASE_DEC, VALS(redir_pos_ind_vals), 0x07,
+        NULL, HFILL }},
+
     { &hf_japan_isup_hold_at_emerg_call_disc_ind,
-      {"Hold at emergency Call Disconnection Indicators",  "isup.jpn.hold_at_emerg_call_disc_ind",
-       FT_UINT16, BASE_DEC, VALS(hold_at_emerg_call_disc_ind_vals), 0x0300,
-       NULL, HFILL }},
+      { "Hold at emergency Call Disconnection Indicators",  "isup.jpn.hold_at_emerg_call_disc_ind",
+        FT_UINT16, BASE_DEC, VALS(hold_at_emerg_call_disc_ind_vals), 0x0300,
+        NULL, HFILL }},
+
     /* Value string values the same as perf_redir_reason_vals */
     { &hf_japan_isup_inv_redir_reason,
-      {"Invoking redirect reason",  "isup.rfi.inv_redir_reason",
-       FT_UINT8, BASE_DEC, VALS(perf_redir_reason_vals), 0x7f,
-       NULL, HFILL }},
+      { "Invoking redirect reason",  "isup.rfi.inv_redir_reason",
+        FT_UINT8, BASE_DEC, VALS(perf_redir_reason_vals), 0x7f,
+        NULL, HFILL }},
+
     { &hf_japan_isup_bwd_info_type,
-      {"Information Type Tag",  "isup.jpn.bwd_info_type",
-       FT_UINT8, BASE_DEC, VALS(japan_isup_bwd_info_type_vals), 0x0,
-       NULL, HFILL }},
+      { "Information Type Tag",  "isup.jpn.bwd_info_type",
+        FT_UINT8, BASE_DEC, VALS(japan_isup_bwd_info_type_vals), 0x0,
+        NULL, HFILL }},
+
     { &hf_japan_isup_tag_len,
-      {"Length",  "isup.jpn.tag_len",
-       FT_UINT8, BASE_DEC, NULL, 0x0,
-       NULL, HFILL }},
+      { "Length",  "isup.jpn.tag_len",
+        FT_UINT8, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }},
 
     { &hf_japan_isup_add_user_cat_type,
-      {"Type of Additional User/Service Information",  "isup.jpn.add_user_cat_type",
-       FT_UINT8, BASE_DEC|BASE_RANGE_STRING, RVALS(jpn_isup_add_user_cat_type_vals), 0x0,
-       NULL, HFILL }},
+      { "Type of Additional User/Service Information",  "isup.jpn.add_user_cat_type",
+        FT_UINT8, BASE_DEC|BASE_RANGE_STRING, RVALS(jpn_isup_add_user_cat_type_vals), 0x0,
+        NULL, HFILL }},
+
     { &hf_japan_isup_type_1_add_fixed_serv_inf,
-      {"Type 1 of additional fixed service information",  "isup.jpn.type_1_add_fixed_serv_inf",
-       FT_UINT8, BASE_DEC, VALS(jpn_isup_type_1_add_fixed_serv_inf_vals), 0x0,
-       NULL, HFILL }},
+      { "Type 1 of additional fixed service information",  "isup.jpn.type_1_add_fixed_serv_inf",
+        FT_UINT8, BASE_DEC, VALS(jpn_isup_type_1_add_fixed_serv_inf_vals), 0x0,
+        NULL, HFILL }},
+
     { &hf_japan_isup_type_1_add_mobile_serv_inf,
-      {"Type 1 of additional mobile service information",  "isup.jpn.type_1_add_mobile_serv_inf",
-       FT_UINT8, BASE_DEC, VALS(jpn_isup_type_1_add_mobile_serv_inf_vals), 0x0,
-       NULL, HFILL }},
+      { "Type 1 of additional mobile service information",  "isup.jpn.type_1_add_mobile_serv_inf",
+        FT_UINT8, BASE_DEC, VALS(jpn_isup_type_1_add_mobile_serv_inf_vals), 0x0,
+        NULL, HFILL }},
+
     { &hf_japan_isup_type_2_add_mobile_serv_inf,
-      {"Type 2 of additional mobile service information (Communication Method)",  "isup.jpn.type_2_add_mobile_serv_inf",
-       FT_UINT8, BASE_DEC, VALS(jpn_isup_type_2_add_mobile_serv_inf_vals), 0x0,
-       NULL, HFILL }},
+      { "Type 2 of additional mobile service information (Communication Method)",  "isup.jpn.type_2_add_mobile_serv_inf",
+        FT_UINT8, BASE_DEC | BASE_EXT_STRING, &jpn_isup_type_2_add_mobile_serv_inf_vals_ext, 0x0,
+        NULL, HFILL }},
+
     { &hf_japan_isup_type_3_add_mobile_serv_inf,
-      {"Type 3 of additional mobile service information (Charging Method)",  "isup.jpn.type_3_add_mobile_serv_inf",
-       FT_UINT8, BASE_DEC, NULL, 0x0,
-       NULL, HFILL }},
+      { "Type 3 of additional mobile service information (Charging Method)",  "isup.jpn.type_3_add_mobile_serv_inf",
+        FT_UINT8, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }},
+
     { &hf_japan_isup_reason_for_clip_fail,
-      {"Reason for CLIP failure",  "isup.jpn.reason_for_clip_fail",
-       FT_UINT8, BASE_DEC, VALS(jpn_isup_reason_for_clip_fail_vals), 0x0,
-       NULL, HFILL }},
+      { "Reason for CLIP failure",  "isup.jpn.reason_for_clip_fail",
+        FT_UINT8, BASE_DEC, VALS(jpn_isup_reason_for_clip_fail_vals), 0x0,
+        NULL, HFILL }},
 
     { &hf_japan_isup_contractor_number,
-      {"Contractor Number",  "isup.jpn.contractor_number",
-       FT_STRING, BASE_NONE, NULL, 0x0,
-       NULL, HFILL }},
-    /* CHARGE AREA INFORMATION */
+      { "Contractor Number",  "isup.jpn.contractor_number",
+        FT_STRING, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
 
+    /* CHARGE AREA INFORMATION */
     { &hf_japan_isup_charge_area_nat_of_info_value,
-      {"Nature of Information indicator",  "isup.charg_area_info.oddeven_indic",
-       FT_UINT8, BASE_DEC, VALS(isup_charge_area_info_nat_of_info_value), 0x7F,
-       NULL, HFILL }},
+      { "Nature of Information indicator",  "isup.charg_area_info.oddeven_indic",
+        FT_UINT8, BASE_DEC, VALS(isup_charge_area_info_nat_of_info_value), 0x7F,
+        NULL, HFILL }},
 
     { &hf_japan_isup_charging_info_nc_odd_digits,
-      {"NC",  "isup.charg_area_info.nc_odd_digit",
-      FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0x0F,
-      NULL, HFILL }},
+      { "NC",  "isup.charg_area_info.nc_odd_digit",
+        FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0x0F,
+        NULL, HFILL }},
 
     { &hf_japan_isup_charging_info_nc_even_digits,
-      {"NC", "isup.charg_area_info.nc_even_digit",
-      FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0xF0,
-      NULL, HFILL }},
+      { "NC", "isup.charg_area_info.nc_even_digit",
+        FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0xF0,
+        NULL, HFILL }},
 
     { &hf_isup_charging_info_maca_odd_digits,
-      {"MA/CA", "isup.charg_area_info.maca_odd_digit",
-      FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0x0F,
-      NULL, HFILL }},
+      { "MA/CA", "isup.charg_area_info.maca_odd_digit",
+        FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0x0F,
+        NULL, HFILL }},
 
     { &hf_isup_charging_info_maca_even_digits,
-      {"MA/CA", "isup.charg_area_info.maca_even_digit",
-      FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0xF0,NULL, HFILL }},
+      { "MA/CA", "isup.charg_area_info.maca_even_digit",
+        FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0xF0,
+        NULL, HFILL }},
 
     /* CARRIER INFORMATION */
-
     { &hf_isup_carrier_info_iec,
-      {"IEC Indicator","isup.carrier_info.iec",
-      FT_UINT8, BASE_DEC, VALS(isup_carrier_info_iec_indic_value), 0x00,
-      NULL,HFILL }},
+      { "IEC Indicator", "isup.carrier_info.iec",
+        FT_UINT8, BASE_DEC, VALS(isup_carrier_info_iec_indic_value), 0x00,
+        NULL, HFILL }},
+
 #if 0 /* TODO: tools/checkhf.pl reported these as unused */
     { &hf_isup_carrier_info_cat_of_carrier,
-      {"Category of Carrier","isup.carrier_info.cat_of_carrier",
-      FT_UINT8, BASE_HEX, VALS(isup_carrier_info_category_value), 0x00,
-      NULL,HFILL }},
-
+      { "Category of Carrier", "isup.carrier_info.cat_of_carrier",
+        FT_UINT8, BASE_HEX, VALS(isup_carrier_info_category_value), 0x00,
+        NULL, HFILL }},
 
     { &hf_isup_carrier_info_type_of_carrier_info,
-      {"Type of Carrier","isup.carrier_info.type_of_carrier",
-      FT_UINT8, BASE_HEX, VALS(isup_carrier_info_type_of_carrier_value), 0x00,
-      NULL,HFILL }},
+      { "Type of Carrier", "isup.carrier_info.type_of_carrier",
+        FT_UINT8, BASE_HEX, VALS(isup_carrier_info_type_of_carrier_value), 0x00,
+        NULL, HFILL }},
 #endif
+
     { &hf_japan_isup_carrier_info_length,
-      {"Length of Carrier Information","isup.jpn.arrier_info_length",
-      FT_UINT8, BASE_DEC, NULL, 0x0,
-      NULL,HFILL }},
+      { "Length of Carrier Information", "isup.jpn.arrier_info_length",
+        FT_UINT8, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }},
 
     { &hf_isup_carrier_info_odd_no_digits,
-      {"CID", "isup.carrier_info.cid_odd_digit",
-      FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0x0F,
-      NULL, HFILL }},
+      { "CID", "isup.carrier_info.cid_odd_digit",
+        FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0x0F,
+        NULL, HFILL }},
 
     { &hf_isup_carrier_info_even_no_digits,
-      {"CID", "isup.carrier_info.cid_even_digit",
-      FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0xF0,
-      NULL, HFILL }},
+      { "CID", "isup.carrier_info.cid_even_digit",
+        FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0xF0,
+        NULL, HFILL }},
 
     { &hf_isup_carrier_info_ca_odd_no_digits,
-      {"CA", "isup.carrier_info.ca_odd_digit",
+      { "CA", "isup.carrier_info.ca_odd_digit",
       FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0x0F,
       NULL, HFILL }},
 
     { &hf_isup_carrier_info_ca_even_no_digits,
-      {"CA", "isup.carrier_info.ca_even_digit",
-      FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0xF0,
-      NULL, HFILL }},
+      { "CA", "isup.carrier_info.ca_even_digit",
+        FT_UINT8, BASE_DEC, VALS(isup_carrier_info_digits_value), 0xF0,
+        NULL, HFILL }},
 
     { &hf_isup_carrier_info_poi_exit_HEI,
-      {"Exit POI Hierarchy", "isup.carrier_info_exit_hierarchy",
-      FT_UINT8, BASE_DEC, VALS(isup_carrier_info_poihie_value), 0x0F,
-      NULL, HFILL }},
+      { "Exit POI Hierarchy", "isup.carrier_info_exit_hierarchy",
+        FT_UINT8, BASE_DEC, VALS(isup_carrier_info_poihie_value), 0x0F,
+        NULL, HFILL }},
 
     { &hf_isup_carrier_info_poi_entry_HEI,
-      {"Entry POI Hierarchy", "isup.carrier_info_entry_hierarchy",
-      FT_UINT8, BASE_DEC, VALS(isup_carrier_info_poihie_value), 0xF0,
-      NULL, HFILL }},
+      { "Entry POI Hierarchy", "isup.carrier_info_entry_hierarchy",
+        FT_UINT8, BASE_DEC, VALS(isup_carrier_info_poihie_value), 0xF0,
+        NULL, HFILL }},
 
     { &hf_japan_isup_charge_delay_type,
-      {"Type of delayed charging information", "isup.japan.charge_delay_type",
-      FT_UINT8, BASE_DEC|BASE_RANGE_STRING, RVALS(japan_isup_charge_delay_type_value), 0x0,
-      NULL, HFILL }},
+      { "Type of delayed charging information", "isup.japan.charge_delay_type",
+        FT_UINT8, BASE_DEC|BASE_RANGE_STRING, RVALS(japan_isup_charge_delay_type_value), 0x0,
+        NULL, HFILL }},
 
     { &hf_japan_isup_charge_info_type,
-      {"Charge information type", "isup.japan.chg_inf_type",
-      FT_UINT8, BASE_DEC, VALS(japan_isup_chg_info_type_value), 0x0,
-      NULL, HFILL }},
+      { "Charge information type", "isup.japan.chg_inf_type",
+        FT_UINT8, BASE_DEC, VALS(japan_isup_chg_info_type_value), 0x0,
+        NULL, HFILL }},
 
-     { &hf_japan_isup_sig_elem_type,
-      {"Signal element type", "isup.japan.sig_elem_type",
-      FT_UINT8, BASE_DEC, VALS(japan_isup_sig_elem_type_values), 0x7f,
-      NULL, HFILL }},
+    { &hf_japan_isup_sig_elem_type,
+      { "Signal element type", "isup.japan.sig_elem_type",
+        FT_UINT8, BASE_DEC, VALS(japan_isup_sig_elem_type_values), 0x7f,
+        NULL, HFILL }},
 
-     { &hf_japan_isup_activation_id,
-      {"Activation id", "isup.japan.activation_id",
-      FT_UINT8, BASE_DEC, NULL, 0x7F,
-      NULL, HFILL }},
+    { &hf_japan_isup_activation_id,
+      { "Activation id", "isup.japan.activation_id",
+        FT_UINT8, BASE_DEC, NULL, 0x7F,
+        NULL, HFILL }},
 
-     { &hf_japan_isup_op_cls,
-      {"Operation class", "isup.japan.op_cls",
-      FT_UINT8, BASE_DEC, VALS(japan_isup_op_cls_values), 0x60,
-      NULL, HFILL }},
+    { &hf_japan_isup_op_cls,
+      { "Operation class", "isup.japan.op_cls",
+        FT_UINT8, BASE_DEC, VALS(japan_isup_op_cls_values), 0x60,
+        NULL, HFILL }},
 
-     { &hf_japan_isup_op_type,
-      {"Operation type", "isup.japan.op_type",
-      FT_UINT8, BASE_DEC, VALS(japan_isup_op_type_values), 0x1f,
-      NULL, HFILL }},
+    { &hf_japan_isup_op_type,
+      { "Operation type", "isup.japan.op_type",
+        FT_UINT8, BASE_DEC, VALS(japan_isup_op_type_values), 0x1f,
+        NULL, HFILL }},
 
-     { &hf_japan_isup_charging_party_type,
-      {"Charging party type", "isup.japan.charging_party_type",
-      FT_UINT8, BASE_DEC, VALS(japan_isup_charging_party_type_values), 0x70,
-      NULL, HFILL }},
+    { &hf_japan_isup_charging_party_type,
+      { "Charging party type", "isup.japan.charging_party_type",
+        FT_UINT8, BASE_DEC, VALS(japan_isup_charging_party_type_values), 0x70,
+        NULL, HFILL }},
 
-     { &hf_japan_isup_utp,
-      {"Unit per Time Period (UTP)", "isup.japan.utp",
-      FT_UINT8, BASE_DEC, VALS(japan_isup_utp_values), 0x0,
-      NULL, HFILL }},
+    { &hf_japan_isup_utp,
+      { "Unit per Time Period (UTP)", "isup.japan.utp",
+        FT_UINT8, BASE_DEC, VALS(japan_isup_utp_values), 0x0,
+        NULL, HFILL }},
 
-     { &hf_japan_isup_crci1,
-      {"Charge rate information category 1 (CRIC 1)", "isup.japan.crci1",
-      FT_UINT8, BASE_DEC, VALS(japan_isup_crci1_values), 0x7f,
-      NULL, HFILL }},
+    { &hf_japan_isup_crci1,
+      { "Charge rate information category 1 (CRIC 1)", "isup.japan.crci1",
+        FT_UINT8, BASE_DEC, VALS(japan_isup_crci1_values), 0x7f,
+        NULL, HFILL }},
 
-     { &hf_japan_isup_crci2,
-      {"Charge rate information category 2 (CRIC 2)", "isup.japan.crci2",
-      FT_UINT8, BASE_DEC, VALS(japan_isup_crci1_values), 0x7f,
-      NULL, HFILL }},
+    { &hf_japan_isup_crci2,
+      { "Charge rate information category 2 (CRIC 2)", "isup.japan.crci2",
+        FT_UINT8, BASE_DEC, VALS(japan_isup_crci1_values), 0x7f,
+        NULL, HFILL }},
 
-	 { &hf_japan_isup_crci1_len,
-      {"Length",  "isup.japan.crci1_len",
-       FT_UINT8, BASE_DEC, NULL, 0x0,
-       NULL, HFILL }},
+    { &hf_japan_isup_crci1_len,
+      { "Length",  "isup.japan.crci1_len",
+        FT_UINT8, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }},
 
-	 { &hf_japan_isup_iu,
-      {"Initial units (IU)",  "isup.japan.iu",
-       FT_STRING, BASE_NONE, NULL, 0x0,
-       NULL, HFILL }},
+    { &hf_japan_isup_iu,
+      { "Initial units (IU)",  "isup.japan.iu",
+        FT_STRING, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
 
-	 { &hf_japan_isup_dcr,
-      {"Daytime Charge rate (DCR)",  "isup.japan.dcr",
-       FT_STRING, BASE_NONE, NULL, 0x0,
-       NULL, HFILL }},
+    { &hf_japan_isup_dcr,
+      { "Daytime Charge rate (DCR)",  "isup.japan.dcr",
+        FT_STRING, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
 
-	 { &hf_japan_isup_ecr,
-      {"Evening Charge rate (ECR)",  "isup.japan.ecr",
-       FT_STRING, BASE_NONE, NULL, 0x0,
-       NULL, HFILL }},
+    { &hf_japan_isup_ecr,
+      { "Evening Charge rate (ECR)",  "isup.japan.ecr",
+        FT_STRING, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
 
-	 { &hf_japan_isup_ncr,
-      {"Nighttime Charge rate (NCR)",  "isup.japan.ncr",
-       FT_STRING, BASE_NONE, NULL, 0x0,
-       NULL, HFILL }},
+    { &hf_japan_isup_ncr,
+      { "Nighttime Charge rate (NCR)",  "isup.japan.ncr",
+        FT_STRING, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
 
-	 { &hf_japan_isup_scr,
-      {"Spare charge rate (SCR)",  "isup.japan.scr",
-       FT_STRING, BASE_NONE, NULL, 0x0,
-       NULL, HFILL }},
+    { &hf_japan_isup_scr,
+      { "Spare charge rate (SCR)",  "isup.japan.scr",
+        FT_STRING, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }},
 
-	{ &hf_japan_isup_collecting_metod,
-      {"Charging party type", "isup.japan.collecting_metod",
-      FT_UINT8, BASE_DEC, VALS(japan_isup_collecting_metod_values), 0x0f,
-      NULL, HFILL }},
+    { &hf_japan_isup_collecting_metod,
+      { "Charging party type", "isup.japan.collecting_metod",
+        FT_UINT8, BASE_DEC, VALS(japan_isup_collecting_metod_values), 0x0f,
+        NULL, HFILL }},
 
-	 { &hf_japan_isup_tariff_rate_pres,
-      {"Tariff rate presentation", "isup.japan.tariff_rate_pres",
-      FT_UINT8, BASE_DEC, VALS(japan_isup_tariff_rate_pres_values), 0x7f,
-      NULL, HFILL }},
+    { &hf_japan_isup_tariff_rate_pres,
+      { "Tariff rate presentation", "isup.japan.tariff_rate_pres",
+        FT_UINT8, BASE_DEC, VALS(japan_isup_tariff_rate_pres_values), 0x7f,
+        NULL, HFILL }},
   };
 
 /* Setup protocol subtree array */
@@ -12115,7 +12188,7 @@ proto_register_isup(void)
     &ett_acs,
     &ett_isup_apm_msg_fragment,
     &ett_isup_apm_msg_fragments,
-	&ett_isup_range,
+    &ett_isup_range,
   };
 
   static const enum_val_t isup_variants[] = {
@@ -12172,9 +12245,9 @@ proto_reg_handoff_isup(void)
   dissector_handle_t application_isup_handle;
 
   isup_handle = create_dissector_handle(dissect_isup, proto_isup);
-  application_isup_handle = create_dissector_handle(dissect_application_isup, proto_isup);
+  application_isup_handle = new_create_dissector_handle(dissect_application_isup, proto_isup);
   dissector_add_uint("mtp3.service_indicator", MTP_SI_ISUP, isup_handle);
-  dissector_add_string("media_type","application/isup", application_isup_handle);
+  dissector_add_string("media_type", "application/isup", application_isup_handle);
   dissector_add_string("tali.opcode", "isot", isup_handle);
 
 }
@@ -12196,7 +12269,9 @@ proto_register_bicc(void)
   };
   proto_bicc = proto_register_protocol("Bearer Independent Call Control",
                                        "BICC", "bicc");
-  register_dissector("bicc", dissect_bicc, proto_bicc);
+
+  bicc_handle = register_dissector("bicc", dissect_bicc, proto_bicc);
+
 /* Required function calls to register the header fields and subtrees used */
   proto_register_field_array(proto_bicc, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
@@ -12208,11 +12283,22 @@ proto_register_bicc(void)
 void
 proto_reg_handoff_bicc(void)
 {
-  dissector_handle_t bicc_handle;
   sdp_handle     = find_dissector("sdp");
   q931_ie_handle = find_dissector("q931.ie");
 
-  bicc_handle = create_dissector_handle(dissect_bicc, proto_bicc);
   dissector_add_uint("mtp3.service_indicator", MTP_SI_BICC, bicc_handle);
   dissector_add_uint("sctp.ppi", BICC_PAYLOAD_PROTOCOL_ID, bicc_handle);
 }
+
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 2
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=2 tabstop=8 expandtab:
+ * :indentSize=2:tabSize=8:noTabs=true:
+ */

@@ -2,8 +2,6 @@
  * Routines for X.518 (X.500 Distributed Operations)  packet dissection
  * Graeme Lunt 2005
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -47,6 +45,9 @@
 #define PSNAME "DSP"
 #define PFNAME "dsp"
 
+void proto_register_dsp(void);
+void proto_reg_handoff_dsp(void);
+
 static guint global_dsp_tcp_port = 102;
 static dissector_handle_t tpkt_handle;
 static void prefs_register_dsp(void); /* forward declaration for use in preferences registration */
@@ -54,8 +55,6 @@ static void prefs_register_dsp(void); /* forward declaration for use in preferen
 
 /* Initialize the protocol and registered fields */
 static int proto_dsp = -1;
-
-static struct SESSION_DATA_STRUCTURE* session = NULL;
 
 #include "packet-dsp-hf.c"
 
@@ -68,36 +67,32 @@ static gint ett_dsp = -1;
 /*
 * Dissect X518 PDUs inside a ROS PDUs
 */
-static void
-dissect_dsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_dsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data)
 {
 	int offset = 0;
 	int old_offset;
-	proto_item *item=NULL;
-	proto_tree *tree=NULL;
+	proto_item *item;
+	proto_tree *tree;
+	struct SESSION_DATA_STRUCTURE* session;
 	int (*dsp_dissector)(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset, asn1_ctx_t *actx, proto_tree *tree, int hf_index _U_) = NULL;
 	const char *dsp_op_name;
 	asn1_ctx_t asn1_ctx;
 
+	/* do we have operation information from the ROS dissector? */
+	if (data == NULL)
+		return 0;
+	session  = (struct SESSION_DATA_STRUCTURE*)data;
+
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
-	/* do we have operation information from the ROS dissector?  */
-	if( !pinfo->private_data ){
-		if(parent_tree){
-			proto_tree_add_text(parent_tree, tvb, offset, -1,
-				"Internal error: can't get operation information from ROS dissector.");
-		}
-		return  ;
-	} else {
-		session  = ( (struct SESSION_DATA_STRUCTURE*)(pinfo->private_data) );
-	}
+	item = proto_tree_add_item(parent_tree, proto_dsp, tvb, 0, -1, ENC_NA);
+	tree = proto_item_add_subtree(item, ett_dsp);
 
-	if(parent_tree){
-		item = proto_tree_add_item(parent_tree, proto_dsp, tvb, 0, -1, ENC_NA);
-		tree = proto_item_add_subtree(item, ett_dsp);
-	}
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "DAP");
   	col_clear(pinfo->cinfo, COL_INFO);
+
+	asn1_ctx.private_data = session;
 
 	switch(session->ros_op & ROS_OP_MASK) {
 	case (ROS_OP_BIND | ROS_OP_ARGUMENT):	/*  BindInvoke */
@@ -244,7 +239,7 @@ dissect_dsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	  break;
 	default:
 	  proto_tree_add_text(tree, tvb, offset, -1,"Unsupported DSP PDU");
-	  return;
+	  return tvb_length(tvb);
 	}
 
 	if(dsp_dissector) {
@@ -259,6 +254,8 @@ dissect_dsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	    }
 	  }
 	}
+
+	return tvb_length(tvb);
 }
 
 
@@ -281,7 +278,7 @@ void proto_register_dsp(void) {
   /* Register protocol */
   proto_dsp = proto_register_protocol(PNAME, PSNAME, PFNAME);
 
-  register_dissector("dsp", dissect_dsp, proto_dsp);
+  new_register_dissector("dsp", dissect_dsp, proto_dsp);
 
   /* Register fields and subtrees */
   proto_register_field_array(proto_dsp, hf, array_length(hf));

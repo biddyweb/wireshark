@@ -2,8 +2,6 @@
  *
  * Routines to put exception information into the protocol tree
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2000 Gerald Combs
@@ -27,22 +25,38 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/expert.h>
 #include <epan/show_exception.h>
 
 static int proto_short = -1;
-int proto_malformed = -1;
+static int proto_malformed = -1;
 static int proto_unreassembled = -1;
+
+static expert_field ei_malformed_dissector_bug = EI_INIT;
+static expert_field ei_malformed_reassembly = EI_INIT;
+static expert_field ei_malformed = EI_INIT;
 
 void
 register_show_exception(void)
 {
-	proto_short = proto_register_protocol("Short Frame", "Short frame", "short");
+	static ei_register_info ei[] = {
+		{ &ei_malformed_dissector_bug, { "_ws.malformed.dissector_bug", PI_MALFORMED, PI_ERROR, "Dissector bug", EXPFILL }},
+		{ &ei_malformed_reassembly, { "_ws.malformed.reassembly", PI_MALFORMED, PI_ERROR, "Reassembly error", EXPFILL }},
+		{ &ei_malformed, { "_ws.malformed.expert", PI_MALFORMED, PI_ERROR, "Malformed Packet (Exception occurred)", EXPFILL }},
+	};
+
+	expert_module_t* expert_malformed;
+
+	proto_short = proto_register_protocol("Short Frame", "Short frame", "_ws.short");
 	proto_malformed = proto_register_protocol("Malformed Packet",
-	    "Malformed packet", "malformed");
+	    "Malformed packet", "_ws.malformed");
 	proto_unreassembled = proto_register_protocol(
 	    "Unreassembled Fragmented Packet",
-	    "Unreassembled fragmented packet", "unreassembled");
+	    "Unreassembled fragmented packet", "_ws.unreassembled");
+
+	expert_malformed = expert_register_protocol(proto_malformed);
+	expert_register_field_array(expert_malformed, ei, array_length(ei));
 
 	/* "Short Frame", "Malformed Packet", and "Unreassembled Fragmented
 	   Packet" aren't really protocols, they're error indications;
@@ -60,28 +74,38 @@ show_exception(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		"Dissector writer didn't bother saying what the error was";
 	proto_item *item;
 
+	if (exception == ReportedBoundsError && pinfo->fragmented)
+		exception = FragmentBoundsError;
 
 	switch (exception) {
 
 	case ScsiBoundsError:
 		col_append_str(pinfo->cinfo, COL_INFO, "[SCSI transfer limited due to allocation_length too small]");
-		/*item =*/ proto_tree_add_protocol_format(tree, proto_short, tvb, 0, 0,
+		proto_tree_add_protocol_format(tree, proto_short, tvb, 0, 0,
 				"SCSI transfer limited due to allocation_length too small: %s truncated]", pinfo->current_proto);
 		/* Don't record ScsiBoundsError exceptions as expert events - they merely
 		 * reflect a normal SCSI condition.
 		 * (any case where it's caused by something else is a bug). */
-		/* expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Packet size limited");*/
 		break;
 
 	case BoundsError:
 		col_append_str(pinfo->cinfo, COL_INFO, "[Packet size limited during capture]");
-		/*item =*/ proto_tree_add_protocol_format(tree, proto_short, tvb, 0, 0,
+		proto_tree_add_protocol_format(tree, proto_short, tvb, 0, 0,
 				"[Packet size limited during capture: %s truncated]", pinfo->current_proto);
 		/* Don't record BoundsError exceptions as expert events - they merely
 		 * reflect a capture done with a snapshot length too short to capture
 		 * all of the packet
 		 * (any case where it's caused by something else is a bug). */
-		/* expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Packet size limited");*/
+		break;
+
+	case FragmentBoundsError:
+		col_append_fstr(pinfo->cinfo, COL_INFO, "[Unreassembled Packet%s]", pinfo->noreassembly_reason);
+		proto_tree_add_protocol_format(tree, proto_unreassembled,
+		    tvb, 0, 0, "[Unreassembled Packet%s: %s]",
+		    pinfo->noreassembly_reason, pinfo->current_proto);
+		/* Don't record FragmentBoundsError exceptions as expert events - they merely
+		 * reflect dissection done with reassembly turned off
+		 * (any case where it's caused by something else is a bug). */
 		break;
 
 	case ReportedBoundsError:
@@ -103,8 +127,7 @@ show_exception(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		    pinfo->current_proto, pinfo->fd->num,
 		    exception_message == NULL ?
 		        dissector_error_nomsg : exception_message);
-		expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR,
-		    "%s",
+		expert_add_info_format(pinfo, item, &ei_malformed_dissector_bug, "%s",
 		    exception_message == NULL ?
 		        dissector_error_nomsg : exception_message);
 		break;
@@ -120,8 +143,7 @@ show_exception(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		    pinfo->current_proto,
 		    exception_message == NULL ?
 		        dissector_error_nomsg : exception_message);
-		expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR,
-		    "%s",
+		expert_add_info_format(pinfo, item, &ei_malformed_reassembly, "%s",
 		    exception_message == NULL ?
 		        dissector_error_nomsg : exception_message);
 		break;
@@ -137,27 +159,9 @@ show_reported_bounds_error(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	proto_item *item;
 
-	if (pinfo->fragmented) {
-		/*
-		 * We were dissecting an unreassembled fragmented
-		 * packet when the exception was thrown, so the
-		 * problem isn't that the dissector expected
-		 * something but it wasn't in the packet, the
-		 * problem is that the dissector expected something
-		 * but it wasn't in the fragment we dissected.
-		 */
-		col_append_fstr(pinfo->cinfo, COL_INFO,
-		    "[Unreassembled Packet%s] ",
-		    pinfo->noreassembly_reason);
-		item = proto_tree_add_protocol_format(tree, proto_unreassembled,
-		    tvb, 0, 0, "[Unreassembled Packet%s: %s]",
-		    pinfo->noreassembly_reason, pinfo->current_proto);
-		expert_add_info_format(pinfo, item, PI_REASSEMBLE, PI_WARN, "Unreassembled Packet (Exception occurred)");
-	} else {
-		col_append_str(pinfo->cinfo, COL_INFO,
-		    "[Malformed Packet]");
-		item = proto_tree_add_protocol_format(tree, proto_malformed,
-		    tvb, 0, 0, "[Malformed Packet: %s]", pinfo->current_proto);
-		expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR, "Malformed Packet (Exception occurred)");
-	}
+	col_append_str(pinfo->cinfo, COL_INFO,
+	    "[Malformed Packet]");
+	item = proto_tree_add_protocol_format(tree, proto_malformed,
+	    tvb, 0, 0, "[Malformed Packet: %s]", pinfo->current_proto);
+	expert_add_info(pinfo, item, &ei_malformed);
 }

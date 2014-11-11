@@ -2,8 +2,6 @@
  * Routines for Wellfleet BOFL dissection
  * Author: Endoh Akira (endoh@netmarks.co.jp)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@unicom.net>
  * Copyright 1998 Gerald Combs
@@ -48,6 +46,9 @@
 
 #define ETHER_TYPE_BOFL 0x8102
 #define BOFL_MIN_LEN    8
+
+void proto_register_bofl(void);
+void proto_reg_handoff_bofl(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_bofl       = -1;

@@ -2,8 +2,6 @@
  * Routines handling protocols with a request/response line, headers,
  * a blank line, and an optional body.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -112,7 +110,7 @@ req_resp_hdrs_do_reassembly(tvbuff_t *tvb, const int offset, packet_info *pinfo,
 				return FALSE;
 			}
 
-			length_remaining = tvb_length_remaining(tvb,
+			length_remaining = tvb_captured_length_remaining(tvb,
 			    next_offset);
 
 			/*
@@ -120,7 +118,7 @@ req_resp_hdrs_do_reassembly(tvbuff_t *tvb, const int offset, packet_info *pinfo,
 			 * header (i.e. a line end).
 			 */
 			linelen = tvb_find_line_end(tvb, next_offset,
-			    -1, &next_offset, TRUE);
+			    length_remaining, &next_offset, TRUE);
 			if (linelen == -1 &&
 			    length_remaining >= reported_length_remaining) {
 				/*
@@ -148,10 +146,20 @@ req_resp_hdrs_do_reassembly(tvbuff_t *tvb, const int offset, packet_info *pinfo,
 			 * have already been handled above.
 			 */
 			if (desegment_body) {
+				/* Optimization to avoid fetching the whole (potentially very long)
+				 * line and doing expensive string comparisons if the first
+				 * character doesn't match. Shaves about 20% off the load time of
+				 * one of my sample files that's HTTP-alike. */
+				guchar first_byte = tvb_get_guint8(tvb, next_offset_sav);
+				if (! (first_byte == 'c' || first_byte == 'C' ||
+				       first_byte == 't' || first_byte == 'T')) {
+					continue;
+				}
+
 				/*
 				 * Check if we've found Content-Length.
 				 */
-				line = tvb_get_ephemeral_string(tvb, next_offset_sav, linelen);
+				line = tvb_get_string_enc(wmem_packet_scope(), tvb, next_offset_sav, linelen, ENC_UTF_8|ENC_NA);
 				if (g_ascii_strncasecmp(line, "Content-Length:", 15) == 0) {
 					/* XXX - what if it doesn't fit in an int?
 					   (Do not "fix" that by making this
@@ -218,44 +226,7 @@ req_resp_hdrs_do_reassembly(tvbuff_t *tvb, const int offset, packet_info *pinfo,
 	 * and next_offset points to after the end of the headers.
 	 */
 	if (desegment_body) {
-		if (content_length_found) {
-			if (content_length >= 128*1024) { /* MS-RPCH stipulate that the content-length must be between 128K and 2G */
-				gchar *tmp;
-				if (content_type_found &&
-				strncmp(content_type, "application/rpc", 15) == 0) {
-					/* It looks like a RPC_IN_DATA request or a RPC_OUT_DATA response
-					 * in which the content-length is meaningless
-					 */
-					return TRUE;
-				}
-				/* Following sizeof will return the length of the string + \0 we need to not count it*/
-				tmp = tvb_get_ephemeral_string(tvb, 0, sizeof("RPC_OUT_DATA") - 1);
-				if ((strncmp(tmp, "RPC_IN_DATA", sizeof("RPC_IN_DATA") - 1) == 0) ||
-				    (strncmp(tmp, "RPC_OUT_DATA", sizeof("RPC_OUT_DATA") - 1) == 0)) {
-					return TRUE;
-				}
-			}
-			/* next_offset has been set to the end of the headers */
-			if (!tvb_bytes_exist(tvb, next_offset, content_length)) {
-				length_remaining = tvb_length_remaining(tvb,
-				    next_offset);
-				reported_length_remaining =
-				    tvb_reported_length_remaining(tvb, next_offset);
-				if (length_remaining < reported_length_remaining) {
-					/*
-					 * It's a waste of time asking for more
-					 * data, because that data wasn't captured.
-					 */
-					return TRUE;
-				}
-				if (length_remaining == -1)
-					length_remaining = 0;
-				pinfo->desegment_offset = offset;
-				pinfo->desegment_len =
-				    content_length - length_remaining;
-				return FALSE;
-			}
-		} else if (chunked_encoding) {
+		if (chunked_encoding) {
 			/*
 			 * This data is chunked, so we need to keep pulling
 			 * data until we reach the end of the stream, or a
@@ -285,11 +256,11 @@ req_resp_hdrs_do_reassembly(tvbuff_t *tvb, const int offset, packet_info *pinfo,
 					return FALSE;
 				}
 
-				length_remaining = tvb_length_remaining(tvb,
+				length_remaining = tvb_captured_length_remaining(tvb,
 				    next_offset);
 
 				linelen = tvb_find_line_end(tvb, next_offset,
-						-1, &chunk_offset, TRUE);
+						length_remaining, &chunk_offset, TRUE);
 
 				if (linelen == -1 &&
 				    length_remaining >=
@@ -300,7 +271,7 @@ req_resp_hdrs_do_reassembly(tvbuff_t *tvb, const int offset, packet_info *pinfo,
 				}
 
 				/* We have a line with the chunk size in it.*/
-				chunk_string = tvb_get_ephemeral_string(tvb, next_offset,
+				chunk_string = tvb_get_string(wmem_packet_scope(), tvb, next_offset,
 				    linelen);
 				c = chunk_string;
 
@@ -329,7 +300,7 @@ req_resp_hdrs_do_reassembly(tvbuff_t *tvb, const int offset, packet_info *pinfo,
 					 * trailing CRLF.
 					 */
 					linelen = tvb_find_line_end(tvb,
-					    chunk_offset, -1, &chunk_offset, TRUE);
+					    chunk_offset, length_remaining, &chunk_offset, TRUE);
 
 					if (linelen == -1 &&
 					    length_remaining >=
@@ -364,6 +335,43 @@ req_resp_hdrs_do_reassembly(tvbuff_t *tvb, const int offset, packet_info *pinfo,
 				}
 
 			}
+		} else if (content_length_found) {
+			if (content_length >= 128*1024) { /* MS-RPCH stipulate that the content-length must be between 128K and 2G */
+				gchar *tmp;
+				if (content_type_found &&
+				strncmp(content_type, "application/rpc", 15) == 0) {
+					/* It looks like a RPC_IN_DATA request or a RPC_OUT_DATA response
+					 * in which the content-length is meaningless
+					 */
+					return TRUE;
+				}
+				/* Following sizeof will return the length of the string + \0 we need to not count it*/
+				tmp = tvb_get_string(wmem_packet_scope(), tvb, 0, sizeof("RPC_OUT_DATA") - 1);
+				if ((strncmp(tmp, "RPC_IN_DATA", sizeof("RPC_IN_DATA") - 1) == 0) ||
+				    (strncmp(tmp, "RPC_OUT_DATA", sizeof("RPC_OUT_DATA") - 1) == 0)) {
+					return TRUE;
+				}
+			}
+			/* next_offset has been set to the end of the headers */
+			if (!tvb_bytes_exist(tvb, next_offset, content_length)) {
+				length_remaining = tvb_captured_length_remaining(tvb,
+				    next_offset);
+				reported_length_remaining =
+				    tvb_reported_length_remaining(tvb, next_offset);
+				if (length_remaining < reported_length_remaining) {
+					/*
+					 * It's a waste of time asking for more
+					 * data, because that data wasn't captured.
+					 */
+					return TRUE;
+				}
+				if (length_remaining == -1)
+					length_remaining = 0;
+				pinfo->desegment_offset = offset;
+				pinfo->desegment_len =
+				    content_length - length_remaining;
+				return FALSE;
+			}
 		} else if (content_type_found && pinfo->can_desegment) {
 			/* We found a content-type but no content-length.
 			 * This is probably a HTTP header for a session with
@@ -374,7 +382,7 @@ req_resp_hdrs_do_reassembly(tvbuff_t *tvb, const int offset, packet_info *pinfo,
 			 * we wont do any reassembly.
 			 * Set up tcp reassembly until the end of this session.
 			 */
-			length_remaining = tvb_length_remaining(tvb, next_offset);
+			length_remaining = tvb_captured_length_remaining(tvb, next_offset);
 			reported_length_remaining = tvb_reported_length_remaining(tvb, next_offset);
 			if (length_remaining < reported_length_remaining) {
 				/*
@@ -405,3 +413,16 @@ req_resp_hdrs_do_reassembly(tvbuff_t *tvb, const int offset, packet_info *pinfo,
 	 */
 	return TRUE;
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

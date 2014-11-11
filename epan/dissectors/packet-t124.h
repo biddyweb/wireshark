@@ -1,7 +1,7 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-t124.h                                                              */
-/* ../../tools/asn2wrs.py -p t124 -c ./t124.cnf -s ./packet-t124-template -D . -O ../../epan/dissectors GCC-PROTOCOL.asn MCS-PROTOCOL.asn */
+/* ../../tools/asn2wrs.py -p t124 -c ./t124.cnf -s ./packet-t124-template -D . -O ../../epan/dissectors GCC-PROTOCOL.asn ../t125/MCS-PROTOCOL.asn */
 
 /* Input file: packet-t124-template.h */
 
@@ -9,8 +9,6 @@
 /* packet-t124.h
  * Routines for t124 packet dissection
  * Copyright 2010, Graeme Lunt
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -52,7 +50,7 @@ int dissect_t124_ConnectData(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx
 int dissect_t124_ConnectGCCPDU(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_);
 
 /*--- End of included file: packet-t124-exp.h ---*/
-#line 40 "../../asn1/t124/packet-t124-template.h"
+#line 38 "../../asn1/t124/packet-t124-template.h"
 
 #endif  /* PACKET_T124_H */
 

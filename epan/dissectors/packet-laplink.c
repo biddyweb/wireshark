@@ -2,8 +2,6 @@
  * Routines for laplink dissection
  * Copyright 2003, Brad Hards <bradh@frogmouth.net>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,9 @@
 
 #include "packet-tcp.h"
 #include <epan/prefs.h>
+
+void proto_register_laplink(void);
+void proto_reg_handoff_laplink(void);
 
 #define TCP_PORT_LAPLINK 1547
 #define UDP_PORT_LAPLINK 1547
@@ -86,15 +87,14 @@ dissect_laplink_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
 	if (!tvb_bytes_exist(tvb, offset, 4))
 		return 0;	/* not enough bytes to check */
 	udp_ident = tvb_get_ntohl(tvb, offset);
-	udp_ident_string = match_strval(udp_ident, laplink_udp_magic);
+	udp_ident_string = try_val_to_str(udp_ident, laplink_udp_magic);
 	if (udp_ident_string == NULL)
 		return 0;	/* unknown */
 
 /* Make entries in Protocol column and Info column on summary display */
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "Laplink");
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_str(pinfo->cinfo, COL_INFO, udp_ident_string);
+	col_add_str(pinfo->cinfo, COL_INFO, udp_ident_string);
 
 	if (tree){
 		ti = proto_tree_add_item(tree, proto_laplink, tvb, 0, -1, ENC_NA);
@@ -109,8 +109,8 @@ dissect_laplink_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
 }
 
 /* Code to actually dissect the packets - TCP aspects*/
-static void
-dissect_laplink_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_laplink_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	int offset = 0;
 	int length = 0;
@@ -122,10 +122,8 @@ dissect_laplink_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "Laplink");
 
 	tcp_ident = tvb_get_ntohl(tvb, offset);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_str(pinfo->cinfo, COL_INFO,
+	col_add_str(pinfo->cinfo, COL_INFO,
 			    val_to_str(tcp_ident, laplink_tcp_magic, "TCP TBA (%u)"));
-	}
 
 	if (tree){
 		ti = proto_tree_add_item(tree, proto_laplink, tvb, 0, -1, ENC_NA);
@@ -146,6 +144,7 @@ dissect_laplink_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	}
 
+	return tvb_length(tvb);
 /* If this protocol has a sub-dissector call it here, see section 1.8 */
 }
 
@@ -160,12 +159,13 @@ get_laplink_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 	return plen;
 }
 
-static void
-dissect_laplink_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_laplink_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
 	tcp_dissect_pdus(tvb, pinfo, tree, laplink_desegment,
 			 6, get_laplink_pdu_len,
-			 dissect_laplink_tcp_pdu);
+			 dissect_laplink_tcp_pdu, data);
+	return tvb_length(tvb);
 }
 
 
@@ -238,7 +238,7 @@ proto_reg_handoff_laplink(void)
 	dissector_handle_t laplink_udp_handle;
 	dissector_handle_t laplink_tcp_handle;
 
-	laplink_tcp_handle = create_dissector_handle(dissect_laplink_tcp,
+	laplink_tcp_handle = new_create_dissector_handle(dissect_laplink_tcp,
 	    proto_laplink);
 	dissector_add_uint("tcp.port", TCP_PORT_LAPLINK, laplink_tcp_handle);
 

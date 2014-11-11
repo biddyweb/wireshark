@@ -2,8 +2,6 @@
  * Routines for NetScape Certificate Extensions packet dissection
  *   Ronnie Sahlberg 2004
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,9 @@
 #define PNAME  "NetScape Certificate Extensions"
 #define PSNAME "NS_CERT_EXTS"
 #define PFNAME "ns_cert_exts"
+
+void proto_register_ns_cert_exts(void);
+void proto_reg_handoff_ns_cert_exts(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_ns_cert_exts = -1;

@@ -1,8 +1,6 @@
 /* packet-erf.c
  * Routines for ERF encapsulation dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,11 +26,17 @@
 #include <epan/packet.h>
 #include <epan/expert.h>
 #include <epan/prefs.h>
+#include <epan/wmem/wmem.h>
+
+#include "packet-erf.h"
 
 /*
 #include "wiretap/atm.h"
 */
 #include "wiretap/erf.h"
+
+void proto_register_erf(void);
+void proto_reg_handoff_erf(void);
 
 #define EXT_HDR_TYPE_CLASSIFICATION  3
 #define EXT_HDR_TYPE_INTERCEPTID     4
@@ -102,6 +106,8 @@ typedef struct sdh_g707_format_s
          * i = 1 --> ITU-T letter #B - index of AUG-1
          * i = 0 --> ITU-T letter #A - index of AU3*/
 } sdh_g707_format_t;
+
+static dissector_handle_t erf_handle;
 
 /* Initialize the protocol and registered fields */
 static int proto_erf = -1;
@@ -270,6 +276,10 @@ static gint ett_erf_mc_aal5    = -1;
 static gint ett_erf_mc_aal2    = -1;
 static gint ett_erf_aal2       = -1;
 static gint ett_erf_eth        = -1;
+
+static expert_field ei_erf_extension_headers_not_shown = EI_INIT;
+static expert_field ei_erf_packet_loss = EI_INIT;
+static expert_field ei_erf_checksum_error = EI_INIT;
 
 /* Default subdissector, display raw hex data */
 static dissector_handle_t data_handle;
@@ -719,7 +729,7 @@ channelised_fill_sdh_g707_format(sdh_g707_format_t* in_fmt, guint16 bit_flds, gu
 }
 
 static void
-channelised_fill_vc_id_string(emem_strbuf_t* out_string, sdh_g707_format_t* in_fmt)
+channelised_fill_vc_id_string(wmem_strbuf_t* out_string, sdh_g707_format_t* in_fmt)
 {
   int      i;
   gboolean is_printed  = FALSE;
@@ -732,15 +742,17 @@ channelised_fill_vc_id_string(emem_strbuf_t* out_string, sdh_g707_format_t* in_f
     "VC4-16c",  /*0x4*/
     "VC4-64c",  /*0x5*/};
 
+  wmem_strbuf_truncate(out_string, 0);
+
   if ( (in_fmt->m_vc_size > DECHAN_MAX_VC_SIZE) || (in_fmt->m_sdh_line_rate > DECHAN_MAX_LINE_RATE) )
   {
-    ep_strbuf_printf(out_string, "Malformed");
+    wmem_strbuf_append_printf(out_string, "Malformed");
     return;
   }
 
-  ep_strbuf_printf(out_string, "%s(",
-                   (in_fmt->m_vc_size < array_length(g_vc_size_strings)) ?
-                   g_vc_size_strings[in_fmt->m_vc_size] : g_vc_size_strings[0] );
+  wmem_strbuf_append_printf(out_string, "%s(",
+                            (in_fmt->m_vc_size < array_length(g_vc_size_strings)) ?
+                            g_vc_size_strings[in_fmt->m_vc_size] : g_vc_size_strings[0] );
 
   if (in_fmt->m_sdh_line_rate <= 0 )
   {
@@ -749,9 +761,9 @@ channelised_fill_vc_id_string(emem_strbuf_t* out_string, sdh_g707_format_t* in_f
     {
       if ((in_fmt->m_vc_index_array[i] > 0) || (is_printed) )
       {
-        ep_strbuf_append_printf(out_string, "%s%d",
-                                ((is_printed)?", ":""),
-                                in_fmt->m_vc_index_array[i]);
+        wmem_strbuf_append_printf(out_string, "%s%d",
+                                  ((is_printed)?", ":""),
+                                  in_fmt->m_vc_index_array[i]);
         is_printed = TRUE;
       }
     }
@@ -761,7 +773,7 @@ channelised_fill_vc_id_string(emem_strbuf_t* out_string, sdh_g707_format_t* in_f
   {
     for (i = in_fmt->m_sdh_line_rate - 2; i >= 0; i--)
     {
-      ep_strbuf_append_printf(out_string, "%s%d",
+      wmem_strbuf_append_printf(out_string, "%s%d",
                                 ((is_printed)?", ":""),
                                 in_fmt->m_vc_index_array[i]);
       is_printed = TRUE;
@@ -772,12 +784,12 @@ channelised_fill_vc_id_string(emem_strbuf_t* out_string, sdh_g707_format_t* in_f
     /* Not printed . possibly it's a ocXc packet with (0,0,0...) */
     for ( i =0; i < in_fmt->m_vc_size - 2; i++)
     {
-      ep_strbuf_append_printf(out_string, "%s0",
+      wmem_strbuf_append_printf(out_string, "%s0",
                                 ((is_printed)?", ":""));
       is_printed = TRUE;
     }
   }
-  ep_strbuf_append_c(out_string, ')');
+  wmem_strbuf_append_c(out_string, ')');
   return;
 }
 
@@ -789,7 +801,7 @@ dissect_channelised_ex_header(tvbuff_t *tvb,  packet_info *pinfo, proto_tree *tr
   guint8             vc_size          = (guint8)((hdr >> 16) & 0xFF);
   guint8             line_rate        = (guint8)((hdr >> 8) & 0xFF);
   sdh_g707_format_t  g707_format;
-  emem_strbuf_t     *vc_id_string = ep_strbuf_new_label("");
+  wmem_strbuf_t     *vc_id_string = wmem_strbuf_new_label(wmem_packet_scope());
 
   channelised_fill_sdh_g707_format(&g707_format, vc_id, vc_size, line_rate);
   channelised_fill_vc_id_string(vc_id_string, &g707_format);
@@ -799,7 +811,8 @@ dissect_channelised_ex_header(tvbuff_t *tvb,  packet_info *pinfo, proto_tree *tr
     proto_tree_add_boolean(tree, hf_erf_ehdr_chan_morefrag, tvb, 0, 0, (guint8)((hdr >> 55) & 0x1));
     proto_tree_add_uint(tree, hf_erf_ehdr_chan_seqnum, tvb, 0, 0, (guint16)((hdr >> 40) & 0x7FFF));
     proto_tree_add_uint(tree, hf_erf_ehdr_chan_res, tvb, 0, 0, (guint8)((hdr >> 32) & 0xFF));
-    proto_tree_add_uint_format(tree, hf_erf_ehdr_chan_virt_container_id, tvb, 0, 0, vc_id, "Virtual Container ID: 0x%0x2 (g.707: %s)", vc_id, vc_id_string->str);
+    proto_tree_add_uint_format_value(tree, hf_erf_ehdr_chan_virt_container_id, tvb, 0, 0, vc_id,
+                                     "0x%.2x (g.707: %s)", vc_id, wmem_strbuf_get_str(vc_id_string));
     proto_tree_add_uint(tree, hf_erf_ehdr_chan_assoc_virt_container_size, tvb, 0, 0, vc_size);
     proto_tree_add_uint(tree, hf_erf_ehdr_chan_rate, tvb, 0, 0, line_rate);
     proto_tree_add_uint(tree, hf_erf_ehdr_chan_type, tvb, 0, 0, (guint8)((hdr >> 0) & 0xFF));
@@ -847,27 +860,27 @@ dissect_mc_hdlc_header(tvbuff_t *tvb,  packet_info *pinfo, proto_tree *tree)
     proto_tree_add_uint(mc_hdlc_tree, hf_erf_mc_hdlc_res2, tvb, 0, 0,  mc_hdlc->byte2);
     pi=proto_tree_add_uint(mc_hdlc_tree, hf_erf_mc_hdlc_fcse, tvb, 0, 0,  mc_hdlc->byte3);
     if (mc_hdlc->byte3 & MC_HDLC_FCSE_MASK)
-      expert_add_info_format(pinfo, pi, PI_CHECKSUM, PI_ERROR, "ERF MC FCS Error");
+      expert_add_info_format(pinfo, pi, &ei_erf_checksum_error, "ERF MC FCS Error");
 
     pi=proto_tree_add_uint(mc_hdlc_tree, hf_erf_mc_hdlc_sre,  tvb, 0, 0,  mc_hdlc->byte3);
     if (mc_hdlc->byte3 & MC_HDLC_SRE_MASK)
-      expert_add_info_format(pinfo, pi, PI_CHECKSUM, PI_ERROR, "ERF MC Short Record Error, <5 bytes");
+      expert_add_info_format(pinfo, pi, &ei_erf_checksum_error, "ERF MC Short Record Error, <5 bytes");
 
     pi=proto_tree_add_uint(mc_hdlc_tree, hf_erf_mc_hdlc_lre,  tvb, 0, 0,  mc_hdlc->byte3);
     if (mc_hdlc->byte3 & MC_HDLC_LRE_MASK)
-      expert_add_info_format(pinfo, pi, PI_CHECKSUM, PI_ERROR, "ERF MC Long Record Error, >2047 bytes");
+      expert_add_info_format(pinfo, pi, &ei_erf_checksum_error, "ERF MC Long Record Error, >2047 bytes");
 
     pi=proto_tree_add_uint(mc_hdlc_tree, hf_erf_mc_hdlc_afe,  tvb, 0, 0,  mc_hdlc->byte3);
     if (mc_hdlc->byte3 & MC_HDLC_AFE_MASK)
-      expert_add_info_format(pinfo, pi, PI_CHECKSUM, PI_ERROR, "ERF MC Aborted Frame Error");
+      expert_add_info_format(pinfo, pi, &ei_erf_checksum_error, "ERF MC Aborted Frame Error");
 
     pi=proto_tree_add_uint(mc_hdlc_tree, hf_erf_mc_hdlc_oe,   tvb, 0, 0,  mc_hdlc->byte3);
     if (mc_hdlc->byte3 & MC_HDLC_OE_MASK)
-      expert_add_info_format(pinfo, pi, PI_CHECKSUM, PI_ERROR, "ERF MC Octet Error, the closing flag was not octet aligned after bit unstuffing");
+      expert_add_info_format(pinfo, pi, &ei_erf_checksum_error, "ERF MC Octet Error, the closing flag was not octet aligned after bit unstuffing");
 
     pi=proto_tree_add_uint(mc_hdlc_tree, hf_erf_mc_hdlc_lbe,  tvb, 0, 0,  mc_hdlc->byte3);
     if (mc_hdlc->byte3 & MC_HDLC_LBE_MASK)
-      expert_add_info_format(pinfo, pi, PI_CHECKSUM, PI_ERROR, "ERF MC Lost Byte Error");
+      expert_add_info_format(pinfo, pi, &ei_erf_checksum_error, "ERF MC Lost Byte Error");
 
     proto_tree_add_uint(mc_hdlc_tree, hf_erf_mc_hdlc_first, tvb, 0, 0,  mc_hdlc->byte3);
     proto_tree_add_uint(mc_hdlc_tree, hf_erf_mc_hdlc_res3,  tvb, 0, 0,  mc_hdlc->byte3);
@@ -1057,8 +1070,8 @@ dissect_erf_pseudo_header(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   proto_tree_add_uint64(tree, hf_erf_ts, tvb, 0, 0, pinfo->pseudo_header->erf.phdr.ts);
 
-  rectype_item = proto_tree_add_uint_format(tree, hf_erf_rectype, tvb, 0, 0, pinfo->pseudo_header->erf.phdr.type,
-					    "Record type: 0x%02x (Type %d: %s)",
+  rectype_item = proto_tree_add_uint_format_value(tree, hf_erf_rectype, tvb, 0, 0, pinfo->pseudo_header->erf.phdr.type,
+					    "0x%02x (Type %d: %s)",
 					    pinfo->pseudo_header->erf.phdr.type,
 					    pinfo->pseudo_header->erf.phdr.type & ERF_HDR_TYPE_MASK,
 					    val_to_str_const(pinfo->pseudo_header->erf.phdr.type & ERF_HDR_TYPE_MASK,
@@ -1079,19 +1092,19 @@ dissect_erf_pseudo_header(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   pi=proto_tree_add_uint(flags_tree, hf_erf_flags_trunc, tvb, 0, 0, pinfo->pseudo_header->erf.phdr.flags);
   if (pinfo->pseudo_header->erf.phdr.flags & ERF_HDR_TRUNC_MASK) {
     proto_item_append_text(flags_item, "; ERF Truncation Error");
-    expert_add_info_format(pinfo, pi, PI_CHECKSUM, PI_ERROR, "ERF Truncation Error");
+    expert_add_info_format(pinfo, pi, &ei_erf_checksum_error, "ERF Truncation Error");
   }
 
   pi=proto_tree_add_uint(flags_tree, hf_erf_flags_rxe, tvb, 0, 0, pinfo->pseudo_header->erf.phdr.flags);
   if (pinfo->pseudo_header->erf.phdr.flags & ERF_HDR_RXE_MASK) {
     proto_item_append_text(flags_item, "; ERF Rx Error");
-    expert_add_info_format(pinfo, pi, PI_CHECKSUM, PI_ERROR, "ERF Rx Error");
+    expert_add_info_format(pinfo, pi, &ei_erf_checksum_error, "ERF Rx Error");
   }
 
   pi=proto_tree_add_uint(flags_tree, hf_erf_flags_dse, tvb, 0, 0, pinfo->pseudo_header->erf.phdr.flags);
   if (pinfo->pseudo_header->erf.phdr.flags & ERF_HDR_DSE_MASK) {
     proto_item_append_text(flags_item, "; ERF DS Error");
-    expert_add_info_format(pinfo, pi, PI_CHECKSUM, PI_ERROR, "ERF DS Error");
+    expert_add_info_format(pinfo, pi, &ei_erf_checksum_error, "ERF DS Error");
   }
   proto_item_append_text(flags_item, ")");
 
@@ -1100,7 +1113,7 @@ dissect_erf_pseudo_header(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   proto_tree_add_uint(tree, hf_erf_rlen, tvb, 0, 0, pinfo->pseudo_header->erf.phdr.rlen);
   pi=proto_tree_add_uint(tree, hf_erf_lctr, tvb, 0, 0, pinfo->pseudo_header->erf.phdr.lctr);
   if (pinfo->pseudo_header->erf.phdr.lctr > 0)
-    expert_add_info_format(pinfo, pi, PI_SEQUENCE, PI_WARN, "Packet loss occurred between previous and current packet");
+    expert_add_info(pinfo, pi, &ei_erf_packet_loss);
 
   proto_tree_add_uint(tree, hf_erf_wlen, tvb, 0, 0, pinfo->pseudo_header->erf.phdr.wlen);
 }
@@ -1148,10 +1161,38 @@ dissect_erf_pseudo_extension_header(tvbuff_t *tvb, packet_info *pinfo, proto_tre
     i += 1;
   }
   if (has_more) {
-    pi = proto_tree_add_text(tree, tvb, 0, 0, "More extension headers were present, not shown");
-    expert_add_info_format(pinfo, pi, PI_SEQUENCE, PI_WARN, "Some of the extension headers are not shown");
+    proto_tree_add_expert(tree, pinfo, &ei_erf_extension_headers_not_shown, tvb, 0, 0);
   }
 
+}
+
+guint64* erf_get_ehdr(packet_info *pinfo, guint8 hdrtype, gint* afterindex) {
+  guint8      type;
+  guint8      has_more;
+  int         max;
+  int         i        = afterindex ? *afterindex + 1 : 0; /*allow specifying instance to start after for use in loop*/
+
+  if (!pinfo) /*XXX: how to determine if erf pseudo_header is valid?*/
+      return NULL;
+
+  has_more = pinfo->pseudo_header->erf.phdr.type & 0x80;
+  max      = sizeof(pinfo->pseudo_header->erf.ehdr_list)/sizeof(struct erf_ehdr);
+
+
+  while(has_more && (i < max)) {
+    type = (guint8) (pinfo->pseudo_header->erf.ehdr_list[i].ehdr >> 56);
+
+    if ((type & 0x7f) == (hdrtype & 0x7f)) {
+         if (afterindex)
+             *afterindex = i;
+         return &pinfo->pseudo_header->erf.ehdr_list[i].ehdr;
+    }
+
+    has_more = type & 0x80;
+    i += 1;
+  }
+
+  return NULL;
 }
 
 static void
@@ -1172,10 +1213,8 @@ dissect_erf(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "ERF");
 
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
+  col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
        val_to_str(erf_type, erf_type_vals, "Unknown type %u"));
-  }
 
   if (tree) {
     proto_item *erf_item;
@@ -1426,7 +1465,7 @@ dissect_erf(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   case ERF_TYPE_COLOR_HDLC_POS:
   case ERF_TYPE_DSM_COLOR_HDLC_POS:
   case ERF_TYPE_COLOR_MC_HDLC_POS:
-    hdlc_type = erf_hdlc_type;
+    hdlc_type = (erf_hdlc_type_vals)erf_hdlc_type;
 
     if (hdlc_type == ERF_HDLC_GUESS) {
       /* Try to guess the type. */
@@ -1477,7 +1516,7 @@ proto_register_erf(void)
       { "Timestamp", "erf.ts",
         FT_UINT64, BASE_HEX, NULL, 0x0, NULL, HFILL } },
     { &hf_erf_rectype,
-      { "Type", "erf.types",
+      { "Record type", "erf.types",
         FT_UINT8, BASE_HEX,  NULL, 0x0, NULL, HFILL } },
     { &hf_erf_type,
       { "Type", "erf.types.type",
@@ -1888,13 +1927,22 @@ proto_register_erf(void)
     { NULL, NULL, 0 }
   };
 
+  static ei_register_info ei[] = {
+      { &ei_erf_checksum_error, { "erf.checksum.error", PI_CHECKSUM, PI_ERROR, "ERF MC FCS Error", EXPFILL }},
+      { &ei_erf_packet_loss, { "erf.packet_loss", PI_SEQUENCE, PI_WARN, "Packet loss occurred between previous and current packet", EXPFILL }},
+      { &ei_erf_extension_headers_not_shown, { "erf.ehdr.more_not_shown", PI_SEQUENCE, PI_WARN, "More extension headers were present, not shown", EXPFILL }},
+  };
+
   module_t *erf_module;
+  expert_module_t* expert_erf;
 
   proto_erf = proto_register_protocol("Extensible Record Format", "ERF", "erf");
-  register_dissector("erf", dissect_erf, proto_erf);
+  erf_handle = register_dissector("erf", dissect_erf, proto_erf);
 
   proto_register_field_array(proto_erf, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_erf = expert_register_protocol(proto_erf);
+  expert_register_field_array(expert_erf, ei, array_length(ei));
 
   erf_module = prefs_register_protocol(proto_erf, NULL);
 
@@ -1922,9 +1970,6 @@ proto_register_erf(void)
 void
 proto_reg_handoff_erf(void)
 {
-  dissector_handle_t erf_handle;
-
-  erf_handle = find_dissector("erf");
   dissector_add_uint("wtap_encap", WTAP_ENCAP_ERF, erf_handle);
 
   /* Dissector called to dump raw data, or unknown protocol */

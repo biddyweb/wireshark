@@ -3,16 +3,20 @@
 # in several formats.
 # See the Readme.txt file for instructions.
 #
-# $Id$
-#
 
 # formatting objects processor
 # Additional options to fop.
 # This needs to contain at least the argument '-Xmx256m'
+# fop executable is found in configure.ac.
 FOP_OPTS=-Xmx256m
 
-# fop executable is found in configure.in .
-# XXX - have it check for the right version (0.20.5 or newer)?
+# Asciidoc converter
+A2X_HTML_OPTS="--stylesheet=ws.css"
+A2X_TEXT_OPTS=
+
+#if HAVE_LYNX
+A2X_TEXT_OPTS+="--lynx"
+#endif
 
 # html to text converter for text version of release notes, e.g. elinks.
 # This could also be "lynx", or "true" if neither elinks nor lynx is installed
@@ -49,12 +53,24 @@ else
 	@false
 endif
 
+# Convert an AsciiDoc document to a DocBook chapter
+# Used for chapter-by-chapter conversion from DocBook to AsciiDoc.
+# Can be removed after the User's Guide is converted.
+# .asciidoc -> whole book (.dbk) -> chapter (.xml)
+wsug_src/%.asciidoc : wsug_src/%.xml
+	$(A2X) --verbose \
+		--asciidoc-opts="--conf-file=asciidoc.conf" \
+		--no-xmllint \
+		--format=docbook --doctype=book \
+		$<
+	mv $*.xml $*.dbk
+	xmllint --xpath '//chapter | //preface' $*.dbk > $@
 
 if HAVE_XSLTPROC
-ALL_TARGETS=svn_version_check wsug wsdg release_notes
+ALL_TARGETS=git_version_check wsug wsdg release_notes
 else
 # if we don't have XSLTPROC, there's nothing to do...
-ALL_TARGETS=svn_version_check
+ALL_TARGETS=git_version_check
 endif
 
 all: $(ALL_TARGETS)
@@ -65,16 +81,16 @@ all: $(ALL_TARGETS)
 # FORCE is the portable version of .PHONY
 FORCE:
 
-svn_version_check: FORCE
-	cat $(srcdir)/check_svn_version.sh | tr -d '\015' | /bin/bash
+git_version_check: FORCE
+	cat $(srcdir)/check_git_version.sh | tr -d '\015' | /bin/bash
 
-svn_version.xml: svn_version_check
+git_version.xml: git_version_check
 
 # Wireshark User Guide
 if HAVE_FOP
-WSUG_TARGETS=wsug.validated wsug_html_chunked user-guide.html user-guide-a4.pdf user-guide-us.pdf
+WSUG_TARGETS=wsug.validated wsug_html_chunked wsug_html user-guide-a4.pdf user-guide-us.pdf
 else
-WSUG_TARGETS=wsug.validated wsug_html_chunked user-guide.html
+WSUG_TARGETS=wsug.validated wsug_html_chunked wsug_html
 endif
 
 wsug: $(WSUG_TARGETS)
@@ -90,9 +106,9 @@ else
 endif
 
 # create html single page file
-user-guide.html: wsug_html/user-guide.html
+wsug_html: wsug_html/index.html
 
-wsug_html/user-guide.html: $(WSUG_SOURCE) wsluarm
+wsug_html/index.html: $(WSUG_SOURCE) wsluarm
 	@ echo --- WSUG - HTML SINGLE PAGE ---
 	mkdir -p wsug_html/wsug_graphics/toolbar
 	cp $(srcdir)/wsug_graphics/*.* wsug_html/wsug_graphics
@@ -140,13 +156,25 @@ wsluarm: make-wsluarm.pl $(WSLUA_MODULES)
 
 
 # Wireshark Developer Guide
+if HAVE_A2X
 if HAVE_FOP
-WSDG_TARGETS=wsdg.validated wsdg_html_chunked developer-guide.html developer-guide-a4.pdf developer-guide-us.pdf
+WSDG_TARGETS=wsdg.validated wsdg_html_chunked wsdg_html developer-guide-a4.pdf developer-guide-us.pdf
 else
-WSDG_TARGETS=wsdg.validated wsdg_html_chunked developer-guide.html
+WSDG_TARGETS=wsdg.validated wsdg_html_chunked wsdg_html
+endif
+else
+WSDG_TARGETS=
 endif
 
 wsdg: $(WSDG_TARGETS)
+
+developer-guide.xml: developer-guide.asciidoc $(WSDG_FILES)
+	$(A2X) --verbose \
+		--attribute=docinfo \
+		--asciidoc-opts="--conf-file=asciidoc.conf" \
+		--no-xmllint \
+		--format=docbook \
+		$<
 
 # validate the content
 wsdg.validated: $(WSDG_SOURCE)
@@ -159,9 +187,9 @@ else
 endif
 
 # create html single page file
-developer-guide.html: wsdg_html/developer-guide.html
+wsdg_html: wsdg_html/index.html
 
-wsdg_html/developer-guide.html: $(WSDG_SOURCE)
+wsdg_html/index.html: $(WSDG_SOURCE)
 	@ echo --- WSDG - HTML SINGLE PAGE ---
 	mkdir -p wsdg_html/wsdg_graphics/toolbar
 	cp $(srcdir)/wsdg_graphics/*.* wsdg_html/wsdg_graphics
@@ -204,58 +232,57 @@ developer-guide-a4.fo: $(WSDG_SOURCE) custom_layer_pdf.xsl
 
 
 if HAVE_FOP
-RELEASE_NOTES_TARGETS=release_notes.validated release-notes.html release-notes.txt release-notes-a4.pdf release-notes-us.pdf
+RELEASE_NOTES_TARGETS=release-notes.html release-notes.txt release-notes-a4.pdf release-notes-us.pdf
 else
-RELEASE_NOTES_TARGETS=release_notes.validated release-notes.html release-notes.txt
+RELEASE_NOTES_TARGETS=release-notes.html release-notes.txt
 endif
 
 release_notes: $(RELEASE_NOTES_TARGETS)
 
-# validate the content
-release_notes.validated: $(RELEASE_NOTES_SOURCE)
-if HAVE_XMLLINT
-	@ echo --- RELEASE NOTES - VALIDATING XML ---
-	$(XMLLINT) --valid --noout $<
-	touch $@
-else
-	@ echo --- RELEASE NOTES - SKIP VALIDATION ---
-endif
-
 # create html single page file
 release-notes.html: $(RELEASE_NOTES_SOURCE)
 	@ echo --- RELEASE NOTES - HTML ---
-	$(XSLTPROC) --nonet http://docbook.sourceforge.net/release/xsl/current/xhtml/docbook.xsl $< > $@
+	$(A2X) --format=xhtml $(A2X_HTML_OPTS) release-notes.asciidoc
 
 # create txt single page file (through HTML)
 release-notes.txt: $(RELEASE_NOTES_SOURCE)
 	@ echo --- RELEASE NOTES - TXT ---
-	$(XSLTPROC) --stringparam generate.toc "article nop" \
-		    --nonet http://docbook.sourceforge.net/release/xsl/current/xhtml/docbook.xsl $< | $(HTML2TXT) > $@
+	$(A2X) --format=text $(A2X_TEXT_OPTS) \
+		--xsltproc-opts "--stringparam generate.toc \"article nop\"" \
+		release-notes.asciidoc
+	mv release-notes.text $@
 
 news: release-notes.txt
 	cp release-notes.txt ../NEWS
 
-# create pdf file (through XSL-FO), portrait pages on US letter paper
-# you will get lot's of errors, but that's ok
-release-notes-us.fo: $(RELEASE_NOTES_SOURCE) custom_layer_pdf.xsl
-	@ echo --- RELEASE NOTES - PDF US PAPER ---
-	$(XSLTPROC) --stringparam paper.type letter --nonet custom_layer_pdf.xsl $< > $@
+# Apparently we can only run one instance of a2x at a time.
+.NOTPARALLEL: release-notes-us.pdf release-notes-a4.pdf
+# create pdf file, portrait pages on US letter paper
+release-notes-us.pdf: $(RELEASE_NOTES_SOURCE) custom_layer_pdf.xsl
+	@ echo --- RELEASE NOTES - PDF US LETTER PAPER ---
+	$(A2X) --format=pdf $(A2X_HTML_OPTS) --fop \
+		--xsltproc-opts "--stringparam paper.type letter --nonet" \
+		--xsl-file=custom_layer_pdf.xsl \
+		release-notes.asciidoc
+	mv release-notes.pdf $@
 
-# create pdf file (through XSL-FO), portrait pages on A4 paper
-# you will get lot's of errors, but that's ok
-release-notes-a4.fo: $(RELEASE_NOTES_SOURCE) custom_layer_pdf.xsl
+# create pdf file, portrait pages on A4 paper
+release-notes-a4.pdf: $(RELEASE_NOTES_SOURCE) custom_layer_pdf.xsl
 	@ echo --- RELEASE NOTES - PDF A4 PAPER ---
-	$(XSLTPROC) --stringparam paper.type A4 --nonet custom_layer_pdf.xsl $< > $@
+	$(A2X) --format=pdf $(A2X_HTML_OPTS) --fop \
+		--xsltproc-opts "--stringparam paper.type A4 --nonet" \
+		--xsl-file=custom_layer_pdf.xsl \
+		release-notes.asciidoc
+	mv release-notes.pdf $@
 
 clean-local:
 	-rm -rf $(CLEANDIRS)
 
 EXTRA_DIST = \
 	$(WSUG_SOURCE)		\
-	$(WSDG_SOURCE)		\
+	$(WSDG_DIST)		\
 	$(RELEASE_NOTES_SOURCE)	\
-	check_svn_version.sh	\
-	docbook.vcproj		\
+	check_git_version.sh	\
 	dfilter2xml.pl		\
 	make-wsluarm.pl		\
 	README.txt		\

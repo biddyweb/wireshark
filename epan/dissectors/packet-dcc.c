@@ -4,8 +4,6 @@
  *
  * Copyright 1999, Nathan Neulinger <nneul@umr.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,9 @@
 #include <epan/packet.h>
 
 #include <packet-dcc.h>
+
+void proto_register_dcc(void);
+void proto_reg_handoff_dcc(void);
 
 static int proto_dcc = -1;
 static int hf_dcc_len = -1;

@@ -1,8 +1,6 @@
 /* win32-file-dlg.c
  * Native Windows file dialog routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2004 Gerald Combs
@@ -38,18 +36,20 @@
 #include <richedit.h>
 #include <strsafe.h>
 
-#include <gtk/gtk.h>
+#include "file.h"
 
-#include "epan/filesystem.h"
-#include "epan/addr_resolv.h"
-#include "epan/prefs.h"
 #include "wsutil/file_util.h"
 #include "wsutil/unicode-utils.h"
 
+#include "wiretap/merge.h"
+
+#include "wsutil/filesystem.h"
+#include "epan/addr_resolv.h"
+#include "epan/prefs.h"
+#include "epan/print.h"
+
 #include "color.h"
-#include "print.h"
 #include "color_filters.h"
-#include "merge.h"
 
 #include "ui/alert_box.h"
 #include "ui/help_url.h"
@@ -59,14 +59,7 @@
 #include "ui/ssl_key_export.h"
 #include "ui/util.h"
 
-#include "ui/gtk/main.h"
-#include "ui/gtk/file_dlg.h"
-#include "ui/gtk/capture_file_dlg.h"
-#include "ui/gtk/menus.h"
-#include "ui/gtk/drag_and_drop.h"
-#include "ui/gtk/capture_dlg.h"
 #include "file_dlg_win32.h"
-#include "ui/gtk/export_sslkeys.h"
 
 #define FILE_OPEN_DEFAULT 1 /* All Files */
 
@@ -100,6 +93,7 @@
 
 static UINT_PTR CALLBACK open_file_hook_proc(HWND of_hwnd, UINT ui_msg, WPARAM w_param, LPARAM l_param);
 static UINT_PTR CALLBACK save_as_file_hook_proc(HWND of_hwnd, UINT ui_msg, WPARAM w_param, LPARAM l_param);
+static UINT_PTR CALLBACK save_as_statstree_hook_proc(HWND of_hwnd, UINT ui_msg, WPARAM w_param, LPARAM l_param);
 static UINT_PTR CALLBACK export_specified_packets_file_hook_proc(HWND of_hwnd, UINT ui_msg, WPARAM w_param, LPARAM l_param);
 static UINT_PTR CALLBACK merge_file_hook_proc(HWND mf_hwnd, UINT ui_msg, WPARAM w_param, LPARAM l_param);
 static UINT_PTR CALLBACK export_file_hook_proc(HWND of_hwnd, UINT ui_msg, WPARAM w_param, LPARAM l_param);
@@ -110,12 +104,12 @@ static void range_handle_wm_initdialog(HWND dlg_hwnd, packet_range_t *range);
 static void range_handle_wm_command(HWND dlg_hwnd, HWND ctrl, WPARAM w_param, packet_range_t *range);
 
 static TCHAR *build_file_open_type_list(void);
-static TCHAR *build_file_save_type_list(GArray *savable_file_types,
-                                        gboolean must_support_comments);
+static TCHAR *build_file_save_type_list(GArray *savable_file_types);
 
 static int             g_filetype;
 static gboolean        g_compressed;
 static packet_range_t *g_range;
+static capture_file   *g_cf;
 static merge_action_e  g_merge_action;
 static print_args_t    print_args;
 /* XXX - The reason g_sf_hwnd exists is so that we can call
@@ -131,7 +125,67 @@ static print_args_t    print_args;
  */
 static HWND  g_sf_hwnd = NULL;
 static char *g_dfilter_str = NULL;
+static unsigned int g_format_type = WTAP_TYPE_AUTO;
 
+static int
+win32_get_ofnsize()
+{
+    gboolean bVerGE5 = FALSE;
+    int ofnsize;
+    /* Remarks on OPENFILENAME_SIZE_VERSION_400:
+    *
+    * MSDN states that OPENFILENAME_SIZE_VERSION_400 should be used with
+    * WINVER and _WIN32_WINNT >= 0x0500.
+    * Unfortunately all these are compiler constants, while the underlying is a
+    * problem based is a length check of the runtime version used.
+    *
+    * Instead of using OPENFILENAME_SIZE_VERSION_400, just malloc
+    * the OPENFILENAME size plus 12 bytes.
+    * These 12 bytes are the difference between the two versions of this struct.
+    *
+    * Interestingly this fixes a bug, so the places bar e.g. "My Documents"
+    * is displayed - which wasn't the case with the former implementation.
+    *
+    * XXX - It's unclear if this length+12 works on all supported platforms,
+    * NT4 is the question here. However, even if it fails, we must calculate
+    * the length based on the runtime, not the compiler version anyway ...
+    */
+    /* This assumption does not work when compiling with MSVC2008EE as
+    * the open dialog window does not appear.
+    * Instead detect Windows version at runtime and choose size accordingly */
+#if (_MSC_VER >= 1500)
+    /*
+    * On VS2103, GetVersionEx is deprecated. Microsoft recommend to
+    * use VerifyVersionInfo instead
+    */
+#if (_MSC_VER >= 1800)
+    OSVERSIONINFOEX osvi;
+    DWORDLONG dwlConditionMask = 0;
+    int op = VER_GREATER_EQUAL;
+    /* Initialize the OSVERSIONINFOEX structure. */
+    SecureZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
+    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+    osvi.dwMajorVersion = 5;
+    /* Initialize the condition mask. */
+    VER_SET_CONDITION(dwlConditionMask, VER_MAJORVERSION, op);
+    /* Perform the test. */
+    bVerGE5=VerifyVersionInfo(
+        &osvi,
+        VER_MAJORVERSION,
+        dwlConditionMask);
+#else
+    OSVERSIONINFO osvi;
+    SecureZeroMemory(&osvi, sizeof(OSVERSIONINFO));
+    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+    GetVersionEx(&osvi);
+    bVerGE5 = (osvi.dwMajorVersion >= 5);
+#endif /* _MSC_VER >= 1800 */
+    ofnsize = (bVerGE5)?sizeof(OPENFILENAME):OPENFILENAME_SIZE_VERSION_400;
+#else
+    ofnsize = sizeof(OPENFILENAME)+12;
+#endif /* _MSC_VER >= 1500 */
+    return ofnsize;
+}
 /*
  * According to http://msdn.microsoft.com/en-us/library/bb776913.aspx
  * we should use IFileOpenDialog and IFileSaveDialog on Windows Vista
@@ -139,14 +193,11 @@ static char *g_dfilter_str = NULL;
  */
 
 gboolean
-win32_open_file (HWND h_wnd, GString *file_name, GString *display_filter) {
+win32_open_file (HWND h_wnd, GString *file_name, unsigned int *type, GString *display_filter) {
     OPENFILENAME *ofn;
     TCHAR file_name16[MAX_PATH] = _T("");
     int ofnsize;
     gboolean gofn_ok;
-#if (_MSC_VER >= 1500)
-    OSVERSIONINFO osvi;
-#endif
 
     if (!file_name || !display_filter)
         return FALSE;
@@ -161,40 +212,7 @@ win32_open_file (HWND h_wnd, GString *file_name, GString *display_filter) {
         g_free(g_dfilter_str);
         g_dfilter_str = NULL;
     }
-
-    /* Remarks on OPENFILENAME_SIZE_VERSION_400:
-     *
-     * MSDN states that OPENFILENAME_SIZE_VERSION_400 should be used with
-     * WINVER and _WIN32_WINNT >= 0x0500.
-     * Unfortunately all these are compiler constants, while the underlying is a
-     * problem based is a length check of the runtime version used.
-     *
-     * Instead of using OPENFILENAME_SIZE_VERSION_400, just malloc
-     * the OPENFILENAME size plus 12 bytes.
-     * These 12 bytes are the difference between the two versions of this struct.
-     *
-     * Interestingly this fixes a bug, so the places bar e.g. "My Documents"
-     * is displayed - which wasn't the case with the former implementation.
-     *
-     * XXX - It's unclear if this length+12 works on all supported platforms,
-     * NT4 is the question here. However, even if it fails, we must calculate
-     * the length based on the runtime, not the compiler version anyway ...
-     */
-    /* This assumption does not work when compiling with MSVC2008EE as
-     * the open dialog window does not appear.
-     * Instead detect Windows version at runtime and choose size accordingly */
-#if (_MSC_VER >= 1500)
-    SecureZeroMemory(&osvi, sizeof(OSVERSIONINFO));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    GetVersionEx(&osvi);
-    if (osvi.dwMajorVersion >= 5) {
-        ofnsize = sizeof(OPENFILENAME);
-    } else {
-        ofnsize = OPENFILENAME_SIZE_VERSION_400;
-    }
-#else
-    ofnsize = sizeof(OPENFILENAME) + 12;
-#endif
+    ofnsize = win32_get_ofnsize();
     ofn = g_malloc0(ofnsize);
 
     ofn->lStructSize = ofnsize;
@@ -226,6 +244,7 @@ win32_open_file (HWND h_wnd, GString *file_name, GString *display_filter) {
     if (gofn_ok) {
         g_string_printf(file_name, "%s", utf_16to8(file_name16));
         g_string_printf(display_filter, "%s", g_dfilter_str ? g_dfilter_str : "");
+        *type = g_format_type;
     }
 
     g_free( (void *) ofn->lpstrFilter);
@@ -238,29 +257,22 @@ win32_open_file (HWND h_wnd, GString *file_name, GString *display_filter) {
 check_savability_t
 win32_check_save_as_with_comments(HWND parent, capture_file *cf, int file_type)
 {
+    guint32        comment_types;
     gint           response;
 
-    /* Do we have any comments? */
-    if (!cf_has_comments(cf)) {
-        /* No.  Let the save happen; no comments to delete. */
+    /* What types of comments do we have? */
+    comment_types = cf_comment_types(cf);
+
+    /* Does the file's format support all the comments we have? */
+    if (wtap_dump_supports_comment_types(cf->cd_t, comment_types)) {
+        /* Yes.  Let the save happen; we can save all the comments, so
+           there's no need to delete them. */
         return SAVE;
     }
 
-    /* OK, we have comments.  Can we write them out in the selected
-       format?
-
-       XXX - for now, we "know" that pcap-ng is the only format for which
-       we support comments.  We should really ask Wiretap what the
-       format in question supports (and handle different types of
-       comments, some but not all of which some file formats might
-       not support). */
-    if (file_type == WTAP_FILE_PCAPNG) {
-        /* Yes - they selected pcap-ng.  Let the save happen; we can
-           save the comments, so no need to delete them. */
-        return SAVE;
-    }
-    /* No. Is pcap-ng one of the formats in which we can write this file? */
-    if (wtap_dump_can_write_encaps(WTAP_FILE_PCAPNG, cf->linktypes)) {
+    /* No. Are there formats in which we can write this file that
+       supports all the comments in this file? */
+    if (wtap_dump_can_write(cf->linktypes, comment_types)) {
         /* Yes.  Offer the user a choice of "Save in a format that
            supports comments", "Discard comments and save in the
            format you selected", or "Cancel", meaning "don't bother
@@ -335,16 +347,14 @@ win32_check_save_as_with_comments(HWND parent, capture_file *cf, int file_type)
 
 gboolean
 win32_save_as_file(HWND h_wnd, capture_file *cf, GString *file_name, int *file_type,
-                   gboolean *compressed, gboolean must_support_comments)
+                   gboolean *compressed, gboolean must_support_all_comments)
 {
+    guint32 required_comment_types;
     GArray *savable_file_types;
     OPENFILENAME *ofn;
     TCHAR  file_name16[MAX_PATH] = _T("");
     int    ofnsize;
     gboolean gsfn_ok;
-#if (_MSC_VER >= 1500)
-    OSVERSIONINFO osvi;
-#endif
     gboolean discard_comments = FALSE;
 
     if (!file_name || !file_type || !compressed)
@@ -354,31 +364,26 @@ win32_save_as_file(HWND h_wnd, capture_file *cf, GString *file_name, int *file_t
         StringCchCopy(file_name16, MAX_PATH, utf_8to16(file_name->str));
     }
 
-    savable_file_types = wtap_get_savable_file_types(cf->cd_t, cf->linktypes);
+    /* What types of comments do we have to support? */
+    if (must_support_all_comments)
+        required_comment_types = cf_comment_types(cf); /* all the ones the file has */
+    else
+        required_comment_types = 0; /* none of them */
+
+    savable_file_types = wtap_get_savable_file_types_subtypes(cf->cd_t,
+                                                              cf->linktypes,
+                                                              required_comment_types);
     if (savable_file_types == NULL)
         return FALSE;  /* shouldn't happen - the "Save As..." item should be disabled if we can't save the file */
     g_compressed = FALSE;
 
-    /* see OPENFILENAME comment in win32_open_file */
-#if (_MSC_VER >= 1500)
-    SecureZeroMemory(&osvi, sizeof(OSVERSIONINFO));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    GetVersionEx(&osvi);
-    if (osvi.dwMajorVersion >= 5) {
-        ofnsize = sizeof(OPENFILENAME);
-    } else {
-        ofnsize = OPENFILENAME_SIZE_VERSION_400;
-    }
-#else
-    ofnsize = sizeof(OPENFILENAME) + 12;
-#endif
+    ofnsize = win32_get_ofnsize();
     ofn = g_malloc0(ofnsize);
 
     ofn->lStructSize = ofnsize;
     ofn->hwndOwner = h_wnd;
     ofn->hInstance = (HINSTANCE) GetWindowLongPtr(h_wnd, GWLP_HINSTANCE);
-    ofn->lpstrFilter = build_file_save_type_list(savable_file_types,
-                                                 must_support_comments);
+    ofn->lpstrFilter = build_file_save_type_list(savable_file_types);
     ofn->lpstrCustomFilter = NULL;
     ofn->nMaxCustFilter = 0;
     ofn->nFilterIndex = 1;  /* the first entry is the best match; 1-origin indexing */
@@ -388,10 +393,11 @@ win32_save_as_file(HWND h_wnd, capture_file *cf, GString *file_name, int *file_t
     ofn->nMaxFileTitle = 0;
     ofn->lpstrInitialDir = utf_8to16(get_last_open_dir());
     ofn->lpstrTitle = _T("Wireshark: Save file as");
-    ofn->Flags = OFN_ENABLESIZING  | OFN_ENABLETEMPLATE  | OFN_EXPLORER        |
+    ofn->Flags = OFN_ENABLESIZING  | OFN_ENABLETEMPLATE  | OFN_EXPLORER     |
                  OFN_NOCHANGEDIR   | OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY |
                  OFN_PATHMUSTEXIST | OFN_ENABLEHOOK      | OFN_SHOWHELP;
     ofn->lpstrDefExt = NULL;
+    ofn->lCustData = (LPARAM) cf;
     ofn->lpfnHook = save_as_file_hook_proc;
     ofn->lpTemplateName = _T("WIRESHARK_SAVEASFILENAME_TEMPLATE");
 
@@ -421,12 +427,8 @@ win32_save_as_file(HWND h_wnd, capture_file *cf, GString *file_name, int *file_t
     return gsfn_ok;
 }
 
-gboolean
-win32_export_specified_packets_file(HWND h_wnd, GString *file_name,
-                                    int *file_type,
-                                    gboolean *compressed,
-                                    packet_range_t *range) {
-    GArray *savable_file_types;
+gboolean win32_save_as_statstree(HWND h_wnd, GString *file_name, int *file_type)
+{
     OPENFILENAME *ofn;
     TCHAR  file_name16[MAX_PATH] = _T("");
     int    ofnsize;
@@ -435,19 +437,12 @@ win32_export_specified_packets_file(HWND h_wnd, GString *file_name,
     OSVERSIONINFO osvi;
 #endif
 
-    if (!file_name || !file_type || !compressed || !range)
+    if (!file_name || !file_type)
         return FALSE;
 
     if (file_name->len > 0) {
         StringCchCopy(file_name16, MAX_PATH, utf_8to16(file_name->str));
     }
-
-    savable_file_types = wtap_get_savable_file_types(cfile.cd_t, cfile.linktypes);
-    if (savable_file_types == NULL)
-        return FALSE;  /* shouldn't happen - the "Save As..." item should be disabled if we can't save the file */
-
-    g_range = range;
-    g_compressed = FALSE;
 
     /* see OPENFILENAME comment in win32_open_file */
 #if (_MSC_VER >= 1500)
@@ -467,7 +462,72 @@ win32_export_specified_packets_file(HWND h_wnd, GString *file_name,
     ofn->lStructSize = ofnsize;
     ofn->hwndOwner = h_wnd;
     ofn->hInstance = (HINSTANCE) GetWindowLongPtr(h_wnd, GWLP_HINSTANCE);
-    ofn->lpstrFilter = build_file_save_type_list(savable_file_types, FALSE);
+    ofn->lpstrFilter = _T("Plain text file (.txt)\0*.txt\0Comma separated values (.csv)\0*.csv\0XML document (.xml)\0*.xml\0YAML document (.yaml)\0*.yaml\0");
+    ofn->lpstrCustomFilter = NULL;
+    ofn->nMaxCustFilter = 0;
+    ofn->nFilterIndex = 1;  /* the first entry is the best match; 1-origin indexing */
+    ofn->lpstrFile = file_name16;
+    ofn->nMaxFile = MAX_PATH;
+    ofn->lpstrFileTitle = NULL;
+    ofn->nMaxFileTitle = 0;
+    ofn->lpstrInitialDir = utf_8to16(get_last_open_dir());
+    ofn->lpstrTitle = _T("Wireshark: Save stats tree as ...");
+    ofn->Flags = OFN_ENABLESIZING  | OFN_ENABLETEMPLATE  | OFN_EXPLORER        |
+                 OFN_NOCHANGEDIR   | OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY |
+                 OFN_PATHMUSTEXIST | OFN_ENABLEHOOK;
+    ofn->lpstrDefExt = NULL;
+    ofn->lpfnHook = save_as_statstree_hook_proc;
+    ofn->lpTemplateName = _T("WIRESHARK_SAVEASSTATSTREENAME_TEMPLATE");
+
+    gsfn_ok = GetSaveFileName(ofn);
+
+    if (gsfn_ok) {
+        g_string_printf(file_name, "%s", utf_16to8(file_name16));
+        /* What file format was specified? */
+        *file_type = ofn->nFilterIndex - 1;
+    }
+
+    g_sf_hwnd = NULL;
+    g_free( (void *) ofn);
+    return gsfn_ok;
+}
+
+
+gboolean
+win32_export_specified_packets_file(HWND h_wnd, capture_file *cf,
+                                    GString *file_name,
+                                    int *file_type,
+                                    gboolean *compressed,
+                                    packet_range_t *range) {
+    GArray *savable_file_types;
+    OPENFILENAME *ofn;
+    TCHAR  file_name16[MAX_PATH] = _T("");
+    int    ofnsize;
+    gboolean gsfn_ok;
+
+    if (!file_name || !file_type || !compressed || !range)
+        return FALSE;
+
+    if (file_name->len > 0) {
+        StringCchCopy(file_name16, MAX_PATH, utf_8to16(file_name->str));
+    }
+
+    savable_file_types = wtap_get_savable_file_types_subtypes(cf->cd_t,
+                                                              cf->linktypes, 0);
+    if (savable_file_types == NULL)
+        return FALSE;  /* shouldn't happen - the "Save As..." item should be disabled if we can't save the file */
+
+    g_range = range;
+    g_cf = cf;
+    g_compressed = FALSE;
+
+    ofnsize = win32_get_ofnsize();
+    ofn = g_malloc0(ofnsize);
+
+    ofn->lStructSize = ofnsize;
+    ofn->hwndOwner = h_wnd;
+    ofn->hInstance = (HINSTANCE) GetWindowLongPtr(h_wnd, GWLP_HINSTANCE);
+    ofn->lpstrFilter = build_file_save_type_list(savable_file_types);
     ofn->lpstrCustomFilter = NULL;
     ofn->nMaxCustFilter = 0;
     ofn->nFilterIndex = 1;  /* the first entry is the best match; 1-origin indexing */
@@ -481,6 +541,7 @@ win32_export_specified_packets_file(HWND h_wnd, GString *file_name,
                  OFN_NOCHANGEDIR   | OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY |
                  OFN_PATHMUSTEXIST | OFN_ENABLEHOOK      | OFN_SHOWHELP;
     ofn->lpstrDefExt = NULL;
+    ofn->lCustData = (LPARAM) cf;
     ofn->lpfnHook = export_specified_packets_file_hook_proc;
     ofn->lpTemplateName = _T("WIRESHARK_EXPORT_SPECIFIED_PACKETS_FILENAME_TEMPLATE");
 
@@ -505,6 +566,7 @@ win32_export_specified_packets_file(HWND h_wnd, GString *file_name,
 
     g_sf_hwnd = NULL;
     g_range = NULL;
+    g_cf = NULL;
     g_array_free(savable_file_types, TRUE);
     g_free( (void *) ofn->lpstrFilter);
     g_free( (void *) ofn);
@@ -518,9 +580,6 @@ win32_merge_file (HWND h_wnd, GString *file_name, GString *display_filter, int *
     TCHAR         file_name16[MAX_PATH] = _T("");
     int           ofnsize;
     gboolean gofn_ok;
-#if (_MSC_VER >= 1500)
-    OSVERSIONINFO osvi;
-#endif
 
     if (!file_name || !display_filter || !merge_type)
         return FALSE;
@@ -536,19 +595,7 @@ win32_merge_file (HWND h_wnd, GString *file_name, GString *display_filter, int *
         g_dfilter_str = NULL;
     }
 
-    /* see OPENFILENAME comment in win32_open_file */
-#if (_MSC_VER >= 1500)
-    SecureZeroMemory(&osvi, sizeof(OSVERSIONINFO));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    GetVersionEx(&osvi);
-    if (osvi.dwMajorVersion >= 5) {
-        ofnsize = sizeof(OPENFILENAME);
-    } else {
-        ofnsize = OPENFILENAME_SIZE_VERSION_400;
-    }
-#else
-    ofnsize = sizeof(OPENFILENAME) + 12;
-#endif
+    ofnsize = win32_get_ofnsize();
     ofn = g_malloc0(ofnsize);
 
     ofn->lStructSize = ofnsize;
@@ -610,23 +657,10 @@ win32_export_file(HWND h_wnd, capture_file *cf, export_type_e export_type) {
     char             *dirname;
     cf_print_status_t status;
     int               ofnsize;
-#if (_MSC_VER >= 1500)
-    OSVERSIONINFO osvi;
-#endif
 
-    /* see OPENFILENAME comment in win32_open_file */
-#if (_MSC_VER >= 1500)
-    SecureZeroMemory(&osvi, sizeof(OSVERSIONINFO));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    GetVersionEx(&osvi);
-    if (osvi.dwMajorVersion >= 5) {
-        ofnsize = sizeof(OPENFILENAME);
-    } else {
-        ofnsize = OPENFILENAME_SIZE_VERSION_400;
-    }
-#else
-    ofnsize = sizeof(OPENFILENAME) + 12;
-#endif
+    g_cf = cf;
+
+    ofnsize = win32_get_ofnsize();
     ofn = g_malloc0(ofnsize);
 
     ofn->lStructSize = ofnsize;
@@ -646,6 +680,7 @@ win32_export_file(HWND h_wnd, capture_file *cf, export_type_e export_type) {
                  OFN_NOCHANGEDIR   | OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY |
                  OFN_PATHMUSTEXIST | OFN_ENABLEHOOK      | OFN_SHOWHELP;
     ofn->lpstrDefExt = NULL;
+    ofn->lCustData = (LPARAM) cf;
     ofn->lpfnHook = export_file_hook_proc;
     ofn->lpTemplateName = _T("WIRESHARK_EXPORTFILENAME_TEMPLATE");
 
@@ -655,6 +690,7 @@ win32_export_file(HWND h_wnd, capture_file *cf, export_type_e export_type) {
     print_args.to_file             = TRUE;
     print_args.cmd                 = NULL;
     print_args.print_summary       = TRUE;
+    print_args.print_col_headings  = TRUE;
     print_args.print_dissections   = print_dissections_as_displayed;
     print_args.print_hex           = FALSE;
     print_args.print_formfeed      = FALSE;
@@ -712,11 +748,12 @@ win32_export_file(HWND h_wnd, capture_file *cf, export_type_e export_type) {
         set_last_open_dir(dirname);
     }
 
+    g_cf = NULL;
     g_free( (void *) ofn);
 }
 
 void
-win32_export_raw_file(HWND h_wnd) {
+win32_export_raw_file(HWND h_wnd, capture_file *cf) {
     OPENFILENAME *ofn;
     TCHAR         file_name[MAX_PATH] = _T("");
     char         *dirname;
@@ -724,29 +761,14 @@ win32_export_raw_file(HWND h_wnd) {
     char         *file_name8;
     int           fd;
     int           ofnsize;
-#if (_MSC_VER >= 1500)
-    OSVERSIONINFO osvi;
-#endif
 
-    if (!cfile.finfo_selected) {
+    if (!cf->finfo_selected) {
         /* This shouldn't happen */
         simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "No bytes were selected.");
         return;
     }
 
-    /* see OPENFILENAME comment in win32_open_file */
-#if (_MSC_VER >= 1500)
-    SecureZeroMemory(&osvi, sizeof(OSVERSIONINFO));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    GetVersionEx(&osvi);
-    if (osvi.dwMajorVersion >= 5) {
-        ofnsize = sizeof(OPENFILENAME);
-    } else {
-        ofnsize = OPENFILENAME_SIZE_VERSION_400;
-    }
-#else
-    ofnsize = sizeof(OPENFILENAME) + 12;
-#endif
+    ofnsize = win32_get_ofnsize();
     ofn = g_malloc0(ofnsize);
 
     ofn->lStructSize = ofnsize;
@@ -766,26 +788,26 @@ win32_export_raw_file(HWND h_wnd) {
                  OFN_NOCHANGEDIR   | OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY |
                  OFN_PATHMUSTEXIST | OFN_ENABLEHOOK      | OFN_SHOWHELP;
     ofn->lpstrDefExt = NULL;
-    ofn->lCustData = cfile.finfo_selected->length;
+    ofn->lCustData = cf->finfo_selected->length;
     ofn->lpfnHook = export_raw_file_hook_proc;
     ofn->lpTemplateName = _T("WIRESHARK_EXPORTRAWFILENAME_TEMPLATE");
 
     /*
      * XXX - The GTK+ code uses get_byte_view_data_and_length().  We just
-     * grab the info from cfile.finfo_selected.  Which is more "correct"?
+     * grab the info from cf->finfo_selected.  Which is more "correct"?
      */
 
     if (GetSaveFileName(ofn)) {
         g_free( (void *) ofn);
         file_name8 = utf_16to8(file_name);
-        data_p = tvb_get_ptr(cfile.finfo_selected->ds_tvb, 0, -1) +
-                cfile.finfo_selected->start;
+        data_p = tvb_get_ptr(cf->finfo_selected->ds_tvb, 0, -1) +
+                cf->finfo_selected->start;
         fd = ws_open(file_name8, O_WRONLY|O_CREAT|O_TRUNC|O_BINARY, 0666);
         if (fd == -1) {
             open_failure_alert_box(file_name8, errno, TRUE);
             return;
         }
-        if (write(fd, data_p, cfile.finfo_selected->length) < 0) {
+        if (write(fd, data_p, cf->finfo_selected->length) < 0) {
             write_failure_alert_box(file_name8, errno);
             close(fd);
             return;
@@ -808,14 +830,11 @@ win32_export_sslkeys_file(HWND h_wnd) {
     OPENFILENAME *ofn;
     TCHAR         file_name[MAX_PATH] = _T("");
     char         *dirname;
-    gchar        *keylist;
+    gchar        *keylist = NULL;
     char         *file_name8;
     int           fd;
     int           ofnsize;
     int           keylist_size;
-#if (_MSC_VER >= 1500)
-    OSVERSIONINFO osvi;
-#endif
 
     keylist_size = ssl_session_key_count();
     if (keylist_size==0) {
@@ -824,19 +843,7 @@ win32_export_sslkeys_file(HWND h_wnd) {
         return;
     }
 
-    /* see OPENFILENAME comment in win32_open_file */
-#if (_MSC_VER >= 1500)
-    SecureZeroMemory(&osvi, sizeof(OSVERSIONINFO));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    GetVersionEx(&osvi);
-    if (osvi.dwMajorVersion >= 5) {
-        ofnsize = sizeof(OPENFILENAME);
-    } else {
-        ofnsize = OPENFILENAME_SIZE_VERSION_400;
-    }
-#else
-    ofnsize = sizeof(OPENFILENAME) + 12;
-#endif
+    ofnsize = win32_get_ofnsize();
     ofn = g_malloc0(ofnsize);
 
     ofn->lStructSize = ofnsize;
@@ -896,28 +903,13 @@ win32_export_sslkeys_file(HWND h_wnd) {
 }
 
 void
-win32_export_color_file(HWND h_wnd, gpointer filter_list) {
+win32_export_color_file(HWND h_wnd, capture_file *cf, gpointer filter_list) {
     OPENFILENAME *ofn;
     TCHAR  file_name[MAX_PATH] = _T("");
     gchar *dirname;
     int    ofnsize;
-#if (_MSC_VER >= 1500)
-    OSVERSIONINFO osvi;
-#endif
 
-    /* see OPENFILENAME comment in win32_open_file */
-#if (_MSC_VER >= 1500)
-    SecureZeroMemory(&osvi, sizeof(OSVERSIONINFO));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    GetVersionEx(&osvi);
-    if (osvi.dwMajorVersion >= 5) {
-        ofnsize = sizeof(OPENFILENAME);
-    } else {
-        ofnsize = OPENFILENAME_SIZE_VERSION_400;
-    }
-#else
-    ofnsize = sizeof(OPENFILENAME) + 12;
-#endif
+    ofnsize = win32_get_ofnsize();
     ofn = g_malloc0(ofnsize);
 
     ofn->lStructSize = ofnsize;
@@ -940,7 +932,7 @@ win32_export_color_file(HWND h_wnd, gpointer filter_list) {
     ofn->lpfnHook = NULL;
     ofn->lpTemplateName = NULL;
 
-    g_filetype = cfile.cd_t;
+    g_filetype = cf->cd_t;
 
     /* XXX - Support marked filters */
     if (GetSaveFileName(ofn)) {
@@ -962,23 +954,8 @@ win32_import_color_file(HWND h_wnd, gpointer color_filters) {
     TCHAR  file_name[MAX_PATH] = _T("");
     gchar *dirname;
     int    ofnsize;
-#if (_MSC_VER >= 1500)
-    OSVERSIONINFO osvi;
-#endif
 
-    /* see OPENFILENAME comment in win32_open_file */
-#if (_MSC_VER >= 1500)
-    SecureZeroMemory(&osvi, sizeof(OSVERSIONINFO));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    GetVersionEx(&osvi);
-    if (osvi.dwMajorVersion >= 5) {
-        ofnsize = sizeof(OPENFILENAME);
-    } else {
-        ofnsize = OPENFILENAME_SIZE_VERSION_400;
-    }
-#else
-    ofnsize = sizeof(OPENFILENAME) + 12;
-#endif
+    ofnsize = win32_get_ofnsize();
     ofn = g_malloc0(ofnsize);
 
     ofn->lStructSize = ofnsize;
@@ -1031,10 +1008,20 @@ print_update_dynamic(HWND dlg_hwnd, print_args_t *args) {
     HWND cur_ctrl;
 
     cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_PKT_SUMMARY_CB);
-    if (SendMessage(cur_ctrl, BM_GETCHECK, 0, 0) == BST_CHECKED)
+    if (SendMessage(cur_ctrl, BM_GETCHECK, 0, 0) == BST_CHECKED) {
         args->print_summary = TRUE;
-    else
+        cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_COL_HEADINGS_CB);
+        EnableWindow(cur_ctrl, TRUE);
+        if (SendMessage(cur_ctrl, BM_GETCHECK, 0, 0) == BST_CHECKED)
+            args->print_col_headings = TRUE;
+        else
+            args->print_col_headings = FALSE;
+    } else {
         args->print_summary = FALSE;
+        args->print_col_headings = FALSE;
+        cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_COL_HEADINGS_CB);
+        EnableWindow(cur_ctrl, FALSE);
+    }
 
     cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_PKT_DETAIL_CB);
     if (SendMessage(cur_ctrl, BM_GETCHECK, 0, 0) == BST_CHECKED) {
@@ -1076,9 +1063,11 @@ static void
 format_handle_wm_initdialog(HWND dlg_hwnd, print_args_t *args) {
     HWND cur_ctrl;
 
-    /* Set the "Packet summary" box */
+    /* Set the "Packet summary" and "Include column headings" boxes */
     cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_PKT_SUMMARY_CB);
     SendMessage(cur_ctrl, BM_SETCHECK, args->print_summary, 0);
+    cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_COL_HEADINGS_CB);
+    SendMessage(cur_ctrl, BM_SETCHECK, args->print_col_headings, 0);
 
     /* Set the "Packet details" box */
     cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_PKT_DETAIL_CB);
@@ -1168,7 +1157,7 @@ preview_set_file_info(HWND of_hwnd, gchar *preview_file) {
         return FALSE;
     }
 
-    wth = wtap_open_offline(preview_file, &err, &err_info, TRUE);
+    wth = wtap_open_offline(preview_file, WTAP_TYPE_AUTO, &err, &err_info, TRUE);
     if (cur_ctrl && wth == NULL) {
         if(err == WTAP_ERR_FILE_UNKNOWN_FORMAT) {
             SetWindowText(cur_ctrl, _T("unknown file format"));
@@ -1188,7 +1177,7 @@ preview_set_file_info(HWND of_hwnd, gchar *preview_file) {
 
     /* Format */
     cur_ctrl = GetDlgItem(of_hwnd, EWFD_PTX_FORMAT);
-    SetWindowText(cur_ctrl, utf_8to16(wtap_file_type_string(wtap_file_type(wth))));
+    SetWindowText(cur_ctrl, utf_8to16(wtap_file_type_subtype_string(wtap_file_type_subtype(wth))));
 
     /* Size */
     filesize = wtap_file_size(wth, &err);
@@ -1347,6 +1336,7 @@ open_file_hook_proc(HWND of_hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
     HWND      cur_ctrl, parent;
     OFNOTIFY *notify = (OFNOTIFY *) l_param;
     TCHAR     sel_name[MAX_PATH];
+    gint      i;
 
     switch(msg) {
         case WM_INITDIALOG:
@@ -1355,6 +1345,13 @@ open_file_hook_proc(HWND of_hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
                 cur_ctrl = GetDlgItem(of_hwnd, EWFD_FILTER_EDIT);
                 SetWindowText(cur_ctrl, utf_8to16(g_dfilter_str));
             }
+
+            cur_ctrl = GetDlgItem(of_hwnd, EWFD_FORMAT_TYPE);
+            SendMessage(cur_ctrl, CB_ADDSTRING, 0, (WPARAM) _T("Automatic"));
+            for (i = 0; open_routines[i].name != NULL; i += 1) {
+                SendMessage(cur_ctrl, CB_ADDSTRING, 0, (WPARAM) utf_8to16(open_routines[i].name));
+            }
+            SendMessage(cur_ctrl, CB_SETCURSEL, 0, 0);
 
             /* Fill in our resolution values */
             cur_ctrl = GetDlgItem(of_hwnd, EWFD_MAC_NR_CB);
@@ -1376,6 +1373,9 @@ open_file_hook_proc(HWND of_hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
                     if (g_dfilter_str)
                         g_free(g_dfilter_str);
                     g_dfilter_str = filter_tb_get(cur_ctrl);
+
+                    cur_ctrl = GetDlgItem(of_hwnd, EWFD_FORMAT_TYPE);
+                    g_format_type = (unsigned int) SendMessage(cur_ctrl, CB_GETCURSEL, 0, 0);
 
                     /* Fetch our resolution values */
                     cur_ctrl = GetDlgItem(of_hwnd, EWFD_MAC_NR_CB);
@@ -1430,6 +1430,120 @@ open_file_hook_proc(HWND of_hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
     return 0;
 }
 
+/* Generate a list of the file types we can filter for in the open dialog. */
+static void
+append_file_extension_type(GArray *sa, int et)
+{
+    GString* pattern_str = g_string_new("");
+    GString* description_str = g_string_new("");
+    gchar sep;
+    GSList *extensions_list, *extension;
+    TCHAR *str16;
+    guint16 zero = 0;
+
+    /* Construct the list of patterns. */
+    extensions_list = wtap_get_file_extension_type_extensions(et);
+    g_string_printf(pattern_str, "");
+    sep = '\0';
+    for (extension = extensions_list; extension != NULL;
+         extension = g_slist_next(extension)) {
+        if (sep != '\0')
+            g_string_append_c(pattern_str, sep);
+        g_string_append_printf(pattern_str, "*.%s", (char *)extension->data);
+        sep = ';';
+    }
+    wtap_free_extensions_list(extensions_list);
+
+    /* Construct the description. */
+    g_string_printf(description_str, "%s (%s)",
+                    wtap_get_file_extension_type_name(et),
+                    pattern_str->str);
+    str16 = utf_8to16(description_str->str);
+    sa = g_array_append_vals(sa, str16, (guint) strlen(description_str->str));
+    sa = g_array_append_val(sa, zero);
+    g_string_free(description_str, TRUE);
+
+    str16 = utf_8to16(pattern_str->str);
+    sa = g_array_append_vals(sa, str16, (guint) strlen(pattern_str->str));
+    sa = g_array_append_val(sa, zero);
+    g_string_free(pattern_str, TRUE);
+}
+
+static TCHAR *
+build_file_open_type_list(void) {
+    TCHAR *str16;
+    int et;
+    GArray* sa;
+    static const guint16 zero = 0;
+    GString* pattern_str;
+    gchar sep;
+    GSList *extensions_list, *extension;
+
+    /*
+     * Microsoft's UI guidelines say, of the file filters in open and
+     * save dialogs:
+     *
+     *    For meta-filters, remove the file extension list to eliminate
+     *    clutter. Examples: "All files," "All pictures," "All music,"
+     *    and "All videos."
+     *
+     * so we omit them (for "All Capture Files", the filter would be
+     * *really* long).  On both Windows XP and Windows 7, Wordpad doesn't
+     * do that, but Paint does.
+     */
+
+    /*
+     * Array of hexadectets used as a sequence of null-terminated
+     * UTF-16 strings.
+     */
+    sa = g_array_new(FALSE /*zero_terminated*/, FALSE /*clear_*/,2 /*element_size*/);
+
+    /* Add the "All Files" entry. */
+    str16 = utf_8to16("All Files");
+    sa = g_array_append_vals(sa, str16, (guint) strlen("All Files"));
+    sa = g_array_append_val(sa, zero);
+    str16 = utf_8to16("*.*");
+    sa = g_array_append_vals(sa, str16, (guint) strlen("*.*"));
+    sa = g_array_append_val(sa, zero);
+
+    /*
+     * Add an "All Capture Files" entry, with all the extensions we
+     * know about.
+     */
+    str16 = utf_8to16("All Capture Files");
+    sa = g_array_append_vals(sa, str16, (guint) strlen("All Capture Files"));
+    sa = g_array_append_val(sa, zero);
+
+    /*
+     * Construct its list of patterns from a list of all extensions
+     * we support.
+     */
+    pattern_str = g_string_new("");
+    extensions_list = wtap_get_all_file_extensions_list();
+    sep = '\0';
+    for (extension = extensions_list; extension != NULL;
+         extension = g_slist_next(extension)) {
+        if (sep != '\0')
+            g_string_append_c(pattern_str, sep);
+        g_string_append_printf(pattern_str, "*.%s", (char *)extension->data);
+        sep = ';';
+    }
+    wtap_free_extensions_list(extensions_list);
+    str16 = utf_8to16(pattern_str->str);
+    sa = g_array_append_vals(sa, str16, (guint) strlen(pattern_str->str));
+    sa = g_array_append_val(sa, zero);
+
+    /* Include all the file type extensions Wireshark supports. */
+    for (et = 0; et < wtap_get_num_file_type_extensions(); et++) {
+        append_file_extension_type(sa, et);
+    }
+
+    /* terminate the array */
+    sa = g_array_append_val(sa, zero);
+
+    return (TCHAR *) g_array_free(sa, FALSE /*free_segment*/);
+}
+
 /* Generate a list of the file types we can save this file as.
 
    "g_filetype" is the type it has now.
@@ -1475,55 +1589,25 @@ append_file_type(GArray *sa, int ft)
             g_string_append_printf(pattern_str, "*.%s", (char *)extension->data);
             sep = ';';
         }
-        wtap_free_file_extensions_list(extensions_list);
+        wtap_free_extensions_list(extensions_list);
     }
 
     /* Construct the description. */
-    g_string_printf(description_str, "%s (%s)", wtap_file_type_string(ft),
+    g_string_printf(description_str, "%s (%s)", wtap_file_type_subtype_string(ft),
                     pattern_str->str);
     str16 = utf_8to16(description_str->str);
     sa = g_array_append_vals(sa, str16, (guint) strlen(description_str->str));
     sa = g_array_append_val(sa, zero);
+    g_string_free(description_str, TRUE);
 
     str16 = utf_8to16(pattern_str->str);
     sa = g_array_append_vals(sa, str16, (guint) strlen(pattern_str->str));
     sa = g_array_append_val(sa, zero);
-
+    g_string_free(pattern_str, TRUE);
 }
 
 static TCHAR *
-build_file_open_type_list(void) {
-    TCHAR *str16;
-    int   ft;
-    GArray* sa = g_array_new(FALSE /*zero_terminated*/, FALSE /*clear_*/,2 /*element_size*/);
-    guint16 zero = 0;
-
-
-    /* Add the "All Files" entry. */
-    str16 = utf_8to16("All Files (*.*)");
-    sa = g_array_append_vals(sa, str16, (guint) strlen("All Files (*.*)"));
-    sa = g_array_append_val(sa, zero);
-    str16 = utf_8to16("*.*");
-    sa = g_array_append_vals(sa, str16, (guint) strlen("*.*"));
-    sa = g_array_append_val(sa, zero);
-
-    /* Include all the file types Wireshark supports. */
-    for (ft = 0; ft < WTAP_NUM_FILE_TYPES; ft++) {
-        if (ft == WTAP_FILE_UNKNOWN)
-            continue;  /* not a real file type */
-
-        append_file_type(sa, ft);
-    }
-
-    /* terminate the array */
-    sa = g_array_append_val(sa, zero);
-
-    return (TCHAR *) g_array_free(sa, FALSE /*free_segment*/);
-}
-
-static TCHAR *
-build_file_save_type_list(GArray *savable_file_types,
-                          gboolean must_support_comments) {
+build_file_save_type_list(GArray *savable_file_types) {
     guint i;
     int   ft;
     GArray* sa = g_array_new(FALSE /*zero_terminated*/, FALSE /*clear_*/,2 /*element_size*/);
@@ -1532,10 +1616,6 @@ build_file_save_type_list(GArray *savable_file_types,
     /* Get only the file types as which we can save this file. */
     for (i = 0; i < savable_file_types->len; i++) {
         ft = g_array_index(savable_file_types, int, i);
-        if (must_support_comments) {
-            if (ft != WTAP_FILE_PCAPNG)
-                continue;
-        }
         append_file_type(sa, ft);
     }
 
@@ -1601,11 +1681,13 @@ save_as_file_hook_proc(HWND sf_hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
     /*int            new_filetype, index;*/
 
     switch(msg) {
-        case WM_INITDIALOG:
+        case WM_INITDIALOG: {
+            OPENFILENAME *ofnp = (OPENFILENAME *) l_param;
+            capture_file *cf = (capture_file *) ofnp->lCustData;
             g_sf_hwnd = sf_hwnd;
 
             /* Default to saving in the file's current format. */
-            g_filetype = cfile.cd_t;
+            g_filetype = cf->cd_t;
 
             /* Fill in the file format list */
             /*build_file_format_list(sf_hwnd);*/
@@ -1614,6 +1696,7 @@ save_as_file_hook_proc(HWND sf_hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
             SendMessage(cur_ctrl, BM_SETCHECK, g_compressed, 0);
 
             break;
+        }
         case WM_COMMAND:
             cur_ctrl = (HWND) l_param;
 
@@ -1663,9 +1746,9 @@ save_as_file_hook_proc(HWND sf_hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
                     break;
                 case CDN_FILEOK: {
                     HWND   parent;
-                    TCHAR  file_name16_selected[MAX_PATH];
-                    char  *file_name8_selected;
-                    int    selected_size;
+                    char  *file_name8;
+                    OPENFILENAME *ofnp = (OPENFILENAME *) notify->lpOFN;
+                    capture_file *cf = (capture_file *) ofnp->lCustData;
 
                     /* Fetch our compression value */
                     cur_ctrl = GetDlgItem(sf_hwnd, EWFD_GZIP_CB);
@@ -1674,22 +1757,19 @@ save_as_file_hook_proc(HWND sf_hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
                     else
                         g_compressed = FALSE;
 
-                    /* Check if trying to do 'save as' to the currently open file */
+                    /* Check if we're trying to overwrite the currently open file */
                     parent = GetParent(sf_hwnd);
-                    selected_size = CommDlg_OpenSave_GetFilePath(parent, file_name16_selected, MAX_PATH);
-                    if (selected_size > 0) {
-                        file_name8_selected = utf_16to8(file_name16_selected);
-                        if (files_identical(cfile.filename, file_name8_selected)) {
-                            /* XXX: Is MessageBox the best way to pop up an error ? How to make text bold ? */
-                            gchar *str = g_strdup_printf(
-                                "Capture File \"%s\" identical to loaded file !!\n\n"
-                                "Please choose a different filename.",
-                                file_name8_selected);
-                            MessageBox( parent, utf_8to16(str), _T("Error"), MB_ICONERROR | MB_APPLMODAL | MB_OK);
-                            g_free(str);
-                            SetWindowLongPtr(sf_hwnd, DWLP_MSGRESULT, 1L); /* Don't allow ! */
-                            return 1;
-                        }
+                    file_name8 = utf_16to8(notify->lpOFN->lpstrFile);
+                    if (files_identical(cf->filename, file_name8)) {
+                        /* XXX: Is MessageBox the best way to pop up an error ? How to make text bold ? */
+                        gchar *str = g_strdup_printf(
+                            "Capture File \"%s\" identical to loaded file.\n\n"
+                            "Please choose a different filename.",
+                            file_name8);
+                        MessageBox( parent, utf_8to16(str), _T("Error"), MB_ICONERROR | MB_APPLMODAL | MB_OK);
+                        g_free(str);
+                        SetWindowLongPtr(sf_hwnd, DWLP_MSGRESULT, 1L); /* Don't allow ! */
+                        return 1;
                     }
                 }
                     break;
@@ -1697,6 +1777,26 @@ save_as_file_hook_proc(HWND sf_hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
                     break;
             }
             break;
+        default:
+            break;
+    }
+    return 0;
+}
+
+static UINT_PTR CALLBACK
+save_as_statstree_hook_proc(HWND sf_hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
+
+    switch(msg) {
+        case WM_INITDIALOG:
+            g_sf_hwnd = sf_hwnd;
+            break;
+
+        case WM_COMMAND:
+            break;
+
+        case WM_NOTIFY:
+            break;
+
         default:
             break;
     }
@@ -1711,11 +1811,11 @@ export_specified_packets_file_hook_proc(HWND sf_hwnd, UINT msg, WPARAM w_param, 
     /*int            new_filetype, index;*/
 
     switch(msg) {
-        case WM_INITDIALOG:
+        case WM_INITDIALOG: {
             g_sf_hwnd = sf_hwnd;
 
             /* Default to saving all packets, in the file's current format. */
-            g_filetype = cfile.cd_t;
+            g_filetype = g_cf->cd_t;
 
             /* Fill in the file format list */
             /*build_file_format_list(sf_hwnd);*/
@@ -1727,6 +1827,7 @@ export_specified_packets_file_hook_proc(HWND sf_hwnd, UINT msg, WPARAM w_param, 
             SendMessage(cur_ctrl, BM_SETCHECK, g_compressed, 0);
 
             break;
+        }
         case WM_COMMAND:
             cur_ctrl = (HWND) l_param;
 
@@ -1768,9 +1869,9 @@ export_specified_packets_file_hook_proc(HWND sf_hwnd, UINT msg, WPARAM w_param, 
                     break;
                 case CDN_FILEOK: {
                     HWND   parent;
-                    TCHAR  file_name16_selected[MAX_PATH];
-                    char  *file_name8_selected;
-                    int    selected_size;
+                    char  *file_name8;
+                    OPENFILENAME *ofnp = (OPENFILENAME *) notify->lpOFN;
+                    capture_file *cf = (capture_file *) ofnp->lCustData;
 
                     /* Fetch our compression value */
                     cur_ctrl = GetDlgItem(sf_hwnd, EWFD_GZIP_CB);
@@ -1779,22 +1880,19 @@ export_specified_packets_file_hook_proc(HWND sf_hwnd, UINT msg, WPARAM w_param, 
                     else
                         g_compressed = FALSE;
 
-                    /* Check if trying to do 'save as' to the currently open file */
+                    /* Check if we're trying to overwrite the currently open file */
                     parent = GetParent(sf_hwnd);
-                    selected_size = CommDlg_OpenSave_GetFilePath(parent, file_name16_selected, MAX_PATH);
-                    if (selected_size > 0) {
-                        file_name8_selected = utf_16to8(file_name16_selected);
-                        if (files_identical(cfile.filename, file_name8_selected)) {
-                            /* XXX: Is MessageBox the best way to pop up an error ? How to make text bold ? */
-                            gchar *str = g_strdup_printf(
-                                "Capture File \"%s\" identical to loaded file.\n\n"
-                                "Please choose a different filename.",
-                                file_name8_selected);
-                            MessageBox( parent, utf_8to16(str), _T("Error"), MB_ICONERROR | MB_APPLMODAL | MB_OK);
-                            g_free(str);
-                            SetWindowLongPtr(sf_hwnd, DWLP_MSGRESULT, 1L); /* Don't allow ! */
-                            return 1;
-                        }
+                    file_name8 = utf_16to8(notify->lpOFN->lpstrFile);
+                    if (files_identical(cf->filename, file_name8)) {
+                        /* XXX: Is MessageBox the best way to pop up an error ? How to make text bold ? */
+                        gchar *str = g_strdup_printf(
+                            "Capture File \"%s\" identical to loaded file.\n\n"
+                            "Please choose a different filename.",
+                            file_name8);
+                        MessageBox( parent, utf_8to16(str), _T("Error"), MB_ICONERROR | MB_APPLMODAL | MB_OK);
+                        g_free(str);
+                        SetWindowLongPtr(sf_hwnd, DWLP_MSGRESULT, 1L); /* Don't allow ! */
+                        return 1;
                     }
                 }
                     break;
@@ -1829,9 +1927,9 @@ range_update_dynamics(HWND dlg_hwnd, packet_range_t *range) {
     cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_ALL_PKTS_CAP);
     EnableWindow(cur_ctrl, !filtered_active);
     if (range->remove_ignored) {
-        StringCchPrintf(static_val, STATIC_LABEL_CHARS, _T("%u"), cfile.count - range->ignored_cnt);
+        StringCchPrintf(static_val, STATIC_LABEL_CHARS, _T("%u"), g_cf->count - range->ignored_cnt);
     } else {
-        StringCchPrintf(static_val, STATIC_LABEL_CHARS, _T("%u"), cfile.count);
+        StringCchPrintf(static_val, STATIC_LABEL_CHARS, _T("%u"), g_cf->count);
     }
     SetWindowText(cur_ctrl, static_val);
 
@@ -1849,10 +1947,10 @@ range_update_dynamics(HWND dlg_hwnd, packet_range_t *range) {
     SetWindowText(cur_ctrl, static_val);
 
     /* RANGE_SELECT_CURR */
-    selected_num = (cfile.current_frame) ? cfile.current_frame->num : 0;
+    selected_num = (g_cf->current_frame) ? g_cf->current_frame->num : 0;
     cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_SEL_PKT_CAP);
     EnableWindow(cur_ctrl, selected_num && !filtered_active);
-    if (range->remove_ignored && cfile.current_frame && cfile.current_frame->flags.ignored) {
+    if (range->remove_ignored && g_cf->current_frame && g_cf->current_frame->flags.ignored) {
         StringCchPrintf(static_val, STATIC_LABEL_CHARS, _T("0"));
     } else {
         StringCchPrintf(static_val, STATIC_LABEL_CHARS, _T("%u"), selected_num ? 1 : 0);
@@ -1861,7 +1959,7 @@ range_update_dynamics(HWND dlg_hwnd, packet_range_t *range) {
 
     cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_SEL_PKT_DISP);
     EnableWindow(cur_ctrl, selected_num && filtered_active);
-    if (range->remove_ignored && cfile.current_frame && cfile.current_frame->flags.ignored) {
+    if (range->remove_ignored && g_cf->current_frame && g_cf->current_frame->flags.ignored) {
         StringCchPrintf(static_val, STATIC_LABEL_CHARS, _T("0"));
     } else {
         StringCchPrintf(static_val, STATIC_LABEL_CHARS, _T("%u"), selected_num ? 1 : 0);
@@ -1870,19 +1968,19 @@ range_update_dynamics(HWND dlg_hwnd, packet_range_t *range) {
 
     /* RANGE_SELECT_MARKED */
     cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_MARKED_BTN);
-    EnableWindow(cur_ctrl, cfile.marked_count);
+    EnableWindow(cur_ctrl, g_cf->marked_count);
 
     cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_MARKED_CAP);
-    EnableWindow(cur_ctrl, cfile.marked_count && !filtered_active);
+    EnableWindow(cur_ctrl, g_cf->marked_count && !filtered_active);
     if (range->remove_ignored) {
-        StringCchPrintf(static_val, STATIC_LABEL_CHARS, _T("%u"), cfile.marked_count - range->ignored_marked_cnt);
+        StringCchPrintf(static_val, STATIC_LABEL_CHARS, _T("%u"), g_cf->marked_count - range->ignored_marked_cnt);
     } else {
-        StringCchPrintf(static_val, STATIC_LABEL_CHARS, _T("%u"), cfile.marked_count);
+        StringCchPrintf(static_val, STATIC_LABEL_CHARS, _T("%u"), g_cf->marked_count);
     }
     SetWindowText(cur_ctrl, static_val);
 
     cur_ctrl = GetDlgItem(dlg_hwnd, EWFD_MARKED_DISP);
-    EnableWindow(cur_ctrl, cfile.marked_count && filtered_active);
+    EnableWindow(cur_ctrl, g_cf->marked_count && filtered_active);
     if (range->remove_ignored) {
         StringCchPrintf(static_val, STATIC_LABEL_CHARS, _T("%u"), range->displayed_marked_cnt - range->displayed_ignored_marked_cnt);
     } else {
@@ -1966,7 +2064,7 @@ range_update_dynamics(HWND dlg_hwnd, packet_range_t *range) {
             displayed_ignored_cnt = range->displayed_ignored_cnt;
             break;
         case(range_process_selected):
-            ignored_cnt = (cfile.current_frame && cfile.current_frame->flags.ignored) ? 1 : 0;
+            ignored_cnt = (g_cf->current_frame && g_cf->current_frame->flags.ignored) ? 1 : 0;
             displayed_ignored_cnt = ignored_cnt;
             break;
         case(range_process_marked):
@@ -2194,15 +2292,19 @@ export_file_hook_proc(HWND ef_hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
     int            i, index;
 
     switch(msg) {
-        case WM_INITDIALOG:
+        case WM_INITDIALOG: {
+            OPENFILENAME *ofnp = (OPENFILENAME *) l_param;
+            capture_file *cf = (capture_file *) ofnp->lCustData;
+
             /* init the printing range */
-            packet_range_init(&print_args.range, &cfile);
+            packet_range_init(&print_args.range, cf);
             /* default to displayed packets */
             print_args.range.process_filtered = TRUE;
             range_handle_wm_initdialog(ef_hwnd, &print_args.range);
             format_handle_wm_initdialog(ef_hwnd, &print_args);
 
             break;
+        }
         case WM_COMMAND:
             cur_ctrl = (HWND) l_param;
             switch (w_param) {

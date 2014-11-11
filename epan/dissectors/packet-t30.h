@@ -4,8 +4,6 @@
  * 2003 Hans Viens
  * 2004 Alejandro Vaquero, add support to conversation
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,5 +25,5 @@
 
 #include "ws_symbol_export.h"
 
-WS_DLL_PUBLIC const value_string t30_facsimile_control_field_vals[];
-WS_DLL_PUBLIC const value_string t30_facsimile_control_field_vals_short[];
+WS_DLL_PUBLIC value_string_ext t30_facsimile_control_field_vals_ext;
+WS_DLL_PUBLIC value_string_ext t30_facsimile_control_field_vals_short_ext;

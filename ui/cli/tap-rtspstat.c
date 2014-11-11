@@ -1,25 +1,23 @@
 /* tap-rtspstat.c
- * tap-rtspstat   March 2011 
+ * tap-rtspstat   March 2011
  *
  * Stephane GORSE (Orange Labs / France Telecom)
  * Copied from Jean-Michel FAYARD's works (HTTP)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
- * 
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
@@ -28,6 +26,7 @@
 #include "config.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "epan/packet_info.h"
@@ -37,7 +36,8 @@
 #include "register.h"
 #include <epan/dissectors/packet-rtsp.h>
 
-	
+void register_tap_listener_gtkrtspstat(void);
+
 /* used to keep track of the statictics for an entire program interface */
 typedef struct _rtsp_stats_t {
 	char 		*filter;
@@ -69,8 +69,8 @@ rtsp_init_hash( rtspstat_t *sp)
 {
 	int i;
 
-	sp->hash_responses = g_hash_table_new( g_int_hash, g_int_equal);		
-			
+	sp->hash_responses = g_hash_table_new( g_int_hash, g_int_equal);
+
 	for (i=0 ; rtsp_status_code_vals[i].strptr ; i++ )
 	{
 		gint *key = g_new (gint,1);
@@ -89,7 +89,7 @@ rtsp_draw_hash_requests( gchar *key _U_ , rtsp_request_methode_t *data, gchar * 
 {
 	if (data->packets==0)
 		return;
-	printf( format, data->response, data->packets); 		
+	printf( format, data->response, data->packets);
 }
 
 static void
@@ -104,9 +104,9 @@ rtsp_draw_hash_responses( gint * key _U_ , rtsp_response_code_t *data, char * fo
 	/* "     RTSP %3d %-35s %9d packets", */
 	printf(format,  data->response_code, data->name, data->packets );
 }
-		
 
-		
+
+
 /* NOT USED at this moment */
 /*
 static void
@@ -118,12 +118,12 @@ rtsp_free_hash( gpointer key, gpointer value, gpointer user_data _U_ )
 */
 static void
 rtsp_reset_hash_responses(gchar *key _U_ , rtsp_response_code_t *data, gpointer ptr _U_ )
-{	
+{
 	data->packets = 0;
 }
 static void
 rtsp_reset_hash_requests(gchar *key _U_ , rtsp_request_methode_t *data, gpointer ptr _U_ )
-{	
+{
 	data->packets = 0;
 }
 
@@ -150,8 +150,8 @@ rtspstat_packet(void *psp , packet_info *pinfo _U_, epan_dissect_t *edt _U_, con
 		rtsp_response_code_t *sc;
 
 		*key=value->response_code;
-		sc =  (rtsp_response_code_t *)g_hash_table_lookup( 
-				sp->hash_responses, 
+		sc =  (rtsp_response_code_t *)g_hash_table_lookup(
+				sp->hash_responses,
 				key);
 		if (sc==NULL){
 			/* non standard status code ; we classify it as others
@@ -176,19 +176,19 @@ rtspstat_packet(void *psp , packet_info *pinfo _U_, epan_dissect_t *edt _U_, con
 			else{
 				*key=599;
 			}
-			sc =  (rtsp_response_code_t *)g_hash_table_lookup( 
-				sp->hash_responses, 
+			sc =  (rtsp_response_code_t *)g_hash_table_lookup(
+				sp->hash_responses,
 				key);
 			if (sc==NULL)
 				return 0;
 		}
 		sc->packets++;
-	} 
+	}
 	else if (value->request_method){
 		rtsp_request_methode_t *sc;
 
-		sc =  (rtsp_request_methode_t *)g_hash_table_lookup( 
-				sp->hash_requests, 
+		sc =  (rtsp_request_methode_t *)g_hash_table_lookup(
+				sp->hash_requests,
 				value->request_method);
 		if (sc==NULL){
 			sc=g_new(rtsp_request_methode_t,1);
@@ -231,19 +231,19 @@ rtspstat_draw(void *psp  )
 /* When called, this function will create a new instance of gtk_rtspstat.
  */
 static void
-gtk_rtspstat_init(const char *optarg,void* userdata _U_)
+gtk_rtspstat_init(const char *opt_arg,void* userdata _U_)
 {
 	rtspstat_t *sp;
 	const char *filter=NULL;
 	GString	*error_string;
-	
-	if (!strncmp (optarg, "rtsp,stat,", 10)){
-		filter=optarg+10;
+
+	if (!strncmp (opt_arg, "rtsp,stat,", 10)){
+		filter=opt_arg+10;
 	} else {
 		filter=NULL;
 	}
-	
-	sp = g_malloc( sizeof(rtspstat_t) );
+
+	sp = (rtspstat_t *)g_malloc( sizeof(rtspstat_t) );
 	if(filter){
 		sp->filter=g_strdup(filter);
 	} else {
@@ -252,7 +252,7 @@ gtk_rtspstat_init(const char *optarg,void* userdata _U_)
 	/*g_hash_table_foreach( rtsp_status, (GHFunc)rtsp_reset_hash_responses, NULL);*/
 
 
-	error_string = register_tap_listener( 
+	error_string = register_tap_listener(
 			"rtsp",
 			sp,
 			filter,

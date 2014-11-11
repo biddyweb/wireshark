@@ -1,7 +1,5 @@
 /* qt_ui_utils.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,8 @@
 
 #include <wsutil/str_util.h>
 
+#include <QFontDatabase>
+
 /* Make the format_size_flags_e enum usable in C++ */
 format_size_flags_e operator|(format_size_flags_e lhs, format_size_flags_e rhs) {
     return (format_size_flags_e) ((int)lhs| (int)rhs);
@@ -51,6 +51,26 @@ QString gchar_free_to_qstring(gchar *glib_string) {
     QString *qt_string = new QString(glib_string);
     g_free(glib_string);
     return *qt_string;
+}
+
+void smooth_font_size(QFont &font) {
+    QFontDatabase fdb;
+#if QT_VERSION < QT_VERSION_CHECK(4, 8, 0)
+    QList<int> size_list = fdb.smoothSizes(font.family(), "");
+#else
+    QList<int> size_list = fdb.smoothSizes(font.family(), font.styleName());
+#endif
+
+    if (size_list.size() < 2) return;
+
+    int last_size = size_list.takeFirst();
+    foreach (int cur_size, size_list) {
+        if (font.pointSize() > last_size && font.pointSize() <= cur_size) {
+            font.setPointSize(cur_size);
+            return;
+        }
+        last_size = cur_size;
+    }
 }
 
 /*

@@ -2,8 +2,6 @@
  *
  * Routines to dissect WTLS component of WAP traffic.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,6 +36,9 @@
 #include <epan/packet.h>
 #include "packet-wap.h"
 #include "packet-wtls.h"
+
+void proto_register_wtls(void);
+void proto_reg_handoff_wtls(void);
 
 /* File scoped variables for the protocol and registered fields */
 static int proto_wtls = HF_EMPTY;
@@ -331,17 +332,14 @@ dissect_wtls(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	proto_tree *wtls_rec_tree;
 	proto_tree *wtls_msg_type_tree;
 
-	if (check_col(pinfo->cinfo, COL_PROTOCOL))
+	switch ( pinfo->match_uint )
 	{
-		switch ( pinfo->match_uint )
-		{
-			case UDP_PORT_WTLS_WSP:
-				col_set_str(pinfo->cinfo, COL_PROTOCOL, "WTLS+WSP" );
-				break;
-			case UDP_PORT_WTLS_WTP_WSP:
-				col_set_str(pinfo->cinfo, COL_PROTOCOL, "WTLS+WTP+WSP" );
-				break;
-		}
+		case UDP_PORT_WTLS_WSP:
+			col_set_str(pinfo->cinfo, COL_PROTOCOL, "WTLS+WSP" );
+			break;
+		case UDP_PORT_WTLS_WTP_WSP:
+			col_set_str(pinfo->cinfo, COL_PROTOCOL, "WTLS+WTP+WSP" );
+			break;
 	}
 
 	/* Develop the string to put in the Info column */
@@ -469,7 +467,7 @@ add_session_id(proto_tree *tree, int hf, int hf_str, tvbuff_t *tvb, int offset)
 	} else {
 		hfinfo = proto_registrar_get_nth(hf);
 		proto_tree_add_text (tree, tvb, offset, count+1, "%s: %s",
-		    hfinfo->name, tvb_bytes_to_str(tvb, offset+1, count));
+		    hfinfo->name, tvb_bytes_to_ep_str(tvb, offset+1, count));
 	}
 	return offset+1+count;
 }
@@ -794,10 +792,10 @@ dissect_wtls_handshake(proto_tree *tree, tvbuff_t *tvb, guint offset, guint coun
 			offset+=1;
 			for (;count > 0;count-=client_size) {
 			       value = tvb_get_guint8 (tvb, offset);
-			       valBulk = match_strval_ext(value, &wtls_vals_cipher_bulk_ext);
+			       valBulk = try_val_to_str_ext(value, &wtls_vals_cipher_bulk_ext);
 			       offset++;
 			       client_size=1;
-			       valMac = match_strval_ext(tvb_get_guint8 (tvb, offset), &wtls_vals_cipher_mac_ext);
+			       valMac = try_val_to_str_ext(tvb_get_guint8 (tvb, offset), &wtls_vals_cipher_mac_ext);
 			       if (valBulk != NULL)
 			       {
 				       if (valMac != NULL)

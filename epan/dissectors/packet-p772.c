@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-p772.c                                                              */
 /* ../../tools/asn2wrs.py -b -C -p p772 -c ./p772.cnf -s ./packet-p772-template -D . -O ../../epan/dissectors MMSAbstractService.asn MMSInformationObjects.asn MMSOtherNotificationTypeExtensions.asn MMSObjectIdentifiers.asn MMSHeadingExtensions.asn MMSUpperBounds.asn MMSExtendedBodyPartTypes.asn MMSPerRecipientSpecifierExtensions.asn */
 
@@ -9,8 +9,6 @@
 /* packet-p772.c
  * Routines for STANAG 4406 (X.400 Military Message Extensions)  packet dissection
  * Graeme Lunt 2005
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -42,12 +40,16 @@
 #include "packet-x509if.h"
 
 #include "packet-p772.h"
-#include "packet-p1.h" 
-#include "packet-p22.h" 
+#include "packet-p1.h"
+#include "packet-p22.h"
 
 #define PNAME  "STANAG 4406 Message"
 #define PSNAME "P772"
 #define PFNAME "p772"
+
+void proto_register_p772(void);
+void proto_reg_handoff_p772(void);
+
 
 /* Initialize the protocol and registered fields */
 static int proto_p772 = -1;
@@ -162,7 +164,7 @@ static int proto_p772 = -1;
 #define ub_data_size                   65535
 
 /*--- End of included file: packet-p772-val.h ---*/
-#line 48 "../../asn1/p772/packet-p772-template.c"
+#line 50 "../../asn1/p772/packet-p772-template.c"
 
 
 /*--- Included file: packet-p772-hf.c ---*/
@@ -248,7 +250,7 @@ static int hf_p772_Acp127NotificationType_acp127_pn = -1;
 static int hf_p772_Acp127NotificationType_acp127_tn = -1;
 
 /*--- End of included file: packet-p772-hf.c ---*/
-#line 50 "../../asn1/p772/packet-p772-template.c"
+#line 52 "../../asn1/p772/packet-p772-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_p772 = -1;
@@ -284,17 +286,11 @@ static gint ett_p772_MMMessageParameters = -1;
 static gint ett_p772_Acp127NotificationType = -1;
 
 /*--- End of included file: packet-p772-ett.c ---*/
-#line 54 "../../asn1/p772/packet-p772-template.c"
+#line 56 "../../asn1/p772/packet-p772-template.c"
 
 
 /*--- Included file: packet-p772-fn.c ---*/
 #line 1 "../../asn1/p772/packet-p772-fn.c"
-
-static const value_string p772_InformationObject_vals[] = {
-  {   0, "mm" },
-  {   1, "mn" },
-  { 0, NULL }
-};
 
 static const ber_choice_t InformationObject_choice[] = {
   {   0, &hf_p772_mm             , BER_CLASS_CON, 0, BER_FLAGS_IMPLTAG, dissect_p22_IPM },
@@ -499,7 +495,7 @@ dissect_p772_OBJECT_IDENTIFIER(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
 
 static int
 dissect_p772_T_dist_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 99 "../../asn1/p772/p772.cnf"
+#line 100 "../../asn1/p772/p772.cnf"
 /* XXX: not implemented */
   offset = dissect_unknown_ber(actx->pinfo, tvb, offset, tree);
 
@@ -647,12 +643,12 @@ static const value_string p772_PrimaryPrecedence_vals[] = {
 
 static int
 dissect_p772_PrimaryPrecedence(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 105 "../../asn1/p772/p772.cnf"
+#line 106 "../../asn1/p772/p772.cnf"
   int precedence = -1;
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &precedence);
 
-  if((precedence != -1) && check_col(actx->pinfo->cinfo, COL_INFO))
+  if(precedence != -1)
    col_append_fstr(actx->pinfo->cinfo, COL_INFO, " (primary=%s)", val_to_str(precedence, p772_PrimaryPrecedence_vals, "precedence(%d)"));
 
 
@@ -677,12 +673,12 @@ static const value_string p772_CopyPrecedence_vals[] = {
 
 static int
 dissect_p772_CopyPrecedence(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 113 "../../asn1/p772/p772.cnf"
+#line 114 "../../asn1/p772/p772.cnf"
   int precedence = -1;
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &precedence);
 
-  if((precedence != -1) && check_col(actx->pinfo->cinfo, COL_INFO))
+  if(precedence != -1)
    col_append_fstr(actx->pinfo->cinfo, COL_INFO, " (copy=%s)", val_to_str(precedence, p772_CopyPrecedence_vals, "precedence(%d)"));
 
 
@@ -1235,7 +1231,7 @@ static void dissect_Acp127NotificationType_PDU(tvbuff_t *tvb _U_, packet_info *p
 
 
 /*--- End of included file: packet-p772-fn.c ---*/
-#line 56 "../../asn1/p772/packet-p772-template.c"
+#line 58 "../../asn1/p772/packet-p772-template.c"
 
 
 /*
@@ -1277,7 +1273,7 @@ void proto_register_p772(void) {
         FT_UINT32, BASE_DEC, VALS(p22_InformationObject_vals), 0,
         NULL, HFILL }},
     { &hf_p772_Acp127NotificationResponse_PDU,
-      { "Acp127NotificationResponse", "p772.Acp127NotificationResponse",
+      { "Acp127NotificationResponse", "p772.Acp127NotificationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_ExemptedAddressSeq_PDU,
@@ -1289,7 +1285,7 @@ void proto_register_p772(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_DistributionCodes_PDU,
-      { "DistributionCodes", "p772.DistributionCodes",
+      { "DistributionCodes", "p772.DistributionCodes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_HandlingInstructions_PDU,
@@ -1317,7 +1313,7 @@ void proto_register_p772(void) {
         FT_INT32, BASE_DEC, VALS(p772_CopyPrecedence_vals), 0,
         NULL, HFILL }},
     { &hf_p772_MessageType_PDU,
-      { "MessageType", "p772.MessageType",
+      { "MessageType", "p772.MessageType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_AddressListDesignatorSeq_PDU,
@@ -1341,7 +1337,7 @@ void proto_register_p772(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_SecurityInformationLabels_PDU,
-      { "SecurityInformationLabels", "p772.SecurityInformationLabels",
+      { "SecurityInformationLabels", "p772.SecurityInformationLabels_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_PriorityLevelQualifier_PDU,
@@ -1365,7 +1361,7 @@ void proto_register_p772(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_ForwardedEncryptedParameters_PDU,
-      { "ForwardedEncryptedParameters", "p772.ForwardedEncryptedParameters",
+      { "ForwardedEncryptedParameters", "p772.ForwardedEncryptedParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_ForwardedEncryptedData_PDU,
@@ -1373,11 +1369,11 @@ void proto_register_p772(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_MMMessageParameters_PDU,
-      { "MMMessageParameters", "p772.MMMessageParameters",
+      { "MMMessageParameters", "p772.MMMessageParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_MMMessageData_PDU,
-      { "MMMessageData", "p772.MMMessageData",
+      { "MMMessageData", "p772.MMMessageData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_ACP127DataParameters_PDU,
@@ -1393,11 +1389,11 @@ void proto_register_p772(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_mm,
-      { "mm", "p772.mm",
+      { "mm", "p772.mm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "IPM", HFILL }},
     { &hf_p772_mn,
-      { "mn", "p772.mn",
+      { "mn", "p772.mn_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "IPN", HFILL }},
     { &hf_p772_acp127_notification_type,
@@ -1421,11 +1417,11 @@ void proto_register_p772(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "Acp127SuppInfo", HFILL }},
     { &hf_p772_AddressListIndicator_item,
-      { "AddressListDesignator", "p772.AddressListDesignator",
+      { "AddressListDesignator", "p772.AddressListDesignator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_ExemptedAddressSeq_item,
-      { "ExemptedAddress", "p772.ExemptedAddress",
+      { "ExemptedAddress", "p772.ExemptedAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_sics,
@@ -1441,7 +1437,7 @@ void proto_register_p772(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_DistributionExtensionField", HFILL }},
     { &hf_p772_dist_Extensions_item,
-      { "DistributionExtensionField", "p772.DistributionExtensionField",
+      { "DistributionExtensionField", "p772.DistributionExtensionField_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_dist_type,
@@ -1449,7 +1445,7 @@ void proto_register_p772(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_p772_dist_value,
-      { "dist-value", "p772.dist_value",
+      { "dist-value", "p772.dist_value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_dist_value", HFILL }},
     { &hf_p772_HandlingInstructions_item,
@@ -1469,7 +1465,7 @@ void proto_register_p772(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "MessageIdentifier", HFILL }},
     { &hf_p772_AddressListDesignatorSeq_item,
-      { "AddressListDesignator", "p772.AddressListDesignator",
+      { "AddressListDesignator", "p772.AddressListDesignator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_address_list_type,
@@ -1477,7 +1473,7 @@ void proto_register_p772(void) {
         FT_INT32, BASE_DEC, VALS(p772_AddressListType_vals), 0,
         "AddressListType", HFILL }},
     { &hf_p772_listName,
-      { "listName", "p772.listName",
+      { "listName", "p772.listName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ORDescriptor", HFILL }},
     { &hf_p772_notificationRequest,
@@ -1489,7 +1485,7 @@ void proto_register_p772(void) {
         FT_INT32, BASE_DEC, VALS(p772_AddressListRequest_vals), 0,
         "AddressListRequest", HFILL }},
     { &hf_p772_OtherRecipientDesignatorSeq_item,
-      { "OtherRecipientDesignator", "p772.OtherRecipientDesignator",
+      { "OtherRecipientDesignator", "p772.OtherRecipientDesignator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_other_recipient_type,
@@ -1501,7 +1497,7 @@ void proto_register_p772(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "MilitaryString", HFILL }},
     { &hf_p772_PilotInformationSeq_item,
-      { "PilotInformation", "p772.PilotInformation",
+      { "PilotInformation", "p772.PilotInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_pilotPrecedence,
@@ -1513,11 +1509,11 @@ void proto_register_p772(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_ORDescriptor", HFILL }},
     { &hf_p772_pilotRecipient_item,
-      { "ORDescriptor", "p772.ORDescriptor",
+      { "ORDescriptor", "p772.ORDescriptor_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_pilotSecurity,
-      { "pilotSecurity", "p772.pilotSecurity",
+      { "pilotSecurity", "p772.pilotSecurity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SecurityLabel", HFILL }},
     { &hf_p772_pilotHandling,
@@ -1529,11 +1525,11 @@ void proto_register_p772(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_content_security_label,
-      { "content-security-label", "p772.content_security_label",
+      { "content-security-label", "p772.content_security_label_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SecurityLabel", HFILL }},
     { &hf_p772_heading_security_label,
-      { "heading-security-label", "p772.heading_security_label",
+      { "heading-security-label", "p772.heading_security_label_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SecurityLabel", HFILL }},
     { &hf_p772_body_part_security_labels,
@@ -1541,11 +1537,11 @@ void proto_register_p772(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_BodyPartSecurityLabel", HFILL }},
     { &hf_p772_body_part_security_labels_item,
-      { "BodyPartSecurityLabel", "p772.BodyPartSecurityLabel",
+      { "BodyPartSecurityLabel", "p772.BodyPartSecurityLabel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p772_body_part_security_label,
-      { "body-part-security-label", "p772.body_part_security_label",
+      { "body-part-security-label", "p772.body_part_security_label_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SecurityLabel", HFILL }},
     { &hf_p772_body_part_sequence_number,
@@ -1569,7 +1565,7 @@ void proto_register_p772(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "MessageDeliveryTime", HFILL }},
     { &hf_p772_delivery_envelope,
-      { "delivery-envelope", "p772.delivery_envelope",
+      { "delivery-envelope", "p772.delivery_envelope_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OtherMessageDeliveryFields", HFILL }},
     { &hf_p772_Acp127NotificationType_acp127_nn,
@@ -1586,7 +1582,7 @@ void proto_register_p772(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-p772-hfarr.c ---*/
-#line 90 "../../asn1/p772/packet-p772-template.c"
+#line 92 "../../asn1/p772/packet-p772-template.c"
   };
 
   /* List of subtrees */
@@ -1624,7 +1620,7 @@ void proto_register_p772(void) {
     &ett_p772_Acp127NotificationType,
 
 /*--- End of included file: packet-p772-ettarr.c ---*/
-#line 96 "../../asn1/p772/packet-p772-template.c"
+#line 98 "../../asn1/p772/packet-p772-template.c"
   };
 
   /* Register protocol */
@@ -1635,7 +1631,7 @@ void proto_register_p772(void) {
   proto_register_field_array(proto_p772, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
 
-  register_ber_syntax_dissector("STANAG 4406", proto_p772, dissect_p772); 
+  register_ber_syntax_dissector("STANAG 4406", proto_p772, dissect_p772);
   register_ber_oid_syntax(".p772", NULL, "STANAG 4406");
 }
 
@@ -1678,7 +1674,7 @@ void proto_reg_handoff_p772(void) {
 
 
 /*--- End of included file: packet-p772-dis-tab.c ---*/
-#line 114 "../../asn1/p772/packet-p772-template.c"
+#line 116 "../../asn1/p772/packet-p772-template.c"
 
   register_ber_oid_dissector("1.3.26.0.4406.0.4.1", dissect_p772, proto_p772, "STANAG 4406");
 }

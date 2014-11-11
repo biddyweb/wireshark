@@ -1,8 +1,6 @@
 /* filter_expression_save_dlg.h
  * Submitted by Edwin Groothuis <wireshark@mavetju.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,13 +30,6 @@ enum {
 	FILTER_EXPRESSION_REINIT_DESTROY = 1,
 	FILTER_EXPRESSION_REINIT_CREATE = 2
 };
-
-/** User requested to shift the time of the trace
- *
- * @param widget parent widget (unused)
- * @param data unused
- * @param action the function to use
- */
 
 extern void filter_expression_save_dlg(gpointer data);
 void filter_expression_save_dlg_init(gpointer filter_tb, gpointer filter_te);

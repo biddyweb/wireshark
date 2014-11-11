@@ -1,8 +1,6 @@
 /* text_page.h
  * Declarations of routine to construct a simple text page from a file.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -44,3 +42,16 @@ extern GtkWidget * text_page_new(const char *absolute_path);
 extern void text_page_redraw(GtkWidget *page, const char *absolute_path);
 
 #endif /* __TEXT_PAGE_H__ */
+
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

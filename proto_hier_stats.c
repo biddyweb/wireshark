@@ -1,8 +1,6 @@
 /* proto_hier_stats.c
  * Routines for calculating statistics based on protocol.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,7 @@
 
 #include "globals.h"
 #include "proto_hier_stats.h"
+#include "frame_tvbuff.h"
 #include "ui/progress_dlg.h"
 #include <epan/epan_dissect.h>
 #include <wtap.h>
@@ -137,37 +136,41 @@ process_tree(proto_tree *protocol_tree, ph_stats_t* ps, guint pkt_len)
 }
 
 static gboolean
-process_frame(frame_data *frame, column_info *cinfo, ph_stats_t* ps)
+process_record(frame_data *frame, column_info *cinfo, ph_stats_t* ps)
 {
 	epan_dissect_t			edt;
 	struct wtap_pkthdr              phdr;
-	guint8				pd[WTAP_MAX_PACKET_SIZE];
+	Buffer				buf;
 	double				cur_time;
 
-	/* Load the frame from the capture file */
-	if (!cf_read_frame_r(&cfile, frame, &phdr, pd))
+	memset(&phdr, 0, sizeof(struct wtap_pkthdr));
+
+	/* Load the record from the capture file */
+	buffer_init(&buf, 1500);
+	if (!cf_read_record_r(&cfile, frame, &phdr, &buf))
 		return FALSE;	/* failure */
 
-	/* Dissect the frame   tree  not visible */
-	epan_dissect_init(&edt, TRUE, FALSE);
+	/* Dissect the record   tree  not visible */
+	epan_dissect_init(&edt, cfile.epan, TRUE, FALSE);
 	/* Don't fake protocols. We need them for the protocol hierarchy */
 	epan_dissect_fake_protocols(&edt, FALSE);
-	epan_dissect_run(&edt, &phdr, pd, frame, cinfo);
+	epan_dissect_run(&edt, cfile.cd_t, &phdr, frame_tvbuff_new_buffer(frame, &buf), frame, cinfo);
 
 	/* Get stats from this protocol tree */
 	process_tree(edt.tree, ps, frame->pkt_len);
 
-	/* Update times */
-	cur_time = nstime_to_sec(&frame->abs_ts);
-	if (cur_time < ps->first_time) {
-	  ps->first_time = cur_time;
-	}
-	if (cur_time > ps->last_time){
-	  ps->last_time = cur_time;
+	if (frame->flags.has_ts) {
+		/* Update times */
+		cur_time = nstime_to_sec(&frame->abs_ts);
+		if (cur_time < ps->first_time)
+			ps->first_time = cur_time;
+		if (cur_time > ps->last_time)
+			ps->last_time = cur_time;
 	}
 
 	/* Free our memory. */
 	epan_dissect_cleanup(&edt);
+	buffer_free(&buf);
 
 	return TRUE;	/* success */
 }
@@ -263,14 +266,16 @@ ph_stats_new(void)
 		   look only at those packets. */
 		if (frame->flags.passed_dfilter) {
 
-			if (tot_packets == 0) {
-				double cur_time = nstime_to_sec(&frame->abs_ts);
-				ps->first_time = cur_time;
-				ps->last_time = cur_time;
+			if (frame->flags.has_ts) {
+				if (tot_packets == 0) {
+					double cur_time = nstime_to_sec(&frame->abs_ts);
+					ps->first_time = cur_time;
+					ps->last_time = cur_time;
+				}
 			}
 
 			/* we don't care about colinfo */
-			if (!process_frame(frame, NULL, ps)) {
+			if (!process_record(frame, NULL, ps)) {
 				/*
 				 * Give up, and set "stop_flag" so we
 				 * just abort rather than popping up

@@ -3,8 +3,6 @@
  * Copyright 2000, Christophe Tronche <ch.tronche@computer.org>
  * Copyright 2003, Michael Shuldman
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -57,17 +55,22 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/conversation.h>
 #include <epan/expert.h>
 #include <epan/show_exception.h>
 #include <epan/prefs.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 
 
 #include "packet-x11-keysymdef.h"
 #include "packet-x11.h"
 
+void proto_register_x11(void);
+void proto_reg_handoff_x11(void);
+
 #define cVALS(x) (const value_string*)(x)
+
 
 /*
  * Data structure associated with a conversation; keeps track of the
@@ -159,6 +162,7 @@ static x11_conv_data_t *x11_conv_data_list = NULL;
 
 static GHashTable *extension_table; /* hashtable of extension name <-> dispatch function */
 static GHashTable *event_table;     /* hashtable of extension name <-> event info list */
+static GHashTable *genevent_table;     /* hashtable of extension name <-> generic event info list */
 static GHashTable *error_table;     /* hashtable of extension name <-> error list */
 static GHashTable *reply_table;     /* hashtable of extension name <-> reply list */
 
@@ -200,6 +204,9 @@ static gint ett_x11_configure_window_mask = -1; /* XXX - unused */
 static gint ett_x11_keyboard_value_mask = -1;   /* XXX - unused */
 static gint ett_x11_same_screen_focus = -1;
 static gint ett_x11_event = -1;
+
+static expert_field ei_x11_invalid_format = EI_INIT;
+static expert_field ei_x11_request_length = EI_INIT;
 
 /* desegmentation of X11 messages */
 static gboolean x11_desegment = TRUE;
@@ -880,6 +887,7 @@ static const value_string opcode_vals[] = {
 #define ColormapNotify          32
 #define ClientMessage           33
 #define MappingNotify           34
+#define GenericEvent            35
 
 static const value_string eventcode_vals[] = {
       { KeyPress,          "KeyPress" },
@@ -915,6 +923,7 @@ static const value_string eventcode_vals[] = {
       { ColormapNotify,    "ColormapNotify" },
       { ClientMessage,     "ClientMessage" },
       { MappingNotify,     "MappingNotify" },
+      { GenericEvent,      "GenericEvent" },
       { 0,                 NULL }
 };
 
@@ -1065,6 +1074,7 @@ static const value_string zero_is_none_vals[] = {
 #define VALUE8(tvb, offset) (tvb_get_guint8(tvb, offset))
 #define VALUE16(tvb, offset) (byte_order == ENC_BIG_ENDIAN ? tvb_get_ntohs(tvb, offset) : tvb_get_letohs(tvb, offset))
 #define VALUE32(tvb, offset) (byte_order == ENC_BIG_ENDIAN ? tvb_get_ntohl(tvb, offset) : tvb_get_letohl(tvb, offset))
+#define VALUE64(tvb, offset) (byte_order == ENC_BIG_ENDIAN ? tvb_get_ntoh64(tvb, offset) : tvb_get_letoh64(tvb, offset))
 #define FLOAT(tvb, offset) (byte_order == ENC_BIG_ENDIAN ? tvb_get_ntohieee_float(tvb, offset) : tvb_get_letohieee_float(tvb, offset))
 #define DOUBLE(tvb, offset) (byte_order == ENC_BIG_ENDIAN ? tvb_get_ntohieee_double(tvb, offset) : tvb_get_letohieee_double(tvb, offset))
 
@@ -1183,9 +1193,8 @@ static const value_string zero_is_none_vals[] = {
 #define LISTofTEXTITEM16(name) { listOfTextItem(tvb, offsetp, t, hf_x11_##name, TRUE, next_offset, byte_order); }
 #define OPCODE() {                                                \
       opcode = VALUE8(tvb, *offsetp);                             \
-      proto_tree_add_uint_format(t, hf_x11_opcode, tvb, *offsetp, \
-            1, opcode,  "opcode: %u (%s)", opcode,                \
-            val_to_str_const(opcode, state->opcode_vals, "Unknown"));   \
+      proto_tree_add_uint(t, hf_x11_opcode, tvb, *offsetp,        \
+            1, opcode);                                           \
       *offsetp += 1;                                              \
   }
 
@@ -1263,8 +1272,7 @@ static const value_string zero_is_none_vals[] = {
       next_tvb = tvb_new_subset(tvb, offset, length_remaining, plen); \
                                                                       \
       if (sep == NULL) {                                              \
-            if (check_col(pinfo->cinfo, COL_INFO))                    \
-                  col_set_str(pinfo->cinfo, COL_INFO, str);           \
+            col_set_str(pinfo->cinfo, COL_INFO, str);                 \
             sep = ":";                                                \
       }                                                               \
                                                                       \
@@ -1331,7 +1339,7 @@ static void atom(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
       else {
             header_field_info *hfi = proto_registrar_get_nth(hf);
             if (hfi -> strings)
-                  interpretation = match_strval(v, cVALS(hfi -> strings));
+                  interpretation = try_val_to_str(v, cVALS(hfi -> strings));
       }
       if (!interpretation) interpretation = "error in Xlib client program ?";
       proto_tree_add_uint_format(t, hf, tvb, *offsetp, 4, v, "%s: %u (%s)",
@@ -1355,31 +1363,32 @@ static void colorFlags(tvbuff_t *tvb, int *offsetp, proto_tree *t)
 
       if (do_red_green_blue) {
             int sep = FALSE;
-            emem_strbuf_t *buffer = ep_strbuf_new_label("flags: ");
+            wmem_strbuf_t *buffer = wmem_strbuf_new_label(wmem_packet_scope());
+            wmem_strbuf_append(buffer, "flags: ");
 
             if (do_red_green_blue & 0x1) {
-                  ep_strbuf_append(buffer, "DoRed");
+                  wmem_strbuf_append(buffer, "DoRed");
                   sep = TRUE;
             }
 
             if (do_red_green_blue & 0x2) {
-                  if (sep) ep_strbuf_append(buffer, " | ");
-                  ep_strbuf_append(buffer, "DoGreen");
+                  if (sep) wmem_strbuf_append(buffer, " | ");
+                  wmem_strbuf_append(buffer, "DoGreen");
                   sep = TRUE;
             }
 
             if (do_red_green_blue & 0x4) {
-                  if (sep) ep_strbuf_append(buffer, " | ");
-                  ep_strbuf_append(buffer, "DoBlue");
+                  if (sep) wmem_strbuf_append(buffer, " | ");
+                  wmem_strbuf_append(buffer, "DoBlue");
                   sep = TRUE;
             }
 
             if (do_red_green_blue & 0xf8) {
-                  if (sep) ep_strbuf_append(buffer, " + trash");
+                  if (sep) wmem_strbuf_append(buffer, " + trash");
             }
 
             ti = proto_tree_add_uint_format(t, hf_x11_coloritem_flags, tvb, *offsetp, 1, do_red_green_blue,
-                                            "%s", buffer->str);
+                                            "%s", wmem_strbuf_get_str(buffer));
             tt = proto_item_add_subtree(ti, ett_x11_color_flags);
             if (do_red_green_blue & 0x1)
                   proto_tree_add_boolean(tt, hf_x11_coloritem_flags_do_red, tvb, *offsetp, 1,
@@ -1507,6 +1516,30 @@ static void listOfInt32(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
       }
 }
 
+#if 0 /* Not yet used by any extension */
+static void listOfCard64(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
+                         int hf_item, int length, guint byte_order)
+{
+      proto_item *ti = proto_tree_add_item(t, hf, tvb, *offsetp, length * 8, byte_order);
+      proto_tree *tt = proto_item_add_subtree(ti, ett_x11_list_of_card32);
+      while(length--) {
+            proto_tree_add_uint(tt, hf_item, tvb, *offsetp, 8, VALUE64(tvb, *offsetp));
+            *offsetp += 8;
+      }
+}
+
+static void listOfInt64(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
+                         int hf_item, int length, guint byte_order)
+{
+      proto_item *ti = proto_tree_add_item(t, hf, tvb, *offsetp, length * 8, byte_order);
+      proto_tree *tt = proto_item_add_subtree(ti, ett_x11_list_of_card32);
+      while(length--) {
+            proto_tree_add_int(tt, hf_item, tvb, *offsetp, 8, VALUE64(tvb, *offsetp));
+            *offsetp += 8;
+      }
+}
+#endif
+
 static void listOfFloat(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
                          int hf_item, int length, guint byte_order)
 {
@@ -1539,10 +1572,11 @@ static void listOfColorItem(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
             proto_tree *ttt;
             guint do_red_green_blue;
             guint16 red, green, blue;
-            emem_strbuf_t *buffer;
+            wmem_strbuf_t *buffer;
             const char *sep;
 
-            buffer=ep_strbuf_new_label("colorItem ");
+            buffer=wmem_strbuf_new_label(wmem_packet_scope());
+            wmem_strbuf_append(buffer, "colorItem ");
             red = VALUE16(tvb, *offsetp + 4);
             green = VALUE16(tvb, *offsetp + 6);
             blue = VALUE16(tvb, *offsetp + 8);
@@ -1550,17 +1584,17 @@ static void listOfColorItem(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
 
             sep = "";
             if (do_red_green_blue & 0x1) {
-                ep_strbuf_append_printf(buffer, "red = %d", red);
+                wmem_strbuf_append_printf(buffer, "red = %d", red);
                 sep = ", ";
             }
             if (do_red_green_blue & 0x2) {
-                ep_strbuf_append_printf(buffer, "%sgreen = %d", sep, green);
+                wmem_strbuf_append_printf(buffer, "%sgreen = %d", sep, green);
                 sep = ", ";
             }
             if (do_red_green_blue & 0x4)
-                ep_strbuf_append_printf(buffer, "%sblue = %d", sep, blue);
+                wmem_strbuf_append_printf(buffer, "%sblue = %d", sep, blue);
 
-            tti = proto_tree_add_none_format(tt, hf_x11_coloritem, tvb, *offsetp, 12, "%s", buffer->str);
+            tti = proto_tree_add_none_format(tt, hf_x11_coloritem, tvb, *offsetp, 12, "%s", wmem_strbuf_get_str(buffer));
             ttt = proto_item_add_subtree(tti, ett_x11_color_item);
             proto_tree_add_item(ttt, hf_x11_coloritem_pixel, tvb, *offsetp, 4, byte_order);
             *offsetp += 4;
@@ -1860,7 +1894,7 @@ keycode2keysymString(int *keycodemap[256], int first_keycode,
       if (keysym == XK_VoidSymbol)
             keysym = NoSymbol;
 
-      return ep_strdup_printf("%d, \"%s\"", keysym, keysymString(keysym));
+      return wmem_strdup_printf(wmem_packet_scope(), "%d, \"%s\"", keysym, keysymString(keysym));
 #endif
 }
 
@@ -1902,7 +1936,7 @@ static void listOfKeycode(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
             int i;
 
             p = tvb_get_ptr(tvb, *offsetp, keycodes_per_modifier);
-            modifiermap[m] =
+            modifiermap[m] = (int *)
                 g_malloc(sizeof(*modifiermap[m]) * keycodes_per_modifier);
 
             tikc = proto_tree_add_bytes_format(tt, hf_x11_keycodes_item, tvb,
@@ -1947,7 +1981,7 @@ static void listOfKeysyms(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
 
             tvb_ensure_bytes_exist(tvb, *offsetp, 4 * keysyms_per_keycode);
             keycodemap[keycode]
-                  = g_malloc(sizeof(*keycodemap[keycode]) * keysyms_per_keycode);
+                  =  (int *)g_malloc(sizeof(*keycodemap[keycode]) * keysyms_per_keycode);
 
             for(i = 0; i < keysyms_per_keycode; ++i) {
                   /* keysymvalue = byte3 * 256 + byte4. */
@@ -2096,7 +2130,7 @@ static void listOfString8(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
 
       while(length--) {
             guint l = VALUE8(tvb, *offsetp);
-            s = tvb_get_ephemeral_string(tvb, *offsetp + 1, l);
+            s = tvb_get_string(wmem_packet_scope(), tvb, *offsetp + 1, l);
             proto_tree_add_string_format(tt, hf_item, tvb, *offsetp, l + 1, s, "\"%s\"", s);
             *offsetp += l + 1;
       }
@@ -2133,7 +2167,7 @@ static void string16_with_buffer_preallocated(tvbuff_t *tvb, proto_tree *t,
                   l = STRING16_MAX_DISPLAYED_LENGTH;
             }
 
-            *s = ep_alloc(l + 3);
+            *s = (char *)wmem_alloc(wmem_packet_scope(), l + 3);
             dp = *s;
             *dp++ = '"';
             if (truncated) l -= 3;
@@ -2149,8 +2183,10 @@ static void string16_with_buffer_preallocated(tvbuff_t *tvb, proto_tree *t,
             if (truncated) { *dp++ = '.'; *dp++ = '.'; *dp++ = '.'; }
 
             *dp++ = '\0';
-            proto_tree_add_string_format(t, hf, tvb, offset, length, (gchar *)tvb_get_ptr(tvb, offset, length), "%s: %s",
-                                        proto_registrar_get_nth(hf) -> name, *s);
+            proto_tree_add_string_format_value(t, hf, tvb, offset, length,
+                                         (const gchar *)tvb_get_ptr(tvb, offset, length),
+                                         "%s",
+                                         *s);
       } else
             proto_tree_add_item(t, hf_bytes, tvb, offset, length, byte_order);
 
@@ -2192,7 +2228,7 @@ static void listOfTextItem(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
                   proto_tree *ttt;
                   gint8 delta = VALUE8(tvb, *offsetp + 1);
                   if (sizeIs16) l += l;
-                  s = tvb_get_ephemeral_string(tvb, *offsetp + 2, l);
+                  s = tvb_get_string(wmem_packet_scope(), tvb, *offsetp + 2, l);
                   tti = proto_tree_add_none_format(tt, hf_x11_textitem_string, tvb, *offsetp, l + 2,
                                                        "textitem (string): delta = %d, \"%s\"",
                                                        delta, s);
@@ -2219,7 +2255,7 @@ static guint32 field8(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
       const gchar *enumValue = NULL;
 
       if (hfi -> strings)
-            enumValue = match_strval(v, cVALS(hfi -> strings));
+            enumValue = try_val_to_str(v, cVALS(hfi -> strings));
       if (enumValue)
             proto_tree_add_uint_format(t, hf, tvb, *offsetp, 1, v,
             hfi -> display == BASE_DEC ? "%s: %u (%s)" : "%s: 0x%02x (%s)",
@@ -2238,7 +2274,7 @@ static guint32 field16(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
       const gchar *enumValue = NULL;
 
       if (hfi -> strings)
-            enumValue = match_strval(v, cVALS(hfi -> strings));
+            enumValue = try_val_to_str(v, cVALS(hfi -> strings));
       if (enumValue)
             proto_tree_add_uint_format(t, hf, tvb, *offsetp, 2, v,
             hfi -> display == BASE_DEC ? "%s: %u (%s)" : "%s: 0x%02x (%s)",
@@ -2258,7 +2294,7 @@ static guint32 field32(tvbuff_t *tvb, int *offsetp, proto_tree *t, int hf,
       const gchar *nameAsChar = hfi -> name;
 
       if (hfi -> strings)
-            enumValue = match_strval(v, cVALS(hfi -> strings));
+            enumValue = try_val_to_str(v, cVALS(hfi -> strings));
       if (enumValue)
             proto_tree_add_uint_format(t, hf, tvb, *offsetp, 4, v,
                                        hfi -> display == BASE_DEC ? "%s: %u (%s)" : "%s: 0x%08x (%s)",
@@ -3002,14 +3038,22 @@ typedef struct event_info {
       void (*dissect)(tvbuff_t *tvb, int *offsetp, proto_tree *t, guint byte_order);
 } x11_event_info;
 
+typedef struct x11_generic_event_info {
+      const guint16 minor;
+      void (*dissect)(tvbuff_t *tvb, int length, int *offsetp, proto_tree *t, guint byte_order);
+} x11_generic_event_info;
+
 static void set_handler(const char *name, void (*func)(tvbuff_t *tvb, packet_info *pinfo, int *offsetp, proto_tree *t, guint byte_order),
                         const char **errors,
                         const x11_event_info *event_info,
+                        const x11_generic_event_info *genevent_info,
                         const x11_reply_info *reply_info)
 {
       g_hash_table_insert(extension_table, (gpointer)name, (gpointer)func);
       g_hash_table_insert(error_table, (gpointer)name, (gpointer)errors);
       g_hash_table_insert(event_table, (gpointer)name, (gpointer)event_info);
+      if (genevent_info)
+          g_hash_table_insert(genevent_table, (gpointer)name, (gpointer)genevent_info);
       g_hash_table_insert(reply_table, (gpointer)name, (gpointer)reply_info);
 }
 
@@ -3037,11 +3081,11 @@ static void tryExtension(int opcode, tvbuff_t *tvb, packet_info *pinfo, int *off
       const gchar *extension;
       void (*func)(tvbuff_t *tvb, packet_info *pinfo, int *offsetp, proto_tree *t, guint byte_order);
 
-      extension = match_strval(opcode, state->opcode_vals);
+      extension = try_val_to_str(opcode, state->opcode_vals);
       if (!extension)
             return;
 
-      func = g_hash_table_lookup(extension_table, extension);
+      func = (void (*)(tvbuff_t *, packet_info *, int *, proto_tree *, guint))g_hash_table_lookup(extension_table, extension);
       if (func)
             func(tvb, pinfo, offsetp, t, byte_order);
 }
@@ -3051,7 +3095,7 @@ static void tryExtensionReply(int opcode, tvbuff_t *tvb, packet_info *pinfo, int
 {
       void (*func)(tvbuff_t *tvb, packet_info *pinfo, int *offsetp, proto_tree *t, guint byte_order);
 
-      func = g_hash_table_lookup(state->reply_funcs, GINT_TO_POINTER(opcode));
+      func = (void (*)(tvbuff_t *, packet_info *, int *, proto_tree *, guint))g_hash_table_lookup(state->reply_funcs, GINT_TO_POINTER(opcode));
       if (func)
             func(tvb, pinfo, offsetp, t, byte_order);
       else
@@ -3063,9 +3107,52 @@ static void tryExtensionEvent(int event, tvbuff_t *tvb, int *offsetp, proto_tree
 {
       void (*func)(tvbuff_t *tvb, int *offsetp, proto_tree *t, guint byte_order);
 
-      func = g_hash_table_lookup(state->eventcode_funcs, GINT_TO_POINTER(event));
+      func = (void (*)(tvbuff_t *, int *, proto_tree *, guint))g_hash_table_lookup(state->eventcode_funcs, GINT_TO_POINTER(event));
       if (func)
             func(tvb, offsetp, t, byte_order);
+}
+
+static void tryGenericExtensionEvent(tvbuff_t *tvb, int *offsetp, proto_tree *t,
+                                     x11_conv_data_t *state, guint byte_order)
+{
+      const gchar *extname;
+      int extension, length;
+
+      extension = VALUE8(tvb, *offsetp);
+      (*offsetp)++;
+      extname = try_val_to_str(extension, state->opcode_vals);
+
+      if (extname) {
+          proto_tree_add_uint_format(t, hf_x11_extension, tvb, *offsetp, 1, extension, "extension: %d (%s)", extension, extname);
+      } else {
+          proto_tree_add_uint(t, hf_x11_extension, tvb, *offsetp, 1, extension);
+      }
+
+      CARD16(event_sequencenumber);
+
+      length = REPLYLENGTH(eventlength);
+      length = length * 4 + 32;
+      *offsetp += 4;
+
+      if (extname) {
+          x11_generic_event_info *info;
+          info = (x11_generic_event_info *)g_hash_table_lookup(genevent_table, extname);
+
+          if (info) {
+              int i;
+
+              int opcode = VALUE16(tvb, *offsetp);
+
+              for (i = 0; info[i].dissect != NULL; i++) {
+                  if (info[i].minor == opcode) {
+                      *offsetp += 2;
+                      info[i].dissect(tvb, length, offsetp, t, byte_order);
+                      return;
+                  }
+              }
+          }
+      }
+      CARD16(minor_opcode);
 }
 
 static void register_extension(x11_conv_data_t *state, value_string *vals_p,
@@ -3078,7 +3165,7 @@ static void register_extension(x11_conv_data_t *state, value_string *vals_p,
 
       vals_p->value = major_opcode;
 
-      error_string = g_hash_table_lookup(error_table, vals_p->strptr);
+      error_string = (const char **)g_hash_table_lookup(error_table, vals_p->strptr);
       while (error_string && *error_string && first_error <= LastExtensionError) {
             /* store string of extension error */
             for (i = 0; i <= LastExtensionError; i++) {
@@ -3096,7 +3183,7 @@ static void register_extension(x11_conv_data_t *state, value_string *vals_p,
             error_string++;
       }
 
-      event_info = g_hash_table_lookup(event_table, vals_p->strptr);
+      event_info = (x11_event_info *)g_hash_table_lookup(event_table, vals_p->strptr);
       while (event_info && event_info->name && first_event <= LastExtensionEvent) {
             /* store string of extension event */
             for (i = 0; i <= LastExtensionEvent; i++) {
@@ -3118,7 +3205,7 @@ static void register_extension(x11_conv_data_t *state, value_string *vals_p,
             event_info++;
       }
 
-      reply_info = g_hash_table_lookup(reply_table, vals_p->strptr);
+      reply_info = (x11_reply_info *)g_hash_table_lookup(reply_table, vals_p->strptr);
       if (reply_info)
             for (i = 0; reply_info[i].dissect; i++)
                   g_hash_table_insert(state->reply_funcs,
@@ -3160,10 +3247,9 @@ static void dissect_x11_request(tvbuff_t *tvb, packet_info *pinfo,
 
       OPCODE();
 
-      if (check_col(pinfo->cinfo, COL_INFO))
-            col_append_fstr(pinfo->cinfo, COL_INFO, "%s %s", sep,
-                            val_to_str(opcode, state->opcode_vals,
-                                       "<Unknown opcode %d>"));
+      col_append_fstr(pinfo->cinfo, COL_INFO, "%s %s", sep,
+                    val_to_str(opcode, state->opcode_vals,
+                                "<Unknown opcode %d>"));
 
       proto_item_append_text(ti, ", Request, opcode: %d (%s)",
                              opcode, val_to_str(opcode, state->opcode_vals,
@@ -3179,7 +3265,7 @@ static void dissect_x11_request(tvbuff_t *tvb, packet_info *pinfo,
                   /* necessary processing even if tree == NULL */
 
                   v16 = VALUE16(tvb, 4);
-                  name = tvb_get_seasonal_string(tvb, 8, v16);
+                  name = tvb_get_string(wmem_file_scope(), tvb, 8, v16);
 
                   /* store string of extension, opcode will be set at reply */
                   i = 0;
@@ -3397,7 +3483,7 @@ static void dissect_x11_request(tvbuff_t *tvb, packet_info *pinfo,
                     LISTofCARD32(data32, v32 * 4);
                 break;
             default:
-                expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Invalid Format");
+                expert_add_info(pinfo, ti, &ei_x11_invalid_format);
                 break;
             }
             PAD();
@@ -4327,7 +4413,7 @@ static void dissect_x11_requests(tvbuff_t *tvb, packet_info *pinfo,
             /*
              * Is there state attached to this conversation?
              */
-            if ((state = conversation_get_proto_data(conversation, proto_x11))
+            if ((state = (x11_conv_data_t *)conversation_get_proto_data(conversation, proto_x11))
             == NULL)
                 state = x11_stateinit(conversation);
 
@@ -4553,7 +4639,7 @@ x11_stateinit(conversation_t *conversation)
       static x11_conv_data_t stateinit;
       int i;
 
-      state = g_malloc(sizeof (x11_conv_data_t));
+      state = (x11_conv_data_t *)g_malloc(sizeof (x11_conv_data_t));
       *state = stateinit;
       state->next = x11_conv_data_list;
       x11_conv_data_list = state;
@@ -4622,7 +4708,7 @@ dissect_x11_replies(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       /*
        * Is there state attached to this conversation?
        */
-      if ((state = conversation_get_proto_data(conversation, proto_x11))
+      if ((state = (x11_conv_data_t *)conversation_get_proto_data(conversation, proto_x11))
           == NULL) {
             /*
              * No - create a state structure and attach it.
@@ -4792,16 +4878,14 @@ dissect_x11_reply(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
       }
 
       if (opcode == UNKNOWN_OPCODE) {
-            if (check_col(pinfo->cinfo, COL_INFO))
-                  col_append_fstr(pinfo->cinfo, COL_INFO,
-                                  "%s to unknown request", sep);
+            col_append_fstr(pinfo->cinfo, COL_INFO,
+                            "%s to unknown request", sep);
             proto_item_append_text(ti, ", Reply to unknown request");
       } else {
-            if (check_col(pinfo->cinfo, COL_INFO))
-                  col_append_fstr(pinfo->cinfo, COL_INFO, "%s %s",
-                                  sep,
-                                  val_to_str(opcode & 0xFF, state->opcode_vals,
-                                             "<Unknown opcode %d>"));
+            col_append_fstr(pinfo->cinfo, COL_INFO, "%s %s",
+                            sep,
+                            val_to_str(opcode & 0xFF, state->opcode_vals,
+                                        "<Unknown opcode %d>"));
 
             if (opcode > 0xFF)
                   proto_item_append_text(ti, ", Reply, opcode: %d.%d (%s)",
@@ -4833,7 +4917,7 @@ dissect_x11_reply(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                         break;
                   }
 
-                  vals_p = g_hash_table_lookup(state->valtable,
+                  vals_p = (value_string *)g_hash_table_lookup(state->valtable,
                                                GINT_TO_POINTER(sequence_number));
                   if (vals_p != NULL) {
                         major_opcode = VALUE8(tvb, offset + 9);
@@ -5156,11 +5240,10 @@ dissect_x11_event(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
       eventcode = tvb_get_guint8(tvb, 0);
       sent = (eventcode & 0x80) ? "Sent-" : "";
 
-      if (check_col(pinfo->cinfo, COL_INFO))
-            col_append_fstr(pinfo->cinfo, COL_INFO, "%s %s%s",
-                            sep, sent,
-                            val_to_str(eventcode & 0x7F, state->eventcode_vals,
-                                       "<Unknown eventcode %u>"));
+      col_append_fstr(pinfo->cinfo, COL_INFO, "%s %s%s",
+                    sep, sent,
+                    val_to_str(eventcode & 0x7F, state->eventcode_vals,
+                                "<Unknown eventcode %u>"));
 
       proto_item_append_text(ti, ", Event, eventcode: %d (%s%s)",
                              eventcode, sent,
@@ -5474,6 +5557,10 @@ decode_x11_event(tvbuff_t *tvb, unsigned char eventcode, const char *sent,
                   UNUSED(25);
                   break;
 
+            case GenericEvent:
+                  tryGenericExtensionEvent(tvb, offsetp, t, state, byte_order);
+                  break;
+
             default:
                   tryExtensionEvent(eventcode & 0x7F, tvb, offsetp, t, state, byte_order);
                   break;
@@ -5501,9 +5588,8 @@ dissect_x11_error(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
       CARD8(error);
 
       errorcode = tvb_get_guint8(tvb, offset);
-      if (check_col(pinfo->cinfo, COL_INFO))
-            col_append_fstr(pinfo->cinfo, COL_INFO, "%s %s",
-                            sep, val_to_str(errorcode, state->errorcode_vals, "<Unknown errorcode %u>"));
+      col_append_fstr(pinfo->cinfo, COL_INFO, "%s %s",
+                    sep, val_to_str(errorcode, state->errorcode_vals, "<Unknown errorcode %u>"));
 
       proto_tree_add_uint_format(t, hf_x11_errorcode, tvb, offset, 1,
                                  errorcode,
@@ -5601,7 +5687,14 @@ void proto_register_x11(void)
             &ett_x11_same_screen_focus,
             &ett_x11_event,
       };
+
+      static ei_register_info ei[] = {
+            { &ei_x11_invalid_format, { "x11.invalid_format", PI_PROTOCOL, PI_WARN, "Invalid Format", EXPFILL }},
+            { &ei_x11_request_length, { "x11.request-length.invalid", PI_PROTOCOL, PI_WARN, "Invalid Length", EXPFILL }},
+      };
+
       module_t *x11_module;
+      expert_module_t* expert_x11;
 
 /* Register the protocol name and description */
       proto_x11 = proto_register_protocol("X11", "X11", "x11");
@@ -5609,12 +5702,15 @@ void proto_register_x11(void)
 /* Required function calls to register the header fields and subtrees used */
       proto_register_field_array(proto_x11, hf, array_length(hf));
       proto_register_subtree_array(ett, array_length(ett));
+      expert_x11 = expert_register_protocol(proto_x11);
+      expert_register_field_array(expert_x11, ei, array_length(ei));
 
       register_init_routine(x11_init_protocol);
 
       extension_table = g_hash_table_new(g_str_hash, g_str_equal);
       error_table = g_hash_table_new(g_str_hash, g_str_equal);
       event_table = g_hash_table_new(g_str_hash, g_str_equal);
+      genevent_table = g_hash_table_new(g_str_hash, g_str_equal);
       reply_table = g_hash_table_new(g_str_hash, g_str_equal);
       register_x11_extensions();
 

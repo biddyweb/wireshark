@@ -1,8 +1,6 @@
 /* capture_ui_utils.c
  * Utilities for capture user interfaces
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,7 +34,6 @@
 #include "epan/ex-opt.h"
 #include "capture_ifinfo.h"
 #include "capture_ui_utils.h"
-#include "ui/simple_dialog.h"
 #include "wiretap/wtap.h"
 #include "epan/to_str.h"
 
@@ -223,6 +220,31 @@ capture_dev_user_hassnap_find(const gchar *if_name)
   return (gboolean)hassnap;
 }
 
+gboolean
+capture_dev_user_pmode_find(const gchar *if_name)
+{
+  gchar *p, *next;
+  gboolean pmode;
+
+  if ((prefs.capture_devices_pmode == NULL) ||
+      (*prefs.capture_devices_pmode == '\0')) {
+    /* There is no promiscuous mode defined */
+    return -1;
+  }
+
+  if ((p = strstr(prefs.capture_devices_pmode, if_name)) == NULL) {
+    /* There are, but there isn't one for this interface. */
+    return -1;
+  }
+
+  p += strlen(if_name) + 1;
+  pmode = (gboolean)strtol(p, &next, 10);
+  if (next == p || *next != ')') {
+    /* Syntax error */
+    return -1;
+  }
+  return (gboolean)pmode;
+}
 
 /*
  * Return as descriptive a name for an interface as we can get.
@@ -266,7 +288,7 @@ get_interface_descriptive_name(const char *if_name)
     /* No, we don't have a user-supplied description; did we get
        one from the OS or libpcap? */
     descr = NULL;
-    if_list = capture_interface_list(&err, NULL);
+    if_list = capture_interface_list(&err, NULL, NULL);
     if (if_list != NULL) {
       if_entry = if_list;
       do {
@@ -468,7 +490,7 @@ get_if_name(const char *if_text)
         */
        if ((strncmp(if_name, "://", 3) != 0) && !isdigit(if_name[1])) {
          /*
-          * OK, we've found a colon followed neither by "//" nor by digit.  
+          * OK, we've found a colon followed neither by "//" nor by digit.
           * Skip blanks following it.
           */
          if_name++;

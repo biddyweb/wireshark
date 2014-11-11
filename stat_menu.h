@@ -1,8 +1,6 @@
 /* stat_menu.h
  * Menu definitions for use by stats
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -39,6 +37,20 @@ extern "C" {
  *
  * XXX - stats should be able to register additional menu groups, although
  * the question then would be "in what order should they appear in the menu?"
+ *
+ * NOTE: the enum below is parsed by epan/wslua/make-init-lua.pl in order
+ * to generate usable values for Lua scripts to use, so they can add to
+ * the menus in the GUI. The perl script's regex is such that the following
+ * prefixes must only appear once in this list:
+ * REGISTER_ANALYZE_GROUP_CONVERSATION
+ * REGISTER_STAT_GROUP_CONVERSATION
+ * REGISTER_STAT_GROUP_RESPONSE
+ * REGISTER_STAT_GROUP_ENDPOINT
+ * In other words, because there is a REGISTER_STAT_GROUP_RESPONSE_TIME, you cannot
+ * add a REGISTER_STAT_GROUP_RESPONSE nor a REGISTER_STAT_GROUP_RESPONSE_FOOBAR
+ * because they use the same "REGISTER_STAT_GROUP_RESPONSE" prefix.
+ * Also, do NOT change the names in the enum - you can add, but not remove.
+ * If you do, legacy scripts will break. (which is why the perl script regex isn't better)
  */
 
 /** The menu group this stat should be registered in. */
@@ -51,6 +63,9 @@ typedef enum {
     REGISTER_STAT_GROUP_ENDPOINT_LIST,          /* member of the endpoint list */
     REGISTER_STAT_GROUP_RESPONSE_TIME,          /* member of the service response time list */
     REGISTER_STAT_GROUP_TELEPHONY,              /* telephony specific */
+    REGISTER_STAT_GROUP_TELEPHONY_GSM,          /* GSM (and UMTS?) */
+    REGISTER_STAT_GROUP_TELEPHONY_LTE,          /* name says it all */
+    REGISTER_STAT_GROUP_TELEPHONY_SCTP,         /* name says it all */
     REGISTER_TOOLS_GROUP_UNSORTED               /* unsorted tools */
 } register_stat_group_t;
 

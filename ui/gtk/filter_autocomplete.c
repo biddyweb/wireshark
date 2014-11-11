@@ -6,8 +6,6 @@
  * With several usability improvements:
  * Copyright 2008, Stig Bjorlykke <stig@bjorlykke.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -76,7 +74,7 @@ is_protocol_name_being_typed(GtkWidget *filter_te, int str_len)
   int op_len, cursor_pos;
   gchar *start;
   gchar *pos;
-  static const gchar *logic_ops[] = 
+  static const gchar *logic_ops[] =
               { "!", "not",
                 "||", "or",
                 "&&", "and",
@@ -659,9 +657,9 @@ build_autocompletion_list(GtkWidget *filter_te, GtkWidget *treeview, GtkWidget *
 
       for (hfinfo = proto_get_first_protocol_field(i, &cookie2);
            hfinfo != NULL;
-           hfinfo = proto_get_next_protocol_field(&cookie2))
+           hfinfo = proto_get_next_protocol_field(i, &cookie2))
       {
-        if (hfinfo->same_name_prev != NULL) /* ignore duplicate names */
+        if (hfinfo->same_name_prev_id != -1) /* ignore duplicate names */
           continue;
 
         if(!g_ascii_strncasecmp(protocol_name, hfinfo->abbrev, protocol_name_len)) {

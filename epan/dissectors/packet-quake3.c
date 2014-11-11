@@ -3,8 +3,6 @@
  *
  * Uwe Girlich <uwe@planetquake.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -45,6 +43,7 @@
 #include <epan/prefs.h>
 #include <epan/addr_resolv.h>
 
+void proto_register_quake3(void);
 static int proto_quake3 = -1;
 
 static int hf_quake3_direction = -1;
@@ -145,7 +144,7 @@ dissect_quake3_ConnectionlessPacket(tvbuff_t *tvb, packet_info *pinfo _U_,
 	proto_tree	*cl_tree = NULL;
 	proto_item	*text_item = NULL;
 	proto_tree	*text_tree = NULL;
-	guint8		text[2048];
+	guint8		*text;
 	int		len;
 	int		offset;
 	guint32		marker;
@@ -166,11 +165,21 @@ dissect_quake3_ConnectionlessPacket(tvbuff_t *tvb, packet_info *pinfo _U_,
 	/* all the rest of the packet is just text */
 	offset = 4;
 
-	len = tvb_get_nstringz0(tvb, offset, sizeof(text), text);
+	/*
+	 * XXX - is there ever more than one null-terminated string in
+	 * the packet?
+	 *
+	 * XXX - is the string guaranteed to be null-terminated (so
+	 * that if there's no NUL at the end, it's an error)?
+	 *
+	 * XXX - are non-ASCII characters supported and, if so, what
+	 * encoding is used for them?
+	 */
+	text = tvb_get_stringz_enc(wmem_packet_scope(), tvb, offset, &len, ENC_ASCII|ENC_NA);
         if (cl_tree) {
 		text_item = proto_tree_add_string(cl_tree,
 				hf_quake3_connectionless_text,
-				tvb, offset, len + 1, text);
+				tvb, offset, len, text);
 		text_tree = proto_item_add_subtree(text_item, ett_quake3_connectionless_text);
 	}
 
@@ -322,7 +331,7 @@ dissect_quake3_ConnectionlessPacket(tvbuff_t *tvb, packet_info *pinfo _U_,
 					val_to_str_const(command, names_command, "Unknown"));
         }
 
-        /*offset += len + 1;*/
+        /*offset += len;*/
 
 }
 
@@ -477,8 +486,7 @@ dissect_quake3(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	if (tvb_get_ntohl(tvb, 0) == 0xffffffff) {
 		col_set_str(pinfo->cinfo, COL_INFO, "Connectionless ");
-		if (quake3_tree)
-			proto_tree_add_uint_format(quake3_tree,
+		proto_tree_add_uint_format(quake3_tree,
 				hf_quake3_connectionless,
 				tvb, 0, 0, 1,
 				"Type: Connectionless");
@@ -487,8 +495,7 @@ dissect_quake3(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	}
 	else {
 		col_set_str(pinfo->cinfo, COL_INFO, "Game ");
-		if (quake3_tree)
-			proto_tree_add_uint_format(quake3_tree,
+		proto_tree_add_uint_format(quake3_tree,
 				hf_quake3_game,
 				tvb, 0, 0, 1,
 				"Type: Game");
@@ -501,8 +508,7 @@ dissect_quake3(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 					val_to_str(direction,
 						names_direction, "%u"));
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_append_str(pinfo->cinfo, COL_INFO, val_to_str(direction,
+	col_append_str(pinfo->cinfo, COL_INFO, val_to_str(direction,
 			names_direction, "%u"));
 }
 

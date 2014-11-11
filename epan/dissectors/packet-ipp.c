@@ -3,8 +3,6 @@
  *
  * Guy Harris <guy@alum.mit.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,9 @@
 #include <epan/strutil.h>
 #include <epan/to_str.h>
 #include "packet-http.h"
+
+void proto_register_ipp(void);
+void proto_reg_handoff_ipp(void);
 
 static int proto_ipp = -1;
 static int hf_ipp_timestamp = -1;
@@ -182,10 +183,10 @@ dissect_ipp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     proto_tree  *ipp_tree;
     proto_item  *ti;
     int          offset     = 0;
-    gboolean     is_request = (pinfo->destport == pinfo->match_port);
+    gboolean     is_request = (pinfo->destport == pinfo->match_uint);
     /* XXX - should this be based on the HTTP header? */
     guint16      status_code;
-    const gchar *status_fmt;
+    const gchar *status_type;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "IPP");
     if (is_request)
@@ -211,31 +212,32 @@ dissect_ipp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             switch (status_code & STATUS_TYPE_MASK) {
 
             case STATUS_SUCCESSFUL:
-                status_fmt = "Successful (0x%04x)";
+                status_type = "Successful";
                 break;
 
             case STATUS_INFORMATIONAL:
-                status_fmt = "Informational (0x%04x)";
+                status_type = "Informational";
                 break;
 
             case STATUS_REDIRECTION:
-                status_fmt = "Redirection (0x%04x)";
+                status_type = "Redirection";
                 break;
 
             case STATUS_CLIENT_ERROR:
-                status_fmt = "Client error (0x%04x)";
+                status_type = "Client error";
                 break;
 
             case STATUS_SERVER_ERROR:
-                status_fmt = "Server error (0x%04x)";
+                status_type = "Server error";
                 break;
 
             default:
-                status_fmt = "Unknown (0x%04x)";
+                status_type = "Unknown";
                 break;
             }
-            proto_tree_add_text(ipp_tree, tvb, offset, 2, "Status-code: %s",
-                                val_to_str(status_code, status_vals, status_fmt));
+            proto_tree_add_text(ipp_tree, tvb, offset, 2, "Status-code: %s (%s)",
+                                status_type,
+                                val_to_str(status_code, status_vals, "0x804x"));
         }
         offset += 2;
 
@@ -503,7 +505,7 @@ add_integer_tree(proto_tree *tree, tvbuff_t *tvb, int offset,
                                          1 + 2 + name_length + 2 + value_length,
                                          "%s: %s",
                                          format_text(name_val, name_length),
-                                         abs_time_secs_to_str(tvb_get_ntohl(tvb, offset + 1 + 2 + name_length + 2),
+                                         abs_time_secs_to_ep_str(tvb_get_ntohl(tvb, offset + 1 + 2 + name_length + 2),
                                                               ABSOLUTE_TIME_LOCAL,
                                                               TRUE));
 
@@ -622,7 +624,7 @@ add_octetstring_tree(proto_tree *tree, tvbuff_t *tvb, int offset,
                              1 + 2 + name_length + 2 + value_length,
                              "%s: %s",
                              tvb_format_text(tvb, offset + 1 + 2, name_length),
-                             tvb_bytes_to_str(tvb, offset + 1 + 2 + name_length + 2, value_length));
+                             tvb_bytes_to_ep_str(tvb, offset + 1 + 2 + name_length + 2, value_length));
     return proto_item_add_subtree(ti, ett_ipp_attr);
 }
 
@@ -633,7 +635,7 @@ add_octetstring_value(const gchar *tag_desc, proto_tree *tree, tvbuff_t *tvb,
     offset = add_value_head(tag_desc, tree, tvb, offset, name_length,
                             value_length, NULL);
     proto_tree_add_text(tree, tvb, offset, value_length,
-                        "Value: %s", tvb_bytes_to_str(tvb, offset, value_length));
+                        "Value: %s", tvb_bytes_to_ep_str(tvb, offset, value_length));
 }
 
 static proto_tree *
@@ -674,7 +676,7 @@ add_value_head(const gchar *tag_desc, proto_tree *tree, tvbuff_t *tvb,
     offset += 2;
     if (name_length != 0) {
         guint8 *nv;
-        nv = tvb_get_ephemeral_string(tvb, offset, name_length);
+        nv = tvb_get_string(wmem_packet_scope(), tvb, offset, name_length);
         proto_tree_add_text(tree, tvb, offset, name_length,
                             "Name: %s", format_text(nv, name_length));
         if (name_val) {

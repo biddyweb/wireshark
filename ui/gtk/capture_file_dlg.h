@@ -1,8 +1,6 @@
 /* capture_file_dlg.h
  * Definitions for dialog boxes for handling files
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -84,6 +82,14 @@ void file_close_cmd_cb(GtkWidget *widget, gpointer data);
  * @param data unused
  */
 void file_export_specified_packets_cmd_cb(GtkWidget *widget, gpointer data);
+
+/** User requested the "Export PDUs to file" dialogue box
+ *  and pressed OK to start the export
+ *
+ * @param widget  parent widget
+ * @param data    pointer to internal data used by the export pdu part
+ */
+void file_export_pdu_ok_cb(GtkWidget *widget, gpointer data);
 
 /** User requested "Reload".
  *

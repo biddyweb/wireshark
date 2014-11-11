@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/bin/sh
 
 #
 # runlex.sh
@@ -6,8 +6,6 @@
 # First argument is the (quoted) name of the command; if it's null, that
 # means that neither Flex nor Lex was found, so we report an error and
 # quit.
-#
-# $Id$
 #
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
@@ -36,15 +34,37 @@ then
 	echo "Usage: runlex <lex/flex command to run> [ arguments ]" 1>&2
 	exit 1
 fi
-LEX="$1"
-shift
 
+case "$OS" in
+
+Windows*)
+	LEX=`cygpath --unix $1`
+	echo "$1 -> $LEX"
+	;;
+
+*)
+	LEX="$1"
+	;;
+esac
+
+shift
 #
 # Check whether we have it.
 #
 if [ -z "${LEX}" ]
 then
 	echo "Neither lex nor flex was found" 1>&2
+	exit 1
+fi
+
+SED="$1"
+shift
+#
+# Check whether we have it.
+#
+if [ -z "${SED}" ]
+then
+	echo "Sed was not found" 1>&2
 	exit 1
 fi
 
@@ -62,7 +82,7 @@ do
 		#
 		# Set the output file name.
 		#
-		outfile=`echo "$1" | sed 's/-o\(.*\)/\1/'`
+		outfile=`echo "$1" | ${SED} 's/-o\(.*\)/\1/'`
 		;;
 
 	-*)
@@ -85,7 +105,7 @@ done
 #
 # OK, run it.
 #
-echo "Running ${LEX}"
+echo "Running ${LEX} -o$outfile $flags $@"
 ${LEX} -o"$outfile" $flags "$@"
 
 #
@@ -141,7 +161,7 @@ echo "Wrote $outfile"
 # line.  We use the last one.
 #
 echo "Getting prefix"
-prefix=`sed -n 's/%option[ 	][ 	]*prefix="\(.*\)".*/\1/p' "$@" | tail -1`
+prefix=`${SED} -n 's/%option[ 	][ 	]*prefix="\(.*\)".*/\1/p' "$@" | tail -1`
 if [ ! -z "$prefix" ]
 then
 	prefixline="#define yylex ${prefix}lex"

@@ -1,8 +1,6 @@
 /* smb2_stat.c
  * smb2_stat   2005 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,7 +32,6 @@
 #include <epan/tap.h>
 #include <epan/dissectors/packet-smb2.h>
 
-#include "../timestats.h"
 #include "ui/simple_dialog.h"
 #include "../file.h"
 #include "../globals.h"
@@ -48,6 +45,8 @@
 #include "ui/gtk/main.h"
 
 #include "ui/gtk/old-gtk-compat.h"
+
+void register_tap_listener_gtksmb2stat(void);
 
 /* used to keep track of the statistics for an entire program interface */
 typedef struct _smb2stat_t {
@@ -74,18 +73,27 @@ static int
 smb2stat_packet(void *pss, packet_info *pinfo, epan_dissect_t *edt _U_, const void *psi)
 {
 	smb2stat_t *ss=(smb2stat_t *)pss;
-	const smb2_info_t *si=psi;
+	const smb2_info_t *si=(const smb2_info_t *)psi;
 
 	/* we are only interested in response packets */
 	if(!(si->flags&SMB2_FLAGS_RESPONSE)){
 		return 0;
 	}
-	/* if we havnt seen the request, just ignore it */
+	/* if we haven't seen the request, just ignore it */
 	if(!si->saved){
 		return 0;
 	}
-
-	add_srt_table_data(&ss->smb2_srt_table, si->opcode, &si->saved->req_time, pinfo);
+	/* SMB2 SRT can be very inaccurate in the presence of retransmissions. Retransmitted responses
+	 * not only add additional (bogus) transactions but also the latency associated with them.
+	 * This can greatly inflate the maximum and average SRT stats especially in the case of
+	 * retransmissions triggered by the expiry of the rexmit timer (RTOs). Only calculating SRT
+	 * for the last received response accomplishes this goal without requiring the TCP pref
+	 * "Do not call subdissectors for error packets" to be set. */
+	if(si->saved->frame_req
+	&& si->saved->frame_res==pinfo->fd->num)
+		add_srt_table_data(&ss->smb2_srt_table, si->opcode, &si->saved->req_time, pinfo);
+	else
+		return 0;
 
 	return 1;
 }
@@ -132,7 +140,7 @@ gtk_smb2stat_init(const char *opt_arg, void *userdata _U_)
 		filter=NULL;
 	}
 
-	ss=g_malloc(sizeof(smb2stat_t));
+	ss=(smb2stat_t *)g_malloc(sizeof(smb2stat_t));
 
 	ss->win = dlg_window_new("smb2-stat");  /* transient_for top_level */
 	gtk_window_set_destroy_with_parent (GTK_WINDOW(ss->win), TRUE);
@@ -176,7 +184,7 @@ gtk_smb2stat_init(const char *opt_arg, void *userdata _U_)
 	bbox = dlg_button_row_new(GTK_STOCK_CLOSE, NULL);
 	gtk_box_pack_end(GTK_BOX(vbox), bbox, FALSE, FALSE, 0);
 
-	close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+	close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
 	window_set_cancel_button(ss->win, close_bt, window_cancel_button_cb);
 
 	g_signal_connect(ss->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
@@ -205,11 +213,6 @@ static tap_param_dlg smb2_stat_dlg = {
 void
 register_tap_listener_gtksmb2stat(void)
 {
-	register_dfilter_stat(&smb2_stat_dlg, "SMB2",
+	register_param_stat(&smb2_stat_dlg, "SMB2",
 	    REGISTER_STAT_GROUP_RESPONSE_TIME);
 }
-void smb2_srt_cb(GtkAction *action, gpointer user_data _U_)
-{
-	tap_param_dlg_cb(action, &smb2_stat_dlg);
-}
-

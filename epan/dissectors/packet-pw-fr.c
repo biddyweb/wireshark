@@ -2,8 +2,6 @@
  * Routines for Frame Relay MPLS PW dissection as per RFC4619.
  * Copyright 2009, Dmitry Trebich, Artem Tamazov <artem.tamazov@tellabs.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -39,6 +37,9 @@
 
 #include "packet-mpls.h"
 
+void proto_register_pw_fr(void);
+void proto_reg_handoff_pw_fr(void);
+
 static gint proto_encaps = -1;
 static gint ett_encaps = -1;
 
@@ -51,6 +52,10 @@ static int hf_cw_cr = -1;
 static int hf_cw_frg = -1;
 static int hf_cw_len = -1;
 static int hf_cw_seq = -1;
+
+static expert_field ei_payload_size_invalid = EI_INIT;
+static expert_field ei_cw_bits03 = EI_INIT;
+static expert_field ei_cw_packet_size_too_small = EI_INIT;
 
 static const value_string vals_frg[] = {
 	{ 0x0,	"Unfragmented" },
@@ -73,12 +78,13 @@ dissect_pw_fr( tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree )
 	const int encaps_size = 4; /*encapsulation consists of mandatory CW only*/
 	enum {
 		PQ_CW_BAD		       = 0x001
-		,PQ_CW_BAD_BITS03 	       = 0x002
+		,PQ_CW_BAD_BITS03	       = 0x002
 		,PQ_CW_BAD_LEN_GT_PACKET       = 0x004
 		,PQ_CW_BAD_LEN_MUST_BE_ZERO    = 0x008
 		,PQ_CW_BAD_LEN_MUST_BE_NONZERO = 0x010
 		,PQ_PAYLOAD_SIZE_ZERO	       = 0x020
-	} packet_quality;
+	};
+	int packet_quality;
 
 	packet_size = tvb_reported_length_remaining(tvb, 0);
 	if (packet_size < encaps_size)
@@ -86,9 +92,9 @@ dissect_pw_fr( tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree )
 		{
 			proto_item  *item;
 			item = proto_tree_add_item(tree, proto_encaps, tvb, 0, -1, ENC_NA);
-			expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR,
-				"PW packet (%d) is smaller than PW encapsulation header (%d)"
-				,(int)packet_size,(int)encaps_size);
+			expert_add_info_format(pinfo, item, &ei_cw_packet_size_too_small,
+				"PW packet (%d) is smaller than PW encapsulation header (%d)",
+				(int)packet_size,(int)encaps_size);
 		}
 		col_set_str(pinfo->cinfo, COL_PROTOCOL, "FR PW");
 		col_set_str(pinfo->cinfo, COL_INFO, "Malformed: PW packet < PW encapsulation header");
@@ -162,19 +168,16 @@ dissect_pw_fr( tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree )
 	}
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "FR PW");
-	if (check_col(pinfo->cinfo, COL_INFO))
+	col_clear(pinfo->cinfo, COL_INFO);
+	if (packet_quality & PQ_CW_BAD)
 	{
-		col_clear(pinfo->cinfo, COL_INFO);
-		if (packet_quality & PQ_CW_BAD)
-		{
-			col_append_str(pinfo->cinfo, COL_INFO, "CW:Malformed, ");
-		}
-		col_append_fstr(pinfo->cinfo, COL_INFO, "%d payload octets", (int)payload_size);
+		col_set_str(pinfo->cinfo, COL_INFO, "CW:Malformed, ");
+	}
+	col_append_fstr(pinfo->cinfo, COL_INFO, "%d payload octets", (int)payload_size);
 
-		if (payload_padding != 0)
-		{
-			col_append_fstr(pinfo->cinfo, COL_INFO, ", %d padding", (int)payload_padding);
-		}
+	if (payload_padding != 0)
+	{
+		col_append_fstr(pinfo->cinfo, COL_INFO, ", %d padding", (int)payload_padding);
 	}
 
 	{
@@ -189,8 +192,7 @@ dissect_pw_fr( tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree )
 		if (packet_quality & PQ_CW_BAD_BITS03) /*display only if value is wrong*/
 		{
 			item = proto_tree_add_item(subtree, hf_cw_bits03, tvb, 0, 1, ENC_BIG_ENDIAN);
-			expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR,
-				"Bits 0..3 of Control Word must be 0");
+			expert_add_info(pinfo, item, &ei_cw_bits03);
 		}
 
 		(void)proto_tree_add_item( subtree, hf_cw_fecn, tvb, 0, 1, ENC_BIG_ENDIAN );
@@ -202,19 +204,19 @@ dissect_pw_fr( tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree )
 		item = proto_tree_add_item( subtree, hf_cw_len, tvb, 1, 1, ENC_BIG_ENDIAN );
 		if (packet_quality & PQ_CW_BAD_LEN_GT_PACKET)
 		{
-			expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR,
+			expert_add_info_format(pinfo, item, &ei_payload_size_invalid,
 				"Bad Length: greater than FR payload size (%d)",
 				(int)payload_size);
 		}
 		if (packet_quality & PQ_CW_BAD_LEN_MUST_BE_NONZERO)
 		{
-			expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR,
+			expert_add_info_format(pinfo, item, &ei_payload_size_invalid,
 				"Bad Length: must be non-zero if FR PW packet size (%d) is < 64",
 				(int)(payload_size+encaps_size));
 		}
 		if (packet_quality & PQ_CW_BAD_LEN_MUST_BE_ZERO)
 		{
-			expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR,
+			expert_add_info_format(pinfo, item, &ei_payload_size_invalid,
 				"Bad Length: must be 0 if FR PW packet size (%d) is >= 64",
 				(int)(payload_size+encaps_size));
 		}
@@ -230,7 +232,7 @@ dissect_pw_fr( tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree )
 
 		if (packet_quality & PQ_PAYLOAD_SIZE_ZERO)
 		{
-			expert_add_info_format(pinfo, item_headline, PI_MALFORMED, PI_WARN,
+			expert_add_info_format(pinfo, item_headline, &ei_payload_size_invalid,
 				"FR payload size must be non-zero");
 		}
 
@@ -286,11 +288,20 @@ static hf_register_info hf[] = {
 		&ett_encaps
 	};
 
+	static ei_register_info ei[] = {
+		{ &ei_cw_packet_size_too_small, { "pwfr.packet_size_too_small", PI_MALFORMED, PI_ERROR, "PW packet is smaller than PW encapsulation header", EXPFILL }},
+		{ &ei_cw_bits03, { "pwfr.cw.bits03.not_zero", PI_MALFORMED, PI_ERROR, "Bits 0..3 of Control Word must be 0", EXPFILL }},
+		{ &ei_payload_size_invalid, { "pwfr.payload.size_invalid", PI_MALFORMED, PI_ERROR, "Bad Length: greater than FR payload size", EXPFILL }},
+	};
+	expert_module_t* expert_pwfr;
+
 	proto_encaps = proto_register_protocol( "PW Frame Relay DLCI Control Word",
 						"Frame Relay DLCI PW",
 						"pwfr");
 	proto_register_field_array(proto_encaps, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_pwfr = expert_register_protocol(proto_encaps);
+	expert_register_field_array(expert_pwfr, ei, array_length(ei));
 	register_dissector("pw_fr", dissect_pw_fr, proto_encaps );
 }
 

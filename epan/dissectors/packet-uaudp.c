@@ -2,8 +2,6 @@
  * Routines for UA/UDP (Universal Alcatel over UDP) packet dissection.
  * Copyright 2012, Alcatel-Lucent Enterprise <lars.ruoff@alcatel-lucent.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,8 @@
 
 #include "packet-uaudp.h"
 
+void proto_register_uaudp(void);
+
 /* GLOBALS */
 
 #if 0
@@ -44,6 +44,8 @@ static int uaudp_tap                = -1;
 #endif
 
 static tap_struct_uaudp ua_tap_info;
+
+static dissector_handle_t uaudp_handle;
 
 static int proto_uaudp              = -1;
 
@@ -196,11 +198,10 @@ static void _dissect_uaudp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     ua_tap_info.sntseq = 0;
 
     /* print in "INFO" column the type of UAUDP message */
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_add_fstr(pinfo->cinfo,
-                 COL_INFO,
-                 "%s",
-                 val_to_str_ext(opcode, &uaudp_opcode_str_ext, "unknown (0x%02x)"));
+    col_add_fstr(pinfo->cinfo,
+                COL_INFO,
+                "%s",
+                val_to_str_ext(opcode, &uaudp_opcode_str_ext, "unknown (0x%02x)"));
 
     uaudp_item = proto_tree_add_protocol_format(tree, proto_uaudp, tvb, 0, 5,
                             "Universal Alcatel/UDP Encapsulation Protocol, %s",
@@ -307,8 +308,7 @@ static void _dissect_uaudp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                            tree);
             else {
                 /* XXX: expert ?? */
-                if (check_col(pinfo->cinfo, COL_INFO))
-                    col_add_str(pinfo->cinfo,
+                col_set_str(pinfo->cinfo,
                             COL_INFO,
                             "Data - Couldn't resolve direction. Check UAUDP Preferences.");
             }
@@ -316,7 +316,7 @@ static void _dissect_uaudp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
         }
         else {
             /* print in "INFO" column */
-            col_add_str(pinfo->cinfo,
+            col_set_str(pinfo->cinfo,
                         COL_INFO,
                         "Data ACK");
         }
@@ -591,7 +591,7 @@ void proto_register_uaudp(void)
                           "UAUDP",
                           "uaudp");
 
-    register_dissector("uaudp",              dissect_uaudp, proto_uaudp);
+    uaudp_handle = register_dissector("uaudp", dissect_uaudp, proto_uaudp);
 #if 0 /* XXX: Not used ?? */
     register_dissector("uaudp_dir_unknown",  dissect_uaudp_dir_unknown,  proto_uaudp);
     register_dissector("uaudp_term_to_serv", dissect_uaudp_term_to_serv, proto_uaudp);
@@ -634,12 +634,10 @@ void proto_register_uaudp(void)
 void proto_reg_handoff_uaudp(void)
 {
     static gboolean           prefs_initialized = FALSE;
-    static dissector_handle_t uaudp_handle;
     int i;
 
     if (!prefs_initialized)
     {
-        uaudp_handle          = find_dissector("uaudp");
         ua_sys_to_term_handle = find_dissector("ua_sys_to_term");
         ua_term_to_sys_handle = find_dissector("ua_term_to_sys");
 #if 0

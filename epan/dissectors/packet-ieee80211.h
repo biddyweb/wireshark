@@ -4,8 +4,6 @@
  * Copyright 2000, Axis Communications AB
  * Inquiries/bugreports should be sent to Johan.Jorgensen@axis.com
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -40,8 +38,16 @@ void capture_prism(const guchar *, int, int, packet_counts *);
 WS_DLL_PUBLIC
 void capture_wlancap(const guchar *, int, int, packet_counts *);
 
-void ieee_80211_add_tagged_parameters (tvbuff_t * tvb, int offset,
-       packet_info * pinfo, proto_tree * tree, int tagged_parameters_len, int ftype);
+void dissect_wifi_p2p_ie(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb,
+			 int offset, gint size);
+int dissect_wifi_p2p_public_action(packet_info *pinfo, proto_tree *tree,
+                                   tvbuff_t *tvb, int offset);
+int dissect_wifi_p2p_action(proto_tree *tree, tvbuff_t *tvb, int offset);
+void dissect_wifi_p2p_anqp(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb,
+			   int offset, gboolean request);
+
+void dissect_wifi_display_ie(packet_info *pinfo, proto_tree *tree,
+			     tvbuff_t *tvb, int offset, gint size);
 
 #define MAX_SSID_LEN    32
 #define MAX_PROTECT_LEN 10
@@ -64,3 +70,9 @@ typedef struct _wlan_hdr {
 #define WLANCAP_MAGIC_COOKIE_BASE 0x80211000
 #define WLANCAP_MAGIC_COOKIE_V1 0x80211001
 #define WLANCAP_MAGIC_COOKIE_V2 0x80211002
+
+/* UAT entry structure. */
+typedef struct {
+    guint8    key;
+    gchar    *string;
+} uat_wep_key_record_t;

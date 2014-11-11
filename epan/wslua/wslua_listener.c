@@ -7,8 +7,6 @@
  *
  * (c) 2006, Luis E. Garcia Ontanon <luis@ontanon.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,14 +28,16 @@
 
 #include "config.h"
 
+#include <epan/emem.h>
+
 /* WSLUA_MODULE Listener Post-dissection packet analysis */
 
 #include "wslua.h"
 
-WSLUA_CLASS_DEFINE(Listener,NOP,NOP);
+WSLUA_CLASS_DEFINE(Listener,FAIL_ON_NULL("Listener"),NOP);
 /*
-    A Listener, is called once for every packet that matches a certain filter or has a certain tap.
-    It can read the tree, the packet's Tvb eventually the tapped data but it cannot
+    A `Listener` is called once for every packet that matches a certain filter or has a certain tap.
+    It can read the tree, the packet's `Tvb` buffer as well as the tapped data, but it cannot
     add elements to the tree.
  */
 
@@ -82,7 +82,7 @@ static int tap_packet_cb_error_handler(lua_State* L) {
 
 
 static int lua_tap_packet(void *tapdata, packet_info *pinfo, epan_dissect_t *edt, const void *data) {
-    Listener tap = tapdata;
+    Listener tap = (Listener)tapdata;
     int retval = 0;
 
     if (tap->packet_ref == LUA_NOREF) return 0;
@@ -103,7 +103,7 @@ static int lua_tap_packet(void *tapdata, packet_info *pinfo, epan_dissect_t *edt
 
     lua_pinfo = pinfo;
     lua_tvb = edt->tvb;
-    lua_tree = g_malloc(sizeof(struct _wslua_treeitem));
+    lua_tree = (struct _wslua_treeitem *)g_malloc(sizeof(struct _wslua_treeitem));
     lua_tree->tree = edt->tree;
     lua_tree->item = NULL;
     lua_tree->expired = FALSE;
@@ -139,12 +139,12 @@ static int tap_reset_cb_error_handler(lua_State* L) {
 }
 
 static void lua_tap_reset(void *tapdata) {
-    Listener tap = tapdata;
+    Listener tap = (Listener)tapdata;
 
-    if (tap->init_ref == LUA_NOREF) return;
+    if (tap->reset_ref == LUA_NOREF) return;
 
     lua_pushcfunction(tap->L,tap_reset_cb_error_handler);
-    lua_rawgeti(tap->L, LUA_REGISTRYINDEX, tap->init_ref);
+    lua_rawgeti(tap->L, LUA_REGISTRYINDEX, tap->reset_ref);
 
     switch ( lua_pcall(tap->L,0,0,1) ) {
         case 0:
@@ -162,7 +162,7 @@ static void lua_tap_reset(void *tapdata) {
 }
 
 static void lua_tap_draw(void *tapdata) {
-    Listener tap = tapdata;
+    Listener tap = (Listener)tapdata;
     const gchar* error;
     if (tap->draw_ref == LUA_NOREF) return;
 
@@ -187,16 +187,20 @@ static void lua_tap_draw(void *tapdata) {
 }
 
 WSLUA_CONSTRUCTOR Listener_new(lua_State* L) {
-    /* Creates a new Listener listener */
-#define WSLUA_OPTARG_Listener_new_TAP 1 /* The name of this tap */
-#define WSLUA_OPTARG_Listener_new_FILTER 2 /* A filter that when matches the tap.packet function gets called (use nil to be called for every packet) */
+    /* Creates a new `Listener` listener object. */
+#define WSLUA_OPTARG_Listener_new_TAP 1 /* The name of this tap. */
+#define WSLUA_OPTARG_Listener_new_FILTER 2 /* A filter that when matches the `tap.packet` function gets
+                                              called (use nil to be called for every packet). */
+#define WSLUA_OPTARG_Listener_new_ALLFIELDS 3 /* Whether to generate all fields. (default=false)
+                                                 Note: this impacts performance. */
 
     const gchar* tap_type = luaL_optstring(L,WSLUA_OPTARG_Listener_new_TAP,"frame");
     const gchar* filter = luaL_optstring(L,WSLUA_OPTARG_Listener_new_FILTER,NULL);
+    const gboolean all_fields = wslua_optbool(L, WSLUA_OPTARG_Listener_new_ALLFIELDS, FALSE);
     Listener tap;
     GString* error;
 
-    tap = g_malloc(sizeof(struct _wslua_tap));
+    tap = (Listener)g_malloc(sizeof(struct _wslua_tap));
 
     tap->name = g_strdup(tap_type);
     tap->filter = filter ? g_strdup(filter) : NULL;
@@ -204,7 +208,8 @@ WSLUA_CONSTRUCTOR Listener_new(lua_State* L) {
     tap->L = L;
     tap->packet_ref = LUA_NOREF;
     tap->draw_ref = LUA_NOREF;
-    tap->init_ref = LUA_NOREF;
+    tap->reset_ref = LUA_NOREF;
+    tap->all_fields = all_fields;
 
     /*
      * XXX - do all Lua taps require the protocol tree?  If not, it might
@@ -220,19 +225,60 @@ WSLUA_CONSTRUCTOR Listener_new(lua_State* L) {
         g_free(tap->name);
         g_free(tap);
         /* WSLUA_ERROR(new_tap,"tap registration error"); */
-        luaL_error(L,"Error while registering tap:\n%s",error->str);
-        g_string_free(error,TRUE); /* XXX LEAK? */
+        lua_pushfstring(L,"Error while registering tap:\n%s",error->str);
+        g_string_free(error,TRUE);
+        luaL_error(L,lua_tostring(L,-1));
+    }
+
+    if (all_fields) {
+        epan_set_always_visible(TRUE);
     }
 
     pushListener(L,tap);
     WSLUA_RETURN(1); /* The newly created Listener listener object */
 }
 
+/* Allow dissector key names to be sorted alphabetically */
+static gint
+compare_dissector_key_name(gconstpointer dissector_a, gconstpointer dissector_b)
+{
+  return strcmp((const char*)dissector_a, (const char*)dissector_b);
+}
+
+WSLUA_CONSTRUCTOR Listener_list (lua_State *L) {
+    /* Gets a Lua array table of all registered `Listener` tap names.
+
+       Note: this is an expensive operation, and should only be used for troubleshooting.
+
+       @since 1.11.3
+     */
+    GList* list = get_tap_names();
+    GList* elist = NULL;
+    int i = 1;
+
+    if (!list) return luaL_error(L,"Cannot retrieve tap name list");
+
+    list = g_list_sort(list, (GCompareFunc)compare_dissector_key_name);
+    elist = g_list_first(list);
+
+    lua_newtable(L);
+    for (i=1; elist; i++, elist = g_list_next(elist)) {
+        lua_pushstring(L,(const char *) elist->data);
+        lua_rawseti(L,1,i);
+    }
+
+    g_list_free(list);
+    WSLUA_RETURN(1); /* The array table of registered tap names */
+}
+
 WSLUA_METHOD Listener_remove(lua_State* L) {
-    /* Removes a tap listener */
+    /* Removes a tap `Listener`. */
     Listener tap = checkListener(L,1);
 
-    if (!tap) return 0;
+    if (tap->all_fields) {
+        epan_set_always_visible(FALSE);
+        tap->all_fields = FALSE;
+    }
 
     remove_tap_listener(tap);
 
@@ -240,11 +286,9 @@ WSLUA_METHOD Listener_remove(lua_State* L) {
 }
 
 WSLUA_METAMETHOD Listener__tostring(lua_State* L) {
-    /* Generates a string of debug info for the tap listener */
+    /* Generates a string of debug info for the tap `Listener`. */
     Listener tap = checkListener(L,1);
     gchar* str;
-
-    if (!tap) return 0;
 
     str = ep_strdup_printf("Listener(%s) filter: %s",tap->name, tap->filter ? tap->filter : "NONE");
     lua_pushstring(L,str);
@@ -253,69 +297,71 @@ WSLUA_METAMETHOD Listener__tostring(lua_State* L) {
 }
 
 
-static int Listener__newindex(lua_State* L) {
-    /* WSLUA_ATTRIBUTE Listener_packet WO A function that will be called once every packet matches the Listener listener filter.
+/* WSLUA_ATTRIBUTE Listener_packet WO A function that will be called once every packet matches the
+    `Listener` listener filter.
 
-        function tap.packet(pinfo,tvb,tapinfo) ... end
-        Note: tapinfo is a table of info based on the Listener's type, or nil.
-    */
-    /* WSLUA_ATTRIBUTE Listener_draw WO A function that will be called once every few seconds to redraw the gui objects;
-                in tshark this funtion is called only at the very end of the capture file.
+    When later called by Wireshark, the `packet` function will be given:
+      1. A `Pinfo` object
+      2. A `Tvb` object
+      3. A `tapinfo` table
 
-        function tap.draw() ... end
-    */
-    /* WSLUA_ATTRIBUTE Listener_reset WO A function that will be called at the end of the capture run.
+    @code function tap.packet(pinfo,tvb,tapinfo) ... end @endcode
 
-        function tap.reset() ... end
-    */
-    Listener tap = shiftListener(L,1);
-    const gchar* idx = lua_shiftstring(L,1);
-    int* refp = NULL;
+    @note `tapinfo` is a table of info based on the `Listener`'s type, or nil.
+*/
+WSLUA_ATTRIBUTE_FUNC_SETTER(Listener,packet);
 
-    if (!idx) return 0;
 
-    if (g_str_equal(idx,"packet")) {
-        refp = &(tap->packet_ref);
-    } else if (g_str_equal(idx,"draw")) {
-        refp = &(tap->draw_ref);
-    } else if (g_str_equal(idx,"reset")) {
-        refp = &(tap->init_ref);
-    } else {
-        luaL_error(L,"No such attribute `%s' for a tap",idx);
-        return 0;
-    }
+/* WSLUA_ATTRIBUTE Listener_draw WO A function that will be called once every few seconds to redraw the GUI objects;
+            in Tshark this funtion is called only at the very end of the capture file.
 
-    if (! lua_isfunction(L,1)) {
-        luaL_error(L,"Listener's attribute `%s' must be a function");
-        return 0;
-    }
+    When later called by Wireshark, the `draw` function will not be given any arguments.
 
-    lua_pushvalue(L, 1);
-    *refp = luaL_ref(L, LUA_REGISTRYINDEX);
+    @code function tap.draw() ... end @endcode
+*/
+WSLUA_ATTRIBUTE_FUNC_SETTER(Listener,draw);
 
-    return 0;
-}
+/* WSLUA_ATTRIBUTE Listener_reset WO A function that will be called at the end of the capture run.
+
+    When later called by Wireshark, the `reset` function will not be given any arguments.
+
+    @code function tap.reset() ... end @endcode
+*/
+WSLUA_ATTRIBUTE_FUNC_SETTER(Listener,reset);
+
 
 static int Listener__gc(lua_State* L _U_) {
     /* do NOT free Listener, it's never free'd */
     return 0;
 }
 
-static const luaL_Reg Listener_methods[] = {
-    {"new", Listener_new},
-    {"remove", Listener_remove},
+/* This table is ultimately registered as a sub-table of the class' metatable,
+ * and if __index/__newindex is invoked then it calls the appropriate function
+ * from this table for getting/setting the members.
+ */
+WSLUA_ATTRIBUTES Listener_attributes[] = {
+    WSLUA_ATTRIBUTE_WOREG(Listener,packet),
+    WSLUA_ATTRIBUTE_WOREG(Listener,draw),
+    WSLUA_ATTRIBUTE_WOREG(Listener,reset),
+    { NULL, NULL, NULL }
+};
+
+WSLUA_METHODS Listener_methods[] = {
+    WSLUA_CLASS_FNREG(Listener,new),
+    WSLUA_CLASS_FNREG(Listener,remove),
+    WSLUA_CLASS_FNREG(Listener,list),
     { NULL, NULL }
 };
 
-static const luaL_Reg Listener_meta[] = {
-    {"__tostring", Listener__tostring},
-    {"__newindex", Listener__newindex},
+WSLUA_META Listener_meta[] = {
+    WSLUA_CLASS_MTREG(Listener,tostring),
     { NULL, NULL }
 };
 
 int Listener_register(lua_State* L) {
     wslua_set_tap_enums(L);
     WSLUA_REGISTER_CLASS(Listener);
-    return 1;
+    WSLUA_REGISTER_ATTRIBUTES(Listener);
+    return 0;
 }
 

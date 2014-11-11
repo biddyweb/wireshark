@@ -8,8 +8,6 @@
  *  [2] ETSI TS 101 376-4-8 V2.2.1 - GMPRS-1 04.008
  *  [3] ETSI TS 101 376-4-8 V3.1.1 - GMR-1 3G 44.008
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,8 @@
 
 #include "packet-gmr1_common.h"
 
+void proto_register_gmr1_dtap(void);
+void proto_reg_handoff_gmr1_dtap(void);
 
 /* GMR-1 DTAP proto */
 static int proto_gmr1_dtap = -1;
@@ -46,7 +46,6 @@ static gint ett_gmr1_pd = -1;
 
 /* Handoffs */
 static dissector_handle_t gsm_dtap_handle;
-static dissector_handle_t data_handle;
 
 
 static void
@@ -89,7 +88,7 @@ dissect_gmr1_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	/* Get message parameters */
 	oct[1] = tvb_get_guint8(tvb, offset);
 
-	gmr1_get_msg_params(pd, oct[1], &msg_str, &ett_tree, &hf_idx, &msg_func);
+	gmr1_get_msg_params((gmr1_pd_e)pd, oct[1], &msg_str, &ett_tree, &hf_idx, &msg_func);
 
 	/* Create protocol tree */
 	if (msg_str == NULL)
@@ -180,6 +179,5 @@ proto_reg_handoff_gmr1_dtap(void)
 	dissector_add_uint("lapsat.sapi", 0 , dtap_handle); /* LAPSat: CC/RR/MM */
 	dissector_add_uint("lapsat.sapi", 3 , dtap_handle); /* LAPSat: SMS/SS */
 
-	data_handle = find_dissector("data");
 	gsm_dtap_handle = find_dissector("gsm_a_dtap");
 }

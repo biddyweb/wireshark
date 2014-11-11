@@ -1,10 +1,8 @@
 # Makefile.am
-# Automake file for the codecs for Wireshark
-#
-# $Id$
+# Automake file for the libcodec library for Wireshark
 #
 # Wireshark - Network traffic analyzer
-# By Gerald Combs <gerald@xxxxxxxxxxxxx>
+# By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
 #
 # This program is free software; you can redistribute it and/or
@@ -21,6 +19,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+include Makefile.common
+include ../Makefile.am.inc
+
 if HAVE_WARNINGS_AS_ERRORS
 AM_CFLAGS = -Werror
 endif
@@ -28,23 +29,28 @@ endif
 noinst_LIBRARIES = libcodec.a
 
 CLEANFILES = \
-       libcodec.a	\
-       *~
+	libcodec.a	\
+	*~
 
 MAINTAINERCLEANFILES =	\
-       Makefile.in
+	Makefile.in
 
+# All sources that should be put in the source distribution tarball
 libcodec_a_SOURCES = \
-       G711a/G711adecode.c G711a/G711adecode.h G711a/G711atable.h	\
-       G711u/G711udecode.c G711u/G711udecode.h G711u/G711utable.h 
+	$(LIBCODEC_SRC) \
+	$(noinst_HEADERS)
 
 libcodec_a_DEPENDENCIES = 
 
-EXTRA_DIST = \
-       Makefile.nmake 	\
-       CMakeLists.txt
+# Common headers
+AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/wiretap
 
-checkapi: 
-	$(PERL) ../tools/checkAPIs.pl -g abort -g termoutput -build \
-	G711a/G711adecode.c \
-	G711u/G711udecode.c
+checkapi:
+	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -g abort -g termoutput -build \
+	-sourcedir=$(srcdir) \
+	$(LIBCODEC_SRC)
+
+EXTRA_DIST = \
+	CMakeLists.txt			\
+	Makefile.common			\
+	Makefile.nmake

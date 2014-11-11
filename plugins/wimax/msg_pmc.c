@@ -5,8 +5,6 @@
  *
  * Author: John R. Underwood <junderx@yahoo.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1999 Gerald Combs
@@ -39,12 +37,10 @@
 #include "wimax_mac.h"
 #include "wimax_utils.h"
 
-extern gint man_ofdma;
 extern	gboolean include_cor2_changes;
 
-/* Forward reference */
-void dissect_mac_mgmt_msg_pmc_req_decoder(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
-void dissect_mac_mgmt_msg_pmc_rsp_decoder(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+void proto_register_mac_mgmt_msg_pmc_req(void);
+void proto_register_mac_mgmt_msg_pmc_rsp(void);
 
 static gint proto_mac_mgmt_msg_pmc_req_decoder = -1;
 static gint proto_mac_mgmt_msg_pmc_rsp_decoder = -1;
@@ -58,8 +54,6 @@ static gint *ett[] =
 };
 
 /* PMC fields */
-static gint hf_pmc_req_message_type = -1;
-static gint hf_pmc_rsp_message_type = -1;
 static gint hf_pmc_req_pwr_control_mode_change = -1;
 static gint hf_pmc_req_pwr_control_mode_change_cor2 = -1;
 static gint hf_pmc_req_tx_power_level = -1;
@@ -99,13 +93,6 @@ void proto_register_mac_mgmt_msg_pmc_req(void)
 	static hf_register_info hf[] =
 	{
 		{
-			&hf_pmc_req_message_type,
-			{
-				"MAC Management Message Type", "wmx.macmgtmsgtype.pmc_req",
-				FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL
-			}
-		},
-		{
 			&hf_pmc_req_confirmation,
 			{
 				"Confirmation", "wmx.pmc_req.confirmation",
@@ -141,13 +128,6 @@ void proto_register_mac_mgmt_msg_pmc_req(void)
 			}
 		},
 		{
-			&hf_pmc_rsp_message_type,
-			{
-				"MAC Management Message Type", "wmx.macmgtmsgtype.pmc_rsp",
-				FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL
-			}
-		},
-		{
 			&hf_pmc_rsp_offset_BS_per_MS,
 			{
 				"Offset_BS per MS", "wmx.pmc_rsp.offset_BS_per_MS",
@@ -171,9 +151,9 @@ void proto_register_mac_mgmt_msg_pmc_req(void)
 	};
 
 	proto_mac_mgmt_msg_pmc_req_decoder = proto_register_protocol (
-		"WiMax PMC-REQ/RSP Messages", /* name */
-		"WiMax PMC-REQ/RSP (pmc)", /* short name */
-		"wmx.pmc" /* abbrev */
+		"WiMax PMC-REQ Messages", /* name */
+		"WiMax PMC-REQ", /* short name */
+		"wmx.pmc_req" /* abbrev */
 		);
 
 	proto_register_field_array(proto_mac_mgmt_msg_pmc_req_decoder, hf, array_length(hf));
@@ -183,36 +163,26 @@ void proto_register_mac_mgmt_msg_pmc_req(void)
 /* Register Wimax Mac Payload Protocol and Dissector */
 void proto_register_mac_mgmt_msg_pmc_rsp(void)
 {
-	proto_mac_mgmt_msg_pmc_rsp_decoder = proto_mac_mgmt_msg_pmc_req_decoder;
+	proto_mac_mgmt_msg_pmc_rsp_decoder = proto_register_protocol (
+		"WiMax PMC-RSP Messages", /* name */
+		"WiMax PMC-RSP", /* short name */
+		"wmx.pmc_rsp" /* abbrev */
+		);
 }
 
 /* Decode PMC-REQ messages. */
-void dissect_mac_mgmt_msg_pmc_req_decoder(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
+static void dissect_mac_mgmt_msg_pmc_req_decoder(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	guint offset = 0;
-	guint tvb_len, payload_type;
-	proto_item *pmc_req_item = NULL;
-	proto_tree *pmc_req_tree = NULL;
+	proto_item *pmc_req_item;
+	proto_tree *pmc_req_tree;
 
-	/* Ensure the right payload type */
-	payload_type = tvb_get_guint8(tvb, 0);
-	if(payload_type != MAC_MGMT_MSG_PMC_REQ)
-	{
-		return;
-	}
-
-	if (tree)
 	{	/* we are being asked for details */
 
-		/* Get the tvb reported length */
-		tvb_len =  tvb_reported_length(tvb);
 		/* display MAC payload type PMC-REQ */
-		pmc_req_item = proto_tree_add_protocol_format(tree, proto_mac_mgmt_msg_pmc_req_decoder, tvb, 0, tvb_len, "MAC Management Message, PMC-REQ (63)");
+		pmc_req_item = proto_tree_add_protocol_format(tree, proto_mac_mgmt_msg_pmc_req_decoder, tvb, 0, -1, "MAC Management Message, PMC-REQ");
 		/* add MAC PMC REQ subtree */
 		pmc_req_tree = proto_item_add_subtree(pmc_req_item, ett_mac_mgmt_msg_pmc_decoder);
-		/* display the Message Type */
-		proto_tree_add_item(pmc_req_tree, hf_pmc_req_message_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-		offset++;
 		/* display the Power Control Mode Change */
 		proto_tree_add_item(pmc_req_tree, hf_pmc_req_pwr_control_mode_change, tvb, offset, 2, ENC_BIG_ENDIAN);
 		/* show the Transmit Power Level */
@@ -225,35 +195,21 @@ void dissect_mac_mgmt_msg_pmc_req_decoder(tvbuff_t *tvb, packet_info *pinfo _U_,
 }
 
 /* Decode PMC-RSP messages. */
-void dissect_mac_mgmt_msg_pmc_rsp_decoder(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
+static void dissect_mac_mgmt_msg_pmc_rsp_decoder(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	guint offset = 0;
-	guint tvb_len, payload_type;
-	proto_item *pmc_rsp_item = NULL;
-	proto_tree *pmc_rsp_tree = NULL;
+	proto_item *pmc_rsp_item;
+	proto_tree *pmc_rsp_tree;
 	guint8 pwr_control_mode;
 	gint8 value;
 	gfloat power_change;
 
-	/* Ensure the right payload type */
-	payload_type = tvb_get_guint8(tvb, 0);
-	if(payload_type != MAC_MGMT_MSG_PMC_RSP)
-	{
-		return;
-	}
-
-	if (tree)
 	{	/* we are being asked for details */
 
-		/* Get the tvb reported length */
-		tvb_len =  tvb_reported_length(tvb);
 		/* display MAC payload type PMC-RSP */
-		pmc_rsp_item = proto_tree_add_protocol_format(tree, proto_mac_mgmt_msg_pmc_rsp_decoder, tvb, 0, tvb_len, "MAC Management Message, PMC-RSP (64)");
+		pmc_rsp_item = proto_tree_add_protocol_format(tree, proto_mac_mgmt_msg_pmc_rsp_decoder, tvb, 0, -1, "MAC Management Message, PMC-RSP");
 		/* add MAC PMC RSP subtree */
 		pmc_rsp_tree = proto_item_add_subtree(pmc_rsp_item, ett_mac_mgmt_msg_pmc_decoder);
-		/* display the Message Type */
-		proto_tree_add_item(pmc_rsp_tree, hf_pmc_rsp_message_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-		offset ++;
 
 		/* display the Power Control Mode Change */
 		if (include_cor2_changes)
@@ -278,3 +234,14 @@ void dissect_mac_mgmt_msg_pmc_rsp_decoder(tvbuff_t *tvb, packet_info *pinfo _U_,
 	}
 }
 
+void
+proto_reg_handoff_mac_mgmt_msg_pmc(void)
+{
+	dissector_handle_t pmc_handle;
+
+	pmc_handle = create_dissector_handle(dissect_mac_mgmt_msg_pmc_req_decoder, proto_mac_mgmt_msg_pmc_req_decoder);
+	dissector_add_uint("wmx.mgmtmsg", MAC_MGMT_MSG_PMC_REQ, pmc_handle);
+
+	pmc_handle = create_dissector_handle(dissect_mac_mgmt_msg_pmc_rsp_decoder, proto_mac_mgmt_msg_pmc_rsp_decoder);
+	dissector_add_uint("wmx.mgmtmsg", MAC_MGMT_MSG_PMC_RSP, pmc_handle);
+}

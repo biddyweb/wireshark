@@ -9,8 +9,6 @@
  *
  * Copyright 2005, Michael Tuexen <tuexen [AT] fh-muenster.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,9 @@
 
 #include <epan/packet.h>
 #include <epan/sctpppids.h>
+
+void proto_register_dua(void);
+void proto_reg_handoff_dua(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_dua                = -1;
@@ -111,7 +112,7 @@ dissect_text_interface_identifier_parameter(tvbuff_t *parameter_tvb, proto_tree 
   proto_tree_add_item(parameter_tree, hf_text_interface_id,
                       parameter_tvb, TEXT_INTERFACE_ID_OFFSET, interface_id_length, ENC_ASCII|ENC_NA);
   proto_item_append_text(parameter_item, " (%.*s)", interface_id_length,
-                         tvb_get_ephemeral_string(parameter_tvb, TEXT_INTERFACE_ID_OFFSET, interface_id_length));
+                         tvb_get_string(wmem_packet_scope(), parameter_tvb, TEXT_INTERFACE_ID_OFFSET, interface_id_length));
 }
 
 #define INFO_STRING_OFFSET PARAMETER_VALUE_OFFSET
@@ -125,7 +126,7 @@ dissect_info_string_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tre
   proto_tree_add_item(parameter_tree, hf_info_string,
                       parameter_tvb, INFO_STRING_OFFSET, info_string_length, ENC_ASCII|ENC_NA);
   proto_item_append_text(parameter_item, " (%.*s)", info_string_length,
-                         tvb_get_ephemeral_string(parameter_tvb, INFO_STRING_OFFSET, info_string_length));
+                         tvb_get_string(wmem_packet_scope(), parameter_tvb, INFO_STRING_OFFSET, info_string_length));
 }
 
 #define DLCI_LENGTH  2
@@ -307,8 +308,8 @@ dissect_status_type_identification_parameter(tvbuff_t *parameter_tvb, proto_tree
 
   proto_tree_add_item(parameter_tree, hf_status_type,
                       parameter_tvb, STATUS_TYPE_OFFSET, STATUS_TYPE_LENGTH, ENC_BIG_ENDIAN);
-  proto_tree_add_uint_format(parameter_tree, hf_status_id,  parameter_tvb, STATUS_IDENT_OFFSET, STATUS_IDENT_LENGTH,
-                             status_id, "Status identification: %u (%s)", status_id,
+  proto_tree_add_uint_format_value(parameter_tree, hf_status_id,  parameter_tvb, STATUS_IDENT_OFFSET, STATUS_IDENT_LENGTH,
+                             status_id, "%u (%s)", status_id,
                              val_to_str_const(status_type * 256 * 256 + status_id, status_type_id_values, "unknown"));
 
   proto_item_append_text(parameter_item, " (%s)",
@@ -681,8 +682,7 @@ dissect_common_header(tvbuff_t *common_header_tvb, packet_info *pinfo, proto_tre
   message_class  = tvb_get_guint8(common_header_tvb, MESSAGE_CLASS_OFFSET);
   message_type   = tvb_get_guint8(common_header_tvb, MESSAGE_TYPE_OFFSET);
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(message_class * 256 + message_type,
+  col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(message_class * 256 + message_type,
                                                                  message_class_type_acro_values,
                                                                  "Unknown"));
 
@@ -692,9 +692,9 @@ dissect_common_header(tvbuff_t *common_header_tvb, packet_info *pinfo, proto_tre
     proto_tree_add_item(dua_tree, hf_reserved, common_header_tvb, RESERVED_OFFSET, RESERVED_LENGTH, ENC_BIG_ENDIAN);
     proto_tree_add_item(dua_tree, hf_message_class,
                         common_header_tvb, MESSAGE_CLASS_OFFSET, MESSAGE_CLASS_LENGTH, ENC_BIG_ENDIAN);
-    proto_tree_add_uint_format(dua_tree, hf_message_type,
+    proto_tree_add_uint_format_value(dua_tree, hf_message_type,
                                common_header_tvb, MESSAGE_TYPE_OFFSET, MESSAGE_TYPE_LENGTH,
-                               message_type, "Message type: %u (%s)",
+                               message_type, "%u (%s)",
                                message_type, val_to_str_const(message_class * 256 + message_type,
                                                               message_class_type_values,
                                                               "reserved"));

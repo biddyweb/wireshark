@@ -1,7 +1,5 @@
 /* module_preferences_scroll_area.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,6 +23,7 @@
 #include "ui_module_preferences_scroll_area.h"
 #include "syntax_line_edit.h"
 #include "qt_ui_utils.h"
+#include "uat_dialog.h"
 
 #include <epan/prefs-int.h>
 
@@ -57,13 +56,17 @@ pref_show(pref_t *pref, gpointer layout_ptr)
     QVBoxLayout *vb = static_cast<QVBoxLayout *>(layout_ptr);
 
     if (!pref || !vb) return 0;
+    QString tooltip = QString("<span>%1</span>").arg(pref->description);
 
     switch (pref->type) {
     case PREF_UINT:
     {
         QHBoxLayout *hb = new QHBoxLayout();
-        hb->addWidget(new QLabel(pref->title));
+        QLabel *label = new QLabel(pref->title);
+        label->setToolTip(tooltip);
+        hb->addWidget(label);
         QLineEdit *uint_le = new QLineEdit();
+        uint_le->setToolTip(tooltip);
         uint_le->setProperty(pref_prop_, qVariantFromValue(pref));
         uint_le->setMinimumWidth(uint_le->fontMetrics().height() * 8);
         hb->addWidget(uint_le);
@@ -74,6 +77,7 @@ pref_show(pref_t *pref, gpointer layout_ptr)
     case PREF_BOOL:
     {
         QCheckBox *bool_cb = new QCheckBox(pref->title);
+        bool_cb->setToolTip(tooltip);
         bool_cb->setProperty(pref_prop_, qVariantFromValue(pref));
         vb->addWidget(bool_cb);
         break;
@@ -84,10 +88,13 @@ pref_show(pref_t *pref, gpointer layout_ptr)
         if (!pref->info.enum_info.enumvals) return 0;
 
         if (pref->info.enum_info.radio_buttons) {
-            vb->addWidget(new QLabel(pref->title));
+            QLabel *label = new QLabel(pref->title);
+            label->setToolTip(tooltip);
+            vb->addWidget(label);
             QButtonGroup *enum_bg = new QButtonGroup();
             for (ev = pref->info.enum_info.enumvals; ev && ev->description; ev++) {
                 QRadioButton *enum_rb = new QRadioButton(ev->description);
+                enum_rb->setToolTip(tooltip);
                 QStyleOption style_opt;
                 enum_rb->setProperty(pref_prop_, qVariantFromValue(pref));
                 enum_rb->setStyleSheet(QString(
@@ -102,6 +109,7 @@ pref_show(pref_t *pref, gpointer layout_ptr)
         } else {
             QHBoxLayout *hb = new QHBoxLayout();
             QComboBox *enum_cb = new QComboBox();
+            enum_cb->setToolTip(tooltip);
             enum_cb->setProperty(pref_prop_, qVariantFromValue(pref));
             for (ev = pref->info.enum_info.enumvals; ev && ev->description; ev++) {
                 enum_cb->addItem(ev->description, QVariant(ev->value));
@@ -116,8 +124,11 @@ pref_show(pref_t *pref, gpointer layout_ptr)
     case PREF_STRING:
     {
         QHBoxLayout *hb = new QHBoxLayout();
-        hb->addWidget(new QLabel(pref->title));
+        QLabel *label = new QLabel(pref->title);
+        label->setToolTip(tooltip);
+        hb->addWidget(label);
         QLineEdit *string_le = new QLineEdit();
+        string_le->setToolTip(tooltip);
         string_le->setProperty(pref_prop_, qVariantFromValue(pref));
         string_le->setMinimumWidth(string_le->fontMetrics().height() * 20);
         hb->addWidget(string_le);
@@ -128,8 +139,11 @@ pref_show(pref_t *pref, gpointer layout_ptr)
     case PREF_RANGE:
     {
         QHBoxLayout *hb = new QHBoxLayout();
-        hb->addWidget(new QLabel(pref->title));
+        QLabel *label = new QLabel(pref->title);
+        label->setToolTip(tooltip);
+        hb->addWidget(label);
         SyntaxLineEdit *range_se = new SyntaxLineEdit();
+        range_se->setToolTip(tooltip);
         range_se->setProperty(pref_prop_, qVariantFromValue(pref));
         range_se->setMinimumWidth(range_se->fontMetrics().height() * 20);
         hb->addWidget(range_se);
@@ -139,14 +153,19 @@ pref_show(pref_t *pref, gpointer layout_ptr)
     }
     case PREF_STATIC_TEXT:
     {
-        vb->addWidget(new QLabel(pref->title));
+        QLabel *label = new QLabel(pref->title);
+        label->setToolTip(tooltip);
+        vb->addWidget(label);
         break;
     }
     case PREF_UAT:
     {
         QHBoxLayout *hb = new QHBoxLayout();
-        hb->addWidget(new QLabel(pref->title));
-        QPushButton *uat_pb = new QPushButton("Edit...");
+        QLabel *label = new QLabel(pref->title);
+        label->setToolTip(tooltip);
+        hb->addWidget(label);
+        QPushButton *uat_pb = new QPushButton(QObject::tr("Edit..."));
+        uat_pb->setToolTip(tooltip);
         uat_pb->setProperty(pref_prop_, qVariantFromValue(pref));
         hb->addWidget(uat_pb);
         hb->addSpacerItem(new QSpacerItem(1, 1, QSizePolicy::Expanding, QSizePolicy::Minimum));
@@ -156,9 +175,12 @@ pref_show(pref_t *pref, gpointer layout_ptr)
     case PREF_FILENAME:
     case PREF_DIRNAME:
     {
-        vb->addWidget(new QLabel(pref->title));
+        QLabel *label = new QLabel(pref->title);
+        label->setToolTip(tooltip);
+        vb->addWidget(label);
         QHBoxLayout *hb = new QHBoxLayout();
         QLineEdit *path_le = new QLineEdit();
+        path_le->setToolTip(tooltip);
         QStyleOption style_opt;
         path_le->setProperty(pref_prop_, qVariantFromValue(pref));
         path_le->setMinimumWidth(path_le->fontMetrics().height() * 20);
@@ -169,7 +191,7 @@ pref_show(pref_t *pref, gpointer layout_ptr)
                               )
                           .arg(path_le->style()->subElementRect(QStyle::SE_CheckBoxContents, &style_opt).left()));
         hb->addWidget(path_le);
-        QPushButton *path_pb = new QPushButton("Browse...");
+        QPushButton *path_pb = new QPushButton(QObject::tr("Browse..."));
         path_pb->setProperty(pref_prop_, qVariantFromValue(pref));
         hb->addWidget(path_pb);
         hb->addSpacerItem(new QSpacerItem(1, 1, QSizePolicy::Expanding, QSizePolicy::Minimum));
@@ -433,7 +455,8 @@ void ModulePreferencesScrollArea::uatPushButtonPressed()
     pref_t *pref = uat_pb->property(pref_prop_).value<pref_t *>();
     if (!pref) return;
 
-    qDebug() << "FIX Implement UATs:" << pref->title;
+    UatDialog uat_dlg(this, pref->varp.uat);
+    uat_dlg.exec();
 }
 
 void ModulePreferencesScrollArea::filenamePushButtonPressed()
@@ -445,7 +468,7 @@ void ModulePreferencesScrollArea::filenamePushButtonPressed()
     if (!pref) return;
 
     QString filename = QFileDialog::getSaveFileName(this,
-                                            QString("Wireshark: ") + pref->description,
+                                            QString(tr("Wireshark: ")) + pref->description,
                                             pref->stashed_val.string);
 
     if (!filename.isEmpty()) {
@@ -464,7 +487,7 @@ void ModulePreferencesScrollArea::dirnamePushButtonPressed()
     if (!pref) return;
 
     QString dirname = QFileDialog::getExistingDirectory(this,
-                                                 QString("Wireshark: ") + pref->description,
+                                                 QString(tr("Wireshark: ")) + pref->description,
                                                  pref->stashed_val.string);
 
     if (!dirname.isEmpty()) {

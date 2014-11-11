@@ -5,8 +5,6 @@
  * This information is based off the released idl files from opengroup.
  * ftp://ftp.opengroup.org/pub/dce122/dce/src/security.tar.gz security/idl/rs_prop_pgo.idl
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,9 @@
 #include <epan/packet.h>
 #include "packet-dcerpc.h"
 
+void proto_register_rs_prop_pgo (void);
+void proto_reg_handoff_rs_prop_pgo (void);
+
 static int proto_rs_prop_pgo = -1;
 static int hf_rs_prop_pgo_opnum = -1;
 
@@ -46,11 +47,11 @@ static guint16 ver_rs_prop_pgo = 1;
 
 
 static dcerpc_sub_dissector rs_prop_pgo_dissectors[] = {
-  {0, "add", NULL, NULL},
-  {1, "rename", NULL, NULL},
-  {2, "replace", NULL, NULL},
-  {3, "add_member", NULL, NULL},
-  {4, "delete_member", NULL, NULL},
+  {0, "add",               NULL, NULL},
+  {1, "rename",            NULL, NULL},
+  {2, "replace",           NULL, NULL},
+  {3, "add_member",        NULL, NULL},
+  {4, "delete_member",     NULL, NULL},
   {5, "add_member_global", NULL, NULL},
   {0, NULL, NULL, NULL}
 };

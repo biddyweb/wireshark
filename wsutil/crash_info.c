@@ -1,8 +1,6 @@
 /* crash_info.c
  * Routines to try to provide more useful information in crash dumps.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2006 Gerald Combs
@@ -138,7 +136,7 @@ struct crashreporter_annotations_t gCRAnnotations
 };
 
 #define CRSetCrashLogMessage(m) _crc_make_setter(message, m)
-#endif
+#endif /* 0 */
 
 void
 ws_add_crash_info(const char *fmt, ...)
@@ -160,9 +158,15 @@ ws_add_crash_info(const char *fmt, ...)
 	}
 }
 
-#else
+#else /* __APPLE__ */
+/*
+ * Perhaps Google Breakpad (http://code.google.com/p/google-breakpad/) or
+ * other options listed at
+ * http://stackoverflow.com/questions/7631908/library-for-logging-call-stack-at-runtime-windows-linux
+ * ?
+ */
 void
 ws_add_crash_info(const char *fmt _U_, ...)
 {
 }
-#endif
+#endif /* __APPLE__ */

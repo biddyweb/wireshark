@@ -1,15 +1,13 @@
 #
-# $Id$
-#
 # - Find unix commands from cygwin
 # This module looks for some usual Unix commands.
 #
 
-INCLUDE(FindCygwin)
+include( FindCygwin )
 
-FIND_PROGRAM(SH_EXECUTABLE
+find_program( SH_EXECUTABLE
   NAMES
-    sh
+    bash
   PATHS
     ${CYGWIN_INSTALL_PATH}/bin
     /bin
@@ -18,8 +16,15 @@ FIND_PROGRAM(SH_EXECUTABLE
     /sbin
 )
 
-INCLUDE(FindPackageHandleStandardArgs)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(SH DEFAULT_MSG SH_EXECUTABLE)
+include( FindPackageHandleStandardArgs )
+find_package_handle_standard_args( SH DEFAULT_MSG SH_EXECUTABLE )
 
-MARK_AS_ADVANCED(SH_EXECUTABLE)
+# FIXME: Don't match on the name but check whether the argument is
+#   accepted or not. OTOH, if it isn't accepted, build will fail on Win.
+if( WIN32 )
+  set( SH_FLAGS1 -o )
+  set( SH_FLAGS2 igncr )
+endif()
+
+mark_as_advanced( SH_EXECUTABLE )
 

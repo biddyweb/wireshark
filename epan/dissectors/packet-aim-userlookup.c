@@ -2,8 +2,6 @@
  * Routines for AIM Instant Messenger (OSCAR) dissection, SNAC Userlookup
  * Copyright 2004, Jelmer Vernooij <jelmer@samba.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -46,7 +44,7 @@ static gint ett_aim_userlookup = -1;
 
 static int dissect_aim_userlookup_search(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *lookup_tree)
 {
-	proto_tree_add_item(lookup_tree, hf_aim_userlookup_email, tvb, 0, tvb_length(tvb), ENC_ASCII|ENC_NA);
+	proto_tree_add_item(lookup_tree, hf_aim_userlookup_email, tvb, 0, tvb_length(tvb), ENC_UTF_8|ENC_NA);
 	return tvb_length(tvb);
 }
 

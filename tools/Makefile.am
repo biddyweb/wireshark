@@ -1,8 +1,6 @@
 # Makefile.am
 # Automake file for Wireshark
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -95,6 +93,7 @@ EXTRA_DIST = \
 	cppcheck/cppcheck.sh				\
 	cppcheck/includes				\
 	cppcheck/suppressions				\
+	debian-setup.sh					\
 	dfilter-test.py 				\
 	extract_asn1_from_spec.pl			\
 	fix-encoding-args.pl				\
@@ -102,8 +101,11 @@ EXTRA_DIST = \
 	ftsanity.py					\
 	fuzz-test.sh					\
 	html2text.py					\
+	asn2deb						\
+	idl2deb						\
 	idl2wrs						\
 	indexcap.py					\
+	install_rpms_for_devel.sh			\
 	lex.py						\
 	list_protos_in_cap.sh				\
 	Makefile.nmake					\
@@ -111,7 +113,7 @@ EXTRA_DIST = \
 	make-dissector-reg.py				\
 	make-manuf					\
 	make-sminmpec.pl 				\
-	make-services.pl 				\
+	make-services.py 				\
 	make-tapreg-dotc				\
 	make-tap-reg.py					\
 	msnchat						\
@@ -126,7 +128,7 @@ EXTRA_DIST = \
 	runlex.sh					\
 	setuid-root.pl.in				\
 	test-common.sh					\
-	test-fuzzed-cap.sh				\
+	test-captures.sh				\
 	textify.sh 					\
 	valgrind-wireshark.sh				\
 	win32-setup.sh					\

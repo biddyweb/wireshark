@@ -1,7 +1,5 @@
 /* packet-gsm_sms.h
  *
- * $Id$
- *
  * Copyright 2004, Michael Lum <mlum [AT] telostech.com>,
  * In association with Telos Technology Inc.
  *
@@ -24,27 +22,29 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-/* Convert a 7-bit GSM SMS packed string into an unpacked string.
- *
- * @param offset Bit offset of the start of the string.
- * @param in_length Length of the packed string in bytes.
- * @param out_length Length of the output string in bytes.
- * @param input The string to unpack
- * @param output The buffer for the output string. This buffer must
- *               be pre-allocated and be at least out_length characters
- *               long, or out_length + 1 if you're planning on adding a
- *               terminating '\0'.
- * @return The number of unpacked characters.
+enum character_set {
+    OTHER,
+    GSM_7BITS,
+    ASCII_7BITS
+};
+
+/*
+ * contains a subset of parameters dissected from the UDH
+ * that are useful in the GSM SMS dissector or other dissectors
+ * (packet-ansi_637.c)
  */
+typedef struct {
+    guint16     sm_id;          /* message identifier */
+    guint16     frags;          /* total number of fragments */
+    guint16     frag;           /* fragment number */
+    guint16     port_src;       /* application port addressing scheme source port */
+    guint16     port_dst;       /* application port addressing scheme destination port */
+} gsm_sms_udh_fields_t;
 
-extern int gsm_sms_char_7bit_unpack(unsigned int offset, unsigned int in_length, unsigned int out_length,
-		     const guint8 *input, unsigned char *output);
+void dis_field_udh(tvbuff_t *tvb, proto_tree *tree, guint32 *offset, guint32 *length,
+                   guint8 *udl, enum character_set cset, guint8 *fill_bits, gsm_sms_udh_fields_t *p_udh_fields);
 
-/* Convert an unpacked SMS string to UTF-8.
- *
- * @param src The string to convert.
- * @param len Length of the string to convert, in bytes.
- * @return An ep_allocated UTF-8 string.
- */
-
-extern gchar *gsm_sms_chars_to_utf8(const unsigned char* src, int len);
+/* Data structure that can be optionally given to gsm_sms dissector */
+typedef struct _gsm_sms_data_t {
+    gboolean stk_packing_required;
+} gsm_sms_data_t;

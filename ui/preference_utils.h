@@ -1,8 +1,6 @@
 /* preference_utils.h
  * Routines for handling preferences
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,15 +35,16 @@ extern "C" {
 /** "Stash" a preference.
  * Copy a preference to its stashed value. Can be called from prefs_pref_foreach().
  *
- * @param pref: A preference.
+ * @param pref A preference.
+ * @param unused unused
  */
 extern guint pref_stash(pref_t *pref, gpointer unused _U_);
 
 /** "Untash" a preference.
  * Set a preference to its stashed value. Can be called from prefs_pref_foreach().
  *
- * @param pref: A preference.
- * @param changed_p: A pointer to a gboolean. Set to TRUE if the preference differs
+ * @param pref A preference.
+ * @param changed_p A pointer to a gboolean. Set to TRUE if the preference differs
  * from its stashed value.
  *
  * @return Always returns 0.
@@ -56,6 +55,7 @@ extern guint pref_unstash(pref_t *pref, gpointer changed_p);
  * Can be called from prefs_pref_foreach().
  *
  * @param pref A preference.
+ * @param unused unused
  *
  * @return Always returns 0.
  */
@@ -63,7 +63,7 @@ extern guint pref_clean_stash(pref_t *pref, gpointer unused _U_);
 
 /** Set a stashed preference to its default value.
  *
- *@pram pref A preference.
+ *@param pref A preference.
  */
 extern void reset_stashed_pref(pref_t *pref);
 
@@ -85,6 +85,7 @@ extern void prefs_main_write(void);
  * @param fmt column format
  * @param title column title
  * @param custom_field column custom field
+ * @param custom_occurrence custom occurrence
  */
 void column_prefs_add_custom(gint fmt, const gchar *title,
 			     const gchar *custom_field,

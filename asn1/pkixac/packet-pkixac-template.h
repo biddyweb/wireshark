@@ -1,10 +1,8 @@
 /* packet-pkixac.h
  *
  * Routines for PKIXAttributeCertificate (RFC3281) packet dissection.
- * 
- * Copyright 2010, Stig Bjorlykke <stig@bjorlykke.org>
  *
- * $Id$
+ * Copyright 2010, Stig Bjorlykke <stig@bjorlykke.org>
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>

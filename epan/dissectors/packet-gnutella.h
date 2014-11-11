@@ -2,8 +2,6 @@
  * Declarations for gnutella dissection
  * Copyright 2001, B. Johannessen <bob@havoq.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -22,8 +20,6 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
-
-void proto_register_gnutella(void);
 
 #define GNUTELLA_TCP_PORT	6346
 

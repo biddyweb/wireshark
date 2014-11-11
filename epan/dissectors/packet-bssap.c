@@ -10,8 +10,6 @@
  * Added BSSAP+ according to ETSI TS 129 018 V6.3.0 (2005-3GPP TS 29.018 version 6.3.0 Release 6)
  * Copyright 2006, Anders Broman <Anders.Broman [AT] ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,13 +35,14 @@
 
 #include <epan/packet.h>
 #include <epan/prefs.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-bssap.h"
 #include "packet-sccp.h"
 #include "packet-gsm_a_common.h"
 #include "packet-e212.h"
 
+void proto_register_bssap(void);
 void proto_reg_handoff_bssap(void);
 
 #define BSSAP 0
@@ -619,7 +618,7 @@ dissect_bssap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 static dgt_set_t Dgt_tbcd = {
     {
   /*  0   1   2   3   4   5   6   7   8   9   a   b   c   d   e */
-     '0','1','2','3','4','5','6','7','8','9','?','B','C','*','#'
+     '0','1','2','3','4','5','6','7','8','9','?','B','C','*','#','?'
     }
 };
 #endif
@@ -627,7 +626,7 @@ static dgt_set_t Dgt_tbcd = {
 static dgt_set_t Dgt1_9_bcd = {
     {
   /*  0   1   2   3   4   5   6   7   8   9   a   b   c   d   e */
-     '0','1','2','3','4','5','6','7','8','9','?','?','?','?','?'
+     '0','1','2','3','4','5','6','7','8','9','?','?','?','?','?','?'
     }
 };
 /* Assumes the rest of the tvb contains the digits to be turned into a string
@@ -643,7 +642,7 @@ unpack_digits(tvbuff_t *tvb, int offset, dgt_set_t *dgt, gboolean skip_first)
     length = tvb_length(tvb);
     if (length < offset)
         return "";
-    digit_str = ep_alloc((length - offset)*2+1);
+    digit_str = (char *)wmem_alloc(wmem_packet_scope(), (length - offset)*2+1);
 
     while (offset < length) {
 
@@ -2570,6 +2569,7 @@ proto_register_bssap(void)
     /*proto_bssap_plus = proto_register_protocol("BSSAP2", "BSSAP2", "bssap2");*/
 
     register_dissector("bssap", dissect_bssap, proto_bssap);
+    register_dissector("bssap_plus", dissect_bssap_plus, proto_bssap);
 
     /* Required function calls to register the header fields and subtrees used */
     proto_register_field_array(proto_bssap, hf, array_length(hf));

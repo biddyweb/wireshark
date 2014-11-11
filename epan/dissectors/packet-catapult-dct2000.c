@@ -1,8 +1,6 @@
 /* packet-catapult-dct2000.c
  * Routines for Catapult DCT2000 packet stub header disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,12 +25,13 @@
 #include <glib.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <ctype.h>
 
 #include <epan/packet.h>
 #include <epan/conversation.h>
 #include <epan/expert.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/ipproto.h>
 #include <epan/prefs.h>
 #include <epan/strutil.h>
@@ -45,6 +44,9 @@
 #include "packet-mac-lte.h"
 #include "packet-rlc-lte.h"
 #include "packet-pdcp-lte.h"
+
+void proto_reg_handoff_catapult_dct2000(void);
+void proto_register_catapult_dct2000(void);
 
 /* Protocol and registered fields. */
 static int proto_catapult_dct2000 = -1;
@@ -136,6 +138,9 @@ static int ett_catapult_dct2000 = -1;
 static int ett_catapult_dct2000_ipprim = -1;
 static int ett_catapult_dct2000_sctpprim = -1;
 static int ett_catapult_dct2000_tty = -1;
+
+static expert_field ei_catapult_dct2000_lte_ccpri_status_error = EI_INIT;
+static expert_field ei_catapult_dct2000_error_comment_expert = EI_INIT;
 
 static const value_string direction_vals[] = {
     { 0,   "Sent" },
@@ -291,8 +296,6 @@ extern int proto_pdcp_lte;
 static dissector_handle_t mac_lte_handle;
 static dissector_handle_t rlc_lte_handle;
 static dissector_handle_t pdcp_lte_handle;
-
-void proto_register_catapult_dct2000(void);
 
 static dissector_handle_t look_for_dissector(const char *protocol_name);
 static void parse_outhdr_string(const guchar *outhdr_string, gint outhdr_length);
@@ -1063,8 +1066,7 @@ static void dissect_ccpri_lte(tvbuff_t *tvb, gint offset,
         offset++;
 
         if (status != 0) {
-            expert_add_info_format(pinfo, ti, PI_SEQUENCE, PI_ERROR,
-                                   "CCPRI Indication has error status");
+            expert_add_info(pinfo, ti, &ei_catapult_dct2000_lte_ccpri_status_error);
 
         }
     }
@@ -1109,7 +1111,7 @@ static void dissect_pdcp_lte(tvbuff_t *tvb, gint offset,
     guint8                channelId;
 
     /* Look this up so can update channel info */
-    p_pdcp_lte_info = p_get_proto_data(pinfo->fd, proto_pdcp_lte);
+    p_pdcp_lte_info = (struct pdcp_lte_info *)p_get_proto_data(wmem_file_scope(), pinfo, proto_pdcp_lte, 0);
     if (p_pdcp_lte_info == NULL) {
         /* This really should be set...can't dissect anything without it */
         return;
@@ -1209,7 +1211,7 @@ static void dissect_pdcp_lte(tvbuff_t *tvb, gint offset,
                     /* Logical channel type */
                     proto_tree_add_item(tree, hf_catapult_dct2000_lte_rlc_channel_type,
                                         tvb, offset, 1, ENC_BIG_ENDIAN);
-                    p_pdcp_lte_info->channelType = tvb_get_guint8(tvb, offset++);
+                    p_pdcp_lte_info->channelType = (LogicalChannelType)tvb_get_guint8(tvb, offset++);
                     col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
                                     val_to_str_const(p_pdcp_lte_info->channelType, rlc_logical_channel_vals,
                                                      "UNKNOWN-CHANNEL"));
@@ -1220,7 +1222,7 @@ static void dissect_pdcp_lte(tvbuff_t *tvb, gint offset,
                             offset++;
 
                             /* Transport channel type */
-                            p_pdcp_lte_info->BCCHTransport = tvb_get_guint8(tvb, offset);
+                            p_pdcp_lte_info->BCCHTransport = (BCCHTransportType)tvb_get_guint8(tvb, offset);
                             proto_tree_add_item(tree, hf_catapult_dct2000_lte_bcch_transport,
                                                 tvb, offset, 1, ENC_BIG_ENDIAN);
                             offset++;
@@ -1443,13 +1445,13 @@ static void attach_fp_info(packet_info *pinfo, gboolean received, const char *pr
     int  calculated_variant;
 
     /* Only need to set info once per session. */
-    struct fp_info *p_fp_info = p_get_proto_data(pinfo->fd, proto_fp);
+    struct fp_info *p_fp_info = (struct fp_info *)p_get_proto_data(wmem_file_scope(), pinfo, proto_fp, 0);
     if (p_fp_info != NULL) {
         return;
     }
 
     /* Allocate struct */
-    p_fp_info = se_alloc0(sizeof(struct fp_info));
+    p_fp_info = wmem_new0(wmem_file_scope(), struct fp_info);
 
     /* Check that the number of outhdr values looks sensible */
     if (((strcmp(protocol_name, "fpiur_r5") == 0) && (outhdr_values_found != 2)) ||
@@ -1545,7 +1547,7 @@ static void attach_fp_info(packet_info *pinfo, gboolean received, const char *pr
     /* Division type introduced for R7 */
     if ((p_fp_info->release == 7) ||
         (p_fp_info->release == 8)) {
-        p_fp_info->division = outhdr_values[i++];
+        p_fp_info->division = (enum division_type)outhdr_values[i++];
     }
 
     /* HS-DSCH config */
@@ -1568,7 +1570,7 @@ static void attach_fp_info(packet_info *pinfo, gboolean received, const char *pr
     if (strcmp(protocol_name, "fpiur_r5") == 0) {
         /* Store info in packet */
         p_fp_info->iface_type = IuR_Interface;
-        p_add_proto_data(pinfo->fd, proto_fp, p_fp_info);
+        p_add_proto_data(wmem_file_scope(), pinfo, proto_fp, 0, p_fp_info);
         return;
     }
 
@@ -1632,7 +1634,7 @@ static void attach_fp_info(packet_info *pinfo, gboolean received, const char *pr
     p_fp_info->iface_type = IuB_Interface;
 
     /* Store info in packet */
-    p_add_proto_data(pinfo->fd, proto_fp, p_fp_info);
+    p_add_proto_data(wmem_file_scope(), pinfo, proto_fp, 0, p_fp_info);
 }
 
 
@@ -1642,7 +1644,7 @@ static void attach_rlc_info(packet_info *pinfo, guint32 urnti, guint8 rbid, gboo
 {
     /* Only need to set info once per session. */
     struct fp_info  *p_fp_info;
-    struct rlc_info *p_rlc_info = p_get_proto_data(pinfo->fd, proto_rlc);
+    struct rlc_info *p_rlc_info = (struct rlc_info *)p_get_proto_data(wmem_file_scope(), pinfo, proto_rlc, 0);
 
     if (p_rlc_info != NULL) {
         return;
@@ -1654,8 +1656,8 @@ static void attach_rlc_info(packet_info *pinfo, guint32 urnti, guint8 rbid, gboo
     }
 
     /* Allocate structs */
-    p_rlc_info = se_alloc0(sizeof(struct rlc_info));
-    p_fp_info = se_alloc0(sizeof(struct fp_info));
+    p_rlc_info = wmem_new(wmem_file_scope(), struct rlc_info);
+    p_fp_info = wmem_new(wmem_file_scope(), struct fp_info);
 
     /* Fill in struct fields for first (only) PDU in this frame */
 
@@ -1695,10 +1697,10 @@ static void attach_rlc_info(packet_info *pinfo, guint32 urnti, guint8 rbid, gboo
     p_rlc_info->rbid[0] = rbid;
 
     /* li_size */
-    p_rlc_info->li_size[0] = outhdr_values[0];
+    p_rlc_info->li_size[0] = (enum rlc_li_size)outhdr_values[0];
 
     /* Store info in packet */
-    p_add_proto_data(pinfo->fd, proto_rlc, p_rlc_info);
+    p_add_proto_data(wmem_file_scope(), pinfo, proto_rlc, 0, p_rlc_info);
 
     /* Also store minimal FP info consulted by RLC dissector
        TODO: Don't really know direction, but use S/R flag to make
@@ -1706,7 +1708,7 @@ static void attach_rlc_info(packet_info *pinfo, guint32 urnti, guint8 rbid, gboo
        but RLC dissector seems to not use anyway... */
     p_fp_info->is_uplink = is_sent;
     p_fp_info->cur_tb = 0; /* Always the first/only one */
-    p_add_proto_data(pinfo->fd, proto_fp, p_fp_info);
+    p_add_proto_data(wmem_file_scope(), pinfo, proto_fp, 0, p_fp_info);
 }
 
 
@@ -1724,7 +1726,7 @@ static void attach_mac_lte_info(packet_info *pinfo)
     }
 
     /* Allocate & zero struct */
-    p_mac_lte_info = se_alloc0(sizeof(struct mac_lte_info));
+    p_mac_lte_info = wmem_new0(wmem_file_scope(), struct mac_lte_info);
 
     /* Populate the struct from outhdr values */
     p_mac_lte_info->crcStatusValid = FALSE;  /* not set yet */
@@ -1752,7 +1754,7 @@ static void attach_mac_lte_info(packet_info *pinfo)
         /* CRC only valid for Downlink */
         if (p_mac_lte_info->direction == DIRECTION_DOWNLINK) {
             p_mac_lte_info->crcStatusValid = TRUE;
-            p_mac_lte_info->detailed_phy_info.dl_info.crc_status = outhdr_values[i++];
+            p_mac_lte_info->crcStatus = (mac_lte_crc_status)outhdr_values[i++];
         }
         else {
             i++;
@@ -1778,7 +1780,7 @@ static void attach_mac_lte_info(packet_info *pinfo)
             }
             p_mac_lte_info->detailed_phy_info.dl_info.resource_block_length = outhdr_values[i++];
             p_mac_lte_info->crcStatusValid = TRUE;
-            p_mac_lte_info->detailed_phy_info.dl_info.crc_status = outhdr_values[i++];
+            p_mac_lte_info->crcStatus = (mac_lte_crc_status)outhdr_values[i++];
             if (outhdr_values_found > 18) {
                 p_mac_lte_info->detailed_phy_info.dl_info.harq_id = outhdr_values[i++];
                 p_mac_lte_info->detailed_phy_info.dl_info.ndi = outhdr_values[i++];
@@ -1840,13 +1842,13 @@ static void attach_rlc_lte_info(packet_info *pinfo)
     unsigned int         i = 0;
 
     /* Only need to set info once per session. */
-    p_rlc_lte_info = p_get_proto_data(pinfo->fd, proto_rlc_lte);
+    p_rlc_lte_info = (rlc_lte_info *)p_get_proto_data(wmem_file_scope(), pinfo, proto_rlc_lte, 0);
     if (p_rlc_lte_info != NULL) {
         return;
     }
 
     /* Allocate & zero struct */
-    p_rlc_lte_info = se_alloc0(sizeof(struct rlc_lte_info));
+    p_rlc_lte_info = wmem_new0(wmem_file_scope(), rlc_lte_info);
 
     p_rlc_lte_info->rlcMode = outhdr_values[i++];
     p_rlc_lte_info->direction = outhdr_values[i++];
@@ -1858,7 +1860,7 @@ static void attach_rlc_lte_info(packet_info *pinfo)
     p_rlc_lte_info->pduLength = outhdr_values[i];
 
     /* Store info in packet */
-    p_add_proto_data(pinfo->fd, proto_rlc_lte, p_rlc_lte_info);
+    p_add_proto_data(wmem_file_scope(), pinfo, proto_rlc_lte, 0, p_rlc_lte_info);
 }
 
 /* Fill in a PDCP LTE packet info struct and attach it to the packet for the PDCP LTE
@@ -1869,34 +1871,34 @@ static void attach_pdcp_lte_info(packet_info *pinfo)
     unsigned int          i = 0;
 
     /* Only need to set info once per session. */
-    p_pdcp_lte_info = p_get_proto_data(pinfo->fd, proto_pdcp_lte);
+    p_pdcp_lte_info = (pdcp_lte_info *)p_get_proto_data(wmem_file_scope(), pinfo, proto_pdcp_lte, 0);
     if (p_pdcp_lte_info != NULL) {
         return;
     }
 
     /* Allocate & zero struct */
-    p_pdcp_lte_info = se_alloc0(sizeof(struct pdcp_lte_info));
+    p_pdcp_lte_info = wmem_new0(wmem_file_scope(), pdcp_lte_info);
 
     p_pdcp_lte_info->no_header_pdu = outhdr_values[i++];
-    p_pdcp_lte_info->plane = outhdr_values[i++];
+    p_pdcp_lte_info->plane = (enum pdcp_plane)outhdr_values[i++];
     if (p_pdcp_lte_info->plane != USER_PLANE) {
         p_pdcp_lte_info->plane = SIGNALING_PLANE;
     }
     p_pdcp_lte_info->seqnum_length = outhdr_values[i++];
 
-    p_pdcp_lte_info->rohc_compression = outhdr_values[i++];
-    p_pdcp_lte_info->rohc_ip_version = outhdr_values[i++];
-    p_pdcp_lte_info->cid_inclusion_info = outhdr_values[i++];
-    p_pdcp_lte_info->large_cid_present = outhdr_values[i++];
-    p_pdcp_lte_info->mode = outhdr_values[i++];
-    p_pdcp_lte_info->rnd = outhdr_values[i++];
-    p_pdcp_lte_info->udp_checksum_present = outhdr_values[i++];
-    p_pdcp_lte_info->profile = outhdr_values[i];
+    p_pdcp_lte_info->rohc.rohc_compression = outhdr_values[i++];
+    p_pdcp_lte_info->rohc.rohc_ip_version = outhdr_values[i++];
+    p_pdcp_lte_info->rohc.cid_inclusion_info = outhdr_values[i++];
+    p_pdcp_lte_info->rohc.large_cid_present = outhdr_values[i++];
+    p_pdcp_lte_info->rohc.mode = (enum rohc_mode)outhdr_values[i++];
+    p_pdcp_lte_info->rohc.rnd = outhdr_values[i++];
+    p_pdcp_lte_info->rohc.udp_checksum_present = outhdr_values[i++];
+    p_pdcp_lte_info->rohc.profile = outhdr_values[i];
 
     /* Remaining 2 (fixed) fields are ah_length and gre_checksum */
 
     /* Store info in packet */
-    p_add_proto_data(pinfo->fd, proto_pdcp_lte, p_pdcp_lte_info);
+    p_add_proto_data(wmem_file_scope(), pinfo, proto_pdcp_lte, 0, p_pdcp_lte_info);
 }
 
 
@@ -1918,7 +1920,7 @@ static void dissect_tty_lines(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
         int linelen = tvb_find_line_end_unquoted(tvb, offset, -1, &next_offset);
 
         /* Extract & add the string. */
-        char *string = (char*)tvb_get_ephemeral_string(tvb, offset, linelen);
+        char *string = (char*)tvb_get_string(wmem_packet_scope(), tvb, offset, linelen);
         if (isascii(string[0])) {
             /* If looks printable treat as string... */
             proto_tree_add_string_format(tty_tree, hf_catapult_dct2000_tty_line,
@@ -1932,7 +1934,7 @@ static void dissect_tty_lines(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
             char *hex_string;
             int tty_string_length = tvb_length_remaining(tvb, offset);
             int hex_string_length = 1+(2*tty_string_length)+1;
-            hex_string = ep_alloc(hex_string_length);
+            hex_string = (char *)wmem_alloc(wmem_packet_scope(), hex_string_length);
 
             idx = g_snprintf(hex_string, hex_string_length, "$");
 
@@ -2037,7 +2039,7 @@ static void check_for_oob_mac_lte_events(packet_info *pinfo, tvbuff_t *tvb, prot
     if (p_mac_lte_info == NULL) {
 
         /* Allocate & zero struct */
-        p_mac_lte_info = se_alloc0(sizeof(struct mac_lte_info));
+        p_mac_lte_info = wmem_new0(wmem_file_scope(), mac_lte_info);
 
         /* This indicates to MAC dissector that it has an oob event */
         p_mac_lte_info->length = 0;
@@ -2230,28 +2232,32 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     /* LTE MAC needs info attached */
     else if ((strcmp(protocol_name, "mac_r8_lte") == 0) ||
-             (strcmp(protocol_name, "mac_r9_lte") == 0)) {
+             (strcmp(protocol_name, "mac_r9_lte") == 0) ||
+             (strcmp(protocol_name, "mac_r10_lte") == 0)) {
         parse_outhdr_string(outhdr_string, outhdr_length);
         attach_mac_lte_info(pinfo);
     }
 
     /* LTE RLC needs info attached */
     else if ((strcmp(protocol_name, "rlc_r8_lte") == 0) ||
-             (strcmp(protocol_name, "rlc_r9_lte") == 0)) {
+             (strcmp(protocol_name, "rlc_r9_lte") == 0) ||
+             (strcmp(protocol_name, "rlc_r10_lte") == 0)) {
         parse_outhdr_string(outhdr_string, outhdr_length);
         attach_rlc_lte_info(pinfo);
     }
 
     /* LTE PDCP needs info attached */
     else if ((strcmp(protocol_name, "pdcp_r8_lte") == 0) ||
-             (strcmp(protocol_name, "pdcp_r9_lte") == 0)) {
+             (strcmp(protocol_name, "pdcp_r9_lte") == 0) ||
+             (strcmp(protocol_name, "pdcp_r10_lte") == 0)) {
         parse_outhdr_string(outhdr_string, outhdr_length);
         attach_pdcp_lte_info(pinfo);
     }
 
 
     else if ((strcmp(protocol_name, "nas_rrc_r8_lte") == 0) ||
-             (strcmp(protocol_name, "nas_rrc_r9_lte") == 0)) {
+             (strcmp(protocol_name, "nas_rrc_r9_lte") == 0) ||
+             (strcmp(protocol_name, "nas_rrc_r10_lte") == 0)) {
         gboolean nas_body_found = TRUE;
         guint8 opcode = tvb_get_guint8(tvb, offset);
         proto_tree_add_item(tree, hf_catapult_dct2000_lte_nas_rrc_opcode,
@@ -2414,19 +2420,22 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
             else
             if ((strcmp(protocol_name, "mac_r8_lte") == 0) ||
-                (strcmp(protocol_name, "mac_r9_lte") == 0)) {
+                (strcmp(protocol_name, "mac_r9_lte") == 0) ||
+                (strcmp(protocol_name, "mac_r10_lte") == 0)) {
                 protocol_handle = mac_lte_handle;
             }
 
             else
             if ((strcmp(protocol_name, "rlc_r8_lte") == 0) ||
-                (strcmp(protocol_name, "rlc_r9_lte") == 0)) {
+                (strcmp(protocol_name, "rlc_r9_lte") == 0) ||
+                (strcmp(protocol_name, "rlc_r10_lte") == 0)) {
                 protocol_handle = rlc_lte_handle;
             }
 
             else
             if ((strcmp(protocol_name, "pdcp_r8_lte") == 0) ||
-                (strcmp(protocol_name, "pdcp_r9_lte") == 0)) {
+                (strcmp(protocol_name, "pdcp_r9_lte") == 0) ||
+                (strcmp(protocol_name, "pdcp_r10_lte") == 0)) {
                 /* Dissect proprietary header, then pass remainder to PDCP */
                 dissect_pdcp_lte(tvb, offset, pinfo, tree);
                 return;
@@ -2456,7 +2465,7 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             if (strcmp(protocol_name, "comment") == 0) {
                 /* Extract & add the string. */
                 proto_item *string_ti;
-                char *string = (char*)tvb_get_ephemeral_string(tvb, offset, tvb_length_remaining(tvb, offset));
+                char *string = (char*)tvb_get_string(wmem_packet_scope(), tvb, offset, tvb_length_remaining(tvb, offset));
 
                 /* Show comment string */
                 string_ti = proto_tree_add_item(dct2000_tree, hf_catapult_dct2000_comment, tvb,
@@ -2473,7 +2482,7 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     proto_item *error_ti = proto_tree_add_item(dct2000_tree, hf_catapult_dct2000_error_comment, tvb,
                                                                offset, -1, ENC_NA);
                     PROTO_ITEM_SET_GENERATED(error_ti);
-                    expert_add_info_format(pinfo, string_ti, PI_SEQUENCE, PI_ERROR,
+                    expert_add_info_format(pinfo, string_ti, &ei_catapult_dct2000_error_comment_expert,
                                           "%s", string);
                 }
 
@@ -2483,7 +2492,7 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             else
             if (strcmp(protocol_name, "sprint") == 0) {
                 /* Extract & add the string. */
-                char *string = (char*)tvb_get_ephemeral_string(tvb, offset, tvb_length_remaining(tvb, offset));
+                char *string = (char*)tvb_get_string(wmem_packet_scope(), tvb, offset, tvb_length_remaining(tvb, offset));
 
                 /* Show sprint string */
                 proto_tree_add_item(dct2000_tree, hf_catapult_dct2000_sprint, tvb,
@@ -2499,7 +2508,8 @@ dissect_catapult_dct2000(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 ((strcmp(protocol_name, "rrc_r8_lte") == 0) ||
                  (strcmp(protocol_name, "rrcpdcpprim_r8_lte") == 0) ||
                  (strcmp(protocol_name, "rrc_r9_lte") == 0) ||
-                 (strcmp(protocol_name, "rrcpdcpprim_r9_lte") == 0))) {
+                 (strcmp(protocol_name, "rrcpdcpprim_r9_lte") == 0) ||
+                 (strcmp(protocol_name, "rrc_r10_lte") == 0))) {
 
                 /* Dissect proprietary header, then pass remainder
                    to RRC (depending upon direction and channel type) */
@@ -3295,7 +3305,13 @@ void proto_register_catapult_dct2000(void)
         &ett_catapult_dct2000_tty
     };
 
+    static ei_register_info ei[] = {
+        { &ei_catapult_dct2000_lte_ccpri_status_error, { "dct2000.lte.ccpri.status.error", PI_SEQUENCE, PI_ERROR, "CCPRI Indication has error status", EXPFILL }},
+        { &ei_catapult_dct2000_error_comment_expert, { "dct2000.error-comment.expert", PI_SEQUENCE, PI_ERROR, "Formatted expert comment", EXPFILL }},
+    };
+
     module_t *catapult_dct2000_module;
+    expert_module_t* expert_catapult_dct2000;
 
     /* Register protocol. */
     proto_catapult_dct2000 = proto_register_protocol("Catapult DCT2000 packet",
@@ -3303,6 +3319,8 @@ void proto_register_catapult_dct2000(void)
                                                      "dct2000");
     proto_register_field_array(proto_catapult_dct2000, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_catapult_dct2000 = expert_register_protocol(proto_catapult_dct2000);
+    expert_register_field_array(expert_catapult_dct2000, ei, array_length(ei));
 
     /* Allow dissector to find be found by name. */
     register_dissector("dct2000", dissect_catapult_dct2000, proto_catapult_dct2000);

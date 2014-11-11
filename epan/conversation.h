@@ -1,8 +1,6 @@
 /* conversation.h
  * Routines for building lists of packets that are part of a "conversation"
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -78,6 +76,8 @@ typedef struct conversation {
 								/** pointer to the last conversation on hash chain */
 	guint32	index;				/** unique ID for conversation */
 	guint32 setup_frame;		/** frame number that setup this conversation */
+	/* Assume that setup_frame is also the lowest frame number for now. */
+	guint32 last_frame;		/** highest frame number in this conversation */
 	GSList *data_list;			/** list of data associated with conversation */
 	dissector_handle_t dissector_handle;
 								/** handle for protocol dissector client associated with conversation */
@@ -168,18 +168,31 @@ WS_DLL_PUBLIC void conversation_set_dissector(conversation_t *conversation,
  *
  * This helper uses call_dissector_only which will NOT call the default
  * "data" dissector if the packet was rejected.
- * Our caller is responsible to call the data dissector explicitely in case
+ * Our caller is responsible to call the data dissector explicitly in case
  * this function returns FALSE.
  */
 extern gboolean
 try_conversation_dissector(const address *addr_a, const address *addr_b, const port_type ptype,
     const guint32 port_a, const guint32 port_b, tvbuff_t *tvb, packet_info *pinfo,
-    proto_tree *tree);
+    proto_tree *tree, void* data);
 
 /* These routines are used to set undefined values for a conversation */
 
 extern void conversation_set_port2(conversation_t *conv, const guint32 port);
 extern void conversation_set_addr2(conversation_t *conv, const address *addr);
+
+WS_DLL_PUBLIC
+GHashTable *get_conversation_hashtable_exact(void);
+
+WS_DLL_PUBLIC
+GHashTable *get_conversation_hashtable_no_addr2(void);
+
+WS_DLL_PUBLIC
+GHashTable * get_conversation_hashtable_no_port2(void);
+
+WS_DLL_PUBLIC
+GHashTable *get_conversation_hashtable_no_addr2_or_port2(void);
+
 
 #ifdef __cplusplus
 }

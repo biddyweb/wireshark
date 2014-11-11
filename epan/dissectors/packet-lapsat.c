@@ -12,8 +12,6 @@
  * References:
  *  [1] ETSI TS 101 376-4-6 V1.2.1 - GMR-1 04.006
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,12 +36,14 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/reassemble.h>
+#include <epan/wmem/wmem.h>
 
+void proto_register_lapsat(void);
+void proto_reg_handoff_lapsat(void);
 
 static int proto_lapsat = -1;
 
-static GHashTable *lapsat_fragment_table = NULL;
-static GHashTable *lapsat_reassembled_table = NULL;
+static reassembly_table lapsat_reassembly_table;
 
 static dissector_table_t lapsat_sapi_dissector_table;
 
@@ -251,8 +251,8 @@ static const fragment_items lapsat_frag_items = {
 static void
 lapsat_defragment_init(void)
 {
-	fragment_table_init(&lapsat_fragment_table);
-	reassembled_table_init(&lapsat_reassembled_table);
+	reassembly_table_init(&lapsat_reassembly_table,
+	    &addresses_reassembly_table_functions);
 }
 
 
@@ -269,7 +269,7 @@ dissect_control(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, int is_
 	const char *frame_type;
 	char *info;
 
-	info = ep_alloc(80);
+	info = (char *)wmem_alloc(wmem_packet_scope(), 80);
 
 	/* Grab complete control field */
 	ctl = tvb_get_ntohs(tvb, 1) >> 4;
@@ -346,8 +346,7 @@ dissect_control(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, int is_
 	}
 
 	/* Add info */
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_str(pinfo->cinfo, COL_INFO, info);
+	col_add_str(pinfo->cinfo, COL_INFO, info);
 
 	/* Create item & subtree */
 	ctl_ti = proto_tree_add_uint_format_value(
@@ -468,7 +467,7 @@ dissect_lapsat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		/* FIXME if "S func=GREJ", extend */
 
 	/* Create LAPSat tree */
-	lapsat_ti = proto_tree_add_item(tree, proto_lapsat, tvb, 0, hlen, ENC_BIG_ENDIAN);
+	lapsat_ti = proto_tree_add_item(tree, proto_lapsat, tvb, 0, hlen, ENC_NA);
 	lapsat_tree = proto_item_add_subtree(lapsat_ti, ett_lapsat);
 
 	/* Dissect address field */
@@ -506,10 +505,10 @@ dissect_lapsat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	if ((plen + hlen) == tvb_length(tvb)) {
 		/* Need to integrate the last nibble */
-		guint8 *data = ep_alloc(plen);
-		tvb_memcpy(tvb, data, hlen, plen);
+		guint8 *data = (guint8 *)tvb_memdup(NULL, tvb, hlen, plen);
 		data[plen-1] |= tvb_get_guint8(tvb, 2) << 4;
 		payload = tvb_new_child_real_data(tvb, data, plen, plen);
+		tvb_set_free_cb(payload, g_free);
 	} else {
 		/* Last nibble doesn't need merging */
 		payload = tvb_new_subset(tvb, hlen, plen, -1);
@@ -522,7 +521,7 @@ dissect_lapsat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		/*
 		 * Potentially fragmented I frames
 		 */
-		fragment_data *fd_m = NULL;
+		fragment_head *fd_m = NULL;
 		tvbuff_t *reassembled = NULL;
 		guint32 fragment_id;
 		gboolean save_fragmented = pinfo->fragmented;
@@ -535,10 +534,11 @@ dissect_lapsat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 		/* Fragment reconstruction helpers */
 		fd_m = fragment_add_seq_next(
-			payload, 0, pinfo,
+			&lapsat_reassembly_table,
+			payload, 0,
+			pinfo,
 			fragment_id,		/* To group fragments */
-			lapsat_fragment_table,
-			lapsat_reassembled_table,
+			NULL,
 			plen,
 			!!(addr & LAPSAT_SI)	/* More fragment ? */
 		);

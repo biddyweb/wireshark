@@ -12,9 +12,6 @@
  * dissect_acse() based original handwritten dissector by Sid
  *   Yuriy Sidelnikov <YSidelnikov@hotmail.com>
  *
- *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,7 +35,8 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/exceptions.h>
+#include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 #include <epan/oids.h>
 #include <epan/asn1.h>
@@ -59,8 +57,10 @@
 #define CLPSNAME "CLACSE"
 #define CLPFNAME "clacse"
 
-
 #define ACSE_APDU_OID "2.2.1.0.1"
+
+void proto_register_acse(void);
+void proto_reg_handoff_acse(void);
 
 /* Initialize the protocol and registered fields */
 int proto_acse = -1;
@@ -74,7 +74,7 @@ int proto_clacse = -1;
 static gint ett_acse = -1;
 #include "packet-acse-ett.c"
 
-static struct SESSION_DATA_STRUCTURE* session = NULL;
+static expert_field ei_acse_dissector_not_available = EI_INIT;
 
 static const char *object_identifier_id;
 /* indirect_reference, used to pick up the signalling so we know what
@@ -123,9 +123,9 @@ static void
 register_ctx_id_and_oid(packet_info *pinfo _U_, guint32 idx, char *oid)
 {
 	acse_ctx_oid_t *aco, *tmpaco;
-	aco=se_alloc(sizeof(acse_ctx_oid_t));
+	aco=wmem_new(wmem_file_scope(), acse_ctx_oid_t);
 	aco->ctx_id=idx;
-	aco->oid=se_strdup(oid);
+	aco->oid=wmem_strdup(wmem_file_scope(), oid);
 
 	/* if this ctx already exists, remove the old one first */
 	tmpaco=(acse_ctx_oid_t *)g_hash_table_lookup(acse_ctx_oid_table, aco);
@@ -154,16 +154,21 @@ find_oid_by_ctx_id(packet_info *pinfo _U_, guint32 idx)
 /*
 * Dissect ACSE PDUs inside a PPDU.
 */
-static void
-dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data)
 {
 	int offset = 0;
-	proto_item    *item=NULL;
-	proto_tree    *tree=NULL;
+	proto_item *item;
+	proto_tree *tree;
 	char *oid;
+	struct SESSION_DATA_STRUCTURE* session;
 	asn1_ctx_t asn1_ctx;
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
+	/* do we have spdu type from the session dissector?  */
+	if( data == NULL){
+		return 0;
+	}
 
 	/* first, try to check length   */
 	/* do we have at least 2 bytes  */
@@ -171,24 +176,19 @@ dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		proto_tree_add_text(parent_tree, tvb, offset,
 			tvb_reported_length_remaining(tvb,offset),
 			"User data");
-		return;  /* no, it isn't a ACSE PDU */
+		return 0;  /* no, it isn't a ACSE PDU */
 	}
-	/* do we have spdu type from the session dissector?  */
-	if( !pinfo->private_data ){
+
+	session  = ( (struct SESSION_DATA_STRUCTURE*)data);
+	if(session->spdu_type == 0 ) {
 		if(parent_tree){
-			REPORT_DISSECTOR_BUG("Can't get SPDU type from session dissector.");
-		}
-		return  ;
-	} else {
-		session  = ( (struct SESSION_DATA_STRUCTURE*)(pinfo->private_data) );
-		if(session->spdu_type == 0 ) {
-			if(parent_tree){
-				REPORT_DISSECTOR_BUG(
-					ep_strdup_printf("Wrong spdu type %x from session dissector.",session->spdu_type));
-				return  ;
-			}
+			REPORT_DISSECTOR_BUG(
+				wmem_strdup_printf(wmem_packet_scope(), "Wrong spdu type %x from session dissector.",session->spdu_type));
+			return 0;
 		}
 	}
+
+	asn1_ctx.private_data = session;
 	/* save parent_tree so subdissectors can create new top nodes */
 	top_tree=parent_tree;
 
@@ -202,7 +202,7 @@ dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	case SES_DISCONNECT:			/*   RLRQ   */
 	case SES_FINISH:			/*   RLRE   */
 	case SES_ABORT:				/*   ABRT   */
-	case CLSES_UNIT_DATA:		/* AARQ Connetctionless session */		
+	case CLSES_UNIT_DATA:		/* AARQ Connetctionless session */
 		break;
 	case SES_DATA_TRANSFER:
 		oid=find_oid_by_pres_ctx_id(pinfo, indir_ref);
@@ -212,39 +212,35 @@ dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 				    "Invalid OID: %s", ACSE_APDU_OID);
 				THROW(ReportedBoundsError);
 			}
-			call_ber_oid_callback(oid, tvb, offset, pinfo, parent_tree);
+			call_ber_oid_callback(oid, tvb, offset, pinfo, parent_tree, NULL);
 		} else {
-			proto_item *ti = proto_tree_add_text(parent_tree, tvb, offset, -1, "dissector is not available");
-			expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN, "Dissector is not available");
+			proto_tree_add_expert(parent_tree, pinfo, &ei_acse_dissector_not_available,
+                                    tvb, offset, -1);
 		}
 		top_tree = NULL;
-		return;
+		return 0;
 	default:
 		top_tree = NULL;
-		return;
+		return 0;
 	}
 
 	if(session->spdu_type == CLSES_UNIT_DATA)
 	{
 		/* create display subtree for the connectionless protocol */
-		if(parent_tree)
-		{
-			item = proto_tree_add_item(parent_tree, proto_clacse, tvb, 0, -1, ENC_NA);
-			tree = proto_item_add_subtree(item, ett_acse);
-		}
+		item = proto_tree_add_item(parent_tree, proto_clacse, tvb, 0, -1, ENC_NA);
+		tree = proto_item_add_subtree(item, ett_acse);
+
 		col_set_str(pinfo->cinfo, COL_PROTOCOL, "CL-ACSE");
-  		col_clear(pinfo->cinfo, COL_INFO);
+		col_clear(pinfo->cinfo, COL_INFO);
 	}
 	else
 	{
 		/* create display subtree for the protocol */
-		if(parent_tree)
-		{
-			item = proto_tree_add_item(parent_tree, proto_acse, tvb, 0, -1, ENC_NA);
-			tree = proto_item_add_subtree(item, ett_acse);
-		}
+		item = proto_tree_add_item(parent_tree, proto_acse, tvb, 0, -1, ENC_NA);
+		tree = proto_item_add_subtree(item, ett_acse);
+
 		col_set_str(pinfo->cinfo, COL_PROTOCOL, "ACSE");
-  		col_clear(pinfo->cinfo, COL_INFO);
+		col_clear(pinfo->cinfo, COL_INFO);
 	}
 
 	/*  we can't make any additional checking here   */
@@ -257,8 +253,9 @@ dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			break;
 		}
 	}
-	
-top_tree = NULL;
+
+	top_tree = NULL;
+	return tvb_length(tvb);
 }
 
 /*--- proto_register_acse ----------------------------------------------*/
@@ -275,9 +272,15 @@ void proto_register_acse(void) {
 #include "packet-acse-ettarr.c"
   };
 
+  static ei_register_info ei[] = {
+     { &ei_acse_dissector_not_available, { "acse.dissector_not_available", PI_UNDECODED, PI_WARN, "Dissector is not available", EXPFILL }},
+  };
+
+  expert_module_t* expert_acse;
+
   /* Register protocol */
   proto_acse = proto_register_protocol(PNAME, PSNAME, PFNAME);
-  register_dissector("acse", dissect_acse, proto_acse);
+  new_register_dissector("acse", dissect_acse, proto_acse);
 
   /* Register connectionless protocol */
   proto_clacse = proto_register_protocol(CLPNAME, CLPSNAME, CLPFNAME);
@@ -286,16 +289,18 @@ void proto_register_acse(void) {
   /* Register fields and subtrees */
   proto_register_field_array(proto_acse, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
-
+  expert_acse = expert_register_protocol(proto_acse);
+  expert_register_field_array(expert_acse, ei, array_length(ei));
 }
 
 
 /*--- proto_reg_handoff_acse -------------------------------------------*/
 void proto_reg_handoff_acse(void) {
 /*#include "packet-acse-dis-tab.c"*/
+	dissector_handle_t acse_handle = find_dissector("acse");
 
 	oid_add_from_string("id-aCSE","2.2.3.1.1");
-	register_ber_oid_dissector(ACSE_APDU_OID, dissect_acse, proto_acse, "id-as-acse");
+	register_ber_oid_dissector_handle(ACSE_APDU_OID, acse_handle, proto_acse, "id-as-acse");
 
 
 }

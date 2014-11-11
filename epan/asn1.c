@@ -2,8 +2,6 @@
  * Common routines for ASN.1
  * 2007  Anders Broman
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,7 @@
 #include <stdlib.h>
 #include <math.h>
 
+#include <epan/emem.h>
 #include <epan/packet.h>
 
 #include "asn1.h"
@@ -65,7 +64,7 @@ void asn1_ctx_clean_epdv(asn1_ctx_t *actx) {
 void asn1_stack_frame_push(asn1_ctx_t *actx, const gchar *name) {
   asn1_stack_frame_t *frame;
 
-  frame = ep_alloc0(sizeof(asn1_stack_frame_t));
+  frame = ep_new0(asn1_stack_frame_t);
   frame->name = name;
   frame->next = actx->stack;
   actx->stack = frame;
@@ -113,7 +112,7 @@ static asn1_par_t *push_new_par(asn1_ctx_t *actx) {
 
   DISSECTOR_ASSERT(actx->stack);
 
-  par = ep_alloc0(sizeof(asn1_par_t));
+  par = ep_new0(asn1_par_t);
 
   pp = &(actx->stack->par);
   while (*pp)
@@ -175,7 +174,7 @@ void rose_ctx_clean_data(rose_ctx_t *rctx) {
 asn1_ctx_t *get_asn1_ctx(void *ptr) {
   asn1_ctx_t *actx = (asn1_ctx_t*)ptr;
 
-  if (!asn1_ctx_check_signature(actx)) 
+  if (!asn1_ctx_check_signature(actx))
     actx = NULL;
 
   return actx;
@@ -185,13 +184,13 @@ rose_ctx_t *get_rose_ctx(void *ptr) {
   rose_ctx_t *rctx = (rose_ctx_t*)ptr;
   asn1_ctx_t *actx = (asn1_ctx_t*)ptr;
 
-  if (!asn1_ctx_check_signature(actx)) 
+  if (!asn1_ctx_check_signature(actx))
     actx = NULL;
 
   if (actx)
     rctx = actx->rose_ctx;
 
-  if (!rose_ctx_check_signature(rctx)) 
+  if (!rose_ctx_check_signature(rctx))
     rctx = NULL;
 
   return rctx;

@@ -2,8 +2,6 @@
  * Routines for SSCF-NNI (Q.2140) frame disassembly
  * Jeff Morriss <jeff.morriss.ws [AT] gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998
@@ -29,6 +27,9 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+
+void proto_register_sscf(void);
+void proto_reg_handoff_sscf(void);
 
 static int proto_sscf = -1;
 
@@ -92,8 +93,7 @@ dissect_sscf_nni(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     sscf_status = tvb_get_guint8(tvb, SSCF_STATUS_OFFSET);
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "SSCF-NNI");
-    if (check_col(pinfo->cinfo, COL_INFO))
-      col_add_fstr(pinfo->cinfo, COL_INFO, "STATUS (%s) ",
+    col_add_fstr(pinfo->cinfo, COL_INFO, "STATUS (%s) ",
 		   val_to_str_const(sscf_status, sscf_status_vals, "Unknown"));
 
 

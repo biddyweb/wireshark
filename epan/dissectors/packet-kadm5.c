@@ -1,8 +1,6 @@
 /* packet-kadm5.c
  * Routines for kadm5 dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,9 @@
 #include "config.h"
 
 #include "packet-rpc.h"
+
+void proto_register_kadm5(void);
+void proto_reg_handoff_kadm5(void);
 
 #define KADM5_PROGRAM			2112
 #define KADM5PROC_NULL			0

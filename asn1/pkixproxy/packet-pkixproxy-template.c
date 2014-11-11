@@ -2,8 +2,6 @@
  * Routines for RFC3820 PKIXProxy packet dissection
  *  Ronnie Sahlberg 2004
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,9 @@
 #define PNAME  "PKIXProxy (RFC3820)"
 #define PSNAME "PKIXPROXY"
 #define PFNAME "pkixproxy"
+
+void proto_register_pkixproxy(void);
+void proto_reg_handoff_pkixproxy(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_pkixproxy = -1;

@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-ansi_tcap.h                                                         */
 /* ../../tools/asn2wrs.py -b -p ansi_tcap -c ./ansi_tcap.cnf -s ./packet-ansi_tcap-template -D . -O ../../epan/dissectors TCAP-Remote-Operations-Information-Objects.asn TCAPPackage.asn */
 
@@ -7,8 +7,6 @@
 
 #line 1 "../../asn1/ansi_tcap/packet-ansi_tcap-template.h"
 /* packet-ansi_tcap.h
- *
- * $Id$
  *
  * Copyright 2007 Anders Broman <anders.broman@ericsson.com>
  *
@@ -40,22 +38,22 @@
 struct ansi_tcap_private_t {
   guint32 signature;
   gboolean oid_is_present; /* Is the Application Context Version present */
-  void * objectApplicationId_oid;
+  const void * objectApplicationId_oid;
   guint32 session_id;
   void * context;
   gchar *TransactionID_str;
   struct {  /* "dynamic" data */
     gint pdu;
-      /* 
-         1 : invoke, 
-         2 : returnResult, 
+      /*
+         1 : invoke,
+         2 : returnResult,
          3 : returnError,
          4 : reject
       */
-    gint OperationCode;  
-      /* 
-         0 : national, 
-         1 : private 
+    gint OperationCode;
+      /*
+         0 : national,
+         1 : private
       */
     gint32 OperationCode_national;
     gint32 OperationCode_private;

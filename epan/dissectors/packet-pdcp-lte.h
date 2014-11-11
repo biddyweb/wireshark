@@ -1,8 +1,6 @@
 /* packet-pdcp-lte.h
  *
  * Martin Mathieson
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -49,15 +47,26 @@ typedef enum
     DLSCH_TRANSPORT=2
 } BCCHTransportType;
 
-
-#define CID_IN_PDCP_HEADER 0
-#define CID_IN_ROHC_PACKET 1
-
 #define PDCP_SN_LENGTH_5_BITS  5
 #define PDCP_SN_LENGTH_7_BITS  7
 #define PDCP_SN_LENGTH_12_BITS 12
 #define PDCP_SN_LENGTH_15_BITS 15
 
+enum security_integrity_algorithm_e { eia0, eia1, eia2, eia3 };
+enum security_ciphering_algorithm_e { eea0, eea1, eea2, eea3 };
+
+typedef struct pdcp_security_info_t
+{
+    guint32                             configuration_frame;
+    gboolean                            seen_next_ul_pdu;  /* i.e. have we seen SecurityModeResponse */
+    enum security_integrity_algorithm_e integrity;
+    enum security_ciphering_algorithm_e ciphering;
+
+    /* Store previous settings so can revert if get SecurityModeFailure */
+    guint32                             previous_configuration_frame;
+    enum security_integrity_algorithm_e previous_integrity;
+    enum security_ciphering_algorithm_e previous_ciphering;
+} pdcp_security_info_t;
 
 
 /* Info attached to each LTE PDCP/RoHC packet */
@@ -76,14 +85,7 @@ typedef struct pdcp_lte_info
     guint8             seqnum_length;
 
     /* RoHC settings */
-    gboolean           rohc_compression;
-    unsigned short     rohc_ip_version;
-    gboolean           cid_inclusion_info;
-    gboolean           large_cid_present;
-    enum rohc_mode     mode;
-    gboolean           rnd;
-    gboolean           udp_checksum_present;
-    unsigned short     profile;
+    rohc_info          rohc;
 
     guint8             is_retx;
 } pdcp_lte_info;
@@ -161,7 +163,28 @@ typedef struct pdcp_lte_info
 #define PDCP_LTE_ROHC_PROFILE_TAG           0x0C
 /* 2 bytes, network order */
 
+#define PDCP_LTE_CHANNEL_ID_TAG             0x0D
+/* 2 bytes, network order */
+
+#define PDCP_LTE_UEID_TAG                   0x0E
+/* 2 bytes, network order */
 
 /* PDCP PDU. Following this tag comes the actual PDCP PDU (there is no length, the PDU
    continues until the end of the frame) */
 #define PDCP_LTE_PAYLOAD_TAG                0x01
+
+
+
+/* Called by RRC, or other configuration protocols */
+
+/* Function to configure ciphering & integrity algorithms */
+void set_pdcp_lte_security_algorithms(guint16 ueid, pdcp_security_info_t *security_info);
+
+/* Function to indicate securityModeCommand did not complete */
+void set_pdcp_lte_security_algorithms_failed(guint16 ueid);
+
+
+/* Called by external dissectors */
+void set_pdcp_lte_rrc_ciphering_key(guint16 ueid, const char *key);
+void set_pdcp_lte_rrc_integrity_key(guint16 ueid, const char *key);
+void set_pdcp_lte_up_ciphering_key(guint16 ueid, const char *key);

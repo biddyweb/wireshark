@@ -5,8 +5,6 @@
  * Updated with attribute dissection
  * Copyright 2012, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,6 +32,9 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/expert.h>
+
+void proto_register_bfcp(void);
+void proto_reg_handoff_bfcp(void);
 
 /* Initialize protocol and registered fields */
 static int proto_bfcp = -1;
@@ -71,6 +72,10 @@ static int hf_bfcp_req_by_id = -1;
 /* Initialize subtree pointers */
 static gint ett_bfcp = -1;
 static gint ett_bfcp_attr = -1;
+
+static expert_field ei_bfcp_attribute_length_too_small = EI_INIT;
+
+static dissector_handle_t bfcp_handle;
 
 /* Initialize BFCP primitives */
 static const value_string map_bfcp_primitive[] = {
@@ -169,7 +174,7 @@ dissect_bfcp_attributes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
 	gint        length;
 	guint8      attribute_type;
 	gint        read_attr = 0;
-    guint8      first_byte, pad_len;
+	guint8      first_byte, pad_len;
 
 	while ((tvb_reported_length_remaining(tvb, offset) >= 2) &&
 			((bfcp_payload_length - read_attr) >= 2))
@@ -203,6 +208,8 @@ dissect_bfcp_attributes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
 		item = proto_tree_add_item(bfcp_attr_tree, hf_bfcp_attribute_length, tvb, offset, 1, ENC_BIG_ENDIAN);
 		length = tvb_get_guint8(tvb, offset);
 		offset++;
+
+		pad_len = 0; /* Default to no padding*/
 
 		switch(attribute_type){
 		case 1: /* Beneficiary ID */
@@ -244,7 +251,7 @@ dissect_bfcp_attributes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
 			offset = offset + pad_len;
 			break;
 		case 7: /* ERROR-INFO */
-			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_error_info_text, tvb, offset, length-3, ENC_BIG_ENDIAN);
+			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_error_info_text, tvb, offset, length-3, ENC_ASCII|ENC_NA);
 			offset = offset + length-3;
 			pad_len = length & 0x03;
 			if(pad_len != 0){
@@ -254,7 +261,7 @@ dissect_bfcp_attributes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
 			offset = offset + pad_len;
 			break;
 		case 8: /* PARTICIPANT-PROVIDED-INFO */
-			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_part_prov_info_text, tvb, offset, length-3, ENC_BIG_ENDIAN);
+			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_part_prov_info_text, tvb, offset, length-3, ENC_ASCII|ENC_NA);
 			offset = offset + length-3;
 			pad_len = length & 0x03;
 			if(pad_len != 0){
@@ -264,7 +271,7 @@ dissect_bfcp_attributes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
 			offset = offset + pad_len;
 			break;
 		case 9: /* STATUS-INFO */
-			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_status_info_text, tvb, offset, length-3, ENC_BIG_ENDIAN);
+			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_status_info_text, tvb, offset, length-3, ENC_ASCII|ENC_NA);
 			offset = offset + length-3;
 			pad_len = length & 0x03;
 			if(pad_len != 0){
@@ -300,7 +307,7 @@ dissect_bfcp_attributes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
 			offset = offset + pad_len;
 			break;
 		case 12: /* USER-DISPLAY-NAME */
-			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_user_disp_name, tvb, offset, length-3, ENC_BIG_ENDIAN);
+			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_user_disp_name, tvb, offset, length-3, ENC_ASCII|ENC_NA);
 			offset = offset + length-3;
 			pad_len = length & 0x03;
 			if(pad_len != 0){
@@ -310,7 +317,7 @@ dissect_bfcp_attributes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
 			offset = offset + pad_len;
 			break;
 		case 13: /* USER-URI */
-			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_user_uri, tvb, offset, length-3, ENC_BIG_ENDIAN);
+			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_user_uri, tvb, offset, length-3, ENC_ASCII|ENC_NA);
 			offset = offset + length-3;
 			pad_len = length & 0x03;
 			if(pad_len != 0){
@@ -367,11 +374,11 @@ dissect_bfcp_attributes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int
 
 		default:
 			proto_tree_add_item(bfcp_attr_tree, hf_bfcp_payload, tvb, offset, length-2, ENC_NA);
-			offset = offset + length - 2; 
+			offset = offset + length - 2;
 			break;
 		}
-		if (length < (offset - attr_start_offset)){
-			expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR,
+		if ((length+pad_len) < (offset - attr_start_offset)){
+			expert_add_info_format(pinfo, item, &ei_bfcp_attribute_length_too_small,
 							"Attribute length is too small (%d bytes)", length);
 			break;
 		}
@@ -392,7 +399,7 @@ dissect_bfcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	proto_tree  *bfcp_tree = NULL;
 
 	primitive = tvb_get_guint8(tvb, 1);
-	str = match_strval(primitive, map_bfcp_primitive);
+	str = try_val_to_str(primitive, map_bfcp_primitive);
 
 	/* Make entries in Protocol column and Info column on summary display*/
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "BFCP");
@@ -439,16 +446,16 @@ dissect_bfcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		bfcp_payload_length = tvb_get_ntohs(tvb,
 							BFCP_OFFSET_PAYLOAD_LENGTH) * 4;
 
-		offset = dissect_bfcp_attributes(tvb, pinfo, bfcp_tree, offset, bfcp_payload_length);
+		/*offset = */dissect_bfcp_attributes(tvb, pinfo, bfcp_tree, offset, bfcp_payload_length);
 
 	} /* if(tree) */
 }
 
-static gboolean 
+static gboolean
 dissect_bfcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
 	guint8       primitive;
-    guint8      first_byte;
+	guint8      first_byte;
 	const gchar *str;
 
 
@@ -471,7 +478,7 @@ dissect_bfcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
 	if ((primitive < 1) || (primitive > 18))
 		return FALSE;
 
-	str = match_strval(primitive, map_bfcp_primitive);
+	str = try_val_to_str(primitive, map_bfcp_primitive);
 	if (NULL == str)
 		return FALSE;
 
@@ -479,11 +486,10 @@ dissect_bfcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
 	return TRUE;
 }
 
-void proto_reg_handoff_bfcp(void);
-
 void proto_register_bfcp(void)
 {
 	module_t *bfcp_module;
+	expert_module_t* expert_bfcp;
 
 	static hf_register_info hf[] = {
 		{
@@ -655,11 +661,15 @@ void proto_register_bfcp(void)
 		&ett_bfcp_attr,
 	};
 
+	static ei_register_info ei[] = {
+		{ &ei_bfcp_attribute_length_too_small, { "bfcp.attribute_length.too_small", PI_MALFORMED, PI_ERROR, "Attribute length is too small", EXPFILL }},
+	};
+
 	/* Register protocol name and description */
 	proto_bfcp = proto_register_protocol("Binary Floor Control Protocol",
 				"BFCP", "bfcp");
 
-	register_dissector("bfcp", dissect_bfcp, proto_bfcp);
+	bfcp_handle = register_dissector("bfcp", dissect_bfcp, proto_bfcp);
 
 	bfcp_module = prefs_register_protocol(proto_bfcp,
 				proto_reg_handoff_bfcp);
@@ -672,6 +682,9 @@ void proto_register_bfcp(void)
 	/* Register field and subtree array */
 	proto_register_field_array(proto_bfcp, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+
+	expert_bfcp = expert_register_protocol(proto_bfcp);
+	expert_register_field_array(expert_bfcp, ei, array_length(ei));
 }
 
 void proto_reg_handoff_bfcp(void)
@@ -684,11 +697,8 @@ void proto_reg_handoff_bfcp(void)
 	 */
 	if (!prefs_initialized)
 	{
-		dissector_handle_t bfcp_handle;
-
 		heur_dissector_add("tcp", dissect_bfcp_heur, proto_bfcp);
 		heur_dissector_add("udp", dissect_bfcp_heur, proto_bfcp);
-		bfcp_handle = create_dissector_handle(dissect_bfcp, proto_bfcp);
 		dissector_add_handle("tcp.port", bfcp_handle);
 		dissector_add_handle("udp.port", bfcp_handle);
 		prefs_initialized = TRUE;

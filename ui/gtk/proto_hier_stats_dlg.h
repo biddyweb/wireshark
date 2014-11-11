@@ -1,7 +1,5 @@
 /* proto_hier_stats_dlg.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,7 +28,7 @@
  */
 
 /** Show protocol hierarchy statistics.
- * 
+ *
  * @param widget parent widget (unused)
  * @param data unused
  */

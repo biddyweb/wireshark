@@ -1,8 +1,6 @@
 /* strutil.c
  * String utility routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,8 +28,9 @@
 #include <glib.h>
 #include "strutil.h"
 #include "emem.h"
-#include <../isprint.h>
 
+#include <wsutil/str_util.h>
+#include <epan/proto.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -53,7 +52,7 @@ find_line_end(const guchar *data, const guchar *dataend, const guchar **eol)
 {
     const guchar *lineend;
 
-    lineend = memchr(data, '\n', dataend - data);
+    lineend = (guchar *)memchr(data, '\n', dataend - data);
     if (lineend == NULL) {
         /*
          * No LF - line is probably continued in next TCP segment.
@@ -163,7 +162,7 @@ format_text(const guchar *string, size_t len)
      * Allocate the buffer if it's not already allocated.
      */
     if (fmtbuf[idx] == NULL) {
-        fmtbuf[idx] = g_malloc(INITIAL_FMTBUF_SIZE);
+        fmtbuf[idx] = (gchar *)g_malloc(INITIAL_FMTBUF_SIZE);
         fmtbuf_len[idx] = INITIAL_FMTBUF_SIZE;
     }
     column = 0;
@@ -181,11 +180,11 @@ format_text(const guchar *string, size_t len)
              * for one more character plus a terminating '\0'.
              */
             fmtbuf_len[idx] = fmtbuf_len[idx] * 2;
-            fmtbuf[idx] = g_realloc(fmtbuf[idx], fmtbuf_len[idx]);
+            fmtbuf[idx] = (gchar *)g_realloc(fmtbuf[idx], fmtbuf_len[idx]);
         }
         c = *string++;
 
-        if (isprint(c)) {
+        if (g_ascii_isprint(c)) {
             fmtbuf[idx][column] = c;
             column++;
         } else {
@@ -269,7 +268,7 @@ format_text_wsp(const guchar *string, size_t len)
      * Allocate the buffer if it's not already allocated.
      */
     if (fmtbuf[idx] == NULL) {
-        fmtbuf[idx] = g_malloc(INITIAL_FMTBUF_SIZE);
+        fmtbuf[idx] = (gchar *)g_malloc(INITIAL_FMTBUF_SIZE);
         fmtbuf_len[idx] = INITIAL_FMTBUF_SIZE;
     }
     column = 0;
@@ -287,11 +286,11 @@ format_text_wsp(const guchar *string, size_t len)
              * for one more character plus a terminating '\0'.
              */
             fmtbuf_len[idx] = fmtbuf_len[idx] * 2;
-            fmtbuf[idx] = g_realloc(fmtbuf[idx], fmtbuf_len[idx]);
+            fmtbuf[idx] = (gchar *)g_realloc(fmtbuf[idx], fmtbuf_len[idx]);
         }
         c = *string++;
 
-        if (isprint(c)) {
+        if (g_ascii_isprint(c)) {
             fmtbuf[idx][column] = c;
             column++;
         } else if  (isspace(c)) {
@@ -349,6 +348,71 @@ format_text_wsp(const guchar *string, size_t len)
                     column++;
                     break;
             }
+        }
+    }
+    fmtbuf[idx][column] = '\0';
+    return fmtbuf[idx];
+}
+
+/*
+ * Given a string, generate a string from it that shows non-printable
+ * characters as the chr parameter passed, except a whitespace character
+ * (space, tab, carriage return, new line, vertical tab, or formfeed)
+ * which will be replaced by a space, and return a pointer to it.
+ */
+gchar *
+format_text_chr(const guchar *string, const size_t len, const guchar chr)
+{
+    static gchar *fmtbuf[3];
+    static int fmtbuf_len[3];
+    static int idx;
+    int column;
+    const guchar *stringend = string + len;
+    guchar c;
+
+    idx = (idx + 1) % 3;
+
+    /*
+     * Allocate the buffer if it's not already allocated.
+     */
+    if (fmtbuf[idx] == NULL) {
+        fmtbuf[idx] = (gchar *)g_malloc(INITIAL_FMTBUF_SIZE);
+        fmtbuf_len[idx] = INITIAL_FMTBUF_SIZE;
+    }
+    column = 0;
+    while (string < stringend)
+    {
+        /*
+         * Is there enough room for this character,
+         * and also enough room for a terminating '\0'?
+         */
+        if (column+1 >= fmtbuf_len[idx])
+        {
+            /*
+             * Double the buffer's size if it's not big enough.
+             * The size of the buffer starts at 128, so doubling its size
+             * adds at least another 128 bytes, which is more than enough
+             * for one more character plus a terminating '\0'.
+             */
+            fmtbuf_len[idx] = fmtbuf_len[idx] * 2;
+            fmtbuf[idx] = (gchar *)g_realloc(fmtbuf[idx], fmtbuf_len[idx]);
+        }
+        c = *string++;
+
+        if (g_ascii_isprint(c))
+        {
+            fmtbuf[idx][column] = c;
+            column++;
+        }
+        else if  (isspace(c))
+        {
+            fmtbuf[idx][column] = ' ';
+            column++;
+        }
+        else
+        {
+            fmtbuf[idx][column] =  chr;
+            column++;
         }
     }
     fmtbuf[idx][column] = '\0';
@@ -482,6 +546,132 @@ hex_str_to_bytes(const char *hex_str, GByteArray *bytes, gboolean force_separato
     return TRUE;
 }
 
+static inline gchar
+get_valid_byte_sep(gchar c, const guint encoding)
+{
+    gchar retval = -1; /* -1 means failure */
+
+    switch (c) {
+        case ':':
+            if (encoding & ENC_SEP_COLON)
+                retval = c;
+            break;
+        case '-':
+            if (encoding & ENC_SEP_DASH)
+                retval = c;
+            break;
+        case '.':
+            if (encoding & ENC_SEP_DOT)
+                retval = c;
+            break;
+        case ' ':
+            if (encoding & ENC_SEP_SPACE)
+                retval = c;
+            break;
+        case '\0':
+            /* we were given the end of the string, so it's fine */
+            retval = 0;
+            break;
+        default:
+            if (isxdigit(c) && (encoding & ENC_SEP_NONE))
+                retval = 0;
+            /* anything else means we've got a failure */
+            break;
+    }
+
+    return retval;
+}
+
+/* Turn a string of hex digits with optional separators (defined by is_byte_sep())
+ * into a byte array. Unlike hex_str_to_bytes(), this will read as many hex-char
+ * pairs as possible and not error if it hits a non-hex-char; instead it just ends
+ * there. (i.e., like strtol()/atoi()/etc.) Unless fail_if_partial is TRUE.
+ *
+ * The **endptr, if not NULL, is set to the char after the last hex character.
+ */
+gboolean
+hex_str_to_bytes_encoding(const gchar *hex_str, GByteArray *bytes, const gchar **endptr,
+                          const guint encoding, const gboolean fail_if_partial)
+{
+    gchar c, d;
+    guint8 val;
+    const gchar *end = hex_str;
+    gboolean retval = FALSE;
+    gchar sep = -1;
+
+    /* a map from ASCII hex chars to their value */
+    static const gchar str_to_nibble[256] = {
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+         0, 1, 2, 3, 4, 5, 6, 7, 8, 9,-1,-1,-1,-1,-1,-1,
+        -1,10,11,12,13,14,15,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,10,11,12,13,14,15,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
+    };
+
+    /* we must see two hex chars at the beginning, or fail */
+    if (bytes && *end && isxdigit(*end) && isxdigit(*(end+1))) {
+        retval = TRUE;
+
+        /* set the separator character we'll allow; if this returns a -1, it means something's
+         * invalid after the hex, but we'll let the while-loop grab the first hex-pair anyway
+         */
+        sep = get_valid_byte_sep(*(end+2), encoding);
+
+        while (*end) {
+            c = str_to_nibble[(int)*end];
+            if (c < 0) {
+                if (fail_if_partial) retval = FALSE;
+                break;
+            }
+            ++end;
+
+            d = str_to_nibble[(int)*end];
+            if (d < 0) {
+                if (fail_if_partial) retval = FALSE;
+                break;
+            }
+            val = ((guint8)c * 16) + d;
+            g_byte_array_append(bytes, &val, 1);
+            ++end;
+
+            /* check for separator and peek at next char to make sure we should keep going */
+            if (sep > 0 && *end == sep && str_to_nibble[(int)*(end+1)] > -1) {
+                /* yes, it's the right sep and followed by more hex, so skip the sep */
+                ++end;
+            } else if (sep != 0 && *end) {
+                /* we either need a separator, but we don't see one; or the get_valid_byte_sep()
+                   earlier didn't find a valid one to begin with */
+                if (fail_if_partial) retval = FALSE;
+                break;
+            }
+            /* otherwise, either no separator allowed, or *end is null, or *end is an invalid
+             * sep, or *end is a valid sep but after it is not a hex char - in all those
+             * cases, just loop back up and let it fail later naturally.
+             */
+        }
+    }
+
+    if (!retval) {
+        if (bytes) g_byte_array_set_size(bytes, 0);
+        end = hex_str;
+    }
+
+    if (endptr) *endptr = end;
+
+    return retval;
+}
+
 /*
  * Turn an RFC 3986 percent-encoded string into a byte array.
  * XXX - We don't check for reserved characters.
@@ -501,7 +691,7 @@ uri_str_to_bytes(const char *uri_str, GByteArray *bytes) {
     p = (const guchar *)uri_str;
 
     while (*p) {
-        if (! isascii(*p) || ! isprint(*p))
+        if (!g_ascii_isprint(*p))
             return FALSE;
         if (*p == '%') {
             p++;
@@ -534,7 +724,7 @@ format_uri(const GByteArray *bytes, const gchar *reserved_chars)
     static gchar *fmtbuf[3];
     static guint fmtbuf_len[3];
     static guint idx;
-    const guchar *reserved_def = ":/?#[]@!$&'()*+,;= ";
+    static const guchar *reserved_def = ":/?#[]@!$&'()*+,;= ";
     const guchar *reserved = reserved_def;
     guint8 c;
     guint column, i;
@@ -551,7 +741,7 @@ format_uri(const GByteArray *bytes, const gchar *reserved_chars)
      * Allocate the buffer if it's not already allocated.
      */
     if (fmtbuf[idx] == NULL) {
-        fmtbuf[idx] = g_malloc(INITIAL_FMTBUF_SIZE);
+        fmtbuf[idx] = (gchar *)g_malloc(INITIAL_FMTBUF_SIZE);
         fmtbuf_len[idx] = INITIAL_FMTBUF_SIZE;
     }
     for (column = 0; column < bytes->len; column++) {
@@ -568,11 +758,11 @@ format_uri(const GByteArray *bytes, const gchar *reserved_chars)
              * for one more character plus a terminating '\0'.
              */
             fmtbuf_len[idx] = fmtbuf_len[idx] * 2;
-            fmtbuf[idx] = g_realloc(fmtbuf[idx], fmtbuf_len[idx]);
+            fmtbuf[idx] = (gchar *)g_realloc(fmtbuf[idx], fmtbuf_len[idx]);
         }
         c = bytes->data[column];
 
-        if (!isascii(c) || !isprint(c) || c == '%') {
+        if (!g_ascii_isprint(c) || c == '%') {
             is_reserved = TRUE;
         }
 
@@ -603,7 +793,7 @@ format_uri(const GByteArray *bytes, const gchar *reserved_chars)
  *
  */
 GByteArray *
-byte_array_dup(GByteArray *ba) {
+byte_array_dup(const GByteArray *ba) {
     GByteArray *new_ba;
 
     if (!ba)
@@ -617,6 +807,10 @@ byte_array_dup(GByteArray *ba) {
 #define SUBID_BUF_LEN 5
 gboolean
 oid_str_to_bytes(const char *oid_str, GByteArray *bytes) {
+    return rel_oid_str_to_bytes(oid_str, bytes, TRUE);
+}
+gboolean
+rel_oid_str_to_bytes(const char *oid_str, GByteArray *bytes, gboolean is_absolute) {
     guint32 subid0, subid, sicnt, i;
     const char *p, *dot;
     guint8 buf[SUBID_BUF_LEN];
@@ -629,7 +823,7 @@ oid_str_to_bytes(const char *oid_str, GByteArray *bytes) {
     while (*p) {
         if (!isdigit((guchar)*p) && (*p != '.')) return FALSE;
         if (*p == '.') {
-            if (p == oid_str) return FALSE;
+            if (p == oid_str && is_absolute) return FALSE;
             if (!*(p+1)) return FALSE;
             if ((p-1) == dot) return FALSE;
             dot = p;
@@ -639,7 +833,8 @@ oid_str_to_bytes(const char *oid_str, GByteArray *bytes) {
     if (!dot) return FALSE;
 
     p = oid_str;
-    sicnt = 0;
+    sicnt = is_absolute ? 0 : 2;
+    if (!is_absolute) p++;
     subid0 = 0;    /* squelch GCC complaints */
     while (*p) {
         subid = 0;
@@ -740,7 +935,7 @@ xml_escape(const gchar *unescaped)
 /* Return the first occurrence of needle in haystack.
  * If not found, return NULL.
  * If either haystack or needle has 0 length, return NULL.
- * Algorithm copied from GNU's glibc 2.3.2 memcmp() */
+ * Algorithm copied from GNU's glibc 2.3.2 memmem() under LGPL 2.1+ */
 const guint8 *
 epan_memmem(const guint8 *haystack, guint haystack_len,
         const guint8 *needle, guint needle_len)
@@ -818,7 +1013,7 @@ convert_string_to_hex(const char *string, size_t *nbytes)
      * OK, it's valid, and it generates "n_bytes" bytes; generate the
      * raw byte array.
      */
-    bytes = g_malloc(n_bytes);
+    bytes = (guint8 *)g_malloc(n_bytes);
     p = &string[0];
     q = &bytes[0];
     for (;;) {
@@ -830,22 +1025,12 @@ convert_string_to_hex(const char *string, size_t *nbytes)
         if (c==':' || c=='.' || c=='-')
             continue; /* skip any ':', '.', or '-' between bytes */
         /* From the loop above, we know this is a hex digit */
-        if (isdigit(c))
-            byte_val = c - '0';
-        else if (c >= 'a')
-            byte_val = (c - 'a') + 10;
-        else
-            byte_val = (c - 'A') + 10;
+        byte_val = ws_xton(c);
         byte_val <<= 4;
 
         /* We also know this is a hex digit */
         c = *p++;
-        if (isdigit(c))
-            byte_val |= c - '0';
-        else if (c >= 'a')
-            byte_val |= (c - 'a') + 10;
-        else if (c >= 'A')
-            byte_val |= (c - 'A') + 10;
+        byte_val |= ws_xton(c);
 
         *q++ = byte_val;
     }
@@ -906,7 +1091,7 @@ escape_string_len(const char *string)
         }
         /* Values that can't nicely be represented
          * in ASCII need to be escaped. */
-        else if (!isprint((unsigned char)c)) {
+        else if (!g_ascii_isprint(c)) {
             /* c --> \xNN */
             repr_len += 4;
         }
@@ -937,7 +1122,7 @@ escape_string(char *buf, const char *string)
         }
         /* Values that can't nicely be represented
          * in ASCII need to be escaped. */
-        else if (!isprint((unsigned char)c)) {
+        else if (!g_ascii_isprint(c)) {
             /* c --> \xNN */
             g_snprintf(hexbuf,sizeof(hexbuf), "%02x", (unsigned char) c);
             *bufp++ = '\\';
@@ -1019,7 +1204,7 @@ ws_strdup_escape_char (const gchar *str, const gchar chr)
 
     p = str;
     /* Worst case: A string that is full of 'chr' */
-    q = new_str = g_malloc (strlen(str) * 2 + 1);
+    q = new_str = (gchar *)g_malloc (strlen(str) * 2 + 1);
 
     while(*p != 0) {
         if(*p == chr)
@@ -1047,7 +1232,7 @@ ws_strdup_unescape_char (const gchar *str, const char chr)
 
     p = str;
     /* Worst case: A string that contains no 'chr' */
-    q = new_str = g_malloc (strlen(str) + 1);
+    q = new_str = (gchar *)g_malloc (strlen(str) + 1);
 
     while(*p != 0) {
         *q++ = *p;
@@ -1076,35 +1261,6 @@ gchar *string_replace(const gchar* str, const gchar *old_val, const gchar *new_v
 
     return new_str;
 }
-
-
-/**
- * g_strcmp0 appears first in GLIB 2.16, define it locally for earlier versions. 
- * Copied from gtestutils.c in glib
- * g_strcmp0:
- * @str1: (allow-none): a C string or %NULL
- * @str2: (allow-none): another C string or %NULL
- *
- * Compares @str1 and @str2 like strcmp(). Handles %NULL 
- * gracefully by sorting it before non-%NULL strings.
- * Comparing two %NULL pointers returns 0.
- *
- * Returns: -1, 0 or 1, if @str1 is <, == or > than @str2.
- *
- * Since: 2.16
- */
-#if !GLIB_CHECK_VERSION(2,16,0)
-int
-g_strcmp0 (const char     *str1,
-           const char     *str2)
-{
-    if (!str1)
-        return -(str1 != str2);
-    if (!str2)
-        return str1 != str2;
-    return strcmp (str1, str2);
-}
-#endif /* GLIB_CHECK_VERSION(2,16,0) */
 
 /*
  * Editor modelines  -  http://www.wireshark.org/tools/modelines.html

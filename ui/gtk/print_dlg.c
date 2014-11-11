@@ -1,8 +1,6 @@
 /* print_dlg.c
  * Dialog boxes for printing and exporting to text files
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,9 +28,9 @@
 
 #include <epan/prefs.h>
 #include <epan/epan_dissect.h>
-#include <epan/filesystem.h>
+#include <wsutil/filesystem.h>
+#include <epan/print.h>
 
-#include "print.h"
 #include "ui/alert_box.h"
 #include "ui/simple_dialog.h"
 #include "ui/util.h"
@@ -53,7 +51,7 @@
 #include <windows.h>
 #include "ui/win32/file_dlg_win32.h"
 #include "ui/win32/print_win32.h"
-#include "tempfile.h"
+#include "wsutil/tempfile.h"
 #endif
 
 /* dialog output action */
@@ -96,6 +94,7 @@ static void print_destroy_cb(GtkWidget *win, gpointer user_data);
 #define PRINT_DEST_CB_KEY         "printer_destination_check_button"
 
 #define PRINT_SUMMARY_CB_KEY      "printer_summary_check_button"
+#define PRINT_COL_HEADINGS_CB_KEY "printer_include_column_headings_button"
 #define PRINT_DETAILS_CB_KEY      "printer_details_check_button"
 #define PRINT_COLLAPSE_ALL_RB_KEY "printer_collapse_all_radio_button"
 #define PRINT_AS_DISPLAYED_RB_KEY "printer_as_displayed_radio_button"
@@ -134,11 +133,12 @@ file_print_cmd(gboolean print_selected)
   /* get settings from preferences (and other initial values) only once */
   if(print_prefs_init == FALSE) {
     print_prefs_init          = TRUE;
-    args->format              = prefs.pr_format;
+    args->format              = (print_format_e)prefs.pr_format;
     args->to_file             = prefs.pr_dest;
     args->file                = g_strdup(prefs.pr_file);
     args->cmd                 = g_strdup(prefs.pr_cmd);
     args->print_summary       = TRUE;
+    args->print_col_headings  = TRUE;
     args->print_dissections   = print_dissections_as_displayed;
     args->print_hex           = FALSE;
     args->print_formfeed      = FALSE;
@@ -207,6 +207,7 @@ export_text_cmd_cb(GtkWidget *widget _U_, gpointer data _U_)
     args->file                = g_strdup("");
     args->cmd                 = g_strdup("");
     args->print_summary       = TRUE;
+    args->print_col_headings  = TRUE;
     args->print_dissections   = print_dissections_as_displayed;
     args->print_hex           = FALSE;
     args->print_formfeed      = FALSE;
@@ -261,6 +262,7 @@ export_ps_cmd_cb(GtkWidget *widget _U_, gpointer data _U_)
     args->file                = g_strdup("");
     args->cmd                 = g_strdup("");
     args->print_summary       = TRUE;
+    args->print_col_headings  = TRUE;
     args->print_dissections   = print_dissections_as_displayed;
     args->print_hex           = FALSE;
     args->print_formfeed      = FALSE;
@@ -315,6 +317,7 @@ export_psml_cmd_cb(GtkWidget *widget _U_, gpointer data _U_)
     args->file                = g_strdup("");
     args->cmd                 = g_strdup("");
     args->print_summary       = TRUE;
+    args->print_col_headings  = TRUE;
     args->print_dissections   = print_dissections_as_displayed;
     args->print_hex           = FALSE;
     args->print_formfeed      = FALSE;
@@ -368,6 +371,7 @@ export_pdml_cmd_cb(GtkWidget *widget _U_, gpointer data _U_)
     args->file                = g_strdup("");
     args->cmd                 = g_strdup("");
     args->print_summary       = TRUE;
+    args->print_col_headings  = TRUE;
     args->print_dissections   = print_dissections_as_displayed;
     args->print_hex           = FALSE;
     args->print_formfeed      = FALSE;
@@ -420,6 +424,7 @@ export_csv_cmd_cb(GtkWidget *widget _U_, gpointer data _U_)
     args->file                = g_strdup("");
     args->cmd                 = g_strdup("");
     args->print_summary       = FALSE;
+    args->print_col_headings  = FALSE;
     args->print_dissections   = print_dissections_none;
     args->print_hex           = FALSE;
     args->print_formfeed      = FALSE;
@@ -472,6 +477,7 @@ export_carrays_cmd_cb(GtkWidget *widget _U_, gpointer data _U_)
     args->file                = g_strdup("");
     args->cmd                 = g_strdup("");
     args->print_summary       = FALSE;
+    args->print_col_headings  = FALSE;
     args->print_dissections   = print_dissections_none;
     args->print_hex           = FALSE;
     args->print_formfeed      = FALSE;
@@ -517,6 +523,7 @@ open_print_dialog(const char *title, output_action_e action, print_args_t *args)
 
   GtkWidget *format_fr, *format_vb;
   GtkWidget *summary_cb;
+  GtkWidget *col_headings_cb;
 
   GtkWidget *details_cb;
   GtkWidget *details_hb, *details_vb;
@@ -618,7 +625,7 @@ open_print_dialog(const char *title, output_action_e action, print_args_t *args)
   if (args->to_file)
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(dest_cb), TRUE);
   gtk_widget_set_tooltip_text(dest_cb, "Output to file instead of printer");
-  ws_gtk_grid_attach_extended(GTK_GRID(printer_grid), dest_cb, 0, 0, 1, 1, 0, 0, 0, 0);
+  ws_gtk_grid_attach(GTK_GRID(printer_grid), dest_cb, 0, 0, 1, 1);
   if(action == output_action_print)
     gtk_widget_show(dest_cb);
 
@@ -627,18 +634,18 @@ open_print_dialog(const char *title, output_action_e action, print_args_t *args)
   g_object_set_data(G_OBJECT(dest_cb), PRINT_FILE_TE_KEY, file_te);
   gtk_widget_set_tooltip_text(file_te, "Enter Output filename");
   gtk_entry_set_text(GTK_ENTRY(file_te), args->file);
-  ws_gtk_grid_attach_extended(GTK_GRID(printer_grid), file_te, 1, 0, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+  ws_gtk_grid_attach_extended(GTK_GRID(printer_grid), file_te, 1, 0, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
   gtk_widget_set_sensitive(file_te, args->to_file);
   gtk_widget_show(file_te);
   if (args->to_file)
     gtk_widget_grab_focus(file_te);
 
   /* "Browse" button */
-  file_bt = gtk_button_new_from_stock(WIRESHARK_STOCK_BROWSE);
+  file_bt = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_BROWSE);
   g_object_set_data(G_OBJECT(dest_cb), PRINT_FILE_BT_KEY, file_bt);
   g_object_set_data(G_OBJECT(file_bt), PRINT_TE_PTR_KEY, file_te);
   gtk_widget_set_tooltip_text(file_bt, "Browse output filename in filesystem");
-  ws_gtk_grid_attach_extended(GTK_GRID(printer_grid), file_bt, 2, 0, 1, 1, 0, 0, 0, 0);
+  ws_gtk_grid_attach(GTK_GRID(printer_grid), file_bt, 2, 0, 1, 1);
   gtk_widget_set_sensitive(file_bt, args->to_file);
   gtk_widget_show(file_bt);
 
@@ -647,7 +654,7 @@ open_print_dialog(const char *title, output_action_e action, print_args_t *args)
   cmd_lb = gtk_label_new("Print command:");
   g_object_set_data(G_OBJECT(dest_cb), PRINT_CMD_LB_KEY, cmd_lb);
   gtk_misc_set_alignment(GTK_MISC(cmd_lb), 1.0f, 0.5f);
-  ws_gtk_grid_attach_extended(GTK_GRID(printer_grid), cmd_lb, 0, 1, 1, 1, 0, 0, 0, 0);
+  ws_gtk_grid_attach(GTK_GRID(printer_grid), cmd_lb, 0, 1, 1, 1);
   gtk_widget_set_sensitive(cmd_lb, !args->to_file);
   if(action == output_action_print)
     gtk_widget_show(cmd_lb);
@@ -656,7 +663,7 @@ open_print_dialog(const char *title, output_action_e action, print_args_t *args)
   g_object_set_data(G_OBJECT(dest_cb), PRINT_CMD_TE_KEY, cmd_te);
   gtk_widget_set_tooltip_text(cmd_te, "Enter print command");
   gtk_entry_set_text(GTK_ENTRY(cmd_te), args->cmd);
-  ws_gtk_grid_attach_extended(GTK_GRID(printer_grid), cmd_te, 1, 1, 1, 1, 0, 0, 0, 0);
+  ws_gtk_grid_attach(GTK_GRID(printer_grid), cmd_te, 1, 1, 1, 1);
   gtk_widget_set_sensitive(cmd_te, !args->to_file);
   if(action == output_action_print)
     gtk_widget_show(cmd_te);
@@ -709,6 +716,14 @@ open_print_dialog(const char *title, output_action_e action, print_args_t *args)
   gtk_box_pack_start(GTK_BOX(format_vb), summary_cb, TRUE, TRUE, 0);
   gtk_widget_show(summary_cb);
 
+  /* "Include column headings" check button */
+  col_headings_cb = gtk_check_button_new_with_mnemonic("Include column headings");
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(col_headings_cb), args->print_col_headings);
+  gtk_widget_set_sensitive(col_headings_cb, args->print_summary);
+  g_signal_connect(col_headings_cb, "clicked", G_CALLBACK(print_cmd_toggle_detail), main_win);
+  gtk_widget_set_tooltip_text(col_headings_cb, "Include column headings when printing the packet summary line");
+  gtk_box_pack_start(GTK_BOX(format_vb), col_headings_cb, TRUE, TRUE, 0);
+  gtk_widget_show(col_headings_cb);
 
   /* "Details" check button */
   details_cb = gtk_check_button_new_with_mnemonic("Packet details:");
@@ -737,18 +752,21 @@ open_print_dialog(const char *title, output_action_e action, print_args_t *args)
   /* "All collapsed"/"As displayed"/"All Expanded" radio buttons */
   collapse_all_rb = gtk_radio_button_new_with_mnemonic_from_widget(NULL, "All co_llapsed");
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(collapse_all_rb), args->print_dissections == print_dissections_collapsed);
+  gtk_widget_set_sensitive(collapse_all_rb, args->print_dissections != print_dissections_none);
   gtk_widget_set_tooltip_text(collapse_all_rb, "Output of the packet details tree \"collapsed\"");
   gtk_box_pack_start(GTK_BOX(details_vb), collapse_all_rb, TRUE, TRUE, 0);
   gtk_widget_show(collapse_all_rb);
 
   as_displayed_rb = gtk_radio_button_new_with_mnemonic_from_widget(GTK_RADIO_BUTTON(collapse_all_rb), "As displa_yed");
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(as_displayed_rb), args->print_dissections == print_dissections_as_displayed);
+  gtk_widget_set_sensitive(as_displayed_rb, args->print_dissections != print_dissections_none);
   gtk_widget_set_tooltip_text(as_displayed_rb, "Output of the packet details tree \"as displayed\"");
   gtk_box_pack_start(GTK_BOX(details_vb), as_displayed_rb, TRUE, TRUE, 0);
   gtk_widget_show(as_displayed_rb);
 
   expand_all_rb = gtk_radio_button_new_with_mnemonic_from_widget(GTK_RADIO_BUTTON(collapse_all_rb), "All e_xpanded");
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(expand_all_rb), args->print_dissections == print_dissections_expanded);
+  gtk_widget_set_sensitive(expand_all_rb, args->print_dissections != print_dissections_none);
   gtk_widget_set_tooltip_text(expand_all_rb, "Output of the packet details tree \"expanded\"");
   gtk_box_pack_start(GTK_BOX(details_vb), expand_all_rb, TRUE, TRUE, 0);
   gtk_widget_show(expand_all_rb);
@@ -777,6 +795,7 @@ open_print_dialog(const char *title, output_action_e action, print_args_t *args)
 
   g_object_set_data(G_OBJECT(main_win), PRINT_ARGS_KEY, args);
   g_object_set_data(G_OBJECT(main_win), PRINT_SUMMARY_CB_KEY, summary_cb);
+  g_object_set_data(G_OBJECT(main_win), PRINT_COL_HEADINGS_CB_KEY, col_headings_cb);
   g_object_set_data(G_OBJECT(main_win), PRINT_DETAILS_CB_KEY, details_cb);
   g_object_set_data(G_OBJECT(main_win), PRINT_COLLAPSE_ALL_RB_KEY, collapse_all_rb);
   g_object_set_data(G_OBJECT(main_win), PRINT_AS_DISPLAYED_RB_KEY, as_displayed_rb);
@@ -791,7 +810,7 @@ open_print_dialog(const char *title, output_action_e action, print_args_t *args)
   gtk_box_pack_start(GTK_BOX(main_vb), bbox, FALSE, FALSE, 0);
   gtk_widget_show(bbox);
 
-  ok_bt = g_object_get_data(G_OBJECT(bbox), action == output_action_print ? GTK_STOCK_PRINT : GTK_STOCK_OK);
+  ok_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), action == output_action_print ? GTK_STOCK_PRINT : GTK_STOCK_OK);
 
   g_object_set_data(G_OBJECT(main_win), PRINT_BT_KEY, ok_bt);
 
@@ -808,6 +827,7 @@ open_print_dialog(const char *title, output_action_e action, print_args_t *args)
   g_object_set_data(G_OBJECT(ok_bt), PRINT_ARGS_KEY, args);
   g_object_set_data(G_OBJECT(ok_bt), PRINT_FILE_TE_KEY, file_te);
   g_object_set_data(G_OBJECT(ok_bt), PRINT_SUMMARY_CB_KEY, summary_cb);
+  g_object_set_data(G_OBJECT(ok_bt), PRINT_COL_HEADINGS_CB_KEY, col_headings_cb);
   g_object_set_data(G_OBJECT(ok_bt), PRINT_DETAILS_CB_KEY, details_cb);
   g_object_set_data(G_OBJECT(ok_bt), PRINT_COLLAPSE_ALL_RB_KEY, collapse_all_rb);
   g_object_set_data(G_OBJECT(ok_bt), PRINT_AS_DISPLAYED_RB_KEY, as_displayed_rb);
@@ -817,19 +837,19 @@ open_print_dialog(const char *title, output_action_e action, print_args_t *args)
   g_signal_connect(ok_bt, "clicked", G_CALLBACK(print_ok_cb), main_win);
   gtk_widget_set_tooltip_text (ok_bt, "Start output");
 
-  cancel_bt  = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
+  cancel_bt  = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
   window_set_cancel_button(main_win, cancel_bt, window_cancel_button_cb);
   gtk_widget_set_tooltip_text (cancel_bt, "Cancel and exit dialog");
 
   if(action == output_action_print) {
-    help_bt  = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+    help_bt  = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
     g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), (gpointer)HELP_PRINT_DIALOG);
   } else {
 #ifdef _WIN32
-    help_bt  = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+    help_bt  = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
     g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), (gpointer)HELP_EXPORT_FILE_WIN32_DIALOG);
 #else
-    help_bt  = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+    help_bt  = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
     g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), (gpointer)HELP_EXPORT_FILE_DIALOG);
 #endif
   }
@@ -886,18 +906,24 @@ print_cmd_toggle_dest(GtkWidget *widget, gpointer data _U_)
 static void
 print_cmd_toggle_detail(GtkWidget *widget _U_, gpointer data)
 {
-  GtkWidget *print_bt, *summary_cb, *details_cb, *collapse_all_rb, *expand_all_rb, *as_displayed_rb, *hex_cb;
-  gboolean   print_detail;
+  GtkWidget *print_bt, *summary_cb, *col_headings_cb, *details_cb;
+  GtkWidget *collapse_all_rb, *expand_all_rb, *as_displayed_rb, *hex_cb;
+  gboolean   print_detail, print_summary;
 
   print_bt = GTK_WIDGET(g_object_get_data(G_OBJECT(data), PRINT_BT_KEY));
   summary_cb = GTK_WIDGET(g_object_get_data(G_OBJECT(data), PRINT_SUMMARY_CB_KEY));
+  col_headings_cb = GTK_WIDGET(g_object_get_data(G_OBJECT(data), PRINT_COL_HEADINGS_CB_KEY));
   details_cb = GTK_WIDGET(g_object_get_data(G_OBJECT(data), PRINT_DETAILS_CB_KEY));
   collapse_all_rb = GTK_WIDGET(g_object_get_data(G_OBJECT(data), PRINT_COLLAPSE_ALL_RB_KEY));
   as_displayed_rb = GTK_WIDGET(g_object_get_data(G_OBJECT(data), PRINT_AS_DISPLAYED_RB_KEY));
   expand_all_rb = GTK_WIDGET(g_object_get_data(G_OBJECT(data), PRINT_EXPAND_ALL_RB_KEY));
   hex_cb = GTK_WIDGET(g_object_get_data(G_OBJECT(data), PRINT_HEX_CB_KEY));
 
-  /* is user disabled details, disable the corresponding buttons */
+  /* If user disabled summary, disable the column headings checkbox too. */
+  print_summary = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON (summary_cb));
+  gtk_widget_set_sensitive(col_headings_cb, print_summary);
+
+  /* If user disabled details, disable the corresponding buttons */
   print_detail = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON (details_cb));
   gtk_widget_set_sensitive(collapse_all_rb, print_detail);
   gtk_widget_set_sensitive(as_displayed_rb, print_detail);
@@ -1005,6 +1031,9 @@ print_ok_cb(GtkWidget *ok_bt, gpointer parent_w)
 
   button = (GtkWidget *)g_object_get_data(G_OBJECT(ok_bt), PRINT_SUMMARY_CB_KEY);
   args->print_summary = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON (button));
+
+  button = (GtkWidget *)g_object_get_data(G_OBJECT(ok_bt), PRINT_COL_HEADINGS_CB_KEY);
+  args->print_col_headings = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON (button));
 
   button = (GtkWidget *)g_object_get_data(G_OBJECT(ok_bt), PRINT_COLLAPSE_ALL_RB_KEY);
   if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON (button))) {
@@ -1128,7 +1157,7 @@ print_destroy_cb(GtkWidget *win, gpointer user_data)
 
   /* Is there a file selection dialog associated with this
      Print File dialog? */
-  fs = g_object_get_data(G_OBJECT(win), E_FILE_SEL_DIALOG_PTR_KEY);
+  fs = (GtkWidget *)g_object_get_data(G_OBJECT(win), E_FILE_SEL_DIALOG_PTR_KEY);
 
   if (fs != NULL) {
     /* Yes.  Destroy it. */

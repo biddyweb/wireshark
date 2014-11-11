@@ -1,8 +1,6 @@
 /* crc32-tvb.c
  * CRC-32 tvbuff routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -130,4 +128,15 @@ guint32
 crc32_mpeg2_tvb_seed(tvbuff_t *tvb, guint len, guint32 seed)
 {
     return ( crc32_mpeg2_tvb_offset_seed(tvb, 0, len, seed) );
+}
+
+guint32 crc32_0x0AA725CF_tvb_offset_seed(tvbuff_t *tvb,
+                                            guint offset, guint len, guint32 seed)
+{
+    const guint8 *buf;
+
+    tvb_ensure_bytes_exist(tvb, offset, len);  /* len == -1 not allowed */
+    buf = tvb_get_ptr(tvb, offset, len);
+
+    return crc32_0x0AA725CF_seed(buf, len, seed);
 }

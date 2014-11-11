@@ -1,8 +1,6 @@
 /* packet-hyperscsi.c
  * Routines for dissassembly of the Hyper SCSI protocol.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,9 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+
+void proto_register_hyperscsi(void);
+void proto_reg_handoff_hyperscsi(void);
 
 static int proto_hyperscsi;
 
@@ -137,10 +138,8 @@ dissect_hyperscsi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   hs_cmd &= OPCODE_MASK;
 
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_append_str(pinfo->cinfo, COL_INFO,
+  col_append_str(pinfo->cinfo, COL_INFO,
                    val_to_str(hs_cmd, hscsi_opcodes, "Unknown HyperSCSI Request or Response (%u)"));
-  }
 
   if (tree) {
     ti = proto_tree_add_text(hs_tree, tvb, 3, -1, "HyperSCSI PDU");
@@ -195,6 +194,7 @@ proto_register_hyperscsi(void)
   register_dissector("hyperscsi", dissect_hyperscsi, proto_hyperscsi);
 }
 
+/* XXX <epan/etypes.h> */
 #define ETHERTYPE_HYPERSCSI 0x889A
 
 void

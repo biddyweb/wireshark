@@ -2,8 +2,6 @@
  * Routines for the rras (Routing and Remote Access service) MSRPC interface
  * Copyright 2005 Jean-Baptiste Marchand <jbm@hsc.fr>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,9 @@
 #include <epan/packet.h>
 #include "packet-dcerpc.h"
 #include "packet-dcerpc-rras.h"
+
+void proto_register_dcerpc_rras(void);
+void proto_reg_handoff_dcerpc_rras(void);
 
 static int proto_dcerpc_rras = -1;
 

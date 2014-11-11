@@ -2,7 +2,6 @@
  * Routines for ISO/OSI network and transport protocol packet disassembly
  * Main entrance point and common functions
  *
- * $Id$
  * Laurent Deniel <laurent.deniel@free.fr>
  * Ralf Schneider <Ralf.Schneider@t-online.de>
  *
@@ -31,6 +30,7 @@
 #include <string.h>
 #include <glib.h>
 
+#include "tvbuff.h"
 #include "osi-utils.h"
 #include "emem.h"
 
@@ -44,7 +44,7 @@ print_nsap_net( const guint8 *ad, int length )
 {
   gchar *cur;
 
-  cur = ep_alloc(MAX_NSAP_LEN * 3 + 50);
+  cur = (gchar *)ep_alloc(MAX_NSAP_LEN * 3 + 50);
   print_nsap_net_buf( ad, length, cur, MAX_NSAP_LEN * 3 + 50);
   return( cur );
 }
@@ -83,9 +83,15 @@ print_system_id( const guint8 *ad, int length )
 {
   gchar        *cur;
 
-  cur = ep_alloc(MAX_SYSTEMID_LEN * 3 + 5);
+  cur = (gchar *)ep_alloc(MAX_SYSTEMID_LEN * 3 + 5);
   print_system_id_buf(ad, length, cur, MAX_SYSTEMID_LEN * 3 + 5);
   return( cur );
+}
+
+gchar *
+tvb_print_system_id( tvbuff_t *tvb, const gint offset, int length )
+{
+  return( print_system_id(tvb_get_ptr(tvb, offset, length), length) );
 }
 
 void
@@ -138,7 +144,7 @@ print_area(const guint8 *ad, int length)
 {
   gchar *cur;
 
-  cur = ep_alloc(MAX_AREA_LEN * 3 + 20);
+  cur = (gchar *)ep_alloc(MAX_AREA_LEN * 3 + 20);
   print_area_buf(ad, length, cur, MAX_AREA_LEN * 3 + 20);
   return cur;
 }

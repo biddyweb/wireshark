@@ -5,8 +5,6 @@
 * Charles Levert <charles@comm.polymtl.ca>
 * Copyright 2001 Charles Levert
 *
-* $Id$
-*
 * This program is free software; you can redistribute it and/or
 * modify it under the terms of the GNU General Public License
 * as published by the Free Software Foundation; either version 2
@@ -29,9 +27,11 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-#include <epan/strutil.h>
 
 /**********************************************************************/
+
+void proto_register_cups(void);
+void proto_reg_handoff_cups(void);
 
 /* From cups/cups.h, GNU GPL, Copyright 1997-2001 by Easy Software Products. */
 typedef guint32 cups_ptype_t;           /**** Printer Type/Capability Bits ****/
@@ -279,7 +279,7 @@ get_quoted_string(tvbuff_t *tvb, gint offset, gint *next_offset, guint *len)
         if (o != -1) {
             offset++;
             l = o - offset;
-            s = tvb_get_ptr(tvb, offset, l);
+            s = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, l, ENC_ASCII);
             offset = o + 1;
         }
     }
@@ -300,7 +300,7 @@ get_unquoted_string(tvbuff_t *tvb, gint offset, gint *next_offset, guint *len)
     o = tvb_pbrk_guint8(tvb, offset, -1, " \t\r\n", NULL);
     if (o != -1) {
         l = o - offset;
-        s = tvb_get_ptr(tvb, offset, l);
+        s = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, l, ENC_ASCII);
         offset = o;
     }
 

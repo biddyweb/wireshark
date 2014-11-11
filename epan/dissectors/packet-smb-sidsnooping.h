@@ -2,8 +2,6 @@
  * Routines for snooping SID to name mappings
  * Copyright 2003, Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,7 +26,7 @@
 
 #include "ws_symbol_export.h"
 
-/* With MSVC and a libwireshark.dll, we need a 
+/* With MSVC and a libwireshark.dll, we need a
  * special declaration for sid_name_table.
  */
 WS_DLL_PUBLIC GHashTable *sid_name_table;
@@ -39,6 +37,6 @@ typedef struct _sid_name {
 } sid_name;
 
 WS_DLL_PUBLIC
-char *find_sid_name(char *sid);
+char *find_sid_name(const char *sid);
 
 #endif

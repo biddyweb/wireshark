@@ -1,8 +1,6 @@
 /* conversations_sctp.c
  * conversations_sctp   2005 Oleg Terletsky <oleg.terletsky@comverse.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,10 +36,12 @@
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/conversations_table.h"
 
+void register_tap_listener_sctp_conversation(void);
+
 static int
 sctp_conversation_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
 {
-	const struct _sctp_info *sctphdr=vip;
+	const struct _sctp_info *sctphdr=(const struct _sctp_info *)vip;
 
 	add_conversation_table_data((conversations_table *)pct,
 		&sctphdr->ip_src,
@@ -50,7 +50,7 @@ sctp_conversation_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_,
 		sctphdr->dport,
 		1,
 		pinfo->fd->pkt_len,
-		&pinfo->fd->rel_ts,
+		&pinfo->rel_ts,
                 SAT_NONE,
 		PT_SCTP);
 

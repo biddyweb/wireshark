@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-sv.c                                                                */
 /* ../../tools/asn2wrs.py -b -p sv -c ./sv.cnf -s ./packet-sv-template -D . -O ../../epan/dissectors sv.asn */
 
@@ -9,8 +9,6 @@
 /* packet-sv.c
  * Routines for IEC 61850 Sampled Vales packet dissection
  * Michael Bernhard 2008
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -38,7 +36,6 @@
 #include <epan/asn1.h>
 #include <epan/etypes.h>
 #include <epan/expert.h>
-#include <epan/nstime.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -79,6 +76,8 @@
 /* see UCA Implementation Guideline for IEC 61850-9-2 */
 #define Q_DERIVED				(1 << 13)
 
+void proto_register_sv(void);
+void proto_reg_handoff_sv(void);
 
 /* Data for SV tap */
 static int sv_tap = -1;
@@ -125,7 +124,7 @@ static int hf_sv_seqData = -1;                    /* Data */
 static int hf_sv_smpMod = -1;                     /* T_smpMod */
 
 /*--- End of included file: packet-sv-hf.c ---*/
-#line 103 "../../asn1/sv/packet-sv-template.c"
+#line 102 "../../asn1/sv/packet-sv-template.c"
 
 /* Initialize the subtree pointers */
 static int ett_sv = -1;
@@ -141,7 +140,9 @@ static gint ett_sv_SEQUENCE_OF_ASDU = -1;
 static gint ett_sv_ASDU = -1;
 
 /*--- End of included file: packet-sv-ett.c ---*/
-#line 110 "../../asn1/sv/packet-sv-template.c"
+#line 109 "../../asn1/sv/packet-sv-template.c"
+
+static expert_field ei_sv_mal_utctime = EI_INIT;
 
 #if 0
 static const value_string sv_q_validity_vals[] = {
@@ -250,7 +251,7 @@ dissect_sv_VisibleString(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 static int
 dissect_sv_T_smpCnt(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 19 "../../asn1/sv/sv.cnf"
+#line 18 "../../asn1/sv/sv.cnf"
 	guint32 value;
   offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &value);
@@ -275,9 +276,8 @@ dissect_sv_INTEGER_0_4294967295(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 static int
 dissect_sv_UtcTime(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 25 "../../asn1/sv/sv.cnf"
+#line 24 "../../asn1/sv/sv.cnf"
 	guint32 len;
-	proto_item *cause;
 	guint32 seconds;
 	guint32	fraction;
 	guint32 nanoseconds;
@@ -288,11 +288,8 @@ dissect_sv_UtcTime(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_,
 
 	if(len != 8)
 	{
-		cause = proto_tree_add_text(tree, tvb, offset, len,
-				"BER Error: malformed UTCTime encoding, "
-				"length must be 8 bytes");
-		proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-		expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "BER Error: malformed UTCTime encoding");
+		proto_tree_add_expert_format(tree, actx->pinfo, &ei_sv_mal_utctime, tvb, offset, len,
+				"BER Error: malformed UTCTime encoding, length must be 8 bytes");
 		if(hf_index >= 0)
 		{
 			proto_tree_add_string(tree, hf_index, tvb, offset, len, "????");
@@ -302,12 +299,12 @@ dissect_sv_UtcTime(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_,
 
 	seconds = tvb_get_ntohl(tvb, offset);
 	fraction = tvb_get_ntoh24(tvb, offset+4) * 0x100; /* Only 3 bytes are recommended */
-	nanoseconds = (guint32)( ((guint64)fraction * G_GINT64_CONSTANT(1000000000U)) / G_GINT64_CONSTANT(0x100000000U) ) ;
+	nanoseconds = (guint32)( ((guint64)fraction * G_GUINT64_CONSTANT(1000000000)) / G_GUINT64_CONSTANT(0x100000000) ) ;
 
 	ts.secs = seconds;
 	ts.nsecs = nanoseconds;
 
-	ptime = abs_time_to_str(&ts, ABSOLUTE_TIME_UTC, TRUE);
+	ptime = abs_time_to_ep_str(&ts, ABSOLUTE_TIME_UTC, TRUE);
 
 	if(hf_index >= 0)
 	{
@@ -331,7 +328,7 @@ static const value_string sv_T_smpSynch_vals[] = {
 
 static int
 dissect_sv_T_smpSynch(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 70 "../../asn1/sv/sv.cnf"
+#line 65 "../../asn1/sv/sv.cnf"
 	guint32 value;
   offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &value);
@@ -363,7 +360,7 @@ static const value_string sv_T_smpMod_vals[] = {
 
 static int
 dissect_sv_T_smpMod(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 76 "../../asn1/sv/sv.cnf"
+#line 71 "../../asn1/sv/sv.cnf"
 	guint32 value;
   offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &value);
@@ -425,11 +422,6 @@ dissect_sv_SavPdu(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, 
 }
 
 
-static const value_string sv_SampledValues_vals[] = {
-  {   0, "savPdu" },
-  { 0, NULL }
-};
-
 static const ber_choice_t SampledValues_choice[] = {
   {   0, &hf_sv_savPdu           , BER_CLASS_APP, 0, BER_FLAGS_IMPLTAG, dissect_sv_SavPdu },
   { 0, NULL, 0, 0, 0, NULL }
@@ -446,7 +438,7 @@ dissect_sv_SampledValues(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 
 /*--- End of included file: packet-sv-fn.c ---*/
-#line 191 "../../asn1/sv/packet-sv-template.c"
+#line 192 "../../asn1/sv/packet-sv-template.c"
 
 /*
 * Dissect SV PDUs inside a PPDU.
@@ -567,7 +559,7 @@ void proto_register_sv(void) {
 /*--- Included file: packet-sv-hfarr.c ---*/
 #line 1 "../../asn1/sv/packet-sv-hfarr.c"
     { &hf_sv_savPdu,
-      { "savPdu", "sv.savPdu",
+      { "savPdu", "sv.savPdu_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sv_noASDU,
@@ -579,7 +571,7 @@ void proto_register_sv(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_ASDU", HFILL }},
     { &hf_sv_seqASDU_item,
-      { "ASDU", "sv.ASDU",
+      { "ASDU", "sv.ASDU_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sv_svID,
@@ -620,7 +612,7 @@ void proto_register_sv(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-sv-hfarr.c ---*/
-#line 308 "../../asn1/sv/packet-sv-template.c"
+#line 309 "../../asn1/sv/packet-sv-template.c"
 	};
 
 	/* List of subtrees */
@@ -637,8 +629,14 @@ void proto_register_sv(void) {
     &ett_sv_ASDU,
 
 /*--- End of included file: packet-sv-ettarr.c ---*/
-#line 316 "../../asn1/sv/packet-sv-template.c"
+#line 317 "../../asn1/sv/packet-sv-template.c"
 	};
+
+	static ei_register_info ei[] = {
+		{ &ei_sv_mal_utctime, { "sv.malformed.utctime", PI_MALFORMED, PI_WARN, "BER Error: malformed UTCTime encoding", EXPFILL }},
+	};
+
+	expert_module_t* expert_sv;
 
 	/* Register protocol */
 	proto_sv = proto_register_protocol(PNAME, PSNAME, PFNAME);
@@ -647,6 +645,8 @@ void proto_register_sv(void) {
 	/* Register fields and subtrees */
 	proto_register_field_array(proto_sv, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_sv = expert_register_protocol(proto_sv);
+	expert_register_field_array(expert_sv, ei, array_length(ei));
 
 	/* Register tap */
 	sv_tap = register_tap("sv");

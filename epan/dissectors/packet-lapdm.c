@@ -2,8 +2,6 @@
  * Routines for LAPDm frame disassembly
  * Duncan Salerno <duncan.salerno@googlemail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998
@@ -59,6 +57,9 @@
 #include <epan/xdlc.h>
 #include <epan/reassemble.h>
 
+void proto_register_lapdm(void);
+void proto_reg_handoff_lapdm(void);
+
 static int proto_lapdm = -1;
 static int hf_lapdm_address = -1;
 static int hf_lapdm_ea = -1;
@@ -103,8 +104,7 @@ static gint ett_lapdm_length = -1;
 static gint ett_lapdm_fragment = -1;
 static gint ett_lapdm_fragments = -1;
 
-static GHashTable *lapdm_fragment_table = NULL;
-static GHashTable *lapdm_reassembled_table = NULL;
+static reassembly_table lapdm_reassembly_table;
 
 static dissector_table_t lapdm_sapi_dissector_table;
 
@@ -205,8 +205,8 @@ static const fragment_items lapdm_frag_items = {
 static void
 lapdm_defragment_init (void)
 {
-    fragment_table_init (&lapdm_fragment_table);
-    reassembled_table_init(&lapdm_reassembled_table);
+    reassembly_table_init (&lapdm_reassembly_table,
+                           &addresses_reassembly_table_functions);
 }
 
 
@@ -287,7 +287,7 @@ dissect_lapdm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      */
     if( (control & XDLC_I_MASK) == XDLC_I && reassemble_lapdm )
     {
-            fragment_data *fd_m = NULL;
+            fragment_head *fd_m = NULL;
             tvbuff_t *reassembled = NULL;
             guint32 fragment_id;
             gboolean save_fragmented = pinfo->fragmented;
@@ -301,10 +301,10 @@ dissect_lapdm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                take N(S) into account, but N(S) isn't always 0 for
                the first fragment!
              */
-            fd_m = fragment_add_seq_next (payload, 0, pinfo,
+            fd_m = fragment_add_seq_next (&lapdm_reassembly_table, payload, 0,
+                                pinfo,
                                 fragment_id, /* guint32 ID for fragments belonging together */
-                                lapdm_fragment_table, /* list of message fragments */
-                                lapdm_reassembled_table, /* list of reassembled messages */
+                                NULL,
                                 /*n_s guint32 fragment sequence number */
                                 len, /* guint32 fragment length */
                                 m); /* More fragments? */

@@ -1,7 +1,5 @@
 /* packet-vntag.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,6 +25,11 @@
 #include <epan/packet.h>
 #include <epan/etypes.h>
 
+void proto_register_vntag(void);
+void proto_reg_handoff_vntag(void);
+
+static dissector_handle_t ethertype_handle;
+
 static int proto_vntag = -1;
 
 static int hf_vntag_etype = -1;
@@ -40,6 +43,7 @@ dissect_vntag(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	guint16     encap_proto;
 	proto_tree *vntag_tree = NULL;
+	ethertype_data_t ethertype_data;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "VNTAG");
 	col_clear(pinfo->cinfo, COL_INFO);
@@ -87,9 +91,19 @@ dissect_vntag(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		}
 
 		dissect_802_3(encap_proto, is_802_2, tvb, 4, pinfo, tree, vntag_tree, hf_vntag_len, hf_vntag_trailer, 0);
-	} else
+	} else {
 #endif
-		ethertype(encap_proto, tvb, 6, pinfo, tree, vntag_tree, hf_vntag_etype, hf_vntag_trailer, 0);
+		ethertype_data.etype = encap_proto;
+		ethertype_data.offset_after_ethertype = 6;
+		ethertype_data.fh_tree = vntag_tree;
+		ethertype_data.etype_id = hf_vntag_etype;
+		ethertype_data.trailer_id = hf_vntag_trailer;
+		ethertype_data.fcs_len = 0;
+
+		call_dissector_with_data(ethertype_handle, tvb, pinfo, tree, &ethertype_data);
+#if 0
+	}
+#endif
 }
 
 void
@@ -127,4 +141,6 @@ proto_reg_handoff_vntag(void)
 
 	vntag_handle = create_dissector_handle(dissect_vntag, proto_vntag);
 	dissector_add_uint("ethertype", 0x8926, vntag_handle);
+
+	ethertype_handle = find_dissector("ethertype");
 }

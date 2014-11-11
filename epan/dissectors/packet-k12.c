@@ -3,8 +3,6 @@
 *
 * Luis E. Garcia Ontanon <luis@ontanon.org>
 *
-* $Id$
-*
 * Wireshark - Network traffic analyzer
 * By Gerald Combs <gerald@wireshark.org>
 * Copyright 1998
@@ -30,15 +28,20 @@
 #include <string.h>
 #include <wsutil/str_util.h>
 #include <epan/packet.h>
+#include <wsutil/pint.h>
 #include <epan/conversation.h>
 #include <prefs.h>
-#include <epan/report_err.h>
+#include <wiretap/wtap.h>
 #include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/uat.h>
 #include <epan/expert.h>
 #include <epan/strutil.h>
 #include "packet-sscop.h"
 #include "packet-umts_fp.h"
+
+void proto_reg_handoff_k12(void);
+void proto_register_k12(void);
 
 typedef struct _k12_hdls_t {
 	char* match;
@@ -62,6 +65,8 @@ static gint ett_k12 = -1;
 static gint ett_port = -1;
 static gint ett_stack_item = -1;
 
+static expert_field ei_k12_unmatched_stk_file = EI_INIT;
+
 static dissector_handle_t k12_handle;
 static dissector_handle_t data_handle;
 static dissector_handle_t sscop_handle;
@@ -70,7 +75,7 @@ static dissector_handle_t fp_handle;
 extern int proto_sscop;
 extern int proto_fp;
 
-static emem_tree_t* port_handles = NULL;
+static wmem_tree_t* port_handles = NULL;
 static uat_t* k12_uat = NULL;
 static k12_handles_t* k12_handles = NULL;
 static guint nk12_handles = 0;
@@ -87,7 +92,7 @@ fill_fp_info(fp_info *p_fp_info, guchar *extra_info, guint32 length)
 {
 	guint adj = 0;
 			/* 0x11=control frame 0x30=data frame */
-	guint info_type = pntohs(extra_info);
+	guint info_type = pntoh16(extra_info);
 			/* 1=FDD, 2=TDD 3.84, 3=TDD 1.28 */
 	guchar radio_mode = extra_info[14];
 	guchar channel_type = 0;
@@ -97,10 +102,10 @@ fill_fp_info(fp_info *p_fp_info, guchar *extra_info, guint32 length)
 		return;
 
 	/* Store division type */
-	p_fp_info->division = radio_mode;
+	p_fp_info->division = (enum division_type)radio_mode;
 
 	/* Format used by K15, later fields are shifted by 8 bytes. */
-	if (pntohs(extra_info+2) == 5)
+	if (pntoh16(extra_info+2) == 5)
 		adj = 8;
 
 	p_fp_info->iface_type = IuB_Interface;
@@ -169,10 +174,10 @@ fill_fp_info(fp_info *p_fp_info, guchar *extra_info, guint32 length)
 		/* For each channel */
 		for (i = 0; i < (guint)p_fp_info->num_chans && (36+i*104+adj) <= length; ++i) {
 			/* Read TB size */
-			p_fp_info->chan_tf_size[i] = pntohl(extra_info+28+i*104+adj);
+			p_fp_info->chan_tf_size[i] = pntoh32(extra_info+28+i*104+adj);
 			if (p_fp_info->chan_tf_size[i])
 				/* Work out number of TBs on this channel */
-				p_fp_info->chan_num_tbs[i] = pntohl(extra_info+32+i*104+adj)
+				p_fp_info->chan_num_tbs[i] = pntoh32(extra_info+32+i*104+adj)
 							     / p_fp_info->chan_tf_size[i];
 		}
 	}
@@ -211,7 +216,7 @@ dissect_k12(tvbuff_t* tvb,packet_info* pinfo,proto_tree* tree)
 			break;
 		case K12_PORT_ATMPVC:
 		{
-		gchar* circuit_str = ep_strdup_printf("%u:%u:%u",
+		gchar* circuit_str = wmem_strdup_printf(wmem_packet_scope(), "%u:%u:%u",
 						      (guint)pinfo->pseudo_header->k12.input_info.atm.vp,
 						      (guint)pinfo->pseudo_header->k12.input_info.atm.vc,
 						      (guint)pinfo->pseudo_header->k12.input_info.atm.cid);
@@ -235,7 +240,7 @@ dissect_k12(tvbuff_t* tvb,packet_info* pinfo,proto_tree* tree)
 			break;
 	}
 
-	handles = se_tree_lookup32(port_handles, pinfo->pseudo_header->k12.input);
+	handles = (dissector_handle_t *)wmem_tree_lookup32(port_handles, pinfo->pseudo_header->k12.input);
 
 	if (! handles ) {
 		for (i=0 ; i < nk12_handles; i++) {
@@ -251,18 +256,15 @@ dissect_k12(tvbuff_t* tvb,packet_info* pinfo,proto_tree* tree)
 			handles = data_handles;
 		}
 
-		se_tree_insert32(port_handles, pinfo->pseudo_header->k12.input, handles);
+		wmem_tree_insert32(port_handles, pinfo->pseudo_header->k12.input, handles);
 
 	}
 
 	if (handles == data_handles) {
-		proto_tree* stack_tree = proto_item_add_subtree(stack_item,ett_stack_item);
+		proto_tree* stack_tree = proto_item_add_subtree(stack_item, ett_stack_item);
 		proto_item* item;
 
-		item = proto_tree_add_text(stack_tree,tvb,0,0,
-					   "Warning: stk file not matched in the 'K12 Protocols' table");
-		PROTO_ITEM_SET_GENERATED(item);
-		expert_add_info_format(pinfo, item, PI_UNDECODED, PI_WARN, "unmatched stk file");
+		expert_add_info(pinfo, stack_item, &ei_k12_unmatched_stk_file);
 
 		item = proto_tree_add_text(stack_tree,tvb,0,0,
 					   "Info: You can edit the 'K12 Protocols' table from Preferences->Protocols->k12xx");
@@ -276,10 +278,10 @@ dissect_k12(tvbuff_t* tvb,packet_info* pinfo,proto_tree* tree)
 
 	for (i = 0; handles[i] && handles[i+1]; ++i) {
 		if (handles[i] == sscop_handle) {
-			sscop_payload_info *p_sscop_info = p_get_proto_data(pinfo->fd, proto_sscop);
+			sscop_payload_info *p_sscop_info = (sscop_payload_info *)p_get_proto_data(wmem_file_scope(), pinfo, proto_sscop, 0);
 			if (!p_sscop_info) {
-				p_sscop_info = se_alloc0(sizeof(sscop_payload_info));
-                p_add_proto_data(pinfo->fd, proto_sscop, p_sscop_info);
+				p_sscop_info = wmem_new0(wmem_file_scope(), sscop_payload_info);
+                p_add_proto_data(wmem_file_scope(), pinfo, proto_sscop, 0, p_sscop_info);
                 p_sscop_info->subdissector = handles[i+1];
 			}
 		}
@@ -290,10 +292,10 @@ dissect_k12(tvbuff_t* tvb,packet_info* pinfo,proto_tree* tree)
 
 	/* Setup information required by certain protocols */
 	if (sub_handle == fp_handle) {
-		fp_info *p_fp_info = p_get_proto_data(pinfo->fd, proto_fp);
+		fp_info *p_fp_info = (fp_info *)p_get_proto_data(wmem_file_scope(), pinfo, proto_fp, 0);
 		if (!p_fp_info) {
-			p_fp_info = se_alloc0(sizeof(fp_info));
-            p_add_proto_data(pinfo->fd, proto_fp, p_fp_info);
+			p_fp_info = wmem_new0(wmem_file_scope(), fp_info);
+            p_add_proto_data(wmem_file_scope(), pinfo, proto_fp, 0, p_fp_info);
 
             fill_fp_info(p_fp_info,
                          pinfo->pseudo_header->k12.extra_info,
@@ -307,34 +309,36 @@ dissect_k12(tvbuff_t* tvb,packet_info* pinfo,proto_tree* tree)
 static void
 k12_update_cb(void* r, const char** err)
 {
-	k12_handles_t* h = r;
+	k12_handles_t* h = (k12_handles_t *)r;
 	gchar** protos;
 	guint num_protos, i;
 
-	protos = ep_strsplit(h->protos,":",0);
+	protos = g_strsplit(h->protos,":",0);
 
 	for (num_protos = 0; protos[num_protos]; num_protos++)
 		g_strstrip(protos[num_protos]);
 
 	g_free(h->handles);
-	h->handles = g_malloc0(sizeof(dissector_handle_t)*(num_protos < 2 ? 2 : num_protos));
+	h->handles = (dissector_handle_t *)g_malloc0(sizeof(dissector_handle_t)*(num_protos < 2 ? 2 : num_protos));
 
 	for (i = 0; i < num_protos; i++) {
 		if ( ! (h->handles[i] = find_dissector(protos[i])) ) {
 			h->handles[i] = data_handle;
-			*err = ep_strdup_printf("Could not find dissector for: '%s'",protos[i]);
+			g_strfreev(protos);
+			*err = g_strdup_printf("Could not find dissector for: '%s'",protos[i]);
 			return;
 		}
 	}
 
+	g_strfreev(protos);
 	*err = NULL;
 }
 
 static void*
 k12_copy_cb(void* dest, const void* orig, size_t len _U_)
 {
-	k12_handles_t* d = dest;
-	const k12_handles_t* o = orig;
+	k12_handles_t* d = (k12_handles_t *)dest;
+	const k12_handles_t* o = (const k12_handles_t *)orig;
 	gchar** protos = ep_strsplit(d->protos,":",0);
 	guint num_protos;
 
@@ -343,7 +347,7 @@ k12_copy_cb(void* dest, const void* orig, size_t len _U_)
 
 	d->match = g_strdup(o->match);
 	d->protos = g_strdup(o->protos);
-	d->handles = g_memdup(o->handles,(guint)(sizeof(dissector_handle_t)*(num_protos+1)));
+	d->handles = (dissector_handle_t *)g_memdup(o->handles,(guint)(sizeof(dissector_handle_t)*(num_protos+1)));
 
 	return dest;
 }
@@ -351,7 +355,7 @@ k12_copy_cb(void* dest, const void* orig, size_t len _U_)
 static void
 k12_free_cb(void* r)
 {
-	k12_handles_t* h = r;
+	k12_handles_t* h = (k12_handles_t *)r;
 
 	g_free(h->match);
 	g_free(h->protos);
@@ -432,6 +436,10 @@ proto_register_k12(void)
 	  &ett_stack_item
   };
 
+  static ei_register_info ei[] = {
+     { &ei_k12_unmatched_stk_file, { "k12.unmatched_stk_file", PI_UNDECODED, PI_WARN, "Warning: stk file not matched in the 'K12 Protocols' table", EXPFILL }},
+  };
+
   static uat_field_t uat_k12_flds[] = {
       UAT_FLD_CSTRING_ISPRINT(k12,match,"Match string",
 			      "A string that will be matched (a=A) against an .stk filename or the name of a port.\n"
@@ -443,17 +451,20 @@ proto_register_k12(void)
   };
 
   module_t *k12_module;
+  expert_module_t* expert_k12;
 
   proto_k12 = proto_register_protocol("K12xx", "K12xx", "k12");
   proto_register_field_array(proto_k12, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_k12 = expert_register_protocol(proto_k12);
+  expert_register_field_array(expert_k12, ei, array_length(ei));
   register_dissector("k12", dissect_k12, proto_k12);
 
   k12_uat = uat_new("K12 Protocols",
 		    sizeof(k12_handles_t),
 		    "k12_protos",             /* filename */
 		    TRUE,                     /* from_profile */
-		    (void*) &k12_handles,     /* data_ptr */
+		    &k12_handles,             /* data_ptr */
 		    &nk12_handles,            /* numitems_ptr */
 		    UAT_AFFECTS_DISSECTION,   /* affects dissection of packets, but not set of named fields */
 		    "ChK12ProtocolsSection",  /* help */
@@ -472,6 +483,6 @@ proto_register_k12(void)
 				"A table of matches vs stack filenames and relative protocols",
 				k12_uat);
 
-  port_handles = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "k12_port_handles");
+  port_handles = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope());
 
 }

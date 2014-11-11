@@ -8,8 +8,6 @@
  * Copyright 2008 Richard van der Hoff, MX Telecom
  * <richardv@mxtelecom.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -43,6 +41,9 @@
 #include <epan/iax2_codec_type.h>
 
 #include "packet-h263.h"
+
+void proto_register_rfc2190(void);
+void proto_reg_handoff_rfc2190(void);
 
 /* H.263 header fields             */
 static int proto_rfc2190		= -1;

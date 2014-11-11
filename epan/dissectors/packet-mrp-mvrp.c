@@ -7,8 +7,6 @@
  * Johannes Jochen <johannes.jochen[AT]belden.com>
  * Copyright 2011
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald[AT]wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,9 @@
 
 #include <epan/packet.h>
 #include <epan/etypes.h>
+
+void proto_register_mrp_mvrp(void);
+void proto_reg_handoff_mrp_mvrp(void);
 
 /* MVRP End Mark Sequence */
 #define MVRP_END_MARK       0x0000

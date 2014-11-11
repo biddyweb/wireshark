@@ -2,8 +2,6 @@
  * Extenal definitions for EAP Extensible Authentication Protocol dissection
  * RFC 2284, RFC 3748
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,6 +25,7 @@
 #define __EAP_H__
 
 #include "ws_symbol_export.h"
+#include "value_string.h"
 
 /* http://www.iana.org/assignments/eap-numbers */
 #define EAP_REQUEST     1

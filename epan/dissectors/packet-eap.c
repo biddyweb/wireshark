@@ -2,8 +2,6 @@
  * Routines for EAP Extensible Authentication Protocol dissection
  * RFC 2284, RFC 3748
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,11 +28,14 @@
 #include <epan/conversation.h>
 #include <epan/ppptypes.h>
 #include <epan/reassemble.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/eap.h>
 #include <epan/expert.h>
 
 #include "packet-wps.h"
+
+void proto_register_eap(void);
+void proto_reg_handoff_eap(void);
 
 static int proto_eap = -1;
 static int hf_eap_code = -1;
@@ -88,6 +89,13 @@ static int hf_eap_ms_chap_v2_message = -1;
 static int hf_eap_ms_chap_v2_failure_request = -1;
 
 static gint ett_eap = -1;
+
+static expert_field ei_eap_ms_chap_v2_length = EI_INIT;
+static expert_field ei_eap_mitm_attacks = EI_INIT;
+static expert_field ei_eap_md5_value_size_overflow = EI_INIT;
+static expert_field ei_eap_dictionary_attacks = EI_INIT;
+
+static dissector_handle_t eap_handle;
 
 static dissector_handle_t ssl_handle;
 
@@ -317,7 +325,7 @@ from RFC2716, pg 17
 /*
  * reassembly of EAP-TLS
  */
-static GHashTable *eap_tls_fragment_table = NULL;
+static reassembly_table eap_tls_reassembly_table;
 
 static int hf_eap_tls_flags = -1;
 static int hf_eap_tls_flag_l = -1;
@@ -410,7 +418,8 @@ test_flag(unsigned char flag, unsigned char mask)
 static void
 eap_tls_defragment_init(void)
 {
-  fragment_table_init(&eap_tls_fragment_table);
+  reassembly_table_init(&eap_tls_reassembly_table,
+                        &addresses_reassembly_table_functions);
 }
 
 static void
@@ -440,7 +449,7 @@ dissect_eap_mschapv2(proto_tree *eap_tree, tvbuff_t *tvb, packet_info *pinfo, in
   item = proto_tree_add_item(eap_tree, hf_eap_ms_chap_v2_length, tvb, offset, 2, ENC_BIG_ENDIAN);
   ms_len = tvb_get_ntohs(tvb, offset);
   if (ms_len != size)
-    expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, "Invalid Length");
+    expert_add_info(pinfo, item, &ei_eap_ms_chap_v2_length);
   offset += 2;
   left   -= 2;
 
@@ -487,7 +496,7 @@ dissect_eap_mschapv2(proto_tree *eap_tree, tvbuff_t *tvb, packet_info *pinfo, in
     } else {
       proto_tree_add_text(eap_tree, tvb, offset, value_size,
               "EAP-MS-CHAP-v2 Response (Unknown Length): %s",
-              tvb_bytes_to_str(tvb, offset, value_size));
+              tvb_bytes_to_ep_str(tvb, offset, value_size));
       offset += value_size;
       left   -= value_size;
     }
@@ -511,7 +520,7 @@ dissect_eap_mschapv2(proto_tree *eap_tree, tvbuff_t *tvb, packet_info *pinfo, in
     proto_tree_add_text(eap_tree, tvb, offset, left,
             "EAP-MS-CHAP-v2 Data (%d byte%s): \"%s\"",
             left, plurality(left, "", "s"),
-            tvb_bytes_to_str(tvb, offset, left));
+            tvb_bytes_to_ep_str(tvb, offset, left));
     break;
   }
 }
@@ -640,8 +649,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 
   eap_code = tvb_get_guint8(tvb, 0);
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_add_str(pinfo->cinfo, COL_INFO,
+  col_add_str(pinfo->cinfo, COL_INFO,
                 val_to_str(eap_code, eap_code_vals, "Unknown code (0x%02X)"));
 
   /*
@@ -697,7 +705,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
     /*
      * Attach state information to the conversation.
      */
-    conversation_state = se_new(conv_state_t);
+    conversation_state = wmem_new(wmem_file_scope(), conv_state_t);
     conversation_state->eap_tls_seq      = -1;
     conversation_state->eap_reass_cookie =  0;
     conversation_state->leap_state       = -1;
@@ -733,8 +741,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
   case EAP_RESPONSE:
     eap_type = tvb_get_guint8(tvb, 4);
 
-    if (check_col(pinfo->cinfo, COL_INFO))
-      col_append_fstr(pinfo->cinfo, COL_INFO, ", %s",
+    col_append_fstr(pinfo->cinfo, COL_INFO, ", %s",
                       val_to_str_ext(eap_type, &eap_type_vals_ext,
                                      "Unknown type (0x%02x)"));
     if (tree)
@@ -783,13 +790,12 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
         proto_item *item;
 
         /* Warn that this is an insecure EAP type. */
-        expert_add_info_format(pinfo, eap_type_item, PI_SECURITY, PI_WARN,
-                               "Vulnerable to MITM attacks. If possible, change EAP type.");
+        expert_add_info(pinfo, eap_type_item, &ei_eap_mitm_attacks);
 
         item = proto_tree_add_item(eap_tree, hf_eap_md5_value_size, tvb, offset, 1, ENC_BIG_ENDIAN);
         if (value_size > (size - 1))
         {
-          expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, "Overflow");
+          expert_add_info(pinfo, item, &ei_eap_md5_value_size_overflow);
           value_size = size - 1;
         }
 
@@ -891,7 +897,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
             first pass through the capture.
           */
           /* See if we have a remembered defragmentation EAP ID. */
-          packet_state = (frame_state_t *)p_get_proto_data(pinfo->fd, proto_eap);
+          packet_state = (frame_state_t *)p_get_proto_data(wmem_file_scope(), pinfo, proto_eap, 0);
           if (packet_state == NULL) {
             /*
              * We haven't - does this message require reassembly?
@@ -952,9 +958,9 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
                  * This frame requires reassembly; remember the reassembly
                  * ID for subsequent accesses to it.
                  */
-                packet_state = se_new(frame_state_t);
+                packet_state = wmem_new(wmem_file_scope(), frame_state_t);
                 packet_state->info = eap_reass_cookie;
-                p_add_proto_data(pinfo->fd, proto_eap, packet_state);
+                p_add_proto_data(wmem_file_scope(), pinfo, proto_eap, 0, packet_state);
               }
             }
           } else {
@@ -991,7 +997,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
             otherwise we just call dissector.
           */
           if (needs_reassembly) {
-            fragment_data   *fd_head;
+            fragment_head   *fd_head;
 
             /*
              * Yes, this frame contains a fragment that requires
@@ -999,20 +1005,18 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
              */
             save_fragmented   = pinfo->fragmented;
             pinfo->fragmented = TRUE;
-            fd_head = fragment_add_seq(tvb, offset, pinfo,
-                                       eap_reass_cookie,
-                                       eap_tls_fragment_table,
+            fd_head = fragment_add_seq(&eap_tls_reassembly_table,
+                                       tvb, offset,
+                                       pinfo, eap_reass_cookie, NULL,
                                        eap_tls_seq,
                                        size,
-                                       more_fragments);
+                                       more_fragments, 0);
 
             if (fd_head != NULL)            /* Reassembled  */
             {
               proto_item *frag_tree_item;
 
-              next_tvb = tvb_new_child_real_data(tvb, fd_head->data,
-                                                 fd_head->len,
-                                                 fd_head->len);
+              next_tvb = tvb_new_chain(tvb, fd_head->tvb_data);
               add_new_data_source(pinfo, next_tvb, "Reassembled EAP-TLS");
 
               show_fragment_seq_tree(fd_head, &eap_tls_frag_items,
@@ -1047,9 +1051,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
         guint8 count, namesize;
 
         /* Warn that this is an insecure EAP type. */
-        expert_add_info_format(pinfo, eap_type_item, PI_SECURITY, PI_WARN,
-                               "Vulnerable to dictionary attacks. If possible, change EAP type."
-                               " See http://www.cisco.com/warp/public/cc/pd/witc/ao350ap/prodlit/2331_pp.pdf");
+        expert_add_info(pinfo, eap_type_item, &ei_eap_dictionary_attacks);
 
         /* Version (byte) */
         if (tree) {
@@ -1074,7 +1076,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
         /* This part is state-dependent. */
 
         /* See if we've already remembered the state. */
-        packet_state = (frame_state_t *)p_get_proto_data(pinfo->fd, proto_eap);
+        packet_state = (frame_state_t *)p_get_proto_data(wmem_file_scope(), pinfo, proto_eap, 0);
         if (packet_state == NULL) {
           /*
            * We haven't - compute the state based on the current
@@ -1093,9 +1095,9 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
            * Remember the state for subsequent accesses to this
            * frame.
            */
-          packet_state = se_new(frame_state_t);
+          packet_state = wmem_new(wmem_file_scope(), frame_state_t);
           packet_state->info = leap_state;
-          p_add_proto_data(pinfo->fd, proto_eap, packet_state);
+          p_add_proto_data(wmem_file_scope(), pinfo, proto_eap, 0, packet_state);
 
           /*
            * Update the conversation's state.
@@ -1128,7 +1130,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
             proto_tree_add_text(eap_tree, tvb, offset, count,
                                 "EAP-LEAP Data (%d byte%s): \"%s\"",
                                 count, plurality(count, "", "s"),
-                                tvb_bytes_to_str(tvb, offset, count));
+                                tvb_bytes_to_ep_str(tvb, offset, count));
             break;
           }
         }
@@ -1189,7 +1191,7 @@ dissect_eap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
           proto_tree_add_text(eap_tree, tvb, offset, size,
                               "EAP Data (%d byte%s): \"%s\"",
                               size, plurality(size, "", "s"),
-                              tvb_bytes_to_str(tvb, offset, size));
+                              tvb_bytes_to_ep_str(tvb, offset, size));
         }
         break;
         /*********************************************************************
@@ -1512,27 +1514,36 @@ proto_register_eap(void)
     &ett_eap_exp_attr,
     &ett_eap_tls_flags
   };
+  static ei_register_info ei[] = {
+     { &ei_eap_ms_chap_v2_length, { "eap.ms_chap_v2.length.invalid", PI_PROTOCOL, PI_WARN, "Invalid Length", EXPFILL }},
+     { &ei_eap_mitm_attacks, { "eap.mitm_attacks", PI_SECURITY, PI_WARN, "Vulnerable to MITM attacks. If possible, change EAP type.", EXPFILL }},
+     { &ei_eap_md5_value_size_overflow, { "eap.md5.value_size.overflow", PI_PROTOCOL, PI_WARN, "Overflow", EXPFILL }},
+     { &ei_eap_dictionary_attacks, { "eap.dictionary_attacks", PI_SECURITY, PI_WARN,
+                               "Vulnerable to dictionary attacks. If possible, change EAP type."
+                               " See http://www.cisco.com/warp/public/cc/pd/witc/ao350ap/prodlit/2331_pp.pdf", EXPFILL }},
+  };
+
+  expert_module_t* expert_eap;
 
   proto_eap = proto_register_protocol("Extensible Authentication Protocol",
                                       "EAP", "eap");
   proto_register_field_array(proto_eap, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_eap = expert_register_protocol(proto_eap);
+  expert_register_field_array(expert_eap, ei, array_length(ei));
 
-  new_register_dissector("eap", dissect_eap, proto_eap);
+  eap_handle = new_register_dissector("eap", dissect_eap, proto_eap);
   register_init_routine(eap_tls_defragment_init);
 }
 
 void
 proto_reg_handoff_eap(void)
 {
-  dissector_handle_t eap_handle;
-
   /*
    * Get a handle for the SSL/TLS dissector.
    */
   ssl_handle = find_dissector("ssl");
 
-  eap_handle = find_dissector("eap");
   dissector_add_uint("ppp.protocol", PPP_EAP, eap_handle);
 }
 /*

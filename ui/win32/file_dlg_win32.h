@@ -1,8 +1,6 @@
 /* file_dlg_win32.h
  * Native Windows file dialog routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2006 Gerald Combs
@@ -34,15 +32,18 @@ extern "C" {
 /** Open the "Open" dialog box.
  *
  * @param h_wnd HWND of the parent window.
+ * @param file_name File name
+ * @param type File type
+ * @param display_filter a display filter
  */
-gboolean win32_open_file (HWND h_wnd, GString *file_name, GString *display_filter);
+gboolean win32_open_file (HWND h_wnd, GString *file_name, unsigned int *type, GString *display_filter);
 
 /** Verify that our proposed capture file format supports comments. If it can't
  *  ask the user what to do and return his or her response.
  *
- * @param h_wnd HWND of the parent window.
+ * @param parent HWND of the parent window.
  * @param cf Capture file.
- * @param file_format Proposed file format.
+ * @param file_type Proposed file format.
  *
  * @return
  */
@@ -73,10 +74,12 @@ gboolean win32_save_as_file(HWND h_wnd, capture_file *cf,
  * @param file_type Wiretap file type.
  * @param compressed Compress the file with gzip.
  * @param range Range of packets to export.
- * 
+ *
  * @return TRUE if packets were discarded when saving, FALSE otherwise
  */
-gboolean win32_export_specified_packets_file(HWND h_wnd, GString *file_name,
+gboolean win32_export_specified_packets_file(HWND h_wnd,
+                                         capture_file *cf,
+                                         GString *file_name,
                                          int *file_type,
                                          gboolean *compressed,
                                          packet_range_t *range);
@@ -85,12 +88,16 @@ gboolean win32_export_specified_packets_file(HWND h_wnd, GString *file_name,
 /** Open the "Merge" dialog box.
  *
  * @param h_wnd HWND of the parent window.
+ * @param file_name File name
+ * @param display_filter a display filter
+ * @param merge_type type of merge
  */
 gboolean win32_merge_file (HWND h_wnd, GString *file_name, GString *display_filter, int *merge_type);
 
 /** Open the "Export" dialog box.
  *
  * @param h_wnd HWND of the parent window.
+ * @param cf capture_file Structure for the capture to be saved
  * @param export_type The export type.
  */
 void win32_export_file (HWND h_wnd, capture_file *cf, export_type_e export_type);
@@ -98,8 +105,9 @@ void win32_export_file (HWND h_wnd, capture_file *cf, export_type_e export_type)
 /** Open the "Export raw bytes" dialog box.
  *
  * @param h_wnd HWND of the parent window.
+ * @param cf capture_file Structure for the capture to be saved
  */
-void win32_export_raw_file (HWND h_wnd);
+void win32_export_raw_file (HWND h_wnd, capture_file *cf);
 
 /** Open the "Export SSL Session Keys" dialog box.
  *
@@ -110,9 +118,10 @@ void win32_export_sslkeys_file (HWND h_wnd);
 /** Open the "Export Color Filters" dialog box
  *
  * @param h_wnd HWND of the parent window
+ * @param cf capture_file Structure for the capture to be saved
  * @param filter_list the list to export
  */
-void win32_export_color_file(HWND h_wnd, gpointer filter_list);
+void win32_export_color_file(HWND h_wnd, capture_file *cf, gpointer filter_list);
 
 /** Open the "Import Color Filters" dialog box
  *
@@ -120,6 +129,17 @@ void win32_export_color_file(HWND h_wnd, gpointer filter_list);
  * @param color_filters the calling widget
  */
 void win32_import_color_file(HWND h_wnd, gpointer color_filters);
+
+/** Open the "Save As" dialog box for stats_tree statistics window.
+ *
+ * @param h_wnd HWND of the parent window.
+ * @param file_name File name. May be empty.
+ * @param file_type stats_tree file type.
+ *
+ * @return FALSE if the dialog was cancelled
+ */
+gboolean win32_save_as_statstree(HWND h_wnd, GString *file_name,
+							int *file_type);
 
 void file_set_save_marked_sensitive();
 
@@ -147,6 +167,8 @@ void file_set_save_marked_sensitive();
 #define EWFD_PTX_PACKETS   1013
 #define EWFD_PTX_FIRST_PKT 1014
 #define EWFD_PTX_ELAPSED   1015
+
+#define EWFD_FORMAT_TYPE   1016
 
 /* Save as and export dialog defines */
 #define EWFD_GZIP_CB     1040
@@ -191,10 +213,11 @@ void file_set_save_marked_sensitive();
 /* These MUST be contiguous */
 #define EWFD_PKT_FORMAT_GB    1050
 #define EWFD_PKT_SUMMARY_CB   1051
-#define EWFD_PKT_DETAIL_CB    1052
-#define EWFD_PKT_DETAIL_COMBO 1053
-#define EWFD_PKT_BYTES_CB     1054
-#define EWFD_PKT_NEW_PAGE_CB  1055
+#define EWFD_COL_HEADINGS_CB  1052
+#define EWFD_PKT_DETAIL_CB    1053
+#define EWFD_PKT_DETAIL_COMBO 1054
+#define EWFD_PKT_BYTES_CB     1055
+#define EWFD_PKT_NEW_PAGE_CB  1056
 
 #ifdef __cplusplus
 }

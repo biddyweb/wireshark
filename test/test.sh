@@ -5,8 +5,6 @@
 #
 # Test various command line testable aspects of the Wireshark tools
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 2005 Ulf Lamping
@@ -55,8 +53,10 @@ Usage: $THIS [-c] [-h] [-s <suite>]
       decryption
       fileformats
       io
+      nameres
       prerequisites
       unittests
+      wslua
 FIN
         exit 0
 fi
@@ -64,13 +64,51 @@ fi
 source test-backend.sh
 
 source config.sh
-source suite-clopts.sh
-source suite-io.sh
-source suite-capture.sh
-source suite-unittests.sh
-source suite-fileformats.sh
-source suite-decryption.sh
 
+# needed by some tests
+TEST_OUTDIR=$(mktemp -d)
+TEST_OUTDIR_CLEAN=${TEST_OUTDIR_CLEAN:-1}
+if [ -z "$TEST_OUTDIR" ] || ! cd "$TEST_OUTDIR"; then
+	# If for any reason the temporary tests output directory cannot be created...
+	TEST_OUTDIR=.
+	TEST_OUTDIR_CLEAN=0
+fi
+
+# Configuration paths
+HOME_ENV="HOME"
+HOME_PATH="$TEST_OUTDIR/home"
+CONF_PATH="$HOME_PATH/.wireshark"
+
+if [ "$WS_SYSTEM" == "Windows" ] ; then
+    HOME_ENV="APPDATA"
+    HOME_PATH="`cygpath -w $HOME_PATH`"
+    CONF_PATH="$HOME_PATH/Wireshark"
+    CAPTURE_DIR="`cygpath -w $CAPTURE_DIR`"
+fi
+
+mkdir -p $CONF_PATH
+
+source $TESTS_DIR/suite-clopts.sh
+source $TESTS_DIR/suite-io.sh
+source $TESTS_DIR/suite-capture.sh
+source $TESTS_DIR/suite-unittests.sh
+source $TESTS_DIR/suite-fileformats.sh
+source $TESTS_DIR/suite-decryption.sh
+source $TESTS_DIR/suite-nameres.sh
+source $TESTS_DIR/suite-wslua.sh
+
+test_cleanup() {
+	if [ $TEST_OUTDIR_CLEAN = 1 ]; then
+		# display contents of test outputs, ignore directory:
+		# home (decryption suite)
+		grep -r . --exclude-dir=home .
+		rm -rf "$TEST_OUTDIR"
+	elif ! rmdir "$TEST_OUTDIR" 2>/dev/null; then
+		# if directory is non-empty, print directory
+		echo "Test results are available in $TEST_OUTDIR"
+	fi
+}
+trap test_cleanup EXIT
 
 #check prerequisites
 test_step_prerequisites() {
@@ -116,6 +154,8 @@ test_suite() {
 	test_suite_add "Unit tests" unittests_suite
 	test_suite_add "File formats" fileformats_suite
 	test_suite_add "Decryption" decryption_suite
+	test_suite_add "Name Resolution" name_resolution_suite
+	test_suite_add "Lua API" wslua_suite
 }
 
 
@@ -152,11 +192,17 @@ if [ -n "$RUN_SUITE" ] ; then
 	  "io")
 	    test_suite_run "File I/O" io_suite
             exit $? ;;
+	  "nameres")
+	    test_suite_run "Name Resolution" name_resolution_suite
+            exit $? ;;
 	  "prerequisites")
             test_suite_run "Prerequisites" prerequisites_suite
             exit $? ;;
 	  "unittests")
             test_suite_run "Unit tests" unittests_suite
+            exit $? ;;
+	  "wslua")
+            test_suite_run "Lua API" wslua_suite
             exit $? ;;
         esac
 fi

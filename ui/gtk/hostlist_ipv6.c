@@ -2,8 +2,6 @@
  * Modified from hostlist_ip.c   2004 Ian Schorr
  * modified from endpoint_talkers_ip.c   2003 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -41,11 +39,13 @@
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/hostlist_table.h"
 
+void register_tap_listener_ipv6_hostlist(void);
+
 static int
 ipv6_hostlist_packet(void *pit, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
 {
     hostlist_table *hosts = (hostlist_table *)pit;
-    const struct ip6_hdr *ip6h = vip;
+    const struct ip6_hdr *ip6h = (const struct ip6_hdr *)vip;
     address src;
     address dst;
 

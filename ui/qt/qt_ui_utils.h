@@ -1,8 +1,6 @@
 /* qt_gui_utils.h
  * Declarations of GTK+-specific UI utility routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,6 +32,7 @@
 #include <glib.h>
 #include <epan/timestamp.h>
 
+#include <QFont>
 #include <QString>
 
 #ifdef __cplusplus
@@ -67,10 +66,6 @@ struct remote_host_t {
     gboolean nocap_local;
 };
 
-// Referenced from ui/win32/file_dlg_win32.c and implemented in wireshark_application.cpp
-extern void set_last_open_dir(const char *dirname);
-extern gboolean main_do_quit(void);
-
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -92,8 +87,17 @@ gchar *qstring_strdup(QString q_string);
  */
 QString gchar_free_to_qstring(gchar *glib_string);
 
+/**
+ * Round the current size of a font up to its next "smooth" size.
+ * If a smooth size can't be found the font is left unchanged.
+ *
+ * @param font The font to smooth.
+ */
+void smooth_font_size(QFont &font);
+
 #endif /* __QT_UI_UTILS__H__ */
 
+// XXX Add a routine to fetch the HWND corresponding to a widget using QPlatformIntegration
 
 /*
  * Editor modelines

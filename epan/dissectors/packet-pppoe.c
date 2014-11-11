@@ -2,8 +2,6 @@
  * Routines for PPP Over Ethernet (PPPoE) packet disassembly (RFC2516)
  * Up to date with http://www.iana.org/assignments/pppoe-parameters (2008-04-30)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,13 @@
 #include <epan/prefs.h>
 #include <epan/expert.h>
 #include <epan/ppptypes.h>
+#include <wiretap/wtap.h>
+
+void proto_register_pppoed(void);
+void proto_reg_handoff_pppoed(void);
+void proto_register_pppoes(void);
+void proto_register_pppoe(void);
+void proto_reg_handoff_pppoes(void);
 
 static int proto_pppoed = -1;
 
@@ -116,6 +121,9 @@ static int proto_pppoes = -1;
 
 static gint ett_pppoes = -1;
 static gint ett_pppoes_tags = -1;
+
+static expert_field ei_pppoe_payload_length = EI_INIT;
+static expert_field ei_pppoe_tag_length = EI_INIT;
 
 /* PPPoE parent fields */
 
@@ -305,8 +313,9 @@ static const value_string datarate_scale_vals[] = {
 
 #define CASE_VSPEC_DSLF_TAG_UINT(tag_name, relation, length, hf_var) case tag_name: \
 		if (!(poe_tag_length relation length)) { \
-			expert_add_info_format(pinfo, pppoe_tree, PI_MALFORMED, PI_WARN, "%s: Wrong length: %u (expected %s %d)", \
-					val_to_str_const(poe_tag, vspec_tag_vals, "Unknown"), poe_tag_length, #relation, length); \
+			expert_add_info_format(pinfo, pppoe_tree, &ei_pppoe_tag_length, \
+			"%s: Wrong length: %u (expected %s %d)", \
+			val_to_str_const(poe_tag, vspec_tag_vals, "Unknown"), poe_tag_length, #relation, length); \
 		} else { \
 			proto_tree_add_item(pppoe_tree, hf_var, tvb, \
 				tagstart+2, poe_tag_length, ENC_BIG_ENDIAN); \
@@ -315,8 +324,9 @@ static const value_string datarate_scale_vals[] = {
 
 #define CASE_VSPEC_DSLF_TAG_STRING(tag_name, relation, length, hf_var) case tag_name: \
 		if (!(poe_tag_length relation length)) { \
-			expert_add_info_format(pinfo, pppoe_tree, PI_MALFORMED, PI_WARN, "%s: Wrong length: %u (expected %s %d)", \
-					val_to_str_const(poe_tag, vspec_tag_vals, "Unknown"), poe_tag_length, #relation, length); \
+			expert_add_info_format(pinfo, pppoe_tree, &ei_pppoe_tag_length, \
+			"%s: Wrong length: %u (expected %s %d)", \
+			val_to_str_const(poe_tag, vspec_tag_vals, "Unknown"), poe_tag_length, #relation, length); \
 		} else { \
 			proto_tree_add_item(pppoe_tree, hf_var, tvb, \
 				tagstart+2, poe_tag_length, ENC_ASCII|ENC_NA); \
@@ -395,9 +405,7 @@ dissect_pppoe_subtags_dslf(tvbuff_t *tvb, packet_info *pinfo _U_, int offset, pr
 					ti = proto_tree_add_item(pppoe_tree, hf_pppoed_tag_vspec_access_loop_encapsulation, tvb,
 							tagstart+2, 3, ENC_NA);
 					if (poe_tag_length != 3) {
-						expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_WARN,
-								"%s: Wrong length: %u (expected 3)",
-								val_to_str_const(poe_tag, vspec_tag_vals, "Unknown"), poe_tag_length);
+						expert_add_info_format(pinfo, ti, &ei_pppoe_tag_length, "%s: Wrong length: %u (expected 3)", val_to_str_const(poe_tag, vspec_tag_vals, "Unknown"), poe_tag_length);
 					}
 					encaps_tree = proto_item_add_subtree(ti, ett_pppoed_tag_vspec_dslf_access_loop_encaps);
 					proto_tree_add_item(encaps_tree, hf_pppoed_tag_vspec_access_loop_encap_data_link,
@@ -481,11 +489,8 @@ dissect_pppoe_tags(tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tree *tr
 					proto_tree_add_item(pppoe_tree, hf_pppoed_tag_ac_name, tvb,
 					                    tagstart+4, poe_tag_length, ENC_ASCII|ENC_NA);
 					/* Show AC-Name in info column */
-					if (check_col(pinfo->cinfo, COL_INFO))
-					{
-						col_append_fstr(pinfo->cinfo, COL_INFO, " AC-Name='%s'",
-						               tvb_get_ephemeral_string(tvb, tagstart+4, poe_tag_length));
-					}
+					col_append_fstr(pinfo->cinfo, COL_INFO, " AC-Name='%s'",
+						               tvb_get_string_enc(wmem_packet_scope(), tvb, tagstart+4, poe_tag_length, ENC_ASCII|ENC_NA));
 					break;
 				case PPPOE_TAG_HOST_UNIQ:
 					proto_tree_add_item(pppoe_tree, hf_pppoed_tag_host_uniq, tvb,
@@ -605,9 +610,7 @@ dissect_pppoe_tags(tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tree *tr
 							    proto_registrar_get_name(hf_pppoed_tag_seq_num),
 							    poe_tag_length);
 						}
-						expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN,
-								       "Sequence Number tag: Wrong length: %u (expected 2)",
-								       poe_tag_length);
+						expert_add_info_format(pinfo, item, &ei_pppoe_tag_length, "Sequence Number tag: Wrong length: %u (expected 2)", poe_tag_length);
 					}
 					break;
                                 case PPPOE_TAG_CRED_SCALE:
@@ -624,9 +627,7 @@ dissect_pppoe_tags(tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tree *tr
 							    proto_registrar_get_name(hf_pppoed_tag_cred_scale),
 							    poe_tag_length);
 						}
-						expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN,
-								       "Credit Scale Factor tag: Wrong length: %u (expected 2)",
-								       poe_tag_length);
+						expert_add_info_format(pinfo, item, &ei_pppoe_tag_length, "Credit Scale Factor tag: Wrong length: %u (expected 2)", poe_tag_length);
 					}
                                         break;
 				case PPPOE_TAG_RELAY_ID:
@@ -706,10 +707,7 @@ static void dissect_pppoed(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	/* Start Decoding Here. */
 	pppoe_code = tvb_get_guint8(tvb, 1);
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-	{
-		col_append_str(pinfo->cinfo, COL_INFO, val_to_str_const(pppoe_code, code_vals, "Unknown"));
-	}
+	col_append_str(pinfo->cinfo, COL_INFO, val_to_str_const(pppoe_code, code_vals, "Unknown"));
 
 	/* Read length of payload */
 	reported_payload_length = tvb_get_ntohs(tvb, 4);
@@ -766,12 +764,12 @@ void proto_register_pppoed(void)
 			}
 		},
 		{ &hf_pppoed_tag_service_name,
-			{ "Service-Name", "pppoed.tags.service_name", FT_STRING, BASE_NONE,
+			{ "Service-Name", "pppoed.tags.service_name", FT_STRING, STR_ASCII,
 				 NULL, 0x0, NULL, HFILL
 			}
 		},
 		{ &hf_pppoed_tag_ac_name,
-			{ "AC-Name", "pppoed.tags.ac_name", FT_STRING, BASE_NONE,
+			{ "AC-Name", "pppoed.tags.ac_name", FT_STRING, STR_ASCII,
 				 NULL, 0x0, NULL, HFILL
 			}
 		},
@@ -806,12 +804,12 @@ void proto_register_pppoed(void)
 			}
 		},
 		{ &hf_pppoed_tag_vspec_circuit_id,
-		        { "Circuit ID", "pppoed.tags.circuit_id", FT_STRING, BASE_NONE,
+		        { "Circuit ID", "pppoed.tags.circuit_id", FT_STRING, STR_ASCII,
 		                 NULL, 0x0, NULL, HFILL
 		        }
 		},
 		{ &hf_pppoed_tag_vspec_remote_id,
-		        { "Remote ID", "pppoed.tags.remote_id", FT_STRING, BASE_NONE,
+		        { "Remote ID", "pppoed.tags.remote_id", FT_STRING, STR_ASCII,
 		                 NULL, 0x0, NULL, HFILL
 		        }
 		},
@@ -991,7 +989,7 @@ void proto_register_pppoed(void)
 			}
 		},
 		{ &hf_pppoed_tag_max_payload,
-			{ "PPP Max Palyload", "pppoed.tags.max_payload", FT_BYTES, BASE_NONE,
+			{ "PPP-Max-Payload", "pppoed.tags.max_payload", FT_BYTES, BASE_NONE,
 				 NULL, 0x0, NULL, HFILL
 			}
 		},
@@ -1001,17 +999,17 @@ void proto_register_pppoed(void)
 			}
 		},
 		{ &hf_pppoed_tag_service_name_error,
-			{ "Service-Name-Error", "pppoed.tags.service_name_error", FT_STRING, BASE_NONE,
+			{ "Service-Name-Error", "pppoed.tags.service_name_error", FT_STRING, STR_ASCII,
 				 NULL, 0x0, NULL, HFILL
 			}
 		},
 		{ &hf_pppoed_tag_ac_system_error,
-			{ "AC-System-Error", "pppoed.tags.ac_system_error", FT_STRING, BASE_NONE,
+			{ "AC-System-Error", "pppoed.tags.ac_system_error", FT_STRING, STR_ASCII,
 				 NULL, 0x0, NULL, HFILL
 			}
 		},
 		{ &hf_pppoed_tag_generic_error,
-			{ "Generic-Error", "pppoed.tags.generic_error", FT_STRING, BASE_NONE,
+			{ "Generic-Error", "pppoed.tags.generic_error", FT_STRING, STR_ASCII,
 				 NULL, 0x0, NULL, HFILL
 			}
 		}
@@ -1069,11 +1067,8 @@ static void dissect_pppoes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	/* Start Decoding Here. */
 	pppoe_code = tvb_get_guint8(tvb, 1);
 
-	if (check_col(pinfo->cinfo,COL_INFO))
-	{
-		col_add_str(pinfo->cinfo, COL_INFO,
+	col_set_str(pinfo->cinfo, COL_INFO,
 		             val_to_str_const(pppoe_code, code_vals, "Unknown"));
-	}
 
 	reported_payload_length = tvb_get_ntohs(tvb, 4);
 	actual_payload_length = tvb_reported_length_remaining(tvb, 6);
@@ -1179,9 +1174,7 @@ static void dissect_pppoes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			((reported_payload_length + 4) != actual_payload_length)) {
 			proto_item_append_text(ti, " [incorrect, should be %u]",
 				actual_payload_length);
-			expert_add_info_format(pinfo, ti, PI_MALFORMED,
-				PI_WARN, "Possible bad payload length %u != %u",
-				reported_payload_length, actual_payload_length);
+			expert_add_info_format(pinfo, ti, &ei_pppoe_payload_length, "Possible bad payload length %u != %u", reported_payload_length, actual_payload_length);
 		}
 	}
 
@@ -1288,11 +1281,20 @@ void proto_register_pppoe(void)
 		&ett_pppoe
 	};
 
+	static ei_register_info ei[] = {
+		{ &ei_pppoe_tag_length, { "pppoed.tag_length.invalid", PI_MALFORMED, PI_WARN, "Wrong length", EXPFILL }},
+		{ &ei_pppoe_payload_length, { "pppoe.payload_length.bad", PI_MALFORMED, PI_WARN, "Possible bad payload length", EXPFILL }},
+	};
+
+	expert_module_t* expert_pppoe;
+
 	/* Register protocol */
 	proto_pppoe = proto_register_protocol("PPP-over-Ethernet", "PPPoE", "pppoe");
 
 	proto_register_subtree_array(ett, array_length(ett));
 	proto_register_field_array(proto_pppoe, hf, array_length(hf));
+	expert_pppoe = expert_register_protocol(proto_pppoe);
+	expert_register_field_array(expert_pppoe, ei, array_length(ei));
 
 }
 

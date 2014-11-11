@@ -2,8 +2,6 @@
  *
  * Routines to put exception information into the protocol tree
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2000 Gerald Combs
@@ -22,12 +20,6 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
-
-/*
- * "Protocol" used for "malformed frame" errors (other than
- * ReportedBoundsError exceptions).
- */
-extern int proto_malformed;
 
 /*
  * Called to register the pseudo-protocols used for exceptions.

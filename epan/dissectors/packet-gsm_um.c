@@ -2,8 +2,6 @@
  * Routines for GSM Um packet disassembly
  * Duncan Salerno <duncan.salerno@googlemail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,9 +25,14 @@
 #include "config.h"
 
 #include <glib.h>
+
 #include <epan/packet.h>
 #include <epan/prefs.h>
+#include <wiretap/wtap.h>
 #include <epan/circuit.h>
+
+void proto_register_gsm_um(void);
+void proto_reg_handoff_gsm_um(void);
 
 static int proto_gsm_um = -1;
 static int hf_gsm_um_direction = -1;

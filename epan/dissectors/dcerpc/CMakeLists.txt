@@ -1,7 +1,5 @@
 # CMakeLists.txt
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -44,4 +42,4 @@ if (WERROR)
 	)
 endif()
 
-add_executable(idl2wrs ${IDL2WRS_FILES})
+#add_executable(idl2wrs ${IDL2WRS_FILES})

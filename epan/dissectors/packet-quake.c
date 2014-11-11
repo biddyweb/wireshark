@@ -4,8 +4,6 @@
  * Uwe Girlich <uwe@planetquake.com>
  *	http://www.idsoftware.com/q1source/q1source.zip
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,8 @@
 #include <epan/packet.h>
 #include <epan/conversation.h>
 #include <epan/prefs.h>
+
+void proto_register_quake(void);
 
 static int proto_quake = -1;
 static int hf_quake_header_flags = -1;
@@ -365,11 +365,9 @@ dissect_quake_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	command = tvb_get_guint8(tvb, 0);
 	direction = (command & 0x80) ? CCREP : CCREQ;
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s",
+	col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s",
 			val_to_str(command,names_control_command, "%u"),
 			val_to_str(direction,names_control_direction,"%u"));
-	}
 
 	if (tree) {
 		proto_item *control_item;
@@ -475,13 +473,9 @@ dissect_quake(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	}
 
 	sequence = tvb_get_ntohl(tvb, 4);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO, "seq 0x%x", sequence);
-	}
-	if (quake_tree) {
-		proto_tree_add_uint(quake_tree, hf_quake_header_sequence,
+	col_add_fstr(pinfo->cinfo, COL_INFO, "seq 0x%x", sequence);
+	proto_tree_add_uint(quake_tree, hf_quake_header_sequence,
 			tvb, 4, 4, sequence);
-	}
 
 	rest_length = tvb_reported_length(tvb) - 8;
 	next_tvb = tvb_new_subset(tvb, 8, rest_length , rest_length);

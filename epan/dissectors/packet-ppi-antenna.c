@@ -2,8 +2,6 @@
  * Routines for PPI-GEOLOCATION-ANNTENNA  dissection
  * Copyright 2010, Harris Corp, jellch@harris.com
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -50,6 +48,7 @@ enum ppi_antenna_type {
 };
 #define PPI_ANTENNA_MAXTAGLEN  187 /* increase as fields are added */
 
+void proto_register_ppi_antenna(void);
 
 /* protocol */
 static int proto_ppi_antenna = -1;
@@ -137,8 +136,7 @@ dissect_ppi_antenna(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
     present = tvb_get_letohl(tvb, offset+4);
 
     /* Setup basic column info */
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_add_fstr(pinfo->cinfo, COL_INFO, "PPI Antenna info v%u, Length %u",
+    col_add_fstr(pinfo->cinfo, COL_INFO, "PPI Antenna info v%u, Length %u",
                      version, length);
 
 

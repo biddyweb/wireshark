@@ -1,8 +1,6 @@
 /* packet-dmx-test.c
  * DMX Test packet disassembly.
  *
- * $Id$
- *
  * This dissector is written by
  *
  *  Erwin Rol <erwin@erwinrol.com>
@@ -43,6 +41,8 @@
 #define DMX_TEST_PACKET_SIZE  512
 #define DMX_TEST_VALUE       0x55
 
+void proto_register_dmx_test(void);
+
 static int proto_dmx_test = -1;
 
 static int hf_dmx_test_data = -1;
@@ -64,13 +64,13 @@ dissect_dmx_test(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		proto_item *item;
 
 		proto_tree *ti = proto_tree_add_item(tree, proto_dmx_test, tvb,
-							offset, -1, FALSE);
+							offset, -1, ENC_NA);
 		proto_tree *dmx_test_tree = proto_item_add_subtree(ti, ett_dmx_test);
 
 		size = tvb_reported_length_remaining(tvb, offset);
 
 		item = proto_tree_add_item(dmx_test_tree, hf_dmx_test_data, tvb,
-							offset, size, ENC_BIG_ENDIAN);
+							offset, size, ENC_NA);
 		offset += size;
 
 		if (size == DMX_TEST_PACKET_SIZE) {

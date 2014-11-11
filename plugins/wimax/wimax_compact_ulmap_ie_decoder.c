@@ -5,8 +5,6 @@
  *
  * Author: Lu Pan <lu.pan@intel.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1999 Gerald Combs
@@ -33,6 +31,7 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include "crc.h"
+#include "wimax_compact_ulmap_ie_decoder.h"
 
 /* MASKs */
 #define MSB_NIBBLE_MASK      0xF0
@@ -42,6 +41,8 @@
 #define CID_TYPE_RCID11      1
 #define CID_TYPE_RCID7       2
 #define CID_TYPE_RCID3       3
+
+void proto_register_wimax_compact_ulmap_ie(void);
 
 /* Global Variables */
 extern guint cid_type;

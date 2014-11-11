@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -59,10 +57,10 @@ sttype_register(sttype_t *type)
 	/* Check input */
 	g_assert(type_id < STTYPE_NUM_TYPES);
 
-        /* Don't re-register. */
-        g_assert(type_list[type_id] == NULL);
+	/* Don't re-register. */
+	g_assert(type_list[type_id] == NULL);
 
-        type_list[type_id] = type;
+	type_list[type_id] = type;
 }
 
 static sttype_t*
@@ -76,9 +74,9 @@ sttype_lookup(sttype_id_t type_id)
 	result = type_list[type_id];
 
 	/* Check output. */
-        g_assert(result != NULL);
+	g_assert(result != NULL);
 
-        return result;
+	return result;
 }
 
 
@@ -90,7 +88,8 @@ stnode_new(sttype_id_t type_id, gpointer data)
 
 	node = g_new(stnode_t, 1);
 	node->magic = STNODE_MAGIC;
-        node->deprecated_token = NULL;
+	node->deprecated_token = NULL;
+	node->inside_brackets = FALSE;
 
 	if (type_id == STTYPE_UNINITIALIZED) {
 		node->type = NULL;
@@ -110,6 +109,12 @@ stnode_new(sttype_id_t type_id, gpointer data)
 	}
 
 	return node;
+}
+
+void
+stnode_set_bracket(stnode_t *node, gboolean bracket)
+{
+	node->inside_brackets = bracket;
 }
 
 stnode_t*
@@ -132,6 +137,7 @@ stnode_dup(const stnode_t *org)
 	else
 		node->data = org->data;
 	node->value = org->value;
+	node->inside_brackets = org->inside_brackets;
 
 	return node;
 }

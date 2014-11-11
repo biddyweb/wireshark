@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-x509sat.c                                                           */
 /* ../../tools/asn2wrs.py -b -r Syntax -p x509sat -c ./x509sat.cnf -s ./packet-x509sat-template -D . -O ../../epan/dissectors SelectedAttributeTypes.asn */
 
@@ -9,8 +9,6 @@
 /* packet-x509sat.c
  * Routines for X.509 Selected Attribute Types packet dissection
  *  Ronnie Sahlberg 2004
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -46,6 +44,9 @@
 #define PNAME  "X.509 Selected Attribute Types"
 #define PSNAME "X509SAT"
 #define PFNAME "x509sat"
+
+void proto_register_x509sat(void);
+void proto_reg_handoff_x509sat(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_x509sat = -1;
@@ -219,7 +220,7 @@ static int hf_x509sat_T_bitNamedDays_friday = -1;
 static int hf_x509sat_T_bitNamedDays_saturday = -1;
 
 /*--- End of included file: packet-x509sat-hf.c ---*/
-#line 45 "../../asn1/x509sat/packet-x509sat-template.c"
+#line 46 "../../asn1/x509sat/packet-x509sat-template.c"
 
 /* Initialize the subtree pointers */
 
@@ -274,7 +275,7 @@ static gint ett_x509sat_T_between = -1;
 static gint ett_x509sat_LocaleContextSyntax = -1;
 
 /*--- End of included file: packet-x509sat-ett.c ---*/
-#line 48 "../../asn1/x509sat/packet-x509sat-template.c"
+#line 49 "../../asn1/x509sat/packet-x509sat-template.c"
 
 
 /*--- Included file: packet-x509sat-fn.c ---*/
@@ -1504,21 +1505,9 @@ dissect_x509sat_SyntaxIA5String(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 static int
 dissect_x509sat_SyntaxBMPString(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 380 "../../asn1/x509sat/x509sat.cnf"
-	tvbuff_t	*wide_tvb = NULL;
-	char		*string;
-
   offset = dissect_ber_restricted_string(implicit_tag, BER_UNI_TAG_BMPString,
                                             actx, tree, tvb, offset, hf_index,
-                                            &wide_tvb);
-
-#line 385 "../../asn1/x509sat/x509sat.cnf"
-	if (! wide_tvb) {
-		return offset;
-	}
-	string = tvb_get_ephemeral_unicode_string (wide_tvb, 0, tvb_length(wide_tvb), ENC_BIG_ENDIAN);
-	proto_item_append_text(actx->created_item, " %s", string);	
-
+                                            NULL);
 
   return offset;
 }
@@ -1626,7 +1615,7 @@ dissect_x509sat_SyntaxGeneralString(gboolean implicit_tag _U_, tvbuff_t *tvb _U_
 
 static int
 dissect_x509sat_GUID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 394 "../../asn1/x509sat/x509sat.cnf"
+#line 378 "../../asn1/x509sat/x509sat.cnf"
   gint8 ber_class;
   gboolean pc;
   gint32 tag;
@@ -1843,7 +1832,7 @@ static void dissect_GUID_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tr
 
 
 /*--- End of included file: packet-x509sat-fn.c ---*/
-#line 50 "../../asn1/x509sat/packet-x509sat-template.c"
+#line 51 "../../asn1/x509sat/packet-x509sat-template.c"
 
 
 /*--- proto_register_x509sat ----------------------------------------------*/
@@ -1867,11 +1856,11 @@ void proto_register_x509sat(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_Guide_PDU,
-      { "Guide", "x509sat.Guide",
+      { "Guide", "x509sat.Guide_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_EnhancedGuide_PDU,
-      { "EnhancedGuide", "x509sat.EnhancedGuide",
+      { "EnhancedGuide", "x509sat.EnhancedGuide_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_PostalAddress_PDU,
@@ -1883,11 +1872,11 @@ void proto_register_x509sat(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_TelexNumber_PDU,
-      { "TelexNumber", "x509sat.TelexNumber",
+      { "TelexNumber", "x509sat.TelexNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_FacsimileTelephoneNumber_PDU,
-      { "FacsimileTelephoneNumber", "x509sat.FacsimileTelephoneNumber",
+      { "FacsimileTelephoneNumber", "x509sat.FacsimileTelephoneNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_X121Address_PDU,
@@ -1907,15 +1896,15 @@ void proto_register_x509sat(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_PresentationAddress_PDU,
-      { "PresentationAddress", "x509sat.PresentationAddress",
+      { "PresentationAddress", "x509sat.PresentationAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_ProtocolInformation_PDU,
-      { "ProtocolInformation", "x509sat.ProtocolInformation",
+      { "ProtocolInformation", "x509sat.ProtocolInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_NameAndOptionalUID_PDU,
-      { "NameAndOptionalUID", "x509sat.NameAndOptionalUID",
+      { "NameAndOptionalUID", "x509sat.NameAndOptionalUID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_CaseIgnoreListMatch_PDU,
@@ -2159,7 +2148,7 @@ void proto_register_x509sat(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_AttributeValueAssertion", HFILL }},
     { &hf_x509sat_attributeList_item,
-      { "AttributeValueAssertion", "x509sat.AttributeValueAssertion",
+      { "AttributeValueAssertion", "x509sat.AttributeValueAssertion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_SubstringAssertion_item,
@@ -2179,7 +2168,7 @@ void proto_register_x509sat(void) {
         FT_UINT32, BASE_DEC, VALS(x509sat_DirectoryString_vals), 0,
         "DirectoryString", HFILL }},
     { &hf_x509sat_control,
-      { "control", "x509sat.control",
+      { "control", "x509sat.control_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_x509sat_CaseIgnoreListMatch_item,
@@ -2211,7 +2200,7 @@ void proto_register_x509sat(void) {
         FT_UINT32, BASE_DEC, VALS(x509sat_T_time_vals), 0,
         NULL, HFILL }},
     { &hf_x509sat_absolute,
-      { "absolute", "x509sat.absolute",
+      { "absolute", "x509sat.absolute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_startTime,
@@ -2227,7 +2216,7 @@ void proto_register_x509sat(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_Period", HFILL }},
     { &hf_x509sat_periodic_item,
-      { "Period", "x509sat.Period",
+      { "Period", "x509sat.Period_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_notThisTime,
@@ -2243,7 +2232,7 @@ void proto_register_x509sat(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_DayTimeBand", HFILL }},
     { &hf_x509sat_timesOfDay_item,
-      { "DayTimeBand", "x509sat.DayTimeBand",
+      { "DayTimeBand", "x509sat.DayTimeBand_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_days,
@@ -2271,7 +2260,7 @@ void proto_register_x509sat(void) {
         FT_UINT32, BASE_DEC, VALS(x509sat_T_weeks_vals), 0,
         NULL, HFILL }},
     { &hf_x509sat_allWeeks,
-      { "allWeeks", "x509sat.allWeeks",
+      { "allWeeks", "x509sat.allWeeks_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_intWeek,
@@ -2291,7 +2280,7 @@ void proto_register_x509sat(void) {
         FT_UINT32, BASE_DEC, VALS(x509sat_T_months_vals), 0,
         NULL, HFILL }},
     { &hf_x509sat_allMonths,
-      { "allMonths", "x509sat.allMonths",
+      { "allMonths", "x509sat.allMonths_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_intMonth,
@@ -2343,11 +2332,11 @@ void proto_register_x509sat(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_startDayTime,
-      { "startDayTime", "x509sat.startDayTime",
+      { "startDayTime", "x509sat.startDayTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DayTime", HFILL }},
     { &hf_x509sat_endDayTime,
-      { "endDayTime", "x509sat.endDayTime",
+      { "endDayTime", "x509sat.endDayTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DayTime", HFILL }},
     { &hf_x509sat_hour,
@@ -2363,7 +2352,7 @@ void proto_register_x509sat(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_x509sat_now,
-      { "now", "x509sat.now",
+      { "now", "x509sat.now_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_at,
@@ -2371,7 +2360,7 @@ void proto_register_x509sat(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "GeneralizedTime", HFILL }},
     { &hf_x509sat_between,
-      { "between", "x509sat.between",
+      { "between", "x509sat.between_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x509sat_entirely,
@@ -2512,7 +2501,7 @@ void proto_register_x509sat(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-x509sat-hfarr.c ---*/
-#line 58 "../../asn1/x509sat/packet-x509sat-template.c"
+#line 59 "../../asn1/x509sat/packet-x509sat-template.c"
   };
 
   /* List of subtrees */
@@ -2569,7 +2558,7 @@ void proto_register_x509sat(void) {
     &ett_x509sat_LocaleContextSyntax,
 
 /*--- End of included file: packet-x509sat-ettarr.c ---*/
-#line 63 "../../asn1/x509sat/packet-x509sat-template.c"
+#line 64 "../../asn1/x509sat/packet-x509sat-template.c"
   };
 
   /* Register protocol */
@@ -2622,7 +2611,7 @@ void proto_register_x509sat(void) {
   register_ber_syntax_dissector("X121Address", proto_x509sat, dissect_X121Address_PDU);
 
 /*--- End of included file: packet-x509sat-syn-reg.c ---*/
-#line 73 "../../asn1/x509sat/packet-x509sat-template.c"
+#line 74 "../../asn1/x509sat/packet-x509sat-template.c"
 
 }
 
@@ -2815,7 +2804,7 @@ void proto_reg_handoff_x509sat(void) {
 
 
 /*--- End of included file: packet-x509sat-dis-tab.c ---*/
-#line 80 "../../asn1/x509sat/packet-x509sat-template.c"
+#line 81 "../../asn1/x509sat/packet-x509sat-template.c"
 
   /* OBJECT CLASSES */
 
@@ -2843,7 +2832,7 @@ void proto_reg_handoff_x509sat(void) {
   oid_add_from_string("dmd","2.5.6.20");
   oid_add_from_string("pkiUser","2.5.6.21");
   oid_add_from_string("pkiCA","2.5.6.22");
-  
+
   oid_add_from_string("parent","2.5.6.28");
   oid_add_from_string("child","2.5.6.29");
 

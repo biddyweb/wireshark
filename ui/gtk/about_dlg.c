@@ -1,7 +1,5 @@
 /* about_dlg.c
  *
- * $Id$
- *
  * Ulf Lamping <ulf.lamping@web.de>
  *
  * Wireshark - Network traffic analyzer
@@ -25,21 +23,25 @@
 
 #include "config.h"
 
-#include <gtk/gtk.h>
-
 #include <string.h>
 
-#include <epan/filesystem.h>
-#include <epan/plugins.h>
+#include <gtk/gtk.h>
+
+#include <wsutil/filesystem.h>
+#include <wsutil/plugins.h>
 #ifdef HAVE_LIBSMI
 #include <epan/oids.h>
 #endif
 #ifdef HAVE_GEOIP
 #include <epan/geoip_db.h>
 #endif
+#ifdef HAVE_LUA
+#include <epan/wslua/init_wslua.h>
+#endif
 
 #include "../log.h"
 #include "../version_info.h"
+#include "../register.h"
 
 #include "ui/last_open_dir.h"
 
@@ -52,8 +54,9 @@
 #include "ui/gtk/main.h"
 #include "ui/gtk/plugins_dlg.h"
 #include "ui/gtk/gui_utils.h"
+#include "ui/gtk/stock_icons.h"
+#include "ui/gtk/wssplash.h"
 
-#include "../../image/wssplash-dev.xpm"
 #include "webbrowser.h"
 
 /*
@@ -81,7 +84,7 @@ about_wireshark(GtkWidget *parent _U_, GtkWidget *main_vb)
   const char  *title = "Network Protocol Analyzer";
 
   /*icon = xpm_to_widget_from_parent(parent, wssplash_xpm);*/
-  icon = xpm_to_widget(wssplash_xpm);
+  icon = pixbuf_to_widget(wssplash_pb_data);
 
   gtk_box_pack_start(GTK_BOX(main_vb), icon, TRUE, TRUE, 0);
 
@@ -248,7 +251,7 @@ splash_update(register_action_e action, const char *message, gpointer client_dat
 					  registering plugins, handingoff plugins,
 					  preferences and configuration */
 #ifdef HAVE_LUA
-      ul_count++;   /* additional one for lua plugins */
+      ul_count += wslua_count_plugins (); /* get count of lua plugins */
 #endif
 #ifdef HAVE_PYTHON
       ul_count += 2;   /* additional 2 for python register and handoff */
@@ -277,7 +280,7 @@ splash_update(register_action_e action, const char *message, gpointer client_dat
     prog_bar = (GtkWidget *)g_object_get_data(G_OBJECT(win), "progress_bar");
     gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(prog_bar), percentage);
 
-    percentage_lb = g_object_get_data(G_OBJECT(win), "percentage_label");
+    percentage_lb = (GtkWidget *)g_object_get_data(G_OBJECT(win), "percentage_label");
     g_snprintf(tmp, sizeof(tmp), "%lu%%", ul_percentage);
     gtk_label_set_text((GtkLabel*)percentage_lb, tmp);
 
@@ -324,7 +327,7 @@ about_wireshark_page_new(void)
        "Wireshark is Open Source Software released under the GNU General Public License.\n"
        "\n"
        "Check the man page and http://www.wireshark.org for more information.",
-       wireshark_svnversion, get_copyright_info(), comp_info_str->str,
+       wireshark_gitversion, get_copyright_info(), comp_info_str->str,
        runtime_info_str->str);
 
   msg_label = gtk_label_new(message);
@@ -386,7 +389,7 @@ about_folders_page_new(void)
   GtkWidget   *table;
   const char *constpath;
   char *path;
-  const gchar *titles[] = { "Name", "Folder", "Typical Files"};
+  static const gchar *titles[] = { "Name", "Folder", "Typical Files"};
   GtkWidget *scrolledwindow;
 #if defined (HAVE_LIBSMI) || defined (HAVE_GEOIP)
   gint i;
@@ -414,13 +417,11 @@ about_folders_page_new(void)
       "capture files");
 
   /* temp */
-  path = get_tempfile_path("");
-  about_folders_row(table, "Temp", path,
+  about_folders_row(table, "Temp", g_get_tmp_dir(),
       "untitled capture files");
-  g_free(path);
 
   /* pers conf */
-  path = get_persconffile_path("", FALSE, FALSE);
+  path = get_persconffile_path("", FALSE);
   about_folders_row(table, "Personal configuration", path,
       "\"dfilters\", \"preferences\", \"ethers\", ...");
   g_free(path);
@@ -578,7 +579,7 @@ about_wireshark_cb( GtkWidget *w _U_, gpointer data _U_ )
   bbox = dlg_button_row_new(GTK_STOCK_OK, NULL);
   gtk_box_pack_start(GTK_BOX(main_box), bbox, FALSE, FALSE, 0);
 
-  ok_btn = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+  ok_btn = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
   gtk_widget_grab_focus(ok_btn);
   gtk_widget_grab_default(ok_btn);
   window_set_cancel_button(about_wireshark_w, ok_btn, window_cancel_button_cb);

@@ -2,8 +2,6 @@
  * Definitions for alert box routines with toolkit-independent APIs but
  * toolkit-dependent implementations.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -73,6 +71,7 @@ typedef enum {
 /** Standard button combination "Yes" + "No" + "Cancel". */
 #define ESD_BTNS_YES_NO_CANCEL	(ESD_BTN_YES|ESD_BTN_NO|ESD_BTN_CANCEL)
 /** Standard button combination "No" + "Cancel" + "Save". */
+#define ESD_BTNS_SAVE_DONTSAVE (ESD_BTN_SAVE|ESD_BTN_DONT_SAVE)
 #define ESD_BTNS_SAVE_DONTSAVE_CANCEL (ESD_BTN_DONT_SAVE|ESD_BTN_CANCEL|ESD_BTN_SAVE)
 /** Standard button combination "Quit without saving" + "Cancel" + "Save". */
 #define ESD_BTNS_SAVE_QUIT_DONTSAVE_CANCEL (ESD_BTN_QUIT_DONT_SAVE|ESD_BTN_CANCEL|ESD_BTN_SAVE)

@@ -1,8 +1,6 @@
 /* packet-acn.c
  * Routines for ACN packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2003 by Erwin Rol <erwin@erwinrol.com>
  * Copyright (c) 2006 by Electronic Theatre Controls, Inc.
  *                    Bill Florac <bflorac@etcconnect.com>
@@ -46,6 +44,7 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/ipv6-utils.h>
+#include <epan/to_str.h>
 
 /* Forward declarations */
 void proto_register_acn(void);
@@ -455,7 +454,7 @@ static const enum_val_t dmx_display_line_format[] = {
 static gboolean
 is_acn(tvbuff_t *tvb)
 {
-  static char acn_packet_id[] = "ASC-E1.17\0\0\0";  /* must be 12 bytes */
+  static const char acn_packet_id[] = "ASC-E1.17\0\0\0";  /* must be 12 bytes */
 
   if (tvb_length(tvb) < (4+sizeof(acn_packet_id)))
     return FALSE;
@@ -625,7 +624,7 @@ acn_add_address(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, int off
       /* Append port and address to tree item */
       IPv4       = tvb_get_ipv4(tvb, offset);
       SET_ADDRESS(&addr, AT_IPv4, sizeof(IPv4), &IPv4);
-      proto_item_append_text(pi, " %s, Port %d", ep_address_to_str(&addr), port);
+      proto_item_append_text(pi, " %s, Port %d", address_to_str(wmem_packet_scope(), &addr), port);
       offset    += 4;
       break;
     case ACN_ADDR_IPV6:
@@ -643,7 +642,7 @@ acn_add_address(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, int off
       /* Append port and address to tree item */
       tvb_get_ipv6(tvb, offset, &IPv6);
       SET_ADDRESS(&addr, AT_IPv6, sizeof(struct e_in6_addr), &IPv6);
-      proto_item_append_text(pi, " %s, Port %d", ep_address_to_str(&addr), port);
+      proto_item_append_text(pi, " %s, Port %d", address_to_str(wmem_packet_scope(), &addr), port);
       offset    += 16;
       break;
     case ACN_ADDR_IPPORT:
@@ -656,7 +655,7 @@ acn_add_address(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, int off
       port       = tvb_get_ntohs(tvb, offset);
       proto_tree_add_item(addr_tree, hf_acn_port, tvb, offset, 2, ENC_BIG_ENDIAN);
       /* Append port to tree item */
-      proto_item_append_text(pi, " %s Port %d", ep_address_to_str(&addr), port);
+      proto_item_append_text(pi, " %s Port %d", address_to_str(wmem_packet_scope(), &addr), port);
       offset    += 2;
       break;
   }
@@ -1849,7 +1848,7 @@ ltos(guint8 level, gchar *string, guint8 base, gchar leading_char, guint8 min_ch
   }
 
   i = 0;
-  /* do our convert, comes out backwords! */
+  /* do our convert, comes out backwards! */
   do {
     string[i++] = "0123456789ABCDEF"[level % base];
   } while ((level /= base) > 0);
@@ -2640,10 +2639,10 @@ dissect_acn_root_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int of
 
         /* get Header (CID) 16 bytes */
         tvb_get_guid(tvb, header_offset, &guid, ENC_BIG_ENDIAN);
-        proto_item_append_text(ti, ", Src: %s", guid_to_str(&guid));
+        proto_item_append_text(ti, ", Src: %s", guid_to_ep_str(&guid));
 
         /* add cid to info */
-        col_add_fstr(pinfo->cinfo,COL_INFO, "CID %s", guid_to_str(&guid));
+        col_add_fstr(pinfo->cinfo,COL_INFO, "CID %s", guid_to_ep_str(&guid));
 
         proto_tree_add_item(pdu_tree, hf_acn_cid, tvb, header_offset, 16, ENC_BIG_ENDIAN);
         /*header_offset += 16;*/
@@ -2689,7 +2688,7 @@ dissect_acn_root_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int of
 
       /* get Header (CID) 16 bytes */
       tvb_get_guid(tvb, header_offset, &guid, ENC_BIG_ENDIAN);
-      proto_item_append_text(ti, ", Src: %s", guid_to_str(&guid));
+      proto_item_append_text(ti, ", Src: %s", guid_to_ep_str(&guid));
 
       proto_tree_add_item(pdu_tree, hf_acn_cid, tvb, header_offset, 16, ENC_BIG_ENDIAN);
       /*header_offset += 16;*/
@@ -3250,3 +3249,17 @@ proto_reg_handoff_acn(void)
   /* dissector_add_handle("udp.port", acn_handle);                         */
   heur_dissector_add("udp", dissect_acn_heur, proto_acn);
 }
+
+
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 2
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=2 tabstop=8 expandtab:
+ * :indentSize=2:tabSize=8:noTabs=true:
+ */

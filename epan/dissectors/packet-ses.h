@@ -2,8 +2,6 @@
 *
 * Routine to dissect ISO 8327-1 OSI Session Protocol packets
 *
-* $Id$
-*
 * Yuriy Sidelnikov <YSidelnikov@hotmail.com>
 *
 * Wireshark - Network traffic analyzer
@@ -122,7 +120,7 @@ reason code
 	128 + 3:	SPM congestion at connect time.
 	128 + 4:	Proposed protocol versions not supported.
 	128 + 5:	Rejection by the SPM; reason not specified.
-	128 + 6:	Rejection by the SPM; implementation restriction stated in the 
+	128 + 6:	Rejection by the SPM; implementation restriction stated in the
 			PICS.
 */
 #define reason_not_specified		0

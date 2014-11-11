@@ -3,8 +3,6 @@
  * Copyright 2009 by Harald Welte <laforge@gnumonks.org>
  * Copyright 2009, 2010 by Holger Hans Peter Freyther <zecke@selfish.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,9 @@
 #include <epan/packet.h>
 #include <epan/ipproto.h>
 #include <epan/prefs.h>
+
+void proto_register_ipa(void);
+void proto_reg_handoff_gsm_ipa(void);
 
 /*
  * Protocol used by ip.access's nanoBTS/nanoGSM GSM picocells:
@@ -75,6 +76,7 @@
  */
 #define IPA_TCP_PORTS "3002,3003,3006,4249,4250,5000"
 #define IPA_UDP_PORTS "3006"
+#define IPA_UDP_PORTS_DEFAULT "0"
 
 static dissector_handle_t ipa_handle;
 static range_t *global_ipa_tcp_ports = NULL;
@@ -357,7 +359,7 @@ dissect_ipa(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			}
 			if (global_ipa_in_info == TRUE)
 				col_append_fstr(pinfo->cinfo, COL_INFO, "%s ",
-						tvb_get_ephemeral_stringz(next_tvb, 0, NULL));
+						tvb_get_stringz(wmem_packet_scope(), next_tvb, 0, NULL));
 			break;
 		default:
 			if (msg_type < ABISIP_RSL_MAX) {
@@ -369,8 +371,6 @@ dissect_ipa(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		offset += len + header_length;
 	}
 }
-
-void proto_reg_handoff_gsm_ipa(void);
 
 void proto_register_ipa(void)
 {
@@ -443,11 +443,12 @@ void proto_register_ipa(void)
 
 	/* Register table for subdissectors */
 	osmo_dissector_table = register_dissector_table("ipa.osmo.protocol",
-					"ip.access Protocol", FT_UINT8, BASE_DEC);
+					"GSM over IP ip.access Protocol",
+					FT_UINT8, BASE_DEC);
 
 
 	range_convert_str(&global_ipa_tcp_ports, IPA_TCP_PORTS, MAX_TCP_PORT);
-	range_convert_str(&global_ipa_udp_ports, IPA_UDP_PORTS, MAX_UDP_PORT);
+	range_convert_str(&global_ipa_udp_ports, IPA_UDP_PORTS_DEFAULT, MAX_UDP_PORT);
 	ipa_module = prefs_register_protocol(proto_ipa,
 					     proto_reg_handoff_gsm_ipa);
 
@@ -459,7 +460,7 @@ void proto_register_ipa(void)
 	prefs_register_range_preference(ipa_module, "udp_ports",
 					"GSM IPA UDP Port(s)",
 					"Set the port(s) for ip.access IPA"
-					" (default: " IPA_UDP_PORTS ")",
+					" (usually: " IPA_UDP_PORTS ")",
 					&global_ipa_udp_ports, MAX_UDP_PORT);
 
 	prefs_register_bool_preference(ipa_module, "hsl_debug_in_root_tree",
@@ -468,30 +469,6 @@ void proto_register_ipa(void)
 	prefs_register_bool_preference(ipa_module, "hsl_debug_in_info",
 					"HSL Debug messages in INFO column",
 					NULL, &global_ipa_in_info);
-}
-
-static void ipa_tcp_delete_callback(guint32 port)
-{
-	if (port)
-		dissector_delete_uint("tcp.port", port, ipa_handle);
-}
-
-static void ipa_udp_delete_callback(guint32 port)
-{
-	if (port)
-		dissector_delete_uint("udp.port", port, ipa_handle);
-}
-
-static void ipa_tcp_add_callback(guint32 port)
-{
-	if (port)
-		dissector_add_uint("tcp.port", port, ipa_handle);
-}
-
-static void ipa_udp_add_callback(guint32 port)
-{
-	if (port)
-		dissector_add_uint("udp.port", port, ipa_handle);
 }
 
 void proto_reg_handoff_gsm_ipa(void)
@@ -509,15 +486,15 @@ void proto_reg_handoff_gsm_ipa(void)
 		ipa_handle = create_dissector_handle(dissect_ipa, proto_ipa);
 		ipa_initialized = TRUE;
 	} else {
-		range_foreach(ipa_tcp_ports, ipa_tcp_delete_callback);
+		dissector_delete_uint_range("tcp.port", ipa_tcp_ports, ipa_handle);
 		g_free(ipa_tcp_ports);
-		range_foreach(ipa_udp_ports, ipa_udp_delete_callback);
+		dissector_delete_uint_range("udp.port", ipa_udp_ports, ipa_handle);
 		g_free(ipa_udp_ports);
 	}
 
 	ipa_tcp_ports = range_copy(global_ipa_tcp_ports);
 	ipa_udp_ports = range_copy(global_ipa_udp_ports);
 
-	range_foreach(ipa_tcp_ports, ipa_tcp_add_callback);
-	range_foreach(ipa_udp_ports, ipa_udp_add_callback);
+	dissector_add_uint_range("udp.port", ipa_udp_ports, ipa_handle);
+	dissector_add_uint_range("tcp.port", ipa_tcp_ports, ipa_handle);
 }

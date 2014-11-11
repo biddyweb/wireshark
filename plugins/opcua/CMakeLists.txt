@@ -1,7 +1,5 @@
 # CMakeLists.txt
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -36,6 +34,7 @@ set(DISSECTOR_SUPPORT_SRC
 	opcua_servicetable.c
 	opcua_extensionobjecttable.c
 	opcua_hfindeces.c
+	opcua_statuscode.c
 )
 
 set(PLUGIN_FILES
@@ -68,6 +67,7 @@ add_library(opcua ${LINK_MODE_MODULE}
 )
 set_target_properties(opcua PROPERTIES PREFIX "")
 set_target_properties(opcua PROPERTIES LINK_FLAGS "${WS_LINK_FLAGS}")
+set_target_properties(opcua PROPERTIES FOLDER "Plugins")
 
 target_link_libraries(opcua epan)
 

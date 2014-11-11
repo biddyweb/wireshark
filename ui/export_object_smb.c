@@ -6,8 +6,6 @@
  *
  * Copyright 2010, David Perez & Jose Pico from TADDONG S.L.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -129,7 +127,7 @@ gpointer    dest_memory_addr;
 	if ((file->data_gathered == 0) && (nfreechunks == 0)) {
 		/* If this is the first entry for this file, we first
 		create an initial free chunk */
-		new_free_chunk = g_malloc(sizeof(free_chunk));
+		new_free_chunk = (free_chunk *)g_malloc(sizeof(free_chunk));
 		new_free_chunk->start_offset = 0;
 		new_free_chunk->end_offset = MAX(file->file_length, chunk_end_offset+1) - 1;
 		file->free_chunk_list = NULL;
@@ -137,7 +135,7 @@ gpointer    dest_memory_addr;
 		nfreechunks += 1;
 	} else {
 		if (chunk_end_offset > file->file_length-1) {
-			new_free_chunk = g_malloc(sizeof(free_chunk));
+			new_free_chunk = (free_chunk *)g_malloc(sizeof(free_chunk));
 			new_free_chunk->start_offset = file->file_length;
 			new_free_chunk->end_offset = chunk_end_offset;
 			file->free_chunk_list = g_slist_append(file->free_chunk_list, new_free_chunk);
@@ -148,14 +146,14 @@ gpointer    dest_memory_addr;
 
 	/* Recalculate each free chunk according with the incoming data chunk */
 	for (i=0; i<nfreechunks; i++) {
-		current_free_chunk = g_slist_nth_data(file->free_chunk_list, i);
+		current_free_chunk = (free_chunk *)g_slist_nth_data(file->free_chunk_list, i);
 		/* 1. data chunk before the free chunk? */
 		/* -> free chunk is not altered and no new data gathered */
 		if (chunk_end_offset<current_free_chunk->start_offset) {
 			continue;
 		}
 		/* 2. data chunk overlaps the first part of free_chunk */
-		/* -> free chunk shrinks from the beggining */
+		/* -> free chunk shrinks from the beginning */
 		if (chunk_offset<=current_free_chunk->start_offset && chunk_end_offset>=current_free_chunk->start_offset && chunk_end_offset<current_free_chunk->end_offset) {
 			file->data_gathered += chunk_end_offset-current_free_chunk->start_offset+1;
 			current_free_chunk->start_offset=chunk_end_offset+1;
@@ -178,7 +176,7 @@ gpointer    dest_memory_addr;
 		/* 4. data chunk is inside the free chunk */
 		/* -> free chunk is splitted into two */
 		if (chunk_offset>current_free_chunk->start_offset && chunk_end_offset<current_free_chunk->end_offset) {
-			new_free_chunk = g_malloc(sizeof(free_chunk));
+			new_free_chunk = (free_chunk *)g_malloc(sizeof(free_chunk));
 			new_free_chunk->start_offset = chunk_end_offset + 1;
 			new_free_chunk->end_offset = current_free_chunk->end_offset;
 			current_free_chunk->end_offset = chunk_offset-1;
@@ -214,7 +212,7 @@ gpointer    dest_memory_addr;
 			*/
 			entry->payload_data = NULL;
 		} else {
-			entry->payload_data = g_try_malloc((gsize)calculated_size);
+			entry->payload_data = (guint8 *)g_try_malloc((gsize)calculated_size);
 			entry->payload_len  = calculated_size;
 		}
 		if (!entry->payload_data) {
@@ -246,7 +244,7 @@ gpointer    dest_memory_addr;
 				entry->payload_data = NULL;
 				entry->payload_len = 0;
 			} else {
-				entry->payload_data = dest_memory_addr;
+				entry->payload_data = (guint8 *)dest_memory_addr;
 				entry->payload_len = calculated_size;
 			}
 		}
@@ -254,7 +252,7 @@ gpointer    dest_memory_addr;
 	/* ...then, put the chunk of the file in the right place */
 	if (!file->is_out_of_memory) {
 		dest_memory_addr = entry->payload_data + chunk_offset;
-		g_memmove(dest_memory_addr, eo_info->payload_data, eo_info->payload_len);
+		memmove(dest_memory_addr, eo_info->payload_data, eo_info->payload_len);
 	}
 }
 
@@ -271,7 +269,7 @@ find_incoming_file(GSList *GSL_active_files_p, active_file *incoming_file)
 	/* We lookup in reverse order because it is more likely that the file
 	is one of the latest */
 	for (i=last; i>=0; i--) {
-		in_list_file = g_slist_nth_data(GSL_active_files_p, i);
+		in_list_file = (active_file *)g_slist_nth_data(GSL_active_files_p, i);
 		/* The best-working criteria of two identical files is that the file
 		that is the same of the file that we are analyzing is the last one
 		in the list that has the same tid and the same fid */
@@ -292,8 +290,8 @@ find_incoming_file(GSList *GSL_active_files_p, active_file *incoming_file)
 gboolean
 eo_smb_packet(void *tapdata, packet_info *pinfo, epan_dissect_t *edt _U_, const void *data)
 {
-export_object_list_t   *object_list = tapdata;
-const smb_eo_t         *eo_info     = data;
+export_object_list_t   *object_list = (export_object_list_t *)tapdata;
+const smb_eo_t         *eo_info     = (const smb_eo_t *)data;
 
 export_object_entry_t  *entry;
 export_object_entry_t  *current_entry;
@@ -310,7 +308,7 @@ gchar		   *aux_smb_fid_type_string;
 	if (eo_info->smbversion==1) {
 		/* Is this an eo_smb supported file_type? (right now we only support FILE) */
 		is_supported_filetype = (eo_info->fid_type == SMB_FID_TYPE_FILE);
-		aux_smb_fid_type_string=g_strdup(match_strval(eo_info->fid_type, smb_fid_types));
+		aux_smb_fid_type_string=g_strdup(try_val_to_str(eo_info->fid_type, smb_fid_types));
 
 		/* What kind of data this packet contains? */
 		switch(eo_info->cmd) {
@@ -329,7 +327,7 @@ gchar		   *aux_smb_fid_type_string;
 	} else {
 		/* Is this an eo_smb supported file_type? (right now we only support FILE) */
 		is_supported_filetype = (eo_info->fid_type == SMB2_FID_TYPE_FILE );
-		aux_smb_fid_type_string=g_strdup(match_strval(eo_info->fid_type, smb2_fid_types));
+		aux_smb_fid_type_string=g_strdup(try_val_to_str(eo_info->fid_type, smb2_fid_types));
 
 		/* What kind of data this packet contains? */
 		switch(eo_info->cmd) {
@@ -354,10 +352,10 @@ gchar		   *aux_smb_fid_type_string;
 
 	if (active_row == -1) { /* This is a new-tracked file */
 		/* Construct the entry in the list of active files */
-		entry = g_malloc(sizeof(export_object_entry_t));
+		entry = (export_object_entry_t *)g_malloc(sizeof(export_object_entry_t));
 		entry->payload_data = NULL;
 		entry->payload_len = 0;
-		new_file = g_malloc(sizeof(active_file));
+		new_file = (active_file *)g_malloc(sizeof(active_file));
 		new_file->tid = incoming_file.tid;
 		new_file->uid = incoming_file.uid;
 		new_file->fid = incoming_file.fid;
@@ -382,7 +380,7 @@ gchar		   *aux_smb_fid_type_string;
 				aux_smb_fid_type_string,
 				new_file->data_gathered,
 				new_file->file_length,
-				match_strval(contains, smb_eo_contains_string));
+				try_val_to_str(contains, smb_eo_contains_string));
 		} else {
 			if (new_file->file_length > 0) {
 				percent = (gfloat) (100*new_file->data_gathered/new_file->file_length);
@@ -395,7 +393,7 @@ gchar		   *aux_smb_fid_type_string;
 				aux_smb_fid_type_string,
 				new_file->data_gathered,
 				new_file->file_length,
-				match_strval(contains, smb_eo_contains_string),
+				try_val_to_str(contains, smb_eo_contains_string),
 				percent);
 		}
 
@@ -403,7 +401,7 @@ gchar		   *aux_smb_fid_type_string;
 		GSL_active_files = g_slist_append(GSL_active_files, new_file);
 	}
 	else if (is_supported_filetype) {
-		current_file = g_slist_nth_data(GSL_active_files, active_row);
+		current_file = (active_file *)g_slist_nth_data(GSL_active_files, active_row);
 		/* Recalculate the current file flags */
 		current_file->flag_contains = current_file->flag_contains|contains;
 		current_entry = object_list_get_entry(object_list, active_row);
@@ -417,7 +415,7 @@ gchar		   *aux_smb_fid_type_string;
 				aux_smb_fid_type_string,
 				current_file->data_gathered,
 				current_file->file_length,
-				match_strval(current_file->flag_contains, smb_eo_contains_string));
+				try_val_to_str(current_file->flag_contains, smb_eo_contains_string));
 		} else {
 			percent = (gfloat) (100*current_file->data_gathered/current_file->file_length);
 			current_entry->content_type =
@@ -425,7 +423,7 @@ gchar		   *aux_smb_fid_type_string;
 				aux_smb_fid_type_string,
 				current_file->data_gathered,
 				current_file->file_length,
-				match_strval(current_file->flag_contains, smb_eo_contains_string),
+				try_val_to_str(current_file->flag_contains, smb_eo_contains_string),
 				percent);
 		}
 	}
@@ -448,7 +446,7 @@ active_file *in_list_file;
 	last = g_slist_length(GSL_active_files);
 	if (GSL_active_files) {
 		for (i=last-1; i>=0; i--) {
-			in_list_file = g_slist_nth_data(GSL_active_files, i);
+			in_list_file = (active_file *)g_slist_nth_data(GSL_active_files, i);
 			if (in_list_file->free_chunk_list) {
 				g_slist_free(in_list_file->free_chunk_list);
 				in_list_file->free_chunk_list = NULL;

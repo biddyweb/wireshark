@@ -2,8 +2,6 @@
  * Routines for IGMP/RGMP packet disassembly
  * Copyright 2006 Jaap Keuter
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -40,6 +38,7 @@
 #include "packet-igmp.h"
 #include "packet-rgmp.h"
 
+void proto_register_rgmp(void);
 
 static int proto_rgmp      = -1;
 static int hf_type         = -1;
@@ -79,10 +78,8 @@ dissect_rgmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, int off
     col_clear(pinfo->cinfo, COL_INFO);
 
     type = tvb_get_guint8(tvb, offset);
-    if (check_col(pinfo->cinfo, COL_INFO)) {
 	col_add_str(pinfo->cinfo, COL_INFO,
 		     val_to_str(type, rgmp_types, "Unknown Type: 0x%02x"));
-    }
     proto_tree_add_uint(tree, hf_type, tvb, offset, 1, type);
     offset += 1;
 

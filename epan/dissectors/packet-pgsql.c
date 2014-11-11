@@ -3,8 +3,6 @@
  * <http://www.postgresql.org/docs/current/static/protocol.html>
  * Copyright 2004 Abhijit Menon-Sen <ams@oryx.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,8 @@
 
 #include "packet-tcp.h"
 
+void proto_register_pgsql(void);
+void proto_reg_handoff_pgsql(void);
 
 static int proto_pgsql = -1;
 static int hf_frontend = -1;
@@ -70,7 +70,14 @@ static int hf_message = -1;
 static int hf_detail = -1;
 static int hf_hint = -1;
 static int hf_position = -1;
+static int hf_internal_position = -1;
+static int hf_internal_query = -1;
 static int hf_where = -1;
+static int hf_schema_name = -1;
+static int hf_table_name = -1;
+static int hf_column_name = -1;
+static int hf_type_name = -1;
+static int hf_constraint_name = -1;
 static int hf_file = -1;
 static int hf_line = -1;
 static int hf_routine = -1;
@@ -81,12 +88,6 @@ static gint ett_values = -1;
 static guint pgsql_port = 5432;
 static gboolean pgsql_desegment = TRUE;
 static gboolean first_message = TRUE;
-
-static void dissect_pgsql_fe_msg(guchar, guint, tvbuff_t *, gint, proto_tree *);
-static void dissect_pgsql_be_msg(guchar, guint, tvbuff_t *, gint, proto_tree *);
-static void dissect_pgsql_msg(tvbuff_t *, packet_info *, proto_tree *);
-static void dissect_pgsql(tvbuff_t *, packet_info *, proto_tree *);
-static guint pgsql_length(packet_info *, tvbuff_t *, int);
 
 static const value_string fe_messages[] = {
     { 'p', "Password message" },
@@ -156,129 +157,6 @@ static const value_string format_vals[] = {
     { 1, "Binary" },
     { 0, NULL }
 };
-
-/* This function is called once per TCP packet. It sets COL_PROTOCOL and
- * identifies FE/BE messages by adding a ">" or "<" to COL_INFO. Then it
- * arranges for each message to be dissected individually. */
-
-static void
-dissect_pgsql(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
-{
-    /* conversation_t *cv; */
-
-    first_message = TRUE;
-
-    /* We don't use conversation data yet, but... */
-    /* cv = find_or_create_conversation(pinfo); */
-
-    col_set_str(pinfo->cinfo, COL_PROTOCOL, "PGSQL");
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_set_str(pinfo->cinfo, COL_INFO,
-                    (pinfo->match_uint == pinfo->destport) ?
-                     ">" : "<");
-
-    tcp_dissect_pdus(tvb, pinfo, tree, pgsql_desegment, 5,
-                     pgsql_length, dissect_pgsql_msg);
-}
-
-
-/* This function is called by tcp_dissect_pdus() to find the size of the
-   message starting at tvb[offset]. */
-
-static guint
-pgsql_length(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
-{
-    gint n = 0;
-    guchar type;
-    guint length;
-
-    /* The length is either the four bytes after the type, or, if the
-       type is 0, the first four bytes. */
-    type = tvb_get_guint8(tvb, offset);
-    if (type != '\0')
-        n = 1;
-    length = tvb_get_ntohl(tvb, offset+n);
-    return length+n;
-}
-
-
-/* This function is responsible for dissecting a single message. */
-
-static void
-dissect_pgsql_msg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
-{
-    proto_item *ti, *hidden_item;
-    proto_tree *ptree;
-
-    gint n;
-    guchar type;
-    const char *typestr;
-    guint length;
-    gboolean info = check_col(pinfo->cinfo, COL_INFO);
-    gboolean fe = (pinfo->match_uint == pinfo->destport);
-
-    n = 0;
-    type = tvb_get_guint8(tvb, 0);
-    if (type != '\0')
-        n += 1;
-    length = tvb_get_ntohl(tvb, n);
-
-    /* This is like specifying VALS(messages) for hf_type, which we can't do
-       directly because of messages without type bytes, and because the type
-       interpretation depends on fe. */
-    if (fe) {
-        /* There are a few frontend messages that have no leading type byte.
-           We identify them by the fact that the first byte of their length
-           must be zero, and that the next four bytes are a unique tag. */
-        if (type == '\0') {
-            guint tag = tvb_get_ntohl(tvb, 4);
-
-            if (length == 16 && tag == 80877102)
-                typestr = "Cancel request";
-            else if (length == 8 && tag == 80877103)
-                typestr = "SSL request";
-            else if (tag == 196608)
-                typestr = "Startup message";
-            else
-                typestr = "Unknown";
-        } else
-            typestr = val_to_str_const(type, fe_messages, "Unknown");
-    }
-    else {
-        typestr = val_to_str_const(type, be_messages, "Unknown");
-    }
-
-    if (info) {
-        /* This is a terrible hack. It makes the "Info" column reflect
-           the contents of every message in a TCP packet. Could it be
-           done any better? */
-        col_append_fstr(pinfo->cinfo, COL_INFO, "%s%c",
-                        ( first_message ? "" : "/" ), type);
-        first_message = FALSE;
-    }
-
-    if (tree) {
-        ti = proto_tree_add_item(tree, proto_pgsql, tvb, 0, -1, ENC_NA);
-        ptree = proto_item_add_subtree(ti, ett_pgsql);
-
-        n = 1;
-        if (type == '\0')
-            n = 0;
-        proto_tree_add_text(ptree, tvb, 0, n, "Type: %s", typestr);
-        hidden_item = proto_tree_add_item(ptree, hf_type, tvb, 0, n, ENC_ASCII|ENC_NA);
-        PROTO_ITEM_SET_HIDDEN(hidden_item);
-        proto_tree_add_item(ptree, hf_length, tvb, n, 4, ENC_BIG_ENDIAN);
-        hidden_item = proto_tree_add_boolean(ptree, hf_frontend, tvb, 0, 0, fe);
-        PROTO_ITEM_SET_HIDDEN(hidden_item);
-        n += 4;
-
-        if (fe)
-            dissect_pgsql_fe_msg(type, length, tvb, n, ptree);
-        else
-            dissect_pgsql_be_msg(type, length, tvb, n, ptree);
-    }
-}
-
 
 static void dissect_pgsql_fe_msg(guchar type, guint length, tvbuff_t *tvb,
                                  gint n, proto_tree *tree)
@@ -391,7 +269,7 @@ static void dissect_pgsql_fe_msg(guchar type, guint length, tvbuff_t *tvb,
 
         if (i != 0) {
             n += 1;
-            s = tvb_get_ephemeral_stringz(tvb, n, &siz);
+            s = tvb_get_stringz(wmem_packet_scope(), tvb, n, &siz);
             hidden_item = proto_tree_add_string(tree, i, tvb, n, siz, s);
             PROTO_ITEM_SET_HIDDEN(hidden_item);
             proto_tree_add_text(
@@ -515,11 +393,11 @@ static void dissect_pgsql_be_msg(guchar type, guint length, tvbuff_t *tvb,
 
     /* Parameter status */
     case 'S':
-        s = tvb_get_ephemeral_stringz(tvb, n, &siz);
+        s = tvb_get_stringz(wmem_packet_scope(), tvb, n, &siz);
         hidden_item = proto_tree_add_string(tree, hf_parameter_name, tvb, n, siz, s);
         PROTO_ITEM_SET_HIDDEN(hidden_item);
         n += siz;
-        t = tvb_get_ephemeral_stringz(tvb, n, &i);
+        t = tvb_get_stringz(wmem_packet_scope(), tvb, n, &i);
         hidden_item = proto_tree_add_string(tree, hf_parameter_value, tvb, n, i, t);
         PROTO_ITEM_SET_HIDDEN(hidden_item);
         proto_tree_add_text(tree, tvb, n-siz, siz+i, "%s: %s", s, t);
@@ -599,19 +477,26 @@ static void dissect_pgsql_be_msg(guchar type, guint length, tvbuff_t *tvb,
             c = tvb_get_guint8(tvb, n);
             if (c == '\0')
                 break;
-            s = tvb_get_ephemeral_stringz(tvb, n+1, &siz);
+            s = tvb_get_stringz(wmem_packet_scope(), tvb, n+1, &siz);
             i = hf_text;
             switch (c) {
-            case 'S': i = hf_severity; break;
-            case 'C': i = hf_code;     break;
-            case 'M': i = hf_message;  break;
-            case 'D': i = hf_detail;   break;
-            case 'H': i = hf_hint;     break;
-            case 'P': i = hf_position; break;
-            case 'W': i = hf_where;    break;
-            case 'F': i = hf_file;     break;
-            case 'L': i = hf_line;     break;
-            case 'R': i = hf_routine;  break;
+            case 'S': i = hf_severity;          break;
+            case 'C': i = hf_code;              break;
+            case 'M': i = hf_message;           break;
+            case 'D': i = hf_detail;            break;
+            case 'H': i = hf_hint;              break;
+            case 'P': i = hf_position;          break;
+            case 'p': i = hf_internal_position; break;
+            case 'q': i = hf_internal_query;    break;
+            case 'W': i = hf_where;             break;
+            case 's': i = hf_schema_name;       break;
+            case 't': i = hf_table_name;        break;
+            case 'c': i = hf_column_name;       break;
+            case 'd': i = hf_type_name;         break;
+            case 'n': i = hf_constraint_name;   break;
+            case 'F': i = hf_file;              break;
+            case 'L': i = hf_line;              break;
+            case 'R': i = hf_routine;           break;
             }
             proto_tree_add_string(tree, i, tvb, n, siz+1, s);
             length -= siz+1;
@@ -661,8 +546,124 @@ static void dissect_pgsql_be_msg(guchar type, guint length, tvbuff_t *tvb,
     }
 }
 
-void
-proto_reg_handoff_pgsql(void);
+/* This function is called by tcp_dissect_pdus() to find the size of the
+   message starting at tvb[offset]. */
+static guint
+pgsql_length(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
+{
+    gint n = 0;
+    guchar type;
+    guint length;
+
+    /* The length is either the four bytes after the type, or, if the
+       type is 0, the first four bytes. */
+    type = tvb_get_guint8(tvb, offset);
+    if (type != '\0')
+        n = 1;
+    length = tvb_get_ntohl(tvb, offset+n);
+    return length+n;
+}
+
+
+/* This function is responsible for dissecting a single message. */
+
+static int
+dissect_pgsql_msg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
+{
+    proto_item *ti, *hidden_item;
+    proto_tree *ptree;
+
+    gint n;
+    guchar type;
+    const char *typestr;
+    guint length;
+    gboolean fe = (pinfo->match_uint == pinfo->destport);
+
+    n = 0;
+    type = tvb_get_guint8(tvb, 0);
+    if (type != '\0')
+        n += 1;
+    length = tvb_get_ntohl(tvb, n);
+
+    /* This is like specifying VALS(messages) for hf_type, which we can't do
+       directly because of messages without type bytes, and because the type
+       interpretation depends on fe. */
+    if (fe) {
+        /* There are a few frontend messages that have no leading type byte.
+           We identify them by the fact that the first byte of their length
+           must be zero, and that the next four bytes are a unique tag. */
+        if (type == '\0') {
+            guint tag = tvb_get_ntohl(tvb, 4);
+
+            if (length == 16 && tag == 80877102)
+                typestr = "Cancel request";
+            else if (length == 8 && tag == 80877103)
+                typestr = "SSL request";
+            else if (tag == 196608)
+                typestr = "Startup message";
+            else
+                typestr = "Unknown";
+        } else
+            typestr = val_to_str_const(type, fe_messages, "Unknown");
+    }
+    else {
+        typestr = val_to_str_const(type, be_messages, "Unknown");
+    }
+
+    /* This is a terrible hack. It makes the "Info" column reflect
+        the contents of every message in a TCP packet. Could it be
+        done any better? */
+    col_append_fstr(pinfo->cinfo, COL_INFO, "%s%c",
+                    ( first_message ? "" : "/" ), type);
+    first_message = FALSE;
+
+    if (tree) {
+        ti = proto_tree_add_item(tree, proto_pgsql, tvb, 0, -1, ENC_NA);
+        ptree = proto_item_add_subtree(ti, ett_pgsql);
+
+        n = 1;
+        if (type == '\0')
+            n = 0;
+        proto_tree_add_text(ptree, tvb, 0, n, "Type: %s", typestr);
+        hidden_item = proto_tree_add_item(ptree, hf_type, tvb, 0, n, ENC_ASCII|ENC_NA);
+        PROTO_ITEM_SET_HIDDEN(hidden_item);
+        proto_tree_add_item(ptree, hf_length, tvb, n, 4, ENC_BIG_ENDIAN);
+        hidden_item = proto_tree_add_boolean(ptree, hf_frontend, tvb, 0, 0, fe);
+        PROTO_ITEM_SET_HIDDEN(hidden_item);
+        n += 4;
+
+        if (fe)
+            dissect_pgsql_fe_msg(type, length, tvb, n, ptree);
+        else
+            dissect_pgsql_be_msg(type, length, tvb, n, ptree);
+    }
+
+    return tvb_length(tvb);
+}
+
+/* This function is called once per TCP packet. It sets COL_PROTOCOL and
+ * identifies FE/BE messages by adding a ">" or "<" to COL_INFO. Then it
+ * arranges for each message to be dissected individually. */
+
+static int
+dissect_pgsql(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
+{
+    /* conversation_t *cv; */
+
+    first_message = TRUE;
+
+    /* We don't use conversation data yet, but... */
+    /* cv = find_or_create_conversation(pinfo); */
+
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, "PGSQL");
+    col_set_str(pinfo->cinfo, COL_INFO,
+                    (pinfo->match_uint == pinfo->destport) ?
+                     ">" : "<");
+
+    tcp_dissect_pdus(tvb, pinfo, tree, pgsql_desegment, 5,
+                     pgsql_length, dissect_pgsql_msg, data);
+    return tvb_length(tvb);
+}
 
 void
 proto_register_pgsql(void)
@@ -814,9 +815,37 @@ proto_register_pgsql(void)
           { "Position", "pgsql.position", FT_STRINGZ, BASE_NONE, NULL, 0,
             "The index of the error within the query string.", HFILL }
         },
+        { &hf_internal_position,
+          { "Position (Internal)", "pgsql.internal_position", FT_STRINGZ, BASE_NONE, NULL, 0,
+            "The index of the error within the internally-generated query string.", HFILL }
+        },
+        { &hf_internal_query,
+          { "Query (Internal)", "pgsql.internal_query", FT_STRINGZ, BASE_NONE, NULL, 0,
+            "The internally-generated query string", HFILL }
+        },
         { &hf_where,
           { "Context", "pgsql.where", FT_STRINGZ, BASE_NONE, NULL, 0,
             "The context in which an error occurred.", HFILL }
+        },
+        { &hf_schema_name,
+          { "Schema", "pgsql.schema_name", FT_STRINGZ, BASE_NONE, NULL, 0,
+            "The schema with which an error is associated.", HFILL }
+        },
+        { &hf_table_name,
+          { "Table", "pgsql.table_name", FT_STRINGZ, BASE_NONE, NULL, 0,
+            "The table with which an error is associated.", HFILL }
+        },
+        { &hf_column_name,
+          { "Column", "pgsql.column_name", FT_STRINGZ, BASE_NONE, NULL, 0,
+            "The column with which an error is associated.", HFILL }
+        },
+        { &hf_type_name,
+          { "Type", "pgsql.type_name", FT_STRINGZ, BASE_NONE, NULL, 0,
+            "The date type with which an error is associated.", HFILL }
+        },
+        { &hf_constraint_name,
+          { "Constraint", "pgsql.constraint_name", FT_STRINGZ, BASE_NONE, NULL, 0,
+            "The constraint with which an error is associated.", HFILL }
         },
         { &hf_file,
           { "File", "pgsql.file", FT_STRINGZ, BASE_NONE, NULL, 0,
@@ -858,7 +887,7 @@ proto_reg_handoff_pgsql(void)
     static guint saved_pgsql_port;
 
     if (!initialized) {
-        pgsql_handle = create_dissector_handle(dissect_pgsql, proto_pgsql);
+        pgsql_handle = new_create_dissector_handle(dissect_pgsql, proto_pgsql);
         initialized = TRUE;
     } else {
         dissector_delete_uint("tcp.port", saved_pgsql_port, pgsql_handle);

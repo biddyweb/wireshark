@@ -2,8 +2,6 @@
  * Routines for LTP dissection
  * Copyright 2009, Mithun Roy <mithunroy13@gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,15 +35,15 @@
 
 #include "packet-dtn.h"
 
+void proto_register_ltp(void);
+void proto_reg_handoff_ltp(void);
+
 #define LTP_MIN_DATA_BUFFER  5
 #define LTP_MAX_HDR_EXTN    16
 #define LTP_MAX_TRL_EXTN    16
 
-void proto_reg_handoff_ltp(void);
-
 /* For reassembling LTP segments */
-static GHashTable *ltp_fragment_table = NULL;
-static GHashTable *ltp_reassembled_table = NULL;
+static reassembly_table ltp_reassembly_table;
 
 /* Initialize the protocol and registered fields */
 static int proto_ltp = -1;
@@ -103,6 +101,11 @@ static int hf_ltp_fragment_error = -1;
 static int hf_ltp_fragment_count = -1;
 static int hf_ltp_reassembled_in = -1;
 static int hf_ltp_reassembled_length = -1;
+
+static expert_field ei_ltp_neg_reception_claim_count = EI_INIT;
+static expert_field ei_ltp_mal_reception_claim = EI_INIT;
+
+static dissector_handle_t bundle_handle;
 
 static const value_string ltp_type_codes[] = {
 	{0x0, "Red data, NOT {Checkpoint, EORP or EOB}"},
@@ -231,7 +234,7 @@ dissect_data_segment(proto_tree *ltp_tree, tvbuff_t *tvb,packet_info *pinfo,int 
 
 	tvbuff_t *datatvb;
 
-	fragment_data *frag_msg = NULL;
+	fragment_head *frag_msg = NULL;
 	gboolean more_frags = TRUE;
 
 	tvbuff_t *new_tvb = NULL;
@@ -316,14 +319,16 @@ dissect_data_segment(proto_tree *ltp_tree, tvbuff_t *tvb,packet_info *pinfo,int 
 		frame_offset += rpt_sno_size;
 
 		more_frags = FALSE;
-		frag_msg = fragment_add_check(tvb, frame_offset, pinfo, (guint32)session_num, ltp_fragment_table,
-			  ltp_reassembled_table, (guint32)offset, (guint32)length, more_frags);
+		frag_msg = fragment_add_check(&ltp_reassembly_table,
+			  tvb, frame_offset, pinfo, (guint32)session_num, NULL,
+			  (guint32)offset, (guint32)length, more_frags);
 	}
 	else
 	{
 		more_frags = TRUE;
-		frag_msg = fragment_add_check(tvb, frame_offset, pinfo, (guint32)session_num, ltp_fragment_table,
-			 ltp_reassembled_table, (guint32)offset, (guint32)length, more_frags);
+		frag_msg = fragment_add_check(&ltp_reassembly_table,
+			 tvb, frame_offset, pinfo, (guint32)session_num, NULL,
+			 (guint32)offset, (guint32)length, more_frags);
 
 	}
 
@@ -356,7 +361,7 @@ dissect_data_segment(proto_tree *ltp_tree, tvbuff_t *tvb,packet_info *pinfo,int 
 			ltp_data_data_tree = proto_item_add_subtree(ltp_data_data_item, ett_data_data_segm);
 
 			datatvb = tvb_new_subset(new_tvb, data_offset, (int)data_length - dissected_data_size, tvb_length(new_tvb));
-			bundle_size = dissect_complete_bundle(datatvb, pinfo, ltp_data_data_tree);
+			bundle_size = call_dissector(bundle_handle, datatvb, pinfo, ltp_data_data_tree);
 			if(bundle_size == 0) {  /*Couldn't parse bundle*/
 				col_set_str(pinfo->cinfo, COL_INFO, "Dissection Failed");
 				return 0;           /*Give up*/
@@ -434,7 +439,8 @@ dissect_report_segment(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ltp_tree, 
 	rcpt_clm_cnt = evaluate_sdnv(tvb, frame_offset + segment_offset, &rcpt_clm_cnt_size);
 	if (rcpt_clm_cnt < 0){
 		proto_item_set_end(ltp_rpt_item, tvb, frame_offset + segment_offset);
-		expert_add_info_format(pinfo, ltp_tree, PI_UNDECODED, PI_ERROR, "Negative reception claim count: %d", rcpt_clm_cnt);
+		expert_add_info_format(pinfo, ltp_tree, &ei_ltp_neg_reception_claim_count,
+				"Negative reception claim count: %d", rcpt_clm_cnt);
 		return 0;
 	}
     /* Each reception claim is at least 2 bytes, so if the count is larger than the
@@ -443,7 +449,7 @@ dissect_report_segment(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ltp_tree, 
      */
 	if (rcpt_clm_cnt > tvb_length_remaining(tvb, frame_offset + segment_offset) / 2) {
 		proto_item_set_end(ltp_rpt_item, tvb, frame_offset + segment_offset);
-		expert_add_info_format(pinfo, ltp_tree, PI_MALFORMED, PI_ERROR,
+		expert_add_info_format(pinfo, ltp_tree, &ei_ltp_mal_reception_claim,
 				"Reception claim count impossibly large: %d > %d", rcpt_clm_cnt,
 				tvb_length_remaining(tvb, frame_offset + segment_offset) / 2);
 		return 0;
@@ -707,7 +713,7 @@ dissect_ltp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 	proto_tree_add_uint(ltp_header_tree,hf_ltp_trl_extn_cnt,tvb,frame_offset,1,trl_extn_cnt);
 	frame_offset++;
 
-	col_add_str(pinfo->cinfo, COL_INFO, val_to_str_const(ltp_type,ltp_type_col_info,"Protocol Error"));
+	col_set_str(pinfo->cinfo, COL_INFO, val_to_str_const(ltp_type,ltp_type_col_info,"Protocol Error"));
 
 	if((unsigned)frame_offset >= tvb_length(tvb)){
 		col_set_str(pinfo->cinfo, COL_INFO, "Protocol Error");
@@ -777,8 +783,8 @@ dissect_ltp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 
 static void
 ltp_defragment_init(void) {
-    fragment_table_init(&ltp_fragment_table);
-    reassembled_table_init(&ltp_reassembled_table);
+	reassembly_table_init(&ltp_reassembly_table,
+	    &addresses_reassembly_table_functions);
 }
 
 /* Register the protocol with Wireshark */
@@ -962,12 +968,22 @@ proto_register_ltp(void)
 		&ett_ltp_fragments
 	};
 
-/* Register the protocol name and description */
+	static ei_register_info ei[] = {
+		{ &ei_ltp_neg_reception_claim_count, { "ltp.neg_reception_claim_count", PI_UNDECODED, PI_ERROR, "Negative reception claim count", EXPFILL }},
+		{ &ei_ltp_mal_reception_claim, { "ltp.mal_reception_claim", PI_MALFORMED, PI_ERROR, "Reception claim count impossibly large", EXPFILL }},
+	};
+
+	expert_module_t* expert_ltp;
+
+	/* Register the protocol name and description */
 	proto_ltp = proto_register_protocol("Licklider Transmission Protocol",
 		"LTP", "ltp");
 
 	proto_register_field_array(proto_ltp, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_ltp = expert_register_protocol(proto_ltp);
+	expert_register_field_array(expert_ltp, ei, array_length(ei));
+
 	ltp_module = prefs_register_protocol(proto_ltp, proto_reg_handoff_ltp);
 
 	prefs_register_obsolete_preference(ltp_module, "udp.port");
@@ -986,6 +1002,7 @@ proto_reg_handoff_ltp(void)
 
 	if (!initialized) {
 		ltp_handle = new_create_dissector_handle(dissect_ltp, proto_ltp);
+        bundle_handle = find_dissector("bundle");
 		initialized = TRUE;
 	} else {
 		dissector_delete_uint("udp.port", currentPort, ltp_handle);

@@ -2,8 +2,6 @@
  * Routines for Token-Ring packet disassembly
  * Gilbert Ramirez <gram@alumni.rice.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,11 +26,17 @@
 #include <string.h>
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/exceptions.h>
+#include <wsutil/pint.h>
 #include "packet-tr.h"
 #include "packet-llc.h"
 #include <epan/prefs.h>
+#include <wiretap/wtap.h>
 #include <epan/tap.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
+
+void proto_register_tr(void);
+void proto_reg_handoff_tr(void);
 
 static int proto_tr = -1;
 static int hf_tr_dst = -1;
@@ -241,7 +245,7 @@ capture_tr(const guchar *pd, int offset, int len, packet_counts *ld) {
 		 */
 		if (!source_routed && trn_rif_bytes > 0) {
 			if (pd[offset + 0x0e] != pd[offset + 0x0f]) {
-				first2_sr = pntohs(&pd[offset + 0xe0 + trn_rif_bytes]);
+				first2_sr = pntoh16(&pd[offset + 0xe0 + trn_rif_bytes]);
 				if (
 					(first2_sr == 0xaaaa &&
 					pd[offset + 0x10 + trn_rif_bytes] == 0x03) ||
@@ -344,7 +348,7 @@ dissect_tr(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	int			x;
 
 	/* Token-Ring Strings */
-	const char *fc[] = { "MAC", "LLC", "Reserved", "Unknown" };
+	static const char *fc[] = { "MAC", "LLC", "Reserved", "Unknown" };
 
 
 	trh_current++;
@@ -381,8 +385,7 @@ dissect_tr(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	frame_type = (trh->fc & 192) >> 6;
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_fstr(pinfo->cinfo, COL_INFO, "Token-Ring %s", fc[frame_type]);
+	col_add_fstr(pinfo->cinfo, COL_INFO, "Token-Ring %s", fc[frame_type]);
 
 	trn_rif_bytes = tvb_get_guint8(tr_tvb, 14) & 31;
 
@@ -512,11 +515,11 @@ dissect_tr(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 		proto_tree_add_uint(bf_tree, hf_tr_fc_type, tr_tvb, 1, 1, trh->fc);
 		proto_tree_add_uint(bf_tree, hf_tr_fc_pcf, tr_tvb,  1, 1, trh->fc);
-		proto_tree_add_ether(tr_tree, hf_tr_dst, tr_tvb, 2, 6, trh->dst.data);
-		proto_tree_add_ether(tr_tree, hf_tr_src, tr_tvb, 8, 6, trh->src.data);
-		hidden_item = proto_tree_add_ether(tr_tree, hf_tr_addr, tr_tvb, 2, 6, trh->dst.data);
+		proto_tree_add_ether(tr_tree, hf_tr_dst, tr_tvb, 2, 6, (const guint8 *)trh->dst.data);
+		proto_tree_add_ether(tr_tree, hf_tr_src, tr_tvb, 8, 6, (const guint8 *)trh->src.data);
+		hidden_item = proto_tree_add_ether(tr_tree, hf_tr_addr, tr_tvb, 2, 6, (const guint8 *)trh->dst.data);
 		PROTO_ITEM_SET_HIDDEN(hidden_item);
-		hidden_item = proto_tree_add_ether(tr_tree, hf_tr_addr, tr_tvb, 8, 6, trh->src.data);
+		hidden_item = proto_tree_add_ether(tr_tree, hf_tr_addr, tr_tvb, 8, 6, (const guint8 *)trh->src.data);
 		PROTO_ITEM_SET_HIDDEN(hidden_item);
 
 		proto_tree_add_boolean(tr_tree, hf_tr_sr, tr_tvb, 8, 1, source_routed);
@@ -588,17 +591,17 @@ static void
 add_ring_bridge_pairs(int rcf_len, tvbuff_t *tvb, proto_tree *tree)
 {
 	proto_item *hidden_item;
-	int 	    j, size;
-	int 	    segment, brdgnmb, unprocessed_rif;
-	int	    buff_offset=0;
+	int	    j;
+	int	    segment, brdgnmb, unprocessed_rif;
 
 #define RIF_OFFSET		16
 #define RIF_BYTES_TO_PROCESS	30
 
-	char	*buffer;
+	wmem_strbuf_t	*buf;
 #define MAX_BUF_LEN 3 + (RIF_BYTES_TO_PROCESS / 2) * 6 + 1
 
-	buffer=ep_alloc(MAX_BUF_LEN);
+	buf = wmem_strbuf_sized_new(wmem_packet_scope(),
+			MAX_BUF_LEN, MAX_BUF_LEN);
 	/* Only process so many  bytes of RIF, as per TR spec, and not overflow
 	 * static buffer above */
 	unprocessed_rif = rcf_len - RIF_BYTES_TO_PROCESS;
@@ -610,23 +613,19 @@ add_ring_bridge_pairs(int rcf_len, tvbuff_t *tvb, proto_tree *tree)
 	for(j = 1; j < rcf_len - 1; j += 2) {
 		if (j==1) {
 			segment = tvb_get_ntohs(tvb, RIF_OFFSET) >> 4;
-			size = g_snprintf(buffer, MAX_BUF_LEN, "%03X",segment);
-			size = MIN(size, MAX_BUF_LEN - 1);
+			wmem_strbuf_append_printf(buf, "%03X", segment);
 			hidden_item = proto_tree_add_uint(tree, hf_tr_rif_ring, tvb, TR_MIN_HEADER_LEN + 2, 2, segment);
 			PROTO_ITEM_SET_HIDDEN(hidden_item);
-			buff_offset += size;
 		}
 		segment = tvb_get_ntohs(tvb, RIF_OFFSET + 1 + j) >> 4;
 		brdgnmb = tvb_get_guint8(tvb, RIF_OFFSET + j) & 0x0f;
-		size = g_snprintf(buffer+buff_offset, MAX_BUF_LEN-buff_offset, "-%01X-%03X",brdgnmb,segment);
-		size = MIN(size, MAX_BUF_LEN-buff_offset-1);
+		wmem_strbuf_append_printf(buf, "-%01X-%03X", brdgnmb, segment);
 		hidden_item = proto_tree_add_uint(tree, hf_tr_rif_ring, tvb, TR_MIN_HEADER_LEN + 3 + j, 2, segment);
 		PROTO_ITEM_SET_HIDDEN(hidden_item);
 		hidden_item = proto_tree_add_uint(tree, hf_tr_rif_bridge, tvb, TR_MIN_HEADER_LEN + 2 + j, 1, brdgnmb);
 		PROTO_ITEM_SET_HIDDEN(hidden_item);
-		buff_offset += size;
 	}
-	proto_tree_add_string(tree, hf_tr_rif, tvb, TR_MIN_HEADER_LEN + 2, rcf_len, buffer);
+	proto_tree_add_string(tree, hf_tr_rif, tvb, TR_MIN_HEADER_LEN + 2, rcf_len, wmem_strbuf_get_str(buf));
 
 	if (unprocessed_rif > 0) {
 		proto_tree_add_text(tree, tvb, TR_MIN_HEADER_LEN + RIF_BYTES_TO_PROCESS, unprocessed_rif,
@@ -752,3 +751,16 @@ proto_reg_handoff_tr(void)
 	tr_handle = find_dissector("tr");
 	dissector_add_uint("wtap_encap", WTAP_ENCAP_TOKEN_RING, tr_handle);
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

@@ -1,7 +1,5 @@
 /* main_status_bar.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,7 +24,7 @@
 #include <glib.h>
 
 #include "epan/expert.h"
-#include "epan/filesystem.h"
+#include "wsutil/filesystem.h"
 
 #include "ui/main_statusbar.h"
 #include "ui/profile.h"
@@ -103,7 +101,7 @@ MainStatusBar::MainStatusBar(QWidget *parent) :
     QHBoxLayout *info_progress_hb = new QHBoxLayout(info_progress);
     QAction *action;
 
-#if defined(Q_WS_WIN)
+#if defined(Q_OS_WIN)
     // Handles are the same color as widgets, at least on Windows 7.
     splitter->setHandleWidth(3);
     splitter->setStyleSheet(QString(
@@ -112,7 +110,7 @@ MainStatusBar::MainStatusBar(QWidget *parent) :
                                 "  border-right: 1px solid palette(mid);"
                                 "}"
                                 ));
-#elif defined(Q_WS_MAC)
+#elif defined(Q_OS_MAC)
     expert_status_.setAttribute(Qt::WA_MacSmallSize, true);
 #endif
 
@@ -167,8 +165,8 @@ MainStatusBar::MainStatusBar(QWidget *parent) :
     connect(wsApp, SIGNAL(appInitialized()), this, SLOT(pushProfileName()));
     connect(&info_status_, SIGNAL(toggleTemporaryFlash(bool)),
             this, SLOT(toggleBackground(bool)));
-    connect(wsApp, SIGNAL(captureCaptureUpdateContinue(capture_options*)),
-            this, SLOT(updateCaptureStatistics(capture_options*)));
+    connect(wsApp, SIGNAL(captureCaptureUpdateContinue(capture_session*)),
+            this, SLOT(updateCaptureStatistics(capture_session*)));
     connect(wsApp, SIGNAL(configurationProfileChanged(const gchar *)),
             this, SLOT(pushProfileName()));
     connect(&profile_status_, SIGNAL(mousePressedAt(QPoint,Qt::MouseButton)),
@@ -295,12 +293,13 @@ void MainStatusBar::popProfileStatus() {
     profile_status_.popText(STATUS_CTX_MAIN);
 }
 
-void MainStatusBar::updateCaptureStatistics(capture_options *capture_opts)
+void MainStatusBar::updateCaptureStatistics(capture_session *cap_session _U_)
 {
     QString packets_str;
 
+#ifdef HAVE_LIBPCAP
     /* Do we have any packets? */
-    if ((!capture_opts || capture_opts->cf == cap_file_) && cap_file_ && cap_file_->count) {
+    if ((!cap_session || cap_session->cf == cap_file_) && cap_file_ && cap_file_->count) {
         packets_str.append(QString(tr("Packets: %1 %4 Displayed: %2 %4 Marked: %3"))
                           .arg(cap_file_->count)
                           .arg(cap_file_->displayed_count)
@@ -314,7 +313,7 @@ void MainStatusBar::updateCaptureStatistics(capture_options *capture_opts)
         }
         if(!cap_file_->is_tempfile) {
             /* Loading an existing file */
-            gulong computed_elapsed = cf_get_computed_elapsed();
+            gulong computed_elapsed = cf_get_computed_elapsed(cap_file_);
             packets_str.append(QString(tr(" %1  Load time: %2:%3.%4"))
                                         .arg(UTF8_MIDDLE_DOT)
                                         .arg(computed_elapsed/60000)
@@ -322,8 +321,11 @@ void MainStatusBar::updateCaptureStatistics(capture_options *capture_opts)
                                         .arg(computed_elapsed%1000));
         }
     } else {
+#endif // HAVE_LIBPCAP
         packets_str = tr("No Packets");
+#ifdef HAVE_LIBPCAP
     }
+#endif // HAVE_LIBPCAP
 
     popPacketStatus();
     pushPacketStatus(packets_str);

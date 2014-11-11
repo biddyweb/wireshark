@@ -3,8 +3,6 @@
  *
  * 2004 Richard van der Hoff <richardv@mxtelecom.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -99,7 +97,7 @@ guint16 crc16_plain_tvb_offset(tvbuff_t *tvb, guint offset, guint len)
     buf = tvb_get_ptr(tvb, offset, len);
 
     crc = crc16_plain_update(crc, buf, len);
-    
+
     return crc16_plain_finalize(crc);
 }
 
@@ -111,6 +109,16 @@ guint16 crc16_plain_tvb_offset_seed(tvbuff_t *tvb, guint offset, guint len, guin
     buf = tvb_get_ptr(tvb, offset, len);
 
     crc = crc16_plain_update(crc, buf, len);
-    
+
     return crc16_plain_finalize(crc);
+}
+
+guint16 crc16_0x9949_tvb_offset_seed(tvbuff_t *tvb, guint offset, guint len, guint16 seed)
+{
+    const guint8 *buf;
+
+    tvb_ensure_bytes_exist(tvb, offset, len);  /* len == -1 not allowed */
+    buf = tvb_get_ptr(tvb, offset, len);
+
+    return crc16_0x9949_seed(buf, len, seed);
 }

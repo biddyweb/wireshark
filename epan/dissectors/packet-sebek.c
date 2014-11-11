@@ -6,8 +6,6 @@
  *
  * See: http://project.honeynet.org/tools/sebek/ for more details
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -86,6 +84,9 @@
 /* By default, but can be completely different */
 #define UDP_PORT_SEBEK	1101
 
+void proto_register_sebek(void);
+void proto_reg_handoff_sebek(void);
+
 static int proto_sebek = -1;
 
 static int hf_sebek_magic = -1;
@@ -129,22 +130,20 @@ dissect_sebek(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "SEBEK");
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-	{
-		col_set_str(pinfo->cinfo, COL_INFO, "SEBEK - ");
+	col_set_str(pinfo->cinfo, COL_INFO, "SEBEK - ");
 
-		if (tvb_length(tvb)<6)
-			sebek_ver = 0;
-                else
-			sebek_ver = tvb_get_ntohs(tvb, 4);
+	if (tvb_length(tvb)<6)
+		sebek_ver = 0;
+	else
+		sebek_ver = tvb_get_ntohs(tvb, 4);
 
-                switch (sebek_ver) {
-			case 2:	col_append_fstr(pinfo->cinfo, COL_INFO, " pid(%d)", tvb_get_ntohl(tvb, 20));
+	switch (sebek_ver) {
+		case 2:	col_append_fstr(pinfo->cinfo, COL_INFO, " pid(%d)", tvb_get_ntohl(tvb, 20));
 				col_append_fstr(pinfo->cinfo, COL_INFO, " uid(%d)", tvb_get_ntohl(tvb, 24));
 				col_append_fstr(pinfo->cinfo, COL_INFO, " fd(%d)", tvb_get_ntohl(tvb, 28));
 				col_append_fstr(pinfo->cinfo, COL_INFO, " cmd: %s", tvb_format_text(tvb, 32, 12));
 				break;
-			case 3:	col_append_fstr(pinfo->cinfo, COL_INFO, " pid(%d)", tvb_get_ntohl(tvb, 24));
+		case 3:	col_append_fstr(pinfo->cinfo, COL_INFO, " pid(%d)", tvb_get_ntohl(tvb, 24));
 				col_append_fstr(pinfo->cinfo, COL_INFO, " uid(%d)", tvb_get_ntohl(tvb, 28));
 				col_append_fstr(pinfo->cinfo, COL_INFO, " fd(%d)", tvb_get_ntohl(tvb, 32));
 				cmd_len = tvb_strnlen(tvb, 40, 12);
@@ -152,11 +151,9 @@ dissect_sebek(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
 					cmd_len = 0;
 				col_append_fstr(pinfo->cinfo, COL_INFO, " cmd: %s", tvb_format_text(tvb, 40, cmd_len));
 				break;
-			default:
-				break;
-                }
+		default:
+			break;
 	}
-
 
 	if (tree) {
 		/* Adding Sebek item and subtree */

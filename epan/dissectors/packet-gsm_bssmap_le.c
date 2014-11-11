@@ -5,8 +5,6 @@
  *
  * 3GPP TS 49.031 version v7.4.0 (2009-09)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,12 +30,15 @@
 
 #include <epan/packet.h>
 #include <epan/tap.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-bssap.h"
 #include "packet-sccp.h"
 #include "packet-gsm_a_common.h"
 #include "packet-e212.h"
+
+void proto_register_gsm_bssmap_le(void);
+void proto_reg_handoff_gsm_bssmap_le(void);
 
 /* PROTOTYPES/FORWARDS */
 
@@ -100,39 +101,40 @@ static const value_string gsm_bssmap_le_msg_strings[] = {
 #define BSSMAP_LE_CELL_IDENTITY_LIST                         82
 #define BSSMAP_LE_IMEI                                       128
 
-const value_string gsm_bssmap_le_elem_strings[] = {
-	{ 0x00, "LCS QoS" },
-	{ 0x01, "LCS Priority" },
-	{ 0x02, "Location Type" },
-	{ 0x03, "GANSS Location Type" },
-	{ 0x04, "Geographic Location" },
-	{ 0x05, "Positioning Data" },
-	{ 0x06, "GANSS Positioning Data" },
-	{ 0x07, "Velocity Data" },
-	{ 0x08, "LCS Cause" },
-	{ 0x09, "LCS Client Type" },
-	{ 0x0a, "APDU" },
-	{ 0x0b, "Network Element Identity" },
-	{ 0x0c, "Requested GPS Assistance Data" },
-	{ 0x0d, "Requested GANSS Assistance Data" },
-	{ 0x0e, "Deciphering Keys" },
-	{ 0x0f, "Return Error Request" },
-	{ 0x10, "Return Error Cause" },
-	{ 0x11, "Segmentation" },
-	{ 0x12, "Classmark Information Type 3" },
-	{ 0x13, "Cause" },
-	{ 0x14, "Cell Identifier" },
-	{ 0x15, "Chosen Channel" },
-	{ 0x16, "IMSI" },
-	{ 0x17, "Reserved" },
-	{ 0x18, "Reserved" },
-	{ 0x19, "Reserved" },
-	{ 0x20, "LCS Capability" },
-	{ 0x21, "Packet Measurement Report" },
-	{ 0x22, "Cell Identity List" },
-	{ 0x23, "IMEI" },
+static const value_string gsm_bssmap_le_elem_strings[] = {
+	{ DE_BMAPLE_LCSQOS, "LCS QoS" },
+	{ DE_BMAPLE_LCS_PRIO, "LCS Priority" },
+	{ DE_BMAPLE_LOC_TYPE, "Location Type" },
+	{ DE_BMAPLE_GANSS_LOC_TYPE, "GANSS Location Type" },
+	{ DE_BMAPLE_GEO_LOC, "Geographic Location" },
+	{ DE_BMAPLE_POS_DATA, "Positioning Data" },
+	{ DE_BMAPLE_GANSS_POS_DATA, "GANSS Positioning Data" },
+	{ DE_BMAPLE_VELOC_DATA, "Velocity Data" },
+	{ DE_BMAPLE_LCS_CAUSE, "LCS Cause" },
+	{ DE_BMAPLE_LCS_CLIENT_TYPE, "LCS Client Type" },
+	{ DE_BMAPLE_APDU, "APDU" },
+	{ DE_BMAPLE_NETWORK_ELEM_ID, "Network Element Identity" },
+	{ DE_BMAPLE_REQ_GPS_ASSIST_D, "Requested GPS Assistance Data" },
+	{ DE_BMAPLE_REQ_GNSS_ASSIST_D, "Requested GANSS Assistance Data" },
+	{ DE_BMAPLE_DECIPH_KEYS, "Deciphering Keys" },
+	{ DE_BMAPLE_RETURN_ERROR_REQ, "Return Error Request" },
+	{ DE_BMAPLE_RETURN_ERROR_CAUSE, "Return Error Cause" },
+	{ DE_BMAPLE_SEGMENTATION, "Segmentation" },
+	{ DE_BMAPLE_CLASSMARK_TYPE_3, "Classmark Information Type 3" },
+	{ DE_BMAPLE_CAUSE, "Cause" },
+	{ DE_BMAPLE_CELL_IDENTIFIER, "Cell Identifier" },
+	{ DE_BMAPLE_CHOSEN_CHANNEL, "Chosen Channel" },
+	{ DE_BMAPLE_IMSI, "IMSI" },
+	{ DE_BMAPLE_RES1, "Reserved" },
+	{ DE_BMAPLE_RES2, "Reserved" },
+	{ DE_BMAPLE_RES3, "Reserved" },
+	{ DE_BMAPLE_LCS_CAPABILITY, "LCS Capability" },
+	{ DE_BMAPLE_PACKET_MEAS_REP, "Packet Measurement Report" },
+	{ DE_BMAPLE_MEAS_CELL_ID, "Cell Identity List" },
+	{ DE_BMAPLE_IMEI, "IMEI" },
 	{ 0, NULL }
 };
+value_string_ext gsm_bssmap_le_elem_strings_ext = VALUE_STRING_EXT_INIT(gsm_bssmap_le_elem_strings);
 
 static const value_string gsm_apdu_protocol_id_strings[] = {
 	{ 0,	"reserved" },
@@ -221,7 +223,6 @@ static gint ett_bssmap_le_msg = -1;
 
 static dissector_handle_t gsm_bsslap_handle = NULL;
 
-static packet_info *g_pinfo;
 static proto_tree *g_tree;
 
 #define	NUM_GSM_BSSMAP_LE_ELEM (sizeof(gsm_bssmap_le_elem_strings)/sizeof(value_string))
@@ -232,7 +233,7 @@ gint ett_gsm_bssmap_le_elem[NUM_GSM_BSSMAP_LE_ELEM];
  */
 
 static guint16
-de_bmaple_apdu(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len, gchar *add_string _U_, int string_len _U_)
+de_bmaple_apdu(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string _U_, int string_len _U_)
 {
 	guint32	curr_offset;
 	guint8	apdu_protocol_id;
@@ -240,8 +241,7 @@ de_bmaple_apdu(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 
 
 	curr_offset = offset;
 
-	/* curr_offset + 1 is a hack, the length part here is 2 octets and we are off by one */
-	proto_tree_add_text(tree, tvb, curr_offset+1, len, "APDU");
+	proto_tree_add_text(tree, tvb, curr_offset, len, "APDU");
 
 	/*
 	 * dissect the embedded APDU message
@@ -251,17 +251,17 @@ de_bmaple_apdu(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 
 	 * equivalent octet in the APDU element of 3GPP TS 49.031 BSSAP-LE.
 	 */
 
-	apdu_protocol_id = tvb_get_guint8(tvb,curr_offset+1);
-	proto_tree_add_item(tree, hf_gsm_bssmap_le_apdu_protocol_id, tvb, curr_offset+1, 1, ENC_BIG_ENDIAN);
+	apdu_protocol_id = tvb_get_guint8(tvb,curr_offset);
+	proto_tree_add_item(tree, hf_gsm_bssmap_le_apdu_protocol_id, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
 
 	switch(apdu_protocol_id){
 	case 1:
 		/* BSSLAP
 		 * the embedded message is as defined in 3GPP TS 08.71(3GPP TS 48.071 version 7.2.0 Release 7)
 		 */
-		APDU_tvb = tvb_new_subset(tvb, curr_offset+2, len-1, len-1);
+		APDU_tvb = tvb_new_subset(tvb, curr_offset+1, len-1, len-1);
 		if(gsm_bsslap_handle)
-			call_dissector(gsm_bsslap_handle, APDU_tvb, g_pinfo, g_tree);
+			call_dissector(gsm_bsslap_handle, APDU_tvb, pinfo, g_tree);
 		break;
 	case 2:
 		/* LLP
@@ -558,7 +558,7 @@ de_bmaple_lcs_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint
  * 10.20 Positioning Data
  */
 static guint16
-de_bmaple_pos_dta(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len, gchar *add_string _U_, int string_len _U_)
+de_bmaple_pos_dta(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string _U_, int string_len _U_)
 {
 	tvbuff_t *data_tvb;
 	guint32	curr_offset;
@@ -566,7 +566,7 @@ de_bmaple_pos_dta(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint
 	curr_offset = offset;
 
 	data_tvb = tvb_new_subset(tvb, curr_offset, len, len);
-	dissect_geographical_description(data_tvb, g_pinfo, tree);
+	dissect_geographical_description(data_tvb, pinfo, tree);
 
 	return(len);
 }
@@ -766,7 +766,7 @@ bssmap_le_perf_loc_request(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _
 	/* LCS Client Type 9.1.4 C (note 3) 3-n */
 	ELEM_OPT_TLV(BSSMAP_LE_LCS_CLIENT_TYPE, GSM_PDU_TYPE_BSSMAP_LE, DE_BMAPLE_LCS_CLIENT_TYPE, NULL);
 	/* Chosen Channel 9.1.5 O 2 */
-	ELEM_OPT_TV(BSSMAP_LE_CHOSEN_CHANNEL, GSM_A_PDU_TYPE_BSSMAP, BE_CHOSEN_CHAN, NULL);
+	ELEM_OPT_TLV(BSSMAP_LE_CHOSEN_CHANNEL, GSM_A_PDU_TYPE_BSSMAP, BE_CHOSEN_CHAN, NULL);
 	/* LCS Priority 9.1.6 O 3-n */
 	ELEM_OPT_TLV(BSSMAP_LE_LCS_PRIORITY, GSM_A_PDU_TYPE_BSSMAP, BE_LCS_PRIO, NULL);
 	/* LCS QoS 9.1.6a C (note 1) 3-n */
@@ -774,7 +774,7 @@ bssmap_le_perf_loc_request(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _
 	/* GPS Assistance Data 9.1.7 C (note 2) 3-n */
 	ELEM_OPT_TLV(BSSMAP_LE_REQUESTED_GPS_ASSISTANCE_DATA, GSM_A_PDU_TYPE_BSSMAP, BE_GPS_ASSIST_DATA, NULL);
 	/* APDU 9.1.8 O 3-n */
-	ELEM_OPT_TLV(BSSMAP_LE_APDU, GSM_PDU_TYPE_BSSMAP_LE, DE_BMAPLE_APDU, NULL);
+	ELEM_MAND_TELV(BSSMAP_LE_APDU, GSM_PDU_TYPE_BSSMAP_LE, DE_BMAPLE_APDU, NULL);
 	/* LCS Capability 9.1.9 O */
 	ELEM_OPT_TLV(BSSMAP_LE_LCS_CAPABILITY, GSM_PDU_TYPE_BSSMAP_LE, DE_BMAPLE_LCS_CAPABILITY, NULL);
 	/* Packet Measurement Report 9.1.10 O*/
@@ -837,7 +837,7 @@ bssmap_le_connection_oriented(tvbuff_t *tvb, proto_tree *tree, packet_info *pinf
 	curr_len = len;
 
 	/* APDU 9.8.1 M 3-n */
-	ELEM_MAND_TLV(BSSMAP_LE_APDU, GSM_PDU_TYPE_BSSMAP_LE, DE_BMAPLE_APDU, NULL);
+	ELEM_MAND_TELV(BSSMAP_LE_APDU, GSM_PDU_TYPE_BSSMAP_LE, DE_BMAPLE_APDU, NULL);
 	/* Segmentation 9.8.2 */
 	ELEM_OPT_TLV(BSSMAP_LE_SEGMENTATION, BSSAP_PDU_TYPE_BSSMAP, BE_SEG, NULL);
 
@@ -876,7 +876,7 @@ bssmap_le_perf_loc_info(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_,
 	/* Cell Identifier 9.12.1 M */
 	ELEM_MAND_TLV(BSSMAP_LE_CELL_IDENTIFIER, GSM_A_PDU_TYPE_BSSMAP, BE_CELL_ID, NULL);
 	/* APDU 9.1.8 O 3-n */
-	ELEM_OPT_TLV(BSSMAP_LE_APDU, GSM_PDU_TYPE_BSSMAP_LE, DE_BMAPLE_APDU, NULL);
+	ELEM_MAND_TELV(BSSMAP_LE_APDU, GSM_PDU_TYPE_BSSMAP_LE, DE_BMAPLE_APDU, NULL);
 
 	EXTRANEOUS_DATA_CHECK(curr_len, 0);
 }
@@ -936,7 +936,6 @@ dissect_bssmap_le(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	offset = 0;
 	saved_offset = offset;
 
-	g_pinfo = pinfo;
 	g_tree = tree;
 
 	len = tvb_length(tvb);
@@ -946,10 +945,12 @@ dissect_bssmap_le(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	 */
 	oct = tvb_get_guint8(tvb, offset++);
 
-	str = match_strval_idx((guint32) oct, gsm_bssmap_le_msg_strings, &idx);
+	str = try_val_to_str_idx((guint32) oct, gsm_bssmap_le_msg_strings, &idx);
 
 	if (sccp_msg_p && !sccp_msg_p->data.co.label) {
-		sccp_msg_p->data.co.label = se_strdup(val_to_str((guint32) oct, gsm_bssmap_le_msg_strings, "BSSMAP LE(0x%02x)"));
+		sccp_msg_p->data.co.label = wmem_strdup(wmem_file_scope(),
+												val_to_str((guint32) oct,
+												gsm_bssmap_le_msg_strings, "BSSMAP LE(0x%02x)"));
 	}
 
 	/*

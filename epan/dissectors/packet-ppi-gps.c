@@ -2,8 +2,6 @@
  * Routines for PPI-GEOLOCATION-GPS  dissection
  * Copyright 2010, Harris Corp, jellch@harris.com
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -66,6 +64,8 @@ enum ppi_geotagging_type {
 #define PPI_GPS_MASK_APPDATA        0x40000000
 #define PPI_GPS_MASK_EXT            0x80000000
 
+
+void proto_register_ppi_gps(void);
 
 /* protocol */
 static int proto_ppi_gps = -1;
@@ -162,8 +162,7 @@ dissect_ppi_gps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
     present = tvb_get_letohl(tvb, offset+4);
 
     /* Setup basic column info */
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_add_fstr(pinfo->cinfo, COL_INFO, "PPI_GPS Capture v%u, Length %u", version, length);
+    col_add_fstr(pinfo->cinfo, COL_INFO, "PPI_GPS Capture v%u, Length %u", version, length);
 
     /* Create the basic dissection tree*/
     if (tree) {

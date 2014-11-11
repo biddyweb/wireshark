@@ -2,8 +2,6 @@
  * Routines for HSR dissection (IEC62439 Part 3)
  * Copyright 2009, Florian Reichert <refl[AT]zhaw.ch>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald[AT]wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/etypes.h>
+
+void proto_register_hsr(void);
+void proto_reg_handoff_hsr(void);
 
 /**********************************************************/
 /* Lengths of fields within a HSR packet.                 */
@@ -104,13 +105,13 @@ dissect_hsr_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     lsdu_size = tvb_get_ntohs(tvb, HSR_PATH_OFFSET) & 0x0fff;
     lsdu_size_correct = tvb_reported_length_remaining(tvb, 0);
     if (lsdu_size == lsdu_size_correct) {
-        proto_tree_add_uint_format(hsr_tree, hf_hsr_lsdu_size,
+        proto_tree_add_uint_format_value(hsr_tree, hf_hsr_lsdu_size,
                                    tvb, HSR_PATH_OFFSET, HSR_LSDU_PATH_LENGTH, lsdu_size,
-                                   "LSDU size: %d [correct]", lsdu_size);
+                                   "%d [correct]", lsdu_size);
     } else {
-        proto_tree_add_uint_format(hsr_tree, hf_hsr_lsdu_size,
+        proto_tree_add_uint_format_value(hsr_tree, hf_hsr_lsdu_size,
                                    tvb, HSR_PATH_OFFSET, HSR_LSDU_PATH_LENGTH, lsdu_size,
-                                   "LSDU size: %d [WRONG, should be %d]", lsdu_size, lsdu_size_correct);
+                                   "%d [WRONG, should be %d]", lsdu_size, lsdu_size_correct);
     }
 
     proto_tree_add_item(hsr_tree, hf_hsr_sequence_nr,

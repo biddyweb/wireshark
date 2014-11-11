@@ -1,8 +1,6 @@
 /* packet-ieee80211-wlancap.c
  * Routines for AVS linux-wlan monitoring mode header dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,7 +25,13 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
+#include <wsutil/pint.h>
+
 #include "packet-ieee80211.h"
+
+void proto_register_ieee80211_wlancap(void);
+void proto_reg_handoff_ieee80211_wlancap(void);
 
 static dissector_handle_t ieee80211_handle;
 
@@ -74,7 +78,7 @@ capture_wlancap(const guchar *pd, int offset, int len, packet_counts *ld)
     return;
   }
 
-  length = pntohl(pd+sizeof(guint32));
+  length = pntoh32(pd+sizeof(guint32));
 
   if (!BYTES_ARE_IN_FRAME(offset, len, length)) {
     ld->other++;
@@ -418,9 +422,9 @@ dissect_wlancap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                    datarate / 1000000,
                    ((datarate % 1000000) > 500000) ? 5 : 0);
     if (tree) {
-      proto_tree_add_uint64_format(wlan_tree, hf_data_rate, tvb, offset, 4,
+      proto_tree_add_uint64_format_value(wlan_tree, hf_data_rate, tvb, offset, 4,
                                    datarate,
-                                   "Data Rate: %u.%u Mb/s",
+                                   "%u.%u Mb/s",
                                    datarate/1000000,
                                    ((datarate % 1000000) > 500000) ? 5 : 0);
     }
@@ -512,7 +516,7 @@ dissect_wlancap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       offset+=6;
       if (tree)
         proto_tree_add_item(wlan_tree, hf_wlan_padding, tvb, offset, 2, ENC_NA);
-      offset+=2;
+      /*offset+=2;*/
     }
 
 

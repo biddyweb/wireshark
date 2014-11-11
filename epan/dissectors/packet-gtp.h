@@ -1,7 +1,5 @@
 /* packet-gtp.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,7 +33,7 @@ typedef struct gtp_msg_hash_entry {
 
 
 typedef struct _gtp_hdr {
-  guint8 flags;  /* GTP header flags */ 
+  guint8 flags;  /* GTP header flags */
   guint8 message; /* Message type */
   guint16 length; /* Length of header */
   gint64 teid; /* Tunnel End-point ID */
@@ -50,7 +48,7 @@ typedef struct _gtp_hdr {
 #define GTP_MSG_NODE_ALIVE_RESP     0x05
 #define GTP_MSG_REDIR_REQ           0x06
 #define GTP_MSG_REDIR_RESP          0x07
-/* 
+/*
  * 8-15 For future use. Shall not be sent. If received,
  * shall be treated as an Unknown message.
  */

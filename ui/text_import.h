@@ -3,8 +3,6 @@
  * State machine for text import
  * November 2010, Jaap Keuter <jaap.keuter@xs4all.nl>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,7 +36,7 @@
 extern "C" {
 #endif /* __cplusplus */
 
-#define IMPORT_MAX_PACKET 64000
+#define IMPORT_MAX_PACKET 65535
 
 /* The parameter interface */
 
@@ -68,6 +66,7 @@ typedef struct
     FILE *import_text_file;
     enum offset_type offset_type;
     gboolean date_timestamp;
+    gboolean has_direction;
     char *date_timestamp_format;
 
     /* Import info */

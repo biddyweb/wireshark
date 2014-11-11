@@ -6,8 +6,6 @@
 #
 # Copyright 2009, Kovarththanan Rajaratnam <kovarththanan.rajaratnam@gmail.com>
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -286,7 +284,7 @@ def main():
     elif options.dissect_files:
         dissect_files(tshark_bin, tmpdir, options.num_procs, options.max_files, cap_files)
     else:
-        extract_protos_from_file(tshark_bin, tmpdir, options.num_procs, options.max_files, cap_files, cap_hash, index_file_name)
+        extract_protos_from_file(tshark_bin, options.num_procs, options.max_files, cap_files, cap_hash, index_file_name)
 
     os.rmdir(tmpdir)
 if __name__ == "__main__":

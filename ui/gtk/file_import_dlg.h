@@ -2,8 +2,6 @@
  * Definitions for file import dialog box
  * November 2010, Jaap Keuter <jaap.keuter@xs4all.nl>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,5 +25,6 @@
 #define __FILE_IMPORT_DLG_H__
 
 void file_import_cmd_cb(GtkWidget *widget);
+void file_import_txt_buf_cb(GtkWidget *widget);
 
 #endif /* file_import_dlg.h */

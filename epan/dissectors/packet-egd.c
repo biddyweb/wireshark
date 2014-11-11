@@ -5,8 +5,6 @@
  * Copyright 2008
  * 29 July 2008 -- ryan wamsley
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -48,6 +46,10 @@
 #define EGD_ST_NORESP       26
 #define EGD_ST_CREATEERR    28
 #define EGD_ST_DELETED      30
+
+
+void proto_register_egd(void);
+void proto_reg_handoff_egd(void);
 
 /* Translate status to string */
 static const value_string egd_stat_vals[] = {
@@ -93,12 +95,9 @@ static void dissect_egd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "EGD");
 
   /* Clear out stuff in the info column */
-  if (check_col(pinfo->cinfo,COL_INFO))
-  {
-    col_clear(pinfo->cinfo, COL_INFO);
-    col_add_fstr(pinfo->cinfo, COL_INFO, "Data Msg: ExchangeID=0x%08X, RequestID=%05u",
+  col_clear(pinfo->cinfo, COL_INFO);
+  col_add_fstr(pinfo->cinfo, COL_INFO, "Data Msg: ExchangeID=0x%08X, RequestID=%05u",
                  tvb_get_letohl(tvb, 8), tvb_get_letohs(tvb, 2));
-  }
 
   if (tree)
   {

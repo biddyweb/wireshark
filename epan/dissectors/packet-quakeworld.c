@@ -4,8 +4,6 @@
  * Uwe Girlich <uwe@planetquake.com>
  *	http://www.idsoftware.com/q1source/q1source.zip
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,9 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/strutil.h>
+#include <epan/wmem/wmem.h>
+
+void proto_register_quakeworld(void);
 
 static int proto_quakeworld = -1;
 
@@ -89,8 +90,8 @@ static	char	com_token[MAX_TEXT_SIZE+1];
 static	int	com_token_start;
 static	int	com_token_length;
 
-static char *
-COM_Parse (char *data)
+static const char *
+COM_Parse (const char *data)
 {
 	int	c;
 	int	len;
@@ -197,7 +198,7 @@ Cmd_Argv_length(int arg)
 
 
 static void
-Cmd_TokenizeString(char* text)
+Cmd_TokenizeString(const char* text)
 {
 	int start;
 
@@ -226,7 +227,7 @@ Cmd_TokenizeString(char* text)
 			return;
 
 		if (cmd_argc < MAX_ARGS) {
-			cmd_argv[cmd_argc] = ep_strdup(com_token);
+			cmd_argv[cmd_argc] = wmem_strdup(wmem_packet_scope(), com_token);
 			cmd_argv_start[cmd_argc] = start + com_token_start;
 			cmd_argv_length[cmd_argc] = com_token_length;
 			cmd_argc++;
@@ -348,7 +349,7 @@ dissect_quakeworld_ConnectionlessPacket(tvbuff_t *tvb, packet_info *pinfo,
 {
 	proto_tree	*cl_tree   = NULL;
 	proto_tree	*text_tree = NULL;
-	guint8		text[MAX_TEXT_SIZE+1];
+	guint8		*text;
 	int		len;
 	int		offset;
 	guint32		marker;
@@ -369,13 +370,13 @@ dissect_quakeworld_ConnectionlessPacket(tvbuff_t *tvb, packet_info *pinfo,
 	/* all the rest of the packet is just text */
         offset = 4;
 
-        len = tvb_get_nstringz0(tvb, offset, sizeof(text), text);
+	text = tvb_get_stringz_enc(wmem_packet_scope(), tvb, offset, &len, ENC_ASCII|ENC_NA);
 	/* actually, we should look for a eol char and stop already there */
 
         if (cl_tree) {
 		proto_item *text_item;
                 text_item = proto_tree_add_string(cl_tree, hf_quakeworld_connectionless_text,
-						  tvb, offset, len + 1, text);
+						  tvb, offset, len, text);
 		text_tree = proto_item_add_subtree(text_item, ett_quakeworld_connectionless_text);
         }
 
@@ -446,7 +447,7 @@ dissect_quakeworld_ConnectionlessPacket(tvbuff_t *tvb, packet_info *pinfo,
 				info_tree = proto_item_add_subtree(
 					info_item, ett_quakeworld_connectionless_connect_infostring);
 				dissect_id_infostring(tvb, info_tree, offset + Cmd_Argv_start(4),
-					ep_strdup(infostring),
+					wmem_strdup(wmem_packet_scope(), infostring),
 					ett_quakeworld_connectionless_connect_infostring_key_value,
 					hf_quakeworld_connectionless_connect_infostring_key_value,
 					hf_quakeworld_connectionless_connect_infostring_key,
@@ -468,7 +469,7 @@ dissect_quakeworld_ConnectionlessPacket(tvbuff_t *tvb, packet_info *pinfo,
 					tvb, offset, command_len, command);
 				argument_item = proto_tree_add_string(text_tree,
 					hf_quakeworld_connectionless_arguments,
-					tvb, offset + Cmd_Argv_start(1), len + 1 - Cmd_Argv_start(1),
+					tvb, offset + Cmd_Argv_start(1), len - Cmd_Argv_start(1),
 					text + Cmd_Argv_start(1));
 				argument_tree =	proto_item_add_subtree(argument_item,
 								       ett_quakeworld_connectionless_arguments);
@@ -503,7 +504,7 @@ dissect_quakeworld_ConnectionlessPacket(tvbuff_t *tvb, packet_info *pinfo,
 			command_len = 1;
 		} else {
 			command = "Unknown";
-			command_len = len;
+			command_len = len - 1;
 		}
 	}
 	else {
@@ -528,19 +529,17 @@ dissect_quakeworld_ConnectionlessPacket(tvbuff_t *tvb, packet_info *pinfo,
 			/* string, atoi */
 		} else {
 			command = "Unknown";
-			command_len = len;
+			command_len = len - 1;
 		}
 	}
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(pinfo->cinfo, COL_INFO, " %s", command);
-	}
+	col_append_fstr(pinfo->cinfo, COL_INFO, " %s", command);
 
-	if (text_tree && !command_finished) {
+	if (!command_finished) {
 		proto_tree_add_string(text_tree, hf_quakeworld_connectionless_command,
 			tvb, offset, command_len, command);
 	}
-        /*offset += len + 1;*/
+	/*offset += len;*/
 }
 
 
@@ -676,8 +675,7 @@ dissect_quakeworld(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			DIR_C2S : DIR_S2C;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "QUAKEWORLD");
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_str(pinfo->cinfo, COL_INFO, val_to_str(direction,
+	col_add_str(pinfo->cinfo, COL_INFO, val_to_str(direction,
 			names_direction, "%u"));
 
 	if (tree) {
@@ -695,8 +693,7 @@ dissect_quakeworld(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	if (tvb_get_ntohl(tvb, 0) == 0xffffffff) {
 		col_append_str(pinfo->cinfo, COL_INFO, " Connectionless");
-		if (quakeworld_tree)
-			proto_tree_add_uint_format(quakeworld_tree,
+		proto_tree_add_uint_format(quakeworld_tree,
 				hf_quakeworld_connectionless,
 				tvb, 0, 0, 1,
 				"Type: Connectionless");
@@ -705,8 +702,7 @@ dissect_quakeworld(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	}
 	else {
 		col_append_str(pinfo->cinfo, COL_INFO, " Game");
-		if (quakeworld_tree)
-			proto_tree_add_uint_format(quakeworld_tree,
+		proto_tree_add_uint_format(quakeworld_tree,
 				hf_quakeworld_game,
 				tvb, 0, 0, 1,
 				"Type: Game");

@@ -2,8 +2,6 @@
 # Automake file for Nortel Unistim plugin
 # Copyright 2007, Don Newton <dnewton@cypresscom.net>
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -132,4 +130,5 @@ EXTRA_DIST = \
 
 checkapi:
 	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -g abort -g termoutput -build \
-		$(CLEAN_SRC_FILES) $(CLEAN_HEADER_FILES)
+	-sourcedir=$(srcdir) \
+	$(CLEAN_SRC_FILES) $(CLEAN_HEADER_FILES)

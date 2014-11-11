@@ -2,8 +2,6 @@
  * h225 RAS Service Response Time statistics for wireshark
  * Copyright 2003 Lars Roland
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,18 +24,21 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet.h"
 #include "epan/packet_info.h"
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
 #include "epan/value_string.h"
 #include <epan/dissectors/packet-h225.h>
-#include "timestats.h"
+#include "epan/timestats.h"
 
 /* following values represent the size of their valuestring arrays */
 #define NUM_RAS_STATS 7
+
+void register_tap_listener_h225rassrt(void);
 
 static const value_string ras_message_category[] = {
   {  0,	"Gatekeeper    "},
@@ -124,8 +125,8 @@ h225rassrt_packet(void *phs, packet_info *pinfo _U_, epan_dissect_t *edt _U_, co
 
 	if (pi->msg_tag < 21) {
 		/* */
-		rascategory = pi->msg_tag / 3;
-		rasmsg_type = pi->msg_tag % 3;
+		rascategory = (ras_category)(pi->msg_tag / 3);
+		rasmsg_type = (ras_type)(pi->msg_tag % 3);
 	}
 	else {
 		/* No SRT yet (ToDo) */
@@ -205,14 +206,14 @@ h225rassrt_draw(void *phs)
 
 
 static void
-h225rassrt_init(const char *optarg, void* userdata _U_)
+h225rassrt_init(const char *opt_arg, void* userdata _U_)
 {
 	h225rassrt_t *hs;
 	GString *error_string;
 
 	hs = g_new(h225rassrt_t,1);
-	if(!strncmp(optarg,"h225,srt,",9)){
-		hs->filter=g_strdup(optarg+9);
+	if(!strncmp(opt_arg,"h225,srt,",9)){
+		hs->filter=g_strdup(opt_arg+9);
 	} else {
 		hs->filter=NULL;
 	}

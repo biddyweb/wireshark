@@ -9,8 +9,6 @@
  *
  * Copyright 2012, Tobias Rutz <tobias.rutz@work-microwave.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -64,9 +62,11 @@ static guint8 crc8_table[256] = {
     0x84, 0x51, 0xFB, 0x2E, 0x7A, 0xAF, 0x05, 0xD0, 0xAD, 0x78, 0xD2, 0x07, 0x53, 0x86, 0x2C, 0xF9
 };
 
+
 static dissector_handle_t ip_handle;
 static dissector_handle_t ipv6_handle;
 
+void proto_register_dvb_s2_modeadapt(void);
 void proto_reg_handoff_dvb_s2_modeadapt(void);
 
 /* preferences */
@@ -142,7 +142,7 @@ static const value_string modeadapt_modcods[] = {
     { 6, "QPSK 2/3"},
     { 7, "QPSK 3/4"},
     { 8, "QPSK 4/5"},
-    { 9, "QPSK 5/9"},
+    { 9, "QPSK 5/6"},
     {10, "QPSK 8/9"},
     {11, "QPSK 9/10"},
     {12, "8PSK 3/5"},
@@ -519,11 +519,11 @@ static const true_false_string tfs_gse_ss = {
 #define DVB_S2_GSE_HDR_LABELTYPE_MASK   0x3000
 #define DVB_S2_GSE_HDR_LABELTYPE_POS1   13
 #define DVB_S2_GSE_HDR_LABELTYPE_POS2   12
-static const value_string gse_labletype[] = {
+static const value_string gse_labeltype[] = {
     {0, "6 byte"},
     {1, "3 byte"},
     {2, "0 byte (Broadcast)"},
-    {3, "re-use last lable"},
+    {3, "re-use last label"},
     {0, NULL}
 };
 
@@ -543,7 +543,7 @@ static const range_string gse_proto_str[] = {
 #define DVB_S2_GSE_CRC32_LEN            4
 
 /* *** helper functions *** */
-gboolean check_crc8(tvbuff_t *p, guint8 len, guint8 offset, guint8 received_fcs)
+static gboolean check_crc8(tvbuff_t *p, guint8 len, guint8 offset, guint8 received_fcs)
 {
     int    i;
     guint8 crc = 0, tmp;
@@ -637,7 +637,8 @@ static int dissect_dvb_s2_gse(tvbuff_t *tvb, int cur_off, proto_tree *tree, pack
                 if (BIT_IS_SET(gse_hdr, DVB_S2_GSE_HDR_STOP_POS))
                     col_append_str(pinfo->cinfo, COL_INFO, "0 ");
             }
-            if (gse_proto < 0x0600) {
+            if (gse_proto < 0x0600 && gse_proto >= 0x100) {
+                /* Only display optional extension headers */
                 /* TODO: needs to be tested */
 
                 /* TODO: implementation needs to be checked (len of ext-header??) */
@@ -755,12 +756,12 @@ static int dissect_dvb_s2_bb(tvbuff_t *tvb, int cur_off, proto_tree *tree, packe
     input8 = tvb_get_guint8(tvb, cur_off + DVB_S2_BB_OFFS_MATYPE2);
     new_off += 1;
     if (flag_is_ms) {
-        proto_tree_add_uint_format(dvb_s2_bb_tree, hf_dvb_s2_bb_matype2, tvb,
-                                   cur_off + DVB_S2_BB_OFFS_MATYPE2, 1, input8, "MATYPE2: Input Stream Identifier (ISI): %d",
+        proto_tree_add_uint_format_value(dvb_s2_bb_tree, hf_dvb_s2_bb_matype2, tvb,
+                                   cur_off + DVB_S2_BB_OFFS_MATYPE2, 1, input8, "Input Stream Identifier (ISI): %d",
                                    input8);
     } else {
-        proto_tree_add_uint_format(dvb_s2_bb_tree, hf_dvb_s2_bb_matype2, tvb,
-                                   cur_off + DVB_S2_BB_OFFS_MATYPE2, 1, input8, "MATYPE2: reserved");
+        proto_tree_add_uint_format_value(dvb_s2_bb_tree, hf_dvb_s2_bb_matype2, tvb,
+                                   cur_off + DVB_S2_BB_OFFS_MATYPE2, 1, input8, "reserved");
     }
 
     input16 = tvb_get_ntohs(tvb, cur_off + DVB_S2_BB_OFFS_UPL);
@@ -774,8 +775,8 @@ static int dissect_dvb_s2_bb(tvbuff_t *tvb, int cur_off, proto_tree *tree, packe
     bb_data_len /= 8;
     new_off += 2;
 
-    proto_tree_add_uint_format(dvb_s2_bb_tree, hf_dvb_s2_bb_dfl, tvb,
-                               cur_off + DVB_S2_BB_OFFS_DFL, 2, input16, "DFL: %d bits (%d bytes)", input16, input16 / 8);
+    proto_tree_add_uint_format_value(dvb_s2_bb_tree, hf_dvb_s2_bb_dfl, tvb,
+                               cur_off + DVB_S2_BB_OFFS_DFL, 2, input16, "%d bits (%d bytes)", input16, input16 / 8);
 
     new_off += 1;
     proto_tree_add_item(dvb_s2_bb_tree, hf_dvb_s2_bb_sync, tvb, cur_off + DVB_S2_BB_OFFS_SYNC, 1, ENC_BIG_ENDIAN);
@@ -1017,9 +1018,9 @@ void proto_register_dvb_s2_modeadapt(void)
                 "Stop Indicator", HFILL}
         },
         {&hf_dvb_s2_gse_hdr_labeltype, {
-                "Lable Type", "dvb-s2_gse.hdr.labletype",
-                FT_UINT16, BASE_HEX, VALS(gse_labletype), DVB_S2_GSE_HDR_LABELTYPE_MASK,
-                "Lable Type Indicator", HFILL}
+                "Label Type", "dvb-s2_gse.hdr.labeltype",
+                FT_UINT16, BASE_HEX, VALS(gse_labeltype), DVB_S2_GSE_HDR_LABELTYPE_MASK,
+                "Label Type Indicator", HFILL}
         },
         {&hf_dvb_s2_gse_hdr_length, {
                 "Length", "dvb-s2_gse.hdr.length",

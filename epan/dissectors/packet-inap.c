@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-inap.c                                                              */
 /* ../../tools/asn2wrs.py -b -p inap -c ./inap.cnf -s ./packet-inap-template -D . -O ../../epan/dissectors IN-common-classes.asn IN-SSF-SCF-Classes.asn IN-SCF-SRF-Classes.asn IN-operationcodes.asn IN-object-identifiers.asn IN-common-datatypes.asn IN-SSF-SCF-datatypes.asn IN-SSF-SCF-ops-args.asn IN-SCF-SRF-datatypes.asn IN-SCF-SRF-ops-args.asn IN-errorcodes.asn IN-errortypes.asn ../ros/Remote-Operations-Information-Objects.asn ../ros/Remote-Operations-Generic-ROS-PDUs.asn */
 
@@ -11,7 +11,6 @@
  * Copyright 2004, Tim Endean <endeant@hotmail.com>
  * Built from the gsm-map dissector Copyright 2004, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -54,6 +53,10 @@
 #define PNAME  "Intelligent Network Application Protocol"
 #define PSNAME "INAP"
 #define PFNAME "inap"
+
+void proto_register_inap(void);
+void proto_reg_handoff_inap(void);
+
 
 /* Initialize the protocol and registered fields */
 static int proto_inap = -1;
@@ -457,7 +460,7 @@ static int proto_inap = -1;
 #define noInvokeId                     NULL
 
 /*--- End of included file: packet-inap-val.h ---*/
-#line 55 "../../asn1/inap/packet-inap-template.c"
+#line 58 "../../asn1/inap/packet-inap-template.c"
 
 
 /*--- Included file: packet-inap-hf.c ---*/
@@ -1024,7 +1027,7 @@ static int hf_inap_present = -1;                  /* INTEGER */
 static int hf_inap_InvokeId_present = -1;         /* InvokeId_present */
 
 /*--- End of included file: packet-inap-hf.c ---*/
-#line 57 "../../asn1/inap/packet-inap-template.c"
+#line 60 "../../asn1/inap/packet-inap-template.c"
 
 #define MAX_SSN 254
 static range_t *global_ssn_range;
@@ -1288,7 +1291,11 @@ static gint ett_inap_T_problem_01 = -1;
 static gint ett_inap_InvokeId = -1;
 
 /*--- End of included file: packet-inap-ett.c ---*/
-#line 80 "../../asn1/inap/packet-inap-template.c"
+#line 83 "../../asn1/inap/packet-inap-template.c"
+
+static expert_field ei_inap_unknown_invokeData = EI_INIT;
+static expert_field ei_inap_unknown_returnResultData = EI_INIT;
+static expert_field ei_inap_unknown_returnErrorData = EI_INIT;
 
 
 /*--- Included file: packet-inap-table.c ---*/
@@ -1414,7 +1421,7 @@ static const value_string inap_err_code_string_vals[] = {
 
 
 /*--- End of included file: packet-inap-table.c ---*/
-#line 82 "../../asn1/inap/packet-inap-template.c"
+#line 89 "../../asn1/inap/packet-inap-template.c"
 
 const value_string inap_general_problem_strings[] = {
 {0,"General Problem Unrecognized Component"},
@@ -1451,7 +1458,7 @@ dissect_inap_CriticalityType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
 
 static int
 dissect_inap_T_local(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 165 "../../asn1/inap/inap.cnf"
+#line 157 "../../asn1/inap/inap.cnf"
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &opcode);
 
@@ -1508,14 +1515,14 @@ dissect_inap_Code(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, 
 
 static int
 dissect_inap_T_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 223 "../../asn1/inap/inap.cnf"
+#line 215 "../../asn1/inap/inap.cnf"
   proto_tree_add_text(tree, tvb, offset, -1, "Extension Data");
   if (obj_id){
-	 offset=call_ber_oid_callback(obj_id, tvb, offset, actx->pinfo, tree);
+	 offset=call_ber_oid_callback(obj_id, tvb, offset, actx->pinfo, tree, NULL);
   }else{
 	 call_dissector(data_handle, tvb, actx->pinfo, tree);
 	 offset = tvb_length_remaining(tvb,offset);
-  }	
+  }
 
 
 
@@ -1534,9 +1541,9 @@ static const ber_sequence_t ExtensionField_sequence[] = {
 
 static int
 dissect_inap_ExtensionField(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 218 "../../asn1/inap/inap.cnf"
+#line 210 "../../asn1/inap/inap.cnf"
 	obj_id = NULL;
-	
+
 
   offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    ExtensionField_sequence, hf_index, ett_inap_ExtensionField);
@@ -2188,7 +2195,7 @@ dissect_inap_BCSMEvent(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset 
 
 static int
 dissect_inap_T_bearerCap(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 255 "../../asn1/inap/inap.cnf"
+#line 247 "../../asn1/inap/inap.cnf"
 
  tvbuff_t	*parameter_tvb;
 
@@ -2343,7 +2350,7 @@ dissect_inap_CalledPartyBusinessGroupID(gboolean implicit_tag _U_, tvbuff_t *tvb
 
 static int
 dissect_inap_CalledPartyNumber(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 234 "../../asn1/inap/inap.cnf"
+#line 226 "../../asn1/inap/inap.cnf"
   tvbuff_t *parameter_tvb;
 
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
@@ -2394,7 +2401,7 @@ dissect_inap_CallingPartyBusinessGroupID(gboolean implicit_tag _U_, tvbuff_t *tv
 
 static int
 dissect_inap_CallingPartyNumber(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 244 "../../asn1/inap/inap.cnf"
+#line 236 "../../asn1/inap/inap.cnf"
   tvbuff_t *parameter_tvb;
 
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
@@ -4532,7 +4539,7 @@ dissect_inap_GlobalCallReference(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 
 int
 dissect_inap_HighLayerCompatibility(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 297 "../../asn1/inap/inap.cnf"
+#line 289 "../../asn1/inap/inap.cnf"
 /*
  * -- Indicates the teleservice. For encoding, DSS1 (Q.931) is used.
  */
@@ -4706,7 +4713,7 @@ dissect_inap_NumberingPlan(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
 
 static int
 dissect_inap_OriginalCalledPartyID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 277 "../../asn1/inap/inap.cnf"
+#line 269 "../../asn1/inap/inap.cnf"
 
  tvbuff_t	*parameter_tvb;
 
@@ -4769,7 +4776,7 @@ dissect_inap_Reason(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_
 
 static int
 dissect_inap_RedirectingPartyID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 287 "../../asn1/inap/inap.cnf"
+#line 279 "../../asn1/inap/inap.cnf"
 
  tvbuff_t	*parameter_tvb;
 
@@ -4790,7 +4797,7 @@ dissect_inap_RedirectingPartyID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 int
 dissect_inap_RedirectionInformation(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 266 "../../asn1/inap/inap.cnf"
+#line 258 "../../asn1/inap/inap.cnf"
 
  tvbuff_t	*parameter_tvb;
 
@@ -5154,7 +5161,7 @@ dissect_inap_T_triggerId(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 static int
 dissect_inap_T_triggerPar(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 204 "../../asn1/inap/inap.cnf"
+#line 196 "../../asn1/inap/inap.cnf"
 /* FIX ME */
 
 
@@ -7732,7 +7739,7 @@ dissect_inap_MessageReceivedArg(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 static int
 dissect_inap_T_uIScriptSpecificInfo(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 210 "../../asn1/inap/inap.cnf"
+#line 202 "../../asn1/inap/inap.cnf"
 /* FIX ME */
 
 
@@ -7761,7 +7768,7 @@ dissect_inap_ScriptCloseArg(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 
 static int
 dissect_inap_T_uIScriptResult(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 207 "../../asn1/inap/inap.cnf"
+#line 199 "../../asn1/inap/inap.cnf"
 /* FIX ME */
 
 
@@ -7791,7 +7798,7 @@ dissect_inap_ScriptEventArg(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 
 static int
 dissect_inap_T_uIScriptSpecificInfo_01(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 213 "../../asn1/inap/inap.cnf"
+#line 205 "../../asn1/inap/inap.cnf"
 /* FIX ME */
 
 
@@ -7819,7 +7826,7 @@ dissect_inap_ScriptInformationArg(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, 
 
 static int
 dissect_inap_T_uIScriptSpecificInfo_02(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 215 "../../asn1/inap/inap.cnf"
+#line 207 "../../asn1/inap/inap.cnf"
 /* FIX ME */
 
 
@@ -8050,7 +8057,7 @@ dissect_inap_T_linkedId(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset
 
 static int
 dissect_inap_T_argument(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 192 "../../asn1/inap/inap.cnf"
+#line 184 "../../asn1/inap/inap.cnf"
 	offset = dissect_invokeData(tree, tvb, offset, actx);
 
 
@@ -8069,7 +8076,7 @@ static const ber_sequence_t Invoke_sequence[] = {
 
 static int
 dissect_inap_Invoke(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 180 "../../asn1/inap/inap.cnf"
+#line 172 "../../asn1/inap/inap.cnf"
   inap_opcode_type=INAP_OPCODE_INVOKE;
 
 
@@ -8083,7 +8090,7 @@ dissect_inap_Invoke(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_
 
 static int
 dissect_inap_ResultArgument(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 195 "../../asn1/inap/inap.cnf"
+#line 187 "../../asn1/inap/inap.cnf"
 	offset = dissect_returnResultData(tree, tvb, offset, actx);
 
 
@@ -8115,7 +8122,7 @@ static const ber_sequence_t ReturnResult_sequence[] = {
 
 static int
 dissect_inap_ReturnResult(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 183 "../../asn1/inap/inap.cnf"
+#line 175 "../../asn1/inap/inap.cnf"
   inap_opcode_type=INAP_OPCODE_RETURN_RESULT;
 
 
@@ -8129,7 +8136,7 @@ dissect_inap_ReturnResult(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offs
 
 static int
 dissect_inap_T_parameter(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 198 "../../asn1/inap/inap.cnf"
+#line 190 "../../asn1/inap/inap.cnf"
 	offset = dissect_returnErrorData(tree, tvb, offset, actx);
 
 
@@ -8149,7 +8156,7 @@ static const ber_sequence_t ReturnError_sequence[] = {
 
 static int
 dissect_inap_ReturnError(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 186 "../../asn1/inap/inap.cnf"
+#line 178 "../../asn1/inap/inap.cnf"
   inap_opcode_type=INAP_OPCODE_RETURN_ERROR;
 
 
@@ -8269,7 +8276,7 @@ static const ber_sequence_t Reject_sequence[] = {
 
 static int
 dissect_inap_Reject(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 189 "../../asn1/inap/inap.cnf"
+#line 181 "../../asn1/inap/inap.cnf"
   inap_opcode_type=INAP_OPCODE_REJECT;
 
 
@@ -8279,14 +8286,6 @@ dissect_inap_Reject(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_
   return offset;
 }
 
-
-static const value_string inap_ROS_vals[] = {
-  {   1, "invoke" },
-  {   2, "returnResult" },
-  {   3, "returnError" },
-  {   4, "reject" },
-  { 0, NULL }
-};
 
 static const ber_choice_t ROS_choice[] = {
   {   1, &hf_inap_invoke         , BER_CLASS_CON, 1, BER_FLAGS_IMPLTAG, dissect_inap_Invoke },
@@ -8982,7 +8981,7 @@ static int dissect_PAR_taskRefused_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_
 
 
 /*--- End of included file: packet-inap-fn.c ---*/
-#line 96 "../../asn1/inap/packet-inap-template.c"
+#line 103 "../../asn1/inap/packet-inap-template.c"
 /*
 TC-Invokable OPERATION ::=
   {activateServiceFiltering | activityTest | analysedInformation |
@@ -9008,7 +9007,6 @@ TC-Invokable OPERATION ::=
 #line 1 "../../asn1/inap/packet-inap-table2.c"
 
 static int dissect_invokeData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_ctx_t *actx) {
-  proto_item *cause;
 
   switch(opcode){
     case opcode_activateServiceFiltering:  /* activateServiceFiltering */
@@ -9267,9 +9265,8 @@ static int dissect_invokeData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_
       offset= dissect_SRFCallGapArg_PDU(tvb, actx->pinfo , tree , NULL);
       break;
     default:
-      cause=proto_tree_add_text(tree, tvb, offset, -1, "Unknown invokeData blob");
-      proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-      expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "Unknown invokeData %d",opcode);
+      proto_tree_add_expert_format(tree, actx->pinfo, &ei_inap_unknown_invokeData,
+	                               tvb, offset, -1, "Unknown invokeData %d", opcode);
       /* todo call the asn.1 dissector */
       break;
   }
@@ -9278,8 +9275,6 @@ static int dissect_invokeData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_
 
 
 static int dissect_returnResultData(proto_tree *tree, tvbuff_t *tvb, int offset,asn1_ctx_t *actx) {
-  proto_item *cause;
-
   switch(opcode){
     case opcode_createCallSegmentAssociation:  /* createCallSegmentAssociation */
 	  offset= dissect_CreateCallSegmentAssociationResultArg_PDU(tvb, actx->pinfo , tree , NULL);
@@ -9300,17 +9295,14 @@ static int dissect_returnResultData(proto_tree *tree, tvbuff_t *tvb, int offset,
 	  offset= dissect_MessageReceivedArg_PDU(tvb, actx->pinfo , tree , NULL);
       break;
   default:
-    cause=proto_tree_add_text(tree, tvb, offset, -1, "Unknown returnResultData blob");
-    proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-    expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "Unknown returnResultData %d",opcode);
+    proto_tree_add_expert_format(tree, actx->pinfo, &ei_inap_unknown_returnResultData,
+	                               tvb, offset, -1, "Unknown returnResultData %d", opcode);
   }
   return offset;
 }
 
 
 static int dissect_returnErrorData(proto_tree *tree, tvbuff_t *tvb, int offset,asn1_ctx_t *actx) {
-  proto_item *cause;
-
   switch(errorCode) {
     case errcode_cancelFailed:  /* cancelFailed */
       dissect_PAR_cancelFailed_PDU(tvb, actx->pinfo , tree , NULL);
@@ -9331,16 +9323,15 @@ static int dissect_returnErrorData(proto_tree *tree, tvbuff_t *tvb, int offset,a
       dissect_PAR_taskRefused_PDU(tvb, actx->pinfo , tree , NULL);
       break;
   default:
-    cause=proto_tree_add_text(tree, tvb, offset, -1, "Unknown returnErrorData blob");
-    proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-    expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "Unknown returnErrorData %d",errorCode);
+    proto_tree_add_expert_format(tree, actx->pinfo, &ei_inap_unknown_returnErrorData,
+	                               tvb, offset, -1, "Unknown returnErrorData %d", opcode);
   }
   return offset;
 }
 
 
 /*--- End of included file: packet-inap-table2.c ---*/
-#line 117 "../../asn1/inap/packet-inap-template.c"
+#line 124 "../../asn1/inap/packet-inap-template.c"
 
 
 static guint8 inap_pdu_type = 0;
@@ -9425,19 +9416,19 @@ void proto_register_inap(void) {
 /*--- Included file: packet-inap-hfarr.c ---*/
 #line 1 "../../asn1/inap/packet-inap-hfarr.c"
     { &hf_inap_ActivateServiceFilteringArg_PDU,
-      { "ActivateServiceFilteringArg", "inap.ActivateServiceFilteringArg",
+      { "ActivateServiceFilteringArg", "inap.ActivateServiceFilteringArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_AnalysedInformationArg_PDU,
-      { "AnalysedInformationArg", "inap.AnalysedInformationArg",
+      { "AnalysedInformationArg", "inap.AnalysedInformationArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_AnalyseInformationArg_PDU,
-      { "AnalyseInformationArg", "inap.AnalyseInformationArg",
+      { "AnalyseInformationArg", "inap.AnalyseInformationArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ApplyChargingArg_PDU,
-      { "ApplyChargingArg", "inap.ApplyChargingArg",
+      { "ApplyChargingArg", "inap.ApplyChargingArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ApplyChargingReportArg_PDU,
@@ -9445,27 +9436,27 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_AssistRequestInstructionsArg_PDU,
-      { "AssistRequestInstructionsArg", "inap.AssistRequestInstructionsArg",
+      { "AssistRequestInstructionsArg", "inap.AssistRequestInstructionsArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_AuthorizeTerminationArg_PDU,
-      { "AuthorizeTerminationArg", "inap.AuthorizeTerminationArg",
+      { "AuthorizeTerminationArg", "inap.AuthorizeTerminationArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_CallFilteringArg_PDU,
-      { "CallFilteringArg", "inap.CallFilteringArg",
+      { "CallFilteringArg", "inap.CallFilteringArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_CallGapArg_PDU,
-      { "CallGapArg", "inap.CallGapArg",
+      { "CallGapArg", "inap.CallGapArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_CallInformationReportArg_PDU,
-      { "CallInformationReportArg", "inap.CallInformationReportArg",
+      { "CallInformationReportArg", "inap.CallInformationReportArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_CallInformationRequestArg_PDU,
-      { "CallInformationRequestArg", "inap.CallInformationRequestArg",
+      { "CallInformationRequestArg", "inap.CallInformationRequestArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_CancelArg_PDU,
@@ -9473,51 +9464,51 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_CancelArg_vals), 0,
         NULL, HFILL }},
     { &hf_inap_CancelStatusReportRequestArg_PDU,
-      { "CancelStatusReportRequestArg", "inap.CancelStatusReportRequestArg",
+      { "CancelStatusReportRequestArg", "inap.CancelStatusReportRequestArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_CollectedInformationArg_PDU,
-      { "CollectedInformationArg", "inap.CollectedInformationArg",
+      { "CollectedInformationArg", "inap.CollectedInformationArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_CollectInformationArg_PDU,
-      { "CollectInformationArg", "inap.CollectInformationArg",
+      { "CollectInformationArg", "inap.CollectInformationArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ConnectArg_PDU,
-      { "ConnectArg", "inap.ConnectArg",
+      { "ConnectArg", "inap.ConnectArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ConnectToResourceArg_PDU,
-      { "ConnectToResourceArg", "inap.ConnectToResourceArg",
+      { "ConnectToResourceArg", "inap.ConnectToResourceArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ContinueWithArgumentArg_PDU,
-      { "ContinueWithArgumentArg", "inap.ContinueWithArgumentArg",
+      { "ContinueWithArgumentArg", "inap.ContinueWithArgumentArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_CreateCallSegmentAssociationArg_PDU,
-      { "CreateCallSegmentAssociationArg", "inap.CreateCallSegmentAssociationArg",
+      { "CreateCallSegmentAssociationArg", "inap.CreateCallSegmentAssociationArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_CreateCallSegmentAssociationResultArg_PDU,
-      { "CreateCallSegmentAssociationResultArg", "inap.CreateCallSegmentAssociationResultArg",
+      { "CreateCallSegmentAssociationResultArg", "inap.CreateCallSegmentAssociationResultArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_CreateOrRemoveTriggerDataArg_PDU,
-      { "CreateOrRemoveTriggerDataArg", "inap.CreateOrRemoveTriggerDataArg",
+      { "CreateOrRemoveTriggerDataArg", "inap.CreateOrRemoveTriggerDataArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_CreateOrRemoveTriggerDataResultArg_PDU,
-      { "CreateOrRemoveTriggerDataResultArg", "inap.CreateOrRemoveTriggerDataResultArg",
+      { "CreateOrRemoveTriggerDataResultArg", "inap.CreateOrRemoveTriggerDataResultArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_DisconnectForwardConnectionWithArgumentArg_PDU,
-      { "DisconnectForwardConnectionWithArgumentArg", "inap.DisconnectForwardConnectionWithArgumentArg",
+      { "DisconnectForwardConnectionWithArgumentArg", "inap.DisconnectForwardConnectionWithArgumentArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_DisconnectLegArg_PDU,
-      { "DisconnectLegArg", "inap.DisconnectLegArg",
+      { "DisconnectLegArg", "inap.DisconnectLegArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_EntityReleasedArg_PDU,
@@ -9525,23 +9516,23 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_EntityReleasedArg_vals), 0,
         NULL, HFILL }},
     { &hf_inap_EstablishTemporaryConnectionArg_PDU,
-      { "EstablishTemporaryConnectionArg", "inap.EstablishTemporaryConnectionArg",
+      { "EstablishTemporaryConnectionArg", "inap.EstablishTemporaryConnectionArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_EventNotificationChargingArg_PDU,
-      { "EventNotificationChargingArg", "inap.EventNotificationChargingArg",
+      { "EventNotificationChargingArg", "inap.EventNotificationChargingArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_EventReportBCSMArg_PDU,
-      { "EventReportBCSMArg", "inap.EventReportBCSMArg",
+      { "EventReportBCSMArg", "inap.EventReportBCSMArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_EventReportFacilityArg_PDU,
-      { "EventReportFacilityArg", "inap.EventReportFacilityArg",
+      { "EventReportFacilityArg", "inap.EventReportFacilityArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_FacilitySelectedAndAvailableArg_PDU,
-      { "FacilitySelectedAndAvailableArg", "inap.FacilitySelectedAndAvailableArg",
+      { "FacilitySelectedAndAvailableArg", "inap.FacilitySelectedAndAvailableArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_FurnishChargingInformationArg_PDU,
@@ -9553,15 +9544,15 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_HoldCallInNetworkArg_vals), 0,
         NULL, HFILL }},
     { &hf_inap_InitialDPArg_PDU,
-      { "InitialDPArg", "inap.InitialDPArg",
+      { "InitialDPArg", "inap.InitialDPArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_InitiateCallAttemptArg_PDU,
-      { "InitiateCallAttemptArg", "inap.InitiateCallAttemptArg",
+      { "InitiateCallAttemptArg", "inap.InitiateCallAttemptArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ManageTriggerDataArg_PDU,
-      { "ManageTriggerDataArg", "inap.ManageTriggerDataArg",
+      { "ManageTriggerDataArg", "inap.ManageTriggerDataArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ManageTriggerDataResultArg_PDU,
@@ -9569,63 +9560,63 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_ManageTriggerDataResultArg_vals), 0,
         NULL, HFILL }},
     { &hf_inap_MergeCallSegmentsArg_PDU,
-      { "MergeCallSegmentsArg", "inap.MergeCallSegmentsArg",
+      { "MergeCallSegmentsArg", "inap.MergeCallSegmentsArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_MonitorRouteReportArg_PDU,
-      { "MonitorRouteReportArg", "inap.MonitorRouteReportArg",
+      { "MonitorRouteReportArg", "inap.MonitorRouteReportArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_MonitorRouteRequestArg_PDU,
-      { "MonitorRouteRequestArg", "inap.MonitorRouteRequestArg",
+      { "MonitorRouteRequestArg", "inap.MonitorRouteRequestArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_MoveCallSegmentsArg_PDU,
-      { "MoveCallSegmentsArg", "inap.MoveCallSegmentsArg",
+      { "MoveCallSegmentsArg", "inap.MoveCallSegmentsArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_MoveLegArg_PDU,
-      { "MoveLegArg", "inap.MoveLegArg",
+      { "MoveLegArg", "inap.MoveLegArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_OAbandonArg_PDU,
-      { "OAbandonArg", "inap.OAbandonArg",
+      { "OAbandonArg", "inap.OAbandonArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_OAnswerArg_PDU,
-      { "OAnswerArg", "inap.OAnswerArg",
+      { "OAnswerArg", "inap.OAnswerArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_OCalledPartyBusyArg_PDU,
-      { "OCalledPartyBusyArg", "inap.OCalledPartyBusyArg",
+      { "OCalledPartyBusyArg", "inap.OCalledPartyBusyArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ODisconnectArg_PDU,
-      { "ODisconnectArg", "inap.ODisconnectArg",
+      { "ODisconnectArg", "inap.ODisconnectArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_MidCallArg_PDU,
-      { "MidCallArg", "inap.MidCallArg",
+      { "MidCallArg", "inap.MidCallArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ONoAnswerArg_PDU,
-      { "ONoAnswerArg", "inap.ONoAnswerArg",
+      { "ONoAnswerArg", "inap.ONoAnswerArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_OriginationAttemptArg_PDU,
-      { "OriginationAttemptArg", "inap.OriginationAttemptArg",
+      { "OriginationAttemptArg", "inap.OriginationAttemptArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_OriginationAttemptAuthorizedArg_PDU,
-      { "OriginationAttemptAuthorizedArg", "inap.OriginationAttemptAuthorizedArg",
+      { "OriginationAttemptAuthorizedArg", "inap.OriginationAttemptAuthorizedArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_OSuspendedArg_PDU,
-      { "OSuspendedArg", "inap.OSuspendedArg",
+      { "OSuspendedArg", "inap.OSuspendedArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ReconnectArg_PDU,
-      { "ReconnectArg", "inap.ReconnectArg",
+      { "ReconnectArg", "inap.ReconnectArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ReleaseCallArg_PDU,
@@ -9633,7 +9624,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_ReleaseCallArg_vals), 0,
         NULL, HFILL }},
     { &hf_inap_ReportUTSIArg_PDU,
-      { "ReportUTSIArg", "inap.ReportUTSIArg",
+      { "ReportUTSIArg", "inap.ReportUTSIArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_RequestCurrentStatusReportArg_PDU,
@@ -9641,15 +9632,15 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_ResourceID_vals), 0,
         NULL, HFILL }},
     { &hf_inap_RequestCurrentStatusReportResultArg_PDU,
-      { "RequestCurrentStatusReportResultArg", "inap.RequestCurrentStatusReportResultArg",
+      { "RequestCurrentStatusReportResultArg", "inap.RequestCurrentStatusReportResultArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_RequestEveryStatusChangeReportArg_PDU,
-      { "RequestEveryStatusChangeReportArg", "inap.RequestEveryStatusChangeReportArg",
+      { "RequestEveryStatusChangeReportArg", "inap.RequestEveryStatusChangeReportArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_RequestFirstStatusMatchReportArg_PDU,
-      { "RequestFirstStatusMatchReportArg", "inap.RequestFirstStatusMatchReportArg",
+      { "RequestFirstStatusMatchReportArg", "inap.RequestFirstStatusMatchReportArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_RequestNotificationChargingEventArg_PDU,
@@ -9657,95 +9648,95 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_RequestReportBCSMEventArg_PDU,
-      { "RequestReportBCSMEventArg", "inap.RequestReportBCSMEventArg",
+      { "RequestReportBCSMEventArg", "inap.RequestReportBCSMEventArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_RequestReportFacilityEventArg_PDU,
-      { "RequestReportFacilityEventArg", "inap.RequestReportFacilityEventArg",
+      { "RequestReportFacilityEventArg", "inap.RequestReportFacilityEventArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_RequestReportUTSIArg_PDU,
-      { "RequestReportUTSIArg", "inap.RequestReportUTSIArg",
+      { "RequestReportUTSIArg", "inap.RequestReportUTSIArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ResetTimerArg_PDU,
-      { "ResetTimerArg", "inap.ResetTimerArg",
+      { "ResetTimerArg", "inap.ResetTimerArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_RouteSelectFailureArg_PDU,
-      { "RouteSelectFailureArg", "inap.RouteSelectFailureArg",
+      { "RouteSelectFailureArg", "inap.RouteSelectFailureArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_SelectFacilityArg_PDU,
-      { "SelectFacilityArg", "inap.SelectFacilityArg",
+      { "SelectFacilityArg", "inap.SelectFacilityArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_SelectRouteArg_PDU,
-      { "SelectRouteArg", "inap.SelectRouteArg",
+      { "SelectRouteArg", "inap.SelectRouteArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_SendChargingInformationArg_PDU,
-      { "SendChargingInformationArg", "inap.SendChargingInformationArg",
+      { "SendChargingInformationArg", "inap.SendChargingInformationArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_SendFacilityInformationArg_PDU,
-      { "SendFacilityInformationArg", "inap.SendFacilityInformationArg",
+      { "SendFacilityInformationArg", "inap.SendFacilityInformationArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_SendSTUIArg_PDU,
-      { "SendSTUIArg", "inap.SendSTUIArg",
+      { "SendSTUIArg", "inap.SendSTUIArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ServiceFilteringResponseArg_PDU,
-      { "ServiceFilteringResponseArg", "inap.ServiceFilteringResponseArg",
+      { "ServiceFilteringResponseArg", "inap.ServiceFilteringResponseArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_SetServiceProfileArg_PDU,
-      { "SetServiceProfileArg", "inap.SetServiceProfileArg",
+      { "SetServiceProfileArg", "inap.SetServiceProfileArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_SplitLegArg_PDU,
-      { "SplitLegArg", "inap.SplitLegArg",
+      { "SplitLegArg", "inap.SplitLegArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_StatusReportArg_PDU,
-      { "StatusReportArg", "inap.StatusReportArg",
+      { "StatusReportArg", "inap.StatusReportArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_TAnswerArg_PDU,
-      { "TAnswerArg", "inap.TAnswerArg",
+      { "TAnswerArg", "inap.TAnswerArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_TBusyArg_PDU,
-      { "TBusyArg", "inap.TBusyArg",
+      { "TBusyArg", "inap.TBusyArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_TDisconnectArg_PDU,
-      { "TDisconnectArg", "inap.TDisconnectArg",
+      { "TDisconnectArg", "inap.TDisconnectArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_TermAttemptAuthorizedArg_PDU,
-      { "TermAttemptAuthorizedArg", "inap.TermAttemptAuthorizedArg",
+      { "TermAttemptAuthorizedArg", "inap.TermAttemptAuthorizedArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_TerminationAttemptArg_PDU,
-      { "TerminationAttemptArg", "inap.TerminationAttemptArg",
+      { "TerminationAttemptArg", "inap.TerminationAttemptArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_TNoAnswerArg_PDU,
-      { "TNoAnswerArg", "inap.TNoAnswerArg",
+      { "TNoAnswerArg", "inap.TNoAnswerArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_TSuspendedArg_PDU,
-      { "TSuspendedArg", "inap.TSuspendedArg",
+      { "TSuspendedArg", "inap.TSuspendedArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_PlayAnnouncementArg_PDU,
-      { "PlayAnnouncementArg", "inap.PlayAnnouncementArg",
+      { "PlayAnnouncementArg", "inap.PlayAnnouncementArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_PromptAndCollectUserInformationArg_PDU,
-      { "PromptAndCollectUserInformationArg", "inap.PromptAndCollectUserInformationArg",
+      { "PromptAndCollectUserInformationArg", "inap.PromptAndCollectUserInformationArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ReceivedInformationArg_PDU,
@@ -9753,39 +9744,39 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_ReceivedInformationArg_vals), 0,
         NULL, HFILL }},
     { &hf_inap_PromptAndReceiveMessageArg_PDU,
-      { "PromptAndReceiveMessageArg", "inap.PromptAndReceiveMessageArg",
+      { "PromptAndReceiveMessageArg", "inap.PromptAndReceiveMessageArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_MessageReceivedArg_PDU,
-      { "MessageReceivedArg", "inap.MessageReceivedArg",
+      { "MessageReceivedArg", "inap.MessageReceivedArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ScriptCloseArg_PDU,
-      { "ScriptCloseArg", "inap.ScriptCloseArg",
+      { "ScriptCloseArg", "inap.ScriptCloseArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ScriptEventArg_PDU,
-      { "ScriptEventArg", "inap.ScriptEventArg",
+      { "ScriptEventArg", "inap.ScriptEventArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ScriptInformationArg_PDU,
-      { "ScriptInformationArg", "inap.ScriptInformationArg",
+      { "ScriptInformationArg", "inap.ScriptInformationArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ScriptRunArg_PDU,
-      { "ScriptRunArg", "inap.ScriptRunArg",
+      { "ScriptRunArg", "inap.ScriptRunArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_SpecializedResourceReportArg_PDU,
-      { "SpecializedResourceReportArg", "inap.SpecializedResourceReportArg",
+      { "SpecializedResourceReportArg", "inap.SpecializedResourceReportArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_SRFCallGapArg_PDU,
-      { "SRFCallGapArg", "inap.SRFCallGapArg",
+      { "SRFCallGapArg", "inap.SRFCallGapArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_PAR_cancelFailed_PDU,
-      { "PAR-cancelFailed", "inap.PAR_cancelFailed",
+      { "PAR-cancelFailed", "inap.PAR_cancelFailed_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_PAR_requestedInfoError_PDU,
@@ -9793,11 +9784,11 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_PAR_requestedInfoError_vals), 0,
         NULL, HFILL }},
     { &hf_inap_ScfTaskRefusedParameter_PDU,
-      { "ScfTaskRefusedParameter", "inap.ScfTaskRefusedParameter",
+      { "ScfTaskRefusedParameter", "inap.ScfTaskRefusedParameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ReferralParameter_PDU,
-      { "ReferralParameter", "inap.ReferralParameter",
+      { "ReferralParameter", "inap.ReferralParameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_UnavailableNetworkResource_PDU,
@@ -9809,7 +9800,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_PAR_taskRefused_vals), 0,
         NULL, HFILL }},
     { &hf_inap_Extensions_item,
-      { "ExtensionField", "inap.ExtensionField",
+      { "ExtensionField", "inap.ExtensionField_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_type,
@@ -9821,7 +9812,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_CriticalityType_vals), 0,
         "CriticalityType", HFILL }},
     { &hf_inap_value,
-      { "value", "inap.value",
+      { "value", "inap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_AlternativeIdentities_item,
@@ -9853,15 +9844,15 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "Digits", HFILL }},
     { &hf_inap_gapOnService,
-      { "gapOnService", "inap.gapOnService",
+      { "gapOnService", "inap.gapOnService_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_gapAllInTraffic,
-      { "gapAllInTraffic", "inap.gapAllInTraffic",
+      { "gapAllInTraffic", "inap.gapAllInTraffic_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_calledAddressAndService,
-      { "calledAddressAndService", "inap.calledAddressAndService",
+      { "calledAddressAndService", "inap.calledAddressAndService_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_serviceKey,
@@ -9869,7 +9860,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_callingAddressAndService,
-      { "callingAddressAndService", "inap.callingAddressAndService",
+      { "callingAddressAndService", "inap.callingAddressAndService_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_callingAddressValue,
@@ -9957,7 +9948,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING_SIZE_1_118", HFILL }},
     { &hf_inap_relayedComponent,
-      { "relayedComponent", "inap.relayedComponent",
+      { "relayedComponent", "inap.relayedComponent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EMBEDDED_PDV", HFILL }},
     { &hf_inap_basicGapCriteria,
@@ -9977,7 +9968,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Integer4", HFILL }},
     { &hf_inap_CountersValue_item,
-      { "CounterAndValue", "inap.CounterAndValue",
+      { "CounterAndValue", "inap.CounterAndValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_action,
@@ -9993,7 +9984,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_serviceAddressInformation,
-      { "serviceAddressInformation", "inap.serviceAddressInformation",
+      { "serviceAddressInformation", "inap.serviceAddressInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_bearerCapability,
@@ -10057,7 +10048,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_serviceInteractionIndicatorsTwo,
-      { "serviceInteractionIndicatorsTwo", "inap.serviceInteractionIndicatorsTwo",
+      { "serviceInteractionIndicatorsTwo", "inap.serviceInteractionIndicatorsTwo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_uSIServiceIndicator,
@@ -10077,7 +10068,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "CSAID", HFILL }},
     { &hf_inap_ipRelatedInformation,
-      { "ipRelatedInformation", "inap.ipRelatedInformation",
+      { "ipRelatedInformation", "inap.ipRelatedInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_numberOfDigits,
@@ -10093,7 +10084,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_numberOfDigitsTwo,
-      { "numberOfDigitsTwo", "inap.numberOfDigitsTwo",
+      { "numberOfDigitsTwo", "inap.numberOfDigitsTwo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_requestedNumberOfDigits,
@@ -10113,7 +10104,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Integer4", HFILL }},
     { &hf_inap_collectedInfoSpecificInfo,
-      { "collectedInfoSpecificInfo", "inap.collectedInfoSpecificInfo",
+      { "collectedInfoSpecificInfo", "inap.collectedInfoSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_calledPartynumber,
@@ -10121,11 +10112,11 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_analysedInfoSpecificInfo,
-      { "analysedInfoSpecificInfo", "inap.analysedInfoSpecificInfo",
+      { "analysedInfoSpecificInfo", "inap.analysedInfoSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_routeSelectFailureSpecificInfo,
-      { "routeSelectFailureSpecificInfo", "inap.routeSelectFailureSpecificInfo",
+      { "routeSelectFailureSpecificInfo", "inap.routeSelectFailureSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_failureCause,
@@ -10133,7 +10124,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "Cause", HFILL }},
     { &hf_inap_oCalledPartyBusySpecificInfo,
-      { "oCalledPartyBusySpecificInfo", "inap.oCalledPartyBusySpecificInfo",
+      { "oCalledPartyBusySpecificInfo", "inap.oCalledPartyBusySpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_busyCause,
@@ -10141,7 +10132,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "Cause", HFILL }},
     { &hf_inap_oNoAnswerSpecificInfo,
-      { "oNoAnswerSpecificInfo", "inap.oNoAnswerSpecificInfo",
+      { "oNoAnswerSpecificInfo", "inap.oNoAnswerSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_cause,
@@ -10149,7 +10140,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_oAnswerSpecificInfo,
-      { "oAnswerSpecificInfo", "inap.oAnswerSpecificInfo",
+      { "oAnswerSpecificInfo", "inap.oAnswerSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_backwardGVNS,
@@ -10157,7 +10148,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_oMidCallSpecificInfo,
-      { "oMidCallSpecificInfo", "inap.oMidCallSpecificInfo",
+      { "oMidCallSpecificInfo", "inap.oMidCallSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_connectTime,
@@ -10165,11 +10156,11 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Integer4", HFILL }},
     { &hf_inap_oMidCallInfo,
-      { "oMidCallInfo", "inap.oMidCallInfo",
+      { "oMidCallInfo", "inap.oMidCallInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MidCallInfo", HFILL }},
     { &hf_inap_oDisconnectSpecificInfo,
-      { "oDisconnectSpecificInfo", "inap.oDisconnectSpecificInfo",
+      { "oDisconnectSpecificInfo", "inap.oDisconnectSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_releaseCause,
@@ -10177,63 +10168,63 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "Cause", HFILL }},
     { &hf_inap_tBusySpecificInfo,
-      { "tBusySpecificInfo", "inap.tBusySpecificInfo",
+      { "tBusySpecificInfo", "inap.tBusySpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_tNoAnswerSpecificInfo,
-      { "tNoAnswerSpecificInfo", "inap.tNoAnswerSpecificInfo",
+      { "tNoAnswerSpecificInfo", "inap.tNoAnswerSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_tAnswerSpecificInfo,
-      { "tAnswerSpecificInfo", "inap.tAnswerSpecificInfo",
+      { "tAnswerSpecificInfo", "inap.tAnswerSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_tMidCallSpecificInfo,
-      { "tMidCallSpecificInfo", "inap.tMidCallSpecificInfo",
+      { "tMidCallSpecificInfo", "inap.tMidCallSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_tMidCallInfo,
-      { "tMidCallInfo", "inap.tMidCallInfo",
+      { "tMidCallInfo", "inap.tMidCallInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MidCallInfo", HFILL }},
     { &hf_inap_tDisconnectSpecificInfo,
-      { "tDisconnectSpecificInfo", "inap.tDisconnectSpecificInfo",
+      { "tDisconnectSpecificInfo", "inap.tDisconnectSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_oTermSeizedSpecificInfo,
-      { "oTermSeizedSpecificInfo", "inap.oTermSeizedSpecificInfo",
+      { "oTermSeizedSpecificInfo", "inap.oTermSeizedSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_oSuspend,
-      { "oSuspend", "inap.oSuspend",
+      { "oSuspend", "inap.oSuspend_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_tSuspend,
-      { "tSuspend", "inap.tSuspend",
+      { "tSuspend", "inap.tSuspend_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_origAttemptAuthorized,
-      { "origAttemptAuthorized", "inap.origAttemptAuthorized",
+      { "origAttemptAuthorized", "inap.origAttemptAuthorized_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_oReAnswer,
-      { "oReAnswer", "inap.oReAnswer",
+      { "oReAnswer", "inap.oReAnswer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_tReAnswer,
-      { "tReAnswer", "inap.tReAnswer",
+      { "tReAnswer", "inap.tReAnswer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_facilitySelectedAndAvailable,
-      { "facilitySelectedAndAvailable", "inap.facilitySelectedAndAvailable",
+      { "facilitySelectedAndAvailable", "inap.facilitySelectedAndAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_callAccepted,
-      { "callAccepted", "inap.callAccepted",
+      { "callAccepted", "inap.callAccepted_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_oAbandon,
-      { "oAbandon", "inap.oAbandon",
+      { "oAbandon", "inap.oAbandon_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_abandonCause,
@@ -10241,11 +10232,11 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "Cause", HFILL }},
     { &hf_inap_tAbandon,
-      { "tAbandon", "inap.tAbandon",
+      { "tAbandon", "inap.tAbandon_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_authorizeRouteFailure,
-      { "authorizeRouteFailure", "inap.authorizeRouteFailure",
+      { "authorizeRouteFailure", "inap.authorizeRouteFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_authoriseRouteFailureCause,
@@ -10253,11 +10244,11 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "Cause", HFILL }},
     { &hf_inap_terminationAttemptAuthorized,
-      { "terminationAttemptAuthorized", "inap.terminationAttemptAuthorized",
+      { "terminationAttemptAuthorized", "inap.terminationAttemptAuthorized_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_originationAttemptDenied,
-      { "originationAttemptDenied", "inap.originationAttemptDenied",
+      { "originationAttemptDenied", "inap.originationAttemptDenied_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_originationDeniedCause,
@@ -10265,7 +10256,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "Cause", HFILL }},
     { &hf_inap_terminationAttemptDenied,
-      { "terminationAttemptDenied", "inap.terminationAttemptDenied",
+      { "terminationAttemptDenied", "inap.terminationAttemptDenied_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_terminationDeniedCause,
@@ -10273,11 +10264,11 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "Cause", HFILL }},
     { &hf_inap_oModifyRequestSpecificInfo,
-      { "oModifyRequestSpecificInfo", "inap.oModifyRequestSpecificInfo",
+      { "oModifyRequestSpecificInfo", "inap.oModifyRequestSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_oModifyResultSpecificInfo,
-      { "oModifyResultSpecificInfo", "inap.oModifyResultSpecificInfo",
+      { "oModifyResultSpecificInfo", "inap.oModifyResultSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_modifyResultType,
@@ -10285,11 +10276,11 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_ModifyResultType_vals), 0,
         NULL, HFILL }},
     { &hf_inap_tModifyRequestSpecificInfo,
-      { "tModifyRequestSpecificInfo", "inap.tModifyRequestSpecificInfo",
+      { "tModifyRequestSpecificInfo", "inap.tModifyRequestSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_tModifyResultSpecificInfo,
-      { "tModifyResultSpecificInfo", "inap.tModifyResultSpecificInfo",
+      { "tModifyResultSpecificInfo", "inap.tModifyResultSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_trunkGroupID,
@@ -10337,7 +10328,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "Digits", HFILL }},
     { &hf_inap_addressAndService,
-      { "addressAndService", "inap.addressAndService",
+      { "addressAndService", "inap.addressAndService_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_duration,
@@ -10361,7 +10352,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING_SIZE_1", HFILL }},
     { &hf_inap_compoundCapCriteria,
-      { "compoundCapCriteria", "inap.compoundCapCriteria",
+      { "compoundCapCriteria", "inap.compoundCapCriteria_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CompoundCriteria", HFILL }},
     { &hf_inap_dpCriteria,
@@ -10373,7 +10364,7 @@ void proto_register_inap(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "Interval", HFILL }},
     { &hf_inap_both,
-      { "both", "inap.both",
+      { "both", "inap.both_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_GenericNumbers_item,
@@ -10421,11 +10412,11 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "LegType", HFILL }},
     { &hf_inap_MidCallControlInfo_item,
-      { "MidCallControlInfo item", "inap.MidCallControlInfo_item",
+      { "MidCallControlInfo item", "inap.MidCallControlInfo_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_midCallInfoType,
-      { "midCallInfoType", "inap.midCallInfoType",
+      { "midCallInfoType", "inap.midCallInfoType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_midCallReportType,
@@ -10469,7 +10460,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_FacilityGroup_vals), 0,
         "FacilityGroup", HFILL }},
     { &hf_inap_RequestedInformationList_item,
-      { "RequestedInformation", "inap.RequestedInformation",
+      { "RequestedInformation", "inap.RequestedInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_RequestedInformationTypeList_item,
@@ -10505,7 +10496,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_USIMonitorMode_vals), 0,
         NULL, HFILL }},
     { &hf_inap_RequestedUTSIList_item,
-      { "RequestedUTSI", "inap.RequestedUTSI",
+      { "RequestedUTSI", "inap.RequestedUTSI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_lineID,
@@ -10521,7 +10512,7 @@ void proto_register_inap(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_inap_RouteCountersValue_item,
-      { "RouteCountersAndValue", "inap.RouteCountersAndValue",
+      { "RouteCountersAndValue", "inap.RouteCountersAndValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_route,
@@ -10533,7 +10524,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_miscCallInfo,
-      { "miscCallInfo", "inap.miscCallInfo",
+      { "miscCallInfo", "inap.miscCallInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_triggerType,
@@ -10541,11 +10532,11 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_TriggerType_vals), 0,
         NULL, HFILL }},
     { &hf_inap_forwardServiceInteractionInd,
-      { "forwardServiceInteractionInd", "inap.forwardServiceInteractionInd",
+      { "forwardServiceInteractionInd", "inap.forwardServiceInteractionInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_backwardServiceInteractionInd,
-      { "backwardServiceInteractionInd", "inap.backwardServiceInteractionInd",
+      { "backwardServiceInteractionInd", "inap.backwardServiceInteractionInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_bothwayThroughConnectionInd,
@@ -10589,7 +10580,7 @@ void proto_register_inap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_inap_redirectServiceTreatmentInd,
-      { "redirectServiceTreatmentInd", "inap.redirectServiceTreatmentInd",
+      { "redirectServiceTreatmentInd", "inap.redirectServiceTreatmentInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_redirectReason,
@@ -10597,7 +10588,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_nonCUGCall,
-      { "nonCUGCall", "inap.nonCUGCall",
+      { "nonCUGCall", "inap.nonCUGCall_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_oneTrigger,
@@ -10613,7 +10604,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_triggerPar,
-      { "triggerPar", "inap.triggerPar",
+      { "triggerPar", "inap.triggerPar_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_triggerID,
@@ -10625,7 +10616,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_ProfileIdentifier_vals), 0,
         "ProfileIdentifier", HFILL }},
     { &hf_inap_TriggerResults_item,
-      { "TriggerResult", "inap.TriggerResult",
+      { "TriggerResult", "inap.TriggerResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_tDPIdentifer,
@@ -10637,7 +10628,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_ActionPerformed_vals), 0,
         NULL, HFILL }},
     { &hf_inap_Triggers_item,
-      { "Trigger", "inap.Trigger",
+      { "Trigger", "inap.Trigger_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_tDPIdentifier_01,
@@ -10657,7 +10648,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING_SIZE_minUSIServiceIndicatorLength_maxUSIServiceIndicatorLength", HFILL }},
     { &hf_inap_filteredCallTreatment,
-      { "filteredCallTreatment", "inap.filteredCallTreatment",
+      { "filteredCallTreatment", "inap.filteredCallTreatment_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_filteringCharacteristics,
@@ -10677,7 +10668,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "DateAndTime", HFILL }},
     { &hf_inap_dpSpecificCommonParameters,
-      { "dpSpecificCommonParameters", "inap.dpSpecificCommonParameters",
+      { "dpSpecificCommonParameters", "inap.dpSpecificCommonParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_dialledDigits,
@@ -10797,7 +10788,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_gapIndicators,
-      { "gapIndicators", "inap.gapIndicators",
+      { "gapIndicators", "inap.gapIndicators_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_registratorIdentifier,
@@ -10833,11 +10824,11 @@ void proto_register_inap(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_allRequests,
-      { "allRequests", "inap.allRequests",
+      { "allRequests", "inap.allRequests_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_callSegmentToCancel,
-      { "callSegmentToCancel", "inap.callSegmentToCancel",
+      { "callSegmentToCancel", "inap.callSegmentToCancel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_allRequestsForCallSegment,
@@ -10893,7 +10884,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_bISDNParameters,
-      { "bISDNParameters", "inap.bISDNParameters",
+      { "bISDNParameters", "inap.bISDNParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_cug_Interlock,
@@ -10901,7 +10892,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_cug_OutgoingAccess,
-      { "cug-OutgoingAccess", "inap.cug_OutgoingAccess",
+      { "cug-OutgoingAccess", "inap.cug_OutgoingAccess_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_resourceAddress,
@@ -10913,15 +10904,15 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ipAddressAndLegID,
-      { "ipAddressAndLegID", "inap.ipAddressAndLegID",
+      { "ipAddressAndLegID", "inap.ipAddressAndLegID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_none,
-      { "none", "inap.none",
+      { "none", "inap.none_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ipAddressAndCallSegment,
-      { "ipAddressAndCallSegment", "inap.ipAddressAndCallSegment",
+      { "ipAddressAndCallSegment", "inap.ipAddressAndCallSegment_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_legorCSID,
@@ -10937,7 +10928,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_ipRelationInformation,
-      { "ipRelationInformation", "inap.ipRelationInformation",
+      { "ipRelationInformation", "inap.ipRelationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "IPRelatedInformation", HFILL }},
     { &hf_inap_newCallSegmentAssociation,
@@ -10953,11 +10944,11 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_TriggerDPType_vals), 0,
         NULL, HFILL }},
     { &hf_inap_triggerData,
-      { "triggerData", "inap.triggerData",
+      { "triggerData", "inap.triggerData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_defaultFaultHandling,
-      { "defaultFaultHandling", "inap.defaultFaultHandling",
+      { "defaultFaultHandling", "inap.defaultFaultHandling_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_triggerStatus,
@@ -10973,7 +10964,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_LegID_vals), 0,
         "LegID", HFILL }},
     { &hf_inap_cSFailure,
-      { "cSFailure", "inap.cSFailure",
+      { "cSFailure", "inap.cSFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_reason,
@@ -10981,7 +10972,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_bCSMFailure,
-      { "bCSMFailure", "inap.bCSMFailure",
+      { "bCSMFailure", "inap.bCSMFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_assistingSSPIPRoutingAddress,
@@ -11013,7 +11004,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_empty,
-      { "empty", "inap.empty",
+      { "empty", "inap.empty_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_highLayerCompatibility,
@@ -11073,15 +11064,15 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_T_triggerDataIdentifier_vals), 0,
         NULL, HFILL }},
     { &hf_inap_profileAndDP,
-      { "profileAndDP", "inap.profileAndDP",
+      { "profileAndDP", "inap.profileAndDP_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TriggerDataIdentifier", HFILL }},
     { &hf_inap_oneTriggerResult,
-      { "oneTriggerResult", "inap.oneTriggerResult",
+      { "oneTriggerResult", "inap.oneTriggerResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_severalTriggerResult,
-      { "severalTriggerResult", "inap.severalTriggerResult",
+      { "severalTriggerResult", "inap.severalTriggerResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_results,
@@ -11097,7 +11088,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "CallSegmentID", HFILL }},
     { &hf_inap_mergeSignallingPaths,
-      { "mergeSignallingPaths", "inap.mergeSignallingPaths",
+      { "mergeSignallingPaths", "inap.mergeSignallingPaths_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_routeCounters,
@@ -11121,7 +11112,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_callSegments_item,
-      { "callSegments item", "inap.callSegments_item",
+      { "callSegments item", "inap.callSegments_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_legs,
@@ -11129,7 +11120,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_legs_item,
-      { "legs item", "inap.legs_item",
+      { "legs item", "inap.legs_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_sourceLeg,
@@ -11145,11 +11136,11 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_LegID_vals), 0,
         "LegID", HFILL }},
     { &hf_inap_detachSignallingPath,
-      { "detachSignallingPath", "inap.detachSignallingPath",
+      { "detachSignallingPath", "inap.detachSignallingPath_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_exportSignallingPath,
-      { "exportSignallingPath", "inap.exportSignallingPath",
+      { "exportSignallingPath", "inap.exportSignallingPath_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_featureRequestIndicator,
@@ -11169,7 +11160,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "Cause", HFILL }},
     { &hf_inap_callSegmentToRelease,
-      { "callSegmentToRelease", "inap.callSegmentToRelease",
+      { "callSegmentToRelease", "inap.callSegmentToRelease_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_callSegment,
@@ -11181,7 +11172,7 @@ void proto_register_inap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_inap_allCallSegments,
-      { "allCallSegments", "inap.allCallSegments",
+      { "allCallSegments", "inap.allCallSegments_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_timeToRelease,
@@ -11197,7 +11188,7 @@ void proto_register_inap(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "Duration", HFILL }},
     { &hf_inap_RequestNotificationChargingEventArg_item,
-      { "ChargingEvent", "inap.ChargingEvent",
+      { "ChargingEvent", "inap.ChargingEvent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_bcsmEvents,
@@ -11205,7 +11196,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_numOfBCSMEvents_OF_BCSMEvent", HFILL }},
     { &hf_inap_bcsmEvents_item,
-      { "BCSMEvent", "inap.BCSMEvent",
+      { "BCSMEvent", "inap.BCSMEvent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_componentTypes,
@@ -11261,7 +11252,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_numOfINProfile_OF_INprofile", HFILL }},
     { &hf_inap_iNprofiles_item,
-      { "INprofile", "inap.INprofile",
+      { "INprofile", "inap.INprofile_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_legToBeSplit,
@@ -11325,7 +11316,7 @@ void proto_register_inap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_inap_collectedDigits,
-      { "collectedDigits", "inap.collectedDigits",
+      { "collectedDigits", "inap.collectedDigits_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_iA5Information,
@@ -11365,7 +11356,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_b3__maxRecordingTime", HFILL }},
     { &hf_inap_controlDigits,
-      { "controlDigits", "inap.controlDigits",
+      { "controlDigits", "inap.controlDigits_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_endOfRecordingDigit,
@@ -11389,11 +11380,11 @@ void proto_register_inap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_inap_inbandInfo,
-      { "inbandInfo", "inap.inbandInfo",
+      { "inbandInfo", "inap.inbandInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_tone,
-      { "tone", "inap.tone",
+      { "tone", "inap.tone_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_elementaryMessageID,
@@ -11401,7 +11392,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Integer4", HFILL }},
     { &hf_inap_text,
-      { "text", "inap.text",
+      { "text", "inap.text_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_messageContent,
@@ -11421,7 +11412,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_variableMessage,
-      { "variableMessage", "inap.variableMessage",
+      { "variableMessage", "inap.variableMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_variableParts,
@@ -11441,7 +11432,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_Code_vals), 0,
         NULL, HFILL }},
     { &hf_inap_iPAddressAndresource,
-      { "iPAddressAndresource", "inap.iPAddressAndresource",
+      { "iPAddressAndresource", "inap.iPAddressAndresource_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_toneID,
@@ -11509,7 +11500,7 @@ void proto_register_inap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_informationToRecord,
-      { "informationToRecord", "inap.informationToRecord",
+      { "informationToRecord", "inap.informationToRecord_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_media,
@@ -11533,19 +11524,19 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_Code_vals), 0,
         "Code", HFILL }},
     { &hf_inap_uIScriptSpecificInfo,
-      { "uIScriptSpecificInfo", "inap.uIScriptSpecificInfo",
+      { "uIScriptSpecificInfo", "inap.uIScriptSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_uIScriptResult,
-      { "uIScriptResult", "inap.uIScriptResult",
+      { "uIScriptResult", "inap.uIScriptResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_uIScriptSpecificInfo_01,
-      { "uIScriptSpecificInfo", "inap.uIScriptSpecificInfo",
+      { "uIScriptSpecificInfo", "inap.uIScriptSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_uIScriptSpecificInfo_01", HFILL }},
     { &hf_inap_uIScriptSpecificInfo_02,
-      { "uIScriptSpecificInfo", "inap.uIScriptSpecificInfo",
+      { "uIScriptSpecificInfo", "inap.uIScriptSpecificInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_uIScriptSpecificInfo_02", HFILL }},
     { &hf_inap_sRFgapCriteria,
@@ -11565,11 +11556,11 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_T_reason_vals), 0,
         NULL, HFILL }},
     { &hf_inap_securityParameters,
-      { "securityParameters", "inap.securityParameters",
+      { "securityParameters", "inap.securityParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_tryhere,
-      { "tryhere", "inap.tryhere",
+      { "tryhere", "inap.tryhere_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AccessPointInformation", HFILL }},
     { &hf_inap_local_01,
@@ -11581,19 +11572,19 @@ void proto_register_inap(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_invoke,
-      { "invoke", "inap.invoke",
+      { "invoke", "inap.invoke_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_returnResult,
-      { "returnResult", "inap.returnResult",
+      { "returnResult", "inap.returnResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_returnError,
-      { "returnError", "inap.returnError",
+      { "returnError", "inap.returnError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_reject,
-      { "reject", "inap.reject",
+      { "reject", "inap.reject_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_invokeId,
@@ -11609,7 +11600,7 @@ void proto_register_inap(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "T_linkedIdPresent", HFILL }},
     { &hf_inap_absent,
-      { "absent", "inap.absent",
+      { "absent", "inap.absent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_opcode,
@@ -11617,15 +11608,15 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_Code_vals), 0,
         "Code", HFILL }},
     { &hf_inap_argument,
-      { "argument", "inap.argument",
+      { "argument", "inap.argument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_result,
-      { "result", "inap.result",
+      { "result", "inap.result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_resultArgument,
-      { "result", "inap.result",
+      { "result", "inap.result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ResultArgument", HFILL }},
     { &hf_inap_errcode,
@@ -11633,7 +11624,7 @@ void proto_register_inap(void) {
         FT_UINT32, BASE_DEC, VALS(inap_Code_vals), 0,
         "Code", HFILL }},
     { &hf_inap_parameter,
-      { "parameter", "inap.parameter",
+      { "parameter", "inap.parameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_inap_problem_01,
@@ -11666,7 +11657,7 @@ void proto_register_inap(void) {
         "InvokeId_present", HFILL }},
 
 /*--- End of included file: packet-inap-hfarr.c ---*/
-#line 198 "../../asn1/inap/packet-inap-template.c"
+#line 205 "../../asn1/inap/packet-inap-template.c"
   };
 
 
@@ -11920,8 +11911,16 @@ void proto_register_inap(void) {
     &ett_inap_InvokeId,
 
 /*--- End of included file: packet-inap-ettarr.c ---*/
-#line 211 "../../asn1/inap/packet-inap-template.c"
+#line 218 "../../asn1/inap/packet-inap-template.c"
   };
+
+  static ei_register_info ei[] = {
+     { &ei_inap_unknown_invokeData, { "inap.unknown.invokeData", PI_MALFORMED, PI_WARN, "Unknown invokeData", EXPFILL }},
+     { &ei_inap_unknown_returnResultData, { "inap.unknown.returnResultData", PI_MALFORMED, PI_WARN, "Unknown returnResultData", EXPFILL }},
+     { &ei_inap_unknown_returnErrorData, { "inap.unknown.returnErrorData", PI_MALFORMED, PI_WARN, "Unknown returnResultData", EXPFILL }},
+  };
+
+  expert_module_t* expert_inap;
 
   /* Register protocol */
   proto_inap = proto_register_protocol(PNAME, PSNAME, PFNAME);
@@ -11929,6 +11928,8 @@ void proto_register_inap(void) {
   /* Register fields and subtrees */
   proto_register_field_array(proto_inap, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_inap = expert_register_protocol(proto_inap);
+  expert_register_field_array(expert_inap, ei, array_length(ei));
 
   /* Set default SSNs */
   range_convert_str(&global_ssn_range, "106,241", MAX_SSN);

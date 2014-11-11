@@ -2,8 +2,6 @@
  * Routines for Xpress Transport Protocol dissection
  * Copyright 2008, Shigeo Nakamura <naka_shigeo@yahoo.co.jp>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,9 +28,11 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/expert.h>
 #include <epan/ipproto.h>
 #include <epan/in_cksum.h>
+#include <epan/wmem/wmem.h>
 
 
 #define XTP_VERSION_4	0x001
@@ -83,6 +83,9 @@
 #define XTP_CMD_OPTIONS_BTAG		0x000100
 
 #define XTP_KEY_RTN			((guint64)1<<63)
+
+void proto_register_xtp(void);
+void proto_reg_handoff_xtp(void);
 
 /** packet structures definition **/
 struct xtp_cntl {
@@ -317,6 +320,8 @@ static gint ett_xtp_aseg = -1;
 static gint ett_xtp_data = -1;
 static gint ett_xtp_diag = -1;
 
+static expert_field ei_xtp_spans_bad = EI_INIT;
+
 /* dissector of each payload */
 static int
 dissect_xtp_aseg(tvbuff_t *tvb, proto_tree *tree, guint32 offset) {
@@ -477,12 +482,11 @@ dissect_xtp_traffic_cntl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	tcntl->xkey += tvb_get_ntohl(tvb, offset+4);
 
 	/** add summary **/
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(pinfo->cinfo, COL_INFO,
+	col_append_fstr(pinfo->cinfo, COL_INFO,
 			" Recv-Seq=%" G_GINT64_MODIFIER "u", tcntl->rseq);
-		col_append_fstr(pinfo->cinfo, COL_INFO,
+	col_append_fstr(pinfo->cinfo, COL_INFO,
 			" Alloc=%" G_GINT64_MODIFIER "u", tcntl->alloc);
-	}
+
 	proto_item_append_text(top_ti,
 			", Recv-Seq: %" G_GINT64_MODIFIER "u", tcntl->rseq);
 
@@ -688,12 +692,11 @@ dissect_xtp_cntl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	cntl->echo = tvb_get_ntohl(tvb, offset);
 
 	/** add summary **/
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(pinfo->cinfo, COL_INFO,
+	col_append_fstr(pinfo->cinfo, COL_INFO,
 			" Recv-Seq=%" G_GINT64_MODIFIER "u", cntl->rseq);
-		col_append_fstr(pinfo->cinfo, COL_INFO,
+	col_append_fstr(pinfo->cinfo, COL_INFO,
 			" Alloc=%" G_GINT64_MODIFIER "u", cntl->alloc);
-	}
+
 	proto_item_append_text(top_ti,
 			", Recv-Seq: %" G_GINT64_MODIFIER "u", cntl->rseq);
 
@@ -770,22 +773,21 @@ dissect_xtp_ecntl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	spans_len = 16 * ecntl->nspan;
 
 	if (len != spans_len) {
-		expert_add_info_format(pinfo, top_ti, PI_MALFORMED, PI_ERROR, "Number of spans (%u) incorrect. Should be %u.", ecntl->nspan, len);
+		expert_add_info_format(pinfo, top_ti, &ei_xtp_spans_bad, "Number of spans (%u) incorrect. Should be %u.", ecntl->nspan, len);
 		THROW(ReportedBoundsError);
 	}
 
 	if (ecntl->nspan > XTP_MAX_NSPANS) {
-		expert_add_info_format(pinfo, top_ti, PI_MALFORMED, PI_ERROR, "Too many spans: %u", ecntl->nspan);
+		expert_add_info_format(pinfo, top_ti, &ei_xtp_spans_bad, "Too many spans: %u", ecntl->nspan);
 		THROW(ReportedBoundsError);
 	}
 
 	/** add summary **/
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(pinfo->cinfo, COL_INFO,
+	col_append_fstr(pinfo->cinfo, COL_INFO,
 				" Recv-Seq=%" G_GINT64_MODIFIER "u", ecntl->rseq);
-		col_append_fstr(pinfo->cinfo, COL_INFO,
+	col_append_fstr(pinfo->cinfo, COL_INFO,
 				" Alloc=%" G_GINT64_MODIFIER "u", ecntl->alloc);
-	}
+
 	proto_item_append_text(top_ti,
 				", Recv-Seq: %" G_GINT64_MODIFIER "u", ecntl->rseq);
 
@@ -878,7 +880,7 @@ dissect_xtp_diag(tvbuff_t *tvb, proto_tree *tree, guint32 offset) {
 	offset += 4;
 	/* message(n) */
 	msg_len = tvb_length_remaining(tvb, offset);
-	diag->msg = tvb_get_string(tvb, offset, msg_len);
+	diag->msg = tvb_get_string(NULL, tvb, offset, msg_len);
 
 	/** display **/
 	offset = start;
@@ -907,9 +909,9 @@ dissect_xtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 	struct xtphdr xtph[1];
 	int	error = 0;
 	gchar   *options;
-	const char *fstr[] = { "<None>", "NOCHECK", "EDGE", "NOERR", "MULTI", "RES",
-				"SORT", "NOFLOW", "FASTNAK", "SREQ", "DREQ",
-				"RCLOSE", "WCLOSE", "EOM", "END", "BTAG" };
+	static const char *fstr[] = { "<None>", "NOCHECK", "EDGE", "NOERR", "MULTI", "RES",
+				      "SORT", "NOFLOW", "FASTNAK", "SREQ", "DREQ",
+				      "RCLOSE", "WCLOSE", "EOM", "END", "BTAG" };
 	gint	fpos = 0, returned_length;
 	guint	i, bpos;
 	guint	cmd_options;
@@ -955,7 +957,7 @@ dissect_xtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 	xtph->seq += tvb_get_ntohl(tvb, offset+4);
 
 #define MAX_OPTIONS_LEN	128
-	options=ep_alloc(MAX_OPTIONS_LEN);
+	options=(gchar *)wmem_alloc(wmem_packet_scope(), MAX_OPTIONS_LEN);
 	options[0]=0;
 	cmd_options = xtph->cmd_options >> 8;
 	for (i = 0; i < 16; i++) {
@@ -969,15 +971,13 @@ dissect_xtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 		}
 	}
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_str(pinfo->cinfo, COL_INFO,
+	col_add_str(pinfo->cinfo, COL_INFO,
 			    val_to_str(xtph->cmd_ptype_pformat,
 					pformat_vals, "Unknown pformat (%u)"));
-		col_append_fstr(pinfo->cinfo, COL_INFO, " [%s]", options);
-		col_append_fstr(pinfo->cinfo, COL_INFO,
+	col_append_fstr(pinfo->cinfo, COL_INFO, " [%s]", options);
+	col_append_fstr(pinfo->cinfo, COL_INFO,
 				" Seq=%" G_GINT64_MODIFIER "u", xtph->seq);
-		col_append_fstr(pinfo->cinfo, COL_INFO, " Len=%u", xtph->dlen);
-	}
+	col_append_fstr(pinfo->cinfo, COL_INFO, " Len=%u", xtph->dlen);
 
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_xtp, tvb, 0, -1, ENC_NA);
@@ -1409,6 +1409,15 @@ proto_register_xtp(void)
 		&ett_xtp_data,
 		&ett_xtp_diag,
 	};
+
+    static ei_register_info ei[] = {
+        { &ei_xtp_spans_bad, { "xtp.spans_bad", PI_MALFORMED, PI_ERROR, "Number of spans incorrect", EXPFILL }},
+    };
+
+    expert_module_t* expert_xtp;
+
+    expert_xtp = expert_register_protocol(proto_xtp);
+    expert_register_field_array(expert_xtp, ei, array_length(ei));
 
 	proto_xtp = proto_register_protocol("Xpress Transport Protocol",
 	    "XTP", "xtp");

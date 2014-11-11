@@ -3,8 +3,6 @@
  * Routines for FIP dissection - FCoE Initialization Protocol
  * Copyright (c) 2008 Cisco Systems, Inc. (jeykholt@cisco.com)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -39,8 +37,13 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <epan/etypes.h>
 #include <epan/expert.h>
+#include "packet-fc.h"
+
+void proto_register_fip(void);
+void proto_reg_handoff_fip(void);
 
 /*
  * FIP protocol information.
@@ -450,7 +453,7 @@ dissect_fip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             proto_tree_add_item(subtree, hf_fip_desc_mac, desc_tvb,
                     2, 6, ENC_NA);
             proto_item_append_text(item, "%s",
-                    tvb_bytes_to_str_punct(desc_tvb, 2, 6, ':'));
+                    tvb_bytes_to_ep_str_punct(desc_tvb, 2, 6, ':'));
             break;
         case FIP_DT_MAP_OUI:
             subtree = proto_item_add_subtree(item, ett_fip_dt_map);
@@ -493,10 +496,12 @@ dissect_fip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         case FIP_DT_LOGO:
         case FIP_DT_ELP: {
             tvbuff_t *ls_tvb;
+            fc_data_t fc_data = {ETHERTYPE_FIP, 0};
+
             subtree = proto_item_add_subtree(item, ett_fip_dt_caps);
             fip_desc_type_len(subtree, desc_tvb);
             ls_tvb = tvb_new_subset(desc_tvb, 4, dlen - 4, -1);
-            call_dissector(fc_handle, ls_tvb, pinfo, subtree);
+            call_dissector_with_data(fc_handle, ls_tvb, pinfo, subtree, &fc_data);
             proto_item_append_text(item, "%u bytes", dlen - 4);
         }
             break;
@@ -511,7 +516,7 @@ dissect_fip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             proto_tree_add_string(subtree, hf_fip_desc_vn_wwpn,
                     desc_tvb, 12, 8, text);
             proto_item_append_text(item, "MAC %s  FC_ID %6.6x",
-                    tvb_bytes_to_str_punct(desc_tvb, 2, 6, ':'),
+                    tvb_bytes_to_ep_str_punct(desc_tvb, 2, 6, ':'),
                     tvb_get_ntoh24(desc_tvb, 9));
             break;
         case FIP_DT_FKA:

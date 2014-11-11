@@ -2,8 +2,6 @@
  * Routines for mgcp packet disassembly
  * RFC 2705
  *
- * $Id$
- *
  * Copyright (c) 2000 by Ed Warnicke <hagbard@physics.rutgers.edu>
  *
  * Wireshark - Network traffic analyzer
@@ -24,7 +22,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
- 
+
  /* A simple MGCP type that is occasionally handy */
 typedef enum _mgcp_type
 {

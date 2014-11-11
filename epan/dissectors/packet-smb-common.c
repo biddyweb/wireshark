@@ -2,8 +2,6 @@
  * Common routines for smb packet dissection
  * Copyright 2000, Jeffrey C. Foster <jfoste@woodward.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,7 +28,7 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/strutil.h>
 #include "packet-smb-common.h"
 
@@ -65,7 +63,7 @@ int display_ms_string(tvbuff_t *tvb, proto_tree *tree, int offset, int hf_index,
 
 	/* display a string from the tree and return the new offset */
 
-	str = tvb_get_ephemeral_stringz(tvb, offset, &len);
+	str = tvb_get_stringz(wmem_packet_scope(), tvb, offset, &len);
 	proto_tree_add_string(tree, hf_index, tvb, offset, len, str);
 
 	/* Return a copy of the string if requested */
@@ -100,7 +98,7 @@ int display_unicode_string(tvbuff_t *tvb, proto_tree *tree, int offset, int hf_i
 	 * Allocate a buffer for the string; "len" is the length in
 	 * bytes, not the length in characters.
 	 */
-	str = ep_alloc(len/2);
+	str = (char *)wmem_alloc(wmem_packet_scope(), len/2);
 
 	/*
 	 * XXX - this assumes the string is just ISO 8859-1; we need
@@ -128,7 +126,7 @@ int display_unicode_string(tvbuff_t *tvb, proto_tree *tree, int offset, int hf_i
 #define	MAX_UNICODE_STR_LEN	256
 
 int dissect_ms_compressed_string(tvbuff_t *tvb, proto_tree *tree, int offset, int hf_index,
-				 char **data)
+				 const char **data)
 {
 	int compr_len;
 	const guchar *str = NULL;
@@ -138,7 +136,7 @@ int dissect_ms_compressed_string(tvbuff_t *tvb, proto_tree *tree, int offset, in
 	proto_tree_add_string(tree, hf_index, tvb, offset, compr_len, str);
 
 	if (data)
-		*data = (char*) str;
+		*data = str;
 
 	return offset + compr_len;
 }
@@ -163,7 +161,7 @@ unicode_to_str(tvbuff_t *tvb, int offset, int *us_lenp, gboolean exactlen,
 	int           us_len;
 	gboolean      overflow = FALSE;
 
-	cur=ep_alloc(MAX_UNICODE_STR_LEN+3+1);
+	cur=(gchar *)wmem_alloc(wmem_packet_scope(), MAX_UNICODE_STR_LEN+3+1);
 	p = cur;
 	len = MAX_UNICODE_STR_LEN;
 	us_len = 0;
@@ -238,7 +236,7 @@ get_unicode_or_ascii_string(tvbuff_t *tvb, int *offsetp,
 	}
 
 	if (useunicode) {
-		if ((!nopad) && (*bcp % 2)) {
+		if ((!nopad) && (*offsetp % 2)) {
 			(*offsetp)++;   /* Looks like a pad byte there sometimes */
 			(*bcp)--;
 
@@ -265,7 +263,7 @@ get_unicode_or_ascii_string(tvbuff_t *tvb, int *offsetp,
 			/*
 			 * The string we return must be null-terminated.
 			 */
-			cur=ep_alloc(MAX_UNICODE_STR_LEN+3+1);
+			cur=(gchar *)wmem_alloc(wmem_packet_scope(), MAX_UNICODE_STR_LEN+3+1);
 			copylen = *len;
 
 			if (copylen < 0) {

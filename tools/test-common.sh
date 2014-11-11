@@ -1,6 +1,24 @@
 #!/bin/bash
 #
-# $Id$
+# Copyright 2013 Gerald Combs <gerald@wireshark.org>
+#
+# Wireshark - Network traffic analyzer
+# By Gerald Combs <gerald@wireshark.org>
+# Copyright 1998 Gerald Combs
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 # Common variables and functions for fuzz and randpkt tests.
 
@@ -43,6 +61,8 @@ MAX_STACK=2033
 # Insert z times an error into the capture file (0.02 seems to be a good value to find errors)
 ERR_PROB=0.02
 
+# Call *after* any changes to BIN_DIR (e.g., via command-line options)
+function ws_bind_exec_paths() {
 # Tweak the following to your liking.  Editcap must support "-E".
 TSHARK="$BIN_DIR/tshark"
 EDITCAP="$BIN_DIR/editcap"
@@ -52,6 +72,20 @@ RANDPKT="$BIN_DIR/randpkt"
 if [ "$BIN_DIR" = "." ]; then
     export WIRESHARK_RUN_FROM_BUILD_DIRECTORY=1
 fi
+}
+
+function ws_check_exec() {
+NOTFOUND=0
+for i in "$@" ; do
+    if [ ! -x "$i" ]; then
+        echo "Couldn't find \"$i\""
+        NOTFOUND=1
+    fi
+done
+if [ $NOTFOUND -eq 1 ]; then
+    exit 1
+fi
+}
 
 ##############################################################################
 ### Set up environment variables for fuzz testing			   ###
@@ -67,6 +101,8 @@ export WIRESHARK_EP_VERIFY_POINTERS=
 export WIRESHARK_SE_VERIFY_POINTERS=
 # Use the Wmem strict allocator which does canaries and scrubbing etc.
 export WIRESHARK_DEBUG_WMEM_OVERRIDE=strict
+# Abort if a dissector adds too many items to the tree
+export WIRESHARK_ABORT_ON_TOO_MANY_ITEMS=
 
 # Turn on GLib memory debugging (since 2.13)
 export G_SLICE=debug-blocks
@@ -92,10 +128,12 @@ export MallocCheckHeapAbort=1
 export MallocBadFreeAbort=1
 
 # Create an error report
-function exit_error() {
+function ws_exit_error() {
     echo -e "\n ERROR"
     echo -e "Processing failed. Capture info follows:\n"
     echo "  Input file: $CF"
+    echo "  Output file: $TMP_DIR/$TMP_FILE"
+    echo
 
     # Fill in build information
     echo -e "Input file: $CF\n" > $TMP_DIR/${ERR_FILE}.header
@@ -114,10 +152,7 @@ function exit_error() {
 
     echo -e "\n" >> $TMP_DIR/${ERR_FILE}.header
 
-    if [ -d .svn ] ; then
-        echo -e "\nSubversion revision" >> $TMP_DIR/${ERR_FILE}.header
-        svn log -l 1 >> $TMP_DIR/${ERR_FILE}.header
-    elif [ -d .git ] ; then
+    if [ -d ${GIT_DIR:-.git} ] ; then
         echo -e "\nGit commit" >> $TMP_DIR/${ERR_FILE}.header
         git log -1 >> $TMP_DIR/${ERR_FILE}.header
     fi
@@ -140,5 +175,5 @@ function exit_error() {
     echo -e "stderr follows:\n"
     cat $TMP_DIR/$ERR_FILE
 
-    exit 1
+    exit 255
 }

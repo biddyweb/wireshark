@@ -9,8 +9,6 @@
  * http://cvs.sourceforge.net/viewcvs.py/soleseek/SoleSeek/doc/protocol.html?rev=HEAD
  * Updated for SoulSeek client version 151
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -41,6 +39,9 @@
 #include <epan/strutil.h>
 #include <epan/expert.h>
 #include "packet-tcp.h"
+
+void proto_register_slsk(void);
+void proto_reg_handoff_slsk(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_slsk = -1;
@@ -109,6 +110,8 @@ static int hf_slsk_ranking = -1;
 /* Initialize the subtree pointers */
 static gint ett_slsk = -1;
 static gint ett_slsk_compr_packet = -1;
+
+static expert_field ei_slsk_unknown_data = EI_INIT;
 
 #define TCP_PORT_SLSK_1       2234
 #define TCP_PORT_SLSK_2       5534
@@ -259,8 +262,9 @@ static gboolean check_slsk_format(tvbuff_t *tvb, int offset, const char format[]
   }
 
   if (format[1] == '\0' ) {
-    if (tvb_length_remaining(tvb, offset) != 0) return FALSE;  /* Checks for additional bytes at the end */
-      return TRUE;
+    if (tvb_length_remaining(tvb, offset) > 0) /* Checks for additional bytes at the end */
+      return FALSE;
+    return TRUE;
   }
   return check_slsk_format(tvb, offset, &format[1]);
 
@@ -273,7 +277,7 @@ static const char* get_message_type(tvbuff_t *tvb) {
   * Returns the Message Type.
   */
   int msg_code = tvb_get_letohl(tvb, 4);
-  const gchar *message_type =  match_strval(msg_code, slsk_tcp_msgs);
+  const gchar *message_type =  try_val_to_str(msg_code, slsk_tcp_msgs);
   if (message_type == NULL) {
     if (check_slsk_format(tvb, 4, "bisis"))
       message_type = "Distributed Search";
@@ -298,7 +302,7 @@ static guint get_slsk_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 
 /* Code to actually dissect the packets */
 
-static void dissect_slsk_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int dissect_slsk_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 
 /* Set up structures needed to add the protocol subtree and manage it */
@@ -331,10 +335,7 @@ static void dissect_slsk_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
 
   col_set_str(pinfo->cinfo, COL_INFO, "SoulSeek Message");
 
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_append_fstr(pinfo->cinfo, COL_INFO, ": %s", message_type);
-  }
-
+  col_append_fstr(pinfo->cinfo, COL_INFO, ": %s", message_type);
 
   if (tree) {
 
@@ -372,8 +373,8 @@ static void dissect_slsk_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
                      "Message Type: %s (Code: %02d)", message_type, msg_code);
           offset += 4;
           i=tvb_get_guint8(tvb, offset);
-          proto_tree_add_uint_format(slsk_tree, hf_slsk_login_successful, tvb, offset, 1, tvb_get_guint8(tvb, offset),
-            "Login successful: %s (Byte: %d)", val_to_str_const(tvb_get_guint8(tvb, offset), slsk_yes_no, "Unknown"), tvb_get_guint8(tvb, offset));
+          proto_tree_add_uint_format_value(slsk_tree, hf_slsk_login_successful, tvb, offset, 1, tvb_get_guint8(tvb, offset),
+            "%s (Byte: %d)", val_to_str_const(tvb_get_guint8(tvb, offset), slsk_yes_no, "Unknown"), tvb_get_guint8(tvb, offset));
           offset += 1;
           proto_tree_add_uint(slsk_tree, hf_slsk_string_length, tvb, offset, 4, tvb_get_letohl(tvb, offset));
           proto_tree_add_item(slsk_tree, hf_slsk_login_message, tvb, offset+4, tvb_get_letohl(tvb, offset), ENC_ASCII|ENC_NA);
@@ -444,8 +445,8 @@ static void dissect_slsk_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
           proto_tree_add_uint(slsk_tree, hf_slsk_string_length, tvb, offset, 4, tvb_get_letohl(tvb, offset));
           proto_tree_add_item(slsk_tree, hf_slsk_username, tvb, offset+4, tvb_get_letohl(tvb, offset), ENC_ASCII|ENC_NA);
           offset += 4+tvb_get_letohl(tvb, offset);
-          proto_tree_add_uint_format(slsk_tree, hf_slsk_user_exists, tvb, offset, 1, tvb_get_guint8(tvb, offset),
-            "User exists: %s (Byte: %d)", val_to_str_const(tvb_get_guint8(tvb, offset), slsk_yes_no, "Unknown"), tvb_get_guint8(tvb, offset));
+          proto_tree_add_uint_format_value(slsk_tree, hf_slsk_user_exists, tvb, offset, 1, tvb_get_guint8(tvb, offset),
+            "%s (Byte: %d)", val_to_str_const(tvb_get_guint8(tvb, offset), slsk_yes_no, "Unknown"), tvb_get_guint8(tvb, offset));
           offset += 1;
         }
         else if (check_slsk_format(tvb, offset, "is")) {
@@ -969,9 +970,9 @@ static void dissect_slsk_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
           offset += 4+len;
           len = tvb_get_letohl(tvb, offset);
           proto_tree_add_uint(slsk_tree, hf_slsk_string_length, tvb, offset, 4, len);
-          str = tvb_get_ephemeral_string(tvb, offset+4, len);
-          proto_tree_add_string_format(slsk_tree, hf_slsk_connection_type, tvb, offset+4, len, str,
-            "Connection Type: %s (Char: %s)", connection_type(str),
+          str = tvb_get_string(wmem_packet_scope(), tvb, offset+4, len);
+          proto_tree_add_string_format_value(slsk_tree, hf_slsk_connection_type, tvb, offset+4, len, str,
+            "%s (Char: %s)", connection_type(str),
             format_text(str, len));
           offset += 4+len;
         }
@@ -989,9 +990,9 @@ static void dissect_slsk_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
           offset += 4+len;
           len = tvb_get_letohl(tvb, offset);
           proto_tree_add_uint(slsk_tree, hf_slsk_string_length, tvb, offset, 4, len);
-          str = tvb_get_ephemeral_string(tvb, offset+4, len);
-          proto_tree_add_string_format(slsk_tree, hf_slsk_connection_type, tvb, offset+4, len, str,
-            "Connection Type: %s (Char: %s)", connection_type(str),
+          str = tvb_get_string(wmem_packet_scope(), tvb, offset+4, len);
+          proto_tree_add_string_format_value(slsk_tree, hf_slsk_connection_type, tvb, offset+4, len, str,
+            "%s (Char: %s)", connection_type(str),
             format_text(str, len));
           offset += 4+len;
           proto_tree_add_item(slsk_tree, hf_slsk_ip, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -2180,8 +2181,7 @@ static void dissect_slsk_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
                      "Message Type: %s (Code: %02d)", message_type, msg_code);
           offset += 4;
           i=0; j = tvb_get_letohl(tvb, offset);
-          proto_tree_add_uint_format(slsk_tree, hf_slsk_number_of_users, tvb, offset, 4, tvb_get_letohl(tvb, offset),
-            "Number of Users: %d", tvb_get_letohl(tvb, offset));
+          proto_tree_add_item(slsk_tree, hf_slsk_number_of_users, tvb, offset, 4, ENC_LITTLE_ENDIAN);
           offset += 4;
           while (i<j){
             if (check_slsk_format(tvb, offset, "si*")) {
@@ -2347,9 +2347,9 @@ static void dissect_slsk_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
             offset += 4+len;
             len = tvb_get_letohl(tvb, offset);
             proto_tree_add_uint(slsk_tree, hf_slsk_string_length, tvb, offset, 4, len);
-            str = tvb_get_ephemeral_string(tvb, offset+4, len);
-            proto_tree_add_string_format(slsk_tree, hf_slsk_connection_type, tvb, offset+4, len, str,
-              "Connection Type: %s (Char: %s)", connection_type(str),
+            str = tvb_get_string(wmem_packet_scope(), tvb, offset+4, len);
+            proto_tree_add_string_format_value(slsk_tree, hf_slsk_connection_type, tvb, offset+4, len, str,
+              "%s (Char: %s)", connection_type(str),
               format_text(str, len));
             offset += 4+len;
             proto_tree_add_uint(slsk_tree, hf_slsk_token, tvb, offset, 4, tvb_get_letohl(tvb, offset));
@@ -2379,17 +2379,17 @@ static void dissect_slsk_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
 
   }
   if(offset < (int)msg_len){
-   expert_add_info_format(pinfo, ti_len, PI_UNDECODED, PI_WARN, "Unknown Data (not interpreted)");
+   expert_add_info(pinfo, ti_len, &ei_slsk_unknown_data);
   }
 
-
+  return tvb_length(tvb);
 }
 
 
-static void dissect_slsk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int dissect_slsk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
-  tcp_dissect_pdus(tvb, pinfo, tree, slsk_desegment, 4, get_slsk_pdu_len, dissect_slsk_pdu);
-
+  tcp_dissect_pdus(tvb, pinfo, tree, slsk_desegment, 4, get_slsk_pdu_len, dissect_slsk_pdu, data);
+  return tvb_length(tvb);
 }
 
 
@@ -2449,7 +2449,7 @@ proto_register_slsk(void)
       { "IP Address", "slsk.ip.address",
       FT_IPv4, BASE_NONE, NULL, 0, NULL, HFILL } },
     { &hf_slsk_user_exists,
-      { "user exists", "slsk.user.exists",
+      { "User exists", "slsk.user.exists",
       FT_UINT8, BASE_DEC, NULL, 0, NULL, HFILL } },
     { &hf_slsk_status_code,
       { "Status Code", "slsk.status.code",
@@ -2591,7 +2591,13 @@ proto_register_slsk(void)
     &ett_slsk,
     &ett_slsk_compr_packet,
   };
+
+  static ei_register_info ei[] = {
+     { &ei_slsk_unknown_data, { "slsk.unknown_data", PI_UNDECODED, PI_WARN, "Unknown Data (not interpreted)", EXPFILL }},
+  };
+
   module_t *slsk_module;
+  expert_module_t* expert_slsk;
 
 /* Registers the protocol name and description */
   proto_slsk = proto_register_protocol("SoulSeek Protocol", "SoulSeek", "slsk");
@@ -2599,6 +2605,8 @@ proto_register_slsk(void)
 /* Required function calls to register the header fields and subtrees used */
   proto_register_field_array(proto_slsk, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_slsk = expert_register_protocol(proto_slsk);
+  expert_register_field_array(expert_slsk, ei, array_length(ei));
 
   slsk_module = prefs_register_protocol(proto_slsk, NULL);
 
@@ -2623,7 +2631,7 @@ proto_reg_handoff_slsk(void)
 {
   dissector_handle_t slsk_handle;
 
-  slsk_handle = create_dissector_handle(dissect_slsk, proto_slsk);
+  slsk_handle = new_create_dissector_handle(dissect_slsk, proto_slsk);
   dissector_add_uint("tcp.port", TCP_PORT_SLSK_1, slsk_handle);
   dissector_add_uint("tcp.port", TCP_PORT_SLSK_2, slsk_handle);
   dissector_add_uint("tcp.port", TCP_PORT_SLSK_3, slsk_handle);

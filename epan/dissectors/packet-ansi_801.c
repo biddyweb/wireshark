@@ -12,8 +12,6 @@
  * Copyright 2007, Michael Lum <michael.lum [AT] utstar.com>
  * In association with UTStarcom Inc.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -41,6 +39,8 @@
 #include <math.h>
 
 #include <epan/packet.h>
+#include <epan/wmem/wmem.h>
+#include <epan/to_str.h>
 
 void proto_register_ansi_801(void);
 void proto_reg_handoff_ansi_801(void);
@@ -97,10 +97,9 @@ static int hf_ansi_801_num_fixes = -1;
 static int hf_ansi_801_t_betw_fixes = -1;
 static int hf_ansi_801_offset_req = -1;
 
+static dissector_handle_t ansi_801_handle;
+
 static char bigbuf[1024];
-static dissector_handle_t data_handle;
-static packet_info *g_pinfo;
-static proto_tree *g_tree;
 
 
 /* PARAM FUNCTIONS */
@@ -429,7 +428,7 @@ for_req_cancel(tvbuff_t *tvb, proto_tree *tree, guint len, guint32 offset)
 
 	oct = tvb_get_guint8(tvb, offset);
 
-	str = match_strval_idx((oct & 0xf0) >> 4, for_req_type_strings, &idx);
+	str = try_val_to_str_idx((oct & 0xf0) >> 4, for_req_type_strings, &idx);
 	if (str == NULL)
 	{
 		str = "Reserved";
@@ -466,7 +465,7 @@ for_reject(tvbuff_t *tvb, proto_tree *tree, guint len, guint32 offset)
 
 	oct = tvb_get_guint8(tvb, offset);
 
-	str = match_strval_idx((oct & 0xf0) >> 4, rev_req_type_strings, &idx);
+	str = try_val_to_str_idx((oct & 0xf0) >> 4, rev_req_type_strings, &idx);
 	if (str == NULL)
 	{
 		str = "Reserved";
@@ -781,10 +780,10 @@ pr_loc_response(tvbuff_t *tvb, proto_tree *tree, guint len, guint32 offset)
 	case 0x1e: str = "> 12288.00 meters"; break;
 	case 0x1f: str = "Not computable"; break;
 	default:
-		fl_value = (float)(0.5 * (1 << (value >> 1)));
+		fl_value = (float)(0.5f * (1 << (value >> 1)));
 		if (value & 0x01)
 			fl_value *= 1.5f;
-		str = ep_strdup_printf("%.2f meters", fl_value);
+		str = wmem_strdup_printf(wmem_packet_scope(), "%.2f meters", fl_value);
 	}
 	proto_tree_add_uint_bits_format_value(tree, hf_ansi_801_loc_uncrtnty_a, tvb, bit_offset, 5, value,
 					      "%s (0x%02x)", str, value);
@@ -797,10 +796,10 @@ pr_loc_response(tvbuff_t *tvb, proto_tree *tree, guint len, guint32 offset)
 	case 0x1e: str = "> 12288.00 meters"; break;
 	case 0x1f: str = "Not computable"; break;
 	default:
-		fl_value = (float)(0.5 * (1 << (value >> 1)));
+		fl_value = (float)(0.5f * (1 << (value >> 1)));
 		if (value & 0x01)
 			fl_value *= 1.5f;
-		str = ep_strdup_printf("%.2f meters", fl_value);
+		str = wmem_strdup_printf(wmem_packet_scope(), "%.2f meters", fl_value);
 	}
 	proto_tree_add_uint_bits_format_value(tree, hf_ansi_801_loc_uncrtnty_p, tvb, bit_offset, 5, value,
 					      "%s (0x%02x)", str, value);
@@ -876,10 +875,10 @@ pr_loc_response(tvbuff_t *tvb, proto_tree *tree, guint len, guint32 offset)
 		case 0x1e: str = "> 12288.00 meters"; break;
 		case 0x1f: str = "Not computable"; break;
 		default:
-			fl_value = (float)(0.5 * (1 << (value >> 1)));
+			fl_value = (float)(0.5f * (1 << (value >> 1)));
 			if (value & 0x01)
 				fl_value *= 1.5f;
-			str = ep_strdup_printf("%.2f meters", fl_value);
+			str = wmem_strdup_printf(wmem_packet_scope(), "%.2f meters", fl_value);
 		}
 		proto_tree_add_uint_bits_format_value(tree, hf_ansi_801_loc_uncrtnty_v, tvb, bit_offset, 5, value,
 						      "%s (0x%02x)", str, value);
@@ -1156,7 +1155,7 @@ rev_reject(tvbuff_t *tvb, proto_tree *tree, guint len, guint32 offset)
 
 	oct = tvb_get_guint8(tvb, offset);
 
-	str = match_strval_idx((oct & 0xf0) >> 4, for_req_type_strings, &idx);
+	str = try_val_to_str_idx((oct & 0xf0) >> 4, for_req_type_strings, &idx);
 	if (str == NULL)
 	{
 		str = "Reserved";
@@ -1388,7 +1387,7 @@ rev_pr_can_ack(tvbuff_t *tvb, proto_tree *tree, guint len, guint32 offset)
 
 	oct = tvb_get_guint8(tvb, offset);
 
-	str = match_strval_idx((oct & 0xf0) >> 4, for_req_type_strings, &idx);
+	str = try_val_to_str_idx((oct & 0xf0) >> 4, for_req_type_strings, &idx);
 	if (str == NULL)
 	{
 		str = "Reserved";
@@ -1494,7 +1493,7 @@ for_request(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p, guint8 pd_msg_ty
 				    "%s :  Reserved",
 				    bigbuf);
 
-		str = match_strval_idx(oct & 0x0f, for_req_type_strings, &idx);
+		str = try_val_to_str_idx(oct & 0x0f, for_req_type_strings, &idx);
 		if (str == NULL)
 		{
 			return;
@@ -1569,7 +1568,7 @@ for_response(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p)
 			    "%s :  Unsolicited response indicator",
 			    bigbuf);
 
-	str = match_strval_idx(oct & 0x0f, for_rsp_type_strings, &idx);
+	str = try_val_to_str_idx(oct & 0x0f, for_rsp_type_strings, &idx);
 
 	if (str == NULL)
 	{
@@ -1629,7 +1628,7 @@ rev_request(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p, guint8 pd_msg_ty
 				    "%s :  Reserved",
 				    bigbuf);
 
-		str = match_strval_idx(oct & 0x0f, rev_req_type_strings, &idx);
+		str = try_val_to_str_idx(oct & 0x0f, rev_req_type_strings, &idx);
 		if (str == NULL)
 		{
 			return;
@@ -1701,7 +1700,7 @@ rev_response(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p)
 			    "%s :  Unsolicited response indicator",
 			    bigbuf);
 
-	str = match_strval_idx(oct & 0x0f, rev_rsp_type_strings, &idx);
+	str = try_val_to_str_idx(oct & 0x0f, rev_rsp_type_strings, &idx);
 
 	if (str == NULL)
 	{
@@ -2122,8 +2121,6 @@ dissect_ansi_801(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	proto_item *ansi_801_item;
 	proto_tree *ansi_801_tree = NULL;
 
-	g_pinfo = pinfo;
-
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, ansi_proto_name_short);
 
 	/* In the interest of speed, if "tree" is NULL, don't do any work not
@@ -2131,8 +2128,6 @@ dissect_ansi_801(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	 */
 	if (tree)
 	{
-		g_tree = tree;
-
 		/*
 		 * create the ansi_801 protocol tree
 		 */
@@ -2391,21 +2386,15 @@ proto_register_ansi_801(void)
 	proto_register_subtree_array(ett, array_length(ett));
 
 	/* subdissector code */
-	register_dissector("ansi_801", dissect_ansi_801, proto_ansi_801);
+	ansi_801_handle = register_dissector("ansi_801", dissect_ansi_801, proto_ansi_801);
 }
 
 
 void
 proto_reg_handoff_ansi_801(void)
 {
-	dissector_handle_t ansi_801_handle;
-
-	ansi_801_handle = create_dissector_handle(dissect_ansi_801, proto_ansi_801);
-
 	dissector_add_uint("ansi_map.pld", ANSI_801_FORWARD, ansi_801_handle);
 	dissector_add_uint("ansi_map.pld", ANSI_801_REVERSE, ansi_801_handle);
 	dissector_add_uint("ansi_a.pld",   ANSI_801_FORWARD, ansi_801_handle);
 	dissector_add_uint("ansi_a.pld",   ANSI_801_REVERSE, ansi_801_handle);
-
-	data_handle = find_dissector("data");
 }

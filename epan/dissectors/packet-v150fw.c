@@ -2,8 +2,6 @@
  *
  * v150fw = v.150.1 SSE messages, contained in RTP packets
  *
- * $Id$
- *
  * Written by Jamison Adcock <jamison.adcock@cobham.com>
  * for Sparta Inc., dba Cobham Analytic Solutions
  * This code is largely based on the RTP parsing code
@@ -33,6 +31,8 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+
+void proto_register_v150fw(void);
 
 /* Initialize the protocol & registered fields
  * Look familiar?  This is in the same format as an NTE (named telephone event) from RFC 2833:

@@ -5,8 +5,6 @@
  *
  * Copyright 2006 by Thomas Dreibholz <dreibh [AT] exp-math.uni-essen.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,8 @@
 
 #define CALCAPPPROTOCOL_PAYLOAD_PROTOCOL_ID_LEGACY 0x29097603
 
+void proto_register_calcappprotocol(void);
+void proto_reg_handoff_calcappprotocol(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_calcappprotocol = -1;

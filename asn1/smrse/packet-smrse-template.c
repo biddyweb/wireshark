@@ -2,8 +2,6 @@
  * Routines for SMRSE Short Message Relay Service packet dissection
  *   Ronnie Sahlberg 2004
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,6 +35,9 @@
 #define PFNAME "smrse"
 
 #define TCP_PORT_SMRSE 4321
+
+void proto_register_smrse(void);
+void proto_reg_handoff_smrse(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_smrse = -1;
@@ -92,8 +93,7 @@ dissect_smrse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *
 	}
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "SMRSE");
-  	if (check_col(pinfo->cinfo, COL_INFO))
-  		col_add_str(pinfo->cinfo, COL_INFO, val_to_str(tag, tag_vals,"Unknown Tag:0x%02x"));
+	col_add_str(pinfo->cinfo, COL_INFO, val_to_str(tag, tag_vals,"Unknown Tag:0x%02x"));
 
 	proto_tree_add_item(tree, hf_smrse_reserved, tvb, 0, 1, ENC_BIG_ENDIAN);
 	proto_tree_add_item(tree, hf_smrse_length, tvb, 1, 2, ENC_BIG_ENDIAN);

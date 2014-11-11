@@ -6,8 +6,6 @@
  * Based on the code from packet-mmrp.c (MMRP) from
  * Markus Seehofer <mseehofe@nt.hirschmann.de> Copyright 2001
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/etypes.h>
+
+void proto_register_mrp_msrp(void);
+void proto_reg_handoff_mrp_msrp(void);
 
 /* MSRP End Mark Sequence */
 #define MSRP_END_MARK       0x0000

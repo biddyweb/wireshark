@@ -1,10 +1,9 @@
--- $Id$
--- 3GPP TS 29.002 V11.5.0 (2012-12) 
+-- 3GPP TS 29.002 V12.3.0 (2013-12)
 -- 17.7.1	Mobile Service data types
 
 MAP-MS-DataTypes {
    itu-t identified-organization (4) etsi (0) mobileDomain (0)
-   gsm-Network (1) modules (3) map-MS-DataTypes (11) version13 (13)}
+   gsm-Network (1) modules (3) map-MS-DataTypes (11) version15 (15)}
 
 DEFINITIONS
 
@@ -15,7 +14,6 @@ IMPLICIT TAGS
 BEGIN
 
 EXPORTS
-
 	-- WS modification: for Ericsson proprietary extensions
 	RequestedEquipmentInfo,
 	-- End WS modification
@@ -175,22 +173,22 @@ IMPORTS
 	CliRestrictionOption
 FROM MAP-SS-DataTypes {
    itu-t identified-organization (4) etsi (0) mobileDomain (0)
-   gsm-Network (1) modules (3) map-SS-DataTypes (14) version13 (13)}
+   gsm-Network (1) modules (3) map-SS-DataTypes (14) version15 (15)}
 
 	SS-Code
 FROM MAP-SS-Code {
    itu-t identified-organization (4) etsi (0) mobileDomain (0)
-   gsm-Network (1) modules (3) map-SS-Code (15) version13 (13)}
+   gsm-Network (1) modules (3) map-SS-Code (15) version15 (15)}
 
 	Ext-BearerServiceCode
 FROM MAP-BS-Code {
    itu-t identified-organization (4) etsi (0) mobileDomain (0)
-   gsm-Network (1) modules (3) map-BS-Code (20) version13 (13)}
+   gsm-Network (1) modules (3) map-BS-Code (20) version15 (15)}
 
 	Ext-TeleserviceCode
 FROM MAP-TS-Code {
    itu-t identified-organization (4) etsi (0) mobileDomain (0)
-   gsm-Network (1) modules (3) map-TS-Code (19) version13 (13)}
+   gsm-Network (1) modules (3) map-TS-Code (19) version15 (15)}
 
 	AddressString,
 ISDN-AddressString, 
@@ -229,22 +227,22 @@ RAIdentity,
 NetworkNodeDiameterAddress
 FROM MAP-CommonDataTypes {
    itu-t identified-organization (4) etsi (0) mobileDomain (0)
-   gsm-Network (1) modules (3) map-CommonDataTypes (18) version13 (13)}
+   gsm-Network (1) modules (3) map-CommonDataTypes (18) version15 (15)}
 
 	ExtensionContainer
 FROM MAP-ExtensionDataTypes {
    itu-t identified-organization (4) etsi (0) mobileDomain (0)
-   gsm-Network (1) modules (3) map-ExtensionDataTypes (21) version13 (13)}
+   gsm-Network (1) modules (3) map-ExtensionDataTypes (21) version15 (15)}
 
 	AbsentSubscriberDiagnosticSM
 FROM MAP-ER-DataTypes {
    itu-t identified-organization (4) etsi (0) mobileDomain (0)
-   gsm-Network (1) modules (3) map-ER-DataTypes (17) version13 (13)}
+   gsm-Network (1) modules (3) map-ER-DataTypes (17) version15 (15)}
 
 	TracePropagationList
 FROM MAP-OM-DataTypes {
    itu-t identified-organization (4) etsi (0) mobileDomain (0)
-   gsm-Network (1) modules (3) map-OM-DataTypes (12) version13 (13)}
+   gsm-Network (1) modules (3) map-OM-DataTypes (12) version15 (15)}
 
 ;
 
@@ -366,7 +364,8 @@ CancelLocationArg ::= [3] SEQUENCE {
 	mtrf-SupportedAndNotAuthorized	[2] NULL		OPTIONAL,
 	newMSC-Number	[3] ISDN-AddressString	OPTIONAL,
 	newVLR-Number	[4] ISDN-AddressString	OPTIONAL,
-	new-lmsi		[5] LMSI		OPTIONAL
+	new-lmsi		[5] LMSI		OPTIONAL,
+	reattach-Required	[6] NULL		OPTIONAL
 	 }
 	--mtrf-SupportedAndAuthorized and mtrf-SupportedAndNotAuthorized shall not
 	-- both be present
@@ -394,7 +393,10 @@ PurgeMS-Arg ::= [3] SEQUENCE {
 	vlr-Number	[0] ISDN-AddressString	OPTIONAL,
 	sgsn-Number	[1]	ISDN-AddressString	OPTIONAL,
 	extensionContainer	ExtensionContainer	OPTIONAL,
-	...}
+	...,
+	locationInformation	[2] LocationInformation	OPTIONAL,
+	locationInformationGPRS	[3] LocationInformationGPRS	OPTIONAL,
+	locationInformationEPS	[4] LocationInformationEPS	OPTIONAL }
 
 PurgeMS-Res ::= SEQUENCE {
 	freezeTMSI	[0]	NULL		OPTIONAL,
@@ -429,7 +431,9 @@ SendIdentificationRes ::= [3] SEQUENCE {
 	authenticationSetList	AuthenticationSetList	OPTIONAL,
 	currentSecurityContext	[2]CurrentSecurityContext	OPTIONAL,
 	extensionContainer	[3] ExtensionContainer	OPTIONAL,
-	...}
+	...,
+	lastUsedLtePLMN-Id	[4] PLMN-Id	OPTIONAL,
+	mtCallPendingFlag	[5]	NULL		OPTIONAL }
 
 -- authentication management types
 
@@ -555,7 +559,11 @@ UpdateGprsLocationArg ::= SEQUENCE {
 	eplmn-List	[15] EPLMN-List	OPTIONAL,
 	mmeNumberforMTSMS	[16] ISDN-AddressString	OPTIONAL,
 	smsRegisterRequest	[17] SMSRegisterRequest	OPTIONAL,
-	sms-Only		[18] NULL		OPTIONAL }
+	sms-Only		[18] NULL		OPTIONAL,
+	removalofMMERegistrationforSMS	[22] NULL		OPTIONAL,
+	sgsn-Name		[19] DiameterIdentity	OPTIONAL,
+	sgsn-Realm	[20]	DiameterIdentity	OPTIONAL,
+	lgd-supportIndicator	[21] NULL		OPTIONAL }
 
 SMSRegisterRequest::= ENUMERATED {
 	sms-registration-required  (0),
@@ -609,12 +617,14 @@ SGSN-Capability ::= SEQUENCE{
 	t-adsDataRetrieval	[10] NULL		OPTIONAL,
 	homogeneousSupportOfIMSVoiceOverPSSessions [11] BOOLEAN	OPTIONAL,
 	--	"true" indicates homogeneous support, "false" indicates homogeneous non-support
-	--	in the complete SGSN area
+	--	in the complete SGSN or MME area
  	cancellationTypeInitialAttach	[12]	NULL		OPTIONAL,
-	additionalMsisdnSupport	[13]	NULL		OPTIONAL,
-	msisdn-lessOperation-Supported	[14]	NULL		OPTIONAL
+	msisdn-lessOperation-Supported	[14]	NULL		OPTIONAL,
+	updateofHomogeneousSupportOfIMSVoiceOverPSSessions [15] NULL	OPTIONAL
 	}
-	--	the supportedFeatures is also applied to the MME/IWF
+		  --	the supportedFeatures , t-adsDataRetrieval and 
+	  --	homogeneousSupportOfIMSVoiceOverPSSessions
+	  --	/updateofHomogeneousSupportOfIMSVoiceOverPSSessions arealso applied to the MME/IWF
 
 SupportedFeatures::= BIT STRING {
 	odb-all-apn (0),
@@ -646,8 +656,11 @@ SupportedFeatures::= BIT STRING {
 	localTimeZoneRetrieval (26),
 	additionalMsisdn (27),
 	smsInMME (28),
-	smsInSGSN (29)
-	} (SIZE (26..40))
+	smsInSGSN (29),
+	ue-Reachability-Notification (30),
+	state-Location-Information-Retrieval (31),
+	partialPurge (32),
+	gddInSGSN (33)} (SIZE (26..40))
 	--	the definition and usage of the above features see the 3GPP TS 29.272 [144].
 
 
@@ -971,7 +984,8 @@ RNCId ::= OCTET STRING (SIZE (7))
 	-- octet 3 bits 4321	Mobile Network Code 1st digit
 	--         bits 8765	Mobile Network Code 2nd digit
 	-- octets 4 and 5	Location Area Code according to 3GPP TS 24.008
-	-- octets 6 and 7	RNC Id value according to 3GPP TS 25.413
+	-- octets 6 and 7	RNC Id or Extended RNC Id value according to
+	--			3GPP TS 25.413
 
 RelocationNumberList ::= SEQUENCE SIZE (1..maxNumOfRelocationNumber) OF
 				RelocationNumber
@@ -1146,10 +1160,12 @@ InsertSubscriberDataArg ::= SEQUENCE {
 	-- the first sequence if seqmentation is used
 
 SubscribedPeriodicRAUTAUtimer ::= INTEGER (0..4294967295)
-	-- This parameter carries the subscribed periodic TAU/RAU timer value in seconds.
+	-- This parameter carries the subscribed periodic TAU/RAU timer value in seconds as
+	-- specified in 3GPP TS 24.008 [35].
 
 SubscribedPeriodicLAUtimer ::= INTEGER (0..4294967295)
-	-- This parameter carries the subscribed periodic LAU timer value in seconds.
+	-- This parameter carries the subscribed periodic LAU timer value in seconds as 
+	-- specified in 3GPP TS 24.008 [35].
 
 CSG-SubscriptionDataList ::= SEQUENCE SIZE (1..50) OF
 				CSG-SubscriptionData
@@ -1233,7 +1249,9 @@ APN-Configuration ::= SEQUENCE {
 	apn-oi-Replacement	[13] APN-OI-Replacement	OPTIONAL,
 	-- this apn-oi-Replacement refers to the APN level apn-oi-Replacement.
 	sipto-Permission	[14] SIPTO-Permission	OPTIONAL,
-	lipa-Permission	[15] LIPA-Permission	OPTIONAL
+	lipa-Permission	[15] LIPA-Permission	OPTIONAL,
+	restoration-Priority	[16] Restoration-Priority	OPTIONAL,
+	sipto-local-network-Permission	[17] SIPTO-Local-Network-Permission	OPTIONAL
  }
 
 PDN-Type ::= OCTET STRING (SIZE (1))
@@ -1309,8 +1327,10 @@ AccessRestrictionData ::= BIT STRING {
 	e-utranNotAllowed (4),
 	ho-toNon3GPP-AccessNotAllowed (5) } (SIZE (2..8))
 	-- exception handling: 
-	-- access restriction data related to an access type not supported by a node
-	-- shall be ignored
+	-- The VLR shall ignore the access restriction data related to an access type not 
+	-- supported by the node.
+	-- The handling of the access restriction data by the SGSN is described in subclause 
+	-- 5.3.19 of TS 23.060, in subclause 7.5.3 of TS 29.060 and subclause 7.3.6 of TS 29.274.
 	-- bits 6 to 7 shall be ignored if received and not understood
 	
 
@@ -1385,12 +1405,24 @@ PDP-Context ::= SEQUENCE {
 	-- this ambr contains the AMBR associated to the APN included in the 
 	-- PDP-Context (APN-AMBR).
 	sipto-Permission	[8] SIPTO-Permission	OPTIONAL,
-	lipa-Permission	[9] LIPA-Permission	OPTIONAL
+	lipa-Permission	[9] LIPA-Permission	OPTIONAL,
+	restoration-Priority	[11] Restoration-Priority	OPTIONAL,
+	sipto-local-network-Permission	[12] SIPTO-Local-Network-Permission	OPTIONAL
 	 }
 
+Restoration-Priority ::= OCTET STRING (SIZE (1))
+	-- Octet 1:
+	--  Restoration Priority. This octet encodes the Restoration Priority,
+	--  as the binary value of the Restoration-Priority described in 3GPP TS 29.272 [144].
+
 SIPTO-Permission ::= ENUMERATED {
-	siptoAllowed  (0),
-	siptoNotAllowed  (1)
+	siptoAboveRanAllowed  (0),
+	siptoAboveRanNotAllowed  (1)
+	}
+
+SIPTO-Local-Network-Permission ::= ENUMERATED {
+	siptoAtLocalNetworkAllowed  (0),
+	siptoAtLocalNetworkNotAllowed  (1)
 	}
 
 LIPA-Permission ::= ENUMERATED {

@@ -4,8 +4,6 @@
  * Copyright 2009 Wayne Brassem
  *           2012 Wayne Brassem - Correction to support IPv6 over PPP
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,9 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 
+void proto_register_jmirror(void);
+void proto_reg_handoff_jmirror(void);
+
 #define MIRROR_HDR_SZ           8
 #define MIRROR_ID_SZ            4
 #define SESSION_ID_SZ           4
@@ -51,9 +52,6 @@ static dissector_handle_t ipv6_handle;
 static dissector_handle_t hdlc_handle;
 
 static guint global_jmirror_udp_port = DEF_JMIRROR_UDP_PORT;
-
-/* Forward declaration */
-void proto_reg_handoff_jmirror(void);
 
 /* Routine to return the dissector handle based on heuristic packet inspection */
 static dissector_handle_t

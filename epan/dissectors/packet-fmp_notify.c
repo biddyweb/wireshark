@@ -1,8 +1,6 @@
 /* packet-fmp_notify.c
  * Routines for fmp dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,9 @@
 
 #include "packet-rpc.h"
 #include "packet-fmp.h"
+
+void proto_register_fmp_notify(void);
+void proto_reg_handoff_fmp_notify(void);
 
 #define FMP_NOTIFY_PROG 	1001912
 #define FMP_NOTIFY_VERSION_2 	      2
@@ -70,6 +71,7 @@ static int hf_fmp_numBlks = -1;
 static int hf_fmp_volID = -1;
 static int hf_fmp_startOffset = -1;
 static int hf_fmp_extent_state = -1;
+static int hf_fmp_revokeHandleListReason = -1;
 
 static gint ett_fmp_notify = -1;
 static gint ett_fmp_notify_hlist = -1;
@@ -84,7 +86,7 @@ dissect_fmp_notify_status(tvbuff_t *tvb, int offset, proto_tree *tree, int *rval
 {
         fmpStat status;
 
-        status = tvb_get_ntohl(tvb, offset);
+        status = (fmpStat)tvb_get_ntohl(tvb, offset);
 
         switch (status) {
         case FMP_OK:
@@ -165,32 +167,7 @@ dissect_fmp_notify_status(tvbuff_t *tvb, int offset, proto_tree *tree, int *rval
 static int
 dissect_revokeHandleListReason(tvbuff_t *tvb, int offset, proto_tree *tree)
 {
-	revokeHandleListReason reason;
-
-  	if (tree) {
-		reason  = tvb_get_ntohl(tvb, offset);
-		switch (reason) {
-		case FMP_LIST_USER_QUOTA_EXCEEDED:
-			proto_tree_add_text(tree, tvb, offset, 4, "Reason: %s",
-					    "LIST_USER_QUOTA_EXCEEDED");
-			break;
-
-		case FMP_LIST_GROUP_QUOTA_EXCEEDED:
-			proto_tree_add_text(tree, tvb, offset, 4, "Reason: %s",
-					    "LIST_GROUP_QUOTA_EXCEEDED");
-			break;
-
-		case FMP_LIST_SERVER_RESOURCE_LOW:
-			proto_tree_add_text(tree, tvb, offset, 4, "Reason: %s",
-					    "LIST_SERVER_RESOURCE_LOW");
-			break;
-
-		default:
-			proto_tree_add_text(tree, tvb, offset, 4, "Reason: %s",
-					    "Unknown Reason");
-			break;
-		}
-	}
+    proto_tree_add_item(tree, hf_fmp_revokeHandleListReason, tvb, offset, 4, ENC_BIG_ENDIAN);
 	offset += 4;
 	return offset;
 }
@@ -231,7 +208,7 @@ dissect_handleList(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
 
 static int
 dissect_FMP_NOTIFY_DownGrade_request(tvbuff_t *tvb, int offset,
-                                     packet_info *pinfo _U_, proto_tree *tree)
+                                     packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 
 
@@ -247,7 +224,7 @@ dissect_FMP_NOTIFY_DownGrade_request(tvbuff_t *tvb, int offset,
 
 static int
 dissect_FMP_NOTIFY_DownGrade_reply(tvbuff_t *tvb, int offset,
-                                   packet_info *pinfo _U_, proto_tree *tree)
+                                   packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	int rval;
 
@@ -257,7 +234,7 @@ dissect_FMP_NOTIFY_DownGrade_reply(tvbuff_t *tvb, int offset,
 
 static int
 dissect_FMP_NOTIFY_RevokeList_request(tvbuff_t *tvb, int offset,
-                                      packet_info *pinfo _U_, proto_tree *tree)
+                                      packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 
 	offset = dissect_rpc_data(tvb,  tree, hf_fmp_sessionHandle,
@@ -272,7 +249,7 @@ dissect_FMP_NOTIFY_RevokeList_request(tvbuff_t *tvb, int offset,
 
 static int
 dissect_FMP_NOTIFY_RevokeList_reply(tvbuff_t *tvb, int offset,
-                                    packet_info *pinfo _U_, proto_tree *tree)
+                                    packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	int rval;
 
@@ -282,7 +259,7 @@ dissect_FMP_NOTIFY_RevokeList_reply(tvbuff_t *tvb, int offset,
 
 static int
 dissect_FMP_NOTIFY_RevokeAll_request(tvbuff_t *tvb, int offset,
-                                     packet_info *pinfo _U_, proto_tree *tree)
+                                     packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	offset = dissect_rpc_data(tvb, tree, hf_fmp_sessionHandle,
 	                          offset);
@@ -293,7 +270,7 @@ dissect_FMP_NOTIFY_RevokeAll_request(tvbuff_t *tvb, int offset,
 
 static int
 dissect_FMP_NOTIFY_RevokeAll_reply(tvbuff_t *tvb, int offset,
-                                   packet_info *pinfo _U_, proto_tree *tree)
+                                   packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	int rval;
 
@@ -303,7 +280,7 @@ dissect_FMP_NOTIFY_RevokeAll_reply(tvbuff_t *tvb, int offset,
 
 static int
 dissect_FMP_NOTIFY_FileSetEof_request(tvbuff_t *tvb, int offset,
-                                      packet_info *pinfo _U_, proto_tree *tree)
+                                      packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	offset = dissect_rpc_data(tvb, tree, hf_fmp_sessionHandle,
 	                          offset);
@@ -315,7 +292,7 @@ dissect_FMP_NOTIFY_FileSetEof_request(tvbuff_t *tvb, int offset,
 
 static int
 dissect_FMP_NOTIFY_FileSetEof_reply(tvbuff_t *tvb, int offset,
-                                    packet_info *pinfo _U_, proto_tree *tree)
+                                    packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	int rval;
 
@@ -325,7 +302,7 @@ dissect_FMP_NOTIFY_FileSetEof_reply(tvbuff_t *tvb, int offset,
 
 static int
 dissect_FMP_NOTIFY_RequestDone_request(tvbuff_t *tvb, int offset,
-                                       packet_info *pinfo, proto_tree *tree)
+                                       packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	int rval;
 
@@ -346,7 +323,7 @@ dissect_FMP_NOTIFY_RequestDone_request(tvbuff_t *tvb, int offset,
 
 static int
 dissect_FMP_NOTIFY_RequestDone_reply(tvbuff_t *tvb, int offset,
-                                     packet_info *pinfo _U_, proto_tree *tree)
+                                     packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	int rval;
 
@@ -356,7 +333,7 @@ dissect_FMP_NOTIFY_RequestDone_reply(tvbuff_t *tvb, int offset,
 
 static int
 dissect_FMP_NOTIFY_volFreeze_request(tvbuff_t *tvb, int offset,
-                                     packet_info *pinfo _U_, proto_tree *tree)
+                                     packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	offset = dissect_rpc_data(tvb, tree, hf_fmp_sessionHandle,
 	                          offset);
@@ -366,7 +343,7 @@ dissect_FMP_NOTIFY_volFreeze_request(tvbuff_t *tvb, int offset,
 
 static int
 dissect_FMP_NOTIFY_volFreeze_reply(tvbuff_t *tvb, int offset,
-                                   packet_info *pinfo _U_, proto_tree *tree)
+                                   packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	int rval;
 
@@ -377,7 +354,7 @@ dissect_FMP_NOTIFY_volFreeze_reply(tvbuff_t *tvb, int offset,
 static int
 dissect_FMP_NOTIFY_revokeHandleList_request(tvbuff_t *tvb, int offset,
                                             packet_info *pinfo,
-                                            proto_tree *tree)
+                                            proto_tree *tree, void* data _U_)
 {
 	offset = dissect_rpc_data(tvb, tree, hf_fmp_sessionHandle,
 							                          offset);
@@ -388,7 +365,7 @@ dissect_FMP_NOTIFY_revokeHandleList_request(tvbuff_t *tvb, int offset,
 
 static int
 dissect_FMP_NOTIFY_revokeHandleList_reply(tvbuff_t *tvb, int offset,
-                                          packet_info *pinfo _U_, proto_tree *tree)
+                                          packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	int rval;
 
@@ -471,6 +448,12 @@ static const value_string fmp_status_vals[] = {
 
 };
 
+static const value_string fmp_revokeHandleListReason_vals[] = {
+    {FMP_LIST_USER_QUOTA_EXCEEDED, "LIST_USER_QUOTA_EXCEEDED"},
+    {FMP_LIST_GROUP_QUOTA_EXCEEDED, "LIST_GROUP_QUOTA_EXCEEDED"},
+    {FMP_LIST_SERVER_RESOURCE_LOW, "LIST_SERVER_RESOURCE_LOW"},
+    {0,NULL}
+};
 
 static int
 dissect_fmp_notify_extentState(tvbuff_t *tvb, int offset, proto_tree *tree)
@@ -567,54 +550,57 @@ proto_register_fmp_notify(void)
 			BASE_DEC, NULL, 0, NULL, HFILL }},
 
 		{ &hf_fmp_handleListLen, {
-			"Number File Handles", "fmp_notify.handleListLength",
+			"Number of File Handles", "fmp_notify.handleListLength",
 			FT_UINT32, BASE_DEC, NULL, 0,
-			"Number of File Handles", HFILL }},
+			NULL, HFILL }},
 
 		{ &hf_fmp_sessionHandle, {
-                        "Session Handle", "fmp_notify.sessHandle", FT_BYTES, BASE_NONE,
-                        NULL, 0, "FMP Session Handle", HFILL }},
+            "Session Handle", "fmp_notify.sessHandle", FT_BYTES, BASE_NONE,
+            NULL, 0, NULL, HFILL }},
 
 
-                { &hf_fmp_fsID, {
-                        "File System ID", "fmp_notify.fsID", FT_UINT32, BASE_HEX,
-                        NULL, 0, NULL, HFILL }},
+        { &hf_fmp_fsID, {
+            "File System ID", "fmp_notify.fsID", FT_UINT32, BASE_HEX,
+            NULL, 0, NULL, HFILL }},
 
 #if 0
-                { &hf_fmp_fsBlkSz, {
-                        "FS Block Size", "fmp_notify.fsBlkSz", FT_UINT32, BASE_DEC,
-                        NULL, 0, "File System Block Size", HFILL }},
+        { &hf_fmp_fsBlkSz, {
+            "FS Block Size", "fmp_notify.fsBlkSz", FT_UINT32, BASE_DEC,
+            NULL, 0, NULL, HFILL }},
 #endif
 
-
-                { &hf_fmp_numBlksReq, {
-                        "Number Blocks Requested", "fmp_notify.numBlksReq", FT_UINT32,
-                        BASE_DEC, NULL, 0, NULL, HFILL }},
-
-
-                { &hf_fmp_msgNum, {
-                        "Message Number", "fmp_notify.msgNum", FT_UINT32, BASE_DEC,
-                        NULL, 0, "FMP Message Number", HFILL }},
-
-                { &hf_fmp_cookie, {
-                        "Cookie", "fmp_notify.cookie", FT_UINT32, BASE_HEX,
-                        NULL, 0, "Cookie for FMP_REQUEST_QUEUED Resp", HFILL }},
+        { &hf_fmp_numBlksReq, {
+            "Number Blocks Requested", "fmp_notify.numBlksReq", FT_UINT32,
+            BASE_DEC, NULL, 0, NULL, HFILL }},
 
 
-                { &hf_fmp_firstLogBlk, {
-                        "First Logical Block", "fmp_notify.firstLogBlk", FT_UINT32,
-                        BASE_DEC, NULL, 0, "First Logical File Block", HFILL }},
+        { &hf_fmp_msgNum, {
+            "Message Number", "fmp_notify.msgNum", FT_UINT32, BASE_DEC,
+            NULL, 0, NULL, HFILL }},
+
+        { &hf_fmp_cookie, {
+            "Cookie", "fmp_notify.cookie", FT_UINT32, BASE_HEX,
+            NULL, 0, "Cookie for FMP_REQUEST_QUEUED Resp", HFILL }},
 
 
-                { &hf_fmp_fileSize, {
-                        "File Size", "fmp_notify.fileSize", FT_UINT64, BASE_DEC,
-                        NULL, 0, NULL, HFILL }},
+        { &hf_fmp_firstLogBlk, {
+            "First Logical Block", "fmp_notify.firstLogBlk", FT_UINT32,
+            BASE_DEC, NULL, 0, "First Logical File Block", HFILL }},
 
-		 { &hf_fmp_fmpFHandle, {
-                        "FMP File Handle", "fmp_notify.fmpFHandle",
-                        FT_BYTES, BASE_NONE, NULL, 0, NULL,
-                        HFILL }},
 
+        { &hf_fmp_fileSize, {
+            "File Size", "fmp_notify.fileSize", FT_UINT64, BASE_DEC,
+            NULL, 0, NULL, HFILL }},
+
+		{ &hf_fmp_fmpFHandle, {
+            "FMP File Handle", "fmp_notify.fmpFHandle",
+            FT_BYTES, BASE_NONE, NULL, 0, NULL,
+            HFILL }},
+
+        { &hf_fmp_revokeHandleListReason,
+          { "Reason", "fmp.revokeHandleListReason",
+            FT_UINT32, BASE_DEC, VALS(fmp_revokeHandleListReason_vals), 0,
+            NULL, HFILL }},
 
 
 	};

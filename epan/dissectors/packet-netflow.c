@@ -1,8 +1,6 @@
 /*
  ** packet-netflow.c
  **
- ** $Id$
- **
  ** (c) 2002 bill fumerola <fumerola@yahoo-inc.com>
  ** (C) 2005-06 Luca Deri <deri@ntop.org>
  **
@@ -126,15 +124,18 @@
 #include "config.h"
 
 #include <epan/packet.h>
-
+#include <epan/wmem/wmem.h>
 #include <epan/prefs.h>
+#include <wiretap/wtap.h>
 #include <epan/sminmpec.h>
+#include <epan/to_str.h>
 #include <epan/dissectors/packet-tcp.h>
 #include <epan/dissectors/packet-udp.h>
 #include "packet-ntp.h"
 #include <epan/expert.h>
-#include <epan/strutil.h>
 
+void proto_register_netflow(void);
+void proto_reg_handoff_netflow(void);
 
 #if 0
 #define ipfix_debug0(str) g_warning(str)
@@ -605,6 +606,11 @@ static const value_string v9_v10_template_types[] = {
     { 33000, "INGRESS_ACL_ID" },
     { 33001, "EGRESS_ACL_ID" },
     { 33002, "FW_EXT_EVENT" },
+    /* Cisco TrustSec */
+    { 34000, "SGT_SOURCE_TAG" },
+    { 34001, "SGT_DESTINATION_TAG" },
+    { 34002, "SGT_SOURCE_NAME" },
+    { 34003, "SGT_DESTINATION_NAME" },
     /* medianet performance monitor */
     { 37000, "PACKETS_DROPPED" },
     { 37003, "BYTE_RATE" },
@@ -1048,6 +1054,8 @@ static int      hf_cflow_octets                              = -1;
 static int      hf_cflow_octets64                            = -1;
 static int      hf_cflow_length_min                          = -1;
 static int      hf_cflow_length_max                          = -1;
+static int      hf_cflow_length_min64                        = -1;
+static int      hf_cflow_length_max64                        = -1;
 static int      hf_cflow_timedelta                           = -1;
 static int      hf_cflow_sys_init_time                       = -1;
 static int      hf_cflow_timestart                           = -1;
@@ -1311,6 +1319,10 @@ static int      hf_cflow_information_element_range_end       = -1;      /* ID: 3
 static int      hf_cflow_information_element_semantics       = -1;      /* ID: 344 */
 static int      hf_cflow_information_element_units           = -1;      /* ID: 345 */
 static int      hf_cflow_private_enterprise_number           = -1;      /* ID: 346 */
+static int      hf_cflow_cts_sgt_source_tag                  = -1;      /* ID: 34000 */
+static int      hf_cflow_cts_sgt_destination_tag             = -1;      /* ID: 34001 */
+static int      hf_cflow_cts_sgt_source_name                 = -1;      /* ID: 34002 */
+static int      hf_cflow_cts_sgt_destination_name            = -1;      /* ID: 34003 */
 static int      hf_cflow_packets_dropped                     = -1;      /* ID: 37000 */
 static int      hf_cflow_byte_rate                           = -1;      /* ID: 37003 */
 static int      hf_cflow_application_media_bytes             = -1;      /* ID: 37004 */
@@ -1474,6 +1486,13 @@ static int      hf_pie_plixer_date_time               = -1;
 static int      hf_string_len_short     = -1;
 static int      hf_string_len_long = -1;
 
+static expert_field ei_cflow_entries = EI_INIT;
+static expert_field ei_cflow_options = EI_INIT;
+static expert_field ei_cflow_flowset_length = EI_INIT;
+static expert_field ei_cflow_scopes = EI_INIT;
+static expert_field ei_cflow_template_ipfix_scope_field_count_too_many = EI_INIT;
+static expert_field ei_cflow_template_ipfix_scope_field_count = EI_INIT;
+static expert_field ei_cflow_no_flow_information = EI_INIT;
 
 static const value_string special_mpls_top_label_type[] = {
     {0, "Unknown"},
@@ -1497,7 +1516,7 @@ proto_tree_add_mpls_label(proto_tree *pdutree, tvbuff_t *tvb, int offset, int le
                                  "MPLS-Label%d: %u exp-bits: %u %s", level,
                                  ((b0<<12)+(b1<<4)+(b2>>4)),
                                  ((b2>>1)&0x7),
-                                 ((b2&0x1)?"top-of-stack":""));
+                                 ((b2&0x1)?"bottom-of-stack":""));
     } else {
         ti = proto_tree_add_text(pdutree, tvb, offset, length,
                                  "MPLS-Label%d: bad length %d", level, length);
@@ -1516,8 +1535,6 @@ nbar_fmt_id(gchar *result, guint32 nbar_id)
                "NBAR Application ID: %d:%d (type:id)", nbar_id_type, nbar_id);
 }
 
-
-void            proto_reg_handoff_netflow(void);
 
 typedef struct _hdrinfo_t {
     guint8  vspec;
@@ -1664,25 +1681,23 @@ dissect_netflow(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data 
     /*
      * set something interesting in the display now that we have info
      */
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        if (ver == 9) {
-            col_add_fstr(pinfo->cinfo, COL_INFO,
-                         "total: %u (v%u) record%s", pdus, ver,
-                         plurality(pdus, "", "s"));
-        } else if (ver == 10) {
-            gint remaining = tvb_reported_length_remaining(tvb, offset)+4;
+    if (ver == 9) {
+        col_add_fstr(pinfo->cinfo, COL_INFO,
+                        "total: %u (v%u) record%s", pdus, ver,
+                        plurality(pdus, "", "s"));
+    } else if (ver == 10) {
+        gint remaining = tvb_reported_length_remaining(tvb, offset)+4;
 
-            if(remaining == flow_len)
-                col_add_fstr(pinfo->cinfo, COL_INFO, "IPFIX flow (%d bytes)", flow_len);
-            else
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                             "IPFIX partial flow (%u/%u bytes)",
-                             remaining, flow_len);
-        } else {
+        if(remaining == flow_len)
+            col_add_fstr(pinfo->cinfo, COL_INFO, "IPFIX flow (%d bytes)", flow_len);
+        else
             col_add_fstr(pinfo->cinfo, COL_INFO,
-                         "total: %u (v%u) flow%s", pdus, ver,
-                         plurality(pdus, "", "s"));
-        }
+                            "IPFIX partial flow (%u/%u bytes)",
+                            remaining, flow_len);
+    } else {
+        col_add_fstr(pinfo->cinfo, COL_INFO,
+                        "total: %u (v%u) flow%s", pdus, ver,
+                        plurality(pdus, "", "s"));
     }
 
     /*
@@ -1693,8 +1708,13 @@ dissect_netflow(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data 
         return tvb_reported_length(tvb);
 
     if(ver != 10) {
-        proto_tree_add_item(netflow_tree, hf_cflow_sysuptime, tvb,
-                            offset, 4, ENC_BIG_ENDIAN);
+        guint32 sysuptime = tvb_get_ntohl(tvb, offset);
+        nstime_t nsuptime;
+
+        nsuptime.secs = sysuptime / 1000;
+        nsuptime.nsecs = sysuptime * 1000;
+        proto_tree_add_time(netflow_tree, hf_cflow_sysuptime, tvb,
+                            offset, 4, &nsuptime);
         offset += 4;
     }
 
@@ -2183,7 +2203,7 @@ dissect_v9_v10_flowset(tvbuff_t *tvb, packet_info *pinfo, proto_tree *pdutree, i
     length = tvb_get_ntohs(tvb, offset + 2);
 
     if (length < 4) {
-        expert_add_info_format(pinfo, NULL, PI_MALFORMED, PI_WARN,
+        expert_add_info_format(pinfo, NULL, &ei_cflow_flowset_length,
                                "Length (%u) too short", length);
         return tvb_reported_length_remaining(tvb, offset);
     }
@@ -2224,12 +2244,11 @@ dissect_v9_v10_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *pdutree, int 
     guint           pdu_len;
 
     if (length == 0) {
-        expert_add_info_format(pinfo, pdutree, PI_MALFORMED,
-                               PI_WARN, "No flow information");
+        expert_add_info(pinfo, pdutree, &ei_cflow_no_flow_information);
     }
 
     v9_v10_tmplt_build_key(&tmplt_key, pinfo, hdrinfo_p->src_id, id);
-    tmplt_p = g_hash_table_lookup(v9_v10_tmplt_table, &tmplt_key);
+    tmplt_p = (v9_v10_tmplt_t *)g_hash_table_lookup(v9_v10_tmplt_table, &tmplt_key);
     if ((tmplt_p != NULL)  && (tmplt_p->length != 0)) {
         int count = 1;
         /* Note: If the flow contains variable length fields then          */
@@ -2420,6 +2439,10 @@ dissect_v9_v10_pdu_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *pdutree, 
         if (length == 0) { /* XXX: Zero length fields probably shouldn't be included in the cached template */
             /* YYY: Maybe.  If you don't cache the zero length fields can you still compare that you actually */
             /* have the same template with the same ID.  See WMeier comment "c." above */
+            /* XXX: One capture has been seen wherein the "length" field in the template is 0 even though
+                    the field is actually present in the dataflow.
+                    See: https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=10432#c1
+            */
             continue;
         }
         /* See if variable length field */
@@ -2453,9 +2476,9 @@ dissect_v9_v10_pdu_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *pdutree, 
             if (pen == REVPEN) { /* reverse PEN */
                 rev = 1;
             } else if (pen == 0) {
-                pen_type = (0xffff << 16) | pen_type;  /* hack to force "unknown" */
+                pen_type = (G_GUINT64_CONSTANT(0xffff) << 16) | pen_type;  /* hack to force "unknown" */
             } else {
-                pen_type = (pen << 16) | pen_type;
+                pen_type = (((guint64)pen) << 16) | pen_type;
             }
         }
 
@@ -2775,13 +2798,31 @@ dissect_v9_v10_pdu_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *pdutree, 
             break;
 
         case 25: /* length_min */
-            ti = proto_tree_add_item(pdutree, hf_cflow_length_min,
-                                     tvb, offset, length, ENC_BIG_ENDIAN);
+            if (length == 2) {
+                ti = proto_tree_add_item(pdutree, hf_cflow_length_min,
+                        tvb, offset, length, ENC_BIG_ENDIAN);
+            } else if (length == 8) {
+                ti = proto_tree_add_item(pdutree, hf_cflow_length_min64,
+                        tvb, offset, length, ENC_BIG_ENDIAN);
+            } else {
+                ti = proto_tree_add_text(pdutree,
+                                         tvb, offset, length,
+                                         "MinLength: length %u", length);
+            }
             break;
 
         case 26: /* length_max */
-            ti = proto_tree_add_item(pdutree, hf_cflow_length_max,
-                                     tvb, offset, length, ENC_BIG_ENDIAN);
+            if (length == 2) {
+                ti = proto_tree_add_item(pdutree, hf_cflow_length_max,
+                        tvb, offset, length, ENC_BIG_ENDIAN);
+            } else if (length == 8) {
+                ti = proto_tree_add_item(pdutree, hf_cflow_length_max64,
+                        tvb, offset, length, ENC_BIG_ENDIAN);
+            } else {
+                ti = proto_tree_add_text(pdutree,
+                                         tvb, offset, length,
+                                         "MaxLength: length %u", length);
+            }
             break;
 
         case 27: /* IPv6 src addr */
@@ -4275,6 +4316,26 @@ dissect_v9_v10_pdu_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *pdutree, 
                                      tvb, offset, length, ENC_BIG_ENDIAN);
             break;
 
+        case 34000: /* cts_sgt_source_tag */
+            ti = proto_tree_add_item(pdutree, hf_cflow_cts_sgt_source_tag,
+                                     tvb, offset, length, ENC_BIG_ENDIAN);
+            break;
+
+        case 34001: /* cts_sgt_destination_tag */
+            ti = proto_tree_add_item(pdutree, hf_cflow_cts_sgt_destination_tag,
+                                     tvb, offset, length, ENC_BIG_ENDIAN);
+            break;
+
+        case 34002: /* cts_sgt_source_name */
+            ti = proto_tree_add_item(pdutree, hf_cflow_cts_sgt_source_name,
+                                     tvb, offset, length, ENC_ASCII|ENC_NA);
+            break;
+
+        case 34003: /* cts_sgt_destination_name */
+            ti = proto_tree_add_item(pdutree, hf_cflow_cts_sgt_destination_name,
+                                     tvb, offset, length, ENC_ASCII|ENC_NA);
+            break;
+
         case 37000: /* packets_dropped */
             ti = proto_tree_add_item(pdutree, hf_cflow_packets_dropped,
                                      tvb, offset, length, ENC_BIG_ENDIAN);
@@ -5049,14 +5110,14 @@ dissect_v9_v10_pdu_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *pdutree, 
                                                        tvb, offset, length, NULL,
                                                        "Type %u: Value (hex bytes): %s",
                                                        masked_type,
-                                                       tvb_bytes_to_str_punct(tvb, offset, length, ' '));
+                                                       tvb_bytes_to_ep_str_punct(tvb, offset, length, ' '));
             } else { /* v10 PEN */
                 ti = proto_tree_add_bytes_format_value(pdutree, hf_ipfix_enterprise_private_entry,
                                                        tvb, offset, length, NULL,
                                                        "(%s) Type %u: Value (hex bytes): %s",
                                                        pen_str ? pen_str : "(null)",
                                                        masked_type,
-                                                       tvb_bytes_to_str_punct(tvb, offset, length, ' '));
+                                                       tvb_bytes_to_ep_str_punct(tvb, offset, length, ' '));
             }
             break;
 
@@ -5108,7 +5169,7 @@ dissect_v9_v10_pdu_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *pdutree, 
                                         offset_e[i], 4, &ts_end[i]);
                 } else {
                     proto_tree_add_time(pdutree, hf_cflow_abstimeend, tvb,
-                                        offset_s[i], 4, &ts_start[i]);
+                                        offset_e[i], 4, &ts_end[i]);
                 }
             }
         }
@@ -5314,12 +5375,11 @@ dissect_v9_v10_options_template(tvbuff_t *tvb, packet_info *pinfo, proto_tree *p
             option_field_count = option_total_field_count - option_scope_field_count;
 
             if (option_scope_field_count == 0) {
-                expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_WARN,
-                                       "No scope fields");
+                expert_add_info(pinfo, ti, &ei_cflow_template_ipfix_scope_field_count);
                 return 0;
             }
             if (option_scope_field_count > option_total_field_count) {
-                expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_WARN,
+                expert_add_info_format(pinfo, ti, &ei_cflow_template_ipfix_scope_field_count_too_many,
                                        "More scope fields (%u) than fields (%u)",
                                        option_scope_field_count, option_total_field_count);
                 return 0;
@@ -5333,7 +5393,7 @@ dissect_v9_v10_options_template(tvbuff_t *tvb, packet_info *pinfo, proto_tree *p
 
         if (v9_tmplt_max_fields &&
             (option_field_count > v9_tmplt_max_fields)) {
-            expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN,
+            expert_add_info_format(pinfo, ti, &ei_cflow_options,
                                    "More options (%u) than we can handle."
                                    " Maximum value can be adjusted in the protocol preferences.",
                                    option_field_count);
@@ -5341,7 +5401,7 @@ dissect_v9_v10_options_template(tvbuff_t *tvb, packet_info *pinfo, proto_tree *p
 
         if (v9_tmplt_max_fields &&
             (option_scope_field_count > v9_tmplt_max_fields)) {
-            expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN,
+            expert_add_info_format(pinfo, ti, &ei_cflow_scopes,
                                    "More scopes (%u) than we can handle [template won't be used]."
                                    " Maximum value can be adjusted in the protocol preferences.",
                                    option_scope_field_count);
@@ -5361,22 +5421,21 @@ dissect_v9_v10_options_template(tvbuff_t *tvb, packet_info *pinfo, proto_tree *p
         /*  ToDo: expert warning if replacement (changed) and new template ignored.              */
         /*  XXX: Is an Options template with only scope fields allowed for V9 ??                 */
 
-        tmplt_p = g_hash_table_lookup(v9_v10_tmplt_table, &tmplt);
+        tmplt_p = (v9_v10_tmplt_t *)g_hash_table_lookup(v9_v10_tmplt_table, &tmplt);
         if (!pinfo->fd->flags.visited) { /* cache template info only during first pass */
             do {
-                if ((option_scope_field_count == 0)  ||
-                    (v9_tmplt_max_fields &&
+                if (v9_tmplt_max_fields &&
                      ((option_scope_field_count > v9_tmplt_max_fields)
-                      || (option_field_count > v9_tmplt_max_fields))))  {
-                    break; /* Don't allow cache of this template */
+                      || (option_field_count > v9_tmplt_max_fields)))  {
+                    break; /* Don't cache this template */
                 }
                 if (tmplt_p != NULL) {
                     /* Entry for this template already exists; Can be dup or changed */
                     /* ToDo: Test for changed template ? If so: expert ?             */
-                    break; /* Don't allow cacheing of this template */
+                    break; /* Don't cache this template */
                 }
-                tmplt.fields_p[TF_SCOPES]  = se_alloc0(option_scope_field_count *sizeof(v9_v10_tmplt_entry_t));
-                tmplt.fields_p[TF_ENTRIES] = se_alloc0(option_field_count       *sizeof(v9_v10_tmplt_entry_t));
+                tmplt.fields_p[TF_SCOPES]  = (v9_v10_tmplt_entry_t *)wmem_alloc0(wmem_file_scope(), option_scope_field_count *sizeof(v9_v10_tmplt_entry_t));
+                tmplt.fields_p[TF_ENTRIES] = (v9_v10_tmplt_entry_t *)wmem_alloc0(wmem_file_scope(), option_field_count       *sizeof(v9_v10_tmplt_entry_t));
                 break;
             } while (FALSE);
         }
@@ -5389,7 +5448,7 @@ dissect_v9_v10_options_template(tvbuff_t *tvb, packet_info *pinfo, proto_tree *p
 
         if ((tmplt_p == NULL) && (tmplt.fields_p[TF_SCOPES] || tmplt.fields_p[TF_ENTRIES])) {
             /* create permanent template copy for storage in template table */
-            tmplt_p = se_memdup(&tmplt, sizeof(tmplt));
+            tmplt_p = (v9_v10_tmplt_t *)wmem_memdup(wmem_file_scope(), &tmplt, sizeof(tmplt));
             SE_COPY_ADDRESS(&tmplt_p->src_addr, &pinfo->net_src);
             SE_COPY_ADDRESS(&tmplt_p->dst_addr, &pinfo->net_dst);
             g_hash_table_insert(v9_v10_tmplt_table, tmplt_p, tmplt_p);
@@ -5439,7 +5498,7 @@ dissect_v9_v10_data_template(tvbuff_t *tvb, packet_info *pinfo, proto_tree *pdut
         offset += 2;
 
         if (v9_tmplt_max_fields && (count > v9_tmplt_max_fields)) {
-            expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN,
+            expert_add_info_format(pinfo, ti, &ei_cflow_entries,
                                    "More entries (%u) than we can handle [template won't be used]."
                                    " Maximum value can be adjusted in the protocol preferences.",
                                    count);
@@ -5456,19 +5515,19 @@ dissect_v9_v10_data_template(tvbuff_t *tvb, packet_info *pinfo, proto_tree *pdut
         /*  been allocated) and thus this template will not be cached after dissection.            */
         /*  ToDo: expert warning if replacement (changed) and new template ignored.                */
 
-        tmplt_p = g_hash_table_lookup(v9_v10_tmplt_table, &tmplt);
+        tmplt_p = (v9_v10_tmplt_t *)g_hash_table_lookup(v9_v10_tmplt_table, &tmplt);
         if (!pinfo->fd->flags.visited) { /* cache template info only during first pass */
             do {
                 if ((count == 0) ||
                     (v9_tmplt_max_fields && (count > v9_tmplt_max_fields))) {
-                    break; /* Don't allow cache of this template */
+                    break; /* Don't cache this template */
                 }
                 if (tmplt_p != NULL) {
                     /* Entry for this template already exists; Can be dup or changed */
                     /* ToDo: Test for changed template ? If so: expert ?             */
-                    break; /* Don't allow cacheing of this template */
+                    break; /* Don't cache this template */
                 }
-                tmplt.fields_p[TF_ENTRIES] = se_alloc0(count * sizeof(v9_v10_tmplt_entry_t));
+                tmplt.fields_p[TF_ENTRIES] = (v9_v10_tmplt_entry_t *)wmem_alloc0(wmem_file_scope(), count * sizeof(v9_v10_tmplt_entry_t));
                 break;
             } while (FALSE);
         }
@@ -5477,7 +5536,7 @@ dissect_v9_v10_data_template(tvbuff_t *tvb, packet_info *pinfo, proto_tree *pdut
 
         if ((tmplt_p == NULL) && tmplt.fields_p[TF_ENTRIES]) {
             /* create permanent template copy for storage in template table */
-            tmplt_p = se_memdup(&tmplt, sizeof(tmplt));
+            tmplt_p = (v9_v10_tmplt_t *)wmem_memdup(wmem_file_scope(), &tmplt, sizeof(tmplt));
             SE_COPY_ADDRESS(&tmplt_p->src_addr, &pinfo->net_src);
             SE_COPY_ADDRESS(&tmplt_p->dst_addr, &pinfo->net_dst);
             g_hash_table_insert(v9_v10_tmplt_table, tmplt_p, tmplt_p);
@@ -5506,8 +5565,8 @@ static v9_v10_tmplt_t *v9_v10_tmplt_build_key(v9_v10_tmplt_t *tmplt_p, packet_in
 static gboolean
 v9_v10_tmplt_table_equal(gconstpointer k1, gconstpointer k2)
 {
-    const v9_v10_tmplt_t *ta = k1;
-    const v9_v10_tmplt_t *tb = k2;
+    const v9_v10_tmplt_t *ta = (const v9_v10_tmplt_t *)k1;
+    const v9_v10_tmplt_t *tb = (const v9_v10_tmplt_t *)k2;
 
     return (
         (CMP_ADDRESS(&ta->src_addr, &tb->src_addr) == 0) &&
@@ -5522,7 +5581,7 @@ v9_v10_tmplt_table_equal(gconstpointer k1, gconstpointer k2)
 static guint
 v9_v10_tmplt_table_hash(gconstpointer k)
 {
-    const v9_v10_tmplt_t *tmplt_p = k;
+    const v9_v10_tmplt_t *tmplt_p = (const v9_v10_tmplt_t *)k;
     guint32               val;
 
     val = tmplt_p->src_id + (tmplt_p->tmplt_id << 9) + tmplt_p->src_port + tmplt_p->dst_port;
@@ -5674,8 +5733,8 @@ proto_register_netflow(void)
         },
         {&hf_cflow_sysuptime,
          {"SysUptime", "cflow.sysuptime",
-          FT_UINT32, BASE_DEC, NULL, 0x0,
-          "Time since router booted (in milliseconds)", HFILL}
+          FT_RELATIVE_TIME, BASE_NONE, NULL, 0x0,
+          "Time since router booted (in seconds)", HFILL}
         },
         {&hf_cflow_exporttime,
          {"ExportTime", "cflow.exporttime",
@@ -5929,6 +5988,16 @@ proto_register_netflow(void)
           FT_UINT16, BASE_DEC, NULL, 0x0,
           "Packet Length Max", HFILL}
         },
+        {&hf_cflow_length_min64,
+         {"MinLength", "cflow.length_min",
+          FT_UINT64, BASE_DEC, NULL, 0x0,
+          "Packet Length Min", HFILL}
+        },
+        {&hf_cflow_length_max64,
+         {"MaxLength", "cflow.length_max",
+          FT_UINT64, BASE_DEC, NULL, 0x0,
+          "Packet Length Max", HFILL}
+        },
         {&hf_cflow_timedelta,
          {"Duration", "cflow.timedelta",
           FT_RELATIVE_TIME, BASE_NONE, NULL, 0x0,
@@ -5976,12 +6045,12 @@ proto_register_netflow(void)
         },
         {&hf_cflow_srcas,
          {"SrcAS", "cflow.srcas",
-          FT_UINT16, BASE_DEC, NULL, 0x0,
+          FT_UINT32, BASE_DEC, NULL, 0x0,
           "Source AS", HFILL}
         },
         {&hf_cflow_dstas,
          {"DstAS", "cflow.dstas",
-          FT_UINT16, BASE_DEC, NULL, 0x0,
+          FT_UINT32, BASE_DEC, NULL, 0x0,
           "Destination AS", HFILL}
         },
         {&hf_cflow_srcmask,
@@ -6171,12 +6240,12 @@ proto_register_netflow(void)
         },
         {&hf_cflow_peer_srcas,
          {"PeerSrcAS", "cflow.peer_srcas",
-          FT_UINT16, BASE_DEC, NULL, 0x0,
+          FT_UINT32, BASE_DEC, NULL, 0x0,
           "Peer Source AS", HFILL}
         },
         {&hf_cflow_peer_dstas,
          {"PeerDstAS", "cflow.peer_dstas",
-          FT_UINT16, BASE_DEC, NULL, 0x0,
+          FT_UINT32, BASE_DEC, NULL, 0x0,
           "Peer Destination AS", HFILL}
         },
         {&hf_cflow_flow_exporter,
@@ -7286,6 +7355,30 @@ proto_register_netflow(void)
           FT_UINT32, BASE_DEC, NULL, 0x0,
           "IPFIX Private Enterprise Number", HFILL}
         },
+        {&hf_cflow_cts_sgt_source_tag,
+         {"Source SGT",
+          "cflow.source_sgt_tag",
+          FT_UINT16, BASE_DEC, NULL, 0x0,
+          NULL, HFILL}
+        },
+        {&hf_cflow_cts_sgt_destination_tag,
+         {"Destination SGT",
+          "cflow.destination_sgt_tag",
+          FT_UINT16, BASE_DEC, NULL, 0x0,
+          NULL, HFILL}
+        },
+        {&hf_cflow_cts_sgt_source_name,
+         {"Source SGT Name",
+          "cflow.source_sgt_name",
+          FT_STRING, BASE_NONE, NULL, 0x0,
+          NULL, HFILL}
+        },
+        {&hf_cflow_cts_sgt_destination_name,
+         {"Destination SGT Name",
+          "cflow.destination_sgt_name",
+          FT_STRING, BASE_NONE, NULL, 0x0,
+          NULL, HFILL}
+        },
         {&hf_cflow_packets_dropped,
          {"Packets Dropped",
           "cflow.packets_dropped",
@@ -8167,12 +8260,25 @@ proto_register_netflow(void)
         &ett_fwdstat
     };
 
+    static ei_register_info ei[] = {
+        { &ei_cflow_flowset_length, { "cflow.flowset_length.invalid", PI_MALFORMED, PI_WARN, "Length invalid", EXPFILL }},
+        { &ei_cflow_no_flow_information, { "cflow.no_flow_information", PI_MALFORMED, PI_WARN, "No flow information", EXPFILL }},
+        { &ei_cflow_template_ipfix_scope_field_count, { "cflow.template_ipfix_scope_field_count.none", PI_MALFORMED, PI_WARN, "No scope fields", EXPFILL }},
+        { &ei_cflow_template_ipfix_scope_field_count_too_many, { "cflow.template_ipfix_scope_field_count.too_many", PI_MALFORMED, PI_WARN, "More scope fields than fields", EXPFILL }},
+        { &ei_cflow_options, { "cflow.options.too_many", PI_UNDECODED, PI_WARN, "More options than we can handle.", EXPFILL }},
+        { &ei_cflow_scopes, { "cflow.scopes.too_many", PI_UNDECODED, PI_WARN, "More scopes than we can handle [template won't be used].", EXPFILL }},
+        { &ei_cflow_entries, { "cflow.entries.too_many", PI_UNDECODED, PI_WARN, "More entries than we can handle [template won't be used]", EXPFILL }},
+    };
+
     module_t *netflow_module;
+    expert_module_t* expert_netflow;
 
     proto_netflow = proto_register_protocol("Cisco NetFlow/IPFIX", "CFLOW", "cflow");
 
     proto_register_field_array(proto_netflow, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_netflow = expert_register_protocol(proto_netflow);
+    expert_register_field_array(expert_netflow, ei, array_length(ei));
 
     /* Register our configuration options for NetFlow */
     netflow_module = prefs_register_protocol(proto_netflow, proto_reg_handoff_netflow);
@@ -8199,7 +8305,7 @@ proto_register_netflow(void)
                                    "Maximum number of fields allowed in a template",
                                    "Set the number of fields allowed in a template.  "
                                    "Use 0 (zero) for unlimited.  "
-                                   " (default: " STRINGIFY(V9TEMPLATE_MAX_FIELDS_DEF) ")",
+                                   " (default: " G_STRINGIFY(V9TEMPLATE_MAX_FIELDS_DEF) ")",
                                    10, &v9_tmplt_max_fields);
 
     register_init_routine(&netflow_init);
@@ -8209,22 +8315,6 @@ proto_register_netflow(void)
 /*
  * protocol/port association
  */
-static void
-netflow_delete_callback(guint32 port)
-{
-    if ( port ) {
-        dissector_delete_uint("udp.port", port, netflow_handle);
-    }
-}
-
-static void
-netflow_add_callback(guint32 port)
-{
-    if ( port ) {
-        dissector_add_uint("udp.port", port, netflow_handle);
-    }
-}
-
 static void
 ipfix_delete_callback(guint32 port)
 {
@@ -8257,7 +8347,7 @@ proto_reg_handoff_netflow(void)
         netflow_prefs_initialized = TRUE;
         dissector_add_uint("wtap_encap", WTAP_ENCAP_RAW_IPFIX, netflow_handle);
     } else {
-        range_foreach(netflow_ports, netflow_delete_callback);
+        dissector_delete_uint_range("udp.port", netflow_ports, netflow_handle);
         g_free(netflow_ports);
         range_foreach(ipfix_ports, ipfix_delete_callback);
         g_free(ipfix_ports);
@@ -8266,7 +8356,7 @@ proto_reg_handoff_netflow(void)
     netflow_ports = range_copy(global_netflow_ports);
     ipfix_ports = range_copy(global_ipfix_ports);
 
-    range_foreach(netflow_ports, netflow_add_callback);
+    dissector_add_uint_range("udp.port", netflow_ports, netflow_handle);
     range_foreach(ipfix_ports, ipfix_add_callback);
 }
 

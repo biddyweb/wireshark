@@ -1,8 +1,6 @@
 /*
  * Copyright 2012, Pontus Fuchs <pontus.fuchs@gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -24,8 +22,6 @@
 
 #ifndef __WS80211_UTILS_H__
 #define __WS80211_UTILS_H__
-
-#include <config.h>
 
 enum ws80211_channel_type {
 	WS80211_CHAN_NO_HT,

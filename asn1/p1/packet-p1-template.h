@@ -2,8 +2,6 @@
  * Routines for X.411 (X.400 Message Transfer) packet dissection
  * Graeme Lunt 2005
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,8 +26,8 @@
 
 #include "packet-p1-val.h"
 
-void p1_initialize_content_globals (proto_tree *tree, gboolean report_unknown_cont_type);
-char* p1_get_last_oraddress(void);
+void p1_initialize_content_globals (asn1_ctx_t* actx, proto_tree *tree, gboolean report_unknown_cont_type);
+const char* p1_get_last_oraddress(asn1_ctx_t* actx);
 void dissect_p1_mts_apdu (tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree);
 #include "packet-p1-exp.h"
 

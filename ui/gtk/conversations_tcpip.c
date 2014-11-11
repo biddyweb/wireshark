@@ -1,8 +1,6 @@
 /* conversations_tcpip.c
  * conversations_tcpip   2003 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,12 +36,14 @@
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/conversations_table.h"
 
+void register_tap_listener_tcpip_conversation(void);
+
 static int
 tcpip_conversation_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
 {
-	const struct tcpheader *tcphdr=vip;
+	const struct tcpheader *tcphdr=(const struct tcpheader *)vip;
 
-	add_conversation_table_data_with_conv_id((conversations_table *)pct, &tcphdr->ip_src, &tcphdr->ip_dst, tcphdr->th_sport, tcphdr->th_dport, (conv_id_t) tcphdr->th_stream, 1, pinfo->fd->pkt_len, &pinfo->fd->rel_ts, SAT_NONE, PT_TCP);
+	add_conversation_table_data_with_conv_id((conversations_table *)pct, &tcphdr->ip_src, &tcphdr->ip_dst, tcphdr->th_sport, tcphdr->th_dport, (conv_id_t) tcphdr->th_stream, 1, pinfo->fd->pkt_len, &pinfo->rel_ts, SAT_NONE, PT_TCP);
 
 	return 1;
 }

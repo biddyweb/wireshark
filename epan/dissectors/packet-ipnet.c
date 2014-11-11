@@ -1,8 +1,6 @@
 /* packet-ipnet.c
  * Routines for decoding Solaris IPNET packet disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,8 +23,13 @@
 #include "config.h"
 
 #include <glib.h>
+
 #include <epan/aftypes.h>
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
+
+void proto_register_ipnet(void);
+void proto_reg_handoff_ipnet(void);
 
 static int proto_ipnet   = -1;
 static int hf_version    = -1;

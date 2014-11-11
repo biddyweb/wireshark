@@ -30,8 +30,6 @@
  * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
- *
- * $Id$
  */
 
 /*
@@ -40,6 +38,7 @@
  * See
  *
  *      http://www.endace.com/support/EndaceRecordFormat.pdf
+ *      (mirror: https://bugs.wireshark.org/bugzilla/attachment.cgi?id=4333) (bug #4484)
  */
 
 #include "config.h"
@@ -53,7 +52,7 @@
 
 #include "wtap-int.h"
 #include "file_wrappers.h"
-#include "buffer.h"
+#include <wsutil/buffer.h>
 #include "pcap-encap.h"
 #include "atm.h"
 #include "erf.h"
@@ -68,8 +67,8 @@ static int erf_read_header(FILE_T fh,
 static gboolean erf_read(wtap *wth, int *err, gchar **err_info,
                          gint64 *data_offset);
 static gboolean erf_seek_read(wtap *wth, gint64 seek_off,
-                              struct wtap_pkthdr *phdr, guint8 *pd,
-                              int length, int *err, gchar **err_info);
+                              struct wtap_pkthdr *phdr, Buffer *buf,
+                              int *err, gchar **err_info);
 
 static const struct {
   int erf_encap_value;
@@ -152,8 +151,7 @@ extern int erf_open(wtap *wth, int *err, gchar **err_info)
     if (packet_size > WTAP_MAX_PACKET_SIZE) {
       /*
        * Probably a corrupt capture file or a file that's not an ERF file
-       * but that passed earlier tests; don't blow up trying
-       * to allocate space for an immensely-large packet.
+       * but that passed earlier tests.
        */
       return 0;
     }
@@ -177,7 +175,7 @@ extern int erf_open(wtap *wth, int *err, gchar **err_info)
       return 0;
     }
 
-    if ((ts = pletohll(&header.ts)) < prevts) {
+    if ((ts = pletoh64(&header.ts)) < prevts) {
       /* reassembled AALx records may not be in time order, also records are not in strict time order between physical interfaces, so allow 1 sec fudge */
       if ( ((prevts-ts)>>32) > 1 ) {
         return 0;
@@ -238,8 +236,8 @@ extern int erf_open(wtap *wth, int *err, gchar **err_info)
        is reached whereas the record is truncated */
     if (packet_size > WTAP_MAX_PACKET_SIZE) {
       /*
-       * Probably a corrupt capture file; don't blow up trying
-       * to allocate space for an immensely-large packet.
+       * Probably a corrupt capture file or a file that's not an ERF file
+       * but that passed earlier tests.
        */
       return 0;
     }
@@ -264,7 +262,7 @@ extern int erf_open(wtap *wth, int *err, gchar **err_info)
   }
 
   /* This is an ERF file */
-  wth->file_type = WTAP_FILE_ERF;
+  wth->file_type_subtype = WTAP_FILE_TYPE_SUBTYPE_ERF;
   wth->snapshot_length = 0;     /* not available in header, only in frame */
 
   /*
@@ -297,10 +295,9 @@ static gboolean erf_read(wtap *wth, int *err, gchar **err_info,
       return FALSE;
     }
 
-    buffer_assure_space(wth->frame_buffer, packet_size);
-
-    wtap_file_read_expected_bytes(buffer_start_ptr(wth->frame_buffer),
-                                  (gint32)(packet_size), wth->fh, err, err_info);
+    if (!wtap_read_packet_bytes(wth->fh, wth->frame_buffer, packet_size,
+                                err, err_info))
+      return FALSE;
 
   } while ( erf_header.type == ERF_TYPE_PAD );
 
@@ -308,8 +305,8 @@ static gboolean erf_read(wtap *wth, int *err, gchar **err_info,
 }
 
 static gboolean erf_seek_read(wtap *wth, gint64 seek_off,
-                              struct wtap_pkthdr *phdr, guint8 *pd,
-                              int length _U_, int *err, gchar **err_info)
+                              struct wtap_pkthdr *phdr, Buffer *buf,
+                              int *err, gchar **err_info)
 {
   erf_header_t erf_header;
   guint32      packet_size;
@@ -323,10 +320,8 @@ static gboolean erf_seek_read(wtap *wth, gint64 seek_off,
       return FALSE;
   } while ( erf_header.type == ERF_TYPE_PAD );
 
-  wtap_file_read_expected_bytes(pd, (int)packet_size, wth->random_fh, err,
-                                err_info);
-
-  return TRUE;
+  return wtap_read_packet_bytes(wth->random_fh, buf, packet_size,
+                                err, err_info);
 }
 
 static int erf_read_header(FILE_T fh,
@@ -377,8 +372,9 @@ static int erf_read_header(FILE_T fh,
   }
 
   {
-    guint64 ts = pletohll(&erf_header->ts);
+    guint64 ts = pletoh64(&erf_header->ts);
 
+    phdr->rec_type = REC_TYPE_PACKET;
     phdr->presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN|WTAP_HAS_INTERFACE_ID;
     phdr->ts.secs = (long) (ts >> 32);
     ts  = ((ts & 0xffffffff) * 1000 * 1000 * 1000);
@@ -393,7 +389,7 @@ static int erf_read_header(FILE_T fh,
 
   /* Copy the ERF pseudo header */
   memset(&pseudo_header->erf, 0, sizeof(pseudo_header->erf));
-  pseudo_header->erf.phdr.ts = pletohll(&erf_header->ts);
+  pseudo_header->erf.phdr.ts = pletoh64(&erf_header->ts);
   pseudo_header->erf.phdr.type = erf_header->type;
   pseudo_header->erf.phdr.flags = erf_header->flags;
   pseudo_header->erf.phdr.rlen = g_ntohs(erf_header->rlen);
@@ -409,7 +405,7 @@ static int erf_read_header(FILE_T fh,
       *bytes_read += (guint32)sizeof(erf_exhdr);
     *packet_size -=  (guint32)sizeof(erf_exhdr);
     skiplen += (guint32)sizeof(erf_exhdr);
-    erf_exhdr_sw = pntohll(erf_exhdr);
+    erf_exhdr_sw = pntoh64(erf_exhdr);
     if (i < max)
       memcpy(&pseudo_header->erf.ehdr_list[i].ehdr, &erf_exhdr_sw, sizeof(erf_exhdr_sw));
     type = erf_exhdr[0];
@@ -516,6 +512,7 @@ static gboolean erf_write_phdr(wtap_dumper *wdh, int encap, const union wtap_pse
   size_t size        = 0;
   size_t subhdr_size = 0;
   int    i           = 0;
+  guint8 has_more    = 0;
 
   switch(encap){
     case WTAP_ENCAP_ERF:
@@ -558,15 +555,17 @@ static gboolean erf_write_phdr(wtap_dumper *wdh, int encap, const union wtap_pse
   wdh->bytes_dumped += size;
 
   /*write out up to MAX_ERF_EHDR extension headers*/
-  if((pseudo_header->erf.phdr.type & 0x80) != 0){  /*we have extension headers*/
+  has_more = pseudo_header->erf.phdr.type & 0x80;
+  if(has_more){  /*we have extension headers*/
     do{
       phtonll(ehdr+(i*8), pseudo_header->erf.ehdr_list[i].ehdr);
       if(i == MAX_ERF_EHDR-1) ehdr[i*8] = ehdr[i*8] & 0x7F;
+      has_more = ehdr[i*8] & 0x80;
       i++;
-    }while((ehdr[0] & 0x80) != 0 && i < MAX_ERF_EHDR);
-    if (!wtap_dump_file_write(wdh, ehdr, MAX_ERF_EHDR*i, err))
+    }while(has_more && i < MAX_ERF_EHDR);
+    if (!wtap_dump_file_write(wdh, ehdr, 8*i, err))
       return FALSE;
-    wdh->bytes_dumped += MAX_ERF_EHDR*i;
+    wdh->bytes_dumped += 8*i;
   }
 
   if(!wtap_dump_file_write(wdh, erf_subhdr, subhdr_size, err))
@@ -591,6 +590,18 @@ static gboolean erf_dump(
   gboolean must_add_crc = FALSE;
   guint32  crc32        = 0x00000000;
 
+  /* We can only write packet records. */
+  if (phdr->rec_type != REC_TYPE_PACKET) {
+    *err = WTAP_ERR_REC_TYPE_UNSUPPORTED;
+    return FALSE;
+  }
+
+  /* Don't write anything bigger than we're willing to read. */
+  if(phdr->caplen > WTAP_MAX_PACKET_SIZE) {
+    *err = WTAP_ERR_PACKET_TOO_LARGE;
+    return FALSE;
+  }
+
   if(wdh->encap == WTAP_ENCAP_PER_PACKET){
     encap = phdr->pkt_encap;
   }else{
@@ -606,6 +617,11 @@ static gboolean erf_dump(
     if(!wtap_dump_file_write(wdh, pd, phdr->caplen, err)) return FALSE;
     wdh->bytes_dumped += phdr->caplen;
 
+    /*XXX: this pads the record to its original length, which is fine in most
+     * cases. However with >MAX_ERF_EHDR unnecessary padding will be added, and
+     * if the record was truncated this will be incorrectly treated as payload.
+     * More than 8 extension headers is unusual though, only the first 8 are
+     * written out anyway and fixing properly would require major refactor.*/
     while(wdh->bytes_dumped < alignbytes){
       if(!wtap_dump_file_write(wdh, "", 1, err)) return FALSE;
       wdh->bytes_dumped++;
@@ -696,8 +712,8 @@ int erf_dump_open(wtap_dumper *wdh, int *err)
   wdh->subtype_write = erf_dump;
   wdh->subtype_close = NULL;
 
-  switch(wdh->file_type){
-    case WTAP_FILE_ERF:
+  switch(wdh->file_type_subtype){
+    case WTAP_FILE_TYPE_SUBTYPE_ERF:
       wdh->tsprecision = WTAP_FILE_TSPREC_NSEC;
       break;
     default:
@@ -716,10 +732,6 @@ int erf_populate_interfaces(wtap *wth)
 
   if (!wth)
     return -1;
-
-  if (!wth->interface_data) {
-    wth->interface_data = g_array_new(FALSE, FALSE, sizeof(wtapng_if_descr_t));
-  }
 
   memset(&int_data, 0, sizeof(int_data)); /* Zero all fields */
 
@@ -753,7 +765,6 @@ int erf_populate_interfaces(wtap *wth)
     int_data.if_description = g_strdup_printf("ERF Interface Id %d (Port %c)", i, 'A'+i);
 
     g_array_append_val(wth->interface_data, int_data);
-    wth->number_of_interfaces++;
   }
 
   return 0;

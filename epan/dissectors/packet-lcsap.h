@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-lcsap.h                                                             */
 /* ../../tools/asn2wrs.py -p lcsap -c ./lcsap.cnf -s ./packet-lcsap-template -D . -O ../../epan/dissectors LCS-AP-CommonDataTypes.asn LCS-AP-Constants.asn LCS-AP-Containers.asn LCS-AP-IEs.asn LCS-AP-PDU-Contents.asn LCS-AP-PDU-Descriptions.asn */
 
@@ -10,8 +10,6 @@
  * Routines for LCS-AP packet dissembly.
  *
  * Copyright (c) 2011 by Spenser Sheng <spenser.sheng@ericsson.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -43,6 +41,6 @@
 int dissect_lcsap_Correlation_ID_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_);
 
 /*--- End of included file: packet-lcsap-exp.h ---*/
-#line 33 "../../asn1/lcsap/packet-lcsap-template.h"
+#line 31 "../../asn1/lcsap/packet-lcsap-template.h"
 
 #endif  /* PACKET_LCSAP_H */

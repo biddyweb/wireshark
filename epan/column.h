@@ -1,8 +1,6 @@
 /* column.h
  * Definitions for column handling routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,7 @@
 #define __COLUMN_H__
 
 #include "ws_symbol_export.h"
+#include <epan/column-info.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,6 +81,9 @@ gint                 get_column_char_width(const gint format);
 WS_DLL_PUBLIC
 void
 build_column_format_array(column_info *cinfo, const gint num_cols, const gboolean reset_fences);
+
+WS_DLL_PUBLIC
+void                 column_dump_column_formats(void);
 
 #ifdef __cplusplus
 }

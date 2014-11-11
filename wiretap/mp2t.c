@@ -4,8 +4,6 @@
  * Written by Weston Schmidt <weston_schmidt@alumni.purdue.edu>
  * Copyright 2012 Weston Schmidt
  *
- * $Id$
- *
  * Wiretap Library
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -35,7 +33,7 @@
 #include "mp2t.h"
 
 #include "wtap-int.h"
-#include "buffer.h"
+#include <wsutil/buffer.h>
 #include "file_wrappers.h"
 #include <errno.h>
 #include <stdlib.h>
@@ -62,12 +60,17 @@ typedef struct {
 } mp2t_filetype_t;
 
 static gboolean
-mp2t_read_data(guint8 *dest, int length, int *err, gchar **err_info, FILE_T fh)
+mp2t_read_packet(mp2t_filetype_t *mp2t, FILE_T fh, gint64 offset,
+                 struct wtap_pkthdr *phdr, Buffer *buf, int *err,
+                 gchar **err_info)
 {
+    guint64 tmp;
     int bytes_read;
 
-    bytes_read = file_read(dest, length, fh);
-    if (length != bytes_read) {
+    buffer_assure_space(buf, MP2T_SIZE);
+    errno = WTAP_ERR_CANT_READ;
+    bytes_read = file_read(buffer_start_ptr(buf), MP2T_SIZE, fh);
+    if (MP2T_SIZE != bytes_read) {
         *err = file_error(fh, err_info);
         /* bytes_read==0 is end of file, not a short read */
         if (bytes_read>0 && *err == 0) {
@@ -76,35 +79,10 @@ mp2t_read_data(guint8 *dest, int length, int *err, gchar **err_info, FILE_T fh)
         return FALSE;
     }
 
-    return TRUE;
-}
-
-static gboolean
-mp2t_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
-{
-    mp2t_filetype_t *mp2t;
-    guint64 tmp;
-
-    mp2t = (mp2t_filetype_t*) wth->priv;
-
-    *data_offset = file_tell(wth->fh);
-
-    /* read only the actual mpeg2 ts packet, not including a trailer */
-    buffer_assure_space(wth->frame_buffer, MP2T_SIZE);
-    if (FALSE == mp2t_read_data(buffer_start_ptr(wth->frame_buffer),
-                                MP2T_SIZE, err, err_info, wth->fh))
-    {
-        return FALSE;
-    }
-
-    /* if there's a trailer, skip it and go to the start of the next packet */
-    if (mp2t->trailer_len!=0 &&
-        (-1 == file_seek(wth->fh, mp2t->trailer_len, SEEK_CUR, err))) {
-        return FALSE;
-    }
+    phdr->rec_type = REC_TYPE_PACKET;
 
     /* XXX - relative, not absolute, time stamps */
-    wth->phdr.presence_flags = WTAP_HAS_TS;
+    phdr->presence_flags = WTAP_HAS_TS;
 
     /*
      * Every packet in an MPEG2-TS stream is has a fixed size of
@@ -116,26 +94,59 @@ mp2t_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
      *
      * It would be really cool to be able to configure the bitrate...
      */
-    tmp = ((guint64)(*data_offset - mp2t->start_offset) * 8);	/* offset, in bits */
-    wth->phdr.ts.secs = (time_t)(tmp / MP2T_QAM256_BITRATE);
-    wth->phdr.ts.nsecs = (int)((tmp % MP2T_QAM256_BITRATE) * 1000000000 / MP2T_QAM256_BITRATE);
+    tmp = ((guint64)(offset - mp2t->start_offset) * 8);	/* offset, in bits */
+    phdr->ts.secs = (time_t)(tmp / MP2T_QAM256_BITRATE);
+    phdr->ts.nsecs = (int)((tmp % MP2T_QAM256_BITRATE) * 1000000000 / MP2T_QAM256_BITRATE);
 
-    wth->phdr.caplen = MP2T_SIZE;
-    wth->phdr.len = MP2T_SIZE;
+    phdr->caplen = MP2T_SIZE;
+    phdr->len = MP2T_SIZE;
 
     return TRUE;
 }
 
 static gboolean
-mp2t_seek_read(wtap *wth, gint64 seek_off,
-        struct wtap_pkthdr *phdr _U_, guint8 *pd, int length,
-        int *err, gchar **err_info)
+mp2t_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 {
+    mp2t_filetype_t *mp2t;
+
+    mp2t = (mp2t_filetype_t*) wth->priv;
+
+    *data_offset = file_tell(wth->fh);
+
+    if (!mp2t_read_packet(mp2t, wth->fh, *data_offset, &wth->phdr,
+                          wth->frame_buffer, err, err_info)) {
+        return FALSE;
+    }
+
+    /* if there's a trailer, skip it and go to the start of the next packet */
+    if (mp2t->trailer_len!=0) {
+        if (-1 == file_seek(wth->fh, mp2t->trailer_len, SEEK_CUR, err)) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+static gboolean
+mp2t_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *phdr,
+        Buffer *buf, int *err, gchar **err_info)
+{
+    mp2t_filetype_t *mp2t;
+
     if (-1 == file_seek(wth->random_fh, seek_off, SEEK_SET, err)) {
         return FALSE;
     }
 
-    return mp2t_read_data(pd, length, err, err_info, wth->random_fh);
+    mp2t = (mp2t_filetype_t*) wth->priv;
+
+    if (!mp2t_read_packet(mp2t, wth->random_fh, seek_off, phdr, buf,
+                          err, err_info)) {
+        if (*err == 0)
+            *err = WTAP_ERR_SHORT_READ;
+        return FALSE;
+    }
+    return TRUE;
 }
 
 int
@@ -218,7 +229,7 @@ mp2t_open(wtap *wth, int *err, gchar **err_info)
         return -1;
     }
 
-    wth->file_type = WTAP_FILE_MPEG_2_TS;
+    wth->file_type_subtype = WTAP_FILE_TYPE_SUBTYPE_MPEG_2_TS;
     wth->file_encap = WTAP_ENCAP_MPEG_2_TS;
     wth->tsprecision = WTAP_FILE_TSPREC_NSEC;
     wth->subtype_read = mp2t_read;

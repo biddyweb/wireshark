@@ -2,8 +2,6 @@
  * Routines for Q.933 frame disassembly
  * Guy Harris <guy@alum.mit.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998
@@ -29,6 +27,9 @@
 #include <epan/packet.h>
 #include <epan/strutil.h>
 #include <epan/nlpid.h>
+
+void proto_register_q933(void);
+void proto_reg_handoff_q933(void);
 
 static int proto_q933 					= -1;
 static int hf_q933_discriminator			= -1;
@@ -437,28 +438,28 @@ dissect_q933_protocol_discriminator(tvbuff_t *tvb, int offset, proto_tree *tree)
 	unsigned int discriminator = tvb_get_guint8(tvb, offset);
 
 	if (discriminator == NLPID_Q_933) {
-		proto_tree_add_uint_format(tree, hf_q933_discriminator,
+		proto_tree_add_uint_format_value(tree, hf_q933_discriminator,
 			 tvb, offset, 1, discriminator,
-			 "Protocol discriminator: Q.933");
+			 "Q.933");
 	} else if (discriminator == NLPID_Q_2931) {
-		proto_tree_add_uint_format(tree, hf_q933_discriminator,
+		proto_tree_add_uint_format_value(tree, hf_q933_discriminator,
 			 tvb, offset, 1, discriminator,
-			 "Protocol discriminator: Q.2931");
+			 "Q.2931");
 	} else if ((discriminator >= 16 && discriminator < 63)
 	    || ((discriminator >= 80) && (discriminator < 254))) {
-		proto_tree_add_uint_format(tree, hf_q933_discriminator,
+		proto_tree_add_uint_format_value(tree, hf_q933_discriminator,
 		    tvb, offset, 1, discriminator,
-		    "Protocol discriminator: Network layer or layer 3 protocol (0x%02X)",
+		    "Network layer or layer 3 protocol (0x%02X)",
 		    discriminator);
 	} else if (discriminator >= 64 && discriminator <= 79) {
-		proto_tree_add_uint_format(tree, hf_q933_discriminator,
+		proto_tree_add_uint_format_value(tree, hf_q933_discriminator,
 		    tvb, offset, 1, discriminator,
-		    "Protocol discriminator: National use (0x%02X)",
+		    "National use (0x%02X)",
 		    discriminator);
 	} else {
-		proto_tree_add_uint_format(tree, hf_q933_discriminator,
+		proto_tree_add_uint_format_value(tree, hf_q933_discriminator,
 		    tvb, offset, 1, discriminator,
-		    "Protocol discriminator: Reserved (0x%02X)",
+		    "Reserved (0x%02X)",
 		    discriminator);
 	}
 }
@@ -485,7 +486,7 @@ dissect_q933_bearer_capability_ie(tvbuff_t *tvb, int offset, int len,
 		 */
 		proto_tree_add_text(tree, tvb, offset,
 		    len, "Data: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 		proto_tree_add_uint(tree, hf_q933_coding_standard, tvb, offset, 1, octet);
 		proto_tree_add_boolean(tree, hf_q933_extension_ind, tvb, offset, 1, octet);
 		return;
@@ -907,7 +908,7 @@ dissect_q933_cause_ie(tvbuff_t *tvb, int offset, int len,
 		proto_tree_add_uint(tree, hf_q933_coding_standard, tvb, offset, 1, octet);
 		proto_tree_add_text(tree, tvb, offset,
 		    len, "Data: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 		return;
 	}
 	proto_tree_add_uint(tree, hf_q933_cause_location, tvb, offset, 1, octet);
@@ -978,7 +979,7 @@ dissect_q933_cause_ie(tvbuff_t *tvb, int offset, int len,
 		case Q933_REJ_USER_SPECIFIC:
 			proto_tree_add_text(tree, tvb, offset, len,
 			    "User specific diagnostic: %s",
-			    tvb_bytes_to_str(tvb, offset, len));
+			    tvb_bytes_to_ep_str(tvb, offset, len));
 			break;
 
 		case Q933_REJ_IE_MISSING:
@@ -998,7 +999,7 @@ dissect_q933_cause_ie(tvbuff_t *tvb, int offset, int len,
 		default:
 			proto_tree_add_text(tree, tvb, offset, len,
 			    "Diagnostic: %s",
-			    tvb_bytes_to_str(tvb, offset, len));
+			    tvb_bytes_to_ep_str(tvb, offset, len));
 			break;
 		}
 		break;
@@ -1030,13 +1031,13 @@ dissect_q933_cause_ie(tvbuff_t *tvb, int offset, int len,
 		if (len < 3)
 			return;
 		proto_tree_add_text(tree, tvb, offset, 3,
-		    "Timer: %.3s", tvb_get_ephemeral_string(tvb, offset, 3));
+		    "Timer: %.3s", tvb_get_string(wmem_packet_scope(), tvb, offset, 3));
 		break;
 
 	default:
 		proto_tree_add_text(tree, tvb, offset, len,
 		    "Diagnostics: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 	}
 }
 
@@ -1085,7 +1086,7 @@ dissect_q933_call_state_ie(tvbuff_t *tvb, int offset, int len,
 		 */
 		proto_tree_add_text(tree, tvb, offset,
 		    len, "Data: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 		return;
 	}
 	proto_tree_add_text(tree, tvb, offset, 1,
@@ -1269,7 +1270,7 @@ dissect_q933_channel_identification_ie(tvbuff_t *tvb, int offset, int len,
 		if (identifier_len != 0) {
 			proto_tree_add_text(tree, tvb, identifier_offset,
 			    identifier_len, "Interface identifier: %s",
-			    tvb_bytes_to_str(tvb, identifier_offset, identifier_len));
+			    tvb_bytes_to_ep_str(tvb, identifier_offset, identifier_len));
 		}
 	}
 
@@ -1287,7 +1288,7 @@ dissect_q933_channel_identification_ie(tvbuff_t *tvb, int offset, int len,
 			 */
 			proto_tree_add_text(tree, tvb, offset,
 			    len, "Data: %s",
-			    tvb_bytes_to_str(tvb, offset, len));
+			    tvb_bytes_to_ep_str(tvb, offset, len));
 			return;
 		}
 		proto_tree_add_text(tree, tvb, offset, 1,
@@ -1337,7 +1338,7 @@ dissect_q933_progress_indicator_ie(tvbuff_t *tvb, int offset, int len,
 		 */
 		proto_tree_add_text(tree, tvb, offset,
 		    len, "Data: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 		return;
 	}
 	proto_tree_add_text(tree, tvb, offset, 1,
@@ -1427,7 +1428,7 @@ dissect_q933_ns_facilities_ie(tvbuff_t *tvb, int offset, int len,
 	 	return;
 	proto_tree_add_text(tree, tvb, offset,
 	    len, "Network-specific facility specification: %s",
-	    tvb_bytes_to_str(tvb, offset, len));
+	    tvb_bytes_to_ep_str(tvb, offset, len));
 }
 
 static int
@@ -1721,7 +1722,7 @@ dissect_q933_party_subaddr_ie(tvbuff_t *tvb, int offset, int len,
 	if (len == 0)
 		return;
 	proto_tree_add_text(tree, tvb, offset, len, "Subaddress: %s",
-	    tvb_bytes_to_str(tvb, offset, len));
+	    tvb_bytes_to_ep_str(tvb, offset, len));
 }
 
 /*
@@ -1778,7 +1779,7 @@ dissect_q933_high_layer_compat_ie(tvbuff_t *tvb, int offset, int len,
 		 */
 		proto_tree_add_text(tree, tvb, offset,
 		    len, "Data: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 		return;
 	}
 
@@ -1858,7 +1859,7 @@ dissect_q933_user_user_ie(tvbuff_t *tvb, int offset, int len,
 
 	default:
 		proto_tree_add_text(tree, tvb, offset, len, "User information: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 		break;
 	}
 }
@@ -1926,13 +1927,11 @@ dissect_q933(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		offset += call_ref_len;
 	}
 	message_type = tvb_get_guint8(tvb, offset);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_str(pinfo->cinfo, COL_INFO,
+	col_add_str(pinfo->cinfo, COL_INFO,
 		    val_to_str(message_type, q933_message_type_vals,
 		      "Unknown message type (0x%02X)"));
-	}
-	if (q933_tree != NULL)
-		proto_tree_add_uint(q933_tree, hf_q933_message_type, tvb, offset, 1, message_type);
+
+	proto_tree_add_uint(q933_tree, hf_q933_message_type, tvb, offset, 1, message_type);
 	offset += 1;
 
 	/*
@@ -2151,7 +2150,7 @@ dissect_q933(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				proto_tree_add_text(ie_tree, tvb,
 				    offset + 2, info_element_len,
 				    "Data: %s",
-				    tvb_bytes_to_str(tvb, offset + 2,
+				    tvb_bytes_to_ep_str(tvb, offset + 2,
 					  info_element_len));
 				break;
 			}

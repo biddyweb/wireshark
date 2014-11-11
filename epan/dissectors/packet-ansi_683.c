@@ -9,8 +9,6 @@
  * Last Updated to:
  * http://www.3gpp2.org/Public_html/specs/C.S0016-C_v2.0_081031.pdf
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,6 +33,10 @@
 #include <string.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
+
+void proto_register_ansi_683(void);
+void proto_reg_handoff_ansi_683(void);
 
 
 static const char *ansi_proto_name = "ANSI IS-683 (OTA (Mobile))";
@@ -75,9 +77,6 @@ static int hf_ansi_683_rev_msg_type = -1;
 static int hf_ansi_683_length = -1;
 
 static char bigbuf[1024];
-static dissector_handle_t data_handle;
-static packet_info *g_pinfo;
-static proto_tree *g_tree;
 
 static const char dtmf_digits[16] = {'?','1','2','3','4','5','6','7','8','9','0','?','?','?','?','?'};
 static const char bcd_digits[16]  = {'0','1','2','3','4','5','6','7','8','9','?','?','?','?','?','?'};
@@ -4676,7 +4675,7 @@ dissect_ansi_683_for_message(tvbuff_t *tvb, proto_tree *ansi_683_tree)
 
     msg_type = tvb_get_guint8(tvb, 0);
 
-    str = match_strval_idx(msg_type, for_msg_type_strings, &idx);
+    str = try_val_to_str_idx(msg_type, for_msg_type_strings, &idx);
 
     if (str == NULL)
     {
@@ -4706,7 +4705,7 @@ dissect_ansi_683_rev_message(tvbuff_t *tvb, proto_tree *ansi_683_tree)
 
     msg_type = tvb_get_guint8(tvb, 0);
 
-    str = match_strval_idx(msg_type, rev_msg_type_strings, &idx);
+    str = try_val_to_str_idx(msg_type, rev_msg_type_strings, &idx);
 
     if (str == NULL)
     {
@@ -4729,8 +4728,6 @@ dissect_ansi_683(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     proto_item  *ansi_683_item;
     proto_tree  *ansi_683_tree = NULL;
 
-    g_pinfo = pinfo;
-
     col_set_str(pinfo->cinfo, COL_PROTOCOL, ansi_proto_name_short);
 
     /* In the interest of speed, if "tree" is NULL, don't do any work not
@@ -4738,8 +4735,6 @@ dissect_ansi_683(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      */
     if (tree)
     {
-        g_tree = tree;
-
         /*
          * create the ansi_683 protocol tree
          */
@@ -4843,6 +4838,4 @@ proto_reg_handoff_ansi_683(void)
     dissector_add_uint("ansi_map.ota", ANSI_683_REVERSE, ansi_683_handle);
     dissector_add_uint("ansi_a.ota", ANSI_683_FORWARD, ansi_683_handle);
     dissector_add_uint("ansi_a.ota", ANSI_683_REVERSE, ansi_683_handle);
-
-    data_handle = find_dissector("data");
 }

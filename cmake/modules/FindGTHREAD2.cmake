@@ -1,12 +1,10 @@
-# - Try to find GThread2 
-#
-# $Id$
+# - Try to find GThread2
 #
 # Find GThread headers, libraries and the answer to all questions.
 #
 #  GTHREAD2_FOUND               True if GTHREAD2 got found
-#  GTHREAD2_INCLUDE_DIRS        Location of GTHREAD2 headers 
-#  GTHREAD2_LIBRARIES           List of libraries to use GTHREAD2 
+#  GTHREAD2_INCLUDE_DIRS        Location of GTHREAD2 headers
+#  GTHREAD2_LIBRARIES           List of libraries to use GTHREAD2
 #
 #  Copyright (c) 2008 Bjoern Ricks <bjoern.ricks@googlemail.com>
 #
@@ -15,47 +13,39 @@
 #  For details see the accompanying COPYING-CMAKE-SCRIPTS file.
 #
 
-INCLUDE( FindPkgConfig )
+include( FindPkgConfig )
 
-IF ( GTHREAD2_FIND_REQUIRED )
-	SET( _pkgconfig_REQUIRED "REQUIRED" )
-ELSE( GTHREAD2_FIND_REQUIRED )
-	SET( _pkgconfig_REQUIRED "" )	
-ENDIF ( GTHREAD2_FIND_REQUIRED )
+if( GTHREAD2_FIND_REQUIRED )
+	set( _pkgconfig_REQUIRED "REQUIRED" )
+else()
+	set( _pkgconfig_REQUIRED "" )
+endif()
 
-IF ( GTHREAD2_MIN_VERSION )
+if( GTHREAD2_MIN_VERSION )
 	PKG_SEARCH_MODULE( GTHREAD2 ${_pkgconfig_REQUIRED} gthread-2.0>=${GTHREAD2_MIN_VERSION} )
-ELSE ( GTHREAD2_MIN_VERSION )
+else()
 	PKG_SEARCH_MODULE( GTHREAD2 ${_pkgconfig_REQUIRED} gthread-2.0 )
-ENDIF ( GTHREAD2_MIN_VERSION )
+endif()
 
+if( NOT GTHREAD2_FOUND )
+	include( FindWSWinLibs )
+	if( BUILD_wireshark )
+		if( ENABLE_GTK3 )
+			FindWSWinLibs( "gtk3" "GTHREAD2_HINTS" )
+		else()
+			FindWSWinLibs( "gtk2" "GTHREAD2_HINTS" )
+		endif()
+	else()
+		message( ERROR "Unsupported build setup" )
+	endif()
+	find_path( GTHREAD2_INCLUDE_DIRS gthread.h PATH_SUFFIXES glib-2.0 glib GLib.framework/Headers/glib glib-2.0/glib HINTS "${GTHREAD2_HINTS}/include" )
+	if( APPLE )
+		find_library( GTHREAD2_LIBRARIES glib )
+	else()
+		find_library( GTHREAD2_LIBRARIES gthread-2.0 HINTS "${GTHREAD2_HINTS}/lib" )
+	endif()
+	include( FindPackageHandleStandardArgs )
+	find_package_handle_standard_args( GTHREAD2 DEFAULT_MSG GTHREAD2_LIBRARIES GTHREAD2_INCLUDE_DIRS )
+endif()
 
-IF( NOT GTHREAD2_FOUND AND NOT PKG_CONFIG_FOUND )
-	FIND_PATH( GTHREAD2_INCLUDE_DIRS gthread.h PATH_SUFFIXES glib-2.0 glib GLib.framework/Headers/glib )
-	IF ( APPLE ) 
-		FIND_LIBRARY( GTHREAD2_LIBRARIES glib )
-	ELSE ( APPLE )
-		FIND_LIBRARY( GTHREAD2_LIBRARIES gthread-2.0 )
-	ENDIF ( APPLE )
-	
-	#MESSAGE( STATUS "Gthread headers: ${GTHREAD2_INCLUDE_DIRS}" )
-	#MESSAGE( STATUS "Gthread libs: ${GTHREAD2_LIBRARIES}" )
-	
-	# Report results
-	IF ( GTHREAD2_LIBRARIES AND GTHREAD2_INCLUDE_DIRS )	
-		SET( GTHREAD2_FOUND 1 )
-		IF ( NOT GTHREAD2_FIND_QUIETLY )
-			MESSAGE( STATUS "Found GTHREAD2: ${GTHREAD2_LIBRARIES} ${GTHREAD2_INCLUDE_DIRS}" )
-		ENDIF ( NOT GTHREAD2_FIND_QUIETLY )
-	ELSE ( GTHREAD2_LIBRARIES AND GTHREAD2_INCLUDE_DIRS )	
-		IF ( GTHREAD2_FIND_REQUIRED )
-			MESSAGE( SEND_ERROR "Could NOT find GTHREAD2" )
-		ELSE ( GTHREAD2_FIND_REQUIRED )
-			IF ( NOT GTHREAD2_FIND_QUIETLY )
-				MESSAGE( STATUS "Could NOT find GTHREAD2" )	
-			ENDIF ( NOT GTHREAD2_FIND_QUIETLY )
-		ENDIF ( GTHREAD2_FIND_REQUIRED )
-	ENDIF ( GTHREAD2_LIBRARIES AND GTHREAD2_INCLUDE_DIRS )
-ENDIF( NOT GTHREAD2_FOUND AND NOT PKG_CONFIG_FOUND )
-
-MARK_AS_ADVANCED( GTHREAD2_LIBRARIES GTHREAD2_INCLUDE_DIRS )
+mark_as_advanced( GTHREAD2_LIBRARIES GTHREAD2_INCLUDE_DIRS )

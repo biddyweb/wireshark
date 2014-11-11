@@ -1,7 +1,5 @@
 # CMakeLists.txt
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -74,6 +72,7 @@ add_library(tpg ${LINK_MODE_MODULE}
 )
 set_target_properties(tpg PROPERTIES PREFIX "")
 set_target_properties(tpg PROPERTIES LINK_FLAGS ${WS_LINK_FLAGS})
+set_target_properties(tpg PROPERTIES FOLDER "Plugins")
 
 target_link_libraries(tpg epan)
 

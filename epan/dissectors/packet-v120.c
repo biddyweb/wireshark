@@ -2,8 +2,6 @@
  * Routines for v120 frame disassembly
  * Bert Driehuis <driehuis@playbeing.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998
@@ -28,7 +26,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/xdlc.h>
-#include <epan/emem.h>
+
+void proto_register_v120(void);
+void proto_reg_handoff_v120(void);
 
 static int proto_v120 = -1;
 static int hf_v120_address = -1;
@@ -120,8 +120,7 @@ dissect_v120(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	byte0 = tvb_get_guint8(tvb, 0);
 
-	if(check_col(pinfo->cinfo, COL_RES_DL_SRC))
-		col_add_fstr(pinfo->cinfo, COL_RES_DL_SRC, "0x%02X", byte0);
+	col_add_fstr(pinfo->cinfo, COL_RES_DL_SRC, "0x%02X", byte0);
 
 	byte1 = tvb_get_guint8(tvb, 1);
 

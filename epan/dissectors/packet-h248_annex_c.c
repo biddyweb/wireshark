@@ -4,8 +4,6 @@
  *
  *  (c) 2006, Luis E. Garcia Ontanon <luis@ontanon.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,7 +25,12 @@
 
 #include "config.h"
 
+#include <epan/wmem/wmem.h>
+
 #include "packet-h248.h"
+
+void proto_register_h248_annex_c(void);
+
 #define PNAME  "H.248 Annex C"
 #define PSNAME "H248C"
 #define PFNAME "h248c"
@@ -763,7 +766,7 @@ static void dissect_h248_annexc_BIR(proto_tree* tree,
 	dissect_ber_octet_string(implicit_p ? *((gboolean*)implicit_p) : FALSE, &asn1_ctx, tree, tvb, 0, hfid, &new_tvb);
 
 	if ( new_tvb && h248_info->term && ! h248_info->term->bir ) {
-		h248_info->term->bir = se_strdup(tvb_bytes_to_str(new_tvb,0,tvb_length(new_tvb)));
+		h248_info->term->bir = wmem_strdup(wmem_file_scope(), tvb_bytes_to_ep_str(new_tvb,0,tvb_length(new_tvb)));
 	}
 }
 
@@ -781,7 +784,7 @@ static void dissect_h248_annexc_NSAP(proto_tree* tree,
 	if (new_tvb) {
 		dissect_nsap(new_tvb, 0,tvb_length(new_tvb), tree);
 		if ( h248_info->term && ! h248_info->term->nsap) {
-			h248_info->term->nsap = se_strdup(tvb_bytes_to_str(new_tvb,0,tvb_length(new_tvb)));
+			h248_info->term->nsap = wmem_strdup(wmem_file_scope(), tvb_bytes_to_ep_str(new_tvb,0,tvb_length(new_tvb)));
 		}
 	}
 }

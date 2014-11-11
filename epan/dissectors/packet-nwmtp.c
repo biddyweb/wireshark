@@ -3,8 +3,6 @@
  * Copyright 2010 by Holger Hans Peter Freyther <zecke@selfish.org>
  * Copyright 2010 by On-Waves
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,8 @@
 
 #include <epan/packet.h>
 
+void proto_register_mwmtp(void);
+void proto_reg_handoff_nwmtp(void);
 
 static dissector_handle_t mtp_handle;
 static gint proto_nwmtp = -1;
@@ -42,6 +42,8 @@ static int hf_nwmtp_data_length = -1;
 
 /* subtree pointer */
 static gint ett_mwmtp = -1;
+
+static dissector_handle_t nwmtp_handle;
 
 static const value_string nwmtp_transport_type_vals[] = {
 	{ 2,	    "UDP" },
@@ -155,14 +157,12 @@ void proto_register_mwmtp(void)
 
 	proto_register_field_array(proto_nwmtp, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
-	register_dissector("nw_mtp", dissect_nwmtp, proto_nwmtp);
+
+	nwmtp_handle = register_dissector("nw_mtp", dissect_nwmtp, proto_nwmtp);
 }
 
 void proto_reg_handoff_nwmtp(void)
 {
-	dissector_handle_t nwmtp_handle;
-
-	nwmtp_handle = create_dissector_handle(dissect_nwmtp, proto_nwmtp);
 	/* For decode as */
 	dissector_add_handle("udp.port", nwmtp_handle);
 	mtp_handle = find_dissector("mtp3");

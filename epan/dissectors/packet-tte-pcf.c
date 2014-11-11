@@ -7,8 +7,6 @@
  * TTTech Computertechnik AG, Austria.
  * http://www.tttech.com/solutions/ttethernet/
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,6 +35,9 @@
 #include <epan/etypes.h>
 
 #include "packet-tte.h"
+
+void proto_register_tte_pcf(void);
+void proto_reg_handoff_tte_pcf(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_tte_pcf = -1;

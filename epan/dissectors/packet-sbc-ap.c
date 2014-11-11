@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-sbc-ap.c                                                            */
 /* ../../tools/asn2wrs.py -p sbc-ap -c ./sbc-ap.cnf -s ./packet-sbc-ap-template -D . -O ../../epan/dissectors SBC-AP-CommonDataTypes.asn SBC-AP-Constants.asn SBC-AP-Containers.asn SBC-AP-IEs.asn SBC-AP-PDU-Contents.asn SBC-AP-PDU-Descriptions.asn */
 
@@ -8,8 +8,6 @@
 #line 1 "../../asn1/sbc-ap/packet-sbc-ap-template.c"
 /* packet-sbc-ap.c
  * Routines for SBc Application Part (SBc-AP) packet dissection
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -39,7 +37,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <epan/emem.h>
 #include <epan/strutil.h>
 #include <epan/asn1.h>
 #include <epan/sctpppids.h>
@@ -51,6 +48,9 @@
 #define PNAME  "SBc Application Part"
 #define PSNAME "SBCAP"
 #define PFNAME "sbcap"
+
+void proto_register_sbc_ap(void);
+void proto_reg_handoff_sbc_ap(void);
 
 /* The registered port number for SBc-AP is 29168.
  * The registered payload protocol identifier for SBc-AP is 24.
@@ -260,9 +260,8 @@ dissect_sbc_ap_ProcedureCode(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 255U, &ProcedureCode, FALSE);
 
-#line 64 "../../asn1/sbc-ap/sbc-ap.cnf"
-	if (check_col(actx->pinfo->cinfo, COL_INFO))
-       col_add_fstr(actx->pinfo->cinfo, COL_INFO, "%s ",
+#line 62 "../../asn1/sbc-ap/sbc-ap.cnf"
+   col_add_fstr(actx->pinfo->cinfo, COL_INFO, "%s ",
                    val_to_str(ProcedureCode, sbc_ap_ProcedureCode_vals,
                               "unknown message"));
 
@@ -312,7 +311,7 @@ dissect_sbc_ap_ProtocolIE_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 65535U, &ProtocolIE_ID, FALSE);
 
-#line 47 "../../asn1/sbc-ap/sbc-ap.cnf"
+#line 45 "../../asn1/sbc-ap/sbc-ap.cnf"
   if (tree) {
     proto_item_append_text(proto_item_get_parent_nth(actx->created_item, 2), ": %s", val_to_str(ProtocolIE_ID, VALS(sbc_ap_ProtocolIE_ID_vals), "unknown (%d)"));
   }
@@ -454,7 +453,7 @@ dissect_sbc_ap_Cause(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, pr
 static int
 dissect_sbc_ap_CellIdentity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     28, 28, FALSE, NULL);
+                                     28, 28, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -544,7 +543,7 @@ dissect_sbc_ap_Criticality_Diagnostics(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 static int
 dissect_sbc_ap_Data_Coding_Scheme(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -554,14 +553,14 @@ dissect_sbc_ap_Data_Coding_Scheme(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 
 static int
 dissect_sbc_ap_PLMNidentity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 102 "../../asn1/sbc-ap/sbc-ap.cnf"
+#line 99 "../../asn1/sbc-ap/sbc-ap.cnf"
   tvbuff_t *parameter_tvb=NULL;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
                                        3, 3, FALSE, &parameter_tvb);
-	if(tvb_length(tvb)==0) 
+	if(tvb_length(tvb)==0)
 		return offset;
-		
+
 	if (!parameter_tvb)
 		return offset;
 	dissect_e212_mcc_mnc(parameter_tvb, actx->pinfo, tree, 0, FALSE);
@@ -693,7 +692,7 @@ dissect_sbc_ap_List_of_TAIs(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
 static int
 dissect_sbc_ap_Message_Identifier(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     16, 16, FALSE, NULL);
+                                     16, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -733,7 +732,7 @@ dissect_sbc_ap_Repetition_Period(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *
 static int
 dissect_sbc_ap_Serial_Number(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     16, 16, FALSE, NULL);
+                                     16, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -1172,12 +1171,11 @@ static int dissect_UnsuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, p
 static void
 dissect_sbc_ap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-        proto_item      *sbc_ap_item = NULL;
-        proto_tree      *sbc_ap_tree = NULL;
+    proto_item      *sbc_ap_item = NULL;
+    proto_tree      *sbc_ap_tree = NULL;
 
-        /* make entry in the Protocol column on summary display */
-        if (check_col(pinfo->cinfo, COL_PROTOCOL))
-                col_set_str(pinfo->cinfo, COL_PROTOCOL, PNAME);
+    /* make entry in the Protocol column on summary display */
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, PNAME);
 
     /* create the sbc_ap protocol tree */
     if (tree) {
@@ -1205,7 +1203,7 @@ void proto_register_sbc_ap(void) {
         FT_UINT32, BASE_DEC, VALS(sbc_ap_Concurrent_Warning_Message_Indicator_vals), 0,
         NULL, HFILL }},
     { &hf_sbc_ap_Criticality_Diagnostics_PDU,
-      { "Criticality-Diagnostics", "sbc-ap.Criticality_Diagnostics",
+      { "Criticality-Diagnostics", "sbc-ap.Criticality_Diagnostics_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_Data_Coding_Scheme_PDU,
@@ -1257,19 +1255,19 @@ void proto_register_sbc_ap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_Write_Replace_Warning_Request_PDU,
-      { "Write-Replace-Warning-Request", "sbc-ap.Write_Replace_Warning_Request",
+      { "Write-Replace-Warning-Request", "sbc-ap.Write_Replace_Warning_Request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_Write_Replace_Warning_Response_PDU,
-      { "Write-Replace-Warning-Response", "sbc-ap.Write_Replace_Warning_Response",
+      { "Write-Replace-Warning-Response", "sbc-ap.Write_Replace_Warning_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_Stop_Warning_Request_PDU,
-      { "Stop-Warning-Request", "sbc-ap.Stop_Warning_Request",
+      { "Stop-Warning-Request", "sbc-ap.Stop_Warning_Request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_Stop_Warning_Response_PDU,
-      { "Stop-Warning-Response", "sbc-ap.Stop_Warning_Response",
+      { "Stop-Warning-Response", "sbc-ap.Stop_Warning_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_SBC_AP_PDU_PDU,
@@ -1277,7 +1275,7 @@ void proto_register_sbc_ap(void) {
         FT_UINT32, BASE_DEC, VALS(sbc_ap_SBC_AP_PDU_vals), 0,
         NULL, HFILL }},
     { &hf_sbc_ap_ProtocolIE_Container_item,
-      { "ProtocolIE-Field", "sbc-ap.ProtocolIE_Field",
+      { "ProtocolIE-Field", "sbc-ap.ProtocolIE_Field_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_id,
@@ -1289,11 +1287,11 @@ void proto_register_sbc_ap(void) {
         FT_UINT32, BASE_DEC, VALS(sbc_ap_Criticality_vals), 0,
         NULL, HFILL }},
     { &hf_sbc_ap_ie_field_value,
-      { "value", "sbc-ap.value",
+      { "value", "sbc-ap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_ie_field_value", HFILL }},
     { &hf_sbc_ap_ProtocolExtensionContainer_item,
-      { "ProtocolExtensionField", "sbc-ap.ProtocolExtensionField",
+      { "ProtocolExtensionField", "sbc-ap.ProtocolExtensionField_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_ext_id,
@@ -1301,7 +1299,7 @@ void proto_register_sbc_ap(void) {
         FT_UINT8, BASE_DEC, VALS(sbc_ap_ProtocolIE_ID_vals), 0,
         "ProtocolExtensionID", HFILL }},
     { &hf_sbc_ap_extensionValue,
-      { "extensionValue", "sbc-ap.extensionValue",
+      { "extensionValue", "sbc-ap.extensionValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_procedureCode,
@@ -1325,7 +1323,7 @@ void proto_register_sbc_ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ProtocolExtensionContainer", HFILL }},
     { &hf_sbc_ap_CriticalityDiagnostics_IE_List_item,
-      { "CriticalityDiagnostics-IE-List item", "sbc-ap.CriticalityDiagnostics_IE_List_item",
+      { "CriticalityDiagnostics-IE-List item", "sbc-ap.CriticalityDiagnostics_IE_List_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_iECriticality,
@@ -1341,7 +1339,7 @@ void proto_register_sbc_ap(void) {
         FT_UINT32, BASE_DEC, VALS(sbc_ap_TypeOfError_vals), 0,
         NULL, HFILL }},
     { &hf_sbc_ap_ECGIList_item,
-      { "EUTRAN-CGI", "sbc-ap.EUTRAN_CGI",
+      { "EUTRAN-CGI", "sbc-ap.EUTRAN_CGI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_Emergency_Area_ID_List_item,
@@ -1357,15 +1355,15 @@ void proto_register_sbc_ap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "CellIdentity", HFILL }},
     { &hf_sbc_ap_List_of_TAIs_item,
-      { "List-of-TAIs item", "sbc-ap.List_of_TAIs_item",
+      { "List-of-TAIs item", "sbc-ap.List_of_TAIs_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_tai,
-      { "tai", "sbc-ap.tai",
+      { "tai", "sbc-ap.tai_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_TAI_List_for_Warning_item,
-      { "TAI", "sbc-ap.TAI",
+      { "TAI", "sbc-ap.TAI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_tAC,
@@ -1393,32 +1391,32 @@ void proto_register_sbc_ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ProtocolExtensionContainer", HFILL }},
     { &hf_sbc_ap_initiatingMessage,
-      { "initiatingMessage", "sbc-ap.initiatingMessage",
+      { "initiatingMessage", "sbc-ap.initiatingMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_successfulOutcome,
-      { "successfulOutcome", "sbc-ap.successfulOutcome",
+      { "successfulOutcome", "sbc-ap.successfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_unsuccessfulOutcome,
-      { "unsuccessfulOutcome", "sbc-ap.unsuccessfulOutcome",
+      { "unsuccessfulOutcome", "sbc-ap.unsuccessfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_sbc_ap_initiatingMessagevalue,
-      { "value", "sbc-ap.value",
+      { "value", "sbc-ap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "InitiatingMessage_value", HFILL }},
     { &hf_sbc_ap_successfulOutcome_value,
-      { "value", "sbc-ap.value",
+      { "value", "sbc-ap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SuccessfulOutcome_value", HFILL }},
     { &hf_sbc_ap_unsuccessfulOutcome_value,
-      { "value", "sbc-ap.value",
+      { "value", "sbc-ap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UnsuccessfulOutcome_value", HFILL }},
 
 /*--- End of included file: packet-sbc-ap-hfarr.c ---*/
-#line 155 "../../asn1/sbc-ap/packet-sbc-ap-template.c"
+#line 154 "../../asn1/sbc-ap/packet-sbc-ap-template.c"
   };
 
   /* List of subtrees */
@@ -1452,7 +1450,7 @@ void proto_register_sbc_ap(void) {
     &ett_sbc_ap_UnsuccessfulOutcome,
 
 /*--- End of included file: packet-sbc-ap-ettarr.c ---*/
-#line 161 "../../asn1/sbc-ap/packet-sbc-ap-template.c"
+#line 160 "../../asn1/sbc-ap/packet-sbc-ap-template.c"
   };
 
 
@@ -1462,7 +1460,7 @@ void proto_register_sbc_ap(void) {
   proto_register_field_array(proto_sbc_ap, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
 
- 
+
   /* Register dissector tables */
   sbc_ap_ies_dissector_table = register_dissector_table("sbc_ap.ies", "SBC-AP-PROTOCOL-IES", FT_UINT32, BASE_DEC);
   sbc_ap_extension_dissector_table = register_dissector_table("sbc_ap.extension", "SBC-AP-PROTOCOL-EXTENSION", FT_UINT32, BASE_DEC);
@@ -1510,7 +1508,7 @@ proto_reg_handoff_sbc_ap(void)
 
 
 /*--- End of included file: packet-sbc-ap-dis-tab.c ---*/
-#line 194 "../../asn1/sbc-ap/packet-sbc-ap-template.c"
+#line 193 "../../asn1/sbc-ap/packet-sbc-ap-template.c"
 	} else {
 		if (SctpPort != 0) {
 			dissector_delete_uint("sctp.port", SctpPort, sbc_ap_handle);

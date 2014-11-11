@@ -1,7 +1,7 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-gprscdr.h                                                           */
-/* ../../tools/asn2wrs.py -b -p gprscdr -c ./gprscdr.cnf -s ./packet-gprscdr-template -D . -O ../../epan/dissectors GenericChargingDataTypesV8e0.asn GPRSChargingDataTypesV641.asn GPRSChargingDataTypesV8e0.asn */
+/* ../../tools/asn2wrs.py -b -p gprscdr -c ./gprscdr.cnf -s ./packet-gprscdr-template -D . -O ../../epan/dissectors GenericChargingDataTypesV1171.asn GPRSChargingDataTypesV641.asn GPRSChargingDataTypesV1171.asn */
 
 /* Input file: packet-gprscdr-template.h */
 
@@ -9,8 +9,6 @@
 /* packet-gprscdr.h
  * Routines for gprscdr packet dissection
  * Copyright 2011, Anders Broman <anders.broman@ericsson.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -46,7 +44,7 @@ int dissect_gprscdr_GPRSCallEventRecord_PDU(tvbuff_t *tvb _U_, packet_info *pinf
 int dissect_gprscdr_GPRSRecord_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_);
 
 /*--- End of included file: packet-gprscdr-exp.h ---*/
-#line 31 "../../asn1/gprscdr/packet-gprscdr-template.h"
+#line 29 "../../asn1/gprscdr/packet-gprscdr-template.h"
 
 #endif  /* PACKET_GPRSCDR_H */
 

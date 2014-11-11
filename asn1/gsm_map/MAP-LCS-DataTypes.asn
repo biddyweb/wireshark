@@ -1,14 +1,13 @@
--- $Id$
 -- MAP-LCS-DataTypes.asn
 --
--- Taken from 3GPP TS 29.002  V11.5.0 (2012-12)
+-- Taken from 3GPP TS 29.002  V12.3.0 (2013-12) 
 --
 -- 17.7.13 Location service data types
 --
 
 MAP-LCS-DataTypes {
    itu-t identified-organization (4) etsi (0) mobileDomain (0)
-   gsm-Network (1) modules (3) map-LCS-DataTypes (25) version13 (13)}
+   gsm-Network (1) modules (3) map-LCS-DataTypes (25) version15 (15)}
 
 DEFINITIONS
 IMPLICIT TAGS
@@ -60,30 +59,30 @@ PLMN-Id,
 	DiameterIdentity
 FROM MAP-CommonDataTypes {
    itu-t identified-organization (4) etsi (0) mobileDomain (0)
-   gsm-Network (1) modules (3) map-CommonDataTypes (18) version13 (13)}
+   gsm-Network (1) modules (3) map-CommonDataTypes (18) version15 (15)}
 
 	ExtensionContainer,
 	SLR-ArgExtensionContainer
 FROM MAP-ExtensionDataTypes {
    itu-t identified-organization (4) etsi (0) mobileDomain (0)
-   gsm-Network (1) modules (3) map-ExtensionDataTypes (21) version13 (13)}
+   gsm-Network (1) modules (3) map-ExtensionDataTypes (21) version15 (15)}
 
 	USSD-DataCodingScheme,
 USSD-String
 FROM MAP-SS-DataTypes {
    itu-t identified-organization (4) etsi (0) mobileDomain (0) gsm-Network (1) modules (3)
-   map-SS-DataTypes (14) version13 (13)}
+   map-SS-DataTypes (14) version15 (15)}
 
 	APN,
 	SupportedLCS-CapabilitySets
 FROM MAP-MS-DataTypes {
    itu-t identified-organization (4) etsi (0) mobileDomain (0)
-   gsm-Network (1) modules (3) map-MS-DataTypes (11) version13 (13)}
+   gsm-Network (1) modules (3) map-MS-DataTypes (11) version15 (15)}
 
 	Additional-Number
 FROM MAP-SM-DataTypes {
    itu-t identified-organization (4) etsi (0) mobileDomain (0)
-   gsm-Network (1) modules (3) map-SM-DataTypes (16) version13 (13)}
+   gsm-Network (1) modules (3) map-SM-DataTypes (16) version15 (15)}
 ;
 
 
@@ -115,7 +114,9 @@ LCSLocationInfo ::= SEQUENCE {
 	supportedLCS-CapabilitySets	[4]	SupportedLCS-CapabilitySets	OPTIONAL,
 	additional-LCS-CapabilitySets	[5]	SupportedLCS-CapabilitySets	OPTIONAL,
 	mme-Name		[6]	DiameterIdentity	OPTIONAL,
-	aaa-Server-Name	[8]	DiameterIdentity	OPTIONAL
+	aaa-Server-Name	[8]	DiameterIdentity	OPTIONAL,
+	sgsn-Name		[9]	DiameterIdentity	OPTIONAL,
+	sgsn-Realm	[10]	DiameterIdentity	OPTIONAL
 	}
 
 ProvideSubscriberLocation-Arg ::= SEQUENCE {

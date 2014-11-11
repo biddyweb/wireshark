@@ -1,8 +1,6 @@
 /* conversations_fc.c
  * conversations_fc   2003 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,7 +30,6 @@
 #include <epan/stat_cmd_args.h>
 #include <epan/tap.h>
 #include <epan/conversation.h>
-#include <epan/dissectors/packet-scsi.h>
 #include <epan/dissectors/packet-fc.h>
 
 #include "../stat_menu.h"
@@ -40,13 +37,14 @@
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/conversations_table.h"
 
+void register_tap_listener_fc_conversation(void);
 
 static int
 fc_conversation_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
 {
-	const fc_hdr *fchdr=vip;
+	const fc_hdr *fchdr=(const fc_hdr *)vip;
 
-	add_conversation_table_data((conversations_table *)pct, &fchdr->s_id, &fchdr->d_id, 0, 0, 1, pinfo->fd->pkt_len, &pinfo->fd->rel_ts, SAT_NONE, PT_NONE);
+	add_conversation_table_data((conversations_table *)pct, &fchdr->s_id, &fchdr->d_id, 0, 0, 1, pinfo->fd->pkt_len, &pinfo->rel_ts, SAT_NONE, PT_NONE);
 
 	return 1;
 }

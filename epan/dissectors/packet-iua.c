@@ -8,8 +8,6 @@
  *
  * Copyright 2002, Michael Tuexen <tuexen [AT] fh-muenster.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,8 +34,18 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/sctpppids.h>
+#include <epan/lapd_sapi.h>
+
+void proto_register_iua(void);
+void proto_reg_handoff_iua(void);
 
 static module_t *iua_module;
+
+static dissector_handle_t data_handle;
+static dissector_table_t lapd_gsm_sapi_dissector_table;
+
+/* Whether to use GSM SAPI vals or not */
+static gboolean global_iua_gsm_sapis = TRUE;
 
 /* Initialize the protocol and registered fields */
 static int proto_iua                = -1;
@@ -47,6 +55,7 @@ static int hf_info_string           = -1;
 static int hf_dlci_zero_bit         = -1;
 static int hf_dlci_spare_bit        = -1;
 static int hf_dlci_sapi             = -1;
+static int hf_dlci_gsm_sapi         = -1;
 static int hf_dlci_one_bit          = -1;
 static int hf_dlci_tei              = -1;
 static int hf_dlci_spare            = -1;
@@ -130,7 +139,7 @@ dissect_text_interface_identifier_parameter(tvbuff_t *parameter_tvb, proto_tree 
 
   proto_tree_add_item(parameter_tree, hf_text_interface_id, parameter_tvb, TEXT_INTERFACE_ID_OFFSET, interface_id_length, ENC_ASCII|ENC_NA);
   proto_item_append_text(parameter_item, " (%.*s)", interface_id_length,
-                         tvb_get_ephemeral_string(parameter_tvb, TEXT_INTERFACE_ID_OFFSET, interface_id_length));
+                         tvb_get_string(wmem_packet_scope(), parameter_tvb, TEXT_INTERFACE_ID_OFFSET, interface_id_length));
 }
 
 #define INFO_STRING_OFFSET PARAMETER_VALUE_OFFSET
@@ -143,7 +152,7 @@ dissect_info_string_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tre
   info_string_length = tvb_get_ntohs(parameter_tvb, PARAMETER_LENGTH_OFFSET) - PARAMETER_HEADER_LENGTH;
   proto_tree_add_item(parameter_tree, hf_info_string, parameter_tvb, INFO_STRING_OFFSET, info_string_length, ENC_ASCII|ENC_NA);
   proto_item_append_text(parameter_item, " (%.*s)", info_string_length,
-                         tvb_get_ephemeral_string(parameter_tvb, INFO_STRING_OFFSET, info_string_length));
+                         tvb_get_string(wmem_packet_scope(), parameter_tvb, INFO_STRING_OFFSET, info_string_length));
 }
 
 #define DLCI_SAPI_LENGTH  1
@@ -176,18 +185,28 @@ static const value_string sapi_values[] = {
   { 0,                        NULL }
 };
 
+static const value_string gsm_sapi_vals[] = {
+  { LAPD_GSM_SAPI_RA_SIG_PROC,  "Radio signalling procedures" },
+  { LAPD_GSM_SAPI_NOT_USED_1,   "(Not used in GSM PLMN)" },
+  { LAPD_GSM_SAPI_NOT_USED_16,  "(Not used in GSM PLMN)" },
+  { LAPD_GSM_SAPI_OM_PROC,      "Operation and maintenance procedure" },
+  { LAPD_SAPI_L2,               "Layer 2 management procedures" },
+  { 0,                          NULL }
+};
 
 static void
 dissect_dlci_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree)
 {
-  proto_item *sapi_item;
   proto_tree_add_item(parameter_tree, hf_dlci_zero_bit,  parameter_tvb, DLCI_SAPI_OFFSET,  DLCI_SAPI_LENGTH,  ENC_BIG_ENDIAN);
   proto_tree_add_item(parameter_tree, hf_dlci_spare_bit, parameter_tvb, DLCI_SAPI_OFFSET,  DLCI_SAPI_LENGTH,  ENC_BIG_ENDIAN);
   /* Add the SAPI + some explanatory text, store the SAPI value so that we can later how to
    * dissect the protocol data */
-  sapi_item = proto_tree_add_item(parameter_tree, hf_dlci_sapi, parameter_tvb, DLCI_SAPI_OFFSET,  DLCI_SAPI_LENGTH,  ENC_BIG_ENDIAN);
+  if(global_iua_gsm_sapis) {
+    proto_tree_add_item(parameter_tree, hf_dlci_gsm_sapi, parameter_tvb, DLCI_SAPI_OFFSET,  DLCI_SAPI_LENGTH,  ENC_BIG_ENDIAN);
+  } else {
+    proto_tree_add_item(parameter_tree, hf_dlci_sapi, parameter_tvb, DLCI_SAPI_OFFSET,  DLCI_SAPI_LENGTH,  ENC_BIG_ENDIAN);
+  }
   sapi_val = (tvb_get_guint8(parameter_tvb, DLCI_SAPI_OFFSET) & SAPI_MASK) >> SAPI_SHIFT;
-  proto_item_append_text(sapi_item, " (%s)", val_to_str_const( sapi_val, sapi_values, "Unknown/reserved"));
   sapi_val_assigned = TRUE;
 
   proto_tree_add_item(parameter_tree, hf_dlci_one_bit,   parameter_tvb, DLCI_TEI_OFFSET,   DLCI_TEI_LENGTH,   ENC_BIG_ENDIAN);
@@ -385,8 +404,8 @@ dissect_status_type_identification_parameter(tvbuff_t *parameter_tvb, proto_tree
   status_id   = tvb_get_ntohs(parameter_tvb, STATUS_IDENT_OFFSET);
 
   proto_tree_add_item(parameter_tree, hf_status_type, parameter_tvb, STATUS_TYPE_OFFSET, STATUS_TYPE_LENGTH, ENC_BIG_ENDIAN);
-  proto_tree_add_uint_format(parameter_tree, hf_status_id,  parameter_tvb, STATUS_IDENT_OFFSET, STATUS_IDENT_LENGTH,
-                             status_id, "Status identification: %u (%s)", status_id,
+  proto_tree_add_uint_format_value(parameter_tree, hf_status_id,  parameter_tvb, STATUS_IDENT_OFFSET, STATUS_IDENT_LENGTH,
+                             status_id, "%u (%s)", status_id,
                              val_to_str_const(status_type * 256 * 256 + status_id, support_IG?status_type_id_ig_values:status_type_id_values, "unknown"));
 
   proto_item_append_text(parameter_item, " (%s)",
@@ -407,6 +426,11 @@ dissect_protocol_data_parameter(tvbuff_t *parameter_tvb, proto_item *parameter_i
 
   if(sapi_val_assigned == FALSE)
   {
+    return;
+  }
+  if(global_iua_gsm_sapis) {
+    if (!dissector_try_uint(lapd_gsm_sapi_dissector_table, sapi_val, protocol_data_tvb, pinfo, tree))
+      call_dissector(data_handle, protocol_data_tvb, pinfo, tree);
     return;
   }
 
@@ -850,9 +874,9 @@ dissect_common_header(tvbuff_t *common_header_tvb, packet_info *pinfo, proto_tre
     proto_tree_add_item(iua_tree, hf_version, common_header_tvb, VERSION_OFFSET, VERSION_LENGTH, ENC_BIG_ENDIAN);
     proto_tree_add_item(iua_tree, hf_reserved, common_header_tvb, RESERVED_OFFSET, RESERVED_LENGTH, ENC_BIG_ENDIAN);
     proto_tree_add_item(iua_tree, hf_message_class, common_header_tvb, MESSAGE_CLASS_OFFSET, MESSAGE_CLASS_LENGTH, ENC_BIG_ENDIAN);
-    proto_tree_add_uint_format(iua_tree, hf_message_type,
+    proto_tree_add_uint_format_value(iua_tree, hf_message_type,
                                common_header_tvb, MESSAGE_TYPE_OFFSET, MESSAGE_TYPE_LENGTH,
-                               message_type, "Message type: %u (%s)",
+                               message_type, "%u (%s)",
                                message_type, val_to_str_const(message_class * 256 + message_type, support_IG?message_class_type_ig_values:message_class_type_values, "reserved"));
     proto_tree_add_item(iua_tree, hf_message_length, common_header_tvb, MESSAGE_LENGTH_OFFSET, MESSAGE_LENGTH_LENGTH, ENC_BIG_ENDIAN);
   }
@@ -906,7 +930,8 @@ proto_register_iua(void)
     { &hf_info_string,           { "Info string",                  "iua.info_string",               FT_STRING,  BASE_NONE, NULL,                           0x0,            NULL, HFILL } },
     { &hf_dlci_zero_bit,         { "Zero bit",                     "iua.dlci_zero_bit",             FT_BOOLEAN, 8,         NULL,                           ZERO_BIT_MASK,  NULL, HFILL } },
     { &hf_dlci_spare_bit,        { "Spare bit",                    "iua.dlci_spare_bit",            FT_BOOLEAN, 8,         NULL,                           SPARE_BIT_MASK, NULL, HFILL } },
-    { &hf_dlci_sapi,             { "SAPI",                         "iua.dlci_sapi",                 FT_UINT8,   BASE_HEX,  NULL,                           SAPI_MASK,      NULL, HFILL } },
+    { &hf_dlci_sapi,             { "SAPI",                         "iua.dlci_sapi",                 FT_UINT8,   BASE_HEX,  VALS(sapi_values),              SAPI_MASK,      NULL, HFILL } },
+    { &hf_dlci_gsm_sapi,             { "SAPI",                     "iua.dlci_gsm_sapi",             FT_UINT8,   BASE_HEX,  VALS(gsm_sapi_vals),            SAPI_MASK,      NULL, HFILL } },
     { &hf_dlci_one_bit,          { "One bit",                      "iua.dlci_one_bit",              FT_BOOLEAN, 8,         NULL,                           ONE_BIT_MASK,   NULL, HFILL } },
     { &hf_dlci_tei,              { "TEI",                          "iua.dlci_tei",                  FT_UINT8,   BASE_HEX,  NULL,                           TEI_MASK,       NULL, HFILL } },
     { &hf_dlci_spare,            { "Spare",                        "iua.dlci_spare",                FT_UINT16,  BASE_HEX,  NULL,                           0x0,            NULL, HFILL } },
@@ -949,6 +974,11 @@ proto_register_iua(void)
   proto_register_subtree_array(ett, array_length(ett));
   prefs_register_bool_preference(iua_module, "support_ig", "Support Implementers Guide", "Support Implementers Guide (version 01)", &support_IG);
 
+  prefs_register_bool_preference(iua_module, "use_gsm_sapi_values",
+        "Use GSM SAPI values",
+        "Use SAPI values as specified in TS 48 056",
+        &global_iua_gsm_sapis);
+
   /* Allow other dissectors to find this one by name. */
   register_dissector("iua", dissect_iua, proto_iua);
 }
@@ -966,4 +996,8 @@ proto_reg_handoff_iua(void)
 
   dissector_add_uint("sctp.port", SCTP_PORT_IUA,           iua_handle);
   dissector_add_uint("sctp.ppi",  IUA_PAYLOAD_PROTOCOL_ID, iua_handle);
+
+  lapd_gsm_sapi_dissector_table = find_dissector_table("lapd.gsm.sapi");
+  data_handle = find_dissector("data");
+
 }

@@ -2,8 +2,6 @@
  * Routines for UA/UDP (Universal Alcatel over UDP) and NOE/SIP packet dissection.
  * Copyright 2012, Alcatel-Lucent Enterprise <lars.ruoff@alcatel-lucent.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,27 +25,16 @@
 
 #include <string.h>
 
-#ifdef HAVE_ARPA_INET_H
-# include <arpa/inet.h>
-#endif
-#ifdef HAVE_SYS_SOCKET_H
-# include <sys/socket.h>         /* needed to define AF_ values on UNIX */
-#endif
-#ifdef HAVE_WINSOCK2_H
-# include <winsock2.h>           /* needed to define AF_ values on Windows */
-#endif
-#ifdef NEED_INET_V6DEFS_H
-# include "wsutil/inet_v6defs.h"
-#endif
-
 #include <glib.h>
 
 #include "epan/packet.h"
 #include "epan/prefs.h"
 #include "epan/tap.h"
+#include <epan/addr_resolv.h>
 
 #include "packet-uaudp.h"
 
+void proto_register_uasip(void);
 void proto_reg_handoff_uasip(void);
 
 static tap_struct_uaudp ua_tap_info;
@@ -76,6 +63,8 @@ static const char *pref_proxy_ipaddr_s = NULL;
 static gboolean uasip_enabled = FALSE;
 static gboolean use_proxy_ipaddr = FALSE;
 static gboolean noesip_enabled   = FALSE;
+
+static dissector_handle_t uasip_handle;
 
 static dissector_handle_t ua_sys_to_term_handle;
 static dissector_handle_t ua_term_to_sys_handle;
@@ -129,10 +118,7 @@ static void _dissect_uasip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
     ua_tap_info.expseq = 0;
     ua_tap_info.sntseq = 0;
 
-    if (check_col(pinfo->cinfo, COL_INFO))
-    {
-        col_add_fstr(pinfo->cinfo, COL_INFO, "%s", val_to_str_ext(opcode, &uaudp_opcode_str_ext, "unknown (0x%02x)"));
-    }
+    col_add_fstr(pinfo->cinfo, COL_INFO, "%s", val_to_str_ext(opcode, &uaudp_opcode_str_ext, "unknown (0x%02x)"));
 
     uasip_item = proto_tree_add_protocol_format(tree, proto_uasip, tvb, 0, 5,
                                                 "SIP/NOE Protocol, %s",
@@ -252,19 +238,13 @@ static void _dissect_uasip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
             {
                 if (datalen > 0)
                 {
-                    if (check_col(pinfo->cinfo, COL_INFO))
-                    {
-                        col_add_fstr(pinfo->cinfo, COL_INFO, "DATA exp:%d", ua_tap_info.expseq);
-                        col_append_fstr(pinfo->cinfo, COL_INFO, " snt:%d", ua_tap_info.sntseq);
-                    }
+                    col_add_fstr(pinfo->cinfo, COL_INFO, "DATA exp:%d", ua_tap_info.expseq);
+                    col_append_fstr(pinfo->cinfo, COL_INFO, " snt:%d", ua_tap_info.sntseq);
                 }
                 else
                 {
-                    if (check_col(pinfo->cinfo, COL_INFO))
-                    {
-                        col_add_fstr(pinfo->cinfo, COL_INFO, "ACK  exp:%d", ua_tap_info.expseq);
-                        col_append_fstr(pinfo->cinfo, COL_INFO, " snt:%d", ua_tap_info.sntseq);
-                    }
+                    col_add_fstr(pinfo->cinfo, COL_INFO, "ACK  exp:%d", ua_tap_info.expseq);
+                    col_append_fstr(pinfo->cinfo, COL_INFO, " snt:%d", ua_tap_info.sntseq);
                 }
             }
         }
@@ -465,7 +445,7 @@ void proto_register_uasip(void)
     };
 
     proto_uasip = proto_register_protocol("UA/SIP Protocol", "UASIP", "uasip");
-    register_dissector("uasip", dissect_uasip, proto_uasip);
+    uasip_handle = register_dissector("uasip", dissect_uasip, proto_uasip);
 
     proto_register_field_array(proto_uasip, hf_uasip, array_length(hf_uasip));
     proto_register_subtree_array(ett, array_length(ett));
@@ -483,12 +463,10 @@ void proto_register_uasip(void)
 
 void proto_reg_handoff_uasip(void)
 {
-    static dissector_handle_t uasip_handle;
     static gboolean    prefs_initialized = FALSE;
 
     if (!prefs_initialized)
     {
-        uasip_handle = create_dissector_handle(dissect_uasip, proto_uasip);
         ua_sys_to_term_handle = find_dissector("ua_sys_to_term");
         ua_term_to_sys_handle = find_dissector("ua_term_to_sys");
         prefs_initialized = TRUE;
@@ -497,19 +475,16 @@ void proto_reg_handoff_uasip(void)
     use_proxy_ipaddr = FALSE;
     memset(proxy_ipaddr, 0, sizeof(proxy_ipaddr));
 
-	if(uasip_enabled){
+    if(uasip_enabled){
         dissector_add_string("media_type", "application/octet-stream", uasip_handle);
     }else{
         dissector_delete_string("media_type", "application/octet-stream", uasip_handle);
     }
 
     if (strcmp(pref_proxy_ipaddr_s, "") != 0) {
-        if (inet_pton(AF_INET, pref_proxy_ipaddr_s, proxy_ipaddr) == 1)
-        {
+        if (str_to_ip(pref_proxy_ipaddr_s, proxy_ipaddr)) {
             use_proxy_ipaddr = TRUE;
-        }
-        else
-        {
+        } else {
             g_warning("uasip: Invalid 'Proxy IP Address': \"%s\"", pref_proxy_ipaddr_s);
         }
     }

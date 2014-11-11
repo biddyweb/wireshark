@@ -1,8 +1,6 @@
 /* tap-icmpstat.c
  * icmpstat   2011 Christopher Maynard
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,13 +29,16 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet_info.h"
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
 #include <epan/dissectors/packet-icmp.h>
 #include <math.h>
+
+void register_tap_listener_icmpstat(void);
 
 /* used to keep track of the ICMP statistics */
 typedef struct _icmpstat_t {
@@ -79,8 +80,8 @@ static gint compare_doubles(gconstpointer a, gconstpointer b)
 {
     double ad, bd;
 
-    ad = *(double *)a;
-    bd = *(double *)b;
+    ad = *(const double *)a;
+    bd = *(const double *)b;
 
     if (ad < bd)
         return -1;
@@ -128,7 +129,7 @@ icmpstat_packet(void *tapdata, packet_info *pinfo _U_, epan_dissect_t *edt _U_, 
         if (rt == NULL)
             return 0;
         *rt = resp_time;
-        icmpstat->rt_list = g_slist_insert_sorted(icmpstat->rt_list, rt, compare_doubles);
+        icmpstat->rt_list = g_slist_prepend(icmpstat->rt_list, rt);
         icmpstat->num_resps++;
         if (icmpstat->min_msecs > resp_time) {
             icmpstat->min_frame = trans->resp_frame;
@@ -153,9 +154,12 @@ icmpstat_packet(void *tapdata, packet_info *pinfo _U_, epan_dissect_t *edt _U_, 
  */
 static void compute_stats(icmpstat_t *icmpstat, double *mean, double *med, double *sdev)
 {
-    GSList *slist = icmpstat->rt_list;
+    GSList *slist;
     double diff;
     double sq_diff_sum = 0.0;
+
+    icmpstat->rt_list = g_slist_sort(icmpstat->rt_list, compare_doubles);
+    slist = icmpstat->rt_list;
 
     if (icmpstat->num_resps == 0 || slist == NULL) {
         *mean = 0.0;
@@ -260,14 +264,14 @@ icmpstat_draw(void *tapdata)
  * instance for the icmp tap.
  */
 static void
-icmpstat_init(const char *optarg, void* userdata _U_)
+icmpstat_init(const char *opt_arg, void* userdata _U_)
 {
     icmpstat_t *icmpstat;
     const char *filter = NULL;
     GString *error_string;
 
-    if (strstr(optarg, "icmp,srt,"))
-        filter = optarg + strlen("icmp,srt,");
+    if (strstr(opt_arg, "icmp,srt,"))
+        filter = opt_arg + strlen("icmp,srt,");
 
     icmpstat = (icmpstat_t *)g_try_malloc(sizeof(icmpstat_t));
     if (icmpstat == NULL) {

@@ -2,8 +2,6 @@
  * Routines for Netdump dissection
  * Copyright 2009, Neil Horman <nhorman@tuxdriver.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,7 +29,7 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 
-/* forward reference */
+void proto_register_netdump(void);
 void proto_reg_handoff_netdump(void);
 
 /* Initialize the protocol and registered fields */

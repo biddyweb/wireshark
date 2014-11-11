@@ -1,7 +1,5 @@
 /* packet-bthci_acl.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,9 @@ typedef struct _bthci_acl_data_t {
     guint32 interface_id;
     guint32 adapter_id;
     guint16 chandle;  /* only low 12 bits used */
+
+    guint32 remote_bd_addr_oui;
+    guint32 remote_bd_addr_id;
 } bthci_acl_data_t;
 
 #endif

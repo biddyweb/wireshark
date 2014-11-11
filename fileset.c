@@ -1,8 +1,6 @@
 /* fileset.c
  * Routines for handling file sets
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -51,9 +49,9 @@
 #include <glib.h>
 
 #include <wsutil/file_util.h>
+#include <wsutil/filesystem.h>
 #include "globals.h"
 
-#include <epan/filesystem.h>
 #include <epan/strutil.h>
 
 #include "fileset.h"

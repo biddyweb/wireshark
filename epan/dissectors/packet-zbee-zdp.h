@@ -3,8 +3,6 @@
  * By Owen Kirby <osk@exegin.com>
  * Copyright 2009 Exegin Technologies Limited
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -178,12 +176,15 @@
 #define ZBEE_ZDP_ADDR_MODE_GROUP            0x01
 #define ZBEE_ZDP_ADDR_MODE_UNICAST          0x03
 
-#define ZBEE_ZDP_MGMT_LEAVE_CHILDREN        0x80
-#define ZBEE_ZDP_MGMT_LEAVE_REJOIN          0x40
+#define ZBEE_ZDP_MGMT_LEAVE_CHILDREN        0x40
+#define ZBEE_ZDP_MGMT_LEAVE_REJOIN          0x80
 
 #define ZBEE_ZDP_NWKUPDATE_SCAN_MAX         0x05
 #define ZBEE_ZDP_NWKUPDATE_CHANNEL_HOP      0xfe
 #define ZBEE_ZDP_NWKUPDATE_PARAMETERS       0xff
+
+#define ZBEE_ZDP_DCF_EAELA                  0x01
+#define ZBEE_ZDP_DCF_ESDLA                  0x02
 
 /**************************************
  * Field Indicies
@@ -245,6 +246,14 @@ extern int hf_zbee_zdp_tx_total;
 extern int hf_zbee_zdp_tx_fail;
 extern int hf_zbee_zdp_channel_count;
 
+/* Routing Table */
+extern int hf_zbee_zdp_rtg;
+extern int hf_zbee_zdp_rtg_entry;
+extern int hf_zbee_zdp_rtg_destination;
+extern int hf_zbee_zdp_rtg_next_hop;
+extern int hf_zbee_zdp_rtg_status;
+
+
 /* Subtree indicies. */
 extern gint ett_zbee_zdp_endpoint;
 extern gint ett_zbee_zdp_match_in;
@@ -275,14 +284,108 @@ extern guint    zbee_parse_uint         (proto_tree *tree, int hfindex, tvbuff_t
 extern guint64  zbee_parse_eui64        (proto_tree *tree, int hfindex, tvbuff_t *tvb, guint *offset, guint length, proto_item **ti);
 extern void     zbee_append_info        (proto_item *item, packet_info *pinfo, const gchar *format, ...) G_GNUC_PRINTF(3, 4);
 
-extern void     zdp_parse_node_desc     (proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *offset, packet_info *pinfo);
+extern void     zdp_parse_node_desc     (proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *offset, guint8 version);
 extern void     zdp_parse_power_desc    (proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *offset);
-extern void     zdp_parse_simple_desc   (proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *offset, packet_info *pinfo);
+extern void     zdp_parse_simple_desc   (proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *offset, guint8 version);
 extern void     zdp_parse_complex_desc  (proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *offset, guint length);
 
 extern guint8   zdp_parse_status        (proto_tree *tree, tvbuff_t *tvb, guint *offset);
 extern guint32  zdp_parse_chanmask      (proto_tree *tree, tvbuff_t *tvb, guint *offset);
 extern guint8   zdp_parse_cinfo         (proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *offset);
 extern guint16  zdp_parse_server_flags  (proto_tree *tree, gint ettindex, tvbuff_t *tvb, guint *offset);
+
+/* Message dissector routines. */
+extern void dissect_zbee_zdp_req_nwk_addr           (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_ext_addr           (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_node_desc          (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_power_desc         (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_simple_desc        (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_active_ep          (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_match_desc         (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_req_complex_desc       (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_user_desc          (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_discovery_cache    (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_device_annce           (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_set_user_desc      (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_req_system_server_disc (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_store_discovery    (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_store_node_desc    (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_req_store_power_desc   (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_store_active_ep    (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_store_simple_desc  (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_req_remove_node_cache  (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_find_node_cache    (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_ext_simple_desc    (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_ext_active_ep      (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+
+extern void dissect_zbee_zdp_req_end_device_bind    (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_req_bind               (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_req_unbind             (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_req_bind_register      (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_replace_device     (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_store_bak_bind_entry   (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_req_remove_bak_bind_entry  (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_req_backup_bind_table  (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_req_recover_bind_table (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_backup_source_bind (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_recover_source_bind(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+
+extern void dissect_zbee_zdp_req_mgmt_nwk_disc      (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_mgmt_lqi           (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_mgmt_rtg           (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_mgmt_bind          (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_mgmt_leave         (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_req_mgmt_direct_join   (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_mgmt_permit_join   (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_mgmt_cache         (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_req_mgmt_nwkupdate     (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+
+extern void dissect_zbee_zdp_rsp_nwk_addr           (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_ext_addr           (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_node_desc          (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_rsp_power_desc         (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_simple_desc        (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_rsp_active_ep          (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_match_desc         (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_complex_desc       (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_user_desc          (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_rsp_user_desc_conf     (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_rsp_discovery_cache    (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_system_server_disc (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_discovery_store    (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_store_node_desc    (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_store_power_desc   (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_store_active_ep    (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_store_simple_desc  (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_remove_node_cache  (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_find_node_cache    (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_ext_simple_desc    (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_ext_active_ep      (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+
+extern void dissect_zbee_zdp_rsp_end_device_bind    (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_bind               (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_unbind             (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_bind_register      (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_rsp_replace_device     (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_store_bak_bind_entry   (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_remove_bak_bind_entry  (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_backup_bind_table  (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_recover_bind_table (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_rsp_backup_source_bind (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_recover_source_bind(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+
+extern void dissect_zbee_zdp_rsp_mgmt_nwk_disc      (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_rsp_mgmt_lqi           (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_rsp_mgmt_rtg           (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_mgmt_bind          (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version);
+extern void dissect_zbee_zdp_rsp_mgmt_leave         (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_mgmt_direct_join   (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_mgmt_permit_join   (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_mgmt_cache         (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+extern void dissect_zbee_zdp_rsp_mgmt_nwkupdate     (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+
+extern void zdp_parse_bind_table_entry(proto_tree *tree, tvbuff_t *tvb, guint *offset, guint8 version);
+extern const value_string zbee_zdp_cluster_names[];
+extern const value_string zbee_zdp_rtg_status_vals[];
 
 #endif /* PACKET_ZBEE_ZDP_H */

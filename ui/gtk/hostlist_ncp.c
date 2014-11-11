@@ -1,8 +1,6 @@
 /* hostlist_ncp.c   2006 Greg Morris
  * modified from endpoint_talkers_eth.c   2003 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,6 +35,8 @@
 
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/hostlist_table.h"
+
+void register_tap_listener_ncp_hostlist(void);
 
 static int
 ncp_hostlist_packet(void *pit, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip _U_)

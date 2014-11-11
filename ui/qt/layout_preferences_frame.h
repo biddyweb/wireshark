@@ -1,7 +1,5 @@
 /* layout_preferences_frame.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,11 +34,11 @@ class LayoutPreferencesFrame;
 class LayoutPreferencesFrame : public QFrame
 {
     Q_OBJECT
-    
+
 public:
     explicit LayoutPreferencesFrame(QWidget *parent = 0);
     ~LayoutPreferencesFrame();
-    
+
 protected:
     void showEvent(QShowEvent *evt);
 

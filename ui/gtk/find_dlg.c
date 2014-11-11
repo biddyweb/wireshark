@@ -1,8 +1,6 @@
 /* find_dlg.c
  * Routines for "find frame" window
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,7 +34,6 @@
 
 #include "../globals.h"
 #include "ui/alert_box.h"
-#include "ui/simple_dialog.h"
 #include "ui/main_statusbar.h"
 
 #include "ui/gtk/gui_utils.h"
@@ -202,7 +199,7 @@ find_frame_cb(GtkWidget *w _U_, gpointer d _U_)
   gtk_box_pack_start(GTK_BOX(find_type_vb), filter_hb, FALSE, FALSE, 0);
   gtk_widget_show(filter_hb);
 
-  filter_bt = gtk_button_new_from_stock(WIRESHARK_STOCK_DISPLAY_FILTER_ENTRY);
+  filter_bt = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_DISPLAY_FILTER_ENTRY);
   g_signal_connect(filter_bt, "clicked", G_CALLBACK(display_filter_construct_cb), &args);
   g_signal_connect(filter_bt, "destroy", G_CALLBACK(filter_button_destroy_cb), NULL);
   g_object_set_data(G_OBJECT(filter_bt), E_FILT_TE_BUTTON_KEY, filter_bt);
@@ -448,10 +445,13 @@ find_filter_te_syntax_check_cb(GtkWidget *w, gpointer parent_w)
 static void
 hex_selected_cb(GtkWidget *button_rb _U_, gpointer parent_w)
 {
-    GtkWidget   *filter_tb, *hex_rb;
+    GtkWidget   *filter_tb, *hex_rb, *filter_entry;
 
     filter_tb = (GtkWidget *) g_object_get_data(G_OBJECT(parent_w), E_FILT_TE_PTR_KEY);
     hex_rb = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w), E_FIND_HEXDATA_KEY);
+
+    filter_entry = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w),E_FIND_FILT_KEY);
+    gtk_widget_grab_focus(filter_entry);
 
     /* Disable AutoCompletion feature */
     if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(hex_rb)) && g_signal_handler_is_connected(filter_tb, te_presskey_handler_id)) {
@@ -472,7 +472,7 @@ static void
 string_selected_cb(GtkWidget *button_rb _U_, gpointer parent_w)
 {
     GtkWidget   *string_rb, *packet_data_rb, *decode_data_rb, *summary_data_rb,
-                *data_combo_lb, *data_combo_cb, *data_case_cb, *filter_tb;
+                *data_combo_lb, *data_combo_cb, *data_case_cb, *filter_tb, *filter_entry;
 
     string_rb = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w), E_FIND_STRINGDATA_KEY);
     packet_data_rb = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w), E_SOURCE_DATA_KEY);
@@ -483,6 +483,9 @@ string_selected_cb(GtkWidget *button_rb _U_, gpointer parent_w)
     data_combo_cb = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w), E_FIND_STRINGTYPE_KEY);
     data_case_cb = (GtkWidget *) g_object_get_data(G_OBJECT(parent_w), E_CASE_SEARCH_KEY);
     filter_tb = (GtkWidget *) g_object_get_data(G_OBJECT(parent_w), E_FILT_TE_PTR_KEY);
+
+    filter_entry = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w),E_FIND_FILT_KEY);
+    gtk_widget_grab_focus(filter_entry);
 
     if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(string_rb))) {
         gtk_widget_set_sensitive(GTK_WIDGET(packet_data_rb), TRUE);
@@ -518,11 +521,14 @@ string_selected_cb(GtkWidget *button_rb _U_, gpointer parent_w)
 static void
 filter_selected_cb(GtkWidget *button_rb _U_, gpointer parent_w)
 {
-    GtkWidget   *filter_bt, *filter_rb, *filter_te;
+    GtkWidget   *filter_bt, *filter_rb, *filter_te, *filter_entry;
 
     filter_bt = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w), E_FILT_TE_BUTTON_KEY);
     filter_rb = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w), E_FIND_FILTERDATA_KEY);
     filter_te = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w), E_FILT_TE_PTR_KEY);
+
+    filter_entry = (GtkWidget *)g_object_get_data(G_OBJECT(parent_w),E_FIND_FILT_KEY);
+    gtk_widget_grab_focus(filter_entry);
 
     if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(filter_rb)))
     {

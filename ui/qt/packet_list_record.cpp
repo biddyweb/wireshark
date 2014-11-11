@@ -1,7 +1,5 @@
 /* packet_list_record.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -24,7 +22,9 @@
 #include "packet_list_record.h"
 
 PacketListRecord::PacketListRecord(frame_data *frameData) :
-    col_text_(NULL), col_text_len_(NULL), fdata_(frameData)
+    //col_text_(NULL),
+    //col_text_len_(NULL),
+    fdata_(frameData)
 {
 }
 
@@ -35,13 +35,10 @@ QVariant PacketListRecord::data(int col_num, column_info *cinfo) const
     if (!cinfo)
         return QVariant();
 
-    if (col_based_on_frame_data(cinfo, col_num)) //{
+    if (col_based_on_frame_data(cinfo, col_num))
         col_fill_in_frame_data(fdata_, cinfo, col_num, FALSE);
-        return cinfo->col_data[col_num];
-//    } else {
-//        QString unknown;
-//        return unknown.sprintf("Unknown: frame %d col %d", fdata->num, col_num);
-//    }
+
+    return cinfo->col_data[col_num];
 }
 
 frame_data *PacketListRecord::getFdata() {

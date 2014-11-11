@@ -2,8 +2,6 @@
  * Routines for the Check Point High-Availability Protocol (CPHAP)
  * Copyright 2002, Yaniv Kaul <mykaul -at- gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,9 @@
 
 #include <epan/packet.h>
 #include <epan/ipproto.h>
+
+void proto_register_cpha(void);
+void proto_reg_handoff_cpha(void);
 
 static int proto_cphap = -1;
 
@@ -71,6 +72,7 @@ static gint ett_cphap = -1;
 #define UDP_PORT_CPHA        8116
 #define CPHA_MAGIC 0x1A90
 
+#if 0
 static const value_string opcode_type_short_vals[] = {
   { 0, "Unknown" },
   { 1, "FWHA_MY_STATE" },
@@ -85,6 +87,7 @@ static const value_string opcode_type_short_vals[] = {
   { 10, "FWHAP_SYNC" },
   { 0, NULL }
 };
+#endif
 
 static const value_string opcode_type_vals[] = {
   { 0, "Unknown OpCode" },

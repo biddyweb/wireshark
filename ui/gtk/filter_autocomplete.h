@@ -3,8 +3,6 @@
  *
  * Copyright 2008, Bahaa Naamneh <b.naamneh@gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -22,7 +20,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
- */ 
+ */
 
 #ifndef _FILTER_AUTO_COMPLETE_H_
 #define _FILTER_AUTO_COMPLETE_H_
@@ -38,7 +36,7 @@
 /** Callback function that is called when a "key-press-event" signal occur.
  *
  * @param filter_te text-editing filter widget
- * @param event
+ * @param event a GdkEventButton *event
  * @param  user_data pointer to user_data (unused)
  */
 extern gboolean filter_string_te_key_pressed_cb(GtkWidget *filter_te, GdkEventKey *event, gpointer user_data _U_);
@@ -46,7 +44,7 @@ extern gboolean filter_string_te_key_pressed_cb(GtkWidget *filter_te, GdkEventKe
 /** Callback function that is called when a "key-press-event" signal occur.
  *
  * @param win parent window of the text-editing filter widget
- * @param event
+ * @param event a GdkEventButton *event
  * @param user_data pointer to user_data (unused)
  */
 extern gboolean filter_parent_dlg_key_pressed_cb(GtkWidget *win, GdkEventKey *event, gpointer user_data _U_);

@@ -4,8 +4,6 @@
  *
  * Copyright 2004, Takeshi Nakashima <T.Nakashima@jp.yokogawa.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,6 +32,9 @@
 #include <epan/asn1.h>
 #include "packet-kerberos.h"
 #include "packet-isakmp.h"
+
+void proto_register_kink(void);
+void proto_reg_handoff_kink(void);
 
 #define KINK_PORT       57203
 
@@ -77,6 +78,10 @@ static gint ett_payload_kink_encrypt = -1;
 static gint ett_payload_kink_error = -1;
 static gint ett_payload_not_defined = -1;
 static gint ett_decrypt_kink_encrypt = -1;
+
+static expert_field ei_kink_payload_length_small = EI_INIT;
+static expert_field ei_kink_payload_length_mismatch = EI_INIT;
+
 
 /* Define the kink type value */
 #define KINK_TYPE_RESERVED 0
@@ -207,14 +212,11 @@ dissect_kink(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree){
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "KINK");
 
   /* It shows kink type by the type value. */
-  if(check_col(pinfo->cinfo, COL_INFO)){
-    col_add_str(pinfo->cinfo, COL_INFO,  val_to_str_const(type, kink_type_vals, "unknown"));
-  }
+  col_set_str(pinfo->cinfo, COL_INFO,  val_to_str_const(type, kink_type_vals, "unknown"));
+
   /* Make the kink tree */
-  if(tree){
-    ti = proto_tree_add_item(tree, proto_kink, tvb, offset, -1, ENC_NA);
-    kink_tree = proto_item_add_subtree(ti, ett_kink);
-  }
+  ti = proto_tree_add_item(tree, proto_kink, tvb, offset, -1, ENC_NA);
+  kink_tree = proto_item_add_subtree(ti, ett_kink);
 
   proto_tree_add_uint(kink_tree, hf_kink_type, tvb, offset, 1, type);
   offset++;
@@ -350,7 +352,7 @@ dissect_payload_kink_ap_req(packet_info *pinfo, tvbuff_t *tvb, int offset, proto
 
   ti = proto_tree_add_uint(payload_kink_ap_req_tree, hf_kink_payload_length, tvb, offset, 2, payload_length);
   if(payload_length <= PAYLOAD_HEADER){
-    expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "This Payload Length is too small");
+    expert_add_info(pinfo, ti, &ei_kink_payload_length_small);
   }
   offset += 2;
 
@@ -365,7 +367,7 @@ dissect_payload_kink_ap_req(packet_info *pinfo, tvbuff_t *tvb, int offset, proto
     krb_tvb=tvb_new_subset(tvb, offset, (krb_ap_req_length>tvb_length_remaining(tvb, offset))?tvb_length_remaining(tvb, offset):krb_ap_req_length, krb_ap_req_length);
     keytype=kerberos_output_keytype();
     dissect_kerberos_main(krb_tvb, pinfo, payload_kink_ap_req_tree, FALSE, NULL);
-    offset += krb_ap_req_length;
+    /*offset += krb_ap_req_length;*/
   }
 
   /* This part consider padding the padding. Payload_length don't contain the padding. */
@@ -405,7 +407,7 @@ dissect_payload_kink_ap_rep(packet_info *pinfo, tvbuff_t *tvb, int offset, proto
 
   ti = proto_tree_add_uint(payload_kink_ap_rep_tree, hf_kink_payload_length, tvb, offset, 2, payload_length);
   if(payload_length <= PAYLOAD_HEADER){
-    expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "This Payload Length is too small");
+    expert_add_info(pinfo, ti, &ei_kink_payload_length_small);
   }
   offset += 2;
 
@@ -421,7 +423,7 @@ dissect_payload_kink_ap_rep(packet_info *pinfo, tvbuff_t *tvb, int offset, proto
     keytype=kerberos_output_keytype();
     dissect_kerberos_main(krb_tvb, pinfo, payload_kink_ap_rep_tree, FALSE, NULL);
 
-    offset += krb_ap_rep_length;
+    /*offset += krb_ap_rep_length;*/
   }
 
   /* This part consider the padding. Payload_length don't contain the padding. */
@@ -460,7 +462,7 @@ dissect_payload_kink_krb_error(packet_info *pinfo, tvbuff_t *tvb, int offset, pr
 
   ti = proto_tree_add_uint(payload_kink_krb_error_tree, hf_kink_payload_length, tvb, offset, 2, payload_length);
   if(payload_length <= KINK_KRB_ERROR_HEADER){
-    expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "This Payload Length is too small");
+    expert_add_info(pinfo, ti, &ei_kink_payload_length_small);
   }
   else {
     offset += 2;
@@ -473,7 +475,7 @@ dissect_payload_kink_krb_error(packet_info *pinfo, tvbuff_t *tvb, int offset, pr
     krb_tvb=tvb_new_subset(tvb, offset, (krb_error_length>tvb_length_remaining(tvb, offset))?tvb_length_remaining(tvb, offset):krb_error_length, krb_error_length);
 
     dissect_kerberos_main(krb_tvb, pinfo, payload_kink_krb_error_tree, FALSE, NULL);
-    offset += krb_error_length;
+    /*offset += krb_error_length;*/
   }
 
   /* This part consider the padding. Payload_length don't contain the padding. */
@@ -576,7 +578,7 @@ dissect_payload_kink_tgt_rep(packet_info *pinfo, tvbuff_t *tvb, int offset, prot
   offset += 2;
 
   proto_tree_add_item(payload_kink_tgt_rep_tree, hf_kink_tgt, tvb, offset, tgt_length, ENC_NA|ENC_ASCII);
-  offset += tgt_length;
+  /*offset += tgt_length;*/
 
   /* This part consider the padding. Payload_length don't contain the padding. */
   if(payload_length % PADDING!=0){
@@ -617,7 +619,7 @@ dissect_payload_kink_isakmp(packet_info *pinfo, tvbuff_t *tvb, int offset, proto
 
   ti = proto_tree_add_uint(payload_kink_isakmp_tree, hf_kink_payload_length, tvb, offset, 2, payload_length);
   if(payload_length <= PAYLOAD_HEADER){
-    expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "This Payload Length is too small");
+    expert_add_info(pinfo, ti, &ei_kink_payload_length_small);
   }
   offset += 2;
 
@@ -695,7 +697,7 @@ dissect_payload_kink_encrypt(packet_info *pinfo, tvbuff_t *tvb, int offset, prot
 
   ti = proto_tree_add_uint(payload_kink_encrypt_tree, hf_kink_payload_length, tvb, offset, 2, payload_length);
   if(payload_length <= PAYLOAD_HEADER){
-    expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "This Payload Length is too small");
+    expert_add_info(pinfo, ti, &ei_kink_payload_length_small);
   }
   offset += 2;
 
@@ -727,7 +729,7 @@ dissect_payload_kink_encrypt(packet_info *pinfo, tvbuff_t *tvb, int offset, prot
     if(payload_length > PAYLOAD_HEADER){
       inner_payload_length = payload_length - PAYLOAD_HEADER;
       proto_tree_add_text(payload_kink_encrypt_tree, tvb, offset, inner_payload_length, "Payload");
-      offset += inner_payload_length;
+      /*offset += inner_payload_length;*/
     }
   }
   /* This part consider the padding. Payload_length don't contain the padding. */
@@ -773,7 +775,7 @@ dissect_payload_kink_error(packet_info *pinfo, tvbuff_t *tvb, int offset, proto_
   guint16 payload_length;
   guint32 error_code;
   int start_payload_offset = 0; /* Keep the beginning of the payload offset */
-  const char *char_error_code[] = {
+  static const char *char_error_code[] = {
     "KINK_OK",
     "KINK_PROTOERR",
     "KINK_INVDOI",
@@ -799,7 +801,7 @@ dissect_payload_kink_error(packet_info *pinfo, tvbuff_t *tvb, int offset, proto_
 
   ti = proto_tree_add_uint(payload_kink_error_tree, hf_kink_payload_length, tvb, offset, 2, payload_length);
   if(payload_length != KINK_ERROR_LENGTH){
-    expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "This Payload Length is mismatch");
+    expert_add_info(pinfo, ti, &ei_kink_payload_length_mismatch);
   }
   offset += 2;
 
@@ -828,7 +830,6 @@ dissect_payload_kink_error(packet_info *pinfo, tvbuff_t *tvb, int offset, proto_
     }
     break;
   }
-  offset += 4;
 
   offset = start_payload_offset + KINK_ERROR_LENGTH;
   control_payload(pinfo, tvb, offset, next_payload, tree);  /* Recur control_payload() */
@@ -857,7 +858,6 @@ dissect_payload_kink_not_defined(packet_info *pinfo, tvbuff_t *tvb, int offset, 
   offset ++;
 
   proto_tree_add_uint(payload_kink_not_defined_tree, hf_kink_payload_length, tvb, offset, 2, payload_length);
-  offset += 2;
 
   /* This part consider the padding. Payload_length don't contain the padding. */
   if(payload_length % PADDING != 0){
@@ -976,9 +976,18 @@ proto_register_kink(void) {
 
   };
 
+  static ei_register_info ei[] = {
+     { &ei_kink_payload_length_small, { "kink.payload_length_small", PI_PROTOCOL, PI_WARN, "This Payload Length is too small", EXPFILL }},
+     { &ei_kink_payload_length_mismatch, { "kink.payload_length_mismatch", PI_PROTOCOL, PI_WARN, "This Payload Length is mismatch", EXPFILL }},
+  };
+
+  expert_module_t* expert_kink;
+
   proto_kink = proto_register_protocol("Kerberized Internet Negotiation of Key", "KINK", "kink");
   proto_register_field_array(proto_kink, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_kink = expert_register_protocol(proto_kink);
+  expert_register_field_array(expert_kink, ei, array_length(ei));
 
 }
 

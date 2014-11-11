@@ -3,8 +3,6 @@
  * Copyright 2009, Florian Reichert <refl[AT]zhaw.ch>
  * Copyright 2011, Martin Renold <reld[AT]zhaw.ch>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald[AT]wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/etypes.h>
+
+void proto_register_hsr_prp_supervision(void);
+void proto_reg_handoff_hsr_prp_supervision(void);
 
 /**********************************************************/
 /* Channel values for the supervision type field          */

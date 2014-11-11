@@ -3,8 +3,6 @@
  *
  * Copyright 2012, Michal Labedzki for Tieto Corporation
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,6 +36,8 @@
 #define FREQUENCY_44100        0x02
 #define FREQUENCY_48000        0x03
 
+void proto_register_sbc(void);
+
 static int proto_sbc = -1;
 
 static int hf_sbc_fragmented                                               = -1;
@@ -60,7 +60,7 @@ static int hf_sbc_data                                                     = -1;
 static gint ett_sbc             = -1;
 static gint ett_sbc_list        = -1;
 
-static dissector_handle_t data_handle;
+static expert_field ei_sbc_syncword = EI_INIT;
 
 extern value_string_ext media_codec_audio_type_vals_ext;
 
@@ -139,7 +139,7 @@ dissect_sbc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
     number_of_frames = tvb_get_guint8(tvb, offset) & 0x0F;
     offset += 1;
 
-    while (tvb_length_remaining(tvb, offset)) {
+    while (tvb_length_remaining(tvb, offset) > 0) {
         byte = tvb_get_guint8(tvb, offset + 1);
         frequency = (byte & 0xC0) >> 6;
         blocks = (byte & 0x30) >> 4;
@@ -192,8 +192,7 @@ dissect_sbc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
         pitem = proto_tree_add_item(rtree, hf_sbc_syncword, tvb, offset, 1, ENC_BIG_ENDIAN);
         syncword = tvb_get_guint8(tvb, offset);
         if (syncword != 0x9C) {
-            expert_add_info_format(pinfo, pitem, PI_PROTOCOL, PI_WARN,
-                    "Unexpected syncword");
+            expert_add_info(pinfo, pitem, &ei_sbc_syncword);
         }
         offset += 1;
 
@@ -210,7 +209,7 @@ dissect_sbc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
         proto_tree_add_item(ritem, hf_sbc_crc_check,          tvb, offset, 1, ENC_BIG_ENDIAN);
         offset += 1;
 
-        proto_tree_add_item(ritem, hf_sbc_data,  tvb, offset, frame_length, ENC_BIG_ENDIAN);
+        proto_tree_add_item(ritem, hf_sbc_data,  tvb, offset, frame_length, ENC_NA);
         offset += frame_length;
 
 /* TODO: expert_info for invalid CRC*/
@@ -232,6 +231,7 @@ void
 proto_register_sbc(void)
 {
     module_t *module;
+    expert_module_t* expert_sbc;
 
     static hf_register_info hf[] = {
         { &hf_sbc_fragmented,
@@ -312,10 +312,16 @@ proto_register_sbc(void)
         &ett_sbc_list,
     };
 
+    static ei_register_info ei[] = {
+        { &ei_sbc_syncword, { "sbc.syncword.unexpected", PI_PROTOCOL, PI_WARN, "Unexpected syncword", EXPFILL }},
+    };
+
     proto_sbc = proto_register_protocol("Bluetooth SBC Codec", "SBC", "sbc");
 
     proto_register_field_array(proto_sbc, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_sbc = expert_register_protocol(proto_sbc);
+    expert_register_field_array(expert_sbc, ei, array_length(ei));
 
     new_register_dissector("sbc", dissect_sbc, proto_sbc);
 
@@ -323,12 +329,6 @@ proto_register_sbc(void)
     prefs_register_static_text_preference(module, "a2dp.version",
             "Bluetooth Audio Codec SBC version based on A2DP 1.3",
             "Version of codec supported by this dissector.");
-}
-
-void
-proto_reg_handoff_sbc(void)
-{
-    data_handle   = find_dissector("data");
 }
 
 /*

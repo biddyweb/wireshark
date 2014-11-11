@@ -2,8 +2,6 @@
  * Routines for V5 envelope function frame disassembly
  * Rolf Fiedler <rolf.fiedler@innoventif.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998
@@ -36,9 +34,12 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
 #include <epan/conversation.h>
 #include <epan/xdlc.h>
 #include <epan/crc16-tvb.h>
+
+void proto_register_v5ef(void);
 
 static int proto_v5ef = -1;
 static int hf_v5ef_direction = -1;

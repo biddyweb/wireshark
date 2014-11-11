@@ -3,8 +3,6 @@
  * Original Author Mark C. Brown <mbrown@hp.com>
  * Copyright (C) 2004 Hewlett-Packard Development Company, L.P.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,10 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
+
+void proto_register_pagp(void);
+void proto_reg_handoff_pagp(void);
 
 /* Offsets of fields within a PagP PDU */
 
@@ -192,49 +194,35 @@ dissect_pagp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	    proto_tree_add_uint(pagp_tree, hf_pagp_version_number, tvb,
 				PAGP_VERSION_NUMBER, 1, raw_octet);
       }
-      if (check_col(pinfo->cinfo, COL_INFO)) {
-         col_append_str(pinfo->cinfo, COL_INFO,
-  	       val_to_str_const(raw_octet, pdu_vers, "Unknown PDU version"));
-      }
+      col_append_str(pinfo->cinfo, COL_INFO,
+           val_to_str_const(raw_octet, pdu_vers, "Unknown PDU version"));
 
       if (raw_octet == PAGP_FLUSH_PDU) {
 
-         if (check_col(pinfo->cinfo, COL_INFO)) {
-            col_append_fstr(pinfo->cinfo, COL_INFO, "; Local DevID: %s",
+         col_append_fstr(pinfo->cinfo, COL_INFO, "; Local DevID: %s",
                tvb_ether_to_str(tvb, PAGP_FLUSH_LOCAL_DEVICE_ID));
-         }
-         if (tree) {
-	       proto_tree_add_item(pagp_tree, hf_pagp_flush_local_device_id, tvb,
-			   PAGP_FLUSH_LOCAL_DEVICE_ID, 6, ENC_NA);
-         }
 
-         if (check_col(pinfo->cinfo, COL_INFO)) {
-            col_append_fstr(pinfo->cinfo, COL_INFO, ", Partner DevID: %s",
+         proto_tree_add_item(pagp_tree, hf_pagp_flush_local_device_id, tvb,
+            PAGP_FLUSH_LOCAL_DEVICE_ID, 6, ENC_NA);
+
+         col_append_fstr(pinfo->cinfo, COL_INFO, ", Partner DevID: %s",
                tvb_ether_to_str(tvb, PAGP_FLUSH_PARTNER_DEVICE_ID));
-         }
-         if (tree) {
-	    proto_tree_add_item(pagp_tree, hf_pagp_flush_partner_device_id, tvb,
-			   PAGP_FLUSH_PARTNER_DEVICE_ID, 6, ENC_NA);
-         }
+
+         proto_tree_add_item(pagp_tree, hf_pagp_flush_partner_device_id, tvb,
+            PAGP_FLUSH_PARTNER_DEVICE_ID, 6, ENC_NA);
 
          raw_word = tvb_get_ntohl(tvb, PAGP_FLUSH_TRANSACTION_ID);
-	 if (check_col(pinfo->cinfo, COL_INFO)) {
-            col_append_fstr(pinfo->cinfo, COL_INFO,
-		"; Transaction ID: 0x%x ", raw_word);
-	 }
-         if (tree) {
-	    proto_tree_add_uint(pagp_tree, hf_pagp_flush_transaction_id, tvb,
-			   PAGP_FLUSH_TRANSACTION_ID, 4, raw_word);
-	 }
+         col_append_fstr(pinfo->cinfo, COL_INFO, "; Transaction ID: 0x%x ", raw_word);
+
+         proto_tree_add_uint(pagp_tree, hf_pagp_flush_transaction_id, tvb,
+            PAGP_FLUSH_TRANSACTION_ID, 4, raw_word);
          return;
       }
 
       /* Info PDU */
 
       flags = tvb_get_guint8(tvb, PAGP_FLAGS);
-      if (check_col(pinfo->cinfo, COL_INFO)) {
-         col_append_fstr(pinfo->cinfo, COL_INFO, "; Flags 0x%x", flags);
-      }
+      col_append_fstr(pinfo->cinfo, COL_INFO, "; Flags 0x%x", flags);
 
       if (tree) {
          flags_item = proto_tree_add_uint(pagp_tree, hf_pagp_flags, tvb,
@@ -263,14 +251,11 @@ dissect_pagp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	 }
       }
 
-      if (check_col(pinfo->cinfo, COL_INFO)) {
-         col_append_fstr(pinfo->cinfo, COL_INFO, "; Local DevID: %s",
+      col_append_fstr(pinfo->cinfo, COL_INFO, "; Local DevID: %s",
             tvb_ether_to_str(tvb, PAGP_LOCAL_DEVICE_ID));
-      }
-      if (tree) {
-	    proto_tree_add_item(pagp_tree, hf_pagp_local_device_id, tvb,
+
+      proto_tree_add_item(pagp_tree, hf_pagp_local_device_id, tvb,
 				PAGP_LOCAL_DEVICE_ID, 6, ENC_NA);
-      }
 
       if (tree) {
 	    raw_octet = tvb_get_guint8(tvb, PAGP_LOCAL_LEARN_CAP);
@@ -294,14 +279,11 @@ dissect_pagp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				PAGP_LOCAL_GROUP_IFINDEX, 4, raw_word);
       }
 
-      if (check_col(pinfo->cinfo, COL_INFO)) {
-         col_append_fstr(pinfo->cinfo, COL_INFO, ", Partner DevID: %s",
+      col_append_fstr(pinfo->cinfo, COL_INFO, ", Partner DevID: %s",
   	       tvb_ether_to_str(tvb, PAGP_PARTNER_DEVICE_ID));
-      }
-      if (tree) {
-	    proto_tree_add_item(pagp_tree, hf_pagp_partner_device_id, tvb,
+
+      proto_tree_add_item(pagp_tree, hf_pagp_partner_device_id, tvb,
 				PAGP_PARTNER_DEVICE_ID, 6, ENC_NA);
-      }
 
       if (tree) {
 	    raw_octet = tvb_get_guint8(tvb, PAGP_PARTNER_LEARN_CAP);
@@ -361,12 +343,12 @@ dissect_pagp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 		switch (tlv) {
 		   case PAGP_TLV_DEVICE_NAME:
-			ch = tvb_get_ephemeral_string(tvb, offset+4, len-4);
+			ch = tvb_get_string(wmem_packet_scope(), tvb, offset+4, len-4);
 			proto_tree_add_string(tlv_tree, hf_pagp_tlv_device_name,
 			   tvb, offset+4, len-4, ch);
 			break;
 		   case PAGP_TLV_PORT_NAME:
-			ch = tvb_get_ephemeral_string(tvb, offset+4, len-4);
+			ch = tvb_get_string(wmem_packet_scope(), tvb, offset+4, len-4);
 			proto_tree_add_string(tlv_tree, hf_pagp_tlv_port_name,
 			   tvb, offset+4, len-4, ch);
 			break;

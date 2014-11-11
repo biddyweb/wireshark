@@ -2,8 +2,6 @@
  * Routines for Cimetrics LLC OUI dissection
  * Copyright 2008 Steve Karg <skarg@users.sourceforge.net> Alabama
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,9 @@
 #include <epan/oui.h>
 #include "packet-mstp.h"
 
+void proto_register_cimetrics(void);
+void proto_reg_handoff_cimetrics(void);
+
 /* Probably should be a preference, but here for now */
 #define BACNET_MSTP_SUMMARY_IN_TREE
 
@@ -40,9 +41,6 @@ static const value_string cimetrics_pid_vals[] = {
 	{ 0x0001,	"U+4 MS/TP" },
 	{ 0,		NULL }
 };
-
-static dissector_handle_t bacnet_handle;
-static dissector_handle_t data_handle;
 
 static int proto_cimetrics_mstp = -1;
 static int hf_llc_cimetrics_pid = -1;
@@ -121,7 +119,7 @@ proto_register_cimetrics(void)
 		proto_cimetrics_mstp);
 
 	llc_add_oui(OUI_CIMETRICS, "llc.cimetrics_pid",
-		"Cimetrics OUI PID", hf2);
+		"LLC Cimetrics OUI PID", hf2);
 }
 
 void
@@ -131,6 +129,4 @@ proto_reg_handoff_cimetrics(void)
 
 	mstp_handle = find_dissector("cimetrics");
 	dissector_add_uint("llc.cimetrics_pid", 1, mstp_handle);
-	bacnet_handle = find_dissector("bacnet");
-	data_handle = find_dissector("data");
 }

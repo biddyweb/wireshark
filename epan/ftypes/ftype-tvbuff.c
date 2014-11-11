@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -26,6 +24,8 @@
 #include <ftypes-int.h>
 #include <string.h>
 
+#include <epan/exceptions.h>
+
 #define CMP_MATCHES cmp_matches
 
 #define tvb_is_private	fvalue_gboolean1
@@ -46,14 +46,12 @@ value_free(fvalue_t *fv)
 }
 
 static void
-value_set(fvalue_t *fv, gpointer value, gboolean already_copied)
+value_set(fvalue_t *fv, tvbuff_t *value)
 {
-	g_assert(already_copied);
-
 	/* Free up the old value, if we have one */
 	value_free(fv);
 
-	fv->value.tvb = (tvbuff_t *)value;
+	fv->value.tvb = value;
 }
 
 static void
@@ -63,7 +61,7 @@ free_tvb_data(void *data)
 }
 
 static gboolean
-val_from_string(fvalue_t *fv, char *s, LogFunc logfunc _U_)
+val_from_string(fvalue_t *fv, const char *s, LogFunc logfunc _U_)
 {
 	tvbuff_t *new_tvb;
 	guint8 *private_data;
@@ -87,7 +85,7 @@ val_from_string(fvalue_t *fv, char *s, LogFunc logfunc _U_)
 }
 
 static gboolean
-val_from_unparsed(fvalue_t *fv, char *s, gboolean allow_partial_value _U_, LogFunc logfunc)
+val_from_unparsed(fvalue_t *fv, const char *s, gboolean allow_partial_value _U_, LogFunc logfunc)
 {
 	fvalue_t *fv_bytes;
 	tvbuff_t *new_tvb;
@@ -398,7 +396,7 @@ cmp_matches(const fvalue_t *fv_a, const fvalue_t *fv_b)
 			data,		/* The data to check for the pattern... */
 			tvb_len,	/* ... and its length */
 			0,		/* Start offset within data */
-			0,		/* GRegexMatchFlags */
+			(GRegexMatchFlags)0,		/* GRegexMatchFlags */
 			NULL,		/* We are not interested in the match information */
 			NULL		/* We don't want error information */
 			);
@@ -427,7 +425,12 @@ ftype_register_tvbuff(void)
 		val_to_repr,			/* val_to_string_repr */
 		val_repr_len,			/* len_string_repr */
 
-		value_set,			/* set_value */
+		NULL,				/* set_value_byte_array */
+		NULL,				/* set_value_bytes */
+		NULL,				/* set_value_guid */
+		NULL,				/* set_value_time */
+		NULL,				/* set_value_string */
+		value_set,			/* set_value_tvbuff */
 		NULL,				/* set_value_uinteger */
 		NULL,				/* set_value_sinteger */
 		NULL,				/* set_value_integer64 */

@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-snmp.h                                                              */
 /* ../../tools/asn2wrs.py -b -p snmp -c ./snmp.cnf -s ./packet-snmp-template -D . -O ../../epan/dissectors snmp.asn */
 
@@ -8,8 +8,6 @@
 #line 1 "../../asn1/snmp/packet-snmp-template.h"
 /* packet-snmp.h
  * Routines for snmp packet dissection
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -53,7 +51,7 @@ typedef struct _snmp_usm_auth_model_t {
 
 typedef struct _snmp_user_t {
 	snmp_usm_key_t userName;
-	
+
 	snmp_usm_auth_model_t* authModel;
 	snmp_usm_key_t authPassword;
 	snmp_usm_key_t authKey;
@@ -81,7 +79,7 @@ struct _snmp_usm_params_t {
 	gboolean encrypted;
 	guint start_offset;
 	guint auth_offset;
-	
+
 	guint32 boots;
 	guint32 time;
 	tvbuff_t* engine_tvb;

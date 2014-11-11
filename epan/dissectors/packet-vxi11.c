@@ -1,8 +1,6 @@
 /* packet-vxi11.c
  * Routines for VXI-11 (TCP/IP Instrument Protocol) dissection.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,8 @@
 #include "config.h"
 
 #include "packet-rpc.h"
+#include <epan/to_str.h>
+#include <epan/wmem/wmem.h>
 
 /*
  * For the protocol specifications, see
@@ -94,6 +94,13 @@
 
 #define VXI11_CORE_PROGRAM 0x0607AF
 #define VXI11_CORE_VERSION 1
+
+void proto_register_vxi11_core(void);
+void proto_reg_handoff_vxi11_core(void);
+void proto_register_vxi11_async(void);
+void proto_reg_handoff_vxi11_async(void);
+void proto_register_vxi11_intr(void);
+void proto_reg_handoff_vxi11_intr(void);
 
 static int proto_vxi11_core = -1;
 
@@ -242,23 +249,23 @@ dissect_flags(tvbuff_t *tvb, int offset, proto_tree *tree)
 
             if (flags != 0)
             {
-                emem_strbuf_t *strbuf = ep_strbuf_new_label(NULL);
+                wmem_strbuf_t *strbuf = wmem_strbuf_new_label(wmem_packet_scope());
 
                 if (flags & VXI11_CORE_FLAG_WAITLOCK)
                 {
-                    ep_strbuf_append(strbuf, "WAIT_LOCK, ");
+                    wmem_strbuf_append(strbuf, "WAIT_LOCK, ");
                 }
                 if (flags & VXI11_CORE_FLAG_END)
                 {
-                    ep_strbuf_append(strbuf, "END, ");
+                    wmem_strbuf_append(strbuf, "END, ");
                 }
                 if (flags & VXI11_CORE_FLAG_TERMCHRSET)
                 {
-                    ep_strbuf_append(strbuf, "TERM_CHR_SET, ");
+                    wmem_strbuf_append(strbuf, "TERM_CHR_SET, ");
                 }
 
-                ep_strbuf_truncate(strbuf, strbuf->len - 2);
-                proto_item_append_text(flags_item, " (%s)", strbuf->str);
+                wmem_strbuf_truncate(strbuf, wmem_strbuf_get_len(strbuf) - 2);
+                proto_item_append_text(flags_item, " (%s)", wmem_strbuf_get_str(strbuf));
             }
         }
     }
@@ -287,23 +294,23 @@ dissect_reason(tvbuff_t *tvb, int offset, proto_tree *tree)
 
             if (reason != 0)
             {
-                emem_strbuf_t *strbuf = ep_strbuf_new_label(NULL);
+                wmem_strbuf_t *strbuf = wmem_strbuf_new_label(wmem_packet_scope());
 
                 if (reason & VXI11_CORE_REASON_REQCNT)
                 {
-                    ep_strbuf_append(strbuf, "REQ_CNT, ");
+                    wmem_strbuf_append(strbuf, "REQ_CNT, ");
                 }
                 if (reason & VXI11_CORE_REASON_CHR)
                 {
-                    ep_strbuf_append(strbuf, "CHR, ");
+                    wmem_strbuf_append(strbuf, "CHR, ");
                 }
                 if (reason & VXI11_CORE_REASON_END)
                 {
-                    ep_strbuf_append(strbuf, "END, ");
+                    wmem_strbuf_append(strbuf, "END, ");
                 }
 
-                ep_strbuf_truncate(strbuf, strbuf->len - 2);
-                proto_item_append_text(reason_item, " (%s)", strbuf->str);
+                wmem_strbuf_truncate(strbuf, wmem_strbuf_get_len(strbuf) - 2);
+                proto_item_append_text(reason_item, " (%s)", wmem_strbuf_get_str(strbuf));
             }
         }
     }
@@ -317,7 +324,7 @@ static int
 dissect_create_link_parms(tvbuff_t *tvb,
                           int offset,
                           packet_info *pinfo,
-                          proto_tree *tree)
+                          proto_tree *tree, void* data _U_)
 {
     const char *str;
 
@@ -339,7 +346,7 @@ static int
 dissect_create_link_resp(tvbuff_t *tvb,
                          int offset,
                          packet_info *pinfo,
-                         proto_tree *tree)
+                         proto_tree *tree, void* data _U_)
 {
     guint32 error, lid;
 
@@ -367,7 +374,7 @@ static int
 dissect_device_SRQ_parms(tvbuff_t *tvb,
                          int offset,
                          packet_info *pinfo _U_,
-                         proto_tree *tree)
+                         proto_tree *tree, void* data _U_)
 {
     offset = dissect_rpc_opaque_data(tvb, offset, tree, NULL, hf_vxi11_intr_handle, FALSE, 0, FALSE, NULL, NULL);
 
@@ -383,7 +390,7 @@ static int
 dissect_device_docmd_parms(tvbuff_t *tvb,
                            int offset,
                            packet_info *pinfo,
-                           proto_tree *tree)
+                           proto_tree *tree, void* data _U_)
 {
     guint32 lid, cmd;
     const gchar *cmdstr;
@@ -416,7 +423,7 @@ static int
 dissect_device_docmd_resp(tvbuff_t *tvb,
                           int offset,
                           packet_info *pinfo,
-                          proto_tree *tree)
+                          proto_tree *tree, void* data _U_)
 {
     guint32 error;
 
@@ -430,7 +437,7 @@ static int
 dissect_device_enable_SRQ_parms(tvbuff_t *tvb,
                                 int offset,
                                 packet_info *pinfo,
-                                proto_tree *tree)
+                                proto_tree *tree, void* data _U_)
 {
     guint32 lid = tvb_get_ntohl(tvb, offset);
 
@@ -451,7 +458,7 @@ static int
 dissect_device_error(tvbuff_t *tvb,
                      int offset,
                      packet_info *pinfo,
-                     proto_tree *tree)
+                     proto_tree *tree, void* data _U_)
 {
     guint32 error;
 
@@ -462,7 +469,7 @@ static int
 dissect_device_generic_parms(tvbuff_t *tvb,
                              int offset,
                              packet_info *pinfo,
-                             proto_tree *tree)
+                             proto_tree *tree, void* data _U_)
 {
     guint32 lid = tvb_get_ntohl(tvb, offset);
 
@@ -484,7 +491,7 @@ static int
 dissect_device_link(tvbuff_t *tvb,
                     int offset,
                     packet_info *pinfo,
-                    proto_tree *tree)
+                    proto_tree *tree, void* data _U_)
 {
     guint32 lid = tvb_get_ntohl(tvb, offset);
 
@@ -503,7 +510,7 @@ static int
 dissect_device_lock_parms(tvbuff_t *tvb,
                           int offset,
                           packet_info *pinfo,
-                          proto_tree *tree)
+                          proto_tree *tree, void* data _U_)
 {
     guint32 lid = tvb_get_ntohl(tvb, offset);
 
@@ -524,7 +531,7 @@ static int
 dissect_device_read_parms(tvbuff_t *tvb,
                           int offset,
                           packet_info *pinfo,
-                          proto_tree *tree)
+                          proto_tree *tree, void* data _U_)
 {
     guint32 lid = tvb_get_ntohl(tvb, offset);
 
@@ -548,7 +555,7 @@ static int
 dissect_device_read_resp(tvbuff_t *tvb,
                          int offset,
                          packet_info *pinfo,
-                         proto_tree *tree)
+                         proto_tree *tree, void* data _U_)
 {
     guint32 error;
 
@@ -563,7 +570,7 @@ static int
 dissect_device_readstb_resp(tvbuff_t *tvb,
                             int offset,
                             packet_info *pinfo,
-                            proto_tree *tree)
+                            proto_tree *tree, void* data _U_)
 {
     guint32 error, stb;
 
@@ -588,7 +595,7 @@ static int
 dissect_device_remote_func(tvbuff_t *tvb,
                            int offset,
                            packet_info *pinfo,
-                           proto_tree *tree)
+                           proto_tree *tree, void* data _U_)
 {
     guint32 addr, port;
     const gchar *addrstr;
@@ -617,7 +624,7 @@ static int
 dissect_device_write_parms(tvbuff_t *tvb,
                            int offset,
                            packet_info *pinfo,
-                           proto_tree *tree)
+                           proto_tree *tree, void* data _U_)
 {
     guint32 lid = tvb_get_ntohl(tvb, offset);
 
@@ -640,7 +647,7 @@ static int
 dissect_device_write_resp(tvbuff_t *tvb,
                           int offset,
                           packet_info *pinfo,
-                          proto_tree *tree)
+                          proto_tree *tree, void* data _U_)
 {
     guint32 error;
 

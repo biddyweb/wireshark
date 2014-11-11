@@ -1,8 +1,6 @@
 /* packet-h221_nonstd.c
  * Routines for H.221 nonstandard parameters disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,9 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+
+void proto_register_nonstd(void);
+void proto_reg_handoff_nonstd(void);
 
 /* Define the nonstd proto */
 static int proto_nonstd = -1;

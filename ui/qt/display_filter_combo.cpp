@@ -1,7 +1,5 @@
 /* display_filter_combo.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -24,6 +22,7 @@
 #include <stdio.h>
 
 #include "qt_ui_utils.h"
+#include "ui/recent_utils.h"
 #include "ui/recent.h"
 
 #include <epan/prefs.h>
@@ -41,13 +40,13 @@ DisplayFilterCombo::DisplayFilterCombo(QWidget *parent) :
     QComboBox(parent)
 {
     setEditable(true);
-    setLineEdit(new DisplayFilterEdit());
+    setLineEdit(new DisplayFilterEdit(this, false));
     setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
     setAccessibleName(tr("Display filter selector"));
     cur_display_filter_combo = this;
     setStyleSheet(
             "QComboBox {"
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
             "  border: 1px solid gray;"
 #else
             "  border: 1px solid palette(shadow);"
@@ -75,6 +74,9 @@ DisplayFilterCombo::DisplayFilterCombo(QWidget *parent) :
             "}"
             );
     completer()->setCompletionMode(QCompleter::PopupCompletion);
+#ifndef QT_NO_TOOLTIP
+    setToolTip(tr("Select from previously used filters"));
+#endif // QT_NO_TOOLTIP
 
     connect(wsApp, SIGNAL(preferencesChanged()), this, SLOT(updateMaxCount()));
 }
@@ -119,22 +121,6 @@ extern "C" gboolean dfilter_combo_add_recent(const gchar *filter) {
     return TRUE;
 }
 
-
-// xxx - Move to an as-yet-to-be-written capture filter module along with ::addRecentCapture and ::writeRecentCapture
-QList<QString> cfilters;
-
-extern "C" gboolean cfilter_combo_add_recent(const gchar *filter) {
-    cfilters.append(filter);
-    return TRUE;
-}
-
-extern "C" void cfilter_combo_recent_write_all(FILE *rf) {
-    QString cfilter;
-
-    foreach (cfilter, cfilters) {
-        fprintf (rf, RECENT_KEY_CAPTURE_FILTER ": %s\n", cfilter.toUtf8().constData());
-    }
-}
 
 /*
  * Editor modelines

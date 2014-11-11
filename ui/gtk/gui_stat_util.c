@@ -2,8 +2,6 @@
  * gui functions used by stats
  * Copyright 2003 Lars Roland
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,7 +25,6 @@
 
 #include <gtk/gtk.h>
 
-#include "ui/simple_dialog.h"
 #include "../file.h"
 
 #include "ui/gtk/gui_stat_util.h"

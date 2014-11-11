@@ -1,8 +1,6 @@
 /**
  * airpdcap_rijndael.c
  *
- * $Id$
- *
  * @version 3.0 (December 2000)
  *
  * Optimised ANSI C code for the Rijndael cipher (now AES)
@@ -33,7 +31,7 @@
 
 #include	"airpdcap_debug.h"
 #include <glib.h>
-#include "aes.h"
+#include <wsutil/aes.h>
 
 /* Based on RFC 3394 and NIST AES Key Wrap Specification pseudo-code.
 

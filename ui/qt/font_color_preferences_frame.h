@@ -1,7 +1,5 @@
 /* font_color_preferences_frame.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,11 +34,11 @@ class FontColorPreferencesFrame;
 class FontColorPreferencesFrame : public QFrame
 {
     Q_OBJECT
-    
+
 public:
     explicit FontColorPreferencesFrame(QWidget *parent = 0);
     ~FontColorPreferencesFrame();
-    
+
 protected:
     void showEvent(QShowEvent *evt);
 
@@ -56,6 +54,12 @@ private:
     pref_t *pref_client_bg_;
     pref_t *pref_server_fg_;
     pref_t *pref_server_bg_;
+    pref_t *pref_valid_fg_;
+    pref_t *pref_valid_bg_;
+    pref_t *pref_invalid_fg_;
+    pref_t *pref_invalid_bg_;
+    pref_t *pref_deprecated_fg_;
+    pref_t *pref_deprecated_bg_;
     QFont cur_font_;
 
     void updateWidgets();
@@ -72,8 +76,9 @@ private slots:
     void on_clientBGPushButton_clicked();
     void on_serverFGPushButton_clicked();
     void on_serverBGPushButton_clicked();
-
-
+    void on_validFilterBGPushButton_clicked();
+    void on_invalidFilterBGPushButton_clicked();
+    void on_deprecatedFilterBGPushButton_clicked();
 };
 
 #endif // FONT_COLOR_PREFERENCES_FRAME_H

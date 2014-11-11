@@ -1,8 +1,6 @@
 /* packet-scsi.h
  * Author: Dinesh G Dutt (ddutt@cisco.com)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2002 Gerald Combs
@@ -25,7 +23,7 @@
 #ifndef __PACKET_SCSI_H_
 #define __PACKET_SCSI_H_
 
-#include "ws_symbol_export.h"
+#include <epan/exceptions.h>
 
 /* Structure containing itl nexus data :
  * The itlq nexus is a structure containing data specific
@@ -35,7 +33,7 @@ typedef struct _itl_nexus_t {
 #define SCSI_CMDSET_DEFAULT	0x80
 #define SCSI_CMDSET_MASK	0x7f
     guint8 cmdset;         /* This is a bitfield.
-			    * The MSB (0x80) represents whether 
+			    * The MSB (0x80) represents whether
 			    * 0: the commandset is known from a INQ PDU
 			    * 1: is using the "default" from preferences.
 			    * The lower 7 bits represent the commandset used
@@ -60,7 +58,7 @@ typedef struct _itlq_nexus_t {
 #define SCSI_DATA_WRITE	0x0002
     guint16 task_flags; /* Flags set by the transport for this
 			 * scsi task.
-			 * 
+			 *
 			 * If there is no data being transferred both flags
 			 * are 0 and both data lengths below are undefined.
 			 *
@@ -68,15 +66,15 @@ typedef struct _itlq_nexus_t {
 			 * data being transferred is held in data_length
 			 * and bidir_data_length is undefined.
 			 *
-			 * If both flags are set (a bidirectional transfer) 
+			 * If both flags are set (a bidirectional transfer)
 			 * data_length specifies the amount of DATA-OUT and
 			 * bidir_data_length specifies the amount of DATA-IN
 			 */
     guint32 data_length;
     guint32 bidir_data_length;
 
-    guint32 alloc_len;	/* we need to track alloc_len between the CDB and 
-			 * the DATA pdus for some opcodes. 
+    guint32 alloc_len;	/* we need to track alloc_len between the CDB and
+			 * the DATA pdus for some opcodes.
 			 */
     nstime_t fc_time;
 
@@ -116,6 +114,7 @@ typedef struct _scsi_cdb_table_t {
 #define SCSI_SPC_COPY_AND_VERIFY         0x3A
 #define SCSI_SPC_INQUIRY                 0x12
 #define SCSI_SPC_EXTCOPY                 0x83
+#define SCSI_SPC_RECVCOPY		 0x84
 #define SCSI_SPC_LOGSELECT               0x4C
 #define SCSI_SPC_LOGSENSE                0x4D
 #define SCSI_SPC_MODESELECT6             0x15
@@ -130,7 +129,7 @@ typedef struct _scsi_cdb_table_t {
 #define SCSI_SPC_RCVDIAGRESULTS          0x1C
 #define SCSI_SPC_RELEASE6                0x17
 #define SCSI_SPC_RELEASE10               0x57
-#define SCSI_SPC_REPORTDEVICEID          0xA3
+#define SCSI_SPC_MGMT_PROTOCOL_IN        0xA3
 #define SCSI_SPC_REPORTLUNS              0xA0
 #define SCSI_SPC_REQSENSE                0x03
 #define SCSI_SPC_RESERVE6                0x16
@@ -144,6 +143,7 @@ typedef struct _scsi_cdb_table_t {
 void dissect_spc_inquiry(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset, gboolean isreq, gboolean iscdb, guint32 payload_len, scsi_task_data_t *cdata);
 void dissect_spc_logselect(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint offset, gboolean isreq, gboolean iscdb, guint payload_len _U_, scsi_task_data_t *cdata _U_);
 void dissect_spc_logsense(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint offset, gboolean isreq, gboolean iscdb, guint payload_len _U_, scsi_task_data_t *cdata _U_);
+void dissect_spc_mgmt_protocol_in(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint offset, gboolean isreq, gboolean iscdb, guint payload_len _U_, scsi_task_data_t *cdata _U_);
 void dissect_spc_modeselect6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset, gboolean isreq, gboolean iscdb, guint payload_len, scsi_task_data_t *cdata);
 void dissect_spc_modesense6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset, gboolean isreq, gboolean iscdb, guint payload_len, scsi_task_data_t *cdata);
 void dissect_spc_modeselect10(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset, gboolean isreq, gboolean iscdb, guint payload_len, scsi_task_data_t *cdata);
@@ -161,6 +161,8 @@ void dissect_spc_reserve10 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *t
 void dissect_spc_release10 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint offset, gboolean isreq, gboolean iscdb, guint payload_len _U_, scsi_task_data_t *cdata _U_);
 void dissect_spc_senddiagnostic (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint offset, gboolean isreq, gboolean iscdb, guint payload_len _U_, scsi_task_data_t *cdata _U_);
 void dissect_spc_extcopy (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint offset, gboolean isreq, gboolean iscdb, guint payload_len _U_, scsi_task_data_t *cdata _U_);
+void dissect_spc_recvcopy (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint offset, gboolean isreq, gboolean iscdb, guint payload_len _U_, scsi_task_data_t *cdata _U_);
+
 
 
 
@@ -213,8 +215,6 @@ void dissect_scsi_snsinfo (tvbuff_t *, packet_info *, proto_tree *, guint, guint
 
 void dissect_scsi_lun(proto_tree *, tvbuff_t *, guint);
 
-WS_DLL_PUBLIC const value_string scsi_mmc_vals[];
-
 extern const int *cdb_control_fields[6];
 extern gint ett_scsi_control;
 extern int hf_scsi_control;
@@ -234,6 +234,10 @@ extern const value_string scsi_devid_codeset_val[];
 extern const value_string scsi_devid_idtype_val[];
 extern value_string_ext scsi_asc_val_ext;
 
+/* 0xA3 MGMT PROTOCOL IN service actions */
+#define MPI_MANAGEMENT_PROTOCOL_IN           0x10
+#define MPI_REPORT_SUPPORTED_OPERATION_CODES 0x0C
+
 /* These two defines are used to handle cases where data coming back from
  * the device is truncated due to a too short allocation_length specified
  * in the command CDB.
@@ -245,29 +249,33 @@ extern value_string_ext scsi_asc_val_ext;
  *
  * Please see dissect_spc_inquiry() for an example how to use these
  * macros.
+ *
+ * Note that try_tvb & try_offset are initialized to be  used in the code
+ *  bounded by TRY_SCSI_ALLOC_LEN and END_TRY_SCSI_CDB_ALLOC_LEN
  */
-#define TRY_SCSI_CDB_ALLOC_LEN(pinfo, tvb, offset, length)		\
+
+#define TRY_SCSI_CDB_ALLOC_LEN(length_arg)				\
     {									\
-	volatile gboolean short_packet;					\
-	tvbuff_t *new_tvb;						\
-	guint32 end_data_offset=0;					\
+	volatile gboolean try_short_packet;				\
+	tvbuff_t *try_tvb;						\
+	guint     try_offset;                                           \
+	guint32   try_end_data_offset=0;				\
 									\
-	short_packet=pinfo->fd->cap_len<pinfo->fd->pkt_len;		\
-	new_tvb=tvb_new_subset(tvb, offset, tvb_length_remaining(tvb, offset), length);\
-	tvb=new_tvb;							\
-	offset=0;							\
+	try_short_packet=pinfo->fd->cap_len<pinfo->fd->pkt_len;		\
+	try_tvb=tvb_new_subset(tvb_a, offset_a, tvb_length_remaining(tvb_a, offset_a), length_arg); \
+	try_offset=0;							\
 	TRY {
 
 #define END_TRY_SCSI_CDB_ALLOC_LEN 					\
-		    if(end_data_offset){				\
+		    if(try_end_data_offset){				\
 			/* just verify we can read all the bytes we were\
 			 * supposed to.					\
 			 */						\
-			tvb_get_guint8(tvb,end_data_offset);		\
+			tvb_get_guint8(try_tvb,try_end_data_offset);	\
 	    	}							\
 	    } /* TRY */							\
 	CATCH(BoundsError) {						\
-		if(short_packet){					\
+		if(try_short_packet){					\
 			/* this was a short packet */			\
 			RETHROW;					\
 		} else {						\
@@ -281,7 +289,7 @@ extern value_string_ext scsi_asc_val_ext;
 		}							\
 	    }								\
 	CATCH(ReportedBoundsError) {					\
-		if(short_packet){					\
+		if(try_short_packet){					\
 			/* this was a short packet */			\
 			RETHROW;					\
 		} else {						\
@@ -303,8 +311,21 @@ extern value_string_ext scsi_asc_val_ext;
  * the future. There is no harm in teaching the dissector about how long
  * the data pdu is supposed to be according to alloc_len in the data pdu
  */
-#define SET_SCSI_DATA_END(offset)					\
-	end_data_offset=offset;
+#define SET_SCSI_DATA_END(offset_arg)		\
+	try_end_data_offset=offset_arg;
 
 
 #endif
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

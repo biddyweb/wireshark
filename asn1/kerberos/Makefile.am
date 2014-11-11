@@ -1,6 +1,3 @@
-# $Id$
-#
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -22,6 +19,5 @@
 
 include ../Makefile.preinc
 include Makefile.common
-# Comment this out to allow 'make all' to work
-#include ../Makefile.inc
+include ../Makefile.inc
 

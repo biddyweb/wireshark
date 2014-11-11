@@ -14,8 +14,6 @@
  * Header field support for TPDU Parameters added by
  * Abhik Sarkar.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -44,8 +42,12 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/reassemble.h>
+#include <epan/to_str.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-gsm_sms.h"
+
+void proto_register_gsm_sms(void);
 
 #define MAX_SMS_FRAG_LEN      134
 
@@ -112,9 +114,9 @@ static int proto_gsm_sms = -1;
 
 static gint hf_gsm_sms_coding_group_bits2 = -1;
 static gint hf_gsm_sms_coding_group_bits4 = -1;
-static gint  hf_gsm_sms_ud_multiple_messages_msg_id = -1;
-static gint  hf_gsm_sms_ud_multiple_messages_msg_parts = -1;
-static gint  hf_gsm_sms_ud_multiple_messages_msg_part = -1;
+static gint hf_gsm_sms_ud_multiple_messages_msg_id = -1;
+static gint hf_gsm_sms_ud_multiple_messages_msg_parts = -1;
+static gint hf_gsm_sms_ud_multiple_messages_msg_part = -1;
 
 /* TPDU Parameters */
 static gint hf_gsm_sms_tp_mti_up = -1;
@@ -150,7 +152,6 @@ static gint hf_gsm_sms_tp_ud = -1;
 
 static gboolean reassemble_sms = TRUE;
 static char bigbuf[1024];
-static packet_info *g_pinfo;
 static proto_tree *g_tree;
 
 /* 3GPP TS 23.038 version 7.0.0 Release 7
@@ -163,16 +164,16 @@ static proto_tree *g_tree;
 
 /* Coding Group Bits */
 static const value_string gsm_sms_coding_group_bits_vals[] = {
-    { 0,  "General Data Coding indication" },                    /* 00xx */
-    { 1,  "General Data Coding indication" },                    /* 00xx */
-    { 2,  "General Data Coding indication" },                    /* 00xx */
-    { 3,  "General Data Coding indication" },                    /* 00xx */
-    { 4,  "Message Marked for Automatic Deletion Group" },       /* 01xx */
-    { 5,  "Message Marked for Automatic Deletion Group" },       /* 01xx */
-    { 6,  "Message Marked for Automatic Deletion Group" },       /* 01xx */
-    { 7,  "Message Marked for Automatic Deletion Group" },       /* 01xx */
-    { 8,  "Reserved coding groups" },                            /* 1000..1011  */
-    { 9,  "Reserved coding groups" },                            /* 1000..1011  */
+    {  0, "General Data Coding indication" },                    /* 00xx */
+    {  1, "General Data Coding indication" },                    /* 00xx */
+    {  2, "General Data Coding indication" },                    /* 00xx */
+    {  3, "General Data Coding indication" },                    /* 00xx */
+    {  4, "Message Marked for Automatic Deletion Group" },       /* 01xx */
+    {  5, "Message Marked for Automatic Deletion Group" },       /* 01xx */
+    {  6, "Message Marked for Automatic Deletion Group" },       /* 01xx */
+    {  7, "Message Marked for Automatic Deletion Group" },       /* 01xx */
+    {  8, "Reserved coding groups" },                            /* 1000..1011  */
+    {  9, "Reserved coding groups" },                            /* 1000..1011  */
     { 10, "Reserved coding groups" },                            /* 1000..1011  */
     { 11, "Reserved coding groups" },                            /* 1000..1011  */
     { 12, "Message Waiting Indication Group: Discard Message" }, /* 1100  */
@@ -181,19 +182,11 @@ static const value_string gsm_sms_coding_group_bits_vals[] = {
     { 15, "Data coding/message class" },                         /* 1111  */
     { 0, NULL },
 };
-
-static guint16   g_sm_id;
-static guint16   g_frags;
-static guint16   g_frag;
-
-static guint16   g_port_src;
-static guint16   g_port_dst;
-static gboolean  g_is_wsp;
+static value_string_ext gsm_sms_coding_group_bits_vals_ext = VALUE_STRING_EXT_INIT(gsm_sms_coding_group_bits_vals);
 
 static dissector_table_t gsm_sms_dissector_tbl;
 /* Short Message reassembly */
-static GHashTable *g_sm_fragment_table = NULL;
-static GHashTable *g_sm_reassembled_table = NULL;
+static reassembly_table g_sm_reassembly_table;
 static GHashTable *g_sm_fragment_params_table = NULL;
 static gint ett_gsm_sms_ud_fragment = -1;
 static gint ett_gsm_sms_ud_fragments = -1;
@@ -235,15 +228,16 @@ static const fragment_items sm_frag_items = {
 };
 
 typedef struct {
-    guint8 udl;
     guint32 length;
+    guint8  udl;
+    guint8  fill_bits;
 } sm_fragment_params;
 
 static void
 gsm_sms_defragment_init (void)
 {
-    fragment_table_init (&g_sm_fragment_table);
-    reassembled_table_init(&g_sm_reassembled_table);
+    reassembly_table_init(&g_sm_reassembly_table,
+                          &addresses_reassembly_table_functions);
     if (g_sm_fragment_params_table) {
         g_hash_table_destroy(g_sm_fragment_params_table);
     }
@@ -334,21 +328,20 @@ static void
 dis_field_addr(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p, const gchar *title)
 {
     static gchar digit_table[] = {"0123456789*#abc\0"};
-    proto_item   *item;
-    proto_tree   *subtree = NULL;
-    const gchar  *str = NULL;
+    proto_item  *item;
+    proto_tree  *subtree;
+    const gchar *str = NULL;
     guint8       oct;
     guint32      offset;
     guint32      numdigocts;
-    guint32      length;
+    guint32      length, addrlength;
     guint32      i, j;
-    char         addrbuf[MAX_ADDR_SIZE+1];
-    gchar        *addrstr;
+    gchar       *addrstr;
 
     offset = *offset_p;
 
-    oct = tvb_get_guint8(tvb, offset);
-    numdigocts = (oct + 1) / 2;
+    addrlength = tvb_get_guint8(tvb, offset);
+    numdigocts = (addrlength + 1) / 2;
 
     length = tvb_length_remaining(tvb, offset);
 
@@ -372,7 +365,7 @@ dis_field_addr(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p, const gchar *
     proto_tree_add_text(subtree,
         tvb, offset, 1,
         "Length: %d address digits",
-        oct);
+        addrlength);
 
     offset++;
     oct = tvb_get_guint8(tvb, offset);
@@ -394,7 +387,7 @@ dis_field_addr(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p, const gchar *
     case 0x05: str = "Alphanumeric (coded according to 3GPP TS 23.038 GSM 7-bit default alphabet)"; break;
     case 0x06: str = "Abbreviated number"; break;
     case 0x07: str = "Reserved for extension"; break;
-    default: str = "Unknown, reserved (?)"; break;
+    default:  str = "Unknown, reserved (?)"; break;
     }
 
     other_decode_bitfield_value(bigbuf, oct, 0x70, 8);
@@ -417,7 +410,7 @@ dis_field_addr(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p, const gchar *
     case 0x09: str = "Private numbering plan"; break;
     case 0x0a: str = "ERMES numbering plan (ETSI DE/PS 3 01-3)"; break;
     case 0x0f: str = "Reserved for extension"; break;
-    default: str = "Unknown, reserved (?)"; break;
+    default:  str = "Unknown, reserved (?)"; break;
     }
 
     other_decode_bitfield_value(bigbuf, oct, 0x0f, 8);
@@ -434,12 +427,12 @@ dis_field_addr(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p, const gchar *
     switch ((oct & 0x70) >> 4)
     {
     case 0x05: /* "Alphanumeric (coded according to 3GPP TS 23.038 GSM 7-bit default alphabet)" */
-        i = gsm_sms_char_7bit_unpack(0, numdigocts, MAX_ADDR_SIZE, tvb_get_ptr(tvb, offset, numdigocts), addrbuf);
-        addrbuf[i] = '\0';
-        addrstr = gsm_sms_chars_to_utf8(addrbuf, i);
+        addrlength = (addrlength << 2) / 7;
+        addrstr = tvb_get_ts_23_038_7bits_string(wmem_packet_scope(), tvb, offset << 3,
+                                                 (addrlength > MAX_ADDR_SIZE) ? MAX_ADDR_SIZE : addrlength);
         break;
     default:
-        addrstr = ep_alloc(numdigocts*2 + 1);
+        addrstr = (gchar *)wmem_alloc(wmem_packet_scope(), numdigocts*2 + 1);
         for (i = 0; i < numdigocts; i++)
         {
             oct = tvb_get_guint8(tvb, offset + i);
@@ -480,11 +473,11 @@ dis_field_addr(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p, const gchar *
 static void
 dis_field_pid(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 oct)
 {
-    proto_item    *item;
-    proto_tree    *subtree = NULL;
-    guint8        form;
-    guint8        telematic;
-    const gchar   *str = NULL;
+    proto_item  *item;
+    proto_tree  *subtree;
+    guint8       form;
+    guint8       telematic;
+    const gchar *str     = NULL;
 
 
     item = proto_tree_add_item(tree, hf_gsm_sms_tp_pid, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -638,18 +631,18 @@ static void
 dis_field_dcs(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 oct,
     gboolean *seven_bit, gboolean *eight_bit, gboolean *ucs2, gboolean *compressed)
 {
-    proto_item    *item;
-    proto_tree    *subtree = NULL;
-    guint8        form;
-    const gchar   *str = NULL;
-    gboolean      default_5_bits;
-    gboolean      default_3_bits;
-    gboolean      default_data;
+    proto_item  *item;
+    proto_tree  *subtree;
+    guint8       form;
+    const gchar *str     = NULL;
+    gboolean     default_5_bits;
+    gboolean     default_3_bits;
+    gboolean     default_data;
 
 
-    *seven_bit = FALSE;
-    *eight_bit = FALSE;
-    *ucs2 = FALSE;
+    *seven_bit  = FALSE;
+    *eight_bit  = FALSE;
+    *ucs2       = FALSE;
     *compressed = FALSE;
 
     item = proto_tree_add_item(tree, hf_gsm_sms_tp_dcs, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -673,8 +666,8 @@ dis_field_dcs(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 oct,
 
     default_5_bits = FALSE;
     default_3_bits = FALSE;
-    default_data = FALSE;
-    form = (oct & 0xc0) >> 6;
+    default_data   = FALSE;
+    form           = (oct & 0xc0) >> 6;
 
     switch (form)
     {
@@ -910,10 +903,10 @@ dis_field_scts_aux(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 static void
 dis_field_scts(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p)
 {
-    proto_item     *item;
-    proto_tree     *subtree = NULL;
-    guint32        offset;
-    guint32        length;
+    proto_item *item;
+    proto_tree *subtree;
+    guint32     offset;
+    guint32     length;
 
 
     offset = *offset_p;
@@ -946,19 +939,19 @@ dis_field_scts(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p)
 static void
 dis_field_vp(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p, guint8 vp_form)
 {
-    proto_item    *item;
-    proto_tree    *subtree = NULL;
-    guint32       offset;
-    guint32       length;
-    guint8        oct, oct2, oct3;
-    guint8        loc_form;
-    guint32       mins, hours;
-    gboolean      done;
+    proto_item *item;
+    proto_tree *subtree;
+    guint32     offset;
+    guint32     length;
+    guint8      oct, oct2, oct3;
+    guint8      loc_form;
+    guint32     mins, hours;
+    gboolean    done;
 
 
     if (vp_form == 0x00) return;
 
-    offset = *offset_p;
+    offset  = *offset_p;
     subtree = tree;
 
     done = FALSE;
@@ -1198,10 +1191,10 @@ dis_field_vp(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p, guint8 vp_form)
 static void
 dis_field_dt(tvbuff_t *tvb, proto_tree *tree, guint32 *offset_p)
 {
-    proto_item     *item;
-    proto_tree     *subtree = NULL;
-    guint32        offset;
-    guint32        length;
+    proto_item *item;
+    proto_tree *subtree;
+    guint32     offset;
+    guint32     length;
 
 
     offset = *offset_p;
@@ -1242,7 +1235,7 @@ dis_field_st(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 oct)
     static const gchar *sc_perm = "Permanent error, SC is not making any more transfer attempts";
     static const gchar *sc_tempfin = "Temporary error, SC is not making any more transfer attempts";
     proto_item         *item;
-    proto_tree         *subtree = NULL;
+    proto_tree         *subtree;
     guint8             value;
     const gchar        *str = NULL;
     const gchar        *str2 = NULL;
@@ -1608,193 +1601,31 @@ dis_field_fcs(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 oct _U_)
         "The TP-UD field contains only the"); \
 }
 
-/*
- * FROM GNOKII
- * gsm-encoding.c
- * gsm-sms.c
- */
-#define GN_BYTE_MASK ((1 << bits) - 1)
-
-int
-gsm_sms_char_7bit_unpack(unsigned int offset, unsigned int in_length, unsigned int out_length,
-                         const guint8 *input, unsigned char *output)
-{
-    unsigned char *out_num = output; /* Current pointer to the output buffer */
-    const guint8 *in_num = input;    /* Current pointer to the input buffer */
-    unsigned char rest = 0x00;
-    int bits;
-
-    bits = offset ? offset : 7;
-
-    while ((unsigned int)(in_num - input) < in_length)
-    {
-        *out_num = ((*in_num & GN_BYTE_MASK) << (7 - bits)) | rest;
-        rest = *in_num >> bits;
-
-        /* If we don't start from 0th bit, we shouldn't go to the
-           next char. Under *out_num we have now 0 and under Rest -
-           _first_ part of the char. */
-        if ((in_num != input) || (bits == 7)) out_num++;
-        in_num++;
-
-        if ((unsigned int)(out_num - output) >= out_length) break;
-
-        /* After reading 7 octets we have read 7 full characters but
-           we have 7 bits as well. This is the next character */
-        if (bits == 1)
-        {
-            *out_num = rest;
-            out_num++;
-            bits = 7;
-            rest = 0x00;
-        }
-        else
-        {
-            bits--;
-        }
-    }
-
-    return (int)(out_num - output);
-}
-
-#define GN_CHAR_ALPHABET_SIZE 128
-
-#define GN_CHAR_ESCAPE 0x1b
-
-static gunichar gsm_default_alphabet[GN_CHAR_ALPHABET_SIZE] = {
-
-    /* ETSI GSM 03.38, version 6.0.1, section 6.2.1; Default alphabet */
-    /* Fixed to use unicode */
-    /* Characters in hex position 10, [12 to 1a] and 24 are not present on
-       latin1 charset, so we cannot reproduce on the screen, however they are
-       greek symbol not present even on my Nokia */
-
-    '@',   0xa3,  '$',   0xa5,  0xe8,  0xe9,  0xf9,  0xec,
-    0xf2,  0xc7,  '\n',  0xd8,  0xf8,  '\r',  0xc5,  0xe5,
-    0x394, '_',   0x3a6, 0x393, 0x39b, 0x3a9, 0x3a0, 0x3a8,
-    0x3a3, 0x398, 0x39e, 0xa0,  0xc6,  0xe6,  0xdf,  0xc9,
-    ' ',   '!',   '\"',  '#',   0xa4,  '%',   '&',   '\'',
-    '(',   ')',   '*',   '+',   ',',   '-',   '.',   '/',
-    '0',   '1',   '2',   '3',   '4',   '5',   '6',   '7',
-    '8',   '9',   ':',   ';',   '<',   '=',   '>',   '?',
-    0xa1,  'A',   'B',   'C',   'D',   'E',   'F',   'G',
-    'H',   'I',   'J',   'K',   'L',   'M',   'N',   'O',
-    'P',   'Q',   'R',   'S',   'T',   'U',   'V',   'W',
-    'X',   'Y',   'Z',   0xc4,  0xd6,  0xd1,  0xdc,  0xa7,
-    0xbf,  'a',   'b',   'c',   'd',   'e',   'f',   'g',
-    'h',   'i',   'j',   'k',   'l',   'm',   'n',   'o',
-    'p',   'q',   'r',   's',   't',   'u',   'v',   'w',
-    'x',   'y',   'z',   0xe4,  0xf6,  0xf1,  0xfc,  0xe0
-};
-
-static gboolean
-char_is_escape(unsigned char value)
-{
-    return (value == GN_CHAR_ESCAPE);
-}
-
-static gunichar
-char_def_alphabet_ext_decode(unsigned char value)
-{
-    switch (value)
-    {
-    case 0x0a: return 0x0c; /* form feed */
-    case 0x14: return '^';
-    case 0x28: return '{';
-    case 0x29: return '}';
-    case 0x2f: return '\\';
-    case 0x3c: return '[';
-    case 0x3d: return '~';
-    case 0x3e: return ']';
-    case 0x40: return '|';
-    case 0x65: return 0x20ac; /* euro */
-    default: return '?'; /* invalid character */
-    }
-}
-
-static gunichar
-char_def_alphabet_decode(unsigned char value)
-{
-    if (value < GN_CHAR_ALPHABET_SIZE)
-    {
-        return gsm_default_alphabet[value];
-    }
-    else
-    {
-        return '?';
-    }
-}
-
-gchar *
-gsm_sms_chars_to_utf8(const unsigned char* src, int len)
-{
-    gint outlen, i, j;
-    gunichar c;
-    gchar *outbuf;
-
-    /* Scan the input string to see how long the output string will be */
-    for (outlen = 0, j = 0; j < len;  j++)
-    {
-        if (char_is_escape(src[j])) {
-            j++;
-            if (j == len)
-                c = '?';        /* escape with nothing following it - error */
-            else
-                c = char_def_alphabet_ext_decode(src[j]);
-        }
-        else
-            c = char_def_alphabet_decode(src[j]);
-        outlen += g_unichar_to_utf8(c,NULL);
-    }
-
-    /* Now allocate a buffer for the output string and fill it in */
-    outbuf = ep_alloc(outlen + 1);
-    for (i = 0, j = 0; j < len;  j++)
-    {
-        if (char_is_escape(src[j])) {
-            j++;
-            if (j == len)
-                c = '?';        /* escape with nothing following it - error */
-            else
-                c = char_def_alphabet_ext_decode(src[j]);
-        }
-        else
-            c = char_def_alphabet_decode(src[j]);
-        i += g_unichar_to_utf8(c,&(outbuf[i]));
-    }
-    outbuf[i] = '\0';
-    return outbuf;
-}
-
-/*
- * END FROM GNOKII
- */
-
 /* 9.2.3.24.1 */
 static void
-dis_iei_csm8(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_csm8(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields)
 {
     guint8        oct;
 
     EXACT_DATA_CHECK(length, 3);
     oct = tvb_get_guint8(tvb, offset);
-    g_sm_id = oct;
+    p_udh_fields->sm_id = oct;
     proto_tree_add_uint (tree,
                          hf_gsm_sms_ud_multiple_messages_msg_id,
-                         tvb, offset, 1, g_sm_id);
+                         tvb, offset, 1, oct);
     offset++;
 
     oct = tvb_get_guint8(tvb, offset);
-    g_frags = oct;
+    p_udh_fields->frags = oct;
     proto_tree_add_uint (tree,
                          hf_gsm_sms_ud_multiple_messages_msg_parts,
-                         tvb , offset , 1, g_frags);
+                         tvb , offset , 1, oct);
     offset++;
     oct = tvb_get_guint8(tvb, offset);
-    g_frag = oct;
+    p_udh_fields->frag = oct;
     proto_tree_add_uint (tree,
                          hf_gsm_sms_ud_multiple_messages_msg_part,
-                         tvb, offset, 1, g_frag);
+                         tvb, offset, 1, oct);
 
 }
 
@@ -1802,16 +1633,16 @@ dis_iei_csm8(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
 
 /* 9.2.3.24.3 */
 static void
-dis_iei_apa_8bit(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_apa_8bit(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields)
 {
     const gchar   *str = NULL;
-    guint8        oct;
+    guint8         oct;
 
 
     EXACT_DATA_CHECK(length, 2);
 
     oct = tvb_get_guint8(tvb, offset);
-    g_port_dst = oct;
+    p_udh_fields->port_dst = oct;
     if (oct < 240)
     {
         str = "Reserved";
@@ -1829,7 +1660,7 @@ dis_iei_apa_8bit(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
 
     offset++;
     oct = tvb_get_guint8(tvb, offset);
-    g_port_src = oct;
+    p_udh_fields->port_src = oct;
     if (oct < 240)
     {
         str = "Reserved";
@@ -1848,16 +1679,16 @@ dis_iei_apa_8bit(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
 
 /* 9.2.3.24.4 */
 static void
-dis_iei_apa_16bit(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_apa_16bit(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields)
 {
     const gchar    *str = NULL;
-    guint32        value;
+    guint32         value;
 
 
     EXACT_DATA_CHECK(length, 4);
 
     value = tvb_get_ntohs(tvb, offset);
-    g_port_dst = value;
+    p_udh_fields->port_dst = (guint16) value;
     if (value < 16000)
     {
         str = "As allocated by IANA (http://www.IANA.com/)";
@@ -1879,7 +1710,7 @@ dis_iei_apa_16bit(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length
 
     offset += 2;
     value = tvb_get_ntohs(tvb, offset);
-    g_port_src = value;
+    p_udh_fields->port_src = (guint16) value;
     if (value < 16000)
     {
         str = "As allocated by IANA (http://www.IANA.com/)";
@@ -1898,13 +1729,11 @@ dis_iei_apa_16bit(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length
         "Originator port: %d, %s",
         value,
         str);
-
-        g_is_wsp = 1;
 }
 
 /* 9.2.3.24.5 */
 static void
-dis_iei_scp(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_scp(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields _U_)
 {
     guint8        oct;
 
@@ -1997,7 +1826,7 @@ dis_iei_scp(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
 
 /* 9.2.3.24.6 */
 static void
-dis_iei_udh_si(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_udh_si(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields _U_)
 {
     guint8        oct;
 
@@ -2031,30 +1860,30 @@ dis_iei_udh_si(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
 }
 /* 9.2.3.24.8 */
 static void
-dis_iei_csm16(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_csm16(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields)
 {
     guint8        oct;
-    guint16        oct_ref;
+    guint16       oct_ref;
 
     EXACT_DATA_CHECK(length, 4);
     oct_ref = tvb_get_ntohs(tvb, offset);
-    g_sm_id = oct_ref;
+    p_udh_fields->sm_id = oct_ref;
     proto_tree_add_uint (tree,
                          hf_gsm_sms_ud_multiple_messages_msg_id,
-                         tvb, offset, 2, g_sm_id);
+                         tvb, offset, 2, oct_ref);
     offset+=2;
     oct = tvb_get_guint8(tvb, offset);
-    g_frags = oct;
+    p_udh_fields->frags = oct;
     proto_tree_add_uint (tree,
                          hf_gsm_sms_ud_multiple_messages_msg_parts,
-                         tvb , offset , 1, g_frags);
+                         tvb , offset , 1, oct);
 
     offset++;
     oct = tvb_get_guint8(tvb, offset);
-    g_frag = oct;
+    p_udh_fields->frag = oct;
     proto_tree_add_uint (tree,
                          hf_gsm_sms_ud_multiple_messages_msg_part,
-                         tvb, offset, 1, g_frag);
+                         tvb, offset, 1, oct);
 }
 
 static const value_string text_color_values[] = {
@@ -2076,20 +1905,21 @@ static const value_string text_color_values[] = {
   { 0x0F,        "Bright Magenta" },
   { 0,           NULL }
 };
+static value_string_ext text_color_values_ext = VALUE_STRING_EXT_INIT(text_color_values);
 
 /* 9.2.3.24.10.1.1 */
 static void
-dis_iei_tf(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_tf(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields _U_)
 {
     const gchar *str = NULL;
-    guint8      oct;
+    guint8       oct;
     proto_item  *item;
     proto_item  *item_colour;
-    proto_tree  *subtree = NULL;
-    proto_tree  *subtree_colour = NULL;
+    proto_tree  *subtree;
+    proto_tree  *subtree_colour;
 
 
-    EXACT_DATA_CHECK(length, 4);
+    SHORT_DATA_CHECK(length, 3);
     oct = tvb_get_guint8(tvb, offset);
 
     proto_tree_add_text(tree, tvb, offset, 1,
@@ -2174,28 +2004,33 @@ dis_iei_tf(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
                         oct & 0x80 , str);
 
     offset++;
-    oct = tvb_get_guint8(tvb, offset);
-    item_colour = proto_tree_add_text(tree, tvb, offset, 1, "Text Colour");
 
-    subtree_colour = proto_item_add_subtree(item_colour, ett_udh_tfc);
+    if (length > 3)
+    {
+        oct = tvb_get_guint8(tvb, offset);
+        item_colour = proto_tree_add_text(tree, tvb, offset, 1, "Text Colour");
+
+        subtree_colour = proto_item_add_subtree(item_colour, ett_udh_tfc);
 
 
-    str = val_to_str_const(oct & 0x0f, text_color_values, "Unknown");
-    proto_tree_add_text(subtree_colour, tvb, offset, 1,
-                        "Foreground Colour : 0x%x %s",
-                        oct & 0x0f , str);
+        str = val_to_str_ext_const(oct & 0x0f, &text_color_values_ext, "Unknown");
+        proto_tree_add_text(subtree_colour, tvb, offset, 1,
+                            "Foreground Colour : 0x%x %s",
+                            oct & 0x0f , str);
 
-    str = val_to_str_const((oct >> 4) & 0x0f, text_color_values, "Unknown");
-    proto_tree_add_text(subtree_colour,
-                        tvb, offset, 1,
-                        "Background Colour : 0x%x %s",
-                        (oct >> 4) & 0x0f , str);
+        str = val_to_str_ext_const((oct >> 4) & 0x0f, &text_color_values_ext, "Unknown");
+        proto_tree_add_text(subtree_colour,
+                            tvb, offset, 1,
+                            "Background Colour : 0x%x %s",
+                            (oct >> 4) & 0x0f , str);
 
+        /*offset++;*/
+    }
 }
 
 /* 9.2.3.24.10.1.2 */
 static void
-dis_iei_ps(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_ps(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields _U_)
 {
     guint8        oct;
 
@@ -2218,7 +2053,7 @@ dis_iei_ps(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
 
 /* 9.2.3.24.10.1.3 */
 static void
-dis_iei_uds(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_uds(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields _U_)
 {
     guint8        oct;
 
@@ -2239,7 +2074,7 @@ dis_iei_uds(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
 
 /* 9.2.3.24.10.1.4 */
 static void
-dis_iei_pa(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_pa(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields _U_)
 {
     guint8        oct;
 
@@ -2263,7 +2098,7 @@ dis_iei_pa(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
 
 /* 9.2.3.24.10.1.5 */
 static void
-dis_iei_la(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_la(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields _U_)
 {
     guint8        oct;
 
@@ -2283,7 +2118,7 @@ dis_iei_la(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
 
 /* 9.2.3.24.10.1.6 */
 static void
-dis_iei_sa(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_sa(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields _U_)
 {
     guint8        oct;
 
@@ -2304,7 +2139,7 @@ dis_iei_sa(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
 
 /* 9.2.3.24.10.1.7 */
 static void
-dis_iei_lp(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_lp(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields _U_)
 {
     guint8        oct;
 
@@ -2324,7 +2159,7 @@ dis_iei_lp(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
 
 /* 9.2.3.24.10.1.8 */
 static void
-dis_iei_sp(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_sp(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields _U_)
 {
     guint8        oct;
 
@@ -2345,7 +2180,7 @@ dis_iei_sp(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
 
 /* 9.2.3.24.10.1.9 */
 static void
-dis_iei_vp(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_vp(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields _U_)
 {
     guint8        oct;
 
@@ -2379,7 +2214,7 @@ dis_iei_vp(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
 
 /* 9.2.3.24.10.1.10 */
 static void
-dis_iei_upi(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_iei_upi(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields _U_)
 {
     guint8        oct;
 
@@ -2444,17 +2279,18 @@ static const value_string gsm_sms_tp_ud_ie_id_vals[] = {
     /*E0-FF Reserved for future use */
     { 0, NULL },
 };
-
+static value_string_ext gsm_sms_tp_ud_ie_id_vals_ext = VALUE_STRING_EXT_INIT(gsm_sms_tp_ud_ie_id_vals);
 #endif
+
 static void
-dis_field_ud_iei(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
+dis_field_ud_iei(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields)
 {
-    void (*iei_fcn)(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length);
-    guint8        oct;
+    void (*iei_fcn)(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length, gsm_sms_udh_fields_t *p_udh_fields);
+    guint8         oct;
     proto_item    *item;
-    proto_tree    *subtree = NULL;
+    proto_tree    *subtree;
     const gchar   *str = NULL;
-    guint8        iei_len;
+    guint8         iei_len;
 
 
     while (length >= 2)
@@ -2566,7 +2402,7 @@ dis_field_ud_iei(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
             }
             else
             {
-                iei_fcn(tvb, subtree, offset, iei_len);
+                iei_fcn(tvb, subtree, offset, iei_len, p_udh_fields);
             }
         }
 
@@ -2575,39 +2411,97 @@ dis_field_ud_iei(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 length)
     }
 }
 
+void
+dis_field_udh(tvbuff_t *tvb, proto_tree *tree, guint32 *offset, guint32 *length,
+              guint8 *udl, enum character_set cset, guint8 *fill_bits, gsm_sms_udh_fields_t *p_udh_fields)
+{
+    guint8      oct;
+    proto_item *udh_item;
+    proto_tree *udh_subtree;
+    static const guint8 fill_bits_mask_gsm[7] = { 0x0, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f };
+    static const guint8 fill_bits_mask_ascii[7] = { 0x00, 0x80, 0xc0, 0xe0, 0xf0, 0xf8, 0xfc };
+
+    /* step over header */
+
+    oct = tvb_get_guint8(tvb, *offset);
+
+    udh_item =
+        proto_tree_add_text(tree, tvb,
+                            *offset, oct + 1,
+                            "User-Data Header");
+
+    udh_subtree = proto_item_add_subtree(udh_item, ett_udh);
+
+    proto_tree_add_text(udh_subtree,
+                        tvb, *offset, 1,
+                        "User Data Header Length (%u)",
+                        oct);
+
+    (*offset)++;
+    (*length)--;
+
+    dis_field_ud_iei(tvb, udh_subtree, *offset, oct, p_udh_fields);
+
+    *offset += oct;
+    *length -= oct;
+
+    if (cset != OTHER)
+    {
+        /* step over fill bits ? */
+
+        *fill_bits = 6 - ((oct * 8) % 7);
+        *udl -= (((oct + 1)*8) + *fill_bits) / 7;
+        if (*fill_bits)
+        {
+            oct = tvb_get_guint8(tvb, *offset);
+
+            if (cset == GSM_7BITS)
+            {
+                other_decode_bitfield_value(bigbuf, oct, fill_bits_mask_gsm[*fill_bits], 8);
+            }
+            else
+            {
+                other_decode_bitfield_value(bigbuf, oct, fill_bits_mask_ascii[*fill_bits], 8);
+            }
+            proto_tree_add_text(udh_subtree,
+                                tvb, *offset, 1,
+                                "%s :  Fill bits",
+                                bigbuf);
+            /* Note: Could add an expert item here if ((oct & fill_bits_mask[*fill_bits]) != 0) */
+        }
+    }
+    else
+    {
+        *udl -= oct + 1;
+    }
+}
+
 /* 9.2.3.24 */
 #define SMS_MAX_MESSAGE_SIZE 160
-static char    messagebuf[SMS_MAX_MESSAGE_SIZE+1];
 static void
-dis_field_ud(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint32 length, gboolean udhi, guint8 udl,
-    gboolean seven_bit, gboolean eight_bit, gboolean ucs2, gboolean compressed)
+dis_field_ud(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint32 offset,
+             guint32 length, gboolean udhi, guint8 udl, gboolean seven_bit,
+             gboolean eight_bit, gboolean ucs2, gboolean compressed, gsm_sms_data_t *data)
 {
-    static guint8     fill_bits_mask[7] =
-        { 0x0, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f };
     proto_item        *item;
-    proto_item        *udh_item;
-    proto_tree        *subtree = NULL;
-    proto_tree        *udh_subtree = NULL;
+    proto_tree        *subtree;
     tvbuff_t          *sm_tvb = NULL;
-    fragment_data     *fd_sm = NULL;
-    guint8            oct;
-    guint             fill_bits;
-    guint32           out_len, total_sms_len, len_sms, length_ucs2, i;
-    char              *ustr;
-    proto_item        *ucs2_item;
+    fragment_head     *fd_sm = NULL;
+    guint8             fill_bits;
+    guint32            total_sms_len, len_sms, length_ucs2, i;
     gchar             *utf8_text = NULL;
-    gchar             save_byte = 0, save_byte2 = 0;
-    GIConv            cd;
-    GError            *l_conv_error = NULL;
+    gchar              save_byte = 0, save_byte2 = 0;
 
-    gboolean    reassembled = FALSE;
-    guint32     reassembled_in = 0;
-    gboolean    is_fragmented = FALSE;
+    gboolean    reassembled     = FALSE;
+    guint32     reassembled_in  = 0;
+    gboolean    is_fragmented   = FALSE;
     gboolean    save_fragmented = FALSE, try_gsm_sms_ud_reassemble = FALSE;
     guint32     num_labels;
 
     sm_fragment_params *p_frag_params;
+    gsm_sms_udh_fields_t        udh_fields;
 
+    memset(&udh_fields, 0, sizeof(udh_fields));
     fill_bits = 0;
 
     item =
@@ -2616,98 +2510,67 @@ dis_field_ud(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint32 length, gb
                             "TP-User-Data");
     subtree = proto_item_add_subtree(item, ett_ud);
 
-    oct = tvb_get_guint8(tvb, offset);
-
     if (udhi)
     {
+        enum character_set cset;
 
-        /* step over header */
-
-        udh_item =
-            proto_tree_add_text(subtree, tvb,
-                                offset, oct + 1,
-                                "User-Data Header");
-
-        udh_subtree = proto_item_add_subtree(udh_item, ett_udh);
-
-        proto_tree_add_text(udh_subtree,
-                            tvb, offset, 1,
-                            "User Data Header Length (%u)",
-                            oct);
-
-        offset++;
-        udl--;
-        length--;
-
-        dis_field_ud_iei(tvb, udh_subtree, offset, oct);
-
-        offset += oct;
-        udl -= oct;
-        length -= oct;
-
-        if (seven_bit)
+        if (data && data->stk_packing_required)
         {
-            /* step over fill bits ? */
-
-            fill_bits = 6 - ((oct * 8) % 7);
-            if (fill_bits)
-            {
-                oct = tvb_get_guint8(tvb, offset);
-
-                other_decode_bitfield_value(bigbuf, oct, fill_bits_mask[fill_bits], 8);
-                proto_tree_add_text(udh_subtree,
-                                    tvb, offset, 1,
-                                    "%s :  Fill bits",
-                                    bigbuf);
-                /* Note: Could add an expert item here if ((oct & fill_bits_mask[fill_bits]) != 0) */
-            }
+            cset = OTHER;
         }
+        else
+        {
+            cset = (seven_bit && !compressed) ? GSM_7BITS : OTHER;
+        }
+
+        dis_field_udh(tvb, subtree, &offset, &length, &udl, cset, &fill_bits, &udh_fields);
     }
 
-    if (g_frags > 1)
+    if (udh_fields.frags > 1)
         is_fragmented = TRUE;
 
     if ( is_fragmented && reassemble_sms)
     {
         try_gsm_sms_ud_reassemble = TRUE;
-        save_fragmented = g_pinfo->fragmented;
-        g_pinfo->fragmented = TRUE;
-        fd_sm = fragment_add_seq_check (tvb, offset, g_pinfo,
-                                        g_sm_id, /* guint32 ID for fragments belonging together */
-                                        g_sm_fragment_table, /* list of message fragments */
-                                        g_sm_reassembled_table, /* list of reassembled messages */
-                                        g_frag-1, /* guint32 fragment sequence number */
+        save_fragmented = pinfo->fragmented;
+        pinfo->fragmented = TRUE;
+        fd_sm = fragment_add_seq_check (&g_sm_reassembly_table, tvb, offset,
+                                        pinfo,
+                                        udh_fields.sm_id, /* guint32 ID for fragments belonging together */
+                                        NULL,
+                                        udh_fields.frag-1, /* guint32 fragment sequence number */
                                         length, /* guint32 fragment length */
-                                        (g_frag != g_frags)); /* More fragments? */
+                                        (udh_fields.frag != udh_fields.frags)); /* More fragments? */
         if (fd_sm)
         {
             reassembled = TRUE;
             reassembled_in = fd_sm->reassembled_in;
         }
 
-        sm_tvb = process_reassembled_data(tvb, offset, g_pinfo,
+        sm_tvb = process_reassembled_data(tvb, offset, pinfo,
                                           "Reassembled Short Message", fd_sm, &sm_frag_items,
                                           NULL, tree);
 
-        if(reassembled && g_pinfo->fd->num == reassembled_in)
+        if(reassembled && pinfo->fd->num == reassembled_in)
         {
             /* Reassembled */
-            col_append_str (g_pinfo->cinfo, COL_INFO,
+            col_append_str (pinfo->cinfo, COL_INFO,
                             " (Short Message Reassembled)");
         }
         else
         {
             /* Not last packet of reassembled Short Message */
-            col_append_fstr (g_pinfo->cinfo, COL_INFO,
-                             " (Short Message fragment %u of %u)", g_frag, g_frags);
+            col_append_fstr (pinfo->cinfo, COL_INFO,
+                             " (Short Message fragment %u of %u)", udh_fields.frag, udh_fields.frags);
         }
 
         /* Store udl and length for later decoding of reassembled SMS */
-        p_frag_params = se_alloc0(sizeof(sm_fragment_params));
+        p_frag_params = wmem_new0(wmem_file_scope(), sm_fragment_params);
         p_frag_params->udl = udl;
+        p_frag_params->fill_bits =  fill_bits;
         p_frag_params->length = length;
         g_hash_table_insert(g_sm_fragment_params_table,
-                            GUINT_TO_POINTER((guint)((g_sm_id<<16)|(g_frag-1))),
+                            GUINT_TO_POINTER((guint)((udh_fields.sm_id<<16)|(udh_fields.frag-1))),
                             p_frag_params);
     } /* Else: not fragmented */
     if (! sm_tvb) /* One single Short Message, or not reassembled */
@@ -2719,19 +2582,39 @@ dis_field_ud(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint32 length, gb
     }
     else
     {
-        if (seven_bit)
+        if (data && data->stk_packing_required)
         {
-            if(!(reassembled && g_pinfo->fd->num == reassembled_in))
+            /* STK requires SMS packing by the terminal */
+            /* Per 3GPP 31.111 chapter 6.4.10: */
+            /* It shall use the SMS default 7-bit coded alphabet */
+            /* as defined in TS 23.038 with bit 8 set to 0 */
+            if(!(reassembled && pinfo->fd->num == reassembled_in))
+            {
+                proto_tree_add_item(subtree, hf_gsm_sms_text, tvb, offset, length, ENC_ASCII|ENC_NA);
+            }
+            else
+            {
+                total_sms_len = 0;
+                for(i = 0 ; i < udh_fields.frags; i++)
+                {
+                    p_frag_params = (sm_fragment_params*)g_hash_table_lookup(g_sm_fragment_params_table,
+                                                            GUINT_TO_POINTER((guint)((udh_fields.sm_id<<16)|i)));
+
+                    if (p_frag_params) {
+                        proto_tree_add_item(subtree, hf_gsm_sms_text, sm_tvb, total_sms_len,
+                                            p_frag_params->length, ENC_ASCII|ENC_NA);
+                        total_sms_len += p_frag_params->length;
+                    }
+                }
+            }
+        }
+        else if (seven_bit)
+        {
+            if(!(reassembled && pinfo->fd->num == reassembled_in))
             {
                 /* Show unassembled SMS */
-                out_len =
-                    gsm_sms_char_7bit_unpack(fill_bits, length ,
-                                             (udl > SMS_MAX_MESSAGE_SIZE ? SMS_MAX_MESSAGE_SIZE : udl),
-                                             tvb_get_ptr(tvb , offset , length) , messagebuf);
-                messagebuf[out_len] = '\0';
-                proto_tree_add_unicode_string(subtree, hf_gsm_sms_text, tvb, offset,
-                                              length,
-                                              gsm_sms_chars_to_utf8(messagebuf, out_len));
+                proto_tree_add_ts_23_038_7bits_item(subtree, hf_gsm_sms_text, tvb, (offset<<3)+fill_bits,
+                                                    (udl > SMS_MAX_MESSAGE_SIZE ? SMS_MAX_MESSAGE_SIZE : udl));
             }
             else
             {
@@ -2740,21 +2623,15 @@ dis_field_ud(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint32 length, gb
                  *  the tree.
                  */
                 total_sms_len = 0;
-                for(i = 0 ; i < g_frags; i++)
+                for(i = 0 ; i < udh_fields.frags; i++)
                 {
                     p_frag_params = (sm_fragment_params*)g_hash_table_lookup(g_sm_fragment_params_table,
-                                                            GUINT_TO_POINTER((guint)((g_sm_id<<16)|i)));
+                                                            GUINT_TO_POINTER((guint)((udh_fields.sm_id<<16)|i)));
 
                     if (p_frag_params) {
-                        out_len =
-                            gsm_sms_char_7bit_unpack(fill_bits, p_frag_params->length,
-                                (p_frag_params->udl > SMS_MAX_MESSAGE_SIZE ? SMS_MAX_MESSAGE_SIZE : p_frag_params->udl),
-                                tvb_get_ptr(sm_tvb, total_sms_len, p_frag_params->length), messagebuf);
-
-                        messagebuf[out_len] = '\0';
-                        proto_tree_add_unicode_string(subtree, hf_gsm_sms_text, sm_tvb,
-                                                      total_sms_len, p_frag_params->length,
-                                                      gsm_sms_chars_to_utf8(messagebuf, out_len));
+                        proto_tree_add_ts_23_038_7bits_item(subtree, hf_gsm_sms_text, sm_tvb,
+                            (total_sms_len<<3)+p_frag_params->fill_bits,
+                            (p_frag_params->udl > SMS_MAX_MESSAGE_SIZE ? SMS_MAX_MESSAGE_SIZE : p_frag_params->udl));
 
                         total_sms_len += p_frag_params->length;
                     }
@@ -2763,11 +2640,10 @@ dis_field_ud(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint32 length, gb
         }
         else if (eight_bit)
         {
-            /*proto_tree_add_text(subtree, tvb , offset , length, "%s",
-              tvb_format_text(tvb, offset, length));                                */
-            if (! dissector_try_uint(gsm_sms_dissector_tbl, g_port_src, sm_tvb, g_pinfo, subtree))
+            /* proto_tree_add_format_text(subtree, tvb, offset, length); */
+            if (! dissector_try_uint(gsm_sms_dissector_tbl, udh_fields.port_src, sm_tvb, pinfo, subtree))
             {
-                if (! dissector_try_uint(gsm_sms_dissector_tbl, g_port_dst,sm_tvb, g_pinfo, subtree))
+                if (! dissector_try_uint(gsm_sms_dissector_tbl, udh_fields.port_dst,sm_tvb, pinfo, subtree))
                 {
                     if (subtree)
                     { /* Only display if needed */
@@ -2779,76 +2655,58 @@ dis_field_ud(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint32 length, gb
         }
         else if (ucs2)
         {
-            /* XXX, use tvb_get_ephemeral_unicode_string(.., ENC_BIG_ENDIAN); */
-            if ((cd = g_iconv_open("UTF-8","UCS-2BE")) != (GIConv)-1)
             {
-                guint8 rep_len = tvb_reported_length(sm_tvb);
+                guint rep_len = tvb_reported_length(sm_tvb);
 
-                if(!(reassembled && g_pinfo->fd->num == reassembled_in))
+                if (!(reassembled && pinfo->fd->num == reassembled_in))
                 {
                     /* Show unreassembled SMS */
-                    utf8_text = g_convert_with_iconv(tvb_get_ptr(sm_tvb, 0, rep_len), rep_len , cd , NULL , NULL , &l_conv_error);
-                    if(!l_conv_error) {
-                        ucs2_item = proto_tree_add_unicode_string(subtree, hf_gsm_sms_text, tvb,
-                                                                  offset, length, utf8_text);
-                    } else {
-                        ucs2_item = proto_tree_add_text(subtree, tvb, offset, length, "Failed to decode UCS2!");
-                    }
-                    PROTO_ITEM_SET_GENERATED(ucs2_item);
+                    proto_tree_add_item(subtree, hf_gsm_sms_text, sm_tvb,
+                                        0, rep_len, ENC_UCS_2|ENC_BIG_ENDIAN);
                 } else {
                     /*  Show reassembled SMS.  We show each fragment separately
                      *  so that the text doesn't get truncated when we add it to
                      *  the tree.
+                     *
+                     *  XXX - careful with splitting UTF-8 chunks; should
+                     *  we be adding each fragment as a UCS-2 string?
                      */
-                    utf8_text = g_convert_with_iconv(tvb_get_ptr(sm_tvb, 0, rep_len), rep_len , cd , NULL , NULL , &l_conv_error);
-                    if(!l_conv_error)
-                    {
-                        len_sms = (int)strlen(utf8_text);
-                        num_labels = len_sms / MAX_SMS_FRAG_LEN;
-                        num_labels += (len_sms % MAX_SMS_FRAG_LEN) ? 1 : 0;
-                        for(i = 0; i < num_labels;i++) {
-                            if(i * MAX_SMS_FRAG_LEN < len_sms) {
-                                /* set '\0' to byte number 134 text_node MAX size*/
-                                save_byte =  utf8_text[i * MAX_SMS_FRAG_LEN];
-                                save_byte2 =  utf8_text[i * MAX_SMS_FRAG_LEN + 1];
-                                if(i > 0)
-                                {
-                                    utf8_text[i * MAX_SMS_FRAG_LEN] = '\0';
-                                    utf8_text[i * MAX_SMS_FRAG_LEN + 1] = '\0';
-                                }
-
-                                length_ucs2 = MAX_SMS_FRAG_LEN;
-                            } else
-                                length_ucs2 = len_sms % MAX_SMS_FRAG_LEN;
-
-                            ucs2_item = proto_tree_add_unicode_string(subtree, hf_gsm_sms_text, sm_tvb,
-                                                                      i * MAX_SMS_FRAG_LEN, length_ucs2,
-                                                                      &utf8_text[i * MAX_SMS_FRAG_LEN]);
-                            PROTO_ITEM_SET_GENERATED(ucs2_item);
-
-                            /* return the save byte to utf8 buffer*/
-                            if(i * MAX_SMS_FRAG_LEN < len_sms) {
-                                utf8_text[i * MAX_SMS_FRAG_LEN] = save_byte;
-                                utf8_text[i * MAX_SMS_FRAG_LEN + 1] = save_byte2;
+                    utf8_text = tvb_get_string_enc(wmem_packet_scope(), sm_tvb, 0, rep_len, ENC_UCS_2|ENC_BIG_ENDIAN);
+                    len_sms = (int)strlen(utf8_text);
+                    num_labels = len_sms / MAX_SMS_FRAG_LEN;
+                    num_labels += (len_sms % MAX_SMS_FRAG_LEN) ? 1 : 0;
+                    for(i = 0; i < num_labels;i++) {
+                        if(i * MAX_SMS_FRAG_LEN < len_sms) {
+                            /* set '\0' to byte number 134 text_node MAX size*/
+                            save_byte =  utf8_text[i * MAX_SMS_FRAG_LEN];
+                            save_byte2 =  utf8_text[i * MAX_SMS_FRAG_LEN + 1];
+                            if(i > 0)
+                            {
+                                utf8_text[i * MAX_SMS_FRAG_LEN] = '\0';
+                                utf8_text[i * MAX_SMS_FRAG_LEN + 1] = '\0';
                             }
+
+                            length_ucs2 = MAX_SMS_FRAG_LEN;
+                        } else
+                            length_ucs2 = len_sms % MAX_SMS_FRAG_LEN;
+
+                        proto_tree_add_string(subtree, hf_gsm_sms_text, sm_tvb,
+                                              i * MAX_SMS_FRAG_LEN, length_ucs2,
+                                              &utf8_text[i * MAX_SMS_FRAG_LEN]);
+
+                        /* return the save byte to utf8 buffer*/
+                        if(i * MAX_SMS_FRAG_LEN < len_sms) {
+                            utf8_text[i * MAX_SMS_FRAG_LEN] = save_byte;
+                            utf8_text[i * MAX_SMS_FRAG_LEN + 1] = save_byte2;
                         }
-                    } else {
-                        ucs2_item = proto_tree_add_text(subtree, tvb, offset, length, "Failed to decode UCS2!");
-                        PROTO_ITEM_SET_GENERATED(ucs2_item);
                     }
                 }
-
-                g_free(utf8_text);
-                g_iconv_close(cd);
-            } else {
-                ustr = tvb_get_ephemeral_unicode_string(tvb, offset, length, ENC_BIG_ENDIAN);
-                proto_tree_add_text(subtree, tvb, offset, length, "%s", ustr);
             }
         }
     }
 
     if (try_gsm_sms_ud_reassemble) /* Clean up defragmentation */
-        g_pinfo->fragmented = save_fragmented;
+        pinfo->fragmented = save_fragmented;
 }
 
 /* 9.2.3.27 */
@@ -2856,7 +2714,7 @@ static void
 dis_field_pi(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 oct)
 {
     proto_item        *item;
-    proto_tree        *subtree = NULL;
+    proto_tree        *subtree;
 
 
     item =
@@ -2906,7 +2764,7 @@ dis_field_pi(tvbuff_t *tvb, proto_tree *tree, guint32 offset, guint8 oct)
  * Section 9.2.2
  */
 static void
-dis_msg_deliver(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
+dis_msg_deliver(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint32 offset, gsm_sms_data_t *data)
 {
     guint32        saved_offset;
     guint32        length;
@@ -2955,8 +2813,8 @@ dis_msg_deliver(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
     {
         offset++;
 
-        dis_field_ud(tvb, tree, offset, length - (offset - saved_offset), udhi, udl,
-            seven_bit, eight_bit, ucs2, compressed);
+        dis_field_ud(tvb, pinfo, tree, offset, length - (offset - saved_offset), udhi, udl,
+            seven_bit, eight_bit, ucs2, compressed, data);
     }
 }
 
@@ -2965,7 +2823,7 @@ dis_msg_deliver(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
  * Section 9.2.2
  */
 static void
-dis_msg_deliver_report(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
+dis_msg_deliver_report(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint32 offset, gsm_sms_data_t *data)
 {
     guint32        saved_offset;
     guint32        length;
@@ -3075,8 +2933,8 @@ dis_msg_deliver_report(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
     {
         offset++;
 
-        dis_field_ud(tvb, tree, offset, length - (offset - saved_offset), udhi, udl,
-            seven_bit, eight_bit, ucs2, compressed);
+        dis_field_ud(tvb, pinfo, tree, offset, length - (offset - saved_offset), udhi, udl,
+            seven_bit, eight_bit, ucs2, compressed, data);
     }
 }
 
@@ -3085,7 +2943,7 @@ dis_msg_deliver_report(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
  * Section 9.2.2
  */
 static void
-dis_msg_submit(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
+dis_msg_submit(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint32 offset, gsm_sms_data_t *data)
 {
     guint32        saved_offset;
     guint32        length;
@@ -3142,8 +3000,8 @@ dis_msg_submit(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
     {
         offset++;
 
-        dis_field_ud(tvb, tree, offset, length - (offset - saved_offset), udhi, udl,
-            seven_bit, eight_bit, ucs2, compressed);
+        dis_field_ud(tvb, pinfo, tree, offset, length - (offset - saved_offset), udhi, udl,
+            seven_bit, eight_bit, ucs2, compressed, data);
     }
 }
 
@@ -3152,7 +3010,7 @@ dis_msg_submit(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
  * Section 9.2.2
  */
 static void
-dis_msg_submit_report(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
+dis_msg_submit_report(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint32 offset, gsm_sms_data_t *data)
 {
     guint32        saved_offset;
     guint32        length;
@@ -3252,8 +3110,8 @@ dis_msg_submit_report(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 
     if (udl > 0)
     {
-        dis_field_ud(tvb, tree, offset, length - (offset - saved_offset), udhi, udl,
-            seven_bit, eight_bit, ucs2, compressed);
+        dis_field_ud(tvb, pinfo, tree, offset, length - (offset - saved_offset), udhi, udl,
+            seven_bit, eight_bit, ucs2, compressed, data);
     }
 }
 
@@ -3262,7 +3120,7 @@ dis_msg_submit_report(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
  * Section 9.2.2
  */
 static void
-dis_msg_status_report(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
+dis_msg_status_report(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint32 offset, gsm_sms_data_t *data)
 {
     guint32        saved_offset;
     guint32        length;
@@ -3371,8 +3229,8 @@ dis_msg_status_report(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
     {
         offset++;
 
-        dis_field_ud(tvb, tree, offset, length - (offset - saved_offset), udhi, udl,
-            seven_bit, eight_bit, ucs2, compressed);
+        dis_field_ud(tvb, pinfo, tree, offset, length - (offset - saved_offset), udhi, udl,
+            seven_bit, eight_bit, ucs2, compressed, data);
     }
 }
 
@@ -3381,14 +3239,14 @@ dis_msg_status_report(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
  * Section 9.2.2
  */
 static void
-dis_msg_command(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
+dis_msg_command(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint32 offset, gsm_sms_data_t *data _U_)
 {
     guint8        oct;
     guint8        cdl;
-    const gchar   *str = NULL;
+    const gchar  *str = NULL;
 
-    proto_tree_add_item(tree, hf_gsm_sms_tp_udhi, tvb, offset, 1, ENC_BIG_ENDIAN);
-    proto_tree_add_item(tree, hf_gsm_sms_tp_srr, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_gsm_sms_tp_udhi,   tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_gsm_sms_tp_srr,    tvb, offset, 1, ENC_BIG_ENDIAN);
     proto_tree_add_item(tree, hf_gsm_sms_tp_mti_up, tvb, offset, 1, ENC_BIG_ENDIAN);
 
     offset++;
@@ -3434,7 +3292,7 @@ dis_msg_command(tvbuff_t *tvb, proto_tree *tree, guint32 offset)
 static gint ett_msgs[NUM_MSGS];
 #endif
 
-static void (*gsm_sms_msg_fcn[])(tvbuff_t *tvb, proto_tree *tree, guint32 offset) = {
+static void (*gsm_sms_msg_fcn[])(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint32 offset, gsm_sms_data_t *data) = {
     dis_msg_deliver,        /* SMS-DELIVER */
     dis_msg_deliver_report, /* SMS-DELIVER REPORT */
     dis_msg_submit,         /* SMS-SUBMIT */
@@ -3448,27 +3306,18 @@ static void (*gsm_sms_msg_fcn[])(tvbuff_t *tvb, proto_tree *tree, guint32 offset
 
 /* GENERIC DISSECTOR FUNCTIONS */
 
-static void
-dissect_gsm_sms(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_gsm_sms(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
-    void (*msg_fcn)(tvbuff_t *tvb, proto_tree *tree, guint32 offset) = NULL;
-    proto_item *gsm_sms_item;
-    proto_tree *gsm_sms_tree = NULL;
-    guint32    offset;
-    guint8      msg_type;
-    guint8      oct;
-    gint        idx;
-    const gchar *str = NULL;
-    /*gint      ett_msg_idx;*/
-
-
-    g_pinfo = pinfo;
-    g_is_wsp = 0;
-    g_sm_id = 0;
-    g_frags = 0;
-    g_frag = 0;
-    g_port_src = 0;
-    g_port_dst = 0;
+    void (*msg_fcn)(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
+                    guint32 offset, gsm_sms_data_t *gsm_data) = NULL;
+    guint32      offset;
+    guint8       msg_type;
+    guint8       oct;
+    gint         idx;
+    const gchar *str          = NULL;
+    /*gint         ett_msg_idx;*/
+    gsm_sms_data_t *gsm_data = (gsm_sms_data_t*) data;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, gsm_sms_proto_name_short);
 
@@ -3477,6 +3326,9 @@ dissect_gsm_sms(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      */
     if (tree || reassemble_sms)
     {
+        proto_item  *gsm_sms_item;
+        proto_tree  *gsm_sms_tree;
+
         g_tree = tree;
 
         offset = 0;
@@ -3491,7 +3343,7 @@ dissect_gsm_sms(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
          */
         msg_type |= ((pinfo->p2p_dir == P2P_DIR_RECV) ? 0x04 : 0x00);
 
-        str = match_strval_idx(msg_type, msg_type_strings, &idx);
+        str = try_val_to_str_idx(msg_type, msg_type_strings, &idx);
 
         /*
          * create the GSM_SMS protocol tree
@@ -3509,7 +3361,7 @@ dissect_gsm_sms(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             (msg_type == 0x03) ||
             (msg_type == 0x07))
         {
-            return;
+            return tvb_length(tvb);
         }
         else
         {
@@ -3525,9 +3377,10 @@ dissect_gsm_sms(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         }
         else
         {
-            (*msg_fcn)(tvb, gsm_sms_tree, offset);
+            (*msg_fcn)(tvb, pinfo, gsm_sms_tree, offset, gsm_data);
         }
     }
+    return tvb_length(tvb);
 }
 
 
@@ -3537,19 +3390,19 @@ proto_register_gsm_sms(void)
 {
     guint     i;
     guint     last_offset;
-    module_t  *gsm_sms_module; /* Preferences for GSM SMS UD */
+    module_t *gsm_sms_module;   /* Preferences for GSM SMS UD */
 
     /* Setup list of header fields */
     static hf_register_info hf[] =
         {
             { &hf_gsm_sms_coding_group_bits2,
               { "Coding Group Bits", "gsm_sms.coding_group_bits2",
-                FT_UINT8, BASE_DEC, VALS(gsm_sms_coding_group_bits_vals), 0xc0,
+                FT_UINT8, BASE_DEC | BASE_EXT_STRING, &gsm_sms_coding_group_bits_vals_ext, 0xc0,
                 NULL, HFILL }
             },
             { &hf_gsm_sms_coding_group_bits4,
               { "Coding Group Bits", "gsm_sms.coding_group_bits4",
-                FT_UINT8, BASE_DEC, VALS(gsm_sms_coding_group_bits_vals), 0xf0,
+                FT_UINT8, BASE_DEC | BASE_EXT_STRING, &gsm_sms_coding_group_bits_vals_ext, 0xf0,
                 NULL, HFILL }
             },
 
@@ -3704,7 +3557,7 @@ proto_register_gsm_sms(void)
             },
             { &hf_gsm_sms_text,
               { "SMS text", "gsm_sms.sms_text",
-                FT_STRING, BASE_NONE, NULL, 0x00,
+                FT_STRING, STR_UNICODE, NULL, 0x00,
                 "The text of the SMS", HFILL }
             },
             { &hf_gsm_sms_tp_fail_cause,
@@ -3715,7 +3568,7 @@ proto_register_gsm_sms(void)
         };
 
     /* Setup protocol subtree array */
-#define NUM_INDIVIDUAL_PARMS        12
+#define NUM_INDIVIDUAL_PARMS        14
     gint *ett[NUM_INDIVIDUAL_PARMS/*+NUM_MSGS*/+NUM_UDH_IEIS+2];
 
     ett[0]  = &ett_gsm_sms;
@@ -3730,6 +3583,8 @@ proto_register_gsm_sms(void)
     ett[9]  = &ett_dcs;
     ett[10] = &ett_ud;
     ett[11] = &ett_udh;
+    ett[12] = &ett_udh_tfm;
+    ett[13] = &ett_udh_tfc;
 
     last_offset = NUM_INDIVIDUAL_PARMS;
 
@@ -3772,21 +3627,21 @@ proto_register_gsm_sms(void)
                                     "Whether the dissector should reassemble SMS spanning multiple packets",
                                     &reassemble_sms);
 
-    /* register_dissector("gsm_sms", dissect_gsm_sms, proto_gsm_sms); */
+    new_register_dissector("gsm_sms", dissect_gsm_sms, proto_gsm_sms);
 
     /* GSM SMS UD dissector initialization routines */
     register_init_routine (gsm_sms_defragment_init);
 }
 
-
-void
-proto_reg_handoff_gsm_sms(void)
-{
-    dissector_handle_t             gsm_sms_handle;
-
-    gsm_sms_handle = create_dissector_handle(dissect_gsm_sms, proto_gsm_sms);
-
-    dissector_add_uint("gsm_a.sms_tpdu", 0, gsm_sms_handle);
-    dissector_add_uint("gsm_map.sms_tpdu", 0, gsm_sms_handle);
-    dissector_add_uint("etsi_cat.sms_tpdu", 0, gsm_sms_handle);
-}
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

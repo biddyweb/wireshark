@@ -2,8 +2,6 @@
  * Routines for the pnp (Plug and Play) MSRPC interface
  * Copyright 2005 Jean-Baptiste Marchand <jbm@hsc.fr>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,9 @@
 #include <epan/packet.h>
 #include "packet-dcerpc.h"
 #include "packet-dcerpc-pnp.h"
+
+void proto_register_dcerpc_pnp(void);
+void proto_reg_handoff_dcerpc_pnp(void);
 
 static int proto_dcerpc_pnp = -1;
 

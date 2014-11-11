@@ -5,8 +5,6 @@
  * 10/2010 - Rework PPTP Dissector
  * Alexis La Goutte <alexis.lagoutte at gmail dot com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/expert.h>
+
+void proto_register_pptp(void);
+void proto_reg_handoff_pptp(void);
 
 static int proto_pptp = -1;
 static int hf_pptp_length = -1;
@@ -84,6 +85,8 @@ static int hf_pptp_send_accm = -1;
 static int hf_pptp_receive_accm = -1;
 
 static gint ett_pptp = -1;
+
+static expert_field ei_pptp_incorrect_magic_cookie = EI_INIT;
 
 static dissector_handle_t data_handle;
 
@@ -222,8 +225,8 @@ dissect_cntrl_req(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree 
   if (!tree)
     return;
 
-  proto_tree_add_uint_format(tree, hf_pptp_protocol_version, tvb, offset,
-                               2, tvb_get_ntohs(tvb, offset), "Protocol version: %u.%u",
+  proto_tree_add_uint_format_value(tree, hf_pptp_protocol_version, tvb, offset,
+                               2, tvb_get_ntohs(tvb, offset), "%u.%u",
                                tvb_get_guint8(tvb, offset), tvb_get_guint8(tvb, offset + 1));
   offset += 2;
 
@@ -254,8 +257,8 @@ dissect_cntrl_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tre
   if (!tree)
     return;
 
-  proto_tree_add_uint_format(tree, hf_pptp_protocol_version, tvb, offset,
-                               2, tvb_get_ntohs(tvb, offset), "Protocol version: %u.%u",
+  proto_tree_add_uint_format_value(tree, hf_pptp_protocol_version, tvb, offset,
+                               2, tvb_get_ntohs(tvb, offset), "%u.%u",
                                tvb_get_guint8(tvb, offset), tvb_get_guint8(tvb, offset + 1));
   offset += 2;
 
@@ -621,7 +624,7 @@ dissect_pptp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     proto_item_append_text(item," (correct)");
   else {
     proto_item_append_text(item," (incorrect)");
-    expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN, "Incorrect Magic Cookie");
+    expert_add_info(pinfo, item, &ei_pptp_incorrect_magic_cookie);
   }
 
   if (tree) {
@@ -940,10 +943,18 @@ proto_register_pptp(void)
     },
   };
 
+  static ei_register_info ei[] = {
+     { &ei_pptp_incorrect_magic_cookie, { "pptp.magic_cookie.incorrect", PI_PROTOCOL, PI_WARN, "Incorrect Magic Cookie", EXPFILL }},
+  };
+
+  expert_module_t* expert_pptp;
+
   proto_pptp = proto_register_protocol("Point-to-Point Tunnelling Protocol",
 				       "PPTP", "pptp");
   proto_register_field_array(proto_pptp, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_pptp = expert_register_protocol(proto_pptp);
+  expert_register_field_array(expert_pptp, ei, array_length(ei));
 }
 
 void

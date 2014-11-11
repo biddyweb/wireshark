@@ -2,8 +2,6 @@
  * Wireshark Memory Manager Simple Allocator
  * Copyright 2012, Evan Huus <eapache@gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -23,84 +21,92 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include "config.h"
+
 #include <string.h>
 
 #include <glib.h>
 
-#include "config.h"
-
 #include "wmem_core.h"
 #include "wmem_allocator.h"
+#include "wmem_allocator_simple.h"
 
-/* In this trivial allocator, we just store a GHashTable of g_malloc()ed
- * blocks in the private_data pointer. We could just set the private_data
- * pointer directly to the GHashTable, but we use a separate structure here
- * to demonstrate the pattern that most other allocators should follow. */
+#define DEFAULT_ALLOCS 8192
+
 typedef struct _wmem_simple_allocator_t {
-    GHashTable *block_table;
+    int size;
+    int count;
+    void **ptrs;
 } wmem_simple_allocator_t;
 
 static void *
 wmem_simple_alloc(void *private_data, const size_t size)
 {
-    void *buf;
     wmem_simple_allocator_t *allocator;
 
     allocator = (wmem_simple_allocator_t*) private_data;
-    
-    buf = g_malloc(size);
 
-    g_hash_table_insert(allocator->block_table, buf, buf);
+    if G_UNLIKELY(allocator->count == allocator->size) {
+        allocator->size *= 2;
+        allocator->ptrs = (void**)wmem_realloc(NULL, allocator->ptrs,
+                sizeof(void*) * allocator->size);
+    }
 
-    return buf;
+    return allocator->ptrs[allocator->count++] = wmem_alloc(NULL, size);
 }
 
 static void
 wmem_simple_free(void *private_data, void *ptr)
 {
-    gboolean                 removed = FALSE;
+    int                      i;
     wmem_simple_allocator_t *allocator;
 
     allocator = (wmem_simple_allocator_t*) private_data;
 
-    /* remove() takes care of calling g_free() for us since we set up the
-     * hash table with g_hash_table_new_full() */
-    removed = g_hash_table_remove(allocator->block_table, ptr);
-    g_assert(removed);
+    wmem_free(NULL, ptr);
+    allocator->count--;
+
+    for (i=allocator->count; i>=0; i--) {
+        if (ptr == allocator->ptrs[i]) {
+            if (i < allocator->count) {
+                allocator->ptrs[i] = allocator->ptrs[allocator->count];
+            }
+            return;
+        }
+    }
+    g_assert_not_reached();
 }
 
 static void *
 wmem_simple_realloc(void *private_data, void *ptr, const size_t size)
 {
-    void *newptr;
+    int                      i;
     wmem_simple_allocator_t *allocator;
 
     allocator = (wmem_simple_allocator_t*) private_data;
-    
-    newptr = g_realloc(ptr, size);
 
-    if (ptr != newptr) {
-        /* Realloc actually moved the memory block, so we need to replace the
-         * value in our hash table. Calling g_hash_table_remove() would trigger
-         * a g_free() which is incorrect since realloc already reclaimed the old
-         * block, so use g_hash_table_steal() instead. */
-        g_hash_table_steal(allocator->block_table, ptr);
-        g_hash_table_insert(allocator->block_table, newptr, newptr);
+    for (i=allocator->count-1; i>=0; i--) {
+        if (ptr == allocator->ptrs[i]) {
+            return allocator->ptrs[i] = wmem_realloc(NULL, allocator->ptrs[i], size);
+        }
     }
 
-    return newptr;
+    g_assert_not_reached();
+    return NULL;
 }
 
 static void
 wmem_simple_free_all(void *private_data)
 {
     wmem_simple_allocator_t *allocator;
-    
+    int i;
+
     allocator = (wmem_simple_allocator_t*) private_data;
 
-    /* remove_all() takes care of calling g_free() for us since we set up the
-     * hash table with g_hash_table_new_full() */
-    g_hash_table_remove_all(allocator->block_table);
+    for (i = 0; i<allocator->count; i++) {
+        wmem_free(NULL, allocator->ptrs[i]);
+    }
+    allocator->count = 0;
 }
 
 static void
@@ -110,27 +116,22 @@ wmem_simple_gc(void *private_data _U_)
 }
 
 static void
-wmem_simple_allocator_destroy(wmem_allocator_t *allocator)
+wmem_simple_allocator_cleanup(void *private_data)
 {
-    wmem_simple_allocator_t *private_allocator;
-    
-    private_allocator = (wmem_simple_allocator_t*) allocator->private_data;
+    wmem_simple_allocator_t *allocator;
 
-    g_hash_table_destroy(private_allocator->block_table);
-    g_slice_free(wmem_simple_allocator_t, private_allocator);
-    g_slice_free(wmem_allocator_t, allocator);
+    allocator = (wmem_simple_allocator_t*) private_data;
+
+    wmem_free(NULL, allocator->ptrs);
+    wmem_free(NULL, allocator);
 }
 
-wmem_allocator_t *
-wmem_simple_allocator_new(void)
+void
+wmem_simple_allocator_init(wmem_allocator_t *allocator)
 {
-    wmem_allocator_t        *allocator;
     wmem_simple_allocator_t *simple_allocator;
 
-    allocator        = g_slice_new(wmem_allocator_t);
-    simple_allocator = g_slice_new(wmem_simple_allocator_t);
-
-    allocator->private_data = (void*) simple_allocator;
+    simple_allocator = wmem_new(NULL, wmem_simple_allocator_t);
 
     allocator->alloc   = &wmem_simple_alloc;
     allocator->realloc = &wmem_simple_realloc;
@@ -138,12 +139,13 @@ wmem_simple_allocator_new(void)
 
     allocator->free_all = &wmem_simple_free_all;
     allocator->gc       = &wmem_simple_gc;
-    allocator->destroy  = &wmem_simple_allocator_destroy;
+    allocator->cleanup  = &wmem_simple_allocator_cleanup;
 
-    simple_allocator->block_table = g_hash_table_new_full(
-            &g_direct_hash, &g_direct_equal, NULL, &g_free);
+    allocator->private_data = (void*) simple_allocator;
 
-    return allocator;
+    simple_allocator->count = 0;
+    simple_allocator->size = DEFAULT_ALLOCS;
+    simple_allocator->ptrs = wmem_alloc_array(NULL, void*, DEFAULT_ALLOCS);
 }
 
 /*

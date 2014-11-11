@@ -2,8 +2,6 @@
  * Routines for H.235 packet dissection
  * 2007  Tomas Kukosa
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,7 +31,7 @@
 typedef struct _gef_ctx_t {
   guint32 signature;
   struct _gef_ctx_t *parent;
-  /* 
+  /*
     H323-MESSAGES
       FeatureDescriptor/<id>
         <id>

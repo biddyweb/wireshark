@@ -1,8 +1,6 @@
 /* packet-aim.h
  * Copyright 2004, Jelmer Vernooij <jelmer@samba.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,19 +26,11 @@
 /* For e_uuid_t */
 #include "packet-dcerpc.h"
 
-#define MAX_BUDDYNAME_LENGTH 30
-
 typedef struct _aim_tlv {
   guint16 valueid;
   const char *desc;
   int (*dissector) (proto_item *ti, guint16 value_id, tvbuff_t *tvb, packet_info *);
 } aim_tlv;
-
-struct aiminfo {
-  guint16 family;
-  guint16 subtype;
-  struct tcpinfo *tcpinfo;
-};
 
 typedef struct _aim_subtype {
 	guint16 id;
@@ -61,7 +51,7 @@ void aim_init_family(int proto, int ett, guint16 family, const aim_subtype *subt
 
 int dissect_aim_buddyname(tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tree *tree);
 void aim_get_message( guchar *msg, tvbuff_t *tvb, int msg_offset, int msg_length);
-int aim_get_buddyname( guchar *name, tvbuff_t *tvb, int len_offset, int name_offset);
+int aim_get_buddyname( guint8 **name, tvbuff_t *tvb, int offset);
 int dissect_aim_userinfo(tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tree *tree);
 
 int dissect_aim_snac_error(tvbuff_t *tvb, packet_info *pinfo, proto_tree *aim_tree);

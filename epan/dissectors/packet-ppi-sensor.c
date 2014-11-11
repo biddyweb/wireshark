@@ -2,8 +2,6 @@
  * Routines for PPI-GEOLOCATION-SENSOR dissection
  * Copyright 2010, Harris Corp, jellch@harris.com
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -92,6 +90,7 @@ static const value_string sensor_unit_str[] = {
   { 0, NULL}
   };
 
+void proto_register_ppi_sensor(void);
 /* protocol */
 static int proto_ppi_sensor = -1;
 
@@ -190,17 +189,15 @@ dissect_ppi_sensor(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
 
     /* Clear out stuff in the info column */
-    if (check_col(pinfo->cinfo,COL_INFO)) {
-        col_clear(pinfo->cinfo,COL_INFO);
-    }
+    col_clear(pinfo->cinfo,COL_INFO);
+
     /* pull out the first three fields of the BASE-GEOTAG-HEADER */
     version = tvb_get_guint8(tvb, offset);
     length = tvb_get_letohs(tvb, offset+2);
     present = tvb_get_letohl(tvb, offset+4);
 
     /* Setup basic column info */
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_add_fstr(pinfo->cinfo, COL_INFO, "PPI Sensor info v%u, Length %u ",
+    col_add_fstr(pinfo->cinfo, COL_INFO, "PPI Sensor info v%u, Length %u ",
                      version, length);
 
     /* Create the basic dissection tree*/

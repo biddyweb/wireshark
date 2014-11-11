@@ -1,7 +1,5 @@
 /* splash_overlay.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,7 +35,7 @@
 /*
  * Update frequency for the splash screen, given in milliseconds.
  */
-int info_update_freq_ = 50;
+int info_update_freq_ = 15;
 
 void splash_update(register_action_e action, const char *message, void *dummy) {
     Q_UNUSED(dummy);
@@ -88,9 +86,11 @@ SplashOverlay::SplashOverlay(QWidget *parent) :
                       "}"
                       ));
 
+#ifndef THROTTLE_STARTUP
     // Check for a remote connection
     if (strlen (get_conn_cfilter()) > 0)
         info_update_freq_ = 1000;
+#endif
 
     connect(wsApp, SIGNAL(splashUpdate(register_action_e,const char*)),
             this, SLOT(splashUpdate(register_action_e,const char*)));
@@ -119,7 +119,7 @@ void SplashOverlay::splashUpdate(register_action_e action, const char *message)
     QString action_msg = UTF8_HORIZONTAL_ELLIPSIS;
 
 #ifdef THROTTLE_STARTUP
-    ThrottleThread::msleep(2);
+    ThrottleThread::msleep(100);
 #endif
 
     register_cur_++;
@@ -127,7 +127,6 @@ void SplashOverlay::splashUpdate(register_action_e action, const char *message)
       /* Only update every splash_register_freq milliseconds */
       return;
     }
-    time_.restart();
     last_action_ = action;
 
     switch(action) {
@@ -182,6 +181,8 @@ void SplashOverlay::splashUpdate(register_action_e action, const char *message)
     so_ui_->progressBar->setValue(register_cur_);
 
     wsApp->processEvents();
+
+    time_.restart();
 }
 
 void SplashOverlay::paintEvent(QPaintEvent *event)

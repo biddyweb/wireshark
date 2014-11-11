@@ -1,7 +1,5 @@
 /* nettl.h
  *
- * $Id$
- *
  * Wiretap Library
  * Copyright (c) 1998 by Gilbert Ramirez <gram@alumni.rice.edu>
  *
@@ -97,6 +95,8 @@
 #define NETTL_SUBSYS_IXGBE		265
 #define NETTL_SUBSYS_ICXGBE		271
 #define NETTL_SUBSYS_IEXGBE		275
+#define NETTL_SUBSYS_IOCXGBE		277
+#define NETTL_SUBSYS_IQXGBE		278
 
 /* FDDI cards */
 #define NETTL_SUBSYS_HPPB_FDDI		95

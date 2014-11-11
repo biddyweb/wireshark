@@ -1,8 +1,6 @@
 # Makefile.am
 # Automake file for wimaxmacphy plugin
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -130,4 +128,5 @@ EXTRA_DIST = \
 
 checkapi:
 	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -g abort -g termoutput -build \
-		$(CLEAN_SRC_FILES) $(CLEAN_HEADER_FILES)
+	-sourcedir=$(srcdir) \
+	$(CLEAN_SRC_FILES) $(CLEAN_HEADER_FILES)

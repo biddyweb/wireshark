@@ -11,8 +11,6 @@
  * The "MIME file" dissector does the reassembly, and hands the result
  * off to heuristic dissectors to try to identify the file's contents.
  *
- * $Id$
- *
  * Wiretap Library
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -46,13 +44,8 @@
 
 #include "wtap-int.h"
 #include "file_wrappers.h"
-#include "buffer.h"
+#include <wsutil/buffer.h>
 #include "mime_file.h"
-
-typedef struct {
-	gboolean last_packet;
-
-} mime_file_private_t;
 
 typedef struct {
 	const guint8 *magic;
@@ -76,75 +69,96 @@ static const guint8 xml_magic[]    = { '<', '?', 'x', 'm', 'l' };
 static const guint8 png_magic[]    = { 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n' };
 static const guint8 gif87a_magic[] = { 'G', 'I', 'F', '8', '7', 'a'};
 static const guint8 gif89a_magic[] = { 'G', 'I', 'F', '8', '9', 'a'};
+static const guint8 elf_magic[]    = { 0x7F, 'E', 'L', 'F'};
 
 static const mime_files_t magic_files[] = {
 	{ jpeg_jfif_magic, sizeof(jpeg_jfif_magic) },
 	{ xml_magic, sizeof(xml_magic) },
 	{ png_magic, sizeof(png_magic) },
 	{ gif87a_magic, sizeof(gif87a_magic) },
-	{ gif89a_magic, sizeof(gif89a_magic) }
+	{ gif89a_magic, sizeof(gif89a_magic) },
+	{ elf_magic, sizeof(elf_magic) }
 };
 
 #define	N_MAGIC_TYPES	(sizeof(magic_files) / sizeof(magic_files[0]))
 
-static gboolean
-mime_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
-{
-	mime_file_private_t *priv = (mime_file_private_t *) wth->priv;
+/*
+ * Impose a not-too-large limit on the maximum file size, to avoid eating
+ * up 99% of the (address space, swap partition, disk space for swap/page
+ * files); if we were to return smaller chunks and let the dissector do
+ * reassembly, it would *still* have to allocate a buffer the size of
+ * the file, so it's not as if we'd neve try to allocate a buffer the
+ * size of the file.
+ *
+ * For now, go for 16MB.
+ */
+#define MAX_FILE_SIZE	(16*1024*1024)
 
-	char _buf[WTAP_MAX_PACKET_SIZE];
-	guint8 *buf;
+static gboolean
+mime_read_file(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr,
+    Buffer *buf, int *err, gchar **err_info)
+{
+	gint64 file_size;
 	int packet_size;
 
-	if (priv->last_packet) {
-		*err = file_error(wth->fh, err_info);
+	if ((file_size = wtap_file_size(wth, err)) == -1)
+		return FALSE;
+
+	if (file_size > MAX_FILE_SIZE) {
+		/*
+		 * Don't blow up trying to allocate space for an
+		 * immensely-large file.
+		 */
+		*err = WTAP_ERR_BAD_FILE;
+		*err_info = g_strdup_printf("mime_file: File has %" G_GINT64_MODIFIER "d-byte packet, bigger than maximum of %u",
+				file_size, MAX_FILE_SIZE);
 		return FALSE;
 	}
+	packet_size = (int)file_size;
 
-	wth->phdr.presence_flags = 0;
+	phdr->rec_type = REC_TYPE_PACKET;
+	phdr->presence_flags = 0; /* yes, we have no bananas^Wtime stamp */
 
-	wth->phdr.ts.secs = 0;
-	wth->phdr.ts.nsecs = 0;
+	phdr->caplen = packet_size;
+	phdr->len = packet_size;
 
-	*data_offset = file_tell(wth->fh);
+	phdr->ts.secs = 0;
+	phdr->ts.nsecs = 0;
 
-	/* try to read max WTAP_MAX_PACKET_SIZE bytes */
-	packet_size = file_read(_buf, sizeof(_buf), wth->fh);
-
-	if (packet_size <= 0) {
-		priv->last_packet = TRUE;
-		/* signal error for packet-mime-encap */
-		if (packet_size < 0)
-			wth->phdr.ts.nsecs = 1000000000;
-
-		wth->phdr.caplen = 0;
-		wth->phdr.len = 0;
-		return TRUE;
-	}
-
-	/* copy to wth frame buffer */
-	buffer_assure_space(wth->frame_buffer, packet_size);
-	buf = buffer_start_ptr(wth->frame_buffer);
-	memcpy(buf, _buf, packet_size);
-
-	wth->phdr.caplen = packet_size;
-	wth->phdr.len = packet_size;
-	return TRUE;
+	return wtap_read_packet_bytes(fh, buf, packet_size, err, err_info);
 }
 
 static gboolean
-mime_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *phdr _U_, guint8 *pd, int length, int *err, gchar **err_info)
+mime_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 {
-	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1) {
-		*err_info = NULL;
+	gint64 offset;
+
+	*err = 0;
+
+	offset = file_tell(wth->fh);
+
+	/* there is only ever one packet */
+	if (offset != 0)
+		return FALSE;
+
+	*data_offset = offset;
+
+	return mime_read_file(wth, wth->fh, &wth->phdr, wth->frame_buffer, err, err_info);
+}
+
+static gboolean
+mime_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info)
+{
+	/* there is only one packet */
+	if (seek_off > 0) {
+		*err = 0;
 		return FALSE;
 	}
 
-	wtap_file_read_expected_bytes(pd, length, wth->random_fh, err, err_info);
+	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
+		return FALSE;
 
-	*err = 0;
-	*err_info = NULL;
-	return TRUE;
+	return mime_read_file(wth, wth->random_fh, phdr, buf, err, err_info);
 }
 
 int
@@ -170,7 +184,7 @@ mime_file_open(wtap *wth, int *err, gchar **err_info)
 	}
 	if (bytes_read == 0)
 		return 0;
-		
+
 	found_file = FALSE;
 	for (i = 0; i < N_MAGIC_TYPES; i++) {
 		if ((guint) bytes_read >= magic_files[i].magic_len && !memcmp(magic_buf, magic_files[i].magic, MIN(magic_files[i].magic_len, (guint) bytes_read))) {
@@ -188,15 +202,12 @@ mime_file_open(wtap *wth, int *err, gchar **err_info)
 	if (file_seek(wth->fh, 0, SEEK_SET, err) == -1)
 		return -1;
 
-	wth->file_type = WTAP_FILE_MIME;
+	wth->file_type_subtype = WTAP_FILE_TYPE_SUBTYPE_MIME;
 	wth->file_encap = WTAP_ENCAP_MIME;
 	wth->tsprecision = WTAP_FILE_TSPREC_SEC;
 	wth->subtype_read = mime_read;
 	wth->subtype_seek_read = mime_seek_read;
 	wth->snapshot_length = 0;
 
-	wth->priv = g_malloc0(sizeof(mime_file_private_t));
-
 	return 1;
 }
-

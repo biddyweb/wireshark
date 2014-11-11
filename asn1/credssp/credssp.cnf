@@ -1,6 +1,5 @@
 # credssp.cnf
 # Credential Security Support Provider (CredSSP) conformance file
-# $Id$
 
 #.PDU
 TSRequest
@@ -26,7 +25,7 @@ TSRequest
 
 	%(DEFAULT_BODY)s
 
-	if((decr_tvb != NULL) && 
+	if((decr_tvb != NULL) &&
 	((creds_type == TS_PASSWORD_CREDS) || (creds_type == TS_SMARTCARD_CREDS))) {
 
 		      switch(creds_type) {
@@ -44,12 +43,13 @@ TSRequest
 
 #.FN_BODY NegoData/_item/negoToken
 	tvbuff_t *token_tvb = NULL;
+	heur_dtbl_entry_t *hdtbl_entry;
 
 	%(DEFAULT_BODY)s
 
 	if(token_tvb != NULL)
-		      dissector_try_heuristic(credssp_heur_subdissector_list, 
-		      token_tvb, actx->pinfo, proto_tree_get_root(tree), NULL);
+		      dissector_try_heuristic(credssp_heur_subdissector_list,
+		      token_tvb, actx->pinfo, proto_tree_get_root(tree), &hdtbl_entry, NULL);
 
 
 #.END

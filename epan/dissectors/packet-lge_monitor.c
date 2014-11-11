@@ -2,8 +2,6 @@
  * Routines for LGE Monitor packet dissection
  * Copyright 2006, Anders Broman <anders.broman[at]ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,8 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 
+void proto_reg_handoff_lge_monitor(void);
+void proto_register_lge_monitor(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_lge_monitor		= -1;

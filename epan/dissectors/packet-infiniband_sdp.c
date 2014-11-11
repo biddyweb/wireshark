@@ -3,8 +3,6 @@
  * Copyright 2010, Mellanox Technologies Ltd.
  * Code by Amir Vadai and Slava Koyfman.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,31 +28,20 @@
 
 #include <epan/packet.h>
 #include <epan/prefs.h>
+#include <epan/addr_resolv.h>
 #include <epan/conversation.h>
+#include <epan/wmem/wmem.h>
 #include <stdlib.h>
 #include <errno.h>
 
-#ifdef HAVE_ARPA_INET_H
-# include <arpa/inet.h>
-#endif
-#ifdef HAVE_SYS_SOCKET_H
-# include <sys/socket.h>         /* needed to define AF_ values on UNIX */
-#endif
-#ifdef HAVE_WINSOCK2_H
-# include <winsock2.h>           /* needed to define AF_ values on Windows */
-#endif
-#ifdef NEED_INET_V6DEFS_H
-# include "wsutil/inet_v6defs.h"
-#endif
-
 #include "packet-infiniband.h"
+
+void proto_register_ib_sdp(void);
+void proto_reg_handoff_ib_sdp(void);
 
 /* If the service-id is non-zero after being ANDed with the following mask then
    this is SDP traffic */
 #define SERVICE_ID_MASK 0x0000000000010000
-
-/* Forward declaration we need below (for using proto_reg_handoff as a prefs callback) */
-void proto_reg_handoff_ib_sdp(void);
 
 static int proto_infiniband = -1;   /* we'll need the Infiniband protocol index sometimes, so keep it here */
 
@@ -225,7 +212,10 @@ dissect_ib_sdp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             return 0;   /* no infiniband handle? can't get our proto-data; sorry, can't help you without this */
         proto_infiniband = dissector_handle_get_protocol_index(infiniband_handle);
     }
-    convo_data = conversation_get_proto_data(conv, proto_infiniband);
+    convo_data = (conversation_infiniband_data *)conversation_get_proto_data(conv, proto_infiniband);
+
+    if (!convo_data)
+	    return 0;
 
     if (!(convo_data->service_id & SERVICE_ID_MASK))
         return 0;   /* the service id doesn't match that of SDP - nothing for us to do here */
@@ -529,8 +519,8 @@ proto_reg_handoff_ib_sdp(void)
         heur_dissector_add("infiniband.mad.cm.private", dissect_ib_sdp, proto_ib_sdp);
 
         /* allocate enough space in the addresses to store the largest address (a GID) */
-        manual_addr_data[0] = se_alloc(GID_SIZE);
-        manual_addr_data[1] = se_alloc(GID_SIZE);
+        manual_addr_data[0] = wmem_alloc(wmem_epan_scope(), GID_SIZE);
+        manual_addr_data[1] = wmem_alloc(wmem_epan_scope(), GID_SIZE);
 
         initialized = TRUE;
     }
@@ -551,7 +541,7 @@ proto_reg_handoff_ib_sdp(void)
                     SET_ADDRESS(&manual_addr[i], AT_IB, sizeof(guint16), manual_addr_data[i]);
                 }
             } else {    /* GID */
-                if (! inet_pton(AF_INET6, gPREF_ID[i], manual_addr_data[i]) ) {
+                if (!str_to_ip6(gPREF_ID[i], manual_addr_data[i])) {
                     error_occured = TRUE;
                 } else {
                     SET_ADDRESS(&manual_addr[i], AT_IB, GID_SIZE, manual_addr_data[i]);
@@ -567,4 +557,3 @@ proto_reg_handoff_ib_sdp(void)
 
     }
 }
-

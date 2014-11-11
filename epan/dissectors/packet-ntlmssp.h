@@ -2,8 +2,6 @@
  * Declarations for NTLM Secure Service Provider
  * Copyright 2003, Tim Potter <tpot@samba.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,8 +36,7 @@
 /* Dissect a ntlmv2 response */
 
 int
-dissect_ntlmv2_response(tvbuff_t *tvb, proto_tree *ntlmssp_tree, int offset,
-			int len);
+dissect_ntlmv2_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *ntlmssp_tree, int offset, int len);
 
 /* the ntlmssp data passed to tap listeners */
 typedef struct _ntlmssp_header_t {

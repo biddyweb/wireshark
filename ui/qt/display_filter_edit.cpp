@@ -1,7 +1,5 @@
 /* display_filter_edit.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,7 +23,7 @@
 
 #include <glib.h>
 
-#include <epan/proto.h>
+#include <epan/dfilter/dfilter.h>
 
 #include "display_filter_edit.h"
 #include "syntax_line_edit.h"
@@ -40,7 +38,7 @@
 //   win
 //   default
 
-#if defined(Q_WS_MAC) && 0
+#if defined(Q_OS_MAC) && 0
 // http://developer.apple.com/library/mac/#documentation/Cocoa/Reference/ApplicationKit/Classes/NSImage_Class/Reference/Reference.html
 // http://www.virtualbox.org/svn/vbox/trunk/src/VBox/Frontends/VirtualBox/src/platform/darwin/UICocoaSpecialControls.mm
 
@@ -86,7 +84,6 @@ UIMiniCancelButton::UIMiniCancelButton(QWidget *pParent /* = 0 */)
 DisplayFilterEdit::DisplayFilterEdit(QWidget *parent, bool plain) :
     SyntaxLineEdit(parent),
     plain_(plain),
-    field_name_only_(false),
     apply_button_(NULL)
 
 {
@@ -110,11 +107,12 @@ DisplayFilterEdit::DisplayFilterEdit(QWidget *parent, bool plain) :
     // XXX - Use native buttons on OS X?
 
     bookmark_button_ = new QToolButton(this);
+    bookmark_button_->setEnabled(false);
     bookmark_button_->setCursor(Qt::ArrowCursor);
     bookmark_button_->setStyleSheet(QString(
             "QToolButton { /* all types of tool button */"
             "  border 0 0 0 0;"
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
             "  border-right: %1px solid gray;"
 #else
             "  border-right: %1px solid palette(shadow);"
@@ -138,6 +136,9 @@ DisplayFilterEdit::DisplayFilterEdit(QWidget *parent, bool plain) :
 
             ).arg(plain_ ? 0 : 1)
             );
+#ifndef QT_NO_TOOLTIP
+    bookmark_button_->setToolTip(tr("Bookmark this filter string"));
+#endif // QT_NO_TOOLTIP
     connect(bookmark_button_, SIGNAL(clicked()), this, SLOT(bookmarkClicked()));
 
     clear_button_ = new QToolButton(this);
@@ -155,8 +156,11 @@ DisplayFilterEdit::DisplayFilterEdit(QWidget *parent, bool plain) :
             "  image: url(:/dfilter/dfilter_erase_selected.png) center;"
             "}"
             );
+#ifndef QT_NO_TOOLTIP
+    clear_button_->setToolTip(tr("Clear the filter string and update the display"));
+#endif // QT_NO_TOOLTIP
     clear_button_->hide();
-    connect(clear_button_, SIGNAL(clicked()), this, SLOT(clear()));
+    connect(clear_button_, SIGNAL(clicked()), this, SLOT(clearFilter()));
     connect(this, SIGNAL(textChanged(const QString&)), this, SLOT(checkFilter(const QString&)));
 
     if (!plain_) {
@@ -182,6 +186,9 @@ DisplayFilterEdit::DisplayFilterEdit(QWidget *parent, bool plain) :
                 "  image: url(:/dfilter/dfilter_apply_disabled.png) center;"
                 "}"
                 );
+#ifndef QT_NO_TOOLTIP
+        apply_button_->setToolTip(tr("Apply this filter string to the display"));
+#endif // QT_NO_TOOLTIP
         connect(apply_button_, SIGNAL(clicked()), this, SLOT(applyDisplayFilter()));
         connect(this, SIGNAL(returnPressed()), this, SLOT(applyDisplayFilter()));
     }
@@ -257,43 +264,34 @@ void DisplayFilterEdit::resizeEvent(QResizeEvent *)
 
 void DisplayFilterEdit::checkFilter(const QString& text)
 {
-    dfilter_t *dfp;
-    guchar c;
-
     clear_button_->setVisible(!text.isEmpty());
 
     popFilterSyntaxStatus();
+    checkDisplayFilter(text);
 
-    if (field_name_only_ && (c = proto_check_field_name(text.toUtf8().constData()))) {
-        setSyntaxState(Invalid);
-        emit pushFilterSyntaxStatus(QString().sprintf("Illegal character in field name: '%c'", c));
-    } else if (dfilter_compile(text.toUtf8().constData(), &dfp)) {
-        GPtrArray *depr = NULL;
-        if (dfp != NULL) {
-            depr = dfilter_deprecated_tokens(dfp);
-        }
-        if (text.isEmpty()) {
-            setSyntaxState(Empty);
-        } else if (depr) {
-            /* You keep using that word. I do not think it means what you think it means. */
-            setSyntaxState(Deprecated);
-            /*
-             * We're being lazy and only printing the first "problem" token.
-             * Would it be better to print all of them?
-             */
-            emit pushFilterSyntaxWarning(QString().sprintf("\"%s\" may have unexpected results (see the User's Guide)",
-                                                          (const char *) g_ptr_array_index(depr, 0)));
-        } else {
-            setSyntaxState(Valid);
-        }
-        dfilter_free(dfp);
-    } else {
-        setSyntaxState(Invalid);
+    switch (syntaxState()) {
+    case Deprecated:
+    {
+        /*
+         * We're being lazy and only printing the first "problem" token.
+         * Would it be better to print all of them?
+         */
+        QString deprecatedMsg(tr("\"%1\" may have unexpected results (see the User's Guide)")
+                .arg(deprecatedToken()));
+        emit pushFilterSyntaxWarning(deprecatedMsg);
+        break;
+    }
+    case Invalid:
+    {
         QString invalidMsg(tr("Invalid filter"));
         if (dfilter_error_msg) {
             invalidMsg.append(QString().sprintf(": %s", dfilter_error_msg));
         }
         emit pushFilterSyntaxStatus(invalidMsg);
+        break;
+    }
+    default:
+        break;
     }
 
     bookmark_button_->setEnabled(syntaxState() == Valid || syntaxState() == Deprecated);
@@ -305,6 +303,13 @@ void DisplayFilterEdit::checkFilter(const QString& text)
 void DisplayFilterEdit::bookmarkClicked()
 {
     emit addBookmark(text());
+}
+
+void DisplayFilterEdit::clearFilter()
+{
+    clear();
+    QString new_filter;
+    emit filterPackets(new_filter, true);
 }
 
 void DisplayFilterEdit::applyDisplayFilter()

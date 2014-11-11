@@ -1,7 +1,5 @@
 #!/bin/bash
 #
-# $Id$
-#
 # USAGE
 # osx-dmg [-s] -p /path/to/Wireshark.app
 #
@@ -46,6 +44,7 @@ tmp_dir="/tmp/dmg-$$"
 auto_open_opt=
 utilities="Utilities"
 ws_bin="$app_bundle/Contents/Resources/bin/wireshark-bin"
+readme_name="Read_me_first_gtk.rtf"
 
 if [ -d /Applications/Xcode.app/Developer ]
 then
@@ -77,6 +76,8 @@ OPTIONS
 	-b,--app-bundle
 		set the path to the Wireshark.app that should be copied
 		in the dmg
+	-qt,--qt-flavor
+		use the Qt flavor
 "
 }
 
@@ -92,6 +93,10 @@ do
 	  	-b|--app-bundle)
 			app_bundle="$2"
 			shift 1 ;;
+		-qt|--qt-flavor)
+			readme_name="Read_me_first_qt.rtf"
+			ws_bin="$app_bundle/Contents/MacOS/Wireshark"
+			;;
 		*)
 			echo "Invalid command line option"
 			exit 2 ;;
@@ -126,7 +131,8 @@ case `file $ws_bin` in
 		architecture="PPC 32"
 		;;
 	*)
-		echo "Cannot determine architecture"
+		echo "Cannot determine architecture of $ws_bin; file reports:"
+		file $ws_bin
 		exit 1
 		;;
 esac
@@ -144,8 +150,24 @@ pkg_file="$pkg_title.pkg"
 rm -rf "$pkg_file"
 packagemaker --doc "Wireshark_package.pmdoc" \
     --title "$pkg_title" \
+    --id "org.wireshark.pkg.Wireshark" \
     --version "$version" \
+    --target 10.5 \
     --verbose || exit 1
+
+if [ -n "$CODE_SIGN_IDENTITY" ] ; then
+	pkg_file_unsigned="$pkg_title UNSIGNED.pkg"
+
+	echo -e "Signing $pkg_file"
+	mv "$pkg_file" "$pkg_file_unsigned" || exit 1
+	productsign --sign "Developer ID Installer: $CODE_SIGN_IDENTITY" "$pkg_file_unsigned" "$pkg_file" || exit 1
+	spctl --assess --type install "$pkg_file" || exit 1
+	pkgutil --check-signature "$pkg_file" || exit 1
+	shasum "$pkg_file"
+	rm -rf "$pkg_dir_unsigned" "$pkg_file_unsigned" "$pkg_file_flattened"
+else
+	echo "Code signing not performed (no identity)"
+fi
 
 echo -e "\nCREATE WIRESHARK DISK IMAGE\n"
 img_name="$pkg_title.dmg"
@@ -157,14 +179,14 @@ mkdir "$tmp_dir" || exit 1
 echo -e "Copying files to temp directory"
 # Wireshark itself
 # Copy Wireshark.app
-cp -rf "$pkg_file" "$tmp_dir"/ || exit 1
+cp "$pkg_file" "$tmp_dir"/ || exit 1
 # Link to Applications in order to drag and drop wireshark onto it
 #ln -sf /Applications "$tmp_dir"/
 # Copy the utilites
 #cp -rf "$utilities" "$tmp_dir"/
 #ln -sf /Library/StartupItems "$tmp_dir/$utilities"/
 # Copy the readme
-cp -rf  Read_me_first.rtf "$tmp_dir"/"Read me first.rtf" || exit 1
+cp "$readme_name" "$tmp_dir"/"Read me first.rtf" || exit 1
 
 # If the appearance settings are not to be modified we just copy them
 if [ ${set_ds_store} = "false" ]; then
@@ -236,5 +258,11 @@ if [ -e "$img_name" ]; then
 fi
 /usr/bin/hdiutil convert "$rw_name" -format UDZO -imagekey zlib-level=9 -o "$img_name" || exit 1
 rm -f "$rw_name"
+
+#if [ -n "$CODE_SIGN_IDENTITY" ] ; then
+#	echo -e "Signing the $img_name"
+#	codesign --sign "$CODE_SIGN_IDENTITY" --verbose "$img_name" || exit 1
+#	codesign --verify --verbose "$img_name" || exit 1
+#fi
 
 exit 0

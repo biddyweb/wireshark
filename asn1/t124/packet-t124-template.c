@@ -2,8 +2,6 @@
  * Routines for t124 packet dissection
  * Copyright 2010, Graeme Lunt
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,7 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/conversation.h>
 
 #include <epan/asn1.h>
@@ -43,6 +42,9 @@
 #define PNAME  "GENERIC-CONFERENCE-CONTROL T.124"
 #define PSNAME "T.124"
 #define PFNAME "t124"
+
+void proto_register_t124(void);
+void proto_reg_handoff_t124(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_t124 = -1;
@@ -148,7 +150,7 @@ static gboolean
 dissect_t124_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *data _U_)
 {
   asn1_ctx_t asn1_ctx;
-  gboolean failed = FALSE;
+  volatile gboolean failed = FALSE;
 
   asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
 
@@ -160,9 +162,11 @@ dissect_t124_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, vo
    * to have a version of dissect_per_sequence() that checks all
    * references to the tvbuff before making them and returning "no"
    * if they would fail.
+   *
+   * We (ab)use hf_t124_connectGCCPDU here just to give a valid entry...
    */
   TRY {
-    (void) dissect_per_sequence(tvb, 0, &asn1_ctx, NULL, -1, -1, t124Heur_sequence);
+    (void) dissect_per_sequence(tvb, 0, &asn1_ctx, NULL, hf_t124_connectGCCPDU, -1, t124Heur_sequence);
   } CATCH_BOUNDS_ERRORS {
     failed = TRUE;
   } ENDTRY;
@@ -203,7 +207,7 @@ void proto_register_t124(void) {
 	  &ett_t124_connectGCCPDU,
 #include "packet-t124-ettarr.c"
   };
-  
+
   /* Register protocol */
   proto_t124 = proto_register_protocol(PNAME, PSNAME, PFNAME);
   /* Register fields and subtrees */

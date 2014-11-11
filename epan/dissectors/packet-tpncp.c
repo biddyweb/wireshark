@@ -3,8 +3,6 @@
  *
  * Copyright (c) 2007 by Valery Sigalov <valery.sigalov@audiocodes.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.com>
  * Copyright 1998 Gerald Combs
@@ -40,9 +38,10 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/emem.h>
-#include <epan/filesystem.h>
+#include <wsutil/filesystem.h>
 #include <epan/dissectors/packet-tcp.h>
 #include <epan/strutil.h>
+#include <epan/to_str.h>
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------*/
 
@@ -60,6 +59,9 @@
 #define MAX_ENUM_ENTRIES 500
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void proto_register_tpncp(void);
+void proto_reg_handoff_tpncp(void);
 
 /* The linked list for storing information about specific data fields. */
 typedef struct tpncp_data_field_info
@@ -110,6 +112,9 @@ static guint global_tpncp_trunkpack_tcp_port = TCP_PORT_TPNCP_TRUNKPACK;
 static guint global_tpncp_trunkpack_udp_port = UDP_PORT_TPNCP_TRUNKPACK;
 static guint global_tpncp_host_tcp_port = TCP_PORT_TPNCP_HOST;
 static guint global_tpncp_host_udp_port = UDP_PORT_TPNCP_HOST;
+static guint global_tpncp_load_db = FALSE;
+
+static dissector_handle_t tpncp_handle;
 
 static guint trunkpack_tcp_port = 0;
 static guint trunkpack_udp_port = 0;
@@ -247,7 +252,7 @@ static void dissect_tpncp_command(gint command_id, tvbuff_t *tvb,
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------*/
 
-static void dissect_tpncp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
+static int dissect_tpncp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_) {
     proto_item *item = NULL, *tpncp_item = NULL;
     proto_tree *tpncp_tree = NULL;
     gint offset = 0;
@@ -266,18 +271,16 @@ static void dissect_tpncp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "TPNCP");
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        if (pinfo->srcport == UDP_PORT_TPNCP_TRUNKPACK) {
-            col_add_fstr(pinfo->cinfo, COL_INFO,
-                         "EvID=%s(%d), SeqNo=%d, ChID=%d, Len=%d, Ver=%d",
-                         val_to_str_const(id, tpncp_events_id_vals, "Unknown"),
-                         id, seq_number, cid, len, ver);
-        } else {
-            col_add_fstr(pinfo->cinfo, COL_INFO,
-                         "CmdID=%s(%d), SeqNo=%d, Len=%d, Ver=%d",
-                         val_to_str_const(id, tpncp_commands_id_vals, "Unknown"),
-                         id, seq_number, len, ver);
-        }
+    if (pinfo->srcport == UDP_PORT_TPNCP_TRUNKPACK) {
+        col_add_fstr(pinfo->cinfo, COL_INFO,
+                        "EvID=%s(%d), SeqNo=%d, ChID=%d, Len=%d, Ver=%d",
+                        val_to_str_const(id, tpncp_events_id_vals, "Unknown"),
+                        id, seq_number, cid, len, ver);
+    } else {
+        col_add_fstr(pinfo->cinfo, COL_INFO,
+                        "CmdID=%s(%d), SeqNo=%d, Len=%d, Ver=%d",
+                        val_to_str_const(id, tpncp_commands_id_vals, "Unknown"),
+                        id, seq_number, len, ver);
     }
 
     if (tree) {
@@ -290,29 +293,33 @@ static void dissect_tpncp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
         proto_tree_add_uint(tpncp_tree, hf_tpncp_reserved, tvb, 6, 2, reserved);
 
         if (pinfo->srcport == UDP_PORT_TPNCP_TRUNKPACK) {
-            if (match_strval(id, tpncp_events_id_vals)) {
+            if (try_val_to_str(id, tpncp_events_id_vals)) {
                 proto_tree_add_uint(tpncp_tree, hf_tpncp_event_id, tvb, 8, 4, id);
                 proto_tree_add_int(tpncp_tree, hf_tpncp_cid, tvb, 12, 4, cid);
                 offset += 16;
                 if (tpncp_events_info_db[id].tpncp_data_field_size) {
-                    tpncp_header = ep_strdup_printf("TPNCP Event: %s (%d)", val_to_str_const(id, tpncp_events_id_vals, "Unknown"), id);
+                    tpncp_header = wmem_strdup_printf(wmem_packet_scope(), "TPNCP Event: %s (%d)",
+                                                      val_to_str_const(id, tpncp_events_id_vals, "Unknown"), id);
                     tpncp_item = proto_tree_add_text(tree, tvb, offset, -1, "%s", tpncp_header);
                     dissect_tpncp_event(id, tvb, tpncp_item, &offset);
                 }
             }
         }
         else {
-            if (match_strval(id, tpncp_commands_id_vals)) {
+            if (try_val_to_str(id, tpncp_commands_id_vals)) {
                 proto_tree_add_uint(tpncp_tree, hf_tpncp_command_id, tvb, 8, 4, id);
                 offset += 12;
                 if (tpncp_commands_info_db[id].tpncp_data_field_size) {
-                    tpncp_header = ep_strdup_printf("TPNCP Command: %s (%d)", val_to_str_const(id, tpncp_commands_id_vals, "Unknown"), id);
+                    tpncp_header = wmem_strdup_printf(wmem_packet_scope(), "TPNCP Command: %s (%d)",
+                                                      val_to_str_const(id, tpncp_commands_id_vals, "Unknown"), id);
                     tpncp_item = proto_tree_add_text(tree, tvb, offset, -1, "%s", tpncp_header);
                     dissect_tpncp_command(id, tvb, tpncp_item, &offset);
                 }
             }
         }
     }
+
+    return tvb_length(tvb);
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -330,24 +337,26 @@ static guint get_tpncp_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, gint offse
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------*/
 
-static void dissect_tpncp_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
+static int dissect_tpncp_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data) {
     if (pinfo->can_desegment)
         /* If desegmentation is enabled (TCP preferences) use the desegmentation API. */
-        tcp_dissect_pdus(tvb, pinfo, tree, tpncp_desegment, 4, get_tpncp_pdu_len, dissect_tpncp);
+        tcp_dissect_pdus(tvb, pinfo, tree, tpncp_desegment, 4, get_tpncp_pdu_len, dissect_tpncp, data);
     else
         /* Otherwise use the regular dissector (might not give correct dissection). */
-        dissect_tpncp(tvb, pinfo, tree);
+        dissect_tpncp(tvb, pinfo, tree, data);
+
+    return tvb_length(tvb);
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------*/
 
 static gint fill_tpncp_id_vals(value_string string[], FILE *file) {
     gint i = 0, tpncp_id = 0;
-    gchar *tpncp_name = NULL, *line_in_file = NULL;
+    gchar *tpncp_name, *line_in_file;
 
-    line_in_file = ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
+    line_in_file = (gchar *)g_malloc(MAX_TPNCP_DB_ENTRY_LEN);
     line_in_file[0] = 0;
-    tpncp_name = ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
+    tpncp_name = (gchar *)g_malloc(MAX_TPNCP_DB_ENTRY_LEN);
     tpncp_name[0] = 0;
 
     while (fgets(line_in_file, MAX_TPNCP_DB_ENTRY_LEN, file) != NULL) {
@@ -366,6 +375,9 @@ static gint fill_tpncp_id_vals(value_string string[], FILE *file) {
         }
     }
 
+    g_free(line_in_file);
+    g_free(tpncp_name);
+
     return 0;
 }
 
@@ -377,13 +389,13 @@ static gint fill_enums_id_vals(FILE *file) {
     gchar *line_in_file = NULL, *enum_name = NULL,
            *enum_type = NULL, *enum_str = NULL;
 
-    line_in_file = ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
+    line_in_file = (gchar *)g_malloc(MAX_TPNCP_DB_ENTRY_LEN);
     line_in_file[0] = 0;
-    enum_name = ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
+    enum_name = (gchar *)g_malloc(MAX_TPNCP_DB_ENTRY_LEN);
     enum_name[0] = 0;
-    enum_type = ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
+    enum_type = (gchar *)g_malloc(MAX_TPNCP_DB_ENTRY_LEN);
     enum_type[0] = 0;
-    enum_str = ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
+    enum_str = (gchar *)g_malloc(MAX_TPNCP_DB_ENTRY_LEN);
     enum_str[0] = 0;
 
     while (fgets(line_in_file, MAX_TPNCP_DB_ENTRY_LEN, file) != NULL) {
@@ -427,6 +439,11 @@ static gint fill_enums_id_vals(FILE *file) {
     else {
         tpncp_enums_name_vals[enum_val+1] = NULL;
     }
+
+    g_free(line_in_file);
+    g_free(enum_name);
+    g_free(enum_type);
+    g_free(enum_str);
 
     return 0;
 }
@@ -572,26 +589,25 @@ static gint init_tpncp_data_fields_info(tpncp_data_field_info *data_fields_info,
         }
     };
 
-    tpncp_db_entry = ep_alloc(MAX_TPNCP_DB_ENTRY_LEN);
-    tpncp_db_entry[0] = 0;
-
     /* Register common fields of hf_register_info struture. */
-    hf_entr.hfinfo.type           = 0;
+    hf_entr.hfinfo.type           = FT_NONE;
     hf_entr.hfinfo.strings        = NULL;
     hf_entr.hfinfo.bitmask        = 0x0;
     hf_entr.hfinfo.blurb          = NULL;
     hf_entr.hfinfo.id             = 0;
     hf_entr.hfinfo.parent         = 0;
     hf_entr.hfinfo.ref_type       = HF_REF_TYPE_NONE;
-    hf_entr.hfinfo.bitshift       = 0;
     hf_entr.hfinfo.same_name_next = NULL;
-    hf_entr.hfinfo.same_name_prev = NULL;
+    hf_entr.hfinfo.same_name_prev_id = -1;
 
     if (!was_registered) {
         /* Register non-standard data should be done only once. */
         hf_allocated = hf_size+(int)array_length(hf_tpncp)-1;
-        if ((hf = (hf_register_info *)g_realloc(hf, hf_allocated * sizeof(hf_register_info))) == NULL)
+        if ((hf = (hf_register_info *)g_realloc(hf, hf_allocated * sizeof(hf_register_info))) == NULL) {
+            /* XXX realloc returning NULL does not free the original memory,
+             * is this a leak? */
             return (-1);
+        }
         for (idx = 0; idx < array_length(hf_tpncp); idx++) {
             memcpy(hf + (hf_size - 1), hf_tpncp + idx, sizeof(hf_register_info));
             hf_size++;
@@ -600,7 +616,11 @@ static gint init_tpncp_data_fields_info(tpncp_data_field_info *data_fields_info,
     }
     else
         hf_size++;
+
     /* Register standard data. */
+    tpncp_db_entry = (gchar *)g_malloc(MAX_TPNCP_DB_ENTRY_LEN);
+    tpncp_db_entry[0] = 0;
+
     while (fgets(tpncp_db_entry, MAX_TPNCP_DB_ENTRY_LEN, file) != NULL) {
         if (!strncmp(tpncp_db_entry, "#####", 5)) {
             hf_size--;
@@ -637,8 +657,10 @@ static gint init_tpncp_data_fields_info(tpncp_data_field_info *data_fields_info,
         else {
             if ((current_tpncp_data_field_info->p_next =
                 (tpncp_data_field_info *)g_malloc0(sizeof(tpncp_data_field_info)))
-                == NULL)
+                == NULL) {
+                g_free(tpncp_db_entry);
                 return (-1);
+            }
             current_tpncp_data_field_info = current_tpncp_data_field_info->p_next;
         }
         /* Register specific fields of hf_register_info struture. */
@@ -656,7 +678,7 @@ static gint init_tpncp_data_fields_info(tpncp_data_field_info *data_fields_info,
         }
         current_tpncp_data_field_info->tpncp_data_field_descr = -1;
         hf_entr.p_id = &current_tpncp_data_field_info->tpncp_data_field_descr;
-	current_tpncp_data_field_info->tpncp_data_field_name = g_strdup_printf("tpncp.%s", tpncp_data_field_name);
+        current_tpncp_data_field_info->tpncp_data_field_name = g_strdup_printf("tpncp.%s", tpncp_data_field_name);
         hf_entr.hfinfo.name = current_tpncp_data_field_info->tpncp_data_field_name;
         hf_entr.hfinfo.abbrev = current_tpncp_data_field_info->tpncp_data_field_name;
         switch (tpncp_data_field_size) {
@@ -681,8 +703,12 @@ static gint init_tpncp_data_fields_info(tpncp_data_field_info *data_fields_info,
         /* Register initialized hf_register_info in global database. */
         if (hf_size > hf_allocated) {
             hf_allocated += 1024;
-            if ((hf = (hf_register_info *)g_realloc(hf, hf_allocated * sizeof(hf_register_info))) == NULL)
+            if ((hf = (hf_register_info *)g_realloc(hf, hf_allocated * sizeof(hf_register_info))) == NULL) {
+                /* XXX realloc returning NULL does not free the original memory,
+                 * is this a leak? */
+                g_free(tpncp_db_entry);
                 return (-1);
+            }
         }
         memcpy(hf + hf_size - 1, &hf_entr, sizeof(hf_register_info));
         hf_size++;
@@ -692,6 +718,8 @@ static gint init_tpncp_data_fields_info(tpncp_data_field_info *data_fields_info,
         current_tpncp_data_field_info->tpncp_data_field_is_ip_addr = tpncp_data_field_is_ip_addr;
     }
 
+    g_free(tpncp_db_entry);
+
     return 0;
 }
 
@@ -699,30 +727,48 @@ static gint init_tpncp_data_fields_info(tpncp_data_field_info *data_fields_info,
 
 static gint init_tpncp_db(void) {
     gchar *tpncp_dat_file_path;
+    gint ret;
     FILE *file;
 
-    tpncp_dat_file_path = ep_strdup_printf("%s" G_DIR_SEPARATOR_S"tpncp" G_DIR_SEPARATOR_S "tpncp.dat", get_datafile_dir());
+    tpncp_dat_file_path = g_strdup_printf("%s" G_DIR_SEPARATOR_S"tpncp" G_DIR_SEPARATOR_S "tpncp.dat", get_datafile_dir());
 
     /* Open file with TPNCP data. */
-    if ((file = ws_fopen(tpncp_dat_file_path, "r")) == NULL)
+    if ((file = ws_fopen(tpncp_dat_file_path, "r")) == NULL) {
+        g_free(tpncp_dat_file_path);
         return (-1);
+    }
 
-    fill_tpncp_id_vals(tpncp_events_id_vals, file);
-    fill_tpncp_id_vals(tpncp_commands_id_vals, file);
-    fill_enums_id_vals(file);
-    init_tpncp_data_fields_info(tpncp_events_info_db, file);
-    init_tpncp_data_fields_info(tpncp_commands_info_db, file);
+    g_free(tpncp_dat_file_path);
 
+    ret = fill_tpncp_id_vals(tpncp_events_id_vals, file);
+    if (ret != 0)
+        goto done;
+
+    ret = fill_tpncp_id_vals(tpncp_commands_id_vals, file);
+    if (ret != 0)
+        goto done;
+
+    ret = fill_enums_id_vals(file);
+    if (ret != 0)
+        goto done;
+
+    ret = init_tpncp_data_fields_info(tpncp_events_info_db, file);
+    if (ret != 0)
+        goto done;
+
+    ret = init_tpncp_data_fields_info(tpncp_commands_info_db, file);
+
+done:
     fclose(file);
 
-    return 0;
+    return ret;
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------*/
 
 void proto_reg_handoff_tpncp(void) {
     static gint tpncp_prefs_initialized = FALSE;
-    static dissector_handle_t tpncp_udp_handle, tpncp_tcp_handle;
+    static dissector_handle_t tpncp_tcp_handle;
 
     /*  If we weren't able to load the database (and thus the hf_ entries)
      *  do not attach to any ports (if we did then we'd get a "dissector bug"
@@ -730,29 +776,30 @@ void proto_reg_handoff_tpncp(void) {
      *  hf_ entry).
      */
     if (proto_tpncp == -1)
-	return;
+        return;
 
     if (!tpncp_prefs_initialized) {
-        tpncp_udp_handle = create_dissector_handle(dissect_tpncp, proto_tpncp);
-        tpncp_tcp_handle = create_dissector_handle(dissect_tpncp_tcp, proto_tpncp);
+        tpncp_tcp_handle = new_create_dissector_handle(dissect_tpncp_tcp, proto_tpncp);
 
         tpncp_prefs_initialized = TRUE;
     }
     else {
         dissector_delete_uint("tcp.port", trunkpack_tcp_port, tpncp_tcp_handle);
-        dissector_delete_uint("udp.port", trunkpack_udp_port, tpncp_udp_handle);
+        dissector_delete_uint("udp.port", trunkpack_udp_port, tpncp_handle);
         dissector_delete_uint("tcp.port", host_tcp_port,      tpncp_tcp_handle);
-        dissector_delete_uint("udp.port", host_udp_port,      tpncp_udp_handle);
+        dissector_delete_uint("udp.port", host_udp_port,      tpncp_handle);
     }
 
-    trunkpack_tcp_port = global_tpncp_trunkpack_tcp_port;
-    trunkpack_udp_port = global_tpncp_trunkpack_udp_port;
+    if(global_tpncp_load_db){
+        trunkpack_tcp_port = global_tpncp_trunkpack_tcp_port;
+        trunkpack_udp_port = global_tpncp_trunkpack_udp_port;
 
-    host_tcp_port = global_tpncp_host_tcp_port;
-    host_udp_port = global_tpncp_host_udp_port;
+        host_tcp_port = global_tpncp_host_tcp_port;
+        host_udp_port = global_tpncp_host_udp_port;
 
-    dissector_add_uint("tcp.port", global_tpncp_trunkpack_tcp_port, tpncp_tcp_handle);
-    dissector_add_uint("udp.port", global_tpncp_trunkpack_udp_port, tpncp_udp_handle);
+        dissector_add_uint("tcp.port", global_tpncp_trunkpack_tcp_port, tpncp_tcp_handle);
+        dissector_add_uint("udp.port", global_tpncp_trunkpack_udp_port, tpncp_handle);
+    }
 }
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -765,38 +812,50 @@ void proto_register_tpncp(void) {
         &ett_tpncp_body
     };
 
-    if (init_tpncp_db() == -1)
-        return;
-
     proto_tpncp = proto_register_protocol("AudioCodes TPNCP (TrunkPack Network Control Protocol)",
                                           "TPNCP", "tpncp");
-
-    /* Rather than duplicating large quantities of code from
-     * proto_register_field_array() and friends to sanitize the tpncp.dat file
-     * when we read it, just catch any exceptions we get while registering and
-     * take them as a hint that the file is corrupt. Then move on, so that at
-     * least the rest of the protocol dissectors will still work.
-     */
-    TRY {
-        /* The function proto_register_field_array does not work with dynamic
-         * arrays, so pass dynamic array elements one-by-one in the loop.
-         */
-        for(idx = 0; idx < hf_size; idx++) {
-            proto_register_field_array(proto_tpncp, &hf[idx], 1);
+    if(global_tpncp_load_db){
+        if (init_tpncp_db() == -1) {
+            g_warning("Could not load tpncp.dat file, tpncp dissector will not work");
+            return;
         }
+
+
+        /* Rather than duplicating large quantities of code from
+         * proto_register_field_array() and friends to sanitize the tpncp.dat file
+         * when we read it, just catch any exceptions we get while registering and
+         * take them as a hint that the file is corrupt. Then move on, so that at
+         * least the rest of the protocol dissectors will still work.
+         */
+        TRY {
+            /* The function proto_register_field_array does not work with dynamic
+             * arrays, so pass dynamic array elements one-by-one in the loop.
+             */
+            for(idx = 0; idx < hf_size; idx++) {
+                proto_register_field_array(proto_tpncp, &hf[idx], 1);
+            }
+        }
+
+        CATCH_ALL {
+            g_warning("Corrupt tpncp.dat file, tpncp dissector will not work.");
+        }
+
+        ENDTRY;
+
+        proto_register_subtree_array(ett, array_length(ett));
     }
 
-    CATCH_ALL {
-        g_warning("Corrupt tpncp.dat file, tpncp dissector will not work.");
-    }
-
-    ENDTRY;
-
-    proto_register_subtree_array(ett, array_length(ett));
-
-    register_dissector("tpncp", dissect_tpncp, proto_tpncp);
+    tpncp_handle = new_register_dissector("tpncp", dissect_tpncp, proto_tpncp);
 
     tpncp_module = prefs_register_protocol(proto_tpncp, proto_reg_handoff_tpncp);
+
+    /* See https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=9569 for some discussion on this as well */
+    prefs_register_bool_preference(tpncp_module, "load_db",
+    "Whether to load DB or not, if DB not loaded dissector is passive",
+    "Whether to load the Data base or not, not loading the DB "
+    "dissaables the protocol, Wireshar has to be restarted for the"
+    "setting to take effect ",
+    &global_tpncp_load_db);
 
     prefs_register_uint_preference(tpncp_module, "tcp.trunkpack_port",
                                    "TPNCP \"well-known\" TrunkPack TCP Port",
@@ -806,3 +865,16 @@ void proto_register_tpncp(void) {
                                    "TPNCP \"well-known\" TrunkPack UDP Port",
                                    "", 10, &global_tpncp_trunkpack_udp_port);
 }
+
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

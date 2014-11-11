@@ -1,8 +1,6 @@
 /* packet-rtnet.c
  * Routines for RTnet packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2003 by Erwin Rol <erwin@erwinrol.com>
  * Copyright (c) 2004 by Jan Kiszka <jan.kiszka@web.de>
  *
@@ -39,10 +37,16 @@
 /*
  * See
  *
- *	http://www.rtnet.org/
+ *        http://www.rtnet.org/
  *
- *	http://www.rts.uni-hannover.de/rtnet/lxr/source/Documentation/RTmac.spec
+ *        http://www.rts.uni-hannover.de/rtnet/lxr/source/Documentation/RTmac.spec
  */
+
+void proto_register_rtmac(void);
+void proto_reg_handoff_rtmac(void);
+
+void proto_register_rtcfg(void);
+void proto_reg_handoff_rtcfg(void);
 
 #define RTMAC_TYPE_TDMA     0x0001 /* since version 2    */
 #define RTMAC_TYPE_TDMA_V1  0x9031 /* first TDMA version */
@@ -398,10 +402,8 @@ dissect_rtnet_tdma_v1(tvbuff_t *tvb, packet_info *pinfo, proto_tree *root) {
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "TDMA-V1");
 
   /* set the info column */
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
+  col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
       val_to_str(msg, tdma_v1_msg_vals, "Unknown (0x%04x)"));
-  }
 
   if (root) {
     ti = proto_tree_add_item(root, proto_tdma, tvb, 0, -1, ENC_NA);
@@ -515,10 +517,8 @@ dissect_rtnet_tdma(tvbuff_t *tvb, packet_info *pinfo, proto_tree *root) {
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "TDMA");
 
   /* Set the info column */
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
+  col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
                  val_to_str(msg, tdma_msg_vals, "Unknown (0x%04x)"));
-  }
 
   if (root) {
     ti = proto_tree_add_item(root, proto_tdma, tvb, 0, -1, ENC_NA);
@@ -568,7 +568,7 @@ dissect_rtmac(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
   flags = tvb_get_guint8(tvb, offset+3);
 
   if (ver == 1) {
-    type_str = match_strval(type, rtmac_type_vals);
+    type_str = try_val_to_str(type, rtmac_type_vals);
     if (!type_str) {
       dissector = dissector_get_uint_handle(ethertype_table, type);
     }
@@ -590,10 +590,7 @@ dissect_rtmac(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "RTmac");
 
   /* set the info column */
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_clear(pinfo->cinfo,COL_INFO);
-    col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown (0x%04x)",type);
-  }
+  col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown (0x%04x)",type);
 
   if (rtmac_tree) {
     if (ver == 1) {
@@ -613,8 +610,8 @@ dissect_rtmac(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
           type_str = "Unknown";
       }
     }
-    proto_tree_add_string_format(rtmac_tree, hf_rtmac_header_type, tvb, offset, 2,
-                                 type_str, "Type: %s (0x%04x)", type_str, type);
+    proto_tree_add_string_format_value(rtmac_tree, hf_rtmac_header_type, tvb, offset, 2,
+                                 type_str, "%s (0x%04x)", type_str, type);
     offset += 2;
 
     proto_tree_add_item(rtmac_tree, hf_rtmac_header_ver, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -682,10 +679,8 @@ dissect_rtcfg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
   vers_id = tvb_get_guint8(tvb, offset);
 
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
+  col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
            val_to_str(vers_id, rtcfg_msg_vals, "Unknown (0x%04x)"));
-  }
 
   if( rtcfg_tree )
   {
@@ -733,7 +728,7 @@ dissect_rtcfg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
          if( config_length > 0 ) {
            proto_tree_add_item( rtcfg_tree, hf_rtcfg_config_data, tvb, offset, config_length, ENC_NA );
-           offset += config_length;
+           /*offset += config_length;*/
          }
 
          break;
@@ -765,7 +760,7 @@ dissect_rtcfg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
          offset += 1;
 
          proto_tree_add_item( rtcfg_tree, hf_rtcfg_burst_rate, tvb, offset, 1, ENC_BIG_ENDIAN );
-         offset += 1;
+         /*offset += 1;*/
 
          break;
 
@@ -796,7 +791,7 @@ dissect_rtcfg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
          offset += 1;
 
          proto_tree_add_item( rtcfg_tree, hf_rtcfg_padding, tvb, offset, 1, ENC_BIG_ENDIAN );
-         offset += 1;
+         /*offset += 1;*/
 
          break;
 
@@ -823,7 +818,7 @@ dissect_rtcfg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
          if( config_length > 0 ) {
            len = tvb_reported_length_remaining(tvb, offset);
            proto_tree_add_item( rtcfg_tree, hf_rtcfg_config_data, tvb, offset, len, ENC_NA );
-           offset += len;
+           /*offset += len;*/
          }
 
          break;
@@ -834,12 +829,12 @@ dissect_rtcfg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
          len = tvb_reported_length_remaining(tvb, offset);
          proto_tree_add_item( rtcfg_tree, hf_rtcfg_config_data, tvb, offset, len, ENC_NA );
-         offset += len;
+         /*offset += len;*/
          break;
 
        case RTCFG_MSG_ACK:
          proto_tree_add_item( rtcfg_tree, hf_rtcfg_ack_length, tvb, offset, 4, ENC_BIG_ENDIAN );
-         offset += 4;
+         /*offset += 4;*/
 
          break;
 
@@ -868,16 +863,16 @@ dissect_rtcfg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
          switch (pinfo->fd->lnk_t) {
            case WTAP_ENCAP_ETHERNET:
-             proto_tree_add_bytes_format( rtcfg_tree, hf_rtcfg_client_hw_address, tvb, offset, 32,
-                                          NULL, "Client Hardware Address: %s",
-					  tvb_ether_to_str(tvb, offset));
+             proto_tree_add_bytes_format_value( rtcfg_tree, hf_rtcfg_client_hw_address, tvb, offset, 32,
+                                          NULL, "%s",
+                                          tvb_ether_to_str(tvb, offset));
              break;
 
            default:
              proto_tree_add_item( rtcfg_tree, hf_rtcfg_client_hw_address, tvb, offset, 32, ENC_NA );
              break;
          }
-         offset += 32;
+         /*offset += 32;*/
 
          break;
 

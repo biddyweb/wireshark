@@ -1,8 +1,6 @@
 /* packet-pn.h
  * Common functions for other PROFINET protocols like DCP, MRP, ...
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1999 Gerald Combs
@@ -33,6 +31,8 @@ extern void init_pn(int proto);
 extern int dissect_pn_uint8(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                   proto_tree *tree, int hfindex, guint8 *pdata);
 
+extern int dissect_pn_uint16_ret_item(tvbuff_t *tvb, gint offset, packet_info *pinfo _U_,
+                       proto_tree *tree, int hfindex, guint16 *pdata, proto_item ** new_item);
 extern int dissect_pn_uint16(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                        proto_tree *tree, int hfindex, guint16 *pdata);
 

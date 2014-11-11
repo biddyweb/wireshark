@@ -5,8 +5,6 @@
  * Based on the code from packet-gvrp.c (GVRP) from
  * Kevin Shi <techishi@ms22.hinet.net> Copyright 2000
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,9 @@
 
 #include <epan/packet.h>
 #include <epan/llcsaps.h>
+
+void proto_register_gmrp(void);
+void proto_reg_handoff_gmrp(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_gmrp = -1;

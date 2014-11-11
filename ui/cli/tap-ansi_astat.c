@@ -3,8 +3,6 @@
  * Copyright 2003, Michael Lum <mlum [AT] telostech.com>
  * In association with Telos Technology Inc.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,8 +29,9 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet_info.h"
 #include "epan/value_string.h"
 #include <epan/tap.h>
@@ -40,6 +39,7 @@
 #include <epan/dissectors/packet-bssap.h>
 #include <epan/dissectors/packet-ansi_a.h>
 
+void register_tap_listener_ansi_astat(void);
 
 typedef struct _ansi_a_stat_t {
     int		bsmap_message_type[0xff];
@@ -83,7 +83,7 @@ static void
 ansi_a_stat_draw(
     void		*tapdata)
 {
-    ansi_a_stat_t	*stat_p = tapdata;
+    ansi_a_stat_t	*stat_p = (ansi_a_stat_t *)tapdata;
     guint8		i;
 
 
@@ -128,12 +128,12 @@ ansi_a_stat_draw(
 
 
 static void
-ansi_a_stat_init(const char *optarg _U_, void* userdata _U_)
+ansi_a_stat_init(const char *opt_arg _U_, void* userdata _U_)
 {
     ansi_a_stat_t	*stat_p;
     GString		*err_p;
 
-    stat_p = g_malloc(sizeof(ansi_a_stat_t));
+    stat_p = (ansi_a_stat_t *)g_malloc(sizeof(ansi_a_stat_t));
 
     memset(stat_p, 0, sizeof(ansi_a_stat_t));
 

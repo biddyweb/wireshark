@@ -1,8 +1,6 @@
 /* packet-tnef.c
  * Routines for Transport-Neutral Encapsulation Format (TNEF) packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2007 by Graeme Lunt
  *
  * Wireshark - Network traffic analyzer
@@ -30,7 +28,7 @@
 
 #include <epan/packet.h>
 #include <epan/addr_resolv.h>
-#include <epan/strutil.h>
+#include <epan/expert.h>
 
 #include <wiretap/tnef.h>
 
@@ -87,6 +85,9 @@
 #define ATT_TNEF_VERSION              (0x00089006) /* handled */
 #define ATT_OEM_CODEPAGE              (0x00069007) /* handled */
 #define ATT_ORIGINAL_MESSAGE_CLASS    (0x00079008) /* handled */
+
+void proto_register_tnef(void);
+void proto_reg_handoff_tnef(void);
 
 static int proto_tnef = -1;
 
@@ -164,6 +165,11 @@ static int ett_tnef_counted_items = -1;
 static int ett_tnef_attribute_date = -1;
 static int ett_tnef_attribute_address = -1;
 
+static expert_field ei_tnef_expect_single_item = EI_INIT;
+static expert_field ei_tnef_incorrect_signature = EI_INIT;
+
+static dissector_handle_t tnef_handle;
+
 static const value_string tnef_Lvl_vals[] = {
    {   1, "LVL-MESSAGE" },
    {   2, "LVL-ATTACHMENT" },
@@ -239,7 +245,7 @@ static const value_string tnef_Attribute_vals[] = {
 	{ 0, NULL }
 };
 
-static gint dissect_counted_values(tvbuff_t *tvb, gint offset, int hf_id,  packet_info *pinfo _U_, proto_tree *tree, gboolean single, gboolean unicode, guint encoding)
+static gint dissect_counted_values(tvbuff_t *tvb, gint offset, int hf_id,  packet_info *pinfo, proto_tree *tree, gboolean single, guint encoding)
 {
 	 proto_item *item;
 	 guint32 length, count, i;
@@ -249,10 +255,8 @@ static gint dissect_counted_values(tvbuff_t *tvb, gint offset, int hf_id,  packe
 
 	 if(count > 1) {
 		 if(single) {
-			 item = proto_tree_add_text(tree, tvb, offset, 4,
+			 item = proto_tree_add_expert_format(tree, pinfo, &ei_tnef_expect_single_item, tvb, offset, 4,
 						    "Expecting a single item but found %d", count);
-			 proto_item_set_expert_flags(item, PI_MALFORMED, PI_ERROR);
-
 			 tree = proto_item_add_subtree(item, ett_tnef_counted_items);
 		 }
 	 }
@@ -265,12 +269,7 @@ static gint dissect_counted_values(tvbuff_t *tvb, gint offset, int hf_id,  packe
 		 proto_tree_add_item(tree, hf_tnef_value_length, tvb, offset, 4, ENC_LITTLE_ENDIAN);
 		 offset += 4;
 
-		 if (unicode) {
-			 char *unicode_str = tvb_get_ephemeral_unicode_string(tvb, offset, length, ENC_LITTLE_ENDIAN);
-			 proto_tree_add_string(tree, hf_id, tvb, offset, length, unicode_str);
-		 } else {
-			 proto_tree_add_item(tree, hf_id, tvb, offset, length, encoding);
-		 }
+		 proto_tree_add_item(tree, hf_id, tvb, offset, length, encoding);
 		 offset += length;
 
 		 /* XXX: may be padding ? */
@@ -342,16 +341,13 @@ static void dissect_mapiprops(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
 	guint8      drep[] = {0x10 /* LE */, /* DCE_RPC_DREP_FP_IEEE */ 0 };
 	static dcerpc_info di;
 	static dcerpc_call_value call_data;
-	void        *old_private_data;
 
 	offset = 0;
 
 	di.conformant_run = 0;
 	/* we need di->call_data->flags.NDR64 == 0 */
 	di.call_data = &call_data;
-
-	old_private_data = pinfo->private_data;
-	pinfo->private_data = &di;
+    di.dcerpc_procedure_name = "";
 
 	/* first the count */
 	proto_tree_add_item(tree, hf_tnef_mapi_props_count, tvb, offset, 4, ENC_LITTLE_ENDIAN);
@@ -403,9 +399,7 @@ static void dissect_mapiprops(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
 				proto_tree_add_item(tag_tree, hf_tnef_property_tag_name_length, tvb, offset, 4, ENC_LITTLE_ENDIAN);
 				offset += 4;
 
-				name_string = tvb_get_ephemeral_unicode_string (tvb, offset, tag_length, ENC_LITTLE_ENDIAN);
-				proto_tree_add_string_format(tag_tree, hf_tnef_property_tag_name_string, tvb, offset,
-							     tag_length, name_string, "Name: %s", name_string);
+				proto_tree_add_item(tag_tree, hf_tnef_property_tag_name_string, tvb, offset, tag_length, ENC_UTF_16|ENC_LITTLE_ENDIAN);
 				offset += tag_length;
 
 				if((padding = (4 - tag_length % 4)) != 4) {
@@ -424,60 +418,59 @@ static void dissect_mapiprops(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
 			/* otherwise just use the type */
 			switch(tag & 0x0000ffff) {
 			case PT_I2:
-				offset = PIDL_dissect_uint16(tvb, offset, pinfo, prop_tree, drep, hf_tnef_PropValue_i, 0);
+				offset = PIDL_dissect_uint16(tvb, offset, pinfo, prop_tree, &di, drep, hf_tnef_PropValue_i, 0);
 				break;
 			case PT_LONG:
-				offset = PIDL_dissect_uint32(tvb, offset, pinfo, prop_tree, drep, hf_tnef_PropValue_l, 0);
+				offset = PIDL_dissect_uint32(tvb, offset, pinfo, prop_tree, &di, drep, hf_tnef_PropValue_l, 0);
 				break;
 			case PT_BOOLEAN:
-				offset = PIDL_dissect_uint16(tvb, offset, pinfo, prop_tree, drep, hf_tnef_PropValue_b, 0);
+				offset = PIDL_dissect_uint16(tvb, offset, pinfo, prop_tree, &di, drep, hf_tnef_PropValue_b, 0);
 				break;
 			case PT_STRING8:
 				/* XXX - code page? */
-				offset = dissect_counted_values(tvb, offset, hf_tnef_PropValue_lpszA, pinfo, prop_tree, TRUE, FALSE, ENC_ASCII|ENC_NA);
+				offset = dissect_counted_values(tvb, offset, hf_tnef_PropValue_lpszA, pinfo, prop_tree, TRUE, ENC_ASCII|ENC_NA);
 				break;
 			case PT_BINARY:
-				offset = dissect_counted_values(tvb, offset, hf_tnef_PropValue_bin, pinfo, prop_tree, TRUE, FALSE, ENC_NA);
+				offset = dissect_counted_values(tvb, offset, hf_tnef_PropValue_bin, pinfo, prop_tree, TRUE, ENC_NA);
 				break;
 			case PT_UNICODE:
-				/* XXX - UCS-2 and UTF-16 need ENC_ values */
-				offset = dissect_counted_values (tvb, offset, hf_tnef_PropValue_lpszW, pinfo, prop_tree, TRUE, TRUE, ENC_NA);
+				offset = dissect_counted_values (tvb, offset, hf_tnef_PropValue_lpszW, pinfo, prop_tree, TRUE, ENC_UTF_16|ENC_NA);
 				break;
 			case PT_CLSID:
-				offset = nspi_dissect_struct_MAPIUID(tvb, offset, pinfo, prop_tree, drep, hf_tnef_PropValue_lpguid, 0);
+				offset = nspi_dissect_struct_MAPIUID(tvb, offset, pinfo, prop_tree, &di, drep, hf_tnef_PropValue_lpguid, 0);
 				break;
 			case PT_SYSTIME:
-				offset = nspi_dissect_struct_FILETIME(tvb,offset,pinfo,prop_tree,drep,hf_tnef_PropValue_ft,0);
+				offset = nspi_dissect_struct_FILETIME(tvb,offset,pinfo,prop_tree,&di,drep,hf_tnef_PropValue_ft,0);
 				break;
 			case PT_ERROR:
-				offset = nspi_dissect_enum_MAPISTATUS(tvb, offset, pinfo, prop_tree, drep, hf_tnef_PropValue_err, 0);
+				offset = nspi_dissect_enum_MAPISTATUS(tvb, offset, pinfo, prop_tree, &di, drep, hf_tnef_PropValue_err, 0);
 				break;
 			 case PT_MV_I2:
-				 offset = nspi_dissect_struct_SShortArray(tvb,offset,pinfo,prop_tree,drep,hf_tnef_PropValue_MVi,0);
+				 offset = nspi_dissect_struct_SShortArray(tvb,offset,pinfo,prop_tree,&di,drep,hf_tnef_PropValue_MVi,0);
 				 break;
 			 case PT_MV_LONG:
-				 offset = nspi_dissect_struct_MV_LONG_STRUCT(tvb,offset,pinfo,prop_tree,drep,hf_tnef_PropValue_MVl,0);
+				 offset = nspi_dissect_struct_MV_LONG_STRUCT(tvb,offset,pinfo,prop_tree,&di,drep,hf_tnef_PropValue_MVl,0);
 				 break;
 			 case PT_MV_STRING8:
-				 offset = nspi_dissect_struct_SLPSTRArray(tvb,offset,pinfo,prop_tree,drep,hf_tnef_PropValue_MVszA,0);
+				 offset = nspi_dissect_struct_SLPSTRArray(tvb,offset,pinfo,prop_tree,&di,drep,hf_tnef_PropValue_MVszA,0);
 				 break;
 			 case PT_MV_BINARY:
-				 offset = nspi_dissect_struct_SBinaryArray(tvb,offset,pinfo,prop_tree,drep,hf_tnef_PropValue_MVbin,0);
+				 offset = nspi_dissect_struct_SBinaryArray(tvb,offset,pinfo,prop_tree,&di,drep,hf_tnef_PropValue_MVbin,0);
 				 break;
 			 case PT_MV_CLSID:
-				 offset = nspi_dissect_struct_SGuidArray(tvb,offset,pinfo,prop_tree,drep,hf_tnef_PropValue_MVguid,0);
+				 offset = nspi_dissect_struct_SGuidArray(tvb,offset,pinfo,prop_tree,&di,drep,hf_tnef_PropValue_MVguid,0);
 				 break;
 			 case PT_MV_UNICODE:
-				 offset = nspi_dissect_struct_MV_UNICODE_STRUCT(tvb,offset,pinfo,prop_tree,drep,hf_tnef_PropValue_MVszW,0);
+				 offset = nspi_dissect_struct_MV_UNICODE_STRUCT(tvb,offset,pinfo,prop_tree,&di,drep,hf_tnef_PropValue_MVszW,0);
 				 break;
 			 case PT_MV_SYSTIME:
-				 offset = nspi_dissect_struct_SDateTimeArray(tvb,offset,pinfo,prop_tree,drep,hf_tnef_PropValue_MVft,0);
+				 offset = nspi_dissect_struct_SDateTimeArray(tvb,offset,pinfo,prop_tree,&di,drep,hf_tnef_PropValue_MVft,0);
 				 break;
 			 case PT_NULL:
-				 offset = PIDL_dissect_uint32(tvb, offset, pinfo, prop_tree, drep, hf_tnef_PropValue_null, 0);
+				 offset = PIDL_dissect_uint32(tvb, offset, pinfo, prop_tree, &di, drep, hf_tnef_PropValue_null, 0);
 				 break;
 			 case PT_OBJECT:
-				 offset = PIDL_dissect_uint32(tvb, offset, pinfo, prop_tree, drep, hf_tnef_PropValue_object, 0);
+				 offset = PIDL_dissect_uint32(tvb, offset, pinfo, prop_tree, &di, drep, hf_tnef_PropValue_object, 0);
 				 break;
 			}
 		}
@@ -493,9 +486,6 @@ static void dissect_mapiprops(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
 
 		proto_item_set_len(prop_item, offset - start_offset);
 	}
-
-	/* restore private_data */
-	pinfo->private_data = old_private_data;
 }
 
 
@@ -522,10 +512,8 @@ static void dissect_tnef(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   /* check the signature */
   if(signature != TNEF_SIGNATURE) {
 
-    proto_item_append_text(item, " [Incorrect, should be 0x%x. No further dissection possible. Check any Content-Transfer-Encoding has been removed.]", TNEF_SIGNATURE);
-
-    proto_item_set_expert_flags(item, PI_MALFORMED, PI_WARN);
-
+    expert_add_info_format(pinfo, item, &ei_tnef_incorrect_signature,
+               " [Incorrect, should be 0x%x. No further dissection possible. Check any Content-Transfer-Encoding has been removed.]", TNEF_SIGNATURE);
     return;
 
   } else {
@@ -611,7 +599,7 @@ static void dissect_tnef(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		    break;
 	    case ATP_STRING:
 		    proto_tree_add_item(attr_tree, hf_tnef_attribute_string, tvb, offset, length, ENC_ASCII|ENC_NA);
-		    proto_item_append_text(attr_item, " %s", tvb_get_ephemeral_string(tvb, offset, length));
+		    proto_item_append_text(attr_item, " %s", tvb_get_string(wmem_packet_scope(), tvb, offset, length));
 		    break;
 	    default:
 		    proto_tree_add_item(attr_tree, hf_tnef_attribute_value, tvb, offset, length, ENC_NA);
@@ -814,13 +802,22 @@ proto_register_tnef(void)
     &ett_tnef_attribute_address,
   };
 
+  static ei_register_info ei[] = {
+     { &ei_tnef_expect_single_item, { "tnef.expect_single_item", PI_MALFORMED, PI_ERROR, "Expected single item", EXPFILL }},
+     { &ei_tnef_incorrect_signature, { "tnef.signature.incorrect", PI_MALFORMED, PI_WARN, "Incorrect signature", EXPFILL }},
+  };
+
+  expert_module_t* expert_tnef;
+
   proto_tnef = proto_register_protocol(PNAME, PSNAME, PFNAME);
 
   proto_register_field_array(proto_tnef, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_tnef = expert_register_protocol(proto_tnef);
+  expert_register_field_array(expert_tnef, ei, array_length(ei));
 
   /* Allow dissector to find be found by name. */
-  register_dissector(PFNAME, dissect_tnef, proto_tnef);
+  tnef_handle = register_dissector(PFNAME, dissect_tnef, proto_tnef);
 
 }
 
@@ -828,15 +825,14 @@ proto_register_tnef(void)
 void
 proto_reg_handoff_tnef(void)
 {
-  dissector_handle_t tnef_handle, tnef_file_handle;
+  dissector_handle_t tnef_file_handle;
 
-  tnef_handle = find_dissector(PFNAME);
   tnef_file_handle = create_dissector_handle(dissect_tnef_file, proto_tnef);
 
   dissector_add_string("media_type", "application/ms-tnef", tnef_handle);
 
   /* X.400 file transfer bodypart */
-  register_ber_oid_dissector("1.2.840.113556.3.10.1", dissect_tnef, proto_tnef, "id-et-tnef");
+  register_ber_oid_dissector_handle("1.2.840.113556.3.10.1", tnef_handle, proto_tnef, "id-et-tnef");
 
   dissector_add_uint("wtap_encap", WTAP_ENCAP_TNEF, tnef_file_handle);
 }

@@ -1,8 +1,6 @@
 /* conversations_wlan.c 2004 Giles Scott
  * modified from conversations_eth.c   2003 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,12 +36,14 @@
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/conversations_table.h"
 
+void register_tap_listener_wlan_conversation(void);
+
 static int
 wlan_conversation_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
 {
-	const wlan_hdr *whdr=vip;
+	const wlan_hdr *whdr=(const wlan_hdr *)vip;
 
-	add_conversation_table_data((conversations_table *)pct, &whdr->src, &whdr->dst, 0, 0, 1, pinfo->fd->pkt_len, &pinfo->fd->rel_ts, SAT_WLAN, PT_NONE);
+	add_conversation_table_data((conversations_table *)pct, &whdr->src, &whdr->dst, 0, 0, 1, pinfo->fd->pkt_len, &pinfo->rel_ts, SAT_WLAN, PT_NONE);
 
 	return 1;
 }

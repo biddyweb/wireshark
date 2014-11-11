@@ -5,8 +5,6 @@
  * Uwe Girlich <uwe@planetquake.com>
  *	http://www.synce.org/moin/ProtocolDocumentation/DesktopPassThrough
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,8 +34,11 @@
 #include <epan/packet.h>
 #include <epan/conversation.h>
 #include <epan/prefs.h>
+#include <epan/to_str.h>
 #include <epan/aftypes.h>
 #include <epan/ipproto.h>
+
+void proto_register_dtpt(void);
 
 static int proto_dtpt = -1;
 
@@ -232,7 +233,7 @@ dissect_dtpt_wstring(tvbuff_t *tvb, guint offset, proto_tree *tree, int hfindex)
 	guint32	wstring_padding = 0;
 
 	wstring_length = tvb_get_letohl(tvb, offset);
-	wstring_data = tvb_get_ephemeral_unicode_string(tvb, offset+4, wstring_length, ENC_LITTLE_ENDIAN);
+	wstring_data = tvb_get_string_enc(wmem_packet_scope(), tvb, offset+4, wstring_length, ENC_UTF_16|ENC_LITTLE_ENDIAN);
 	wstring_size = wstring_length;
 	if (wstring_size%4) {
 		wstring_padding = (4-wstring_size%4);
@@ -283,7 +284,7 @@ dissect_dtpt_guid(tvbuff_t *tvb, guint offset, proto_tree *tree, int hfindex)
 			guid_name = guids_get_guid_name(&guid);
 			if (guid_name != NULL)
 				proto_item_set_text(dtpt_guid_item, "%s: %s (%s)",
-				proto_registrar_get_name(hfindex), guid_name, guid_to_str(&guid));
+				proto_registrar_get_name(hfindex), guid_name, guid_to_ep_str(&guid));
 			dtpt_guid_tree = proto_item_add_subtree(dtpt_guid_item, ett_dtpt_guid);
 		}
 		if (dtpt_guid_tree) {
@@ -297,7 +298,7 @@ dissect_dtpt_guid(tvbuff_t *tvb, guint offset, proto_tree *tree, int hfindex)
 				if (guid_name != NULL && dtpt_guid_data_item != NULL) {
 					proto_item_set_text(dtpt_guid_data_item, "%s: %s (%s)",
 					proto_registrar_get_name(hf_dtpt_guid_data),
-					guid_name, guid_to_str(&guid));
+					guid_name, guid_to_ep_str(&guid));
 				}
 			}
 		}
@@ -721,8 +722,7 @@ dissect_dtpt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 	}
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "DTPT");
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_str(pinfo->cinfo, COL_INFO, val_to_str(message_type, names_message_type, "Unknown (%d)"));
+	col_add_str(pinfo->cinfo, COL_INFO, val_to_str(message_type, names_message_type, "Unknown (%d)"));
 
 	if (message_type == LookupBeginRequest) {
 		conversation_t *c;

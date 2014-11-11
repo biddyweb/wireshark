@@ -1,6 +1,4 @@
 <!--
-  $Id$
- 
   Wireshark - Network traffic analyzer
   By Gerald Combs <gerald@wireshark.org>
   Copyright 1998 Gerald Combs
@@ -22,6 +20,8 @@
 <RCC>
     <qresource prefix="/i18n">
         <file>qtshark_de.qm</file>
+        <file>qtshark_en.qm</file>
         <file>qtshark_fr.qm</file>
+        <file>qtshark_zh_CN.qm</file>
     </qresource>
 </RCC>

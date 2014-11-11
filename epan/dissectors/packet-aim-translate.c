@@ -2,8 +2,6 @@
  * Routines for AIM Instant Messenger (OSCAR) dissection, SNAC Translate
  * Copyright 2004, Jelmer Vernooij <jelmer@samba.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,7 +26,6 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/strutil.h>
 
 #include "packet-aim.h"
 

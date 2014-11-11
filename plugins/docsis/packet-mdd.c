@@ -1,5 +1,4 @@
 /* packet-mdd.c
- * $Id$
  * Routines for MDD Message dissection
  * Copyright 2007, Bruno Verstuyft  <bruno.verstuyft@excentis.com>
  *
@@ -131,8 +130,8 @@
 #define DSG_DA_TO_DSID_ASSOCIATION_DA 1
 #define DSG_DA_TO_DSID_ASSOCIATION_DSID 2
 
-
-
+void proto_register_docsis_mdd(void);
+void proto_reg_handoff_docsis_mdd(void);
 
 static const value_string J83_annex_vals[] = {
 	{J83_ANNEX_A, "J.83 Annex A"},
@@ -169,7 +168,7 @@ static const value_string mdd_tlv_vals[] = {
 	 {CM_STATUS_EVENT_CONTROL  , "CM-STATUS Event Control"},
 	 {UPSTREAM_TRANSMIT_POWER_REPORTING  , "Upstream Transmit Power Reporting"},
 	 {DSG_DA_TO_DSID_ASSOCIATION_ENTRY  , "DSG DA-to-DSID Association Entry"},
-	 {CM_STATUS_EVENT_ENABLE_NON_CHANNEL_SPECIFIC_EVENTS  , 
+	 {CM_STATUS_EVENT_ENABLE_NON_CHANNEL_SPECIFIC_EVENTS  ,
 		"CM-STATUS Event Enable for Non-Channel-Specific-Events"},
 	{0, NULL}
 };

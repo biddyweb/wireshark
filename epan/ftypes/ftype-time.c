@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -23,6 +21,7 @@
 #include "config.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
 
@@ -38,6 +37,7 @@
 #include <time.h>
 
 #include <ftypes-int.h>
+#include <epan/to_str.h>
 
 #ifdef NEED_STRPTIME_H
 #include "wsutil/strptime.h"
@@ -111,11 +111,11 @@ cmp_le(const fvalue_t *a, const fvalue_t *b)
  * Returns true on success, false on failure.
  */
 static gboolean
-get_nsecs(char *startp, int *nsecs)
+get_nsecs(const char *startp, int *nsecs)
 {
 	int ndigits;
 	int scale;
-	char *p;
+	const char *p;
 	int val;
 	int digit;
 	int i;
@@ -169,9 +169,10 @@ get_nsecs(char *startp, int *nsecs)
 }
 
 static gboolean
-relative_val_from_unparsed(fvalue_t *fv, char *s, gboolean allow_partial_value _U_, LogFunc logfunc)
+relative_val_from_unparsed(fvalue_t *fv, const char *s, gboolean allow_partial_value _U_, LogFunc logfunc)
 {
-	char    *curptr, *endptr;
+	const char    *curptr;
+	char *endptr;
         gboolean negative = FALSE;
 
 	curptr = s;
@@ -234,7 +235,7 @@ fail:
 
 
 static gboolean
-absolute_val_from_string(fvalue_t *fv, char *s, LogFunc logfunc)
+absolute_val_from_string(fvalue_t *fv, const char *s, LogFunc logfunc)
 {
 	struct tm tm;
 	char    *curptr;
@@ -298,7 +299,7 @@ fail:
 }
 
 static gboolean
-absolute_val_from_unparsed(fvalue_t *fv, char *s, gboolean allow_partial_value _U_, LogFunc logfunc)
+absolute_val_from_unparsed(fvalue_t *fv, const char *s, gboolean allow_partial_value _U_, LogFunc logfunc)
 {
 	return absolute_val_from_string(fv, s, logfunc);
 }
@@ -311,10 +312,9 @@ time_fvalue_new(fvalue_t *fv)
 }
 
 static void
-time_fvalue_set(fvalue_t *fv, gpointer value, gboolean already_copied)
+time_fvalue_set(fvalue_t *fv, const nstime_t *value)
 {
-	g_assert(!already_copied);
-	memcpy(&(fv->value.time), value, sizeof(nstime_t));
+	fv->value.time = *value;
 }
 
 static gpointer
@@ -324,21 +324,27 @@ value_get(fvalue_t *fv)
 }
 
 static int
-absolute_val_repr_len(fvalue_t *fv, ftrepr_t rtype _U_)
+absolute_val_repr_len(fvalue_t *fv, ftrepr_t rtype)
 {
 	gchar *rep;
 
-	rep = abs_time_to_str(&fv->value.time, ABSOLUTE_TIME_LOCAL,
-	    rtype == FTREPR_DISPLAY);
-	return (int)strlen(rep) + 2;	/* 2 for opening and closing quotes */
+	rep = abs_time_to_ep_str(&fv->value.time, ABSOLUTE_TIME_LOCAL,
+		rtype == FTREPR_DISPLAY);
+	return (int)strlen(rep) + ((rtype == FTREPR_DFILTER) ? 2 : 0);	/* 2 for opening and closing quotes */
 }
 
 static void
-absolute_val_to_repr(fvalue_t *fv, ftrepr_t rtype _U_, char *buf)
+absolute_val_to_repr(fvalue_t *fv, ftrepr_t rtype, char *buf)
 {
-	sprintf(buf, "\"%s\"",
-	    abs_time_to_str(&fv->value.time, ABSOLUTE_TIME_LOCAL,
-	        rtype == FTREPR_DISPLAY));
+	gchar *rep;
+
+	rep = abs_time_to_ep_str(&fv->value.time, ABSOLUTE_TIME_LOCAL,
+		rtype == FTREPR_DISPLAY);
+	if (rtype == FTREPR_DFILTER) {
+		sprintf(buf, "\"%s\"", rep);
+	} else {
+		strcpy(buf, rep);
+	}
 }
 
 static int
@@ -346,14 +352,14 @@ relative_val_repr_len(fvalue_t *fv, ftrepr_t rtype _U_)
 {
 	gchar *rep;
 
-	rep = rel_time_to_secs_str(&fv->value.time);
+	rep = rel_time_to_secs_ep_str(&fv->value.time);
 	return (int)strlen(rep);
 }
 
 static void
 relative_val_to_repr(fvalue_t *fv, ftrepr_t rtype _U_, char *buf)
 {
-	strcpy(buf, rel_time_to_secs_str(&fv->value.time));
+	strcpy(buf, rel_time_to_secs_ep_str(&fv->value.time));
 }
 
 void
@@ -372,7 +378,12 @@ ftype_register_time(void)
 		absolute_val_to_repr,		/* val_to_string_repr */
 		absolute_val_repr_len,		/* len_string_repr */
 
-		time_fvalue_set,		/* set_value */
+		NULL,				/* set_value_byte_array */
+		NULL,				/* set_value_bytes */
+		NULL,				/* set_value_guid */
+		time_fvalue_set,		/* set_value_time */
+		NULL,				/* set_value_string */
+		NULL,				/* set_value_tvbuff */
 		NULL,				/* set_value_uinteger */
 		NULL,				/* set_value_sinteger */
 		NULL,				/* set_value_integer64 */
@@ -409,7 +420,12 @@ ftype_register_time(void)
 		relative_val_to_repr,		/* val_to_string_repr */
 		relative_val_repr_len,		/* len_string_repr */
 
-		time_fvalue_set,		/* set_value */
+		NULL,				/* set_value_byte_array */
+		NULL,				/* set_value_bytes */
+		NULL,				/* set_value_guid */
+		time_fvalue_set,		/* set_value_time */
+		NULL,				/* set_value_string */
+		NULL,				/* set_value_tvbuff */
 		NULL,				/* set_value_uinteger */
 		NULL,				/* set_value_sinteger */
 		NULL,				/* set_value_integer64 */

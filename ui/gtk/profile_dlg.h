@@ -2,8 +2,6 @@
  * Definitions for dialog box for profiles editing.
  * Stig Bjorlykke <stig@bjorlykke.org>, 2008
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -58,7 +56,7 @@ void profile_delete_cb (GtkWidget *w _U_, gpointer data _U_);
  * @param w parent widget (unused)
  * @param data pointer to user_data (unused)
  */
-void profile_edit_cb (GtkWidget *w _U_, gpointer data _U_);
+void profile_rename_cb (GtkWidget *w _U_, gpointer data _U_);
 
 /** User requested the "Configuration Profiles" dialog box by menu or toolbar.
  *

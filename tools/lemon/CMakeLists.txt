@@ -1,7 +1,5 @@
 # CMakeLists.txt
 #
-# $Id: CMakeLists.txt 30460 2009-10-10 05:35:21Z krj $
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -42,5 +40,6 @@ set(lemon_LIBS
 )
 
 add_executable(lemon ${lemon_FILES})
+set_target_properties(lemon PROPERTIES FOLDER "tools")
 
 target_link_libraries(lemon ${lemon_LIBS})

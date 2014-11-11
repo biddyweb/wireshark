@@ -3,8 +3,6 @@
  * By Owen Kirby <osk@exegin.com>
  * Copyright 2009 Exegin Technologies Limited
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -47,6 +45,7 @@
 #define ZBEE_VERSION_PROTOTYPE      0 /* Does this even exist? */
 #define ZBEE_VERSION_2004           1 /* Re: 053474r06ZB_TSC-ZigBeeSpecification.pdf */
 #define ZBEE_VERSION_2007           2 /* Re: 053474r17ZB_TSC-ZigBeeSpecification.pdf */
+#define ZBEE_VERSION_GREEN_POWER    3 /* ZigBee Green Power */
 
 /* ZigBee version macro. */
 #define ZBEE_HAS_2003(x)            ((x) >= ZBEE_VERSION_2003)
@@ -398,6 +397,9 @@
 #define ZBEE_ZCL_FCF_PROFILE_WIDE           0x00
 #define ZBEE_ZCL_FCF_CLUSTER_SPEC           0x01
 
+#define ZBEE_ZCL_FCF_TO_SERVER              0x00
+#define ZBEE_ZCL_FCF_TO_CLIENT              0x01
+
 /* Manufacturer Codes */
 /* Codes less than 0x1000 were issued for RF4CE */
 #define ZBEE_MFG_CODE_SAMSUNG           0x0003
@@ -574,6 +576,7 @@
 /**/
 /**/
 #define ZBEE_MFG_CODE_MAINSTREAM        0x10cc
+#define ZBEE_MFG_CODE_INDESIT_C         0x10cd
 /**/
 #define ZBEE_MFG_CODE_RADIOCRAFTS       0x10dd
 /**/
@@ -585,6 +588,8 @@
 #define ZBEE_MFG_CODE_ABB               0x10eb
 /**/
 #define ZBEE_MFG_CODE_GENUS             0x10ed
+/**/
+#define ZBEE_MFG_CODE_RELOC             0x1114
 
 /* Manufacturer Names */
 #define ZBEE_MFG_CIRRONET       "Cirronet"
@@ -737,7 +742,7 @@
 /**/
 #define ZBEE_MFG_HOME_AUTO      "Home Automation Inc."
 /**/
-#define ZBEE_MFG_SUNRISE        "Sunrise Technologies" 
+#define ZBEE_MFG_SUNRISE        "Sunrise Technologies"
 #define ZBEE_MFG_MEMTEC         "Memtec Corp"
 /**/
 #define ZBEE_MFG_BRITISH_GAS    "British Gas"
@@ -762,6 +767,7 @@
 #define ZBEE_MFG_SAMSUNG        "Samsung Electronics Co., Ltd."
 /**/
 #define ZBEE_MFG_MAINSTREAM     "Mainstream Engineering"
+#define ZBEE_MFG_INDESIT_C      "Indesit Company"
 /**/
 #define ZBEE_MFG_RADIOCRAFTS    "Radiocrafts AS"
 /**/
@@ -772,11 +778,31 @@
 #define ZBEE_MFG_ABB            "ABB"
 /**/
 #define ZBEE_MFG_GENUS          "Genus Power Infrastructures Limited"
+/**/
+#define ZBEE_MFG_RELOC          "RELOC"
 
 /* Protocol Abbreviations */
-#define ZBEE_PROTOABBREV_NWK    "zbee_nwk"
-#define ZBEE_PROTOABBREV_APS    "zbee_aps"
-#define ZBEE_PROTOABBREV_APF    "zbee_apf"
+#define ZBEE_PROTOABBREV_NWK                "zbee_nwk"
+#define ZBEE_PROTOABBREV_NWK_GP             "zbee_nwk_gp"
+#define ZBEE_PROTOABBREV_APS                "zbee_aps"
+#define ZBEE_PROTOABBREV_APF                "zbee_apf"
+#define ZBEE_PROTOABBREV_ZCL                "zbee_zcl"
+#define ZBEE_PROTOABBREV_ZCL_APPLCTRL       "zbee_zcl_general.applctrl"
+#define ZBEE_PROTOABBREV_ZCL_BASIC          "zbee_zcl_general.basic"
+#define ZBEE_PROTOABBREV_ZCL_IDENTIFY       "zbee_zcl_general.identify"
+#define ZBEE_PROTOABBREV_ZCL_APPLEVTALT     "zbee_zcl_ha.applevtalt"
+#define ZBEE_PROTOABBREV_ZCL_APPLIDT        "zbee_zcl_ha.applident"
+#define ZBEE_PROTOABBREV_ZCL_APPLSTATS      "zbee_zcl_ha.applstats"
+#define ZBEE_PROTOABBREV_ZCL_METIDT         "zbee_zcl_ha.metidt"
+#define ZBEE_PROTOABBREV_ZCL_ONOFF          "zbee_zcl_general.onoff"
+#define ZBEE_PROTOABBREV_ZCL_OTA            "zbee_zcl_general.ota"
+#define ZBEE_PROTOABBREV_ZCL_PART           "zbee_zcl_general.part"
+#define ZBEE_PROTOABBREV_ZCL_PWRPROF        "zbee_zcl_general.pwrprof"
+#define ZBEE_PROTOABBREV_ZCL_ILLUMMEAS      "zbee_zcl_meas_sensing.illummeas"
+#define ZBEE_PROTOABBREV_ZCL_PRESSMEAS      "zbee_zcl_meas_sensing.pressmeas"
+#define ZBEE_PROTOABBREV_ZCL_RELHUMMEAS     "zbee_zcl_meas_sensing.relhummeas"
+#define ZBEE_PROTOABBREV_ZCL_TEMPMEAS       "zbee_zcl_meas_sensing.tempmeas"
+#define ZBEE_PROTOABBREV_ZCL_MSG            "zbee_zcl_se.msg"
 
 /* Helper Functions */
 extern guint zbee_get_bit_field(guint input, guint mask);

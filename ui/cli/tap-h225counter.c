@@ -2,8 +2,6 @@
  * h225 message counter for wireshark
  * Copyright 2003 Lars Roland
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,8 +24,9 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet.h"
 #include "epan/packet_info.h"
 #include <epan/tap.h>
@@ -53,6 +52,7 @@
 #define REL_CMP_REASONS 26
 #define FACILITY_REASONS 11
 
+void register_tap_listener_h225counter(void);
 
 /* used to keep track of the statistics for an entire program interface */
 typedef struct _h225counter_t {
@@ -343,14 +343,14 @@ h225counter_draw(void *phs)
 
 
 static void
-h225counter_init(const char *optarg, void* userdata _U_)
+h225counter_init(const char *opt_arg, void* userdata _U_)
 {
 	h225counter_t *hs;
 	GString *error_string;
 
 	hs = g_new(h225counter_t,1);
-	if(!strncmp(optarg,"h225,counter,",13)){
-		hs->filter=g_strdup(optarg+13);
+	if(!strncmp(opt_arg,"h225,counter,",13)){
+		hs->filter=g_strdup(opt_arg+13);
 	} else {
 		hs->filter=NULL;
 	}

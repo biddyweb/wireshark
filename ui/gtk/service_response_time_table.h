@@ -3,22 +3,20 @@
  * Helper routines common to all service response time statistics
  * tap.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
- * 
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
@@ -28,8 +26,8 @@
 #define __SERVICE_RESPONSE_TIME_TABLE_H__
 
 #include <gtk/gtk.h>
-#include "epan/nstime.h"
-#include "../timestats.h"
+#include "wsutil/nstime.h"
+#include "epan/timestats.h"
 
 /** @file
  *  Helper routines common to all service response time statistics tap.
@@ -48,7 +46,7 @@ typedef struct _srt_stat_table {
 	GtkWidget *scrolled_window; /**< window widget */
 	GtkTreeView  *table;        /**< Tree view */
 	GtkWidget *menu;            /**< context menu */
-	char *filter_string;        /**< append procedure number (%d) to this string 
+	char *filter_string;        /**< append procedure number (%d) to this string
 				to create a display filter */
 	int num_procs;              /**< number of elements on procedures array */
 	srt_procedure_t *procedures;/**< the procedures array */

@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-cmip.h                                                              */
 /* ../../tools/asn2wrs.py -b -p cmip -c ./cmip.cnf -s ./packet-cmip-template -D . -O ../../epan/dissectors CMIP-1.asn CMIP-A-ABORT-Information.asn CMIP-A-ASSOCIATE-Information.asn ../x721/Attribute-ASN1Module.asn ../ros/Remote-Operations-Information-Objects.asn ../ros/Remote-Operations-Generic-ROS-PDUs.asn */
 
@@ -9,8 +9,6 @@
 /* packet-cmip.h
  * Routines for X.711 CMIP packet dissection
  *   Ronnie Sahlberg 2004
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -57,7 +55,7 @@ int dissect_cmip_ProbableCause(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
 int dissect_cmip_ROS(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_);
 
 /*--- End of included file: packet-cmip-exp.h ---*/
-#line 30 "../../asn1/cmip/packet-cmip-template.h"
+#line 28 "../../asn1/cmip/packet-cmip-template.h"
 
 #endif  /* PACKET_CMIP_H */
 

@@ -3,8 +3,6 @@
  *
  * Copyright 2004, Luis E. Garcia Ontanon <gopo@webflies.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,9 @@
 
 #include "mate.h"
 
+void proto_register_mate(void);
+void proto_reg_handoff_mate(void);
+
 static int mate_tap_data = 0;
 static mate_config* mc = NULL;
 
@@ -52,7 +53,7 @@ static void pdu_attrs_tree(proto_tree* tree, tvbuff_t *tvb, mate_pdu* pdu) {
 	avpl_t = proto_item_add_subtree(avpl_i, pdu->cfg->ett_attr);
 
 	for ( c = pdu->avpl->null.next; c->avp; c = c->next) {
-		hfi_p = g_hash_table_lookup(pdu->cfg->my_hfids,(char*)c->avp->n);
+		hfi_p = (int *)g_hash_table_lookup(pdu->cfg->my_hfids,(char*)c->avp->n);
 
 		if (hfi_p) {
 			proto_tree_add_string(avpl_t,*hfi_p,tvb,0,0,c->avp->v);
@@ -73,7 +74,7 @@ static void gop_attrs_tree(proto_tree* tree, tvbuff_t *tvb, mate_gop* gop) {
 	avpl_t = proto_item_add_subtree(avpl_i, gop->cfg->ett_attr);
 
 	for ( c = gop->avpl->null.next; c->avp; c = c->next) {
-		hfi_p = g_hash_table_lookup(gop->cfg->my_hfids,(char*)c->avp->n);
+		hfi_p = (int *)g_hash_table_lookup(gop->cfg->my_hfids,(char*)c->avp->n);
 
 		if (hfi_p) {
 			proto_tree_add_string(avpl_t,*hfi_p,tvb,0,0,c->avp->v);
@@ -94,7 +95,7 @@ static void gog_attrs_tree(proto_tree* tree, tvbuff_t *tvb, mate_gog* gog) {
 	avpl_t = proto_item_add_subtree(avpl_i, gog->cfg->ett_attr);
 
 	for ( c = gog->avpl->null.next; c->avp; c = c->next) {
-		hfi_p = g_hash_table_lookup(gog->cfg->my_hfids,(char*)c->avp->n);
+		hfi_p = (int *)g_hash_table_lookup(gog->cfg->my_hfids,(char*)c->avp->n);
 
 		if (hfi_p) {
 			proto_tree_add_string(avpl_t,*hfi_p,tvb,0,0,c->avp->v);

@@ -2,8 +2,6 @@
  * Routines for H.283 packet dissection
  * 2007  Tomas Kukosa
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,6 +33,9 @@
 #define PNAME  "H.283 Logical Channel Transport"
 #define PSNAME "LCT"
 #define PFNAME "lct"
+
+void proto_register_h283(void);
+void proto_reg_handoff_h283(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_h283 = -1;

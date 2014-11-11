@@ -1,7 +1,5 @@
 /* packet-btl2cap.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -24,15 +22,20 @@
 #ifndef __PACKET_BTL2CAP_H__
 #define __PACKET_BTL2CAP_H__
 
-#define BTL2CAP_PSM_SDP             0x0001
-#define BTL2CAP_PSM_RFCOMM          0x0003
-#define BTL2CAP_PSM_BNEP            0x000f
-#define BTL2CAP_PSM_HID_CTRL        0x0011
-#define BTL2CAP_PSM_HID_INTR        0x0013
-#define BTL2CAP_PSM_AVCTP_CTRL      0x0017
-#define BTL2CAP_PSM_AVDTP           0x0019
-#define BTL2CAP_PSM_AVCTP_BRWS      0x001b
-#define BTL2CAP_PSM_ATT             0x001f
+#define BTL2CAP_PSM_SDP               0x0001
+#define BTL2CAP_PSM_RFCOMM            0x0003
+#define BTL2CAP_PSM_TCS_BIN           0x0005
+#define BTL2CAP_PSM_TCS_BIN_CORDLESS  0x0007
+#define BTL2CAP_PSM_BNEP              0x000f
+#define BTL2CAP_PSM_HID_CTRL          0x0011
+#define BTL2CAP_PSM_HID_INTR          0x0013
+#define BTL2CAP_PSM_UPNP              0x0015
+#define BTL2CAP_PSM_AVCTP_CTRL        0x0017
+#define BTL2CAP_PSM_AVDTP             0x0019
+#define BTL2CAP_PSM_AVCTP_BRWS        0x001b
+#define BTL2CAP_PSM_UDI_C_PLANE       0x001d
+#define BTL2CAP_PSM_ATT               0x001f
+#define BTL2CAP_PSM_3DS               0x0021
 
 #define BTL2CAP_DYNAMIC_PSM_START   0x1000
 
@@ -44,20 +47,19 @@
 #define BTL2CAP_FIXED_CID_LE_SIGNAL 0x0005
 #define BTL2CAP_FIXED_CID_SMP       0x0006
 #define BTL2CAP_FIXED_CID_AMP_TEST  0x003F
-#define BTL2CAP_FIXED_CID_MAX       0x0040
+#define BTL2CAP_FIXED_CID_LAST      0x003F
 
-/* This structure is passed to higher layer protocols through
- * pinfo->private_data so that they can track "conversations" based on
- * chandle, cid and direction
- */
 typedef struct _btl2cap_data_t {
     guint32   interface_id;
     guint32   adapter_id;
     guint16   chandle;  /* only low 12 bits used */
     guint16   cid;
+    gboolean  is_local_psm; /* otherwise it is PSM in remote device */
     guint16   psm;
     guint32   first_scid_frame;
     guint32   first_dcid_frame;
+    guint32   remote_bd_addr_oui;
+    guint32   remote_bd_addr_id;
 } btl2cap_data_t;
 
 #endif

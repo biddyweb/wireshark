@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -33,7 +31,6 @@
 #include <epan/epan_dissect.h>
 #include "dfilter.h"
 #include "dfilter-macro.h"
-#include <epan/report_err.h>
 
 #define DFILTER_TOKEN_ID_OFFSET	1
 
@@ -217,6 +214,7 @@ dfilter_compile(const gchar *text, dfilter_t **dfp)
 	gboolean failure = FALSE;
 	const char	*depr_test;
 	guint		i;
+	/* XXX, GHashTable */
 	GPtrArray	*deprecated;
 
 	g_assert(dfp);
@@ -319,7 +317,7 @@ dfilter_compile(const gchar *text, dfilter_t **dfp)
 	else {
 
 		/* Check semantics and do necessary type conversion*/
-		if (!dfw_semcheck(dfw)) {
+		if (!dfw_semcheck(dfw, deprecated)) {
 			goto FAILURE;
 		}
 

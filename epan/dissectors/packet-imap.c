@@ -2,8 +2,6 @@
  * Routines for imap packet dissection
  * Copyright 1999, Richard Sharpe <rsharpe@ns.aus.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,10 +27,14 @@
 
 #include <epan/packet.h>
 #include <epan/strutil.h>
+#include <epan/wmem/wmem.h>
 #include "packet-ssl.h"
 
 #include <stdio.h>
 #include <ctype.h>
+
+void proto_register_imap(void);
+void proto_reg_handoff_imap(void);
 
 static int proto_imap = -1;
 static int hf_imap_isrequest = -1;
@@ -48,6 +50,8 @@ static int hf_imap_request_uid = -1;
 
 static gint ett_imap = -1;
 static gint ett_imap_reqresp = -1;
+
+static dissector_handle_t imap_handle;
 
 #define TCP_PORT_IMAP			143
 #define TCP_PORT_SSL_IMAP		993
@@ -78,8 +82,8 @@ dissect_imap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	int             iter;
 	int             commandlen;
 
-	tokenbuf = ep_alloc(MAX_BUFFER);
-	command_token = ep_alloc(MAX_BUFFER);
+	tokenbuf = (guchar *)wmem_alloc(wmem_packet_scope(), MAX_BUFFER);
+	command_token = (guchar *)wmem_alloc(wmem_packet_scope(), MAX_BUFFER);
 	memset(tokenbuf, '\0', MAX_BUFFER);
 	memset(command_token, '\0', MAX_BUFFER);
 	commandlen = 0;
@@ -94,18 +98,16 @@ dissect_imap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	else
 		is_request = FALSE;
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		/*
-		 * Put the first line from the buffer into the summary
-		 * (but leave out the line terminator).
-		 */
-		linelen = tvb_find_line_end(tvb, offset, -1, &next_offset, FALSE);
-		line = tvb_get_ptr(tvb, offset, linelen);
+	/*
+	 * Put the first line from the buffer into the summary
+	 * (but leave out the line terminator).
+	 */
+	linelen = tvb_find_line_end(tvb, offset, -1, &next_offset, FALSE);
+	line = tvb_get_ptr(tvb, offset, linelen);
 
-		col_add_fstr(pinfo->cinfo, COL_INFO, "%s: %s",
+	col_add_fstr(pinfo->cinfo, COL_INFO, "%s: %s",
 			     is_request ? "Request" : "Response",
 			     format_text(line, linelen));
-	}
 
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_imap, tvb, offset, -1, ENC_NA);
@@ -114,7 +116,7 @@ dissect_imap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		hidden_item = proto_tree_add_boolean(imap_tree, hf_imap_isrequest, tvb, 0, 0, is_request);
 		PROTO_ITEM_SET_HIDDEN(hidden_item);
 
-		while(tvb_length_remaining(tvb, offset) > 2) {
+		while(tvb_length_remaining(tvb, offset) > 0) {
 
 			/*
 			 * Find the end of each line
@@ -158,7 +160,7 @@ dissect_imap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			  }
 
 			  /*
-			   * Extract second token, and, if there is a second 
+			   * Extract second token, and, if there is a second
 			   * token, and it's not uid, add it as the request or reply command.
 			   */
 			  tokenlen = get_token_len(line, line + linelen, &next_token);
@@ -169,7 +171,7 @@ dissect_imap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			    if ( TRUE == is_request && strncmp(tokenbuf,"uid",tokenlen) == 0) {
 			      proto_tree_add_item(reqresp_tree, hf_imap_request_uid, tvb, offset, tokenlen, ENC_ASCII|ENC_NA);
 			      /*
-			       * UID is a precursor to a command, if following the tag, 
+			       * UID is a precursor to a command, if following the tag,
                                * so move to next token to grab the actual command.
                                */
 			      uid_offset = offset;
@@ -212,7 +214,7 @@ dissect_imap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				folder_offset = offset;
 				folder_offset += (gint) (next_token - line);
 				folder_line = next_token;
-				folder_tokenlen = get_token_len(folder_line, folder_line + (linelen - tokenlen), &folder_next_token);
+				folder_tokenlen = get_token_len(folder_line, folder_line + (linelen - tokenlen - 1), &folder_next_token);
 			      }
 			    }
 
@@ -261,7 +263,7 @@ dissect_imap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 			}
 
-			offset += linelen+2; /* Skip over last line and \r\n at the end of it */
+			offset = next_offset; /* Skip over last line and \r\n at the end of it */
 		}
 	}
 }
@@ -289,7 +291,9 @@ proto_register_imap(void)
 
 	proto_imap = proto_register_protocol("Internet Message Access Protocol",
 					   "IMAP", "imap");
-	register_dissector("imap", dissect_imap, proto_imap);
+
+	imap_handle = register_dissector("imap", dissect_imap, proto_imap);
+
 	proto_register_field_array(proto_imap, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
 }
@@ -297,9 +301,6 @@ proto_register_imap(void)
 void
 proto_reg_handoff_imap(void)
 {
-	dissector_handle_t imap_handle;
-
-	imap_handle = create_dissector_handle(dissect_imap, proto_imap);
 	dissector_add_uint("tcp.port", TCP_PORT_IMAP, imap_handle);
 	ssl_dissector_add(TCP_PORT_SSL_IMAP, "imap", TRUE);
 }

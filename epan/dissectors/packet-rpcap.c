@@ -4,8 +4,6 @@
  *
  * Copyright 2008, Stig Bjorlykke <stig@bjorlykke.org>, Thales Norway AS
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -43,6 +41,7 @@
 #include <epan/prefs.h>
 #include <epan/to_str.h>
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
 
 #include <wiretap/wtap.h>
 
@@ -105,6 +104,7 @@
 #define FLAG_INBOUND     0x0008
 #define FLAG_OUTBOUND    0x0010
 
+void proto_register_rpcap (void);
 void proto_reg_handoff_rpcap (void);
 
 static int proto_rpcap = -1;
@@ -219,6 +219,11 @@ static gint ett_findalldevs_if = -1;
 static gint ett_findalldevs_ifaddr = -1;
 static gint ett_ifaddr = -1;
 static gint ett_sampling_request = -1;
+
+static expert_field ei_error = EI_INIT;
+static expert_field ei_if_unknown = EI_INIT;
+static expert_field ei_no_more_data = EI_INIT;
+static expert_field ei_caplen_too_big = EI_INIT;
 
 static dissector_handle_t data_handle;
 
@@ -386,13 +391,11 @@ dissect_rpcap_error (tvbuff_t *tvb, packet_info *pinfo,
   if (len <= 0)
     return;
 
-  if (check_col (pinfo->cinfo, COL_INFO)) {
-    col_append_fstr (pinfo->cinfo, COL_INFO, ": %s",
+  col_append_fstr (pinfo->cinfo, COL_INFO, ": %s",
 		     tvb_format_text_wsp (tvb, offset, len));
-  }
 
   ti = proto_tree_add_item (parent_tree, hf_error, tvb, offset, len, ENC_ASCII|ENC_NA);
-  expert_add_info_format (pinfo, ti, PI_SEQUENCE, PI_NOTE,
+  expert_add_info_format(pinfo, ti, &ei_error,
 			  "Error: %s", tvb_format_text_wsp (tvb, offset, len));
 }
 
@@ -433,7 +436,7 @@ dissect_rpcap_ifaddr (tvbuff_t *tvb, packet_info *pinfo,
   } else {
     ti = proto_tree_add_item (tree, hf_if_unknown, tvb, offset, 126, ENC_NA);
     if (af != AF_UNSPEC) {
-      expert_add_info_format (pinfo, ti, PI_UNDECODED, PI_CHAT,
+      expert_add_info_format(pinfo, ti, &ei_if_unknown,
 			      "Unknown address family: %d", af);
     }
     offset += 126;
@@ -496,7 +499,7 @@ dissect_rpcap_findalldevs_if (tvbuff_t *tvb, packet_info *pinfo _U_,
   offset += 2;
 
   if (namelen) {
-    proto_item_append_text (ti, ": %s", tvb_get_ephemeral_string (tvb, offset, namelen));
+    proto_item_append_text (ti, ": %s", tvb_get_string (wmem_packet_scope(), tvb, offset, namelen));
     proto_tree_add_item (tree, hf_if_name, tvb, offset, namelen, ENC_ASCII|ENC_NA);
     offset += namelen;
   }
@@ -510,7 +513,7 @@ dissect_rpcap_findalldevs_if (tvbuff_t *tvb, packet_info *pinfo _U_,
     offset = dissect_rpcap_findalldevs_ifaddr (tvb, pinfo, tree, offset);
     if (tvb_length_remaining (tvb, offset) < 0) {
       /* No more data in packet */
-      expert_add_info_format (pinfo, ti, PI_MALFORMED, PI_ERROR, "No more data in packet");
+      expert_add_info(pinfo, ti, &ei_no_more_data);
       break;
     }
   }
@@ -536,7 +539,7 @@ dissect_rpcap_findalldevs_reply (tvbuff_t *tvb, packet_info *pinfo _U_,
     offset = dissect_rpcap_findalldevs_if (tvb, pinfo, tree, offset);
     if (tvb_length_remaining (tvb, offset) < 0) {
       /* No more data in packet */
-      expert_add_info_format (pinfo, ti, PI_MALFORMED, PI_ERROR, "No more data in packet");
+      expert_add_info(pinfo, ti, &ei_no_more_data);
       break;
     }
   }
@@ -551,7 +554,7 @@ dissect_rpcap_filterbpf_insn (tvbuff_t *tvb, packet_info *pinfo _U_,
 {
   proto_tree *tree, *code_tree;
   proto_item *ti, *code_ti;
-  guint8 class;
+  guint8 inst_class;
 
   ti = proto_tree_add_item (parent_tree, hf_filterbpf_insn, tvb, offset, 8, ENC_NA);
   tree = proto_item_add_subtree (ti, ett_filterbpf_insn);
@@ -559,9 +562,9 @@ dissect_rpcap_filterbpf_insn (tvbuff_t *tvb, packet_info *pinfo _U_,
   code_ti = proto_tree_add_item (tree, hf_code, tvb, offset, 2, ENC_BIG_ENDIAN);
   code_tree = proto_item_add_subtree (code_ti, ett_filterbpf_insn_code);
   proto_tree_add_item (code_tree, hf_code_class, tvb, offset, 2, ENC_BIG_ENDIAN);
-  class = tvb_get_guint8 (tvb, offset + 1) & 0x07;
-  proto_item_append_text (ti, ": %s", val_to_str_const (class, bpf_class, ""));
-  switch (class) {
+  inst_class = tvb_get_guint8 (tvb, offset + 1) & 0x07;
+  proto_item_append_text (ti, ": %s", val_to_str_const (inst_class, bpf_class, ""));
+  switch (inst_class) {
   case 0x00: /* ld */
   case 0x01: /* ldx */
     proto_tree_add_item (code_tree, hf_code_ld_size, tvb, offset, 2, ENC_BIG_ENDIAN);
@@ -625,7 +628,7 @@ dissect_rpcap_filter (tvbuff_t *tvb, packet_info *pinfo,
     offset = dissect_rpcap_filterbpf_insn (tvb, pinfo, tree, offset);
     if (tvb_length_remaining (tvb, offset) < 0) {
       /* No more data in packet */
-      expert_add_info_format (pinfo, ti, PI_MALFORMED, PI_ERROR, "No more data in packet");
+      expert_add_info(pinfo, ti, &ei_no_more_data);
       break;
     }
   }
@@ -663,11 +666,11 @@ dissect_rpcap_auth_request (tvbuff_t *tvb, packet_info *pinfo _U_,
   } else if (type == RPCAP_RMTAUTH_PWD) {
     guint8 *username, *password;
 
-    username = tvb_get_ephemeral_string (tvb, offset, slen1);
+    username = tvb_get_string (wmem_packet_scope(), tvb, offset, slen1);
     proto_tree_add_item (tree, hf_auth_username, tvb, offset, slen1, ENC_ASCII|ENC_NA);
     offset += slen1;
 
-    password = tvb_get_ephemeral_string (tvb, offset, slen2);
+    password = tvb_get_string (wmem_packet_scope(), tvb, offset, slen2);
     proto_tree_add_item (tree, hf_auth_password, tvb, offset, slen2, ENC_ASCII|ENC_NA);
     offset += slen2;
 
@@ -733,7 +736,7 @@ dissect_rpcap_startcap_request (tvbuff_t *tvb, packet_info *pinfo,
   proto_tree_add_item (field_tree, hf_flags_outbound, tvb, offset, 2, ENC_BIG_ENDIAN);
 
   if (flags & 0x1F) {
-    gchar *flagstr = ep_strdup_printf ("%s%s%s%s%s",
+    gchar *flagstr = wmem_strdup_printf (wmem_packet_scope(), "%s%s%s%s%s",
 	  (flags & FLAG_PROMISC)    ? ", Promiscuous" : "",
 	  (flags & FLAG_DGRAM)      ? ", Datagram"    : "",
 	  (flags & FLAG_SERVEROPEN) ? ", ServerOpen"  : "",
@@ -878,8 +881,7 @@ dissect_rpcap_packet (tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree,
    */
   reported_length_remaining = tvb_length_remaining (tvb, offset);
   if (caplen > (guint)reported_length_remaining) {
-    expert_add_info_format (pinfo, ti, PI_MALFORMED, PI_ERROR,
-			  "Caplen is bigger than the remaining message length");
+    expert_add_info(pinfo, ti, &ei_caplen_too_big);
     return;
   }
 
@@ -906,8 +908,8 @@ dissect_rpcap_packet (tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree,
 }
 
 
-static void
-dissect_rpcap (tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree)
+static int
+dissect_rpcap (tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree, void* data _U_)
 {
   proto_tree *tree;
   proto_item *ti;
@@ -930,10 +932,8 @@ dissect_rpcap (tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree)
   proto_tree_add_item (tree, hf_type, tvb, offset, 1, ENC_BIG_ENDIAN);
   offset++;
 
-  if (check_col (pinfo->cinfo, COL_INFO)) {
-    col_append_fstr (pinfo->cinfo, COL_INFO, "%s",
+  col_append_fstr (pinfo->cinfo, COL_INFO, "%s",
 		     val_to_str (msg_type, message_type, "Unknown: %d"));
-  }
 
   proto_item_append_text (ti, ", %s", val_to_str (msg_type, message_type, "Unknown: %d"));
 
@@ -994,6 +994,8 @@ dissect_rpcap (tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree)
     }
     break;
   }
+
+  return tvb_length(tvb);
 }
 
 
@@ -1020,7 +1022,7 @@ check_rpcap_heur (tvbuff_t *tvb, gboolean tcp)
     /* UDP is only used for packets */
     return FALSE;
   }
-  if (match_strval(msg_type, message_type) == NULL)
+  if (try_val_to_str(msg_type, message_type) == NULL)
     /* Unknown message type */
     return FALSE;
   offset++;
@@ -1029,7 +1031,7 @@ check_rpcap_heur (tvbuff_t *tvb, gboolean tcp)
   if (msg_value > 0) {
     if (msg_type == RPCAP_MSG_ERROR) {
       /* Must have a valid error code */
-      if (match_strval(msg_value, error_codes) == NULL)
+      if (try_val_to_str(msg_value, error_codes) == NULL)
 	return FALSE;
     } else if (msg_type != RPCAP_MSG_FINDALLIF_REPLY) {
       return FALSE;
@@ -1109,12 +1111,12 @@ get_rpcap_pdu_len (packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 
 
 static gboolean
-dissect_rpcap_heur_tcp (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_rpcap_heur_tcp (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
   if (check_rpcap_heur (tvb, TRUE)) {
     /* This is probably a rpcap tcp package */
     tcp_dissect_pdus (tvb, pinfo, tree, rpcap_desegment, 8,
-		      get_rpcap_pdu_len, dissect_rpcap);
+		      get_rpcap_pdu_len, dissect_rpcap, data);
 
     return TRUE;
   }
@@ -1124,11 +1126,11 @@ dissect_rpcap_heur_tcp (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
 
 
 static gboolean
-dissect_rpcap_heur_udp (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_rpcap_heur_udp (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
   if (check_rpcap_heur (tvb, FALSE)) {
     /* This is probably a rpcap udp package */
-    dissect_rpcap (tvb, pinfo, tree);
+    dissect_rpcap (tvb, pinfo, tree, data);
 
     return TRUE;
   }
@@ -1430,10 +1432,20 @@ proto_register_rpcap (void)
     &ett_sampling_request
   };
 
+  static ei_register_info ei[] = {
+     { &ei_error, { "rpcap.error.expert", PI_SEQUENCE, PI_NOTE, "Error", EXPFILL }},
+     { &ei_if_unknown, { "rpcap.if_unknown", PI_SEQUENCE, PI_NOTE, "Unknown address family", EXPFILL }},
+     { &ei_no_more_data, { "rpcap.no_more_data", PI_MALFORMED, PI_ERROR, "No more data in packet", EXPFILL }},
+     { &ei_caplen_too_big, { "rpcap.caplen_too_big", PI_MALFORMED, PI_ERROR, "Caplen is bigger than the remaining message length", EXPFILL }},
+  };
+
   module_t *rpcap_module;
+  expert_module_t* expert_rpcap;
 
   proto_rpcap = proto_register_protocol (PNAME, PSNAME, PFNAME);
-  register_dissector (PFNAME, dissect_rpcap, proto_rpcap);
+  new_register_dissector (PFNAME, dissect_rpcap, proto_rpcap);
+  expert_rpcap = expert_register_protocol(proto_rpcap);
+  expert_register_field_array(expert_rpcap, ei, array_length(ei));
 
   proto_register_field_array (proto_rpcap, hf, array_length (hf));
   proto_register_subtree_array (ett, array_length (ett));

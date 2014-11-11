@@ -1,8 +1,6 @@
 /* proto_help.c
  * Routines for dynamic protocol help menus
  *
- * $Id$
- *
  * Edgar Gladkich <edgar.gladkich@incacon.de>
  * Gerald Combs <gerald@wireshark.org>
  *
@@ -40,7 +38,7 @@
 #include "../file.h"
 
 #include <epan/prefs.h>
-#include <epan/filesystem.h>
+#include <wsutil/filesystem.h>
 #include <epan/strutil.h>
 #include <epan/proto.h>
 

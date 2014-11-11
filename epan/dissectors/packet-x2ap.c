@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-x2ap.c                                                              */
 /* ../../tools/asn2wrs.py -p x2ap -c ./x2ap.cnf -s ./packet-x2ap-template -D . -O ../../epan/dissectors X2AP-CommonDataTypes.asn X2AP-Constants.asn X2AP-Containers.asn X2AP-IEs.asn X2AP-PDU-Contents.asn X2AP-PDU-Descriptions.asn */
 
@@ -11,8 +11,6 @@
  * X2 Application Protocol (X2AP);
  * 3GPP TS 36.423 packet dissection
  * Copyright 2007-2010, Anders Broman <anders.broman@ericsson.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -57,6 +55,8 @@
 #define PNAME  "EUTRAN X2 Application Protocol (X2AP)"
 #define PSNAME "X2AP"
 #define PFNAME "x2ap"
+
+void proto_register_x2ap(void);
 
 /* Dissector will use SCTP PPID 27 or SCTP port. IANA assigned port = 36422 */
 #define SCTP_PORT_X2AP	36422
@@ -771,13 +771,13 @@ static const value_string x2ap_ProcedureCode_vals[] = {
 
 static int
 dissect_x2ap_ProcedureCode(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 67 "../../asn1/x2ap/x2ap.cnf"
+#line 66 "../../asn1/x2ap/x2ap.cnf"
   ProcedureCode = 0xFFFF;
 
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 255U, &ProcedureCode, FALSE);
 
-#line 61 "../../asn1/x2ap/x2ap.cnf"
+#line 60 "../../asn1/x2ap/x2ap.cnf"
     col_add_fstr(actx->pinfo->cinfo, COL_INFO, "%s ",
                 val_to_str(ProcedureCode, x2ap_ProcedureCode_vals,
                            "unknown message"));
@@ -870,7 +870,7 @@ dissect_x2ap_ProtocolIE_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, maxProtocolIEs, &ProtocolIE_ID, FALSE);
 
-#line 50 "../../asn1/x2ap/x2ap.cnf"
+#line 49 "../../asn1/x2ap/x2ap.cnf"
   if (tree) {
     proto_item_append_text(proto_item_get_parent_nth(actx->created_item, 2), ": %s", val_to_str(ProtocolIE_ID, VALS(x2ap_ProtocolIE_ID_vals), "unknown (%d)"));
   }
@@ -1026,7 +1026,7 @@ dissect_x2ap_PrivateIE_Container(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *
 static int
 dissect_x2ap_BIT_STRING_SIZE_40(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     40, 40, FALSE, NULL);
+                                     40, 40, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -1070,7 +1070,7 @@ dissect_x2ap_ABSInformationFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_x2ap_BIT_STRING_SIZE_1_70_(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 70, TRUE, NULL);
+                                     1, 70, TRUE, NULL, NULL);
 
   return offset;
 }
@@ -1225,7 +1225,7 @@ dissect_x2ap_ABS_Status(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_,
 static int
 dissect_x2ap_Key_eNodeB_Star(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     256, 256, FALSE, NULL);
+                                     256, 256, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -1327,16 +1327,16 @@ dissect_x2ap_AllocationAndRetentionPriority(tvbuff_t *tvb _U_, int offset _U_, a
 
 static int
 dissect_x2ap_PLMN_Identity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 78 "../../asn1/x2ap/x2ap.cnf"
+#line 77 "../../asn1/x2ap/x2ap.cnf"
   tvbuff_t *parameter_tvb=NULL;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
                                        3, 3, FALSE, &parameter_tvb);
 
 
-	if(tvb_length(tvb)==0) 
+	if(tvb_length(tvb)==0)
 		return offset;
-		
+
 	if (!parameter_tvb)
 		return offset;
 	dissect_e212_mcc_mnc(parameter_tvb, actx->pinfo, tree, 0, FALSE);
@@ -1350,7 +1350,7 @@ dissect_x2ap_PLMN_Identity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
 static int
 dissect_x2ap_EUTRANCellIdentifier(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     28, 28, FALSE, NULL);
+                                     28, 28, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -1468,7 +1468,7 @@ dissect_x2ap_AreaScopeOfMDT(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
 static int
 dissect_x2ap_BitRate(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_integer_64b(tvb, offset, actx, tree, hf_index,
-                                                            0U, G_GINT64_CONSTANT(10000000000U), NULL, FALSE);
+                                                            0U, G_GUINT64_CONSTANT(10000000000), NULL, FALSE);
 
   return offset;
 }
@@ -1803,7 +1803,7 @@ dissect_x2ap_CriticalityDiagnostics(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_
 static int
 dissect_x2ap_CRNTI(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     16, 16, FALSE, NULL);
+                                     16, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -1829,7 +1829,7 @@ dissect_x2ap_CSGMembershipStatus(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *
 static int
 dissect_x2ap_CSG_Id(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     27, 27, FALSE, NULL);
+                                     27, 27, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -2080,7 +2080,7 @@ dissect_x2ap_EUTRA_Mode_Info(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx
 static int
 dissect_x2ap_BIT_STRING_SIZE_20(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     20, 20, FALSE, NULL);
+                                     20, 20, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -2090,7 +2090,7 @@ dissect_x2ap_BIT_STRING_SIZE_20(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_x2ap_BIT_STRING_SIZE_28(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     28, 28, FALSE, NULL);
+                                     28, 28, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -2122,7 +2122,7 @@ dissect_x2ap_ENB_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, pro
 static int
 dissect_x2ap_EncryptionAlgorithms(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     16, 16, TRUE, NULL);
+                                     16, 16, TRUE, NULL, NULL);
 
   return offset;
 }
@@ -2374,7 +2374,7 @@ dissect_x2ap_ForbiddenLAs(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
 static int
 dissect_x2ap_Fourframes(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     24, 24, FALSE, NULL);
+                                     24, 24, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -2399,13 +2399,13 @@ dissect_x2ap_GlobalENB_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
 
 static int
 dissect_x2ap_TransportLayerAddress(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 111 "../../asn1/x2ap/x2ap.cnf"
+#line 110 "../../asn1/x2ap/x2ap.cnf"
   tvbuff_t *parameter_tvb=NULL;
   proto_tree *subtree;
   gint tvb_len;
-  
+
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 160, TRUE, &parameter_tvb);
+                                     1, 160, TRUE, &parameter_tvb, NULL);
 
   if (!parameter_tvb)
     return offset;
@@ -2607,7 +2607,7 @@ dissect_x2ap_InvokeIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 static int
 dissect_x2ap_IntegrityProtectionAlgorithms(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     16, 16, TRUE, NULL);
+                                     16, 16, TRUE, NULL, NULL);
 
   return offset;
 }
@@ -2617,7 +2617,7 @@ dissect_x2ap_IntegrityProtectionAlgorithms(tvbuff_t *tvb _U_, int offset _U_, as
 static int
 dissect_x2ap_InterfacesToTrace(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -2755,7 +2755,7 @@ dissect_x2ap_MDT_Activation(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
 static int
 dissect_x2ap_MeasurementsToActivate(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -2963,7 +2963,7 @@ dissect_x2ap_RadioframeAllocationOffset(tvbuff_t *tvb _U_, int offset _U_, asn1_
 static int
 dissect_x2ap_Oneframe(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     6, 6, FALSE, NULL);
+                                     6, 6, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3256,7 +3256,7 @@ dissect_x2ap_RadioResourceStatus(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *
 static int
 dissect_x2ap_ReceiveStatusofULPDCPSDUs(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     4096, 4096, FALSE, NULL);
+                                     4096, 4096, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3282,7 +3282,7 @@ dissect_x2ap_Registration_Request(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 static int
 dissect_x2ap_BIT_STRING_SIZE_6_110_(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     6, 110, TRUE, NULL);
+                                     6, 110, TRUE, NULL, NULL);
 
   return offset;
 }
@@ -3378,7 +3378,7 @@ dissect_x2ap_RelativeNarrowbandTxPower(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 static int
 dissect_x2ap_ReportCharacteristics(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     32, 32, FALSE, NULL);
+                                     32, 32, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3387,7 +3387,7 @@ dissect_x2ap_ReportCharacteristics(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t
 
 static int
 dissect_x2ap_RRC_Context(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 135 "../../asn1/x2ap/x2ap.cnf"
+#line 134 "../../asn1/x2ap/x2ap.cnf"
   tvbuff_t *parameter_tvb=NULL;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
@@ -3487,7 +3487,7 @@ dissect_x2ap_ServedCells(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_
 static int
 dissect_x2ap_ShortMAC_I(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     16, 16, FALSE, NULL);
+                                     16, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3521,17 +3521,17 @@ dissect_x2ap_SubscriberProfileIDforRFP(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 
 static int
 dissect_x2ap_TargeteNBtoSource_eNBTransparentContainer(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 91 "../../asn1/x2ap/x2ap.cnf"
+#line 90 "../../asn1/x2ap/x2ap.cnf"
   tvbuff_t *parameter_tvb=NULL;
-  
+
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
                                        NO_BOUND, NO_BOUND, FALSE, &parameter_tvb);
 
 	if (!parameter_tvb)
 		return offset;
-	  
+
      dissect_lte_rrc_HandoverCommand_PDU(parameter_tvb, actx->pinfo, tree, NULL);
-	
+
 
 
   return offset;
@@ -3582,7 +3582,7 @@ dissect_x2ap_TraceDepth(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_,
 static int
 dissect_x2ap_TraceCollectionEntityIPAddress(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 160, TRUE, NULL);
+                                     1, 160, TRUE, NULL, NULL);
 
   return offset;
 }
@@ -3707,7 +3707,7 @@ dissect_x2ap_UL_InterferenceOverloadIndication(tvbuff_t *tvb _U_, int offset _U_
 static int
 dissect_x2ap_UL_HighInterferenceIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 110, TRUE, NULL);
+                                     1, 110, TRUE, NULL, NULL);
 
   return offset;
 }
@@ -5490,7 +5490,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_ABSInformation_vals), 0,
         NULL, HFILL }},
     { &hf_x2ap_ABS_Status_PDU,
-      { "ABS-Status", "x2ap.ABS_Status",
+      { "ABS-Status", "x2ap.ABS_Status_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_Cause_PDU,
@@ -5498,11 +5498,11 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_Cause_vals), 0,
         NULL, HFILL }},
     { &hf_x2ap_CompositeAvailableCapacityGroup_PDU,
-      { "CompositeAvailableCapacityGroup", "x2ap.CompositeAvailableCapacityGroup",
+      { "CompositeAvailableCapacityGroup", "x2ap.CompositeAvailableCapacityGroup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CriticalityDiagnostics_PDU,
-      { "CriticalityDiagnostics", "x2ap.CriticalityDiagnostics",
+      { "CriticalityDiagnostics", "x2ap.CriticalityDiagnostics_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CRNTI_PDU,
@@ -5522,7 +5522,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_DeactivationIndication_vals), 0,
         NULL, HFILL }},
     { &hf_x2ap_ECGI_PDU,
-      { "ECGI", "x2ap.ECGI",
+      { "ECGI", "x2ap.ECGI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_E_RAB_List_PDU,
@@ -5530,11 +5530,11 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_E_RAB_Item_PDU,
-      { "E-RAB-Item", "x2ap.E_RAB_Item",
+      { "E-RAB-Item", "x2ap.E_RAB_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_GlobalENB_ID_PDU,
-      { "GlobalENB-ID", "x2ap.GlobalENB_ID",
+      { "GlobalENB-ID", "x2ap.GlobalENB_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_GUGroupIDList_PDU,
@@ -5542,7 +5542,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_GUMMEI_PDU,
-      { "GUMMEI", "x2ap.GUMMEI",
+      { "GUMMEI", "x2ap.GUMMEI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_HandoverReportType_PDU,
@@ -5554,7 +5554,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_InvokeIndication_vals), 0,
         NULL, HFILL }},
     { &hf_x2ap_MDT_Configuration_PDU,
-      { "MDT-Configuration", "x2ap.MDT_Configuration",
+      { "MDT-Configuration", "x2ap.MDT_Configuration_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_Measurement_ID_PDU,
@@ -5570,11 +5570,11 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_ManagementBasedMDTallowed_vals), 0,
         NULL, HFILL }},
     { &hf_x2ap_MobilityParametersModificationRange_PDU,
-      { "MobilityParametersModificationRange", "x2ap.MobilityParametersModificationRange",
+      { "MobilityParametersModificationRange", "x2ap.MobilityParametersModificationRange_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_MobilityParametersInformation_PDU,
-      { "MobilityParametersInformation", "x2ap.MobilityParametersInformation",
+      { "MobilityParametersInformation", "x2ap.MobilityParametersInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_Number_of_Antennaports_PDU,
@@ -5586,7 +5586,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_PRACH_Configuration_PDU,
-      { "PRACH-Configuration", "x2ap.PRACH_Configuration",
+      { "PRACH-Configuration", "x2ap.PRACH_Configuration_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_Registration_Request_PDU,
@@ -5622,7 +5622,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_TimeToWait_vals), 0,
         NULL, HFILL }},
     { &hf_x2ap_TraceActivation_PDU,
-      { "TraceActivation", "x2ap.TraceActivation",
+      { "TraceActivation", "x2ap.TraceActivation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_UE_HistoryInformation_PDU,
@@ -5638,19 +5638,19 @@ void proto_register_x2ap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_HandoverRequest_PDU,
-      { "HandoverRequest", "x2ap.HandoverRequest",
+      { "HandoverRequest", "x2ap.HandoverRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_UE_ContextInformation_PDU,
-      { "UE-ContextInformation", "x2ap.UE_ContextInformation",
+      { "UE-ContextInformation", "x2ap.UE_ContextInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_E_RABs_ToBeSetup_Item_PDU,
-      { "E-RABs-ToBeSetup-Item", "x2ap.E_RABs_ToBeSetup_Item",
+      { "E-RABs-ToBeSetup-Item", "x2ap.E_RABs_ToBeSetup_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_HandoverRequestAcknowledge_PDU,
-      { "HandoverRequestAcknowledge", "x2ap.HandoverRequestAcknowledge",
+      { "HandoverRequestAcknowledge", "x2ap.HandoverRequestAcknowledge_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_E_RABs_Admitted_List_PDU,
@@ -5658,19 +5658,19 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_E_RABs_Admitted_Item_PDU,
-      { "E-RABs-Admitted-Item", "x2ap.E_RABs_Admitted_Item",
+      { "E-RABs-Admitted-Item", "x2ap.E_RABs_Admitted_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_HandoverPreparationFailure_PDU,
-      { "HandoverPreparationFailure", "x2ap.HandoverPreparationFailure",
+      { "HandoverPreparationFailure", "x2ap.HandoverPreparationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_HandoverReport_PDU,
-      { "HandoverReport", "x2ap.HandoverReport",
+      { "HandoverReport", "x2ap.HandoverReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_SNStatusTransfer_PDU,
-      { "SNStatusTransfer", "x2ap.SNStatusTransfer",
+      { "SNStatusTransfer", "x2ap.SNStatusTransfer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_E_RABs_SubjectToStatusTransfer_List_PDU,
@@ -5678,43 +5678,43 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_E_RABs_SubjectToStatusTransfer_Item_PDU,
-      { "E-RABs-SubjectToStatusTransfer-Item", "x2ap.E_RABs_SubjectToStatusTransfer_Item",
+      { "E-RABs-SubjectToStatusTransfer-Item", "x2ap.E_RABs_SubjectToStatusTransfer_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_UEContextRelease_PDU,
-      { "UEContextRelease", "x2ap.UEContextRelease",
+      { "UEContextRelease", "x2ap.UEContextRelease_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_HandoverCancel_PDU,
-      { "HandoverCancel", "x2ap.HandoverCancel",
+      { "HandoverCancel", "x2ap.HandoverCancel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ErrorIndication_PDU,
-      { "ErrorIndication", "x2ap.ErrorIndication",
+      { "ErrorIndication", "x2ap.ErrorIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ResetRequest_PDU,
-      { "ResetRequest", "x2ap.ResetRequest",
+      { "ResetRequest", "x2ap.ResetRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ResetResponse_PDU,
-      { "ResetResponse", "x2ap.ResetResponse",
+      { "ResetResponse", "x2ap.ResetResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_X2SetupRequest_PDU,
-      { "X2SetupRequest", "x2ap.X2SetupRequest",
+      { "X2SetupRequest", "x2ap.X2SetupRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_X2SetupResponse_PDU,
-      { "X2SetupResponse", "x2ap.X2SetupResponse",
+      { "X2SetupResponse", "x2ap.X2SetupResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_X2SetupFailure_PDU,
-      { "X2SetupFailure", "x2ap.X2SetupFailure",
+      { "X2SetupFailure", "x2ap.X2SetupFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_LoadInformation_PDU,
-      { "LoadInformation", "x2ap.LoadInformation",
+      { "LoadInformation", "x2ap.LoadInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CellInformation_List_PDU,
@@ -5722,11 +5722,11 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CellInformation_Item_PDU,
-      { "CellInformation-Item", "x2ap.CellInformation_Item",
+      { "CellInformation-Item", "x2ap.CellInformation_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ENBConfigurationUpdate_PDU,
-      { "ENBConfigurationUpdate", "x2ap.ENBConfigurationUpdate",
+      { "ENBConfigurationUpdate", "x2ap.ENBConfigurationUpdate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ServedCellsToModify_PDU,
@@ -5738,15 +5738,15 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ENBConfigurationUpdateAcknowledge_PDU,
-      { "ENBConfigurationUpdateAcknowledge", "x2ap.ENBConfigurationUpdateAcknowledge",
+      { "ENBConfigurationUpdateAcknowledge", "x2ap.ENBConfigurationUpdateAcknowledge_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ENBConfigurationUpdateFailure_PDU,
-      { "ENBConfigurationUpdateFailure", "x2ap.ENBConfigurationUpdateFailure",
+      { "ENBConfigurationUpdateFailure", "x2ap.ENBConfigurationUpdateFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ResourceStatusRequest_PDU,
-      { "ResourceStatusRequest", "x2ap.ResourceStatusRequest",
+      { "ResourceStatusRequest", "x2ap.ResourceStatusRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CellToReport_List_PDU,
@@ -5754,7 +5754,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CellToReport_Item_PDU,
-      { "CellToReport-Item", "x2ap.CellToReport_Item",
+      { "CellToReport-Item", "x2ap.CellToReport_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ReportingPeriodicity_PDU,
@@ -5766,7 +5766,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_PartialSuccessIndicator_vals), 0,
         NULL, HFILL }},
     { &hf_x2ap_ResourceStatusResponse_PDU,
-      { "ResourceStatusResponse", "x2ap.ResourceStatusResponse",
+      { "ResourceStatusResponse", "x2ap.ResourceStatusResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_MeasurementInitiationResult_List_PDU,
@@ -5774,15 +5774,15 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_MeasurementInitiationResult_Item_PDU,
-      { "MeasurementInitiationResult-Item", "x2ap.MeasurementInitiationResult_Item",
+      { "MeasurementInitiationResult-Item", "x2ap.MeasurementInitiationResult_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_MeasurementFailureCause_Item_PDU,
-      { "MeasurementFailureCause-Item", "x2ap.MeasurementFailureCause_Item",
+      { "MeasurementFailureCause-Item", "x2ap.MeasurementFailureCause_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ResourceStatusFailure_PDU,
-      { "ResourceStatusFailure", "x2ap.ResourceStatusFailure",
+      { "ResourceStatusFailure", "x2ap.ResourceStatusFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CompleteFailureCauseInformation_List_PDU,
@@ -5790,11 +5790,11 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CompleteFailureCauseInformation_Item_PDU,
-      { "CompleteFailureCauseInformation-Item", "x2ap.CompleteFailureCauseInformation_Item",
+      { "CompleteFailureCauseInformation-Item", "x2ap.CompleteFailureCauseInformation_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ResourceStatusUpdate_PDU,
-      { "ResourceStatusUpdate", "x2ap.ResourceStatusUpdate",
+      { "ResourceStatusUpdate", "x2ap.ResourceStatusUpdate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CellMeasurementResult_List_PDU,
@@ -5802,31 +5802,31 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CellMeasurementResult_Item_PDU,
-      { "CellMeasurementResult-Item", "x2ap.CellMeasurementResult_Item",
+      { "CellMeasurementResult-Item", "x2ap.CellMeasurementResult_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_PrivateMessage_PDU,
-      { "PrivateMessage", "x2ap.PrivateMessage",
+      { "PrivateMessage", "x2ap.PrivateMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_MobilityChangeRequest_PDU,
-      { "MobilityChangeRequest", "x2ap.MobilityChangeRequest",
+      { "MobilityChangeRequest", "x2ap.MobilityChangeRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_MobilityChangeAcknowledge_PDU,
-      { "MobilityChangeAcknowledge", "x2ap.MobilityChangeAcknowledge",
+      { "MobilityChangeAcknowledge", "x2ap.MobilityChangeAcknowledge_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_MobilityChangeFailure_PDU,
-      { "MobilityChangeFailure", "x2ap.MobilityChangeFailure",
+      { "MobilityChangeFailure", "x2ap.MobilityChangeFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_RLFIndication_PDU,
-      { "RLFIndication", "x2ap.RLFIndication",
+      { "RLFIndication", "x2ap.RLFIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CellActivationRequest_PDU,
-      { "CellActivationRequest", "x2ap.CellActivationRequest",
+      { "CellActivationRequest", "x2ap.CellActivationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ServedCellsToActivate_PDU,
@@ -5834,7 +5834,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CellActivationResponse_PDU,
-      { "CellActivationResponse", "x2ap.CellActivationResponse",
+      { "CellActivationResponse", "x2ap.CellActivationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ActivatedCellList_PDU,
@@ -5842,7 +5842,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CellActivationFailure_PDU,
-      { "CellActivationFailure", "x2ap.CellActivationFailure",
+      { "CellActivationFailure", "x2ap.CellActivationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_X2AP_PDU_PDU,
@@ -5858,7 +5858,7 @@ void proto_register_x2ap(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_x2ap_ProtocolIE_Container_item,
-      { "ProtocolIE-Field", "x2ap.ProtocolIE_Field",
+      { "ProtocolIE-Field", "x2ap.ProtocolIE_Field_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_id,
@@ -5870,11 +5870,11 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_Criticality_vals), 0,
         NULL, HFILL }},
     { &hf_x2ap_protocolIE_Field_value,
-      { "value", "x2ap.value",
+      { "value", "x2ap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ProtocolIE_Field_value", HFILL }},
     { &hf_x2ap_ProtocolExtensionContainer_item,
-      { "ProtocolExtensionField", "x2ap.ProtocolExtensionField",
+      { "ProtocolExtensionField", "x2ap.ProtocolExtensionField_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_extension_id,
@@ -5882,11 +5882,11 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_ProtocolIE_ID_vals), 0,
         "ProtocolIE_ID", HFILL }},
     { &hf_x2ap_extensionValue,
-      { "extensionValue", "x2ap.extensionValue",
+      { "extensionValue", "x2ap.extensionValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_PrivateIE_Container_item,
-      { "PrivateIE-Field", "x2ap.PrivateIE_Field",
+      { "PrivateIE-Field", "x2ap.PrivateIE_Field_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_private_id,
@@ -5894,19 +5894,19 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_PrivateIE_ID_vals), 0,
         "PrivateIE_ID", HFILL }},
     { &hf_x2ap_privateIE_Field_value,
-      { "value", "x2ap.value",
+      { "value", "x2ap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PrivateIE_Field_value", HFILL }},
     { &hf_x2ap_fdd,
-      { "fdd", "x2ap.fdd",
+      { "fdd", "x2ap.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ABSInformationFDD", HFILL }},
     { &hf_x2ap_tdd,
-      { "tdd", "x2ap.tdd",
+      { "tdd", "x2ap.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ABSInformationTDD", HFILL }},
     { &hf_x2ap_abs_inactive,
-      { "abs-inactive", "x2ap.abs_inactive",
+      { "abs-inactive", "x2ap.abs_inactive_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_abs_pattern_info,
@@ -5966,15 +5966,15 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_Pre_emptionVulnerability_vals), 0,
         NULL, HFILL }},
     { &hf_x2ap_cellBased,
-      { "cellBased", "x2ap.cellBased",
+      { "cellBased", "x2ap.cellBased_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CellBasedMDT", HFILL }},
     { &hf_x2ap_tABased,
-      { "tABased", "x2ap.tABased",
+      { "tABased", "x2ap.tABased_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TABasedMDT", HFILL }},
     { &hf_x2ap_pLMNWide,
-      { "pLMNWide", "x2ap.pLMNWide",
+      { "pLMNWide", "x2ap.pLMNWide_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_BroadcastPLMNs_Item_item,
@@ -6002,7 +6002,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CellIdListforMDT_item,
-      { "ECGI", "x2ap.ECGI",
+      { "ECGI", "x2ap.ECGI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_cell_Size,
@@ -6010,11 +6010,11 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_Cell_Size_vals), 0,
         NULL, HFILL }},
     { &hf_x2ap_dL_CompositeAvailableCapacity,
-      { "dL-CompositeAvailableCapacity", "x2ap.dL_CompositeAvailableCapacity",
+      { "dL-CompositeAvailableCapacity", "x2ap.dL_CompositeAvailableCapacity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CompositeAvailableCapacity", HFILL }},
     { &hf_x2ap_uL_CompositeAvailableCapacity,
-      { "uL-CompositeAvailableCapacity", "x2ap.uL_CompositeAvailableCapacity",
+      { "uL-CompositeAvailableCapacity", "x2ap.uL_CompositeAvailableCapacity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CompositeAvailableCapacity", HFILL }},
     { &hf_x2ap_cellCapacityClassValue,
@@ -6050,7 +6050,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "CriticalityDiagnostics_IE_List", HFILL }},
     { &hf_x2ap_CriticalityDiagnostics_IE_List_item,
-      { "CriticalityDiagnostics-IE-List item", "x2ap.CriticalityDiagnostics_IE_List_item",
+      { "CriticalityDiagnostics-IE-List item", "x2ap.CriticalityDiagnostics_IE_List_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_iECriticality,
@@ -6094,15 +6094,15 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_SubframeAssignment_vals), 0,
         NULL, HFILL }},
     { &hf_x2ap_specialSubframe_Info,
-      { "specialSubframe-Info", "x2ap.specialSubframe_Info",
+      { "specialSubframe-Info", "x2ap.specialSubframe_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_fDD,
-      { "fDD", "x2ap.fDD",
+      { "fDD", "x2ap.fDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "FDD_Info", HFILL }},
     { &hf_x2ap_tDD,
-      { "tDD", "x2ap.tDD",
+      { "tDD", "x2ap.tDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TDD_Info", HFILL }},
     { &hf_x2ap_pLMN_Identity,
@@ -6130,15 +6130,15 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_allocationAndRetentionPriority,
-      { "allocationAndRetentionPriority", "x2ap.allocationAndRetentionPriority",
+      { "allocationAndRetentionPriority", "x2ap.allocationAndRetentionPriority_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_gbrQosInformation,
-      { "gbrQosInformation", "x2ap.gbrQosInformation",
+      { "gbrQosInformation", "x2ap.gbrQosInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GBR_QosInformation", HFILL }},
     { &hf_x2ap_E_RAB_List_item,
-      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_e_RAB_ID,
@@ -6150,7 +6150,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_Cause_vals), 0,
         NULL, HFILL }},
     { &hf_x2ap_ForbiddenTAs_item,
-      { "ForbiddenTAs-Item", "x2ap.ForbiddenTAs_Item",
+      { "ForbiddenTAs-Item", "x2ap.ForbiddenTAs_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_forbiddenTACs,
@@ -6162,7 +6162,7 @@ void proto_register_x2ap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ForbiddenLAs_item,
-      { "ForbiddenLAs-Item", "x2ap.ForbiddenLAs_Item",
+      { "ForbiddenLAs-Item", "x2ap.ForbiddenLAs_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_forbiddenLACs,
@@ -6202,7 +6202,7 @@ void proto_register_x2ap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "GTP_TEI", HFILL }},
     { &hf_x2ap_GUGroupIDList_item,
-      { "GU-Group-ID", "x2ap.GU_Group_ID",
+      { "GU-Group-ID", "x2ap.GU_Group_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_mME_Group_ID,
@@ -6210,7 +6210,7 @@ void proto_register_x2ap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_gU_Group_ID,
-      { "gU-Group-ID", "x2ap.gU_Group_ID",
+      { "gU-Group-ID", "x2ap.gU_Group_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_mME_Code,
@@ -6246,7 +6246,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_LoadIndicator_vals), 0,
         "LoadIndicator", HFILL }},
     { &hf_x2ap_e_UTRAN_Cell,
-      { "e-UTRAN-Cell", "x2ap.e_UTRAN_Cell",
+      { "e-UTRAN-Cell", "x2ap.e_UTRAN_Cell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "LastVisitedEUTRANCellInformation", HFILL }},
     { &hf_x2ap_uTRAN_Cell,
@@ -6258,11 +6258,11 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_LastVisitedGERANCellInformation_vals), 0,
         "LastVisitedGERANCellInformation", HFILL }},
     { &hf_x2ap_global_Cell_ID,
-      { "global-Cell-ID", "x2ap.global_Cell_ID",
+      { "global-Cell-ID", "x2ap.global_Cell_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ECGI", HFILL }},
     { &hf_x2ap_cellType,
-      { "cellType", "x2ap.cellType",
+      { "cellType", "x2ap.cellType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_time_UE_StayedInCell,
@@ -6270,7 +6270,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_undefined,
-      { "undefined", "x2ap.undefined",
+      { "undefined", "x2ap.undefined_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_eventType,
@@ -6298,11 +6298,11 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_ReportingTriggerMDT_vals), 0,
         NULL, HFILL }},
     { &hf_x2ap_thresholdeventA2,
-      { "thresholdeventA2", "x2ap.thresholdeventA2",
+      { "thresholdeventA2", "x2ap.thresholdeventA2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_periodicReportingMDT,
-      { "periodicReportingMDT", "x2ap.periodicReportingMDT",
+      { "periodicReportingMDT", "x2ap.periodicReportingMDT_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_threshold_RSRP,
@@ -6314,7 +6314,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_MBSFN_Subframe_Infolist_item,
-      { "MBSFN-Subframe-Info", "x2ap.MBSFN_Subframe_Info",
+      { "MBSFN-Subframe-Info", "x2ap.MBSFN_Subframe_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_radioframeAllocationPeriod,
@@ -6342,11 +6342,11 @@ void proto_register_x2ap(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M20_20", HFILL }},
     { &hf_x2ap_Neighbour_Information_item,
-      { "Neighbour-Information item", "x2ap.Neighbour_Information_item",
+      { "Neighbour-Information item", "x2ap.Neighbour_Information_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_eCGI,
-      { "eCGI", "x2ap.eCGI",
+      { "eCGI", "x2ap.eCGI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_pCI,
@@ -6434,11 +6434,11 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_LoadIndicator_vals), 0,
         "LoadIndicator", HFILL }},
     { &hf_x2ap_ServedCells_item,
-      { "ServedCells item", "x2ap.ServedCells_item",
+      { "ServedCells item", "x2ap.ServedCells_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_servedCellInfo,
-      { "servedCellInfo", "x2ap.servedCellInfo",
+      { "servedCellInfo", "x2ap.servedCellInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ServedCell_Information", HFILL }},
     { &hf_x2ap_neighbour_Info,
@@ -6446,7 +6446,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Neighbour_Information", HFILL }},
     { &hf_x2ap_cellId,
-      { "cellId", "x2ap.cellId",
+      { "cellId", "x2ap.cellId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ECGI", HFILL }},
     { &hf_x2ap_tAC,
@@ -6534,11 +6534,11 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_UL_InterferenceOverloadIndication_Item_vals), 0,
         NULL, HFILL }},
     { &hf_x2ap_UL_HighInterferenceIndicationInfo_item,
-      { "UL-HighInterferenceIndicationInfo-Item", "x2ap.UL_HighInterferenceIndicationInfo_Item",
+      { "UL-HighInterferenceIndicationInfo-Item", "x2ap.UL_HighInterferenceIndicationInfo_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_target_Cell_ID,
-      { "target-Cell-ID", "x2ap.target_Cell_ID",
+      { "target-Cell-ID", "x2ap.target_Cell_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ECGI", HFILL }},
     { &hf_x2ap_ul_interferenceindication,
@@ -6546,11 +6546,11 @@ void proto_register_x2ap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "UL_HighInterferenceIndication", HFILL }},
     { &hf_x2ap_fdd_01,
-      { "fdd", "x2ap.fdd",
+      { "fdd", "x2ap.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UsableABSInformationFDD", HFILL }},
     { &hf_x2ap_tdd_01,
-      { "tdd", "x2ap.tdd",
+      { "tdd", "x2ap.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UsableABSInformationTDD", HFILL }},
     { &hf_x2ap_usable_abs_pattern_info,
@@ -6570,15 +6570,15 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "UE_S1AP_ID", HFILL }},
     { &hf_x2ap_uESecurityCapabilities,
-      { "uESecurityCapabilities", "x2ap.uESecurityCapabilities",
+      { "uESecurityCapabilities", "x2ap.uESecurityCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_aS_SecurityInformation,
-      { "aS-SecurityInformation", "x2ap.aS_SecurityInformation",
+      { "aS-SecurityInformation", "x2ap.aS_SecurityInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_uEaggregateMaximumBitRate,
-      { "uEaggregateMaximumBitRate", "x2ap.uEaggregateMaximumBitRate",
+      { "uEaggregateMaximumBitRate", "x2ap.uEaggregateMaximumBitRate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_subscriberProfileIDforRFP,
@@ -6594,19 +6594,19 @@ void proto_register_x2ap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_handoverRestrictionList,
-      { "handoverRestrictionList", "x2ap.handoverRestrictionList",
+      { "handoverRestrictionList", "x2ap.handoverRestrictionList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_locationReportingInformation,
-      { "locationReportingInformation", "x2ap.locationReportingInformation",
+      { "locationReportingInformation", "x2ap.locationReportingInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_E_RABs_ToBeSetup_List_item,
-      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_e_RAB_Level_QoS_Parameters,
-      { "e-RAB-Level-QoS-Parameters", "x2ap.e_RAB_Level_QoS_Parameters",
+      { "e-RAB-Level-QoS-Parameters", "x2ap.e_RAB_Level_QoS_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_dL_Forwarding,
@@ -6614,23 +6614,23 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, VALS(x2ap_DL_Forwarding_vals), 0,
         NULL, HFILL }},
     { &hf_x2ap_uL_GTPtunnelEndpoint,
-      { "uL-GTPtunnelEndpoint", "x2ap.uL_GTPtunnelEndpoint",
+      { "uL-GTPtunnelEndpoint", "x2ap.uL_GTPtunnelEndpoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GTPtunnelEndpoint", HFILL }},
     { &hf_x2ap_E_RABs_Admitted_List_item,
-      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_uL_GTP_TunnelEndpoint,
-      { "uL-GTP-TunnelEndpoint", "x2ap.uL_GTP_TunnelEndpoint",
+      { "uL-GTP-TunnelEndpoint", "x2ap.uL_GTP_TunnelEndpoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GTPtunnelEndpoint", HFILL }},
     { &hf_x2ap_dL_GTP_TunnelEndpoint,
-      { "dL-GTP-TunnelEndpoint", "x2ap.dL_GTP_TunnelEndpoint",
+      { "dL-GTP-TunnelEndpoint", "x2ap.dL_GTP_TunnelEndpoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GTPtunnelEndpoint", HFILL }},
     { &hf_x2ap_E_RABs_SubjectToStatusTransfer_List_item,
-      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_receiveStatusofULPDCPSDUs,
@@ -6638,19 +6638,19 @@ void proto_register_x2ap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_uL_COUNTvalue,
-      { "uL-COUNTvalue", "x2ap.uL_COUNTvalue",
+      { "uL-COUNTvalue", "x2ap.uL_COUNTvalue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "COUNTvalue", HFILL }},
     { &hf_x2ap_dL_COUNTvalue,
-      { "dL-COUNTvalue", "x2ap.dL_COUNTvalue",
+      { "dL-COUNTvalue", "x2ap.dL_COUNTvalue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "COUNTvalue", HFILL }},
     { &hf_x2ap_CellInformation_List_item,
-      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_cell_ID,
-      { "cell-ID", "x2ap.cell_ID",
+      { "cell-ID", "x2ap.cell_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ECGI", HFILL }},
     { &hf_x2ap_ul_InterferenceOverloadIndication,
@@ -6662,27 +6662,27 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_relativeNarrowbandTxPower,
-      { "relativeNarrowbandTxPower", "x2ap.relativeNarrowbandTxPower",
+      { "relativeNarrowbandTxPower", "x2ap.relativeNarrowbandTxPower_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ServedCellsToModify_item,
-      { "ServedCellsToModify-Item", "x2ap.ServedCellsToModify_Item",
+      { "ServedCellsToModify-Item", "x2ap.ServedCellsToModify_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_old_ecgi,
-      { "old-ecgi", "x2ap.old_ecgi",
+      { "old-ecgi", "x2ap.old_ecgi_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ECGI", HFILL }},
     { &hf_x2ap_Old_ECGIs_item,
-      { "ECGI", "x2ap.ECGI",
+      { "ECGI", "x2ap.ECGI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CellToReport_List_item,
-      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_MeasurementInitiationResult_List_item,
-      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_measurementFailureCause_List,
@@ -6690,7 +6690,7 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_MeasurementFailureCause_List_item,
-      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_measurementFailedReportCharacteristics,
@@ -6698,23 +6698,23 @@ void proto_register_x2ap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "ReportCharacteristics", HFILL }},
     { &hf_x2ap_CompleteFailureCauseInformation_List_item,
-      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_CellMeasurementResult_List_item,
-      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "x2ap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_hWLoadIndicator,
-      { "hWLoadIndicator", "x2ap.hWLoadIndicator",
+      { "hWLoadIndicator", "x2ap.hWLoadIndicator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_s1TNLLoadIndicator,
-      { "s1TNLLoadIndicator", "x2ap.s1TNLLoadIndicator",
+      { "s1TNLLoadIndicator", "x2ap.s1TNLLoadIndicator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_radioResourceStatus,
-      { "radioResourceStatus", "x2ap.radioResourceStatus",
+      { "radioResourceStatus", "x2ap.radioResourceStatus_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_privateIEs,
@@ -6722,39 +6722,39 @@ void proto_register_x2ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "PrivateIE_Container", HFILL }},
     { &hf_x2ap_ServedCellsToActivate_item,
-      { "ServedCellsToActivate-Item", "x2ap.ServedCellsToActivate_Item",
+      { "ServedCellsToActivate-Item", "x2ap.ServedCellsToActivate_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ecgi,
-      { "ecgi", "x2ap.ecgi",
+      { "ecgi", "x2ap.ecgi_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_ActivatedCellList_item,
-      { "ActivatedCellList-Item", "x2ap.ActivatedCellList_Item",
+      { "ActivatedCellList-Item", "x2ap.ActivatedCellList_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_initiatingMessage,
-      { "initiatingMessage", "x2ap.initiatingMessage",
+      { "initiatingMessage", "x2ap.initiatingMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_successfulOutcome,
-      { "successfulOutcome", "x2ap.successfulOutcome",
+      { "successfulOutcome", "x2ap.successfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_unsuccessfulOutcome,
-      { "unsuccessfulOutcome", "x2ap.unsuccessfulOutcome",
+      { "unsuccessfulOutcome", "x2ap.unsuccessfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_x2ap_initiatingMessage_value,
-      { "value", "x2ap.value",
+      { "value", "x2ap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "InitiatingMessage_value", HFILL }},
     { &hf_x2ap_successfulOutcome_value,
-      { "value", "x2ap.value",
+      { "value", "x2ap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SuccessfulOutcome_value", HFILL }},
     { &hf_x2ap_value,
-      { "value", "x2ap.value",
+      { "value", "x2ap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UnsuccessfulOutcome_value", HFILL }},
 

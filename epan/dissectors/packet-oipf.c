@@ -2,8 +2,6 @@
  * Dissector for Open IPTV Forum protocols
  * Copyright 2012, Martin Kaiser <martin@kaiser.cx>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,9 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+
+void proto_register_oipf(void);
+void proto_reg_handoff_oipf(void);
 
 static int proto_oipf_ciplus = -1;
 
@@ -78,7 +79,7 @@ dissect_oipf_ciplus(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, voi
 {
     gint        msg_len;
     proto_item *ti;
-    proto_tree *oipf_ciplus_tree = NULL;
+    proto_tree *oipf_ciplus_tree;
     guint       offset           = 0;
     guint8      i, send_datatype_nbr;
     guint16     dat_len;
@@ -90,10 +91,8 @@ dissect_oipf_ciplus(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, voi
     if (msg_len < 8)
         return 0;
 
-    if (tree) {
-        ti = proto_tree_add_text(tree, tvb, 0, msg_len, "Open IPTV Forum CSPG-CI+");
-        oipf_ciplus_tree = proto_item_add_subtree(ti, ett_oipf_ciplus);
-    }
+    ti = proto_tree_add_text(tree, tvb, 0, msg_len, "Open IPTV Forum CSPG-CI+");
+    oipf_ciplus_tree = proto_item_add_subtree(ti, ett_oipf_ciplus);
 
     proto_tree_add_item(oipf_ciplus_tree, hf_oipf_ciplus_cmd_id,
             tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -121,7 +120,7 @@ dissect_oipf_ciplus(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, voi
         offset += 2;
 
         proto_tree_add_item(oipf_ciplus_tree, hf_oipf_ciplus_data,
-                tvb, offset, dat_len, ENC_BIG_ENDIAN);
+                tvb, offset, dat_len, ENC_NA);
         offset += dat_len;
     }
 

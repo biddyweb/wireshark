@@ -3,8 +3,6 @@
  *
  * Copyright 2001, Paul Ionescu <paul@acorp.ro>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,8 +35,11 @@
 #include "config.h"
 
 #include <glib.h>
+
 #include <epan/packet.h>
 #include <epan/prefs.h>
+#include <wiretap/wtap.h>
+
 #include "packet-llc.h"
 #include "packet-chdlc.h"
 #include "packet-eth.h"
@@ -51,6 +52,9 @@
 #include <epan/oui.h>
 #include <epan/nlpid.h>
 #include <epan/greproto.h>
+
+void proto_register_fr(void);
+void proto_reg_handoff_fr(void);
 
 /*
  * Bits in the address field.
@@ -111,7 +115,7 @@ static dissector_handle_t eth_withfcs_handle;
 static dissector_handle_t gprs_ns_handle;
 static dissector_handle_t data_handle;
 
-static dissector_table_t osinl_subdissector_table;
+static dissector_table_t osinl_incl_subdissector_table;
 
 /*
  * Encapsulation type.
@@ -550,9 +554,7 @@ dissect_fr_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     pinfo->ctype = CT_DLCI;
     pinfo->circuit_id = addr;
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-      col_add_fstr(pinfo->cinfo, COL_INFO, "DLCI %u", addr);
-    }
+    col_add_fstr(pinfo->cinfo, COL_INFO, "DLCI %u", addr);
   }
 
   switch (fr_encap) {
@@ -726,7 +728,7 @@ dissect_fr_nlpid(tvbuff_t *tvb, int offset, packet_info *pinfo,
    * Either that, or it's Q.933 iff the DLCI is 0.
    */
   next_tvb = tvb_new_subset_remaining(tvb,offset);
-  if (dissector_try_uint(osinl_subdissector_table, fr_nlpid, next_tvb,
+  if (dissector_try_uint(osinl_incl_subdissector_table, fr_nlpid, next_tvb,
                          pinfo, tree) ||
       dissector_try_uint(fr_osinl_subdissector_table, fr_nlpid, next_tvb,
                          pinfo, tree)) {
@@ -967,7 +969,7 @@ proto_register_fr(void)
   proto_register_field_array(proto_fr, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
 
-  fr_subdissector_table = register_dissector_table("fr.ietf",
+  fr_subdissector_table = register_dissector_table("fr.nlpid",
                                                    "Frame Relay NLPID", FT_UINT8, BASE_HEX);
   fr_osinl_subdissector_table = register_dissector_table("fr.osinl",
                                                          "Frame Relay OSI NLPID", FT_UINT8, BASE_HEX);
@@ -1006,5 +1008,5 @@ proto_reg_handoff_fr(void)
   gprs_ns_handle = find_dissector("gprs_ns");
   data_handle = find_dissector("data");
 
-  osinl_subdissector_table = find_dissector_table("osinl");
+  osinl_incl_subdissector_table = find_dissector_table("osinl.incl");
 }

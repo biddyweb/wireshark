@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-ansi_map.c                                                          */
 /* ../../tools/asn2wrs.py -b -p ansi_map -c ./ansi_map.cnf -s ./packet-ansi_map-template -D . -O ../../epan/dissectors ansi_map.asn */
 
@@ -14,8 +14,6 @@
  * In association with Telos Technology Inc.
  *
  * Copyright 2005 - 2009, Anders Broman <anders.broman@ericsson.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -99,6 +97,7 @@
 #include <epan/prefs.h>
 #include <epan/tap.h>
 #include <epan/asn1.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-ber.h"
 #include "packet-ansi_map.h"
@@ -110,6 +109,10 @@
 #define PNAME  "ANSI Mobile Application Part"
 #define PSNAME "ANSI MAP"
 #define PFNAME "ansi_map"
+
+
+void proto_register_ansi_map(void);
+void proto_reg_handoff_ansi_map(void);
 
 /* Preference settings default */
 #define MAX_SSN 254
@@ -877,7 +880,7 @@ static int hf_ansi_map_interSystemSMSDeliveryPointToPointRes = -1;  /* InterSyst
 static int hf_ansi_map_qualificationRequest2Res = -1;  /* QualificationRequest2Res */
 
 /*--- End of included file: packet-ansi_map-hf.c ---*/
-#line 321 "../../asn1/ansi_map/packet-ansi_map-template.c"
+#line 324 "../../asn1/ansi_map/packet-ansi_map-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_ansi_map = -1;
@@ -1137,7 +1140,7 @@ static gint ett_ansi_map_InvokeData = -1;
 static gint ett_ansi_map_ReturnData = -1;
 
 /*--- End of included file: packet-ansi_map-ett.c ---*/
-#line 353 "../../asn1/ansi_map/packet-ansi_map-template.c"
+#line 356 "../../asn1/ansi_map/packet-ansi_map-template.c"
 
 /* Global variables */
 static dissector_table_t is637_tele_id_dissector_table; /* IS-637 Teleservice ID */
@@ -1184,52 +1187,47 @@ ansi_map_init_protocol(void)
 
 /* Store Invoke information needed for the corresponding reply */
 static void
-update_saved_invokedata(packet_info *pinfo, proto_tree *tree _U_, tvbuff_t *tvb _U_){
+update_saved_invokedata(packet_info *pinfo, struct ansi_tcap_private_t *p_private_tcap){
     struct ansi_map_invokedata_t *ansi_map_saved_invokedata;
-    struct ansi_tcap_private_t *p_private_tcap;
     address* src = &(pinfo->src);
     address* dst = &(pinfo->dst);
     guint8 *src_str;
     guint8 *dst_str;
     const char *buf = NULL;
 
-    src_str = ep_address_to_str(src);
-    dst_str = ep_address_to_str(dst);
+    src_str = address_to_str(wmem_packet_scope(), src);
+    dst_str = address_to_str(wmem_packet_scope(), dst);
 
     /* Data from the TCAP dissector */
-    if (pinfo->private_data != NULL){
-        p_private_tcap=(struct ansi_tcap_private_t *)pinfo->private_data;
-        if ((!pinfo->fd->flags.visited)&&(p_private_tcap->TransactionID_str)){
-            /* Only do this once XXX I hope it's the right thing to do */
-            /* The hash string needs to contain src and dest to distiguish differnt flows */
-            switch(ansi_map_response_matching_type){
-                case ANSI_MAP_TID_ONLY:
-                    buf = ep_strdup(p_private_tcap->TransactionID_str);
-                    break;
-                case 1:
-                    buf = ep_strdup_printf("%s%s",p_private_tcap->TransactionID_str,src_str);
-                    break;
-                default:
-                    buf = ep_strdup_printf("%s%s%s",p_private_tcap->TransactionID_str,src_str,dst_str);
-                    break;
-            }
-            /* If the entry allready exists don't owervrite it */
-            ansi_map_saved_invokedata = (struct ansi_map_invokedata_t *)g_hash_table_lookup(TransactionId_table,buf);
-            if(ansi_map_saved_invokedata)
-                return;
-
-            ansi_map_saved_invokedata = se_new(struct ansi_map_invokedata_t);
-            ansi_map_saved_invokedata->opcode = p_private_tcap->d.OperationCode_private;
-            ansi_map_saved_invokedata->ServiceIndicator = ServiceIndicator;
-
-            g_hash_table_insert(TransactionId_table,
-                                se_strdup(buf),
-                                ansi_map_saved_invokedata);
-
-            /*g_warning("Invoke Hash string %s pkt: %u",buf,pinfo->fd->num);*/
+    if ((!pinfo->fd->flags.visited)&&(p_private_tcap->TransactionID_str)){
+        /* Only do this once XXX I hope it's the right thing to do */
+        /* The hash string needs to contain src and dest to distiguish differnt flows */
+        switch(ansi_map_response_matching_type){
+            case ANSI_MAP_TID_ONLY:
+                buf = wmem_strdup(wmem_packet_scope(), p_private_tcap->TransactionID_str);
+                break;
+            case 1:
+                buf = wmem_strdup_printf(wmem_packet_scope(), "%s%s",p_private_tcap->TransactionID_str,src_str);
+                break;
+            default:
+                buf = wmem_strdup_printf(wmem_packet_scope(), "%s%s%s",p_private_tcap->TransactionID_str,src_str,dst_str);
+                break;
         }
-    }
+        /* If the entry allready exists don't owervrite it */
+        ansi_map_saved_invokedata = (struct ansi_map_invokedata_t *)g_hash_table_lookup(TransactionId_table,buf);
+        if(ansi_map_saved_invokedata)
+            return;
 
+        ansi_map_saved_invokedata = wmem_new(wmem_file_scope(), struct ansi_map_invokedata_t);
+        ansi_map_saved_invokedata->opcode = p_private_tcap->d.OperationCode_private;
+        ansi_map_saved_invokedata->ServiceIndicator = ServiceIndicator;
+
+        g_hash_table_insert(TransactionId_table,
+                            wmem_strdup(wmem_file_scope(), buf),
+                            ansi_map_saved_invokedata);
+
+        /*g_warning("Invoke Hash string %s pkt: %u",buf,pinfo->fd->num);*/
+    }
 }
 /* value strings */
 const value_string ansi_map_opr_code_strings[] = {
@@ -1356,7 +1354,7 @@ static int dissect_ansi_map_SystemMyTypeCode(gboolean implicit_tag _U_, tvbuff_t
 static dgt_set_t Dgt_tbcd = {
     {
   /*  0   1   2   3   4   5   6   7   8   9   a   b   c   d   e */
-     '0','1','2','3','4','5','6','7','8','9','?','B','C','*','#'
+     '0','1','2','3','4','5','6','7','8','9','?','B','C','*','#','?'
     }
 };
 
@@ -1386,10 +1384,12 @@ static const true_false_string ansi_map_navail_bool_val  = {
     "Number is not available",
     "Number is available"
 };
+#if 0
 static const true_false_string ansi_map_si_bool_val  = {
     "User provided, screening passed",
     "User provided, not screened"
 };
+#endif
 static const value_string ansi_map_si_vals[]  = {
     {   0, "User provided, not screened"},
     {   1, "User provided, screening passed"},
@@ -1431,7 +1431,7 @@ dissect_ansi_map_min_type(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tre
 
     subtree = proto_item_add_subtree(actx->created_item, ett_mintype);
 
-    digit_str = tvb_bcd_dig_to_ep_str(tvb, offset, tvb_length_remaining(tvb,offset), NULL, FALSE);
+    digit_str = tvb_bcd_dig_to_wmem_packet_str(tvb, offset, tvb_length_remaining(tvb,offset), NULL, FALSE);
     proto_tree_add_string(subtree, hf_ansi_map_bcd_digits, tvb, offset, -1, digit_str);
     proto_item_append_text(actx->created_item, " - %s", digit_str);
 }
@@ -1476,7 +1476,7 @@ dissect_ansi_map_digits_type(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *
             if(octet_len == 0)
                 return;
             offset++;
-            digit_str = tvb_bcd_dig_to_ep_str(tvb, offset, tvb_length_remaining(tvb,offset), &Dgt_tbcd, FALSE);
+            digit_str = tvb_bcd_dig_to_wmem_packet_str(tvb, offset, tvb_length_remaining(tvb,offset), &Dgt_tbcd, FALSE);
             proto_tree_add_string(subtree, hf_ansi_map_bcd_digits, tvb, offset, -1, digit_str);
             proto_item_append_text(actx->created_item, " - %s", digit_str);
             break;
@@ -1488,7 +1488,7 @@ dissect_ansi_map_digits_type(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *
                 return;
             offset++;
             proto_tree_add_item(subtree, hf_ansi_map_ia5_digits, tvb, offset, -1, ENC_ASCII|ENC_NA);
-            proto_item_append_text(actx->created_item, " - %s", tvb_get_ephemeral_string(tvb,offset,tvb_length_remaining(tvb,offset)));
+            proto_item_append_text(actx->created_item, " - %s", tvb_get_string_enc(wmem_packet_scope(),tvb,offset,tvb_length_remaining(tvb,offset),ENC_ASCII|ENC_NA));
             break;
         case 3:
             /* Octet string */
@@ -1514,14 +1514,14 @@ dissect_ansi_map_digits_type(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *
         switch ((octet&0xf)){
         case 1:
             /* BCD Coding */
-            digit_str = tvb_bcd_dig_to_ep_str(tvb, offset, tvb_length_remaining(tvb,offset), &Dgt_tbcd, FALSE);
+            digit_str = tvb_bcd_dig_to_wmem_packet_str(tvb, offset, tvb_length_remaining(tvb,offset), &Dgt_tbcd, FALSE);
             proto_tree_add_string(subtree, hf_ansi_map_bcd_digits, tvb, offset, -1, digit_str);
             proto_item_append_text(actx->created_item, " - %s", digit_str);
             break;
         case 2:
             /* IA5 Coding */
             proto_tree_add_item(subtree, hf_ansi_map_ia5_digits, tvb, offset, -1, ENC_ASCII|ENC_NA);
-            proto_item_append_text(actx->created_item, " - %s", tvb_get_ephemeral_string(tvb,offset,tvb_length_remaining(tvb,offset)));
+            proto_item_append_text(actx->created_item, " - %s", tvb_get_string_enc(wmem_packet_scope(),tvb,offset,tvb_length_remaining(tvb,offset),ENC_ASCII|ENC_NA));
             break;
         case 3:
             /* Octet string */
@@ -1563,10 +1563,12 @@ dissect_ansi_map_digits_type(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *
 }
 /* 6.5.3.13. Subaddress */
 
+#if 0
 static const true_false_string ansi_map_Odd_Even_Ind_bool_val  = {
   "Odd",
   "Even"
 };
+#endif
 /* Type of Subaddress (octet 1, bits E-G) */
 static const value_string ansi_map_sub_addr_type_vals[]  = {
     {   0, "NSAP (CCITT Rec. X.213 or ISO 8348 AD2)"},
@@ -2522,17 +2524,21 @@ dissect_ansi_map_messagewaitingnotificationcount(tvbuff_t *tvb, packet_info *pin
 
 }
 
+#if 0
 /* 6.5.2.79 MessageWaitingNotificationType */
 /* Pip Tone (PT) (octet 1, bit A) */
 static const true_false_string ansi_map_MessageWaitingNotificationType_pt_bool_val  = {
     "Pip Tone (PT) notification is required",
     "Pip Tone (PT) notification is not authorized or no notification is required"
 };
+#endif
+#if 0
 /* Alert Pip Tone (APT) (octet 1, bit B) */
 static const true_false_string ansi_map_MessageWaitingNotificationType_apt_bool_val  = {
     "Alert Pip Tone (APT) notification is required",
     "Alert Pip Tone (APT) notification is not authorized or notification is not required"
 };
+#endif
 /* Message Waiting Indication (MWI) (octet 1, bits C and D) */
 static const value_string ansi_map_MessageWaitingNotificationType_mwi_vals[]  = {
     {   0, "No MWI. Message Waiting Indication (MWI) notification is not authorized or notification is not required"},
@@ -2652,6 +2658,7 @@ dissect_ansi_map_nampschanneldata(tvbuff_t *tvb, packet_info *pinfo _U_, proto_t
 
 }
 
+#if 0
 /* 6.5.2.88 OneTimeFeatureIndicator */
 /* updated with N.S0012 */
 /* Call Waiting for Future Incoming Call (CWFI) (octet 1, bits A and B) */
@@ -2664,6 +2671,8 @@ static const value_string ansi_map_onetimefeatureindicator_cw_vals[]  = {
     {   3, "Priority CW"},
     {   0, NULL }
 };
+#endif
+#if 0
 /* MessageWaitingNotification (MWN) (octet 1, bits E and F) */
 static const value_string ansi_map_onetimefeatureindicator_mwn_vals[]  = {
     {   0, "Ignore"},
@@ -2672,6 +2681,8 @@ static const value_string ansi_map_onetimefeatureindicator_mwn_vals[]  = {
     {   3, "Reserved"},
     {   0, NULL }
 };
+#endif
+#if 0
 /* Calling Number Identification Restriction (CNIR) (octet 1, bits G and H)*/
 static const value_string ansi_map_onetimefeatureindicator_cnir_vals[]  = {
     {   0, "Ignore"},
@@ -2680,7 +2691,9 @@ static const value_string ansi_map_onetimefeatureindicator_cnir_vals[]  = {
     {   3, "Reserved"},
     {   0, NULL }
 };
+#endif
 
+#if 0
 /* Priority Access and Channel Assignment (PACA) (octet 2, bits A and B)*/
 static const value_string ansi_map_onetimefeatureindicator_paca_vals[]  = {
     {   0, "Ignore"},
@@ -2689,7 +2702,9 @@ static const value_string ansi_map_onetimefeatureindicator_paca_vals[]  = {
     {   3, "Reserved"},
     {   0, NULL }
 };
+#endif
 
+#if 0
 /* Flash Privileges (Flash) (octet 2, bits C and D) */
 static const value_string ansi_map_onetimefeatureindicator_flash_vals[]  = {
     {   0, "Ignore"},
@@ -2698,6 +2713,8 @@ static const value_string ansi_map_onetimefeatureindicator_flash_vals[]  = {
     {   3, "Reserved"},
     {   0, NULL }
 };
+#endif
+#if 0
 /* Calling Name Restriction (CNAR) (octet 2, bits E and F) */
 static const value_string ansi_map_onetimefeatureindicator_cnar_vals[]  = {
     {   0, "Ignore"},
@@ -2706,6 +2723,7 @@ static const value_string ansi_map_onetimefeatureindicator_cnar_vals[]  = {
     {   3, "Blocking Toggle"},
     {   0, NULL }
 };
+#endif
 static void
 dissect_ansi_map_onetimefeatureindicator(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, asn1_ctx_t *actx _U_){
     /*
@@ -3207,6 +3225,7 @@ dissect_ansi_map_sms_originationrestrictions(tvbuff_t *tvb, packet_info *pinfo _
 /* 6.5.2.137 SMS_TeleserviceIdentifier */
 /* Updated with N.S0011-0 v 1.0 */
 
+#if 0
 /* SMS Teleservice Identifier (octets 1 and 2) */
 static const value_string ansi_map_SMS_TeleserviceIdentifier_vals[]  = {
     {     0, "Not used"},
@@ -3223,6 +3242,7 @@ static const value_string ansi_map_SMS_TeleserviceIdentifier_vals[]  = {
     { 32584, "TDMA Segmented System Assisted Mobile Positioning Service" },
     {     0, NULL }
 };
+#endif
 /* 6.5.2.140 SPINITriggers */
 /* All Origination (All) (octet 1, bit A) */
 
@@ -3649,6 +3669,7 @@ static const value_string ansi_map_TDMAServiceCode_vals[]  = {
     {   7, "STU-III"},
     {   0, NULL }
 };
+#if 0
 /* 6.5.2.j (IS-730) TDMATerminalCapability N.S0008-0 v 1.0 Updted with N.S0015-0 */
 /* Supported Frequency Band (octet 1) */
 /* Voice Coder (octet 2) */
@@ -3664,6 +3685,7 @@ static const value_string ansi_map_TDMATerminalCapability_prot_ver_vals[]  = {
     {   7, "PV 3 as published in TIA/EIA-136-A."},
     {   0, NULL }
 };
+#endif
 /* Asynchronous Data (ADS) (octet 4, bit A) N.S0007-0*/
 /* Group 3 Fax (G3FAX) (octet 4, bit B) */
 /* Secure Telephone Unit III (STU3) (octet 4, bit C) */
@@ -3837,6 +3859,7 @@ static const value_string ansi_map_TDMABandwidth_vals[]  = {
    proto_tree_add_item(subtree, hf_ansi_map_tmn, tvb, offset, 1, ENC_BIG_ENDIAN);
    }
 */
+#if 0
 /* 6.5.2.as ChangeServiceAttributes N.S0008-0 v 1.0 */
 /* Change Facilities Flag (CHGFAC)(octet 1, bits A - B) */
 static const value_string ansi_map_ChangeServiceAttributes_chgfac_vals[]  = {
@@ -3846,6 +3869,8 @@ static const value_string ansi_map_ChangeServiceAttributes_chgfac_vals[]  = {
     {   3, "Change Facilities Operation Not Used"},
     {   0, NULL }
 };
+#endif
+#if 0
 /* Service Negotiate Flag (SRVNEG)(octet 1, bits C - D) */
 static const value_string ansi_map_ChangeServiceAttributes_srvneg_vals[]  = {
     {   0, "Service Negotiation Used"},
@@ -3854,6 +3879,8 @@ static const value_string ansi_map_ChangeServiceAttributes_srvneg_vals[]  = {
     {   3, "Service Negotiation Not Required"},
     {   0, NULL }
 };
+#endif
+#if 0
 /* 6.5.2.au DataPrivacyParameters N.S0008-0 v 1.0*/
 /* Privacy Mode (PM) (octet 1, Bits A and B) */
 static const value_string ansi_map_DataPrivacyParameters_pm_vals[]  = {
@@ -3863,12 +3890,15 @@ static const value_string ansi_map_DataPrivacyParameters_pm_vals[]  = {
     {   3, "Reserved. Treat reserved values the same as value 0, Privacy inactive or not supported."},
     {   0, NULL }
 };
+#endif
+#if 0
 /* Data Privacy Version (PM) (octet 2) */
 static const value_string ansi_map_DataPrivacyParameters_data_priv_ver_vals[]  = {
     {   0, "Not used"},
     {   1, "Data Privacy Version 1"},
     {   0, NULL }
 };
+#endif
 
 /* 6.5.2.av ISLPInformation N.S0008-0 v 1.0*/
 /* ISLP Type (octet 1) */
@@ -3911,6 +3941,7 @@ static const value_string ansi_map_ServiceRedirectionCause_type_vals[]  = {
 
 /* 6.5.2.bw CallingPartyName N.S0012-0 v 1.0*/
 
+#if 0
 /* Presentation Status (octet 1, bits A and B) */
 static const value_string ansi_map_Presentation_Status_vals[]  = {
     {   0, "Presentation allowed"},
@@ -3919,11 +3950,14 @@ static const value_string ansi_map_Presentation_Status_vals[]  = {
     {   3, "No indication"},
     {   0, NULL }
 };
+#endif
+#if 0
 /* Availability (octet 1, bit E) N.S0012-0 v 1.0*/
 static const true_false_string ansi_map_Availability_bool_val  = {
     "Name not available",
     "Name available/unknown"
 };
+#endif
 static void
 dissect_ansi_map_callingpartyname(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, asn1_ctx_t *actx _U_){
 
@@ -3953,6 +3987,7 @@ dissect_ansi_map_callingpartyname(tvbuff_t *tvb _U_, packet_info *pinfo _U_, pro
 /* Global Title Octet 2 - n */
 
 
+#if 0
 /* 6.5.2.dc SpecializedResource N.S0013-0 v 1.0*/
 /* Resource Type (octet 1) */
 static const value_string ansi_map_resource_type_vals[]  = {
@@ -3962,6 +3997,7 @@ static const value_string ansi_map_resource_type_vals[]  = {
     {   3, "Automatic Speech Recognition - Speaker Independent - Speech User Interface Version 1"},
     {   0, NULL }
 };
+#endif
 /* 6.5.2.df TriggerCapability */
 /* Updated with N.S0004 N.S0013-0 v 1.0*/
 
@@ -4119,6 +4155,7 @@ static const value_string ansi_MSIDUsage_m_or_i_vals[]  = {
 
 /* 6.5.2.ff NewMINExtension N.S0015-0 */
 
+#if 0
 /* 6.5.2.fv ACGEncountered N.S0023-0 v 1.0 */
 /* ACG Encountered (octet 1, bits A-F) */
 static const value_string ansi_ACGEncountered_vals[]  = {
@@ -4140,6 +4177,8 @@ static const value_string ansi_ACGEncountered_vals[]  = {
     {   15, "15-digit control"},
     {   0, NULL }
 };
+#endif
+#if 0
 /* Control Type (octet 1, bits G-H) */
 static const value_string ansi_ACGEncountered_cntrl_type_vals[]  = {
     {   0, "Not used."},
@@ -4148,11 +4187,13 @@ static const value_string ansi_ACGEncountered_cntrl_type_vals[]  = {
     {   3, "Reserved. Treat the same as value 0, Not used."},
     {   0, NULL }
 };
+#endif
 
 /* 6.5.2.fw ControlType N.S0023-0 v 1.0 */
 
 
 
+#if 0
 /* 6.5.2.ge QoSPriority N.S0029-0 v1.0*/
 /* 6.5.2.xx QOSPriority */
 /* Non-Assured Priority (octet 1, bits A-D) */
@@ -4175,6 +4216,7 @@ static const value_string ansi_map_Priority_vals[]  = {
     {   15, "Reserved"},
     {   0, NULL }
 };
+#endif
 /* Assured Priority (octet 1, bits E-H)*/
 
 
@@ -4279,6 +4321,7 @@ static const value_string ansi_map_Priority_vals[]  = {
    {    0, NULL }
    };
 */
+#if 0
 /* 6.5.2.bp-1 ServiceRedirectionCause value */
 static const value_string ansi_map_ServiceRedirectionCause_vals[]  = {
     {   0, "Not used"},
@@ -4290,6 +4333,7 @@ static const value_string ansi_map_ServiceRedirectionCause_vals[]  = {
     {   6, "WrongNID"},
     {   0, NULL }
 };
+#endif
 /* 6.5.2.mT AuthenticationResponseReauthentication N.S0011-0 v 1.0*/
 
 /* 6.5.2.vT ReauthenticationReport N.S0011-0 v 1.0*/
@@ -4304,6 +4348,7 @@ static const value_string ansi_map_ReauthenticationReport_vals[]  = {
 
 
 
+#if 0
 /* 6.5.2.lB AKeyProtocolVersion
    N.S0011-0 v 1.0
 */
@@ -4315,6 +4360,7 @@ static const value_string ansi_map_AKeyProtocolVersion_vals[]  = {
     {   4, "Diffie Hellman with 768-bit modulus, 32-bit primitive, and 160-bit exponents"},
     {   0, NULL }
 };
+#endif
 /* 6.5.2.sB OTASP_ResultCode
    N.S0011-0 v 1.0
 */
@@ -4385,7 +4431,7 @@ dissect_ansi_map_ElectronicSerialNumber(gboolean implicit_tag _U_, tvbuff_t *tvb
 
 static int
 dissect_ansi_map_MINType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 37 "../../asn1/ansi_map/ansi_map.cnf"
+#line 40 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -4484,7 +4530,7 @@ dissect_ansi_map_CDMAPrivateLongCodeMask(gboolean implicit_tag _U_, tvbuff_t *tv
 
 static int
 dissect_ansi_map_DigitsType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 44 "../../asn1/ansi_map/ansi_map.cnf"
+#line 47 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -4594,7 +4640,7 @@ dissect_ansi_map_MobileStationMIN(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, 
 
 static int
 dissect_ansi_map_MSCID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 201 "../../asn1/ansi_map/ansi_map.cnf"
+#line 204 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -4773,7 +4819,7 @@ dissect_ansi_map_AuthenticationDirectiveRes(gboolean implicit_tag _U_, tvbuff_t 
 
 static int
 dissect_ansi_map_InterMSCCircuitID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 176 "../../asn1/ansi_map/ansi_map.cnf"
+#line 179 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -4919,7 +4965,7 @@ dissect_ansi_map_SystemAccessType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, 
 
 static int
 dissect_ansi_map_SystemCapabilities(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 340 "../../asn1/ansi_map/ansi_map.cnf"
+#line 343 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -5084,7 +5130,7 @@ dissect_ansi_map_CDMANetworkIdentification(gboolean implicit_tag _U_, tvbuff_t *
 
 static int
 dissect_ansi_map_ConfidentialityModes(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 130 "../../asn1/ansi_map/ansi_map.cnf"
+#line 133 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -5120,7 +5166,7 @@ dissect_ansi_map_Digits(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset
 
 static int
 dissect_ansi_map_PC_SSN(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 257 "../../asn1/ansi_map/ansi_map.cnf"
+#line 260 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -5175,7 +5221,7 @@ dissect_ansi_map_SuspiciousAccess(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, 
 
 static int
 dissect_ansi_map_TransactionCapability(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 357 "../../asn1/ansi_map/ansi_map.cnf"
+#line 360 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -5420,7 +5466,7 @@ dissect_ansi_map_ReauthenticationReport(gboolean implicit_tag _U_, tvbuff_t *tvb
 
 static int
 dissect_ansi_map_ServiceIndicator(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 437 "../../asn1/ansi_map/ansi_map.cnf"
+#line 440 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -5725,7 +5771,7 @@ dissect_ansi_map_CountRequestRes(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 
 static int
 dissect_ansi_map_BillingID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 84 "../../asn1/ansi_map/ansi_map.cnf"
+#line 87 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -5743,7 +5789,7 @@ dissect_ansi_map_BillingID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
 
 static int
 dissect_ansi_map_ChannelData(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 122 "../../asn1/ansi_map/ansi_map.cnf"
+#line 125 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -5820,7 +5866,7 @@ dissect_ansi_map_HandoffReason(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
 
 static int
 dissect_ansi_map_HandoffState(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 168 "../../asn1/ansi_map/ansi_map.cnf"
+#line 171 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -5945,7 +5991,7 @@ dissect_ansi_map_BaseStationManufacturerCode(gboolean implicit_tag _U_, tvbuff_t
 
 static int
 dissect_ansi_map_AlertCode(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 59 "../../asn1/ansi_map/ansi_map.cnf"
+#line 62 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -5963,7 +6009,7 @@ dissect_ansi_map_AlertCode(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
 
 static int
 dissect_ansi_map_CDMA2000HandoffInvokeIOSData(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 415 "../../asn1/ansi_map/ansi_map.cnf"
+#line 418 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
     proto_tree *subtree;
 
@@ -6033,7 +6079,7 @@ dissect_ansi_map_CDMABandClassList(gboolean implicit_tag _U_, tvbuff_t *tvb _U_,
 
 static int
 dissect_ansi_map_CDMACallMode(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 99 "../../asn1/ansi_map/ansi_map.cnf"
+#line 102 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -6050,7 +6096,7 @@ dissect_ansi_map_CDMACallMode(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
 
 static int
 dissect_ansi_map_CDMAChannelData(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 106 "../../asn1/ansi_map/ansi_map.cnf"
+#line 109 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -6078,7 +6124,7 @@ dissect_ansi_map_CDMAConnectionReference(gboolean implicit_tag _U_, tvbuff_t *tv
 
 static int
 dissect_ansi_map_CDMAServiceOption(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 365 "../../asn1/ansi_map/ansi_map.cnf"
+#line 368 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -6216,7 +6262,7 @@ dissect_ansi_map_CDMAServingOneWayDelay(gboolean implicit_tag _U_, tvbuff_t *tvb
 
 static int
 dissect_ansi_map_CDMAStationClassMark(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 114 "../../asn1/ansi_map/ansi_map.cnf"
+#line 117 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -6332,7 +6378,7 @@ dissect_ansi_map_ISLPInformation(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 
 static int
 dissect_ansi_map_MSLocation(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 209 "../../asn1/ansi_map/ansi_map.cnf"
+#line 212 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -6350,7 +6396,7 @@ dissect_ansi_map_MSLocation(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 
 static int
 dissect_ansi_map_NAMPSCallMode(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 217 "../../asn1/ansi_map/ansi_map.cnf"
+#line 220 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -6368,7 +6414,7 @@ dissect_ansi_map_NAMPSCallMode(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
 
 static int
 dissect_ansi_map_NAMPSChannelData(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 225 "../../asn1/ansi_map/ansi_map.cnf"
+#line 228 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -6572,7 +6618,7 @@ dissect_ansi_map_BSMCStatus(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 
 static int
 dissect_ansi_map_CDMA2000HandoffResponseIOSData(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 426 "../../asn1/ansi_map/ansi_map.cnf"
+#line 429 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
     proto_tree *subtree;
 
@@ -6813,7 +6859,7 @@ dissect_ansi_map_ACGEncountered(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 static int
 dissect_ansi_map_CallingPartyName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 376 "../../asn1/ansi_map/ansi_map.cnf"
+#line 379 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -6849,7 +6895,7 @@ dissect_ansi_map_CallingPartyNumberDigits2(gboolean implicit_tag _U_, tvbuff_t *
 
 static int
 dissect_ansi_map_Subaddress(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 51 "../../asn1/ansi_map/ansi_map.cnf"
+#line 54 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -6904,7 +6950,7 @@ dissect_ansi_map_MSCIdentificationNumber(gboolean implicit_tag _U_, tvbuff_t *tv
 
 static int
 dissect_ansi_map_OneTimeFeatureIndicator(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 233 "../../asn1/ansi_map/ansi_map.cnf"
+#line 236 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -7069,7 +7115,7 @@ dissect_ansi_map_ActionCode(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 
 static int
 dissect_ansi_map_AnnouncementCode(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 67 "../../asn1/ansi_map/ansi_map.cnf"
+#line 70 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -7228,7 +7274,7 @@ dissect_ansi_map_NoAnswerTime(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
 
 static int
 dissect_ansi_map_PACAIndicator(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 249 "../../asn1/ansi_map/ansi_map.cnf"
+#line 252 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -7334,7 +7380,7 @@ dissect_ansi_map_LegInformation(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 static int
 dissect_ansi_map_TerminationTriggers(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 349 "../../asn1/ansi_map/ansi_map.cnf"
+#line 352 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -7523,7 +7569,7 @@ dissect_ansi_map_DestinationAddress(gboolean implicit_tag _U_, tvbuff_t *tvb _U_
 
 static int
 dissect_ansi_map_WIN_TriggerList(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 399 "../../asn1/ansi_map/ansi_map.cnf"
+#line 402 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -8312,7 +8358,7 @@ dissect_ansi_map_InformationDirectiveRes(gboolean implicit_tag _U_, tvbuff_t *tv
 
 static int
 dissect_ansi_map_MessageWaitingNotificationCount(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 184 "../../asn1/ansi_map/ansi_map.cnf"
+#line 187 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -8330,7 +8376,7 @@ dissect_ansi_map_MessageWaitingNotificationCount(gboolean implicit_tag _U_, tvbu
 
 static int
 dissect_ansi_map_MessageWaitingNotificationType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 192 "../../asn1/ansi_map/ansi_map.cnf"
+#line 195 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -8447,7 +8493,7 @@ dissect_ansi_map_CDMASlotCycleIndex(gboolean implicit_tag _U_, tvbuff_t *tvb _U_
 
 static int
 dissect_ansi_map_ExtendedMSCID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 153 "../../asn1/ansi_map/ansi_map.cnf"
+#line 156 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -8465,7 +8511,7 @@ dissect_ansi_map_ExtendedMSCID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
 
 static int
 dissect_ansi_map_ExtendedSystemMyTypeCode(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 161 "../../asn1/ansi_map/ansi_map.cnf"
+#line 164 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -8532,7 +8578,7 @@ dissect_ansi_map_PageResponseTime(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, 
 
 static int
 dissect_ansi_map_PilotBillingID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 265 "../../asn1/ansi_map/ansi_map.cnf"
+#line 268 "../../asn1/ansi_map/ansi_map.cnf"
 
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
@@ -9014,7 +9060,7 @@ dissect_ansi_map_TriggerType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
 
 static int
 dissect_ansi_map_TriggerCapability(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 384 "../../asn1/ansi_map/ansi_map.cnf"
+#line 387 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -9032,7 +9078,7 @@ dissect_ansi_map_TriggerCapability(gboolean implicit_tag _U_, tvbuff_t *tvb _U_,
 
 static int
 dissect_ansi_map_WINOperationsCapability(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 392 "../../asn1/ansi_map/ansi_map.cnf"
+#line 395 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -9118,7 +9164,7 @@ dissect_ansi_map_LocationRequest(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 
 static int
 dissect_ansi_map_ControlNetworkID(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 407 "../../asn1/ansi_map/ansi_map.cnf"
+#line 410 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -9272,7 +9318,7 @@ dissect_ansi_map_MSInactive(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 
 static int
 dissect_ansi_map_OriginationTriggers(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 241 "../../asn1/ansi_map/ansi_map.cnf"
+#line 244 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -9465,7 +9511,7 @@ dissect_ansi_map_AuthorizationDenied(gboolean implicit_tag _U_, tvbuff_t *tvb _U
 
 static int
 dissect_ansi_map_AuthorizationPeriod(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 75 "../../asn1/ansi_map/ansi_map.cnf"
+#line 78 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -9484,7 +9530,7 @@ dissect_ansi_map_AuthorizationPeriod(gboolean implicit_tag _U_, tvbuff_t *tvb _U
 
 static int
 dissect_ansi_map_DeniedAuthorizationPeriod(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 145 "../../asn1/ansi_map/ansi_map.cnf"
+#line 148 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -9512,7 +9558,7 @@ dissect_ansi_map_AuthenticationCapability(gboolean implicit_tag _U_, tvbuff_t *t
 
 static int
 dissect_ansi_map_CallingFeaturesIndicator(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 92 "../../asn1/ansi_map/ansi_map.cnf"
+#line 95 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -9590,7 +9636,7 @@ dissect_ansi_map_RestrictionDigits(gboolean implicit_tag _U_, tvbuff_t *tvb _U_,
 
 static int
 dissect_ansi_map_SMS_OriginationRestrictions(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 308 "../../asn1/ansi_map/ansi_map.cnf"
+#line 311 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -10048,7 +10094,7 @@ dissect_ansi_map_CancellationType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, 
 
 static int
 dissect_ansi_map_ControlChannelData(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 137 "../../asn1/ansi_map/ansi_map.cnf"
+#line 140 "../../asn1/ansi_map/ansi_map.cnf"
 	tvbuff_t *parameter_tvb = NULL;
   offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &parameter_tvb);
@@ -10578,7 +10624,7 @@ dissect_ansi_map_RoutingRequestRes(gboolean implicit_tag _U_, tvbuff_t *tvb _U_,
 
 static int
 dissect_ansi_map_SMS_BearerData(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 274 "../../asn1/ansi_map/ansi_map.cnf"
+#line 277 "../../asn1/ansi_map/ansi_map.cnf"
 	int length;
 	SMS_BearerData_tvb = NULL;
 
@@ -10622,7 +10668,7 @@ dissect_ansi_map_SMS_BearerData(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 static int
 dissect_ansi_map_SMS_TeleserviceIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 317 "../../asn1/ansi_map/ansi_map.cnf"
+#line 320 "../../asn1/ansi_map/ansi_map.cnf"
 
 	int length;
 	tvbuff_t *parameter_tvb = NULL;
@@ -15226,44 +15272,6 @@ dissect_ansi_map_QualificationRequest2Res(gboolean implicit_tag _U_, tvbuff_t *t
 }
 
 
-static const value_string ansi_map_DetectionPointType_vals[] = {
-  {   1, "tDP-R" },
-  {   2, "tDP-N" },
-  {   3, "eDP-R" },
-  {   4, "eDP-N" },
-  { 0, NULL }
-};
-
-
-static int
-dissect_ansi_map_DetectionPointType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
-                                  NULL);
-
-  return offset;
-}
-
-
-
-static int
-dissect_ansi_map_EnhancedPrivacyEncryptionReport(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
-                                       NULL);
-
-  return offset;
-}
-
-
-
-static int
-dissect_ansi_map_MINExtension(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
-                                       NULL);
-
-  return offset;
-}
-
-
 static const ber_sequence_t InvokeData_sequence[] = {
   { &hf_ansi_map_handoffMeasurementRequest, BER_CLASS_PRI, 18, BER_FLAGS_NOOWNTAG, dissect_ansi_map_HandoffMeasurementRequest },
   { &hf_ansi_map_facilitiesDirective, BER_CLASS_PRI, 18, BER_FLAGS_NOOWNTAG, dissect_ansi_map_FacilitiesDirective },
@@ -15458,7 +15466,7 @@ dissect_ansi_map_ReturnData(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 
 
 /*--- End of included file: packet-ansi_map-fn.c ---*/
-#line 3584 "../../asn1/ansi_map/packet-ansi_map-template.c"
+#line 3630 "../../asn1/ansi_map/packet-ansi_map-template.c"
 
 /*
  * 6.5.2.dk N.S0013-0 v 1.0,X.S0004-550-E v1.0 2.301
@@ -16060,7 +16068,7 @@ static int dissect_returnData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_
         offset = dissect_ansi_map_ModifyRes(TRUE, tvb, offset, actx, tree, hf_ansi_map_modifyRes);
         break;
     case  72: /*Search*/
-        offset = dissect_ansi_map_SearchRes(TRUE, tvb, offset, actx, tree, hf_ansi_map_searchRes);;
+        offset = dissect_ansi_map_SearchRes(TRUE, tvb, offset, actx, tree, hf_ansi_map_searchRes);
         break;
     case  73: /*Seize Resource*/
         offset = dissect_ansi_map_SeizeResourceRes(TRUE, tvb, offset, actx, tree, hf_ansi_map_seizeResourceRes);
@@ -16155,57 +16163,51 @@ static int dissect_returnData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_
 }
 
 static int
-find_saved_invokedata(asn1_ctx_t *actx){
+find_saved_invokedata(asn1_ctx_t *actx, struct ansi_tcap_private_t *p_private_tcap){
     struct ansi_map_invokedata_t *ansi_map_saved_invokedata;
-    struct ansi_tcap_private_t *p_private_tcap;
     address* src = &(actx->pinfo->src);
     address* dst = &(actx->pinfo->dst);
     guint8 *src_str;
     guint8 *dst_str;
     char *buf;
 
-    buf=ep_alloc(1024);
+    buf=(char *)wmem_alloc(wmem_packet_scope(), 1024);
 
     /* Data from the TCAP dissector */
-    if (actx->pinfo->private_data != NULL){
-        p_private_tcap=(struct ansi_tcap_private_t *)actx->pinfo->private_data;
-        /* The hash string needs to contain src and dest to distiguish differnt flows */
-        src_str = ep_address_to_str(src);
-        dst_str = ep_address_to_str(dst);
-        /* Reverse order to invoke */
-        switch(ansi_map_response_matching_type){
-            case ANSI_MAP_TID_ONLY:
-                g_snprintf(buf,1024,"%s",p_private_tcap->TransactionID_str);
-                break;
-            case 1:
-                g_snprintf(buf,1024,"%s%s",p_private_tcap->TransactionID_str,dst_str);
-                break;
-            default:
-                g_snprintf(buf,1024,"%s%s%s",p_private_tcap->TransactionID_str,dst_str,src_str);
-                break;
-        }
+    /* The hash string needs to contain src and dest to distiguish differnt flows */
+    src_str = address_to_str(wmem_packet_scope(), src);
+    dst_str = address_to_str(wmem_packet_scope(), dst);
+    /* Reverse order to invoke */
+    switch(ansi_map_response_matching_type){
+        case ANSI_MAP_TID_ONLY:
+            g_snprintf(buf,1024,"%s",p_private_tcap->TransactionID_str);
+            break;
+        case 1:
+            g_snprintf(buf,1024,"%s%s",p_private_tcap->TransactionID_str,dst_str);
+            break;
+        default:
+            g_snprintf(buf,1024,"%s%s%s",p_private_tcap->TransactionID_str,dst_str,src_str);
+            break;
+    }
 
-        /*g_warning("Find Hash string %s pkt: %u",buf,actx->pinfo->fd->num);*/
-        ansi_map_saved_invokedata = (struct ansi_map_invokedata_t *)g_hash_table_lookup(TransactionId_table, buf);
-        if(ansi_map_saved_invokedata){
-            OperationCode = ansi_map_saved_invokedata->opcode & 0xff;
-            ServiceIndicator = ansi_map_saved_invokedata->ServiceIndicator;
-        }else{
-            OperationCode = OperationCode & 0x00ff;
-        }
+    /*g_warning("Find Hash string %s pkt: %u",buf,actx->pinfo->fd->num);*/
+    ansi_map_saved_invokedata = (struct ansi_map_invokedata_t *)g_hash_table_lookup(TransactionId_table, buf);
+    if(ansi_map_saved_invokedata){
+        OperationCode = ansi_map_saved_invokedata->opcode & 0xff;
+        ServiceIndicator = ansi_map_saved_invokedata->ServiceIndicator;
     }else{
-        /*g_warning("No private data pkt: %u",actx->pinfo->fd->num);*/
         OperationCode = OperationCode & 0x00ff;
     }
+
     return OperationCode;
 }
 
-static void
-dissect_ansi_map(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_ansi_map(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
     proto_item *ansi_map_item;
     proto_tree *ansi_map_tree = NULL;
-    struct ansi_tcap_private_t *p_private_tcap;
+    struct ansi_tcap_private_t *p_private_tcap = (struct ansi_tcap_private_t *)data;
     asn1_ctx_t asn1_ctx;
     asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
@@ -16213,16 +16215,14 @@ dissect_ansi_map(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     ansi_map_sms_tele_id = -1;
     g_pinfo = pinfo;
     g_tree = tree;
+
+    /* The TCAP dissector should have provided data but didn't so reject it. */
+    if (data == NULL)
+        return 0;
     /*
      * Make entry in the Protocol column on summary display
      */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "ANSI MAP");
-
-    /* Data from the TCAP dissector */
-    if (pinfo->private_data == NULL){
-        proto_tree_add_text(tree, tvb, 0, -1, "Dissector ERROR this dissector relays on private data");
-        return;
-    }
 
     /*
      * create the ansi_map protocol tree
@@ -16233,8 +16233,6 @@ dissect_ansi_map(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     is683_ota = FALSE;
     is801_pld = FALSE;
     ServiceIndicator = 0;
-
-    p_private_tcap=(struct ansi_tcap_private_t *)pinfo->private_data;
 
     switch(p_private_tcap->d.pdu){
         /*
@@ -16249,10 +16247,10 @@ dissect_ansi_map(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         col_add_fstr(pinfo->cinfo, COL_INFO,"%s Invoke ", val_to_str_ext(OperationCode, &ansi_map_opr_code_strings_ext, "Unknown ANSI-MAP PDU (%u)"));
         proto_item_append_text(p_private_tcap->d.OperationCode_item," %s",val_to_str_ext(OperationCode, &ansi_map_opr_code_strings_ext, "Unknown ANSI-MAP PDU (%u)"));
         dissect_invokeData(ansi_map_tree, tvb, 0, &asn1_ctx);
-        update_saved_invokedata(pinfo, ansi_map_tree, tvb);
+        update_saved_invokedata(pinfo, p_private_tcap);
         break;
     case 2:
-        OperationCode = find_saved_invokedata(&asn1_ctx);
+        OperationCode = find_saved_invokedata(&asn1_ctx, p_private_tcap);
         col_add_fstr(pinfo->cinfo, COL_INFO,"%s ReturnResult ", val_to_str_ext(OperationCode, &ansi_map_opr_code_strings_ext, "Unknown ANSI-MAP PDU (%u)"));
         proto_item_append_text(p_private_tcap->d.OperationCode_item," %s",val_to_str_ext(OperationCode, &ansi_map_opr_code_strings_ext, "Unknown ANSI-MAP PDU (%u)"));
         dissect_returnData(ansi_map_tree, tvb, 0, &asn1_ctx);
@@ -16268,6 +16266,8 @@ dissect_ansi_map(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         DISSECTOR_ASSERT_NOT_REACHED();
         break;
     }
+
+    return tvb_length(tvb);
 }
 
 static void range_delete_callback(guint32 ssn)
@@ -17171,7 +17171,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_mobileStationMIN,
-      { "mobileStationMIN", "ansi_map.mobileStationMIN",
+      { "mobileStationMIN", "ansi_map.mobileStationMIN_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_mscid,
@@ -17191,7 +17191,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_senderIdentificationNumber,
-      { "senderIdentificationNumber", "ansi_map.senderIdentificationNumber",
+      { "senderIdentificationNumber", "ansi_map.senderIdentificationNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sharedSecretData,
@@ -17211,11 +17211,11 @@ void proto_register_ansi_map(void) {
         FT_UINT32, BASE_DEC, VALS(ansi_map_UpdateCount_vals), 0,
         NULL, HFILL }},
     { &hf_ansi_map_interMSCCircuitID,
-      { "interMSCCircuitID", "ansi_map.interMSCCircuitID",
+      { "interMSCCircuitID", "ansi_map.interMSCCircuitID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_mobileIdentificationNumber,
-      { "mobileIdentificationNumber", "ansi_map.mobileIdentificationNumber",
+      { "mobileIdentificationNumber", "ansi_map.mobileIdentificationNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_countUpdateReport,
@@ -17271,7 +17271,7 @@ void proto_register_ansi_map(void) {
         FT_UINT8, BASE_DEC, VALS(ansi_map_ControlChannelMode_vals), 0,
         NULL, HFILL }},
     { &hf_ansi_map_digits,
-      { "digits", "ansi_map.digits",
+      { "digits", "ansi_map.digits_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_pc_ssn,
@@ -17295,11 +17295,11 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_analogRedirectRecord,
-      { "analogRedirectRecord", "ansi_map.analogRedirectRecord",
+      { "analogRedirectRecord", "ansi_map.analogRedirectRecord_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_cdmaRedirectRecord,
-      { "cdmaRedirectRecord", "ansi_map.cdmaRedirectRecord",
+      { "cdmaRedirectRecord", "ansi_map.cdmaRedirectRecord_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_dataKey,
@@ -17399,7 +17399,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_cdma2000HandoffInvokeIOSData,
-      { "cdma2000HandoffInvokeIOSData", "ansi_map.cdma2000HandoffInvokeIOSData",
+      { "cdma2000HandoffInvokeIOSData", "ansi_map.cdma2000HandoffInvokeIOSData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_cdmaBandClassList,
@@ -17519,7 +17519,7 @@ void proto_register_ansi_map(void) {
         FT_UINT8, BASE_DEC, VALS(ansi_map_BSMCStatus_vals), 0x03,
         NULL, HFILL }},
     { &hf_ansi_map_cdma2000HandoffResponseIOSData,
-      { "cdma2000HandoffResponseIOSData", "ansi_map.cdma2000HandoffResponseIOSData",
+      { "cdma2000HandoffResponseIOSData", "ansi_map.cdma2000HandoffResponseIOSData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_cdmaCodeChannelList,
@@ -17567,11 +17567,11 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_mobileDirectoryNumber,
-      { "mobileDirectoryNumber", "ansi_map.mobileDirectoryNumber",
+      { "mobileDirectoryNumber", "ansi_map.mobileDirectoryNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_mSCIdentificationNumber,
-      { "mSCIdentificationNumber", "ansi_map.mSCIdentificationNumber",
+      { "mSCIdentificationNumber", "ansi_map.mSCIdentificationNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_oneTimeFeatureIndicator,
@@ -17595,19 +17595,19 @@ void proto_register_ansi_map(void) {
         FT_UINT8, BASE_DEC|BASE_EXT_STRING|BASE_EXT_STRING, &ansi_map_ActionCode_vals_ext, 0,
         NULL, HFILL }},
     { &hf_ansi_map_announcementList,
-      { "announcementList", "ansi_map.announcementList",
+      { "announcementList", "ansi_map.announcementList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_callingPartyNumberString1,
-      { "callingPartyNumberString1", "ansi_map.callingPartyNumberString1",
+      { "callingPartyNumberString1", "ansi_map.callingPartyNumberString1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_callingPartyNumberString2,
-      { "callingPartyNumberString2", "ansi_map.callingPartyNumberString2",
+      { "callingPartyNumberString2", "ansi_map.callingPartyNumberString2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_digits_Destination,
-      { "digits-Destination", "ansi_map.digits_Destination",
+      { "digits-Destination", "ansi_map.digits_Destination_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Digits", HFILL }},
     { &hf_ansi_map_displayText,
@@ -17679,7 +17679,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_triggerAddressList,
-      { "triggerAddressList", "ansi_map.triggerAddressList",
+      { "triggerAddressList", "ansi_map.triggerAddressList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_emergencyServicesRoutingDigits,
@@ -17687,7 +17687,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_targetCellIDList,
-      { "targetCellIDList", "ansi_map.targetCellIDList",
+      { "targetCellIDList", "ansi_map.targetCellIDList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_signalQuality,
@@ -17783,7 +17783,7 @@ void proto_register_ansi_map(void) {
         FT_UINT8, BASE_DEC, VALS(ansi_map_PagingFrameClass_vals), 0x03,
         NULL, HFILL }},
     { &hf_ansi_map_pSID_RSIDList,
-      { "pSID-RSIDList", "ansi_map.pSID_RSIDList",
+      { "pSID-RSIDList", "ansi_map.pSID_RSIDList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_randc,
@@ -17815,7 +17815,7 @@ void proto_register_ansi_map(void) {
         FT_UINT32, BASE_DEC|BASE_EXT_STRING, &ansi_map_TriggerType_vals_ext, 0,
         NULL, HFILL }},
     { &hf_ansi_map_winCapability,
-      { "winCapability", "ansi_map.winCapability",
+      { "winCapability", "ansi_map.winCapability_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_callingPartyCategory,
@@ -17827,11 +17827,11 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_digits_carrier,
-      { "digits-carrier", "ansi_map.digits_carrier",
+      { "digits-carrier", "ansi_map.digits_carrier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Digits", HFILL }},
     { &hf_ansi_map_digits_dest,
-      { "digits-dest", "ansi_map.digits_dest",
+      { "digits-dest", "ansi_map.digits_dest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Digits", HFILL }},
     { &hf_ansi_map_dmh_ServiceID,
@@ -17851,7 +17851,7 @@ void proto_register_ansi_map(void) {
         FT_UINT8, BASE_DEC, VALS(ansi_map_ServicesResult_ppr_vals), 0x03,
         NULL, HFILL }},
     { &hf_ansi_map_sms_MessageWaitingIndicator,
-      { "sms-MessageWaitingIndicator", "ansi_map.sms_MessageWaitingIndicator",
+      { "sms-MessageWaitingIndicator", "ansi_map.sms_MessageWaitingIndicator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_originationTriggers,
@@ -17895,7 +17895,7 @@ void proto_register_ansi_map(void) {
         FT_UINT8, BASE_DEC, VALS(ansi_map_GeographicAuthorization_vals), 0,
         NULL, HFILL }},
     { &hf_ansi_map_meidValidated,
-      { "meidValidated", "ansi_map.meidValidated",
+      { "meidValidated", "ansi_map.meidValidated_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_mobilePositionCapability,
@@ -17979,7 +17979,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sms_Address,
-      { "sms-Address", "ansi_map.sms_Address",
+      { "sms-Address", "ansi_map.sms_Address_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_mpcAddress,
@@ -17987,11 +17987,11 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_mpcAddressList,
-      { "mpcAddressList", "ansi_map.mpcAddressList",
+      { "mpcAddressList", "ansi_map.mpcAddressList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_digits_Carrier,
-      { "digits-Carrier", "ansi_map.digits_Carrier",
+      { "digits-Carrier", "ansi_map.digits_Carrier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Digits", HFILL }},
     { &hf_ansi_map_digitCollectionControl,
@@ -18023,11 +18023,11 @@ void proto_register_ansi_map(void) {
         FT_UINT8, BASE_DEC, VALS(ansi_map_SMS_ChargeIndicator_vals), 0,
         NULL, HFILL }},
     { &hf_ansi_map_sms_DestinationAddress,
-      { "sms-DestinationAddress", "ansi_map.sms_DestinationAddress",
+      { "sms-DestinationAddress", "ansi_map.sms_DestinationAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sms_OriginalDestinationAddress,
-      { "sms-OriginalDestinationAddress", "ansi_map.sms_OriginalDestinationAddress",
+      { "sms-OriginalDestinationAddress", "ansi_map.sms_OriginalDestinationAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sms_OriginalDestinationSubaddress,
@@ -18035,7 +18035,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sms_OriginalOriginatingAddress,
-      { "sms-OriginalOriginatingAddress", "ansi_map.sms_OriginalOriginatingAddress",
+      { "sms-OriginalOriginatingAddress", "ansi_map.sms_OriginalOriginatingAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sms_OriginalOriginatingSubaddress,
@@ -18043,7 +18043,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sms_OriginatingAddress,
-      { "sms-OriginatingAddress", "ansi_map.sms_OriginatingAddress",
+      { "sms-OriginatingAddress", "ansi_map.sms_OriginatingAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sms_CauseCode,
@@ -18063,7 +18063,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_newlyAssignedMIN,
-      { "newlyAssignedMIN", "ansi_map.newlyAssignedMIN",
+      { "newlyAssignedMIN", "ansi_map.newlyAssignedMIN_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_newMINExtension,
@@ -18083,7 +18083,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_temporaryReferenceNumber,
-      { "temporaryReferenceNumber", "ansi_map.temporaryReferenceNumber",
+      { "temporaryReferenceNumber", "ansi_map.temporaryReferenceNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_mobileStationMSID,
@@ -18175,7 +18175,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_executeScript,
-      { "executeScript", "ansi_map.executeScript",
+      { "executeScript", "ansi_map.executeScript_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_scriptResult,
@@ -18299,7 +18299,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_positionInformation,
-      { "positionInformation", "ansi_map.positionInformation",
+      { "positionInformation", "ansi_map.positionInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_controlType,
@@ -18387,7 +18387,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_CDMACodeChannelList_item,
-      { "CDMACodeChannelInformation", "ansi_map.CDMACodeChannelInformation",
+      { "CDMACodeChannelInformation", "ansi_map.CDMACodeChannelInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_cdmaPilotStrength,
@@ -18399,7 +18399,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_CDMATargetMAHOList_item,
-      { "CDMATargetMAHOInformation", "ansi_map.CDMATargetMAHOInformation",
+      { "CDMATargetMAHOInformation", "ansi_map.CDMATargetMAHOInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_cdmaSignalQuality,
@@ -18407,11 +18407,11 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_CDMATargetMeasurementList_item,
-      { "CDMATargetMeasurementInformation", "ansi_map.CDMATargetMeasurementInformation",
+      { "CDMATargetMeasurementInformation", "ansi_map.CDMATargetMeasurementInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_TargetMeasurementList_item,
-      { "TargetMeasurementInformation", "ansi_map.TargetMeasurementInformation",
+      { "TargetMeasurementInformation", "ansi_map.TargetMeasurementInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_TerminationList_item,
@@ -18419,19 +18419,19 @@ void proto_register_ansi_map(void) {
         FT_UINT32, BASE_DEC, VALS(ansi_map_TerminationList_item_vals), 0,
         NULL, HFILL }},
     { &hf_ansi_map_intersystemTermination,
-      { "intersystemTermination", "ansi_map.intersystemTermination",
+      { "intersystemTermination", "ansi_map.intersystemTermination_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_localTermination,
-      { "localTermination", "ansi_map.localTermination",
+      { "localTermination", "ansi_map.localTermination_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_pstnTermination,
-      { "pstnTermination", "ansi_map.pstnTermination",
+      { "pstnTermination", "ansi_map.pstnTermination_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_CDMABandClassList_item,
-      { "CDMABandClassInformation", "ansi_map.CDMABandClassInformation",
+      { "CDMABandClassInformation", "ansi_map.CDMABandClassInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_CDMAServiceOptionList_item,
@@ -18459,15 +18459,15 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_CDMAConnectionReferenceList_item,
-      { "CDMAConnectionReferenceList item", "ansi_map.CDMAConnectionReferenceList_item",
+      { "CDMAConnectionReferenceList item", "ansi_map.CDMAConnectionReferenceList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_cdmaConnectionReferenceInformation,
-      { "cdmaConnectionReferenceInformation", "ansi_map.cdmaConnectionReferenceInformation",
+      { "cdmaConnectionReferenceInformation", "ansi_map.cdmaConnectionReferenceInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_cdmaConnectionReferenceInformation2,
-      { "cdmaConnectionReferenceInformation2", "ansi_map.cdmaConnectionReferenceInformation2",
+      { "cdmaConnectionReferenceInformation2", "ansi_map.cdmaConnectionReferenceInformation2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CDMAConnectionReferenceInformation", HFILL }},
     { &hf_ansi_map_analogRedirectInfo,
@@ -18475,7 +18475,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_CDMAChannelNumberList_item,
-      { "CDMAChannelNumberList item", "ansi_map.CDMAChannelNumberList_item",
+      { "CDMAChannelNumberList item", "ansi_map.CDMAChannelNumberList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_cdmaChannelNumber,
@@ -18503,15 +18503,15 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_DataAccessElementList_item,
-      { "DataAccessElementList item", "ansi_map.DataAccessElementList_item",
+      { "DataAccessElementList item", "ansi_map.DataAccessElementList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_dataAccessElement1,
-      { "dataAccessElement1", "ansi_map.dataAccessElement1",
+      { "dataAccessElement1", "ansi_map.dataAccessElement1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DataAccessElement", HFILL }},
     { &hf_ansi_map_dataAccessElement2,
-      { "dataAccessElement2", "ansi_map.dataAccessElement2",
+      { "dataAccessElement2", "ansi_map.dataAccessElement2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DataAccessElement", HFILL }},
     { &hf_ansi_map_dataResult,
@@ -18519,7 +18519,7 @@ void proto_register_ansi_map(void) {
         FT_UINT32, BASE_DEC, VALS(ansi_map_DataResult_vals), 0,
         NULL, HFILL }},
     { &hf_ansi_map_DataUpdateResultList_item,
-      { "DataUpdateResult", "ansi_map.DataUpdateResult",
+      { "DataUpdateResult", "ansi_map.DataUpdateResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_globalTitle,
@@ -18543,7 +18543,7 @@ void proto_register_ansi_map(void) {
         FT_UINT32, BASE_DEC, VALS(ansi_map_AllOrNone_vals), 0,
         NULL, HFILL }},
     { &hf_ansi_map_ModificationRequestList_item,
-      { "ModificationRequest", "ansi_map.ModificationRequest",
+      { "ModificationRequest", "ansi_map.ModificationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_serviceDataResultList,
@@ -18555,7 +18555,7 @@ void proto_register_ansi_map(void) {
         FT_UINT32, BASE_DEC, VALS(ansi_map_ModificationResult_vals), 0,
         NULL, HFILL }},
     { &hf_ansi_map_ServiceDataAccessElementList_item,
-      { "ServiceDataAccessElement", "ansi_map.ServiceDataAccessElement",
+      { "ServiceDataAccessElement", "ansi_map.ServiceDataAccessElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_dataUpdateResultList,
@@ -18563,15 +18563,15 @@ void proto_register_ansi_map(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_ServiceDataResultList_item,
-      { "ServiceDataResult", "ansi_map.ServiceDataResult",
+      { "ServiceDataResult", "ansi_map.ServiceDataResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_triggerList,
-      { "triggerList", "ansi_map.triggerList",
+      { "triggerList", "ansi_map.triggerList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_triggerListOpt,
-      { "triggerListOpt", "ansi_map.triggerListOpt",
+      { "triggerListOpt", "ansi_map.triggerListOpt_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TriggerList", HFILL }},
     { &hf_ansi_map_wIN_TriggerList,
@@ -18587,7 +18587,7 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_CallRecoveryIDList_item,
-      { "CallRecoveryID", "ansi_map.CallRecoveryID",
+      { "CallRecoveryID", "ansi_map.CallRecoveryID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_generalizedTime,
@@ -18619,7 +18619,7 @@ void proto_register_ansi_map(void) {
         FT_UINT32, BASE_DEC, VALS(ansi_map_ServiceManagementSystemGapInterval_vals), 0,
         NULL, HFILL }},
     { &hf_ansi_map_CDMAPSMMList_item,
-      { "CDMAPSMMList item", "ansi_map.CDMAPSMMList_item",
+      { "CDMAPSMMList item", "ansi_map.CDMAPSMMList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_cdmaTargetMAHOList2,
@@ -18635,676 +18635,676 @@ void proto_register_ansi_map(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_handoffMeasurementRequest,
-      { "handoffMeasurementRequest", "ansi_map.handoffMeasurementRequest",
+      { "handoffMeasurementRequest", "ansi_map.handoffMeasurementRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_facilitiesDirective,
-      { "facilitiesDirective", "ansi_map.facilitiesDirective",
+      { "facilitiesDirective", "ansi_map.facilitiesDirective_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_handoffBack,
-      { "handoffBack", "ansi_map.handoffBack",
+      { "handoffBack", "ansi_map.handoffBack_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_facilitiesRelease,
-      { "facilitiesRelease", "ansi_map.facilitiesRelease",
+      { "facilitiesRelease", "ansi_map.facilitiesRelease_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_qualificationRequest,
-      { "qualificationRequest", "ansi_map.qualificationRequest",
+      { "qualificationRequest", "ansi_map.qualificationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_qualificationDirective,
-      { "qualificationDirective", "ansi_map.qualificationDirective",
+      { "qualificationDirective", "ansi_map.qualificationDirective_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_blocking,
-      { "blocking", "ansi_map.blocking",
+      { "blocking", "ansi_map.blocking_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_unblocking,
-      { "unblocking", "ansi_map.unblocking",
+      { "unblocking", "ansi_map.unblocking_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_resetCircuit,
-      { "resetCircuit", "ansi_map.resetCircuit",
+      { "resetCircuit", "ansi_map.resetCircuit_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_trunkTest,
-      { "trunkTest", "ansi_map.trunkTest",
+      { "trunkTest", "ansi_map.trunkTest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_trunkTestDisconnect,
-      { "trunkTestDisconnect", "ansi_map.trunkTestDisconnect",
+      { "trunkTestDisconnect", "ansi_map.trunkTestDisconnect_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_registrationNotification,
-      { "registrationNotification", "ansi_map.registrationNotification",
+      { "registrationNotification", "ansi_map.registrationNotification_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_registrationCancellation,
-      { "registrationCancellation", "ansi_map.registrationCancellation",
+      { "registrationCancellation", "ansi_map.registrationCancellation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_locationRequest,
-      { "locationRequest", "ansi_map.locationRequest",
+      { "locationRequest", "ansi_map.locationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_routingRequest,
-      { "routingRequest", "ansi_map.routingRequest",
+      { "routingRequest", "ansi_map.routingRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_featureRequest,
-      { "featureRequest", "ansi_map.featureRequest",
+      { "featureRequest", "ansi_map.featureRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_unreliableRoamerDataDirective,
-      { "unreliableRoamerDataDirective", "ansi_map.unreliableRoamerDataDirective",
+      { "unreliableRoamerDataDirective", "ansi_map.unreliableRoamerDataDirective_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_mSInactive,
-      { "mSInactive", "ansi_map.mSInactive",
+      { "mSInactive", "ansi_map.mSInactive_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_transferToNumberRequest,
-      { "transferToNumberRequest", "ansi_map.transferToNumberRequest",
+      { "transferToNumberRequest", "ansi_map.transferToNumberRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_redirectionRequest,
-      { "redirectionRequest", "ansi_map.redirectionRequest",
+      { "redirectionRequest", "ansi_map.redirectionRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_handoffToThird,
-      { "handoffToThird", "ansi_map.handoffToThird",
+      { "handoffToThird", "ansi_map.handoffToThird_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_flashRequest,
-      { "flashRequest", "ansi_map.flashRequest",
+      { "flashRequest", "ansi_map.flashRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_authenticationDirective,
-      { "authenticationDirective", "ansi_map.authenticationDirective",
+      { "authenticationDirective", "ansi_map.authenticationDirective_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_authenticationRequest,
-      { "authenticationRequest", "ansi_map.authenticationRequest",
+      { "authenticationRequest", "ansi_map.authenticationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_baseStationChallenge,
-      { "baseStationChallenge", "ansi_map.baseStationChallenge",
+      { "baseStationChallenge", "ansi_map.baseStationChallenge_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_authenticationFailureReport,
-      { "authenticationFailureReport", "ansi_map.authenticationFailureReport",
+      { "authenticationFailureReport", "ansi_map.authenticationFailureReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_countRequest,
-      { "countRequest", "ansi_map.countRequest",
+      { "countRequest", "ansi_map.countRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_interSystemPage,
-      { "interSystemPage", "ansi_map.interSystemPage",
+      { "interSystemPage", "ansi_map.interSystemPage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_unsolicitedResponse,
-      { "unsolicitedResponse", "ansi_map.unsolicitedResponse",
+      { "unsolicitedResponse", "ansi_map.unsolicitedResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_bulkDeregistration,
-      { "bulkDeregistration", "ansi_map.bulkDeregistration",
+      { "bulkDeregistration", "ansi_map.bulkDeregistration_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_handoffMeasurementRequest2,
-      { "handoffMeasurementRequest2", "ansi_map.handoffMeasurementRequest2",
+      { "handoffMeasurementRequest2", "ansi_map.handoffMeasurementRequest2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_facilitiesDirective2,
-      { "facilitiesDirective2", "ansi_map.facilitiesDirective2",
+      { "facilitiesDirective2", "ansi_map.facilitiesDirective2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_handoffBack2,
-      { "handoffBack2", "ansi_map.handoffBack2",
+      { "handoffBack2", "ansi_map.handoffBack2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_handoffToThird2,
-      { "handoffToThird2", "ansi_map.handoffToThird2",
+      { "handoffToThird2", "ansi_map.handoffToThird2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_authenticationDirectiveForward,
-      { "authenticationDirectiveForward", "ansi_map.authenticationDirectiveForward",
+      { "authenticationDirectiveForward", "ansi_map.authenticationDirectiveForward_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_authenticationStatusReport,
-      { "authenticationStatusReport", "ansi_map.authenticationStatusReport",
+      { "authenticationStatusReport", "ansi_map.authenticationStatusReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_informationDirective,
-      { "informationDirective", "ansi_map.informationDirective",
+      { "informationDirective", "ansi_map.informationDirective_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_informationForward,
-      { "informationForward", "ansi_map.informationForward",
+      { "informationForward", "ansi_map.informationForward_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_interSystemAnswer,
-      { "interSystemAnswer", "ansi_map.interSystemAnswer",
+      { "interSystemAnswer", "ansi_map.interSystemAnswer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_interSystemPage2,
-      { "interSystemPage2", "ansi_map.interSystemPage2",
+      { "interSystemPage2", "ansi_map.interSystemPage2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_interSystemSetup,
-      { "interSystemSetup", "ansi_map.interSystemSetup",
+      { "interSystemSetup", "ansi_map.interSystemSetup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_originationRequest,
-      { "originationRequest", "ansi_map.originationRequest",
+      { "originationRequest", "ansi_map.originationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_randomVariableRequest,
-      { "randomVariableRequest", "ansi_map.randomVariableRequest",
+      { "randomVariableRequest", "ansi_map.randomVariableRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_redirectionDirective,
-      { "redirectionDirective", "ansi_map.redirectionDirective",
+      { "redirectionDirective", "ansi_map.redirectionDirective_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_remoteUserInteractionDirective,
-      { "remoteUserInteractionDirective", "ansi_map.remoteUserInteractionDirective",
+      { "remoteUserInteractionDirective", "ansi_map.remoteUserInteractionDirective_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sMSDeliveryBackward,
-      { "sMSDeliveryBackward", "ansi_map.sMSDeliveryBackward",
+      { "sMSDeliveryBackward", "ansi_map.sMSDeliveryBackward_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sMSDeliveryForward,
-      { "sMSDeliveryForward", "ansi_map.sMSDeliveryForward",
+      { "sMSDeliveryForward", "ansi_map.sMSDeliveryForward_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sMSDeliveryPointToPoint,
-      { "sMSDeliveryPointToPoint", "ansi_map.sMSDeliveryPointToPoint",
+      { "sMSDeliveryPointToPoint", "ansi_map.sMSDeliveryPointToPoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sMSNotification,
-      { "sMSNotification", "ansi_map.sMSNotification",
+      { "sMSNotification", "ansi_map.sMSNotification_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sMSRequest,
-      { "sMSRequest", "ansi_map.sMSRequest",
+      { "sMSRequest", "ansi_map.sMSRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_oTASPRequest,
-      { "oTASPRequest", "ansi_map.oTASPRequest",
+      { "oTASPRequest", "ansi_map.oTASPRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_changeFacilities,
-      { "changeFacilities", "ansi_map.changeFacilities",
+      { "changeFacilities", "ansi_map.changeFacilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_changeService,
-      { "changeService", "ansi_map.changeService",
+      { "changeService", "ansi_map.changeService_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_parameterRequest,
-      { "parameterRequest", "ansi_map.parameterRequest",
+      { "parameterRequest", "ansi_map.parameterRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_tMSIDirective,
-      { "tMSIDirective", "ansi_map.tMSIDirective",
+      { "tMSIDirective", "ansi_map.tMSIDirective_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_numberPortabilityRequest,
-      { "numberPortabilityRequest", "ansi_map.numberPortabilityRequest",
+      { "numberPortabilityRequest", "ansi_map.numberPortabilityRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_serviceRequest,
-      { "serviceRequest", "ansi_map.serviceRequest",
+      { "serviceRequest", "ansi_map.serviceRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_analyzedInformation,
-      { "analyzedInformation", "ansi_map.analyzedInformation",
+      { "analyzedInformation", "ansi_map.analyzedInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_connectionFailureReport,
-      { "connectionFailureReport", "ansi_map.connectionFailureReport",
+      { "connectionFailureReport", "ansi_map.connectionFailureReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_connectResource,
-      { "connectResource", "ansi_map.connectResource",
+      { "connectResource", "ansi_map.connectResource_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_facilitySelectedAndAvailable,
-      { "facilitySelectedAndAvailable", "ansi_map.facilitySelectedAndAvailable",
+      { "facilitySelectedAndAvailable", "ansi_map.facilitySelectedAndAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_modify,
-      { "modify", "ansi_map.modify",
+      { "modify", "ansi_map.modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_search,
-      { "search", "ansi_map.search",
+      { "search", "ansi_map.search_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_seizeResource,
-      { "seizeResource", "ansi_map.seizeResource",
+      { "seizeResource", "ansi_map.seizeResource_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sRFDirective,
-      { "sRFDirective", "ansi_map.sRFDirective",
+      { "sRFDirective", "ansi_map.sRFDirective_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_tBusy,
-      { "tBusy", "ansi_map.tBusy",
+      { "tBusy", "ansi_map.tBusy_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_tNoAnswer,
-      { "tNoAnswer", "ansi_map.tNoAnswer",
+      { "tNoAnswer", "ansi_map.tNoAnswer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_smsDeliveryPointToPointAck,
-      { "smsDeliveryPointToPointAck", "ansi_map.smsDeliveryPointToPointAck",
+      { "smsDeliveryPointToPointAck", "ansi_map.smsDeliveryPointToPointAck_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_messageDirective,
-      { "messageDirective", "ansi_map.messageDirective",
+      { "messageDirective", "ansi_map.messageDirective_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_bulkDisconnection,
-      { "bulkDisconnection", "ansi_map.bulkDisconnection",
+      { "bulkDisconnection", "ansi_map.bulkDisconnection_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_callControlDirective,
-      { "callControlDirective", "ansi_map.callControlDirective",
+      { "callControlDirective", "ansi_map.callControlDirective_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_oAnswer,
-      { "oAnswer", "ansi_map.oAnswer",
+      { "oAnswer", "ansi_map.oAnswer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_oDisconnect,
-      { "oDisconnect", "ansi_map.oDisconnect",
+      { "oDisconnect", "ansi_map.oDisconnect_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_callRecoveryReport,
-      { "callRecoveryReport", "ansi_map.callRecoveryReport",
+      { "callRecoveryReport", "ansi_map.callRecoveryReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_tAnswer,
-      { "tAnswer", "ansi_map.tAnswer",
+      { "tAnswer", "ansi_map.tAnswer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_tDisconnect,
-      { "tDisconnect", "ansi_map.tDisconnect",
+      { "tDisconnect", "ansi_map.tDisconnect_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_unreliableCallData,
-      { "unreliableCallData", "ansi_map.unreliableCallData",
+      { "unreliableCallData", "ansi_map.unreliableCallData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_oCalledPartyBusy,
-      { "oCalledPartyBusy", "ansi_map.oCalledPartyBusy",
+      { "oCalledPartyBusy", "ansi_map.oCalledPartyBusy_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_oNoAnswer,
-      { "oNoAnswer", "ansi_map.oNoAnswer",
+      { "oNoAnswer", "ansi_map.oNoAnswer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_positionRequest,
-      { "positionRequest", "ansi_map.positionRequest",
+      { "positionRequest", "ansi_map.positionRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_positionRequestForward,
-      { "positionRequestForward", "ansi_map.positionRequestForward",
+      { "positionRequestForward", "ansi_map.positionRequestForward_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_callTerminationReport,
-      { "callTerminationReport", "ansi_map.callTerminationReport",
+      { "callTerminationReport", "ansi_map.callTerminationReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_geoPositionRequest,
-      { "geoPositionRequest", "ansi_map.geoPositionRequest",
+      { "geoPositionRequest", "ansi_map.geoPositionRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_interSystemPositionRequest,
-      { "interSystemPositionRequest", "ansi_map.interSystemPositionRequest",
+      { "interSystemPositionRequest", "ansi_map.interSystemPositionRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_interSystemPositionRequestForward,
-      { "interSystemPositionRequestForward", "ansi_map.interSystemPositionRequestForward",
+      { "interSystemPositionRequestForward", "ansi_map.interSystemPositionRequestForward_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_aCGDirective,
-      { "aCGDirective", "ansi_map.aCGDirective",
+      { "aCGDirective", "ansi_map.aCGDirective_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_roamerDatabaseVerificationRequest,
-      { "roamerDatabaseVerificationRequest", "ansi_map.roamerDatabaseVerificationRequest",
+      { "roamerDatabaseVerificationRequest", "ansi_map.roamerDatabaseVerificationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_addService,
-      { "addService", "ansi_map.addService",
+      { "addService", "ansi_map.addService_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_dropService,
-      { "dropService", "ansi_map.dropService",
+      { "dropService", "ansi_map.dropService_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_lcsParameterRequest,
-      { "lcsParameterRequest", "ansi_map.lcsParameterRequest",
+      { "lcsParameterRequest", "ansi_map.lcsParameterRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_checkMEID,
-      { "checkMEID", "ansi_map.checkMEID",
+      { "checkMEID", "ansi_map.checkMEID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_positionEventNotification,
-      { "positionEventNotification", "ansi_map.positionEventNotification",
+      { "positionEventNotification", "ansi_map.positionEventNotification_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_statusRequest,
-      { "statusRequest", "ansi_map.statusRequest",
+      { "statusRequest", "ansi_map.statusRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_interSystemSMSDeliveryPointToPoint,
-      { "interSystemSMSDeliveryPointToPoint", "ansi_map.interSystemSMSDeliveryPointToPoint",
+      { "interSystemSMSDeliveryPointToPoint", "ansi_map.interSystemSMSDeliveryPointToPoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_qualificationRequest2,
-      { "qualificationRequest2", "ansi_map.qualificationRequest2",
+      { "qualificationRequest2", "ansi_map.qualificationRequest2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_handoffMeasurementRequestRes,
-      { "handoffMeasurementRequestRes", "ansi_map.handoffMeasurementRequestRes",
+      { "handoffMeasurementRequestRes", "ansi_map.handoffMeasurementRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_facilitiesDirectiveRes,
-      { "facilitiesDirectiveRes", "ansi_map.facilitiesDirectiveRes",
+      { "facilitiesDirectiveRes", "ansi_map.facilitiesDirectiveRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_handoffBackRes,
-      { "handoffBackRes", "ansi_map.handoffBackRes",
+      { "handoffBackRes", "ansi_map.handoffBackRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_facilitiesReleaseRes,
-      { "facilitiesReleaseRes", "ansi_map.facilitiesReleaseRes",
+      { "facilitiesReleaseRes", "ansi_map.facilitiesReleaseRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_qualificationDirectiveRes,
-      { "qualificationDirectiveRes", "ansi_map.qualificationDirectiveRes",
+      { "qualificationDirectiveRes", "ansi_map.qualificationDirectiveRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_qualificationRequestRes,
-      { "qualificationRequestRes", "ansi_map.qualificationRequestRes",
+      { "qualificationRequestRes", "ansi_map.qualificationRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_resetCircuitRes,
-      { "resetCircuitRes", "ansi_map.resetCircuitRes",
+      { "resetCircuitRes", "ansi_map.resetCircuitRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_registrationNotificationRes,
-      { "registrationNotificationRes", "ansi_map.registrationNotificationRes",
+      { "registrationNotificationRes", "ansi_map.registrationNotificationRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_registrationCancellationRes,
-      { "registrationCancellationRes", "ansi_map.registrationCancellationRes",
+      { "registrationCancellationRes", "ansi_map.registrationCancellationRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_locationRequestRes,
-      { "locationRequestRes", "ansi_map.locationRequestRes",
+      { "locationRequestRes", "ansi_map.locationRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_routingRequestRes,
-      { "routingRequestRes", "ansi_map.routingRequestRes",
+      { "routingRequestRes", "ansi_map.routingRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_featureRequestRes,
-      { "featureRequestRes", "ansi_map.featureRequestRes",
+      { "featureRequestRes", "ansi_map.featureRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_transferToNumberRequestRes,
-      { "transferToNumberRequestRes", "ansi_map.transferToNumberRequestRes",
+      { "transferToNumberRequestRes", "ansi_map.transferToNumberRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_handoffToThirdRes,
-      { "handoffToThirdRes", "ansi_map.handoffToThirdRes",
+      { "handoffToThirdRes", "ansi_map.handoffToThirdRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_authenticationDirectiveRes,
-      { "authenticationDirectiveRes", "ansi_map.authenticationDirectiveRes",
+      { "authenticationDirectiveRes", "ansi_map.authenticationDirectiveRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_authenticationRequestRes,
-      { "authenticationRequestRes", "ansi_map.authenticationRequestRes",
+      { "authenticationRequestRes", "ansi_map.authenticationRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_baseStationChallengeRes,
-      { "baseStationChallengeRes", "ansi_map.baseStationChallengeRes",
+      { "baseStationChallengeRes", "ansi_map.baseStationChallengeRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_authenticationFailureReportRes,
-      { "authenticationFailureReportRes", "ansi_map.authenticationFailureReportRes",
+      { "authenticationFailureReportRes", "ansi_map.authenticationFailureReportRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_countRequestRes,
-      { "countRequestRes", "ansi_map.countRequestRes",
+      { "countRequestRes", "ansi_map.countRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_interSystemPageRes,
-      { "interSystemPageRes", "ansi_map.interSystemPageRes",
+      { "interSystemPageRes", "ansi_map.interSystemPageRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_unsolicitedResponseRes,
-      { "unsolicitedResponseRes", "ansi_map.unsolicitedResponseRes",
+      { "unsolicitedResponseRes", "ansi_map.unsolicitedResponseRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_handoffMeasurementRequest2Res,
-      { "handoffMeasurementRequest2Res", "ansi_map.handoffMeasurementRequest2Res",
+      { "handoffMeasurementRequest2Res", "ansi_map.handoffMeasurementRequest2Res_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_facilitiesDirective2Res,
-      { "facilitiesDirective2Res", "ansi_map.facilitiesDirective2Res",
+      { "facilitiesDirective2Res", "ansi_map.facilitiesDirective2Res_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_handoffBack2Res,
-      { "handoffBack2Res", "ansi_map.handoffBack2Res",
+      { "handoffBack2Res", "ansi_map.handoffBack2Res_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_handoffToThird2Res,
-      { "handoffToThird2Res", "ansi_map.handoffToThird2Res",
+      { "handoffToThird2Res", "ansi_map.handoffToThird2Res_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_authenticationDirectiveForwardRes,
-      { "authenticationDirectiveForwardRes", "ansi_map.authenticationDirectiveForwardRes",
+      { "authenticationDirectiveForwardRes", "ansi_map.authenticationDirectiveForwardRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_authenticationStatusReportRes,
-      { "authenticationStatusReportRes", "ansi_map.authenticationStatusReportRes",
+      { "authenticationStatusReportRes", "ansi_map.authenticationStatusReportRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_informationDirectiveRes,
-      { "informationDirectiveRes", "ansi_map.informationDirectiveRes",
+      { "informationDirectiveRes", "ansi_map.informationDirectiveRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_informationForwardRes,
-      { "informationForwardRes", "ansi_map.informationForwardRes",
+      { "informationForwardRes", "ansi_map.informationForwardRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_interSystemPage2Res,
-      { "interSystemPage2Res", "ansi_map.interSystemPage2Res",
+      { "interSystemPage2Res", "ansi_map.interSystemPage2Res_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_interSystemSetupRes,
-      { "interSystemSetupRes", "ansi_map.interSystemSetupRes",
+      { "interSystemSetupRes", "ansi_map.interSystemSetupRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_originationRequestRes,
-      { "originationRequestRes", "ansi_map.originationRequestRes",
+      { "originationRequestRes", "ansi_map.originationRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_randomVariableRequestRes,
-      { "randomVariableRequestRes", "ansi_map.randomVariableRequestRes",
+      { "randomVariableRequestRes", "ansi_map.randomVariableRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_remoteUserInteractionDirectiveRes,
-      { "remoteUserInteractionDirectiveRes", "ansi_map.remoteUserInteractionDirectiveRes",
+      { "remoteUserInteractionDirectiveRes", "ansi_map.remoteUserInteractionDirectiveRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sMSDeliveryBackwardRes,
-      { "sMSDeliveryBackwardRes", "ansi_map.sMSDeliveryBackwardRes",
+      { "sMSDeliveryBackwardRes", "ansi_map.sMSDeliveryBackwardRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sMSDeliveryForwardRes,
-      { "sMSDeliveryForwardRes", "ansi_map.sMSDeliveryForwardRes",
+      { "sMSDeliveryForwardRes", "ansi_map.sMSDeliveryForwardRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sMSDeliveryPointToPointRes,
-      { "sMSDeliveryPointToPointRes", "ansi_map.sMSDeliveryPointToPointRes",
+      { "sMSDeliveryPointToPointRes", "ansi_map.sMSDeliveryPointToPointRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sMSNotificationRes,
-      { "sMSNotificationRes", "ansi_map.sMSNotificationRes",
+      { "sMSNotificationRes", "ansi_map.sMSNotificationRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sMSRequestRes,
-      { "sMSRequestRes", "ansi_map.sMSRequestRes",
+      { "sMSRequestRes", "ansi_map.sMSRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_oTASPRequestRes,
-      { "oTASPRequestRes", "ansi_map.oTASPRequestRes",
+      { "oTASPRequestRes", "ansi_map.oTASPRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_changeFacilitiesRes,
-      { "changeFacilitiesRes", "ansi_map.changeFacilitiesRes",
+      { "changeFacilitiesRes", "ansi_map.changeFacilitiesRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_changeServiceRes,
-      { "changeServiceRes", "ansi_map.changeServiceRes",
+      { "changeServiceRes", "ansi_map.changeServiceRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_parameterRequestRes,
-      { "parameterRequestRes", "ansi_map.parameterRequestRes",
+      { "parameterRequestRes", "ansi_map.parameterRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_tMSIDirectiveRes,
-      { "tMSIDirectiveRes", "ansi_map.tMSIDirectiveRes",
+      { "tMSIDirectiveRes", "ansi_map.tMSIDirectiveRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_numberPortabilityRequestRes,
-      { "numberPortabilityRequestRes", "ansi_map.numberPortabilityRequestRes",
+      { "numberPortabilityRequestRes", "ansi_map.numberPortabilityRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_serviceRequestRes,
-      { "serviceRequestRes", "ansi_map.serviceRequestRes",
+      { "serviceRequestRes", "ansi_map.serviceRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_analyzedInformationRes,
-      { "analyzedInformationRes", "ansi_map.analyzedInformationRes",
+      { "analyzedInformationRes", "ansi_map.analyzedInformationRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_facilitySelectedAndAvailableRes,
-      { "facilitySelectedAndAvailableRes", "ansi_map.facilitySelectedAndAvailableRes",
+      { "facilitySelectedAndAvailableRes", "ansi_map.facilitySelectedAndAvailableRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_modifyRes,
-      { "modifyRes", "ansi_map.modifyRes",
+      { "modifyRes", "ansi_map.modifyRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_searchRes,
-      { "searchRes", "ansi_map.searchRes",
+      { "searchRes", "ansi_map.searchRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_seizeResourceRes,
-      { "seizeResourceRes", "ansi_map.seizeResourceRes",
+      { "seizeResourceRes", "ansi_map.seizeResourceRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_sRFDirectiveRes,
-      { "sRFDirectiveRes", "ansi_map.sRFDirectiveRes",
+      { "sRFDirectiveRes", "ansi_map.sRFDirectiveRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_tBusyRes,
-      { "tBusyRes", "ansi_map.tBusyRes",
+      { "tBusyRes", "ansi_map.tBusyRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_tNoAnswerRes,
-      { "tNoAnswerRes", "ansi_map.tNoAnswerRes",
+      { "tNoAnswerRes", "ansi_map.tNoAnswerRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_callControlDirectiveRes,
-      { "callControlDirectiveRes", "ansi_map.callControlDirectiveRes",
+      { "callControlDirectiveRes", "ansi_map.callControlDirectiveRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_oDisconnectRes,
-      { "oDisconnectRes", "ansi_map.oDisconnectRes",
+      { "oDisconnectRes", "ansi_map.oDisconnectRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_tDisconnectRes,
-      { "tDisconnectRes", "ansi_map.tDisconnectRes",
+      { "tDisconnectRes", "ansi_map.tDisconnectRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_oCalledPartyBusyRes,
-      { "oCalledPartyBusyRes", "ansi_map.oCalledPartyBusyRes",
+      { "oCalledPartyBusyRes", "ansi_map.oCalledPartyBusyRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_oNoAnswerRes,
-      { "oNoAnswerRes", "ansi_map.oNoAnswerRes",
+      { "oNoAnswerRes", "ansi_map.oNoAnswerRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_positionRequestRes,
-      { "positionRequestRes", "ansi_map.positionRequestRes",
+      { "positionRequestRes", "ansi_map.positionRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_positionRequestForwardRes,
-      { "positionRequestForwardRes", "ansi_map.positionRequestForwardRes",
+      { "positionRequestForwardRes", "ansi_map.positionRequestForwardRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_interSystemPositionRequestRes,
-      { "interSystemPositionRequestRes", "ansi_map.interSystemPositionRequestRes",
+      { "interSystemPositionRequestRes", "ansi_map.interSystemPositionRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_interSystemPositionRequestForwardRes,
-      { "interSystemPositionRequestForwardRes", "ansi_map.interSystemPositionRequestForwardRes",
+      { "interSystemPositionRequestForwardRes", "ansi_map.interSystemPositionRequestForwardRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_roamerDatabaseVerificationRequestRes,
-      { "roamerDatabaseVerificationRequestRes", "ansi_map.roamerDatabaseVerificationRequestRes",
+      { "roamerDatabaseVerificationRequestRes", "ansi_map.roamerDatabaseVerificationRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_addServiceRes,
-      { "addServiceRes", "ansi_map.addServiceRes",
+      { "addServiceRes", "ansi_map.addServiceRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_dropServiceRes,
-      { "dropServiceRes", "ansi_map.dropServiceRes",
+      { "dropServiceRes", "ansi_map.dropServiceRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_interSystemSMSPage,
-      { "interSystemSMSPage", "ansi_map.interSystemSMSPage",
+      { "interSystemSMSPage", "ansi_map.interSystemSMSPage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_lcsParameterRequestRes,
-      { "lcsParameterRequestRes", "ansi_map.lcsParameterRequestRes",
+      { "lcsParameterRequestRes", "ansi_map.lcsParameterRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_checkMEIDRes,
-      { "checkMEIDRes", "ansi_map.checkMEIDRes",
+      { "checkMEIDRes", "ansi_map.checkMEIDRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_statusRequestRes,
-      { "statusRequestRes", "ansi_map.statusRequestRes",
+      { "statusRequestRes", "ansi_map.statusRequestRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_interSystemSMSDeliveryPointToPointRes,
-      { "interSystemSMSDeliveryPointToPointRes", "ansi_map.interSystemSMSDeliveryPointToPointRes",
+      { "interSystemSMSDeliveryPointToPointRes", "ansi_map.interSystemSMSDeliveryPointToPointRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ansi_map_qualificationRequest2Res,
-      { "qualificationRequest2Res", "ansi_map.qualificationRequest2Res",
+      { "qualificationRequest2Res", "ansi_map.qualificationRequest2Res_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
 
 /*--- End of included file: packet-ansi_map-hfarr.c ---*/
-#line 5237 "../../asn1/ansi_map/packet-ansi_map-template.c"
+#line 5275 "../../asn1/ansi_map/packet-ansi_map-template.c"
     };
 
     /* List of subtrees */
@@ -19565,7 +19565,7 @@ void proto_register_ansi_map(void) {
     &ett_ansi_map_ReturnData,
 
 /*--- End of included file: packet-ansi_map-ettarr.c ---*/
-#line 5270 "../../asn1/ansi_map/packet-ansi_map-template.c"
+#line 5308 "../../asn1/ansi_map/packet-ansi_map-template.c"
     };
 
     static const enum_val_t ansi_map_response_matching_type_values[] = {
@@ -19581,7 +19581,7 @@ void proto_register_ansi_map(void) {
     proto_register_field_array(proto_ansi_map, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
 
-    register_dissector("ansi_map", dissect_ansi_map, proto_ansi_map);
+    new_register_dissector("ansi_map", dissect_ansi_map, proto_ansi_map);
 
     is637_tele_id_dissector_table =
         register_dissector_table("ansi_map.tele_id", "IS-637 Teleservice ID",

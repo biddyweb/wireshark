@@ -2,8 +2,6 @@
  * Routines for TRILL (TRansparent Interconnection of Lots of Links) dissection
  * Copyright 2010, David Bond <mokon@mokon.net>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/etypes.h>
+
+void proto_register_trill(void);
+void proto_reg_handoff_trill(void);
 
 static int proto_trill = -1 ;
 static gint ett_trill = -1 ;

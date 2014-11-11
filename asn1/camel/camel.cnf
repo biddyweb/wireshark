@@ -1,7 +1,6 @@
 # camel.cnf
 # camel conformation file
 # Anders Broman 2007
-# $Id$
 
 #.IMPORT ../gsm_map/gsm_map-exp.cnf
 #.IMPORT ../inap/inap-exp.cnf
@@ -46,7 +45,9 @@ OPERATION.&ResultType
 CAP-GPRS-ReferenceNumber	B "0.4.0.0.1.1.5.2" "id-CAP-GPRS-ReferenceNumber"
 CAP-U-ABORT-REASON			B "0.4.0.0.1.1.2.2" "id-CAP-U-ABORT-Reason"
 
-#.NO_EMIT
+#.NO_EMIT ONLY_VALS
+CAMEL-AChBillingChargingCharacteristicsV2
+ROS
 
 #.TYPE_RENAME
 ReturnResult/result/result		ResultArgument
@@ -110,7 +111,6 @@ static const value_string camel_err_code_string_vals[] = {
 #
 #.TABLE2_HDR
 static int dissect_invokeData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_ctx_t *actx) {
-  proto_item *cause;
 
   switch(opcode){
 #.TABLE2_BODY OPERATION.&ArgumentType
@@ -119,9 +119,8 @@ static int dissect_invokeData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_
       break;
 #.TABLE2_FTR
     default:
-      cause=proto_tree_add_text(tree, tvb, offset, -1, "Unknown invokeData blob");
-      proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-      expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "Unknown invokeData %d",opcode);
+      proto_tree_add_expert_format(tree, actx->pinfo, &ei_camel_unknown_invokeData,
+                                   tvb, offset, -1, "Unknown invokeData %d", opcode);
       /* todo call the asn.1 dissector */
       break;
   }
@@ -130,7 +129,6 @@ static int dissect_invokeData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_
 #.END
 #.TABLE2_HDR
 static int dissect_returnResultData(proto_tree *tree, tvbuff_t *tvb, int offset,asn1_ctx_t *actx) {
-  proto_item *cause;
 
   switch(opcode){
 #.TABLE2_BODY OPERATION.&ResultType
@@ -139,16 +137,14 @@ static int dissect_returnResultData(proto_tree *tree, tvbuff_t *tvb, int offset,
       break;
 #.TABLE2_FTR
   default:
-    cause=proto_tree_add_text(tree, tvb, offset, -1, "Unknown returnResultData blob");
-    proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-    expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "Unknown returnResultData %d",opcode);
+    proto_tree_add_expert_format(tree, actx->pinfo, &ei_camel_unknown_returnResultData,
+	                             tvb, offset, -1, "Unknown returnResultData %d",opcode);
   }
   return offset;
 }
 #.END
 #.TABLE2_HDR
 static int dissect_returnErrorData(proto_tree *tree, tvbuff_t *tvb, int offset,asn1_ctx_t *actx) {
-  proto_item *cause;
 
   switch(errorCode) {
 #.TABLE2_BODY ERROR.&ParameterType
@@ -157,9 +153,8 @@ static int dissect_returnErrorData(proto_tree *tree, tvbuff_t *tvb, int offset,a
       break;
 #.TABLE2_FTR
   default:
-    cause=proto_tree_add_text(tree, tvb, offset, -1, "Unknown returnErrorData blob");
-    proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-    expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "Unknown returnErrorData %d",errorCode);
+    proto_tree_add_expert_format(tree, actx->pinfo, &ei_camel_unknown_returnErrorData,
+                                 tvb, offset, -1, "Unknown returnErrorData %d",errorCode);
   }
   return offset;
 }
@@ -230,7 +225,7 @@ if((camel_ver == 2)||(camel_ver == 1)){
 #.FN_BODY ExtensionField/value
   /*XXX handle local form here */
   if(camel_obj_id){
-    offset=call_ber_oid_callback(camel_obj_id, tvb, offset, actx->pinfo, tree);
+    offset=call_ber_oid_callback(camel_obj_id, tvb, offset, actx->pinfo, tree, NULL);
   }
   is_ExtensionField = FALSE;
 
@@ -542,7 +537,7 @@ proto_tree *subtree;
 #.END
 
 #----------------------------------------------------------------------------------------
-#.FN_BODY LocationInformationGPRS/cellGlobalIdOrServiceAreaIdOrLAI 
+#.FN_BODY LocationInformationGPRS/cellGlobalIdOrServiceAreaIdOrLAI
 	proto_tree *subtree;
 	int start_offset;
 
@@ -555,7 +550,7 @@ proto_tree *subtree;
 	dissect_gsm_map_CellGlobalIdOrServiceAreaIdFixedLength(TRUE, tvb, start_offset, actx, subtree, hf_camel_cellGlobalIdOrServiceAreaIdFixedLength);
  }else{
 	dissect_gsm_map_LAIFixedLength(TRUE, tvb, start_offset, actx, subtree, hf_camel_locationAreaId);
- }			
+ }
 #.END
 
 #----------------------------------------------------------------------------------------
@@ -574,7 +569,7 @@ proto_tree *subtree;
 
 #.FN_BODY FCIBillingChargingCharacteristics VAL_PTR = &parameter_tvb
  tvbuff_t	*parameter_tvb;
- proto_tree *subtree; 
+ proto_tree *subtree;
 
 %(DEFAULT_BODY)s
  if (!parameter_tvb)
@@ -583,8 +578,8 @@ proto_tree *subtree;
  dissect_camel_CAMEL_FCIBillingChargingCharacteristics(FALSE, parameter_tvb, 0, actx, subtree, hf_camel_CAMEL_FCIBillingChargingCharacteristics);
 
 #.FN_BODY FCIGPRSBillingChargingCharacteristics VAL_PTR = &parameter_tvb
- tvbuff_t	*parameter_tvb; 
- proto_tree *subtree; 
+ tvbuff_t	*parameter_tvb;
+ proto_tree *subtree;
 
 %(DEFAULT_BODY)s
  if (!parameter_tvb)
@@ -594,17 +589,17 @@ proto_tree *subtree;
 
 #.FN_BODY FCISMSBillingChargingCharacteristics VAL_PTR = &parameter_tvb
  tvbuff_t	*parameter_tvb;
- proto_tree *subtree; 
+ proto_tree *subtree;
 
 %(DEFAULT_BODY)s
  if (!parameter_tvb)
-	return offset; 
+	return offset;
  subtree = proto_item_add_subtree(actx->created_item, ett_camel_CAMEL_FCISMSBillingChargingCharacteristics);
  dissect_camel_CAMEL_FCISMSBillingChargingCharacteristics(FALSE, parameter_tvb, 0, actx, subtree, hf_camel_CAMEL_FCISMSBillingChargingCharacteristics);
 
 #.FN_BODY SCIBillingChargingCharacteristics VAL_PTR = &parameter_tvb
  tvbuff_t	*parameter_tvb;
- proto_tree *subtree; 
+ proto_tree *subtree;
 
 %(DEFAULT_BODY)s
  if (!parameter_tvb)
@@ -614,17 +609,17 @@ proto_tree *subtree;
 
 #.FN_BODY SCIGPRSBillingChargingCharacteristics VAL_PTR = &parameter_tvb
  tvbuff_t	*parameter_tvb;
- proto_tree *subtree; 
+ proto_tree *subtree;
 
 %(DEFAULT_BODY)s
  if (!parameter_tvb)
-	return offset; 
+	return offset;
  subtree = proto_item_add_subtree(actx->created_item, ett_camel_CAMEL_SCIGPRSBillingChargingCharacteristics);
  dissect_camel_CAMEL_SCIGPRSBillingChargingCharacteristics(FALSE, parameter_tvb, 0, actx, subtree, hf_camel_CAMEL_SCIGPRSBillingChargingCharacteristics);
 
 #.FN_BODY CallResult VAL_PTR = &parameter_tvb
- tvbuff_t	*parameter_tvb; 
- proto_tree *subtree; 
+ tvbuff_t	*parameter_tvb;
+ proto_tree *subtree;
 
 %(DEFAULT_BODY)s
  if (!parameter_tvb)
@@ -648,15 +643,15 @@ proto_tree *subtree;
  * identification' and 'number digit' fields defined in 3GPP TS 24.008 [9];
  * it does not carry the 'called party BCD number IEI' or 'length of called
  * party BCD number contents'.
- * In the context of the DestinationSubscriberNumber field in ConnectSMSArg or 
- * InitialDPSMSArg, a CalledPartyBCDNumber may also contain an alphanumeric 
- * character string. In this case, type-of-number '101'B is used, in accordance 
- * with 3GPP TS 23.040 [6]. The address is coded in accordance with the 
- * GSM 7-bit default alphabet definition and the SMS packing rules 
+ * In the context of the DestinationSubscriberNumber field in ConnectSMSArg or
+ * InitialDPSMSArg, a CalledPartyBCDNumber may also contain an alphanumeric
+ * character string. In this case, type-of-number '101'B is used, in accordance
+ * with 3GPP TS 23.040 [6]. The address is coded in accordance with the
+ * GSM 7-bit default alphabet definition and the SMS packing rules
  * as specified in 3GPP TS 23.038 [15] in this case.
  */
- tvbuff_t	*parameter_tvb; 
- proto_tree *subtree; 
+ tvbuff_t	*parameter_tvb;
+ proto_tree *subtree;
 
 %(DEFAULT_BODY)s
 

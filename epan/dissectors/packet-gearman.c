@@ -7,8 +7,6 @@
  * ----------------
  * http://gearman.org/index.php?id=protocol
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,6 +32,9 @@
 #include <epan/prefs.h>
 #include <epan/expert.h>
 #include "packet-tcp.h"
+
+void proto_register_gearman(void);
+void proto_reg_handoff_gearman(void);
 
 static int proto_gearman = -1;
 
@@ -68,6 +69,8 @@ static int hf_gearman_err_text = -1;
 static gint ett_gearman = -1;
 static gint ett_gearman_command = -1;
 static gint ett_gearman_content = -1;
+
+static expert_field ei_gearman_pkt_type_unknown = EI_INIT;
 
 static gboolean gearman_desegment  = TRUE;
 
@@ -175,8 +178,8 @@ get_gearman_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
     return tvb_get_ntohl(tvb, offset+8)+GEARMAN_COMMAND_HEADER_SIZE;
 }
 
-static void
-dissect_binary_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_binary_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
   gint offset, start_offset;
   char *magic_code;
@@ -188,7 +191,7 @@ dissect_binary_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "Gearman");
   col_clear(pinfo->cinfo,COL_INFO);
 
-  magic_code = tvb_get_ephemeral_string(tvb, 1, 3);
+  magic_code = tvb_get_string(wmem_packet_scope(), tvb, 1, 3);
   type = tvb_get_ntohl(tvb, 4);
   size = tvb_get_ntohl(tvb, 8);
 
@@ -211,7 +214,7 @@ dissect_binary_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     proto_tree_add_item(command_tree, hf_gearman_pkt_type, tvb, 4, 4, ENC_BIG_ENDIAN);
     proto_tree_add_item(command_tree, hf_gearman_data_size, tvb, 8, 4, ENC_BIG_ENDIAN);
 
-    content_item = proto_tree_add_item(command_tree, hf_gearman_data_content, tvb, GEARMAN_COMMAND_HEADER_SIZE, size, FALSE);
+    content_item = proto_tree_add_item(command_tree, hf_gearman_data_content, tvb, GEARMAN_COMMAND_HEADER_SIZE, size, ENC_ASCII|ENC_NA);
     content_tree = proto_item_add_subtree(content_item, ett_gearman_content);
 
     }
@@ -408,10 +411,11 @@ dissect_binary_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   default:
     if (size > 0)
-      expert_add_info_format(pinfo, content_item, PI_PROTOCOL, PI_WARN, "Unknown command");
+      expert_add_info(pinfo, content_item, &ei_gearman_pkt_type_unknown);
   }
 
   col_set_fence(pinfo->cinfo, COL_INFO);
+  return tvb_length(tvb);
 }
 
 static void
@@ -424,7 +428,7 @@ dissect_management_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "Gearman");
   col_clear(pinfo->cinfo, COL_INFO);
 
-  ti = proto_tree_add_item(tree, proto_gearman, tvb, 0, -1, FALSE);
+  ti = proto_tree_add_item(tree, proto_gearman, tvb, 0, -1, ENC_NA);
   gearman_tree = proto_item_add_subtree(ti, ett_gearman);
 
   while ((linelen = tvb_find_line_end(tvb, offset, -1, &next_offset, FALSE)) > 0)
@@ -437,8 +441,8 @@ dissect_management_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
       if (cmdlen == linelen && 0 == tvb_strneql(tvb, offset, GEARMAN_MGR_CMDS[i], cmdlen))
       {
-        proto_tree_add_item(gearman_tree, hf_gearman_mgr_cmd, tvb, offset, cmdlen, FALSE);
-        col_add_fstr(pinfo->cinfo, COL_INFO, "[MGR] %s", tvb_get_ephemeral_string(tvb, offset, linelen));
+        proto_tree_add_item(gearman_tree, hf_gearman_mgr_cmd, tvb, offset, cmdlen, ENC_ASCII|ENC_NA);
+        col_add_fstr(pinfo->cinfo, COL_INFO, "[MGR] %s", tvb_get_string(wmem_packet_scope(), tvb, offset, linelen));
         type = 1;
         break;
       }
@@ -446,17 +450,16 @@ dissect_management_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     if (GEARMAN_MGR_CMDS_COUNT == i)
     {
-      proto_tree_add_text(gearman_tree, tvb, offset, next_offset - offset,
-        "%s", tvb_format_text(tvb, offset, next_offset - offset));
+      proto_tree_add_format_text(gearman_tree, tvb, offset, next_offset - offset);
 
       if (type == 0)
       {
-        col_add_fstr(pinfo->cinfo, COL_INFO, "[MGR] %s", tvb_get_ephemeral_string(tvb, offset, linelen));
+        col_add_fstr(pinfo->cinfo, COL_INFO, "[MGR] %s", tvb_get_string(wmem_packet_scope(), tvb, offset, linelen));
         type = -1;
       }
       else
       {
-        col_append_sep_fstr(pinfo->cinfo, COL_INFO, ",", "%s", tvb_get_ephemeral_string(tvb, offset, linelen));
+        col_append_sep_fstr(pinfo->cinfo, COL_INFO, ",", "%s", tvb_get_string(wmem_packet_scope(), tvb, offset, linelen));
       }
     }
 
@@ -464,18 +467,20 @@ dissect_management_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   }
 }
 
-static void
-dissect_gearman(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_gearman(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
   if ((0 == tvb_memeql(tvb, 0, GEARMAN_MAGIC_CODE_REQUEST, 4)) ||
       (0 == tvb_memeql(tvb, 0, GEARMAN_MAGIC_CODE_RESPONSE, 4)))
   {
-    tcp_dissect_pdus(tvb, pinfo, tree, gearman_desegment, GEARMAN_COMMAND_HEADER_SIZE, get_gearman_pdu_len, dissect_binary_packet);
+    tcp_dissect_pdus(tvb, pinfo, tree, gearman_desegment, GEARMAN_COMMAND_HEADER_SIZE, get_gearman_pdu_len, dissect_binary_packet, data);
   }
   else
   {
     dissect_management_packet(tvb, pinfo, tree);
   }
+
+  return tvb_length(tvb);
 }
 
 void
@@ -486,7 +491,7 @@ proto_register_gearman(void)
     { &hf_gearman_magic_code, { "Magic Code", "gearman.magic_code", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL } },
     { &hf_gearman_pkt_type, { "Packet Type", "gearman.pkt_type", FT_UINT32, BASE_DEC_HEX, VALS(gearman_command_names), 0x0, NULL, HFILL} },
     { &hf_gearman_data_size, { "Data Length", "gearman.data_size", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL} },
-    { &hf_gearman_data_content, { "Data Content", "gearman.data_size", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL} },
+    { &hf_gearman_data_content, { "Data Content", "gearman.data_content", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL} },
     { &hf_gearman_option_name, { "Option Name", "gearman.opt.name", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL} },
     { &hf_gearman_func_name, { "Function Name", "gearman.func.name", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL} },
     { &hf_gearman_func_namez, { "Function Name", "gearman.func.name", FT_STRINGZ, BASE_NONE, NULL, 0x0, NULL, HFILL} },
@@ -518,12 +523,19 @@ proto_register_gearman(void)
     &ett_gearman_content
   };
 
+  static ei_register_info ei[] = {
+     { &ei_gearman_pkt_type_unknown, { "gearman.pkt_type.unknown", PI_PROTOCOL, PI_WARN, "Unknown command", EXPFILL }},
+  };
+
   module_t *gearman_module;
+  expert_module_t* expert_gearman;
 
   proto_gearman = proto_register_protocol("Gearman Protocol", "Gearman", "gearman");
 
   proto_register_field_array(proto_gearman, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_gearman = expert_register_protocol(proto_gearman);
+  expert_register_field_array(expert_gearman, ei, array_length(ei));
 
   gearman_module = prefs_register_protocol(proto_gearman, NULL);
   prefs_register_bool_preference(gearman_module, "desegment",
@@ -538,7 +550,7 @@ proto_reg_handoff_gearman(void)
 {
   dissector_handle_t gearman_handle;
 
-  gearman_handle = create_dissector_handle(dissect_gearman, proto_gearman);
+  gearman_handle = new_create_dissector_handle(dissect_gearman, proto_gearman);
   dissector_add_uint("tcp.port", GEARMAN_PORT, gearman_handle);
 }
 

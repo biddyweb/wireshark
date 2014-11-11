@@ -2,8 +2,6 @@
  * Routines for bittorrent packet dissection
  * Copyright (C) 2004 Jelmer Vernooij <jelmer@samba.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,6 +32,9 @@
 #include <epan/strutil.h>
 
 #include "packet-tcp.h"
+
+void proto_register_bittorrent(void);
+void proto_reg_handoff_bittorrent(void);
 
 /*
  * See
@@ -127,6 +128,7 @@ static const struct amp_message amp_messages[] = {
 };
 
 static dissector_handle_t dissector_handle;
+static dissector_handle_t bencode_handle;
 static int proto_bittorrent = -1;
 
 /* static gint hf_bittorrent_field_length  = -1; */
@@ -147,12 +149,6 @@ static gint hf_bittorrent_piece_index   = -1;
 static gint hf_bittorrent_piece_begin   = -1;
 static gint hf_bittorrent_piece_length  = -1;
 static gint hf_bittorrent_piece_data    = -1;
-static gint hf_bittorrent_bstr_length   = -1;
-static gint hf_bittorrent_bstr          = -1;
-static gint hf_bittorrent_bint          = -1;
-static gint hf_bittorrent_bdict         = -1;
-static gint hf_bittorrent_bdict_entry   = -1;
-static gint hf_bittorrent_blist         = -1;
 static gint hf_azureus_jpc_addrlen      = -1;
 static gint hf_azureus_jpc_addr         = -1;
 static gint hf_azureus_jpc_port         = -1;
@@ -163,9 +159,6 @@ static gint hf_bittorrent_extended      = -1;
 static gint ett_bittorrent              = -1;
 static gint ett_bittorrent_msg          = -1;
 static gint ett_peer_id                 = -1;
-static gint ett_bittorrent_bdict        = -1;
-static gint ett_bittorrent_bdict_entry  = -1;
-static gint ett_bittorrent_blist        = -1;
 
 static gboolean bittorrent_desegment      = TRUE;
 static gboolean decode_client_information = FALSE;
@@ -311,269 +304,6 @@ get_bittorrent_pdu_length(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
    }
 }
 
-static int
-dissect_bencoding_str(tvbuff_t *tvb, packet_info *pinfo _U_,
-                                 int offset, int length, proto_tree *tree, proto_item *ti, int treeadd)
-{
-   guint8 ch;
-   int    stringlen = 0, nextstringlen;
-   int    used;
-   int    izero     = 0;
-
-   if (length<2) {
-      if (tree) {
-         proto_tree_add_text(tree, tvb, offset, length, "Decode Aborted: Invalid String");
-      }
-      return -1;
-   }
-
-   used = 0;
-
-   while (length>=1) {
-      ch = tvb_get_guint8(tvb, offset+used);
-      length--;
-      used++;
-
-      if (ch==':' && used>1) {
-         if (stringlen>length || stringlen<0) {
-            if (tree) {
-               proto_tree_add_text(tree, tvb, offset, length, "Decode Aborted: Invalid String Length");
-            }
-            return -1;
-         }
-         if (tree) {
-            proto_tree_add_uint(tree, hf_bittorrent_bstr_length, tvb, offset, used, stringlen);
-            proto_tree_add_item(tree, hf_bittorrent_bstr, tvb, offset+used, stringlen, ENC_ASCII|ENC_NA);
-
-            if (treeadd==1) {
-               proto_item_append_text(ti, " Key: %s", format_text(ep_tvb_memdup(tvb, offset+used, stringlen), stringlen));
-            }
-            if (treeadd==2) {
-               proto_item_append_text(ti, "  Value: %s", format_text(ep_tvb_memdup(tvb, offset+used, stringlen), stringlen));
-            }
-         }
-         return used+stringlen;
-      }
-
-      if (!izero && ch>='0' && ch<='9') {
-         if (ch=='0' && used==1) {
-            izero = 1;
-         }
-
-         nextstringlen = (stringlen * 10) + (ch - '0');
-         if (nextstringlen>=stringlen) {
-            stringlen = nextstringlen;
-            continue;
-         }
-      }
-
-      if (tree) {
-         proto_tree_add_text(tree, tvb, offset, length, "Decode Aborted: Invalid String");
-      }
-      return -1;
-   }
-
-   if (tree) {
-      proto_tree_add_text(tree, tvb, offset, length, "Truncated Data");
-   }
-   return -1;
-}
-
-static int
-dissect_bencoding_int(tvbuff_t *tvb, packet_info *pinfo _U_,
-                      int offset, int length, proto_tree *tree, proto_item *ti, int treeadd)
-{
-   gint32 ival=0;
-   int neg = 0;
-   int izero = 0;
-   int used;
-   guint8 ch;
-
-   if (length<3) {
-      if (tree) {
-         proto_tree_add_text(tree, tvb, offset, length, "Decode Aborted: Invalid Integer");
-      }
-      return -1;
-   }
-
-   length--;
-   used = 1;
-
-   while (length>=1) {
-      ch = tvb_get_guint8(tvb, offset+used);
-      length--;
-      used++;
-
-      switch (ch) {
-      case 'e':
-         if (tree) {
-            if (neg) ival = -ival;
-            proto_tree_add_int(tree, hf_bittorrent_bint, tvb, offset, used, ival);
-            if (treeadd==2) {
-               proto_item_append_text(ti, "  Value: %d", ival);
-            }
-         }
-         return used;
-
-      case '-':
-         if (used==2) {
-            neg = 1;
-            break;
-         }
-         /* Fall through */
-
-      default:
-         if (!(ch=='0' && used==3 && neg)) { /* -0 is invalid */
-            if (ch=='0' && used==2) { /* as is 0[0-9]+ */
-               izero = 1;
-               break;
-            }
-            if (!izero && ch>='0' && ch<='9') {
-               ival = (ival * 10) + (ch - '0');
-               break;
-            }
-         }
-
-         if (tree) {
-            proto_tree_add_text(tree, tvb, offset, length, "Decode Aborted: Invalid Integer");
-         }
-         return -1;
-      }
-   }
-
-   if (tree) {
-      proto_tree_add_text(tree, tvb, offset, length, "Truncated Data");
-   }
-   return -1;
-}
-
-static int
-dissect_bencoding_rec(tvbuff_t *tvb, packet_info *pinfo _U_,
-                      int offset, int length, proto_tree *tree, int level, proto_item *treei, int treeadd)
-{
-   guint8 op;
-   int    oplen = 0, op1len, op2len;
-   int    used;
-
-   proto_item *ti = NULL, *td = NULL;
-   proto_tree *itree = NULL, *dtree = NULL;
-
-   if (level>10) {
-      proto_tree_add_text(tree, tvb, offset, -1, "Decode Aborted: Nested Too Deep");
-      return -1;
-   }
-   if (length<1) {
-      proto_tree_add_text(tree, tvb, offset, -1, "Truncated Data");
-      return length;
-   }
-
-   op = tvb_get_guint8(tvb, offset);
-   if (tree) {
-      oplen = dissect_bencoding_rec(tvb, pinfo, offset, length, NULL, level, NULL, 0);
-      if (oplen<0) oplen = length;
-   }
-
-   switch (op) {
-   case 'd':
-      if (tree) {
-         td = proto_tree_add_item(tree, hf_bittorrent_bdict, tvb, offset, oplen, ENC_NA);
-         dtree = proto_item_add_subtree(td, ett_bittorrent_bdict);
-      }
-
-      used = 1;
-      length--;
-
-      while (length>=1) {
-         op = tvb_get_guint8(tvb, offset+used);
-
-         if (op=='e') {
-            return used+1;
-         }
-
-         op1len = dissect_bencoding_str(tvb, pinfo, offset+used, length, NULL, NULL, 0);
-         if (op1len<0) {
-            if (dtree) {
-               proto_tree_add_text(dtree, tvb, offset+used, -1, "Decode Aborted: Invalid Dictionary Key");
-            }
-            return op1len;
-         }
-
-         op2len = -1;
-         if (length-op1len>2)
-            op2len = dissect_bencoding_rec(tvb, pinfo, offset+used+op1len, length-op1len, NULL, level+1, NULL, 0);
-         if (op2len<0) {
-            if (dtree) {
-               proto_tree_add_text(dtree, tvb, offset+used+op1len, -1, "Decode Aborted: Invalid Dictionary Value");
-            }
-            return op2len;
-         }
-
-         if (dtree) {
-            ti = proto_tree_add_item(dtree, hf_bittorrent_bdict_entry, tvb, offset+used, op1len+op2len, ENC_NA);
-            itree = proto_item_add_subtree(ti, ett_bittorrent_bdict_entry);
-
-            dissect_bencoding_str(tvb, pinfo, offset+used, length, itree, ti, 1);
-            dissect_bencoding_rec(tvb, pinfo, offset+used+op1len, length-op1len, itree, level+1, ti, 2);
-         }
-
-         used += op1len+op2len;
-         length -= op1len+op2len;
-      }
-      if (dtree) {
-         proto_tree_add_text(dtree, tvb, offset+used, -1, "Truncated Data");
-      }
-      return -1;
-
-   case 'l':
-      if (tree) {
-         ti = proto_tree_add_item(tree, hf_bittorrent_blist, tvb, offset, oplen, ENC_NA);
-         itree = proto_item_add_subtree(ti, ett_bittorrent_blist);
-      }
-
-      used = 1;
-      length--;
-
-      while (length>=1) {
-         op = tvb_get_guint8(tvb, offset+used);
-
-         if (op=='e') {
-            return used+1;
-         }
-
-         oplen = dissect_bencoding_rec(tvb, pinfo, offset+used, length, itree, level+1, ti, 0);
-         if (oplen<1) return oplen;
-
-         used += oplen;
-         length -= oplen;
-      }
-      if (itree) {
-         proto_tree_add_text(itree, tvb, offset+used, -1, "Truncated Data");
-      }
-      return -1;
-
-   case 'i':
-      return dissect_bencoding_int(tvb, pinfo, offset, length, tree, treei, treeadd);
-
-   default:
-      if (op>='1' && op<='9') {
-         return dissect_bencoding_str(tvb, pinfo, offset, length, tree, treei, treeadd);
-      }
-
-      if (tree) {
-         proto_tree_add_text(tree, tvb, offset, -1, "Decode Aborted: Invalid Bencoding");
-      }
-   }
-
-   return -1;
-}
-
-static void
-dissect_bencoding(tvbuff_t *tvb, packet_info *pinfo _U_,
-                              int offset, int length, proto_tree *tree)
-{
-   dissect_bencoding_rec(tvb, pinfo, offset, length, tree, 0, NULL, 0);
-}
-
 static void
 dissect_bittorrent_message (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
@@ -589,6 +319,7 @@ dissect_bittorrent_message (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
    proto_item *ti;
    guint32     piece_index, piece_begin, piece_length;
    guint32     stringlen;
+   tvbuff_t   *subtvb;
 
    if (tvb_bytes_exist(tvb, offset + BITTORRENT_HEADER_LENGTH, 1)) {
       /* Check for data from the middle of a message. */
@@ -624,10 +355,10 @@ dissect_bittorrent_message (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
          }
       }
 
-      msgtype = match_strval(type, bittorrent_messages);
+      msgtype = try_val_to_str(type, bittorrent_messages);
 #if 0
       if (msgtype == NULL && isamp) {
-         msgtype = match_strval(type, azureus_messages);
+         msgtype = try_val_to_str(type, azureus_messages);
       }
 #endif
       if (msgtype == NULL) {
@@ -739,7 +470,8 @@ dissect_bittorrent_message (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
    case AZUREUS_MESSAGE_HANDSHAKE:
    case AZUREUS_MESSAGE_PEER_EXCHANGE:
-      dissect_bencoding(tvb, pinfo, offset, length, mtree);
+      subtvb = tvb_new_subset(tvb, offset, length, length);
+      call_dissector(bencode_handle, subtvb, pinfo, mtree);
       break;
 
    case AZUREUS_MESSAGE_JPC_HELLO:
@@ -780,8 +512,8 @@ dissect_bittorrent_welcome (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *t
       for(i = 0; peer_id[i].name != NULL; ++i)
       {
          if(tvb_memeql(tvb, offset, peer_id[i].id, (int)strlen(peer_id[i].id)) == 0) {
-            version = tvb_get_ephemeral_string(tvb, offset + (int)strlen(peer_id[i].id),
-                                               peer_id[i].ver_len);
+            version = tvb_get_string(wmem_packet_scope(), tvb, offset + (int)strlen(peer_id[i].id),
+                                     peer_id[i].ver_len);
             proto_tree_add_text(tree, tvb, offset, 20, "Client is %s v%s",
                                 peer_id[i].name,
                                 format_text((guchar*)version, peer_id[i].ver_len));
@@ -794,7 +526,7 @@ dissect_bittorrent_welcome (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *t
 }
 
 static
-void dissect_bittorrent_tcp_pdu (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+int dissect_bittorrent_tcp_pdu (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
    proto_item *ti;
 
@@ -815,18 +547,20 @@ void dissect_bittorrent_tcp_pdu (tvbuff_t *tvb, packet_info *pinfo, proto_tree *
     col_append_str(pinfo->cinfo, COL_INFO, "  ");
     col_set_fence(pinfo->cinfo, COL_INFO);
 
+    return tvb_length(tvb);
 }
 
 static
-void dissect_bittorrent (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+int dissect_bittorrent (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
    tcp_dissect_pdus(tvb, pinfo, tree, bittorrent_desegment, BITTORRENT_HEADER_LENGTH,
-                    get_bittorrent_pdu_length, dissect_bittorrent_tcp_pdu);
+                    get_bittorrent_pdu_length, dissect_bittorrent_tcp_pdu, data);
+   return tvb_length(tvb);
 }
 
 static
 gboolean test_bittorrent_packet (tvbuff_t *tvb, packet_info *pinfo,
-                                 proto_tree *tree, void *data _U_)
+                                 proto_tree *tree, void *data)
 {
    conversation_t *conversation;
 
@@ -836,7 +570,7 @@ gboolean test_bittorrent_packet (tvbuff_t *tvb, packet_info *pinfo,
       conversation = find_or_create_conversation(pinfo);
       conversation_set_dissector(conversation, dissector_handle);
 
-      dissect_bittorrent(tvb, pinfo, tree);
+      dissect_bittorrent(tvb, pinfo, tree, data);
 
       return TRUE;
    }
@@ -904,24 +638,6 @@ proto_register_bittorrent(void)
       { &hf_bittorrent_piece_length,
         { "Piece Length", "bittorrent.piece.length", FT_UINT32, BASE_HEX, NULL, 0x0, NULL, HFILL }
       },
-      { &hf_bittorrent_bstr_length,
-        { "String Length", "bittorrent.bstr.length", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }
-      },
-      { &hf_bittorrent_bstr,
-        { "String", "bittorrent.bstr", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL }
-      },
-      { &hf_bittorrent_bint,
-        { "Integer", "bittorrent.bint", FT_INT32, BASE_DEC, NULL, 0x0, NULL, HFILL }
-      },
-      { &hf_bittorrent_bdict,
-        { "Dictionary", "bittorrent.bdict", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL }
-      },
-      { &hf_bittorrent_bdict_entry,
-        { "Entry", "bittorrent.bdict.entry", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL }
-      },
-      { &hf_bittorrent_blist,
-        { "List", "bittorrent.blist", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL }
-      },
       { &hf_azureus_jpc_addrlen,
         { "Cache Address Length", "bittorrent.jpc.addr.length", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }
       },
@@ -946,9 +662,6 @@ proto_register_bittorrent(void)
       &ett_bittorrent,
       &ett_bittorrent_msg,
       &ett_peer_id,
-      &ett_bittorrent_bdict,
-      &ett_bittorrent_bdict_entry,
-      &ett_bittorrent_blist
    };
 
    module_t *bittorrent_module;
@@ -957,7 +670,7 @@ proto_register_bittorrent(void)
    proto_register_field_array(proto_bittorrent, hf, array_length(hf));
    proto_register_subtree_array(ett, array_length(ett));
 
-   register_dissector("bittorrent.tcp", dissect_bittorrent, proto_bittorrent);
+   new_register_dissector("bittorrent.tcp", dissect_bittorrent, proto_bittorrent);
 
    bittorrent_module = prefs_register_protocol(proto_bittorrent, NULL);
    prefs_register_bool_preference(bittorrent_module, "desegment",
@@ -975,6 +688,8 @@ proto_register_bittorrent(void)
 void
 proto_reg_handoff_bittorrent(void)
 {
+   bencode_handle = find_dissector("bencode");
+
    dissector_handle = find_dissector("bittorrent.tcp");
 #if 0
    dissector_add_uint("tcp.port", 6881, dissector_handle);

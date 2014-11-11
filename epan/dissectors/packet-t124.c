@@ -1,7 +1,7 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-t124.c                                                              */
-/* ../../tools/asn2wrs.py -p t124 -c ./t124.cnf -s ./packet-t124-template -D . -O ../../epan/dissectors GCC-PROTOCOL.asn MCS-PROTOCOL.asn */
+/* ../../tools/asn2wrs.py -p t124 -c ./t124.cnf -s ./packet-t124-template -D . -O ../../epan/dissectors GCC-PROTOCOL.asn ../t125/MCS-PROTOCOL.asn */
 
 /* Input file: packet-t124-template.c */
 
@@ -9,8 +9,6 @@
 /* packet-t124.c
  * Routines for t124 packet dissection
  * Copyright 2010, Graeme Lunt
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -36,6 +34,7 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/conversation.h>
 
 #include <epan/asn1.h>
@@ -51,6 +50,9 @@
 #define PNAME  "GENERIC-CONFERENCE-CONTROL T.124"
 #define PSNAME "T.124"
 #define PFNAME "t124"
+
+void proto_register_t124(void);
+void proto_reg_handoff_t124(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_t124 = -1;
@@ -284,7 +286,7 @@ static int hf_t124_Segmentation_begin = -1;
 static int hf_t124_Segmentation_end = -1;
 
 /*--- End of included file: packet-t124-hf.c ---*/
-#line 52 "../../asn1/t124/packet-t124-template.c"
+#line 54 "../../asn1/t124/packet-t124-template.c"
 
 /* Initialize the subtree pointers */
 static int ett_t124 = -1;
@@ -407,7 +409,7 @@ static gint ett_t124_TokenTestConfirm = -1;
 static gint ett_t124_DomainMCSPDU = -1;
 
 /*--- End of included file: packet-t124-ett.c ---*/
-#line 69 "../../asn1/t124/packet-t124-template.c"
+#line 71 "../../asn1/t124/packet-t124-template.c"
 
 
 /*--- Included file: packet-t124-fn.c ---*/
@@ -435,7 +437,7 @@ dissect_t124_UserID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, pro
 
 static int
 dissect_t124_H221NonStandardIdentifier(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 218 "../../asn1/t124/t124.cnf"
+#line 217 "../../asn1/t124/t124.cnf"
 
       offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
                                        4, 255, FALSE, &t124NSIdentifier);
@@ -570,7 +572,7 @@ dissect_t124_ExtraDiallingString(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *
 
 static int
 dissect_t124_T_value(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 150 "../../asn1/t124/t124.cnf"
+#line 149 "../../asn1/t124/t124.cnf"
     tvbuff_t	*next_tvb = NULL;
     guint8      *ns = NULL;
 
@@ -580,9 +582,9 @@ dissect_t124_T_value(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, pr
 
 	if(next_tvb) {
 
-	ns = tvb_get_string(t124NSIdentifier, 0, tvb_length(t124NSIdentifier));
+	ns = tvb_get_string_enc(NULL, t124NSIdentifier, 0, tvb_length(t124NSIdentifier), ENC_ASCII|ENC_NA);
 	if(ns != NULL) {
-		dissector_try_string(t124_ns_dissector_table, ns, next_tvb, actx->pinfo, top_tree);
+		dissector_try_string(t124_ns_dissector_table, ns, next_tvb, actx->pinfo, top_tree, NULL);
 		g_free(ns);
 	}
 	}
@@ -1497,7 +1499,7 @@ dissect_t124_ConferenceInviteResponse(tvbuff_t *tvb _U_, int offset _U_, asn1_ct
 
 static int
 dissect_t124_T_connectPDU(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 124 "../../asn1/t124/t124.cnf"
+#line 123 "../../asn1/t124/t124.cnf"
     tvbuff_t	*next_tvb = NULL;
     proto_tree	*next_tree = NULL;
     int		old_offset = 0;
@@ -1511,7 +1513,7 @@ dissect_t124_T_connectPDU(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
       /* This length MUST be ignored by the client." */
 
       /* Not sure why - but lets ignore the length. */
-      /* We assume the OCTET STRING is all of the remaining bytes */	 
+      /* We assume the OCTET STRING is all of the remaining bytes */
 
       if(tvb_length(next_tvb) == 42) {
          /* this is perhaps a naive ... */
@@ -1581,15 +1583,15 @@ dissect_t124_ConnectGCCPDU(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
 
 static int
 dissect_t124_ChannelId(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 223 "../../asn1/t124/t124.cnf"
+#line 222 "../../asn1/t124/t124.cnf"
 
       offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 65535U, &channelId, FALSE);
 
 
-    if(hf_index == hf_t124_channelId_03) 
+    if(hf_index == hf_t124_channelId_03)
         col_append_fstr(actx->pinfo->cinfo, COL_INFO, "%d", channelId);
-    	
+
 
 
 
@@ -1696,7 +1698,7 @@ dissect_t124_DataPriority(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
 static int
 dissect_t124_Segmentation(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     2, 2, FALSE, NULL);
+                                     2, 2, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -2420,7 +2422,7 @@ dissect_t124_ChannelExpelIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_
 
 static int
 dissect_t124_T_userData(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 167 "../../asn1/t124/t124.cnf"
+#line 166 "../../asn1/t124/t124.cnf"
     tvbuff_t	*next_tvb = NULL;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
@@ -2460,7 +2462,7 @@ dissect_t124_SendDataRequest(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx
 
 static int
 dissect_t124_T_userData_01(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 180 "../../asn1/t124/t124.cnf"
+#line 179 "../../asn1/t124/t124.cnf"
     tvbuff_t	*next_tvb = NULL;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
@@ -2851,7 +2853,7 @@ static const per_choice_t DomainMCSPDU_choice[] = {
 
 static int
 dissect_t124_DomainMCSPDU(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 194 "../../asn1/t124/t124.cnf"
+#line 193 "../../asn1/t124/t124.cnf"
   	gint domainmcs_value;
 
   offset = dissect_per_choice(tvb, offset, actx, tree, hf_index,
@@ -2877,7 +2879,7 @@ dissect_t124_DomainMCSPDU(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
 
 
 /*--- End of included file: packet-t124-fn.c ---*/
-#line 71 "../../asn1/t124/packet-t124-template.c"
+#line 73 "../../asn1/t124/packet-t124-template.c"
 
 static const per_sequence_t t124Heur_sequence[] = {
   { &hf_t124_t124Identifier , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_t124_Key },
@@ -2958,7 +2960,7 @@ static gboolean
 dissect_t124_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *data _U_)
 {
   asn1_ctx_t asn1_ctx;
-  gboolean failed = FALSE;
+  volatile gboolean failed = FALSE;
 
   asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
 
@@ -2970,9 +2972,11 @@ dissect_t124_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, vo
    * to have a version of dissect_per_sequence() that checks all
    * references to the tvbuff before making them and returning "no"
    * if they would fail.
+   *
+   * We (ab)use hf_t124_connectGCCPDU here just to give a valid entry...
    */
   TRY {
-    (void) dissect_per_sequence(tvb, 0, &asn1_ctx, NULL, -1, -1, t124Heur_sequence);
+    (void) dissect_per_sequence(tvb, 0, &asn1_ctx, NULL, hf_t124_connectGCCPDU, -1, t124Heur_sequence);
   } CATCH_BOUNDS_ERRORS {
     failed = TRUE;
   } ENDTRY;
@@ -3024,7 +3028,7 @@ void proto_register_t124(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_t124_UserData_item,
-      { "UserData item", "t124.UserData_item",
+      { "UserData item", "t124.UserData_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_value,
@@ -3052,11 +3056,11 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "UserData", HFILL }},
     { &hf_t124_passwordInTheClear,
-      { "passwordInTheClear", "t124.passwordInTheClear",
+      { "passwordInTheClear", "t124.passwordInTheClear_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_nonStandardAlgorithm,
-      { "nonStandardAlgorithm", "t124.nonStandardAlgorithm",
+      { "nonStandardAlgorithm", "t124.nonStandardAlgorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NonStandardParameter", HFILL }},
     { &hf_t124_responseAlgorithm,
@@ -3076,7 +3080,7 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_ChallengeItem", HFILL }},
     { &hf_t124_challengeSet_item,
-      { "ChallengeItem", "t124.ChallengeItem",
+      { "ChallengeItem", "t124.ChallengeItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_responseItem,
@@ -3088,19 +3092,19 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, VALS(t124_PasswordSelector_vals), 0,
         "PasswordSelector", HFILL }},
     { &hf_t124_challengeRequestResponse,
-      { "challengeRequestResponse", "t124.challengeRequestResponse",
+      { "challengeRequestResponse", "t124.challengeRequestResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_challengeRequest,
-      { "challengeRequest", "t124.challengeRequest",
+      { "challengeRequest", "t124.challengeRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_challengeResponse,
-      { "challengeResponse", "t124.challengeResponse",
+      { "challengeResponse", "t124.challengeResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_nonStandardScheme,
-      { "nonStandardScheme", "t124.nonStandardScheme",
+      { "nonStandardScheme", "t124.nonStandardScheme_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NonStandardParameter", HFILL }},
     { &hf_t124_priority,
@@ -3112,43 +3116,43 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, VALS(t124_ConferencePriorityScheme_vals), 0,
         "ConferencePriorityScheme", HFILL }},
     { &hf_t124_conventional,
-      { "conventional", "t124.conventional",
+      { "conventional", "t124.conventional_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_counted,
-      { "counted", "t124.counted",
+      { "counted", "t124.counted_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_anonymous,
-      { "anonymous", "t124.anonymous",
+      { "anonymous", "t124.anonymous_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_nonStandardCategory,
-      { "nonStandardCategory", "t124.nonStandardCategory",
+      { "nonStandardCategory", "t124.nonStandardCategory_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NonStandardParameter", HFILL }},
     { &hf_t124_conventional_only,
-      { "conventional-only", "t124.conventional_only",
+      { "conventional-only", "t124.conventional_only_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_counted_only,
-      { "counted-only", "t124.counted_only",
+      { "counted-only", "t124.counted_only_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_anonymous_only,
-      { "anonymous-only", "t124.anonymous_only",
+      { "anonymous-only", "t124.anonymous_only_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_conventional_control,
-      { "conventional-control", "t124.conventional_control",
+      { "conventional-control", "t124.conventional_control_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_unrestricted_mode,
-      { "unrestricted-mode", "t124.unrestricted_mode",
+      { "unrestricted-mode", "t124.unrestricted_mode_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_non_standard_mode,
-      { "non-standard-mode", "t124.non_standard_mode",
+      { "non-standard-mode", "t124.non_standard_mode_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NonStandardParameter", HFILL }},
     { &hf_t124_NetworkAddress_item,
@@ -3156,11 +3160,11 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, VALS(t124_NetworkAddress_item_vals), 0,
         NULL, HFILL }},
     { &hf_t124_aggregatedChannel,
-      { "aggregatedChannel", "t124.aggregatedChannel",
+      { "aggregatedChannel", "t124.aggregatedChannel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_transferModes,
-      { "transferModes", "t124.transferModes",
+      { "transferModes", "t124.transferModes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_speech,
@@ -3248,7 +3252,7 @@ void proto_register_t124(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "ExtraDiallingString", HFILL }},
     { &hf_t124_highLayerCompatibility,
-      { "highLayerCompatibility", "t124.highLayerCompatibility",
+      { "highLayerCompatibility", "t124.highLayerCompatibility_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_telephony3kHz,
@@ -3280,7 +3284,7 @@ void proto_register_t124(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_t124_transportConnection,
-      { "transportConnection", "t124.transportConnection",
+      { "transportConnection", "t124.transportConnection_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_nsapAddress,
@@ -3292,15 +3296,15 @@ void proto_register_t124(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_t124_nonStandard,
-      { "nonStandard", "t124.nonStandard",
+      { "nonStandard", "t124.nonStandard_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NonStandardParameter", HFILL }},
     { &hf_t124_callingNode,
-      { "callingNode", "t124.callingNode",
+      { "callingNode", "t124.callingNode_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_calledNode,
-      { "calledNode", "t124.calledNode",
+      { "calledNode", "t124.calledNode_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_unknown,
@@ -3308,7 +3312,7 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_4294967295", HFILL }},
     { &hf_t124_conferenceName,
-      { "conferenceName", "t124.conferenceName",
+      { "conferenceName", "t124.conferenceName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_conferenceNameModifier,
@@ -3340,11 +3344,11 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, VALS(t124_ConferenceMode_vals), 0,
         NULL, HFILL }},
     { &hf_t124_convenerPassword,
-      { "convenerPassword", "t124.convenerPassword",
+      { "convenerPassword", "t124.convenerPassword_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Password", HFILL }},
     { &hf_t124_password,
-      { "password", "t124.password",
+      { "password", "t124.password_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_listedConference,
@@ -3392,7 +3396,7 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_conferencePriority,
-      { "conferencePriority", "t124.conferencePriority",
+      { "conferencePriority", "t124.conferencePriority_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_nodeID,
@@ -3420,7 +3424,7 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_ConferenceDescriptor", HFILL }},
     { &hf_t124_conferenceList_item,
-      { "ConferenceDescriptor", "t124.ConferenceDescriptor",
+      { "ConferenceDescriptor", "t124.ConferenceDescriptor_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_queryResponseResult,
@@ -3476,35 +3480,35 @@ void proto_register_t124(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_conferenceCreateRequest,
-      { "conferenceCreateRequest", "t124.conferenceCreateRequest",
+      { "conferenceCreateRequest", "t124.conferenceCreateRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_conferenceCreateResponse,
-      { "conferenceCreateResponse", "t124.conferenceCreateResponse",
+      { "conferenceCreateResponse", "t124.conferenceCreateResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_conferenceQueryRequest,
-      { "conferenceQueryRequest", "t124.conferenceQueryRequest",
+      { "conferenceQueryRequest", "t124.conferenceQueryRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_conferenceQueryResponse,
-      { "conferenceQueryResponse", "t124.conferenceQueryResponse",
+      { "conferenceQueryResponse", "t124.conferenceQueryResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_conferenceJoinRequest,
-      { "conferenceJoinRequest", "t124.conferenceJoinRequest",
+      { "conferenceJoinRequest", "t124.conferenceJoinRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_conferenceJoinResponse,
-      { "conferenceJoinResponse", "t124.conferenceJoinResponse",
+      { "conferenceJoinResponse", "t124.conferenceJoinResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_conferenceInviteRequest,
-      { "conferenceInviteRequest", "t124.conferenceInviteRequest",
+      { "conferenceInviteRequest", "t124.conferenceInviteRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_conferenceInviteResponse,
-      { "conferenceInviteResponse", "t124.conferenceInviteResponse",
+      { "conferenceInviteResponse", "t124.conferenceInviteResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_heightLimit,
@@ -3520,7 +3524,7 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_MAX", HFILL }},
     { &hf_t124_static,
-      { "static", "t124.static",
+      { "static", "t124.static_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_channelId,
@@ -3528,7 +3532,7 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "StaticChannelId", HFILL }},
     { &hf_t124_userId,
-      { "userId", "t124.userId",
+      { "userId", "t124.userId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_joined,
@@ -3540,7 +3544,7 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_private,
-      { "private", "t124.private",
+      { "private", "t124.private_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_channelId_01,
@@ -3560,7 +3564,7 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_assigned,
-      { "assigned", "t124.assigned",
+      { "assigned", "t124.assigned_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_channelId_02,
@@ -3592,7 +3596,7 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_grabbed,
-      { "grabbed", "t124.grabbed",
+      { "grabbed", "t124.grabbed_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_tokenId,
@@ -3604,7 +3608,7 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "UserId", HFILL }},
     { &hf_t124_inhibited,
-      { "inhibited", "t124.inhibited",
+      { "inhibited", "t124.inhibited_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_inhibitors,
@@ -3616,7 +3620,7 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_giving,
-      { "giving", "t124.giving",
+      { "giving", "t124.giving_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_recipient,
@@ -3624,11 +3628,11 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "UserId", HFILL }},
     { &hf_t124_ungivable,
-      { "ungivable", "t124.ungivable",
+      { "ungivable", "t124.ungivable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_given,
-      { "given", "t124.given",
+      { "given", "t124.given_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_mergeTokens,
@@ -3716,175 +3720,175 @@ void proto_register_t124(void) {
         FT_UINT32, BASE_DEC, VALS(t124_TokenStatus_vals), 0,
         NULL, HFILL }},
     { &hf_t124_plumbDomainIndication,
-      { "plumbDomainIndication", "t124.plumbDomainIndication",
+      { "plumbDomainIndication", "t124.plumbDomainIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_erectDomainRequest,
-      { "erectDomainRequest", "t124.erectDomainRequest",
+      { "erectDomainRequest", "t124.erectDomainRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_mergeChannelsRequest,
-      { "mergeChannelsRequest", "t124.mergeChannelsRequest",
+      { "mergeChannelsRequest", "t124.mergeChannelsRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_mergeChannelsConfirm,
-      { "mergeChannelsConfirm", "t124.mergeChannelsConfirm",
+      { "mergeChannelsConfirm", "t124.mergeChannelsConfirm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_purgeChannelsIndication,
-      { "purgeChannelsIndication", "t124.purgeChannelsIndication",
+      { "purgeChannelsIndication", "t124.purgeChannelsIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_mergeTokensRequest,
-      { "mergeTokensRequest", "t124.mergeTokensRequest",
+      { "mergeTokensRequest", "t124.mergeTokensRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_mergeTokensConfirm,
-      { "mergeTokensConfirm", "t124.mergeTokensConfirm",
+      { "mergeTokensConfirm", "t124.mergeTokensConfirm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_purgeTokensIndication,
-      { "purgeTokensIndication", "t124.purgeTokensIndication",
+      { "purgeTokensIndication", "t124.purgeTokensIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_disconnectProviderUltimatum,
-      { "disconnectProviderUltimatum", "t124.disconnectProviderUltimatum",
+      { "disconnectProviderUltimatum", "t124.disconnectProviderUltimatum_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_rejectMCSPDUUltimatum,
-      { "rejectMCSPDUUltimatum", "t124.rejectMCSPDUUltimatum",
+      { "rejectMCSPDUUltimatum", "t124.rejectMCSPDUUltimatum_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_attachUserRequest,
-      { "attachUserRequest", "t124.attachUserRequest",
+      { "attachUserRequest", "t124.attachUserRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_attachUserConfirm,
-      { "attachUserConfirm", "t124.attachUserConfirm",
+      { "attachUserConfirm", "t124.attachUserConfirm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_detachUserRequest,
-      { "detachUserRequest", "t124.detachUserRequest",
+      { "detachUserRequest", "t124.detachUserRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_detachUserIndication,
-      { "detachUserIndication", "t124.detachUserIndication",
+      { "detachUserIndication", "t124.detachUserIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_channelJoinRequest,
-      { "channelJoinRequest", "t124.channelJoinRequest",
+      { "channelJoinRequest", "t124.channelJoinRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_channelJoinConfirm,
-      { "channelJoinConfirm", "t124.channelJoinConfirm",
+      { "channelJoinConfirm", "t124.channelJoinConfirm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_channelLeaveRequest,
-      { "channelLeaveRequest", "t124.channelLeaveRequest",
+      { "channelLeaveRequest", "t124.channelLeaveRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_channelConveneRequest,
-      { "channelConveneRequest", "t124.channelConveneRequest",
+      { "channelConveneRequest", "t124.channelConveneRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_channelConveneConfirm,
-      { "channelConveneConfirm", "t124.channelConveneConfirm",
+      { "channelConveneConfirm", "t124.channelConveneConfirm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_channelDisbandRequest,
-      { "channelDisbandRequest", "t124.channelDisbandRequest",
+      { "channelDisbandRequest", "t124.channelDisbandRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_channelDisbandIndication,
-      { "channelDisbandIndication", "t124.channelDisbandIndication",
+      { "channelDisbandIndication", "t124.channelDisbandIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_channelAdmitRequest,
-      { "channelAdmitRequest", "t124.channelAdmitRequest",
+      { "channelAdmitRequest", "t124.channelAdmitRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_channelAdmitIndication,
-      { "channelAdmitIndication", "t124.channelAdmitIndication",
+      { "channelAdmitIndication", "t124.channelAdmitIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_channelExpelRequest,
-      { "channelExpelRequest", "t124.channelExpelRequest",
+      { "channelExpelRequest", "t124.channelExpelRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_channelExpelIndication,
-      { "channelExpelIndication", "t124.channelExpelIndication",
+      { "channelExpelIndication", "t124.channelExpelIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_sendDataRequest,
-      { "sendDataRequest", "t124.sendDataRequest",
+      { "sendDataRequest", "t124.sendDataRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_sendDataIndication,
-      { "sendDataIndication", "t124.sendDataIndication",
+      { "sendDataIndication", "t124.sendDataIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_uniformSendDataRequest,
-      { "uniformSendDataRequest", "t124.uniformSendDataRequest",
+      { "uniformSendDataRequest", "t124.uniformSendDataRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_uniformSendDataIndication,
-      { "uniformSendDataIndication", "t124.uniformSendDataIndication",
+      { "uniformSendDataIndication", "t124.uniformSendDataIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_tokenGrabRequest,
-      { "tokenGrabRequest", "t124.tokenGrabRequest",
+      { "tokenGrabRequest", "t124.tokenGrabRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_tokenGrabConfirm,
-      { "tokenGrabConfirm", "t124.tokenGrabConfirm",
+      { "tokenGrabConfirm", "t124.tokenGrabConfirm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_tokenInhibitRequest,
-      { "tokenInhibitRequest", "t124.tokenInhibitRequest",
+      { "tokenInhibitRequest", "t124.tokenInhibitRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_tokenInhibitConfirm,
-      { "tokenInhibitConfirm", "t124.tokenInhibitConfirm",
+      { "tokenInhibitConfirm", "t124.tokenInhibitConfirm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_tokenGiveRequest,
-      { "tokenGiveRequest", "t124.tokenGiveRequest",
+      { "tokenGiveRequest", "t124.tokenGiveRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_tokenGiveIndication,
-      { "tokenGiveIndication", "t124.tokenGiveIndication",
+      { "tokenGiveIndication", "t124.tokenGiveIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_tokenGiveResponse,
-      { "tokenGiveResponse", "t124.tokenGiveResponse",
+      { "tokenGiveResponse", "t124.tokenGiveResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_tokenGiveConfirm,
-      { "tokenGiveConfirm", "t124.tokenGiveConfirm",
+      { "tokenGiveConfirm", "t124.tokenGiveConfirm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_tokenPleaseRequest,
-      { "tokenPleaseRequest", "t124.tokenPleaseRequest",
+      { "tokenPleaseRequest", "t124.tokenPleaseRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_tokenPleaseIndication,
-      { "tokenPleaseIndication", "t124.tokenPleaseIndication",
+      { "tokenPleaseIndication", "t124.tokenPleaseIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_tokenReleaseRequest,
-      { "tokenReleaseRequest", "t124.tokenReleaseRequest",
+      { "tokenReleaseRequest", "t124.tokenReleaseRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_tokenReleaseConfirm,
-      { "tokenReleaseConfirm", "t124.tokenReleaseConfirm",
+      { "tokenReleaseConfirm", "t124.tokenReleaseConfirm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_tokenTestRequest,
-      { "tokenTestRequest", "t124.tokenTestRequest",
+      { "tokenTestRequest", "t124.tokenTestRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_tokenTestConfirm,
-      { "tokenTestConfirm", "t124.tokenTestConfirm",
+      { "tokenTestConfirm", "t124.tokenTestConfirm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_t124_Segmentation_begin,
@@ -3897,7 +3901,7 @@ void proto_register_t124(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-t124-hfarr.c ---*/
-#line 198 "../../asn1/t124/packet-t124-template.c"
+#line 202 "../../asn1/t124/packet-t124-template.c"
   };
 
   /* List of subtrees */
@@ -4010,9 +4014,9 @@ void proto_register_t124(void) {
     &ett_t124_DomainMCSPDU,
 
 /*--- End of included file: packet-t124-ettarr.c ---*/
-#line 205 "../../asn1/t124/packet-t124-template.c"
+#line 209 "../../asn1/t124/packet-t124-template.c"
   };
-  
+
   /* Register protocol */
   proto_t124 = proto_register_protocol(PNAME, PSNAME, PFNAME);
   /* Register fields and subtrees */

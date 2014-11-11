@@ -7,8 +7,6 @@
  *
  * Francesco Fondelli <francesco dot fondelli, gmail dot com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,6 +32,8 @@
 
 #include <epan/packet.h>
 #include <packet-ip.h>
+
+void proto_register_mpls_psc(void);
 
 static gint proto_mpls_psc = -1;
 

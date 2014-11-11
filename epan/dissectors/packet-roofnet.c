@@ -2,8 +2,6 @@
  * Routines for roofnet dissection
  * Copyright 2006, Sebastien Tandel (sebastien@tandel.be)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -76,6 +74,7 @@ static const value_string roofnet_flags_vals[] = {
 #define ROOFNET_LINK_LEN 24
 
 /* forward reference */
+void proto_register_roofnet(void);
 void proto_reg_handoff_roofnet(void);
 
 static dissector_handle_t ip_handle;
@@ -103,6 +102,8 @@ static int hf_roofnet_link_dst = -1;
 
 static gint ett_roofnet = -1;
 static gint ett_roofnet_link = -1;
+
+static expert_field ei_roofnet_too_many_links = EI_INIT;
 
 /*
  * dissect the header of roofnet
@@ -159,9 +160,9 @@ static void dissect_roofnet_link(proto_tree *tree, tvbuff_t *tvb, guint *offset,
   ptvcursor_add(cursor, hf_roofnet_link_seq, 4, ENC_BIG_ENDIAN);
   ptvcursor_add(cursor, hf_roofnet_link_age, 4, ENC_BIG_ENDIAN);
 
+  *offset = ptvcursor_current_offset(cursor);
   ptvcursor_free(cursor);
 
-  *offset = ptvcursor_current_offset(cursor);
   proto_tree_add_ipv4(subtree, hf_roofnet_link_dst, tvb, *offset, 4, addr_dst);
   /* don't increment offset here because the dst of this link is the src of the next one */
 }
@@ -197,8 +198,8 @@ static void dissect_roofnet_data(proto_tree *tree, tvbuff_t *tvb, packet_info * 
  */
 static void dissect_roofnet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-  proto_item * it= NULL;
-  proto_tree * roofnet_tree= NULL;
+  proto_item * it;
+  proto_tree * roofnet_tree;
   guint offset= 0;
 
   guint8 roofnet_msg_type= 0;
@@ -209,24 +210,18 @@ static void dissect_roofnet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   roofnet_msg_type = tvb_get_guint8(tvb, ROOFNET_OFFSET_TYPE);
   /* Clear out stuff in the info column */
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %s",
+  col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %s",
 	val_to_str(roofnet_msg_type, roofnet_pt_vals, "Unknown (%d)"));
-  }
 
-  if (tree) {
-    it = proto_tree_add_item(tree, proto_roofnet, tvb, offset, -1, ENC_NA);
-    roofnet_tree = proto_item_add_subtree(it, ett_roofnet);
-  }
+  it = proto_tree_add_item(tree, proto_roofnet, tvb, offset, -1, ENC_NA);
+  roofnet_tree = proto_item_add_subtree(it, ett_roofnet);
 
   dissect_roofnet_header(roofnet_tree, tvb, &offset);
 
   roofnet_nlinks= tvb_get_guint8(tvb, ROOFNET_OFFSET_NLINKS);
   /* Check that we do not have a malformed roofnet packet */
   if ((roofnet_nlinks*6*4)+ROOFNET_HEADER_LENGTH > ROOFNET_MAX_LENGTH) {
-    if (tree) {
-      expert_add_info_format(pinfo, it, PI_MALFORMED, PI_ERROR, "Too many links (%u)\n", roofnet_nlinks);
-    }
+    expert_add_info_format(pinfo, it, &ei_roofnet_too_many_links, "Too many links (%u)\n", roofnet_nlinks);
     return;
   }
 
@@ -338,6 +333,12 @@ void proto_register_roofnet(void)
     &ett_roofnet_link
   };
 
+  static ei_register_info ei[] = {
+     { &ei_roofnet_too_many_links, { "roofnet.too_many_links", PI_MALFORMED, PI_ERROR, "Too many links", EXPFILL }},
+  };
+
+  expert_module_t* expert_roofnet;
+
   proto_roofnet = proto_register_protocol(
 				"Roofnet Protocol", /* Name */
 				"Roofnet",	    /* Short Name */
@@ -346,6 +347,8 @@ void proto_register_roofnet(void)
 
   proto_register_field_array(proto_roofnet, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_roofnet = expert_register_protocol(proto_roofnet);
+  expert_register_field_array(expert_roofnet, ei, array_length(ei));
 }
 
 

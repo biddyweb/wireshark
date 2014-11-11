@@ -1,8 +1,6 @@
 /* Reorder the frames from an input dump file, and write to output dump file.
  * Martin Mathieson and Jakub Jawadzki
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -41,29 +39,38 @@
 #endif
 
 /* Show command-line usage */
-static void usage(void)
+static void usage(gboolean is_error)
 {
-    fprintf(stderr, "Reordercap %s"
-#ifdef SVNVERSION
-	  " (" SVNVERSION " from " SVNPATH ")"
+    FILE *output;
+
+    if (!is_error) {
+        output = stdout;
+    }
+    else {
+        output = stderr;
+    }
+
+    fprintf(output, "Reordercap %s"
+#ifdef GITVERSION
+                      " (" GITVERSION " from " GITBRANCH ")"
 #endif
-	  "\n", VERSION);
-    fprintf(stderr, "Reorder timestamps of input file frames into output file.\n");
-    fprintf(stderr, "See http://www.wireshark.org for more information.\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "Usage: reordercap [options] <infile> <outfile>\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  -n        don't write to output file if the input file is ordered.\n");
+                      "\n", VERSION);
+    fprintf(output, "Reorder timestamps of input file frames into output file.\n");
+    fprintf(output, "See http://www.wireshark.org for more information.\n");
+    fprintf(output, "\n");
+    fprintf(output, "Usage: reordercap [options] <infile> <outfile>\n");
+    fprintf(output, "\n");
+    fprintf(output, "Options:\n");
+    fprintf(output, "  -n        don't write to output file if the input file is ordered.\n");
+    fprintf(output, "  -h        display this help and exit.\n");
 }
 
 /* Remember where this frame was in the file */
 typedef struct FrameRecord_t {
-    gint64               offset;
-    guint32              length;
-    guint                num;
+    gint64       offset;
+    guint        num;
 
-    struct wtap_nstime   time;
+    nstime_t     time;
 } FrameRecord_t;
 
 
@@ -82,69 +89,66 @@ typedef struct FrameRecord_t {
 
 
 static void
-frame_write(FrameRecord_t *frame, wtap *wth, wtap_dumper *pdh)
+frame_write(FrameRecord_t *frame, wtap *wth, wtap_dumper *pdh, Buffer *buf,
+            const char *infile)
 {
     int    err;
-    gchar  *errinfo;
+    gchar  *err_info;
     struct wtap_pkthdr phdr;
-    guint8 buf[65535];
 
-    DEBUG_PRINT("\nDumping frame (offset=%" G_GINT64_MODIFIER "u, length=%u)\n", 
-                frame->offset, frame->length);
+    memset(&phdr, 0, sizeof(struct wtap_pkthdr));
+
+    DEBUG_PRINT("\nDumping frame (offset=%" G_GINT64_MODIFIER "u)\n",
+                frame->offset);
+
 
     /* Re-read the first frame from the stored location */
-    wtap_seek_read(wth,
-                   frame->offset,
-                   &phdr,
-                   buf,
-                   frame->length,
-                   &err,
-                   &errinfo);
-    DEBUG_PRINT("re-read: err is %d, buf is (%s)\n", err, buf);
+    if (!wtap_seek_read(wth, frame->offset, &phdr, buf, &err, &err_info)) {
+        if (err != 0) {
+            /* Print a message noting that the read failed somewhere along the line. */
+            fprintf(stderr,
+                    "reordercap: An error occurred while re-reading \"%s\": %s.\n",
+                    infile, wtap_strerror(err));
+            switch (err) {
+
+            case WTAP_ERR_UNSUPPORTED:
+            case WTAP_ERR_UNSUPPORTED_ENCAP:
+            case WTAP_ERR_BAD_FILE:
+                fprintf(stderr, "(%s)\n", err_info);
+                g_free(err_info);
+                break;
+            }
+            exit(1);
+        }
+    }
 
     /* Copy, and set length and timestamp from item. */
     /* TODO: remove when wtap_seek_read() will read phdr */
     phdr.ts = frame->time;
 
     /* Dump frame to outfile */
-    if (!wtap_dump(pdh, &phdr, buf, &err)) {
-        printf("Error (%s) writing frame to outfile\n", wtap_strerror(err));
+    if (!wtap_dump(pdh, &phdr, buffer_start_ptr(buf), &err)) {
+        fprintf(stderr, "reordercap: Error (%s) writing frame to outfile\n",
+                wtap_strerror(err));
         exit(1);
     }
 }
 
 /* Comparing timestamps between 2 frames.
-   -1 if (t1 < t2)
-   0  if (t1 == t2)
-   1  if (t1 > t2)
+   negative if (t1 < t2)
+   zero     if (t1 == t2)
+   positive if (t1 > t2)
 */
 static int
 frames_compare(gconstpointer a, gconstpointer b)
 {
-    const FrameRecord_t *frame1 = *(const FrameRecord_t **) a;
-    const FrameRecord_t *frame2 = *(const FrameRecord_t **) b;
+    const FrameRecord_t *frame1 = *(const FrameRecord_t *const *) a;
+    const FrameRecord_t *frame2 = *(const FrameRecord_t *const *) b;
 
-    const struct wtap_nstime *time1 = &frame1->time;
-    const struct wtap_nstime *time2 = &frame2->time;
+    const nstime_t *time1 = &frame1->time;
+    const nstime_t *time2 = &frame2->time;
 
-    if (time1->secs > time2->secs)
-        return 1;
-    if (time1->secs < time2->secs)
-        return -1;
-
-    /* time1->secs == time2->secs */
-    if (time1->nsecs > time2->nsecs)
-        return 1;
-    if (time1->nsecs < time2->nsecs)
-        return -1;
-
-    /* time1->nsecs == time2->nsecs */
-
-    if (frame1->num > frame2->num)
-        return 1;
-    if (frame1->num < frame2->num)
-        return -1;
-    return 0;
+    return nstime_cmp(time1, time2);
 }
 
 
@@ -155,6 +159,7 @@ int main(int argc, char *argv[])
 {
     wtap *wth = NULL;
     wtap_dumper *pdh = NULL;
+    Buffer buf;
     int err;
     gchar *err_info;
     gint64 data_offset;
@@ -162,6 +167,8 @@ int main(int argc, char *argv[])
     guint wrong_order_count = 0;
     gboolean write_output_regardless = TRUE;
     guint i;
+    wtapng_section_t            *shb_hdr;
+    wtapng_iface_descriptions_t *idb_inf;
 
     GPtrArray *frames;
     FrameRecord_t *prevFrame = NULL;
@@ -172,13 +179,16 @@ int main(int argc, char *argv[])
     char *outfile;
 
     /* Process the options first */
-    while ((opt = getopt(argc, argv, "n")) != -1) {
+    while ((opt = getopt(argc, argv, "hn")) != -1) {
         switch (opt) {
             case 'n':
                 write_output_regardless = FALSE;
                 break;
+            case 'h':
+                usage(FALSE);
+                exit(0);
             case '?':
-                usage();
+                usage(TRUE);
                 exit(1);
         }
     }
@@ -186,26 +196,45 @@ int main(int argc, char *argv[])
     /* Remaining args are file names */
     file_count = argc - optind;
     if (file_count == 2) {
-        infile = argv[optind];
+        infile  = argv[optind];
         outfile = argv[optind+1];
     }
     else {
-        usage();
+        usage(TRUE);
         exit(1);
     }
 
     /* Open infile */
-    wth = wtap_open_offline(infile, &err, &err_info, TRUE);
+    /* TODO: if reordercap is ever changed to give the user a choice of which
+       open_routine reader to use, then the following needs to change. */
+    wth = wtap_open_offline(infile, WTAP_TYPE_AUTO, &err, &err_info, TRUE);
     if (wth == NULL) {
-        printf("reorder: Can't open %s: %s\n", infile, wtap_strerror(err));
+        fprintf(stderr, "reordercap: Can't open %s: %s\n", infile,
+                wtap_strerror(err));
+        switch (err) {
+
+        case WTAP_ERR_UNSUPPORTED:
+        case WTAP_ERR_UNSUPPORTED_ENCAP:
+        case WTAP_ERR_BAD_FILE:
+            fprintf(stderr, "(%s)\n", err_info);
+            g_free(err_info);
+            break;
+        }
         exit(1);
     }
-    DEBUG_PRINT("file_type is %u\n", wtap_file_type(wth));
+    DEBUG_PRINT("file_type_subtype is %u\n", wtap_file_type_subtype(wth));
+
+    shb_hdr = wtap_file_get_shb_info(wth);
+    idb_inf = wtap_file_get_idb_info(wth);
 
     /* Open outfile (same filetype/encap as input file) */
-    pdh = wtap_dump_open(outfile, wtap_file_type(wth), wtap_file_encap(wth), 65535, FALSE, &err);
+    pdh = wtap_dump_open_ng(outfile, wtap_file_type_subtype(wth), wtap_file_encap(wth),
+                            65535, FALSE, shb_hdr, idb_inf, &err);
+    g_free(idb_inf);
     if (pdh == NULL) {
-        printf("Failed to open output file: (%s) - error %s\n", outfile, wtap_strerror(err));
+        fprintf(stderr, "reordercap: Failed to open output file: (%s) - error %s\n",
+                outfile, wtap_strerror(err));
+        g_free(shb_hdr);
         exit(1);
     }
 
@@ -221,8 +250,11 @@ int main(int argc, char *argv[])
         newFrameRecord = g_slice_new(FrameRecord_t);
         newFrameRecord->num = frames->len + 1;
         newFrameRecord->offset = data_offset;
-        newFrameRecord->length = phdr->len;
-        newFrameRecord->time = phdr->ts;
+        if (phdr->presence_flags & WTAP_HAS_TS) {
+            newFrameRecord->time = phdr->ts;
+        } else {
+            nstime_set_unset(&newFrameRecord->time);
+        }
 
         if (prevFrame && frames_compare(&newFrameRecord, &prevFrame) < 0) {
            wrong_order_count++;
@@ -231,6 +263,22 @@ int main(int argc, char *argv[])
         g_ptr_array_add(frames, newFrameRecord);
         prevFrame = newFrameRecord;
     }
+    if (err != 0) {
+      /* Print a message noting that the read failed somewhere along the line. */
+      fprintf(stderr,
+              "reordercap: An error occurred while reading \"%s\": %s.\n",
+              infile, wtap_strerror(err));
+      switch (err) {
+
+      case WTAP_ERR_UNSUPPORTED:
+      case WTAP_ERR_UNSUPPORTED_ENCAP:
+      case WTAP_ERR_BAD_FILE:
+          fprintf(stderr, "(%s)\n", err_info);
+          g_free(err_info);
+          break;
+      }
+    }
+
     printf("%u frames, %u out of order\n", frames->len, wrong_order_count);
 
     /* Sort the frames */
@@ -239,15 +287,17 @@ int main(int argc, char *argv[])
     }
 
     /* Write out each sorted frame in turn */
+    buffer_init(&buf, 1500);
     for (i = 0; i < frames->len; i++) {
-        FrameRecord_t *frame = frames->pdata[i];
+        FrameRecord_t *frame = (FrameRecord_t *)frames->pdata[i];
 
         /* Avoid writing if already sorted and configured to */
         if (write_output_regardless || (wrong_order_count > 0)) {
-            frame_write(frame, wth, pdh);
+            frame_write(frame, wth, pdh, &buf, infile);
         }
         g_slice_free(FrameRecord_t, frame);
     }
+    buffer_free(&buf);
 
     if (!write_output_regardless && (wrong_order_count == 0)) {
         printf("Not writing output file because input file is already in order!\n");
@@ -258,9 +308,12 @@ int main(int argc, char *argv[])
 
     /* Close outfile */
     if (!wtap_dump_close(pdh, &err)) {
-        printf("Error closing %s: %s\n", outfile, wtap_strerror(err));
+        fprintf(stderr, "reordercap: Error closing %s: %s\n", outfile,
+                wtap_strerror(err));
+        g_free(shb_hdr);
         exit(1);
     }
+    g_free(shb_hdr);
 
     /* Finally, close infile */
     wtap_fdclose(wth);
@@ -268,3 +321,15 @@ int main(int argc, char *argv[])
     return 0;
 }
 
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

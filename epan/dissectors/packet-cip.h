@@ -9,8 +9,6 @@
  * Added support for Connection Configuration Object
  *   ryan wamsley * Copyright 2007
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -53,6 +51,9 @@
 #define SC_INSERT_MEMBER         0x1A
 #define SC_REMOVE_MEMBER         0x1B
 #define SC_GROUP_SYNC            0x1C
+
+#define CIP_SC_MASK              0x7F
+#define CIP_SC_RESPONSE_MASK     0x80
 
 /* Classes that have class-specfic dissectors */
 #define CI_CLS_MR   0x02    /* Message Router */
@@ -260,13 +261,13 @@ typedef int attribute_dissector_func(packet_info *pinfo, proto_tree *tree, proto
                              int offset, int total_len);
 
 typedef struct attribute_info {
-   guint class_id;
-   gboolean class_instance;
-   guint attribute;
-   const char	*text;
-   enum cip_datatype datatype;
-   int* phf;
-   attribute_dissector_func* pdissect;
+   guint                     class_id;
+   gboolean                  class_instance;
+   guint                     attribute;
+   const char               *text;
+   enum cip_datatype         datatype;
+   int*                      phf;
+   attribute_dissector_func *pdissect;
 } attribute_info_t;
 
 typedef struct cip_connID_info {
@@ -284,25 +285,25 @@ typedef struct cip_safety_epath_info {
 } cip_safety_epath_info_t;
 
 typedef struct cip_conn_info {
-   guint16 ConnSerialNumber;
-   guint16 VendorID;
-   guint32 DeviceSerialNumber;
-   cip_connID_info_t O2T;
-   cip_connID_info_t T2O;
-   guint8 TransportClass_trigger;
+   guint16                 ConnSerialNumber;
+   guint16                 VendorID;
+   guint32                 DeviceSerialNumber;
+   cip_connID_info_t       O2T;
+   cip_connID_info_t       T2O;
+   guint8                  TransportClass_trigger;
    cip_safety_epath_info_t safety;
-   gboolean motion;
+   gboolean                motion;
 } cip_conn_info_t;
 
 typedef struct cip_req_info {
-   dissector_handle_t dissector;
-   guint8 bService;
-   guint IOILen;
-   void *pIOI;
-   void *pData;
-   cip_simple_request_info_t* ciaData;
-   cip_conn_info_t* connInfo;
-   gboolean isUnconnectedSend;
+   dissector_handle_t         dissector;
+   guint8                     bService;
+   guint                      IOILen;
+   void                      *pIOI;
+   void                      *pData;
+   cip_simple_request_info_t *ciaData;
+   cip_conn_info_t*           connInfo;
+   gboolean                   isUnconnectedSend;
 } cip_req_info_t;
 
 /*
@@ -311,6 +312,7 @@ typedef struct cip_req_info {
 extern void dissect_epath( tvbuff_t *tvb, packet_info *pinfo, proto_item *epath_item, int offset, int path_length,
                           gboolean generate, gboolean packed, cip_simple_request_info_t* req_data, cip_safety_epath_info_t* safety);
 extern void dissect_cip_date_and_time(proto_tree *tree, tvbuff_t *tvb, int offset, int hf_datetime);
+extern attribute_info_t* cip_get_attribute(guint class_id, guint instance, guint attribute);
 
 /*
 ** Exported variables

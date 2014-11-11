@@ -8,8 +8,6 @@ XXX  Fixme : shouldn't show [malformed frame] for long packets
  * significant rewrite to tvbuffify the dissector, Ronnie Sahlberg and
  * Guy Harris 2001
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,7 +35,11 @@ XXX  Fixme : shouldn't show [malformed frame] for long packets
 #include <string.h>
 #include <glib.h>
 #include <ctype.h>
+
 #include <epan/packet.h>
+#include <epan/exceptions.h>
+#include <epan/to_str.h>
+#include <epan/expert.h>
 #include <epan/dissectors/packet-smb.h>
 #include "packet-smb-pipe.h"
 #include "packet-smb-browse.h"
@@ -46,30 +48,35 @@ XXX  Fixme : shouldn't show [malformed frame] for long packets
 #include "packet-dcerpc.h"
 #include <epan/reassemble.h>
 
+void proto_register_pipe_lanman(void);
+void proto_register_pipe_dcerpc(void);
+void proto_register_smb_pipe(void);
+void proto_reg_handoff_smb_pipe(void);
+
 static int proto_smb_pipe = -1;
-static int hf_pipe_function = -1;
-static int hf_pipe_priority = -1;
-static int hf_pipe_peek_available = -1;
-static int hf_pipe_peek_remaining = -1;
-static int hf_pipe_peek_status = -1;
-static int hf_pipe_getinfo_info_level = -1;
-static int hf_pipe_getinfo_output_buffer_size = -1;
-static int hf_pipe_getinfo_input_buffer_size = -1;
-static int hf_pipe_getinfo_maximum_instances = -1;
-static int hf_pipe_getinfo_current_instances = -1;
-static int hf_pipe_getinfo_pipe_name_length = -1;
-static int hf_pipe_getinfo_pipe_name = -1;
-static int hf_pipe_write_raw_bytes_written = -1;
-static int hf_pipe_fragments = -1;
-static int hf_pipe_fragment = -1;
-static int hf_pipe_fragment_overlap = -1;
-static int hf_pipe_fragment_overlap_conflict = -1;
-static int hf_pipe_fragment_multiple_tails = -1;
-static int hf_pipe_fragment_too_long_fragment = -1;
-static int hf_pipe_fragment_error = -1;
-static int hf_pipe_fragment_count = -1;
-static int hf_pipe_reassembled_in = -1;
-static int hf_pipe_reassembled_length = -1;
+static int hf_smb_pipe_function = -1;
+static int hf_smb_pipe_priority = -1;
+static int hf_smb_pipe_peek_available = -1;
+static int hf_smb_pipe_peek_remaining = -1;
+static int hf_smb_pipe_peek_status = -1;
+static int hf_smb_pipe_getinfo_info_level = -1;
+static int hf_smb_pipe_getinfo_output_buffer_size = -1;
+static int hf_smb_pipe_getinfo_input_buffer_size = -1;
+static int hf_smb_pipe_getinfo_maximum_instances = -1;
+static int hf_smb_pipe_getinfo_current_instances = -1;
+static int hf_smb_pipe_getinfo_pipe_name_length = -1;
+static int hf_smb_pipe_getinfo_pipe_name = -1;
+static int hf_smb_pipe_write_raw_bytes_written = -1;
+static int hf_smb_pipe_fragments = -1;
+static int hf_smb_pipe_fragment = -1;
+static int hf_smb_pipe_fragment_overlap = -1;
+static int hf_smb_pipe_fragment_overlap_conflict = -1;
+static int hf_smb_pipe_fragment_multiple_tails = -1;
+static int hf_smb_pipe_fragment_too_long_fragment = -1;
+static int hf_smb_pipe_fragment_error = -1;
+static int hf_smb_pipe_fragment_count = -1;
+static int hf_smb_pipe_reassembled_in = -1;
+static int hf_smb_pipe_reassembled_length = -1;
 
 static gint ett_smb_pipe = -1;
 static gint ett_smb_pipe_fragment = -1;
@@ -78,16 +85,16 @@ static gint ett_smb_pipe_fragments = -1;
 static const fragment_items smb_pipe_frag_items = {
 	&ett_smb_pipe_fragment,
 	&ett_smb_pipe_fragments,
-	&hf_pipe_fragments,
-	&hf_pipe_fragment,
-	&hf_pipe_fragment_overlap,
-	&hf_pipe_fragment_overlap_conflict,
-	&hf_pipe_fragment_multiple_tails,
-	&hf_pipe_fragment_too_long_fragment,
-	&hf_pipe_fragment_error,
-	&hf_pipe_fragment_count,
+	&hf_smb_pipe_fragments,
+	&hf_smb_pipe_fragment,
+	&hf_smb_pipe_fragment_overlap,
+	&hf_smb_pipe_fragment_overlap_conflict,
+	&hf_smb_pipe_fragment_multiple_tails,
+	&hf_smb_pipe_fragment_too_long_fragment,
+	&hf_smb_pipe_fragment_error,
+	&hf_smb_pipe_fragment_count,
 	NULL,
-	&hf_pipe_reassembled_length,
+	&hf_smb_pipe_reassembled_length,
 	/* Reassembled data field */
 	NULL,
 	"fragments"
@@ -175,6 +182,14 @@ static int hf_new_password = -1;
 static int hf_old_password = -1;
 static int hf_reserved = -1;
 
+/* Generated from convert_proto_tree_add_text.pl */
+static int hf_smb_pipe_stringz_param = -1;
+static int hf_smb_pipe_string_param = -1;
+static int hf_smb_pipe_bytes_param = -1;
+static int hf_smb_pipe_byte_param = -1;
+static int hf_smb_pipe_doubleword_param = -1;
+static int hf_smb_pipe_word_param = -1;
+
 static gint ett_lanman = -1;
 static gint ett_lanman_unknown_entries = -1;
 static gint ett_lanman_unknown_entry = -1;
@@ -183,6 +198,9 @@ static gint ett_lanman_share = -1;
 static gint ett_lanman_groups = -1;
 static gint ett_lanman_servers = -1;
 static gint ett_lanman_server = -1;
+
+static expert_field ei_smb_pipe_bogus_netwkstauserlogon = EI_INIT;
+static expert_field ei_smb_pipe_bad_type = EI_INIT;
 
 static dissector_handle_t data_handle;
 
@@ -195,11 +213,11 @@ static dissector_handle_t data_handle;
  */
 
 static const value_string status_vals[] = {
-	{0,	"Success"},
-	{5,	"User has insufficient privilege"},
-	{65,	"Network access is denied"},
-	{86,	"The specified password is invalid"},
-	{SMBE_moredata, "Additional data is available"},
+	{   0,	"Success"},
+	{   5,	"User has insufficient privilege"},
+	{  65,	"Network access is denied"},
+	{  86,	"The specified password is invalid"},
+	{SMBE_DOS_moredata, "Additional data is available"},
 	{2114,	"Service is not running on the remote computer"},
 	{2123,	"Supplied buffer is too small"},
 	{2141,	"Server is not configured for transactions (IPC$ not shared)"},
@@ -244,45 +262,26 @@ static const value_string weekday_vals[] = {
 
 static int
 add_word_param(tvbuff_t *tvb, int offset, int count _U_,
-    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index)
+    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index, smb_info_t *smb_info _U_)
 {
-	guint16 WParam;
-
-	if (hf_index != -1) {
-		proto_tree_add_item(tree, hf_index, tvb, offset, 2,
-		    ENC_LITTLE_ENDIAN);
-	} else {
-		WParam = tvb_get_letohs(tvb, offset);
-		proto_tree_add_text(tree, tvb, offset, 2,
-		    "Word Param: %u (0x%04X)", WParam, WParam);
-	}
+	proto_tree_add_item(tree, hf_index, tvb, offset, 2, ENC_LITTLE_ENDIAN);
 	offset += 2;
 	return offset;
 }
 
 static int
 add_dword_param(tvbuff_t *tvb, int offset, int count _U_,
-    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index)
+    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index, smb_info_t *smb_info _U_)
 {
-	guint32 LParam;
-
-	if (hf_index != -1) {
-		proto_tree_add_item(tree, hf_index, tvb, offset, 4,
-		    ENC_LITTLE_ENDIAN);
-	} else {
-		LParam = tvb_get_letohl(tvb, offset);
-		proto_tree_add_text(tree, tvb, offset, 4,
-		    "Doubleword Param: %u (0x%08X)", LParam, LParam);
-	}
+	proto_tree_add_item(tree, hf_index, tvb, offset, 4, ENC_LITTLE_ENDIAN);
 	offset += 4;
 	return offset;
 }
 
 static int
-add_byte_param(tvbuff_t *tvb, int offset, int count, packet_info *pinfo _U_,
-    proto_tree *tree, int convert _U_, int hf_index)
+add_bytes_param(tvbuff_t *tvb, int offset, int count, packet_info *pinfo _U_,
+    proto_tree *tree, int convert _U_, int hf_index, smb_info_t *smb_info _U_)
 {
-	guint8 BParam;
 	header_field_info *hfinfo;
 
 	if (hf_index != -1) {
@@ -312,14 +311,9 @@ add_byte_param(tvbuff_t *tvb, int offset, int count, packet_info *pinfo _U_,
 		}
 	} else {
 		if (count == 1) {
-			BParam = tvb_get_guint8(tvb, offset);
-			proto_tree_add_text(tree, tvb, offset, count,
-			    "Byte Param: %u (0x%02X)",
-			    BParam, BParam);
+			proto_tree_add_item(tree, hf_smb_pipe_byte_param, tvb, offset, count, ENC_NA);
 		} else {
-			proto_tree_add_text(tree, tvb, offset, count,
-			    "Byte Param: %s",
-			    tvb_bytes_to_str(tvb, offset, count));
+			proto_tree_add_item(tree, hf_smb_pipe_bytes_param, tvb, offset, count, ENC_NA);
 		}
 	}
 	offset += count;
@@ -328,7 +322,7 @@ add_byte_param(tvbuff_t *tvb, int offset, int count, packet_info *pinfo _U_,
 
 static int
 add_pad_param(tvbuff_t *tvb _U_, int offset, int count, packet_info *pinfo _U_,
-    proto_tree *tree _U_, int convert _U_, int hf_index _U_)
+    proto_tree *tree _U_, int convert _U_, int hf_index _U_, smb_info_t *smb_info _U_)
 {
 	/*
 	 * This is for parameters that have descriptor entries but that
@@ -340,21 +334,18 @@ add_pad_param(tvbuff_t *tvb _U_, int offset, int count, packet_info *pinfo _U_,
 
 static void
 add_null_pointer_param(tvbuff_t *tvb, int offset, int count _U_,
-    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index)
+    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index, smb_info_t *smb_info _U_)
 {
 	if (hf_index != -1) {
-		proto_tree_add_text(tree, tvb, offset, 0,
-		  "%s (Null pointer)",
-		  proto_registrar_get_name(hf_index));
+		proto_tree_add_string_format_value(tree, hf_index, tvb, offset, 0, "", "(Null pointer)");
 	} else {
-		proto_tree_add_text(tree, tvb, offset, 0,
-		    "String Param (Null pointer)");
+		proto_tree_add_string_format_value(tree, hf_smb_pipe_string_param, tvb, offset, 0, "", "(Null pointer)");
 	}
 }
 
 static int
 add_string_param(tvbuff_t *tvb, int offset, int count _U_,
-    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index)
+    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index, smb_info_t *smb_info _U_)
 {
 	guint string_len;
 
@@ -363,9 +354,7 @@ add_string_param(tvbuff_t *tvb, int offset, int count _U_,
 		proto_tree_add_item(tree, hf_index, tvb, offset, string_len,
 		    ENC_ASCII|ENC_NA);	/* XXX - code page? */
 	} else {
-		proto_tree_add_text(tree, tvb, offset, string_len,
-		    "String Param: %s",
-		    tvb_format_text(tvb, offset, string_len));
+		proto_tree_add_item(tree, hf_smb_pipe_string_param, tvb, offset, string_len, ENC_NA|ENC_ASCII);
 	}
 	offset += string_len;
 	return offset;
@@ -394,7 +383,7 @@ get_stringz_pointer_value(tvbuff_t *tvb, int offset, int convert, int *cptrp,
 
 static int
 add_stringz_pointer_param(tvbuff_t *tvb, int offset, int count _U_,
-    packet_info *pinfo _U_, proto_tree *tree, int convert, int hf_index)
+    packet_info *pinfo _U_, proto_tree *tree, int convert, int hf_index, smb_info_t *smb_info _U_)
 {
 	int cptr;
 	const char *string;
@@ -410,17 +399,15 @@ add_stringz_pointer_param(tvbuff_t *tvb, int offset, int count _U_,
 			proto_tree_add_item(tree, hf_index, tvb, cptr,
 			    string_len, ENC_ASCII|ENC_NA);	/* XXX - code page? */
 		} else {
-			proto_tree_add_text(tree, tvb, cptr, string_len,
-			    "String Param: %s", string);
+			proto_tree_add_item(tree, hf_smb_pipe_stringz_param, tvb, cptr, string_len, ENC_NA|ENC_ASCII);
 		}
 	} else {
 		if (hf_index != -1) {
-			proto_tree_add_text(tree, tvb, 0, 0,
-			    "%s: <String goes past end of frame>",
-			    proto_registrar_get_name(hf_index));
+			proto_tree_add_string(tree, hf_index, tvb, 0, 0,
+			    "<String goes past end of frame>");
 		} else {
-			proto_tree_add_text(tree, tvb, 0, 0,
-			    "String Param: <String goes past end of frame>");
+			proto_tree_add_string(tree, hf_smb_pipe_stringz_param, tvb, 0, 0,
+			    "<String goes past end of frame>");
 		}
 	}
 
@@ -429,7 +416,7 @@ add_stringz_pointer_param(tvbuff_t *tvb, int offset, int count _U_,
 
 static int
 add_bytes_pointer_param(tvbuff_t *tvb, int offset, int count,
-    packet_info *pinfo _U_, proto_tree *tree, int convert, int hf_index)
+    packet_info *pinfo _U_, proto_tree *tree, int convert, int hf_index, smb_info_t *smb_info _U_)
 {
 	int cptr;
 
@@ -443,18 +430,15 @@ add_bytes_pointer_param(tvbuff_t *tvb, int offset, int count,
 			proto_tree_add_item(tree, hf_index, tvb, cptr,
 			    count, ENC_NA);
 		} else {
-			proto_tree_add_text(tree, tvb, cptr, count,
-			    "Byte Param: %s",
-			    tvb_bytes_to_str(tvb, cptr, count));
+			proto_tree_add_item(tree, hf_smb_pipe_bytes_param, tvb, cptr, count, ENC_NA);
 		}
 	} else {
 		if (hf_index != -1) {
-			proto_tree_add_text(tree, tvb, 0, 0,
-			    "%s: <Bytes go past end of frame>",
-			    proto_registrar_get_name(hf_index));
+			proto_tree_add_bytes_format_value(tree, hf_index, tvb, 0, 0,
+			    NULL, "<Bytes go past end of frame>");
 		} else {
-			proto_tree_add_text(tree, tvb, 0, 0,
-			    "Byte Param: <Bytes goes past end of frame>");
+			proto_tree_add_bytes_format_value(tree, hf_smb_pipe_bytes_param, tvb, 0, 0,
+			    NULL, "<Bytes go past end of frame>");
 		}
 	}
 
@@ -463,14 +447,13 @@ add_bytes_pointer_param(tvbuff_t *tvb, int offset, int count,
 
 static int
 add_detail_level(tvbuff_t *tvb, int offset, int count _U_, packet_info *pinfo,
-    proto_tree *tree, int convert _U_, int hf_index)
+    proto_tree *tree, int convert _U_, int hf_index, smb_info_t *smb_info)
 {
-	struct smb_info *smb_info = pinfo->private_data;
 	smb_transact_info_t *trp = NULL;
 	guint16 level;
 
 	if (smb_info->sip->extra_info_type == SMB_EI_TRI)
-		trp = smb_info->sip->extra_info;
+		trp = (smb_transact_info_t *)smb_info->sip->extra_info;
 
 	level = tvb_get_letohs(tvb, offset);
 	if (!pinfo->fd->flags.visited)
@@ -484,16 +467,15 @@ add_detail_level(tvbuff_t *tvb, int offset, int count _U_, packet_info *pinfo,
 
 static int
 add_max_uses(tvbuff_t *tvb, int offset, int count _U_, packet_info *pinfo _U_,
-    proto_tree *tree, int convert _U_, int hf_index)
+    proto_tree *tree, int convert _U_, int hf_index, smb_info_t *smb_info _U_)
 {
 	guint16 WParam;
 
 	WParam = tvb_get_letohs(tvb, offset);
 	if (WParam == 0xffff) {	/* -1 */
-		proto_tree_add_uint_format(tree, hf_index, tvb,
+		proto_tree_add_uint_format_value(tree, hf_index, tvb,
 		    offset, 2, WParam,
-		    "%s: No limit",
-		    proto_registrar_get_name(hf_index));
+		    "No limit");
 	} else {
 		proto_tree_add_uint(tree, hf_index, tvb,
 			    offset, 2, WParam);
@@ -504,7 +486,7 @@ add_max_uses(tvbuff_t *tvb, int offset, int count _U_, packet_info *pinfo _U_,
 
 static int
 add_server_type(tvbuff_t *tvb, int offset, int count _U_,
-    packet_info *pinfo, proto_tree *tree, int convert _U_, int hf_index _U_)
+    packet_info *pinfo, proto_tree *tree, int convert _U_, int hf_index _U_, smb_info_t *smb_info _U_)
 {
 	offset = dissect_smb_server_type_flags(
 		tvb, offset, pinfo, tree, NULL, FALSE);
@@ -513,7 +495,7 @@ add_server_type(tvbuff_t *tvb, int offset, int count _U_,
 
 static int
 add_server_type_info(tvbuff_t *tvb, int offset, int count _U_,
-    packet_info *pinfo, proto_tree *tree, int convert _U_, int hf_index _U_)
+    packet_info *pinfo, proto_tree *tree, int convert _U_, int hf_index _U_, smb_info_t *smb_info _U_)
 {
 	offset = dissect_smb_server_type_flags(
 		tvb, offset, pinfo, tree, NULL, TRUE);
@@ -522,15 +504,15 @@ add_server_type_info(tvbuff_t *tvb, int offset, int count _U_,
 
 static int
 add_reltime(tvbuff_t *tvb, int offset, int count _U_, packet_info *pinfo _U_,
-    proto_tree *tree, int convert _U_, int hf_index)
+    proto_tree *tree, int convert _U_, int hf_index, smb_info_t *smb_info _U_)
 {
 	nstime_t nstime;
 
 	nstime.secs = tvb_get_letohl(tvb, offset);
 	nstime.nsecs = 0;
-	proto_tree_add_time_format(tree, hf_index, tvb, offset, 4,
-	    &nstime, "%s: %s", proto_registrar_get_name(hf_index),
-	    time_secs_to_str( (gint32) nstime.secs));
+	proto_tree_add_time_format_value(tree, hf_index, tvb, offset, 4,
+	    &nstime, "%s",
+	    time_secs_to_ep_str( (gint32) nstime.secs));
 	offset += 4;
 	return offset;
 }
@@ -554,8 +536,8 @@ add_abstime_common(tvbuff_t *tvb, int offset, proto_tree *tree, int hf_index,
 	 * logoff date/time.
 	 */
 	if (nstime.secs == -1 || nstime.secs == 0) {
-		proto_tree_add_time_format(tree, hf_index, tvb, offset, 4,
-		    &nstime, "%s: %s", proto_registrar_get_name(hf_index),
+		proto_tree_add_time_format_value(tree, hf_index, tvb, offset, 4,
+		    &nstime, "%s",
 		    absent_name);
 	} else {
 		/*
@@ -575,57 +557,53 @@ add_abstime_common(tvbuff_t *tvb, int offset, proto_tree *tree, int hf_index,
 
 static int
 add_abstime_absent_never(tvbuff_t *tvb, int offset, int count _U_,
-    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index)
+    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index, smb_info_t *smb_info _U_)
 {
 	return add_abstime_common(tvb, offset, tree, hf_index, "Never");
 }
 
 static int
 add_abstime_absent_unknown(tvbuff_t *tvb, int offset, int count _U_,
-    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index)
+    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index, smb_info_t *smb_info _U_)
 {
 	return add_abstime_common(tvb, offset, tree, hf_index, "Unknown");
 }
 
 static int
 add_nlogons(tvbuff_t *tvb, int offset, int count _U_, packet_info *pinfo _U_,
-    proto_tree *tree, int convert _U_, int hf_index)
+    proto_tree *tree, int convert _U_, int hf_index, smb_info_t *smb_info _U_)
 {
 	guint16 nlogons;
 
 	nlogons = tvb_get_letohs(tvb, offset);
 	if (nlogons == 0xffff)	/* -1 */
-		proto_tree_add_uint_format(tree, hf_index, tvb, offset, 2,
-		    nlogons, "%s: Unknown",
-		    proto_registrar_get_name(hf_index));
+		proto_tree_add_uint_format_value(tree, hf_index, tvb, offset, 2,
+		    nlogons, "Unknown");
 	else
-		proto_tree_add_uint(tree, hf_index, tvb, offset, 2,
-		    nlogons);
+		proto_tree_add_uint(tree, hf_index, tvb, offset, 2, nlogons);
 	offset += 2;
 	return offset;
 }
 
 static int
 add_max_storage(tvbuff_t *tvb, int offset, int count _U_,
-    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index)
+    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index, smb_info_t *smb_info _U_)
 {
 	guint32 max_storage;
 
 	max_storage = tvb_get_letohl(tvb, offset);
 	if (max_storage == 0xffffffff)
 		proto_tree_add_uint_format(tree, hf_index, tvb, offset, 4,
-		    max_storage, "%s: No limit",
-		    proto_registrar_get_name(hf_index));
+		    max_storage, "No limit");
 	else
-		proto_tree_add_uint(tree, hf_index, tvb, offset, 4,
-		    max_storage);
+		proto_tree_add_uint(tree, hf_index, tvb, offset, 4, max_storage);
 	offset += 4;
 	return offset;
 }
 
 static int
 add_logon_hours(tvbuff_t *tvb, int offset, int count, packet_info *pinfo _U_,
-    proto_tree *tree, int convert, int hf_index)
+    proto_tree *tree, int convert, int hf_index, smb_info_t *smb_info _U_)
 {
 	int cptr;
 
@@ -645,16 +623,14 @@ add_logon_hours(tvbuff_t *tvb, int offset, int count, packet_info *pinfo _U_,
 			proto_tree_add_item(tree, hf_index, tvb, cptr, count,
 			    ENC_NA);
 		} else {
-			proto_tree_add_bytes_format(tree, hf_index, tvb,
+			proto_tree_add_bytes_format_value(tree, hf_index, tvb,
 			    cptr, count, NULL,
-			    "%s: %s (wrong length, should be 21, is %d",
-			    proto_registrar_get_name(hf_index),
-			    tvb_bytes_to_str(tvb, cptr, count), count);
+			    "%s (wrong length, should be 21, is %d",
+			    tvb_bytes_to_ep_str(tvb, cptr, count), count);
 		}
 	} else {
-		proto_tree_add_text(tree, tvb, 0, 0,
-		    "%s: <Bytes go past end of frame>",
-		    proto_registrar_get_name(hf_index));
+		proto_tree_add_bytes_format_value(tree, hf_index, tvb, 0, 0,
+			    NULL, "<Bytes go past end of frame>");
 	}
 
 	return offset;
@@ -662,25 +638,22 @@ add_logon_hours(tvbuff_t *tvb, int offset, int count, packet_info *pinfo _U_,
 
 static int
 add_tzoffset(tvbuff_t *tvb, int offset, int count _U_, packet_info *pinfo _U_,
-    proto_tree *tree, int convert _U_, int hf_index)
+    proto_tree *tree, int convert _U_, int hf_index _U_, smb_info_t *smb_info _U_)
 {
 	gint16 tzoffset;
 
 	tzoffset = tvb_get_letohs(tvb, offset);
 	if (tzoffset < 0) {
-		proto_tree_add_int_format(tree, hf_tzoffset, tvb, offset, 2,
-		    tzoffset, "%s: %s east of UTC",
-		    proto_registrar_get_name(hf_index),
-		    time_secs_to_str(-tzoffset*60));
+		proto_tree_add_int_format_value(tree, hf_tzoffset, tvb, offset, 2,
+		    tzoffset, "%s east of UTC",
+		    time_secs_to_ep_str(-tzoffset*60));
 	} else if (tzoffset > 0) {
-		proto_tree_add_int_format(tree, hf_tzoffset, tvb, offset, 2,
-		    tzoffset, "%s: %s west of UTC",
-		    proto_registrar_get_name(hf_index),
-		    time_secs_to_str(tzoffset*60));
+		proto_tree_add_int_format_value(tree, hf_tzoffset, tvb, offset, 2,
+		    tzoffset, "%s west of UTC",
+		    time_secs_to_ep_str(tzoffset*60));
 	} else {
-		proto_tree_add_int_format(tree, hf_tzoffset, tvb, offset, 2,
-		    tzoffset, "%s: at UTC",
-		    proto_registrar_get_name(hf_index));
+		proto_tree_add_int_format_value(tree, hf_tzoffset, tvb, offset, 2,
+		    tzoffset, "at UTC");
 	}
 	offset += 2;
 	return offset;
@@ -688,26 +661,23 @@ add_tzoffset(tvbuff_t *tvb, int offset, int count _U_, packet_info *pinfo _U_,
 
 static int
 add_timeinterval(tvbuff_t *tvb, int offset, int count _U_,
-    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index)
+    packet_info *pinfo _U_, proto_tree *tree, int convert _U_, int hf_index _U_, smb_info_t *smb_info _U_)
 {
 	guint16 timeinterval;
 
 	timeinterval = tvb_get_letohs(tvb, offset);
-	proto_tree_add_uint_format(tree, hf_timeinterval, tvb, offset, 2,
-	   timeinterval, "%s: %f seconds", proto_registrar_get_name(hf_index),
-	   timeinterval*.0001);
+	proto_tree_add_uint_format_value(tree, hf_timeinterval, tvb, offset, 2,
+	   timeinterval, "%f seconds", timeinterval*.0001);
 	offset += 2;
 	return offset;
 }
 
 static int
 add_logon_args(tvbuff_t *tvb, int offset, int count, packet_info *pinfo _U_,
-    proto_tree *tree, int convert _U_, int hf_index _U_)
+    proto_tree *tree, int convert _U_, int hf_index _U_, smb_info_t *smb_info _U_)
 {
 	if (count != 54) {
-		proto_tree_add_text(tree, tvb, offset, count,
-		   "Bogus NetWkstaUserLogon parameters: length is %d, should be 54",
-		   count);
+		proto_tree_add_expert_format(tree, pinfo, &ei_smb_pipe_bogus_netwkstauserlogon, tvb, offset, count, "Bogus NetWkstaUserLogon parameters: length is %d, should be 54", count);
 		offset += count;
 		return offset;
 	}
@@ -746,7 +716,7 @@ add_logon_args(tvbuff_t *tvb, int offset, int count, packet_info *pinfo _U_,
  * This is a pointer to a function to process an item.
  */
 typedef int	(*item_func)(tvbuff_t *, int, int, packet_info *, proto_tree *,
-			     int, int);
+			     int, int, smb_info_t*);
 
 /*
  * Type of an item; determines what parameter strings are valid for
@@ -820,7 +790,7 @@ netshareenum_share_entry(tvbuff_t *tvb, proto_tree *tree, int offset)
 {
 	if (tree) {
 		return proto_tree_add_text(tree, tvb, offset, -1,
-		    "Share %.13s", tvb_get_ephemeral_string(tvb, offset, 13));
+		    "Share %.13s", tvb_get_string(wmem_packet_scope(), tvb, offset, 13));
 	} else
 		return NULL;
 }
@@ -834,7 +804,7 @@ static const item_list_t lm_null_list[] = {
 };
 
 static const item_t lm_data_resp_netshareenum_1[] = {
-	{ &hf_share_name, add_byte_param, PARAM_BYTES },
+	{ &hf_share_name, add_bytes_param, PARAM_BYTES },
 	{ &no_hf, add_pad_param, PARAM_BYTES },
 	{ &hf_share_type, add_word_param, PARAM_WORD },
 	{ &hf_share_comment, add_stringz_pointer_param, PARAM_STRINGZ },
@@ -858,12 +828,12 @@ static const item_t lm_params_resp_netsharegetinfo[] = {
 };
 
 static const item_t lm_data_resp_netsharegetinfo_0[] = {
-	{ &hf_share_name, add_byte_param, PARAM_BYTES },
+	{ &hf_share_name, add_bytes_param, PARAM_BYTES },
 	{ NULL, NULL, PARAM_NONE }
 };
 
 static const item_t lm_data_resp_netsharegetinfo_1[] = {
-	{ &hf_share_name, add_byte_param, PARAM_BYTES },
+	{ &hf_share_name, add_bytes_param, PARAM_BYTES },
 	{ &no_hf, add_pad_param, PARAM_BYTES },
 	{ &hf_share_type, add_word_param, PARAM_WORD },
 	{ &hf_share_comment, add_stringz_pointer_param, PARAM_STRINGZ },
@@ -871,7 +841,7 @@ static const item_t lm_data_resp_netsharegetinfo_1[] = {
 };
 
 static const item_t lm_data_resp_netsharegetinfo_2[] = {
-	{ &hf_share_name, add_byte_param, PARAM_BYTES },
+	{ &hf_share_name, add_bytes_param, PARAM_BYTES },
 	{ &no_hf, add_pad_param, PARAM_BYTES },
 	{ &hf_share_type, add_word_param, PARAM_WORD },
 	{ &hf_share_comment, add_stringz_pointer_param, PARAM_STRINGZ },
@@ -879,7 +849,7 @@ static const item_t lm_data_resp_netsharegetinfo_2[] = {
 	{ &hf_share_max_uses, add_max_uses, PARAM_WORD },
 	{ &hf_share_current_uses, add_word_param, PARAM_WORD },
 	{ &hf_share_path, add_stringz_pointer_param, PARAM_STRINGZ },
-	{ &hf_share_password, add_byte_param, PARAM_BYTES },
+	{ &hf_share_password, add_bytes_param, PARAM_BYTES },
 	{ NULL, NULL, PARAM_NONE }
 };
 
@@ -901,14 +871,14 @@ static const item_t lm_params_resp_netservergetinfo[] = {
 };
 
 static const item_t lm_data_serverinfo_0[] = {
-	{ &hf_server_name, add_byte_param, PARAM_BYTES },
+	{ &hf_server_name, add_bytes_param, PARAM_BYTES },
 	{ NULL, NULL, PARAM_NONE }
 };
 
 static const item_t lm_data_serverinfo_1[] = {
-	{ &hf_server_name, add_byte_param, PARAM_BYTES },
-	{ &hf_server_major, add_byte_param, PARAM_BYTES },
-	{ &hf_server_minor, add_byte_param, PARAM_BYTES },
+	{ &hf_server_name, add_bytes_param, PARAM_BYTES },
+	{ &hf_server_major, add_bytes_param, PARAM_BYTES },
+	{ &hf_server_minor, add_bytes_param, PARAM_BYTES },
 	{ &no_hf, add_server_type, PARAM_DWORD },
 	{ &hf_server_comment, add_stringz_pointer_param, PARAM_STRINGZ },
 	{ NULL, NULL, PARAM_NONE }
@@ -932,7 +902,7 @@ static const item_t lm_params_resp_netusergetinfo[] = {
 };
 
 static const item_t lm_data_resp_netusergetinfo_11[] = {
-	{ &hf_user_name, add_byte_param, PARAM_BYTES },
+	{ &hf_user_name, add_bytes_param, PARAM_BYTES },
 	{ &no_hf, add_pad_param, PARAM_BYTES },
 	{ &hf_comment, add_stringz_pointer_param, PARAM_STRINGZ },
 	{ &hf_user_comment, add_stringz_pointer_param, PARAM_STRINGZ },
@@ -973,7 +943,7 @@ static const item_t lm_params_resp_netusergetgroups[] = {
 };
 
 static const item_t lm_data_resp_netusergetgroups_0[] = {
-	{ &hf_group_name, add_byte_param, PARAM_BYTES },
+	{ &hf_group_name, add_bytes_param, PARAM_BYTES },
 	{ NULL, NULL, PARAM_NONE }
 };
 
@@ -988,16 +958,16 @@ static const item_list_t lm_data_resp_netusergetgroups[] = {
 static const item_t lm_data_resp_netremotetod_nolevel[] = {
 	{ &hf_current_time, add_abstime_absent_unknown, PARAM_DWORD },
 	{ &hf_msecs, add_dword_param, PARAM_DWORD },
-	{ &hf_hour, add_byte_param, PARAM_BYTES },
-	{ &hf_minute, add_byte_param, PARAM_BYTES },
-	{ &hf_second, add_byte_param, PARAM_BYTES },
-	{ &hf_hundredths, add_byte_param, PARAM_BYTES },
+	{ &hf_hour, add_bytes_param, PARAM_BYTES },
+	{ &hf_minute, add_bytes_param, PARAM_BYTES },
+	{ &hf_second, add_bytes_param, PARAM_BYTES },
+	{ &hf_hundredths, add_bytes_param, PARAM_BYTES },
 	{ &hf_tzoffset, add_tzoffset, PARAM_WORD },
 	{ &hf_timeinterval, add_timeinterval, PARAM_WORD },
-	{ &hf_day, add_byte_param, PARAM_BYTES },
-	{ &hf_month, add_byte_param, PARAM_BYTES },
+	{ &hf_day, add_bytes_param, PARAM_BYTES },
+	{ &hf_month, add_bytes_param, PARAM_BYTES },
 	{ &hf_year, add_word_param, PARAM_WORD },
-	{ &hf_weekday, add_byte_param, PARAM_BYTES },
+	{ &hf_weekday, add_bytes_param, PARAM_BYTES },
 	{ NULL, NULL, PARAM_NONE }
 };
 
@@ -1020,7 +990,7 @@ netserverenum2_server_entry(tvbuff_t *tvb, proto_tree *tree, int offset)
 {
 	if (tree) {
 		return proto_tree_add_text(tree, tvb, offset, -1,
-			    "Server %.16s", tvb_get_ephemeral_string(tvb, offset, 16));
+			    "Server %.16s", tvb_get_string(wmem_packet_scope(), tvb, offset, 16));
 	} else
 		return NULL;
 }
@@ -1054,8 +1024,8 @@ static const item_t lm_data_resp_netwkstagetinfo_10[] = {
 	{ &hf_computer_name, add_stringz_pointer_param, PARAM_STRINGZ },
 	{ &hf_user_name, add_stringz_pointer_param, PARAM_STRINGZ },
 	{ &hf_workstation_domain, add_stringz_pointer_param, PARAM_STRINGZ },
-	{ &hf_workstation_major, add_byte_param, PARAM_BYTES },
-	{ &hf_workstation_minor, add_byte_param, PARAM_BYTES },
+	{ &hf_workstation_major, add_bytes_param, PARAM_BYTES },
+	{ &hf_workstation_minor, add_bytes_param, PARAM_BYTES },
 	{ &hf_logon_domain, add_stringz_pointer_param, PARAM_STRINGZ },
 	{ &hf_other_domains, add_stringz_pointer_param, PARAM_STRINGZ },
 	{ NULL, NULL, PARAM_NONE }
@@ -1082,7 +1052,7 @@ static const item_t lm_params_resp_netwkstauserlogon[] = {
 
 static const item_t lm_data_resp_netwkstauserlogon_1[] = {
 	{ &hf_logon_code, add_word_param, PARAM_WORD },
-	{ &hf_user_name, add_byte_param, PARAM_BYTES },
+	{ &hf_user_name, add_bytes_param, PARAM_BYTES },
 	{ &no_hf, add_pad_param, PARAM_BYTES },
 	{ &hf_privilege_level, add_word_param, PARAM_WORD },
 	{ &hf_operator_privileges, add_dword_param, PARAM_DWORD },
@@ -1108,9 +1078,9 @@ static const item_list_t lm_data_resp_netwkstauserlogon[] = {
 };
 
 static const item_t lm_params_req_netwkstauserlogoff[] = {
-	{ &hf_user_name, add_byte_param, PARAM_BYTES },
+	{ &hf_user_name, add_bytes_param, PARAM_BYTES },
 	{ &no_hf, add_pad_param, PARAM_BYTES },
-	{ &hf_workstation_name, add_byte_param, PARAM_BYTES },
+	{ &hf_workstation_name, add_bytes_param, PARAM_BYTES },
 	{ NULL, NULL, PARAM_NONE }
 };
 
@@ -1137,8 +1107,8 @@ static const item_t lm_params_req_samoemchangepassword[] = {
 };
 
 static const item_t lm_data_req_samoemchangepassword[] = {
-	{ &hf_new_password, add_byte_param, PARAM_BYTES },
-	{ &hf_old_password, add_byte_param, PARAM_BYTES },
+	{ &hf_new_password, add_bytes_param, PARAM_BYTES },
+	{ &hf_old_password, add_bytes_param, PARAM_BYTES },
 	{ NULL, NULL, PARAM_NONE }
 };
 
@@ -1642,7 +1612,7 @@ get_count(const guchar *desc, int *countp)
 static int
 dissect_request_parameters(tvbuff_t *tvb, int offset, packet_info *pinfo,
     proto_tree *tree, const guchar *desc, const item_t *items,
-    gboolean *has_data_p)
+    gboolean *has_data_p, smb_info_t *smb_info)
 {
 	guint c;
 	guint16 WParam;
@@ -1664,24 +1634,23 @@ dissect_request_parameters(tvbuff_t *tvb, int offset, packet_info *pinfo,
 				 * fall back on the default.
 				 */
 				offset = add_word_param(tvb, offset, 0, pinfo,
-				    tree, 0, -1);
+				    tree, 0, hf_smb_pipe_word_param, smb_info);
 			} else if (items->type != PARAM_WORD) {
 				/*
 				 * Descriptor character is 'W', but this
 				 * isn't a word parameter.
 				 */
 				WParam = tvb_get_letohs(tvb, offset);
-				proto_tree_add_text(tree, tvb, offset, 2,
+				proto_tree_add_expert_format(tree, pinfo, &ei_smb_pipe_bad_type, tvb, offset, 2,
 				    "%s: Value is %u (0x%04X), type is wrong (W)",
-				    (*items->hf_index == -1) ?
-				      "Word Param" :
-				      proto_registrar_get_name(*items->hf_index),
+				    proto_registrar_get_name((*items->hf_index == -1) ?
+				      hf_smb_pipe_word_param : *items->hf_index),
 				    WParam, WParam);
 				offset += 2;
 				items++;
 			} else {
 				offset = (*items->func)(tvb, offset, 0, pinfo,
-				    tree, 0, *items->hf_index);
+				    tree, 0, *items->hf_index, smb_info);
 				items++;
 			}
 			break;
@@ -1696,24 +1665,23 @@ dissect_request_parameters(tvbuff_t *tvb, int offset, packet_info *pinfo,
 				 * fall back on the default.
 				 */
 				offset = add_dword_param(tvb, offset, 0, pinfo,
-				    tree, 0, -1);
+				    tree, 0, hf_smb_pipe_doubleword_param, smb_info);
 			} else if (items->type != PARAM_DWORD) {
 				/*
 				 * Descriptor character is 'D', but this
 				 * isn't a doubleword parameter.
 				 */
 				LParam = tvb_get_letohl(tvb, offset);
-				proto_tree_add_text(tree, tvb, offset, 2,
+				proto_tree_add_expert_format(tree, pinfo, &ei_smb_pipe_bad_type, tvb, offset, 2,
 				    "%s: Value is %u (0x%08X), type is wrong (D)",
-				    (*items->hf_index == -1) ?
-				      "Doubleword Param" :
-				      proto_registrar_get_name(*items->hf_index),
+				    proto_registrar_get_name((*items->hf_index == -1) ?
+				      hf_smb_pipe_doubleword_param : *items->hf_index),
 				    LParam, LParam);
 				offset += 4;
 				items++;
 			} else {
 				offset = (*items->func)(tvb, offset, 0, pinfo,
-				    tree, 0, *items->hf_index);
+				    tree, 0, *items->hf_index, smb_info);
 				items++;
 			}
 			break;
@@ -1728,24 +1696,23 @@ dissect_request_parameters(tvbuff_t *tvb, int offset, packet_info *pinfo,
 				 * We've run out of items in the table;
 				 * fall back on the default.
 				 */
-				offset = add_byte_param(tvb, offset, count,
-				    pinfo, tree, 0, -1);
+				offset = add_bytes_param(tvb, offset, count,
+				    pinfo, tree, 0, -1, smb_info);
 			} else if (items->type != PARAM_BYTES) {
 				/*
 				 * Descriptor character is 'b', but this
 				 * isn't a byte/bytes parameter.
 				 */
-				proto_tree_add_text(tree, tvb, offset, count,
+				proto_tree_add_expert_format(tree, pinfo, &ei_smb_pipe_bad_type, tvb, offset, count,
 				    "%s: Value is %s, type is wrong (b)",
-				    (*items->hf_index == -1) ?
-				      "Byte Param" :
-				      proto_registrar_get_name(*items->hf_index),
-				    tvb_bytes_to_str(tvb, offset, count));
+				    proto_registrar_get_name((*items->hf_index == -1) ?
+				      hf_smb_pipe_bytes_param : *items->hf_index),
+				    tvb_bytes_to_ep_str(tvb, offset, count));
 				offset += count;
 				items++;
 			} else {
 				offset = (*items->func)(tvb, offset, count,
-				    pinfo, tree, 0, *items->hf_index);
+				    pinfo, tree, 0, *items->hf_index, smb_info);
 				items++;
 			}
  			break;
@@ -1760,7 +1727,7 @@ dissect_request_parameters(tvbuff_t *tvb, int offset, packet_info *pinfo,
 				 * fall back on the default.
 				 */
 				add_null_pointer_param(tvb, offset, 0,
-				    pinfo, tree, 0, -1);
+				    pinfo, tree, 0, -1, smb_info);
 			} else {
 				/*
 				 * If "*items->hf_index" is -1, this is
@@ -1771,7 +1738,7 @@ dissect_request_parameters(tvbuff_t *tvb, int offset, packet_info *pinfo,
 				if (*items->hf_index != -1) {
 					add_null_pointer_param(tvb,
 					    offset, 0, pinfo, tree, 0,
-					    *items->hf_index);
+					    *items->hf_index, smb_info);
 				}
 				items++;
 			}
@@ -1787,24 +1754,23 @@ dissect_request_parameters(tvbuff_t *tvb, int offset, packet_info *pinfo,
 				 * fall back on the default.
 				 */
 				offset = add_string_param(tvb, offset, 0,
-				    pinfo, tree, 0, -1);
+				    pinfo, tree, 0, -1, smb_info);
 			} else if (items->type != PARAM_STRINGZ) {
 				/*
 				 * Descriptor character is 'z', but this
 				 * isn't a string parameter.
 				 */
 				string_len = tvb_strsize(tvb, offset);
-				proto_tree_add_text(tree, tvb, offset, string_len,
+				proto_tree_add_expert_format(tree, pinfo, &ei_smb_pipe_bad_type, tvb, offset, string_len,
 				    "%s: Value is %s, type is wrong (z)",
-				    (*items->hf_index == -1) ?
-				      "String Param" :
-				      proto_registrar_get_name(*items->hf_index),
+				    proto_registrar_get_name((*items->hf_index == -1) ?
+				      hf_smb_pipe_string_param : *items->hf_index),
 				    tvb_format_text(tvb, offset, string_len));
 				offset += string_len;
 				items++;
 			} else {
 				offset = (*items->func)(tvb, offset, 0,
-				    pinfo, tree, 0, *items->hf_index);
+				    pinfo, tree, 0, *items->hf_index, smb_info);
 				items++;
 			}
 			break;
@@ -1814,8 +1780,7 @@ dissect_request_parameters(tvbuff_t *tvb, int offset, packet_info *pinfo,
 			 * One or more pad bytes.
 			 */
 			desc = get_count(desc, &count);
-			proto_tree_add_text(tree, tvb, offset, count,
-			    "%s", "Padding");
+			proto_tree_add_text(tree, tvb, offset, count, "Padding");
 			offset += count;
 			break;
 
@@ -1855,7 +1820,7 @@ dissect_request_parameters(tvbuff_t *tvb, int offset, packet_info *pinfo,
 static int
 dissect_response_parameters(tvbuff_t *tvb, int offset, packet_info *pinfo,
     proto_tree *tree, const guchar *desc, const item_t *items,
-    gboolean *has_data_p, gboolean *has_ent_count_p, guint16 *ent_count_p)
+    gboolean *has_data_p, gboolean *has_ent_count_p, guint16 *ent_count_p, smb_info_t *smb_info)
 {
 	guint c;
 	guint16 WParam;
@@ -1884,24 +1849,23 @@ dissect_response_parameters(tvbuff_t *tvb, int offset, packet_info *pinfo,
 				 * We've run out of items in the table;
 				 * fall back on the default.
 				 */
-				offset = add_byte_param(tvb, offset, count,
-				    pinfo, tree, 0, -1);
+				offset = add_bytes_param(tvb, offset, count,
+				    pinfo, tree, 0, -1, smb_info);
 			} else if (items->type != PARAM_BYTES) {
 				/*
 				 * Descriptor character is 'b', but this
 				 * isn't a byte/bytes parameter.
 				 */
-				proto_tree_add_text(tree, tvb, offset, count,
+				proto_tree_add_expert_format(tree, pinfo, &ei_smb_pipe_bad_type, tvb, offset, count,
 				    "%s: Value is %s, type is wrong (g)",
-				    (*items->hf_index == -1) ?
-				      "Byte Param" :
-				      proto_registrar_get_name(*items->hf_index),
-				    tvb_bytes_to_str(tvb, offset, count));
+				    proto_registrar_get_name((*items->hf_index == -1) ?
+				      hf_smb_pipe_bytes_param : *items->hf_index),
+				    tvb_bytes_to_ep_str(tvb, offset, count));
 				offset += count;
 				items++;
 			} else {
 				offset = (*items->func)(tvb, offset, count,
-				    pinfo, tree, 0, *items->hf_index);
+				    pinfo, tree, 0, *items->hf_index, smb_info);
 				items++;
 			}
 			break;
@@ -1916,24 +1880,23 @@ dissect_response_parameters(tvbuff_t *tvb, int offset, packet_info *pinfo,
 				 * fall back on the default.
 				 */
 				offset = add_word_param(tvb, offset, 0, pinfo,
-				    tree, 0, -1);
+				    tree, 0, hf_smb_pipe_word_param, smb_info);
 			} else if (items->type != PARAM_WORD) {
 				/*
 				 * Descriptor character is 'h', but this
 				 * isn't a word parameter.
 				 */
 				WParam = tvb_get_letohs(tvb, offset);
-				proto_tree_add_text(tree, tvb, offset, 2,
+				proto_tree_add_expert_format(tree, pinfo, &ei_smb_pipe_bad_type, tvb, offset, 2,
 				    "%s: Value is %u (0x%04X), type is wrong (W)",
-				    (*items->hf_index == -1) ?
-				      "Word Param" :
-				      proto_registrar_get_name(*items->hf_index),
+				    proto_registrar_get_name((*items->hf_index == -1) ?
+				      hf_smb_pipe_word_param : *items->hf_index),
 				    WParam, WParam);
 				offset += 2;
 				items++;
 			} else {
 				offset = (*items->func)(tvb, offset, 0, pinfo,
-				    tree, 0, *items->hf_index);
+				    tree, 0, *items->hf_index, smb_info);
 				items++;
 			}
 			break;
@@ -1948,24 +1911,23 @@ dissect_response_parameters(tvbuff_t *tvb, int offset, packet_info *pinfo,
 				 * fall back on the default.
 				 */
 				offset = add_dword_param(tvb, offset, 0, pinfo,
-				    tree, 0, -1);
+				    tree, 0, hf_smb_pipe_doubleword_param, smb_info);
 			} else if (items->type != PARAM_DWORD) {
 				/*
 				 * Descriptor character is 'i', but this
 				 * isn't a doubleword parameter.
 				 */
 				LParam = tvb_get_letohl(tvb, offset);
-				proto_tree_add_text(tree, tvb, offset, 2,
+				proto_tree_add_expert_format(tree, pinfo, &ei_smb_pipe_bad_type, tvb, offset, 2,
 				    "%s: Value is %u (0x%08X), type is wrong (i)",
-				    (*items->hf_index == -1) ?
-				      "Doubleword Param" :
-				      proto_registrar_get_name(*items->hf_index),
+				    proto_registrar_get_name((*items->hf_index == -1) ?
+				      hf_smb_pipe_doubleword_param : *items->hf_index),
 				    LParam, LParam);
 				offset += 4;
 				items++;
 			} else {
 				offset = (*items->func)(tvb, offset, 0, pinfo,
-				    tree, 0, *items->hf_index);
+				    tree, 0, *items->hf_index, smb_info);
 				items++;
 			}
 			break;
@@ -1992,7 +1954,7 @@ dissect_response_parameters(tvbuff_t *tvb, int offset, packet_info *pinfo,
 static int
 dissect_transact_data(tvbuff_t *tvb, int offset, int convert,
     packet_info *pinfo, proto_tree *tree, const guchar *desc,
-    const item_t *items, guint16 *aux_count_p)
+    const item_t *items, guint16 *aux_count_p, smb_info_t *smb_info)
 {
 	guint c;
 	guint16 WParam;
@@ -2020,24 +1982,23 @@ dissect_transact_data(tvbuff_t *tvb, int offset, int convert,
 				 * fall back on the default.
 				 */
 				offset = add_word_param(tvb, offset, 0, pinfo,
-				    tree, convert, -1);
+				    tree, convert, hf_smb_pipe_word_param, smb_info);
 			} else if (items->type != PARAM_WORD) {
 				/*
 				 * Descriptor character is 'W', but this
 				 * isn't a word parameter.
 				 */
 				WParam = tvb_get_letohs(tvb, offset);
-				proto_tree_add_text(tree, tvb, offset, 2,
+				proto_tree_add_expert_format(tree, pinfo, &ei_smb_pipe_bad_type, tvb, offset, 2,
 				    "%s: Value is %u (0x%04X), type is wrong (W)",
-				    (*items->hf_index == -1) ?
-				      "Word Param" :
-				      proto_registrar_get_name(*items->hf_index),
+				    proto_registrar_get_name((*items->hf_index == -1) ?
+				      hf_smb_pipe_word_param : *items->hf_index),
 				    WParam, WParam);
 				offset += 2;
 				items++;
 			} else {
 				offset = (*items->func)(tvb, offset, 0, pinfo,
-				    tree, convert, *items->hf_index);
+				    tree, convert, *items->hf_index, smb_info);
 				items++;
 			}
 			break;
@@ -2054,24 +2015,23 @@ dissect_transact_data(tvbuff_t *tvb, int offset, int convert,
 				 * fall back on the default.
 				 */
 				offset = add_dword_param(tvb, offset, 0, pinfo,
-				    tree, convert, -1);
+				    tree, convert, hf_smb_pipe_doubleword_param, smb_info);
 			} else if (items->type != PARAM_DWORD) {
 				/*
 				 * Descriptor character is 'D', but this
 				 * isn't a doubleword parameter.
 				 */
 				LParam = tvb_get_letohl(tvb, offset);
-				proto_tree_add_text(tree, tvb, offset, 2,
+				proto_tree_add_expert_format(tree, pinfo, &ei_smb_pipe_bad_type, tvb, offset, 2,
 				    "%s: Value is %u (0x%08X), type is wrong (D)",
-				    (*items->hf_index == -1) ?
-				      "Doubleword Param" :
-				      proto_registrar_get_name(*items->hf_index),
+				    proto_registrar_get_name((*items->hf_index == -1) ?
+				      hf_smb_pipe_doubleword_param : *items->hf_index),
 				    LParam, LParam);
 				offset += 4;
 				items++;
 			} else {
 				offset = (*items->func)(tvb, offset, 0, pinfo,
-				    tree, convert, *items->hf_index);
+				    tree, convert, *items->hf_index, smb_info);
 				items++;
 			}
 			break;
@@ -2086,24 +2046,23 @@ dissect_transact_data(tvbuff_t *tvb, int offset, int convert,
 				 * We've run out of items in the table;
 				 * fall back on the default.
 				 */
-				offset = add_byte_param(tvb, offset, count,
-				    pinfo, tree, convert, -1);
+				offset = add_bytes_param(tvb, offset, count,
+				    pinfo, tree, convert, -1, smb_info);
 			} else if (items->type != PARAM_BYTES) {
 				/*
 				 * Descriptor character is 'B', but this
 				 * isn't a byte/bytes parameter.
 				 */
-				proto_tree_add_text(tree, tvb, offset, count,
+				proto_tree_add_expert_format(tree, pinfo, &ei_smb_pipe_bad_type, tvb, offset, count,
 				    "%s: Value is %s, type is wrong (B)",
-				    (*items->hf_index == -1) ?
-				      "Byte Param" :
-				      proto_registrar_get_name(*items->hf_index),
-				    tvb_bytes_to_str(tvb, offset, count));
+				    proto_registrar_get_name((*items->hf_index == -1) ?
+				      hf_smb_pipe_bytes_param : *items->hf_index),
+				    tvb_bytes_to_ep_str(tvb, offset, count));
 				offset += count;
 				items++;
 			} else {
 				offset = (*items->func)(tvb, offset, count,
-				    pinfo, tree, convert, *items->hf_index);
+				    pinfo, tree, convert, *items->hf_index, smb_info);
 				items++;
 			}
 			break;
@@ -2118,7 +2077,7 @@ dissect_transact_data(tvbuff_t *tvb, int offset, int convert,
 				 * fall back on the default.
 				 */
 				add_null_pointer_param(tvb, offset, 0,
-				    pinfo, tree, convert, -1);
+				    pinfo, tree, convert, -1, smb_info);
 			} else {
 				/*
 				 * If "*items->hf_index" is -1, this is
@@ -2129,7 +2088,7 @@ dissect_transact_data(tvbuff_t *tvb, int offset, int convert,
 				if (*items->hf_index != -1) {
 					add_null_pointer_param(tvb,
 					    offset, 0, pinfo, tree, convert,
-					    *items->hf_index);
+					    *items->hf_index, smb_info);
 				}
 				items++;
 			}
@@ -2145,7 +2104,7 @@ dissect_transact_data(tvbuff_t *tvb, int offset, int convert,
 				 * fall back on the default.
 				 */
 				offset = add_stringz_pointer_param(tvb, offset,
-				    0, pinfo, tree, convert, -1);
+				    0, pinfo, tree, convert, -1, smb_info);
 			} else if (items->type != PARAM_STRINGZ) {
 				/*
 				 * Descriptor character is 'z', but this
@@ -2154,16 +2113,15 @@ dissect_transact_data(tvbuff_t *tvb, int offset, int convert,
 				string = get_stringz_pointer_value(tvb, offset,
 				    convert, &cptr, &string_len);
 				offset += 4;
-				proto_tree_add_text(tree, tvb, cptr, string_len,
+				proto_tree_add_expert_format(tree, pinfo, &ei_smb_pipe_bad_type, tvb, cptr, string_len,
 				    "%s: Value is %s, type is wrong (z)",
-				    (*items->hf_index == -1) ?
-				      "String Param" :
-				      proto_registrar_get_name(*items->hf_index),
+				    proto_registrar_get_name((*items->hf_index == -1) ?
+				      hf_smb_pipe_string_param : *items->hf_index),
 				    string ? string : "(null)");
 				items++;
 			} else {
 				offset = (*items->func)(tvb, offset, 0,
-				    pinfo, tree, convert, *items->hf_index);
+				    pinfo, tree, convert, *items->hf_index, smb_info);
 				items++;
 			}
 			break;
@@ -2179,7 +2137,7 @@ dissect_transact_data(tvbuff_t *tvb, int offset, int convert,
 				 * fall back on the default.
 				 */
 				offset = add_bytes_pointer_param(tvb, offset,
-				    count, pinfo, tree, convert, -1);
+				    count, pinfo, tree, convert, -1, smb_info);
 			} else if (items->type != PARAM_BYTES) {
 				/*
 				 * Descriptor character is 'b', but this
@@ -2187,16 +2145,15 @@ dissect_transact_data(tvbuff_t *tvb, int offset, int convert,
 				 */
 				cptr = (tvb_get_letohl(tvb, offset)&0xffff)-convert;
 				offset += 4;
-				proto_tree_add_text(tree, tvb, offset, count,
+				proto_tree_add_expert_format(tree, pinfo, &ei_smb_pipe_bad_type, tvb, offset, count,
 				    "%s: Value is %s, type is wrong (b)",
-				    (*items->hf_index == -1) ?
-				      "Byte Param" :
-				      proto_registrar_get_name(*items->hf_index),
-				    tvb_bytes_to_str(tvb, cptr, count));
+				    proto_registrar_get_name((*items->hf_index == -1) ?
+				      hf_smb_pipe_bytes_param : *items->hf_index),
+				    tvb_bytes_to_ep_str(tvb, cptr, count));
 				items++;
 			} else {
 				offset = (*items->func)(tvb, offset, count,
-				    pinfo, tree, convert, *items->hf_index);
+				    pinfo, tree, convert, *items->hf_index, smb_info);
 				items++;
 			}
 			break;
@@ -2208,8 +2165,7 @@ dissect_transact_data(tvbuff_t *tvb, int offset, int convert,
 			 */
 			WParam = tvb_get_letohs(tvb, offset);
 			proto_tree_add_text(tree, tvb, offset, 2,
-			    "%s: %u (0x%04X)",
-			    "Auxiliary data structure count",
+			    "Auxiliary data structure count: %u (0x%04X)",
 			    WParam, WParam);
 			offset += 2;
 			if (aux_count_p != NULL)
@@ -2490,7 +2446,7 @@ static value_string_ext commands_ext = VALUE_STRING_EXT_INIT(commands);
 
 static void
 dissect_response_data(tvbuff_t *tvb, packet_info *pinfo, int convert,
-    proto_tree *tree, struct smb_info *smb_info,
+    proto_tree *tree, smb_info_t *smb_info,
     const struct lanman_desc *lanman, gboolean has_ent_count,
     guint16 ent_count)
 {
@@ -2507,7 +2463,7 @@ dissect_response_data(tvbuff_t *tvb, packet_info *pinfo, int convert,
 	guint i, j;
 	guint16 aux_count;
 
-	trp = smb_info->sip->extra_info;
+	trp = (smb_transact_info_t *)smb_info->sip->extra_info;
 
 	/*
 	 * Find the item table for the matching request's detail level.
@@ -2533,8 +2489,7 @@ dissect_response_data(tvbuff_t *tvb, packet_info *pinfo, int convert,
 				ett = *lanman->ett_data_entry_list;
 			else
 				ett = ett_lanman_unknown_entries;
-			data_item = proto_tree_add_text(tree, tvb, offset, -1, "%s",
-			    label);
+			data_item = proto_tree_add_text(tree, tvb, offset, -1, "%s", label);
 			data_tree = proto_item_add_subtree(data_item, ett);
 		} else {
 			data_item = NULL;
@@ -2606,7 +2561,7 @@ dissect_response_data(tvbuff_t *tvb, packet_info *pinfo, int convert,
 
 			offset = dissect_transact_data(tvb, offset,
 			    convert, pinfo, entry_tree,
-			    trp->data_descrip, resp_data, &aux_count);
+			    trp->data_descrip, resp_data, &aux_count, smb_info);
 
 			/* auxiliary data */
 			if (trp->aux_data_descrip != NULL) {
@@ -2615,7 +2570,7 @@ dissect_response_data(tvbuff_t *tvb, packet_info *pinfo, int convert,
 					    tvb, offset, convert,
 					    pinfo, entry_tree,
 					    trp->data_descrip,
-					    lanman->resp_aux_data, NULL);
+					    lanman->resp_aux_data, NULL, smb_info);
 				}
 			}
 
@@ -2641,9 +2596,8 @@ dissect_response_data(tvbuff_t *tvb, packet_info *pinfo, int convert,
 
 static gboolean
 dissect_pipe_lanman(tvbuff_t *pd_tvb, tvbuff_t *p_tvb, tvbuff_t *d_tvb,
-		    packet_info *pinfo, proto_tree *parent_tree)
+		    packet_info *pinfo, proto_tree *parent_tree, smb_info_t *smb_info)
 {
-	smb_info_t *smb_info = pinfo->private_data;
 	smb_transact_info_t *trp = NULL;
 	int offset = 0/*, start_offset*/;
 	guint16 cmd;
@@ -2662,7 +2616,7 @@ dissect_pipe_lanman(tvbuff_t *pd_tvb, tvbuff_t *p_tvb, tvbuff_t *d_tvb,
 	proto_tree *data_tree;
 
 	if (smb_info->sip->extra_info_type == SMB_EI_TRI)
-		trp = smb_info->sip->extra_info;
+		trp = (smb_transact_info_t *)smb_info->sip->extra_info;
 
 	if (!proto_is_protocol_enabled(find_protocol_by_id(proto_smb_lanman)))
 		return FALSE;
@@ -2685,9 +2639,8 @@ dissect_pipe_lanman(tvbuff_t *pd_tvb, tvbuff_t *p_tvb, tvbuff_t *d_tvb,
 	if (smb_info->request) { /* this is a request */
 		/* function code */
 		cmd = tvb_get_letohs(p_tvb, offset);
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%s Request", val_to_str_ext(cmd, &commands_ext, "Unknown Command (%u)"));
-		}
+		col_add_fstr(pinfo->cinfo, COL_INFO, "%s Request", val_to_str_ext(cmd, &commands_ext, "Unknown Command (%u)"));
+
 		proto_tree_add_uint(tree, hf_function_code, p_tvb, offset, 2,
 		    cmd);
 		offset += 2;
@@ -2741,7 +2694,7 @@ dissect_pipe_lanman(tvbuff_t *pd_tvb, tvbuff_t *p_tvb, tvbuff_t *d_tvb,
 		/* request parameters */
 		/*start_offset = offset;*/
 		offset = dissect_request_parameters(p_tvb, offset, pinfo, tree,
-		    param_descrip, lanman->req, &has_data);
+		    param_descrip, lanman->req, &has_data, smb_info);
 
 		/* auxiliary data descriptor */
 		if (tvb_reported_length_remaining(p_tvb, offset) > 0){
@@ -2791,7 +2744,7 @@ dissect_pipe_lanman(tvbuff_t *pd_tvb, tvbuff_t *p_tvb, tvbuff_t *d_tvb,
 			/* data */
 			offset = dissect_transact_data(d_tvb, offset, -1,
 			    pinfo, data_tree, data_descrip, lanman->req_data,
-			    &aux_count);	/* XXX - what about strings? */
+			    &aux_count, smb_info);	/* XXX - what about strings? */
 
 			/* auxiliary data */
 			if (aux_data_descrip != NULL) {
@@ -2799,7 +2752,7 @@ dissect_pipe_lanman(tvbuff_t *pd_tvb, tvbuff_t *p_tvb, tvbuff_t *d_tvb,
 					offset = dissect_transact_data(d_tvb,
 					    offset, -1, pinfo, data_tree,
 					    aux_data_descrip,
-					    lanman->req_aux_data, NULL);
+					    lanman->req_aux_data, NULL, smb_info);
 				}
 			}
 
@@ -2825,19 +2778,17 @@ dissect_pipe_lanman(tvbuff_t *pd_tvb, tvbuff_t *p_tvb, tvbuff_t *d_tvb,
 		if( ( (p_tvb==NULL) || (tvb_reported_length(p_tvb)==0) )
 		&&  ( (d_tvb==NULL) || (tvb_reported_length(d_tvb)==0) ) ){
 			/* command */
-			if (check_col(pinfo->cinfo, COL_INFO)) {
-				col_add_fstr(pinfo->cinfo, COL_INFO, "%s Interim Response",
+			col_add_fstr(pinfo->cinfo, COL_INFO, "%s Interim Response",
 					     val_to_str_ext(trp->lanman_cmd, &commands_ext, "Unknown Command (%u)"));
-			}
+
 			proto_tree_add_uint(tree, hf_function_code, p_tvb, 0, 0, trp->lanman_cmd);
 			return TRUE;
 		}
 
 		/* command */
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%s Response",
+		col_add_fstr(pinfo->cinfo, COL_INFO, "%s Response",
 				     val_to_str_ext(trp->lanman_cmd, &commands_ext, "Unknown Command (%u)"));
-		}
+
 		proto_tree_add_uint(tree, hf_function_code, p_tvb, 0, 0,
 		    trp->lanman_cmd);
 
@@ -2883,7 +2834,7 @@ dissect_pipe_lanman(tvbuff_t *pd_tvb, tvbuff_t *p_tvb, tvbuff_t *d_tvb,
 			/* rest of the parameters */
 			dissect_response_parameters(p_tvb, offset,
 			    pinfo, tree, trp->param_descrip, lanman->resp,
-			    &has_data, &has_ent_count, &ent_count);
+			    &has_data, &has_ent_count, &ent_count, smb_info);
 
 			/* data */
 			if (d_tvb && tvb_reported_length(d_tvb) > 0) {
@@ -3206,10 +3157,9 @@ proto_register_pipe_lanman(void)
 			{ "Logon Server", "lanman.logon_server", FT_STRING, BASE_NONE,
 			NULL, 0, "LANMAN Logon Server", HFILL }},
 
-		/* XXX - we should have a value_string table for this */
 		{ &hf_country_code,
-			{ "Country Code", "lanman.country_code", FT_UINT16, BASE_DEC,
-			VALS(ms_country_codes), 0, "LANMAN Country Code", HFILL }},
+			{ "Country Code", "lanman.country_code", FT_UINT16, BASE_DEC | BASE_EXT_STRING,
+			&ms_country_codes_ext, 0, "LANMAN Country Code", HFILL }},
 
 		{ &hf_workstations,
 			{ "Workstations", "lanman.workstations", FT_STRING, BASE_NONE,
@@ -3264,30 +3214,37 @@ proto_register_pipe_lanman(void)
 
 static heur_dissector_list_t smb_transact_heur_subdissector_list;
 
-static GHashTable *dcerpc_fragment_table = NULL;
-static GHashTable *dcerpc_reassembled_table = NULL;
+static reassembly_table dcerpc_reassembly_table;
 
 static void
 smb_dcerpc_reassembly_init(void)
 {
-	fragment_table_init(&dcerpc_fragment_table);
-	reassembled_table_init(&dcerpc_reassembled_table);
+	/*
+	 * XXX - addresses_ports_reassembly_table_functions?
+	 * Probably correct for SMB-over-NBT and SMB-over-TCP,
+	 * as stuff from two different connections should
+	 * probably not be combined, but what about other
+	 * transports for SMB, e.g. NBF or Netware?
+	 */
+	reassembly_table_init(&dcerpc_reassembly_table,
+	    &addresses_reassembly_table_functions);
 }
 
 gboolean
 dissect_pipe_dcerpc(tvbuff_t *d_tvb, packet_info *pinfo, proto_tree *parent_tree,
     proto_tree *tree, guint32 fid)
 {
-	smb_info_t *smb_priv = (smb_info_t *)pinfo->private_data;
 	gboolean result=0;
 	gboolean save_fragmented;
 	guint reported_len;
 
-	fragment_data *fd_head;
+	fragment_head *fd_head;
 	tvbuff_t *new_tvb;
-    proto_item *frag_tree_item;
+	proto_item *frag_tree_item;
 
-	pinfo->dcetransportsalt = fid;
+	heur_dtbl_entry_t *hdtbl_entry;
+
+	dcerpc_set_transport_salt(fid, pinfo);
 
 	/*
 	 * Offer desegmentation service to DCERPC if we have all the
@@ -3308,7 +3265,7 @@ dissect_pipe_dcerpc(tvbuff_t *d_tvb, packet_info *pinfo, proto_tree *parent_tree
 	   and bail out
 	*/
 	if(!pinfo->can_desegment){
-		result = dissector_try_heuristic(smb_transact_heur_subdissector_list, d_tvb, pinfo, parent_tree, NULL);
+		result = dissector_try_heuristic(smb_transact_heur_subdissector_list, d_tvb, pinfo, parent_tree, &hdtbl_entry, NULL);
 		goto clean_up_and_exit;
 	}
 
@@ -3328,7 +3285,7 @@ dissect_pipe_dcerpc(tvbuff_t *d_tvb, packet_info *pinfo, proto_tree *parent_tree
 		 * in this direction, by searching for its reassembly
 		 * structure.
 		 */
-		fd_head=fragment_get(pinfo, fid, dcerpc_fragment_table);
+		fd_head=fragment_get(&dcerpc_reassembly_table, pinfo, fid, NULL);
 		if(!fd_head){
 			/* No reassembly, so this is a new pdu. check if the
 			   dissector wants us to reassemble it or if we
@@ -3339,7 +3296,7 @@ dissect_pipe_dcerpc(tvbuff_t *d_tvb, packet_info *pinfo, proto_tree *parent_tree
 			 * Try the heuristic dissectors and see if we
 			 * find someone that recognizes this payload.
 			 */
-			result = dissector_try_heuristic(smb_transact_heur_subdissector_list, d_tvb, pinfo, parent_tree, NULL);
+			result = dissector_try_heuristic(smb_transact_heur_subdissector_list, d_tvb, pinfo, parent_tree, &hdtbl_entry, NULL);
 
 			/* no this didnt look like something we know */
 			if(!result){
@@ -3350,12 +3307,11 @@ dissect_pipe_dcerpc(tvbuff_t *d_tvb, packet_info *pinfo, proto_tree *parent_tree
 			   more data ?
 			*/
 			if(pinfo->desegment_len){
-				fragment_add_check(d_tvb, 0, pinfo, fid,
-					dcerpc_fragment_table,
-					dcerpc_reassembled_table,
+				fragment_add_check(&dcerpc_reassembly_table,
+					d_tvb, 0, pinfo, fid, NULL,
 					0, reported_len, TRUE);
-				fragment_set_tot_len(pinfo, fid,
-					dcerpc_fragment_table,
+				fragment_set_tot_len(&dcerpc_reassembly_table,
+					pinfo, fid, NULL,
 					pinfo->desegment_len+reported_len);
 			}
 			goto clean_up_and_exit;
@@ -3372,15 +3328,14 @@ dissect_pipe_dcerpc(tvbuff_t *d_tvb, packet_info *pinfo, proto_tree *parent_tree
 		while(fd_head->next){
 			fd_head=fd_head->next;
 		}
-		fd_head=fragment_add_check(d_tvb, 0, pinfo, fid,
-			dcerpc_fragment_table, dcerpc_reassembled_table,
+		fd_head=fragment_add_check(&dcerpc_reassembly_table,
+			d_tvb, 0, pinfo, fid, NULL,
 			fd_head->offset+fd_head->len,
 			reported_len, TRUE);
 
 		/* if we completed reassembly */
 		if(fd_head){
-			new_tvb = tvb_new_child_real_data(d_tvb, fd_head->data,
-				  fd_head->datalen, fd_head->datalen);
+			new_tvb = tvb_new_chain(d_tvb, fd_head->tvb_data);
 			add_new_data_source(pinfo, new_tvb,
 				  "DCERPC over SMB");
 			pinfo->fragmented=FALSE;
@@ -3392,7 +3347,7 @@ dissect_pipe_dcerpc(tvbuff_t *d_tvb, packet_info *pinfo, proto_tree *parent_tree
 			    tree, pinfo, d_tvb, &frag_tree_item);
 
 			/* dissect the full PDU */
-			result = dissector_try_heuristic(smb_transact_heur_subdissector_list, d_tvb, pinfo, parent_tree, NULL);
+			result = dissector_try_heuristic(smb_transact_heur_subdissector_list, d_tvb, pinfo, parent_tree, &hdtbl_entry, NULL);
 		}
 		goto clean_up_and_exit;
 	}
@@ -3406,31 +3361,30 @@ dissect_pipe_dcerpc(tvbuff_t *d_tvb, packet_info *pinfo, proto_tree *parent_tree
 	 * up so that we don't have to distinguish between the first
 	 * pass and subsequent passes?
 	 */
-	fd_head=fragment_add_check(d_tvb, 0, pinfo, fid, dcerpc_fragment_table,
-	    dcerpc_reassembled_table, 0, 0, TRUE);
+	fd_head=fragment_add_check(&dcerpc_reassembly_table,
+	    d_tvb, 0, pinfo, fid, NULL, 0, 0, TRUE);
 	if(!fd_head){
 		/* we didnt find it, try any of the heuristic dissectors
 		   and bail out
 		*/
-		result = dissector_try_heuristic(smb_transact_heur_subdissector_list, d_tvb, pinfo, parent_tree, NULL);
+		result = dissector_try_heuristic(smb_transact_heur_subdissector_list, d_tvb, pinfo, parent_tree, &hdtbl_entry, NULL);
 		goto clean_up_and_exit;
 	}
 	if(!(fd_head->flags&FD_DEFRAGMENTED)){
 		/* we dont have a fully reassembled frame */
-		result = dissector_try_heuristic(smb_transact_heur_subdissector_list, d_tvb, pinfo, parent_tree, NULL);
+		result = dissector_try_heuristic(smb_transact_heur_subdissector_list, d_tvb, pinfo, parent_tree, &hdtbl_entry, NULL);
 		goto clean_up_and_exit;
 	}
 
 	/* it is reassembled but it was reassembled in a different frame */
 	if(pinfo->fd->num!=fd_head->reassembled_in){
-		proto_tree_add_uint(parent_tree, hf_pipe_reassembled_in, d_tvb, 0, 0, fd_head->reassembled_in);
+		proto_tree_add_uint(parent_tree, hf_smb_pipe_reassembled_in, d_tvb, 0, 0, fd_head->reassembled_in);
 		goto clean_up_and_exit;
 	}
 
 
 	/* display the reassembled pdu */
-	new_tvb = tvb_new_child_real_data(d_tvb, fd_head->data,
-		  fd_head->datalen, fd_head->datalen);
+	new_tvb = tvb_new_chain(d_tvb, fd_head->tvb_data);
 	add_new_data_source(pinfo, new_tvb,
 		  "DCERPC over SMB");
 	pinfo->fragmented=FALSE;
@@ -3442,13 +3396,12 @@ dissect_pipe_dcerpc(tvbuff_t *d_tvb, packet_info *pinfo, proto_tree *parent_tree
 		    tree, pinfo, d_tvb, &frag_tree_item);
 
 	/* dissect the full PDU */
-	result = dissector_try_heuristic(smb_transact_heur_subdissector_list, d_tvb, pinfo, parent_tree, NULL);
+	result = dissector_try_heuristic(smb_transact_heur_subdissector_list, d_tvb, pinfo, parent_tree, &hdtbl_entry, NULL);
 
 
 
 clean_up_and_exit:
 	/* clear out the variables */
-	pinfo->private_data = smb_priv;
 	pinfo->can_desegment=0;
 	pinfo->desegment_offset = 0;
 	pinfo->desegment_len = 0;
@@ -3512,9 +3465,8 @@ static const value_string pipe_status[] = {
 gboolean
 dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 		 tvbuff_t *p_tvb, tvbuff_t *d_tvb, const char *pipe,
-		 packet_info *pinfo, proto_tree *tree)
+		 packet_info *pinfo, proto_tree *tree, smb_info_t *smb_info)
 {
-	smb_info_t *smb_info;
 	smb_transact_info_t *tri;
 	guint sp_len;
 	proto_item *pipe_item = NULL;
@@ -3529,19 +3481,15 @@ dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 		return FALSE;
 	pinfo->current_proto = "SMB Pipe";
 
-	smb_info = pinfo->private_data;
-
 	/*
 	 * Set the columns.
 	 */
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "SMB Pipe");
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_set_str(pinfo->cinfo, COL_INFO,
+	col_set_str(pinfo->cinfo, COL_INFO,
 		    smb_info->request ? "Request" : "Response");
-	}
 
 	if (smb_info->sip != NULL && smb_info->sip->extra_info_type == SMB_EI_TRI)
-		tri = smb_info->sip->extra_info;
+		tri = (smb_transact_info_t *)smb_info->sip->extra_info;
 	else
 		tri = NULL;
 
@@ -3568,14 +3516,13 @@ dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 		 * Yes.  The first of them is the function.
 		 */
 		function = tvb_get_letohs(s_tvb, offset);
-		proto_tree_add_uint(pipe_tree, hf_pipe_function, s_tvb,
+		proto_tree_add_uint(pipe_tree, hf_smb_pipe_function, s_tvb,
 		    offset, 2, function);
 		offset += 2;
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s",
+		col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s",
 			    val_to_str(function, functions, "Unknown function (0x%04x)"),
 			    smb_info->request ? "Request" : "Response");
-		}
+
 		if (tri != NULL)
 			tri->function = function;
 
@@ -3589,7 +3536,7 @@ dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 			/*
 			 * It's a priority.
 			 */
-			proto_tree_add_item(pipe_tree, hf_pipe_priority, s_tvb,
+			proto_tree_add_item(pipe_tree, hf_smb_pipe_priority, s_tvb,
 			    offset, 2, ENC_LITTLE_ENDIAN);
 			break;
 
@@ -3604,7 +3551,7 @@ dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 			 * It's a FID.
 			 */
 			fid = tvb_get_letohs(s_tvb, 2);
-			dissect_smb_fid(s_tvb, pinfo, pipe_tree, offset, 2, (guint16) fid, FALSE, FALSE, FALSE);
+			dissect_smb_fid(s_tvb, pinfo, pipe_tree, offset, 2, (guint16) fid, FALSE, FALSE, FALSE, smb_info);
 			if (tri != NULL)
 				tri->fid = fid;
 			break;
@@ -3628,16 +3575,15 @@ dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 		 */
 		if (tri != NULL && tri->function != -1) {
 			function = tri->function;
-			proto_tree_add_uint(pipe_tree, hf_pipe_function, NULL,
+			proto_tree_add_uint(pipe_tree, hf_smb_pipe_function, NULL,
 			    0, 0, function);
-			if (check_col(pinfo->cinfo, COL_INFO)) {
-				col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s",
+			col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s",
 				    val_to_str(function, functions, "Unknown function (0x%04x)"),
 				    smb_info->request ? "Request" : "Response");
-			}
+
 			fid = tri->fid;
 			if (fid != -1)
-				dissect_smb_fid(d_tvb, pinfo, pipe_tree, 0, 0, (guint16) fid, FALSE, FALSE, TRUE);
+				dissect_smb_fid(d_tvb, pinfo, pipe_tree, 0, 0, (guint16) fid, FALSE, FALSE, TRUE, smb_info);
 		} else {
 			function = -1;
 			fid = -1;
@@ -3666,7 +3612,7 @@ dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 		if(tri == NULL)
 			return FALSE;
 		trans_subcmd = tri->trans_subcmd;
-        }
+	}
 
 	if (tri == NULL) {
 		/*
@@ -3683,8 +3629,7 @@ dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 		switch(trans_subcmd){
 
 		case PIPE_LANMAN:
-			return dissect_pipe_lanman(pd_tvb, p_tvb, d_tvb, pinfo,
-			    tree);
+			return dissect_pipe_lanman(pd_tvb, p_tvb, d_tvb, pinfo, tree, smb_info);
 
 		case PIPE_DCERPC:
 			/*
@@ -3693,9 +3638,8 @@ dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 			if (fid != -1) {
 				if (d_tvb == NULL)
 					return FALSE;
-		                return dissect_pipe_dcerpc(d_tvb, pinfo, tree,
-		                    pipe_tree, fid);
-		        }
+				return dissect_pipe_dcerpc(d_tvb, pinfo, tree, pipe_tree, fid);
+			}
 			break;
 		}
 		break;
@@ -3707,8 +3651,7 @@ dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 		 */
 		switch(trans_subcmd){
 		case PIPE_LANMAN:
-			return dissect_pipe_lanman(pd_tvb, p_tvb, d_tvb, pinfo,
-			    tree);
+			return dissect_pipe_lanman(pd_tvb, p_tvb, d_tvb, pinfo, tree, smb_info);
 		}
 		break;
 
@@ -3723,13 +3666,13 @@ dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 			if (p_tvb == NULL)
 				return FALSE;
 			offset = 0;
-			proto_tree_add_item(pipe_tree, hf_pipe_peek_available,
+			proto_tree_add_item(pipe_tree, hf_smb_pipe_peek_available,
 			    p_tvb, offset, 2, ENC_LITTLE_ENDIAN);
 			offset += 2;
-			proto_tree_add_item(pipe_tree, hf_pipe_peek_remaining,
+			proto_tree_add_item(pipe_tree, hf_smb_pipe_peek_remaining,
 			    p_tvb, offset, 2, ENC_LITTLE_ENDIAN);
 			offset += 2;
-			proto_tree_add_item(pipe_tree, hf_pipe_peek_status,
+			proto_tree_add_item(pipe_tree, hf_smb_pipe_peek_status,
 			    p_tvb, offset, 2, ENC_LITTLE_ENDIAN);
 		}
 		break;
@@ -3766,7 +3709,7 @@ dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 			 * Request contains an information level.
 			 */
 			info_level = tvb_get_letohs(p_tvb, offset);
-			proto_tree_add_uint(pipe_tree, hf_pipe_getinfo_info_level,
+			proto_tree_add_uint(pipe_tree, hf_smb_pipe_getinfo_info_level,
 			    p_tvb, offset, 2, info_level);
 			if (!pinfo->fd->flags.visited)
 				tri->info_level = info_level;
@@ -3780,29 +3723,29 @@ dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 
 			case 1:
 				proto_tree_add_item(pipe_tree,
-				    hf_pipe_getinfo_output_buffer_size,
+				    hf_smb_pipe_getinfo_output_buffer_size,
 				    d_tvb, offset, 2, ENC_LITTLE_ENDIAN);
 				offset += 2;
 				proto_tree_add_item(pipe_tree,
-				    hf_pipe_getinfo_input_buffer_size,
+				    hf_smb_pipe_getinfo_input_buffer_size,
 				    d_tvb, offset, 2, ENC_LITTLE_ENDIAN);
 				offset += 2;
 				proto_tree_add_item(pipe_tree,
-				    hf_pipe_getinfo_maximum_instances,
+				    hf_smb_pipe_getinfo_maximum_instances,
 				    d_tvb, offset, 1, ENC_LITTLE_ENDIAN);
 				offset += 1;
 				proto_tree_add_item(pipe_tree,
-				    hf_pipe_getinfo_current_instances,
+				    hf_smb_pipe_getinfo_current_instances,
 				    d_tvb, offset, 1, ENC_LITTLE_ENDIAN);
 				offset += 1;
 				pipe_namelen = tvb_get_guint8(d_tvb, offset);
 				proto_tree_add_uint(pipe_tree,
-				    hf_pipe_getinfo_pipe_name_length,
+				    hf_smb_pipe_getinfo_pipe_name_length,
 				    d_tvb, offset, 1, pipe_namelen);
 				offset += 1;
 				/* XXX - can this be Unicode? */
 				proto_tree_add_item(pipe_tree,
-				    hf_pipe_getinfo_pipe_name,
+				    hf_smb_pipe_getinfo_pipe_name,
 				    d_tvb, offset, pipe_namelen, ENC_ASCII|ENC_NA);
 				break;
 			}
@@ -3836,7 +3779,7 @@ dissect_pipe_smb(tvbuff_t *sp_tvb, tvbuff_t *s_tvb, tvbuff_t *pd_tvb,
 			if (p_tvb == NULL)
 				return FALSE;
 			proto_tree_add_item(pipe_tree,
-			    hf_pipe_write_raw_bytes_written,
+			    hf_smb_pipe_write_raw_bytes_written,
 			    p_tvb, offset, 2, ENC_LITTLE_ENDIAN);
 		}
 		break;
@@ -3848,75 +3791,95 @@ void
 proto_register_smb_pipe(void)
 {
 	static hf_register_info hf[] = {
-		{ &hf_pipe_function,
-			{ "Function", "pipe.function", FT_UINT16, BASE_HEX,
+		{ &hf_smb_pipe_function,
+			{ "Function", "smb_pipe.function", FT_UINT16, BASE_HEX,
 			VALS(functions), 0, "SMB Pipe Function Code", HFILL }},
-		{ &hf_pipe_priority,
-			{ "Priority", "pipe.priority", FT_UINT16, BASE_DEC,
+		{ &hf_smb_pipe_priority,
+			{ "Priority", "smb_pipe.priority", FT_UINT16, BASE_DEC,
 			NULL, 0, "SMB Pipe Priority", HFILL }},
-		{ &hf_pipe_peek_available,
-			{ "Available Bytes", "pipe.peek.available_bytes", FT_UINT16, BASE_DEC,
+		{ &hf_smb_pipe_peek_available,
+			{ "Available Bytes", "smb_pipe.peek.available_bytes", FT_UINT16, BASE_DEC,
 			NULL, 0, "Total number of bytes available to be read from the pipe", HFILL }},
-		{ &hf_pipe_peek_remaining,
-			{ "Bytes Remaining", "pipe.peek.remaining_bytes", FT_UINT16, BASE_DEC,
+		{ &hf_smb_pipe_peek_remaining,
+			{ "Bytes Remaining", "smb_pipe.peek.remaining_bytes", FT_UINT16, BASE_DEC,
 			NULL, 0, "Total number of bytes remaining in the message at the head of the pipe", HFILL }},
-		{ &hf_pipe_peek_status,
-			{ "Pipe Status", "pipe.peek.status", FT_UINT16, BASE_DEC,
+		{ &hf_smb_pipe_peek_status,
+			{ "Pipe Status", "smb_pipe.peek.status", FT_UINT16, BASE_DEC,
 			VALS(pipe_status), 0, NULL, HFILL }},
-		{ &hf_pipe_getinfo_info_level,
-			{ "Information Level", "pipe.getinfo.info_level", FT_UINT16, BASE_DEC,
+		{ &hf_smb_pipe_getinfo_info_level,
+			{ "Information Level", "smb_pipe.getinfo.info_level", FT_UINT16, BASE_DEC,
 			NULL, 0, "Information level of information to return", HFILL }},
-		{ &hf_pipe_getinfo_output_buffer_size,
-			{ "Output Buffer Size", "pipe.getinfo.output_buffer_size", FT_UINT16, BASE_DEC,
+		{ &hf_smb_pipe_getinfo_output_buffer_size,
+			{ "Output Buffer Size", "smb_pipe.getinfo.output_buffer_size", FT_UINT16, BASE_DEC,
 			NULL, 0, "Actual size of buffer for outgoing (server) I/O", HFILL }},
-		{ &hf_pipe_getinfo_input_buffer_size,
-			{ "Input Buffer Size", "pipe.getinfo.input_buffer_size", FT_UINT16, BASE_DEC,
+		{ &hf_smb_pipe_getinfo_input_buffer_size,
+			{ "Input Buffer Size", "smb_pipe.getinfo.input_buffer_size", FT_UINT16, BASE_DEC,
 			NULL, 0, "Actual size of buffer for incoming (client) I/O", HFILL }},
-		{ &hf_pipe_getinfo_maximum_instances,
-			{ "Maximum Instances", "pipe.getinfo.maximum_instances", FT_UINT8, BASE_DEC,
+		{ &hf_smb_pipe_getinfo_maximum_instances,
+			{ "Maximum Instances", "smb_pipe.getinfo.maximum_instances", FT_UINT8, BASE_DEC,
 			NULL, 0, "Maximum allowed number of instances", HFILL }},
-		{ &hf_pipe_getinfo_current_instances,
-			{ "Current Instances", "pipe.getinfo.current_instances", FT_UINT8, BASE_DEC,
+		{ &hf_smb_pipe_getinfo_current_instances,
+			{ "Current Instances", "smb_pipe.getinfo.current_instances", FT_UINT8, BASE_DEC,
 			NULL, 0, "Current number of instances", HFILL }},
-		{ &hf_pipe_getinfo_pipe_name_length,
-			{ "Pipe Name Length", "pipe.getinfo.pipe_name_length", FT_UINT8, BASE_DEC,
+		{ &hf_smb_pipe_getinfo_pipe_name_length,
+			{ "Pipe Name Length", "smb_pipe.getinfo.pipe_name_length", FT_UINT8, BASE_DEC,
 			NULL, 0, "Length of pipe name", HFILL }},
-		{ &hf_pipe_getinfo_pipe_name,
-			{ "Pipe Name", "pipe.getinfo.pipe_name", FT_STRING, BASE_NONE,
+		{ &hf_smb_pipe_getinfo_pipe_name,
+			{ "Pipe Name", "smb_pipe.getinfo.pipe_name", FT_STRING, BASE_NONE,
 			NULL, 0, "Name of pipe", HFILL }},
-		{ &hf_pipe_write_raw_bytes_written,
-			{ "Bytes Written", "pipe.write_raw.bytes_written", FT_UINT16, BASE_DEC,
+		{ &hf_smb_pipe_write_raw_bytes_written,
+			{ "Bytes Written", "smb_pipe.write_raw.bytes_written", FT_UINT16, BASE_DEC,
 			NULL, 0, "Number of bytes written to the pipe", HFILL }},
-		{ &hf_pipe_fragment_overlap,
-			{ "Fragment overlap",	"pipe.fragment.overlap", FT_BOOLEAN, BASE_NONE,
+		{ &hf_smb_pipe_fragment_overlap,
+			{ "Fragment overlap",	"smb_pipe.fragment.overlap", FT_BOOLEAN, BASE_NONE,
 			NULL, 0x0, "Fragment overlaps with other fragments", HFILL }},
-		{ &hf_pipe_fragment_overlap_conflict,
-			{ "Conflicting data in fragment overlap",	"pipe.fragment.overlap.conflict", FT_BOOLEAN,
+		{ &hf_smb_pipe_fragment_overlap_conflict,
+			{ "Conflicting data in fragment overlap",	"smb_pipe.fragment.overlap.conflict", FT_BOOLEAN,
 			BASE_NONE, NULL, 0x0, "Overlapping fragments contained conflicting data", HFILL }},
-		{ &hf_pipe_fragment_multiple_tails,
-			{ "Multiple tail fragments found",	"pipe.fragment.multipletails", FT_BOOLEAN,
+		{ &hf_smb_pipe_fragment_multiple_tails,
+			{ "Multiple tail fragments found",	"smb_pipe.fragment.multipletails", FT_BOOLEAN,
 			BASE_NONE, NULL, 0x0, "Several tails were found when defragmenting the packet", HFILL }},
-		{ &hf_pipe_fragment_too_long_fragment,
-			{ "Fragment too long",	"pipe.fragment.toolongfragment", FT_BOOLEAN,
+		{ &hf_smb_pipe_fragment_too_long_fragment,
+			{ "Fragment too long",	"smb_pipe.fragment.toolongfragment", FT_BOOLEAN,
 			BASE_NONE, NULL, 0x0, "Fragment contained data past end of packet", HFILL }},
-		{ &hf_pipe_fragment_error,
-			{ "Defragmentation error", "pipe.fragment.error", FT_FRAMENUM,
+		{ &hf_smb_pipe_fragment_error,
+			{ "Defragmentation error", "smb_pipe.fragment.error", FT_FRAMENUM,
 			BASE_NONE, NULL, 0x0, "Defragmentation error due to illegal fragments", HFILL }},
-		{ &hf_pipe_fragment_count,
-			{ "Fragment count", "pipe.fragment.count", FT_UINT32,
+		{ &hf_smb_pipe_fragment_count,
+			{ "Fragment count", "smb_pipe.fragment.count", FT_UINT32,
 			BASE_DEC, NULL, 0x0, NULL, HFILL }},
-		{ &hf_pipe_fragment,
-			{ "Fragment", "pipe.fragment", FT_FRAMENUM,
+		{ &hf_smb_pipe_fragment,
+			{ "Fragment", "smb_pipe.fragment", FT_FRAMENUM,
 			BASE_NONE, NULL, 0x0, "Pipe Fragment", HFILL }},
-		{ &hf_pipe_fragments,
-			{ "Fragments", "pipe.fragments", FT_NONE,
+		{ &hf_smb_pipe_fragments,
+			{ "Fragments", "smb_pipe.fragments", FT_NONE,
 			BASE_NONE, NULL, 0x0, "Pipe Fragments", HFILL }},
-		{ &hf_pipe_reassembled_in,
-			{ "This PDU is reassembled in", "pipe.reassembled_in", FT_FRAMENUM,
+		{ &hf_smb_pipe_reassembled_in,
+			{ "This PDU is reassembled in", "smb_pipe.reassembled_in", FT_FRAMENUM,
 			BASE_NONE, NULL, 0x0, "The DCE/RPC PDU is completely reassembled in this frame", HFILL }},
-		{ &hf_pipe_reassembled_length,
-			{ "Reassembled SMB Pipe length", "pipe.reassembled.length", FT_UINT32,
+		{ &hf_smb_pipe_reassembled_length,
+			{ "Reassembled SMB Pipe length", "smb_pipe.reassembled.length", FT_UINT32,
 			BASE_DEC, NULL, 0x0, "The total length of the reassembled payload", HFILL }},
+
+		/* Generated from convert_proto_tree_add_text.pl */
+		{ &hf_smb_pipe_word_param,
+			{ "Word Param", "smb_pipe.word_param", FT_UINT16,
+			BASE_DEC_HEX, NULL, 0x0, NULL, HFILL }},
+		{ &hf_smb_pipe_doubleword_param,
+			{ "Doubleword Param", "smb_pipe.doubleword_param", FT_UINT32,
+			BASE_DEC_HEX, NULL, 0x0, NULL, HFILL }},
+		{ &hf_smb_pipe_byte_param,
+			{ "Byte Param", "smb_pipe.byte_param", FT_UINT8,
+			BASE_DEC_HEX, NULL, 0x0, NULL, HFILL }},
+		{ &hf_smb_pipe_bytes_param,
+			{ "Bytes Param", "smb_pipe.bytes_param", FT_BYTES,
+			BASE_NONE, NULL, 0x0, NULL, HFILL }},
+		{ &hf_smb_pipe_string_param,
+			{ "String Param", "smb_pipe.string_param", FT_STRING,
+			BASE_NONE, NULL, 0x0, NULL, HFILL }},
+		{ &hf_smb_pipe_stringz_param,
+			{ "String Param", "smb_pipe.string_param", FT_STRINGZ,
+			BASE_NONE, NULL, 0x0, NULL, HFILL }},
 	};
 	static gint *ett[] = {
 		&ett_smb_pipe,
@@ -3924,11 +3887,19 @@ proto_register_smb_pipe(void)
 		&ett_smb_pipe_fragments,
 	};
 
-	proto_smb_pipe = proto_register_protocol(
-		"SMB Pipe Protocol", "SMB Pipe", "pipe");
+	static ei_register_info ei[] = {
+		{ &ei_smb_pipe_bogus_netwkstauserlogon, { "smb_pipe.bogus_netwkstauserlogon_parameters", PI_PROTOCOL, PI_WARN, "Bogus NetWkstaUserLogon parameters", EXPFILL }},
+		{ &ei_smb_pipe_bad_type, { "smb_pipe.bad_type", PI_PROTOCOL, PI_ERROR, "Bad type field", EXPFILL }},
+	};
+
+	expert_module_t* expert_smb_pipe;
+
+	proto_smb_pipe = proto_register_protocol("SMB Pipe Protocol", "SMB Pipe", "smb_pipe");
 
 	proto_register_field_array(proto_smb_pipe, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_smb_pipe = expert_register_protocol(proto_smb_pipe);
+	expert_register_field_array(expert_smb_pipe, ei, array_length(ei));
 }
 
 void
@@ -3936,3 +3907,17 @@ proto_reg_handoff_smb_pipe(void)
 {
 	data_handle = find_dissector("data");
 }
+
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

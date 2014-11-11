@@ -11,8 +11,6 @@
  *   support on mobile radio interface
  *   (3GPP TS 24.011 version 4.1.1 Release 4)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,10 +35,14 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <epan/tap.h>
 
 #include "packet-sccp.h"
 #include "packet-gsm_a_common.h"
+
+void proto_register_gsm_a_rp(void);
+void proto_reg_handoff_gsm_a_rp(void);
 
 /* PROTOTYPES/FORWARDS */
 
@@ -55,15 +57,28 @@ static const value_string gsm_rp_msg_strings[] = {
 	{ 0, NULL }
 };
 
-const value_string gsm_rp_elem_strings[] = {
+typedef enum
+{
+	/* Short Message Service Information Elements [5] 8.2 */
+	DE_RP_MESSAGE_REF,				/* RP-Message Reference */
+	DE_RP_ORIG_ADDR,				/* RP-Originator Address */
+	DE_RP_DEST_ADDR,				/* RP-Destination Address */
+	DE_RP_USER_DATA,				/* RP-User Data */
+	DE_RP_CAUSE,					/* RP-Cause */
+	DE_RP_NONE							/* NONE */
+}
+rp_elem_idx_t;
+
+static const value_string gsm_rp_elem_strings[] = {
 	/* Short Message Service RP Information Elements [5] 8.2 */
-	{ 0x00,	"RP-Message Reference" },
-	{ 0x01,	"RP-Originator Address" },
-	{ 0x02,	"RP-Destination Address" },
-	{ 0x03,	"RP-User Data" },
-	{ 0x04,	"RP-Cause" },
+	{ DE_RP_MESSAGE_REF,	"RP-Message Reference" },
+	{ DE_RP_ORIG_ADDR,	"RP-Originator Address" },
+	{ DE_RP_DEST_ADDR,	"RP-Destination Address" },
+	{ DE_RP_USER_DATA,	"RP-User Data" },
+	{ DE_RP_CAUSE,	"RP-Cause" },
 	{ 0, NULL }
 };
+value_string_ext gsm_rp_elem_strings_ext = VALUE_STRING_EXT_INIT(gsm_rp_elem_strings);
 
 /* Initialize the protocol and registered fields */
 static int proto_a_rp = -1;
@@ -76,21 +91,9 @@ static gint ett_rp_msg = -1;
 
 static char a_bigbuf[1024];
 
-static dissector_table_t sms_dissector_table;	/* SMS TPDU */
+static dissector_handle_t gsm_sms_handle;	/* SMS TPDU */
 
 static proto_tree *g_tree;
-
-typedef enum
-{
-	/* Short Message Service Information Elements [5] 8.2 */
-	DE_RP_MESSAGE_REF,				/* RP-Message Reference */
-	DE_RP_ORIG_ADDR,				/* RP-Originator Address */
-	DE_RP_DEST_ADDR,				/* RP-Destination Address */
-	DE_RP_USER_DATA,				/* RP-User Data */
-	DE_RP_CAUSE,					/* RP-Cause */
-	DE_RP_NONE							/* NONE */
-}
-rp_elem_idx_t;
 
 #define	NUM_GSM_RP_ELEM (sizeof(gsm_rp_elem_strings)/sizeof(value_string))
 gint ett_gsm_rp_elem[NUM_GSM_RP_ELEM];
@@ -158,7 +161,7 @@ de_rp_user_data(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 off
 	 */
 	tpdu_tvb = tvb_new_subset(tvb, curr_offset, len, len);
 
-	dissector_try_uint(sms_dissector_table, 0, tpdu_tvb, pinfo, g_tree);
+	call_dissector_only(gsm_sms_handle, tpdu_tvb, pinfo, g_tree, NULL);
 
 	curr_offset += len;
 
@@ -447,15 +450,6 @@ dissect_rp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	col_append_str(pinfo->cinfo, COL_INFO, "(RP) ");
 
-	/*
-	 * In the interest of speed, if "tree" is NULL, don't do any work
-	 * not necessary to generate protocol tree items.
-	 */
-	if (!tree)
-	{
-		return;
-	}
-
 	offset = 0;
 	saved_offset = offset;
 
@@ -468,7 +462,7 @@ dissect_rp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	 */
 	oct = tvb_get_guint8(tvb, offset++);
 
-	str = match_strval_idx((guint32) oct, gsm_rp_msg_strings, &idx);
+	str = try_val_to_str_idx((guint32) oct, gsm_rp_msg_strings, &idx);
 
 	/*
 	 * create the protocol tree
@@ -547,7 +541,7 @@ proto_register_gsm_a_rp(void)
 	gint *ett[NUM_INDIVIDUAL_ELEMS +
 		  NUM_GSM_RP_MSG +
 		  NUM_GSM_RP_ELEM];
-        
+
 	ett[0] = &ett_rp_msg;
 
 	last_offset = NUM_INDIVIDUAL_ELEMS;
@@ -571,10 +565,6 @@ proto_register_gsm_a_rp(void)
 
 	proto_register_field_array(proto_a_rp, hf, array_length(hf));
 
-	sms_dissector_table =
-		register_dissector_table("gsm_a.sms_tpdu", "GSM SMS TPDU",
-		FT_UINT8, BASE_DEC);
-
 	proto_register_subtree_array(ett, array_length(ett));
 
 	register_dissector("gsm_a_rp", dissect_rp, proto_a_rp);
@@ -588,5 +578,5 @@ proto_reg_handoff_gsm_a_rp(void)
 	gsm_a_rp_handle = create_dissector_handle(dissect_rp, proto_a_rp);
 	/* Dissect messages embedded in SIP */
 	dissector_add_string("media_type","application/vnd.3gpp.sms", gsm_a_rp_handle);
-
+	gsm_sms_handle = find_dissector("gsm_sms");
 }

@@ -14,8 +14,6 @@
  * Updated for ANSI, Chinese ITU, and Japan support by
  *  Jeff Morriss <jeff.morriss.ws [AT] gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -45,16 +43,22 @@
 #include <epan/packet.h>
 #include <epan/tap.h>
 #include <epan/prefs.h>
-#include <epan/emem.h>
 #include <epan/wmem/wmem.h>
+#include <wiretap/wtap.h>
+
 #include "packet-q708.h"
 #include "packet-sccp.h"
 #include "packet-frame.h"
+
+void proto_register_mtp3(void);
+void proto_reg_handoff_mtp3(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_mtp3  = -1;
 
 static int mtp3_tap = -1;
+
+static dissector_handle_t mtp3_handle;
 
 static module_t *mtp3_module;
 
@@ -133,8 +137,6 @@ static gboolean mtp3_use_ansi_5_bit_sls = FALSE;
 static gboolean mtp3_use_japan_5_bit_sls = FALSE;
 static gboolean mtp3_show_itu_priority = FALSE;
 static gint mtp3_addr_fmt = MTP3_ADDR_FMT_DASHED;
-static mtp3_addr_pc_t* mtp3_addr_dpc;
-static mtp3_addr_pc_t* mtp3_addr_opc;
 
 #define SIO_LENGTH                1
 #define SLS_LENGTH                1
@@ -289,7 +291,7 @@ mtp3_pc_to_str(const guint32 pc)
 {
   gchar *str;
 
-  str=ep_alloc(MAX_STRUCTURED_PC_LENGTH);
+  str=(gchar *)wmem_alloc(wmem_packet_scope(), MAX_STRUCTURED_PC_LENGTH);
   mtp3_pc_to_str_buf(pc, str, MAX_STRUCTURED_PC_LENGTH);
   return str;
 }
@@ -452,7 +454,8 @@ dissect_mtp3_3byte_pc(tvbuff_t *tvb, guint offset, proto_tree *tree, gint ett_pc
 }
 
 static void
-dissect_mtp3_sio(tvbuff_t *tvb, proto_tree *mtp3_tree)
+dissect_mtp3_sio(tvbuff_t *tvb, proto_tree *mtp3_tree,
+    mtp3_addr_pc_t *mtp3_addr_opc, mtp3_addr_pc_t *mtp3_addr_dpc)
 {
   guint8 sio;
   proto_item *sio_item;
@@ -490,7 +493,8 @@ dissect_mtp3_sio(tvbuff_t *tvb, proto_tree *mtp3_tree)
 }
 
 static void
-dissect_mtp3_routing_label(tvbuff_t *tvb, packet_info *pinfo, proto_tree *mtp3_tree)
+dissect_mtp3_routing_label(tvbuff_t *tvb, packet_info *pinfo, proto_tree *mtp3_tree,
+    mtp3_addr_pc_t *mtp3_addr_opc, mtp3_addr_pc_t *mtp3_addr_dpc)
 {
   guint32 label, dpc, opc;
   proto_item *label_item, *label_dpc_item, *label_opc_item;
@@ -611,11 +615,11 @@ dissect_mtp3_routing_label(tvbuff_t *tvb, packet_info *pinfo, proto_tree *mtp3_t
     DISSECTOR_ASSERT_NOT_REACHED();
   }
 
-  mtp3_addr_opc->type = mtp3_standard;
+  mtp3_addr_opc->type = (Standard_Type)mtp3_standard;
   mtp3_addr_opc->pc = opc;
   SET_ADDRESS(&pinfo->src, AT_SS7PC, sizeof(mtp3_addr_pc_t), (guint8 *) mtp3_addr_opc);
 
-  mtp3_addr_dpc->type = mtp3_standard;
+  mtp3_addr_dpc->type = (Standard_Type)mtp3_standard;
   mtp3_addr_dpc->pc = dpc;
   SET_ADDRESS(&pinfo->dst, AT_SS7PC, sizeof(mtp3_addr_pc_t), (guint8 *) mtp3_addr_dpc);
 }
@@ -698,9 +702,11 @@ reset_mtp3_standard(void)
 static void
 dissect_mtp3(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-    mtp3_tap_rec_t* tap_rec = ep_alloc0(sizeof(mtp3_tap_rec_t));
+    mtp3_tap_rec_t* tap_rec = wmem_new0(wmem_packet_scope(), mtp3_tap_rec_t);
     gint heuristic_standard;
     guint8 si;
+    mtp3_addr_pc_t* mtp3_addr_dpc;
+    mtp3_addr_pc_t* mtp3_addr_opc;
 
     /* Set up structures needed to add the protocol subtree and manage it */
     proto_item *mtp3_item = NULL, *gen_item;
@@ -752,13 +758,13 @@ dissect_mtp3(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	mtp3_tree = proto_item_add_subtree(mtp3_item, ett_mtp3);
     }
 
-    mtp3_addr_opc = wmem_alloc0(pinfo->pool, sizeof(mtp3_addr_pc_t));
-    mtp3_addr_dpc = wmem_alloc0(pinfo->pool, sizeof(mtp3_addr_pc_t));
+    mtp3_addr_opc = (mtp3_addr_pc_t *)wmem_alloc0(pinfo->pool, sizeof(mtp3_addr_pc_t));
+    mtp3_addr_dpc = (mtp3_addr_pc_t *)wmem_alloc0(pinfo->pool, sizeof(mtp3_addr_pc_t));
 
     /* Dissect the packet (even if !tree so can call sub-dissectors and update
      * the source and destination address columns) */
-    dissect_mtp3_sio(tvb, mtp3_tree);
-    dissect_mtp3_routing_label(tvb, pinfo, mtp3_tree);
+    dissect_mtp3_sio(tvb, mtp3_tree, mtp3_addr_opc, mtp3_addr_dpc);
+    dissect_mtp3_routing_label(tvb, pinfo, mtp3_tree, mtp3_addr_opc, mtp3_addr_dpc);
 
     memcpy(&(tap_rec->addr_opc), mtp3_addr_opc, sizeof(mtp3_addr_pc_t));
     memcpy(&(tap_rec->addr_dpc), mtp3_addr_dpc, sizeof(mtp3_addr_pc_t));
@@ -856,7 +862,7 @@ proto_register_mtp3(void)
  /* Register the protocol name and description */
   proto_mtp3 = proto_register_protocol("Message Transfer Part Level 3",
 				       "MTP3", "mtp3");
-  register_dissector("mtp3", dissect_mtp3, proto_mtp3);
+  mtp3_handle = register_dissector("mtp3", dissect_mtp3, proto_mtp3);
 
   /* Required function calls to register the header fields and subtrees used */
   proto_register_field_array(proto_mtp3, hf, array_length(hf));
@@ -911,9 +917,6 @@ proto_register_mtp3(void)
 void
 proto_reg_handoff_mtp3(void)
 {
-  dissector_handle_t mtp3_handle;
-
-  mtp3_handle = find_dissector("mtp3");
   dissector_add_uint("wtap_encap", WTAP_ENCAP_MTP3, mtp3_handle);
   dissector_add_string("tali.opcode", "mtp3", mtp3_handle);
 

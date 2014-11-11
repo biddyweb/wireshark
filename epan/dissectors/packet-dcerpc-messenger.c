@@ -2,8 +2,6 @@
  * Routines for SMB \PIPE\msgsvc packet disassembly
  * Copyright 2003 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,8 @@
 #include "packet-dcerpc-nt.h"
 #include "packet-windows-common.h"
 
+void proto_register_dcerpc_messenger(void);
+void proto_reg_handoff_dcerpc_messenger(void);
 
 static int proto_dcerpc_messenger = -1;
 static int hf_messenger_opnum = -1;
@@ -62,15 +62,15 @@ static guint16 ver_dcerpc_messenger = 1;
  */
 static int
 messenger_dissect_send_message_rqst(tvbuff_t *tvb, int offset, packet_info *pinfo,
-			    proto_tree *tree, guint8 *drep)
+			    proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-        offset = dissect_ndr_pointer(tvb, offset, pinfo, tree, drep,
+        offset = dissect_ndr_pointer(tvb, offset, pinfo, tree, di, drep,
 			dissect_ndr_char_cvstring, NDR_POINTER_REF,
 			"Server", hf_messenger_server);
-        offset = dissect_ndr_pointer(tvb, offset, pinfo, tree, drep,
+        offset = dissect_ndr_pointer(tvb, offset, pinfo, tree, di, drep,
 			dissect_ndr_char_cvstring, NDR_POINTER_REF,
 			"Client", hf_messenger_client);
-        offset = dissect_ndr_pointer(tvb, offset, pinfo, tree, drep,
+        offset = dissect_ndr_pointer(tvb, offset, pinfo, tree, di, drep,
 			dissect_ndr_char_cvstring, NDR_POINTER_REF,
 			"Message", hf_messenger_message);
 
@@ -79,9 +79,9 @@ messenger_dissect_send_message_rqst(tvbuff_t *tvb, int offset, packet_info *pinf
 }
 static int
 messenger_dissect_send_message_reply(tvbuff_t *tvb, int offset, packet_info *pinfo,
-			    proto_tree *tree, guint8 *drep)
+			    proto_tree *tree, dcerpc_info *di _U_, guint8 *drep)
 {
-        offset = dissect_ntstatus(tvb, offset, pinfo, tree, drep,
+        offset = dissect_ntstatus(tvb, offset, pinfo, tree, di, drep,
 				  hf_messenger_rc, NULL);
 
 	return offset;
@@ -90,7 +90,7 @@ messenger_dissect_send_message_reply(tvbuff_t *tvb, int offset, packet_info *pin
 
 
 static dcerpc_sub_dissector dcerpc_messenger_dissectors[] = {
-        {0, "NetrSendMessage", 
+        {0, "NetrSendMessage",
 		messenger_dissect_send_message_rqst,
 		messenger_dissect_send_message_reply },
         {0, NULL, NULL,  NULL }
@@ -106,18 +106,18 @@ proto_register_dcerpc_messenger(void)
 		    NULL, 0x0, NULL, HFILL }},
 
                 { &hf_messenger_rc,
-                  { "Return code", "messenger.rc", FT_UINT32, BASE_HEX, VALS (NT_errors), 0x0, NULL, HFILL }},
+                  { "Return code", "messenger.rc", FT_UINT32, BASE_HEX | BASE_EXT_STRING, &NT_errors_ext, 0x0, NULL, HFILL }},
 
 		{ &hf_messenger_server, {
-		"Server", "messenger.server", 
+		"Server", "messenger.server",
 		FT_STRING, BASE_NONE, NULL, 0, "Server to send the message to", HFILL }},
 
 		{ &hf_messenger_client, {
-		"Client", "messenger.client", 
+		"Client", "messenger.client",
 		FT_STRING, BASE_NONE, NULL, 0, "Client that sent the message", HFILL }},
 
 		{ &hf_messenger_message, {
-		"Message", "messenger.message", 
+		"Message", "messenger.message",
 		FT_STRING, BASE_NONE, NULL, 0, "The message being sent", HFILL }}
 
         };

@@ -7,7 +7,7 @@ rem http://qt.nokia.com/downloads/downloads#qt-lib
 
 rem Unpack the archive and run this script from the archive directory.
 
-rem The default installation prefix is c:\Qt\4.8.3-... You can change
+rem The default installation prefix is c:\Qt\5.1.1-... You can change
 rem it below.
 
 echo "%PATH%" | find "cygwin"
@@ -50,7 +50,7 @@ if not "%FrameworkDir64%"=="" (
 if "%API_BITS%"=="" goto no_api_bits
 
 set QT_PLATFORM=win32-msvc%VS_VERSION%
-set QT_PREFIX=c:\Qt\4.8.3-MSVC%VS_VERSION%-win%API_BITS%
+set QT_PREFIX=c:\Qt\5.1.1-MSVC%VS_VERSION%-win%API_BITS%
 
 nmake confclean || echo ...and that's probably OK.
 
@@ -60,7 +60,21 @@ echo Building using mkspec %QT_PLATFORM% (%API_BITS% bit)
 echo Installing in %QT_PREFIX%
 echo ========
 
-configure -opensource -platform %QT_PLATFORM% -prefix %QT_PREFIX% -no-qt3support -no-script -no-scripttools -no-multimedia -no-dbus -no-opengl -no-s60 -no-sql-sqlite -no-xmlpatterns -no-webkit -mp -nomake demos -nomake examples -nomake docs -nomake translations
+rem We could probably get away with skipping several other modules, e.g.
+rem qtsensors and qtserialport
+configure -opensource -confirm-license -platform %QT_PLATFORM% -prefix %QT_PREFIX% ^
+    -no-dbus ^
+    -no-opengl -no-angle ^
+    -no-sql-sqlite ^
+    -no-cetest ^
+    -mp ^
+    -nomake examples ^
+    -skip qtdoc ^
+    -skip qtquickcontrols ^
+    -skip qtwebkit ^
+    -skip qtwebkit-examples ^
+    -skip qtxmlpatterns ^
+
 
 nmake
 

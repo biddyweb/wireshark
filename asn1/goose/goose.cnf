@@ -1,15 +1,14 @@
 # goose.cnf
 # goose conformation file
 
-# $Id$
-
 #.MODULE_IMPORT
 
 #.EXPORTS
 
 #.PDU
 
-#.NO_EMIT
+#.NO_EMIT ONLY_VALS
+GOOSEpdu
 
 #.TYPE_RENAME
 
@@ -17,7 +16,6 @@
 #.FN_BODY UtcTime
 
 	guint32 len;
-	proto_item *cause;
 	guint32 seconds;
 	guint32	fraction;
 	guint32 nanoseconds;
@@ -28,11 +26,7 @@
 
 	if(len != 8)
 	{
-		cause = proto_tree_add_text(tree, tvb, offset, len,
-				"BER Error: malformed UTCTime encoding, "
-				"length must be 8 bytes");
-		proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-		expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "BER Error: malformed UTCTime encoding");
+		proto_tree_add_expert(tree, actx->pinfo, &ei_goose_mal_utctime, tvb, offset, len);
 		if(hf_index >= 0)
 		{
 			proto_tree_add_string(tree, hf_index, tvb, offset, len, "????");
@@ -42,12 +36,12 @@
 
 	seconds = tvb_get_ntohl(tvb, offset);
 	fraction = tvb_get_ntoh24(tvb, offset+4) * 0x100; /* Only 3 bytes are recommended */
-	nanoseconds = (guint32)( ((guint64)fraction * G_GINT64_CONSTANT(1000000000U)) / G_GINT64_CONSTANT(0x100000000U) ) ;
+	nanoseconds = (guint32)( ((guint64)fraction * G_GUINT64_CONSTANT(1000000000)) / G_GUINT64_CONSTANT(0x100000000) ) ;
 
 	ts.secs = seconds;
 	ts.nsecs = nanoseconds;
 
-	ptime = abs_time_to_str(&ts, ABSOLUTE_TIME_UTC, TRUE);
+	ptime = abs_time_to_ep_str(&ts, ABSOLUTE_TIME_UTC, TRUE);
 
 	if(hf_index >= 0)
 	{
@@ -68,4 +62,9 @@ GSEMngtResponses/getGsReference gseMngtResponses_GetGSReference
 GSEMngtResponses/getGoReference gseMngtResponses_GetGOReference
 GSEMngtResponses/getGSSEDataOffset gseMngtResponses_GetGSSEDataOffset
 GSEMngtResponses/getGOOSEElementNumber gseMngtResponses_GetGOOSEElementNumber
+
+#.FIELD_ATTR
+IECGoosePdu/stNum  TYPE = FT_UINT32  DISPLAY = BASE_DEC
+IECGoosePdu/sqNum  TYPE = FT_UINT32  DISPLAY = BASE_DEC
+
 #.END

@@ -1,17 +1,15 @@
 /******************************************************************************
-** $Id$
-**
 ** Copyright (C) 2006-2007 ascolab GmbH. All Rights Reserved.
 ** Web: http://www.ascolab.com
-** 
+**
 ** This program is free software; you can redistribute it and/or
 ** modify it under the terms of the GNU General Public License
 ** as published by the Free Software Foundation; either version 2
 ** of the License, or (at your option) any later version.
-** 
+**
 ** This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE
 ** WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
-** 
+**
 ** Project: OpcUa Wireshark Plugin
 **
 ** Description: OpcUa Application Layer Decoder.
@@ -26,17 +24,16 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include "opcua_simpletypes.h"
+#include "opcua_application_layer.h"
 
 /** NodeId encoding mask table */
 static const value_string g_nodeidmasks[] = {
-    { 0, "Two byte encoded Numeric" },
-    { 1, "Four byte encoded Numeric" },
-    { 2, "Numeric of arbitrary length" },
-    { 3, "String" },
-    { 4, "URI" },
-    { 5, "GUID" },
-    { 6, "ByteString" },
-    { 0x80, "UriMask" },
+    { 0x00, "Two byte encoded Numeric" },
+    { 0x01, "Four byte encoded Numeric" },
+    { 0x02, "Numeric of arbitrary length" },
+    { 0x03, "String" },
+    { 0x04, "GUID" },
+    { 0x05, "Opaque" },
     { 0, NULL }
 };
 
@@ -102,9 +99,8 @@ int parseServiceNodeId(proto_tree *tree, tvbuff_t *tvb, gint *pOffset)
         iOffset+=4;
         break;
     case 0x03: /* string */
-    case 0x04: /* uri */
-    case 0x05: /* guid */
-    case 0x06: /* byte string */
+    case 0x04: /* guid */
+    case 0x05: /* opaque*/
         /* NOT USED */
         break;
     };

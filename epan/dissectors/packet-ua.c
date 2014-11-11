@@ -2,8 +2,6 @@
  * Routines for UA/UDP (Universal Alcatel over UDP) packet dissection.
  * Copyright 2012, Alcatel-Lucent Enterprise <lars.ruoff@alcatel-lucent.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,6 +33,8 @@
 
 #include "packet-uaudp.h"
 
+void proto_register_ua_msg(void);
+void proto_reg_handoff_ua_msg(void);
 /*-----------------------------------------------------------------------------
   GLOBALS
   ---------------------------------------------------------------------------*/
@@ -45,8 +45,6 @@ static dissector_table_t ua_opcode_dissector_table;
 
 static int  proto_ua_msg        = -1;
 static gint ett_ua_msg          = -1;
-
-e_ua_direction message_direction; /* Uses to determine UA3G messages */
 
 static gboolean setup_conversations_enabled = TRUE;
 
@@ -61,8 +59,6 @@ static void uadecode(e_ua_direction  direction,
                      gint            opcode,
                      gint            length)
 {
-    message_direction = direction;
-
     switch (opcode & 0x7f) /* suppression of the CP bit */
     {
     case 0x15:
@@ -144,17 +140,16 @@ static void uadecode(e_ua_direction  direction,
     case 0x4F:
     case 0x50:  /* Only UA NOE */
         {
-            call_dissector(ua3g_handle,
+            call_dissector_with_data(ua3g_handle,
                        tvb_new_subset(tvb, offset, length, length),
                        pinfo,
-                       tree);
+                       tree, &direction);
             break;
         }
     default:
         {
             /* add text to the frame "INFO" column */
-            if (check_col(pinfo->cinfo, COL_INFO))
-                col_append_fstr(pinfo->cinfo, COL_INFO, " - UA3G Message ERR: Opcode Unknown");
+            col_append_str(pinfo->cinfo, COL_INFO, " - UA3G Message ERR: Opcode Unknown");
 
             proto_tree_add_text(tree,
                 tvb,

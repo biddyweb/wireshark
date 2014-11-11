@@ -2,8 +2,6 @@
  * Routines for rquota dissection
  * Copyright 2001, Mike Frisch <frisch@hummingbird.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,9 @@
 
 #include "packet-rpc.h"
 #include "packet-rquota.h"
+
+void proto_register_rquota(void);
+void proto_reg_handoff_rquota(void);
 
 static int proto_rquota = -1;
 static int hf_rquota_procedure_v1 = -1;
@@ -113,7 +114,7 @@ dissect_rquota(tvbuff_t *tvb, int offset, proto_tree *tree)
 }
 
 static int
-dissect_getquota_result(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_getquota_result(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	gint32	status;
 
@@ -130,7 +131,7 @@ dissect_getquota_result(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto
 }
 
 static int
-dissect_getquota_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_getquota_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	offset = dissect_rpc_string(tvb, tree,
 			hf_rquota_pathp, offset, NULL);
@@ -165,7 +166,7 @@ static const value_string rquota1_proc_vals[] = {
 
 
 static int
-dissect_getquota2_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_getquota2_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	offset = dissect_rpc_string(tvb, tree,
 			hf_rquota_pathp, offset, NULL);

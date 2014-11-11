@@ -3,8 +3,6 @@
  *
  * Copyright 2011, Mariusz Okroj <okrojmariusz[]gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -54,26 +52,26 @@ xmpp_iq_reqresp_track(packet_info *pinfo, xmpp_element_t *packet, xmpp_conv_info
         return;
     }
 
-    id = ep_strdup(attr_id->value);
+    id = wmem_strdup(wmem_packet_scope(), attr_id->value);
 
     if (!pinfo->fd->flags.visited) {
-        xmpp_trans = (xmpp_transaction_t *)se_tree_lookup_string(xmpp_info->req_resp, id, EMEM_TREE_STRING_NOCASE);
+        xmpp_trans = (xmpp_transaction_t *)wmem_tree_lookup_string(xmpp_info->req_resp, id, WMEM_TREE_STRING_NOCASE);
         if (xmpp_trans) {
             xmpp_trans->resp_frame = pinfo->fd->num;
 
         } else {
-            char *se_id = se_strdup(id);
+            char *se_id = wmem_strdup(wmem_file_scope(), id);
 
-            xmpp_trans = (xmpp_transaction_t *)se_alloc(sizeof (xmpp_transaction_t));
+            xmpp_trans = wmem_new(wmem_file_scope(), xmpp_transaction_t);
             xmpp_trans->req_frame = pinfo->fd->num;
             xmpp_trans->resp_frame = 0;
 
-            se_tree_insert_string(xmpp_info->req_resp, se_id, (void *) xmpp_trans, EMEM_TREE_STRING_NOCASE);
+            wmem_tree_insert_string(xmpp_info->req_resp, se_id, (void *) xmpp_trans, WMEM_TREE_STRING_NOCASE);
 
         }
 
     } else {
-        se_tree_lookup_string(xmpp_info->req_resp, id, EMEM_TREE_STRING_NOCASE);
+        wmem_tree_lookup_string(xmpp_info->req_resp, id, WMEM_TREE_STRING_NOCASE);
     }
 }
 
@@ -104,10 +102,10 @@ xmpp_jingle_session_track(packet_info *pinfo, xmpp_element_t *packet, xmpp_conv_
             return;
         }
 
-        se_id = se_strdup(attr_id->value);
-        se_sid = se_strdup(attr_sid->value);
+        se_id = wmem_strdup(wmem_file_scope(), attr_id->value);
+        se_sid = wmem_strdup(wmem_file_scope(), attr_sid->value);
 
-        se_tree_insert_string(xmpp_info->jingle_sessions, se_id, (void*) se_sid, EMEM_TREE_STRING_NOCASE);
+        wmem_tree_insert_string(xmpp_info->jingle_sessions, se_id, (void*) se_sid, WMEM_TREE_STRING_NOCASE);
     }
 }
 
@@ -142,10 +140,10 @@ xmpp_gtalk_session_track(packet_info *pinfo, xmpp_element_t *packet, xmpp_conv_i
             return;
         }
 
-        se_id = se_strdup(attr_id->value);
-        se_sid = se_strdup(attr_sid->value);
+        se_id = wmem_strdup(wmem_file_scope(), attr_id->value);
+        se_sid = wmem_strdup(wmem_file_scope(), attr_sid->value);
 
-        se_tree_insert_string(xmpp_info->gtalk_sessions, se_id, (void*) se_sid, EMEM_TREE_STRING_NOCASE);
+        wmem_tree_insert_string(xmpp_info->gtalk_sessions, se_id, (void*) se_sid, WMEM_TREE_STRING_NOCASE);
     }
 }
 
@@ -184,9 +182,9 @@ xmpp_ibb_session_track(packet_info *pinfo, xmpp_element_t *packet, xmpp_conv_inf
         attr_sid = xmpp_get_attr(ibb_packet, "sid");
         if(attr_id && attr_sid)
         {
-            se_id = se_strdup(attr_id->value);
-            se_sid = se_strdup(attr_sid->value);
-            se_tree_insert_string(xmpp_info->ibb_sessions, se_id, (void*) se_sid, EMEM_TREE_STRING_NOCASE);
+            se_id = wmem_strdup(wmem_file_scope(), attr_id->value);
+            se_sid = wmem_strdup(wmem_file_scope(), attr_sid->value);
+            wmem_tree_insert_string(xmpp_info->ibb_sessions, se_id, (void*) se_sid, WMEM_TREE_STRING_NOCASE);
         }
     }
 }
@@ -234,14 +232,10 @@ xmpp_unknown(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t
             proto_item *unknown_item;
             proto_tree *unknown_tree;
 
-#ifdef XMPP_DEBUG
             unknown_item = proto_tree_add_string_format(tree,
                     hf_xmpp_unknown, tvb, child->offset, child->length, child->name,
                     "%s", xmpp_ep_string_upcase(child->name));
-#else
-            unknown_item = proto_tree_add_text(tree, tvb, child->offset, child->length,
-                    "%s", xmpp_ep_string_upcase(child->name));
-#endif
+
             unknown_tree = proto_item_add_subtree(unknown_item, ett_unknown[0]);
 
             /*Add COL_INFO only if root element is IQ*/
@@ -252,11 +246,8 @@ xmpp_unknown(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t
                 proto_item_append_text(unknown_item,"(%s)",child->default_ns_abbrev);
 
             xmpp_unknown_items(unknown_tree, tvb, pinfo, child, 1);
-#ifdef XMPP_DEBUG
             proto_item_append_text(unknown_item, " [UNKNOWN]");
-
-            expert_add_info_format(pinfo, unknown_item, PI_UNDECODED, PI_NOTE,"Unknown element: %s", child->name);
-#endif
+            expert_add_info_format(pinfo, unknown_item, &ei_xmpp_unknown_element, "Unknown element: %s", child->name);
         }
         childs = childs->next;
     }
@@ -298,18 +289,12 @@ xmpp_unknown_attrs(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo _U_, xmpp
                 if (xmlns_needle && xmlns_needle == keys->data) {
                     proto_tree_add_string_format(tree, hf_xmpp_xmlns, tvb, attr->offset, attr->length, attr->value,"%s: %s", (gchar*)keys->data, attr->value);
                 } else {
-
-#ifdef XMPP_DEBUG
                     proto_item* unknown_attr_item;
                     unknown_attr_item = proto_tree_add_string_format(tree,
                             hf_xmpp_unknown_attr, tvb, attr->offset, attr->length,
                             attr->name, "%s: %s", attr->name, attr->value);
                     proto_item_append_text(unknown_attr_item, " [UNKNOWN ATTR]");
-                    expert_add_info_format(pinfo, unknown_attr_item, PI_UNDECODED, PI_NOTE, "Unknown attribute %s.", attr->name);
-#else
-                    proto_tree_add_text(tree, tvb, attr->offset, attr->length,
-                            "%s: %s", attr->name, attr->value);
-#endif
+                    expert_add_info_format(pinfo, unknown_attr_item, &ei_xmpp_unknown_attribute, "Unknown attribute %s", attr->name);
                 }
             }
         }
@@ -358,7 +343,7 @@ xmpp_ep_init_array_t(const gchar** array, gint len)
 {
     xmpp_array_t *result;
 
-    result = ep_new(xmpp_array_t);
+    result = wmem_new(wmem_packet_scope(), xmpp_array_t);
     result->data = (gpointer) array;
     result->length = len;
 
@@ -369,7 +354,7 @@ xmpp_attr_t*
 xmpp_ep_init_attr_t(const gchar *value, gint offset, gint length)
 {
     xmpp_attr_t *result;
-    result = ep_new(xmpp_attr_t);
+    result = wmem_new(wmem_packet_scope(), xmpp_attr_t);
     result->value = value;
     result->offset = offset;
     result->length = length;
@@ -383,7 +368,7 @@ xmpp_ep_string_upcase(const gchar* string)
 {
     gint len = (int)strlen(string);
     gint i;
-    gchar* result = (gchar *)ep_alloc0(len+1);
+    gchar* result = (gchar *)wmem_alloc0(wmem_packet_scope(), len+1);
     for(i=0; i<len; i++)
     {
         result[i] = string[i];
@@ -398,9 +383,9 @@ xmpp_ep_string_upcase(const gchar* string)
 gint
 xmpp_element_t_cmp(gconstpointer a, gconstpointer b)
 {
-    gint result = strcmp(((xmpp_element_t*)a)->name,((xmpp_element_t*)b)->name);
+    gint result = strcmp(((const xmpp_element_t*)a)->name,((const xmpp_element_t*)b)->name);
 
-    if(result == 0 && ((xmpp_element_t*)a)->was_read)
+    if(result == 0 && ((const xmpp_element_t*)a)->was_read)
         result = -1;
 
     return result;
@@ -413,8 +398,8 @@ xmpp_find_element_by_name(xmpp_element_t *packet,const gchar *name)
     xmpp_element_t *search_element;
 
     /*create fake element only with name*/
-    search_element = ep_new(xmpp_element_t);
-    search_element->name = ep_strdup(name);
+    search_element = wmem_new(wmem_packet_scope(), xmpp_element_t);
+    search_element->name = wmem_strdup(wmem_packet_scope(), name);
 
     found_elements = g_list_find_custom(packet->elements, search_element, xmpp_element_t_cmp);
 
@@ -531,7 +516,7 @@ xmpp_element_t*
 xmpp_xml_frame_to_element_t(xml_frame_t *xml_frame, xmpp_element_t *parent, tvbuff_t *tvb)
 {
     xml_frame_t *child;
-    xmpp_element_t *node = ep_new0(xmpp_element_t);
+    xmpp_element_t *node = wmem_new0(wmem_packet_scope(), xmpp_element_t);
 
     tvbparse_t* tt;
     tvbparse_elem_t* elem;
@@ -542,7 +527,7 @@ xmpp_xml_frame_to_element_t(xml_frame_t *xml_frame, xmpp_element_t *parent, tvbu
     node->was_read = FALSE;
     node->default_ns_abbrev = NULL;
 
-    node->name = ep_strdup(xml_frame->name_orig_case);
+    node->name = wmem_strdup(wmem_packet_scope(), xml_frame->name_orig_case);
     node->offset = 0;
     node->length = 0;
 
@@ -566,7 +551,7 @@ xmpp_xml_frame_to_element_t(xml_frame_t *xml_frame, xmpp_element_t *parent, tvbu
 
     if((elem = tvbparse_get(tt,want_stream_end_with_ns))!=NULL)
     {
-        node->default_ns_abbrev = tvb_get_ephemeral_string(elem->sub->tvb, elem->sub->offset, elem->sub->len);
+        node->default_ns_abbrev = tvb_get_string(wmem_packet_scope(), elem->sub->tvb, elem->sub->offset, elem->sub->len);
     }
 
     child = xml_frame->first_child;
@@ -581,14 +566,14 @@ xmpp_xml_frame_to_element_t(xml_frame_t *xml_frame, xmpp_element_t *parent, tvbu
                 gchar *value = NULL;
                 gchar *xmlns_needle = NULL;
 
-                xmpp_attr_t *attr = ep_new(xmpp_attr_t);
+                xmpp_attr_t *attr = wmem_new(wmem_packet_scope(), xmpp_attr_t);
                 attr->length = 0;
                 attr->offset = 0;
                 attr->was_read = FALSE;
 
                 if (child->value != NULL) {
                     l = tvb_reported_length(child->value);
-                    value = (gchar *)ep_alloc0(l + 1);
+                    value = (gchar *)wmem_alloc0(wmem_packet_scope(), l + 1);
                     tvb_memcpy(child->value, value, 0, l);
                 }
 
@@ -599,7 +584,7 @@ xmpp_xml_frame_to_element_t(xml_frame_t *xml_frame, xmpp_element_t *parent, tvbu
 
                 attr->offset = child->start_offset;
                 attr->value = value;
-                attr->name = ep_strdup(child->name_orig_case);
+                attr->name = wmem_strdup(wmem_packet_scope(), child->name_orig_case);
 
                 g_hash_table_insert(node->attrs,(gpointer)attr->name,(gpointer)attr);
 
@@ -610,10 +595,10 @@ xmpp_xml_frame_to_element_t(xml_frame_t *xml_frame, xmpp_element_t *parent, tvbu
                 {
                     if(attr->name[5] == ':' && strlen(attr->name) > 6)
                     {
-                        g_hash_table_insert(node->namespaces, (gpointer)ep_strdup(&attr->name[6]), (gpointer)ep_strdup(attr->value));
+                        g_hash_table_insert(node->namespaces, (gpointer)wmem_strdup(wmem_packet_scope(), &attr->name[6]), (gpointer)wmem_strdup(wmem_packet_scope(), attr->value));
                     } else if(attr->name[5] == '\0')
                     {
-                        g_hash_table_insert(node->namespaces, (gpointer)"", (gpointer)ep_strdup(attr->value));
+                        g_hash_table_insert(node->namespaces, (gpointer)"", (gpointer)wmem_strdup(wmem_packet_scope(), attr->value));
                     }
                 }
 
@@ -625,13 +610,13 @@ xmpp_xml_frame_to_element_t(xml_frame_t *xml_frame, xmpp_element_t *parent, tvbu
                 gint l;
                 gchar* value = NULL;
 
-                data =  ep_new(xmpp_data_t);
+                data =  wmem_new(wmem_packet_scope(), xmpp_data_t);
                 data->length = 0;
                 data->offset = 0;
 
                 if (child->value != NULL) {
                     l = tvb_reported_length(child->value);
-                    value = (gchar *)ep_alloc0(l + 1);
+                    value = (gchar *)wmem_alloc0(wmem_packet_scope(), l + 1);
                     tvb_memcpy(child->value, value, 0, l);
                 }
 
@@ -714,11 +699,11 @@ xmpp_get_attr_ext(xmpp_element_t *element, const gchar* attr_name, const gchar* 
     xmpp_attr_t *result;
 
     if(strcmp(ns_abbrev,"")==0)
-        search_phrase = ep_strdup(attr_name);
+        search_phrase = wmem_strdup(wmem_packet_scope(), attr_name);
     else if(strcmp(attr_name, "xmlns") == 0)
-        search_phrase = ep_strdup_printf("%s:%s",attr_name, ns_abbrev);
+        search_phrase = wmem_strdup_printf(wmem_packet_scope(), "%s:%s",attr_name, ns_abbrev);
     else
-        search_phrase = ep_strdup_printf("%s:%s", ns_abbrev, attr_name);
+        search_phrase = wmem_strdup_printf(wmem_packet_scope(), "%s:%s", ns_abbrev, attr_name);
 
     result = (xmpp_attr_t *)g_hash_table_lookup(element->attrs, search_phrase);
 
@@ -742,7 +727,7 @@ xmpp_element_to_string(tvbuff_t *tvb, xmpp_element_t *element)
 
     if(tvb_offset_exists(tvb, element->offset+element->length-1))
     {
-        buff = tvb_get_ephemeral_string(tvb, element->offset, element->length);
+        buff = tvb_get_string(wmem_packet_scope(), tvb, element->offset, element->length);
     }
     return buff;
 }
@@ -754,7 +739,7 @@ xmpp_attr_to_string(tvbuff_t *tvb, xmpp_attr_t *attr)
 
     if(tvb_offset_exists(tvb, attr->offset + attr->length-1))
     {
-        buff = tvb_get_ephemeral_string(tvb, attr->offset, attr->length);
+        buff = tvb_get_string(wmem_packet_scope(), tvb, attr->offset, attr->length);
     }
     return buff;
 }
@@ -809,13 +794,13 @@ proto_item_get_text(proto_item *item)
         return NULL;
 
 
-    result = ep_strdup(fi->rep->representation);
+    result = wmem_strdup(wmem_packet_scope(), fi->rep->representation);
     return result;
 }
 
 
 void
-xmpp_display_attrs(proto_tree *tree, xmpp_element_t *element, packet_info *pinfo, tvbuff_t *tvb, xmpp_attr_info *attrs, guint n)
+xmpp_display_attrs(proto_tree *tree, xmpp_element_t *element, packet_info *pinfo, tvbuff_t *tvb, const xmpp_attr_info *attrs, guint n)
 {
     proto_item *item = proto_tree_get_parent(tree);
     xmpp_attr_t *attr;
@@ -831,12 +816,12 @@ xmpp_display_attrs(proto_tree *tree, xmpp_element_t *element, packet_info *pinfo
         attr = xmpp_get_attr(element, attrs[i].name);
         if(attr)
         {
-            if(attrs[i].hf != -1)
+            if(attrs[i].phf != NULL)
             {
                 if(attr->name)
-                    proto_tree_add_string_format(tree, attrs[i].hf, tvb, attr->offset, attr->length, attr->value,"%s: %s", attr->name, attr->value);
+                    proto_tree_add_string_format(tree, *attrs[i].phf, tvb, attr->offset, attr->length, attr->value,"%s: %s", attr->name, attr->value);
                 else
-                    proto_tree_add_string(tree, attrs[i].hf, tvb, attr->offset, attr->length, attr->value);
+                    proto_tree_add_string(tree, *attrs[i].phf, tvb, attr->offset, attr->length, attr->value);
             }
             else
             {
@@ -855,9 +840,7 @@ xmpp_display_attrs(proto_tree *tree, xmpp_element_t *element, packet_info *pinfo
 
         } else if(attrs[i].is_required)
         {
-            expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN,
-                    "Required attribute \"%s\" doesn't appear in \"%s\".",attrs[i].name,
-                    element->name);
+            expert_add_info_format(pinfo, item, &ei_xmpp_required_attribute, "Required attribute \"%s\" doesn't appear in \"%s\".", attrs[i].name, element->name);
         }
 
         if(attrs[i].val_func)
@@ -875,7 +858,7 @@ xmpp_display_attrs(proto_tree *tree, xmpp_element_t *element, packet_info *pinfo
 }
 
 void
-xmpp_display_attrs_ext(proto_tree *tree, xmpp_element_t *element, packet_info *pinfo, tvbuff_t *tvb, xmpp_attr_info_ext *attrs, guint n)
+xmpp_display_attrs_ext(proto_tree *tree, xmpp_element_t *element, packet_info *pinfo, tvbuff_t *tvb, const xmpp_attr_info_ext *attrs, guint n)
 {
     proto_item *item = proto_tree_get_parent(tree);
     xmpp_attr_t *attr;
@@ -901,11 +884,11 @@ xmpp_display_attrs_ext(proto_tree *tree, xmpp_element_t *element, packet_info *p
                     attr = xmpp_get_attr_ext(element, attrs[i].info.name, "");
 
                 if (attr) {
-                    if (attrs[i].info.hf != -1) {
+                    if (attrs[i].info.phf != NULL) {
                         if (attr->name)
-                            proto_tree_add_string_format(tree, attrs[i].info.hf, tvb, attr->offset, attr->length, attr->value, "%s: %s", attr->name, attr->value);
+                            proto_tree_add_string_format(tree, *attrs[i].info.phf, tvb, attr->offset, attr->length, attr->value, "%s: %s", attr->name, attr->value);
                         else
-                            proto_tree_add_string(tree, attrs[i].info.hf, tvb, attr->offset, attr->length, attr->value);
+                            proto_tree_add_string(tree, *attrs[i].info.phf, tvb, attr->offset, attr->length, attr->value);
                     } else {
                         proto_tree_add_text(tree, tvb, attr->offset, attr->length, "%s: %s", attr->name ? attr->name : attrs[i].info.name, attr->value);
                     }
@@ -919,9 +902,7 @@ xmpp_display_attrs_ext(proto_tree *tree, xmpp_element_t *element, packet_info *p
                     }
 
                 } else if (attrs[i].info.is_required) {
-                    expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN,
-                            "Required attribute \"%s\" doesn't appear in \"%s\".", attrs[i].info.name,
-                            element->name);
+                    expert_add_info_format(pinfo, item, &ei_xmpp_required_attribute, "Required attribute \"%s\" doesn't appear in \"%s\".", attrs[i].info.name, element->name);
                 }
 
                 if (attrs[i].info.val_func) {
@@ -959,7 +940,7 @@ xmpp_name_attr_struct(const gchar *name, const gchar *attr_name, const gchar *at
 {
     name_attr_t *result;
 
-    result =  ep_new(name_attr_t);
+    result =  wmem_new(wmem_packet_scope(), name_attr_t);
     result->name = name;
     result->attr_name = attr_name;
     result->attr_value = attr_value;
@@ -1049,9 +1030,7 @@ xmpp_val_enum_list(packet_info *pinfo, proto_item *item, const gchar *name, cons
             }
         }
         if (!value_in_enums) {
-            expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN,
-                    "Field \"%s\" has unexpected value \"%s\"",
-                    name, value);
+            expert_add_info_format(pinfo, item, &ei_xmpp_field_unexpected_value, "Field \"%s\" has unexpected value \"%s\"", name, value);
         }
     }
 }

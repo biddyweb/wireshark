@@ -5,8 +5,6 @@
  *
  * Modified from gsm_map_stat.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,8 @@
  */
 
 #include "config.h"
+
+#include <stdlib.h>
 #include <string.h>
 
 #include <gtk/gtk.h>
@@ -53,6 +53,8 @@
 #include "ui/gtk/mtp3_stat.h"
 
 #include "ui/gtk/old-gtk-compat.h"
+
+void register_tap_listener_gtkmtp3_stat(void);
 
 enum
 {
@@ -213,7 +215,7 @@ static void
 mtp3_stat_reset(
     void        *tapdata)
 {
-    mtp3_stat_t     (*stat_p)[MTP3_MAX_NUM_OPC_DPC] = tapdata;
+    mtp3_stat_t     (*stat_p)[MTP3_MAX_NUM_OPC_DPC] = (mtp3_stat_t(*)[MTP3_MAX_NUM_OPC_DPC])tapdata;
 
     mtp3_num_used = 0;
     memset(stat_p, 0, MTP3_MAX_NUM_OPC_DPC * sizeof(mtp3_stat_t));
@@ -232,8 +234,8 @@ mtp3_stat_packet(
     epan_dissect_t  *edt _U_,
     const void      *data)
 {
-    mtp3_stat_t           (*stat_p)[MTP3_MAX_NUM_OPC_DPC] = tapdata;
-    const mtp3_tap_rec_t  *data_p = data;
+    mtp3_stat_t           (*stat_p)[MTP3_MAX_NUM_OPC_DPC] = (mtp3_stat_t(*)[MTP3_MAX_NUM_OPC_DPC])tapdata;
+    const mtp3_tap_rec_t  *data_p = (const mtp3_tap_rec_t *)data;
     int                    i;
 
     if (data_p->si_code >= MTP3_NUM_SI_CODE)
@@ -288,7 +290,7 @@ static void
 mtp3_stat_draw(
     void        *tapdata)
 {
-    mtp3_stat_t   (*stat_p)[MTP3_MAX_NUM_OPC_DPC] = tapdata;
+    mtp3_stat_t   (*stat_p)[MTP3_MAX_NUM_OPC_DPC] = (mtp3_stat_t(*)[MTP3_MAX_NUM_OPC_DPC])tapdata;
     int           i,j;
     char         *str;
     float         avg;
@@ -300,7 +302,7 @@ mtp3_stat_draw(
         return;
     }
 
-    str=ep_alloc(256);
+    str=(char *)ep_alloc(256);
     i = 0;
 
     list_store = GTK_LIST_STORE(gtk_tree_view_get_model(GTK_TREE_VIEW (dlg.table))); /* Get store */
@@ -382,7 +384,7 @@ mtp3_stat_gtk_win_create(
     bbox = dlg_button_row_new(GTK_STOCK_CLOSE, NULL);
     gtk_box_pack_start(GTK_BOX(vbox), bbox, FALSE, FALSE, 0);
 
-    bt_close = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+    bt_close = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
     window_set_cancel_button(dlg_p->win, bt_close, window_cancel_button_cb);
 
     g_signal_connect(dlg_p->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);

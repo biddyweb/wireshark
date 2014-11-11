@@ -1,8 +1,6 @@
 # s1ap.cnf
 # s1ap conformation file
 
-# $Id$
-
 #.OPT
 PER
 ALIGNED
@@ -51,6 +49,8 @@ SourceBSS-ToTargetBSS-TransparentContainer
 TargetBSS-ToSourceBSS-TransparentContainer
 SourceRNC-ToTargetRNC-TransparentContainer
 TargetRNC-ToSourceRNC-TransparentContainer
+ReportingCellList
+ReportingCellList-Item
 
 #.OMIT_ASSIGNMENT
 # Get rid of unused code warnings
@@ -131,7 +131,7 @@ MAX_VAL = asn1_param_get_integer(%(ACTX)s,"upperBound")
   static const asn1_par_def_t ProtocolIE_ContainerList_pars[] = {
     { "lowerBound", ASN1_PAR_INTEGER },
     { "upperBound", ASN1_PAR_INTEGER },
-    { NULL, 0 }
+    { NULL, (asn1_par_type)0 }
   };
   asn1_stack_frame_check(actx, "ProtocolIE-ContainerList", ProtocolIE_ContainerList_pars);
 #.END
@@ -153,31 +153,31 @@ MAX_VAL = asn1_param_get_integer(%(ACTX)s,"upperBound")
 #  asn1_stack_frame_check(actx, "ProtocolIE-ContainerPairList", ProtocolIE_ContainerPairList_pars);
 # END
 
-#E-RAB-IE-ContainerList                  { S1AP-PROTOCOL-IES      : IEsSetParam }	::= ProtocolIE-ContainerList     { 1, maxNrOfE-RABs,   {IEsSetParam} }
+#E-RAB-IE-ContainerList                  { S1AP-PROTOCOL-IES      : IEsSetParam }	::= ProtocolIE-ContainerList     { 1, maxnoofE-RABs,   {IEsSetParam} }
 #.FN_BODY E-RAB-IE-ContainerList
   asn1_stack_frame_push(%(ACTX)s, "ProtocolIE-ContainerList");
   asn1_param_push_integer(%(ACTX)s, 1);
-  asn1_param_push_integer(%(ACTX)s, maxNrOfE_RABs);
+  asn1_param_push_integer(%(ACTX)s, maxnoofE_RABs);
 %(DEFAULT_BODY)s
   asn1_stack_frame_pop(%(ACTX)s, "ProtocolIE-ContainerList");
 #.END
 
-# E-RAB-IE-ContainerPairList              { S1AP-PROTOCOL-IES-PAIR : IEsSetParam }	::= ProtocolIE-ContainerPairList { 1, maxNrOfE-RABs,   {IEsSetParam} }
+# E-RAB-IE-ContainerPairList              { S1AP-PROTOCOL-IES-PAIR : IEsSetParam }	::= ProtocolIE-ContainerPairList { 1, maxnoofE-RABs,   {IEsSetParam} }
 # Currently not used
 # FN_BODY SAEB-IE-ContainerPairList
 #  asn1_stack_frame_push(%(ACTX)s, "ProtocolIE-ContainerPairList");
 #  asn1_param_push_integer(%(ACTX)s, 1);
-#  asn1_param_push_integer(%(ACTX)s, maxNrOfE_RABs);
+#  asn1_param_push_integer(%(ACTX)s, maxnoofE_RABs);
 #%(DEFAULT_BODY)s
 #  asn1_stack_frame_pop(%(ACTX)s, "ProtocolIE-ContainerPairList");
 # END
 
 # Currently not used
-# ProtocolError-IE-ContainerList        { S1AP-PROTOCOL-IES      : IEsSetParam }	::= ProtocolIE-ContainerList     { 1, maxNrOfE-RABs,   {IEsSetParam} }
+# ProtocolError-IE-ContainerList        { S1AP-PROTOCOL-IES      : IEsSetParam }	::= ProtocolIE-ContainerList     { 1, maxnoofE-RABs,   {IEsSetParam} }
 # FN_BODY ProtocolError-IE-ContainerList
 #  asn1_stack_frame_push(%(ACTX)s, "ProtocolIE-ContainerList");
 #  asn1_param_push_integer(%(ACTX)s, 1);
-#  asn1_param_push_integer(%(ACTX)s, maxNrOfE_RABs);
+#  asn1_param_push_integer(%(ACTX)s, maxnoofE_RABs);
 #%(DEFAULT_BODY)s
 #  asn1_stack_frame_pop(%(ACTX)s, "ProtocolIE-ContainerList");
 # END
@@ -393,7 +393,7 @@ MAX_VAL = asn1_param_get_integer(%(ACTX)s,"upperBound")
 				Transparent Container 48.018
 			*/
 			de_bssgp_target_BSS_to_source_BSS_transp_cont(parameter_tvb, subtree, actx->pinfo, 0, tvb_length(parameter_tvb), NULL, 0);
-	
+
 			break;
 			case 3:
 			/* utrantolte */
@@ -556,6 +556,7 @@ id-downlinkUEAssociatedLPPaTransport	ProcedureCode
 id-uplinkUEAssociatedLPPaTransport		ProcedureCode
 id-downlinkNonUEAssociatedLPPaTransport	ProcedureCode
 id-uplinkNonUEAssociatedLPPaTransport	ProcedureCode
+id-UERadioCapabilityMatch				ProcedureCode
 
 # ProtocolIE-ID
 id-MME-UE-S1AP-ID									ProtocolIE-ID
@@ -707,6 +708,22 @@ id-MDTConfiguration									ProtocolIE-ID
 id-MMERelaySupportIndicator							ProtocolIE-ID
 id-GWContextReleaseIndication						ProtocolIE-ID
 id-ManagementBasedMDTAllowed						ProtocolIE-ID
+id-PrivacyIndicator									ProtocolIE-ID
+id-Time-UE-StayedInCell-EnhancedGranularity			ProtocolIE-ID
+id-HO-Cause											ProtocolIE-ID
+id-VoiceSupportMatchIndicator						ProtocolIE-ID
+id-GUMMEIType										ProtocolIE-ID
+id-M3Configuration									ProtocolIE-ID
+id-M4Configuration									ProtocolIE-ID
+id-M5Configuration									ProtocolIE-ID
+id-MDT-Location-Info								ProtocolIE-ID
+id-MobilityInformation								ProtocolIE-ID
+id-Tunnel-Information-for-BBF						ProtocolIE-ID
+id-ManagementBasedMDTPLMNList						ProtocolIE-ID
+id-SignallingBasedMDTPLMNList						ProtocolIE-ID
+id-ULCOUNTValueExtended								ProtocolIE-ID
+id-DLCOUNTValueExtended								ProtocolIE-ID
+id-ReceiveStatusOfULPDCPSDUsExtended				ProtocolIE-ID
 #.END
 
 #.REGISTER_NEW
@@ -852,6 +869,11 @@ TrafficLoadReductionIndication			N s1ap.ies id-TrafficLoadReductionIndication
 MMERelaySupportIndicator				N s1ap.ies id-MMERelaySupportIndicator
 GWContextReleaseIndication				N s1ap.ies id-GWContextReleaseIndication
 ManagementBasedMDTAllowed				N s1ap.ies id-ManagementBasedMDTAllowed
+PrivacyIndicator						N s1ap.ies id-PrivacyIndicator
+VoiceSupportMatchIndicator				N s1ap.ies id-VoiceSupportMatchIndicator
+GUMMEIType								N s1ap.ies id-GUMMEIType
+TunnelInformation						N s1ap.ies id-Tunnel-Information-for-BBF
+MDTPLMNList								N s1ap.ies id-ManagementBasedMDTPLMNList
 
 #S1AP-PROTOCOL-IES-PAIR
 #RAB-SetupOrModifyItemFirst				N s1ap.ies.pair.first id-RAB-SetupOrModifyItem
@@ -866,6 +888,17 @@ X2TNLConfigurationInfo					N s1ap.extension id-x2TNLConfigurationInfo
 ENBX2ExtTLAs							N s1ap.extension id-eNBX2ExtendedTransportLayerAddresses
 Correlation-ID							N s1ap.extension id-Correlation-ID
 MDT-Configuration						N s1ap.extension id-MDTConfiguration
+Time-UE-StayedInCell-EnhancedGranularity	N s1ap.extension id-Time-UE-StayedInCell-EnhancedGranularity
+Cause									N s1ap.extension id-HO-Cause
+M3Configuration							N s1ap.extension id-M3Configuration
+M4Configuration							N s1ap.extension id-M4Configuration
+M5Configuration							N s1ap.extension id-M5Configuration
+MDT-Location-Info						N s1ap.extension id-MDT-Location-Info
+MobilityInformation						N s1ap.extension id-MobilityInformation
+MDTPLMNList								N s1ap.extension id-SignallingBasedMDTPLMNList
+COUNTValueExtended						N s1ap.extension id-ULCOUNTValueExtended
+COUNTValueExtended						N s1ap.extension id-DLCOUNTValueExtended
+ReceiveStatusOfULPDCPSDUsExtended		N s1ap.extension id-ReceiveStatusOfULPDCPSDUsExtended
 
 #S1AP-ELEMENTARY-PROCEDURE
 HandoverRequired						N s1ap.proc.imsg id-HandoverPreparation
@@ -988,6 +1021,8 @@ DownlinkNonUEAssociatedLPPaTransport	N s1ap.proc.imsg id-downlinkNonUEAssociated
 
 UplinkNonUEAssociatedLPPaTransport		N s1ap.proc.imsg id-uplinkNonUEAssociatedLPPaTransport
 
+UERadioCapabilityMatchRequest			N s1ap.proc.imsg id-UERadioCapabilityMatch
+UERadioCapabilityMatchResponse			N s1ap.proc.sout id-UERadioCapabilityMatch
 
 #.FN_HDR E-RABSetupRequest
      col_append_str(actx->pinfo->cinfo, COL_INFO, ", E_RABSetupRequest ");
@@ -1084,6 +1119,36 @@ UplinkNonUEAssociatedLPPaTransport		N s1ap.proc.imsg id-uplinkNonUEAssociatedLPP
      col_append_str(actx->pinfo->cinfo, COL_INFO, ", KillResponse ");
 
 
+/* Whenever a Cause appears, look up the reason and show it in the Info column */
+   
+#.FN_BODY CauseRadioNetwork VAL_PTR=&value
+  guint32 value;
+%(DEFAULT_BODY)s
+  col_append_fstr(actx->pinfo->cinfo, COL_INFO, " [RadioNetwork-cause=%%s]", val_to_str_const(value, s1ap_CauseRadioNetwork_vals, "Unknown"));
+
+#.FN_BODY CauseTransport VAL_PTR=&value
+  guint32 value;
+%(DEFAULT_BODY)s
+  col_append_fstr(actx->pinfo->cinfo, COL_INFO, " [Transport-cause=%%s]", val_to_str_const(value, s1ap_CauseTransport_vals, "Unknown"));
+
+#.FN_BODY CauseNas VAL_PTR=&value
+  guint32 value;
+%(DEFAULT_BODY)s
+  col_append_fstr(actx->pinfo->cinfo, COL_INFO, "  [NAS-cause=%%s]", val_to_str_const(value, s1ap_CauseNas_vals, "Unknown"));
+
+#.FN_BODY CauseProtocol VAL_PTR=&value
+  guint32 value;
+%(DEFAULT_BODY)s
+  col_append_fstr(actx->pinfo->cinfo, COL_INFO, " [Protocol-cause=%%s]", val_to_str_const(value, s1ap_CauseProtocol_vals, "Unknown"));     
+
+#.FN_BODY CauseMisc VAL_PTR=&value
+  guint32 value;
+%(DEFAULT_BODY)s
+  col_append_fstr(actx->pinfo->cinfo, COL_INFO, " [Misc-cause=%%s]", val_to_str_const(value, s1ap_CauseMisc_vals, "Unknown"));
+     
+
 #.TYPE_ATTR
 BitRate TYPE = FT_UINT64 DISPLAY = BASE_DEC STRINGS = NULL
 #.END
+
+

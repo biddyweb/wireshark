@@ -4,8 +4,6 @@
  *
  * Based almost completely on gtp_stat by Kari Tiirikainen
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,7 +34,6 @@
 #include <epan/tap.h>
 #include <epan/dissectors/packet-diameter.h>
 
-#include "../timestats.h"
 #include "../file.h"
 #include "../stat_menu.h"
 
@@ -50,6 +47,8 @@
 #include "ui/gtk/main.h"
 
 #include "ui/gtk/old-gtk-compat.h"
+
+void register_tap_listener_gtkdiameterstat(void);
 
 /* used to keep track of the statistics for an entire program interface */
 typedef struct _diameterstat_t {
@@ -78,7 +77,7 @@ diameterstat_reset(void *pdiameter)
 static int
 diameterstat_packet(void *pdiameter, packet_info *pinfo, epan_dissect_t *edt _U_, const void *pdi)
 {
-	const diameter_req_ans_pair_t *diameter=pdi;
+	const diameter_req_ans_pair_t *diameter=(const diameter_req_ans_pair_t *)pdi;
 	diameterstat_t *fs=(diameterstat_t *)pdiameter;
 	int* idx = NULL;
 
@@ -90,7 +89,7 @@ diameterstat_packet(void *pdiameter, packet_info *pinfo, epan_dissect_t *edt _U_
 
 	idx = (int*) g_hash_table_lookup(cmd_str_hash, diameter->cmd_str);
 	if (idx == NULL) {
-		idx = g_malloc(sizeof(int));
+		idx = (int *)g_malloc(sizeof(int));
 		*idx = (int) g_hash_table_size(cmd_str_hash);
 		g_hash_table_insert(cmd_str_hash, (gchar*) diameter->cmd_str, idx);
 		init_srt_table_row(&fs->diameter_srt_table, *idx,  (const char*) diameter->cmd_str);
@@ -144,8 +143,8 @@ gtk_diameterstat_init(const char *opt_arg, void *userdata _U_)
 		filter="diameter"; /*NULL doesn't work here like in LDAP. Too little time/lazy to find out why ?*/
 	}
 
-	diameter=g_malloc(sizeof(diameterstat_t));
-	idx = g_malloc(sizeof(int));
+	diameter=(diameterstat_t *)g_malloc(sizeof(diameterstat_t));
+	idx = (int *)g_malloc(sizeof(int));
 	*idx = 0;
 	cmd_str_hash = g_hash_table_new(g_str_hash,g_str_equal);
 	g_hash_table_insert(cmd_str_hash, (gchar *)"Unknown", idx);
@@ -182,7 +181,14 @@ gtk_diameterstat_init(const char *opt_arg, void *userdata _U_)
 	init_srt_table(&diameter->diameter_srt_table, 1, vbox, NULL);
 	init_srt_table_row(&diameter->diameter_srt_table, 0, "Unknown");
 
-	error_string=register_tap_listener("diameter", diameter, filter, 0, diameterstat_reset, diameterstat_packet, diameterstat_draw);
+	error_string=register_tap_listener(
+		"diameter",
+		diameter, filter,
+		TL_REQUIRES_PROTO_TREE,
+		diameterstat_reset,
+		diameterstat_packet,
+		diameterstat_draw);
+
 	if(error_string){
 		simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "%s", error_string->str);
 		g_string_free(error_string, TRUE);
@@ -194,7 +200,7 @@ gtk_diameterstat_init(const char *opt_arg, void *userdata _U_)
 	bbox = dlg_button_row_new(GTK_STOCK_CLOSE, NULL);
 	gtk_box_pack_end(GTK_BOX(vbox), bbox, FALSE, FALSE, 0);
 
-	close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+	close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
 	window_set_cancel_button(diameter->win, close_bt, window_cancel_button_cb);
 
 	g_signal_connect(diameter->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
@@ -223,12 +229,6 @@ static tap_param_dlg diameter_stat_dlg = {
 void
 register_tap_listener_gtkdiameterstat(void)
 {
-	register_dfilter_stat(&diameter_stat_dlg, "Diameter",
+	register_param_stat(&diameter_stat_dlg, "Diameter",
 	    REGISTER_STAT_GROUP_RESPONSE_TIME);
 }
-
-void diameter_srt_cb(GtkAction *action, gpointer user_data _U_)
-{
-	tap_param_dlg_cb(action, &diameter_stat_dlg);
-}
-

@@ -2,8 +2,6 @@
  *
  * Copyright (c) 2010, Holger Grandy, BMW Car IT GmbH (holger.grandy@bmw-carit.de)
  *
- * $Id$
- *
  * Apache Etch Protocol dissector
  * http://incubator.apache.org/etch/
  *
@@ -38,10 +36,14 @@
 #include <string.h>
 
 #include <wsutil/file_util.h>
+#include <wsutil/report_err.h>
 #include <epan/packet.h>
 #include <epan/prefs.h>
-#include <epan/report_err.h>
 #include <epan/dissectors/packet-tcp.h>
+#include <epan/wmem/wmem.h>
+
+void proto_register_etch(void);
+void proto_reg_handoff_etch(void);
 
 /*
  * maximum numbers for symbols from config files
@@ -133,6 +135,8 @@ static int hf_etch_struct = -1;
 static int hf_etch_dim = -1;
 static int hf_etch_symbol = -1;
 
+static dissector_handle_t etch_handle;
+
 /*
  * internal fields/defines for dissector
  */
@@ -144,7 +148,7 @@ static char             *gbl_current_keytab_folder = NULL;
 static int               gbl_pdu_counter;
 static guint32           gbl_old_frame_num;
 
-static emem_strbuf_t    *gbl_symbol_buffer = NULL;
+static wmem_strbuf_t    *gbl_symbol_buffer = NULL;
 static gboolean          gbl_have_symbol   = FALSE;
 
 /***************************************************************************/
@@ -159,7 +163,6 @@ static void read_struct(unsigned int *offset, tvbuff_t *tvb,
                         proto_tree *etch_tree, int add_type_field);
 static int read_value(unsigned int *offset, tvbuff_t *tvb, proto_tree *etch_tree,
                       int asWhat);
-void proto_reg_handoff_etch(void);
 
 /************************************************************************
  * Symbol value-string functions
@@ -167,11 +170,11 @@ void proto_reg_handoff_etch(void);
  *  a. Upon startup & whenever symbol folder changed: Read from file(s)
  *     and add all hash/symbol pairs to a GArray;
  *  b. When file reads complete, sort the GArray and then create a
- *     value_string_ext from the array for use by match_strval_ext & friends.
+ *     value_string_ext from the array for use by try_val_to_str_ext & friends.
  *  (Code based upon code in packet-diameter.c)
  */
-static GArray           *gbl_symbols_array  = NULL;
-static value_string_ext *gbl_symbols_vs_ext = NULL;
+static GArray                 *gbl_symbols_array  = NULL;
+static const value_string_ext *gbl_symbols_vs_ext = NULL;
 
 static void
 gbl_symbols_new(void)
@@ -183,7 +186,7 @@ gbl_symbols_new(void)
 static void
 gbl_symbols_free(void)
 {
-  g_free(gbl_symbols_vs_ext);
+  value_string_ext_free(gbl_symbols_vs_ext);
   gbl_symbols_vs_ext = NULL;
 
   if (gbl_symbols_array != NULL) {
@@ -199,7 +202,7 @@ gbl_symbols_free(void)
 }
 
 static void
-gbl_symbols_array_append(int hash, gchar *symbol)
+gbl_symbols_array_append(guint32 hash, gchar *symbol)
 {
   value_string vs = {hash, symbol};
   DISSECTOR_ASSERT(gbl_symbols_array != NULL);
@@ -209,8 +212,8 @@ gbl_symbols_array_append(int hash, gchar *symbol)
 static gint
 gbl_symbols_compare_vs(gconstpointer  a, gconstpointer  b)
 {
-  value_string *vsa = (value_string *)a;
-  value_string *vsb = (value_string *)b;
+  const value_string *vsa = (const value_string *)a;
+  const value_string *vsb = (const value_string *)b;
 
   if(vsa->value > vsb->value)
     return 1;
@@ -291,7 +294,7 @@ add_symbols_of_file(const char *filename)
   if (pFile != NULL) {
     char line[256];
     while (fgets(line, sizeof line, pFile) != NULL) {
-      int    hash;
+      unsigned int hash;
       size_t length, pos;
 
       length = strlen(line);
@@ -444,6 +447,12 @@ read_length(unsigned int *offset, tvbuff_t *tvb, proto_tree *etch_tree)
   proto_tree_add_item(etch_tree, hf_etch_length, tvb, *offset,
                       length_of_array_length_type, ENC_BIG_ENDIAN);
   (*offset) += length_of_array_length_type;
+
+  if (*offset + length < *offset) {
+    /* overflow case
+     * https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=8464 */
+    length = tvb_reported_length_remaining(tvb, *offset);
+  }
   return length;
 }
 
@@ -525,14 +534,14 @@ read_number(unsigned int *offset, tvbuff_t *tvb, proto_tree *etch_tree,
     const gchar *symbol = NULL;
     guint32      hash   = 0;
 
-    gbl_symbol_buffer = ep_strbuf_new_label("");  /* no symbol found yet */
+    gbl_symbol_buffer = wmem_strbuf_new_label(wmem_packet_scope());  /* no symbol found yet */
     if (byteLength == 4) {
       hash = tvb_get_ntohl(tvb, *offset);
-      symbol = match_strval_ext(hash, gbl_symbols_vs_ext);
+      symbol = try_val_to_str_ext(hash, gbl_symbols_vs_ext);
       if(symbol != NULL) {
         asWhat = hf_etch_symbol;
         gbl_have_symbol = TRUE;
-        ep_strbuf_append_printf(gbl_symbol_buffer,"%s",symbol);
+        wmem_strbuf_append_printf(gbl_symbol_buffer,"%s",symbol);
       }
     }
     ti = proto_tree_add_item(etch_tree, asWhat, tvb, *offset,
@@ -658,7 +667,7 @@ read_key_value(unsigned int *offset, tvbuff_t *tvb, proto_tree *etch_tree)
   /* append the symbol of the key */
   if(gbl_have_symbol == TRUE){
     proto_item_append_text(parent_ti, " (");
-    proto_item_append_text(parent_ti, "%s", gbl_symbol_buffer->str);
+    proto_item_append_text(parent_ti, "%s", wmem_strbuf_get_str(gbl_symbol_buffer));
     proto_item_append_text(parent_ti, ")");
   }
 
@@ -672,16 +681,16 @@ read_key_value(unsigned int *offset, tvbuff_t *tvb, proto_tree *etch_tree)
 /*
  * Preparse the message for the info column
  */
-static emem_strbuf_t*
+static wmem_strbuf_t*
 get_column_info(tvbuff_t *tvb)
 {
   int            byte_length;
   guint8         type_code;
-  emem_strbuf_t *result_buf;
+  wmem_strbuf_t *result_buf;
   int            my_offset = 0;
 
   /* We've a full PDU: 8 bytes + pdu_packetlen bytes  */
-  result_buf = ep_strbuf_new_label("");
+  result_buf = wmem_strbuf_new_label(wmem_packet_scope());
 
   my_offset += (4 + 4 + 1); /* skip Magic, Length, Version */
 
@@ -693,9 +702,9 @@ get_column_info(tvbuff_t *tvb)
     const gchar *symbol;
     guint32      hash;
     hash   = tvb_get_ntohl(tvb, my_offset);
-    symbol = match_strval_ext(hash, gbl_symbols_vs_ext);
+    symbol = try_val_to_str_ext(hash, gbl_symbols_vs_ext);
     if (symbol != NULL) {
-      ep_strbuf_append_printf(result_buf, "%s()", symbol);
+      wmem_strbuf_append_printf(result_buf, "%s()", symbol);
     }
   }
 
@@ -707,11 +716,11 @@ get_column_info(tvbuff_t *tvb)
 /*
  * main dissector function for an etch message
  */
-static void
-dissect_etch_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_etch_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
   /* We've a full PDU: 8 bytes + pdu_packetlen bytes  */
-  emem_strbuf_t *colInfo = NULL;
+  wmem_strbuf_t *colInfo = NULL;
 
   if (pinfo->cinfo || tree) {
     colInfo = get_column_info(tvb);    /* get current symbol */
@@ -729,7 +738,7 @@ dissect_etch_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     gbl_old_frame_num = pinfo->fd->num;
 
     col_set_writable(pinfo->cinfo, TRUE);
-    col_append_fstr(pinfo->cinfo, COL_INFO, "%s ", colInfo->str);
+    col_append_fstr(pinfo->cinfo, COL_INFO, "%s ", wmem_strbuf_get_str(colInfo));
   }
 
   if (tree) {
@@ -739,7 +748,7 @@ dissect_etch_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     proto_tree *etch_tree;
 
     ti = proto_tree_add_protocol_format(tree, proto_etch, tvb, 0, -1,
-                                        "ETCH Protocol: %s", colInfo->str);
+                                        "ETCH Protocol: %s", wmem_strbuf_get_str(colInfo));
 
     offset = 9;
     etch_tree = proto_item_add_subtree(ti, ett_etch);
@@ -749,6 +758,7 @@ dissect_etch_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     read_struct(&offset, tvb, etch_tree, 0);
   }
 
+  return tvb_length(tvb);
 }
 
 /*
@@ -766,7 +776,7 @@ get_etch_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
  * main dissector function for the etch protocol
  */
 static int
-dissect_etch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_etch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
   if (tvb_length(tvb) < 4) {
     /* Too small for an etch packet. */
@@ -779,7 +789,7 @@ dissect_etch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
   }
 
   tcp_dissect_pdus(tvb, pinfo, tree, TRUE, 8, get_etch_message_len,
-                   dissect_etch_message);
+                   dissect_etch_message, data);
 
   if (gbl_pdu_counter > 0) {
     col_set_writable(pinfo->cinfo, TRUE);
@@ -943,7 +953,7 @@ void proto_register_etch(void)
 
   proto_register_field_array(proto_etch, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
-  new_register_dissector("etch", dissect_etch, proto_etch);
+  etch_handle = new_register_dissector("etch", dissect_etch, proto_etch);
 
   register_init_routine(&etch_dissector_init);
 
@@ -966,12 +976,10 @@ void proto_register_etch(void)
 void proto_reg_handoff_etch(void)
 {
   static gboolean etch_prefs_initialized = FALSE;
-  static dissector_handle_t etch_handle;
   static guint old_etch_port = 0;
 
   /* create dissector handle only once */
   if(!etch_prefs_initialized) {
-    etch_handle = new_create_dissector_handle(dissect_etch, proto_etch);
     /* add heuristic dissector for tcp */
     heur_dissector_add("tcp", dissect_etch, proto_etch);
     etch_prefs_initialized = TRUE;
@@ -995,3 +1003,16 @@ void proto_reg_handoff_etch(void)
     read_hashed_symbols_from_dir(gbl_keytab_folder);
   }
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 2
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=2 tabstop=8 expandtab:
+ * :indentSize=2:tabSize=8:noTabs=true:
+ */

@@ -1,7 +1,5 @@
 # Makefile.am
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -29,15 +27,15 @@ wsutil_optional_objects =
 if NEED_GETOPT_LO
 wsutil_optional_objects += @GETOPT_LO@
 endif
- 
+
 if NEED_INET_ATON_LO
 wsutil_optional_objects += @INET_ATON_LO@
 endif
- 
+
 if NEED_INET_NTOP_LO
 wsutil_optional_objects += @INET_NTOP_LO@
 endif
- 
+
 if NEED_INET_PTON_LO
 wsutil_optional_objects += @INET_PTON_LO@
 endif
@@ -62,9 +60,11 @@ endif
 
 lib_LTLIBRARIES = libwsutil.la
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
-libwsutil_la_LDFLAGS = -version-info 0:0:0 @LDFLAGS_SHAREDLIB@
+libwsutil_la_LDFLAGS = -version-info 4:0:0 @LDFLAGS_SHAREDLIB@
 
-AM_CPPFLAGS = -I$(srcdir)/..
+AM_CPPFLAGS = -I$(srcdir)/.. \
+	$(LIBGCRYPT_CFLAGS) \
+	-DTOP_SRCDIR=\"$(abs_top_srcdir)\"
 
 libwsutil_la_SOURCES =		\
 	$(LIBWSUTIL_SRC)	\
@@ -88,15 +88,15 @@ libwsutil_la_DEPENDENCIES=	\
 
 libwsutil_la_LIBADD =		\
 	@GLIB_LIBS@		\
+	@LIBGCRYPT_LIBS@	\
 	$(wsutil_optional_objects)
 
 EXTRA_DIST =		\
+	CMakeLists.txt	\
 	Makefile.common	\
 	Makefile.nmake	\
 	file_util.c	\
 	file_util.h 	\
-	unicode-utils.c	\
-	unicode-utils.h \
 	wsgcrypt.h
 
 CLEANFILES = \
@@ -121,7 +121,10 @@ dumpabi-libwsutil: all abi-descriptor.xml
 	cd .libs && ln -sf libwsutil_*.abi.tar.gz libwsutil.abi.tar.gz
 
 checkapi:
-#	$(PERL) ../tools/checkAPIs.pl -g abort -g termoutput \
-	$(PERL) ../tools/checkAPIs.pl -g termoutput -build \
+	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -g termoutput -build \
+	-sourcedir=$(srcdir) \
 	$(LIBWSUTIL_SRC)
+
+#	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -g abort -g termoutput \
+#	-sourcedir=$(srcdir) \
 #	file_util.c unicode-utils.c

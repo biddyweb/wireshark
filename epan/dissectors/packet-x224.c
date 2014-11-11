@@ -3,8 +3,6 @@
  * Routine to dissect X.224
  * Copyright 2007, Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,7 +29,10 @@
 
 #include "packet-tpkt.h"
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
+
+void proto_register_x224(void);
+void proto_reg_handoff_x224(void);
 
 /* X.224 header fields             */
 static int proto_x224			= -1;
@@ -204,11 +205,9 @@ dissect_x224(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *d
 	proto_tree_add_item(tree, hf_x224_code, tvb, offset, 1, ENC_BIG_ENDIAN);
 	offset+=1;
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO, "%s (0x%02x)",
+	col_add_fstr(pinfo->cinfo, COL_INFO, "%s (0x%02x)",
 			val_to_str(code>>4, code_vals, "Unknown code :%x"),
 			code);
-	}
 
 
 
@@ -226,7 +225,7 @@ dissect_x224(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *d
 		/* No.  Attach that information to the conversation, and add
 		 * it to the list of information structures.
 		 */
-		x224_info = se_new(x224_conv_info_t);
+		x224_info = wmem_new(wmem_file_scope(), x224_conv_info_t);
 		x224_info->klass=0;
 
 		conversation_add_proto_data(conversation, proto_x224, x224_info);

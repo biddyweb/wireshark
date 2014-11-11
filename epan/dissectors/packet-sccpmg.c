@@ -1,4 +1,4 @@
-/* packet-sccp.c
+/* packet-sccpmg.c
  * Routines for Signalling Connection Control Part (SCCP) Management dissection
  *
  * It is hopefully compliant to:
@@ -11,8 +11,6 @@
  *   Management)) is not implemented (yet)
  *
  * Copyright 2002, Jeff Morriss <jeff.morriss.ws [AT] gmail.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -53,6 +51,9 @@
 #define SCCPMG_MESSAGE_TYPE_SBR 0xfd
 #define SCCPMG_MESSAGE_TYPE_SNR 0xfe
 #define SCCPMG_MESSAGE_TYPE_SRT 0xff
+
+void proto_register_sccpmg(void);
+void proto_reg_handoff_sccpmg(void);
 
 /* Same as below but with names typed out */
 static const value_string sccpmg_message_type_values[] = {
@@ -169,7 +170,6 @@ dissect_sccpmg_affected_pc(tvbuff_t *tvb, proto_tree *sccpmg_tree)
 				      hf_sccpmg_affected_pc_cluster,
 				      hf_sccpmg_affected_pc_member, 0, 0);
 
-		offset += ANSI_PC_LENGTH;
 	}
 }
 

@@ -1,8 +1,6 @@
 /* packet-ip.h
  * Definitions for IP packet disassembly structures and routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,6 +25,8 @@
 #define __PACKET_IP_H__
 
 #include "ws_symbol_export.h"
+
+extern int proto_ip;
 
 typedef struct _ws_ip
 {

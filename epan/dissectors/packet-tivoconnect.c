@@ -7,8 +7,6 @@
  * IANA's full name is "TiVoConnect Beacon", where as TiVo's own
  * documentation calls this protocol "TiVoConnect Discovery Protocol".
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -44,10 +42,10 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/ipproto.h>
 
 /* Forward declaration we need below */
 void proto_reg_handoff_tivoconnect(void);
+void proto_register_tivoconnect(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_tivoconnect = -1;
@@ -64,7 +62,7 @@ static gint ett_tivoconnect = -1;
 
 /* Code to actually dissect the packets */
 static int
-dissect_tivoconnect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_tivoconnect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean is_tcp)
 {
     /* parsing variables */
     gchar * string = NULL;
@@ -80,15 +78,13 @@ dissect_tivoconnect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
     }
 
     length = tvb_length(tvb);
-    string = (gchar*)tvb_get_ephemeral_string(tvb, 0, length);
+    string = (gchar*)tvb_get_string(wmem_packet_scope(), tvb, 0, length);
 
     /* Make entries in Protocol column and Info column on summary display */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "TiVoConnect");
 
     /* make a distinction between UDP and TCP packets */
-    proto_name = pinfo->ipproto == IP_PROTO_TCP ?
-                    "Discovery Connection" :
-                    "Discovery Beacon";
+    proto_name = is_tcp ? "Discovery Connection" : "Discovery Beacon";
 
     col_set_str(pinfo->cinfo, COL_INFO, proto_name);
 
@@ -167,8 +163,7 @@ dissect_tivoconnect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
         /* Adjust "Info" column and top of tree into more useful info */
         if (packet_machine) {
             proto_item_append_text(ti, ", %s", packet_machine);
-            if (check_col(pinfo->cinfo, COL_INFO))
-                col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s",
+            col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s",
                                             proto_name, packet_machine);
         }
         if (packet_identity) {
@@ -176,13 +171,11 @@ dissect_tivoconnect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
                         packet_machine ? " (%s)" : ", ID:%s",
                         packet_identity);
             if (packet_machine) {
-                if (check_col(pinfo->cinfo, COL_INFO))
-                    col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s (%s)",
+                col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s (%s)",
                                  proto_name, packet_machine, packet_identity);
             }
             else {
-                if (check_col(pinfo->cinfo, COL_INFO))
-                    col_add_fstr(pinfo->cinfo, COL_INFO, "%s ID:%s",
+                col_add_fstr(pinfo->cinfo, COL_INFO, "%s ID:%s",
                                  proto_name, packet_identity);
             }
         }
@@ -194,6 +187,17 @@ dissect_tivoconnect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
     return tvb_length(tvb);
 }
 
+static int
+dissect_tivoconnect_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+{
+    return dissect_tivoconnect(tvb, pinfo, tree, TRUE);
+}
+
+static int
+dissect_tivoconnect_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+{
+    return dissect_tivoconnect(tvb, pinfo, tree, FALSE);
+}
 
 /* Register the protocol with Wireshark */
 
@@ -254,9 +258,10 @@ proto_register_tivoconnect(void)
 void
 proto_reg_handoff_tivoconnect(void)
 {
-    dissector_handle_t tivoconnect_handle;
+    dissector_handle_t tivoconnect_tcp_handle, tivoconnect_udp_handle;
 
-    tivoconnect_handle = new_create_dissector_handle(dissect_tivoconnect, proto_tivoconnect);
-    dissector_add_uint("udp.port", 2190, tivoconnect_handle);
-    dissector_add_uint("tcp.port", 2190, tivoconnect_handle);
+    tivoconnect_tcp_handle = new_create_dissector_handle(dissect_tivoconnect_tcp, proto_tivoconnect);
+    tivoconnect_udp_handle = new_create_dissector_handle(dissect_tivoconnect_udp, proto_tivoconnect);
+    dissector_add_uint("udp.port", 2190, tivoconnect_udp_handle);
+    dissector_add_uint("tcp.port", 2190, tivoconnect_tcp_handle);
 }

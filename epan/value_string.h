@@ -1,8 +1,6 @@
 /* value_string.h
  * Definitions for value_string structures and routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,178 +23,263 @@
 #ifndef __VALUE_STRING_H__
 #define __VALUE_STRING_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 #include <glib.h>
 #include "ws_symbol_export.h"
 
-/* Struct for the val_to_str, match_strval_idx, and match_strval functions */
+/* VALUE TO STRING MATCHING */
 
 typedef struct _value_string {
-  guint32  value;
-  const gchar   *strptr;
+    guint32      value;
+    const gchar *strptr;
 } value_string;
 
-/* Struct for the str_to_str, match_strstr_idx, and match_strstr functions */
+#if 0
+  /* -----  VALUE_STRING "Helper" macros ----- */
 
-typedef struct _string_string {
-  const gchar   *value;
-  const gchar   *strptr;
-} string_string;
+  /* Essentially: Provide the capability to define a list of value_strings once and
+     then to expand the list as an enum and/or as a value_string array. */
 
-/* Struct for the rval_to_str, match_strrval_idx, and match_strrval functions */
-typedef struct _range_string {
-  guint32        value_min;
-  guint32        value_max;
-  const gchar   *strptr;
-} range_string;
+  /* Usage: */
 
-/* #define VS_DEF(x) { x, #x } */
-/* #define VS_END    { 0, NULL } */
+  /*- define list of value strings -*/
+     #define foo_VALUE_STRING_LIST(XXX) \
+        XXX( FOO_A, 1, "aaa" ) \
+        XXX( FOO_B, 3, "bbb" )
 
-/* Tries to match val against each element in the value_string array vs.
-   Returns the associated string ptr, and sets "*idx" to the index in
-   that table, on a match, and returns NULL, and sets "*idx" to -1,
-   on failure. */
-WS_DLL_PUBLIC const gchar* match_strval_idx(const guint32 val, const value_string *vs, gint *idx);
+  /*- gen enum -*/
+     VALUE_STRING_ENUM(foo);      /* gen's 'enum {FOO_A=1, FOO_B=3};' */
 
-/* Like match_strval_idx(), but doesn't return the index. */
-WS_DLL_PUBLIC const gchar* match_strval(const guint32 val, const value_string *vs);
+  /*- gen value_string array -*/
+     /* local */
+     VALUE_STRING_ARRAY(foo);     /* gen's 'static const value_string foo[] = {{1,"aaa"}, {3,"bbb"}}; */
 
-/* Tries to match val against each element in the value_string array vs.
-   Returns the associated string ptr on a match.
-   Formats val with fmt, and returns the resulting string, on failure. */
-WS_DLL_PUBLIC const gchar* val_to_str(const guint32 val, const value_string *vs, const char *fmt);
+     /* global */
+     VALUE_STRING_ARRAY_GLOBAL_DEF(foo); /* gen's 'const value_string foo[] = {{1,"aaa"}, {3,"bbb"}}; */
+     VALUE_STRING_ARRAY_GLOBAL_DCL(foo); /* gen's 'const value_string foo[]; */
 
+  /* Alternatively: */
+     #define bar_VALUE_STRING_LIST(XXX) \
+        XXX( BAR_A, 1) \
+        XXX( BAR_B, 3)
 
-/* Tries to match val against each element in the value_string array vs.
-   Returns the associated string ptr on a match.
-   Returns 'unknown_str', on failure. */
-WS_DLL_PUBLIC const gchar* val_to_str_const(const guint32 val, const value_string *vs, const char *unknown_str);
+     VALUE_STRING_ENUM2(bar);     /* gen's 'enum {BAR_A=1, BAR_B=3};' */
+     VALUE_STRING_ARRAY2(bar);    /* gen's 'static const value_string bar[] = {{1,"BAR_A"}, {3,"BAR_B"}}; */
+     ...
+#endif
 
-/* Tries to match val against each element in the string_string array vs.
-   Returns the associated string ptr, and sets "*idx" to the index in
-   that table, on a match, and returns NULL, and sets "*idx" to -1,
-   on failure. */
-extern const gchar* match_strstr_idx(const gchar *val, const string_string *vs, gint *idx);
+/* -- Public -- */
+#define VALUE_STRING_ENUM(              array_name) _VS_ENUM_XXX( array_name, _VS_ENUM_ENTRY)
+#define VALUE_STRING_ARRAY(             array_name) _VS_ARRAY_SC_XXX(array_name, _VS_ARRAY_ENTRY, static)
+#define VALUE_STRING_ARRAY_GLOBAL_DEF(  array_name) _VS_ARRAY_XXX(array_name, _VS_ARRAY_ENTRY)
+#define VALUE_STRING_ARRAY_GLOBAL_DCL(  array_name) _VS_ARRAY_SC_TYPE_NAME(array_name, extern)
 
-/* Like match_strstr_idx(), but doesn't return the index. */
-extern const gchar* match_strstr(const gchar *val, const string_string *vs);
+#define VALUE_STRING_ENUM2(             array_name) _VS_ENUM_XXX( array_name, _VS_ENUM_ENTRY2)
+#define VALUE_STRING_ARRAY2(            array_name) _VS_ARRAY_SC_XXX(array_name, _VS_ARRAY_ENTRY2, static)
+#define VALUE_STRING_ARRAY2_GLOBAL_DEF( array_name) _VS_ARRAY_XXX(array_name, _VS_ARRAY_ENTRY2)
+#define VALUE_STRING_ARRAY2_GLOBAL_DCL( array_name) _VS_ARRAY_SC_TYPE_NAME(array_name, extern)
 
-/* Tries to match val against each element in the string_string array vs.
-   Returns the associated string ptr on a match.
-   Formats val with fmt, and returns the resulting string, on failure. */
-WS_DLL_PUBLIC const gchar* str_to_str(const gchar *val, const string_string *vs, const char *fmt);
+/* -- Private -- */
+#define _VS_ENUM_XXX(array_name, macro) \
+enum { \
+    array_name##_VALUE_STRING_LIST(macro) \
+    _##array_name##_ENUM_DUMMY = 0 \
+}
 
-/* --------------------------------------------------------------------*/
-/* value_string_ext functions
- *
- *   Extended value strings allow fast(er) value_string array lookups by
- *    using (if possible) direct access or a binary search of the array.
- *
- *    If the values in the value_string array are a contiguous range of values
- *    from min to max, the value will be used as as a direct index into the array.
- *
- *    If the values in the array are not contiguous (ie: there are "gaps"),
- *    but are in assending order a binary search will be used.
- *
- *    If direct access or binary search cannot be used, then a linear search
- *    is used.
- *
- *    Note that the value_string array used with VALUE_STRING_EXT_INIT
- *     *must* be terminated with {0, NULL}).
- *
- *    Extended value strings are defined at compile time as follows:
- *      static const value_string vs[] = { {value1, "string1"}, {value2, "string2"}, ..., {0, NULL}};
- *      static value_string_ext vse = VALUE_STRING_EXT_INIT(vs);
- *
- *    Extended value strings can be created at runtime by calling
- *      value_string_ext_new(<ptr to value_string array>,
- *                           <total number of entries in the value_string_array>,
- *                           <value_string_name>);
- *      Note: <total number of entries in the value_string_array> should include the {0, NULL} entry
- */
-/* --------------------------------------------------------------------*/
+#define _VS_ARRAY_SC_XXX(array_name, macro, sc)  \
+    _VS_ARRAY_SC_TYPE_NAME(array_name, sc) = { \
+    array_name##_VALUE_STRING_LIST(macro) \
+    { 0, NULL } \
+}
+
+#define _VS_ARRAY_XXX(array_name, macro)  \
+    _VS_ARRAY_TYPE_NAME(array_name) = { \
+    array_name##_VALUE_STRING_LIST(macro) \
+    { 0, NULL } \
+}
+
+#define _VS_ARRAY_SC_TYPE_NAME(array_name, sc) sc const value_string array_name[]
+#define _VS_ARRAY_TYPE_NAME(array_name) const value_string array_name[]
+
+#define _VS_ENUM_ENTRY( name, value, string) name = value,
+#define _VS_ARRAY_ENTRY(name, value, string) { value, string },
+
+#define _VS_ENUM_ENTRY2( name, value) name = value,
+#define _VS_ARRAY_ENTRY2(name, value) { value, #name },
+/* ----- ----- */
+
+WS_DLL_PUBLIC
+const gchar *
+val_to_str(const guint32 val, const value_string *vs, const char *fmt)
+G_GNUC_PRINTF(3, 0);
+
+WS_DLL_PUBLIC
+const gchar *
+val_to_str_const(const guint32 val, const value_string *vs, const char *unknown_str);
+
+WS_DLL_PUBLIC
+const gchar *
+try_val_to_str(const guint32 val, const value_string *vs);
+
+WS_DLL_PUBLIC
+const gchar *
+try_val_to_str_idx(const guint32 val, const value_string *vs, gint *idx);
+
+/* 64-BIT VALUE TO STRING MATCHING */
+
+typedef struct _val64_string {
+    guint64      value;
+    const gchar *strptr;
+} val64_string;
+
+WS_DLL_PUBLIC
+const gchar *
+val64_to_str(const guint64 val, const val64_string *vs, const char *fmt)
+G_GNUC_PRINTF(3, 0);
+
+WS_DLL_PUBLIC
+const gchar *
+val64_to_str_const(const guint64 val, const val64_string *vs, const char *unknown_str);
+
+WS_DLL_PUBLIC
+const gchar *
+try_val64_to_str(const guint64 val, const val64_string *vs);
+
+WS_DLL_PUBLIC
+const gchar *
+try_val64_to_str_idx(const guint64 val, const val64_string *vs, gint *idx);
+
+/* STRING TO VALUE MATCHING */
+
+WS_DLL_PUBLIC
+guint32
+str_to_val(const gchar *val, const value_string *vs, const guint32 err_val);
+
+WS_DLL_PUBLIC
+gint
+str_to_val_idx(const gchar *val, const value_string *vs);
+
+/* EXTENDED VALUE TO STRING MATCHING */
+
 struct _value_string_ext;
 typedef const value_string *(*_value_string_match2_t)(const guint32, const struct _value_string_ext *);
 
 typedef struct _value_string_ext {
-  _value_string_match2_t _vs_match2;
-  guint32 _vs_first_value;    /* first value of the value_string array       */
-  guint   _vs_num_entries;    /* number of entries in the value_string array */
-                              /*  (excluding final {0, NULL})                */
-  const value_string *_vs_p;  /* the value string array address              */
-  const gchar *_vs_name;      /* vse "Name" (for error messages)             */
+    _value_string_match2_t _vs_match2;
+    guint32                _vs_first_value; /* first value of the value_string array       */
+    guint                  _vs_num_entries; /* number of entries in the value_string array */
+                                            /*  (excluding final {0, NULL})                */
+    const value_string    *_vs_p;           /* the value string array address              */
+    const gchar           *_vs_name;        /* vse "Name" (for error messages)             */
 } value_string_ext;
 
-/* "Accessors" */
-#define VALUE_STRING_EXT_VS_P(x) (x)->_vs_p
+#define VALUE_STRING_EXT_VS_P(x)           (x)->_vs_p
 #define VALUE_STRING_EXT_VS_NUM_ENTRIES(x) (x)->_vs_num_entries
-#define VALUE_STRING_EXT_VS_NAME(x) (x)->_vs_name
+#define VALUE_STRING_EXT_VS_NAME(x)        (x)->_vs_name
 
-/* (Fcns for use by proto_registrar_dump_values() [See proto.c]) */
-gboolean value_string_ext_validate(const value_string_ext *vse);
-const gchar *value_string_ext_match_type_str(const value_string_ext *vse);
-/* --- --- */
+WS_DLL_PUBLIC
+const value_string *
+_try_val_to_str_ext_init(const guint32 val, const value_string_ext *vse);
+#define VALUE_STRING_EXT_INIT(x) { _try_val_to_str_ext_init, 0, G_N_ELEMENTS(x)-1, x, #x }
 
-WS_DLL_PUBLIC const value_string *_match_strval_ext_init(const guint32 val, const value_string_ext *vse);
-#define VALUE_STRING_EXT_INIT(x) { _match_strval_ext_init, 0, array_length(x)-1, x, #x }
+WS_DLL_PUBLIC
+const value_string_ext *
+value_string_ext_new(const value_string *vs, guint vs_tot_num_entries, const gchar *vs_name);
 
-/* Create a value_string_ext given a ptr to a value_string array and the total number of entries. */
-/* Note: vs_tot_num_entries should include the required {0, NULL} terminating entry of the array. */
-/* Return: a pointer to a gmalloc'd and initialized value_string_ext struct.                      */
-extern value_string_ext *value_string_ext_new(value_string *vs, guint vs_tot_num_entries, const gchar *vs_name);
+WS_DLL_PUBLIC
+void
+value_string_ext_free(const value_string_ext *vse);
 
-/* Looks up val in a value_string array using access method (direct, binary search
- *  or linear) determined at rutime during the initial access); (see _match_strval_ext_init)
- * Returns the associated string ptr on a match or NULL on failure.
- */
-WS_DLL_PUBLIC const gchar* match_strval_ext(const guint32 val, const value_string_ext *vse);
+WS_DLL_PUBLIC
+const gchar *
+val_to_str_ext(const guint32 val, const value_string_ext *vs, const char *fmt)
+G_GNUC_PRINTF(3, 0);
 
-/* Tries to match val against each element in the value_string array vs.
- *  Returns the associated string ptr, and sets "*idx" to the index in
- *  that table, on a match, and returns NULL, and sets "*idx" to -1,
- *  on failure.
- */
-const gchar* match_strval_idx_ext(const guint32 val, value_string_ext *vse, gint *idx);
+WS_DLL_PUBLIC
+const gchar *
+val_to_str_ext_const(const guint32 val, const value_string_ext *vs, const char *unknown_str);
 
-/*
- Similar to match_strval_ext except that on failure
- * Formats val with fmt, and returns the resulting string
- */
-WS_DLL_PUBLIC const gchar* val_to_str_ext(const guint32 val, const value_string_ext *vs, const char *fmt);
+WS_DLL_PUBLIC
+const gchar *
+try_val_to_str_ext(const guint32 val, const value_string_ext *vse);
 
-/*
- Similar to match_strval_ext except that on failure
- *  Returns 'unknown_str'
- */
-WS_DLL_PUBLIC const gchar* val_to_str_ext_const(const guint32 val, const value_string_ext *vs, const char *unknown_str);
+WS_DLL_PUBLIC
+const gchar *
+try_val_to_str_idx_ext(const guint32 val, const value_string_ext *vse, gint *idx);
 
-/* ---- ---- */
+/* STRING TO STRING MATCHING */
 
-/* Generate a string describing an enumerated bitfield (an N-bit field
-   with various specific values having particular names). */
-WS_DLL_PUBLIC const char *decode_enumerated_bitfield(const guint32 val, const guint32 mask,
-  const int width, const value_string *tab, const char *fmt);
+typedef struct _string_string {
+    const gchar *value;
+    const gchar *strptr;
+} string_string;
 
-/* Generate a string describing an enumerated bitfield (an N-bit field
-   with various specific values having particular names). */
-WS_DLL_PUBLIC const char *decode_enumerated_bitfield_shifted(const guint32 val, const guint32 mask,
-  const int width, const value_string *tab, const char *fmt);
+WS_DLL_PUBLIC
+const gchar *
+str_to_str(const gchar *val, const string_string *vs, const char *fmt)
+G_GNUC_PRINTF(3, 0);
 
+WS_DLL_PUBLIC
+const gchar *
+try_str_to_str(const gchar *val, const string_string *vs);
 
-/* ranges aware versions */
+WS_DLL_PUBLIC
+const gchar *
+try_str_to_str_idx(const gchar *val, const string_string *vs, gint *idx);
 
-/* Tries to match val against each range in the range_string array rs.
-   Returns the associated string ptr on a match.
-   Formats val with fmt, and returns the resulting string, on failure. */
-WS_DLL_PUBLIC const gchar* rval_to_str(const guint32 val, const range_string *rs, const char *fmt);
+/* RANGE TO STRING MATCHING */
 
-/* Tries to match val against each range in the range_string array rs.
-   Returns the associated string ptr, and sets "*idx" to the index in
-   that table, on a match, and returns NULL, and sets "*idx" to -1,
-   on failure. */
-WS_DLL_PUBLIC const gchar *match_strrval_idx(const guint32 val, const range_string *rs, gint *idx);
+typedef struct _range_string {
+    guint32      value_min;
+    guint32      value_max;
+    const gchar *strptr;
+} range_string;
 
-/* Like match_strrval_idx(), but doesn't return the index. */
-WS_DLL_PUBLIC const gchar *match_strrval(const guint32 val, const range_string *rs);
+WS_DLL_PUBLIC
+const gchar *
+rval_to_str(const guint32 val, const range_string *rs, const char *fmt)
+G_GNUC_PRINTF(3, 0);
+
+WS_DLL_PUBLIC
+const gchar *
+rval_to_str_const(const guint32 val, const range_string *rs, const char *unknown_str);
+
+WS_DLL_PUBLIC
+const gchar *
+try_rval_to_str(const guint32 val, const range_string *rs);
+
+WS_DLL_PUBLIC
+const gchar *
+try_rval_to_str_idx(const guint32 val, const range_string *rs, gint *idx);
+
+/* MISC (generally do not use) */
+
+WS_DLL_LOCAL
+gboolean
+value_string_ext_validate(const value_string_ext *vse);
+
+WS_DLL_LOCAL
+const gchar *
+value_string_ext_match_type_str(const value_string_ext *vse);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* __VALUE_STRING_H__ */
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

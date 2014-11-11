@@ -1,7 +1,5 @@
 /* font_color_preferences_frame.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,7 +29,7 @@
 
 #include <epan/prefs-int.h>
 
-static const char *font_pangrams_[] = {
+static const char *font_pangrams_[] = { //TODO : Fix translate
   "Example GIF query packets have jumbo window sizes",
   "Lazy badgers move unique waxy jellyfish packets"
 };
@@ -52,6 +50,9 @@ FontColorPreferencesFrame::FontColorPreferencesFrame(QWidget *parent) :
     pref_client_bg_ = prefFromPrefPtr(&prefs.st_client_bg);
     pref_server_fg_ = prefFromPrefPtr(&prefs.st_server_fg);
     pref_server_bg_ = prefFromPrefPtr(&prefs.st_server_bg);
+    pref_valid_bg_ = prefFromPrefPtr(&prefs.gui_text_valid);
+    pref_invalid_bg_ = prefFromPrefPtr(&prefs.gui_text_invalid);
+    pref_deprecated_bg_ = prefFromPrefPtr(&prefs.gui_text_deprecated);
 
     cur_font_.fromString(pref_qt_gui_font_name_->stashed_val.string);
 
@@ -80,9 +81,15 @@ void FontColorPreferencesFrame::updateWidgets()
 {
     int margin = style()->pixelMetric(QStyle::PM_LayoutLeftMargin);
 
+#if QT_VERSION < QT_VERSION_CHECK(4, 8, 0)
     ui->fontPushButton->setText(
-                cur_font_.family() + " "/* + cur_font_.styleName() + " "*/ +
+                cur_font_.family() + " " +
                 QString::number(cur_font_.pointSizeF(), 'f', 1));
+#else
+    ui->fontPushButton->setText(
+                cur_font_.family() + " " + cur_font_.styleName() + " " +
+                QString::number(cur_font_.pointSizeF(), 'f', 1));
+#endif
     ui->fontSampleLineEdit->setFont(cur_font_);
 
     QString line_edit_ss = QString("QLineEdit { margin-left: %1px; }").arg(margin);
@@ -143,6 +150,25 @@ void FontColorPreferencesFrame::updateWidgets()
                                                 ColorUtils::fromColorT(&pref_server_fg_->stashed_val.color).name(),
                                                 ColorUtils::fromColorT(&pref_server_bg_->stashed_val.color).name()));
     ui->serverSampleLineEdit->setFont(cur_font_);
+
+    ui->validFilterBGPushButton->setStyleSheet(color_button_ss.arg(
+                                                   ColorUtils::fromColorT(&pref_valid_bg_->stashed_val.color).name())
+                                               .arg(0));
+    ui->validFilterSampleLineEdit->setStyleSheet(sample_text_ss.arg(
+                                                     "palette(text)",
+                                                     ColorUtils::fromColorT(&pref_valid_bg_->stashed_val.color).name()));
+    ui->invalidFilterBGPushButton->setStyleSheet(color_button_ss.arg(
+                                                     ColorUtils::fromColorT(&pref_invalid_bg_->stashed_val.color).name())
+                                                 .arg(0));
+    ui->invalidFilterSampleLineEdit->setStyleSheet(sample_text_ss.arg(
+                                                       "palette(text)",
+                                                       ColorUtils::fromColorT(&pref_invalid_bg_->stashed_val.color).name()));
+    ui->deprecatedFilterBGPushButton->setStyleSheet(color_button_ss.arg(
+                                                        ColorUtils::fromColorT(&pref_deprecated_bg_->stashed_val.color).name())
+                                                    .arg(0));
+    ui->deprecatedFilterSampleLineEdit->setStyleSheet(sample_text_ss.arg(
+                                                          "palette(text)",
+                                                          ColorUtils::fromColorT(&pref_deprecated_bg_->stashed_val.color).name()));
 }
 
 void FontColorPreferencesFrame::changeColor(pref_t *pref)
@@ -163,11 +189,10 @@ void FontColorPreferencesFrame::changeColor(pref_t *pref)
     }
 }
 
-#include <QDebug>
 void FontColorPreferencesFrame::on_fontPushButton_clicked()
 {
     bool ok;
-    QFont new_font = QFontDialog::getFont(&ok, cur_font_, this, "Wireshark: Font");
+    QFont new_font = QFontDialog::getFont(&ok, cur_font_, this, tr("Wireshark: Font"));
     if (ok) {
         g_free(pref_qt_gui_font_name_->stashed_val.string);
         pref_qt_gui_font_name_->stashed_val.string = g_strdup(new_font.toString().toUtf8().constData());
@@ -214,6 +239,21 @@ void FontColorPreferencesFrame::on_serverFGPushButton_clicked()
 void FontColorPreferencesFrame::on_serverBGPushButton_clicked()
 {
     changeColor(pref_server_bg_);
+}
+
+void FontColorPreferencesFrame::on_validFilterBGPushButton_clicked()
+{
+    changeColor(pref_valid_bg_);
+}
+
+void FontColorPreferencesFrame::on_invalidFilterBGPushButton_clicked()
+{
+    changeColor(pref_invalid_bg_);
+}
+
+void FontColorPreferencesFrame::on_deprecatedFilterBGPushButton_clicked()
+{
+    changeColor(pref_deprecated_bg_);
 }
 
 /*

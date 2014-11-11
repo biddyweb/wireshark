@@ -1,8 +1,6 @@
 /*
  *  packet-h248_2.c
  *
- * $Id$
- *
  *  H.248.2
  *  Gateway control protocol: Facsimile, text conversation and call discrimination packages
  *
@@ -31,6 +29,9 @@
 #include "config.h"
 
 #include "packet-h248.h"
+
+void proto_register_h248_dot2(void);
+
 #define PNAME  "H.248.2"
 #define PSNAME "H248_2"
 #define PFNAME "h248.2"
@@ -102,7 +103,7 @@ static h248_pkg_evt_t h248_pkg_generic_cause_evts[] = {
 
 
 /* Call Type Discrimination Package */
-static const h248_package_t h248_pkg_ctype = {
+static h248_package_t h248_pkg_ctype = {
 	0x0011,						/* Id */
 	&proto_h248_2,				/* hfid */
 	&ett_h248_2,				/* ett */

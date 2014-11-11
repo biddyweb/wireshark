@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-h323.h                                                              */
 /* ../../tools/asn2wrs.py -p h323 -c ./h323.cnf -s ./packet-h323-template -D . -O ../../epan/dissectors RAS-PROTOCOL-TUNNEL.asn ROBUSTNESS-DATA.asn */
 
@@ -9,8 +9,6 @@
 /* packet-h323.h
  * Routines for H.235 packet dissection
  * 2007  Tomas Kukosa
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -41,7 +39,7 @@
 typedef struct _gef_ctx_t {
   guint32 signature;
   struct _gef_ctx_t *parent;
-  /* 
+  /*
     H323-MESSAGES
       FeatureDescriptor/<id>
         <id>

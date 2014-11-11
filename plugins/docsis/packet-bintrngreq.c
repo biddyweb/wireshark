@@ -2,8 +2,6 @@
  * Routines for DOCSIS 3.0 Bonded Intial Ranging Request Message dissection.
  * Copyright 2009, Geoffrey Kimball <gekimbal[AT]cisco.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,9 @@
 #include "config.h"
 
 #include <epan/packet.h>
+
+void proto_register_docsis_bintrngreq(void);
+void proto_reg_handoff_docsis_bintrngreq(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_docsis_bintrngreq = -1;
@@ -50,7 +51,6 @@ dissect_bintrngreq (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 
   md_ds_sg_id = tvb_get_ntohs (tvb, 0);
 
-  col_clear (pinfo->cinfo, COL_INFO);
   col_add_fstr (pinfo->cinfo, COL_INFO, "Bonded Ranging Request: MD-DS-SG-ID = %u (0x%X)",
 					md_ds_sg_id, md_ds_sg_id );
 

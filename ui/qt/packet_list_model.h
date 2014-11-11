@@ -1,7 +1,5 @@
 /* packet_list_model.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -49,6 +47,7 @@ public:
     QModelIndex index(int row, int column,
                       const QModelIndex &parent = QModelIndex()) const;
     QModelIndex parent(const QModelIndex &index) const;
+    int packetNumberToRow(int packet_num) const;
     guint recreateVisibleRows();
     void setColorEnabled(bool enable_color);
     void clear();
@@ -62,6 +61,7 @@ public:
     gint appendPacket(frame_data *fdata);
     frame_data *getRowFdata(int row);
     int visibleIndexOf(frame_data *fdata) const;
+    void resetColumns();
 
 signals:
 
@@ -72,6 +72,7 @@ private:
     QList<QString> col_names_;
     QVector<PacketListRecord *> visible_rows_;
     QVector<PacketListRecord *> physical_rows_;
+    QMap<int, int> number_to_row_;
     QFont pl_font_;
 
     int header_height_;

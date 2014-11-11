@@ -1,7 +1,5 @@
 /* label_stack.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,7 +34,7 @@ const int num_flashes_ = 3;
 LabelStack::LabelStack(QWidget *parent) :
     QLabel(parent)
 {
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     setAttribute(Qt::WA_MacSmallSize, true);
 #endif
     temporary_ctx_ = -1;
@@ -45,7 +43,7 @@ LabelStack::LabelStack(QWidget *parent) :
     connect(&temporary_timer_, SIGNAL(timeout()), this, SLOT(updateTemporaryStatus()));
 }
 
-void LabelStack::setTemporaryContext(int ctx) {
+void LabelStack::setTemporaryContext(const int ctx) {
     temporary_ctx_ = ctx;
 }
 

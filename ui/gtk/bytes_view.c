@@ -1,7 +1,5 @@
 /* bytes_view.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,8 +34,7 @@
 
 #include <string.h>
 
-#include "../isprint.h"
-
+#include <epan/wmem/wmem.h>
 #include <epan/charsets.h>
 #include <epan/packet.h>
 #include <epan/prefs.h>
@@ -77,9 +74,9 @@ struct _BytesView
 	bytes_view_type format;		/* bytes in hex or bytes as bits */
 	guint8 *pd;			/* packet data */
 	int len;			/* length of packet data in bytes */
-/* data-highlight */
-	int start[2];
-	int end[2];
+/* data-highlight (field, appendix, protocol) */
+	int start[3];
+	int end[3];
 
 	int per_line;			/* number of bytes shown per line */
 	int use_digits;			/* number of hex digits of byte offset */
@@ -101,6 +98,9 @@ static void bytes_view_adjustment_set(BytesView *);
 static void
 bytes_view_init(BytesView *bv)
 {
+#ifdef WANT_PACKET_EDITOR
+	gtk_widget_set_can_focus(GTK_WIDGET(bv), TRUE);
+#endif
 	bv->context = NULL;
 
 	bv->encoding = PACKET_CHAR_ENC_CHAR_ASCII;
@@ -224,7 +224,11 @@ bytes_view_realize(GtkWidget *widget)
 
 	gtk_widget_set_window(widget, win);
 
+#if GTK_CHECK_VERSION(3, 8, 0)
+	gtk_widget_register_window(widget, win);
+#else
 	gdk_window_set_user_data(win, widget);
+#endif
 
 #if !GTK_CHECK_VERSION(3, 0, 0)	/* XXX, check */
 	gdk_window_set_back_pixmap(win, NULL, FALSE);
@@ -253,7 +257,9 @@ bytes_view_unrealize(GtkWidget *widget)
 		bv->context = NULL;
 	}
 	/* if there are still events in the queue, this'll avoid segfault */
+#if !GTK_CHECK_VERSION(3, 8, 0)
 	gdk_window_set_user_data(gtk_widget_get_window(widget), NULL);
+#endif
 
 	if (parent_class->unrealize)
 		(*GTK_WIDGET_CLASS(parent_class)->unrealize)(widget);
@@ -467,12 +473,12 @@ bytes_view_flush_render(BytesView *bv, void *data, int x, int y, const char *str
 	context = gtk_widget_get_style_context(GTK_WIDGET(bv));
 #endif
 
-	if (bv->state == GTK_STATE_SELECTED) {
+	if (bv->state == GTK_STATE_SELECTED || bv->state == GTK_STATE_INSENSITIVE) {
 		str_width = _pango_runs_width(line_runs);
 
 		/* background */
 #if GTK_CHECK_VERSION(3, 0, 0)
-		gtk_style_context_get_background_color(context, GTK_STATE_FLAG_FOCUSED | GTK_STATE_FLAG_SELECTED, &bg_color);
+		gtk_style_context_get_background_color(context, (GtkStateFlags)( (bv->state == GTK_STATE_SELECTED ? GTK_STATE_FLAG_FOCUSED : 0) | GTK_STATE_FLAG_SELECTED), &bg_color);
 		gdk_cairo_set_source_rgba(cr, &bg_color);
 #else
 		gdk_cairo_set_source_color(cr, &gtk_widget_get_style(GTK_WIDGET(bv))->base[bv->state]);
@@ -483,7 +489,7 @@ bytes_view_flush_render(BytesView *bv, void *data, int x, int y, const char *str
 
 	/* text */
 #if GTK_CHECK_VERSION(3, 0, 0)
-	gtk_style_context_get_color(context, GTK_STATE_FLAG_FOCUSED | (bv->state == GTK_STATE_SELECTED ? GTK_STATE_FLAG_SELECTED : GTK_STATE_FLAG_NORMAL), &fg_color);
+	gtk_style_context_get_color(context, (GtkStateFlags)(GTK_STATE_FLAG_FOCUSED | (bv->state == GTK_STATE_SELECTED ? GTK_STATE_FLAG_SELECTED : GTK_STATE_FLAG_NORMAL)), &fg_color);
 	gdk_cairo_set_source_rgba(cr, &fg_color);
 #else
 	gdk_cairo_set_source_color(cr, &gtk_widget_get_style(GTK_WIDGET(bv))->text[bv->state]);
@@ -558,7 +564,7 @@ bytes_view_flush_pos(BytesView *bv, void *data, int x, int search_x, const char 
 static void
 bytes_view_render_state(BytesView *bv, int state)
 {
-	g_assert(state == GTK_STATE_NORMAL || state == GTK_STATE_SELECTED);
+	g_assert(state == GTK_STATE_NORMAL || state == GTK_STATE_SELECTED || state == GTK_STATE_INSENSITIVE);
 
 	if (bv->bold_highlight) {
 		pango_font_description_set_weight(bv->font,
@@ -615,11 +621,21 @@ _bytes_view_line_common(BytesView *bv, void *data, const int org_off, int xx, in
 		gboolean byte_highlighted =
 			(off >= bv->start[0] && off < bv->end[0]) ||
 			(off >= bv->start[1] && off < bv->end[1]);
+		gboolean proto_byte_highlighted =
+			(off >= bv->start[2] && off < bv->end[2]);
+
 		int state_cur = (off < len && byte_highlighted) ?
-				GTK_STATE_SELECTED : GTK_STATE_NORMAL;
+				GTK_STATE_SELECTED :
+				(off < len && proto_byte_highlighted) ?
+				GTK_STATE_INSENSITIVE :
+				GTK_STATE_NORMAL;
 
 		if (state_cur != state) {
-			if (state == GTK_STATE_NORMAL && byten) {
+			/* ok, we want to put space, we prefer to put it in STATE_NORMAL or STATE_INSENSITIVE */
+			int space_now = (state_cur != GTK_STATE_NORMAL && state_cur != GTK_STATE_INSENSITIVE)
+				|| state == GTK_STATE_NORMAL;
+
+			if (space_now && byten) {
 				str[cur++] = ' ';
 				/* insert a space every BYTE_VIEW_SEP bytes */
 				if ((off % BYTE_VIEW_SEP) == 0)
@@ -633,7 +649,7 @@ _bytes_view_line_common(BytesView *bv, void *data, const int org_off, int xx, in
 			bytes_view_render_state(bv, state_cur);
 			state = state_cur;
 
-			if (state == GTK_STATE_NORMAL && byten) {
+			if (!space_now && byten) {
 				str[cur++] = ' ';
 				/* insert a space every BYTE_VIEW_SEP bytes */
 				if ((off % BYTE_VIEW_SEP) == 0)
@@ -691,11 +707,20 @@ _bytes_view_line_common(BytesView *bv, void *data, const int org_off, int xx, in
 		gboolean byte_highlighted =
 			(off >= bv->start[0] && off < bv->end[0]) ||
 			(off >= bv->start[1] && off < bv->end[1]);
+		gboolean proto_byte_highlighted =
+			(off >= bv->start[2] && off < bv->end[2]);
+
 		int state_cur = (off < len && byte_highlighted) ?
-				GTK_STATE_SELECTED : GTK_STATE_NORMAL;
+				GTK_STATE_SELECTED :
+				(off < len && proto_byte_highlighted) ?
+				GTK_STATE_INSENSITIVE :
+				GTK_STATE_NORMAL;
 
 		if (state_cur != state) {
-			if (state == GTK_STATE_NORMAL && byten) {
+			int space_now = (state_cur != GTK_STATE_NORMAL && state_cur != GTK_STATE_INSENSITIVE)
+				|| state == GTK_STATE_NORMAL;
+
+			if (space_now && byten) {
 				/* insert a space every BYTE_VIEW_SEP bytes */
 				if ((off % BYTE_VIEW_SEP) == 0)
 					str[cur++] = ' ';
@@ -708,7 +733,7 @@ _bytes_view_line_common(BytesView *bv, void *data, const int org_off, int xx, in
 			bytes_view_render_state(bv, state_cur);
 			state = state_cur;
 
-			if (state == GTK_STATE_NORMAL && byten) {
+			if (!space_now && byten) {
 				/* insert a space every BYTE_VIEW_SEP bytes */
 				if ((off % BYTE_VIEW_SEP) == 0)
 					str[cur++] = ' ';
@@ -725,7 +750,7 @@ _bytes_view_line_common(BytesView *bv, void *data, const int org_off, int xx, in
 				EBCDIC_to_ASCII1(pd[off]) :
 				pd[off];
 
-			str[cur++] = isprint(c) ? c : '.';
+			str[cur++] = g_ascii_isprint(c) ? c : '.';
 		} else
 			str[cur++] = ' ';
 
@@ -813,7 +838,7 @@ bytes_view_render(BytesView *bv, cairo_t *cr, GdkRectangle *area)
 	/* clear */
 #if GTK_CHECK_VERSION(3, 0, 0)
 	context = gtk_widget_get_style_context(GTK_WIDGET(bv));
-	gtk_style_context_get_background_color(context, GTK_STATE_FLAG_FOCUSED | GTK_STATE_FLAG_NORMAL, &bg_color);
+	gtk_style_context_get_background_color(context, (GtkStateFlags)(GTK_STATE_FLAG_FOCUSED | GTK_STATE_FLAG_NORMAL), &bg_color);
 	gdk_cairo_set_source_rgba(cr, &bg_color);
 #else
 	gdk_cairo_set_source_color(cr, &gtk_widget_get_style(GTK_WIDGET(bv))->base[GTK_STATE_NORMAL]);
@@ -1069,11 +1094,11 @@ bytes_view_set_property(GObject *object, guint prop_id, const GValue *value, GPa
 
 	switch (prop_id) {
 		case PROP_HADJUSTMENT:
-			bytes_view_set_scroll_adjustments(bv, g_value_get_object(value), bv->vadj);
+			bytes_view_set_scroll_adjustments(bv, (GtkAdjustment *)g_value_get_object(value), bv->vadj);
 			break;
 
 		case PROP_VADJUSTMENT:
-			bytes_view_set_scroll_adjustments(bv, bv->hadj, g_value_get_object(value));
+			bytes_view_set_scroll_adjustments(bv, bv->hadj, (GtkAdjustment *)g_value_get_object(value));
 			break;
 
 		case PROP_HSCROLL_POLICY:
@@ -1212,7 +1237,7 @@ bytes_view_class_init(BytesViewClass *klass)
 	widget_class->set_scroll_adjustments_signal =
 		g_signal_new(g_intern_static_string("set-scroll-adjustments"),
 			G_OBJECT_CLASS_TYPE(object_class),
-			G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
+			(GSignalFlags)(G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION),
 			G_STRUCT_OFFSET(BytesViewClass, set_scroll_adjustments),
 			NULL, NULL,
 			bv_VOID__OBJECT_OBJECT,
@@ -1357,6 +1382,11 @@ bytes_view_set_font(BytesView *bv, PangoFontDescription *font)
 	if (bv->font)
 		pango_font_description_free(bv->font);
 
+#if GTK_CHECK_VERSION(3, 0, 0)
+	gtk_widget_override_font(GTK_WIDGET(bv), font);
+#else
+	gtk_widget_modify_font(GTK_WIDGET(bv), font);
+#endif
 	bv->font = pango_font_description_copy(font);
 	bv->max_width = 0;
 
@@ -1400,7 +1430,7 @@ bytes_view_set_encoding(BytesView *bv, int enc)
 {
 	g_assert(enc == PACKET_CHAR_ENC_CHAR_ASCII || enc == PACKET_CHAR_ENC_CHAR_EBCDIC);
 
-	bv->encoding = enc;
+	bv->encoding = (packet_char_enc)enc;
 }
 
 void
@@ -1408,7 +1438,7 @@ bytes_view_set_format(BytesView *bv, int format)
 {
 	g_assert(format == BYTES_HEX || format == BYTES_BITS);
 
-	bv->format = format;
+	bv->format = (bytes_view_type)format;
 
 	switch (format) {
 		case BYTES_BITS:
@@ -1435,10 +1465,10 @@ bytes_view_set_highlight(BytesView *bv, int start, int end, guint32 mask _U_, in
 }
 
 void
-bytes_view_set_highlight_appendix(BytesView *bv, int start, int end)
+bytes_view_set_highlight_extra(BytesView *bv, int id, int start, int end)
 {
-	bv->start[1] = start;
-	bv->end[1] = end;
+	bv->start[id] = start;
+	bv->end[id] = end;
 }
 
 void

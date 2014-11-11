@@ -1,8 +1,6 @@
 /* fileset_dlg.c
  * Routines for the file set dialog
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,9 +31,8 @@
 #include <gtk/gtk.h>
 
 #include "file.h"
-#include <epan/filesystem.h>
+#include <wsutil/filesystem.h>
 
-#include "ui/simple_dialog.h"
 #include "../fileset.h"
 
 #include "ui/gtk/gui_utils.h"
@@ -80,7 +77,7 @@ fs_open_entry(fileset_entry *entry)
 
     /* close the old and open the new file */
     cf_close(&cfile);
-    if (cf_open(&cfile, fname, FALSE, &err) == CF_OK) {
+    if (cf_open(&cfile, fname, WTAP_TYPE_AUTO, FALSE, &err) == CF_OK) {
         cf_read(&cfile, FALSE);
     }
 
@@ -186,22 +183,22 @@ fileset_dlg_add_file(fileset_entry *entry, void *window _U_) {
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON (fs_rb), entry->current);
     }
     gtk_widget_set_tooltip_text(fs_rb, "Open this capture file");
-    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_rb, 0, row, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_rb, 0, row, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     g_signal_connect(fs_rb, "toggled", G_CALLBACK(fs_rb_cb), entry);
     gtk_widget_show(fs_rb);
 
     fs_lb = gtk_label_new(created);
-    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_lb, 1, row, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_lb, 1, row, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_sensitive(fs_lb, entry->current);
     gtk_widget_show(fs_lb);
 
     fs_lb = gtk_label_new(modified);
-    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_lb, 2, row, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_lb, 2, row, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_sensitive(fs_lb, entry->current);
     gtk_widget_show(fs_lb);
 
     fs_lb = gtk_label_new(size);
-    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_lb, 3, row, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_lb, 3, row, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_sensitive(fs_lb, entry->current);
     gtk_widget_show(fs_lb);
 
@@ -257,16 +254,16 @@ fileset_init_table(GtkWidget *parent_vb)
     fs_first_rb = NULL;
 
     fs_lb = gtk_label_new("Filename");
-    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_lb, 0, row, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_lb, 0, row, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
 
     fs_lb = gtk_label_new("Created");
-    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_lb, 1, row, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_lb, 1, row, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
 
     fs_lb = gtk_label_new("Last Modified");
-    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_lb, 2, row, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_lb, 2, row, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
 
     fs_lb = gtk_label_new("Size");
-    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_lb, 3, row, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+    ws_gtk_grid_attach_extended(GTK_GRID(fs_grid), fs_lb, 3, row, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
 
     gtk_widget_hide(fs_grid);
 

@@ -3,8 +3,6 @@
  * payloads (i.e., payloads when there could be an Ethernet trailer and
  * possibly an FCS).
  *
- * $Id$
- *
  * Gilbert Ramirez <gram@alumni.rice.edu>
  *
  * Wireshark - Network traffic analyzer
@@ -30,9 +28,11 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/etypes.h>
 #include <epan/ppptypes.h>
 #include <epan/show_exception.h>
+#include <epan/decode_as.h>
 #include "packet-bpq.h"
 #include "packet-eth.h"
 #include "packet-ip.h"
@@ -42,9 +42,15 @@
 #include "packet-ieee8021ah.h"
 #include "packet-vines.h"
 
+
+void proto_register_ethertype(void);
+void proto_reg_handoff_ethertype(void);
+
 static dissector_table_t ethertype_dissector_table;
 
 static dissector_handle_t data_handle;
+
+static int proto_ethertype = -1;
 
 const value_string etype_vals[] = {
 	{ ETHERTYPE_IP,                   "IP" },
@@ -52,6 +58,7 @@ const value_string etype_vals[] = {
 	{ ETHERTYPE_VLAN,                 "802.1Q Virtual LAN" },
 	{ ETHERTYPE_ARP,                  "ARP" },
 	{ ETHERTYPE_WLCCP,                "Cisco Wireless Lan Context Control Protocol" },
+	{ ETHERTYPE_MINT,                 "Motorola Media Indepentent Network Transport" },
 	{ ETHERTYPE_CENTRINO_PROMISC,     "IEEE 802.11 (Centrino promiscuous)" },
 	{ ETHERTYPE_XNS_IDP,              "XNS Internet Datagram Protocol" },
 	{ ETHERTYPE_X25L3,                "X.25 Layer 3" },
@@ -175,8 +182,20 @@ const value_string etype_vals[] = {
 	{ ETHERTYPE_WAI,                  "WAI Authentication Protocol" },
 	{ ETHERTYPE_HSR,                  "High-availability Seamless Redundancy (IEC62439 Part 3)" },
 	{ ETHERTYPE_BPQ,                  "AX.25"},
+	{ ETHERTYPE_CMD,                  "CiscoMetaData"},
 	{ 0, NULL }
 };
+
+static void eth_prompt(packet_info *pinfo, gchar* result)
+{
+	g_snprintf(result, MAX_DECODE_AS_PROMPT_LEN, "Ethertype 0x%04x as",
+		GPOINTER_TO_UINT(p_get_proto_data(pinfo->pool, pinfo, proto_ethertype, 0)));
+}
+
+static gpointer eth_value(packet_info *pinfo)
+{
+	return p_get_proto_data(pinfo->pool, pinfo, proto_ethertype, 0);
+}
 
 static void add_dix_trailer(packet_info *pinfo, proto_tree *tree, proto_tree *fh_tree,
 			    int trailer_id, tvbuff_t *tvb, tvbuff_t *next_tvb, int offset_after_etype,
@@ -219,10 +238,14 @@ capture_ethertype(guint16 etype, const guchar *pd, int offset, int len,
 	}
 }
 
+/*
 void
 ethertype(guint16 etype, tvbuff_t *tvb, int offset_after_etype,
 	  packet_info *pinfo, proto_tree *tree, proto_tree *fh_tree,
 	  int etype_id, int trailer_id, int fcs_len)
+*/
+static int
+dissect_ethertype(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 	const char		*description;
 	tvbuff_t		*volatile next_tvb;
@@ -231,18 +254,22 @@ ethertype(guint16 etype, tvbuff_t *tvb, int offset_after_etype,
 	volatile gboolean	dissector_found = FALSE;
 	const char		*volatile saved_proto;
 	void			*pd_save;
+	ethertype_data_t* ethertype_data;
+
+	/* Reject the packet if data is NULL */
+	if (data == NULL)
+		return 0;
+	ethertype_data = (ethertype_data_t*)data;
 
 	/* Add the Ethernet type to the protocol tree */
-	if (tree) {
-		proto_tree_add_uint(fh_tree, etype_id, tvb,
-				    offset_after_etype - 2, 2, etype);
-	}
+	proto_tree_add_uint(ethertype_data->fh_tree, ethertype_data->etype_id, tvb,
+				    ethertype_data->offset_after_ethertype - 2, 2, ethertype_data->etype);
 
 	/* Get the captured length and reported length of the data
 	   after the Ethernet type. */
-	captured_length = tvb_length_remaining(tvb, offset_after_etype);
+	captured_length = tvb_length_remaining(tvb, ethertype_data->offset_after_ethertype);
 	reported_length = tvb_reported_length_remaining(tvb,
-							offset_after_etype);
+							ethertype_data->offset_after_ethertype);
 
 	/* Remember how much data there is after the Ethernet type,
 	   including any trailer and FCS. */
@@ -253,18 +280,18 @@ ethertype(guint16 etype, tvbuff_t *tvb, int offset_after_etype,
 	   (If it's zero, there's no FCS; if it's negative,
 	   we don't know whether there's an FCS, so we'll
 	   guess based on the length of the trailer.) */
-	if (fcs_len > 0) {
+	if (ethertype_data->fcs_len > 0) {
 		if (captured_length >= 0 && reported_length >= 0) {
-			if (reported_length >= fcs_len)
-				reported_length -= fcs_len;
+			if (reported_length >= ethertype_data->fcs_len)
+				reported_length -= ethertype_data->fcs_len;
 			if (captured_length > reported_length)
 				captured_length = reported_length;
 		}
 	}
-	next_tvb = tvb_new_subset(tvb, offset_after_etype, captured_length,
+	next_tvb = tvb_new_subset(tvb, ethertype_data->offset_after_ethertype, captured_length,
 				  reported_length);
 
-	pinfo->ethertype = etype;
+	p_add_proto_data(pinfo->pool, pinfo, proto_ethertype, 0, GUINT_TO_POINTER((guint)ethertype_data->etype));
 
 	/* Look for sub-dissector, and call it if found.
 	   Catch exceptions, so that if the reported length of "next_tvb"
@@ -274,7 +301,7 @@ ethertype(guint16 etype, tvbuff_t *tvb, int offset_after_etype,
 	pd_save = pinfo->private_data;
 	TRY {
 		dissector_found = dissector_try_uint(ethertype_dissector_table,
-						     etype, next_tvb, pinfo, tree);
+						     ethertype_data->etype, next_tvb, pinfo, tree);
 	}
 	CATCH_NONFATAL_ERRORS {
 		/* Somebody threw an exception that means that there
@@ -305,16 +332,18 @@ ethertype(guint16 etype, tvbuff_t *tvb, int offset_after_etype,
 		call_dissector(data_handle,next_tvb, pinfo, tree);
 
 		/* Label protocol */
-		col_add_fstr(pinfo->cinfo, COL_PROTOCOL, "0x%04x", etype);
+		col_add_fstr(pinfo->cinfo, COL_PROTOCOL, "0x%04x", ethertype_data->etype);
 
-		description = match_strval(etype, etype_vals);
+		description = try_val_to_str(ethertype_data->etype, etype_vals);
 		if (description) {
 			col_add_str(pinfo->cinfo, COL_INFO, description);
 		}
 	}
 
-	add_dix_trailer(pinfo, tree, fh_tree, trailer_id, tvb, next_tvb, offset_after_etype,
-			length_before, fcs_len);
+	add_dix_trailer(pinfo, tree, ethertype_data->fh_tree, ethertype_data->trailer_id, tvb, next_tvb, ethertype_data->offset_after_ethertype,
+			length_before, ethertype_data->fcs_len);
+
+	return tvb_length(tvb);
 }
 
 static void
@@ -324,9 +353,6 @@ add_dix_trailer(packet_info *pinfo, proto_tree *tree, proto_tree *fh_tree, int t
 {
 	guint		 length;
 	tvbuff_t	*trailer_tvb;
-
-	if (fh_tree == NULL)
-		return;	/* we're not building a protocol tree */
 
 	/* OK, how much is there in that tvbuff now? */
 	length = tvb_reported_length(next_tvb);
@@ -359,9 +385,22 @@ add_dix_trailer(packet_info *pinfo, proto_tree *tree, proto_tree *fh_tree, int t
 void
 proto_register_ethertype(void)
 {
+	/* Decode As handling */
+	static build_valid_func eth_da_build_value[1] = {eth_value};
+	static decode_as_value_t eth_da_values = {eth_prompt, 1, eth_da_build_value};
+	static decode_as_t ethertype_da = {"ethertype", "Link", "ethertype", 1, 0, &eth_da_values, NULL, NULL,
+										decode_as_default_populate_list, decode_as_default_reset, decode_as_default_change, NULL};
+
+
+	proto_ethertype = proto_register_protocol("Ethertype", "Ethertype", "ethertype");
+
+	new_register_dissector("ethertype", dissect_ethertype, proto_ethertype);
+
 	/* subdissector code */
 	ethertype_dissector_table = register_dissector_table("ethertype",
-							     "Ethertype", FT_UINT16, BASE_HEX);
+								"Ethertype", FT_UINT16, BASE_HEX);
+
+	register_decode_as(&ethertype_da);
 }
 
 void

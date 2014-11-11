@@ -2,8 +2,6 @@
  * Routines for RFC2634 Extended Security Services packet dissection
  *   Ronnie Sahlberg 2004
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,6 +36,9 @@
 #define PNAME  "PKIX Time Stamp Protocol"
 #define PSNAME "PKIXTSP"
 #define PFNAME "pkixtsp"
+
+void proto_register_pkixtsp(void);
+void proto_reg_handoff_pkixtsp(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_pkixtsp = -1;

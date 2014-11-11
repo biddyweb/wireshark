@@ -1,8 +1,6 @@
 /* packet-mrdisc.c   2001 Ronnie Sahlberg <See AUTHORS for email>
  * Routines for IGMP/MRDISC packet disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -41,9 +39,12 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
+
 #include "packet-igmp.h"
 #include "packet-mrdisc.h"
 
+void proto_register_mrdisc(void);
 
 static int proto_mrdisc = -1;
 static int hf_checksum = -1;
@@ -204,11 +205,9 @@ dissect_mrdisc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, int o
 
 
 	type = tvb_get_guint8(tvb, offset);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_str(pinfo->cinfo, COL_INFO,
+	col_add_str(pinfo->cinfo, COL_INFO,
 			val_to_str(type, mrdisc_types,
 				"Unknown Type:0x%02x"));
-	}
 
 	/* type of command */
 	proto_tree_add_uint(tree, hf_type, tvb, offset, 1, type);

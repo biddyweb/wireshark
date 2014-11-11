@@ -1,8 +1,6 @@
 /*
  * Copyright 2004, Irene Ruengeler <i.ruengeler [AT] fh-muenster.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,7 +25,8 @@
 
 #include <gtk/gtk.h>
 
-#include "epan/filesystem.h"
+#include "wsutil/filesystem.h"
+#include "epan/to_str.h"
 
 #include "../globals.h"
 #include "../stat_menu.h"
@@ -36,10 +35,12 @@
 #include "ui/gtk/dlg_utils.h"
 #include "ui/gtk/gui_utils.h"
 #include "ui/gtk/main.h"
-#include "ui/gtk/sctp_stat.h"
+#include "ui/tap-sctp-analysis.h"
+#include "ui/gtk/sctp_stat_gtk.h"
 #include "ui/gtk/gtkglobals.h"
 
 #include "ui/gtk/old-gtk-compat.h"
+#include "ui/gtk/stock_icons.h"
 
 static GtkWidget *sctp_stat_dlg = NULL;
 static GtkWidget *clist		= NULL;
@@ -615,7 +616,7 @@ gtk_sctpstat_dlg(void)
 	gtk_widget_show(bt_analyse);
 	gtk_widget_set_sensitive(bt_analyse,FALSE);
 
-	bt_close = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
+	bt_close = ws_gtk_button_new_from_stock(GTK_STOCK_CLOSE);
 	gtk_container_add(GTK_CONTAINER(hbuttonbox2), bt_close);
 	gtk_widget_set_can_default(bt_close, TRUE);
 	window_set_cancel_button(sctp_stat_dlg_w, bt_close, sctp_stat_on_close);
@@ -657,7 +658,7 @@ void sctp_stat_start(GtkAction *action _U_, gpointer user_data _U_)
 {
 	prevent_update = FALSE;
 	filter_applied = FALSE;
-	sctp_assocs = g_malloc(sizeof(sctp_allassocs_info_t));
+	sctp_assocs = (sctp_allassocs_info_t *)g_malloc(sizeof(sctp_allassocs_info_t));
 	sctp_assocs = (sctp_allassocs_info_t*)sctp_stat_get_info();
 	/* Register the tap listener */
 	if (sctp_stat_get_info()->is_registered == FALSE)
@@ -670,10 +671,6 @@ void sctp_stat_start(GtkAction *action _U_, gpointer user_data _U_)
 }
 
 /****************************************************************************/
-void
-register_tap_listener_sctp_stat_dlg(void)
-{
-}
 
 GtkWidget *get_stat_dlg(void)
 {

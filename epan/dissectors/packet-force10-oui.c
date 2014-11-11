@@ -1,7 +1,5 @@
 /* packet-force10-oui.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,6 +25,8 @@
 #include "packet-llc.h"
 #include <epan/oui.h>
 
+void proto_register_force10_oui(void);
+
 static int hf_llc_force10_pid = -1;
 
 static const value_string force10_pid_vals[] = {
@@ -48,6 +48,6 @@ proto_register_force10_oui(void)
 	  }
 	};
 
-	llc_add_oui(OUI_FORCE10, "llc.force10_pid", "FORCE10 OUI PID", hf);
+	llc_add_oui(OUI_FORCE10, "llc.force10_pid", "LLC FORCE10 OUI PID", hf);
 }
 

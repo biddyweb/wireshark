@@ -2,7 +2,6 @@
  * Routines for GENERIC NETWORK INFORMATION MODEL Data dissection
  *
  * Copyright 2005 , Anders Broman <anders.broman [AT] ericsson.com>
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -41,6 +40,9 @@
 #define PSNAME "GNM"
 #define PFNAME "gnm"
 
+void proto_register_gnm(void);
+void proto_reg_handoff_gnm(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_gnm = -1;
 
@@ -64,7 +66,7 @@ dissect_gnm_attribute_ObjectInstance(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 
 }
 
-void
+static void
 dissect_gnm(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_)
 {
   /* Dymmy function */

@@ -4,8 +4,6 @@
  * Creates random packet traces. Useful for debugging sniffers by testing
  * assumptions about the veracity of the data found in the packet.
  *
- * $Id$
- *
  * Copyright (C) 1999 by Gilbert Ramirez <gram@alumni.rice.edu>
  *
  * This program is free software; you can redistribute it and/or
@@ -487,7 +485,7 @@ pkt_example examples[] = {
 
 
 static int parse_type(char *string);
-static void usage(void);
+static void usage(gboolean is_error);
 static void seed(void);
 
 static pkt_example* find_example(int type);
@@ -535,8 +533,10 @@ main(int argc, char **argv)
 				break;
 
 			case 'h':
+				usage(FALSE);
+				break;
 			default:
-				usage();
+				usage(TRUE);
 				break;
 		}
 	}
@@ -546,13 +546,13 @@ main(int argc, char **argv)
 		produce_filename = argv[optind];
 	}
 	else {
-		usage();
+		usage(TRUE);
 	}
 
 	example = find_example(produce_type);
 
 
-	dump = wtap_dump_open(produce_filename, WTAP_FILE_PCAP,
+	dump = wtap_dump_open(produce_filename, WTAP_FILE_TYPE_SUBTYPE_PCAP,
 		example->sample_wtap_encap, produce_max_bytes, FALSE /* compressed */, &err);
 	if (!dump) {
 		fprintf(stderr,
@@ -578,6 +578,8 @@ main(int argc, char **argv)
 	memset(&pkthdr, 0, sizeof(pkthdr));
 	memset(buffer, 0, sizeof(buffer));
 
+	pkthdr.rec_type = REC_TYPE_PACKET;
+	pkthdr.presence_flags = WTAP_HAS_TS;
 	pkthdr.pkt_encap = example->sample_wtap_encap;
 
 	/* Load the sample pseudoheader into our pseudoheader buffer */
@@ -627,24 +629,32 @@ main(int argc, char **argv)
 }
 
 /* Print usage statement and exit program */
-static
-void usage(void)
+static void
+usage(gboolean is_error)
 {
-	int	num_entries = array_length(examples);
-	int	i;
+	FILE 	*output;
+	int	 num_entries = array_length(examples);
+	int	 i;
 
-	printf("Usage: randpkt [-b maxbytes] [-c count] [-t type] filename\n");
-	printf("Default max bytes (per packet) is 5000\n");
-	printf("Default count is 1000.\n");
-	printf("Types:\n");
-
-	for (i = 0; i < num_entries; i++) {
-		printf("\t%s\t%s\n", examples[i].abbrev, examples[i].longname);
+	if (!is_error) {
+		output = stdout;
+	}
+	else {
+		output = stderr;
 	}
 
-	printf("\n");
+	fprintf(output, "Usage: randpkt [-b maxbytes] [-c count] [-t type] filename\n");
+	fprintf(output, "Default max bytes (per packet) is 5000\n");
+	fprintf(output, "Default count is 1000.\n");
+	fprintf(output, "Types:\n");
 
-	exit(0);
+	for (i = 0; i < num_entries; i++) {
+		fprintf(output, "\t%-16s%s\n", examples[i].abbrev, examples[i].longname);
+	}
+
+	fprintf(output, "\n");
+
+	exit(is_error ? 1 : 0);
 }
 
 /* Parse command-line option "type" and return enum type */
@@ -689,7 +699,7 @@ void
 seed(void)
 {
 	unsigned int	randomness;
-	time_t now;
+	time_t		now;
 #ifndef _WIN32
 	int 		fd;
 	ssize_t		ret;
@@ -737,3 +747,16 @@ fallback:
 
 	srand(randomness);
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

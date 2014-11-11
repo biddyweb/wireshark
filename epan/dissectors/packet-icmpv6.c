@@ -1,8 +1,6 @@
 /* packet-icmpv6.c
  * Routines for ICMPv6 packet disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,8 +33,6 @@
 
 #include "config.h"
 
-#include <string.h>
-
 #include <glib.h>
 
 #include <epan/packet.h>
@@ -47,7 +43,7 @@
 #include <epan/strutil.h>
 #include <epan/expert.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/tap.h>
 
 #include "packet-ber.h"
@@ -57,6 +53,10 @@
 #include "packet-icmp.h"    /* same transaction_t used both both v4 and v6 */
 #include "packet-ieee802154.h"
 #include "packet-6lowpan.h"
+#include "packet-ip.h"
+
+void proto_register_icmpv6(void);
+void proto_reg_handoff_icmpv6(void);
 
 /*
  * The information used comes from:
@@ -84,9 +84,10 @@
  * RFC 6496: Secure Proxy ND Support for SEND
  * RFC 6550: RPL: IPv6 Routing Protocol for Low power and Lossy Networks
  * RFC 6554: An IPv6 Routing Header for Source Routes with RPL
- * draft-irtf-rrg-ilnp-icmpv6-06: ICMP Locator Update message for ILNPv6
- * draft-ietf-6lowpan-nd-21: Neighbor Discovery Optimization for Low Power and Lossy Networks (6LoWPAN)
- * http://www.iana.org/assignments/icmpv6-parameters (last updated 2012-08-27)
+ * RFC 6743: ICMP Locator Update message for ILNPv6
+ * RFC 6775: Neighbor Discovery Optimization for Low Power and Lossy Networks (6LoWPAN)
+ * RFC 7112: Implications of Oversized IPv6 Header Chains
+ * http://www.iana.org/assignments/icmpv6-parameters (last updated 2014-01-30)
  */
 
 static int proto_icmpv6 = -1;
@@ -460,11 +461,12 @@ static int icmpv6_tap = -1;
 /* Conversation related data */
 static int hf_icmpv6_resp_in = -1;
 static int hf_icmpv6_resp_to = -1;
+static int hf_icmpv6_no_resp = -1;
 static int hf_icmpv6_resptime = -1;
 
 typedef struct _icmpv6_conv_info_t {
-    emem_tree_t *unmatched_pdus;
-    emem_tree_t *matched_pdus;
+    wmem_tree_t *unmatched_pdus;
+    wmem_tree_t *matched_pdus;
 } icmpv6_conv_info_t;
 
 static icmp_transaction_t *transaction_start(packet_info *pinfo, proto_tree *tree, guint32 *key);
@@ -505,6 +507,18 @@ static gint ett_icmpv6_flag_rpl_daoack = -1;
 static gint ett_icmpv6_flag_rpl_cc = -1;
 static gint ett_icmpv6_opt_name = -1;
 static gint ett_icmpv6_cga_param_name = -1;
+
+static expert_field ei_icmpv6_invalid_option_length = EI_INIT;
+static expert_field ei_icmpv6_undecoded_option = EI_INIT;
+static expert_field ei_icmpv6_unknown_data = EI_INIT;
+static expert_field ei_icmpv6_undecoded_rpl_option = EI_INIT;
+static expert_field ei_icmpv6_undecoded_type = EI_INIT;
+static expert_field ei_icmpv6_rr_pco_mp_matchlen = EI_INIT;
+static expert_field ei_icmpv6_rr_pco_mp_matchedlen = EI_INIT;
+static expert_field ei_icmpv6_checksum = EI_INIT;
+static expert_field ei_icmpv6_resp_not_found = EI_INIT;
+
+static dissector_handle_t icmpv6_handle;
 
 static dissector_handle_t ipv6_handle;
 static dissector_handle_t data_handle;
@@ -582,9 +596,9 @@ static const value_string icmpv6_type_val[] = {
     { ICMP6_MCAST_ROUTER_TERM,     "Multicast Router Termination" },                    /* [RFC4286] */
     { ICMP6_FMIPV6_MESSAGES,       "FMIPv6" },                                          /* [RFC5568] */
     { ICMP6_RPL_CONTROL,           "RPL Control" },                                     /* [RFC6550] */
-    { ICMP6_ILNPV6,                "Locator Update"},                                   /* draft-irtf-rrg-ilnp-icmpv6-06.txt Pending IANA */
-    { ICMP6_6LOWPANND_DAR,         "Duplicate Address Request"},                        /* draft-ietf-6lowpan-nd-21.txt Pending IANA */
-    { ICMP6_6LOWPANND_DAC,         "Duplicate Address Confirmation"},                   /* draft-ietf-6lowpan-nd-21.txt Pending IANA */
+    { ICMP6_ILNPV6,                "Locator Update"},                                   /* [RFC6743] */
+    { ICMP6_6LOWPANND_DAR,         "Duplicate Address Request"},                        /* [RFC6775] */
+    { ICMP6_6LOWPANND_DAC,         "Duplicate Address Confirmation"},                   /* [RFC6775] */
     { 200,                         "Private experimentation" },                         /* [RFC4443] */
     { 201,                         "Private experimentation" },                         /* [RFC4443] */
     { 255,                         "Reserved for expansion of ICMPv6 informational messages" }, /* [RFC4443] */
@@ -625,11 +639,13 @@ static const value_string icmpv6_timeex_code_val[] = {
 #define ICMP6_PARAMPROB_HEADER                  0       /* erroneous header field */
 #define ICMP6_PARAMPROB_NEXTHEADER              1       /* unrecognized next header */
 #define ICMP6_PARAMPROB_OPTION                  2       /* unrecognized option */
+#define ICMP6_PARAMPROB_FIRSTFRAG               3       /* IPv6 First Fragment has incomplete IPv6 Header Chain [RFC 7112] */
 
 static const value_string icmpv6_paramprob_code_val[] = {
     { ICMP6_PARAMPROB_HEADER,     "erroneous header field encountered" },
     { ICMP6_PARAMPROB_NEXTHEADER, "unrecognized Next Header type encountered" },
     { ICMP6_PARAMPROB_OPTION,     "unrecognized IPv6 option encountered" },
+    { ICMP6_PARAMPROB_FIRSTFRAG,  "IPv6 First Fragment has incomplete IPv6 Header Chain" },
     { 0, NULL }
 };
 
@@ -843,9 +859,9 @@ static const value_string option_vals[] = {
 /* 30 */   { ND_OPT_MOBILE_NODE_ID,            "Mobile Node Identifier Option" },          /* [RFC5271] */
 /* 31 */   { ND_OPT_DNS_SEARCH_LIST,           "DNS Search List Option" },                 /* [RFC6106] */
 /* 32 */   { ND_OPT_PROXY_SIGNATURE,           "Proxy Signature (PS)" },                   /* [RFC6496] */
-/* 33 */   { ND_OPT_ADDR_REGISTRATION,         "Address Registration Option" },            /* [draft-ietf-6lowpan-nd-21.txt] */
-/* 34 */   { ND_OPT_6LOWPAN_CONTEXT,           "6LoWPAN Context Option" },                 /* [draft-ietf-6lowpan-nd-21.txt] */
-/* 35 */   { ND_OPT_AUTH_BORDER_ROUTER,        "Authoritative Border Router" },              /* [draft-ietf-6lowpan-nd-21.txt] */
+/* 33 */   { ND_OPT_ADDR_REGISTRATION,         "Address Registration Option" },            /* [RFC6775] */
+/* 34 */   { ND_OPT_6LOWPAN_CONTEXT,           "6LoWPAN Context Option" },                 /* [RFC6775] */
+/* 35 */   { ND_OPT_AUTH_BORDER_ROUTER,        "Authoritative Border Router" },            /* [RFC6775] */
 /* 36-137  Unassigned */
    { 138,                              "CARD Request" },                           /* [RFC4065] */
    { 139,                              "CARD Reply" },                             /* [RFC4065] */
@@ -1128,18 +1144,16 @@ static icmp_transaction_t *transaction_start(packet_info *pinfo, proto_tree *tre
     conversation_t     *conversation;
     icmpv6_conv_info_t *icmpv6_info;
     icmp_transaction_t *icmpv6_trans;
-    emem_tree_key_t     icmpv6_key[3];
+    wmem_tree_key_t     icmpv6_key[3];
     proto_item         *it;
 
     /* Handle the conversation tracking */
     conversation = _find_or_create_conversation(pinfo);
-    icmpv6_info = conversation_get_proto_data(conversation, proto_icmpv6);
+    icmpv6_info = (icmpv6_conv_info_t *)conversation_get_proto_data(conversation, proto_icmpv6);
     if (icmpv6_info == NULL) {
-        icmpv6_info = se_alloc(sizeof(icmpv6_conv_info_t));
-        icmpv6_info->unmatched_pdus = se_tree_create_non_persistent(
-            EMEM_TREE_TYPE_RED_BLACK, "icmpv6_unmatched_pdus");
-        icmpv6_info->matched_pdus = se_tree_create_non_persistent(
-            EMEM_TREE_TYPE_RED_BLACK, "icmpv6_matched_pdus");
+        icmpv6_info = wmem_new(wmem_file_scope(), icmpv6_conv_info_t);
+        icmpv6_info->unmatched_pdus = wmem_tree_new(wmem_file_scope());
+        icmpv6_info->matched_pdus = wmem_tree_new(wmem_file_scope());
         conversation_add_proto_data(conversation, proto_icmpv6, icmpv6_info);
     }
 
@@ -1153,12 +1167,12 @@ static icmp_transaction_t *transaction_start(packet_info *pinfo, proto_tree *tre
         icmpv6_key[1].length = 0;
         icmpv6_key[1].key = NULL;
 
-        icmpv6_trans = se_alloc(sizeof(icmp_transaction_t));
+        icmpv6_trans = wmem_new(wmem_file_scope(), icmp_transaction_t);
         icmpv6_trans->rqst_frame = PINFO_FD_NUM(pinfo);
         icmpv6_trans->resp_frame = 0;
         icmpv6_trans->rqst_time = pinfo->fd->abs_ts;
         nstime_set_zero(&icmpv6_trans->resp_time);
-        se_tree_insert32_array(icmpv6_info->unmatched_pdus, icmpv6_key, (void *)icmpv6_trans);
+        wmem_tree_insert32_array(icmpv6_info->unmatched_pdus, icmpv6_key, (void *)icmpv6_trans);
     } else {
         /* Already visited this frame */
         guint32 frame_num = pinfo->fd->num;
@@ -1170,11 +1184,27 @@ static icmp_transaction_t *transaction_start(packet_info *pinfo, proto_tree *tre
         icmpv6_key[2].length = 0;
         icmpv6_key[2].key = NULL;
 
-        icmpv6_trans = se_tree_lookup32_array(icmpv6_info->matched_pdus, icmpv6_key);
+        icmpv6_trans = (icmp_transaction_t *)wmem_tree_lookup32_array(icmpv6_info->matched_pdus, icmpv6_key);
     }
 
-    if (icmpv6_trans == NULL)
+    if (icmpv6_trans == NULL) {
+        if (PINFO_FD_VISITED(pinfo)) {
+                /* No response found - add field and expert info */
+                it = proto_tree_add_item(tree, hf_icmpv6_no_resp, NULL, 0, 0,
+                                         ENC_NA);
+                PROTO_ITEM_SET_GENERATED(it);
+
+                col_append_fstr(pinfo->cinfo, COL_INFO, " (no response found!)");
+
+                /* Expert info.  TODO: add to _icmp_transaction_t type and sequence number
+                   so can report here (and in taps) */
+                expert_add_info_format(pinfo, it, &ei_icmpv6_resp_not_found,
+                                       "No response seen to ICMPv6 request in frame %u",
+                                       pinfo->fd->num);
+        }
+
         return NULL;
+    }
 
     /* Print state tracking in the tree */
     if (icmpv6_trans->resp_frame) {
@@ -1196,7 +1226,7 @@ static icmp_transaction_t *transaction_end(packet_info *pinfo, proto_tree *tree,
     conversation_t     *conversation;
     icmpv6_conv_info_t *icmpv6_info;
     icmp_transaction_t *icmpv6_trans;
-    emem_tree_key_t     icmpv6_key[3];
+    wmem_tree_key_t     icmpv6_key[3];
     proto_item         *it;
     nstime_t            ns;
     double resp_time;
@@ -1206,7 +1236,7 @@ static icmp_transaction_t *transaction_end(packet_info *pinfo, proto_tree *tree,
     if (conversation == NULL)
         return NULL;
 
-    icmpv6_info = conversation_get_proto_data(conversation, proto_icmpv6);
+    icmpv6_info = (icmpv6_conv_info_t *)conversation_get_proto_data(conversation, proto_icmpv6);
     if (icmpv6_info == NULL)
         return NULL;
 
@@ -1218,7 +1248,7 @@ static icmp_transaction_t *transaction_end(packet_info *pinfo, proto_tree *tree,
         icmpv6_key[1].length = 0;
         icmpv6_key[1].key = NULL;
 
-        icmpv6_trans = se_tree_lookup32_array(icmpv6_info->unmatched_pdus, icmpv6_key);
+        icmpv6_trans = (icmp_transaction_t *)wmem_tree_lookup32_array(icmpv6_info->unmatched_pdus, icmpv6_key);
         if (icmpv6_trans == NULL)
             return NULL;
 
@@ -1240,10 +1270,10 @@ static icmp_transaction_t *transaction_end(packet_info *pinfo, proto_tree *tree,
         icmpv6_key[2].key = NULL;
 
         frame_num = icmpv6_trans->rqst_frame;
-        se_tree_insert32_array(icmpv6_info->matched_pdus, icmpv6_key, (void *)icmpv6_trans);
+        wmem_tree_insert32_array(icmpv6_info->matched_pdus, icmpv6_key, (void *)icmpv6_trans);
 
         frame_num = icmpv6_trans->resp_frame;
-        se_tree_insert32_array(icmpv6_info->matched_pdus, icmpv6_key, (void *)icmpv6_trans);
+        wmem_tree_insert32_array(icmpv6_info->matched_pdus, icmpv6_key, (void *)icmpv6_trans);
     } else {
         /* Already visited this frame */
         guint32 frame_num = pinfo->fd->num;
@@ -1255,7 +1285,7 @@ static icmp_transaction_t *transaction_end(packet_info *pinfo, proto_tree *tree,
         icmpv6_key[2].length = 0;
         icmpv6_key[2].key = NULL;
 
-        icmpv6_trans = se_tree_lookup32_array(icmpv6_info->matched_pdus, icmpv6_key);
+        icmpv6_trans = (icmp_transaction_t *)wmem_tree_lookup32_array(icmpv6_info->matched_pdus, icmpv6_key);
         if (icmpv6_trans == NULL)
             return NULL;
     }
@@ -1317,7 +1347,7 @@ dissect_icmpv6_nd_opt(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree 
         proto_item_append_text(ti_opt_len, " (%i bytes)", opt_len);
 
         if(opt_len == 0){
-            expert_add_info_format(pinfo, ti_opt_len, PI_MALFORMED, PI_ERROR, "Invalid option length (Zero)");
+            expert_add_info_format(pinfo, ti_opt_len, &ei_icmpv6_invalid_option_length, "Invalid option length (Zero)");
             return opt_offset;
         }
 
@@ -1340,9 +1370,9 @@ dissect_icmpv6_nd_opt(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree 
                     proto_tree_add_item(icmp6opt_tree, hf_icmpv6_opt_linkaddr_eui64, tvb, opt_offset, 8, ENC_BIG_ENDIAN);
                     ti_opt = proto_tree_add_item(icmp6opt_tree, hf_icmpv6_opt_src_linkaddr_eui64, tvb, opt_offset, 8, ENC_BIG_ENDIAN);
                     PROTO_ITEM_SET_HIDDEN(ti_opt);
-                    ti_opt = proto_tree_add_item(icmp6opt_tree, hf_icmpv6_opt_linkaddr, tvb, opt_offset, 8, ENC_BIG_ENDIAN);
+                    ti_opt = proto_tree_add_item(icmp6opt_tree, hf_icmpv6_opt_linkaddr, tvb, opt_offset, 8, ENC_NA);
                     PROTO_ITEM_SET_HIDDEN(ti_opt);
-                    ti_opt = proto_tree_add_item(icmp6opt_tree, hf_icmpv6_opt_src_linkaddr, tvb, opt_offset, 8, ENC_BIG_ENDIAN);
+                    ti_opt = proto_tree_add_item(icmp6opt_tree, hf_icmpv6_opt_src_linkaddr, tvb, opt_offset, 8, ENC_NA);
                     PROTO_ITEM_SET_HIDDEN(ti_opt);
 
                     /* Padding: 6 bytes */
@@ -1454,7 +1484,7 @@ dissect_icmpv6_nd_opt(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree 
 
                 proto_tree_add_item(icmp6opt_tree, hf_icmpv6_opt_redirected_packet, tvb, opt_offset, -1, ENC_NA);
 
-                offset = dissect_contained_icmpv6(tvb, opt_offset, pinfo, icmp6opt_tree);
+                opt_offset = dissect_contained_icmpv6(tvb, opt_offset, pinfo, icmp6opt_tree);
                 break;
             case ND_OPT_MTU: /* MTU (5) */
 
@@ -1856,7 +1886,7 @@ dissect_icmpv6_nd_opt(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree 
                         opt_offset += 16;
                         break;
                     default:
-                        expert_add_info_format(pinfo, ti_opt_len, PI_MALFORMED, PI_ERROR, "Invalid Option Length");
+                        expert_add_info(pinfo, ti_opt_len, &ei_icmpv6_invalid_option_length);
                         break;
                 }
                 break;
@@ -2154,12 +2184,12 @@ dissect_icmpv6_nd_opt(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree 
                         opt_offset += 16;
                         break;
                     default:
-                        expert_add_info_format(pinfo, ti_opt_len, PI_MALFORMED, PI_ERROR, "Invalid Option Length");
+                        expert_add_info(pinfo, ti_opt_len, &ei_icmpv6_invalid_option_length);
                         break;
                 }
                 /* Update the 6LoWPAN dissectors with new context information. */
-                hints = (ieee802154_hints_t *)p_get_proto_data(pinfo->fd,
-                        proto_get_id_by_filter_name(IEEE802154_PROTOABBREV_WPAN));
+                hints = (ieee802154_hints_t *)p_get_proto_data(wmem_file_scope(), pinfo,
+                        proto_get_id_by_filter_name(IEEE802154_PROTOABBREV_WPAN), 0);
                 if ((opt_len <= 24) && hints) {
                     lowpan_context_insert(context_id, hints->src_pan, context_len, &context_prefix, pinfo->fd->num);
                 }
@@ -2193,7 +2223,7 @@ dissect_icmpv6_nd_opt(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree 
             break;
 
             default :
-                expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_NOTE,
+                expert_add_info_format(pinfo, ti, &ei_icmpv6_undecoded_option,
                                        "Dissector for ICMPv6 Option (%d)"
                                        " code not implemented, Contact Wireshark developers"
                                        " if you want this supported", opt_type);
@@ -2207,7 +2237,7 @@ dissect_icmpv6_nd_opt(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree 
 
         if(offset > opt_offset){
             ti_opt = proto_tree_add_item(icmp6opt_tree, hf_icmpv6_unknown_data, tvb, opt_offset, offset - opt_offset, ENC_NA);
-            expert_add_info_format(pinfo, ti_opt, PI_MALFORMED, PI_ERROR, "Unknown Data (not interpreted)");
+            expert_add_info(pinfo, ti_opt, &ei_icmpv6_unknown_data);
         }
         /* Close the ) to option root label */
         proto_item_append_text(ti, ")");
@@ -2314,7 +2344,7 @@ dissect_icmpv6_rpl_opt(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree
                         opt_offset += 16;
                         break;
                     default:
-                        expert_add_info_format(pinfo, ti_opt_len, PI_MALFORMED, PI_ERROR, "Invalid Option Length");
+                        expert_add_info(pinfo, ti_opt_len, &ei_icmpv6_invalid_option_length);
                         break;
                 }
                 break;
@@ -2399,7 +2429,7 @@ dissect_icmpv6_rpl_opt(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree
                         opt_offset += 16;
                         break;
                     default:
-                        expert_add_info_format(pinfo, ti_opt_len, PI_MALFORMED, PI_ERROR, "Invalid Option Length");
+                        expert_add_info(pinfo, ti_opt_len, &ei_icmpv6_invalid_option_length);
                         break;
                 }
                 break;
@@ -2522,7 +2552,7 @@ dissect_icmpv6_rpl_opt(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree
                 break;
             }
             default :
-                expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_NOTE,
+                expert_add_info_format(pinfo, ti, &ei_icmpv6_undecoded_rpl_option,
                                        "Dissector for ICMPv6 RPL Option"
                                        " (%d) code not implemented, Contact"
                                        " Wireshark developers if you want this supported", opt_type);
@@ -2535,7 +2565,7 @@ dissect_icmpv6_rpl_opt(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree
 
         if(offset > opt_offset){
             ti_opt = proto_tree_add_item(icmp6opt_tree, hf_icmpv6_unknown_data, tvb, opt_offset, offset - opt_offset, ENC_NA);
-            expert_add_info_format(pinfo, ti_opt, PI_MALFORMED, PI_ERROR, "Unknown Data (not interpreted)");
+            expert_add_info(pinfo, ti_opt, &ei_icmpv6_unknown_data);
         }
 
         /* Close the ) to option root label */
@@ -2960,8 +2990,7 @@ dissect_rrenum(tvbuff_t *tvb, int rr_offset, packet_info *pinfo _U_, proto_tree 
         proto_tree_add_item(mp_tree, hf_icmpv6_rr_pco_mp_matchlen, tvb, rr_offset, 1, ENC_BIG_ENDIAN);
         matchlen = tvb_get_guint8(tvb, rr_offset);
         if (matchlen > 128) {
-            expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN,
-                "MatchLen is greater than 128");
+            expert_add_info(pinfo, ti, &ei_icmpv6_rr_pco_mp_matchlen);
         }
         rr_offset += 1;
 
@@ -3082,8 +3111,7 @@ dissect_rrenum(tvbuff_t *tvb, int rr_offset, packet_info *pinfo _U_, proto_tree 
         ti = proto_tree_add_item(rm_tree, hf_icmpv6_rr_rm_matchedlen, tvb, rr_offset, 1, ENC_BIG_ENDIAN);
         matchlen = tvb_get_guint8(tvb, rr_offset);
         if (matchlen > 128) {
-            expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN,
-                "MatchedLen is greater than 128");
+            expert_add_info(pinfo, ti, &ei_icmpv6_rr_pco_mp_matchedlen);
         }
         rr_offset +=1;
 
@@ -3171,7 +3199,7 @@ dissect_mldrv2( tvbuff_t *tvb, guint32 offset, packet_info *pinfo _U_, proto_tre
 
 
 static int
-dissect_icmpv6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_icmpv6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
     proto_tree         *icmp6_tree = NULL, *flag_tree = NULL;
     proto_item         *ti         = NULL, *hidden_item, *checksum_item = NULL, *code_item = NULL, *ti_flag = NULL;
@@ -3184,6 +3212,7 @@ dissect_icmpv6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
     tvbuff_t           *next_tvb;
     guint8              icmp6_type, icmp6_code;
     icmp_transaction_t *trans      = NULL;
+    ws_ip *iph = (ws_ip*)data;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "ICMPv6");
     col_clear(pinfo->cinfo, COL_INFO);
@@ -3259,9 +3288,9 @@ dissect_icmpv6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
                truncated, so we can checksum it. */
 
             /* Set up the fields of the pseudo-header. */
-            cksum_vec[0].ptr = pinfo->src.data;
+            cksum_vec[0].ptr = (const guint8 *)pinfo->src.data;
             cksum_vec[0].len = pinfo->src.len;
-            cksum_vec[1].ptr = pinfo->dst.data;
+            cksum_vec[1].ptr = (const guint8 *)pinfo->dst.data;
             cksum_vec[1].len = pinfo->dst.len;
             cksum_vec[2].ptr = (const guint8 *)&phdr;
             phdr[0] = g_htonl(reported_length);
@@ -3272,13 +3301,14 @@ dissect_icmpv6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             computed_cksum = in_cksum(cksum_vec, 4);
 
             if (computed_cksum == 0) {
+                hidden_item = proto_tree_add_boolean(icmp6_tree, hf_icmpv6_checksum_bad, tvb, offset, 2, FALSE);
+                PROTO_ITEM_SET_HIDDEN(hidden_item);
                 proto_item_append_text(checksum_item, " [correct]");
             } else {
                 hidden_item = proto_tree_add_boolean(icmp6_tree, hf_icmpv6_checksum_bad, tvb, offset, 2, TRUE);
-
-                PROTO_ITEM_SET_GENERATED(hidden_item);
+                PROTO_ITEM_SET_HIDDEN(hidden_item);
                 proto_item_append_text(checksum_item, " [incorrect, should be 0x%04x]", in_cksum_shouldbe(cksum, computed_cksum));
-                expert_add_info_format(pinfo, checksum_item, PI_CHECKSUM, PI_WARN,
+                expert_add_info_format(pinfo, checksum_item, &ei_icmpv6_checksum,
                                        "ICMPv6 Checksum Incorrect, should be 0x%04x", in_cksum_shouldbe(cksum, computed_cksum));
             }
         }
@@ -3301,7 +3331,7 @@ dissect_icmpv6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
         offset += 2;
 
         col_append_fstr(pinfo->cinfo, COL_INFO, " id=0x%04x, seq=%u, hop limit=%u",
-            identifier, sequence, pinfo->ip_ttl);
+            identifier, sequence, (iph != NULL) ? iph->ip_ttl : 0);
 
         if (pinfo->destport == 3544 && icmp6_type == ICMP6_ECHO_REQUEST) {
             /* RFC 4380
@@ -3510,7 +3540,7 @@ dissect_icmpv6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             case ICMP6_ND_NEIGHBOR_ADVERT: /* Neighbor Advertisement (136) */
             {
                 guint32 na_flags;
-                emem_strbuf_t *flags_strbuf = ep_strbuf_new_label("");
+                wmem_strbuf_t *flags_strbuf = wmem_strbuf_new_label(wmem_packet_scope());
 
                 /* Flags */
                 ti_flag = proto_tree_add_item(icmp6_tree, hf_icmpv6_nd_na_flag, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -3527,21 +3557,22 @@ dissect_icmpv6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 
 
                 if (na_flags & ND_NA_FLAG_R) {
-                    ep_strbuf_append(flags_strbuf, "rtr, ");
+                    wmem_strbuf_append(flags_strbuf, "rtr, ");
                 }
                 if (na_flags & ND_NA_FLAG_S) {
-                    ep_strbuf_append(flags_strbuf, "sol, ");
+                    wmem_strbuf_append(flags_strbuf, "sol, ");
                 }
                 if (na_flags & ND_NA_FLAG_O) {
-                    ep_strbuf_append(flags_strbuf, "ovr, ");
+                    wmem_strbuf_append(flags_strbuf, "ovr, ");
                 }
-                if (flags_strbuf->len > 2) {
-                    ep_strbuf_truncate(flags_strbuf, flags_strbuf->len - 2);
+                if (wmem_strbuf_get_len(flags_strbuf) > 2) {
+                    wmem_strbuf_truncate(flags_strbuf, wmem_strbuf_get_len(flags_strbuf) - 2);
                 } else {
-                    ep_strbuf_printf(flags_strbuf, "none");
+                    wmem_strbuf_truncate(flags_strbuf, 0);
+                    wmem_strbuf_append(flags_strbuf, "none");
                 }
 
-                col_append_fstr(pinfo->cinfo, COL_INFO, " %s (%s)", tvb_ip6_to_str(tvb, offset), flags_strbuf->str);
+                col_append_fstr(pinfo->cinfo, COL_INFO, " %s (%s)", tvb_ip6_to_str(tvb, offset), wmem_strbuf_get_str(flags_strbuf));
                 offset += 16;
 
                 /* Show options */
@@ -3767,9 +3798,9 @@ dissect_icmpv6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
                 offset = dissect_rpl_control(tvb, offset, pinfo, icmp6_tree, icmp6_type, icmp6_code);
                 break;
             }
-            case ICMP6_ILNPV6: /* Locator Update (156 Pending IANA) */
+            case ICMP6_ILNPV6: /* Locator Update (156) */
             {
-                /*TODO Add support of Locator Update : draft-irtf-rrg-ilnp-icmpv6-06 */
+                /*TODO Add support of Locator Update : RFC6743 */
                 break;
             }
             case ICMP6_6LOWPANND_DAR:
@@ -3797,7 +3828,7 @@ dissect_icmpv6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
                 break;
             }
             default:
-                expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_NOTE,
+                expert_add_info_format(pinfo, ti, &ei_icmpv6_undecoded_type,
                                        "Dissector for ICMPv6 Type (%d)"
                                        " code not implemented, Contact Wireshark"
                                        " developers if you want this supported", icmp6_type);
@@ -4863,6 +4894,9 @@ proto_register_icmpv6(void)
         { &hf_icmpv6_resp_in,
             { "Response In", "icmpv6.resp_in", FT_FRAMENUM, BASE_NONE, NULL, 0x0,
               "The response to this request is in this frame", HFILL }},
+        {&hf_icmpv6_no_resp,
+            {"No response seen", "icmpv6.no_resp", FT_NONE, BASE_NONE, NULL, 0x0,
+             "No corresponding response frame was seen", HFILL}},
         { &hf_icmpv6_resp_to,
             { "Response To", "icmpv6.resp_to", FT_FRAMENUM, BASE_NONE, NULL, 0x0,
               "This is the response to the request in this frame", HFILL }},
@@ -4909,21 +4943,35 @@ proto_register_icmpv6(void)
         &ett_icmpv6_cga_param_name
     };
 
+    static ei_register_info ei[] = {
+        { &ei_icmpv6_invalid_option_length, { "icmpv6.invalid_option_length", PI_MALFORMED, PI_ERROR, "Invalid Option Length", EXPFILL }},
+        { &ei_icmpv6_undecoded_option, { "icmpv6.undecoded.option", PI_UNDECODED, PI_NOTE, "Undecoded option", EXPFILL }},
+        { &ei_icmpv6_unknown_data, { "icmpv6.unknown_data.expert", PI_MALFORMED, PI_ERROR, "Unknown Data (not interpreted)", EXPFILL }},
+        { &ei_icmpv6_undecoded_rpl_option, { "icmpv6.undecoded.rpl_option", PI_UNDECODED, PI_NOTE, "Undecoded RPL Option", EXPFILL }},
+        { &ei_icmpv6_undecoded_type, { "icmpv6.undecoded.type", PI_UNDECODED, PI_NOTE, "Undecoded type", EXPFILL }},
+        { &ei_icmpv6_rr_pco_mp_matchlen, { "icmpv6.rr.pco.mp.matchlen.gt128", PI_PROTOCOL, PI_WARN, "MatchLen is greater than 128", EXPFILL }},
+        { &ei_icmpv6_rr_pco_mp_matchedlen, { "icmpv6.rr.pco.mp.matchedlen.gt128", PI_PROTOCOL, PI_WARN, "MatchedLen is greater than 128", EXPFILL }},
+        { &ei_icmpv6_checksum, { "icmpv6.checksum_bad.expert", PI_CHECKSUM, PI_WARN, "Bad checksum", EXPFILL }},
+        { &ei_icmpv6_resp_not_found, { "icmpv6.resp_not_found", PI_SEQUENCE, PI_WARN, "Response not found", EXPFILL }},
+    };
+
+    expert_module_t* expert_icmpv6;
+
     proto_icmpv6 = proto_register_protocol("Internet Control Message Protocol v6",
                                            "ICMPv6", "icmpv6");
     proto_register_field_array(proto_icmpv6, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_icmpv6 = expert_register_protocol(proto_icmpv6);
+    expert_register_field_array(expert_icmpv6, ei, array_length(ei));
 
-    new_register_dissector("icmpv6", dissect_icmpv6, proto_icmpv6);
+    icmpv6_handle = new_register_dissector("icmpv6", dissect_icmpv6, proto_icmpv6);
+
     icmpv6_tap = register_tap("icmpv6");
 }
 
 void
 proto_reg_handoff_icmpv6(void)
 {
-    dissector_handle_t icmpv6_handle;
-
-    icmpv6_handle = new_create_dissector_handle(dissect_icmpv6, proto_icmpv6);
     dissector_add_uint("ip.proto", IP_PROTO_ICMPV6, icmpv6_handle);
 
     /*

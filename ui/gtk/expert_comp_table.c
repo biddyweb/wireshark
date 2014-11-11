@@ -4,8 +4,6 @@
  * Helper routines common to all composite expert statistics
  * tap.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -571,6 +569,8 @@ static const GtkActionEntry expert_popup_entries[] = {
   { "/Copy/Protocol Plus Summary",				NULL, "Protocol Plus Summary",			NULL, "Protocol Plus Summary",			G_CALLBACK(copy_cb) },
 };
 
+int gselection_count = 0;
+
 static void
 expert_goto_pkt_cb (GtkTreeSelection *selection, gpointer data _U_)
 {
@@ -581,6 +581,8 @@ expert_goto_pkt_cb (GtkTreeSelection *selection, gpointer data _U_)
 
     if (gtk_tree_selection_get_selected (selection, &model, &iter))
     {
+        gselection_count++;
+
         gtk_tree_model_get (model, &iter,
                             PROTOCOL_COLUMN, &pkt,
                             GROUP_COLUMN,    &grp,
@@ -606,7 +608,7 @@ error_create_popup_menu(error_equiv_table *err)
 
     action_group = gtk_action_group_new ("ExpertFilterPopupActionGroup");
     gtk_action_group_add_actions (action_group,                            /* the action group */
-                                (gpointer)expert_popup_entries,            /* an array of action descriptions */
+                                (GtkActionEntry *)expert_popup_entries,    /* an array of action descriptions */
                                 G_N_ELEMENTS(expert_popup_entries),        /* the number of entries */
                                 err);                                      /* data to pass to the action callbacks */
 
@@ -769,9 +771,9 @@ init_error_table_row(error_equiv_table *err, const expert_info_t *expert_data)
         store = GTK_TREE_STORE(gtk_tree_view_get_model(err->tree_view)); /* Get store */
         gtk_tree_store_append (store, &procedure->iter, NULL);  /* Acquire an iterator */
 
-        /* match_strval return a static constant  or null */
+        /* try_val_to_str return a static constant  or null */
         gtk_tree_store_set (store, &procedure->iter,
-                    GROUP_COLUMN, match_strval(expert_data->group, expert_group_vals),
+                    GROUP_COLUMN, try_val_to_str(expert_data->group, expert_group_vals),
                     PROTOCOL_COLUMN, procedure->entries[0],
                     SUMMARY_COLUMN,  procedure->entries[1], -1);
 

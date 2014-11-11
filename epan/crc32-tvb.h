@@ -1,8 +1,6 @@
 /* crc32-tvb.h
  * Declaration of CRC-32 tvbuff routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -99,6 +97,20 @@ WS_DLL_PUBLIC guint32 crc32_mpeg2_tvb_seed(tvbuff_t *tvb, guint len, guint32 see
  @return The CRC32 MPEG-2 checksum (using the given seed). */
 WS_DLL_PUBLIC guint32 crc32_mpeg2_tvb_offset_seed(tvbuff_t *tvb, guint offset,
                                            guint len, guint32 seed);
+
+/** Compute CRC32 checksum of a tv buffer using the parameters
+ *    Width        = 32 bits
+ *    Poly         = 0x0AA725CF
+ *    Reflection   = true
+ *    Algorithm    = table-driven
+ @param tvb The tv buffer containing the data.
+ @param offset The offset into the tv buffer.
+ @param len The number of bytes to include in the computation.
+ @param seed The seed to use.
+ @return The CRC32 checksum. */
+WS_DLL_PUBLIC guint32 crc32_0x0AA725CF_tvb_offset_seed(tvbuff_t *tvb,
+                                            guint offset, guint len, guint32 seed);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

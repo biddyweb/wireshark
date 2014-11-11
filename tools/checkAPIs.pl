@@ -7,9 +7,10 @@
 # be called by Wireshark code and to perform certain other checks.
 #
 # Usage:
-# checkAPIs.pl [-M] [-g group1] [-g group2] [-s summary-group1] [-s summary-group2] [--nocheck-value-string-array-null-termination] file1 file2 ...
-#
-# $Id$
+# checkAPIs.pl [-M] [-g group1] [-g group2] ...
+#              [-s summary-group1] [-s summary-group2] ...
+#              [--nocheck-value-string-array]
+#              [--nocheck-addtext] [--nocheck-hf] [--debug] file1 file2 ...
 #
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
@@ -122,6 +123,74 @@ my %APIs = (
                 'tmpnam',       # use mkstemp
                 '_snwprintf'    # use StringCchPrintf
                 ] },
+
+        ### Soft-Deprecated functions that should not be used in new code but
+        # have not been entirely removed from old code. These will become errors
+        # once they've been removed from all existing code.
+        'soft-deprecated' => { 'count_errors' => 0, 'functions' => [
+                'tvb_length', # replaced with tvb_captured_length
+                'tvb_length_remaining', # replaced with tvb_captured_length_remaining
+                'tvb_ensure_length_remaining', # replaced with tvb_ensure_captured_length_remaining
+                'tvb_get_string', # replaced with tvb_get_string_enc
+                'tvb_get_stringz', # replaced with tvb_get_stringz_enc
+
+                # wmem calls should replace all emem calls (see doc/README.wmem)
+                'ep_alloc',
+                'ep_new',
+                'ep_alloc0',
+                'ep_new0',
+                'ep_strdup',
+                'ep_strndup',
+                'ep_memdup',
+                'ep_strdup_vprintf',
+                'ep_strdup_printf',
+                'ep_strconcat',
+                'ep_alloc_array',
+                'ep_alloc_array0',
+                'ep_strsplit',
+                'ep_stack_new',
+                'ep_stack_push',
+                'ep_stack_pop',
+                'ep_stack_peek',
+                'ep_address_to_str',
+                'se_alloc',
+                'se_new',
+                'se_alloc0',
+                'se_new0',
+                'se_strdup',
+                'se_strndup',
+                'se_memdup',
+                'se_strdup_vprintf',
+                'se_strdup_printf',
+                'se_alloc_array',
+                'se_tree_create',
+                'se_tree_insert32',
+                'se_tree_lookup32',
+                'se_tree_lookup32_le',
+                'se_tree_insert32_array',
+                'se_tree_lookup32_array',
+                'se_tree_lookup32_array_le',
+                'emem_tree_insert32',
+                'emem_tree_lookup32',
+                'emem_tree_lookup32_le',
+                'emem_tree_insert32_array',
+                'emem_tree_lookup32_array',
+                'emem_tree_lookup32_array_le',
+                'emem_tree_insert_string',
+                'emem_tree_lookup_string',
+                'emem_tree_foreach',
+                'ep_strbuf_new',
+                'ep_strbuf_new_label',
+                'ep_strbuf_sized_new',
+                'ep_strbuf_append_vprintf',
+                'ep_strbuf_printf',
+                'ep_strbuf_append_printf',
+                'ep_strbuf_append',
+                'ep_strbuf_append_c',
+                'ep_strbuf_append_unichar',
+                'ep_strbuf_truncate',
+                'emem_print_tree'
+            ] },
 
         # APIs that SHOULD NOT be used in Wireshark (any more)
         'deprecated' => { 'count_errors' => 1, 'functions' => [
@@ -265,6 +334,8 @@ my %APIs = (
                 ] },
 
 );
+
+my @apiGroups = qw(prohibited deprecated soft-deprecated);
 
 # Deprecated GTK+ (and GDK) functions/macros with (E)rror or (W)arning flag:
 # (The list is based upon the GTK+ 2.24.8 documentation;
@@ -1311,6 +1382,9 @@ sub checkAddTextCalls($$)
         my $add_text_count = 0;
         my $okay_add_text_count = 0;
         my $add_xxx_count = 0;
+        my $total_count = 0;
+        my $aggressive = 0;
+        my $percentage = 100;
 
         # The 3 loops here are slow, but trying a single loop with capturing
         # parenthesis is even slower!
@@ -1325,7 +1399,7 @@ sub checkAddTextCalls($$)
                 $okay_add_text_count++;
         }
         # Then count how many proto_tree_add_*() calls there are
-        while (${$fileContentsRef} =~ m/ \W proto_tree_add_[a-z0-9]+ \W* \( /gox) {
+        while (${$fileContentsRef} =~ m/ \W proto_tree_add_[a-z0-9_]+ \W* \( /gox) {
                 $add_xxx_count++;
         }
 
@@ -1333,15 +1407,30 @@ sub checkAddTextCalls($$)
         $add_xxx_count -= $add_text_count;
         $add_text_count -= $okay_add_text_count;
 
+        $total_count = $add_text_count+$add_xxx_count;
+
         # Don't bother with files with small counts
-        if ($add_xxx_count < 10 || $add_text_count < 10) {
+        if (($add_xxx_count < 10 || $add_text_count < 10) && ($total_count < 20)) {
                 return;
         }
 
-        my $percentage = 100*$add_text_count/$add_xxx_count;
-        if ($percentage > 50) {
+        if ($add_xxx_count > 0) {
+            $percentage = 100*$add_text_count/$add_xxx_count;
+        }
+
+        if ($aggressive > 0) {
+            if ((($total_count <= 50) && ($percentage > 50)) ||
+                (($total_count > 50) && ($total_count <= 100) && ($percentage > 40)) ||
+                (($total_count > 100) && ($total_count <= 200) && ($percentage > 30)) ||
+                (($total_count > 200) && ($percentage > 20))) {
+                    printf "%s: found %d useless add_text() vs. %d add_<something else>() calls (%.2f%%)\n",
+                        $filename, $add_text_count, $add_xxx_count, $percentage;
+            }
+        } else {
+            if ($percentage > 50) {
                 printf "%s: found %d useless add_text() vs. %d add_<something else>() calls (%.2f%%)\n",
                         $filename, $add_text_count, $add_xxx_count, $percentage;
+            }
         }
 }
 
@@ -1407,6 +1496,113 @@ sub check_snprintf_plus_strlen($$)
         }
 }
 
+#### Regex for use when searching for value-string definitions
+my $StaticRegex             = qr/ static \s+                                                            /xs;
+my $ConstRegex              = qr/ const  \s+                                                            /xs;
+my $Static_andor_ConstRegex = qr/ (?: $StaticRegex $ConstRegex | $StaticRegex | $ConstRegex)            /xs;
+my $ValueStringRegex        = qr/ ^ \s* $Static_andor_ConstRegex (?:value|string|range)_string \ + [^;*]+ = [^;]+ [{] .+? [}] \s*? ;  /xms;
+my $EnumValRegex            = qr/ $Static_andor_ConstRegex enum_val_t \ + [^;*]+ = [^;]+ [{] .+? [}] \s*? ;  /xs;
+my $NewlineStringRegex      = qr/ ["] [^"]* \\n [^"]* ["] /xs;
+
+sub check_value_string_arrays($$$)
+{
+        my ($fileContentsRef, $filename, $debug_flag) = @_;
+        my $cnt = 0;
+        # Brute force check for value_string (and string_string or range_string) arrays
+        # which are missing {0, NULL} as the final (terminating) array entry
+
+        #  Assumption: definition is of form (pseudo-Regex):
+        #    " (static const|static|const) (value|string|range)_string .+ = { .+ ;"
+        #  (possibly over multiple lines)
+        while (${$fileContentsRef} =~ / ( $ValueStringRegex ) /xsog) {
+                # XXX_string array definition found; check if NULL terminated
+                my $vs = my $vsx = $1;
+                if ($debug_flag) {
+                        $vsx =~ / ( .+ (?:value|string|range)_string [^=]+ ) = /xo;
+                        printf STDERR "==> %-35.35s: %s\n", $filename, $1;
+                        printf STDERR "%s\n", $vs;
+                }
+                $vs =~ s{ \s } {}xg;
+                # README.developer says
+                #  "Don't put a comma after the last tuple of an initializer of an array"
+                # However: since this usage is present in some number of cases, we'll allow for now
+                if ($vs !~ / , NULL [}] ,? [}] ; $/xo) {
+                        $vsx =~ /( (?:value|string|range)_string [^=]+ ) = /xo;
+                        printf STDERR "Error: %-35.35s: {..., NULL} is required as the last XXX_string array entry: %s\n", $filename, $1;
+                        $cnt++;
+                }
+                if ($vs !~ / (static)? const (?:value|string|range)_string /xo)  {
+                        $vsx =~ /( (?:value|string|range)_string [^=]+ ) = /xo;
+                        printf STDERR "Error: %-35.35s: Missing 'const': %s\n", $filename, $1;
+                        $cnt++;
+                }
+                if ($vs =~ / $NewlineStringRegex /xo)  {
+                        $vsx =~ /( (?:value|string|range)_string [^=]+ ) = /xo;
+                        printf STDERR "Error: %-35.35s: XXX_string contains a newline: %s\n", $filename, $1;
+                        $cnt++;
+                }
+        }
+
+        # Brute force check for enum_val_t arrays which are missing {NULL, NULL, ...}
+        # as the final (terminating) array entry
+        # For now use the same option to turn this and value_string checking on and off.
+        # (Is the option even necessary?)
+
+        #  Assumption: definition is of form (pseudo-Regex):
+        #    " (static const|static|const) enum_val_t .+ = { .+ ;"
+        #  (possibly over multiple lines)
+        while (${$fileContentsRef} =~ / ( $EnumValRegex ) /xsog) {
+                # enum_val_t array definition found; check if NULL terminated
+                my $vs = my $vsx = $1;
+                if ($debug_flag) {
+                        $vsx =~ / ( .+ enum_val_t [^=]+ ) = /xo;
+                        printf STDERR "==> %-35.35s: %s\n", $filename, $1;
+                        printf STDERR "%s\n", $vs;
+                }
+                $vs =~ s{ \s } {}xg;
+                # README.developer says
+                #  "Don't put a comma after the last tuple of an initializer of an array"
+                # However: since this usage is present in some number of cases, we'll allow for now
+                if ($vs !~ / NULL, NULL, -?[0-9] [}] ,? [}] ; $/xo) {
+                        $vsx =~ /( enum_val_t [^=]+ ) = /xo;
+                        printf STDERR "Error: %-35.35s: {NULL, NULL, ...} is required as the last enum_val_t array entry: %s\n", $filename, $1;
+                        $cnt++;
+                }
+                if ($vs !~ / (static)? const enum_val_t /xo)  {
+                        $vsx =~ /( enum_val_t [^=]+ ) = /xo;
+                        printf STDERR "Error: %-35.35s: Missing 'const': %s\n", $filename, $1;
+                        $cnt++;
+                }
+                if ($vs =~ / $NewlineStringRegex /xo)  {
+                        $vsx =~ /( (?:value|string|range)_string [^=]+ ) = /xo;
+                        printf STDERR "Error: %-35.35s: enum_val_t contains a newline: %s\n", $filename, $1;
+                        $cnt++;
+                }
+        }
+
+        return $cnt;
+}
+
+sub check_included_files($$)
+{
+        my ($fileContentsRef, $filename) = @_;
+        my @incFiles;
+
+        # wsutils/wsgcrypt.h is our wrapper around gcrypt.h, it must be excluded from the tests
+        if ($filename =~ /wsgcrypt\.h/) {
+                return;
+        }
+
+        @incFiles = (${$fileContentsRef} =~ m/\#include \s* [<"](.+)[>"]/gox);
+        foreach (@incFiles) {
+                if ( m#(^|/+)gcrypt\.h$# ) {
+                        print STDERR "Warning: ".$filename." includes gcrypt.h directly. ".
+                                "Include wsutil/wsgrypt.h instead.\n";
+                        last;
+                }
+        }
+}
+
 sub check_proto_tree_add_XXX_encoding($$)
 {
         my ($fileContentsRef, $filename) = @_;
@@ -1424,10 +1620,11 @@ sub check_proto_tree_add_XXX_encoding($$)
                 # Remove anything inside parenthesis in the arguments so we
                 # don't get false positives when someone calls
                 # proto_tree_add_XXX(..., tvb_YYY(..., ENC_ZZZ))
-                $args =~ s/\(.*\)//g;
+                # and allow there to be newlines inside
+                $args =~ s/\(.*\)//sg;
 
                 if ($args =~ /,\s*ENC_/xos) {
-                        if (!($func =~ /proto_tree_add_(item|bitmask|bits_item|bits_ret_val)/xos)
+                        if (!($func =~ /proto_tree_add_(time|item|bitmask|bits_item|bits_ret_val)/xos)
                            ) {
                                 print STDERR "Error: ".$filename." uses $func with ENC_*.\n";
                                 $errorCount++;
@@ -1644,6 +1841,14 @@ sub check_hf_entries($$)
                         print STDERR "Error: $hf uses RVALS but 'display' does not include BASE_RANGE_STRING in $filename\n";
                         $errorCount++;
                 }
+		if ($convert =~ m/^VALS\(&.*\)/) {
+                        print STDERR "Error: $hf is passing the address of a pointer to VALS in $filename\n";
+                        $errorCount++;
+		}
+		if ($convert =~ m/^RVALS\(&.*\)/) {
+                        print STDERR "Error: $hf is passing the address of a pointer to RVALS in $filename\n";
+                        $errorCount++;
+		}
 ## Benign...
 ##              if (($ft eq "FT_BOOLEAN") && ($bitmask =~ /^(0x)?0+$/) && ($display ne "BASE_NONE")) {
 ##                      print STDERR "Error: $abbrev: FT_BOOLEAN with no bitmask must use BASE_NONE for 'display' in $filename\n";
@@ -1654,6 +1859,30 @@ sub check_hf_entries($$)
         return $errorCount;
 }
 
+sub print_usage
+{
+        print "Usage: checkAPIs.pl [-M] [-h] [-g group1] [-g group2] ... \n";
+        print "                    [--build] [-s group1] [-s group2] ... \n";
+        print "                    [--sourcedir=srcdir] \n";
+        print "                    [--nocheck-value-string-array] \n";
+        print "                    [--nocheck-addtext] [--nocheck-hf] [--debug] file1 file2 ...\n";
+        print "\n";
+        print "       -M: Generate output for -g in 'machine-readable' format\n";
+        print "       -p: used by the git pre-commit hook\n";
+        print "       -h: help, print usage message\n";
+        print "       -g <group>:  Check input files for use of APIs in <group>\n";
+        print "                    (in addition to the default groups)\n";
+        print "       -s <group>:  Output summary (count) for each API in <group>\n";
+        print "                    (-g <group> also req'd)\n";
+        print "       ---nocheck-value-string-array: UNDOCUMENTED\n";
+        print "       ---nocheck-addtext: UNDOCUMENTED\n";
+        print "       ---nocheck-hf: UNDOCUMENTED\n";
+        print "       ---debug: UNDOCUMENTED\n";
+        print "       ---build: UNDOCUMENTED\n";
+        print "\n";
+        print "   Default Groups[-g]: ", join (", ", sort @apiGroups), "\n";
+        print "   Available Groups:   ", join (", ", sort keys %APIs), "\n";
+}
 
 # -------------
 # action:  remove '#if 0'd code from the input string
@@ -1766,44 +1995,50 @@ my $SingleQuotedStr = qr{ (?: \' (?: \\. | [^\'\\])* [']) }x;
 #    Also: capturing the comment isn't necessary.
 ## my $commentAndStringRegex = qr{ (?: $DoubleQuotedStr | $SingleQuotedStr | $CComment) }x;
 
-#### Regex for use when searching for value-string definitions
-my $StaticRegex             = qr/ static \s+                                                            /xs;
-my $ConstRegex              = qr/ const  \s+                                                            /xs;
-my $Static_andor_ConstRegex = qr/ (?: $StaticRegex $ConstRegex | $StaticRegex | $ConstRegex)            /xs;
-my $ValueStringRegex        = qr/ $Static_andor_ConstRegex (?:value|string|range)_string \ + [^;*]+ = [^;]+ [{] [^;]+ ;  /xs;
-my $EnumValRegex        = qr/ $Static_andor_ConstRegex enum_val_t \ + [^;*]+ = [^;]+ [{] [^;]+ ;  /xs;
-
 #
 # MAIN
 #
 my $errorCount = 0;
+
 # The default list, which can be expanded.
-my @apiGroups = qw(prohibited deprecated);
 my @apiSummaryGroups = ();
-my $check_value_string_array_null_termination = 1;      # default: enabled
+my $check_value_string_array= 1;                        # default: enabled
 my $machine_readable_output = 0;                        # default: disabled
 my $check_hf = 1;                                       # default: enabled
-my $buildbot_flag = 0;                                  # default: no
-my $debug_flag = 0;
+my $check_addtext = 1;                                  # default: enabled
+my $debug_flag = 0;                                     # default: disabled
+my $buildbot_flag = 0;
+my $source_dir = "";
+my $help_flag = 0;
+my $pre_commit = 0;
 
 my $result = GetOptions(
                         'group=s' => \@apiGroups,
                         'summary-group=s' => \@apiSummaryGroups,
-                        'check-value-string-array-null-termination!' => \$check_value_string_array_null_termination,
+                        'check-value-string-array!' => \$check_value_string_array,
                         'Machine-readable' => \$machine_readable_output,
-                        'nohf' => \$check_hf,
+                        'check-hf!' => \$check_hf,
+                        'check-addtext!' => \$check_addtext,
                         'build' => \$buildbot_flag,
-                        'debug' => \$debug_flag
+                        'sourcedir=s' => \$source_dir,
+                        'debug' => \$debug_flag,
+                        'pre-commit' => \$pre_commit,
+                        'help' => \$help_flag
                         );
-if (!$result) {
-        print "Usage: checkAPIs.pl [-M] [-g group1] [-g group2] ... [-s group1] [-s group2] ... [--nocheck-value-string-array-null-termination] file1 file2 ..\n";
-        print "       -g <group>:  Check input files for use of APIs in <group> (in addition to the default groups)\n";
-        print "       -s <group>:  Output summary (count) for each API in <group> (-g <group> also req'd)\n";
-        print "       -M: Generate output for -g in 'machine-readable' format\n";
-        print "\n";
-        print "   Default Groups[-g]: ", join (", ", sort @apiGroups), "\n";
-        print "   Available Groups:   ", join (", ", sort keys %APIs), "\n";
+if (!$result || $help_flag) {
+        print_usage();
         exit(1);
+}
+
+# the pre-commit hook only calls checkAPIs one file at a time, so this
+# is safe to do globally (and easier)
+if ($pre_commit) {
+    my $filename = $ARGV[0];
+    # if the filename is packet-*.c or packet-*.h, then we set the abort and termoutput groups.
+    if ($filename =~ /\bpacket-\w+\.[ch]$/) {
+        push @apiGroups, "abort";
+        push @apiGroups, "termoutput";
+    }
 }
 
 # Add a 'function_count' anonymous hash to each of the 'apiGroup' entries in the %APIs hash.
@@ -1824,11 +2059,20 @@ while ($_ = $ARGV[0])
         my @foundAPIs = ();
         my $line;
 
-        die "No such file: \"$filename\"" if (! -e $filename);
+        if ($source_dir and ! -e $filename) {
+		$filename = $source_dir . '/' . $filename;
+	}
+        if (! -e $filename) {
+                warn "No such file: \"$filename\"";
+                next;
+        }
 
         # delete leading './'
         $filename =~ s{ ^ \. / } {}xo;
-
+        unless (-f $filename) {
+                print STDERR "Warning: $filename is not of type file - skipping.\n";
+                next;
+        }
         # Read in the file (ouch, but it's easier that way)
         open(FC, $filename) || die("Couldn't open $filename");
         $line = 1;
@@ -1856,12 +2100,10 @@ while ($_ = $ARGV[0])
                 print STDERR "Error: Found %hh in " .$filename."\n";
                 $errorCount++;
         }
-
-        if (! ($fileContents =~ m{ \$Id .* \$ }xo))
+        if (($fileContents =~ m{ \$Id .* \$ }xo))
         {
-                print STDERR "Warning: ".$filename." does not have an SVN Id tag.\n";
+                print STDERR "Warning: ".$filename." does have an SVN Id tag. Please remove !\n";
         }
-
         # Remove all the C-comments
         $fileContents =~ s{ $CComment } []xog;
 
@@ -1870,12 +2112,22 @@ while ($_ = $ARGV[0])
             $errorCount += check_hf_entries(\$fileContents, $filename);
         }
 
+        # check for files that we should not include directly
+        # this must be done before quoted strings (#include "file.h") are removed
+        check_included_files(\$fileContents, $filename);
+
+        # Check for value_string and enum_val_t errors: NULL termination,
+        # const-nes, and newlines within strings
+        if ($check_value_string_array) {
+                $errorCount += check_value_string_arrays(\$fileContents, $filename, $debug_flag);
+        }
+
         # Remove all the quoted strings
         $fileContents =~ s{ $DoubleQuotedStr | $SingleQuotedStr } []xog;
 
         #$errorCount += check_ett_registration(\$fileContents, $filename);
 
-        if ($fileContents =~ m{ // }xo)
+        if ($fileContents =~ m{ \s// }xo)
         {
                 print STDERR "Error: Found C++ style comments in " .$filename."\n";
                 $errorCount++;
@@ -1894,75 +2146,12 @@ while ($_ = $ARGV[0])
 
         check_snprintf_plus_strlen(\$fileContents, $filename);
 
-        if (! $buildbot_flag) {
+        if ($check_addtext && ! $buildbot_flag) {
                 checkAddTextCalls(\$fileContents, $filename);
         }
 
         $errorCount += check_proto_tree_add_XXX_encoding(\$fileContents, $filename);
 
-        # Brute force check for value_string (and string_string or range_string) arrays
-        # which are missing {0, NULL} as the final (terminating) array entry
-        if ($check_value_string_array_null_termination) {
-                #  Assumption: definition is of form (pseudo-Regex):
-                #    " (static const|static|const) (value|string|range)_string .+ = { .+ ;"
-                #  (possibly over multiple lines)
-                while ($fileContents =~ / ( $ValueStringRegex ) /xsog) {
-                        # XXX_string array definition found; check if NULL terminated
-                        my $vs = my $vsx = $1;
-                        if ($debug_flag) {
-                                $vsx =~ / ( .+ (?:value|string|range)_string [^=]+ ) = /xo;
-                                printf STDERR "==> %-35.35s: %s\n", $filename, $1;
-                                printf STDERR "%s\n", $vs;
-                        }
-                        $vs =~ s{ \s } {}xg;
-                        # README.developer says
-                        #  "Don't put a comma after the last tuple of an initializer of an array"
-                        # However: since this usage is present in some number of cases, we'll allow for now
-                        if ($vs !~ / , NULL [}] ,? [}] ; $/xo) {
-                                $vsx =~ /( (?:value|string|range)_string [^=]+ ) = /xo;
-                                printf STDERR "Error: %-35.35s: {..., NULL} is required as the last XXX_string array entry: %s\n", $filename, $1;
-                                $errorCount++;
-                        }
-                        if ($vs !~ / (static)? const (?:value|string|range)_string /xo)  {
-                                $vsx =~ /( (?:value|string|range)_string [^=]+ ) = /xo;
-                                printf STDERR "Error: %-35.35s: Missing 'const': %s\n", $filename, $1;
-                                $errorCount++;
-                        }
-                }
-        }
-
-        # Brute force check for enum_val_t arrays which are missing {NULL, NULL, ...}
-        # as the final (terminating) array entry
-        # For now use the same option to turn this and value_string checking on and off.
-        # (Is the option even necessary?)
-        if ($check_value_string_array_null_termination) {
-                #  Assumption: definition is of form (pseudo-Regex):
-                #    " (static const|static|const) enum_val_t .+ = { .+ ;"
-                #  (possibly over multiple lines)
-                while ($fileContents =~ / ( $EnumValRegex ) /xsog) {
-                        # enum_val_t array definition found; check if NULL terminated
-                        my $vs = my $vsx = $1;
-                        if ($debug_flag) {
-                                $vsx =~ / ( .+ enum_val_t [^=]+ ) = /xo;
-                                printf STDERR "==> %-35.35s: %s\n", $filename, $1;
-                                printf STDERR "%s\n", $vs;
-                        }
-                        $vs =~ s{ \s } {}xg;
-                        # README.developer says
-                        #  "Don't put a comma after the last tuple of an initializer of an array"
-                        # However: since this usage is present in some number of cases, we'll allow for now
-                        if ($vs !~ / NULL, NULL, -?[0-9] [}] ,? [}] ; $/xo) {
-                                $vsx =~ /( enum_val_t [^=]+ ) = /xo;
-                                printf STDERR "Error: %-35.35s: {NULL, NULL, ...} is required as the last enum_val_t array entry: %s\n", $filename, $1;
-                                $errorCount++;
-                        }
-                        if ($vs !~ / (static)? const enum_val_t /xo)  {
-                                $vsx =~ /( enum_val_t [^=]+ ) = /xo;
-                                printf STDERR "Error: %-35.35s: Missing 'const': %s\n", $filename, $1;
-                                $errorCount++;
-                        }
-                }
-        }
 
         # Check and count APIs
         for my $apiGroup (@apiGroups) {
@@ -1998,3 +2187,16 @@ for my $apiGroup (@apiSummaryGroups) {
 }
 
 exit($errorCount);
+
+#
+# Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+#
+# Local variables:
+# c-basic-offset: 8
+# tab-width: 8
+# indent-tabs-mode: nil
+# End:
+#
+# vi: set shiftwidth=8 tabstop=8 expandtab:
+# :indentSize=8:tabSize=8:noTabs=true:
+#

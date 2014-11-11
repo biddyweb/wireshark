@@ -2,8 +2,6 @@
  * Routines for NetBIOS over IPX packet disassembly
  * Gilbert Ramirez <gram@alumni.rice.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,8 +25,14 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include "packet-ipx.h"
 #include "packet-netbios.h"
+
+void proto_register_nbipx(void);
+void proto_reg_handoff_nbipx(void);
+void proto_register_nmpi(void);
+void proto_reg_handoff_nmpi(void);
 
 static int proto_nbipx = -1;
 static int hf_nbipx_packettype = -1;
@@ -215,7 +219,7 @@ add_routers(proto_tree *tree, tvbuff_t *tvb, int offset)
 		rtr_offset = offset + (i << 2);
 		tvb_memcpy(tvb, (guint8 *)&router, rtr_offset, 4);
 		if (router != 0) {
-            /* XXX - proto_tree_add_item with FT_IPXNET type? */
+			/* XXX - proto_tree_add_item with FT_IPXNET type? */
 			proto_tree_add_text(tree, tvb, rtr_offset, 4,
 			    "IPX Network: %s",
 			    ipxnet_to_string((guint8*)&router));
@@ -223,8 +227,8 @@ add_routers(proto_tree *tree, tvbuff_t *tvb, int offset)
 	}
 }
 
-static void
-dissect_nbipx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_nbipx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
 	gboolean	has_routes;
 	proto_tree	*nbipx_tree = NULL;
@@ -237,11 +241,17 @@ dissect_nbipx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	int		name_type;
 	gboolean	has_payload;
 	tvbuff_t	*next_tvb;
+	ipxhdr_t *ipxh;
+
+	/* Reject the packet if data is NULL */
+	if (data == NULL)
+		return 0;
+	ipxh = (ipxhdr_t*)data;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "NBIPX");
 	col_clear(pinfo->cinfo, COL_INFO);
 
-	if (pinfo->ipxptype == IPX_PACKET_TYPE_WANBCAST) {
+	if (ipxh->ipx_type == IPX_PACKET_TYPE_WANBCAST) {
 		/*
 		 * This is a WAN Broadcast packet; we assume it will have
 		 * 8 IPX addresses at the beginning.
@@ -300,11 +310,10 @@ dissect_nbipx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	case NBIPX_NAME_IN_USE:
 	case NBIPX_DEREGISTER_NAME:
 		name_type = get_netbios_name(tvb, offset+2, name, (NETBIOS_NAME_LEN - 1)*4 + 1);
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s<%02x>",
+		col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s<%02x>",
 				val_to_str_const(packet_type, nbipx_data_stream_type_vals, "Unknown"),
 				name, name_type);
-		}
+
 		if (nbipx_tree) {
 			tf = proto_tree_add_item(nbipx_tree, hf_nbipx_name_flags, tvb, offset, 1, ENC_LITTLE_ENDIAN);
 			name_type_flag_tree = proto_item_add_subtree(tf, ett_nbipx_name_type_flags);
@@ -333,10 +342,9 @@ dissect_nbipx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	case NBIPX_SESSION_DATA:
 	case NBIPX_SESSION_END:
 	case NBIPX_SESSION_END_ACK:
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_add_str(pinfo->cinfo, COL_INFO,
+		col_set_str(pinfo->cinfo, COL_INFO,
 				val_to_str_const(packet_type, nbipx_data_stream_type_vals, "Unknown"));
-		}
+
 		dissect_conn_control(tvb, offset, nbipx_tree);
 		offset += 1;
 
@@ -374,10 +382,9 @@ dissect_nbipx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		break;
 
 	case NBIPX_DIRECTED_DATAGRAM:
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_add_str(pinfo->cinfo, COL_INFO,
+		col_set_str(pinfo->cinfo, COL_INFO,
 				val_to_str_const(packet_type, nbipx_data_stream_type_vals, "Unknown"));
-		}
+
 		dissect_conn_control(tvb, offset, nbipx_tree);
 		offset += 1;
 
@@ -401,10 +408,8 @@ dissect_nbipx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		break;
 
 	default:
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_add_str(pinfo->cinfo, COL_INFO,
+		col_set_str(pinfo->cinfo, COL_INFO,
 				val_to_str_const(packet_type, nbipx_data_stream_type_vals, "Unknown"));
-		}
 
 		/*
 		 * We don't know what the first byte is.
@@ -433,6 +438,8 @@ dissect_nbipx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		next_tvb = tvb_new_subset_remaining(tvb, offset);
 		dissect_netbios_payload(next_tvb, pinfo, tree);
 	}
+
+	return tvb_length(tvb);
 }
 
 static void
@@ -561,7 +568,7 @@ proto_register_nbipx(void)
 			FT_UINT16, BASE_DEC, NULL, 0,
 			NULL, HFILL }
 		},
-    };
+	};
 
 	static gint *ett[] = {
 		&ett_nbipx,
@@ -579,7 +586,7 @@ proto_reg_handoff_nbipx(void)
 {
 	dissector_handle_t nbipx_handle;
 
-	nbipx_handle = create_dissector_handle(dissect_nbipx, proto_nbipx);
+	nbipx_handle = new_create_dissector_handle(dissect_nbipx, proto_nbipx);
 	dissector_add_uint("ipx.socket", IPX_SOCKET_NETBIOS, nbipx_handle);
 }
 
@@ -739,55 +746,53 @@ dissect_nmpi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	name_type = get_netbios_name(tvb, offset+4, name, (NETBIOS_NAME_LEN - 1)*4 + 1);
 	/*node_name_type = */get_netbios_name(tvb, offset+20, node_name, (NETBIOS_NAME_LEN - 1)*4 + 1);
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		switch (opcode) {
+	switch (opcode) {
 
-		case INAME_CLAIM:
-			col_add_fstr(pinfo->cinfo, COL_INFO, "Claim name %s<%02x>",
+	case INAME_CLAIM:
+		col_add_fstr(pinfo->cinfo, COL_INFO, "Claim name %s<%02x>",
 					name, name_type);
-			break;
+		break;
 
-		case INAME_DELETE:
-			col_add_fstr(pinfo->cinfo, COL_INFO, "Delete name %s<%02x>",
+	case INAME_DELETE:
+		col_add_fstr(pinfo->cinfo, COL_INFO, "Delete name %s<%02x>",
 					name, name_type);
-			break;
+		break;
 
-		case INAME_QUERY:
-			col_add_fstr(pinfo->cinfo, COL_INFO, "Query name %s<%02x>",
+	case INAME_QUERY:
+		col_add_fstr(pinfo->cinfo, COL_INFO, "Query name %s<%02x>",
 					name, name_type);
-			break;
+		break;
 
-		case INAME_FOUND:
-			col_add_fstr(pinfo->cinfo, COL_INFO, "Name %s<%02x> found",
+	case INAME_FOUND:
+		col_add_fstr(pinfo->cinfo, COL_INFO, "Name %s<%02x> found",
 					name, name_type);
-			break;
+		break;
 
-		case IMSG_HANGUP:
-			col_add_fstr(pinfo->cinfo, COL_INFO,
+	case IMSG_HANGUP:
+		col_add_fstr(pinfo->cinfo, COL_INFO,
 			    "Messenger hangup on %s<%02x>", name, name_type);
-			break;
+		break;
 
-		case IMSLOT_SEND:
-			col_add_fstr(pinfo->cinfo, COL_INFO,
+	case IMSLOT_SEND:
+		col_add_fstr(pinfo->cinfo, COL_INFO,
 			    "Mailslot write to %s<%02x>", name, name_type);
-			break;
+		break;
 
-		case IMSLOT_FIND:
-			col_add_fstr(pinfo->cinfo, COL_INFO,
+	case IMSLOT_FIND:
+		col_add_fstr(pinfo->cinfo, COL_INFO,
 			    "Find mailslot name %s<%02x>", name, name_type);
-			break;
+		break;
 
-		case IMSLOT_NAME:
-			col_add_fstr(pinfo->cinfo, COL_INFO,
+	case IMSLOT_NAME:
+		col_add_fstr(pinfo->cinfo, COL_INFO,
 			    "Mailslot name %s<%02x> found", name, name_type);
-			break;
+		break;
 
-		default:
-			col_add_fstr(pinfo->cinfo, COL_INFO,
+	default:
+		col_add_fstr(pinfo->cinfo, COL_INFO,
 			    "Unknown NMPI op 0x%02x: name %s<%02x>",
 			    opcode, name, name_type);
-			break;
-		}
+		break;
 	}
 
 	if (tree) {
@@ -817,18 +822,19 @@ dissect_nmpi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 void
 proto_register_nmpi(void)
 {
-/*        static hf_register_info hf[] = {
-                { &variable,
-                { "Name",           "nmpi.abbreviation", TYPE, VALS_POINTER }},
-        };*/
+/*
+	static hf_register_info hf[] = {
+		{ &variable,
+		{ "Name",           "nmpi.abbreviation", TYPE, VALS_POINTER }},
+	}; */
 	static gint *ett[] = {
 		&ett_nmpi,
 		&ett_nmpi_name_type_flags,
 	};
 
-        proto_nmpi = proto_register_protocol("Name Management Protocol over IPX",
+	proto_nmpi = proto_register_protocol("Name Management Protocol over IPX",
 	    "NMPI", "nmpi");
- /*       proto_register_field_array(proto_nmpi, hf, array_length(hf));*/
+	/*       proto_register_field_array(proto_nmpi, hf, array_length(hf));*/
 	proto_register_subtree_array(ett, array_length(ett));
 }
 

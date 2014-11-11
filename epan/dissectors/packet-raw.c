@@ -1,8 +1,6 @@
 /* packet-raw.c
  * Routines for raw packet disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  *
@@ -30,14 +28,18 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/prefs.h>
+#include <wiretap/wtap.h>
 #include "packet-raw.h"
 #include "packet-ip.h"
 #include "packet-ppp.h"
 
+void proto_register_raw(void);
+void proto_reg_handoff_raw(void);
+
 static int proto_raw = -1;
 static gint ett_raw = -1;
 
-static const char zeroes[10];
+static const char zeroes[10] = {0,0,0,0,0,0,0,0,0,0};
 
 static dissector_handle_t ip_handle;
 static dissector_handle_t ipv6_handle;

@@ -6,8 +6,6 @@
  * Routines for DRSUAPI packet disassembly
  *   ronnie sahlberg 2005
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -45,13 +43,11 @@ ETH_HF
 ETH_ETT
 
 static int
-ucarray_drsuapi_dissect_DsReplicaSyncRequest1Info_nc_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaSyncRequest1Info_nc_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	static guint32 len;
-	dcerpc_info *di;
 	int old_offset;
 
-	di=pinfo->private_data;
 	if(di->conformant_run){
 		/*just a run to handle conformant arrays, nothing to dissect 
 		  but we need to remember how long this array was.
@@ -78,9 +74,9 @@ ucarray_drsuapi_dissect_DsReplicaSyncRequest1Info_nc_dn(tvbuff_t *tvb, int offse
 }
 
 static int
-drsuapi_dissect_a_string(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_a_string(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_vstring(tvb, offset, pinfo, tree, drep, 1, hf_index, FALSE, NULL);
+    offset=dissect_ndr_vstring(tvb, offset, pinfo, tree, di, drep, 1, hf_index, FALSE, NULL);
     return offset;
 }
 

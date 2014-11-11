@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -27,7 +25,7 @@
 #include "syntax-tree.h"
 #include "drange.h"
 
-STTYPE_ACCESSOR_PROTOTYPE(header_field_info*, range, hfinfo)
+STTYPE_ACCESSOR_PROTOTYPE(stnode_t*, range, entity)
 STTYPE_ACCESSOR_PROTOTYPE(drange_t*, range, drange)
 
 /* Set a range */

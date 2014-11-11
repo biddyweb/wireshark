@@ -1,7 +1,5 @@
 /* interface_tree.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -23,10 +21,14 @@
 
 #include "interface_tree.h"
 
+#ifdef HAVE_LIBPCAP
 #include "ui/capture_globals.h"
+#endif
 #include "ui/iface_lists.h"
 #include "ui/utf8_entities.h"
+#include "ui/ui_util.h"
 
+#include "qt_ui_utils.h"
 #include "sparkline_delegate.h"
 #include "wireshark_application.h"
 
@@ -37,11 +39,15 @@
 const int stat_update_interval_ = 1000; // ms
 
 InterfaceTree::InterfaceTree(QWidget *parent) :
-    QTreeWidget(parent),
-    stat_cache_(NULL),
-    stat_timer_(NULL)
+    QTreeWidget(parent)
+#ifdef HAVE_LIBPCAP
+    ,stat_cache_(NULL)
+    ,stat_timer_(NULL)
+#endif // HAVE_LIBPCAP
 {
     QTreeWidgetItem *ti;
+
+    qRegisterMetaType< PointList >( "PointList" );
 
     header()->setVisible(false);
     setRootIsDecorated(false);
@@ -63,6 +69,7 @@ InterfaceTree::InterfaceTree(QWidget *parent) :
 }
 
 InterfaceTree::~InterfaceTree() {
+#ifdef HAVE_LIBPCAP
     QTreeWidgetItemIterator iter(this);
 
     if (stat_cache_) {
@@ -72,28 +79,32 @@ InterfaceTree::~InterfaceTree() {
 
     while (*iter) {
         QList<int> *points;
-        QVariant v;
 
-        v = (*iter)->data(1, Qt::UserRole);
-        points = v.value<QList<int> *>();
+        points = (*iter)->data(1, Qt::UserRole).value<QList<int> *>();
         delete(points);
+        ++iter;
     }
+#endif // HAVE_LIBPCAP
 }
 
 void InterfaceTree::hideEvent(QHideEvent *evt) {
     Q_UNUSED(evt);
 
+#ifdef HAVE_LIBPCAP
     if (stat_timer_) stat_timer_->stop();
     if (stat_cache_) {
         capture_stat_stop(stat_cache_);
         stat_cache_ = NULL;
     }
+#endif // HAVE_LIBPCAP
 }
 
 void InterfaceTree::showEvent(QShowEvent *evt) {
     Q_UNUSED(evt);
 
+#ifdef HAVE_LIBPCAP
     if (stat_timer_) stat_timer_->start(stat_update_interval_);
+#endif // HAVE_LIBPCAP
 }
 
 void InterfaceTree::resizeEvent(QResizeEvent *evt)
@@ -111,24 +122,32 @@ void InterfaceTree::resizeEvent(QResizeEvent *evt)
 
 void InterfaceTree::getInterfaceList()
 {
+#ifdef HAVE_LIBPCAP
     GList *if_list;
     int err;
     gchar *err_str = NULL;
 
     clear();
 
-    if_list = capture_interface_list(&err, &err_str);
+    if_list = capture_interface_list(&err, &err_str,main_window_update);
     if_list = g_list_sort(if_list, if_list_comparator_alph);
 
     if (if_list == NULL) {
         QTreeWidgetItem *ti = new QTreeWidgetItem();
-        ti->setText(0, QString(tr("%1")).arg(QString().fromUtf8(err_str)));
-        g_free(err_str);
+        QLabel *err_label;
+
+        if (err == CANT_GET_INTERFACE_LIST || err == DONT_HAVE_PCAP) {
+            err_label = new QLabel(gchar_free_to_qstring(err_str));
+        } else {
+            err_label = new QLabel("No interfaces found");
+        }
+        err_label->setWordWrap(true);
+
+        setColumnCount(1);
         addTopLevelItem(ti);
+        setItemWidget(ti, 0, err_label);
         resizeColumnToContents(0);
         return;
-    } else if (err_str) {
-        g_free(err_str);
     }
 
     // XXX Do we need to check for this? capture_interface_list returns an error if the length is 0.
@@ -154,6 +173,12 @@ void InterfaceTree::getInterfaceList()
             addTopLevelItem(ti);
             // XXX Add other device information
             resizeColumnToContents(1);
+            if (strstr(prefs.capture_device, device.name) != NULL) {
+                device.selected = TRUE;
+                global_capture_opts.num_selected++;
+                global_capture_opts.all_ifaces = g_array_remove_index(global_capture_opts.all_ifaces, i);
+                g_array_insert_val(global_capture_opts.all_ifaces, i, device);
+            }
             if (device.selected) {
                 ti->setSelected(true);
             }
@@ -168,9 +193,46 @@ void InterfaceTree::getInterfaceList()
         connect(stat_timer_, SIGNAL(timeout()), this, SLOT(updateStatistics()));
         stat_timer_->start(stat_update_interval_);
     }
+#else
+    QTreeWidgetItem *ti = new QTreeWidgetItem();
+
+    clear();
+    setColumnCount(1);
+    ti->setText(0, tr("Interface information not available"));
+    addTopLevelItem(ti);
+    resizeColumnToContents(0);
+#endif // HAVE_LIBPCAP
+}
+
+void InterfaceTree::getPoints(int row, PointList *pts)
+{
+    QTreeWidgetItemIterator iter(this);
+    //qDebug("iter;..!");
+
+    for (int i = 0; (*iter); i++)
+    {
+        if (row == i)
+        {
+            //qDebug("found! row:%d", row);
+            QString device_name = (*iter)->data(0, Qt::UserRole).value<QString>();
+            QList<int> *punkt = (*iter)->data(1, Qt::UserRole).value<QList<int> *>();
+            for (int j = 0; j < punkt->length(); j++)
+            {
+                pts->append(punkt->at(j));
+            }
+            //pts = new QList<int>(*punkt);
+            //pts->operator =(punkt);
+            //pts = punkt;
+            //pts->append(150);
+            //qDebug("done");
+            return;
+        }
+        iter++;
+    }
 }
 
 void InterfaceTree::updateStatistics(void) {
+#ifdef HAVE_LIBPCAP
     interface_t device;
     guint diff, if_idx;
     struct pcap_stat stats;
@@ -208,10 +270,12 @@ void InterfaceTree::updateStatistics(void) {
         }
         iter++;
     }
+#endif // HAVE_LIBPCAP
 }
 
 void InterfaceTree::updateSelectedInterfaces()
 {
+#ifdef HAVE_LIBPCAP
     QTreeWidgetItemIterator iter(this);
 
     global_capture_opts.num_selected = 0;
@@ -243,6 +307,7 @@ void InterfaceTree::updateSelectedInterfaces()
         }
         iter++;
     }
+#endif // HAVE_LIBPCAP
 }
 
 /*

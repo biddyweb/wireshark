@@ -3,8 +3,6 @@
  * Copyright 2012 intel Corp.
  * Written by Andrei Emeltchenko at intel dot com
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -54,6 +52,9 @@ static const value_string bluetooth_pid_vals[] = {
 	{ 0,	NULL }
 };
 
+void proto_register_bt_oui(void);
+void proto_reg_handoff_bt_oui(void);
+
 /*
  * NOTE: there's no dissector here, just registration routines to set
  * up the dissector table for the Bluetooth OUI
@@ -81,6 +82,6 @@ void proto_register_bt_oui(void)
 		}
 	};
 
-	llc_add_oui(OUI_BLUETOOTH, "llc.bluetooth_pid", "Bluetooth OUI PID", hf);
+	llc_add_oui(OUI_BLUETOOTH, "llc.bluetooth_pid", "LLC Bluetooth OUI PID", hf);
 }
 

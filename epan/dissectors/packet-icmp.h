@@ -1,8 +1,6 @@
 /* packet-icmp.h
  * Definitions for ICMP: http://tools.ietf.org/html/rfc792.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -24,6 +22,8 @@
 
 #ifndef __PACKET_ICMP_H__
 #define __PACKET_ICMP_H__
+
+extern int proto_icmp;
 
 /* ICMP echo request/reply transaction statistics ... used by ICMP tap(s) */
 typedef struct _icmp_transaction_t {

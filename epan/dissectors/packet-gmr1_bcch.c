@@ -8,8 +8,6 @@
  *  [2] ETSI TS 101 376-4-8 V2.2.1 - GMPRS-1 04.008
  *  [3] ETSI TS 101 376-4-8 V3.1.1 - GMR-1 3G 44.008
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,19 +31,17 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-csn1.h"
 
+void proto_register_gmr1_bcch(void);
 
 /* GMR-1 BCCH proto */
 static int proto_gmr1_bcch = -1;
 
 /* GMR-1 BCCH sub tree */
 static gint ett_gmr1_bcch = -1;
-
-/* Handoffs */
-static dissector_handle_t data_handle;
-
 
 
 /* ------------------------------------------------------------------------ */
@@ -764,17 +760,21 @@ CSN_DESCR_BEGIN(Segment3Kbis_t)
   M_FIXED_LABEL(Segment3Kbis_t, 4, 0xb, "= Segment type: K bis"),
 CSN_DESCR_END  (Segment3Kbis_t)
 
+#if 0
 static const
 CSN_DESCR_BEGIN(Segment3L_t)
   M_FIXED_LABEL(Segment3L_t, 1, 0x0, "= Class type: 3"),
   M_FIXED_LABEL(Segment3L_t, 4, 0xc, "= Segment type: L"),
 CSN_DESCR_END  (Segment3L_t)
+#endif
 
+#if 0
 static const
 CSN_DESCR_BEGIN(Segment3M_t)
   M_FIXED_LABEL(Segment3M_t, 1, 0x0, "= Class type: 3"),
   M_FIXED_LABEL(Segment3M_t, 4, 0xd, "= Segment type: M"),
 CSN_DESCR_END  (Segment3M_t)
+#endif
 
 static const
 CSN_DESCR_BEGIN(Segment4A_t)
@@ -1027,10 +1027,10 @@ static const value_string si1_randomization_period_vals[] = {
 static void
 dissect_gmr1_bcch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-	proto_item *bcch_item = NULL;
-	proto_tree *bcch_tree = NULL;
+	proto_item  *bcch_item = NULL;
+	proto_tree  *bcch_tree = NULL;
 	csnStream_t  ar;
-	gboolean is_si1;
+	gboolean     is_si1;
 
 	col_append_str(pinfo->cinfo, COL_INFO, "(BCCH) ");
 
@@ -1047,7 +1047,11 @@ dissect_gmr1_bcch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	/* SI1 or SI2 */
 	if (is_si1) {
 		SystemInformation1_t *data;
-		data = ep_alloc(sizeof(SystemInformation1_t));
+		data = wmem_new(wmem_packet_scope(), SystemInformation1_t);
+		/* Initialize the type to the last element, which is an
+		 * "Unknown", in case the dissector bails before getting this
+		 * far. */
+		data->SegmentType = array_length(SI1_SegmentChoice) - 1;
 		csnStreamDissector(bcch_tree, &ar, CSNDESCR(SystemInformation1_t), tvb, data, ett_gmr1_bcch);
 		col_append_fstr(
 			pinfo->cinfo, COL_INFO,
@@ -1056,7 +1060,11 @@ dissect_gmr1_bcch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		);
 	} else {
 		SystemInformation2_t *data;
-		data = ep_alloc(sizeof(SystemInformation2_t));
+		data = wmem_new(wmem_packet_scope(), SystemInformation2_t);
+		/* Initialize the type to the last element, which is an
+		 * "Unknown", in case the dissector bails before getting this
+		 * far. */
+		data->SegmentType = array_length(SI2_SegmentChoice) - 1;
 		csnStreamDissector(bcch_tree, &ar, CSNDESCR(SystemInformation2_t), tvb, data, ett_gmr1_bcch);
 		col_append_fstr(
 			pinfo->cinfo, COL_INFO,
@@ -1421,8 +1429,15 @@ proto_register_gmr1_bcch(void)
 	register_dissector("gmr1_bcch", dissect_gmr1_bcch, proto_gmr1_bcch);
 }
 
-void
-proto_reg_handoff_gmr1_bcch(void)
-{
-	data_handle = find_dissector("data");
-}
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

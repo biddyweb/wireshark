@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-pkcs1.c                                                             */
 /* ../../tools/asn2wrs.py -b -p pkcs1 -c ./pkcs1.cnf -s ./packet-pkcs1-template -D . -O ../../epan/dissectors PKIXAlgs-2009.asn */
 
@@ -9,8 +9,6 @@
 /* packet-pkcs1.c
  * Routines for PKCS#1/RFC2313 packet dissection
  *  Ronnie Sahlberg 2004
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -37,6 +35,7 @@
 #include <epan/packet.h>
 #include <epan/oids.h>
 #include <epan/asn1.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-ber.h"
 #include "packet-pkcs1.h"
@@ -45,6 +44,9 @@
 #define PNAME  "PKCS#1"
 #define PSNAME "PKCS-1"
 #define PFNAME "pkcs-1"
+
+void proto_register_pkcs1(void);
+void proto_reg_handoff_pkcs1(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_pkcs1 = -1;
@@ -84,7 +86,7 @@ static int hf_pkcs1_r = -1;                       /* INTEGER */
 static int hf_pkcs1_s = -1;                       /* INTEGER */
 
 /*--- End of included file: packet-pkcs1-hf.c ---*/
-#line 44 "../../asn1/pkcs1/packet-pkcs1-template.c"
+#line 46 "../../asn1/pkcs1/packet-pkcs1-template.c"
 
 /* Initialize the subtree pointers */
 
@@ -102,7 +104,7 @@ static gint ett_pkcs1_DSA_Sig_Value = -1;
 static gint ett_pkcs1_ECDSA_Sig_Value = -1;
 
 /*--- End of included file: packet-pkcs1-ett.c ---*/
-#line 47 "../../asn1/pkcs1/packet-pkcs1-template.c"
+#line 49 "../../asn1/pkcs1/packet-pkcs1-template.c"
 
 
 /*--- Included file: packet-pkcs1-fn.c ---*/
@@ -372,7 +374,7 @@ static void dissect_ECParameters_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, 
 
 
 /*--- End of included file: packet-pkcs1-fn.c ---*/
-#line 49 "../../asn1/pkcs1/packet-pkcs1-template.c"
+#line 51 "../../asn1/pkcs1/packet-pkcs1-template.c"
 
 /*--- proto_register_pkcs1 ----------------------------------------------*/
 void proto_register_pkcs1(void) {
@@ -383,11 +385,11 @@ void proto_register_pkcs1(void) {
 /*--- Included file: packet-pkcs1-hfarr.c ---*/
 #line 1 "../../asn1/pkcs1/packet-pkcs1-hfarr.c"
     { &hf_pkcs1_DSA_Params_PDU,
-      { "DSA-Params", "pkcs1.DSA_Params",
+      { "DSA-Params", "pkcs1.DSA_Params_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_DomainParameters_PDU,
-      { "DomainParameters", "pkcs1.DomainParameters",
+      { "DomainParameters", "pkcs1.DomainParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_KEA_Params_Id_PDU,
@@ -395,11 +397,11 @@ void proto_register_pkcs1(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_HashAlgorithm_PDU,
-      { "HashAlgorithm", "pkcs1.HashAlgorithm",
+      { "HashAlgorithm", "pkcs1.HashAlgorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_RSASSA_PSS_params_PDU,
-      { "RSASSA-PSS-params", "pkcs1.RSASSA_PSS_params",
+      { "RSASSA-PSS-params", "pkcs1.RSASSA_PSS_params_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_ECParameters_PDU,
@@ -443,7 +445,7 @@ void proto_register_pkcs1(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_pkcs1_digestAlgorithm,
-      { "digestAlgorithm", "pkcs1.digestAlgorithm",
+      { "digestAlgorithm", "pkcs1.digestAlgorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DigestAlgorithmIdentifier", HFILL }},
     { &hf_pkcs1_digest,
@@ -467,7 +469,7 @@ void proto_register_pkcs1(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_pkcs1_validationParams,
-      { "validationParams", "pkcs1.validationParams",
+      { "validationParams", "pkcs1.validationParams_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_seed,
@@ -479,11 +481,11 @@ void proto_register_pkcs1(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_pkcs1_hashAlgorithm,
-      { "hashAlgorithm", "pkcs1.hashAlgorithm",
+      { "hashAlgorithm", "pkcs1.hashAlgorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_maskGenAlgorithm,
-      { "maskGenAlgorithm", "pkcs1.maskGenAlgorithm",
+      { "maskGenAlgorithm", "pkcs1.maskGenAlgorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkcs1_saltLength,
@@ -508,7 +510,7 @@ void proto_register_pkcs1(void) {
         "INTEGER", HFILL }},
 
 /*--- End of included file: packet-pkcs1-hfarr.c ---*/
-#line 56 "../../asn1/pkcs1/packet-pkcs1-template.c"
+#line 58 "../../asn1/pkcs1/packet-pkcs1-template.c"
   };
 
   /* List of subtrees */
@@ -528,7 +530,7 @@ void proto_register_pkcs1(void) {
     &ett_pkcs1_ECDSA_Sig_Value,
 
 /*--- End of included file: packet-pkcs1-ettarr.c ---*/
-#line 61 "../../asn1/pkcs1/packet-pkcs1-template.c"
+#line 63 "../../asn1/pkcs1/packet-pkcs1-template.c"
   };
 
   /* Register protocol */
@@ -557,7 +559,7 @@ void proto_reg_handoff_pkcs1(void) {
 
 
 /*--- End of included file: packet-pkcs1-dis-tab.c ---*/
-#line 76 "../../asn1/pkcs1/packet-pkcs1-template.c"
+#line 78 "../../asn1/pkcs1/packet-pkcs1-template.c"
 
 	register_ber_oid_dissector("1.2.840.113549.2.2", dissect_ber_oid_NULL_callback, proto_pkcs1, "md2");
 	register_ber_oid_dissector("1.2.840.113549.2.4", dissect_ber_oid_NULL_callback, proto_pkcs1, "md4");

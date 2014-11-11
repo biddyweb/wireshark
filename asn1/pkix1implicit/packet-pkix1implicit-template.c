@@ -1,8 +1,6 @@
 /* packet-pkix1implicit.c
  * Routines for PKIX1Implitic packet dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,9 @@
 #define PNAME  "PKIX1Implitit"
 #define PSNAME "PKIX1IMPLICIT"
 #define PFNAME "pkix1implicit"
+
+void proto_register_pkix1implicit(void);
+void proto_reg_handoff_pkix1implicit(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_pkix1implicit = -1;

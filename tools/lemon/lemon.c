@@ -16,17 +16,15 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 ** General Public License for more details.
 **
-** You should have received a copy of the GNU General Public
-** License along with this library; if not, write to the
-** Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-** Boston, MA  02111-1307, USA.
+** You should have received a copy of the GNU General Public License
+** along with this program; if not, write to the Free Software
+** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 **
 ** Author contact information:
 **   drh@acm.org
 **   http://www.hwaci.com/drh/
 **
 ** Updated to sqlite lemon version 1.59
-** $Id$
 */
 
 #include "config.h"
@@ -1646,7 +1644,7 @@ int main(int argc _U_, char **argv)
 **   changed.
 */
 static char *merge( char *a, char *b, int (*cmp)(const char*,const char*),
-  int offset
+  unsigned long offset
 ){
   char *ptr, *head;
 
@@ -2235,7 +2233,7 @@ to follow the previous rule.");
           psp->rhs[psp->nrhs-1] = msp;
         }
         msp->nsubsym++;
-        msp->subsym = (struct symbol **) realloc(msp->subsym, 
+        msp->subsym = (struct symbol **) realloc(msp->subsym,
             sizeof(struct symbol*)*msp->nsubsym);
         msp->subsym[msp->nsubsym-1] = Symbol_new(&x[1]);
         if( safe_islower(x[1]) || safe_islower(msp->subsym[0]->name[0]) ){
@@ -3137,7 +3135,7 @@ PRIVATE void tplt_xfer(const char *name, FILE *in, FILE *out, int *lineno)
     (*lineno)++;
     iStart = 0;
     if( name ){
-      for(i=0; line[i] && i<LINESIZE; i++){
+      for(i=0; i<LINESIZE && line[i]; i++){
         if( line[i]=='P' && i<(LINESIZE-5) && strncmp(&line[i],"Parse",5)==0
           && (i==0 || !safe_isalpha(line[i-1]))
         ){
@@ -3179,20 +3177,20 @@ PRIVATE FILE *tplt_open(struct lemon *lemp)
         tpltname = pathsearch(lemp->argv0,templatename,0);
       }
   }
-  if( tpltname==0 ){
+  if( tpltname==NULL ){
     fprintf(stderr,"Can't find the parser driver template file \"%s\".\n",
     templatename);
     lemp->errorcnt++;
-    free(tpltname);
-    return 0;
+    return NULL;
   }
   in = fopen(tpltname,"rb");
-  free(tpltname);
+  if( tpltname != buf )
+    free(tpltname);
 
   if( in==0 ){
     fprintf(stderr,"Can't open the template file \"%s\".\n",templatename);
     lemp->errorcnt++;
-    return 0;
+    return NULL;
   }
   return in;
 }
@@ -3416,17 +3414,15 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
       lemp->errorcnt++;
     }else if( rp->rhsalias[i]==0 ){
       if( has_destructor(rp->rhs[i],lemp) ){
-        append_str("  yy_destructor(%d,&yymsp[%d].minor);\n", 0,
+        append_str("  yy_destructor(yypParser,%d,&yymsp[%d].minor);\n", 0,
            rp->rhs[i]->index,i-rp->nrhs+1);
       }else{
         /* No destructor defined for this term */
       }
     }
   }
-  if( rp->code ){
-    cp = append_str(0,0,0,0);
-    rp->code = Strsafe(cp?cp:"");
-  }
+  cp = append_str(0,0,0,0);
+  rp->code = Strsafe(cp?cp:"");
 }
 
 /*
@@ -4291,9 +4287,9 @@ int SetUnion(char *s1, char *s2)
 ** Code for processing tables in the LEMON parser generator.
 */
 
-PRIVATE int strhash(const char *x)
+PRIVATE unsigned int strhash(const char *x)
 {
-  int h = 0;
+  unsigned int h = 0;
   while( *x) h = h*13 + *(x++);
   return h;
 }
@@ -4637,8 +4633,8 @@ struct symbol **Symbol_arrayof(void)
 /* Compare two configurations */
 int Configcmp(const char *_a,const char *_b)
 {
-  const struct config *a = (struct config *) _a;
-  const struct config *b = (struct config *) _b;
+  const struct config *a = (const struct config *) _a;
+  const struct config *b = (const struct config *) _b;
   int x;
   x = a->rp->index - b->rp->index;
   if( x==0 ) x = a->dot - b->dot;

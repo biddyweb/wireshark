@@ -35,11 +35,12 @@ S<[ B<-P> ]>
 S<[ B<-q> ]>
 S<[ B<-Q> ]>
 S<[ B<-r> E<lt>infileE<gt> ]>
-S<[ B<-R> E<lt>read (display) filterE<gt> ]>
+S<[ B<-R> E<lt>Read filterE<gt> ]>
 S<[ B<-s> E<lt>capture snaplenE<gt> ]>
 S<[ B<-S> E<lt>separatorE<gt> ]>
-S<[ B<-t> ad|a|r|d|dd|e ]>
-S<[ B<-T> pdml|psml|ps|text|fields ]>
+S<[ B<-t> a|ad|adoy|d|dd|e|r|u|ud|udoy ]>
+S<[ B<-T> fields|pdml|ps|psml|text ]>
+S<[ B<-u> E<lt>seconds typeE<gt>]>
 S<[ B<-v> ]>
 S<[ B<-V> ]>
 S<[ B<-w> E<lt>outfileE<gt>|- ]>
@@ -47,11 +48,13 @@ S<[ B<-W> E<lt>file format optionE<gt>]>
 S<[ B<-x> ]>
 S<[ B<-X> E<lt>eXtension optionE<gt>]>
 S<[ B<-y> E<lt>capture link typeE<gt> ]>
+S<[ B<-Y> E<lt>displaY filterE<gt> ]>
 S<[ B<-z> E<lt>statisticsE<gt> ]>
+S<[ B<--capture-comment> E<lt>commentE<gt> ]>
 S<[ E<lt>capture filterE<gt> ]>
 
 B<tshark>
-B<-G> [fields|fields2|fields3|protocols|values|decodes|defaultprefs|currentprefs]
+B<-G> [column-formats|currentprefs|decodes|defaultprefs|fields|ftypes|heuristic-decodes|plugins|protocols|values]
 
 =head1 DESCRIPTION
 
@@ -59,7 +62,7 @@ B<TShark> is a network protocol analyzer.  It lets you capture packet
 data from a live network, or read packets from a previously saved
 capture file, either printing a decoded form of those packets to the
 standard output or writing the packets to a file.  B<TShark>'s native
-capture file format is B<libpcap> format, which is also the format used
+capture file format is B<pcap> format, which is also the format used
 by B<tcpdump> and various other tools.
 
 Without any options set, B<TShark> will work much like B<tcpdump>.  It will
@@ -102,7 +105,7 @@ B<TShark> without the B<-w> option, and redirect its standard output to
 the file (do I<not> use the B<-w> option).
 
 When writing packets to a file, B<TShark>, by default, writes the
-file in B<libpcap> format, and writes all of the packets it sees to the
+file in B<pcap> format, and writes all of the packets it sees to the
 output file.  The B<-F> option can be used to specify the format in which
 to write the file.  This list of available file formats is displayed by
 the B<-F> flag without a value.  However, you can't specify a file format
@@ -148,7 +151,10 @@ to dump one of several types of internal glossaries and then exit.
 
 =item -2
 
-Perform a two-pass analysis.
+Perform a two-pass analysis. This causes tshark to buffer output until the
+entire first pass is done, but allows it to fill in fields that require future
+knowledge, such as 'response in frame #' fields. Also permits reassembly
+frame dependencies to be calculated correctly.
 
 =item -a  E<lt>capture autostop conditionE<gt>
 
@@ -160,12 +166,12 @@ B<duration>:I<value> Stop writing to a capture file after I<value> seconds
 have elapsed.
 
 B<filesize>:I<value> Stop writing to a capture file after it reaches a size of
-I<value> kilobytes (where a kilobyte is 1024 bytes).  If this option is used
-together with the -b option, B<TShark> will stop writing to the current
-capture file and switch to the next one if filesize is reached.  When reading a
-capture file, B<TShark> will stop reading the file after the number of bytes
-read exceeds this number (the complete packet will be read, so more bytes than
-this number may be read).
+I<value> kB.  If this option is used together with the -b option, B<TShark>
+will stop writing to the current capture file and switch to the next one if
+filesize is reached.  When reading a capture file, B<TShark> will stop reading
+the file after the number of bytes read exceeds this number (the complete
+packet  will be read, so more bytes than this number may be read).  Note that
+the filesize is limited to a maximum value of 2 GiB.
 
 B<files>:I<value> Stop writing to capture files after I<value> number of files
 were written.
@@ -194,7 +200,7 @@ B<duration>:I<value> switch to the next file after I<value> seconds have
 elapsed, even if the current file is not completely filled up.
 
 B<filesize>:I<value> switch to the next file after it reaches a size of
-I<value> kilobytes (where a kilobyte is 1024 bytes).
+I<value> kB.  Note that the filesize is limited to a maximum value of 2 GiB.
 
 B<files>:I<value> begin again with the first file after I<value> number of
 files were written (form a ring buffer).  This value must be less than 100000.
@@ -205,16 +211,16 @@ go to the next file.  It should be noted that each B<-b> parameter takes exactly
 one criterion; to specify two criterion, each must be preceded by the B<-b>
 option.
 
-Example: B<-b filesize:1024 -b files:5> results in a ring buffer of five files
-of size one megabyte.
+Example: B<-b filesize:1000 -b files:5> results in a ring buffer of five files
+of size one megabyte each.
 
 =item -B  E<lt>capture buffer sizeE<gt>
 
-Set capture buffer size (in MB, default is 2MB).  This is used by the
+Set capture buffer size (in MiB, default is 2 MiB).  This is used by
 the capture driver to buffer packet data until that data can be written
 to disk.  If you encounter packet drops while capturing, try to increase
 this size.  Note that, while B<Tshark> attempts to set the buffer size
-to 2MB by default, and can be told to set it to a larger value, the
+to 2 MiB by default, and can be told to set it to a larger value, the
 system or interface on which you're capturing might silently limit the
 capture buffer size to a lower value or raise it to a higher value.
 
@@ -227,7 +233,7 @@ occurrence of the B<-i> option, it sets the default capture buffer size.
 If used after an B<-i> option, it sets the capture buffer size for
 the interface specified by the last B<-i> option occurring before
 this option.  If the capture buffer size is not set specifically,
-the default capture buffer size is used if provided.
+the default capture buffer size is used instead.
 
 =item -c  E<lt>capture packet countE<gt>
 
@@ -286,9 +292,9 @@ from such an account, it will not list any interfaces.
 Add a field to the list of fields to display if B<-T fields> is
 selected.  This option can be used multiple times on the command line.
 At least one field must be provided if the B<-T fields> option is
-selected.
+selected. Column names may be used prefixed with "_ws.col."
 
-Example: B<-e frame.number -e ip.addr -e udp>
+Example: B<-e frame.number -e ip.addr -e udp -e _ws.col.info>
 
 Giving a protocol rather than a single field will print multiple items
 of data about the protocol as a single field.  Fields are separated by
@@ -349,12 +355,29 @@ This option causes the output file(s) to be created with group-read permission
 (meaning that the output file(s) can be read by other members of the calling
 user's group).
 
-=item -G  [fields|fields2|fields3|protocols|values|decodes|defaultprefs|currentprefs]
+=item -G  [column-formats|currentprefs|decodes|defaultprefs|fields|ftypes|heuristic-decodes|plugins|protocols|values]
 
 The B<-G> option will cause B<Tshark> to dump one of several types of glossaries
 and then exit.  If no specific glossary type is specified, then the B<fields> report will be generated by default.
 
 The available report types include:
+
+B<column-formats> Dumps the column formats understood by tshark.
+There is one record per line.  The fields are tab-delimited.
+
+ * Field 1 = format string (e.g. "%rD")
+ * Field 2 = text description of format string (e.g. "Dest port (resolved)")
+
+B<currentprefs>  Dumps a copy of the current preferences file to stdout.
+
+B<decodes> Dumps the "layer type"/"decode as" associations to stdout.
+There is one record per line.  The fields are tab-delimited.
+
+ * Field 1 = layer type, e.g. "tcp.port"
+ * Field 2 = selector in decimal
+ * Field 3 = "decode as" name, e.g. "http"
+
+B<defaultprefs>  Dumps a default preferences file to stdout.
 
 B<fields>  Dumps the contents of the registration database to
 stdout.  An independent program can take this output and format it into nice
@@ -375,17 +398,30 @@ The fields are tab-delimited.
  * Field 3 = field abbreviation
  * Field 4 = type ( textual representation of the ftenum type )
  * Field 5 = parent protocol abbreviation
- * Field 6 = blurb describing field
+ * Field 6 = base for display (for integer types); "parent bitfield width" for FT_BOOLEAN
+ * Field 7 = bitmask: format: hex: 0x....
+ * Field 8 = blurb describing field
 
-B<fields2>  Same as the B<fields> report but includes two additional columns.
+B<ftypes> Dumps the "ftypes" (fundamental types) understood by tshark.
+There is one record per line.  The fields are tab-delimited.
 
- * Field 7 = base for display (for integer types); "parent bitfield width" for FT_BOOLEAN
- * Field 8 = blurb describing field (yes, apparently we repeated this accidentally)
+ * Field 1 = FTYPE (e.g "FT_IPv6")
+ * Field 2 = text description of type (e.g. "IPv6 address")
 
-B<fields3>  Same as the B<fields> report but includes two additional columns.
+B<heuristic-decodes> Dumps the heuristic decodes currently installed.
+There is one record per line.  The fields are tab-delimited.
 
- * Field 7 = base for display (for integer types); "parent bitfield width" for FT_BOOLEAN
- * Field 8 = bitmask: format: hex: 0x....
+ * Field 1 = underlying dissector (e.g. "tcp")
+ * Field 2 = name of heuristic decoder (e.g. ucp")
+ * Field 3 = heuristic enabled (e.g. "T" or "F")
+
+B<plugins> Dumps the plugins currently installed.
+There is one record per line.  The fields are tab-delimited.
+
+ * Field 1 = plugin library (e.g. "gryphon.so")
+ * Field 2 = plugin version (e.g. 0.0.4)
+ * Field 3 = plugin type (e.g. "dissector" or "tap")
+ * Field 4 = full path to plugin file
 
 B<protocols> Dumps the protocols in the registration database to stdout.
 An independent program can take this output and format it into nice tables
@@ -423,17 +459,6 @@ the type of record.
  * Field 3 = True String
  * Field 4 = False String
 
-B<decodes> Dumps the "layer type"/"decode as" associations to stdout.
-There is one record per line.  The fields are tab-delimited.
-
- * Field 1 = layer type, e.g. "tcp.port"
- * Field 2 = selector in decimal
- * Field 3 = "decode as" name, e.g. "http"
-
-B<defaultprefs>  Dumps a default preferences file to stdout.
-
-B<currentprefs>  Dumps a copy of the current preferences file to stdout.
-
 =item -h
 
 Print the version and options and exits.
@@ -465,7 +490,7 @@ B<TShark> reports an error and doesn't start the capture.
 
 Pipe names should be either the name of a FIFO (named pipe) or ``-'' to
 read data from the standard input.  Data read from pipes must be in
-standard libpcap format.
+standard pcap format.
 
 This option can occur multiple times.  When capturing from multiple
 interfaces, the capture file will be saved in pcap-ng format.
@@ -536,6 +561,8 @@ are turned on.
 
 The argument is a string that may contain the letters:
 
+B<C> to enable concurrent (asynchronous) DNS lookups
+
 B<m> to enable MAC address resolution
 
 B<n> to enable network address resolution
@@ -544,8 +571,6 @@ B<N> to enable using external resolvers (e.g., DNS) for network address
 resolution
 
 B<t> to enable transport-layer port number resolution
-
-B<C> to enable concurrent (asynchronous) DNS lookups
 
 =item -o  E<lt>preferenceE<gt>:E<lt>valueE<gt>
 
@@ -580,8 +605,8 @@ promiscuous mode.
 
 =item -P
 
-Decode and display packets even while writing raw packet data using the
-B<-w> option.
+Decode and display the packet summary, even if writing raw packet data using
+the B<-w> option.
 
 =item -q
 
@@ -608,15 +633,21 @@ count and the end of a capture are not sent to stderr.
 =item -r  E<lt>infileE<gt>
 
 Read packet data from I<infile>, can be any supported capture file format
-(including gzipped files).  It's B<not> possible to use named pipes
-or stdin here!
+(including gzipped files).  It is possible to use named pipes or stdin (-)
+here but only with certain (not compressed) capture file formats (in
+particular: those that can be read without seeking backwards).
 
-=item -R  E<lt>read (display) filterE<gt>
+=item -R  E<lt>Read filterE<gt>
 
 Cause the specified filter (which uses the syntax of read/display filters,
-rather than that of capture filters) to be applied before printing a
-decoded form of packets or writing packets to a file; packets not
-matching the filter are discarded rather than being printed or written.
+rather than that of capture filters) to be applied during the first pass of
+analysis. Packets not matching the filter are not considered for future
+passes. Only makes sense with multiple passes, see -2. For regular filtering
+on single-pass dissect see -Y instead.
+
+Note that forward-looking fields such as 'response in frame #' cannot be used
+with this filter, since they will not have been calculate when this filter is
+applied.
 
 =item -s  E<lt>capture snaplenE<gt>
 
@@ -636,19 +667,21 @@ the default snapshot length is used if provided.
 
 Set the line separator to be printed between packets.
 
-=item -t  ad|a|r|d|dd|e
+=item -t  a|ad|adoy|d|dd|e|r|u|ud|udoy
 
 Set the format of the packet timestamp printed in summary lines.
 The format can be one of:
 
-B<ad> absolute with date: The absolute date and time is the actual time and
-date the packet was captured
+B<a> absolute: The absolute time, as local time in your time zone,
+is the actual time the packet was captured, with no date displayed
 
-B<a> absolute: The absolute time is the actual time the packet was captured,
-with no date displayed
+B<ad> absolute with date: The absolute date, displayed as YYYY-MM-DD,
+and time, as local time in your time zone, is the actual time and date
+the packet was captured
 
-B<r> relative: The relative time is the time elapsed between the first packet
-and the current packet
+B<adoy> absolute with date using day of year: The absolute date,
+displayed as YYYY/DOY, and time, as local time in your time zone,
+is the actual time and date the packet was captured
 
 B<d> delta: The delta time is the time since the previous packet was
 captured
@@ -658,28 +691,25 @@ previous displayed packet was captured
 
 B<e> epoch: The time in seconds since epoch (Jan 1, 1970 00:00:00)
 
+B<r> relative: The relative time is the time elapsed between the first packet
+and the current packet
+
+B<u> UTC: The absolute time, as UTC, is the actual time the packet was
+captured, with no date displayed
+
+B<ud> UTC with date: The absolute date, displayed as YYYY-MM-DD,
+and time, as UTC, is the actual time and date the packet was captured
+
+B<udoy> UTC with date using day of year: The absolute date, displayed
+as YYYY/DOY, and time, as UTC, is the actual time and date the packet
+was captured
+
 The default format is relative.
 
-=item -T  pdml|psml|ps|text|fields
+=item -T  fields|pdml|ps|psml|text
 
 Set the format of the output when viewing decoded packet data.  The
 options are one of:
-
-B<pdml> Packet Details Markup Language, an XML-based format for the details of
-a decoded packet.  This information is equivalent to the packet details
-printed with the B<-V> flag.
-
-B<psml> Packet Summary Markup Language, an XML-based format for the summary
-information of a decoded packet.  This information is equivalent to the
-information shown in the one-line summary printed by default.
-
-B<ps> PostScript for a human-readable one-line summary of each of the packets,
-or a multi-line view of the details of each of the packets, depending on
-whether the B<-V> flag was specified.
-
-B<text> Text of a human-readable one-line summary of each of the packets, or a
-multi-line view of the details of each of the packets, depending on
-whether the B<-V> flag was specified.  This is the default.
 
 B<fields> The values of fields specified with the B<-e> option, in a
 form specified by the B<-E> option.  For example,
@@ -689,6 +719,29 @@ form specified by the B<-E> option.  For example,
 would generate comma-separated values (CSV) output suitable for importing
 into your favorite spreadsheet program.
 
+B<pdml> Packet Details Markup Language, an XML-based format for the details of
+a decoded packet.  This information is equivalent to the packet details
+printed with the B<-V> flag.
+
+B<ps> PostScript for a human-readable one-line summary of each of the packets,
+or a multi-line view of the details of each of the packets, depending on
+whether the B<-V> flag was specified.
+
+B<psml> Packet Summary Markup Language, an XML-based format for the summary
+information of a decoded packet.  This information is equivalent to the
+information shown in the one-line summary printed by default.
+
+B<text> Text of a human-readable one-line summary of each of the packets, or a
+multi-line view of the details of each of the packets, depending on
+whether the B<-V> flag was specified.  This is the default.
+
+=item -u E<lt>seconds typeE<gt>
+
+Specifies the seconds type.  Valid choices are:
+
+B<s> for seconds
+
+B<hms> for hours, minutes and seconds
 
 =item -v
 
@@ -696,8 +749,7 @@ Print the version and exit.
 
 =item -V
 
-Cause B<TShark> to print a view of the packet details rather
-than a one-line summary of the packet.
+Cause B<TShark> to print a view of the packet details.
 
 =item -w  E<lt>outfileE<gt> | -
 
@@ -727,15 +779,26 @@ B<n> write network address resolution information (pcapng only)
 =item -x
 
 Cause B<TShark> to print a hex and ASCII dump of the packet data
-after printing the summary or details.
+after printing the summary and/or details, if either are also being displayed.
 
 =item -X E<lt>eXtension optionsE<gt>
 
 Specify an option to be passed to a B<TShark> module.  The eXtension option
 is in the form I<extension_key>B<:>I<value>, where I<extension_key> can be:
 
-B<lua_script>:I<lua_script_filename> tells B<Wireshark> to load the given script in addition to the
+B<lua_script>:I<lua_script_filename> tells B<TShark> to load the given script in addition to the
 default Lua scripts.
+
+B<lua_script>I<num>:I<argument> tells B<TShark> to pass the given argument
+to the lua script identified by 'num', which is the number indexed order of the 'lua_script' command.
+For example, if only one script was loaded with '-X lua_script:my.lua', then '-X lua_script1:foo'
+will pass the string 'foo' to the 'my.lua' script.  If two scripts were loaded, such as '-X lua_script:my.lua'
+and '-X lua_script:other.lua' in that order, then a '-X lua_script2:bar' would pass the string 'bar' to the second lua
+script, namely 'other.lua'.
+
+B<read_format>:I<file_format> tells B<TShark> to use the given file format to read in the
+file (the file given in the B<-r> command option). Providing no I<file_format> argument, or
+an invalid one, will produce a file of available file formats to use.
 
 =item -y  E<lt>capture link typeE<gt>
 
@@ -748,6 +811,20 @@ If used after an B<-i> option, it sets the capture link type for
 the interface specified by the last B<-i> option occurring before
 this option.  If the capture link type is not set specifically,
 the default capture link type is used if provided.
+
+=item -Y  E<lt>displaY filterE<gt>
+
+Cause the specified filter (which uses the syntax of read/display filters,
+rather than that of capture filters) to be applied before printing a
+decoded form of packets or writing packets to a file.  Packets matching the
+filter are printed or written to file; packets that the matching packets
+depend upon (e.g., fragments), are not printed but are written to file;
+packets not matching the filter nor depended upon are discarded rather
+than being printed or written.
+
+Use this instead of -R for filtering using single-pass analysis. If doing
+two-pass analysis (see -2) then only packets matching the read filter (if there
+is one) will be checked against this filter.
 
 =item -z  E<lt>statisticsE<gt>
 
@@ -929,7 +1006,7 @@ display the contents of a TCP stream between 200.57.7.197 port 32891 and
 
   ===================================================================
   Follow: tcp,ascii
-  Filter: (ommitted for readability)
+  Filter: (omitted for readability)
   Node 0: 200.57.7.197:32891
   Node 1: 200.57.7.198:2906
   38
@@ -1058,11 +1135,11 @@ which only calculates the number of packets and bytes in each interval.
 B<io,stat> can also do much more statistics and calculate COUNT(), SUM(),
 MIN(), MAX(), AVG() and LOAD() using a slightly different filter syntax:
 
-=item -z io,stat,I<interval>,E<34>[COUNT|SUM|MIN|MAX|AVG|LOAD](I<field>)I<field> [and I<filter>]E<34>
+=item -z io,stat,I<interval>,E<34>[COUNT|SUM|MIN|MAX|AVG|LOAD](I<field>)I<filter>E<34>
 
-NOTE: One important thing to note here is that the field that the
-calculation is based on MUST also be part of the filter string or
-else the calculation will fail.
+NOTE: One important thing to note here is that the filter is not optional
+and that the field that the calculation is based on MUST be part of the filter
+string or the calculation will fail.
 
 So: B<-z io,stat,0.010,AVG(smb.time)> does not work.  Use B<-z
 io,stat,0.010,AVG(smb.time)smb.time> instead.  Also be aware that a field
@@ -1070,10 +1147,10 @@ can exist multiple times inside the same packet and will then be counted
 multiple times in those packets.
 
 NOTE: A second important thing to note is that the system setting for
-decimal separator is set to "."! If it is set to "," the statistics
+decimal separator must be set to "."! If it is set to "," the statistics
 will not be displayed per filter.
 
-B<COUNT(I<field>)I<field> [and I<filter>]> - Calculates the number of times that the
+B<COUNT(I<field>)I<filter>> - Calculates the number of times that the
 field I<name> (not its value) appears per interval in the filtered packet list.
 ''I<field>'' can be any display filter name.
 
@@ -1081,7 +1158,7 @@ Example: B<-z io,stat,0.010,E<34>COUNT(smb.sid)smb.sidE<34>>
 
 This will count the total number of SIDs seen in each 10ms interval.
 
-B<SUM(I<field>)I<field> [and I<filter>]> - Unlike COUNT, the I<values> of the
+B<SUM(I<field>)I<filter>> - Unlike COUNT, the I<values> of the
 specified field are summed per time interval.
 ''I<field>'' can only be a named integer, float, double or relative time field.
 
@@ -1090,7 +1167,7 @@ Example: B<-z io,stat,0.010,E<34>SUM(frame.len)frame.lenE<34>>
 Reports the total number of bytes that were transmitted bidirectionally in
 all the packets within a 10 millisecond interval.
 
-B<MIN/MAX/AVG(I<field>)I<field> [and I<filter>]> - The minimum, maximum, or average field value
+B<MIN/MAX/AVG(I<field>)I<filter>> - The minimum, maximum, or average field value
 in each interval is calculated.  The specified field must be a named integer,
 float, double or relative time field.  For relative time fields, the output is presented in
 seconds with six decimal digits of precision rounded to the nearest microsecond.
@@ -1142,7 +1219,7 @@ the total number of bytes transferred in SMB Write PDUs:
   000.000-                    30018         28067522               72             3240
   =====================================================================================
 
-B<LOAD(I<field>)I<field> [and I<filter>]> - The LOAD/Queue-Depth
+B<LOAD(I<field>)I<filter>> - The LOAD/Queue-Depth
 in each interval is calculated.  The specified field must be a relative time field that represents a response time.  For example smb.time.
 For each interval the Queue-Depth for the specified protocol is calculated.
 
@@ -1287,8 +1364,10 @@ This option can only be used once on the command line.
 
 =item B<-z> rpc,srt,I<program>,I<version>[,I<filter>]
 
-Collect call/reply SRT (Service Response Time) data for I<program>/I<version>.  Data collected
-is number of calls for each procedure, MinSRT, MaxSRT and AvgSRT.
+Collect call/reply SRT (Service Response Time) data for I<program>/I<version>.
+Data collected is the number of calls for each procedure, MinSRT, MaxSRT,
+AvgSRT, and the total time taken for each procedure.
+
 
 Example: B<-z rpc,srt,100003,3> will collect data for NFS v3.
 
@@ -1377,6 +1456,13 @@ on those calls that match that filter.
 Example: B<-z "smb,srt,ip.addr==1.2.3.4"> will only collect stats for
 SMB packets exchanged by the host at IP address 1.2.3.4 .
 
+=item --capture-comment E<lt>commentE<gt>
+
+Add a capture comment to the output file.
+
+This option is only available if a new output file in pcapng format is
+created. Only one capture comment may be set per output file.
+
 =back
 
 =back
@@ -1458,7 +1544,7 @@ whitespace.  The same directory as for the personal preferences file is
 used.
 
 Capture filter name resolution is handled by libpcap on UNIX-compatible
-systems and WinPCAP on Windows.  As such the Wireshark personal F<hosts> file
+systems and WinPcap on Windows.  As such the Wireshark personal F<hosts> file
 will not be consulted for capture filter name resolution.
 
 =item Name Resolution (ethers)
@@ -1485,7 +1571,7 @@ The personal F<ethers> file is looked for in the same directory as the personal
 preferences file.
 
 Capture filter name resolution is handled by libpcap on UNIX-compatible
-systems and WinPCAP on Windows.  As such the Wireshark personal F<ethers> file
+systems and WinPcap on Windows.  As such the Wireshark personal F<ethers> file
 will not be consulted for capture filter name resolution.
 
 =item Name Resolution (manuf)
@@ -1540,6 +1626,12 @@ personal preferences file.
 =head1 ENVIRONMENT VARIABLES
 
 =over 4
+
+=item WIRESHARK_APPDATA
+
+On Windows, Wireshark normally stores all application data in %APPDATA% or
+%USERPROFILE%.  You can override the default location by exporting this
+environment variable to specify an alternate location.
 
 =item WIRESHARK_DEBUG_EP_NO_CHUNKS
 
@@ -1626,6 +1718,18 @@ your environment is configured correctly, generate a core dump file.
 This can be useful to developers attempting to troubleshoot a problem
 with a protocol dissector.
 
+=item WIRESHARK_ABORT_ON_TOO_MANY_ITEMS
+
+If this environment variable is set, B<TShark> will call abort(3)
+if a dissector tries to add too many items to a tree (generally this
+is an indication of the dissector not breaking out of a loop soon enough).
+abort(3) will cause the program to exit abnormally; if you are running
+B<TShark> in a debugger, it should halt in the debugger and allow
+inspection of the process, and, if you are not running it in a debugger,
+it will, on some OSes, assuming your environment is configured correctly,
+generate a core dump file.  This can be useful to developers attempting to
+troubleshoot a problem with a protocol dissector.
+
 =item WIRESHARK_EP_VERIFY_POINTERS
 
 This environment variable, if present, causes certain uses of pointers to be
@@ -1652,7 +1756,7 @@ debugging out-of-memory conditions.
 =head1 SEE ALSO
 
 wireshark-filter(4), wireshark(1), editcap(1), pcap(3), dumpcap(1),
-text2pcap(1), mergecap(1), pcap-filter(7) or tcpdump(8) if it doesn't exist.
+text2pcap(1), mergecap(1), pcap-filter(7) or tcpdump(8)
 
 =head1 NOTES
 

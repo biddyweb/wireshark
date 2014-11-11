@@ -2,8 +2,6 @@
  * T.35 and H.221 tables
  * 2003  Tomas Kukosa
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -24,7 +22,7 @@
  */
 
 #ifndef __T35_H__
-#define __T35_H__ 
+#define __T35_H__
 
 #include <epan/value_string.h>
 

@@ -1,7 +1,7 @@
 /* packet-ppcap.c
- * Copyright 2012, Ericsson AB
+ * Copyright 2012, 2014, Ericsson AB
  *
- * $Id$
+ * $Id: packet-ppcap.c 53971 2013-03-07 19:52:14Z etxrab $
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -25,12 +25,28 @@
 
 
 #include "config.h"
-
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/wmem/wmem.h>
 #include "packet-mtp3.h"
+#include <epan/prefs.h>
 
 #define INVALID_SSN	0xff
+
+#define PPCAP_REV_DOC_PC1 1
+#define PPCAP_REV_DOC_2014_MAR 2 
+
+
+static const enum_val_t rev_doc[]  = {
+{ "rev pc1",	"FDTs 2012 Rev PC1",	PPCAP_REV_DOC_PC1 },
+{ "rev ",		"FDTS 2014 Rev", 		PPCAP_REV_DOC_2014_MAR },
+{ NULL,		NULL,		0}
+};
+
+
+void proto_register_ppcap(void);
+
+static gint global_ppcap_rev_doc = PPCAP_REV_DOC_2014_MAR;
 
 static guint8 ssn;
 
@@ -58,6 +74,9 @@ static const value_string payload_tag_values[] = {
 	{  2,	"Payload Data"},
 	{  3,	"Source Address"},
 	{  4,	"Destination Address"},
+	{  5,	"Local Port"},
+	{  6,	"Remote Port"},
+	{  7,	"Transfer Protocol for SIP/SIP-I message"},
 	{256,	"Info String"},
 	{0,	NULL},
 
@@ -96,10 +115,14 @@ static int hf_ppcap_reserved = -1;
 static int hf_ppcap_destreserved = -1;
 static int hf_ppcap_info = -1;
 static int hf_ppcap_payload_data = -1;
+static int hf_ppcap_local_port = -1;
+static int hf_ppcap_remote_port = -1;
+static int hf_ppcap_tcp_sip_type = -1;
 
 /* Initiliaze the subtree pointers*/
 
 void proto_reg_handoff_ppcap(void);
+
 
 /* PPCAP payload types */
 typedef enum {
@@ -113,11 +136,14 @@ typedef enum {
 	PPCAP_SCCP  = 7
 } payload_type_type;
 
-static int dissect_ppcap_payload_type(tvbuff_t *, proto_tree *, int, guint16, payload_type_type *);
-static int dissect_ppcap_source_address(tvbuff_t *, packet_info *, proto_tree *, int, guint16);
-static int dissect_ppcap_destination_address(tvbuff_t *, packet_info *, proto_tree *, int, guint16);
-static int dissect_ppcap_info_string(tvbuff_t *, proto_tree *, int, guint16);
-static int dissect_ppcap_payload_data(tvbuff_t *, packet_info *, proto_tree *, int, guint16, proto_tree *, payload_type_type);
+static int dissect_ppcap_payload_type(tvbuff_t *, proto_tree *, int, payload_type_type *);
+static int dissect_ppcap_source_address(tvbuff_t *, packet_info *, proto_tree *, int);
+static int dissect_ppcap_destination_address(tvbuff_t *, packet_info *, proto_tree *, int);
+static int dissect_ppcap_info_string(tvbuff_t *, proto_tree *, int);
+static int dissect_ppcap_local_port(tvbuff_t *, proto_tree *, int);
+static int dissect_ppcap_remote_port(tvbuff_t *,proto_tree *, int);
+static int dissect_ppcap_tcp_sip_msg(tvbuff_t *,proto_tree *, int);
+static int dissect_ppcap_payload_data(tvbuff_t *, packet_info *, proto_tree *, int, proto_tree *, payload_type_type);
 
 /*Dissecting the function PPCAP */
 
@@ -126,7 +152,7 @@ dissect_ppcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	proto_item *ti, *ti1;
 	proto_tree *ppcap_tree, *ppcap_tree1;
-	guint16 msg_type, msg_len;
+	guint16 msg_type;
 	int offset = 0;
 	payload_type_type payload_type = PPCAP_UNKNOWN;
 
@@ -136,32 +162,42 @@ dissect_ppcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	ti = proto_tree_add_item(tree, proto_ppcap, tvb, 0, -1, ENC_NA);
 	ppcap_tree = proto_item_add_subtree(ti, ett_ppcap);
 
-	while (tvb_length_remaining(tvb, offset) > 0)
+	while (tvb_reported_length_remaining(tvb, offset) > 0)
 	{
 		msg_type = tvb_get_ntohs(tvb, offset);
 		ti1 = proto_tree_add_text(ppcap_tree, tvb, offset, 2, "%s",
 					val_to_str(msg_type, payload_tag_values, "Unknown PPCAP message type (%u)"));
 		ppcap_tree1 = proto_item_add_subtree(ti1, ett_ppcap1);
 		offset  = offset + 2;
-		msg_len = tvb_get_ntohs(tvb, offset);
-		proto_tree_add_item( ppcap_tree1, hf_ppcap_length, tvb, offset, 2, ENC_BIG_ENDIAN);
-		offset  = offset + 2;
 		switch (msg_type) {
 		case 1:
 			payload_type = PPCAP_UNKNOWN;
-			offset = dissect_ppcap_payload_type(tvb, ppcap_tree1, offset, msg_len, &payload_type);
+			offset = dissect_ppcap_payload_type(tvb, ppcap_tree1, offset, &payload_type);
 			break;
 		case 2:
-			offset = dissect_ppcap_payload_data(tvb, pinfo, ppcap_tree1, offset, msg_len, tree, payload_type);
+			offset = dissect_ppcap_payload_data(tvb, pinfo, ppcap_tree1, offset, tree, payload_type);
 			break;
 		case 3:
-			offset = dissect_ppcap_source_address(tvb, pinfo, ppcap_tree1, offset, msg_len);
+			offset = dissect_ppcap_source_address(tvb, pinfo, ppcap_tree1, offset);
 			break;
 		case 4:
-			offset = dissect_ppcap_destination_address(tvb, pinfo, ppcap_tree1, offset, msg_len);
+			offset = dissect_ppcap_destination_address(tvb, pinfo, ppcap_tree1, offset);
+			break;
+		case 5:
+			if(global_ppcap_rev_doc == PPCAP_REV_DOC_2014_MAR)
+			offset = dissect_ppcap_local_port(tvb,ppcap_tree1, offset);
+			break;
+		case 6:
+			if(global_ppcap_rev_doc == PPCAP_REV_DOC_2014_MAR)
+			offset = dissect_ppcap_remote_port(tvb,ppcap_tree1, offset);
+			break;
+		case 7:
+			if(global_ppcap_rev_doc == PPCAP_REV_DOC_2014_MAR)
+			offset = dissect_ppcap_tcp_sip_msg(tvb,ppcap_tree1, offset);
 			break;
 		case 256:
-			offset = dissect_ppcap_info_string(tvb, ppcap_tree1, offset, msg_len);
+			if(global_ppcap_rev_doc == PPCAP_REV_DOC_PC1) 
+			offset = dissect_ppcap_info_string(tvb, ppcap_tree1, offset);
 			break;
 		}
 	}
@@ -180,11 +216,14 @@ dissect_ppcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 
 static int
-dissect_ppcap_payload_type(tvbuff_t *tvb, proto_tree * ppcap_tree1, int offset, guint16 msg_len, payload_type_type *payload_type)
+dissect_ppcap_payload_type(tvbuff_t *tvb, proto_tree * ppcap_tree1, int offset, payload_type_type *payload_type)
 {
 	char *string;
-	string = tvb_get_ephemeral_string(tvb, offset, msg_len);
-
+	guint16 msg_len =0;
+	msg_len = tvb_get_ntohs(tvb, offset);
+	proto_tree_add_item( ppcap_tree1, hf_ppcap_length, tvb, offset, 2, ENC_BIG_ENDIAN);
+	offset  = offset + 2;
+	string = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, msg_len, ENC_UTF_8|ENC_NA);
 	if (strcmp(string,"mtp3") == 0) {
 		*payload_type = PPCAP_MTP3;
 	}else if (strcmp(string,"tcap")  == 0) {
@@ -201,7 +240,7 @@ dissect_ppcap_payload_type(tvbuff_t *tvb, proto_tree * ppcap_tree1, int offset, 
 		*payload_type = PPCAP_SCCP;
 	}
 
-	proto_tree_add_item(ppcap_tree1, hf_ppcap_payload_type, tvb, offset, msg_len, ENC_BIG_ENDIAN|ENC_ASCII);
+	proto_tree_add_item(ppcap_tree1, hf_ppcap_payload_type, tvb, offset, msg_len, ENC_UTF_8|ENC_NA);
 
 	if (msg_len%4)
 		msg_len = msg_len+(4-(msg_len%4));
@@ -215,17 +254,21 @@ dissect_ppcap_payload_type(tvbuff_t *tvb, proto_tree * ppcap_tree1, int offset, 
 
   *******************************************************
   *	Reserved	*	Address Type		*
-  *				*						*
+  *				*			*
   *******************************************************
   *	          Address Value				*
-  *										*
+  *							*
   *******************************************************
 */
 
 static int
-dissect_ppcap_source_address(tvbuff_t *tvb, packet_info *pinfo, proto_tree * ppcap_tree1, int offset, guint16 msg_len)
+dissect_ppcap_source_address(tvbuff_t *tvb, packet_info *pinfo, proto_tree * ppcap_tree1, int offset)
 {
 	int key1;
+	guint16 msg_len;
+	msg_len = tvb_get_ntohs(tvb, offset);
+	proto_tree_add_item( ppcap_tree1, hf_ppcap_length, tvb, offset, 2, ENC_BIG_ENDIAN);
+	offset  = offset + 2;
 	proto_tree_add_item(ppcap_tree1, hf_ppcap_reserved, tvb, offset, 2, ENC_BIG_ENDIAN);
 	offset += 2;
 
@@ -239,9 +282,9 @@ dissect_ppcap_source_address(tvbuff_t *tvb, packet_info *pinfo, proto_tree * ppc
 		offset += 1;
 		proto_tree_add_item(ppcap_tree1, hf_ppcap_spc, tvb, offset, 3, ENC_BIG_ENDIAN);
 		/*src_addr1 = (guint32 )tvb_get_ntoh24(tvb, offset);*/
-		mtp3_addr_opc = ep_alloc0(sizeof(mtp3_addr_pc_t));
+		mtp3_addr_opc = wmem_new0(wmem_packet_scope(), mtp3_addr_pc_t);
 		mtp3_addr_opc->pc = (guint32 )tvb_get_ntoh24(tvb, offset);
-		mtp3_addr_opc->type = 1; /* ITU_STANDARD */
+		mtp3_addr_opc->type = ITU_STANDARD;
 		mtp3_addr_opc->ni = 0;
 		/*SET_ADDRESS(&pinfo->net_src, AT_SS7PC, sizeof(mtp3_addr_pc_t), (guint8 *) mtp3_addr_opc);*/
 		SET_ADDRESS(&pinfo->src, AT_SS7PC, sizeof(mtp3_addr_pc_t), (guint8 *) mtp3_addr_opc);
@@ -256,15 +299,15 @@ dissect_ppcap_source_address(tvbuff_t *tvb, packet_info *pinfo, proto_tree * ppc
 		proto_tree_add_item(ppcap_tree1, hf_ppcap_opc, tvb, offset, msg_len, ENC_BIG_ENDIAN);
 
 		/*src_addr1 = (guint32 )tvb_get_ntoh24(tvb, offset);*/
-		mtp3_addr_opc = ep_alloc0(sizeof(mtp3_addr_pc_t));
+		mtp3_addr_opc = wmem_new0(wmem_packet_scope(), mtp3_addr_pc_t);
 		mtp3_addr_opc->pc = tvb_get_ntohl(tvb, offset);
-		mtp3_addr_opc->type = 1; /* ITU_STANDARD */
+		mtp3_addr_opc->type = ITU_STANDARD;
 		mtp3_addr_opc->ni = 0;
 		SET_ADDRESS(&pinfo->src, AT_SS7PC, sizeof(mtp3_addr_pc_t), (guint8 *) mtp3_addr_opc);
 	}
 	else if (key1 == 3)
 	{
-		if (msg_len%4 == 0)
+		if (msg_len%16 != 0)
 		{
 
 			proto_tree_add_ipv4(ppcap_tree1, hf_ppcap_source_ip_address1, tvb, offset, msg_len, tvb_get_ipv4(tvb, offset));
@@ -308,10 +351,13 @@ dissect_ppcap_source_address(tvbuff_t *tvb, packet_info *pinfo, proto_tree * ppc
 
 
 static int
-dissect_ppcap_destination_address(tvbuff_t *tvb, packet_info * pinfo, proto_tree * ppcap_tree1, int offset, guint16 msg_len )
+dissect_ppcap_destination_address(tvbuff_t *tvb, packet_info * pinfo, proto_tree * ppcap_tree1, int offset)
 {
 	int key2;
-
+	guint16 msg_len;
+	msg_len = tvb_get_ntohs(tvb, offset);
+	proto_tree_add_item( ppcap_tree1, hf_ppcap_length, tvb, offset, 2, ENC_BIG_ENDIAN);
+	offset  = offset + 2;
 	proto_tree_add_item(ppcap_tree1, hf_ppcap_destreserved, tvb, offset, 2, ENC_BIG_ENDIAN);
 	offset += 2;
 
@@ -328,9 +374,9 @@ dissect_ppcap_destination_address(tvbuff_t *tvb, packet_info * pinfo, proto_tree
 		proto_tree_add_item(ppcap_tree1, hf_ppcap_spc1, tvb, offset, 3, ENC_BIG_ENDIAN);
 
 		/*dst_addr1 = (guint32 )tvb_get_ntoh24(tvb, offset);*/
-		mtp3_addr_dpc = ep_alloc0(sizeof(mtp3_addr_pc_t));
+		mtp3_addr_dpc = wmem_new0(wmem_packet_scope(), mtp3_addr_pc_t);
 		mtp3_addr_dpc->pc = (guint32)tvb_get_ntoh24(tvb, offset);
-		mtp3_addr_dpc->type = 1; /* ITU_STANDARD */
+		mtp3_addr_dpc->type = ITU_STANDARD;
 		mtp3_addr_dpc->ni = 0;
                 SET_ADDRESS(&pinfo->dst, AT_SS7PC, sizeof(mtp3_addr_pc_t), (guint8 *) mtp3_addr_dpc);
 
@@ -346,15 +392,15 @@ dissect_ppcap_destination_address(tvbuff_t *tvb, packet_info * pinfo, proto_tree
 		proto_tree_add_item(ppcap_tree1, hf_ppcap_dpc, tvb, offset, 4, ENC_BIG_ENDIAN);
 
 		/*dst_addr1 = (guint32 )tvb_get_ntoh24(tvb, offset);*/
-		mtp3_addr_dpc = ep_alloc0(sizeof(mtp3_addr_pc_t));
+		mtp3_addr_dpc = wmem_new0(wmem_packet_scope(), mtp3_addr_pc_t);
 		mtp3_addr_dpc->pc = tvb_get_ntohl(tvb, offset);
-		mtp3_addr_dpc->type = 1; /* ITU_STANDARD */
+		mtp3_addr_dpc->type = ITU_STANDARD;
 		mtp3_addr_dpc->ni = 0;
         SET_ADDRESS(&pinfo->dst, AT_SS7PC, sizeof(mtp3_addr_pc_t), (guint8 *) mtp3_addr_dpc);
 	}
 	else if (key2 == 3)
 	{
-		if (msg_len%4 == 0)
+		if (msg_len%16 != 0)
 		{
 			proto_tree_add_ipv4(ppcap_tree1, hf_ppcap_destination_ip_address1, tvb, offset, msg_len, tvb_get_ipv4(tvb, offset));
 			TVB_SET_ADDRESS(&pinfo->net_dst, AT_IPv4, tvb, offset, 4);
@@ -374,7 +420,7 @@ dissect_ppcap_destination_address(tvbuff_t *tvb, packet_info * pinfo, proto_tree
 	else if (key2 == 4)
 	{
 		char *string;
-		string = tvb_get_string(tvb, offset, msg_len);
+		string = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, msg_len, ENC_UTF_8|ENC_NA);
 		proto_tree_add_string(ppcap_tree1, hf_ppcap_destination_nodeid, tvb, offset, msg_len, string);
 		TVB_SET_ADDRESS(&pinfo->net_dst, AT_STRINGZ, tvb, offset, msg_len);
 		COPY_ADDRESS_SHALLOW(&pinfo->dst, &pinfo->net_dst);
@@ -396,8 +442,12 @@ dissect_ppcap_destination_address(tvbuff_t *tvb, packet_info * pinfo, proto_tree
 */
 
 static int
-dissect_ppcap_info_string(tvbuff_t *tvb, proto_tree * ppcap_tree1, int offset, guint16 msg_len)
+dissect_ppcap_info_string(tvbuff_t *tvb, proto_tree * ppcap_tree1, int offset)
 {
+	guint16 msg_len;
+	msg_len = tvb_get_ntohs(tvb, offset);
+	proto_tree_add_item( ppcap_tree1, hf_ppcap_length, tvb, offset, 2, ENC_BIG_ENDIAN);
+	offset  = offset + 2;
 	proto_tree_add_item(ppcap_tree1, hf_ppcap_info, tvb, offset, msg_len, ENC_ASCII|ENC_NA);
 
 	if (msg_len%4)
@@ -405,6 +455,59 @@ dissect_ppcap_info_string(tvbuff_t *tvb, proto_tree * ppcap_tree1, int offset, g
 	offset += msg_len;
 	return offset;
 }
+
+/* Dissecting the function Local Port */
+
+/*
+  *******************************************************
+  *               Local Port                            *
+  *                                                     *
+  *******************************************************
+*/
+static int
+dissect_ppcap_local_port(tvbuff_t *tvb,proto_tree * ppcap_tree1, int offset)
+{
+	proto_tree_add_item(ppcap_tree1,hf_ppcap_local_port,tvb,offset,2,ENC_BIG_ENDIAN);
+	offset = offset+6;      /*Adding offset of filler bytes without text*/
+	return offset;
+}
+
+/* Dissecting the function Remote Port */
+
+/*
+  *******************************************************
+  *               Remote Port                           *
+  *                                                     *
+  *******************************************************
+*/
+
+static int
+dissect_ppcap_remote_port(tvbuff_t *tvb,proto_tree * ppcap_tree1, int offset)
+{
+	proto_tree_add_item(ppcap_tree1,hf_ppcap_remote_port,tvb,offset,2,ENC_BIG_ENDIAN);
+	offset = offset+6;      /*Adding offset of filler bytes without text*/
+	return offset;
+}
+
+/* Dissecting the function TCP SIP Message */
+        
+/*
+  *******************************************************
+  *               TCP SIP MESSAGE                       *
+  *                                                     *
+  *******************************************************
+*/
+
+static int
+dissect_ppcap_tcp_sip_msg(tvbuff_t *tvb,proto_tree * ppcap_tree1, int offset)
+{
+	proto_tree_add_item( ppcap_tree1, hf_ppcap_length, tvb, offset, 2, ENC_BIG_ENDIAN);
+	offset  = offset + 2;
+	proto_tree_add_item(ppcap_tree1, hf_ppcap_tcp_sip_type, tvb, offset, 4, ENC_BIG_ENDIAN|ENC_ASCII);
+	offset += 4;
+	return offset;
+}
+
 
 /* Dissecting the function Payload Data to call the protocol that based upon the type decided in the Payload Type */
 
@@ -417,17 +520,20 @@ dissect_ppcap_info_string(tvbuff_t *tvb, proto_tree * ppcap_tree1, int offset, g
 
 
 static int
-dissect_ppcap_payload_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree * ppcap_tree1, int offset, guint16 msg_len, proto_tree *tree, payload_type_type payload_type)
+dissect_ppcap_payload_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree * ppcap_tree1, int offset, proto_tree *tree, payload_type_type payload_type)
 {
 	tvbuff_t        *next_tvb;
-
+	guint16 msg_len;
+	msg_len = tvb_get_ntohs(tvb, offset);
+	proto_tree_add_item( ppcap_tree1, hf_ppcap_length, tvb, offset, 2, ENC_BIG_ENDIAN);
+	offset  = offset + 2;
 	proto_tree_add_item(ppcap_tree1, hf_ppcap_payload_data, tvb, offset, msg_len, ENC_NA);
 
 	if (msg_len%4)
 		msg_len = msg_len +( 4- (msg_len%4));
 
 	next_tvb = tvb_new_subset_remaining(tvb, offset);
-
+	
 	switch (payload_type) {
 	case PPCAP_MTP3:
 		call_dissector(mtp3_handle, next_tvb, pinfo, tree);  /* calling the MTP3 handle */
@@ -471,6 +577,7 @@ dissect_ppcap_payload_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree * ppcap
 
 void proto_register_ppcap(void)
 {
+module_t *ppcap_module;
 
 	static hf_register_info hf[] = {
 	{ &hf_ppcap_length,
@@ -532,7 +639,7 @@ void proto_register_ppcap(void)
 	{ "Source Node ID",         "ppcap.source_nodeid",    FT_STRING,
 		BASE_NONE,       NULL,   0x00,   NULL,     HFILL}},
 	{ &hf_ppcap_destination_nodeid,
-	{ "Destination Node ID",         "ppcap.destination_address_value",    FT_STRING,
+	{ "Destination Node ID",         "ppcap.destination_address",    FT_STRING,
 		BASE_NONE,       NULL,   0x00,   NULL,     HFILL}},
         { &hf_ppcap_info,
 	{ "Info",         "ppcap.info",    FT_STRING,
@@ -540,6 +647,15 @@ void proto_register_ppcap(void)
 	{ &hf_ppcap_payload_data,
 	{ "Payload Data",         "ppcap.payload_data",    FT_BYTES,
 		BASE_NONE,       NULL,   0x0000,   NULL,     HFILL}},
+	{ &hf_ppcap_local_port,
+	{ "Local Port",         "ppcap.local_port",    FT_UINT16,
+		BASE_DEC,       NULL,   0x00,   NULL,     HFILL}},
+	{ &hf_ppcap_remote_port,
+	{ "Remote Port",         "ppcap.remote_port",    FT_UINT16,
+		BASE_DEC,       NULL,   0x00,   NULL,     HFILL}},
+	{ &hf_ppcap_tcp_sip_type,
+	{ "Transport Protocol for SIP/SIP-I Message" , "ppcap.tcp_sip_type", FT_STRING,
+		BASE_NONE,      NULL,   0x0    , NULL,    HFILL}},
 	};
 
 	static gint *ett[]= {
@@ -551,6 +667,9 @@ void proto_register_ppcap(void)
 	proto_register_field_array(proto_ppcap , hf , array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
 	register_dissector("ppcap", dissect_ppcap, proto_ppcap);
+	ppcap_module = prefs_register_protocol(proto_ppcap, proto_reg_handoff_ppcap);
+	prefs_register_enum_preference(ppcap_module,"rev_doc","PPCAP, Select the document","Select Document",&global_ppcap_rev_doc,rev_doc,TRUE);
+
 }
 
 void proto_reg_handoff_ppcap(void)

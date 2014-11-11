@@ -1,8 +1,6 @@
 /* tap-rlclte_stat.c
  * Copyright 2011 Martin Mathieson
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,14 +24,16 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include <epan/packet.h>
 #include <epan/packet_info.h>
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
 #include <epan/dissectors/packet-rlc-lte.h>
 
+void register_tap_listener_rlc_lte_stat(void);
 
 enum {
     UEID_COLUMN,
@@ -320,7 +320,7 @@ rlc_lte_stat_draw(void *phs)
            hs->common_stats.pcch_frames, hs->common_stats.pcch_bytes);
 
     /* Per-UE table entries */
-    
+
 
     /* Set title that shows how many UEs currently in table */
     for (tmp = list; (tmp!=NULL); tmp=tmp->next, number_of_ues++);
@@ -362,16 +362,16 @@ rlc_lte_stat_draw(void *phs)
 
 
 /* Create a new RLC LTE stats struct */
-static void rlc_lte_stat_init(const char *optarg, void *userdata _U_)
+static void rlc_lte_stat_init(const char *opt_arg, void *userdata _U_)
 {
     rlc_lte_stat_t    *hs;
     const char        *filter = NULL;
     GString           *error_string;
 
     /* Check for a filter string */
-    if (strncmp(optarg, "rlc-lte,stat,", 13) == 0) {
+    if (strncmp(opt_arg, "rlc-lte,stat,", 13) == 0) {
         /* Skip those characters from filter to display */
-        filter = optarg + 13;
+        filter = opt_arg + 13;
     }
     else {
         /* No filter */

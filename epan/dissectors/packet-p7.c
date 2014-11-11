@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-p7.c                                                                */
 /* ../../tools/asn2wrs.py -b -L -C -p p7 -c ./p7.cnf -s ./packet-p7-template -D . -O ../../epan/dissectors MSAbstractService.asn MSGeneralAttributeTypes.asn MSAccessProtocol.asn MSUpperBounds.asn */
 
@@ -9,8 +9,6 @@
 /* packet-p7.c
  * Routines for X.413 (P7) packet dissection
  * Graeme Lunt 2007
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -43,6 +41,7 @@
 #include "packet-acse.h"
 #include "packet-ros.h"
 #include "packet-rtse.h"
+#include "packet-p7.h"
 
 #include "packet-p1.h"
 #include <epan/strutil.h>
@@ -51,9 +50,11 @@
 #define PSNAME "P7"
 #define PFNAME "p7"
 
+void proto_register_p7(void);
+void proto_reg_handoff_p7(void);
+
 static guint global_p7_tcp_port = 102;
 static dissector_handle_t tpkt_handle;
-static const char *object_identifier_id = NULL; /* attribute identifier */
 static int seqno = 0;
 
 static void prefs_register_p7(void); /* forward declaration for use in preferences registration */
@@ -121,7 +122,7 @@ static int proto_p7 = -1;
 #define ub_ua_restrictions             16
 
 /*--- End of included file: packet-p7-val.h ---*/
-#line 58 "../../asn1/p7/packet-p7-template.c"
+#line 59 "../../asn1/p7/packet-p7-template.c"
 
 
 /*--- Included file: packet-p7-hf.c ---*/
@@ -493,7 +494,7 @@ static int hf_p7_T_entry_class_problem_entry_class_not_subscribed = -1;
 static int hf_p7_T_entry_class_problem_inappropriate_entry_class = -1;
 
 /*--- End of included file: packet-p7-hf.c ---*/
-#line 60 "../../asn1/p7/packet-p7-template.c"
+#line 61 "../../asn1/p7/packet-p7-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_p7 = -1;
@@ -635,7 +636,7 @@ static gint ett_p7_RTSE_apdus = -1;
 static gint ett_p7_RTABapdu = -1;
 
 /*--- End of included file: packet-p7-ett.c ---*/
-#line 64 "../../asn1/p7/packet-p7-template.c"
+#line 65 "../../asn1/p7/packet-p7-template.c"
 
 
 /*--- Included file: packet-p7-table.c ---*/
@@ -659,26 +660,26 @@ const value_string p7_opr_code_string_vals[] = {
 
 /* P7 ERRORS */
 static const value_string p7_err_code_string_vals[] = {
-	{ err_ros_bind, "ms_bind_error" },  
-	{ err_attribute_error, "attribute_error" },  
-	{ err_auto_action_request_error, "auto_action_request_error" },  
-	{ err_delete_error, "delete_error" },  
-	{ err_fetch_restriction_error, "fetch_restriction_error" },  
-	{ err_invalid_parameters_error, "invalid_parameters_error" },  
-	{ err_range_error, "range_error" },  
-	{ err_sequence_number_error, "sequence_number_error" },  
-	{ err_service_error, "service_error" },  
-	{ err_message_group_error, "message_group_error" },  
-	{ err_ms_extension_error, "ms_extension_error" },  
-	{ err_register_ms_error, "register_ms_error" },  
-	{ err_modify_error, "modify_error" },  
-	{ err_entry_class_error, "entry_class_error" },  
+	{ err_ros_bind, "ms_bind_error" },
+	{ err_attribute_error, "attribute_error" },
+	{ err_auto_action_request_error, "auto_action_request_error" },
+	{ err_delete_error, "delete_error" },
+	{ err_fetch_restriction_error, "fetch_restriction_error" },
+	{ err_invalid_parameters_error, "invalid_parameters_error" },
+	{ err_range_error, "range_error" },
+	{ err_sequence_number_error, "sequence_number_error" },
+	{ err_service_error, "service_error" },
+	{ err_message_group_error, "message_group_error" },
+	{ err_ms_extension_error, "ms_extension_error" },
+	{ err_register_ms_error, "register_ms_error" },
+	{ err_modify_error, "modify_error" },
+	{ err_entry_class_error, "entry_class_error" },
 	  { 0, NULL }
 };
 
 
 /*--- End of included file: packet-p7-table.c ---*/
-#line 66 "../../asn1/p7/packet-p7-template.c"
+#line 67 "../../asn1/p7/packet-p7-template.c"
 
 
 /*--- Included file: packet-p7-fn.c ---*/
@@ -694,7 +695,7 @@ static int dissect_p7_Filter(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
 
 static int
 dissect_p7_AttributeType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &object_identifier_id);
+  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &actx->external.direct_reference);
 
   return offset;
 }
@@ -703,8 +704,8 @@ dissect_p7_AttributeType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 static int
 dissect_p7_AttributeItem(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-	if(object_identifier_id) 
-   	   call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+	if(actx->external.direct_reference)
+		call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree, NULL);
 
 
   return offset;
@@ -742,7 +743,7 @@ dissect_p7_Attribute(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U
 
 static int
 dissect_p7_AutoActionType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &object_identifier_id);
+  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &actx->external.direct_reference);
 
   return offset;
 }
@@ -761,8 +762,8 @@ dissect_p7_INTEGER_1_ub_per_auto_action(gboolean implicit_tag _U_, tvbuff_t *tvb
 
 static int
 dissect_p7_T_registration_parameter(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-	if(object_identifier_id) 
-   	   call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+	if(actx->external.direct_reference)
+		call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree, NULL);
 
 
 
@@ -800,8 +801,8 @@ dissect_p7_T_error_code(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset
 
 static int
 dissect_p7_T_error_parameter(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-	if(object_identifier_id) 
-   	   call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+	if(actx->external.direct_reference)
+		call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree, NULL);
 
 
   return offset;
@@ -942,15 +943,15 @@ dissect_p7_MessageGroupName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 
 static int
 dissect_p7_T_initiator_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-	char *ora = NULL;
-	
+	const char *ora = NULL;
+
 	  offset = dissect_p1_ORAddressAndOrDirectoryName(implicit_tag, tvb, offset, actx, tree, hf_index);
 
 
-	if (check_col(actx->pinfo->cinfo, COL_INFO) && (ora = p1_get_last_oraddress())) {
+	if ((ora = p1_get_last_oraddress(actx))) {
 		col_append_fstr(actx->pinfo->cinfo, COL_INFO, " (initiator=%s)", ora);
 	}
-	
+
 
   return offset;
 }
@@ -1321,9 +1322,7 @@ static int
 dissect_p7_T_from_number(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_p7_SequenceNumber(implicit_tag, tvb, offset, actx, tree, hf_index);
 
-	if (check_col(actx->pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(actx->pinfo->cinfo, COL_INFO, " from %d", seqno);
-	}
+	col_append_fstr(actx->pinfo->cinfo, COL_INFO, " from %d", seqno);
 
   return offset;
 }
@@ -1334,10 +1333,8 @@ static int
 dissect_p7_T_to_number(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_p7_SequenceNumber(implicit_tag, tvb, offset, actx, tree, hf_index);
 
-	if (check_col(actx->pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(actx->pinfo->cinfo, COL_INFO, " to %d", seqno);
-	}
-	
+	col_append_fstr(actx->pinfo->cinfo, COL_INFO, " to %d", seqno);
+
   return offset;
 }
 
@@ -1410,8 +1407,8 @@ dissect_p7_Range(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, a
 
 static int
 dissect_p7_T_attribute_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-	if(object_identifier_id) 
-   	   call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+	if(actx->external.direct_reference)
+		call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree, NULL);
 
 
   return offset;
@@ -1436,8 +1433,8 @@ dissect_p7_AttributeValueAssertion(gboolean implicit_tag _U_, tvbuff_t *tvb _U_,
 
 static int
 dissect_p7_T_initial(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-	if(object_identifier_id) 
-   	   call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+	if(actx->external.direct_reference)
+		call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree, NULL);
 
 
   return offset;
@@ -1447,8 +1444,8 @@ dissect_p7_T_initial(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U
 
 static int
 dissect_p7_T_any(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-	if(object_identifier_id) 
-   	   call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+	if(actx->external.direct_reference)
+		call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree, NULL);
 
 
   return offset;
@@ -1458,8 +1455,8 @@ dissect_p7_T_any(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, a
 
 static int
 dissect_p7_T_final(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-	if(object_identifier_id) 
-   	   call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+	if(actx->external.direct_reference)
+		call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree, NULL);
 
 
   return offset;
@@ -1521,8 +1518,8 @@ dissect_p7_T_substrings(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset
 
 static int
 dissect_p7_T_match_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-	if(object_identifier_id) 
-   	   call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+	if(actx->external.direct_reference)
+		call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree, NULL);
 
 
   return offset;
@@ -1760,11 +1757,11 @@ static const ber_sequence_t EntryInformation_sequence[] = {
 
 static int
 dissect_p7_EntryInformation(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-	p1_initialize_content_globals (NULL, FALSE);
+	p1_initialize_content_globals (actx, NULL, FALSE);
 	  offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    EntryInformation_sequence, hf_index, ett_p7_EntryInformation);
 
-	p1_initialize_content_globals (NULL, FALSE);
+	p1_initialize_content_globals (actx, NULL, FALSE);
 
 
   return offset;
@@ -1865,9 +1862,7 @@ dissect_p7_T_count(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_,
                                                             0U, ub_messages, hf_index, &count);
 
 
-	if (check_col(actx->pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(actx->pinfo->cinfo, COL_INFO, " (count=%d)", count);
-	}
+	col_append_fstr(actx->pinfo->cinfo, COL_INFO, " (count=%d)", count);
 
 
   return offset;
@@ -1892,8 +1887,8 @@ dissect_p7_Span(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, as
 
 static int
 dissect_p7_SummaryPresentItemValue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-	if(object_identifier_id) 
-   	   call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+	if(actx->external.direct_reference)
+		call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree, NULL);
 
 
   return offset;
@@ -2378,7 +2373,7 @@ dissect_p7_T_registrations(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
 static int
 dissect_p7_T_extended_registrations_item(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 	/* XXX: Is this really the best way to do this? */
-	offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &object_identifier_id);
+	offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &actx->external.direct_reference);
 
 
   return offset;
@@ -2608,8 +2603,8 @@ dissect_p7_T_entries(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U
 
 static int
 dissect_p7_OrderedAttributeValue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-	if(object_identifier_id) 
-   	   call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+	if(actx->external.direct_reference)
+		call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree, NULL);
 
 
   return offset;
@@ -2693,11 +2688,11 @@ static const ber_sequence_t EntryModification_set[] = {
 
 static int
 dissect_p7_EntryModification(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-	p1_initialize_content_globals (NULL, FALSE);
+	p1_initialize_content_globals (actx, NULL, FALSE);
 	  offset = dissect_ber_set(implicit_tag, actx, tree, tvb, offset,
                               EntryModification_set, hf_index, ett_p7_EntryModification);
 
-	p1_initialize_content_globals (NULL, FALSE);
+	p1_initialize_content_globals (actx, NULL, FALSE);
 
   return offset;
 }
@@ -2757,11 +2752,11 @@ static const ber_sequence_t MSMessageSubmissionArgument_sequence[] = {
 
 static int
 dissect_p7_MSMessageSubmissionArgument(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-	p1_initialize_content_globals (tree, TRUE);
+	p1_initialize_content_globals (actx, tree, TRUE);
 	  offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    MSMessageSubmissionArgument_sequence, hf_index, ett_p7_MSMessageSubmissionArgument);
 
-	p1_initialize_content_globals (NULL, FALSE);
+	p1_initialize_content_globals (actx, NULL, FALSE);
 
 
   return offset;
@@ -2898,8 +2893,8 @@ dissect_p7_AttributeProblem(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 
 static int
 dissect_p7_T_attr_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-	if(object_identifier_id) 
-   	   call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+	if(actx->external.direct_reference)
+		call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree, NULL);
 
 
 
@@ -4087,78 +4082,78 @@ static void dissect_RTSE_apdus_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, pr
 
 
 /*--- End of included file: packet-p7-fn.c ---*/
-#line 68 "../../asn1/p7/packet-p7-template.c"
+#line 69 "../../asn1/p7/packet-p7-template.c"
 
 
 /*--- Included file: packet-p7-table11.c ---*/
 #line 1 "../../asn1/p7/packet-p7-table11.c"
 
 static const ros_opr_t p7_opr_tab[] = {
-  /* ms-bind */ 
-  { op_ros_bind              ,	dissect_MSBindArgument_PDU,	dissect_MSBindResult_PDU }, 
-  /* summarize */ 
-  { op_summarize             ,	dissect_SummarizeArgument_PDU,	dissect_SummarizeResult_PDU }, 
-  /* list */ 
-  { op_list                  ,	dissect_ListArgument_PDU,	dissect_ListResult_PDU }, 
-  /* fetch */ 
-  { op_fetch                 ,	dissect_FetchArgument_PDU,	dissect_FetchResult_PDU }, 
-  /* delete */ 
-  { op_delete                ,	dissect_DeleteArgument_PDU,	dissect_DeleteResult_PDU }, 
-  /* register-MS */ 
-  { op_register_ms           ,	dissect_Register_MSArgument_PDU,	dissect_Register_MSResult_PDU }, 
-  /* alert */ 
-  { op_alert                 ,	dissect_AlertArgument_PDU,	dissect_AlertResult_PDU }, 
-  /* modify */ 
-  { op_modify                ,	dissect_ModifyArgument_PDU,	dissect_ModifyResult_PDU }, 
-  /* ms-message-submission */ 
-  { op_ms_message_submission ,	dissect_MSMessageSubmissionArgument_PDU,	dissect_MSMessageSubmissionResult_PDU }, 
-  /* ms-probe-submission */ 
-  { op_ms_probe_submission   ,	dissect_MSProbeSubmissionArgument_PDU,	dissect_MSProbeSubmissionResult_PDU }, 
+  /* ms-bind */
+  { op_ros_bind              ,	dissect_MSBindArgument_PDU,	dissect_MSBindResult_PDU },
+  /* summarize */
+  { op_summarize             ,	dissect_SummarizeArgument_PDU,	dissect_SummarizeResult_PDU },
+  /* list */
+  { op_list                  ,	dissect_ListArgument_PDU,	dissect_ListResult_PDU },
+  /* fetch */
+  { op_fetch                 ,	dissect_FetchArgument_PDU,	dissect_FetchResult_PDU },
+  /* delete */
+  { op_delete                ,	dissect_DeleteArgument_PDU,	dissect_DeleteResult_PDU },
+  /* register-MS */
+  { op_register_ms           ,	dissect_Register_MSArgument_PDU,	dissect_Register_MSResult_PDU },
+  /* alert */
+  { op_alert                 ,	dissect_AlertArgument_PDU,	dissect_AlertResult_PDU },
+  /* modify */
+  { op_modify                ,	dissect_ModifyArgument_PDU,	dissect_ModifyResult_PDU },
+  /* ms-message-submission */
+  { op_ms_message_submission ,	dissect_MSMessageSubmissionArgument_PDU,	dissect_MSMessageSubmissionResult_PDU },
+  /* ms-probe-submission */
+  { op_ms_probe_submission   ,	dissect_MSProbeSubmissionArgument_PDU,	dissect_MSProbeSubmissionResult_PDU },
   { 0,				(new_dissector_t)(-1),	(new_dissector_t)(-1) },
 };
 
 
 /*--- End of included file: packet-p7-table11.c ---*/
-#line 70 "../../asn1/p7/packet-p7-template.c"
+#line 71 "../../asn1/p7/packet-p7-template.c"
 
 /*--- Included file: packet-p7-table21.c ---*/
 #line 1 "../../asn1/p7/packet-p7-table21.c"
 
 static const ros_err_t p7_err_tab[] = {
-  /* ms-bind-error*/ 
+  /* ms-bind-error*/
   { err_ros_bind,	dissect_PAR_ms_bind_error_PDU },
-  /* attribute-error*/ 
+  /* attribute-error*/
   { err_attribute_error,	dissect_PAR_attribute_error_PDU },
-  /* auto-action-request-error*/ 
+  /* auto-action-request-error*/
   { err_auto_action_request_error,	dissect_PAR_auto_action_request_error_PDU },
-  /* delete-error*/ 
+  /* delete-error*/
   { err_delete_error,	dissect_PAR_delete_error_PDU },
-  /* fetch-restriction-error*/ 
+  /* fetch-restriction-error*/
   { err_fetch_restriction_error,	dissect_PAR_fetch_restriction_error_PDU },
-  /* invalid-parameters-error*/ 
+  /* invalid-parameters-error*/
   { err_invalid_parameters_error,	dissect_PAR_invalid_parameters_error_PDU },
-  /* range-error*/ 
+  /* range-error*/
   { err_range_error,	dissect_PAR_range_error_PDU },
-  /* sequence-number-error*/ 
+  /* sequence-number-error*/
   { err_sequence_number_error,	dissect_PAR_sequence_number_error_PDU },
-  /* service-error*/ 
+  /* service-error*/
   { err_service_error,	dissect_ServiceErrorParameter_PDU },
-  /* message-group-error*/ 
+  /* message-group-error*/
   { err_message_group_error,	dissect_MessageGroupErrorParameter_PDU },
-  /* ms-extension-error*/ 
+  /* ms-extension-error*/
   { err_ms_extension_error,	dissect_MSExtensionErrorParameter_PDU },
-  /* register-ms-error*/ 
+  /* register-ms-error*/
   { err_register_ms_error,	dissect_PAR_register_ms_error_PDU },
-  /* modify-error*/ 
+  /* modify-error*/
   { err_modify_error,	dissect_ModifyErrorParameter_PDU },
-  /* entry-class-error*/ 
+  /* entry-class-error*/
   { err_entry_class_error,	dissect_EntryClassErrorParameter_PDU },
   { 0,	(new_dissector_t)(-1) },
 };
 
 
 /*--- End of included file: packet-p7-table21.c ---*/
-#line 71 "../../asn1/p7/packet-p7-template.c"
+#line 72 "../../asn1/p7/packet-p7-template.c"
 
 static const ros_info_t p7_ros_info = {
   "P7",
@@ -4185,7 +4180,7 @@ void proto_register_p7(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_AutoActionError_PDU,
-      { "AutoActionError", "p7.AutoActionError",
+      { "AutoActionError", "p7.AutoActionError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_EntryType_PDU,
@@ -4205,11 +4200,11 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_MSBindArgument_PDU,
-      { "MSBindArgument", "p7.MSBindArgument",
+      { "MSBindArgument", "p7.MSBindArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_MSBindResult_PDU,
-      { "MSBindResult", "p7.MSBindResult",
+      { "MSBindResult", "p7.MSBindResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_MS_EIT_PDU,
@@ -4229,35 +4224,35 @@ void proto_register_p7(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_OriginatorToken_PDU,
-      { "OriginatorToken", "p7.OriginatorToken",
+      { "OriginatorToken", "p7.OriginatorToken_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_SummarizeArgument_PDU,
-      { "SummarizeArgument", "p7.SummarizeArgument",
+      { "SummarizeArgument", "p7.SummarizeArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_SummarizeResult_PDU,
-      { "SummarizeResult", "p7.SummarizeResult",
+      { "SummarizeResult", "p7.SummarizeResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_ListArgument_PDU,
-      { "ListArgument", "p7.ListArgument",
+      { "ListArgument", "p7.ListArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_ListResult_PDU,
-      { "ListResult", "p7.ListResult",
+      { "ListResult", "p7.ListResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_FetchArgument_PDU,
-      { "FetchArgument", "p7.FetchArgument",
+      { "FetchArgument", "p7.FetchArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_FetchResult_PDU,
-      { "FetchResult", "p7.FetchResult",
+      { "FetchResult", "p7.FetchResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_DeleteArgument_PDU,
-      { "DeleteArgument", "p7.DeleteArgument",
+      { "DeleteArgument", "p7.DeleteArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_DeleteResult_PDU,
@@ -4265,7 +4260,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_DeleteResult_vals), 0,
         NULL, HFILL }},
     { &hf_p7_Register_MSArgument_PDU,
-      { "Register-MSArgument", "p7.Register_MSArgument",
+      { "Register-MSArgument", "p7.Register_MSArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_Register_MSResult_PDU,
@@ -4273,27 +4268,27 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_Register_MSResult_vals), 0,
         NULL, HFILL }},
     { &hf_p7_ProtectedChangeCredentials_PDU,
-      { "ProtectedChangeCredentials", "p7.ProtectedChangeCredentials",
+      { "ProtectedChangeCredentials", "p7.ProtectedChangeCredentials_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_AlertArgument_PDU,
-      { "AlertArgument", "p7.AlertArgument",
+      { "AlertArgument", "p7.AlertArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_AlertResult_PDU,
-      { "AlertResult", "p7.AlertResult",
+      { "AlertResult", "p7.AlertResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_ModifyArgument_PDU,
-      { "ModifyArgument", "p7.ModifyArgument",
+      { "ModifyArgument", "p7.ModifyArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_ModifyResult_PDU,
-      { "ModifyResult", "p7.ModifyResult",
+      { "ModifyResult", "p7.ModifyResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_MSMessageSubmissionArgument_PDU,
-      { "MSMessageSubmissionArgument", "p7.MSMessageSubmissionArgument",
+      { "MSMessageSubmissionArgument", "p7.MSMessageSubmissionArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_MSMessageSubmissionResult_PDU,
@@ -4301,47 +4296,47 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_MSMessageSubmissionResult_vals), 0,
         NULL, HFILL }},
     { &hf_p7_MSProbeSubmissionArgument_PDU,
-      { "MSProbeSubmissionArgument", "p7.MSProbeSubmissionArgument",
+      { "MSProbeSubmissionArgument", "p7.MSProbeSubmissionArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_MSProbeSubmissionResult_PDU,
-      { "MSProbeSubmissionResult", "p7.MSProbeSubmissionResult",
+      { "MSProbeSubmissionResult", "p7.MSProbeSubmissionResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_PAR_attribute_error_PDU,
-      { "PAR-attribute-error", "p7.PAR_attribute_error",
+      { "PAR-attribute-error", "p7.PAR_attribute_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_PAR_auto_action_request_error_PDU,
-      { "PAR-auto-action-request-error", "p7.PAR_auto_action_request_error",
+      { "PAR-auto-action-request-error", "p7.PAR_auto_action_request_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_PAR_delete_error_PDU,
-      { "PAR-delete-error", "p7.PAR_delete_error",
+      { "PAR-delete-error", "p7.PAR_delete_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_PAR_fetch_restriction_error_PDU,
-      { "PAR-fetch-restriction-error", "p7.PAR_fetch_restriction_error",
+      { "PAR-fetch-restriction-error", "p7.PAR_fetch_restriction_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_PAR_invalid_parameters_error_PDU,
-      { "PAR-invalid-parameters-error", "p7.PAR_invalid_parameters_error",
+      { "PAR-invalid-parameters-error", "p7.PAR_invalid_parameters_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_PAR_range_error_PDU,
-      { "PAR-range-error", "p7.PAR_range_error",
+      { "PAR-range-error", "p7.PAR_range_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_PAR_sequence_number_error_PDU,
-      { "PAR-sequence-number-error", "p7.PAR_sequence_number_error",
+      { "PAR-sequence-number-error", "p7.PAR_sequence_number_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_ServiceErrorParameter_PDU,
-      { "ServiceErrorParameter", "p7.ServiceErrorParameter",
+      { "ServiceErrorParameter", "p7.ServiceErrorParameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_MessageGroupErrorParameter_PDU,
-      { "MessageGroupErrorParameter", "p7.MessageGroupErrorParameter",
+      { "MessageGroupErrorParameter", "p7.MessageGroupErrorParameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_MSExtensionErrorParameter_PDU,
@@ -4349,15 +4344,15 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_MSExtensionErrorParameter_vals), 0,
         NULL, HFILL }},
     { &hf_p7_PAR_register_ms_error_PDU,
-      { "PAR-register-ms-error", "p7.PAR_register_ms_error",
+      { "PAR-register-ms-error", "p7.PAR_register_ms_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_ModifyErrorParameter_PDU,
-      { "ModifyErrorParameter", "p7.ModifyErrorParameter",
+      { "ModifyErrorParameter", "p7.ModifyErrorParameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_EntryClassErrorParameter_PDU,
-      { "EntryClassErrorParameter", "p7.EntryClassErrorParameter",
+      { "EntryClassErrorParameter", "p7.EntryClassErrorParameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_ReportLocation_PDU,
@@ -4365,7 +4360,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_ReportLocation_vals), 0,
         NULL, HFILL }},
     { &hf_p7_PerRecipientReport_PDU,
-      { "PerRecipientReport", "p7.PerRecipientReport",
+      { "PerRecipientReport", "p7.PerRecipientReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_ReportSummary_PDU,
@@ -4385,7 +4380,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_SubmissionError_vals), 0,
         NULL, HFILL }},
     { &hf_p7_SignatureVerificationStatus_PDU,
-      { "SignatureVerificationStatus", "p7.SignatureVerificationStatus",
+      { "SignatureVerificationStatus", "p7.SignatureVerificationStatus_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_StoragePeriod_PDU,
@@ -4409,7 +4404,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "AttributeValues", HFILL }},
     { &hf_p7_attribute_values_item,
-      { "attribute-values item", "p7.attribute_values_item",
+      { "attribute-values item", "p7.attribute_values_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeItem", HFILL }},
     { &hf_p7_auto_action_type,
@@ -4421,19 +4416,19 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_ub_per_auto_action", HFILL }},
     { &hf_p7_registration_parameter,
-      { "registration-parameter", "p7.registration_parameter",
+      { "registration-parameter", "p7.registration_parameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_error_code,
-      { "error-code", "p7.error_code",
+      { "error-code", "p7.error_code_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_error_parameter,
-      { "error-parameter", "p7.error_parameter",
+      { "error-parameter", "p7.error_parameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_MSExtensions_item,
-      { "MSExtensionItem", "p7.MSExtensionItem",
+      { "MSExtensionItem", "p7.MSExtensionItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_MessageGroupName_item,
@@ -4441,7 +4436,7 @@ void proto_register_p7(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_initiator_name,
-      { "initiator-name", "p7.initiator_name",
+      { "initiator-name", "p7.initiator_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_initiator_credentials,
@@ -4453,7 +4448,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SecurityContext", HFILL }},
     { &hf_p7_fetch_restrictions,
-      { "fetch-restrictions", "p7.fetch_restrictions",
+      { "fetch-restrictions", "p7.fetch_restrictions_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Restrictions", HFILL }},
     { &hf_p7_ms_configuration_request,
@@ -4569,7 +4564,7 @@ void proto_register_p7(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_p7_indication_only,
-      { "indication-only", "p7.indication_only",
+      { "indication-only", "p7.indication_only_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_auto_action_log_entry,
@@ -4581,7 +4576,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_BindProblem_vals), 0,
         "BindProblem", HFILL }},
     { &hf_p7_qualified_error,
-      { "qualified-error", "p7.qualified_error",
+      { "qualified-error", "p7.qualified_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_bind_problem,
@@ -4601,11 +4596,11 @@ void proto_register_p7(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_p7_sequence_number_range,
-      { "sequence-number-range", "p7.sequence_number_range",
+      { "sequence-number-range", "p7.sequence_number_range_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NumberRange", HFILL }},
     { &hf_p7_creation_time_range,
-      { "creation-time-range", "p7.creation_time_range",
+      { "creation-time-range", "p7.creation_time_range_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TimeRange", HFILL }},
     { &hf_p7_from_number,
@@ -4649,11 +4644,11 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_Filter_vals), 0,
         "Filter", HFILL }},
     { &hf_p7_equality,
-      { "equality", "p7.equality",
+      { "equality", "p7.equality_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeValueAssertion", HFILL }},
     { &hf_p7_substrings,
-      { "substrings", "p7.substrings",
+      { "substrings", "p7.substrings_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_type,
@@ -4669,23 +4664,23 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_T_strings_item_vals), 0,
         NULL, HFILL }},
     { &hf_p7_initial,
-      { "initial", "p7.initial",
+      { "initial", "p7.initial_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_any,
-      { "any", "p7.any",
+      { "any", "p7.any_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_final,
-      { "final", "p7.final",
+      { "final", "p7.final_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_greater_or_equal,
-      { "greater-or-equal", "p7.greater_or_equal",
+      { "greater-or-equal", "p7.greater_or_equal_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeValueAssertion", HFILL }},
     { &hf_p7_less_or_equal,
-      { "less-or-equal", "p7.less_or_equal",
+      { "less-or-equal", "p7.less_or_equal_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeValueAssertion", HFILL }},
     { &hf_p7_present,
@@ -4693,11 +4688,11 @@ void proto_register_p7(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "AttributeType", HFILL }},
     { &hf_p7_approximate_match,
-      { "approximate-match", "p7.approximate_match",
+      { "approximate-match", "p7.approximate_match_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeValueAssertion", HFILL }},
     { &hf_p7_other_match,
-      { "other-match", "p7.other_match",
+      { "other-match", "p7.other_match_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MatchingRuleAssertion", HFILL }},
     { &hf_p7_matching_rule,
@@ -4705,11 +4700,11 @@ void proto_register_p7(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_p7_match_value,
-      { "match-value", "p7.match_value",
+      { "match-value", "p7.match_value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_attribute_value,
-      { "attribute-value", "p7.attribute_value",
+      { "attribute-value", "p7.attribute_value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_child_entries,
@@ -4733,7 +4728,7 @@ void proto_register_p7(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OverrideRestrictions", HFILL }},
     { &hf_p7_EntryInformationSelection_item,
-      { "AttributeSelection", "p7.AttributeSelection",
+      { "AttributeSelection", "p7.AttributeSelection_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_from,
@@ -4753,7 +4748,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_SIZE_1_ub_per_entry_OF_Attribute", HFILL }},
     { &hf_p7_attributes_item,
-      { "Attribute", "p7.Attribute",
+      { "Attribute", "p7.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_value_count_exceeded,
@@ -4761,7 +4756,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_SIZE_1_ub_per_entry_OF_AttributeValueCount", HFILL }},
     { &hf_p7_value_count_exceeded_item,
-      { "AttributeValueCount", "p7.AttributeValueCount",
+      { "AttributeValueCount", "p7.AttributeValueCount_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_total,
@@ -4801,7 +4796,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_EntryClass_vals), 0,
         "EntryClass", HFILL }},
     { &hf_p7_selector,
-      { "selector", "p7.selector",
+      { "selector", "p7.selector_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_summary_requests,
@@ -4825,7 +4820,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_span,
-      { "span", "p7.span",
+      { "span", "p7.span_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_summaries,
@@ -4833,7 +4828,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_ub_summaries_OF_Summary", HFILL }},
     { &hf_p7_summaries_item,
-      { "Summary", "p7.Summary",
+      { "Summary", "p7.Summary_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_summarize_result_extensions,
@@ -4857,11 +4852,11 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "T_summary_present", HFILL }},
     { &hf_p7_summary_present_item,
-      { "present item", "p7.present_item",
+      { "present item", "p7.present_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_summary_present_item", HFILL }},
     { &hf_p7_value,
-      { "value", "p7.value",
+      { "value", "p7.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SummaryPresentItemValue", HFILL }},
     { &hf_p7_summary_count,
@@ -4881,7 +4876,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_ub_messages_OF_EntryInformation", HFILL }},
     { &hf_p7_requested_item,
-      { "EntryInformation", "p7.EntryInformation",
+      { "EntryInformation", "p7.EntryInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_list_result_extensions,
@@ -4893,7 +4888,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_T_item_vals), 0,
         NULL, HFILL }},
     { &hf_p7_search,
-      { "search", "p7.search",
+      { "search", "p7.search_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Selector", HFILL }},
     { &hf_p7_precise,
@@ -4905,7 +4900,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "MSExtensions", HFILL }},
     { &hf_p7_entry_information,
-      { "entry-information", "p7.entry_information",
+      { "entry-information", "p7.entry_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EntryInformation", HFILL }},
     { &hf_p7_list,
@@ -4937,11 +4932,11 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "MSExtensions", HFILL }},
     { &hf_p7_delete_result_88,
-      { "delete-result-88", "p7.delete_result_88",
+      { "delete-result-88", "p7.delete_result_88_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_delete_result_94,
-      { "delete-result-94", "p7.delete_result_94",
+      { "delete-result-94", "p7.delete_result_94_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_delete_result_94", HFILL }},
     { &hf_p7_entries_deleted_94,
@@ -4961,7 +4956,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_SIZE_1_ub_auto_registrations_OF_AutoActionRegistration", HFILL }},
     { &hf_p7_auto_action_registrations_item,
-      { "AutoActionRegistration", "p7.AutoActionRegistration",
+      { "AutoActionRegistration", "p7.AutoActionRegistration_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_auto_action_deregistrations,
@@ -4969,7 +4964,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_SIZE_1_ub_auto_registrations_OF_AutoActionDeregistration", HFILL }},
     { &hf_p7_auto_action_deregistrations_item,
-      { "AutoActionDeregistration", "p7.AutoActionDeregistration",
+      { "AutoActionDeregistration", "p7.AutoActionDeregistration_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_list_attribute_defaults,
@@ -4989,7 +4984,7 @@ void proto_register_p7(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_change_credentials,
-      { "change-credentials", "p7.change_credentials",
+      { "change-credentials", "p7.change_credentials_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_register_old_credentials,
@@ -5005,7 +5000,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_SIZE_1_ub_labels_and_redirections_OF_SecurityLabel", HFILL }},
     { &hf_p7_user_security_labels_item,
-      { "SecurityLabel", "p7.SecurityLabel",
+      { "SecurityLabel", "p7.SecurityLabel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_ua_registrations,
@@ -5013,11 +5008,11 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_SIZE_1_ub_ua_registrations_OF_UARegistration", HFILL }},
     { &hf_p7_ua_registrations_item,
-      { "UARegistration", "p7.UARegistration",
+      { "UARegistration", "p7.UARegistration_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_submission_defaults,
-      { "submission-defaults", "p7.submission_defaults",
+      { "submission-defaults", "p7.submission_defaults_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MSSubmissionOptions", HFILL }},
     { &hf_p7_message_group_registrations,
@@ -5025,7 +5020,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "MessageGroupRegistrations", HFILL }},
     { &hf_p7_registration_status_request,
-      { "registration-status-request", "p7.registration_status_request",
+      { "registration-status-request", "p7.registration_status_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RegistrationTypes", HFILL }},
     { &hf_p7_register_ms_extensions,
@@ -5049,7 +5044,7 @@ void proto_register_p7(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_ua_submission_defaults,
-      { "ua-submission-defaults", "p7.ua_submission_defaults",
+      { "ua-submission-defaults", "p7.ua_submission_defaults_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MSSubmissionOptions", HFILL }},
     { &hf_p7_content_specific_defaults,
@@ -5061,7 +5056,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_MessageGroupRegistrations_item_vals), 0,
         NULL, HFILL }},
     { &hf_p7_register_group,
-      { "register-group", "p7.register_group",
+      { "register-group", "p7.register_group_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MessageGroupNameAndDescriptor", HFILL }},
     { &hf_p7_deregister_group,
@@ -5069,7 +5064,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "MessageGroupName", HFILL }},
     { &hf_p7_change_descriptors,
-      { "change-descriptors", "p7.change_descriptors",
+      { "change-descriptors", "p7.change_descriptors_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MessageGroupNameAndDescriptor", HFILL }},
     { &hf_p7_message_group_name,
@@ -5089,11 +5084,11 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_extended_registrations_item,
-      { "extended-registrations item", "p7.extended_registrations_item",
+      { "extended-registrations item", "p7.extended_registrations_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_restrict_message_groups,
-      { "restrict-message-groups", "p7.restrict_message_groups",
+      { "restrict-message-groups", "p7.restrict_message_groups_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MessageGroupsRestriction", HFILL }},
     { &hf_p7_parent_group,
@@ -5121,11 +5116,11 @@ void proto_register_p7(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING", HFILL }},
     { &hf_p7_no_status_information,
-      { "no-status-information", "p7.no_status_information",
+      { "no-status-information", "p7.no_status_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_registered_information,
-      { "registered-information", "p7.registered_information",
+      { "registered-information", "p7.registered_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_registered_list_attribute_defaults,
@@ -5149,7 +5144,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_SIZE_1_ub_message_groups_OF_MessageGroupNameAndDescriptor", HFILL }},
     { &hf_p7_registered_message_group_registrations_item,
-      { "MessageGroupNameAndDescriptor", "p7.MessageGroupNameAndDescriptor",
+      { "MessageGroupNameAndDescriptor", "p7.MessageGroupNameAndDescriptor_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_register_ms_result_extensions,
@@ -5161,7 +5156,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_ub_auto_actions", HFILL }},
     { &hf_p7_new_entry,
-      { "new-entry", "p7.new_entry",
+      { "new-entry", "p7.new_entry_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EntryInformation", HFILL }},
     { &hf_p7_entries,
@@ -5181,7 +5176,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_ub_modifications_OF_EntryModification", HFILL }},
     { &hf_p7_modifications_item,
-      { "EntryModification", "p7.EntryModification",
+      { "EntryModification", "p7.EntryModification_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_modify_extensions,
@@ -5197,7 +5192,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_T_modification_vals), 0,
         NULL, HFILL }},
     { &hf_p7_add_attribute,
-      { "add-attribute", "p7.add_attribute",
+      { "add-attribute", "p7.add_attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_p7_remove_attribute,
@@ -5205,11 +5200,11 @@ void proto_register_p7(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "AttributeType", HFILL }},
     { &hf_p7_add_values,
-      { "add-values", "p7.add_values",
+      { "add-values", "p7.add_values_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OrderedAttribute", HFILL }},
     { &hf_p7_remove_values,
-      { "remove-values", "p7.remove_values",
+      { "remove-values", "p7.remove_values_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OrderedAttribute", HFILL }},
     { &hf_p7_ordered_attribute_values,
@@ -5217,11 +5212,11 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OrderedAttributeValues", HFILL }},
     { &hf_p7_ordered_attribute_values_item,
-      { "attribute-values item", "p7.attribute_values_item",
+      { "attribute-values item", "p7.attribute_values_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OrderedAttributeItem", HFILL }},
     { &hf_p7_ordered_attribute_value,
-      { "value", "p7.value",
+      { "value", "p7.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OrderedAttributeValue", HFILL }},
     { &hf_p7_ordered_position,
@@ -5241,7 +5236,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "MSExtensions", HFILL }},
     { &hf_p7_envelope,
-      { "envelope", "p7.envelope",
+      { "envelope", "p7.envelope_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MessageSubmissionEnvelope", HFILL }},
     { &hf_p7_content,
@@ -5249,15 +5244,15 @@ void proto_register_p7(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_submission_options,
-      { "submission-options", "p7.submission_options",
+      { "submission-options", "p7.submission_options_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MSSubmissionOptions", HFILL }},
     { &hf_p7_mts_result,
-      { "mts-result", "p7.mts_result",
+      { "mts-result", "p7.mts_result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_message_submission_identifier,
-      { "message-submission-identifier", "p7.message_submission_identifier",
+      { "message-submission-identifier", "p7.message_submission_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MessageSubmissionIdentifier", HFILL }},
     { &hf_p7_message_submission_time,
@@ -5273,23 +5268,23 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_ExtensionField", HFILL }},
     { &hf_p7_extensions_item,
-      { "ExtensionField", "p7.ExtensionField",
+      { "ExtensionField", "p7.ExtensionField_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_ms_message_result,
-      { "ms-message-result", "p7.ms_message_result",
+      { "ms-message-result", "p7.ms_message_result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CommonSubmissionResults", HFILL }},
     { &hf_p7_store_draft_result,
-      { "store-draft-result", "p7.store_draft_result",
+      { "store-draft-result", "p7.store_draft_result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CommonSubmissionResults", HFILL }},
     { &hf_p7_originator_name,
-      { "originator-name", "p7.originator_name",
+      { "originator-name", "p7.originator_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OriginatorName", HFILL }},
     { &hf_p7_original_encoded_information_types,
-      { "original-encoded-information-types", "p7.original_encoded_information_types",
+      { "original-encoded-information-types", "p7.original_encoded_information_types_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OriginalEncodedInformationTypes", HFILL }},
     { &hf_p7_content_type,
@@ -5309,11 +5304,11 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_PerRecipientProbeSubmissionFields", HFILL }},
     { &hf_p7_per_recipient_fields_item,
-      { "PerRecipientProbeSubmissionFields", "p7.PerRecipientProbeSubmissionFields",
+      { "PerRecipientProbeSubmissionFields", "p7.PerRecipientProbeSubmissionFields_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_probe_submission_identifier,
-      { "probe-submission-identifier", "p7.probe_submission_identifier",
+      { "probe-submission-identifier", "p7.probe_submission_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ProbeSubmissionIdentifier", HFILL }},
     { &hf_p7_probe_submission_time,
@@ -5321,7 +5316,7 @@ void proto_register_p7(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "ProbeSubmissionTime", HFILL }},
     { &hf_p7_ms_probe_result,
-      { "ms-probe-result", "p7.ms_probe_result",
+      { "ms-probe-result", "p7.ms_probe_result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CommonSubmissionResults", HFILL }},
     { &hf_p7_attribute_problems,
@@ -5329,7 +5324,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "AttributeProblems", HFILL }},
     { &hf_p7_attribute_problem_item,
-      { "problems item", "p7.problems_item",
+      { "problems item", "p7.problems_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeProblemItem", HFILL }},
     { &hf_p7_attribute_problem,
@@ -5337,7 +5332,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_AttributeProblem_vals), 0,
         "AttributeProblem", HFILL }},
     { &hf_p7_attr_value,
-      { "value", "p7.value",
+      { "value", "p7.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_attr_value", HFILL }},
     { &hf_p7_auto_action_request_problems,
@@ -5345,7 +5340,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "AutoActionRequestProblems", HFILL }},
     { &hf_p7_auto_action_request_problem_item,
-      { "problems item", "p7.problems_item",
+      { "problems item", "p7.problems_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AutoActionRequestProblemItem", HFILL }},
     { &hf_p7_auto_action_request_problem,
@@ -5357,7 +5352,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "DeleteProblems", HFILL }},
     { &hf_p7_delete_problem_item,
-      { "problems item", "p7.problems_item",
+      { "problems item", "p7.problems_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DeleteProblemItem", HFILL }},
     { &hf_p7_delete_problem,
@@ -5377,7 +5372,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "FetchRestrictionProblems", HFILL }},
     { &hf_p7_fetch_restriction_problem_item,
-      { "problems item", "p7.problems_item",
+      { "problems item", "p7.problems_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "FetchRestrictionProblemItem", HFILL }},
     { &hf_p7_fetch_restriction_problem,
@@ -5409,7 +5404,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SequenceNumberProblems", HFILL }},
     { &hf_p7_sequence_number_problem_item,
-      { "problems item", "p7.problems_item",
+      { "problems item", "p7.problems_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SequenceNumberProblemItem", HFILL }},
     { &hf_p7_sequence_number_problem,
@@ -5429,7 +5424,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "MessageGroupName", HFILL }},
     { &hf_p7_ms_extension_problem,
-      { "ms-extension-problem", "p7.ms_extension_problem",
+      { "ms-extension-problem", "p7.ms_extension_problem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MSExtensionItem", HFILL }},
     { &hf_p7_unknown_ms_extension,
@@ -5441,7 +5436,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_RegistrationProblem_vals), 0,
         "RegistrationProblem", HFILL }},
     { &hf_p7_registration_type,
-      { "registration-type", "p7.registration_type",
+      { "registration-type", "p7.registration_type_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RegistrationTypes", HFILL }},
     { &hf_p7_failing_entry,
@@ -5461,7 +5456,7 @@ void proto_register_p7(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "T_entry_class_problem", HFILL }},
     { &hf_p7_no_correlated_reports,
-      { "no-correlated-reports", "p7.no_correlated_reports",
+      { "no-correlated-reports", "p7.no_correlated_reports_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_location,
@@ -5469,7 +5464,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_PerRecipientReport", HFILL }},
     { &hf_p7_location_item,
-      { "PerRecipientReport", "p7.PerRecipientReport",
+      { "PerRecipientReport", "p7.PerRecipientReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_report_entry,
@@ -5481,11 +5476,11 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_ub_recipients", HFILL }},
     { &hf_p7_submission_control_violated,
-      { "submission-control-violated", "p7.submission_control_violated",
+      { "submission-control-violated", "p7.submission_control_violated_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_originator_invalid,
-      { "originator-invalid", "p7.originator_invalid",
+      { "originator-invalid", "p7.originator_invalid_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_recipient_improperly_specified,
@@ -5493,11 +5488,11 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ImproperlySpecifiedRecipients", HFILL }},
     { &hf_p7_element_of_service_not_subscribed,
-      { "element-of-service-not-subscribed", "p7.element_of_service_not_subscribed",
+      { "element-of-service-not-subscribed", "p7.element_of_service_not_subscribed_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_inconsistent_request,
-      { "inconsistent-request", "p7.inconsistent_request",
+      { "inconsistent-request", "p7.inconsistent_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_security_error,
@@ -5505,19 +5500,19 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p1_SecurityProblem_vals), 0,
         "SecurityProblem", HFILL }},
     { &hf_p7_unsupported_critical_function,
-      { "unsupported-critical-function", "p7.unsupported_critical_function",
+      { "unsupported-critical-function", "p7.unsupported_critical_function_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_remote_bind_error,
-      { "remote-bind-error", "p7.remote_bind_error",
+      { "remote-bind-error", "p7.remote_bind_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_service_error,
-      { "service-error", "p7.service_error",
+      { "service-error", "p7.service_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ServiceErrorParameter", HFILL }},
     { &hf_p7_message_group_error,
-      { "message-group-error", "p7.message_group_error",
+      { "message-group-error", "p7.message_group_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MessageGroupErrorParameter", HFILL }},
     { &hf_p7_ms_extension_error,
@@ -5525,7 +5520,7 @@ void proto_register_p7(void) {
         FT_UINT32, BASE_DEC, VALS(p7_MSExtensionErrorParameter_vals), 0,
         "MSExtensionErrorParameter", HFILL }},
     { &hf_p7_entry_class_error,
-      { "entry-class-error", "p7.entry_class_error",
+      { "entry-class-error", "p7.entry_class_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EntryClassErrorParameter", HFILL }},
     { &hf_p7_content_integrity_check,
@@ -5553,15 +5548,15 @@ void proto_register_p7(void) {
         FT_INT32, BASE_DEC, VALS(p7_SignatureStatus_vals), 0,
         "SignatureStatus", HFILL }},
     { &hf_p7_rtorq_apdu,
-      { "rtorq-apdu", "p7.rtorq_apdu",
+      { "rtorq-apdu", "p7.rtorq_apdu_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RTORQapdu", HFILL }},
     { &hf_p7_rtoac_apdu,
-      { "rtoac-apdu", "p7.rtoac_apdu",
+      { "rtoac-apdu", "p7.rtoac_apdu_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RTOACapdu", HFILL }},
     { &hf_p7_rtorj_apdu,
-      { "rtorj-apdu", "p7.rtorj_apdu",
+      { "rtorj-apdu", "p7.rtorj_apdu_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RTORJapdu", HFILL }},
     { &hf_p7_rttp_apdu,
@@ -5573,7 +5568,7 @@ void proto_register_p7(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "RTTRapdu", HFILL }},
     { &hf_p7_rtab_apdu,
-      { "rtab-apdu", "p7.rtab_apdu",
+      { "rtab-apdu", "p7.rtab_apdu_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RTABapdu", HFILL }},
     { &hf_p7_abortReason,
@@ -5585,7 +5580,7 @@ void proto_register_p7(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING", HFILL }},
     { &hf_p7_userdataAB,
-      { "userdataAB", "p7.userdataAB",
+      { "userdataAB", "p7.userdataAB_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p7_OverrideRestrictions_override_content_types_restriction,
@@ -5638,7 +5633,7 @@ void proto_register_p7(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-p7-hfarr.c ---*/
-#line 90 "../../asn1/p7/packet-p7-template.c"
+#line 91 "../../asn1/p7/packet-p7-template.c"
   };
 
   /* List of subtrees */
@@ -5782,7 +5777,7 @@ void proto_register_p7(void) {
     &ett_p7_RTABapdu,
 
 /*--- End of included file: packet-p7-ettarr.c ---*/
-#line 96 "../../asn1/p7/packet-p7-template.c"
+#line 97 "../../asn1/p7/packet-p7-template.c"
   };
   module_t *p7_module;
 
@@ -5841,7 +5836,7 @@ void proto_reg_handoff_p7(void) {
 
 
 /*--- End of included file: packet-p7-dis-tab.c ---*/
-#line 122 "../../asn1/p7/packet-p7-template.c"
+#line 123 "../../asn1/p7/packet-p7-template.c"
 
   /* APPLICATION CONTEXT */
 

@@ -2,22 +2,20 @@
  * implementor's API for stats_tree
  * 2005, Luis E. G. Ontanon
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
- * 
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
@@ -28,6 +26,10 @@
 
 #include "stats_tree.h"
 #include "ws_symbol_export.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 #define INDENT_MAX 32
 #define NUM_BUF_SIZE 32
@@ -53,19 +55,39 @@ typedef struct _range_pair {
 	gint ceil;
 } range_pair_t;
 
+typedef struct _burst_bucket burst_bucket;
+struct _burst_bucket {
+	burst_bucket	*next;
+	burst_bucket	*prev;
+	gint			count;
+	double			bucket_no;
+	double			start_time;
+};
+
 struct _stat_node {
 	gchar*			name;
 	int			id;
-	
+
 	/** the counter it keeps */
 	gint			counter;
+	/** total of all values submitted - for computing averages */
+	gint64			total;
+	gint			minvalue;
+	gint			maxvalue;
+	int				st_flags;
+
+	/** fields for burst rate calculation */
+	gint			bcount;
+	burst_bucket	*bh, *bt;
+	gint			max_burst;
+	double			burst_time;
 
 	/** children nodes by name */
 	GHashTable		*hash;
-	
+
 	/** the owner of this node */
 	stats_tree		*st;
-	
+
 	/** relatives */
 	stat_node		*parent;
 	stat_node		*children;
@@ -73,7 +95,7 @@ struct _stat_node {
 
 	/** used to check if value is within range */
 	range_pair_t		*rng;
-	
+
 	/** node presentation data */
 	st_node_pres		*pr;
 };
@@ -81,28 +103,33 @@ struct _stat_node {
 struct _stats_tree {
 	/** the "class" from which it's derived */
 	stats_tree_cfg		*cfg;
-	
+
 	char			*filter;
-	
+
 	/* times */
 	double			start;
 	double			elapsed;
+	double			now;
+
+	int				st_flags;
+	gint			num_columns;
+	gchar			*display_name;
 
    /** used to lookup named parents:
 	*    key: parent node name
 	*  value: parent node
 	*/
 	GHashTable		*names;
-	
+
    /** used for quicker lookups of parent nodes */
 	GPtrArray		*parents;
-		
+
 	/**
 	 *  tree representation
 	 * 	to be defined (if needed) by the implementations
 	 */
 	tree_pres		*pr;
-	
+
 	/** every tree in nature has one */
 	stat_node		root;
 };
@@ -112,7 +139,7 @@ struct _stats_tree_cfg {
 	gchar*			name;
 	gchar*			tapname;
 	register_stat_group_t	stat_group;
-	
+
 	gboolean in_use;
 	gboolean plugin;
 
@@ -123,31 +150,34 @@ struct _stats_tree_cfg {
 
 	/** tap listener flags for the per-packet callback */
 	guint flags;
-	
+
 	/*
 	 * node presentation callbacks
 	 */
 
 	/** last to be called at node creation */
 	void (*setup_node_pr)(stat_node*);
-	
+
 	/** last to be called at node destruction */
 	void (*free_node_pr)(stat_node*);
-	
+
 	/** to be called for every node in the tree */
 	void (*draw_node)(stat_node*);
 	void (*reset_node)(stat_node*);
-	
+
 	/**
 	 * tree presentation callbacks
 	 */
 	tree_cfg_pres *pr;
-	
-	
+
+
 	tree_pres *(*new_tree_pr)(stats_tree*);
 	void (*free_tree_pr)(stats_tree*);
 	void (*draw_tree)(stats_tree*);
 	void (*reset_tree)(stats_tree*);
+
+	/** flags for the stats tree (sorting etc.) default values to new trees */
+	guint st_flags;
 };
 
 /* guess what, this is it! */
@@ -181,25 +211,11 @@ WS_DLL_PUBLIC void stats_tree_free(stats_tree *st);
 WS_DLL_PUBLIC gchar *stats_tree_get_abbr(const gchar *optarg);
 
 /** obtains a stats tree from the registry given its abbr */
-WS_DLL_PUBLIC stats_tree_cfg *stats_tree_get_cfg_by_abbr(gchar *abbr);
+WS_DLL_PUBLIC stats_tree_cfg *stats_tree_get_cfg_by_abbr(const char *abbr);
 
-/** obtains a stats tree list from the registry 
+/** obtains a stats tree list from the registry
     caller should free returned list with  g_list_free() */
 WS_DLL_PUBLIC GList *stats_tree_get_cfg_list(void);
-
-/** extracts node data as strings from a stat_node into
-   the buffers given by value, rate and precent
-   if NULL they are ignored */
-WS_DLL_PUBLIC void stats_tree_get_strs_from_node(const stat_node *node,
-					  gchar *value,
-					  gchar *rate,
-					  gchar *percent);
-
-/** populates the given GString with a tree representation of a branch given by node,
-   using indent spaces as indentation */
-WS_DLL_PUBLIC void stats_tree_branch_to_str(const stat_node *node,
-				     GString *s,
-				     guint indent);
 
 /** used to calcuate the size of the indentation and the longest string */
 WS_DLL_PUBLIC guint stats_tree_branch_max_namelen(const stat_node *node, guint indent);
@@ -207,6 +223,59 @@ WS_DLL_PUBLIC guint stats_tree_branch_max_namelen(const stat_node *node, guint i
 /** a text representation of a node,
    if buffer is NULL returns a newly allocated string */
 WS_DLL_PUBLIC gchar *stats_tree_node_to_str(const stat_node *node,
-				     gchar *buffer, guint len);
+					gchar *buffer, guint len);
+
+/** get the display name for the stats_tree (or node name) based on the
+    st_sort_showfullname preference. If not set remove everything before
+    last unescaped backslash. Caller must free the result */
+WS_DLL_PUBLIC gchar* stats_tree_get_displayname (gchar* fullname);
+
+/** returns the column number of the default column to sort on */
+WS_DLL_PUBLIC gint stats_tree_get_default_sort_col (stats_tree *st);
+
+/** returns the default sort order to use */
+WS_DLL_PUBLIC gboolean stats_tree_is_default_sort_DESC (stats_tree *st);
+
+/** returns the column name for a given column index */
+WS_DLL_PUBLIC const gchar* stats_tree_get_column_name (gint index);
+
+/** returns the maximum number of characters in the value of a column */
+WS_DLL_PUBLIC gint stats_tree_get_column_size (gint index);
+
+/** returns the formatted column values for the current node
+  as array of gchar*. Caller must free entries and free array */
+WS_DLL_PUBLIC gchar** stats_tree_get_values_from_node (const stat_node* node);
+
+/** function to compare two nodes for sort, based on sort_column. */
+WS_DLL_PUBLIC gint stats_tree_sort_compare (const stat_node *a,
+					const stat_node *b,
+					gint sort_column,
+					gboolean sort_descending);
+
+/** wrapper for stats_tree_sort_compare() function that can be called from array sort. */
+WS_DLL_PUBLIC gint stat_node_array_sortcmp (gconstpointer a,
+					gconstpointer b,
+					gpointer user_data);
+
+/** function to copy stats_tree into GString. format deternmines output format */
+typedef enum { ST_FORMAT_PLAIN, ST_FORMAT_CSV, ST_FORMAT_XML, ST_FORMAT_YAML} st_format_type;
+WS_DLL_PUBLIC GString* stats_tree_format_as_str(const stats_tree* st,
+					st_format_type format_type,
+					gint sort_column,
+					gboolean sort_descending);
+
+/** helper funcation to add note to formatted stats_tree */
+WS_DLL_PUBLIC void stats_tree_format_node_as_str(const stat_node *node,
+					GString *s,
+					st_format_type format_type,
+					guint indent,
+					const gchar *path,
+					gint maxnamelen,
+					gint sort_column,
+					gboolean sort_descending);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* __STATS_TREE_PRIV_H */

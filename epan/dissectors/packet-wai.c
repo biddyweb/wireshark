@@ -7,8 +7,6 @@
  *            Lukasz Suchy  <lukasz.suchy@tieto.com>
  * Copyright 2010, Tieto.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -61,8 +59,12 @@
 #define FLAG_BIT6       0x40
 #define FLAG_BIT7       0x80
 
-static GHashTable *wai_fragment_table    = NULL;
-static GHashTable *wai_reassembled_table = NULL;
+void proto_register_wai(void);
+void proto_reg_handoff_wai(void);
+
+static reassembly_table wai_reassembly_table;
+
+static dissector_handle_t wai_handle;
 
 static int proto_wai = -1;
 
@@ -832,7 +834,7 @@ Figure 18 from [ref:1]
     guint16        packet_num;
     guint8         fragment_num;
     guint8         flags;
-    fragment_data *frag_msg;
+    fragment_head *frag_msg;
     proto_tree    *wai_tree     = NULL;
     tvbuff_t      *next_tvb;
     tvbuff_t      *new_tvb;
@@ -881,10 +883,11 @@ Figure 18 from [ref:1]
         proto_tree_add_item(wai_tree, hf_wai_flag,      tvb, 11, 1, ENC_BIG_ENDIAN);
     }
 
-    frag_msg =  fragment_add_seq_check (tvb, WAI_DATA_OFFSET, pinfo,
+    frag_msg =  fragment_add_seq_check (&wai_reassembly_table,
+                                        tvb, WAI_DATA_OFFSET,
+                                        pinfo,
                                         packet_num,
-                                        wai_fragment_table,
-                                        wai_reassembled_table,
+                                        NULL,
                                         fragment_num,
                                         length,
                                         flags);
@@ -910,7 +913,7 @@ Figure 18 from [ref:1]
                                                NULL, wai_tree);
 
             if (new_tvb) {
-                col_add_str(pinfo->cinfo, COL_INFO, "Last fragment of message, data dissected");
+                col_set_str(pinfo->cinfo, COL_INFO, "Last fragment of message, data dissected");
                 col_append_sep_str(pinfo->cinfo, COL_INFO, ": ", subtype_name);
                 next_tvb=new_tvb;
                 length = tvb_reported_length (next_tvb);
@@ -926,8 +929,8 @@ Figure 18 from [ref:1]
 
 static void wai_reassemble_init (void)
 {
-    fragment_table_init(&wai_fragment_table);
-    reassembled_table_init(&wai_reassembled_table);
+    reassembly_table_init(&wai_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 void
@@ -1318,15 +1321,13 @@ proto_register_wai(void)
     register_init_routine(&wai_reassemble_init);
     proto_register_field_array(proto_wai, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
-    register_dissector("wai", dissect_wai, proto_wai);
+
+    wai_handle = register_dissector("wai", dissect_wai, proto_wai);
 }
 
 void
 proto_reg_handoff_wai(void)
 {
-    dissector_handle_t wai_handle;
-
     data_handle = find_dissector("data");
-    wai_handle  = find_dissector("wai");
     dissector_add_uint("ethertype", ETHERTYPE_WAI, wai_handle);
 }

@@ -7,9 +7,9 @@
  * NCS 1.0: PacketCable Network-Based Call Signaling Protocol Specification,
  *          PKT-SP-EC-MGCP-I09-040113, January 13, 2004, Cable Television
  *          Laboratories, Inc., http://www.PacketCable.com/
+ * NCS 1.5: PKT-SP-NCS1.5-I03-070412, April 12, 2007 Cable Television
+ *          Laboratories, Inc., http://www.PacketCable.com/
  * www.iana.org/assignments/mgcp-localconnectionoptions
- *
- * $Id$
  *
  * Copyright (c) 2000 by Ed Warnicke <hagbard@physics.rutgers.edu>
  * Copyright (c) 2004 by Thomas Anders <thomas.anders [AT] blue-cable.de>
@@ -40,11 +40,11 @@
 #include <string.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/exceptions.h>
+#include <epan/wmem/wmem.h>
 #include <epan/prefs.h>
 #include <epan/conversation.h>
 #include <epan/tap.h>
-#include <epan/strutil.h>
 #include "packet-mgcp.h"
 
 
@@ -101,6 +101,8 @@ static int hf_mgcp_param_localconnoptions_t = -1;
 static int hf_mgcp_param_localconnoptions_rcnf = -1;
 static int hf_mgcp_param_localconnoptions_rdir = -1;
 static int hf_mgcp_param_localconnoptions_rsh = -1;
+static int hf_mgcp_param_localconnoptions_mp = -1;
+static int hf_mgcp_param_localconnoptions_fxr = -1;
 static int hf_mgcp_param_connectionmode = -1;
 static int hf_mgcp_param_reqevents = -1;
 static int hf_mgcp_param_restartmethod = -1;
@@ -337,7 +339,6 @@ static int dissect_mgcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
 	/* Initialize variables */
 	tvb_sectionend = 0;
 	tvb_sectionbegin = tvb_sectionend;
-	sectionlen = 0;
 	tvb_len = tvb_length(tvb);
 	num_messages = 0;
 	mgcp_tree = NULL;
@@ -493,9 +494,6 @@ static void dissect_mgcp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 	mi->hasDigitMap = FALSE;
 
 	/* Initialize variables */
-	tvb_sectionend = 0;
-	tvb_sectionbegin = tvb_sectionend;
-	sectionlen = 0;
 	tvb_len = tvb_length(tvb);
 
 	/*
@@ -526,7 +524,6 @@ static void dissect_mgcp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 			{
 				dissect_mgcp_params(tvb_new_subset(tvb, tvb_sectionbegin, sectionlen, -1),
 				                                   mgcp_tree);
-				tvb_sectionbegin = tvb_sectionend;
 			}
 		}
 
@@ -569,8 +566,7 @@ static void mgcp_raw_text_add(tvbuff_t *tvb, proto_tree *tree)
 	{
 		tvb_find_line_end(tvb,tvb_linebegin,-1,&tvb_lineend,FALSE);
 		linelen = tvb_lineend - tvb_linebegin;
-		proto_tree_add_text(tree, tvb, tvb_linebegin, linelen, "%s",
-		                    tvb_format_text(tvb, tvb_linebegin, linelen));
+		proto_tree_add_format_text(tree, tvb, tvb_linebegin, linelen);
 		tvb_linebegin = tvb_lineend;
 	} while (tvb_lineend < tvb_len);
 }
@@ -721,6 +717,12 @@ void proto_register_mgcp(void)
         { &hf_mgcp_param_localconnoptions_rsh,
           { "Resource Sharing (r-sh)", "mgcp.param.localconnectionoptions.rsh", FT_STRING, BASE_NONE, NULL, 0x0,
             "Resource Sharing", HFILL }},
+        { &hf_mgcp_param_localconnoptions_mp,
+          { "Multiple Packetization period (mp)", "mgcp.param.localconnectionoptions.mp", FT_STRING, BASE_NONE, NULL, 0x0,
+            "Multiple Packetization period", HFILL }},
+        { &hf_mgcp_param_localconnoptions_fxr,
+          { "FXR (fxr/fx)", "mgcp.param.localconnectionoptions.fxr", FT_STRING, BASE_NONE, NULL, 0x0,
+            "FXR", HFILL }},
         { &hf_mgcp_param_connectionmode,
           { "ConnectionMode (M)", "mgcp.param.connectionmode", FT_STRING, BASE_NONE, NULL, 0x0,
             "Connection Mode", HFILL }},
@@ -1341,7 +1343,7 @@ static gint tvb_parse_param(tvbuff_t* tvb, gint offset, gint len, int** hf)
 
                        /* set the observedEvents or signalReq used in Voip Calls analysis */
                        if (buf != NULL) {
-                               *buf = tvb_get_ephemeral_string(tvb, tvb_current_offset, (len - tvb_current_offset + offset));
+                               *buf = tvb_get_string(wmem_packet_scope(), tvb, tvb_current_offset, (len - tvb_current_offset + offset));
                        }
 		}
 	}
@@ -1399,7 +1401,6 @@ static void dissect_mgcp_firstline(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 	static address null_address = { AT_NONE, -1, 0, NULL };
 	tvb_previous_offset = 0;
 	tvb_len = tvb_length(tvb);
-	tvb_current_len = tvb_len;
 	tvb_current_offset = tvb_previous_offset;
 	mi->is_duplicate = FALSE;
 	mi->request_available = FALSE;
@@ -1468,7 +1469,7 @@ static void dissect_mgcp_firstline(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 				if (mgcp_type == MGCP_REQUEST)
 				{
 					endpointId = tvb_format_text(tvb, tvb_previous_offset,tokenlen);
-					mi->endpointId = ep_strdup(endpointId);
+					mi->endpointId = wmem_strdup(wmem_packet_scope(), endpointId);
 					proto_tree_add_string(tree,hf_mgcp_req_endpoint, tvb,
 					                      tvb_previous_offset, tokenlen, endpointId);
 				}
@@ -1715,9 +1716,9 @@ static void dissect_mgcp_firstline(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 					   frame numbers are 1-origin, so we use 0
 					   to mean "we don't yet know in which frame
 					   the reply for this call appears". */
-					new_mgcp_call_key    = (mgcp_call_info_key *)se_alloc(sizeof(*new_mgcp_call_key));
+					new_mgcp_call_key    = (mgcp_call_info_key *)wmem_alloc(wmem_file_scope(), sizeof(*new_mgcp_call_key));
 					*new_mgcp_call_key   = mgcp_call_key;
-					mgcp_call            = (mgcp_call_t *)se_alloc(sizeof(*mgcp_call));
+					mgcp_call            = (mgcp_call_t *)wmem_alloc(wmem_file_scope(), sizeof(*mgcp_call));
 					mgcp_call->req_num   = pinfo->fd->num;
 					mgcp_call->rsp_num   = 0;
 					mgcp_call->transid   = mi->transid;
@@ -1847,15 +1848,15 @@ dissect_mgcp_connectionparams(proto_tree *parent_tree, tvbuff_t *tvb, gint offse
 
 	/* The P: line */
 	offset += param_type_len; /* skip the P: */
-	tokenline = tvb_get_ephemeral_string(tvb, offset, param_val_len);
+	tokenline = tvb_get_string(wmem_packet_scope(), tvb, offset, param_val_len);
 
 	/* Split into type=value pairs separated by comma */
-	tokens = ep_strsplit(tokenline, ",", -1);
+	tokens = wmem_strsplit(wmem_packet_scope(), tokenline, ",", -1);
 
 	for (i = 0; tokens[i] != NULL; i++)
 	{
 		tokenlen = (int)strlen(tokens[i]);
-		typval = ep_strsplit(tokens[i], "=", 2);
+		typval = wmem_strsplit(wmem_packet_scope(), tokens[i], "=", 2);
 		if ((typval[0] != NULL) && (typval[1] != NULL))
 		{
 			if (!g_ascii_strcasecmp(g_strstrip(typval[0]), "PS"))
@@ -1959,17 +1960,17 @@ dissect_mgcp_localconnectionoptions(proto_tree *parent_tree, tvbuff_t *tvb, gint
 
 	/* The L: line */
 	offset += param_type_len; /* skip the L: */
-	tokenline = tvb_get_ephemeral_string(tvb, offset, param_val_len);
+	tokenline = tvb_get_string(wmem_packet_scope(), tvb, offset, param_val_len);
 
 	/* Split into type=value pairs separated by comma */
-	tokens = ep_strsplit(tokenline, ",", -1);
+	tokens = wmem_strsplit(wmem_packet_scope(), tokenline, ",", -1);
 	for (i = 0; tokens[i] != NULL; i++)
 	{
 		hf_uint = -1;
 		hf_string = -1;
 
 		tokenlen = (int)strlen(tokens[i]);
-		typval = ep_strsplit(tokens[i], ":", 2);
+		typval = wmem_strsplit(wmem_packet_scope(), tokens[i], ":", 2);
 		if ((typval[0] != NULL) && (typval[1] != NULL))
 		{
 			if (!g_ascii_strcasecmp(g_strstrip(typval[0]), "p"))
@@ -2063,6 +2064,14 @@ dissect_mgcp_localconnectionoptions(proto_tree *parent_tree, tvbuff_t *tvb, gint
 			else if (!g_ascii_strcasecmp(g_strstrip(typval[0]), "r-sh"))
 			{
 				hf_string = hf_mgcp_param_localconnoptions_rsh;
+			}
+			else if (!g_ascii_strcasecmp(g_strstrip(typval[0]), "mp"))
+			{
+				hf_string = hf_mgcp_param_localconnoptions_mp;
+			}
+			else if (!g_ascii_strcasecmp(g_strstrip(typval[0]), "fxr/fx"))
+			{
+				hf_string = hf_mgcp_param_localconnoptions_fxr;
 			}
 			else
 			{
@@ -2187,7 +2196,6 @@ static gint tvb_find_dot_line(tvbuff_t* tvb, gint offset, gint len, gint* next_o
 {
 	gint tvb_current_offset, tvb_current_len, maxoffset,tvb_len;
 	guint8 tempchar;
-	tvb_current_offset = offset;
 	tvb_current_len = len;
 	tvb_len = tvb_length(tvb);
 

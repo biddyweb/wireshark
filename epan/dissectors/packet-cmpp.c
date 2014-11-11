@@ -2,8 +2,6 @@
  * Routines for China Mobile Point to Point dissection
  * Copyright 2007, Andy Chu <chu.dev@gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,7 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/wmem/wmem.h>
 #include <epan/dissectors/packet-tcp.h>
 
 #define CMPP_FIX_HEADER_LENGTH  12
@@ -36,6 +35,9 @@
 #define CMPP_SP_SHORT_PORT   7900
 #define CMPP_ISMG_LONG_PORT  7930
 #define CMPP_ISMG_SHORT_PORT 9168
+
+void proto_register_cmpp(void);
+void proto_reg_handoff_cmpp(void);
 
 /* Initialize the protocol and registered fields */
 static gint proto_cmpp = -1;
@@ -254,7 +256,7 @@ cmpp_octet_string(proto_tree *tree, tvbuff_t *tvb, gint field, gint offset, gint
 {
 	char *display;
 
-	display = (char *)tvb_get_ephemeral_string(tvb, offset, length);
+	display = (char *)tvb_get_string(wmem_packet_scope(), tvb, offset, length);
 	proto_tree_add_string(tree, field, tvb, offset, length, display);
 	return display;
 }
@@ -268,7 +270,7 @@ cmpp_version(proto_tree *tree, tvbuff_t *tvb, gint  field, gint offset)
 	version = tvb_get_guint8(tvb, offset);
 	minor   = version & 0x0F;
 	major   = (version & 0xF0) >> 4;
-	strval  = ep_strdup_printf("%02u.%02u", major, minor);
+	strval  = wmem_strdup_printf(wmem_packet_scope(), "%02u.%02u", major, minor);
 	/* TODO: the version should be added as a uint_format */
 	proto_tree_add_string(tree, field, tvb, offset, 1, strval);
 	return strval;
@@ -290,7 +292,7 @@ cmpp_timestamp(proto_tree *tree, tvbuff_t *tvb, gint  field, gint offset)
 	timevalue /= 100;
 	day = timevalue % 100;
 	month = timevalue / 100;
-	strval = ep_strdup_printf("%02u/%02u %02u:%02u:%02u", month, day,
+	strval = wmem_strdup_printf(wmem_packet_scope(), "%02u/%02u %02u:%02u:%02u", month, day,
 		hour, minute, second);
 	proto_tree_add_string(tree, field, tvb, offset, 4, strval);
 	return strval;
@@ -354,7 +356,7 @@ cmpp_msg_id(proto_tree *tree, tvbuff_t *tvb, gint  field, gint offset)
 	hour = (tvb_get_guint8(tvb, offset + 1) & 0x7C) >> 2;
 	minute = (tvb_get_ntohs(tvb, offset + 1) & 0x03F0) >> 4;
 	second = (tvb_get_ntohs(tvb, offset + 2) & 0x0FC0) >> 6;
-	strval = ep_strdup_printf("%02u/%02u %02u:%02u:%02u", month, day,
+	strval = wmem_strdup_printf(wmem_packet_scope(), "%02u/%02u %02u:%02u:%02u", month, day,
 		hour, minute, second);
 
 	ismg_code = (tvb_get_ntohl(tvb, offset + 3) & 0x3FFFFF00) >> 16;
@@ -532,8 +534,8 @@ cmpp_deliver_resp(proto_tree *tree, tvbuff_t *tvb)
 }
 
 /* Code to actually dissect the packets */
-static void
-dissect_cmpp_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_cmpp_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
 
 /* Set up structures needed to add the protocol subtree and manage it */
@@ -548,15 +550,15 @@ dissect_cmpp_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	tvb_len = tvb_length(tvb);
 	/* if the length of the tvb is shorder then the cmpp header length exit */
 	if (tvb_len < CMPP_FIX_HEADER_LENGTH)
-		return;
+		return 0;
 
 	total_length = tvb_get_ntohl(tvb, 0); /* Get the pdu length */
 	command_id = tvb_get_ntohl(tvb, 4); /* get the pdu command id */
 
-	if (match_strval(command_id, vals_command_Id) == NULL)
+	if (try_val_to_str(command_id, vals_command_Id) == NULL)
 	{
 		/* Should never happen: we checked this in dissect_cmpp() */
-		return;
+		return 0;
 	}
 
 	command_str = val_to_str(command_id, vals_command_Id,
@@ -566,7 +568,7 @@ dissect_cmpp_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	if (tvb_len < total_length)
 	{
 		/* Should never happen: TCP should have desegmented for us */
-		return;
+		return 0;
 	}
 
 	/* Make entries in Protocol column and Info column on summary display */
@@ -614,6 +616,8 @@ dissect_cmpp_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				break;
 		}
 	}
+
+	return tvb_length(tvb);
 }
 
 
@@ -626,7 +630,7 @@ get_cmpp_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, gint offset)
 
 
 static int
-dissect_cmpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_cmpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 	guint total_length, command_id, tvb_len;
 	/* Check that there's enough data */
@@ -645,13 +649,13 @@ dissect_cmpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 	if (total_length < CMPP_FIX_HEADER_LENGTH || total_length > 1000)
 		return 0;
 
-	if (match_strval(command_id, vals_command_Id) == NULL)
+	if (try_val_to_str(command_id, vals_command_Id) == NULL)
 		return 0;
 
 	col_clear(pinfo->cinfo, COL_INFO);
 
 	tcp_dissect_pdus(tvb, pinfo, tree, cmpp_desegment, CMPP_FIX_HEADER_LENGTH,
-			 get_cmpp_pdu_len, dissect_cmpp_tcp_pdu);
+			 get_cmpp_pdu_len, dissect_cmpp_tcp_pdu, data);
 
 	/* Return the amount of data this dissector was able to dissect */
 	return tvb_length(tvb);

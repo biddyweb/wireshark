@@ -2,8 +2,6 @@
  * Definitions for implementation of preference handling routines;
  * used by "friends" of the preferences type.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,7 @@
 
 #include <stdio.h>
 #include "ws_symbol_export.h"
+#include <epan/wmem/wmem.h>
 
 /**
  *@file
@@ -40,7 +39,7 @@ struct pref_module {
     void (*apply_cb)(void);     /**< routine to call when preferences applied */
     GList *prefs;               /**< list of its preferences */
     struct pref_module *parent; /**< parent module */
-    emem_tree_t *submodules;    /**< list of its submodules */
+    wmem_tree_t *submodules;    /**< list of its submodules */
     int numprefs;               /**< number of non-obsolete preferences */
     gboolean prefs_changed;     /**< if TRUE, a preference has changed since we last checked */
     gboolean obsolete;          /**< if TRUE, this is a module that used to
@@ -50,8 +49,8 @@ struct pref_module {
                                   * GUI interface/APIs with the preference value or if its own
                                   * independent GUI will be provided.  This allows all preferences
                                   * to have a common API for reading/writing, but not require them to
-                                  * use simple GUI controls to change the options.  In general, the "general" 
-                                  * Wireshark preferences should have this set to FALSE, while the protocol 
+                                  * use simple GUI controls to change the options.  In general, the "general"
+                                  * Wireshark preferences should have this set to FALSE, while the protocol
                                   * modules will have this set to TRUE */
 };
 
@@ -107,6 +106,12 @@ typedef enum {
     PREF_DIRNAME
 } pref_type_t;
 
+typedef enum {
+	GUI_ALL,
+	GUI_GTK,
+	GUI_QT
+} gui_type_t;
+
 /** Struct to hold preference data */
 struct preference {
     const char *name;                /**< name of preference */
@@ -114,13 +119,14 @@ struct preference {
     const char *description;         /**< human-readable description of preference */
     int ordinal;                     /**< ordinal number of this preference */
     pref_type_t type;                /**< type of that preference */
+    gui_type_t gui;                  /**< type of the GUI (QT, GTK or both) the preference is registered for */
     union {                          /* The Qt preference code assumes that these will all be pointers (and unique) */
         guint *uint;
         gboolean *boolp;
         gint *enump;
         const char **string;
         range_t **range;
-        void* uat;
+        struct epan_uat* uat;
         color_t *colorp;
         GList** list;
     } varp;                          /**< pointer to variable storing the value */

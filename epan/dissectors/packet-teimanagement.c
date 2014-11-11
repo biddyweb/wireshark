@@ -3,8 +3,6 @@
  * Rolf Fiedler <rolf.fiedler@innoventif.com>
  * based on code by Gilbert Ramirez <gram@alumni.rice.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998
@@ -36,6 +34,9 @@
  * http://www.ece.wpi.edu/courses/ee535/hwk11cd95/agrebe/agrebe.html
  * http://www.acacia-net.com/Clarinet/Protocol/q9213o84.htm
  */
+
+void proto_reg_handoff_teimanagement(void);
+void proto_register_teimanagement(void);
 
 static int proto_tei=-1;
 
@@ -84,7 +85,6 @@ dissect_teimanagement(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
 
     message = tvb_get_guint8(tvb, 3);
-    if (check_col(pinfo->cinfo, COL_INFO))
 	col_add_str(pinfo->cinfo, COL_INFO,
 	    val_to_str(message, tei_msg_vals, "Unknown message type (0x%04x)"));
     if (tree) {

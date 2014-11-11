@@ -3,8 +3,6 @@
  * Copyright 2001, Hartmut Mueller <hartmut@abmlinux.org>, FH Dortmund
  * Enhanced by Steve Karg, 2005, <skarg@users.sourceforge.net>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,9 @@
 #include <epan/packet.h>
 
 #include <epan/llcsaps.h>
+
+void proto_register_bacnet(void);
+void proto_reg_handoff_bacnet(void);
 
 static dissector_handle_t bacapp_handle;
 static dissector_handle_t data_handle;
@@ -417,7 +418,7 @@ dissect_bacnet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 					offset ++;
 					proto_tree_add_text(bacnet_tree, tvb, offset,
 					bacnet_pinfolen, "Port Info: %s",
-					tvb_bytes_to_str(tvb, offset, bacnet_pinfolen));
+					tvb_bytes_to_ep_str(tvb, offset, bacnet_pinfolen));
 					offset += bacnet_pinfolen;
 			}
 		}

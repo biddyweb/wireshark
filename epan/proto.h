@@ -1,8 +1,6 @@
 /* proto.h
  * Definitions for protocol display
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -45,8 +43,11 @@
 
 #include <glib.h>
 
+#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
+
 #include "ipv4.h"
-#include "nstime.h"
+#include "wsutil/nstime.h"
 #include "time_fmt.h"
 #include "tvbuff.h"
 #include "ftypes/ftypes.h"
@@ -57,6 +58,16 @@
 extern "C" {
 #endif /* __cplusplus */
 
+/** @defgroup prototree The Protocol Tree
+ *
+ * Dissectors use proto_tree_add_* to add items to the protocol tree. In
+ * most cases you'll want to use proto_tree_add_item(). In general
+ * proto_tree_add_text() should be avoided unless you explicitly don't
+ * want to allow filtering.
+ *
+ * @{
+ */
+
 /** The header-field index for the special text pseudo-field. Exported by libwireshark.dll */
 WS_DLL_PUBLIC int hf_text_only;
 
@@ -64,9 +75,13 @@ WS_DLL_PUBLIC int hf_text_only;
 #define ITEM_LABEL_LENGTH	240
 
 struct _value_string;
+struct expert_field;
 
 /** Make a const value_string[] look like a _value_string pointer, used to set header_field_info.strings */
 #define VALS(x)	(const struct _value_string*)(x)
+
+/** Make a const val64_string[] look like a _val64_string pointer, used to set header_field_info.strings */
+#define VALS64(x)   (const struct _val64_string*)(x)
 
 /** Make a const true_false_string[] look like a _true_false_string pointer, used to set header_field_info.strings */
 #define TFS(x)	(const struct true_false_string*)(x)
@@ -82,16 +97,7 @@ struct _protocol;
 /** Structure for information about a protocol */
 typedef struct _protocol protocol_t;
 
-/** check protocol activation
- * @todo this macro looks like a hack */
-#define CHECK_DISPLAY_AS_X(x_handle,index, tvb, pinfo, tree) {	\
-	if (!proto_is_protocol_enabled(find_protocol_by_id(index))) {	\
-		call_dissector(x_handle,tvb, pinfo, tree);		\
-		return;							\
-	}								\
-  }
-
-/** Macro used for reporting errors in dissectors; it throws a
+/** Function used for reporting errors in dissectors; it throws a
  * DissectorError exception, with the string passed as an argument
  * as the message for the exception, so that it can show up in
  * the Info column and the protocol tree.
@@ -104,10 +110,10 @@ typedef struct _protocol protocol_t;
  *
  * @param message string to use as the message
  */
+WS_DLL_PUBLIC WS_MSVC_NORETURN void proto_report_dissector_bug(const char *message) G_GNUC_NORETURN;
+
 #define REPORT_DISSECTOR_BUG(message)  \
-  ((getenv("WIRESHARK_ABORT_ON_DISSECTOR_BUG") != NULL) ? \
-    abort() : \
-    THROW_MESSAGE(DissectorError, message))
+	proto_report_dissector_bug(message)
 
 /** Macro used to provide a hint to static analysis tools.
  * (Currently only Visual C++.)
@@ -231,6 +237,13 @@ typedef struct _protocol protocol_t;
 #define ENC_BIG_ENDIAN		0x00000000
 #define ENC_LITTLE_ENDIAN	0x80000000
 
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
+    #define ENC_HOST_ENDIAN ENC_LITTLE_ENDIAN
+#else
+    #define ENC_HOST_ENDIAN ENC_BIG_ENDIAN
+#endif
+
+
 /*
  * Historically FT_TIMEs were only timespecs; the only question was whether
  * they were stored in big- or little-endian format.
@@ -238,8 +251,9 @@ typedef struct _protocol protocol_t;
  * For backwards compatibility, we interpret an encoding of 1 as meaning
  * "little-endian timespec", so that passing TRUE is interpreted as that.
  */
-#define ENC_TIME_TIMESPEC	0x00000000
-#define ENC_TIME_NTP		0x00000002
+#define ENC_TIME_TIMESPEC	0x00000000	/* "struct timespec" */
+#define ENC_TIME_NTP		0x00000002	/* NTP times */
+#define ENC_TIME_TOD		0x00000004	/* System/3xx and z/Architecture time-of-day clock */
 
 /*
  * Historically, the only place the representation mattered for strings
@@ -264,36 +278,49 @@ typedef struct _protocol protocol_t;
  * For UTF-8, invalid UTF-8 sequences should be mapped to the same
  * code point.
  *
- * We also don't process UTF-16 or UCS-2 differently - we don't
- * handle surrogate pairs, and don't handle 2-byte values that
- * aren't valid in UTF-16 or UCS-2 strings.
- *
  * For display, perhaps we should also map control characters to the
  * Unicode glyphs showing the name of the control character in small
  * caps, diagonally.  (Unfortunately, those only exist for C0, not C1.)
  */
-#define ENC_CHARENCODING_MASK	0x7FFFFFFE	/* mask out byte-order bits */
-#define ENC_ASCII		0x00000000
-#define ENC_UTF_8		0x00000002
-#define ENC_UTF_16		0x00000004
-#define ENC_UCS_2		0x00000006
-#define ENC_EBCDIC		0x00000008
+#define ENC_CHARENCODING_MASK		0x7FFFFFFE	/* mask out byte-order bits */
+#define ENC_ASCII			0x00000000
+#define ENC_UTF_8			0x00000002
+#define ENC_UTF_16			0x00000004
+#define ENC_UCS_2			0x00000006
+#define ENC_UCS_4			0x00000008
+#define ENC_ISO_8859_1			0x0000000A
+#define ENC_ISO_8859_2			0x0000000C
+#define ENC_ISO_8859_3			0x0000000E
+#define ENC_ISO_8859_4			0x00000010
+#define ENC_ISO_8859_5			0x00000012
+#define ENC_ISO_8859_6			0x00000014
+#define ENC_ISO_8859_7			0x00000016
+#define ENC_ISO_8859_8			0x00000018
+#define ENC_ISO_8859_9			0x0000001A
+#define ENC_ISO_8859_10			0x0000001C
+#define ENC_ISO_8859_11			0x0000001E
+/* #define ENC_ISO_8859_12			0x00000020 ISO 8859-12 was abandoned */
+#define ENC_ISO_8859_13			0x00000022
+#define ENC_ISO_8859_14			0x00000024
+#define ENC_ISO_8859_15			0x00000026
+#define ENC_ISO_8859_16			0x00000028
+#define ENC_WINDOWS_1250		0x0000002A
+#define ENC_3GPP_TS_23_038_7BITS	0x0000002C
+#define ENC_EBCDIC			0x0000002E
+#define ENC_MAC_ROMAN			0x00000030
+#define ENC_CP437			0x00000032
+#define ENC_ASCII_7BITS			0x00000034
 
 /*
  * TODO:
  *
  * These could probably be used by existing code:
  *
- *	ENC_UCS_4 - UCS-4
- *	ENC_ISO_8859_1 - ISO 8859/1
- *	ENC_ISO_8859_8 - ISO 8859/8
- *	 - "IBM MS DBCS"
- *	 - JIS C 6226
- *	7-bit encodings such as ETSI 03.38 (GSM SMS character set
- *	    (see packet-ansi_337.c, packet-gsm_a_dtap.c, packet-gsm_map.c,
- *	    packet-gsm_sms.c)?
+ *	"IBM MS DBCS"
+ *	JIS C 6226
  *
- * See also packet-bacapp.c.
+ * As those are added, change code such as the code in packet-bacapp.c
+ * to use them.
  */
 
 /*
@@ -305,30 +332,79 @@ typedef struct _protocol protocol_t;
  */
 #define ENC_NA			0x00000000
 
+/* For cases where either native type or string encodings could both be
+ * valid arguments, we need something to distinguish which one is being
+ * passed as the argument, because ENC_BIG_ENDIAN and ENC_ASCII are both
+ * 0x00000000. So we use ENC_STR_NUM or ENC_STR_HEX bit-or'ed with
+ * ENC_ASCII and its ilk.
+ */
+/* this is for strings as numbers "12345" */
+#define ENC_STR_NUM             0x01000000
+/* this is for strings as hex "1a2b3c" */
+#define ENC_STR_HEX             0x02000000
+/* a convenience macro for either of the above */
+#define ENC_STRING              0x03000000
+/* mask out ENC_STR_* and related bits - should this replace ENC_CHARENCODING_MASK? */
+#define ENC_STR_MASK            0x0000FFFE
+
+/* for cases where the number is allowed to have a leading '+'/'-' */
+/* this can't collide with ENC_SEP_* because they can be used simultaneously */
+#define ENC_NUM_PREF    0x00200000
+
+/* For cases where a string encoding contains hex, bit-or one or more
+ * of these for the allowed separator(s), as well as with ENC_STR_HEX.
+ * See hex_str_to_bytes_encoding() in epan/strutil.h for details.
+ */
+#define ENC_SEP_NONE    0x00010000
+#define ENC_SEP_COLON   0x00020000
+#define ENC_SEP_DASH    0x00040000
+#define ENC_SEP_DOT   0x00080000
+#define ENC_SEP_SPACE   0x00100000
+/* a convenience macro for the above */
+#define ENC_SEP_MASK    0x001F0000
+
+/* For cases where a string encoding contains a timestamp, use one
+ * of these (but only one). These values can collide with above, because
+ * you can't do both at the same time.
+ */
+#define ENC_ISO_8601_DATE       0x00010000
+#define ENC_ISO_8601_TIME       0x00020000
+#define ENC_ISO_8601_DATE_TIME  0x00030000
+#define ENC_RFC_822             0x00040000
+#define ENC_RFC_1123            0x00080000
+/* a convenience macro for the above - for internal use only */
+#define ENC_STR_TIME_MASK       0x000F0000
+
 /* Values for header_field_info.display */
 
-/* For integral types, the display format is a base_display_e value
- * possibly ORed with BASE_RANGE_STRING. */
+/* For integral types, the display format is a BASE_* field_display_e value
+ * possibly ORed with BASE_*_STRING */
 
-/** BASE_DISPLAY_E_MASK selects the base_display_e value.  Its current
- * value means that we may have at most 16 base_display_e values. */
-#define BASE_DISPLAY_E_MASK 0x0F
+/** FIELD_DISPLAY_E_MASK selects the field_display_e value.  Its current
+ * value means that we may have at most 16 field_display_e values. */
+#define FIELD_DISPLAY_E_MASK 0x0F
 
 typedef enum {
-	BASE_NONE,	/**< none */
-	BASE_DEC,	/**< decimal */
-	BASE_HEX,	/**< hexadecimal */
-	BASE_OCT,	/**< octal */
-	BASE_DEC_HEX,	/**< decimal (hexadecimal) */
-	BASE_HEX_DEC,	/**< hexadecimal (decimal) */
-	BASE_CUSTOM	/**< call custom routine (in ->strings) to format */
-} base_display_e;
+/* Integral types */
+	BASE_NONE    = 0,   /**< none */
+	BASE_DEC     = 1,   /**< decimal */
+	BASE_HEX     = 2,   /**< hexadecimal */
+	BASE_OCT     = 3,   /**< octal */
+	BASE_DEC_HEX = 4,   /**< decimal (hexadecimal) */
+	BASE_HEX_DEC = 5,   /**< hexadecimal (decimal) */
+	BASE_CUSTOM  = 6,   /**< call custom routine (in ->strings) to format */
 
-/* Following constants have to be ORed with a base_display_e when dissector
- * want to use specials MACROs (for the moment, only RVALS) for a
- * header_field_info */
+/* String types */
+	STR_ASCII    = BASE_NONE, /**< shows non-printable ASCII characters as C-style escapes */
+	/* XXX, support for format_text_wsp() ? */
+	STR_UNICODE  = 7          /**< shows non-printable UNICODE characters as \\uXXXX (XXX for now non-printable characters display depends on UI) */
+} field_display_e;
+
+/* Following constants have to be ORed with a field_display_e when dissector
+ * want to use specials value-string MACROs for a header_field_info */
 #define BASE_RANGE_STRING 0x10
-#define BASE_EXT_STRING 0x20
+#define BASE_EXT_STRING   0x20
+#define BASE_VAL64_STRING 0x40
 
 /** BASE_ values that cause the field value to be displayed twice */
 #define IS_BASE_DUAL(b) ((b)==BASE_DEC_HEX||(b)==BASE_HEX_DEC)
@@ -351,8 +427,8 @@ struct _header_field_info {
 	const char		*name;           /**< [FIELDNAME] full name of this field */
 	const char		*abbrev;         /**< [FIELDABBREV] abbreviated name of this field */
 	enum ftenum		 type;           /**< [FIELDTYPE] field type, one of FT_ (from ftypes.h) */
-	int			 display;        /**< [FIELDDISPLAY] one of BASE_, or field bit-width if FT_BOOLEAN and non-zero bitmask */
-	const void		*strings;        /**< [FIELDCONVERT] value_string, range_string or true_false_string,
+	int			     display;        /**< [FIELDDISPLAY] one of BASE_, or field bit-width if FT_BOOLEAN and non-zero bitmask */
+	const void		*strings;        /**< [FIELDCONVERT] value_string, val64_string, range_string or true_false_string,
 				                      typically converted by VALS(), RVALS() or TFS().
 				                      If this is an FT_PROTOCOL then it points to the
 				                      associated protocol_t structure */
@@ -360,12 +436,11 @@ struct _header_field_info {
 	const char		*blurb;          /**< [FIELDDESCR] Brief description of field */
 
 	/* ------- set by proto routines (prefilled by HFILL macro, see below) ------ */
-	int			 id;             /**< Field ID */
-	int			 parent;         /**< parent protocol tree */
-	hf_ref_type		 ref_type;       /**< is this field referenced by a filter */
-	int			 bitshift;       /**< bits to shift */
-	header_field_info	*same_name_next; /**< Link to next hfinfo with same abbrev */
-	header_field_info	*same_name_prev; /**< Link to previous hfinfo with same abbrev */
+	int				     id;                /**< Field ID */
+	int					 parent;            /**< parent protocol tree */
+	hf_ref_type			 ref_type;          /**< is this field referenced by a filter */
+	int                  same_name_prev_id; /**< ID of previous hfinfo with same abbrev */
+	header_field_info	*same_name_next;    /**< Link to next hfinfo with same abbrev */
 };
 
 /**
@@ -373,12 +448,19 @@ struct _header_field_info {
  * _header_field_info. If new fields are added or removed, it should
  * be changed as necessary.
  */
-#define HFILL 0, 0, HF_REF_TYPE_NONE, 0, NULL, NULL
+#define HFILL -1, 0, HF_REF_TYPE_NONE, -1, NULL
+
+#define HFILL_INIT(hf)   \
+	hf.hfinfo.id				= -1;   \
+	hf.hfinfo.parent			= 0;   \
+	hf.hfinfo.ref_type			= HF_REF_TYPE_NONE;   \
+	hf.hfinfo.same_name_prev_id	= -1;   \
+	hf.hfinfo.same_name_next	= NULL;
 
 /** Used when registering many fields at once, using proto_register_field_array() */
 typedef struct hf_register_info {
-	int						*p_id;		 /**< written to by register() function */
-	header_field_info		hfinfo;      /**< the field info to be registered */
+	int				*p_id;	/**< written to by register() function */
+	header_field_info		hfinfo;	/**< the field info to be registered */
 } hf_register_info;
 
 
@@ -393,15 +475,15 @@ typedef struct _item_label_t {
 /** Contains the field information for the proto_item. */
 typedef struct field_info {
 	header_field_info	*hfinfo;          /**< pointer to registered field information */
-	gint				 start;           /**< current start of data in field_info.ds_tvb */
-	gint				 length;          /**< current data length of item in field_info.ds_tvb */
-	gint				 appendix_start;  /**< start of appendix data */
-	gint				 appendix_length; /**< length of appendix data */
-	gint				 tree_type;       /**< one of ETT_ or -1 */
+	gint			 start;           /**< current start of data in field_info.ds_tvb */
+	gint			 length;          /**< current data length of item in field_info.ds_tvb */
+	gint			 appendix_start;  /**< start of appendix data */
+	gint			 appendix_length; /**< length of appendix data */
+	gint			 tree_type;       /**< one of ETT_ or -1 */
+	guint32			 flags;           /**< bitfield like FI_GENERATED, ... */
 	item_label_t		*rep;             /**< string for GUI tree */
-	guint32				 flags;           /**< bitfield like FI_GENERATED, ... */
-	tvbuff_t			*ds_tvb;          /**< data source tvbuff */
-	fvalue_t			 value;
+	tvbuff_t		*ds_tvb;          /**< data source tvbuff */
+	fvalue_t		 value;
 } field_info;
 
 
@@ -472,7 +554,6 @@ typedef struct {
     gboolean     fake_protocols;
     gint         count;
     struct _packet_info *pinfo;
-    field_info  *fi_tmp;
 } tree_data_t;
 
 /** Each proto_tree, proto_item is one of these. */
@@ -497,40 +578,42 @@ typedef proto_node proto_item;
  * the bottom up.
  */
 
+/* do not modify the PI_SEVERITY_MASK name - it's used by make-init-lua.pl */
 /* expert severities */
 #define PI_SEVERITY_MASK        0x00F00000	/**< mask usually for internal use only! */
-/** Packet is commented */
+/** Packet comment */
 #define PI_COMMENT              0x00100000
 /** Usual workflow, e.g. TCP connection establishing */
 #define PI_CHAT                 0x00200000
-/** Notable messages, e.g. an application returned an "usual" error code like HTTP 404 */
+/** Notable messages, e.g. an application returned an "unusual" error code like HTTP 404 */
 #define PI_NOTE                 0x00400000
 /** Warning, e.g. application returned an "unusual" error code */
 #define PI_WARN                 0x00600000
-/** Serious problems, e.g. [Malformed Packet] */
+/** Serious problems, e.g. a malformed packet */
 #define PI_ERROR                0x00800000
 
+/* do not modify the PI_GROUP_MASK name - it's used by make-init-lua.pl */
 /* expert "event groups" */
 #define PI_GROUP_MASK           0xFF000000	/**< mask usually for internal use only! */
-/** The protocol field has a bad checksum, usually PI_WARN */
+/** The protocol field has a bad checksum, usually uses PI_WARN severity */
 #define PI_CHECKSUM             0x01000000
 /** The protocol field indicates a sequence problem (e.g. TCP window is zero) */
 #define PI_SEQUENCE             0x02000000
-/** The protocol field indicates a bad application response code (e.g. HTTP 404), usually PI_NOTE */
+/** The protocol field indicates a bad application response code (e.g. HTTP 404), usually PI_NOTE severity */
 #define PI_RESPONSE_CODE        0x03000000
-/** The protocol field indicates an application request (e.g. File Handle == xxxx), usually PI_CHAT */
+/** The protocol field indicates an application request (e.g. File Handle == xxxx), usually PI_CHAT severity */
 #define PI_REQUEST_CODE         0x04000000
-/** The data is undecoded, the protocol dissection is incomplete here, usually PI_WARN */
+/** The data is undecoded, the protocol dissection is incomplete here, usually PI_WARN severity */
 #define PI_UNDECODED            0x05000000
-/** The protocol field indicates a reassemble (e.g. DCE/RPC defragmentation), usually PI_CHAT (or PI_ERROR) */
+/** The protocol field indicates a reassemble (e.g. DCE/RPC defragmentation), usually PI_CHAT severity (or PI_ERROR) */
 #define PI_REASSEMBLE           0x06000000
-/** The packet data is malformed, the dissector has "given up", usually PI_ERROR */
+/** The packet data is malformed, the dissector has "given up", usually PI_ERROR severity */
 #define PI_MALFORMED            0x07000000
-/** A generic debugging message (shouldn't remain in production code!), usually PI_ERROR */
+/** A generic debugging message (shouldn't remain in production code!), usually PI_ERROR severity */
 #define PI_DEBUG                0x08000000
-/** The protocol field violates a protocol specification, usually PI_WARN */
+/** The protocol field violates a protocol specification, usually PI_WARN severity */
 #define PI_PROTOCOL             0x09000000
-/** The protocol field indicates a security probem (e.g. unsecure implementation) */
+/** The protocol field indicates a security problem (e.g. insecure implementation) */
 #define PI_SECURITY             0x0a000000
 /** The protocol field indicates a packet comment */
 #define PI_COMMENTS_GROUP       0x0b000000
@@ -596,6 +679,15 @@ WS_DLL_PUBLIC void proto_tree_children_foreach(proto_tree *tree,
 /** Retrieve the tree_data_t from a proto_tree */
 #define PTREE_DATA(proto_tree)   ((proto_tree)->tree_data)
 
+/** Retrieve the wmem_allocator_t from a proto_node */
+#define PNODE_POOL(proto_node)   ((proto_node)->tree_data->pinfo->pool)
+
+#ifdef HAVE_PLUGINS
+/** Register dissector plugin type with the plugin system.
+    Called by epan_register_plugin_types(); do not call it yourself. */
+extern void register_dissector_plugin_type(void);
+#endif
+
 /** Sets up memory used by proto routines. Called at program startup */
 void proto_init(void (register_all_protocols_func)(register_cb cb, gpointer client_data),
 		       void (register_all_handoffs_func)(register_cb cb, gpointer client_data),
@@ -629,7 +721,7 @@ WS_DLL_PUBLIC proto_tree* proto_item_add_subtree(proto_item *ti, const gint idx)
 /** Get an existing subtree under an item.
  @param ti the parent item of the subtree
  @return the subtree or NULL */
-WS_DLL_PUBLIC proto_tree* proto_item_get_subtree(const proto_item *ti);
+WS_DLL_PUBLIC proto_tree* proto_item_get_subtree(proto_item *ti);
 
 /** Get the parent of a subtree item.
  @param ti the child item in the subtree
@@ -686,21 +778,13 @@ WS_DLL_PUBLIC void proto_item_set_end(proto_item *ti, tvbuff_t *tvb, gint end);
  @return the current length */
 WS_DLL_PUBLIC int proto_item_get_len(const proto_item *ti);
 
-/**
- * Sets an expert info to the proto_item.
- @param ti the item to set the expert info
- @param group the group of this info (e.g. PI_CHECKSUM)
- @param severity of this info (e.g. PI_ERROR)
- @return TRUE if value was written
- */
-WS_DLL_PUBLIC gboolean proto_item_set_expert_flags(proto_item *ti, const int group, const guint severity);
-
-
 
 
 /** Creates a new proto_tree root.
  @return the new tree root */
 extern proto_tree* proto_tree_create_root(struct _packet_info *pinfo);
+
+void proto_tree_reset(proto_tree *tree);
 
 /** Clear memory for entry proto_tree. Clears proto_tree struct also.
  @param tree the tree to free */
@@ -723,7 +807,7 @@ extern void
 proto_tree_set_fake_protocols(proto_tree *tree, gboolean fake_protocols);
 
 /** Mark a field/protocol ID as "interesting".
- @param tree the tree to be set
+ @param tree the tree to be set (currently ignored)
  @param hfid the interesting field id
  @todo what *does* interesting mean? */
 extern void
@@ -732,7 +816,7 @@ proto_tree_prime_hfid(proto_tree *tree, const int hfid);
 /** Get a parent item of a subtree.
  @param tree the tree to get the parent from
  @return parent item */
-WS_DLL_PUBLIC proto_item* proto_tree_get_parent(const proto_tree *tree);
+WS_DLL_PUBLIC proto_item* proto_tree_get_parent(proto_tree *tree);
 
 /** Get the root tree from any subtree.
  @param tree the tree to get the root from
@@ -757,15 +841,19 @@ WS_DLL_PUBLIC void proto_tree_set_appendix(proto_tree *tree, tvbuff_t *tvb, gint
 /** Add an item to a proto_tree, using the text label registered to that item.
    The item is extracted from the tvbuff handed to it.
  @param tree the tree to append this item to
- @param hfindex field index
+ @param hfinfo field
  @param tvb the tv buffer of the current data
  @param start start of data in tvb
  @param length length of data in tvb
  @param encoding data encoding
  @return the newly created item */
 WS_DLL_PUBLIC proto_item *
-proto_tree_add_item(proto_tree *tree, const int hfindex, tvbuff_t *tvb,
+proto_tree_add_item_new(proto_tree *tree, header_field_info *hfinfo, tvbuff_t *tvb,
     const gint start, gint length, const guint encoding);
+
+WS_DLL_PUBLIC proto_item *
+proto_tree_add_item(proto_tree *tree, int hfindex, tvbuff_t *tvb,
+		    const gint start, gint length, const guint encoding);
 
 /** Add a text-only node to a proto_tree.
  @param tree the tree to append this item to
@@ -789,8 +877,13 @@ proto_tree_add_text(proto_tree *tree, tvbuff_t *tvb, gint start, gint length, co
  @return the newly created item */
 proto_item *
 proto_tree_add_text_valist(proto_tree *tree, tvbuff_t *tvb, gint start,
-	gint length, const char *format, va_list ap);
+	gint length, const char *format, va_list ap)
+	G_GNUC_PRINTF(5, 0);
 
+
+/** Add a text-only node to a proto_tree with tvb_format_text() string. */
+proto_item *
+proto_tree_add_format_text(proto_tree *tree, tvbuff_t *tvb, gint start, gint length);
 
 /** Add a FT_NONE field to a proto_tree.
  @param tree the tree to append this item to
@@ -832,6 +925,44 @@ proto_tree_add_protocol_format(proto_tree *tree, int hfindex, tvbuff_t *tvb, gin
 WS_DLL_PUBLIC proto_item *
 proto_tree_add_bytes(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
 	gint length, const guint8* start_ptr);
+
+/** Get and add a byte-array-based FT_* to a proto_tree.
+
+ Supported: FT_BYTES, FT_UINT_BYTES, FT_OID, FT_REL_OID, and FT_SYSTEM_ID.
+
+ The item is extracted from the tvbuff handed to it, based on the ENC_* passed
+ in for the encoding, and the retrieved byte array is also set to *retval so the
+ caller gets it back for other uses.
+
+ This function retrieves the value even if the passed-in tree param is NULL,
+ so that it can be used by dissectors at all times to both get the value
+ and set the tree item to it.
+
+ Like other proto_tree_add functions, if there is a tree and the value cannot
+ be decoded from the tvbuff, then an expert info error is reported. For string
+ encoding, this means that a failure to decode the hex value from the string
+ results in an expert info error being added to the tree.
+
+ If encoding is string-based, it will convert using tvb_get_string_bytes(); see
+ that function's comments for details.
+
+ @note The GByteArray retval must be pre-constructed using g_byte_array_new().
+
+ @param tree the tree to append this item to
+ @param hfindex field index
+ @param tvb the tv buffer of the current data
+ @param start start of data in tvb
+ @param length length of data in tvb
+ @param encoding data encoding (e.g, ENC_LITTLE_ENDIAN, or ENC_UTF_8|ENC_STR_HEX)
+ @param[in,out] retval points to a GByteArray which will be set to the bytes from the Tvb.
+ @param[in,out] endoff if not NULL, gets set to the character after those consumed.
+ @param[in,out] err if not NULL, gets set to 0 if no failure, else the errno code (e.g., EDOM, ERANGE).
+ @return the newly created item, and retval is set to the decoded value
+ */
+WS_DLL_PUBLIC proto_item *
+proto_tree_add_bytes_item(proto_tree *tree, int hfindex, tvbuff_t *tvb,
+    const gint start, gint length, const guint encoding,
+    GByteArray *retval, gint *endoff, gint *err);
 
 /** Add a formatted FT_BYTES to a proto_tree, with the format generating
     the string for the value and with the field name being included
@@ -875,7 +1006,43 @@ proto_tree_add_bytes_format(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint s
  @return the newly created item */
 WS_DLL_PUBLIC proto_item *
 proto_tree_add_time(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
-	gint length, nstime_t* value_ptr);
+	gint length, const nstime_t* value_ptr);
+
+/** Get and add a FT_ABSOLUTE_TIME or FT_RELATIVE_TIME to a proto_tree.
+ The item is extracted from the tvbuff handed to it, based on the ENC_* passed
+ in for the encoding, and the retrieved value is also set to *retval so the
+ caller gets it back for other uses.
+
+ This function retrieves the value even if the passed-in tree param is NULL,
+ so that it can be used by dissectors at all times to both get the value
+ and set the tree item to it.
+
+ Like other proto_tree_add functions, if there is a tree and the value cannot
+ be decoded from the tvbuff, then an expert info error is reported. For string
+ encoding, this means that a failure to decode the time value from the string
+ results in an expert info error being added to the tree.
+
+ If encoding is string-based, it will convert using tvb_get_string_time(); see
+ that function's comments for details.
+
+ @note The nstime_t *retval must be pre-allocated as a nstime_t.
+
+ @param tree the tree to append this item to
+ @param hfindex field index
+ @param tvb the tv buffer of the current data
+ @param start start of data in tvb
+ @param length length of data in tvb
+ @param encoding data encoding (e.g, ENC_LITTLE_ENDIAN, ENC_UTF_8|ENC_ISO_8601_DATE_TIME, etc.)
+ @param[in,out] retval points to a nstime_t which will be set to the value
+ @param[in,out] endoff if not NULL, gets set to the character after those consumed.
+ @param[in,out] err if not NULL, gets set to 0 if no failure, else the errno code (e.g., EDOM, ERANGE).
+ @return the newly created item, and retval is set to the decoded value
+ */
+WS_DLL_PUBLIC proto_item *
+proto_tree_add_time_item(proto_tree *tree, int hfindex, tvbuff_t *tvb,
+    const gint start, gint length, const guint encoding,
+    nstime_t *retval, gint *endoff, gint *err);
+
 
 /** Add a formatted FT_ABSOLUTE_TIME or FT_RELATIVE_TIME to a proto_tree, with
     the format generating the string for the value and with the field name
@@ -1186,7 +1353,7 @@ extern proto_item *
 proto_tree_add_oid_format(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
 	gint length, const guint8* value_ptr, const char *format, ...) G_GNUC_PRINTF(7,8);
 
-/** Add a FT_STRING to a proto_tree.
+/** Add a FT_STRING or FT_STRINGZPAD to a proto_tree.
  @param tree the tree to append this item to
  @param hfindex field index
  @param tvb the tv buffer of the current data
@@ -1198,9 +1365,9 @@ WS_DLL_PUBLIC proto_item *
 proto_tree_add_string(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
 	gint length, const char* value);
 
-/** Add a formatted FT_STRING to a proto_tree, with the format generating
-    the string for the value and with the field name being included
-    automatically.
+/** Add a formatted FT_STRING or FT_STRINGZPAD to a proto_tree, with the
+    format generating the string for the value and with the field name
+    being included automatically.
  @param tree the tree to append this item to
  @param hfindex field index
  @param tvb the tv buffer of the current data
@@ -1215,8 +1382,9 @@ proto_tree_add_string_format_value(proto_tree *tree, int hfindex, tvbuff_t *tvb,
 	gint start, gint length, const char* value, const char *format, ...)
 	G_GNUC_PRINTF(7,8);
 
-/** Add a formatted FT_STRING to a proto_tree, with the format generating
-    the entire string for the entry, including any field name.
+/** Add a formatted FT_STRING or FT_STRINGZPAD to a proto_tree, with the
+    format generating the entire string for the entry, including any field
+    name.
  @param tree the tree to append this item to
  @param hfindex field index
  @param tvb the tv buffer of the current data
@@ -1229,10 +1397,6 @@ proto_tree_add_string_format_value(proto_tree *tree, int hfindex, tvbuff_t *tvb,
 WS_DLL_PUBLIC proto_item *
 proto_tree_add_string_format(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
 	gint length, const char* value, const char *format, ...) G_GNUC_PRINTF(7,8);
-
-extern proto_item *
-proto_tree_add_unicode_string(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
-		      gint length, const char* value);
 
 /** Add a FT_BOOLEAN to a proto_tree.
  @param tree the tree to append this item to
@@ -1663,6 +1827,9 @@ proto_register_prefix(const char *prefix,  prefix_initializer_t initializer);
 /** Initialize every remaining uninitialized prefix. */
 WS_DLL_PUBLIC void proto_initialize_all_prefixes(void);
 
+WS_DLL_PUBLIC void proto_register_fields_manual(const int parent, header_field_info **hfi, const int num_records);
+WS_DLL_PUBLIC void proto_register_fields_section(const int parent, header_field_info *hfi, const int num_records);
+
 /** Register a header_field array.
  @param parent the protocol handle from proto_register_protocol()
  @param hf the hf_register_info array
@@ -1738,8 +1905,8 @@ extern gint proto_registrar_get_length(const int n);
 WS_DLL_PUBLIC int proto_get_first_protocol(void **cookie);
 WS_DLL_PUBLIC int proto_get_data_protocol(void *cookie);
 WS_DLL_PUBLIC int proto_get_next_protocol(void **cookie);
-WS_DLL_PUBLIC header_field_info *proto_get_first_protocol_field(const int proto_id, void **cookle);
-WS_DLL_PUBLIC header_field_info *proto_get_next_protocol_field(void **cookle);
+WS_DLL_PUBLIC header_field_info *proto_get_first_protocol_field(const int proto_id, void **cookie);
+WS_DLL_PUBLIC header_field_info *proto_get_next_protocol_field(const int proto_id, void **cookie);
 
 /** Given a protocol's filter_name.
  @param filter_name the filter name to search for
@@ -1773,7 +1940,6 @@ WS_DLL_PUBLIC const char *proto_get_protocol_short_name(const protocol_t *protoc
 WS_DLL_PUBLIC const char *proto_get_protocol_long_name(const protocol_t *protocol);
 
 /** Is protocol's decoding enabled ?
- @param protocol
  @return TRUE if decoding is enabled, FALSE if not */
 WS_DLL_PUBLIC gboolean proto_is_protocol_enabled(const protocol_t *protocol);
 
@@ -1781,6 +1947,22 @@ WS_DLL_PUBLIC gboolean proto_is_protocol_enabled(const protocol_t *protocol);
  @param proto_id protocol id (0-indexed)
  @return its filter name. */
 WS_DLL_PUBLIC const char *proto_get_protocol_filter_name(const int proto_id);
+
+/** Find commonly-used protocols in a layer list.
+ * @param layers Protocol layer list
+ * @param is_ip Set to TRUE if the layer list contains IPv4 or IPv6, otherwise
+ * unchanged. May be NULL.
+ * @param is_tcp Set to TRUE if the layer list contains TCP, otherwise
+ * unchanged. May be NULL.
+ * @param is_udp Set to TRUE if the layer list contains UDP, otherwise
+ * unchanged. May be NULL.
+ * @param is_sctp Set to TRUE if the layer list contains SCTP, otherwise
+ * unchanged. May be NULL.
+ * @param is_ssl Set to TRUE if the layer list contains SSL/TLS, otherwise
+ * unchanged. May be NULL.
+ */
+WS_DLL_PUBLIC void proto_get_frame_protocols(const wmem_list_t *layers,
+      gboolean *is_ip, gboolean *is_tcp, gboolean *is_udp, gboolean *is_sctp, gboolean *is_ssl);
 
 /** Enable / Disable protocol of the given item number.
  @param proto_id protocol id (0-indexed)
@@ -1835,25 +2017,22 @@ WS_DLL_PUBLIC void proto_registrar_dump_protocols(void);
 /** Dumps a glossary of the field value strings or true/false strings to STDOUT */
 WS_DLL_PUBLIC void proto_registrar_dump_values(void);
 
-/** Dumps a glossary of the protocol and field registrations to STDOUT.
- * Format 1 is the original format. Format 2 includes the base (for integers)
- * and the blurb. */
-WS_DLL_PUBLIC void proto_registrar_dump_fields(const int format);
+/** Dumps a glossary of the protocol and field registrations to STDOUT. */
+WS_DLL_PUBLIC void proto_registrar_dump_fields(void);
 
 /** Dumps a glossary field types and descriptive names to STDOUT */
 WS_DLL_PUBLIC void proto_registrar_dump_ftypes(void);
 
 
-
-/** Points to the first element of an array of Booleans, indexed by
-   a subtree item type. That array element is TRUE if subtrees of
-   an item of that type are to be expanded. With MSVC and a
-   libwireshark.dll, we need a special declaration. */
-WS_DLL_PUBLIC gboolean	     *tree_is_expanded;
-
 /** Number of elements in the tree_is_expanded array. With MSVC and a
  * libwireshark.dll, we need a special declaration. */
 WS_DLL_PUBLIC int           num_tree_types;
+
+/** Returns TRUE if subtrees of that type are to be expanded. */
+WS_DLL_PUBLIC gboolean tree_expanded(int tree_type);
+
+/** Sets if subtrees of that type are to be expanded. */
+WS_DLL_PUBLIC void tree_expanded_set(int tree_type, gboolean value);
 
 /** glib doesn't have g_ptr_array_len of all things!*/
 #ifndef g_ptr_array_len
@@ -1866,24 +2045,24 @@ WS_DLL_PUBLIC int           num_tree_types;
 extern int
 hfinfo_bitwidth(const header_field_info *hfinfo);
 
+WS_DLL_PUBLIC int
+hfinfo_bitshift(const header_field_info *hfinfo);
 
-
-
-#include "epan.h"
+struct epan_dissect;
 
 /** Can we do a "match selected" on this field.
  @param finfo field_info
  @param edt epan dissecting
  @return TRUE if we can do a "match selected" on the field, FALSE otherwise. */
 WS_DLL_PUBLIC gboolean
-proto_can_match_selected(field_info *finfo, epan_dissect_t *edt);
+proto_can_match_selected(field_info *finfo, struct epan_dissect *edt);
 
 /** Construct a "match selected" display filter string.
  @param finfo field_info
  @param edt epan dissecting
  @return the display filter string */
 WS_DLL_PUBLIC char*
-proto_construct_match_selected_string(field_info *finfo, epan_dissect_t *edt);
+proto_construct_match_selected_string(field_info *finfo, struct epan_dissect *edt);
 
 /** Find field from offset in tvb.
  @param tree tree of interest
@@ -1909,7 +2088,7 @@ proto_find_field_from_offset(proto_tree *tree, guint offset, tvbuff_t *tvb);
         FT_BOOLEAN bits that are set to 1 will have the name added to the expansion.
         FT_integer fields that have a value_string attached will have the
         matched string displayed on the expansion line.
- @param encoding big or little endian byte representation (ENC_BIG_ENDIAN/ENC_LITTLE_ENDIAN)
+ @param encoding big or little endian byte representation (ENC_BIG_ENDIAN/ENC_LITTLE_ENDIAN/ENC_HOST_ENDIAN)
  @return the newly created item */
 WS_DLL_PUBLIC proto_item *
 proto_tree_add_bitmask(proto_tree *tree, tvbuff_t *tvb, const guint offset,
@@ -1932,11 +2111,13 @@ proto_tree_add_bitmask(proto_tree *tree, tvbuff_t *tvb, const guint offset,
         FT_BOOLEAN bits that are set to 1 will have the name added to the expansion.
         FT_integer fields that have a value_string attached will have the
         matched string displayed on the expansion line.
- @param encoding big or little endian byte representation (ENC_BIG_ENDIAN/ENC_LITTLE_ENDIAN)
+ @param exp expert info field used when decodable_len < len.  This also means this function
+        should be called even when tree == NULL
+ @param encoding big or little endian byte representation (ENC_BIG_ENDIAN/ENC_LITTLE_ENDIAN/ENC_HOST_ENDIAN)
  @return the newly created item */
 WS_DLL_PUBLIC proto_item *
 proto_tree_add_bitmask_len(proto_tree *tree, tvbuff_t *tvb, const guint offset, const guint len,
-		const int hf_hdr, const gint ett, const int **fields, const guint encoding);
+		const int hf_hdr, const gint ett, const int **fields, struct expert_field* exp, const guint encoding);
 
 /** Add a text with a subtree of bitfields.
  @param tree the tree to append this item to
@@ -1947,8 +2128,8 @@ proto_tree_add_bitmask_len(proto_tree *tree, tvbuff_t *tvb, const guint offset, 
  @param fallback field name if none of bitfields were usable
  @param ett subtree index
  @param fields NULL-terminated array of bitfield indexes
- @param encoding big or little endian byte representation (ENC_BIG_ENDIAN/ENC_LITTLE_ENDIAN)
- @param flags
+ @param encoding big or little endian byte representation (ENC_BIG_ENDIAN/ENC_LITTLE_ENDIAN/ENC_HOST_ENDIAN)
+ @param flags bitmask field
  @return the newly created item */
 WS_DLL_PUBLIC proto_item *
 proto_tree_add_bitmask_text(proto_tree *tree, tvbuff_t *tvb, const guint offset, const guint len,
@@ -1984,7 +2165,7 @@ proto_tree_add_bits_item(proto_tree *tree, const int hf_index, tvbuff_t *tvb, co
  @param hf_index field index. Fields for use with this function should have bitmask==0.
  @param tvb the tv buffer of the current data
  @param bit_offset of the first crumb in tvb expressed in bits
- @param pointer to crumb_spec array
+ @param crumb_spec pointer to crumb_spec array
  @param return_value if a pointer is passed here the value is returned.
  @return the newly created item */
 extern proto_item *
@@ -2004,8 +2185,8 @@ proto_tree_add_split_bits_item_ret_val(proto_tree *tree, const int hf_index, tvb
  @param hf_index field index. Fields for use with this function should have bitmask==0.
  @param tvb the tv buffer of the current data
  @param bit_offset of the first crumb in tvb expressed in bits
- @param pointer to crumb_spec array
- @param index into the crumb_spec array for this crumb */
+ @param crumb_spec pointer to crumb_spec array
+ @param crumb_index into the crumb_spec array for this crumb */
 void
 proto_tree_add_split_bits_crumb(proto_tree *tree, const int hf_index, tvbuff_t *tvb, const guint bit_offset,
                                 const crumb_spec_t *crumb_spec, guint16 crumb_index);
@@ -2086,6 +2267,29 @@ proto_item *
 proto_tree_add_float_bits_format_value(proto_tree *tree, const int hf_index, tvbuff_t *tvb, const guint bit_offset, const gint no_of_bits,
 	float value, const char *format, ...) G_GNUC_PRINTF(7,8);
 
+
+/** Add a FT_STRING with ENC_3GPP_TS_23_038_7BITS encoding to a proto_tree.
+ @param tree the tree to append this item to
+ @param hfindex field index
+ @param tvb the tv buffer of the current data
+ @param bit_offset start of data in tvb expressed in bits
+ @param no_of_chars number of 7bits characters to display
+ @return the newly created item */
+WS_DLL_PUBLIC proto_item *
+proto_tree_add_ts_23_038_7bits_item(proto_tree *tree, const int hfindex, tvbuff_t *tvb,
+	const guint bit_offset, const gint no_of_chars);
+
+/** Add a FT_STRING with ENC_ASCII_7BITS encoding to a proto_tree.
+ @param tree the tree to append this item to
+ @param hfindex field index
+ @param tvb the tv buffer of the current data
+ @param bit_offset start of data in tvb expressed in bits
+ @param no_of_chars number of 7bits characters to display
+ @return the newly created item */
+WS_DLL_PUBLIC proto_item *
+proto_tree_add_ascii_7bits_item(proto_tree *tree, const int hfindex, tvbuff_t *tvb,
+	const guint bit_offset, const gint no_of_chars);
+
 /** Check if given string is a valid field name
  @param field_name the field name to check
  @return 0 if valid, else first illegal character */
@@ -2105,6 +2309,51 @@ proto_custom_set(proto_tree* tree, const int field_id,
                              gint occurrence,
                              gchar *result,
                              gchar *expr, const int size );
+
+/* #define HAVE_HFI_SECTION_INIT */
+
+#ifdef HAVE_HFI_SECTION_INIT
+ #define HFI_INIT(proto) __attribute__((section( "_data_" G_STRINGIFY(proto)))) __attribute__((aligned(sizeof(void *))))
+
+ #define proto_register_fields(proto, hfi, count) \
+	do { \
+	extern header_field_info __start__data_ ##proto[]; \
+	extern header_field_info __stop__data_ ##proto[]; \
+\
+	proto_register_fields_section(proto, __start__data_ ##proto, (int) (__stop__data_ ##proto - __start__data_ ##proto)); \
+	} while(0)
+#else
+ #define HFI_INIT(proto)
+ #define proto_register_fields(proto, hfi, count) \
+	proto_register_fields_manual(proto, hfi, count)
+#endif
+
+#ifdef NEW_PROTO_TREE_API
+#define proto_tree_add_item(tree, hfinfo, tvb, start, length, encoding) \
+        proto_tree_add_item_new(tree, hfinfo, tvb, start, length, encoding)
+
+#define proto_tree_add_boolean(tree, hfinfo, tvb, start, length, value) \
+	proto_tree_add_boolean(tree, (hfinfo)->id, tvb, start, length, value)
+
+#define proto_tree_add_string(tree, hfinfo, tvb, start, length, value) \
+	proto_tree_add_string(tree, (hfinfo)->id, tvb, start, length, value)
+
+#define proto_tree_add_time(tree, hfinfo, tvb, start, length, value) \
+	proto_tree_add_time(tree, (hfinfo)->id, tvb, start, length, value)
+
+#define proto_tree_add_int(tree, hfinfo, tvb, start, length, value) \
+	proto_tree_add_int(tree, (hfinfo)->id, tvb, start, length, value)
+
+#define proto_tree_add_uint(tree, hfinfo, tvb, start, length, value) \
+	proto_tree_add_uint(tree, (hfinfo)->id, tvb, start, length, value)
+
+#define proto_tree_add_float_format_value(tree, hfinfo, \
+                  tvb, start, length, value, format, ...) \
+	proto_tree_add_float_format_value(tree, (hfinfo)->id, \
+         tvb, start, length, value, format, __VA_ARGS__)
+#endif
+
+/** @} */
 
 #ifdef __cplusplus
 }

@@ -2,8 +2,6 @@
  * Routines for MAC-Telnet dissection
  * Copyright 2010, Haakon Nessjoen <haakon.nessjoen@gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,10 +32,12 @@
 
 #include <epan/packet.h>
 #include <epan/prefs.h>
+#include <epan/to_str.h>
+
+void proto_register_mactelnet(void);
+void proto_reg_handoff_mactelnet(void);
 
 #define PROTO_TAG_MACTELNET "MAC-Telnet"
-
-void proto_reg_handoff_mactelnet(void);
 
 /* Initialize the protocol and registered fields */
 static gint proto_mactelnet = -1;
@@ -147,14 +147,12 @@ dissect_mactelnet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
     /* Make entries in Protocol column and Info column on summary display */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, PROTO_TAG_MACTELNET);
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-            col_add_fstr(pinfo->cinfo, COL_INFO, "%s > %s Direction: %s Type: %s",
-                         tvb_ether_to_str(tvb, 2),
-                         tvb_ether_to_str(tvb, 8),
-                         ((foundclient >= 0) || (type == 4) ? "Client->Server" : "Server->Client" ),
-                         val_to_str(type, packettypenames, "Unknown Type:0x%02x")
-                );
-        }
+    col_add_fstr(pinfo->cinfo, COL_INFO, "%s > %s Direction: %s Type: %s",
+                    tvb_ether_to_str(tvb, 2),
+                    tvb_ether_to_str(tvb, 8),
+                    ((foundclient >= 0) || (type == 4) ? "Client->Server" : "Server->Client" ),
+                    val_to_str(type, packettypenames, "Unknown Type:0x%02x")
+        );
 
     if (tree) {
         guint32 offset = 0;

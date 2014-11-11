@@ -3,8 +3,6 @@
  * Copyright 2000, Scott Hovis scott.hovis@ums.msfc.nasa.gov
  * Enhanced 2008, Matt Dunkle Matthew.L.Dunkle@nasa.gov
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.com>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,8 @@
 #include <glib.h>
 #include <epan/packet.h>
 
+void proto_register_ehs(void);
+void proto_reg_handoff_ehs(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_ehs = -1;
@@ -859,13 +859,13 @@ ehs_secondary_header_dissector ( int protocol, proto_tree* ehs_secondary_header_
 
 /* AOS/LOS data zone dissector */
 static void
-aoslos_data_zone_dissector ( proto_tree* ehs_tree, tvbuff_t* tvb, int* offset, packet_info* pinfo )
+aoslos_data_zone_dissector ( proto_tree* ehs_tree, tvbuff_t* tvb, int* offset, packet_info* pinfo _U_)
 {
   proto_item *ehs_data_zone;
   proto_tree *ehs_data_zone_tree;
 
   /* create the data zone tree */
-  ehs_data_zone = proto_tree_add_text ( ehs_tree, tvb, *offset, pinfo->iplen - IP_HEADER_LENGTH - *offset, "AOS/LOS Data Zone" );
+  ehs_data_zone = proto_tree_add_text ( ehs_tree, tvb, *offset, tvb_reported_length(tvb) - *offset, "AOS/LOS Data Zone" );
   ehs_data_zone_tree = proto_item_add_subtree ( ehs_data_zone, ett_ehs_data_zone );
 
   /* since the aos/los EHS packet data zone is well known, format it for display as well
@@ -892,7 +892,7 @@ aoslos_data_zone_dissector ( proto_tree* ehs_tree, tvbuff_t* tvb, int* offset, p
 
 /* UDSM data zone dissector */
 static void
-udsm_data_zone_dissector ( proto_tree* ehs_tree, tvbuff_t* tvb, int* offset, packet_info* pinfo )
+udsm_data_zone_dissector ( proto_tree* ehs_tree, tvbuff_t* tvb, int* offset, packet_info* pinfo _U_)
 {
   proto_item *ehs_data_zone;
   proto_tree *ehs_data_zone_tree;
@@ -900,7 +900,7 @@ udsm_data_zone_dissector ( proto_tree* ehs_tree, tvbuff_t* tvb, int* offset, pac
   int year, jday, hour, minute, second;
 
   /* create the data zone tree */
-  ehs_data_zone = proto_tree_add_text ( ehs_tree, tvb, *offset, pinfo->iplen - IP_HEADER_LENGTH - *offset, "UDSM Data Zone" );
+  ehs_data_zone = proto_tree_add_text ( ehs_tree, tvb, *offset, tvb_reported_length(tvb) - *offset, "UDSM Data Zone" );
   ehs_data_zone_tree = proto_item_add_subtree ( ehs_data_zone, ett_ehs_data_zone );
 
   proto_tree_add_item ( ehs_data_zone_tree, hf_ehs_dz_udsm_ccsds_vs_bpdu, tvb, *offset, 1, ENC_BIG_ENDIAN );

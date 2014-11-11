@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-cmp.h                                                               */
 /* ../../tools/asn2wrs.py -b -p cmp -c ./cmp.cnf -s ./packet-cmp-template -D . -O ../../epan/dissectors CMP.asn */
 
@@ -9,8 +9,6 @@
 /* packet-cmp.h
  * Routines for RFC2510 Certificate Management Protocol packet dissection
  *   Ronnie Sahlberg 2004
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -83,7 +81,7 @@ int dissect_cmp_PollReqContent(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
 int dissect_cmp_PollRepContent(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_);
 
 /*--- End of included file: packet-cmp-exp.h ---*/
-#line 32 "../../asn1/cmp/packet-cmp-template.h"
+#line 30 "../../asn1/cmp/packet-cmp-template.h"
 
 #endif  /* PACKET_CMP_H */
 

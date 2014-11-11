@@ -2,8 +2,6 @@
 * Routines supporting the use of Windows friendly interface names within Wireshark
 * Copyright 2011-2012, Mike Garratt <wireshark@evn.co.nz>
 *
-* $Id$
-*
 * Wireshark - Network traffic analyzer
 * By Gerald Combs <gerald@wireshark.org>
 * Copyright 1998 Gerald Combs
@@ -201,6 +199,21 @@ parse_as_guid(const char *guid_text, GUID *guid)
 /**********************************************************************************/
 gboolean IsWindowsVistaOrLater()
 {
+#if (_MSC_VER >= 1800)
+    /*
+     * On VS2103, GetVersionEx is deprecated. Microsoft recommend to
+     * use VerifyVersionInfo instead
+     */
+    OSVERSIONINFOEX osvi;
+    DWORDLONG dwlConditionMask = 0;
+    int op = VER_GREATER_EQUAL;
+
+    SecureZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
+    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+    osvi.dwMajorVersion = 6;
+    VER_SET_CONDITION(dwlConditionMask, VER_MAJORVERSION, op);
+    return VerifyVersionInfo(&osvi, VER_MAJORVERSION, dwlConditionMask);
+#else
     OSVERSIONINFO osvi;
 
     SecureZeroMemory(&osvi, sizeof(OSVERSIONINFO));
@@ -210,6 +223,7 @@ gboolean IsWindowsVistaOrLater()
         return osvi.dwMajorVersion >= 6;
     }
     return FALSE;
+#endif
 }
 
 /**********************************************************************************/

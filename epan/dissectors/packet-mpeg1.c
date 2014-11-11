@@ -2,8 +2,6 @@
  *
  * Routines for RFC 2250 MPEG-1 dissection
  *
- * $Id$
- *
  * Copyright 2001,
  * Francisco Javier Cabello Torres, <fjcabello@vtools.es>
  *
@@ -37,6 +35,9 @@
 #include <epan/packet.h>
 
 #include <epan/rtp_pt.h>
+
+void proto_register_mpeg1(void);
+void proto_reg_handoff_mpeg1(void);
 
 #define RTP_MPG_MBZ(word) ( word >> 11)
 #define RTP_MPG_T(word)   ( (word >> 10) & 1 )

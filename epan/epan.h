@@ -1,7 +1,5 @@
 /* epan.h
  *
- * $Id$
- *
  * Wireshark Protocol Analyzer Library
  *
  * Copyright (c) 2001 by Gerald Combs <gerald@wireshark.org>
@@ -30,13 +28,13 @@ extern "C" {
 
 #include <glib.h>
 #include "frame_data.h"
-#include "column_info.h"
 #include "register.h"
 #include "ws_symbol_export.h"
 
-typedef struct _epan_dissect_t epan_dissect_t;
+typedef struct epan_dissect epan_dissect_t;
 
-#include "dfilter/dfilter.h"
+struct epan_dfilter;
+struct epan_column_info;
 
 /**
 	@mainpage Wireshark EPAN the packet analyzing engine. Source code can be found in the epan directory
@@ -46,7 +44,6 @@ typedef struct _epan_dissect_t epan_dissect_t;
 	XXX
 
 	@b Sections:
-	- \ref proto_pub
 */
 /*
 Ref 1
@@ -82,16 +79,21 @@ Ref2 for further edits - delete when done
 	- \ref airpcapdefs
 	- \ref radiotap
 */
+/*
+ * Register all the plugin types that are part of libwireshark.
+ *
+ * Must be called before init_plugins(), which must be called before
+ * any registration routines are called, i.e. before epan_init().
+ *
+ * Must be called only once in a program.
+ */
+WS_DLL_PUBLIC void epan_register_plugin_types(void);
+
 /** init the whole epan module, this is used to be called only once in a program */
 WS_DLL_PUBLIC
 void epan_init(void (*register_all_protocols_func)(register_cb cb, gpointer client_data),
 	       void (*register_all_handoffs_func)(register_cb cb, gpointer client_data),
-	       register_cb cb,
-	       void *client_data,
-	       void (*report_failure_fcn_p)(const char *, va_list),
-	       void (*report_open_failure_fcn_p)(const char *, int, gboolean),
-	       void (*report_read_failure_fcn_p)(const char *, int),
-	       void (*report_write_failure_fcn_p)(const char *, int));
+	       register_cb cb, void *client_data);
 
 /** cleanup the whole epan module, this is used to be called only once in a program */
 WS_DLL_PUBLIC
@@ -126,29 +128,48 @@ void epan_circuit_cleanup(void);
  * some protocols cannot be decoded without knowledge of previous packets.
  * This inter-packet "state" is stored in the epan_t.
  */
-/* XXX - NOTE: epan_t, epan_new and epan_free are currently unused! */
 typedef struct epan_session epan_t;
 
-epan_t*
-epan_new(void);
+WS_DLL_PUBLIC epan_t *epan_new(void);
 
-void
-epan_free(epan_t*);
+const char *epan_get_user_comment(const epan_t *session, const frame_data *fd);
+
+const char *epan_get_interface_name(const epan_t *session, guint32 interface_id);
+
+const nstime_t *epan_get_frame_ts(const epan_t *session, guint32 frame_num);
+
+WS_DLL_PUBLIC void epan_free(epan_t *session);
 
 WS_DLL_PUBLIC const gchar*
 epan_get_version(void);
 
+/**
+ * Set/unset the tree to always be visible when epan_dissect_init() is called.
+ * This state change sticks until cleared, rather than being done per function call.
+ * This is currently used when Lua scripts request all fields be generated.
+ * By default it only becomes visible if epan_dissect_init() makes it so, usually
+ * only when a packet is selected.
+ * Setting this overrides that so it's always visible, although it will still not be
+ * created if create_proto_tree is false in the call to epan_dissect_init().
+ * Clearing this reverts the decision to epan_dissect_init() and proto_tree_visible.
+ */
+void epan_set_always_visible(gboolean force);
+
 /** initialize an existing single packet dissection */
 WS_DLL_PUBLIC
 epan_dissect_t*
-epan_dissect_init(epan_dissect_t	*edt, const gboolean create_proto_tree, const gboolean proto_tree_visible);
+epan_dissect_init(epan_dissect_t *edt, epan_t *session, const gboolean create_proto_tree, const gboolean proto_tree_visible);
 
 /** get a new single packet dissection
  * should be freed using epan_dissect_free() after packet dissection completed
  */
 WS_DLL_PUBLIC
 epan_dissect_t*
-epan_dissect_new(const gboolean create_proto_tree, const gboolean proto_tree_visible);
+epan_dissect_new(epan_t *session, const gboolean create_proto_tree, const gboolean proto_tree_visible);
+
+WS_DLL_PUBLIC
+void
+epan_dissect_reset(epan_dissect_t *edt);
 
 /** Indicate whether we should fake protocols or not */
 WS_DLL_PUBLIC
@@ -158,23 +179,42 @@ epan_dissect_fake_protocols(epan_dissect_t *edt, const gboolean fake_protocols);
 /** run a single packet dissection */
 WS_DLL_PUBLIC
 void
-epan_dissect_run(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
-        const guint8* data, frame_data *fd, column_info *cinfo);
+epan_dissect_run(epan_dissect_t *edt, int file_type_subtype,
+        struct wtap_pkthdr *phdr, tvbuff_t *tvb, frame_data *fd,
+        struct epan_column_info *cinfo);
 
 WS_DLL_PUBLIC
 void
-epan_dissect_run_with_taps(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
-        const guint8* data, frame_data *fd, column_info *cinfo);
+epan_dissect_run_with_taps(epan_dissect_t *edt, int file_type_subtype,
+        struct wtap_pkthdr *phdr, tvbuff_t *tvb, frame_data *fd,
+        struct epan_column_info *cinfo);
+
+/** run a single file packet dissection */
+WS_DLL_PUBLIC
+void
+epan_dissect_file_run(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
+        tvbuff_t *tvb, frame_data *fd, struct epan_column_info *cinfo);
+
+WS_DLL_PUBLIC
+void
+epan_dissect_file_run_with_taps(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
+        tvbuff_t *tvb, frame_data *fd, struct epan_column_info *cinfo);
 
 /** Prime a proto_tree using the fields/protocols used in a dfilter. */
 WS_DLL_PUBLIC
 void
-epan_dissect_prime_dfilter(epan_dissect_t *edt, const dfilter_t *dfcode);
+epan_dissect_prime_dfilter(epan_dissect_t *edt, const struct epan_dfilter *dfcode);
 
 /** fill the dissect run output into the packet list columns */
 WS_DLL_PUBLIC
 void
 epan_dissect_fill_in_columns(epan_dissect_t *edt, const gboolean fill_col_exprs, const gboolean fill_fd_colums);
+
+/** Check whether a dissected packet contains a given named field */
+WS_DLL_PUBLIC
+gboolean
+epan_dissect_packet_contains_field(epan_dissect_t* edt,
+                                   const char *field_name);
 
 /** releases resources attached to the packet dissection. DOES NOT free the actual pointer */
 WS_DLL_PUBLIC

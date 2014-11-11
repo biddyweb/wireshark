@@ -1,6 +1,4 @@
 /******************************************************************************
-** $Id$
-**
 ** Copyright (C) 2006-2007 ascolab GmbH. All Rights Reserved.
 ** Web: http://www.ascolab.com
 **
@@ -37,14 +35,13 @@
 #include "opcua_simpletypes.h"
 #include "opcua_hfindeces.h"
 
+void proto_register_opcua(void);
+
 extern const value_string g_requesttypes[];
 extern const int g_NumServices;
 
 /* forward reference */
-static void dissect_opcua(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
-static void dissect_opcua_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 void proto_reg_handoff_opcua(void);
-
 /* declare parse function pointer */
 typedef int (*FctParse)(proto_tree *tree, tvbuff_t *tvb, gint *pOffset);
 
@@ -54,11 +51,12 @@ static range_t *global_tcp_ports_opcua;
 /** Official IANA registered port for OPC UA Binary Protocol. */
 #define OPCUA_PORT 4840
 
-/** subtree types */
-gint ett_opcua_transport = -1;
+/** subtree types used in opcua_transport_layer.c */
 gint ett_opcua_extensionobject = -1;
 gint ett_opcua_nodeid = -1;
 
+/** subtree types used locally */
+static gint ett_opcua_transport = -1;
 static gint ett_opcua_fragment = -1;
 static gint ett_opcua_fragments = -1;
 
@@ -97,8 +95,7 @@ static const fragment_items opcua_frag_items = {
 };
 
 
-static GHashTable *opcua_fragment_table = NULL;
-static GHashTable *opcua_reassembled_table = NULL;
+static reassembly_table opcua_reassembly_table;
 
 /** OpcUa Transport Message Types */
 enum MessageType
@@ -126,90 +123,6 @@ static const char* g_szMessageTypes[] =
 
 
 
-/** plugin entry functions.
- * This registers the OpcUa protocol.
- */
-void proto_register_opcua(void)
-{
-
-    static hf_register_info hf[] =
-    {
-        {&hf_opcua_fragments,
-            {"Message fragments", "opcua.fragments",
-            FT_NONE, BASE_NONE, NULL, 0x00, NULL, HFILL } },
-        {&hf_opcua_fragment,
-            {"Message fragment", "opcua.fragment",
-            FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL } },
-        {&hf_opcua_fragment_overlap,
-            {"Message fragment overlap", "opcua.fragment.overlap",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
-        {&hf_opcua_fragment_overlap_conflicts,
-            {"Message fragment overlapping with conflicting data",
-            "opcua.fragment.overlap.conflicts",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
-        {&hf_opcua_fragment_multiple_tails,
-            {"Message has multiple tail fragments",
-            "opcua.fragment.multiple_tails",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
-        {&hf_opcua_fragment_too_long_fragment,
-            {"Message fragment too long", "opcua.fragment.too_long_fragment",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
-        {&hf_opcua_fragment_error,
-            {"Message defragmentation error", "opcua.fragment.error",
-            FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL } },
-        {&hf_opcua_fragment_count,
-            {"Message fragment count", "opcua.fragment.count",
-            FT_UINT32, BASE_DEC, NULL, 0x00, NULL, HFILL } },
-        {&hf_opcua_reassembled_in,
-            {"Reassembled in", "opcua.reassembled.in",
-            FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL } },
-        {&hf_opcua_reassembled_length,
-            {"Reassembled length", "opcua.reassembled.length",
-            FT_UINT32, BASE_DEC, NULL, 0x00, NULL, HFILL } }
-    };
-
-    /** Setup protocol subtree array */
-    static gint *ett[] =
-    {
-        &ett_opcua_transport,
-        &ett_opcua_extensionobject,
-        &ett_opcua_nodeid,
-        &ett_opcua_fragment,
-        &ett_opcua_fragments
-    };
-
-    module_t *opcua_module;
-
-    proto_opcua = proto_register_protocol(
-        "OpcUa Binary Protocol", /* name */
-        "OpcUa",                 /* short name */
-        "opcua"                  /* abbrev */
-        );
-
-    registerTransportLayerTypes(proto_opcua);
-    registerSecurityLayerTypes(proto_opcua);
-    registerApplicationLayerTypes(proto_opcua);
-    registerSimpleTypes(proto_opcua);
-    registerEnumTypes(proto_opcua);
-    registerComplexTypes();
-    registerServiceTypes();
-    registerFieldTypes(proto_opcua);
-
-    proto_register_subtree_array(ett, array_length(ett));
-
-    range_convert_str(&global_tcp_ports_opcua, ep_strdup_printf("%u", OPCUA_PORT),  65535);
-
-    fragment_table_init(&opcua_fragment_table);
-    reassembled_table_init(&opcua_reassembled_table);
-    proto_register_field_array(proto_opcua, hf, array_length(hf));
-
-    /* register user preferences */
-    opcua_module = prefs_register_protocol(proto_opcua, proto_reg_handoff_opcua);
-    prefs_register_range_preference(opcua_module, "tcp_ports",
-				 "OPC UA TCP Ports",
-				 "The TCP ports for the OPC UA TCP Binary Protocol",
-				 &global_tcp_ports_opcua, 65535);
-}
 
 /** header length that is needed to compute
   * the pdu length.
@@ -231,22 +144,12 @@ static guint get_opcua_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int of
     return plen;
 }
 
-/** The main OpcUa dissector functions.
-  * It uses tcp_dissect_pdus from packet-tcp.h
-  * to reassemble the TCP data.
-  */
-static void dissect_opcua(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
-{
-    tcp_dissect_pdus(tvb, pinfo, tree, TRUE, FRAME_HEADER_LEN,
-      get_opcua_message_len, dissect_opcua_message);
-}
-
 /** The OpcUa message dissector.
   * This method dissects full OpcUa messages.
   * It gets only called with reassembled data
   * from tcp_dissect_pdus.
   */
-static void dissect_opcua_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int dissect_opcua_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
     FctParse pfctParse = NULL;
     enum MessageType msgtype = MSG_INVALID;
@@ -314,7 +217,7 @@ static void dissect_opcua_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
             guint32 opcua_seqid = 0;
             guint32 opcua_num = 0;
             guint32 opcua_seqnum = 0;
-            fragment_data *frag_msg = NULL;
+            fragment_head *frag_msg = NULL;
 
             offset = 3;
 
@@ -328,12 +231,13 @@ static void dissect_opcua_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
             opcua_seqid = tvb_get_letohl(tvb, offset); offset += 4; /* Security RequestId */
 
             /* check if tvb is part of a chunked message:
-               the UA protocol does not tell us that, so we look into opcua_fragment_table and
-               opcua_reassembled_table if the opcua_seqid belongs to a chunked message */
-            frag_msg = fragment_get(pinfo, opcua_seqid, opcua_fragment_table);
+               the UA protocol does not tell us that, so we look into
+               opcua_reassembly_table if the opcua_seqid belongs to a
+               chunked message */
+            frag_msg = fragment_get(&opcua_reassembly_table, pinfo, opcua_seqid, NULL);
             if (frag_msg == NULL)
             {
-                frag_msg = fragment_get_reassembled_id(pinfo, opcua_seqid, opcua_reassembled_table);
+                frag_msg = fragment_get_reassembled_id(&opcua_reassembly_table, pinfo, opcua_seqid);
             }
 
             if (frag_msg != NULL || chunkType != 'F')
@@ -364,14 +268,14 @@ static void dissect_opcua_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
                     }
                 }
 
-                frag_msg = fragment_add_seq_check(tvb,
+                frag_msg = fragment_add_seq_check(&opcua_reassembly_table,
+                                                  tvb,
                                                   offset,
                                                   pinfo,
                                                   opcua_seqid, /* ID for fragments belonging together */
-                                                  opcua_fragment_table, /* list of message fragments */
-                                                  opcua_reassembled_table, /* list of reassembled messages */
+                                                  NULL,
                                                   opcua_seqnum, /* fragment sequence number */
-                                                  tvb_length_remaining(tvb, offset), /* fragment length - to the end */
+                                                  tvb_captured_length_remaining(tvb, offset), /* fragment length - to the end */
                                                   bMoreFragments); /* More fragments? */
 
                 new_tvb = process_reassembled_data(tvb,
@@ -447,6 +351,19 @@ static void dissect_opcua_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
             }
         }
     }
+
+    return tvb_reported_length(tvb);
+}
+
+/** The main OpcUa dissector functions.
+  * It uses tcp_dissect_pdus from packet-tcp.h
+  * to reassemble the TCP data.
+  */
+static int dissect_opcua(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
+{
+    tcp_dissect_pdus(tvb, pinfo, tree, TRUE, FRAME_HEADER_LEN,
+      get_opcua_message_len, dissect_opcua_message, data);
+	return tvb_reported_length(tvb);
 }
 
 static void register_tcp_port(guint32 port)
@@ -461,6 +378,102 @@ static void unregister_tcp_port(guint32 port)
     dissector_delete_uint("tcp.port", port, opcua_handle);
 }
 
+static void
+init_opcua(void)
+{
+    reassembly_table_init(&opcua_reassembly_table,
+                          &addresses_reassembly_table_functions);
+}
+
+/** plugin entry functions.
+ * This registers the OpcUa protocol.
+ */
+void proto_register_opcua(void)
+{
+    char *tmp;
+
+    static hf_register_info hf[] =
+    {
+        {&hf_opcua_fragments,
+            {"Message fragments", "opcua.fragments",
+            FT_NONE, BASE_NONE, NULL, 0x00, NULL, HFILL } },
+        {&hf_opcua_fragment,
+            {"Message fragment", "opcua.fragment",
+            FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL } },
+        {&hf_opcua_fragment_overlap,
+            {"Message fragment overlap", "opcua.fragment.overlap",
+            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+        {&hf_opcua_fragment_overlap_conflicts,
+            {"Message fragment overlapping with conflicting data",
+            "opcua.fragment.overlap.conflicts",
+            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+        {&hf_opcua_fragment_multiple_tails,
+            {"Message has multiple tail fragments",
+            "opcua.fragment.multiple_tails",
+            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+        {&hf_opcua_fragment_too_long_fragment,
+            {"Message fragment too long", "opcua.fragment.too_long_fragment",
+            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+        {&hf_opcua_fragment_error,
+            {"Message defragmentation error", "opcua.fragment.error",
+            FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL } },
+        {&hf_opcua_fragment_count,
+            {"Message fragment count", "opcua.fragment.count",
+            FT_UINT32, BASE_DEC, NULL, 0x00, NULL, HFILL } },
+        {&hf_opcua_reassembled_in,
+            {"Reassembled in", "opcua.reassembled.in",
+            FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL } },
+        {&hf_opcua_reassembled_length,
+            {"Reassembled length", "opcua.reassembled.length",
+            FT_UINT32, BASE_DEC, NULL, 0x00, NULL, HFILL } }
+    };
+
+    /** Setup protocol subtree array */
+    static gint *ett[] =
+    {
+        &ett_opcua_extensionobject,
+        &ett_opcua_nodeid,
+        &ett_opcua_transport,
+        &ett_opcua_fragment,
+        &ett_opcua_fragments
+    };
+
+    module_t *opcua_module;
+
+    proto_opcua = proto_register_protocol(
+        "OpcUa Binary Protocol", /* name */
+        "OpcUa",                 /* short name */
+        "opcua"                  /* abbrev */
+        );
+
+    registerTransportLayerTypes(proto_opcua);
+    registerSecurityLayerTypes(proto_opcua);
+    registerApplicationLayerTypes(proto_opcua);
+    registerSimpleTypes(proto_opcua);
+    registerEnumTypes(proto_opcua);
+    registerComplexTypes();
+    registerServiceTypes();
+    registerFieldTypes(proto_opcua);
+
+    proto_register_subtree_array(ett, array_length(ett));
+
+    tmp = g_strdup_printf("%d", OPCUA_PORT);
+    range_convert_str(&global_tcp_ports_opcua, tmp,  65535);
+    g_free(tmp);
+
+    proto_register_field_array(proto_opcua, hf, array_length(hf));
+
+    register_init_routine(&init_opcua);
+
+    /* register user preferences */
+    opcua_module = prefs_register_protocol(proto_opcua, proto_reg_handoff_opcua);
+    prefs_register_range_preference(opcua_module, "tcp_ports",
+				 "OPC UA TCP Ports",
+				 "The TCP ports for the OPC UA TCP Binary Protocol",
+				 &global_tcp_ports_opcua, 65535);
+
+}
+
 void proto_reg_handoff_opcua(void)
 {
   static gboolean opcua_initialized = FALSE;
@@ -468,7 +481,7 @@ void proto_reg_handoff_opcua(void)
 
   if(!opcua_initialized)
   {
-    opcua_handle = create_dissector_handle(dissect_opcua, proto_opcua);
+    opcua_handle = new_create_dissector_handle(dissect_opcua, proto_opcua);
     opcua_initialized = TRUE;
   }
   else

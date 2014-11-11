@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-ess.h                                                               */
 /* ../../tools/asn2wrs.py -b -k -C -p ess -c ./ess.cnf -s ./packet-ess-template -D . -O ../../epan/dissectors ExtendedSecurityServices.asn */
 
@@ -10,8 +10,6 @@
  * Routines for RFC5035 Extended Security Services packet dissection
  *    Ronnie Sahlberg 2004
  *    Stig Bjorlykke 2010
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -41,7 +39,7 @@
 void dissect_ess_ESSSecurityLabel_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_);
 
 /*--- End of included file: packet-ess-exp.h ---*/
-#line 31 "../../asn1/ess/packet-ess-template.h"
+#line 29 "../../asn1/ess/packet-ess-template.h"
 
 #endif  /* PACKET_ESS_H */
 

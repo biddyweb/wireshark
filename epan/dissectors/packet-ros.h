@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-ros.h                                                               */
 /* ../../tools/asn2wrs.py -b -p ros -c ./ros.cnf -s ./packet-ros-template -D . -O ../../epan/dissectors ros.asn Remote-Operations-Information-Objects.asn */
 
@@ -9,8 +9,6 @@
 /* packet-ros.h
  * Routines for ROS packet dissection
  * Graeme Lunt 2005
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -45,12 +43,12 @@ int dissect_ros_InvokeId(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 int dissect_ros_Code(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_);
 
 /*--- End of included file: packet-ros-exp.h ---*/
-#line 30 "../../asn1/ros/packet-ros-template.h"
+#line 28 "../../asn1/ros/packet-ros-template.h"
 
 # include "packet-ses.h"
 
 /* for use in the SESSION_DATA_STRUCTURE ros_op argument
-   top byte indicates ROS invocation 
+   top byte indicates ROS invocation
    bottom three bytes indicate operation code */
 
 # define ROS_OP_MASK    0xff000000
@@ -94,6 +92,6 @@ typedef struct _ros_info_t {
 
 void register_ros_oid_dissector_handle(const char *oid, dissector_handle_t dissector, int proto _U_, const char *name, gboolean uses_rtse);
 void register_ros_protocol_info(const char *oid, const ros_info_t *rinfo, int proto _U_, const char *name, gboolean uses_rtse);
-int call_ros_oid_callback(const char *oid, tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree);
+int call_ros_oid_callback(const char *oid, tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, struct SESSION_DATA_STRUCTURE* session);
 
 #endif  /* PACKET_ROS_H */

@@ -2,8 +2,6 @@
  * Definitions for the Wireshark Memory Manager Stack
  * Copyright 2012, Evan Huus <eapache@gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,16 +28,25 @@
 #include <glib.h>
 
 #include "wmem_core.h"
-#include "wmem_slist.h"
+#include "wmem_list.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
-/* Wmem stack is implemented as a simple wrapper over Wmem slist */
-typedef wmem_slist_t wmem_stack_t;
+/** @addtogroup wmem
+ *  @{
+ *    @defgroup wmem-stack Stack
+ *
+ *    A stack implementation on top of wmem.
+ *
+ *    @{
+ */
 
-#define wmem_stack_count(X) wmem_slist_count(X)
+/* Wmem stack is implemented as a simple wrapper over Wmem list */
+typedef wmem_list_t wmem_stack_t;
+
+#define wmem_stack_count(X) wmem_list_count(X)
 
 WS_DLL_PUBLIC
 void *
@@ -49,11 +56,14 @@ WS_DLL_PUBLIC
 void *
 wmem_stack_pop(wmem_stack_t *stack);
 
-WS_DLL_PUBLIC
-void
-wmem_stack_push(wmem_stack_t *stack, void *data);
+#define wmem_stack_push(STACK, DATA) wmem_list_prepend((STACK), (DATA))
 
-#define wmem_stack_new(ALLOCATOR) wmem_slist_new(ALLOCATOR)
+#define wmem_stack_new(ALLOCATOR) wmem_list_new(ALLOCATOR)
+
+#define wmem_destroy_stack(STACK) wmem_destroy_list(STACK)
+
+/**   @}
+ *  @} */
 
 #ifdef __cplusplus
 }

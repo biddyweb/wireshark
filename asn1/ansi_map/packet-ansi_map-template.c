@@ -7,8 +7,6 @@
  *
  * Copyright 2005 - 2009, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -91,6 +89,7 @@
 #include <epan/prefs.h>
 #include <epan/tap.h>
 #include <epan/asn1.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-ber.h"
 #include "packet-ansi_map.h"
@@ -102,6 +101,10 @@
 #define PNAME  "ANSI Mobile Application Part"
 #define PSNAME "ANSI MAP"
 #define PFNAME "ansi_map"
+
+
+void proto_register_ansi_map(void);
+void proto_reg_handoff_ansi_map(void);
 
 /* Preference settings default */
 #define MAX_SSN 254
@@ -396,52 +399,47 @@ ansi_map_init_protocol(void)
 
 /* Store Invoke information needed for the corresponding reply */
 static void
-update_saved_invokedata(packet_info *pinfo, proto_tree *tree _U_, tvbuff_t *tvb _U_){
+update_saved_invokedata(packet_info *pinfo, struct ansi_tcap_private_t *p_private_tcap){
     struct ansi_map_invokedata_t *ansi_map_saved_invokedata;
-    struct ansi_tcap_private_t *p_private_tcap;
     address* src = &(pinfo->src);
     address* dst = &(pinfo->dst);
     guint8 *src_str;
     guint8 *dst_str;
     const char *buf = NULL;
 
-    src_str = ep_address_to_str(src);
-    dst_str = ep_address_to_str(dst);
+    src_str = address_to_str(wmem_packet_scope(), src);
+    dst_str = address_to_str(wmem_packet_scope(), dst);
 
     /* Data from the TCAP dissector */
-    if (pinfo->private_data != NULL){
-        p_private_tcap=(struct ansi_tcap_private_t *)pinfo->private_data;
-        if ((!pinfo->fd->flags.visited)&&(p_private_tcap->TransactionID_str)){
-            /* Only do this once XXX I hope it's the right thing to do */
-            /* The hash string needs to contain src and dest to distiguish differnt flows */
-            switch(ansi_map_response_matching_type){
-                case ANSI_MAP_TID_ONLY:
-                    buf = ep_strdup(p_private_tcap->TransactionID_str);
-                    break;
-                case 1:
-                    buf = ep_strdup_printf("%s%s",p_private_tcap->TransactionID_str,src_str);
-                    break;
-                default:
-                    buf = ep_strdup_printf("%s%s%s",p_private_tcap->TransactionID_str,src_str,dst_str);
-                    break;
-            }
-            /* If the entry allready exists don't owervrite it */
-            ansi_map_saved_invokedata = (struct ansi_map_invokedata_t *)g_hash_table_lookup(TransactionId_table,buf);
-            if(ansi_map_saved_invokedata)
-                return;
-
-            ansi_map_saved_invokedata = se_new(struct ansi_map_invokedata_t);
-            ansi_map_saved_invokedata->opcode = p_private_tcap->d.OperationCode_private;
-            ansi_map_saved_invokedata->ServiceIndicator = ServiceIndicator;
-
-            g_hash_table_insert(TransactionId_table,
-                                se_strdup(buf),
-                                ansi_map_saved_invokedata);
-
-            /*g_warning("Invoke Hash string %s pkt: %u",buf,pinfo->fd->num);*/
+    if ((!pinfo->fd->flags.visited)&&(p_private_tcap->TransactionID_str)){
+        /* Only do this once XXX I hope it's the right thing to do */
+        /* The hash string needs to contain src and dest to distiguish differnt flows */
+        switch(ansi_map_response_matching_type){
+            case ANSI_MAP_TID_ONLY:
+                buf = wmem_strdup(wmem_packet_scope(), p_private_tcap->TransactionID_str);
+                break;
+            case 1:
+                buf = wmem_strdup_printf(wmem_packet_scope(), "%s%s",p_private_tcap->TransactionID_str,src_str);
+                break;
+            default:
+                buf = wmem_strdup_printf(wmem_packet_scope(), "%s%s%s",p_private_tcap->TransactionID_str,src_str,dst_str);
+                break;
         }
-    }
+        /* If the entry allready exists don't owervrite it */
+        ansi_map_saved_invokedata = (struct ansi_map_invokedata_t *)g_hash_table_lookup(TransactionId_table,buf);
+        if(ansi_map_saved_invokedata)
+            return;
 
+        ansi_map_saved_invokedata = wmem_new(wmem_file_scope(), struct ansi_map_invokedata_t);
+        ansi_map_saved_invokedata->opcode = p_private_tcap->d.OperationCode_private;
+        ansi_map_saved_invokedata->ServiceIndicator = ServiceIndicator;
+
+        g_hash_table_insert(TransactionId_table,
+                            wmem_strdup(wmem_file_scope(), buf),
+                            ansi_map_saved_invokedata);
+
+        /*g_warning("Invoke Hash string %s pkt: %u",buf,pinfo->fd->num);*/
+    }
 }
 /* value strings */
 const value_string ansi_map_opr_code_strings[] = {
@@ -568,7 +566,7 @@ static int dissect_ansi_map_SystemMyTypeCode(gboolean implicit_tag _U_, tvbuff_t
 static dgt_set_t Dgt_tbcd = {
     {
   /*  0   1   2   3   4   5   6   7   8   9   a   b   c   d   e */
-     '0','1','2','3','4','5','6','7','8','9','?','B','C','*','#'
+     '0','1','2','3','4','5','6','7','8','9','?','B','C','*','#','?'
     }
 };
 
@@ -598,10 +596,12 @@ static const true_false_string ansi_map_navail_bool_val  = {
     "Number is not available",
     "Number is available"
 };
+#if 0
 static const true_false_string ansi_map_si_bool_val  = {
     "User provided, screening passed",
     "User provided, not screened"
 };
+#endif
 static const value_string ansi_map_si_vals[]  = {
     {   0, "User provided, not screened"},
     {   1, "User provided, screening passed"},
@@ -643,7 +643,7 @@ dissect_ansi_map_min_type(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tre
 
     subtree = proto_item_add_subtree(actx->created_item, ett_mintype);
 
-    digit_str = tvb_bcd_dig_to_ep_str(tvb, offset, tvb_length_remaining(tvb,offset), NULL, FALSE);
+    digit_str = tvb_bcd_dig_to_wmem_packet_str(tvb, offset, tvb_length_remaining(tvb,offset), NULL, FALSE);
     proto_tree_add_string(subtree, hf_ansi_map_bcd_digits, tvb, offset, -1, digit_str);
     proto_item_append_text(actx->created_item, " - %s", digit_str);
 }
@@ -688,7 +688,7 @@ dissect_ansi_map_digits_type(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *
             if(octet_len == 0)
                 return;
             offset++;
-            digit_str = tvb_bcd_dig_to_ep_str(tvb, offset, tvb_length_remaining(tvb,offset), &Dgt_tbcd, FALSE);
+            digit_str = tvb_bcd_dig_to_wmem_packet_str(tvb, offset, tvb_length_remaining(tvb,offset), &Dgt_tbcd, FALSE);
             proto_tree_add_string(subtree, hf_ansi_map_bcd_digits, tvb, offset, -1, digit_str);
             proto_item_append_text(actx->created_item, " - %s", digit_str);
             break;
@@ -700,7 +700,7 @@ dissect_ansi_map_digits_type(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *
                 return;
             offset++;
             proto_tree_add_item(subtree, hf_ansi_map_ia5_digits, tvb, offset, -1, ENC_ASCII|ENC_NA);
-            proto_item_append_text(actx->created_item, " - %s", tvb_get_ephemeral_string(tvb,offset,tvb_length_remaining(tvb,offset)));
+            proto_item_append_text(actx->created_item, " - %s", tvb_get_string_enc(wmem_packet_scope(),tvb,offset,tvb_length_remaining(tvb,offset),ENC_ASCII|ENC_NA));
             break;
         case 3:
             /* Octet string */
@@ -726,14 +726,14 @@ dissect_ansi_map_digits_type(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *
         switch ((octet&0xf)){
         case 1:
             /* BCD Coding */
-            digit_str = tvb_bcd_dig_to_ep_str(tvb, offset, tvb_length_remaining(tvb,offset), &Dgt_tbcd, FALSE);
+            digit_str = tvb_bcd_dig_to_wmem_packet_str(tvb, offset, tvb_length_remaining(tvb,offset), &Dgt_tbcd, FALSE);
             proto_tree_add_string(subtree, hf_ansi_map_bcd_digits, tvb, offset, -1, digit_str);
             proto_item_append_text(actx->created_item, " - %s", digit_str);
             break;
         case 2:
             /* IA5 Coding */
             proto_tree_add_item(subtree, hf_ansi_map_ia5_digits, tvb, offset, -1, ENC_ASCII|ENC_NA);
-            proto_item_append_text(actx->created_item, " - %s", tvb_get_ephemeral_string(tvb,offset,tvb_length_remaining(tvb,offset)));
+            proto_item_append_text(actx->created_item, " - %s", tvb_get_string_enc(wmem_packet_scope(),tvb,offset,tvb_length_remaining(tvb,offset),ENC_ASCII|ENC_NA));
             break;
         case 3:
             /* Octet string */
@@ -775,10 +775,12 @@ dissect_ansi_map_digits_type(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *
 }
 /* 6.5.3.13. Subaddress */
 
+#if 0
 static const true_false_string ansi_map_Odd_Even_Ind_bool_val  = {
   "Odd",
   "Even"
 };
+#endif
 /* Type of Subaddress (octet 1, bits E-G) */
 static const value_string ansi_map_sub_addr_type_vals[]  = {
     {   0, "NSAP (CCITT Rec. X.213 or ISO 8348 AD2)"},
@@ -1734,17 +1736,21 @@ dissect_ansi_map_messagewaitingnotificationcount(tvbuff_t *tvb, packet_info *pin
 
 }
 
+#if 0
 /* 6.5.2.79 MessageWaitingNotificationType */
 /* Pip Tone (PT) (octet 1, bit A) */
 static const true_false_string ansi_map_MessageWaitingNotificationType_pt_bool_val  = {
     "Pip Tone (PT) notification is required",
     "Pip Tone (PT) notification is not authorized or no notification is required"
 };
+#endif
+#if 0
 /* Alert Pip Tone (APT) (octet 1, bit B) */
 static const true_false_string ansi_map_MessageWaitingNotificationType_apt_bool_val  = {
     "Alert Pip Tone (APT) notification is required",
     "Alert Pip Tone (APT) notification is not authorized or notification is not required"
 };
+#endif
 /* Message Waiting Indication (MWI) (octet 1, bits C and D) */
 static const value_string ansi_map_MessageWaitingNotificationType_mwi_vals[]  = {
     {   0, "No MWI. Message Waiting Indication (MWI) notification is not authorized or notification is not required"},
@@ -1864,6 +1870,7 @@ dissect_ansi_map_nampschanneldata(tvbuff_t *tvb, packet_info *pinfo _U_, proto_t
 
 }
 
+#if 0
 /* 6.5.2.88 OneTimeFeatureIndicator */
 /* updated with N.S0012 */
 /* Call Waiting for Future Incoming Call (CWFI) (octet 1, bits A and B) */
@@ -1876,6 +1883,8 @@ static const value_string ansi_map_onetimefeatureindicator_cw_vals[]  = {
     {   3, "Priority CW"},
     {   0, NULL }
 };
+#endif
+#if 0
 /* MessageWaitingNotification (MWN) (octet 1, bits E and F) */
 static const value_string ansi_map_onetimefeatureindicator_mwn_vals[]  = {
     {   0, "Ignore"},
@@ -1884,6 +1893,8 @@ static const value_string ansi_map_onetimefeatureindicator_mwn_vals[]  = {
     {   3, "Reserved"},
     {   0, NULL }
 };
+#endif
+#if 0
 /* Calling Number Identification Restriction (CNIR) (octet 1, bits G and H)*/
 static const value_string ansi_map_onetimefeatureindicator_cnir_vals[]  = {
     {   0, "Ignore"},
@@ -1892,7 +1903,9 @@ static const value_string ansi_map_onetimefeatureindicator_cnir_vals[]  = {
     {   3, "Reserved"},
     {   0, NULL }
 };
+#endif
 
+#if 0
 /* Priority Access and Channel Assignment (PACA) (octet 2, bits A and B)*/
 static const value_string ansi_map_onetimefeatureindicator_paca_vals[]  = {
     {   0, "Ignore"},
@@ -1901,7 +1914,9 @@ static const value_string ansi_map_onetimefeatureindicator_paca_vals[]  = {
     {   3, "Reserved"},
     {   0, NULL }
 };
+#endif
 
+#if 0
 /* Flash Privileges (Flash) (octet 2, bits C and D) */
 static const value_string ansi_map_onetimefeatureindicator_flash_vals[]  = {
     {   0, "Ignore"},
@@ -1910,6 +1925,8 @@ static const value_string ansi_map_onetimefeatureindicator_flash_vals[]  = {
     {   3, "Reserved"},
     {   0, NULL }
 };
+#endif
+#if 0
 /* Calling Name Restriction (CNAR) (octet 2, bits E and F) */
 static const value_string ansi_map_onetimefeatureindicator_cnar_vals[]  = {
     {   0, "Ignore"},
@@ -1918,6 +1935,7 @@ static const value_string ansi_map_onetimefeatureindicator_cnar_vals[]  = {
     {   3, "Blocking Toggle"},
     {   0, NULL }
 };
+#endif
 static void
 dissect_ansi_map_onetimefeatureindicator(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, asn1_ctx_t *actx _U_){
     /*
@@ -2419,6 +2437,7 @@ dissect_ansi_map_sms_originationrestrictions(tvbuff_t *tvb, packet_info *pinfo _
 /* 6.5.2.137 SMS_TeleserviceIdentifier */
 /* Updated with N.S0011-0 v 1.0 */
 
+#if 0
 /* SMS Teleservice Identifier (octets 1 and 2) */
 static const value_string ansi_map_SMS_TeleserviceIdentifier_vals[]  = {
     {     0, "Not used"},
@@ -2435,6 +2454,7 @@ static const value_string ansi_map_SMS_TeleserviceIdentifier_vals[]  = {
     { 32584, "TDMA Segmented System Assisted Mobile Positioning Service" },
     {     0, NULL }
 };
+#endif
 /* 6.5.2.140 SPINITriggers */
 /* All Origination (All) (octet 1, bit A) */
 
@@ -2861,6 +2881,7 @@ static const value_string ansi_map_TDMAServiceCode_vals[]  = {
     {   7, "STU-III"},
     {   0, NULL }
 };
+#if 0
 /* 6.5.2.j (IS-730) TDMATerminalCapability N.S0008-0 v 1.0 Updted with N.S0015-0 */
 /* Supported Frequency Band (octet 1) */
 /* Voice Coder (octet 2) */
@@ -2876,6 +2897,7 @@ static const value_string ansi_map_TDMATerminalCapability_prot_ver_vals[]  = {
     {   7, "PV 3 as published in TIA/EIA-136-A."},
     {   0, NULL }
 };
+#endif
 /* Asynchronous Data (ADS) (octet 4, bit A) N.S0007-0*/
 /* Group 3 Fax (G3FAX) (octet 4, bit B) */
 /* Secure Telephone Unit III (STU3) (octet 4, bit C) */
@@ -3049,6 +3071,7 @@ static const value_string ansi_map_TDMABandwidth_vals[]  = {
    proto_tree_add_item(subtree, hf_ansi_map_tmn, tvb, offset, 1, ENC_BIG_ENDIAN);
    }
 */
+#if 0
 /* 6.5.2.as ChangeServiceAttributes N.S0008-0 v 1.0 */
 /* Change Facilities Flag (CHGFAC)(octet 1, bits A - B) */
 static const value_string ansi_map_ChangeServiceAttributes_chgfac_vals[]  = {
@@ -3058,6 +3081,8 @@ static const value_string ansi_map_ChangeServiceAttributes_chgfac_vals[]  = {
     {   3, "Change Facilities Operation Not Used"},
     {   0, NULL }
 };
+#endif
+#if 0
 /* Service Negotiate Flag (SRVNEG)(octet 1, bits C - D) */
 static const value_string ansi_map_ChangeServiceAttributes_srvneg_vals[]  = {
     {   0, "Service Negotiation Used"},
@@ -3066,6 +3091,8 @@ static const value_string ansi_map_ChangeServiceAttributes_srvneg_vals[]  = {
     {   3, "Service Negotiation Not Required"},
     {   0, NULL }
 };
+#endif
+#if 0
 /* 6.5.2.au DataPrivacyParameters N.S0008-0 v 1.0*/
 /* Privacy Mode (PM) (octet 1, Bits A and B) */
 static const value_string ansi_map_DataPrivacyParameters_pm_vals[]  = {
@@ -3075,12 +3102,15 @@ static const value_string ansi_map_DataPrivacyParameters_pm_vals[]  = {
     {   3, "Reserved. Treat reserved values the same as value 0, Privacy inactive or not supported."},
     {   0, NULL }
 };
+#endif
+#if 0
 /* Data Privacy Version (PM) (octet 2) */
 static const value_string ansi_map_DataPrivacyParameters_data_priv_ver_vals[]  = {
     {   0, "Not used"},
     {   1, "Data Privacy Version 1"},
     {   0, NULL }
 };
+#endif
 
 /* 6.5.2.av ISLPInformation N.S0008-0 v 1.0*/
 /* ISLP Type (octet 1) */
@@ -3123,6 +3153,7 @@ static const value_string ansi_map_ServiceRedirectionCause_type_vals[]  = {
 
 /* 6.5.2.bw CallingPartyName N.S0012-0 v 1.0*/
 
+#if 0
 /* Presentation Status (octet 1, bits A and B) */
 static const value_string ansi_map_Presentation_Status_vals[]  = {
     {   0, "Presentation allowed"},
@@ -3131,11 +3162,14 @@ static const value_string ansi_map_Presentation_Status_vals[]  = {
     {   3, "No indication"},
     {   0, NULL }
 };
+#endif
+#if 0
 /* Availability (octet 1, bit E) N.S0012-0 v 1.0*/
 static const true_false_string ansi_map_Availability_bool_val  = {
     "Name not available",
     "Name available/unknown"
 };
+#endif
 static void
 dissect_ansi_map_callingpartyname(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, asn1_ctx_t *actx _U_){
 
@@ -3165,6 +3199,7 @@ dissect_ansi_map_callingpartyname(tvbuff_t *tvb _U_, packet_info *pinfo _U_, pro
 /* Global Title Octet 2 - n */
 
 
+#if 0
 /* 6.5.2.dc SpecializedResource N.S0013-0 v 1.0*/
 /* Resource Type (octet 1) */
 static const value_string ansi_map_resource_type_vals[]  = {
@@ -3174,6 +3209,7 @@ static const value_string ansi_map_resource_type_vals[]  = {
     {   3, "Automatic Speech Recognition - Speaker Independent - Speech User Interface Version 1"},
     {   0, NULL }
 };
+#endif
 /* 6.5.2.df TriggerCapability */
 /* Updated with N.S0004 N.S0013-0 v 1.0*/
 
@@ -3331,6 +3367,7 @@ static const value_string ansi_MSIDUsage_m_or_i_vals[]  = {
 
 /* 6.5.2.ff NewMINExtension N.S0015-0 */
 
+#if 0
 /* 6.5.2.fv ACGEncountered N.S0023-0 v 1.0 */
 /* ACG Encountered (octet 1, bits A-F) */
 static const value_string ansi_ACGEncountered_vals[]  = {
@@ -3352,6 +3389,8 @@ static const value_string ansi_ACGEncountered_vals[]  = {
     {   15, "15-digit control"},
     {   0, NULL }
 };
+#endif
+#if 0
 /* Control Type (octet 1, bits G-H) */
 static const value_string ansi_ACGEncountered_cntrl_type_vals[]  = {
     {   0, "Not used."},
@@ -3360,11 +3399,13 @@ static const value_string ansi_ACGEncountered_cntrl_type_vals[]  = {
     {   3, "Reserved. Treat the same as value 0, Not used."},
     {   0, NULL }
 };
+#endif
 
 /* 6.5.2.fw ControlType N.S0023-0 v 1.0 */
 
 
 
+#if 0
 /* 6.5.2.ge QoSPriority N.S0029-0 v1.0*/
 /* 6.5.2.xx QOSPriority */
 /* Non-Assured Priority (octet 1, bits A-D) */
@@ -3387,6 +3428,7 @@ static const value_string ansi_map_Priority_vals[]  = {
     {   15, "Reserved"},
     {   0, NULL }
 };
+#endif
 /* Assured Priority (octet 1, bits E-H)*/
 
 
@@ -3491,6 +3533,7 @@ static const value_string ansi_map_Priority_vals[]  = {
    {    0, NULL }
    };
 */
+#if 0
 /* 6.5.2.bp-1 ServiceRedirectionCause value */
 static const value_string ansi_map_ServiceRedirectionCause_vals[]  = {
     {   0, "Not used"},
@@ -3502,6 +3545,7 @@ static const value_string ansi_map_ServiceRedirectionCause_vals[]  = {
     {   6, "WrongNID"},
     {   0, NULL }
 };
+#endif
 /* 6.5.2.mT AuthenticationResponseReauthentication N.S0011-0 v 1.0*/
 
 /* 6.5.2.vT ReauthenticationReport N.S0011-0 v 1.0*/
@@ -3516,6 +3560,7 @@ static const value_string ansi_map_ReauthenticationReport_vals[]  = {
 
 
 
+#if 0
 /* 6.5.2.lB AKeyProtocolVersion
    N.S0011-0 v 1.0
 */
@@ -3527,6 +3572,7 @@ static const value_string ansi_map_AKeyProtocolVersion_vals[]  = {
     {   4, "Diffie Hellman with 768-bit modulus, 32-bit primitive, and 160-bit exponents"},
     {   0, NULL }
 };
+#endif
 /* 6.5.2.sB OTASP_ResultCode
    N.S0011-0 v 1.0
 */
@@ -4182,7 +4228,7 @@ static int dissect_returnData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_
         offset = dissect_ansi_map_ModifyRes(TRUE, tvb, offset, actx, tree, hf_ansi_map_modifyRes);
         break;
     case  72: /*Search*/
-        offset = dissect_ansi_map_SearchRes(TRUE, tvb, offset, actx, tree, hf_ansi_map_searchRes);;
+        offset = dissect_ansi_map_SearchRes(TRUE, tvb, offset, actx, tree, hf_ansi_map_searchRes);
         break;
     case  73: /*Seize Resource*/
         offset = dissect_ansi_map_SeizeResourceRes(TRUE, tvb, offset, actx, tree, hf_ansi_map_seizeResourceRes);
@@ -4277,57 +4323,51 @@ static int dissect_returnData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_
 }
 
 static int
-find_saved_invokedata(asn1_ctx_t *actx){
+find_saved_invokedata(asn1_ctx_t *actx, struct ansi_tcap_private_t *p_private_tcap){
     struct ansi_map_invokedata_t *ansi_map_saved_invokedata;
-    struct ansi_tcap_private_t *p_private_tcap;
     address* src = &(actx->pinfo->src);
     address* dst = &(actx->pinfo->dst);
     guint8 *src_str;
     guint8 *dst_str;
     char *buf;
 
-    buf=ep_alloc(1024);
+    buf=(char *)wmem_alloc(wmem_packet_scope(), 1024);
 
     /* Data from the TCAP dissector */
-    if (actx->pinfo->private_data != NULL){
-        p_private_tcap=(struct ansi_tcap_private_t *)actx->pinfo->private_data;
-        /* The hash string needs to contain src and dest to distiguish differnt flows */
-        src_str = ep_address_to_str(src);
-        dst_str = ep_address_to_str(dst);
-        /* Reverse order to invoke */
-        switch(ansi_map_response_matching_type){
-            case ANSI_MAP_TID_ONLY:
-                g_snprintf(buf,1024,"%s",p_private_tcap->TransactionID_str);
-                break;
-            case 1:
-                g_snprintf(buf,1024,"%s%s",p_private_tcap->TransactionID_str,dst_str);
-                break;
-            default:
-                g_snprintf(buf,1024,"%s%s%s",p_private_tcap->TransactionID_str,dst_str,src_str);
-                break;
-        }
+    /* The hash string needs to contain src and dest to distiguish differnt flows */
+    src_str = address_to_str(wmem_packet_scope(), src);
+    dst_str = address_to_str(wmem_packet_scope(), dst);
+    /* Reverse order to invoke */
+    switch(ansi_map_response_matching_type){
+        case ANSI_MAP_TID_ONLY:
+            g_snprintf(buf,1024,"%s",p_private_tcap->TransactionID_str);
+            break;
+        case 1:
+            g_snprintf(buf,1024,"%s%s",p_private_tcap->TransactionID_str,dst_str);
+            break;
+        default:
+            g_snprintf(buf,1024,"%s%s%s",p_private_tcap->TransactionID_str,dst_str,src_str);
+            break;
+    }
 
-        /*g_warning("Find Hash string %s pkt: %u",buf,actx->pinfo->fd->num);*/
-        ansi_map_saved_invokedata = (struct ansi_map_invokedata_t *)g_hash_table_lookup(TransactionId_table, buf);
-        if(ansi_map_saved_invokedata){
-            OperationCode = ansi_map_saved_invokedata->opcode & 0xff;
-            ServiceIndicator = ansi_map_saved_invokedata->ServiceIndicator;
-        }else{
-            OperationCode = OperationCode & 0x00ff;
-        }
+    /*g_warning("Find Hash string %s pkt: %u",buf,actx->pinfo->fd->num);*/
+    ansi_map_saved_invokedata = (struct ansi_map_invokedata_t *)g_hash_table_lookup(TransactionId_table, buf);
+    if(ansi_map_saved_invokedata){
+        OperationCode = ansi_map_saved_invokedata->opcode & 0xff;
+        ServiceIndicator = ansi_map_saved_invokedata->ServiceIndicator;
     }else{
-        /*g_warning("No private data pkt: %u",actx->pinfo->fd->num);*/
         OperationCode = OperationCode & 0x00ff;
     }
+
     return OperationCode;
 }
 
-static void
-dissect_ansi_map(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_ansi_map(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
     proto_item *ansi_map_item;
     proto_tree *ansi_map_tree = NULL;
-    struct ansi_tcap_private_t *p_private_tcap;
+    struct ansi_tcap_private_t *p_private_tcap = (struct ansi_tcap_private_t *)data;
     asn1_ctx_t asn1_ctx;
     asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
@@ -4335,16 +4375,14 @@ dissect_ansi_map(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     ansi_map_sms_tele_id = -1;
     g_pinfo = pinfo;
     g_tree = tree;
+
+    /* The TCAP dissector should have provided data but didn't so reject it. */
+    if (data == NULL)
+        return 0;
     /*
      * Make entry in the Protocol column on summary display
      */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "ANSI MAP");
-
-    /* Data from the TCAP dissector */
-    if (pinfo->private_data == NULL){
-        proto_tree_add_text(tree, tvb, 0, -1, "Dissector ERROR this dissector relays on private data");
-        return;
-    }
 
     /*
      * create the ansi_map protocol tree
@@ -4355,8 +4393,6 @@ dissect_ansi_map(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     is683_ota = FALSE;
     is801_pld = FALSE;
     ServiceIndicator = 0;
-
-    p_private_tcap=(struct ansi_tcap_private_t *)pinfo->private_data;
 
     switch(p_private_tcap->d.pdu){
         /*
@@ -4371,10 +4407,10 @@ dissect_ansi_map(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         col_add_fstr(pinfo->cinfo, COL_INFO,"%s Invoke ", val_to_str_ext(OperationCode, &ansi_map_opr_code_strings_ext, "Unknown ANSI-MAP PDU (%u)"));
         proto_item_append_text(p_private_tcap->d.OperationCode_item," %s",val_to_str_ext(OperationCode, &ansi_map_opr_code_strings_ext, "Unknown ANSI-MAP PDU (%u)"));
         dissect_invokeData(ansi_map_tree, tvb, 0, &asn1_ctx);
-        update_saved_invokedata(pinfo, ansi_map_tree, tvb);
+        update_saved_invokedata(pinfo, p_private_tcap);
         break;
     case 2:
-        OperationCode = find_saved_invokedata(&asn1_ctx);
+        OperationCode = find_saved_invokedata(&asn1_ctx, p_private_tcap);
         col_add_fstr(pinfo->cinfo, COL_INFO,"%s ReturnResult ", val_to_str_ext(OperationCode, &ansi_map_opr_code_strings_ext, "Unknown ANSI-MAP PDU (%u)"));
         proto_item_append_text(p_private_tcap->d.OperationCode_item," %s",val_to_str_ext(OperationCode, &ansi_map_opr_code_strings_ext, "Unknown ANSI-MAP PDU (%u)"));
         dissect_returnData(ansi_map_tree, tvb, 0, &asn1_ctx);
@@ -4390,6 +4426,8 @@ dissect_ansi_map(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         DISSECTOR_ASSERT_NOT_REACHED();
         break;
     }
+
+    return tvb_length(tvb);
 }
 
 static void range_delete_callback(guint32 ssn)
@@ -5282,7 +5320,7 @@ void proto_register_ansi_map(void) {
     proto_register_field_array(proto_ansi_map, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
 
-    register_dissector("ansi_map", dissect_ansi_map, proto_ansi_map);
+    new_register_dissector("ansi_map", dissect_ansi_map, proto_ansi_map);
 
     is637_tele_id_dissector_table =
         register_dissector_table("ansi_map.tele_id", "IS-637 Teleservice ID",

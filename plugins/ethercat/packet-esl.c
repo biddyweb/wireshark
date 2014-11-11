@@ -1,8 +1,6 @@
 /* packet-esl.c
  * Routines for EtherCAT Switch Link disassembly
  *
- * $Id$
- *
  * Copyright (c) 2007 by Beckhoff Automation GmbH
  *
  * Wireshark - Network traffic analyzer
@@ -30,6 +28,8 @@
 
 #include <epan/packet.h>
 #include <epan/prefs.h>
+
+void proto_register_esl(void);
 
 #if 0
 /* XXX: using bitfields is compiler dependent: See README.developer */
@@ -214,7 +214,7 @@ typedef struct _ref_time_frame_info
 
 static ref_time_frame_info ref_time_frame;
 
-gboolean is_esl_header(tvbuff_t *tvb, gint offset)
+static gboolean is_esl_header(tvbuff_t *tvb, gint offset)
 {
     return tvb_get_guint8(tvb, offset) == 0x01 &&
         tvb_get_guint8(tvb, offset+1) == 0x01 &&
@@ -224,7 +224,7 @@ gboolean is_esl_header(tvbuff_t *tvb, gint offset)
         tvb_get_guint8(tvb, offset+5) == 0x00;
 }
 
-void modify_times(tvbuff_t *tvb, gint offset, packet_info *pinfo)
+static void modify_times(tvbuff_t *tvb, gint offset, packet_info *pinfo)
 {
     if ( ref_time_frame.fd == NULL )
     {
@@ -251,7 +251,7 @@ void modify_times(tvbuff_t *tvb, gint offset, packet_info *pinfo)
         nstime_delta(&ts_delta, &ts, &pinfo->fd->abs_ts);
 
         pinfo->fd->abs_ts = ts;
-        nstime_add(&pinfo->fd->rel_ts, &ts_delta);
+        nstime_add(&pinfo->rel_ts, &ts_delta);
     }
 }
 

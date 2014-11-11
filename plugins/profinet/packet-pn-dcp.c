@@ -2,8 +2,6 @@
  * Routines for PN-DCP (PROFINET Discovery and basic Configuration Protocol)
  * packet dissection.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1999 Gerald Combs
@@ -28,14 +26,18 @@
 #include <string.h>
 
 #include <glib.h>
+
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/exceptions.h>
+#include <epan/to_str.h>
+#include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 #include <epan/dissectors/packet-dcerpc.h>
 
 #include "packet-pn.h"
 
-
+void proto_register_pn_dcp(void);
+void proto_reg_handoff_pn_dcp(void);
 
 static int proto_pn_dcp = -1;
 
@@ -53,9 +55,10 @@ static int hf_pn_dcp_block = -1;
 static int hf_pn_dcp_block_error = -1;
 
 static int hf_pn_dcp_option = -1;
-/* static int hf_pn_dcp_suboption = -1; */
 static int hf_pn_dcp_block_info = -1;
 static int hf_pn_dcp_block_qualifier = -1;
+static int hf_pn_dcp_blockqualifier = -1;
+static int hf_pn_dcp_blockqualifier_r2f = -1;
 
 static int hf_pn_dcp_suboption_ip = -1;
 static int hf_pn_dcp_suboption_ip_block_info = -1;
@@ -90,6 +93,8 @@ static int hf_pn_dcp_suboption_manuf = -1;
 static gint ett_pn_dcp = -1;
 static gint ett_pn_dcp_block = -1;
 
+static expert_field ei_pn_dcp_block_error_unknown = EI_INIT;
+static expert_field ei_pn_dcp_ip_conflict = EI_INIT;
 
 
 #define PNDCP_SERVICE_ID_GET        0x03
@@ -146,6 +151,29 @@ static const value_string pn_dcp_block_qualifier[] = {
     { 0, NULL }
 };
 
+static const value_string pn_dcp_BlockQualifier[] = {
+    { 0x0002, "Reset application data" },
+    { 0x0003, "Reset application data" },
+    { 0x0004, "Reset communication parameter" },
+    { 0x0005, "Reset communication parameter" },
+    { 0x0006, "Reset engineering parameter" },
+    { 0x0007, "Reset engineering parameter" },
+    { 0x0008, "Resets all stored data" },
+    { 0x0009, "Resets all stored data" },
+    { 0x000A, "Reset engineering parameter" },
+    { 0x000B, "Reset engineering parameter" },
+    { 0x000C, "Reserved" },
+    { 0x000D, "Reserved" },
+    { 0x0009, "Reserved" },
+    { 0x0010, "Resets all stored data in the IOD or IOC to its factory values" },
+    { 0x0011, "Resets all stored data in the IOD or IOC to its factory values" },
+    { 0x0012, "Reset and restore data" },
+    { 0x0013, "Reset and restore data" },
+    { 0x0014, "Reserved" },
+    { 0x0015, "Reserved" },
+    { 0x0016, "Reserved" },
+    { 0, NULL }
+};
 
 #define PNDCP_OPTION_IP                 0x01
 #define PNDCP_OPTION_DEVICE             0x02
@@ -247,6 +275,7 @@ static const value_string pn_dcp_suboption_dhcp[] = {
 #define PNDCP_SUBOPTION_CONTROL_SIGNAL      0x03
 #define PNDCP_SUBOPTION_CONTROL_RESPONSE    0x04
 #define PNDCP_SUBOPTION_CONTROL_FACT_RESET  0x05
+#define PNDCP_SUBOPTION_CONTROL_RESET_TO_FACT  0x06
 
 static const value_string pn_dcp_suboption_control[] = {
     { 0x00, "Reserved" },
@@ -255,7 +284,8 @@ static const value_string pn_dcp_suboption_control[] = {
     { PNDCP_SUBOPTION_CONTROL_SIGNAL,      "Signal" },
     { PNDCP_SUBOPTION_CONTROL_RESPONSE,    "Response" },
     { PNDCP_SUBOPTION_CONTROL_FACT_RESET,  "Reset Factory Settings" },
-    /*0x05 - 0xff reserved */
+    { PNDCP_SUBOPTION_CONTROL_RESET_TO_FACT,"Reset to Factory" },
+    /*0x07 - 0xff reserved */
     { 0, NULL }
 };
 
@@ -277,6 +307,12 @@ static const value_string pn_dcp_deviceinitiative_value[] = {
 
 static const value_string pn_dcp_suboption_all[] = {
     { 0xff, "ALL Selector" },
+    /* all other reserved */
+    { 0, NULL }
+};
+
+static const value_string pn_dcp_suboption_other[] = {
+    { 0x00, "Default" },
     /* all other reserved */
     { 0, NULL }
 };
@@ -385,7 +421,7 @@ dissect_PNDCP_Suboption_IP(tvbuff_t *tvb, int offset, packet_info *pinfo,
                                    val_to_str(block_info, pn_dcp_suboption_ip_block_info, "Undecoded"));
             block_length -= 2;
             if (block_info & 0x80) {
-                expert_add_info_format(pinfo, item, PI_RESPONSE_CODE, PI_NOTE, "IP address conflict detected!");
+                expert_add_info(pinfo, item, &ei_pn_dcp_ip_conflict);
             }
         }
 
@@ -465,7 +501,7 @@ dissect_PNDCP_Suboption_Device(tvbuff_t *tvb, int offset, packet_info *pinfo,
 
     switch (suboption) {
     case PNDCP_SUBOPTION_DEVICE_MANUF:
-        typeofstation = (char *)ep_alloc(block_length+1);
+        typeofstation = (char *)wmem_alloc(wmem_packet_scope(), block_length+1);
         tvb_memcpy(tvb, (guint8 *) typeofstation, offset, block_length);
         typeofstation[block_length] = '\0';
         proto_tree_add_string (tree, hf_pn_dcp_suboption_device_typeofstation, tvb, offset, block_length, typeofstation);
@@ -483,11 +519,11 @@ dissect_PNDCP_Suboption_Device(tvbuff_t *tvb, int offset, packet_info *pinfo,
         offset += block_length;
         break;
     case PNDCP_SUBOPTION_DEVICE_NAMEOFSTATION:
-        nameofstation = (char *)ep_alloc(block_length+1);
+        nameofstation = (char *)wmem_alloc(wmem_packet_scope(), block_length+1);
         tvb_memcpy(tvb, (guint8 *) nameofstation, offset, block_length);
         nameofstation[block_length] = '\0';
         proto_tree_add_string (tree, hf_pn_dcp_suboption_device_nameofstation, tvb, offset, block_length, nameofstation);
-        pn_append_info(pinfo, dcp_item, ep_strdup_printf(", NameOfStation:\"%s\"", nameofstation));
+        pn_append_info(pinfo, dcp_item, wmem_strdup_printf(wmem_packet_scope(), ", NameOfStation:\"%s\"", nameofstation));
         proto_item_append_text(block_item, "Device/NameOfStation");
         if (have_block_qualifier) {
             proto_item_append_text(block_item, ", BlockQualifier: %s",
@@ -536,7 +572,7 @@ dissect_PNDCP_Suboption_Device(tvbuff_t *tvb, int offset, packet_info *pinfo,
             proto_item_append_text(block_item, ", PN-Supervisor");
         break;
     case PNDCP_SUBOPTION_DEVICE_DEV_OPTIONS:
-        info_str = ep_strdup_printf(", Dev-Options(%u)", block_length/2);
+        info_str = wmem_strdup_printf(wmem_packet_scope(), ", Dev-Options(%u)", block_length/2);
         pn_append_info(pinfo, dcp_item, info_str);
         proto_item_append_text(block_item, "Device/Device Options");
         if (have_block_qualifier) {
@@ -554,11 +590,11 @@ dissect_PNDCP_Suboption_Device(tvbuff_t *tvb, int offset, packet_info *pinfo,
         }
         break;
     case PNDCP_SUBOPTION_DEVICE_ALIAS_NAME:
-        aliasname = (char *)ep_alloc(block_length+1);
+        aliasname = (char *)wmem_alloc(wmem_packet_scope(), block_length+1);
         tvb_memcpy(tvb, (guint8 *) aliasname, offset, block_length);
         aliasname[block_length] = '\0';
         proto_tree_add_string (tree, hf_pn_dcp_suboption_device_aliasname, tvb, offset, block_length, aliasname);
-        pn_append_info(pinfo, dcp_item, ep_strdup_printf(", AliasName:\"%s\"", aliasname));
+        pn_append_info(pinfo, dcp_item, wmem_strdup_printf(wmem_packet_scope(), ", AliasName:\"%s\"", aliasname));
         proto_item_append_text(block_item, "Device/AliasName");
         if (have_block_qualifier) {
             proto_item_append_text(block_item, ", BlockQualifier: %s",
@@ -660,6 +696,7 @@ dissect_PNDCP_Suboption_Control(tvbuff_t *tvb, int offset, packet_info *pinfo,
     guint8      suboption;
     guint16     block_length;
     guint16     block_qualifier;
+    guint16     BlockQualifier;
     gchar      *info_str;
     guint8      block_error;
     proto_item *item = NULL;
@@ -697,11 +734,11 @@ dissect_PNDCP_Suboption_Control(tvbuff_t *tvb, int offset, packet_info *pinfo,
         }
         offset += 1;
         if (block_error != 0) {
-            expert_add_info_format(pinfo, item, PI_RESPONSE_CODE, PI_CHAT, "%s",
+            expert_add_info_format(pinfo, item, &ei_pn_dcp_block_error_unknown, "%s",
                                     val_to_str(block_error, pn_dcp_block_error, "Unknown"));
         }
-        info_str = ep_strdup_printf(", Response(%s)",
-                                    val_to_str(block_error, pn_dcp_block_error, "Unknown"));
+        info_str = wmem_strdup_printf(wmem_packet_scope(), ", Response(%s)",
+                                      val_to_str(block_error, pn_dcp_block_error, "Unknown"));
         pn_append_info(pinfo, dcp_item, info_str);
         proto_item_append_text(block_item, ", BlockError: %s",
                                     val_to_str(block_error, pn_dcp_block_error, "Unknown"));
@@ -710,8 +747,22 @@ dissect_PNDCP_Suboption_Control(tvbuff_t *tvb, int offset, packet_info *pinfo,
     case PNDCP_SUBOPTION_CONTROL_FACT_RESET:
         pn_append_info(pinfo, dcp_item, ", Reset FactorySettings");
         proto_item_append_text(block_item, "Control/Reset FactorySettings");
-        offset       += 2;
         block_length -= 2;
+        offset = dissect_pn_uint16(tvb, offset, pinfo, tree, hf_pn_dcp_blockqualifier_r2f, &BlockQualifier);
+        proto_item_append_text(block_item, ", BlockQualifier: %s",
+            val_to_str(BlockQualifier, pn_dcp_suboption_other, "reserved"));
+        block_length -= 2;
+        break;
+
+    case PNDCP_SUBOPTION_CONTROL_RESET_TO_FACT:
+        pn_append_info(pinfo, dcp_item, ", Reset to Factory");
+        proto_item_append_text(block_item, "Reset to FactorySettings");
+
+        offset = dissect_pn_uint16(tvb, offset, pinfo, tree, hf_pn_dcp_blockqualifier, &BlockQualifier);
+        proto_item_append_text(block_item, ", BlockQualifier: %s",
+            val_to_str(BlockQualifier, pn_dcp_BlockQualifier, "reserved"));
+        block_length -= 2;
+
         break;
     default:
         offset = dissect_pn_undecoded(tvb, offset, pinfo, tree, block_length);
@@ -911,7 +962,7 @@ dissect_PNDCP_PDU(tvbuff_t *tvb,
         pn_append_info(pinfo, dcp_item, "Hello");
         break;
     default:
-        dissect_pn_undecoded(tvb, offset, pinfo, tree, tvb_length_remaining(tvb, offset));
+        dissect_pn_undecoded(tvb, offset, pinfo, tree, tvb_captured_length_remaining(tvb, offset));
         return;
     }
 
@@ -928,11 +979,11 @@ dissect_PNDCP_PDU(tvbuff_t *tvb,
         is_response = TRUE;
         break;
     default:
-        dissect_pn_undecoded(tvb, offset, pinfo, tree, tvb_length_remaining(tvb, offset));
+        dissect_pn_undecoded(tvb, offset, pinfo, tree, tvb_captured_length_remaining(tvb, offset));
         return;
     }
 
-    xid_str = ep_strdup_printf(", Xid:0x%x", xid);
+    xid_str = wmem_strdup_printf(wmem_packet_scope(), ", Xid:0x%x", xid);
     pn_append_info(pinfo, dcp_item, xid_str);
 
     /* dissect a number of blocks (depending on the remaining length) */
@@ -1065,6 +1116,16 @@ proto_register_pn_dcp (void)
             FT_UINT16, BASE_DEC, VALS(pn_dcp_block_qualifier), 0x0,
             NULL, HFILL }},
 
+        { &hf_pn_dcp_blockqualifier_r2f,
+          { "BlockQualifier: ResettoFactory", "pn_dcp.block_qualifier_reset",
+            FT_UINT16, BASE_DEC, VALS(pn_dcp_BlockQualifier), 0x0,
+            NULL, HFILL }},
+
+        { &hf_pn_dcp_blockqualifier,
+          { "BlockQualifier: ResetFactorySettings", "pn_dcp.block_qualifier_reset",
+            FT_UINT16, BASE_DEC, VALS(pn_dcp_suboption_other), 0x0,
+            NULL, HFILL }},
+
         { &hf_pn_dcp_suboption_ip,
           { "Suboption", "pn_dcp.suboption_ip",
             FT_UINT8, BASE_DEC, VALS(pn_dcp_suboption_ip), 0x0,
@@ -1181,9 +1242,19 @@ proto_register_pn_dcp (void)
         &ett_pn_dcp,
         &ett_pn_dcp_block
     };
+
+    static ei_register_info ei[] = {
+        { &ei_pn_dcp_block_error_unknown, { "pn_dcp.block_error.unknown", PI_RESPONSE_CODE, PI_CHAT, "Unknown", EXPFILL }},
+        { &ei_pn_dcp_ip_conflict, { "pn_dcp.ip_conflict", PI_RESPONSE_CODE, PI_NOTE, "IP address conflict detected!", EXPFILL }},
+    };
+
+    expert_module_t* expert_pn_dcp;
+
     proto_pn_dcp = proto_register_protocol ("PROFINET DCP", "PN-DCP", "pn_dcp");
     proto_register_field_array (proto_pn_dcp, hf, array_length (hf));
     proto_register_subtree_array (ett, array_length (ett));
+    expert_pn_dcp = expert_register_protocol(proto_pn_dcp);
+    expert_register_field_array(expert_pn_dcp, ei, array_length(ei));
 }
 
 void

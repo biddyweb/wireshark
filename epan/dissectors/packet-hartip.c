@@ -2,8 +2,6 @@
  * Routines for HART-IP packet dissection
  * Copyright 2012, Bill Schiller <bill.schiller@emerson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,7 +31,11 @@
 #include <epan/stats_tree.h>
 #include <epan/expert.h>
 #include <epan/prefs.h>
+#include <epan/wmem/wmem.h>
 #include "packet-tcp.h"
+
+void proto_register_hartip(void);
+void proto_reg_handoff_hartip(void);
 
 static dissector_handle_t hartip_tcp_handle;
 static dissector_handle_t hartip_udp_handle;
@@ -67,6 +69,9 @@ static int hf_hartip_pt_checksum = -1;
 static gint ett_hartip = -1;
 static gint ett_hartip_hdr = -1;
 static gint ett_hartip_body = -1;
+
+static expert_field ei_hartip_data_none = EI_INIT;
+static expert_field ei_hartip_data_unexpected = EI_INIT;
 
 /* Command 0 response */
 static int hf_hartip_pt_rsp_expansion_code = -1;
@@ -268,7 +273,7 @@ static int
 hartip_stats_tree_packet(stats_tree* st, packet_info* pinfo _U_,
                          epan_dissect_t* edt _U_, const void* p)
 {
-  const hartip_tap_info *tapinfo = p;
+  const hartip_tap_info *tapinfo = (const hartip_tap_info *)p;
   const gchar           *message_type_node_str, *message_id_node_str;
   int                    message_type_node;
 
@@ -293,9 +298,9 @@ hartip_stats_tree_packet(stats_tree* st, packet_info* pinfo _U_,
                                    hartip_message_id_values,
                                    "Unknown message %d");
 
-  tick_stat_node(st, (guint8*)st_str_packets, 0, FALSE);
-  tick_stat_node(st, (guint8*)message_type_node_str, st_node_packets, FALSE);
-  tick_stat_node(st, (guint8*)message_id_node_str, message_type_node, FALSE);
+  tick_stat_node(st, st_str_packets, 0, FALSE);
+  tick_stat_node(st, message_type_node_str, st_node_packets, FALSE);
+  tick_stat_node(st, message_id_node_str, message_type_node, FALSE);
 
   return 1;
 }
@@ -308,9 +313,9 @@ dissect_empty_body(proto_tree *tree, packet_info* pinfo, tvbuff_t *tvb,
 
   ti = proto_tree_add_item(tree, hf_hartip_data, tvb, offset, bodylen, ENC_NA);
   if (bodylen == 0) {
-    expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_NOTE, "No data");
+    expert_add_info(pinfo, ti, &ei_hartip_data_none);
   } else {
-    expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Unexpected message body");
+    expert_add_info(pinfo, ti, &ei_hartip_data_unexpected);
   }
   return bodylen;
 }
@@ -321,7 +326,7 @@ dissect_session_init(proto_tree *body_tree, tvbuff_t *tvb, gint offset,
 {
   if (bodylen == 5) {
     proto_tree_add_item(body_tree, hf_hartip_master_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset++;
+    offset += 1;
 
     proto_tree_add_item(body_tree, hf_hartip_inactivity_close_timer, tvb, offset, 4, ENC_BIG_ENDIAN);
   } else {
@@ -379,26 +384,7 @@ dissect_float(proto_tree *tree, int hf, tvbuff_t *tvb, gint offset)
 }
 
 static gint
-dissect_string(proto_tree *tree, int hf, const char *name, int len,
-               tvbuff_t *tvb, gint offset)
-{
-  proto_item *ti;
-  char       *str;
-
-  str = ep_alloc(256);
-
-  ti = proto_tree_add_item(tree, hf, tvb, offset, len, ENC_NA);
-  if (len < 256) {
-    (void) tvb_get_nstringz0(tvb, offset, len + 1, str);
-    proto_item_set_text(ti, "%s: %s", name, str);
-  }
-
-  return len;
-}
-
-static gint
-dissect_packAscii(proto_tree *tree, int hf, const char *name, int len,
-                  tvbuff_t *tvb, gint offset)
+dissect_packAscii(proto_tree *tree, int hf, tvbuff_t *tvb, gint offset, int len)
 {
   gushort     usIdx;
   gushort     usGroupCnt;
@@ -406,18 +392,15 @@ dissect_packAscii(proto_tree *tree, int hf, const char *name, int len,
   gushort     usMask;
   gint        iIndex;
   gint        i   = 0;
-  proto_item *ti;
   gushort     buf[4];
   guint8     *tmp;
   char       *str = NULL;
 
-  str = ep_alloc(256+1);
-
-  ti = proto_tree_add_item(tree, hf, tvb, offset, len, ENC_NA);
-
-  DISSECTOR_ASSERT(len < 3 * (256/4));
-  tmp = ep_alloc0(len);
+  tmp = (guint8 *)wmem_alloc0(wmem_packet_scope(), len);
   tvb_memcpy(tvb, tmp, offset, len);
+
+  /* Maximum possible unpacked length = (len / 3) * 4 */
+  str = (char *)wmem_alloc(wmem_packet_scope(), ((len / 3) * 4)+1);
 
   iIndex = 0;
   usMaxGroups = (gushort)(len / 3);
@@ -441,7 +424,8 @@ dissect_packAscii(proto_tree *tree, int hf, const char *name, int len,
     }
   }
   str[i] = '\0';
-  proto_item_set_text(ti, "%s: %s", name, str);
+
+  proto_tree_add_string(tree, hf, tvb, offset, len, str);
 
   return len;
 }
@@ -494,7 +478,7 @@ dissect_cmd0(proto_tree *body_tree, tvbuff_t *tvb, gint offset, gint bodylen)
     offset += dissect_byte(body_tree,  hf_hartip_pt_rsp_extended_device_status,           tvb, offset);
     offset += dissect_short(body_tree, hf_hartip_pt_rsp_manufacturer_Identification_code, tvb, offset);
     offset += dissect_short(body_tree, hf_hartip_pt_rsp_private_label,                    tvb, offset);
-    offset += dissect_byte(body_tree,  hf_hartip_pt_rsp_device_profile,                   tvb, offset);
+    /*offset += */dissect_byte(body_tree,  hf_hartip_pt_rsp_device_profile,                   tvb, offset);
 
     return bodylen;
   }
@@ -507,7 +491,7 @@ dissect_cmd1(proto_tree *body_tree, tvbuff_t *tvb, gint offset, gint bodylen)
 {
   if (bodylen >= 5) {
     offset += dissect_byte(body_tree,  hf_hartip_pt_rsp_pv_units, tvb, offset);
-    offset += dissect_float(body_tree, hf_hartip_pt_rsp_pv,       tvb, offset);
+    /*offset += */dissect_float(body_tree, hf_hartip_pt_rsp_pv,       tvb, offset);
     return bodylen;
   }
 
@@ -519,7 +503,7 @@ dissect_cmd2(proto_tree *body_tree, tvbuff_t *tvb, gint offset, gint bodylen)
 {
   if (bodylen >= 8) {
     offset += dissect_float(body_tree, hf_hartip_pt_rsp_pv_loop_current,  tvb, offset);
-    offset += dissect_float(body_tree, hf_hartip_pt_rsp_pv_percent_range, tvb, offset);
+    /*offset += */dissect_float(body_tree, hf_hartip_pt_rsp_pv_percent_range, tvb, offset);
     return bodylen;
   }
 
@@ -538,7 +522,7 @@ dissect_cmd3(proto_tree *body_tree, tvbuff_t *tvb, gint offset, gint bodylen)
     offset += dissect_byte(body_tree,  hf_hartip_pt_rsp_tv_units,        tvb, offset);
     offset += dissect_float(body_tree, hf_hartip_pt_rsp_tv,              tvb, offset);
     offset += dissect_byte(body_tree,  hf_hartip_pt_rsp_qv_units,        tvb, offset);
-    offset += dissect_float(body_tree, hf_hartip_pt_rsp_qv,              tvb, offset);
+    /*offset += */dissect_float(body_tree, hf_hartip_pt_rsp_qv,              tvb, offset);
 
     return bodylen;
   }
@@ -625,11 +609,11 @@ static gint
 dissect_cmd13(proto_tree *body_tree, tvbuff_t *tvb, gint offset, gint bodylen)
 {
   if (bodylen >= 21) {
-    offset += dissect_packAscii(body_tree, hf_hartip_pt_rsp_tag, "Tag", 6,                       tvb, offset);
-    offset += dissect_packAscii(body_tree, hf_hartip_pt_rsp_packed_descriptor, "descriptor", 12, tvb, offset);
+    offset += dissect_packAscii(body_tree, hf_hartip_pt_rsp_tag, tvb, offset, 6);
+    offset += dissect_packAscii(body_tree, hf_hartip_pt_rsp_packed_descriptor, tvb, offset, 12);
     offset += dissect_byte(body_tree,      hf_hartip_pt_rsp_day,                                 tvb, offset);
     offset += dissect_byte(body_tree,      hf_hartip_pt_rsp_month,                               tvb, offset);
-    offset += dissect_byte(body_tree,      hf_hartip_pt_rsp_year,                                tvb, offset);
+    /*offset += */dissect_byte(body_tree,      hf_hartip_pt_rsp_year,                                tvb, offset);
 
     return bodylen;
   }
@@ -657,7 +641,7 @@ dissect_cmd48(proto_tree *body_tree, tvbuff_t *tvb, gint offset, gint bodylen)
 
     if (bodylen >= 24) {
       proto_tree_add_item(body_tree,    hf_hartip_pt_rsp_device_sp_status,         tvb, offset, 11, ENC_NA);
-      offset += 11;
+      /*offset += 11;*/
     }
     return bodylen;
   }
@@ -683,13 +667,16 @@ dissect_parse_hart_cmds(proto_tree *body_tree, tvbuff_t *tvb, guint8 cmd,
     return dissect_cmd9(body_tree, tvb, offset, bodylen);
   case 12:
     if (bodylen >= 24)
-      return dissect_packAscii(body_tree, hf_hartip_pt_rsp_message, "Message", 24, tvb, offset);
+      return dissect_packAscii(body_tree, hf_hartip_pt_rsp_message, tvb, offset, 24);
     break;
   case 13:
     return dissect_cmd13(body_tree, tvb, offset, bodylen);
   case 20:
-    if (bodylen >= 32)
-      return dissect_string(body_tree, hf_hartip_pt_rsp_tag, "Tag", 32, tvb, offset);
+    if (bodylen >= 32) {
+      proto_tree_add_item(body_tree, hf_hartip_pt_rsp_tag, tvb, offset, 32,
+                          ENC_ASCII|ENC_NA);
+      return 32;
+    }
     break;
   case 48:
     return dissect_cmd48(body_tree, tvb, offset, bodylen);
@@ -732,8 +719,8 @@ dissect_pass_through(proto_tree *body_tree, tvbuff_t *tvb, gint offset,
     delimiter = tvb_get_guint8(tvb, offset);
     ti = proto_tree_add_uint(body_tree, hf_hartip_pt_delimiter, tvb, offset, 1,
                              delimiter);
-    offset++;
-    length--;
+    offset += 1;
+    length -= 1;
 
     if ((delimiter & 0x7) == 2) {
       frame_type_str = "STX";
@@ -755,8 +742,8 @@ dissect_pass_through(proto_tree *body_tree, tvbuff_t *tvb, gint offset,
   if (is_short == 1) {
     if (length > 0) {
       proto_tree_add_item(body_tree, hf_hartip_pt_short_addr, tvb, offset, 1, ENC_BIG_ENDIAN);
-      offset++;
-      length--;
+      offset += 1;
+      length -= 1;
     }
   } else {
     if (length > 4) {
@@ -772,25 +759,25 @@ dissect_pass_through(proto_tree *body_tree, tvbuff_t *tvb, gint offset,
   if (length > 0) {
     cmd = tvb_get_guint8(tvb, offset);
     proto_tree_add_item(body_tree, hf_hartip_pt_command, tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset++;
-    length--;
+    offset += 1;
+    length -= 1;
   }
   if (length > 0) {
     proto_tree_add_item(body_tree, hf_hartip_pt_length, tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset++;
-    length--;
+    offset += 1;
+    length -= 1;
   }
 
   if (is_rsp == 1) {
     if (length > 0) {
       proto_tree_add_item(body_tree, hf_hartip_pt_response_code, tvb, offset, 1, ENC_BIG_ENDIAN);
-      offset++;
-      length--;
+      offset += 1;
+      length -= 1;
     }
     if (length > 0) {
       proto_tree_add_item(body_tree, hf_hartip_pt_device_status, tvb, offset, 1, ENC_BIG_ENDIAN);
-      offset++;
-      length--;
+      offset += 1;
+      length -= 1;
     }
   }
 
@@ -864,20 +851,20 @@ dissect_hartip_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
   hdr_tree = proto_item_add_subtree(ti, ett_hartip_hdr);
 
   proto_tree_add_item(hdr_tree, hf_hartip_hdr_version, tvb, offset, 1, ENC_BIG_ENDIAN);
-  offset++;
+  offset += 1;
 
   message_type = tvb_get_guint8(tvb, offset);
   msg_type_str = val_to_str(message_type, hartip_message_type_values, "Unknown message type %d");
   proto_tree_add_item(hdr_tree, hf_hartip_hdr_message_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-  offset++;
+  offset += 1;
 
   message_id = tvb_get_guint8(tvb, offset);
   msg_id_str = val_to_str(message_id, hartip_message_id_values, "Unknown message %d");
   proto_tree_add_item(hdr_tree, hf_hartip_hdr_message_id, tvb, offset, 1, ENC_BIG_ENDIAN);
-  offset++;
+  offset += 1;
 
   /* Setup statistics for tap. */
-  tapinfo = ep_alloc(sizeof(hartip_tap_info));
+  tapinfo = wmem_new(wmem_packet_scope(), hartip_tap_info);
   tapinfo->message_type = message_type;
   tapinfo->message_id   = message_id;
   tap_queue_packet(hartip_tap, pinfo, tapinfo);
@@ -887,7 +874,7 @@ dissect_hartip_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
   }
 
   proto_tree_add_item(hdr_tree, hf_hartip_hdr_status, tvb, offset, 1, ENC_BIG_ENDIAN);
-  offset++;
+  offset += 1;
 
   transaction_id = tvb_get_ntohs(tvb, offset);
   proto_tree_add_item(hdr_tree, hf_hartip_hdr_transaction_id, tvb, offset, 2, ENC_BIG_ENDIAN);
@@ -943,37 +930,37 @@ dissect_hartip_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 static guint
 get_dissect_hartip_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 {
-   return tvb_get_ntohs(tvb, offset+6);
+  return tvb_get_ntohs(tvb, offset+6);
 }
 
-static void
-dissect_hartip_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_hartip_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
-    dissect_hartip_common(tvb, pinfo, tree, 0);
+  return dissect_hartip_common(tvb, pinfo, tree, 0);
 }
 
 static int
 dissect_hartip_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
-                   void *data _U_)
+                   void *data)
 {
-   if (!tvb_bytes_exist(tvb, 0, HARTIP_HEADER_LENGTH))
-      return 0;
+  if (!tvb_bytes_exist(tvb, 0, HARTIP_HEADER_LENGTH))
+    return 0;
 
-   tcp_dissect_pdus(tvb, pinfo, tree, hartip_desegment, HARTIP_HEADER_LENGTH,
-                    get_dissect_hartip_len, dissect_hartip_pdu);
-   return tvb_reported_length(tvb);
+  tcp_dissect_pdus(tvb, pinfo, tree, hartip_desegment, HARTIP_HEADER_LENGTH,
+                   get_dissect_hartip_len, dissect_hartip_pdu, data);
+  return tvb_reported_length(tvb);
 }
 
 static int
 dissect_hartip_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                    void *data _U_)
 {
-    gint offset = 0;
+  gint offset = 0;
 
-    while (tvb_reported_length_remaining(tvb, offset) >= HARTIP_HEADER_LENGTH)
-        offset += dissect_hartip_common(tvb, pinfo, tree, offset);
+  while (tvb_reported_length_remaining(tvb, offset) >= HARTIP_HEADER_LENGTH)
+    offset += dissect_hartip_common(tvb, pinfo, tree, offset);
 
-    return offset;
+  return offset;
 }
 
 void
@@ -1433,7 +1420,7 @@ proto_register_hartip(void)
     /* command 13 */
     { &hf_hartip_pt_rsp_packed_descriptor,
       { "Descriptor",           "hart_ip.pt.rsp.descriptor",
-        FT_BYTES, BASE_NONE, NULL, 0x0,
+        FT_STRINGZPAD, BASE_NONE, NULL, 0x0,
         NULL, HFILL }
     },
     { &hf_hartip_pt_rsp_day,
@@ -1455,14 +1442,14 @@ proto_register_hartip(void)
     /* Tag */
     { &hf_hartip_pt_rsp_tag,
       { "Tag",           "hart_ip.pt.rsp.tag",
-        FT_BYTES, BASE_NONE, NULL, 0x0,
+        FT_STRINGZPAD, BASE_NONE, NULL, 0x0,
         NULL, HFILL }
     },
 
     /* Message */
     { &hf_hartip_pt_rsp_message,
       { "Message",           "hart_ip.pt.rsp.message",
-        FT_BYTES, BASE_NONE, NULL, 0x0,
+        FT_STRINGZPAD, BASE_NONE, NULL, 0x0,
         NULL, HFILL }
     },
 
@@ -1516,11 +1503,19 @@ proto_register_hartip(void)
     &ett_hartip_body
   };
 
+  static ei_register_info ei[] = {
+     { &ei_hartip_data_none, { "hart_ip.data.none", PI_PROTOCOL, PI_NOTE, "No data", EXPFILL }},
+     { &ei_hartip_data_unexpected, { "hart_ip.data.unexpected", PI_PROTOCOL, PI_WARN, "Unexpected message body", EXPFILL }},
+  };
+
   module_t *hartip_module;
+  expert_module_t* expert_hartip;
 
   proto_hartip = proto_register_protocol("HART_IP Protocol", "HART_IP", "hart_ip");
   proto_register_field_array(proto_hartip, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_hartip = expert_register_protocol(proto_hartip);
+  expert_register_field_array(expert_hartip, ei, array_length(ei));
 
   hartip_module = prefs_register_protocol(proto_hartip, NULL);
   prefs_register_bool_preference(hartip_module, "desegment",
@@ -1548,11 +1543,11 @@ proto_reg_handoff_hartip(void)
  *
  * Local variables:
  * c-basic-offset: 2
- * tab-width: 2
+ * tab-width: 8
  * indent-tabs-mode: nil
  * End:
  *
- * vi: set shiftwidth=2 tabstop=2 expandtab:
- * :indentSize=2:tabSize=2:noTabs=true:
+ * vi: set shiftwidth=2 tabstop=8 expandtab:
+ * :indentSize=2:tabSize=8:noTabs=true:
  */
 

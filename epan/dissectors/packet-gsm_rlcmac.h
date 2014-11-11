@@ -5,8 +5,6 @@
  * with the gracious authorization of STE
  * Copyright (c) 2011 ST-Ericsson
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -1083,10 +1081,10 @@ typedef struct
   guint32 TLLI;
 } Packet_Uplink_Dummy_Control_Block_t;
 
-/*< MS Radio Access capability IE >
+/* MS Radio Access capability IE >
  * 24.008 (10.5.5.12a)
  */
-typedef guint8 A5_bits_t;/*<A5 bits> ::= < A5/1 : bit> <A5/2 : bit> <A5/3 : bit> <A5/4 : bit> <A5/5 : bit> <A5/6 : bit> <A5/7 : bit>; -- bits for circuit mode ciphering algorithms */
+typedef guint8 A5_bits_t;/* <A5 bits> ::= < A5/1 : bit> <A5/2 : bit> <A5/3 : bit> <A5/4 : bit> <A5/5 : bit> <A5/6 : bit> <A5/7 : bit>; -- bits for circuit mode ciphering algorithms */
 
 typedef struct
 {
@@ -5240,8 +5238,6 @@ typedef struct
   REPORTING_QUANTITY_Instance_t REPORTING_QUANTITY_Instances[REPORT_QUANTITY_LIST_LEN];
 
 } EnhancedMeasurementReport_t;
-
-extern gint f_k(gint k, gint *w, gint range);
 
 extern const guint8 gsm_rlcmac_gprs_cs_to_block_length[];
 extern const guint8 gsm_rlcmac_egprs_header_type_to_dl_header_block_length[];

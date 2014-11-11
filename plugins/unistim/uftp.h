@@ -1,9 +1,7 @@
 /* uftp.h
-  * header field declarations, value_string def and true_false_string 
+  * header field declarations, value_string def and true_false_string
   * definitions for uftp commands and messages
   * Copyright 2007 Chad Singer <csinger@cypresscom.net>
-  *
-  * $Id$
   *
   * Wireshark - Network traffic analyzer
   * By Gerald Combs <gerald@wireshark.org>

@@ -1,8 +1,6 @@
 # cdt.cnf
 # Compressed Data Type conformation file
 
-# $Id$
-
 #.EXPORTS
 CompressedData
 
@@ -25,8 +23,8 @@ CompressedData    B "1.3.26.0.4406.0.4.2"  "cdt"
                           val_to_str (value, cdt_AlgorithmID_ShortForm_vals,
                                       "unknown"));
 
-  col_append_fstr (actx->pinfo->cinfo, COL_INFO, "%%s ", 
-                   val_to_str (value, cdt_AlgorithmID_ShortForm_vals, 
+  col_append_fstr (actx->pinfo->cinfo, COL_INFO, "%%s ",
+                   val_to_str (value, cdt_AlgorithmID_ShortForm_vals,
                                "unknown"));
 
 #.FN_PARS ContentType-ShortForm
@@ -36,11 +34,11 @@ CompressedData    B "1.3.26.0.4406.0.4.2"  "cdt"
 
   %(DEFAULT_BODY)s
   proto_item_append_text (cdt_item, ", %%s",
-                          val_to_str (content_type, cdt_ContentType_ShortForm_vals, 
+                          val_to_str (content_type, cdt_ContentType_ShortForm_vals,
                                       "unknown"));
 
-  col_append_fstr (actx->pinfo->cinfo, COL_INFO, "%%s ", 
-                   val_to_str (content_type, cdt_ContentType_ShortForm_vals, 
+  col_append_fstr (actx->pinfo->cinfo, COL_INFO, "%%s ",
+                   val_to_str (content_type, cdt_ContentType_ShortForm_vals,
                                "unknown"));
 
 #.FN_PARS CompressedContentInfo/contentType/contentType-OID
@@ -67,28 +65,23 @@ CompressedData    B "1.3.26.0.4406.0.4.2"  "cdt"
 
 #.FN_BODY CompressedContent
   tvbuff_t   *next_tvb = NULL, *compr_tvb = NULL;
-  proto_item *tf = NULL;
   int         save_offset = offset;
 
   %(DEFAULT_BODY)s
   if (compr_tvb == NULL) {
-    tf = proto_tree_add_text (top_tree, tvb, save_offset, -1,
-                              "[Error: Unable to get compressed content]");
-    expert_add_info_format (actx->pinfo, tf, PI_UNDECODED, PI_ERROR,
-                            "Unable to get compressed content");
-    col_append_str (actx->pinfo->cinfo, COL_INFO, 
+    proto_tree_add_expert(top_tree, actx->pinfo, &ei_cdt_unable_compress_content,
+							tvb, save_offset, -1);
+    col_append_str (actx->pinfo->cinfo, COL_INFO,
                     "[Error: Unable to get compressed content]");
     return offset;
   }
-  
+
   next_tvb = tvb_child_uncompress (tvb, compr_tvb, 0, tvb_length (compr_tvb));
 
   if (next_tvb == NULL) {
-    tf = proto_tree_add_text (top_tree, tvb, save_offset, -1,
-                              "[Error: Unable to uncompress content]");
-    expert_add_info_format (actx->pinfo, tf, PI_UNDECODED, PI_ERROR,
-                            "Unable to uncompress content");
-    col_append_str (actx->pinfo->cinfo, COL_INFO, 
+    proto_tree_add_expert(top_tree, actx->pinfo, &ei_cdt_unable_uncompress_content,
+							tvb, save_offset, -1);
+    col_append_str (actx->pinfo->cinfo, COL_INFO,
                     "[Error: Unable to uncompress content]");
     return offset;
   }
@@ -109,5 +102,5 @@ CompressedData    B "1.3.26.0.4406.0.4.2"  "cdt"
      call_dissector (data_handle, next_tvb, actx->pinfo, top_tree);
      break;
    }
-  
+
 #.END

@@ -20,8 +20,6 @@
  * Enhanced error code handling
  * provided by Stipe Tolj from Kannel.
  *
- * $Id$
- *
  * Refer to the AUTHORS file or the AUTHORS section in the man page
  * for contacting the author(s) of this file.
  *
@@ -58,11 +56,12 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/tap.h>
 #include <epan/stats_tree.h>
 
 #include <epan/prefs.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include "packet-tcp.h"
 #include "packet-smpp.h"
 
@@ -83,9 +82,11 @@
 #define SMPP_MIN_LENGTH 16
 
 /* Forward declarations         */
-static void dissect_smpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+void proto_register_smpp(void);
+void proto_reg_handoff_smpp(void);
+static int dissect_smpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data);
 static guint get_smpp_pdu_len(packet_info *pinfo, tvbuff_t *tvb, int offset);
-static void dissect_smpp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+static int dissect_smpp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_);
 
 /*
  * Initialize the protocol and registered fields
@@ -1105,7 +1106,7 @@ static dissector_handle_t gsm_sms_handle;
 /*
  * For Stats Tree
  */
-void
+static void
 smpp_stats_tree_init(stats_tree* st)
 {
     st_smpp_ops = stats_tree_create_node(st, "SMPP Operations", 0, TRUE);
@@ -1115,13 +1116,13 @@ smpp_stats_tree_init(stats_tree* st)
 
 }
 
-int
+static int
 smpp_stats_tree_per_packet(stats_tree *st, /* st as it was passed to us */
                            packet_info *pinfo _U_,
                            epan_dissect_t *edt _U_,
                            const void *p) /* Used for getting SMPP command_id values */
 {
-    smpp_tap_rec_t* tap_rec = (smpp_tap_rec_t*)p;
+    const smpp_tap_rec_t* tap_rec = (const smpp_tap_rec_t*)p;
 
     tick_stat_node(st, "SMPP Operations", 0, TRUE);
 
@@ -1248,7 +1249,7 @@ smpp_handle_string_return(proto_tree *tree, tvbuff_t *tvb, int field, int *offse
 
     len = tvb_strsize(tvb, *offset);
     if (len > 1) {
-        str = (char *)tvb_get_ephemeral_stringz(tvb, *offset, &len);
+        str = (char *)tvb_get_stringz(wmem_packet_scope(), tvb, *offset, &len);
         proto_tree_add_string(tree, field, tvb, *offset, len, str);
     } else {
         str = "";
@@ -1310,7 +1311,7 @@ smpp_handle_time(proto_tree *tree, tvbuff_t *tvb,
     gint      len;
     nstime_t  tmptime;
 
-    strval = (char *) tvb_get_ephemeral_stringz(tvb, *offset, &len);
+    strval = (char *) tvb_get_stringz(wmem_packet_scope(), tvb, *offset, &len);
     if (*strval)
     {
         if (len >= 16)
@@ -1474,7 +1475,7 @@ smpp_handle_tlv(proto_tree *tree, tvbuff_t *tvb, int *offset)
                                  hf_smpp_source_bearer_type, offset);
                 break;
             case  0x0010:       /* source_telematics_id */
-                smpp_handle_int2(sub_tree, tvb,
+                smpp_handle_int1(sub_tree, tvb,
                                  hf_smpp_source_telematics_id, offset);
                 break;
             case  0x0017:       /* qos_time_to_live     */
@@ -1555,7 +1556,7 @@ smpp_handle_tlv(proto_tree *tree, tvbuff_t *tvb, int *offset)
                 field = tvb_get_guint8(tvb, *offset);
                 minor = field & 0x0F;
                 major = (field & 0xF0) >> 4;
-                strval=ep_strdup_printf("%u.%u", major, minor);
+                strval=wmem_strdup_printf(wmem_packet_scope(), "%u.%u", major, minor);
                 proto_tree_add_string(sub_tree, hf_smpp_SC_interface_version,
                                       tvb, *offset, 1, strval);
                 (*offset)++;
@@ -1781,7 +1782,7 @@ smpp_handle_tlv(proto_tree *tree, tvbuff_t *tvb, int *offset)
                                         *offset, length, ENC_NA);
                 }
 
-                proto_item_append_text(sub_tree,": %s", tvb_bytes_to_str(tvb,*offset,length));
+                proto_item_append_text(sub_tree,": %s", tvb_bytes_to_ep_str(tvb,*offset,length));
                 (*offset) += length;
                 break;
         }
@@ -1886,7 +1887,7 @@ bind_receiver(proto_tree *tree, tvbuff_t *tvb)
     field = tvb_get_guint8(tvb, offset++);
     minor = field & 0x0F;
     major = (field & 0xF0) >> 4;
-    strval=ep_strdup_printf("%u.%u", major, minor);
+    strval=wmem_strdup_printf(wmem_packet_scope(), "%u.%u", major, minor);
     proto_tree_add_string(tree, hf_smpp_interface_version, tvb,
                           offset - 1, 1, strval);
     smpp_handle_int1(tree, tvb, hf_smpp_addr_ton, &offset);
@@ -2358,7 +2359,7 @@ huawei_sm_result_notify_resp(proto_tree *tree, tvbuff_t *tvb)
  *      has a 'well-known' or 'reserved' status
  */
 static gboolean
-dissect_smpp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_smpp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
     guint        command_id;            /* SMPP command         */
     guint        command_status;        /* Status code          */
@@ -2370,13 +2371,13 @@ dissect_smpp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
     if (command_length > 64 * 1024 || command_length < SMPP_MIN_LENGTH)
         return FALSE;
     command_id = tvb_get_ntohl(tvb, 4);         /* Only known commands  */
-    if (match_strval(command_id, vals_command_id) == NULL)
+    if (try_val_to_str(command_id, vals_command_id) == NULL)
         return FALSE;
     command_status = tvb_get_ntohl(tvb, 8);     /* ..with known status  */
-    if (match_strval(command_status, vals_command_status) == NULL &&
-                match_strrval(command_status, reserved_command_status) == NULL)
+    if (try_val_to_str(command_status, vals_command_status) == NULL &&
+                try_rval_to_str(command_status, reserved_command_status) == NULL)
         return FALSE;
-    dissect_smpp(tvb, pinfo, tree);
+    dissect_smpp(tvb, pinfo, tree, data);
     return TRUE;
 }
 
@@ -2396,8 +2397,8 @@ get_smpp_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
  */
 static gboolean first = TRUE;
 
-static void
-dissect_smpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_smpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
     first = TRUE;
     if (pinfo->ptype == PT_TCP) {       /* are we running on top of TCP */
@@ -2405,7 +2406,7 @@ dissect_smpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 reassemble_over_tcp,    /* Do we try to reassemble      */
                 16,                     /* Length of fixed header       */
                 get_smpp_pdu_len,       /* Function returning PDU len   */
-                dissect_smpp_pdu);      /* PDU dissector                */
+                dissect_smpp_pdu, data);      /* PDU dissector                */
     } else {                            /* no? probably X.25            */
         guint32 offset = 0;
         while (tvb_reported_length_remaining(tvb, offset) > 0) {
@@ -2417,21 +2418,23 @@ dissect_smpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 THROW(ReportedBoundsError);
 
             if (pdu_real_len <= 0)
-                return;
+                return offset;
             if (pdu_real_len > pdu_len)
                 pdu_real_len = pdu_len;
             pdu_tvb = tvb_new_subset(tvb, offset, pdu_real_len, pdu_len);
-            dissect_smpp_pdu(pdu_tvb, pinfo, tree);
+            dissect_smpp_pdu(pdu_tvb, pinfo, tree, data);
             offset += pdu_len;
             first = FALSE;
         }
     }
+
+    return tvb_length(tvb);
 }
 
 
 /* Dissect a single SMPP PDU contained within "tvb". */
-static void
-dissect_smpp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_smpp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
     int             offset      = 0; /* Offset within tvbuff */
     guint           command_length;  /* length of PDU        */
@@ -2450,7 +2453,7 @@ dissect_smpp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      * when the mandatory header isn't present.
      */
     if (tvb_reported_length(tvb) < SMPP_MIN_LENGTH)
-        return;
+        return 0;
     command_length = tvb_get_ntohl(tvb, offset);
     offset += 4;
     command_id = tvb_get_ntohl(tvb, offset);
@@ -2460,12 +2463,12 @@ dissect_smpp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     command_status = tvb_get_ntohl(tvb, offset);
     if (command_id & 0x80000000) {
         /* PDU is a response. */
-        command_status_str = match_strval(command_status, vals_command_status);
+        command_status_str = try_val_to_str(command_status, vals_command_status);
         if (command_status_str == NULL) {
                 /* Check if the reserved value is in the vendor-specific range. */
                 command_status_str = (command_status >= 0x400 && command_status <= 0x4FF ?
-                                ep_strdup_printf("Vendor-specific Error (0x%08X)", command_status) :
-                                ep_strdup_printf("(Reserved Error 0x%08X)", command_status));
+                                wmem_strdup_printf(wmem_packet_scope(), "Vendor-specific Error (0x%08X)", command_status) :
+                                wmem_strdup_printf(wmem_packet_scope(), "(Reserved Error 0x%08X)", command_status));
         }
     }
     offset += 4;
@@ -2496,27 +2499,24 @@ dissect_smpp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         /*
          * Make entries in the Info column on the summary display
          */
-        if (check_col(pinfo->cinfo, COL_INFO)) {
-            if (first == TRUE) {
-                /*
-                 * First PDU - We already computed the fixed header
-                 */
-                col_clear(pinfo->cinfo, COL_INFO);
-                col_add_fstr(pinfo->cinfo, COL_INFO, "SMPP %s", command_str);
-                first = FALSE;
-            } else {
-                /*
-                 * Subsequent PDUs
-                 */
-                col_append_fstr(pinfo->cinfo, COL_INFO, ", %s", command_str);
-            }
+        if (first == TRUE) {
             /*
-             * Display command status of responses in Info column
-             */
-            if (command_id & 0x80000000) {
-                col_append_fstr(pinfo->cinfo, COL_INFO, ": \"%s\"",
-                        command_status_str);
-            }
+                * First PDU - We already computed the fixed header
+                */
+            col_add_fstr(pinfo->cinfo, COL_INFO, "SMPP %s", command_str);
+            first = FALSE;
+        } else {
+            /*
+                * Subsequent PDUs
+                */
+            col_append_fstr(pinfo->cinfo, COL_INFO, ", %s", command_str);
+        }
+        /*
+            * Display command status of responses in Info column
+            */
+        if (command_id & 0x80000000) {
+            col_append_fstr(pinfo->cinfo, COL_INFO, ": \"%s\"",
+                    command_status_str);
         }
 
         /*
@@ -2717,11 +2717,11 @@ dissect_smpp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 } /* if (command_id & 0x80000000) */
 
             } /* if (command_length <= tvb_reported_length(pdu_tvb)) */
-            offset += command_length;
+            /*offset += command_length;*/
         } /* if (tree || (command_id == 4)) */
 
         /* Queue packet for Tap */
-        tap_rec = ep_alloc0(sizeof(smpp_tap_rec_t));
+        tap_rec = wmem_new0(wmem_packet_scope(), smpp_tap_rec_t);
         tap_rec->command_id = command_id;
         tap_rec->command_status = command_status;
         tap_queue_packet(smpp_tap, pinfo, tap_rec);
@@ -2729,7 +2729,7 @@ dissect_smpp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         first = FALSE;
     }
 
-    return;
+    return tvb_length(tvb);
 }
 
 
@@ -3122,7 +3122,7 @@ proto_register_smpp(void)
         },
         {   &hf_smpp_source_telematics_id,
             {   "Telematic interworking (orig)", "smpp.source_telematics_id",
-                FT_UINT16, BASE_HEX, NULL, 0x00,
+                FT_UINT8, BASE_HEX, NULL, 0x00,
                 "Telematic interworking used for message submission.",
                 HFILL
             }
@@ -3769,7 +3769,7 @@ proto_register_smpp(void)
     proto_register_subtree_array(ett, array_length(ett));
 
     /* Allow other dissectors to find this one by name. */
-    register_dissector("smpp", dissect_smpp, proto_smpp);
+    new_register_dissector("smpp", dissect_smpp, proto_smpp);
 
     /* Register for tapping */
     smpp_tap = register_tap("smpp");

@@ -1,6 +1,3 @@
-# $Id$
-#
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -57,7 +54,7 @@ ASN_FILE_LIST= \
 # The packet-$(PROTOCOL_NAME)-template.h and $(PROTOCOL_NAME).asn
 # files do not exist for all protocols: Please add/remove as required.
 EXTRA_DIST = \
-	Makefile.nmake \
+	$(EXTRA_DIST_COMMON) \
 	$(ASN_FILE_LIST) \
 	packet-$(PROTOCOL_NAME)-template.c \
 	packet-$(PROTOCOL_NAME)-template.h \
@@ -78,3 +75,4 @@ $(builddir)/../dap/dap-exp.cnf:
 
 $(builddir)/../dsp/dsp-exp.cnf:
 	(cd $(builddir)/../dsp && $(MAKE_CNF_EXPORT))
+

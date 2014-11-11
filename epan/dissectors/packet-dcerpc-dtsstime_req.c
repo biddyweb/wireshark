@@ -4,8 +4,6 @@
  * This information is based off the released idl files from opengroup.
  * ftp://ftp.opengroup.org/pub/dce122/dce/src/time.tar.gz time/service/dtsstime_req.idl
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,8 @@
 #include <epan/packet.h>
 #include "packet-dcerpc.h"
 
+void proto_register_dtsstime_req (void);
+void proto_reg_handoff_dtsstime_req (void);
 
 static int proto_dtsstime_req = -1;
 static int hf_dtsstime_req_opnum = -1;
@@ -45,7 +45,7 @@ static guint16  ver_dtsstime_req = 1;
 
 
 static dcerpc_sub_dissector dtsstime_req_dissectors[] = {
-	{ 0, "ClerkRequestTime", NULL, NULL},
+	{ 0, "ClerkRequestTime",  NULL, NULL},
 	{ 1, "ServerRequestTime", NULL, NULL},
 	{ 0, NULL, NULL, NULL }
 };

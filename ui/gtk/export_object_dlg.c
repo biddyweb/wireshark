@@ -2,8 +2,6 @@
  * Common routines for tracking & saving objects found in streams of data
  * Copyright 2007, Stephen Fisher (see AUTHORS file)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -152,14 +150,37 @@ guint	nparts,i;
 	return saveable_pathname;
 }
 
+static char *
+gtk_eo_save_object_as_file(export_object_list_t *object_list, char *auxfilename)
+{
+	GtkWidget *save_as_w;
+	char *pathname;
+
+	save_as_w = file_selection_new("Wireshark: Save Object As ...",
+				       GTK_WINDOW(object_list->dlg),
+				       FILE_SELECTION_SAVE);
+
+	gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(save_as_w),
+					  auxfilename);
+	pathname = file_selection_run(save_as_w);
+	if (pathname == NULL) {
+		/* User cancelled or closed the dialog. */
+		return NULL;
+	}
+
+	/* We've crosed the Rubicon; get rid of the dialog box. */
+	window_destroy(save_as_w);
+
+	return pathname;
+}
+
 static void
 eo_save_clicked_cb(GtkWidget *widget _U_, gpointer arg)
 {
-	GtkWidget *save_as_w;
 	export_object_list_t *object_list = (export_object_list_t *)arg;
 	export_object_entry_t *entry;
-	gchar *filename = NULL;
 	gchar *auxfilename = NULL;
+	char *pathname;
 
 	entry =(export_object_entry_t *) g_slist_nth_data(object_list->entries,
 				 object_list->row_selected);
@@ -169,26 +190,28 @@ eo_save_clicked_cb(GtkWidget *widget _U_, gpointer arg)
 		return;
 	}
 
-	save_as_w = file_selection_new("Wireshark: Save Object As ...",
-				       FILE_SELECTION_SAVE);
-
-	gtk_window_set_transient_for(GTK_WINDOW(save_as_w),
-				     GTK_WINDOW(object_list->dlg));
-
 	auxfilename = eo_saveable_pathname(entry->filename);
 
-	gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(save_as_w),
-					  auxfilename);
-
-
-	if(gtk_dialog_run(GTK_DIALOG(save_as_w)) == GTK_RESPONSE_ACCEPT) {
-		filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(save_as_w));
-		eo_save_entry(filename, entry, TRUE);
+	/*
+	 * Loop until the user either selects a file or gives up.
+	 */
+	for (;;) {
+		pathname = gtk_eo_save_object_as_file(object_list, auxfilename);
+		if (pathname == NULL) {
+			/* User gave up. */
+			break;
+		}
+		if (eo_save_entry(pathname, entry, TRUE)) {
+			/* We succeeded. */
+			g_free(pathname);
+			break;
+		}
+		/* Dump failed; let the user select another file
+		   or give up. */
+		g_free(pathname);
 	}
 
 	g_free(auxfilename);
-	g_free(filename);
-	window_destroy(save_as_w);
 }
 
 #define MAXFILELEN		255
@@ -207,10 +230,8 @@ eo_save_all_clicked_cb(GtkWidget *widget _U_, gpointer arg)
 	int count = 0;
 
 	save_in_w = file_selection_new("Wireshark: Save All Objects In ...",
+				       GTK_WINDOW(object_list->dlg),
 				       FILE_SELECTION_CREATE_FOLDER);
-
-	gtk_window_set_transient_for(GTK_WINDOW(save_in_w),
-				     GTK_WINDOW(object_list->dlg));
 
 	if (gtk_dialog_run(GTK_DIALOG(save_in_w)) == GTK_RESPONSE_ACCEPT) {
 		while (slist) {
@@ -294,7 +315,7 @@ eo_draw(void *tapdata)
 		gtk_tree_store_append(object_list->store, &new_iter,
 				      object_list->iter);
 
-		size_str = format_size(eo_entry->payload_len, format_size_unit_bytes|format_size_prefix_si);
+		size_str = format_size(eo_entry->payload_len, (format_size_flags_e)(format_size_unit_bytes|format_size_prefix_si));
 		gtk_tree_store_set(object_list->store, &new_iter,
 				   EO_PKT_NUM_COLUMN, eo_entry->pkt_num,
 				   EO_HOSTNAME_COLUMN, eo_entry->hostname,

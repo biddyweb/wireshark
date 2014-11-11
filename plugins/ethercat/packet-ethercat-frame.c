@@ -1,8 +1,6 @@
 /* packet-ethercat-frame.c
  * Routines for ethercat packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2007 by Beckhoff Automation GmbH
  *
  * Wireshark - Network traffic analyzer
@@ -34,6 +32,9 @@
 #include <epan/etypes.h>
 
 #include "packet-ethercat-frame.h"
+
+void proto_register_ethercat_frame(void);
+void proto_reg_handoff_ethercat_frame(void);
 
 /* Define the Ethercat frame proto */
 static int proto_ethercat_frame = -1;

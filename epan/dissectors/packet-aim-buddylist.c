@@ -2,8 +2,6 @@
  * Routines for AIM Instant Messenger (OSCAR) dissection, SNAC Buddylist
  * Copyright 2004, Jelmer Vernooij <jelmer@samba.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -60,13 +58,13 @@ static gint ett_aim_buddylist = -1;
 static int dissect_aim_buddylist_buddylist(tvbuff_t *tvb, packet_info *pinfo, proto_tree *buddy_tree)
 {
 	int offset = 0;
-	while(tvb_length_remaining(tvb, offset) > 0) {
+	while (tvb_length_remaining(tvb, offset) > 0) {
 		offset = dissect_aim_buddyname( tvb, pinfo, offset, buddy_tree);
 	}
 	return offset;
 }
 
-static int dissect_aim_buddylist_rights_repl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *buddy_tree) 
+static int dissect_aim_buddylist_rights_repl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *buddy_tree)
 {
 	return dissect_aim_tlv_sequence(tvb, pinfo, 0, buddy_tree, aim_buddylist_tlvs);
 }
@@ -78,9 +76,9 @@ static int dissect_aim_buddylist_reject(tvbuff_t *tvb, packet_info *pinfo, proto
 
 static int dissect_aim_buddylist_oncoming(tvbuff_t *tvb, packet_info *pinfo, proto_tree *buddy_tree)
 {
-	guchar buddyname[MAX_BUDDYNAME_LENGTH+1];
-	int offset = 0;
-	int buddyname_length = aim_get_buddyname( buddyname, tvb, offset, offset + 1 );
+	guint8 *buddyname;
+	int    offset           = 0;
+	int    buddyname_length = aim_get_buddyname( &buddyname, tvb, offset );
 
 	col_set_str(pinfo->cinfo, COL_INFO, "Oncoming Buddy");
 	col_append_fstr(pinfo->cinfo, COL_INFO, ": %s",
@@ -89,7 +87,7 @@ static int dissect_aim_buddylist_oncoming(tvbuff_t *tvb, packet_info *pinfo, pro
 	offset += dissect_aim_buddyname(tvb, pinfo, offset, buddy_tree);
 
 	/* Warning level */
-	proto_tree_add_item(buddy_tree, hf_aim_userinfo_warninglevel, tvb, offset, 
+	proto_tree_add_item(buddy_tree, hf_aim_userinfo_warninglevel, tvb, offset,
 						2, ENC_BIG_ENDIAN);
 	offset += 2;
 
@@ -98,12 +96,12 @@ static int dissect_aim_buddylist_oncoming(tvbuff_t *tvb, packet_info *pinfo, pro
 	return offset;
 }
 
-static int dissect_aim_buddylist_offgoing(tvbuff_t *tvb, packet_info *pinfo, proto_tree *buddy_tree) 
+static int dissect_aim_buddylist_offgoing(tvbuff_t *tvb, packet_info *pinfo, proto_tree *buddy_tree)
 {
 
-	guchar buddyname[MAX_BUDDYNAME_LENGTH+1];
-	int offset = 0;
-	int buddyname_length = aim_get_buddyname( buddyname, tvb, offset, offset + 1 );
+	guint8 *buddyname;
+	int    offset           = 0;
+	int    buddyname_length = aim_get_buddyname( &buddyname, tvb, offset );
 
 	col_set_str(pinfo->cinfo, COL_INFO, "Offgoing Buddy");
 	col_append_fstr(pinfo->cinfo, COL_INFO, ": %s",
@@ -112,7 +110,7 @@ static int dissect_aim_buddylist_offgoing(tvbuff_t *tvb, packet_info *pinfo, pro
 	offset += dissect_aim_buddyname(tvb, pinfo, offset, buddy_tree);
 
 	/* Warning level */
-	proto_tree_add_item(buddy_tree, hf_aim_userinfo_warninglevel, tvb, offset, 
+	proto_tree_add_item(buddy_tree, hf_aim_userinfo_warninglevel, tvb, offset,
 						2, ENC_BIG_ENDIAN);
 	offset += 2;
 
@@ -127,7 +125,7 @@ static const aim_subtype aim_fnac_family_buddylist[] = {
 	{ 0x0005, "Remove Buddy", dissect_aim_buddylist_buddylist },
 	{ 0x0006, "Watchers List Request", NULL },
 	{ 0x0007, "Watchers List Reply", dissect_aim_buddylist_buddylist },
-	{ 0x000a, "Reject Buddy", dissect_aim_buddylist_reject }, 
+	{ 0x000a, "Reject Buddy", dissect_aim_buddylist_reject },
 	{ 0x000b, "Oncoming Buddy", dissect_aim_buddylist_oncoming },
 	{ 0x000c, "Offgoing Buddy", dissect_aim_buddylist_offgoing },
 	{ 0, NULL, NULL }
@@ -141,7 +139,7 @@ proto_register_aim_buddylist(void)
 	/* Setup list of header fields */
 	static hf_register_info hf[] = {
 		{ &hf_aim_userinfo_warninglevel,
-			{ "Warning Level", "aim_buddylist.userinfo.warninglevel", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL },
+		  { "Warning Level", "aim_buddylist.userinfo.warninglevel", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL },
 		},
 	};
 

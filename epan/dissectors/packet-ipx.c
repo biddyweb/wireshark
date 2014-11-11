@@ -6,8 +6,6 @@
  * Portions Copyright (c) 2000-2002 by Gilbert Ramirez.
  * Portions Copyright (c) Novell, Inc. 2002-2003
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -41,7 +39,10 @@
 #include <epan/arcnet_pids.h>
 #include <epan/conversation.h>
 #include <epan/tap.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
+
+void proto_register_ipx(void);
+void proto_reg_handoff_ipx(void);
 
 static int ipx_tap = -1;
 
@@ -86,12 +87,17 @@ static int hf_spx_connection_control_sys = -1;
 static int hf_spx_connection_control_send_ack = -1;
 static int hf_spx_connection_control_attn = -1;
 static int hf_spx_connection_control_eom = -1;
+static int hf_spx_connection_control_v2 = -1;
+static int hf_spx_connection_control_neg_size = -1;
+static int hf_spx_connection_control_reserved = -1;
+static int hf_spx_connection_control_ext_header = -1;
 static int hf_spx_datastream_type = -1;
 static int hf_spx_src_id = -1;
 static int hf_spx_dst_id = -1;
 static int hf_spx_seq_nr = -1;
 static int hf_spx_ack_nr = -1;
 static int hf_spx_all_nr = -1;
+static int hf_spx_neg_size = -1;
 static int hf_spx_rexmt_frame = -1;
 
 static gint ett_spx = -1;
@@ -282,8 +288,7 @@ dissect_ipx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	SET_ADDRESS(&pinfo->dst,	AT_IPX, 10, dst_net_node);
 	SET_ADDRESS(&ipxh->ipx_dst,	AT_IPX, 10, dst_net_node);
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_fstr(pinfo->cinfo, COL_INFO, "%s (0x%04x)",
+	col_add_fstr(pinfo->cinfo, COL_INFO, "%s (0x%04x)",
 				socket_text(ipxh->ipx_dsocket), ipxh->ipx_dsocket);
 
 	if (tree) {
@@ -292,20 +297,20 @@ dissect_ipx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		ipx_tree = proto_item_add_subtree(ti, ett_ipx);
 	}
 
-	str=ep_address_to_str(&pinfo->net_src);
+	str=address_to_str(wmem_packet_scope(), &pinfo->net_src);
 	hidden_item = proto_tree_add_string(ipx_tree, hf_ipx_src, tvb, 0, 0, str);
 	PROTO_ITEM_SET_HIDDEN(hidden_item);
 	hidden_item = proto_tree_add_string(ipx_tree, hf_ipx_addr, tvb, 0, 0, str);
 	PROTO_ITEM_SET_HIDDEN(hidden_item);
-	str=ep_address_to_str(&pinfo->net_dst);
+	str=address_to_str(wmem_packet_scope(), &pinfo->net_dst);
 	hidden_item = proto_tree_add_string(ipx_tree, hf_ipx_dst, tvb, 0, 0, str);
 	PROTO_ITEM_SET_HIDDEN(hidden_item);
 	hidden_item = proto_tree_add_string(ipx_tree, hf_ipx_addr, tvb, 0, 0, str);
 	PROTO_ITEM_SET_HIDDEN(hidden_item);
 
 	proto_tree_add_item(ipx_tree, hf_ipx_checksum, tvb, 0, 2, ENC_BIG_ENDIAN);
-	proto_tree_add_uint_format(ipx_tree, hf_ipx_len, tvb, 2, 2, ipxh->ipx_length,
-		"Length: %d bytes", ipxh->ipx_length);
+	proto_tree_add_uint_format_value(ipx_tree, hf_ipx_len, tvb, 2, 2, ipxh->ipx_length,
+		"%d bytes", ipxh->ipx_length);
 	ipx_hops = tvb_get_guint8(tvb, 4);
 	proto_tree_add_uint_format(ipx_tree, hf_ipx_hops, tvb, 4, 1, ipx_hops,
 		"Transport Control: %d hops", ipx_hops);
@@ -347,11 +352,6 @@ dissect_ipx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	next_tvb = tvb_new_subset_remaining(tvb, IPX_HEADER_LEN);
 
 	/*
-	 * Let the subdissector know what type of IPX packet this is.
-	 */
-	pinfo->ipxptype = ipxh->ipx_type;
-
-	/*
 	 * Check the socket numbers before we check the packet type;
 	 * we've seen non-NCP packets with a type of NCP and a
 	 * destination socket of IPX_SOCKET_IPX_MESSAGE, and SAP
@@ -389,20 +389,20 @@ dissect_ipx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	tap_queue_packet(ipx_tap, pinfo, ipxh);
 
 	if (second_socket != IPX_SOCKET_NWLINK_SMB_NAMEQUERY) {
-		if (dissector_try_uint(ipx_socket_dissector_table, first_socket,
-		    next_tvb, pinfo, tree))
+		if (dissector_try_uint_new(ipx_socket_dissector_table, first_socket,
+			next_tvb, pinfo, tree, FALSE, ipxh))
 			return;
 	}
-	if (dissector_try_uint(ipx_socket_dissector_table, second_socket,
-	    next_tvb, pinfo, tree))
+	if (dissector_try_uint_new(ipx_socket_dissector_table, second_socket,
+		next_tvb, pinfo, tree, FALSE, ipxh))
 		return;
 
 	/*
 	 * Neither of them are known; try the packet type, which will
 	 * at least let us, for example, dissect SPX packets as SPX.
 	 */
-	if (dissector_try_uint(ipx_type_dissector_table, ipxh->ipx_type, next_tvb,
-	    pinfo, tree))
+	if (dissector_try_uint_new(ipx_type_dissector_table, ipxh->ipx_type, next_tvb,
+		pinfo, tree, FALSE, ipxh))
 		return;
 
 	call_dissector(data_handle,next_tvb, pinfo, tree);
@@ -488,12 +488,12 @@ spx_hash_insert(conversation_t *conversation, guint32 spx_src, guint16 spx_seq)
 	spx_hash_value		*value;
 
 	/* Now remember the packet, so we can find it if we later. */
-	key = se_alloc(sizeof(spx_hash_key));
+	key = wmem_new(wmem_file_scope(), spx_hash_key);
 	key->conversation = conversation;
 	key->spx_src = spx_src;
 	key->spx_seq = spx_seq;
 
-	value = se_alloc0(sizeof(spx_hash_value));
+	value = wmem_new0(wmem_file_scope(), spx_hash_value);
 
 	g_hash_table_insert(spx_hash, key, value);
 
@@ -510,7 +510,7 @@ spx_hash_lookup(conversation_t *conversation, guint32 spx_src, guint32 spx_seq)
 	key.spx_src = spx_src;
 	key.spx_seq = spx_seq;
 
-	return g_hash_table_lookup(spx_hash, &key);
+	return (spx_hash_value *)g_hash_table_lookup(spx_hash, &key);
 }
 
 /* ================================================================= */
@@ -521,6 +521,10 @@ spx_hash_lookup(conversation_t *conversation, guint32 spx_src, guint32 spx_seq)
 #define SPX_SEND_ACK	0x40
 #define SPX_ATTN	0x20
 #define SPX_EOM		0x10
+#define SPX_VII_PACKET	0x08
+#define SPX_NEG_SIZE	0x04
+#define SPX_RESERVED	0x02
+#define SPX_EXT_HEADER	0x01
 
 static const char*
 spx_conn_ctrl(guint8 ctrl)
@@ -538,7 +542,7 @@ spx_conn_ctrl(guint8 ctrl)
 		{ 0x00,                        NULL }
 	};
 
-	p = match_strval((ctrl & 0xf0), conn_vals );
+	p = try_val_to_str((ctrl & 0xf0), conn_vals );
 
 	if (p) {
 		return p;
@@ -562,6 +566,7 @@ spx_datastream(guint8 type)
 }
 
 #define SPX_HEADER_LEN	12
+#define SPX2_HEADER_LEN	14
 
 static void
 dissect_spx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
@@ -571,6 +576,7 @@ dissect_spx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	tvbuff_t	*next_tvb;
 	guint8		conn_ctrl;
 	proto_tree	*cc_tree;
+	guint8		hdr_len = SPX_HEADER_LEN;
 	guint8		datastream_type;
 	const char	*datastream_type_string;
 	guint16         spx_seq;
@@ -585,19 +591,24 @@ dissect_spx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "SPX");
 	col_set_str(pinfo->cinfo, COL_INFO, "SPX");
 
+	conn_ctrl = tvb_get_guint8(tvb, 0);
+	if ((conn_ctrl & SPX_VII_PACKET) && tvb_get_ntohs(tvb, 4) != 0xffff) {
+		/* SPX2 packets have an extra two-byte field, unless they have
+		 * a dest-ID of 0xffff... */
+		hdr_len = SPX2_HEADER_LEN;
+	}
+
 	if (tree) {
-		ti = proto_tree_add_item(tree, proto_spx, tvb, 0, SPX_HEADER_LEN, ENC_NA);
+		ti = proto_tree_add_item(tree, proto_spx, tvb, 0, hdr_len, ENC_NA);
 		spx_tree = proto_item_add_subtree(ti, ett_spx);
 	}
 
-	conn_ctrl = tvb_get_guint8(tvb, 0);
 	spx_msg_string = spx_conn_ctrl(conn_ctrl);
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_append_fstr(pinfo->cinfo, COL_INFO, " %s", spx_msg_string);
+	col_append_fstr(pinfo->cinfo, COL_INFO, " %s", spx_msg_string);
 	if (tree) {
-		ti = proto_tree_add_uint_format(spx_tree, hf_spx_connection_control, tvb,
+		ti = proto_tree_add_uint_format_value(spx_tree, hf_spx_connection_control, tvb,
 						0, 1, conn_ctrl,
-						"Connection Control: %s (0x%02X)",
+						"%s (0x%02X)",
 						spx_msg_string, conn_ctrl);
 		cc_tree = proto_item_add_subtree(ti, ett_spx_connctrl);
 		proto_tree_add_boolean(cc_tree, hf_spx_connection_control_sys, tvb,
@@ -608,26 +619,35 @@ dissect_spx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				       0, 1, conn_ctrl);
 		proto_tree_add_boolean(cc_tree, hf_spx_connection_control_eom, tvb,
 				       0, 1, conn_ctrl);
+		if (conn_ctrl & SPX_VII_PACKET) {
+			proto_tree_add_boolean(cc_tree, hf_spx_connection_control_v2, tvb,
+					       0, 1, conn_ctrl);
+			proto_tree_add_boolean(cc_tree, hf_spx_connection_control_neg_size, tvb,
+					       0, 1, conn_ctrl);
+			proto_tree_add_boolean(cc_tree, hf_spx_connection_control_reserved, tvb,
+					       0, 1, conn_ctrl);
+			proto_tree_add_boolean(cc_tree, hf_spx_connection_control_ext_header, tvb,
+					       0, 1, conn_ctrl);
+		}
 	}
 
 	datastream_type = tvb_get_guint8(tvb, 1);
 	datastream_type_string = spx_datastream(datastream_type);
 	if (datastream_type_string != NULL) {
-		if (check_col(pinfo->cinfo, COL_INFO))
-			col_append_fstr(pinfo->cinfo, COL_INFO, " (%s)",
+		col_append_fstr(pinfo->cinfo, COL_INFO, " (%s)",
 			    datastream_type_string);
 	}
 	if (tree) {
 		if (datastream_type_string != NULL) {
-			proto_tree_add_uint_format(spx_tree, hf_spx_datastream_type, tvb,
+			proto_tree_add_uint_format_value(spx_tree, hf_spx_datastream_type, tvb,
 						   1, 1, datastream_type,
-						   "Datastream Type: %s (0x%02X)",
+						   "%s (0x%02X)",
 						   datastream_type_string,
 						   datastream_type);
 		} else {
-			proto_tree_add_uint_format(spx_tree, hf_spx_datastream_type, tvb,
+			proto_tree_add_uint_format_value(spx_tree, hf_spx_datastream_type, tvb,
 						   1, 1, datastream_type,
-						   "Datastream Type: 0x%02X",
+						   "0x%02X",
 						   datastream_type);
 		}
 		proto_tree_add_item(spx_tree, hf_spx_src_id, tvb,  2, 2, ENC_BIG_ENDIAN);
@@ -638,6 +658,14 @@ dissect_spx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		proto_tree_add_uint(spx_tree, hf_spx_seq_nr, tvb,  6, 2, spx_seq);
 		proto_tree_add_item(spx_tree, hf_spx_ack_nr, tvb,  8, 2, ENC_BIG_ENDIAN);
 		proto_tree_add_item(spx_tree, hf_spx_all_nr, tvb, 10, 2, ENC_BIG_ENDIAN);
+		/*  field exists on ALL SPXII packets EXCEPT the first packet of
+		 *  the session.  The first packet can be determined by checking
+		 *  the destination ID field for a value of 0xffff (65535) and
+		 *  that the SPXII bit is set in Connection Control.
+		 */
+		if ((conn_ctrl & SPX_VII_PACKET) && tvb_get_ntohs(tvb, 4) != 0xffff) {
+			proto_tree_add_item(spx_tree, hf_spx_neg_size, tvb, 12, 2, ENC_BIG_ENDIAN);
+		}
 	}
 
 	/*
@@ -728,9 +756,9 @@ dissect_spx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				 * Found in the hash table.  Mark this frame as
 				 * a retransmission.
 				 */
-				spx_rexmit_info_p = se_alloc(sizeof(spx_rexmit_info));
+				spx_rexmit_info_p = wmem_new(wmem_file_scope(), spx_rexmit_info);
 				spx_rexmit_info_p->num = pkt_value->num;
-				p_add_proto_data(pinfo->fd, proto_spx,
+				p_add_proto_data(wmem_file_scope(), pinfo, proto_spx, 0,
 				    spx_rexmit_info_p);
 			}
 		} else {
@@ -740,8 +768,8 @@ dissect_spx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			 * data indicates which frame had the original
 			 * transmission.
 			 */
-			spx_rexmit_info_p = p_get_proto_data(pinfo->fd,
-			    proto_spx);
+			spx_rexmit_info_p = (spx_rexmit_info *)p_get_proto_data(wmem_file_scope(), pinfo,
+			    proto_spx, 0);
 		}
 	}
 
@@ -751,27 +779,25 @@ dissect_spx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	 * subdissector.
 	 */
 	if (spx_rexmit_info_p != NULL) {
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_add_fstr(pinfo->cinfo, COL_INFO,
+		col_add_fstr(pinfo->cinfo, COL_INFO,
 			    "[Retransmission] Original Packet %u",
 			    spx_rexmit_info_p->num);
-		}
+
 		if (tree) {
 			proto_tree_add_uint_format(spx_tree, hf_spx_rexmt_frame,
 			    tvb, 0, 0, spx_rexmit_info_p->num,
 			    "This is a retransmission of frame %u",
 			    spx_rexmit_info_p->num);
-			if (tvb_length_remaining(tvb, SPX_HEADER_LEN) > 0) {
+			if (tvb_length_remaining(tvb, hdr_len) > 0) {
 				proto_tree_add_text(spx_tree, tvb,
-				    SPX_HEADER_LEN, -1,
+				    hdr_len, -1,
 				    "Retransmitted data");
 			}
 		}
 		return;
 	}
 
-	if (tvb_reported_length_remaining(tvb, SPX_HEADER_LEN) > 0) {
-		void* pd_save;
+	if (tvb_reported_length_remaining(tvb, hdr_len) > 0) {
 		/*
 		 * Call subdissectors based on the IPX socket numbers; a
 		 * subdissector might have registered with our IPX socket
@@ -800,24 +826,19 @@ dissect_spx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		 */
 		spx_infox.eom = conn_ctrl & SPX_EOM;
 		spx_infox.datastream_type = datastream_type;
-		pd_save = pinfo->private_data;
-		pinfo->private_data = &spx_infox;
 
-		next_tvb = tvb_new_subset_remaining(tvb, SPX_HEADER_LEN);
-		if (dissector_try_uint(spx_socket_dissector_table, low_socket,
-		    next_tvb, pinfo, tree))
+		next_tvb = tvb_new_subset_remaining(tvb, hdr_len);
+		if (dissector_try_uint_new(spx_socket_dissector_table, low_socket,
+		    next_tvb, pinfo, tree, FALSE, &spx_infox))
 		{
-			pinfo->private_data = pd_save;
 			return;
 		}
-		if (dissector_try_uint(spx_socket_dissector_table, high_socket,
-		    next_tvb, pinfo, tree))
+		if (dissector_try_uint_new(spx_socket_dissector_table, high_socket,
+		    next_tvb, pinfo, tree, FALSE, &spx_infox))
 		{
-			pinfo->private_data = pd_save;
 			return;
 		}
 		call_dissector(data_handle, next_tvb, pinfo, tree);
-		pinfo->private_data = pd_save;
 	}
 }
 
@@ -837,11 +858,9 @@ dissect_ipxmsg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	conn_number = tvb_get_guint8(tvb, 0);
 	sig_char = tvb_get_guint8(tvb, 1);
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO,
+	col_add_fstr(pinfo->cinfo, COL_INFO,
 			"%s, Connection %d",
 			val_to_str_const(sig_char, ipxmsg_sigchar_vals, "Unknown Signature Char"), conn_number);
-	}
 
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_ipxmsg, tvb, 0, -1, ENC_NA);
@@ -862,7 +881,7 @@ dissect_ipxrip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	proto_tree	*rip_tree;
 	proto_item	*ti, *hidden_item;
 	guint16		operation;
-	struct ipx_rt_def route;
+	ipx_rt_def_t 	route;
 	int		cursor;
 	int		available_length;
 
@@ -873,10 +892,8 @@ dissect_ipxrip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	operation = tvb_get_ntohs(tvb, 0) - 1;
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		/* rip_types 0 and 1 are valid, anything else becomes 2 or "Unknown" */
-		col_set_str(pinfo->cinfo, COL_INFO, rip_type[MIN(operation, 2)]);
-	}
+	/* rip_types 0 and 1 are valid, anything else becomes 2 or "Unknown" */
+	col_set_str(pinfo->cinfo, COL_INFO, rip_type[MIN(operation, 2)]);
 
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_ipxrip, tvb, 0, -1, ENC_NA);
@@ -945,15 +962,11 @@ dissect_serialization(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		ser_tree = proto_item_add_subtree(ti, ett_serialization);
 	}
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO, "Serial number %s",
-		    tvb_bytes_to_str(tvb, 0, 6));
-	}
+	col_add_fstr(pinfo->cinfo, COL_INFO, "Serial number %s",
+		    tvb_bytes_to_ep_str(tvb, 0, 6));
 
-	if (tree) {
-		proto_tree_add_text(ser_tree, tvb, 0, 6,
-		      "Serial number: %s", tvb_bytes_to_str(tvb, 0, 6));
-	}
+	proto_tree_add_text(ser_tree, tvb, 0, 6,
+		      "Serial number: %s", tvb_bytes_to_ep_str(tvb, 0, 6));
 }
 
 /*
@@ -1215,13 +1228,11 @@ dissect_ipxsap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	query.query_type = tvb_get_ntohs(tvb, 0);
 	query.server_type = tvb_get_ntohs(tvb, 2);
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		if (query.query_type >= 1 && query.query_type <= 4) {
-			col_set_str(pinfo->cinfo, COL_INFO, sap_type[query.query_type - 1]);
-		}
-		else {
-			col_set_str(pinfo->cinfo, COL_INFO, "Unknown Packet Type");
-		}
+	if (query.query_type >= 1 && query.query_type <= 4) {
+		col_set_str(pinfo->cinfo, COL_INFO, sap_type[query.query_type - 1]);
+	}
+	else {
+		col_set_str(pinfo->cinfo, COL_INFO, "Unknown Packet Type");
 	}
 
 	if (tree) {
@@ -1262,7 +1273,7 @@ dissect_ipxsap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				    val_to_str_ext_const(server_type, &novell_server_vals_ext, "Unknown"),
 				    server_type);
 				proto_tree_add_text(s_tree, tvb, cursor+50, 4, "Network: %s",
-						ipxnet_to_string(tvb_get_ptr(tvb, cursor+50, 4)));
+						tvb_ipxnet_to_string(tvb, cursor+50));
 				proto_tree_add_text(s_tree, tvb, cursor+54, 6, "Node: %s",
 						tvb_ether_to_str(tvb, cursor+54));
 				server_port = tvb_get_ntohs(tvb, cursor+60);
@@ -1357,12 +1368,12 @@ proto_register_ipx(void)
 
 	static hf_register_info hf_spx[] = {
 		{ &hf_spx_connection_control,
-		{ "Connection Control",		"spx.ctl",
+		{ "Connection Control",	"spx.ctl",
 		  FT_UINT8,	BASE_HEX,	NULL,	0x0,
 		  NULL, HFILL }},
 
 		{ &hf_spx_connection_control_sys,
-		{ "System Packet",		"spx.ctl.sys",
+		{ "System Packet",	"spx.ctl.sys",
 		  FT_BOOLEAN,	8,	NULL,	SPX_SYS_PACKET,
 		  NULL, HFILL }},
 
@@ -1381,8 +1392,28 @@ proto_register_ipx(void)
 		  FT_BOOLEAN,	8,	NULL,	SPX_EOM,
 		  NULL, HFILL }},
 
+		{ &hf_spx_connection_control_v2,
+		{ "SPXII Packet",	"spx.ctl.v2",
+		  FT_BOOLEAN,	8,	NULL,	SPX_VII_PACKET,
+		  NULL, HFILL }},
+
+		{ &hf_spx_connection_control_neg_size,
+		{ "Negotiate Size",	"spx.ctl.neg_size",
+		  FT_BOOLEAN,	8,	NULL,	SPX_NEG_SIZE,
+		  NULL, HFILL }},
+
+		{ &hf_spx_connection_control_reserved,
+		{ "Reserved",		"spx.ctl.reserved",
+		  FT_BOOLEAN,	8,	NULL,	SPX_RESERVED,
+		  NULL, HFILL }},
+
+		{ &hf_spx_connection_control_ext_header,
+		{ "Extended Header",	"spx.ctl.ext_header",
+		  FT_BOOLEAN,	8,	NULL,	SPX_EXT_HEADER,
+		  NULL, HFILL }},
+
 		{ &hf_spx_datastream_type,
-		{ "Datastream type",	       	"spx.type",
+		{ "Datastream Type",	       	"spx.type",
 		  FT_UINT8,	BASE_HEX,	NULL,	0x0,
 		  NULL, HFILL }},
 
@@ -1408,6 +1439,11 @@ proto_register_ipx(void)
 
 		{ &hf_spx_all_nr,
 		{ "Allocation Number",		"spx.alloc",
+		  FT_UINT16,	BASE_DEC,	NULL,	0x0,
+		  NULL, HFILL }},
+
+		{ &hf_spx_neg_size,
+		{ "Negotiation Size",		"spx.neg_size",
 		  FT_UINT16,	BASE_DEC,	NULL,	0x0,
 		  NULL, HFILL }},
 
@@ -1515,7 +1551,7 @@ proto_reg_handoff_ipx(void)
 	ipx_handle = find_dissector("ipx");
 	dissector_add_uint("udp.port", UDP_PORT_IPX, ipx_handle);
 	dissector_add_uint("ethertype", ETHERTYPE_IPX, ipx_handle);
-	dissector_add_uint("chdlctype", ETHERTYPE_IPX, ipx_handle);
+	dissector_add_uint("chdlc.protocol", ETHERTYPE_IPX, ipx_handle);
 	dissector_add_uint("ppp.protocol", PPP_IPX, ipx_handle);
 	dissector_add_uint("llc.dsap", SAP_NETWARE1, ipx_handle);
 	dissector_add_uint("llc.dsap", SAP_NETWARE2, ipx_handle);
@@ -1545,3 +1581,16 @@ proto_reg_handoff_ipx(void)
 
 	data_handle = find_dissector("data");
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

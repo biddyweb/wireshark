@@ -2,7 +2,9 @@
  * Routines for PKCS#12: Personal Information Exchange packet dissection
  * Graeme Lunt 2006
  *
- * $Id$
+ * See "PKCS #12 v1.1: Personal Information Exchange Syntax":
+ *
+ *    http://www.emc.com/emc-plus/rsa-labs/pkcs/files/h11301-wp-pkcs-12v1-1-personal-information-exchange-syntax.pdf
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -30,6 +32,7 @@
 #include <epan/oids.h>
 #include <epan/asn1.h>
 #include <epan/prefs.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-ber.h"
 #include "packet-pkcs12.h"
@@ -56,6 +59,9 @@
 #define PKCS12_PBE_ARCFOUR_SHA1_OID     "1.2.840.113549.1.12.1.1"
 #define PKCS12_PBE_3DES_SHA1_OID	"1.2.840.113549.1.12.1.3"
 #define PKCS12_PBE_RC2_40_SHA1_OID	"1.2.840.113549.1.12.1.6"
+
+void proto_register_pkcs12(void);
+void proto_reg_handoff_pkcs12(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_pkcs12 = -1;
@@ -107,7 +113,7 @@ generate_key_or_iv(unsigned int id, tvbuff_t *salt_tvb, unsigned int iter,
   cur_keylen = 0;
 
   salt_size = tvb_length(salt_tvb);
-  salt_p = tvb_get_ephemeral_string(salt_tvb, 0, salt_size);
+  salt_p = (char *)tvb_memdup(wmem_packet_scope(), salt_tvb, 0, salt_size);
 
   if (pw == NULL)
     pwlen = 0;
@@ -136,70 +142,77 @@ generate_key_or_iv(unsigned int id, tvbuff_t *salt_tvb, unsigned int iter,
   else
     memset (p, 0, 64);
 
-  for (;;){
+  for (;;) {
       err = gcry_md_open(&md, GCRY_MD_SHA1, 0);
-      if (gcry_err_code(err)) {
-		  return FALSE;
-	  }
-      for (i = 0; i < 64; i++) {
-		  unsigned char lid = id & 0xFF;
-		  gcry_md_write (md, &lid, 1);
-	  }
+      if (gcry_err_code(err))
+        {
+          return FALSE;
+        }
+      for (i = 0; i < 64; i++)
+        {
+          unsigned char lid = id & 0xFF;
+          gcry_md_write (md, &lid, 1);
+	}
 
-	  gcry_md_write(md, buf_i, pw ? 128 : 64);
+      gcry_md_write(md, buf_i, pw ? 128 : 64);
 
       gcry_md_final (md);
       memcpy (hash, gcry_md_read (md, 0), 20);
 
-	  gcry_md_close (md);
+      gcry_md_close (md);
 
-	  for (i = 1; i < iter; i++)
-		  gcry_md_hash_buffer (GCRY_MD_SHA1, hash, hash, 20);
+      for (i = 1; i < iter; i++)
+        gcry_md_hash_buffer (GCRY_MD_SHA1, hash, hash, 20);
 
       for (i = 0; i < 20 && cur_keylen < req_keylen; i++)
-		  keybuf[cur_keylen++] = hash[i];
+        keybuf[cur_keylen++] = hash[i];
 
-	  if (cur_keylen == req_keylen) {
-		  gcry_mpi_release (num_b1);
-		  return TRUE;		/* ready */
-	  }
+      if (cur_keylen == req_keylen)
+      {
+        gcry_mpi_release (num_b1);
+        return TRUE;		/* ready */
+      }
 
       /* need more bytes. */
       for (i = 0; i < 64; i++)
-		  buf_b[i] = hash[i % 20];
+        buf_b[i] = hash[i % 20];
 
-	  n = 64;
+      n = 64;
 
-	  rc = gcry_mpi_scan (&num_b1, GCRYMPI_FMT_USG, buf_b, n, &n);
+      rc = gcry_mpi_scan (&num_b1, GCRYMPI_FMT_USG, buf_b, n, &n);
 
-	  if (rc != 0) {
-		  return FALSE;
-	  }
+      if (rc != 0)
+        {
+          return FALSE;
+        }
 
-	  gcry_mpi_add_ui (num_b1, num_b1, 1);
+      gcry_mpi_add_ui (num_b1, num_b1, 1);
 
-	  for (i = 0; i < 128; i += 64)	{
-		  gcry_mpi_t num_ij;
+      for (i = 0; i < 128; i += 64)
+        {
+          gcry_mpi_t num_ij;
 
-		  n = 64;
-		  rc = gcry_mpi_scan (&num_ij, GCRYMPI_FMT_USG, buf_i + i, n, &n);
+          n = 64;
+          rc = gcry_mpi_scan (&num_ij, GCRYMPI_FMT_USG, buf_i + i, n, &n);
 
-		  if (rc != 0) {
-			  return FALSE;
-		  }
+          if (rc != 0)
+            {
+              return FALSE;
+            }
 
-		  gcry_mpi_add (num_ij, num_ij, num_b1);
-		  gcry_mpi_clear_highbit (num_ij, 64 * 8);
+          gcry_mpi_add (num_ij, num_ij, num_b1);
+          gcry_mpi_clear_highbit (num_ij, 64 * 8);
 
-		  n = 64;
+          n = 64;
 
-		  rc = gcry_mpi_print (GCRYMPI_FMT_USG, buf_i + i, n, &n, num_ij);
-		  if (rc != 0){
-			  return FALSE;
-		  }
+          rc = gcry_mpi_print (GCRYMPI_FMT_USG, buf_i + i, n, &n, num_ij);
+          if (rc != 0)
+            {
+              return FALSE;
+            }
 
-		  gcry_mpi_release (num_ij);
-	  }
+          gcry_mpi_release (num_ij);
+        }
   }
 }
 
@@ -268,14 +281,14 @@ int PBE_decrypt_data(const char *object_identifier_id_param, tvbuff_t *encrypted
 	}
 
 	/* allocate buffers */
-	key = (char *)ep_alloc(keylen);
+	key = (char *)wmem_alloc(wmem_packet_scope(), keylen);
 
 	if(!generate_key_or_iv(1 /*LEY */, salt, iteration_count, password, keylen, key))
 		return FALSE;
 
 	if(ivlen) {
 
-		iv = (char *)ep_alloc(ivlen);
+		iv = (char *)wmem_alloc(wmem_packet_scope(), ivlen);
 
 		if(!generate_key_or_iv(2 /* IV */, salt, iteration_count, password, ivlen, iv))
 			return FALSE;
@@ -303,7 +316,7 @@ int PBE_decrypt_data(const char *object_identifier_id_param, tvbuff_t *encrypted
 	datalen = tvb_length(encrypted_tvb);
 	clear_data = (char *)g_malloc(datalen);
 
-	err = gcry_cipher_decrypt (cipher, clear_data, datalen, tvb_get_ephemeral_string(encrypted_tvb, 0, datalen), datalen);
+	err = gcry_cipher_decrypt (cipher, clear_data, datalen, (char *)tvb_memdup(wmem_packet_scope(), encrypted_tvb, 0, datalen), datalen);
 	if (gcry_err_code (err)) {
 
 		proto_item_append_text(item, " [Failed to decrypt with password preference]");
@@ -367,7 +380,7 @@ int PBE_decrypt_data(const char *object_identifier_id_param, tvbuff_t *encrypted
 	g_string_free(name, TRUE);
 
 	/* now try and decode it */
-	call_ber_oid_callback(object_identifier_id_param, clear_tvb, 0, actx->pinfo, tree);
+	call_ber_oid_callback(object_identifier_id_param, clear_tvb, 0, actx->pinfo, tree, NULL);
 
 	return TRUE;
 #else
@@ -409,7 +422,7 @@ static void dissect_AuthenticatedSafe_OCTETSTRING_PDU(tvbuff_t *tvb, packet_info
   if((offset = strip_octet_string(tvb)) > 0)
     dissect_pkcs12_AuthenticatedSafe(FALSE, tvb, offset, &asn1_ctx, tree, hf_pkcs12_AuthenticatedSafe_PDU);
   else
-	proto_tree_add_text(tree, tvb, 0, 1, "BER Error: OCTET STRING expected");
+    proto_tree_add_text(tree, tvb, 0, 1, "BER Error: OCTET STRING expected");
 }
 
 static void dissect_SafeContents_OCTETSTRING_PDU(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
@@ -440,7 +453,7 @@ void proto_register_pkcs12(void) {
 
   /* List of fields */
   static hf_register_info hf[] = {
-	{ &hf_pkcs12_X509Certificate_PDU,
+    { &hf_pkcs12_X509Certificate_PDU,
       { "X509Certificate", "pkcs12.X509Certificate",
         FT_NONE, BASE_NONE, NULL, 0,
         "pkcs12.X509Certificate", HFILL }},

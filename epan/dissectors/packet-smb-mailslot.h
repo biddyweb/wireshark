@@ -2,8 +2,6 @@
  * Declaration of routines for SMB mailslot packet dissection
  * Copyright 2000, Jeffrey C. Foster <jfoste@woodward.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,6 @@
 gboolean
 dissect_mailslot_smb(tvbuff_t *total_tvb, tvbuff_t *setup_tvb,
 		     tvbuff_t *tvb, const char *mailslot,
-		     packet_info *pinfo, proto_tree *tree);
+		     packet_info *pinfo, proto_tree *tree, smb_info_t* smb_info);
 
 #endif

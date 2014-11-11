@@ -2,8 +2,6 @@
  * Routines for XNS IDP
  * Based on the Netware IPX dissector by Gilbert Ramirez <gram@alumni.rice.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,9 @@
 #include <epan/packet.h>
 #include "packet-idp.h"
 #include <epan/etypes.h>
+
+void proto_register_idp(void);
+void proto_reg_handoff_idp(void);
 
 static int proto_idp = -1;
 static int hf_idp_checksum = -1;
@@ -94,8 +95,8 @@ dissect_idp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	proto_tree_add_item(idp_tree, hf_idp_checksum, tvb, 0, 2, ENC_BIG_ENDIAN);
 	length = tvb_get_ntohs(tvb, 2);
-	proto_tree_add_uint_format(idp_tree, hf_idp_len, tvb, 2, 2, length,
-		"Length: %u bytes", length);
+	proto_tree_add_uint_format_value(idp_tree, hf_idp_len, tvb, 2, 2, length,
+		"%u bytes", length);
 	/* Adjust the tvbuff length to include only the IDP datagram. */
 	set_actual_length(tvb, length);
 	proto_tree_add_item(idp_tree, hf_idp_hops, tvb, 4, 1, ENC_BIG_ENDIAN);
@@ -209,7 +210,7 @@ proto_reg_handoff_idp(void)
 
 	idp_handle = create_dissector_handle(dissect_idp, proto_idp);
 	dissector_add_uint("ethertype", ETHERTYPE_XNS_IDP, idp_handle);
-	dissector_add_uint("chdlctype", ETHERTYPE_XNS_IDP, idp_handle);
+    dissector_add_uint("chdlc.protocol", ETHERTYPE_XNS_IDP, idp_handle);
 
 	data_handle = find_dissector("data");
 }

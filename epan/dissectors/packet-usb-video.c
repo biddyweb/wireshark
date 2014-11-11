@@ -1,7 +1,5 @@
 /* packet-usb-video.c
  *
- * $Id$
- *
  * Forked from packet-usb-masstorage.c 35224 2010-12-20 05:35:29Z guy
  * which was authored by Ronnie Sahlberg (2006)
  *
@@ -28,9 +26,12 @@
 #include <glib.h>
 #include <epan/expert.h>
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/conversation.h>
 #include "packet-usb.h"
+
+void proto_register_usb_vid(void);
+void proto_reg_handoff_usb_vid(void);
 
 /* References are to sections in USB Video Class specifications -
  * specifically V1.5, but versions have tended to keep
@@ -347,199 +348,210 @@ static gint ett_probe_framing = -1;
 static gint ett_video_standards = -1;
 static gint ett_control_capabilities = -1;
 
+static expert_field ei_usb_vid_subtype_unknown = EI_INIT;
+static expert_field ei_usb_vid_bitmask_len = EI_INIT;
+
 /* Lookup tables */
 static const value_string vc_ep_descriptor_subtypes[] = {
-        { EP_INTERRUPT, "Interrupt" },
-        { 0, NULL }
+    { EP_INTERRUPT, "Interrupt" },
+    { 0, NULL }
 };
 
+static const value_string vid_descriptor_type_vals[] = {
+    {CS_INTERFACE, "video class interface"},
+    {CS_ENDPOINT, "video class endpoint"},
+    {0,NULL}
+};
+static value_string_ext vid_descriptor_type_vals_ext =
+    VALUE_STRING_EXT_INIT(vid_descriptor_type_vals);
+
 static const value_string vc_if_descriptor_subtypes[] = {
-        { VC_HEADER,              "Header" },
-        { VC_INPUT_TERMINAL,      "Input Terminal" },
-        { VC_OUTPUT_TERMINAL,     "Output Terminal" },
-        { VC_SELECTOR_UNIT,       "Selector Unit" },
-        { VC_PROCESSING_UNIT,     "Processing Unit" },
-        { VC_EXTENSION_UNIT,      "Extension Unit" },
-        { VC_ENCODING_UNIT,       "Encoding Unit" },
-        { 0, NULL }
+    { VC_HEADER,              "Header" },
+    { VC_INPUT_TERMINAL,      "Input Terminal" },
+    { VC_OUTPUT_TERMINAL,     "Output Terminal" },
+    { VC_SELECTOR_UNIT,       "Selector Unit" },
+    { VC_PROCESSING_UNIT,     "Processing Unit" },
+    { VC_EXTENSION_UNIT,      "Extension Unit" },
+    { VC_ENCODING_UNIT,       "Encoding Unit" },
+    { 0, NULL }
 };
 static value_string_ext vc_if_descriptor_subtypes_ext =
     VALUE_STRING_EXT_INIT(vc_if_descriptor_subtypes);
 
 static const value_string cs_control_interface[] = {
-        { VC_CONTROL_UNDEFINED,          "Undefined" },
-        { VC_VIDEO_POWER_MODE_CONTROL,   "Video Power Mode" },
-        { VC_REQUEST_ERROR_CODE_CONTROL, "Request Error Code" },
-        { VC_REQUEST_INDICATE_HOST_CLOCK_CONTROL, "Request Indicate Host Clock" },
-        { 0, NULL }
+    { VC_CONTROL_UNDEFINED,          "Undefined" },
+    { VC_VIDEO_POWER_MODE_CONTROL,   "Video Power Mode" },
+    { VC_REQUEST_ERROR_CODE_CONTROL, "Request Error Code" },
+    { VC_REQUEST_INDICATE_HOST_CLOCK_CONTROL, "Request Indicate Host Clock" },
+    { 0, NULL }
 };
 static value_string_ext cs_control_interface_ext =
     VALUE_STRING_EXT_INIT(cs_control_interface);
 
 static const value_string cs_streaming_interface[] = {
-        { VS_CONTROL_UNDEFINED,            "Undefined" },
-        { VS_PROBE_CONTROL,                "Probe" },
-        { VS_COMMIT_CONTROL,               "Commit" },
-        { VS_STILL_PROBE_CONTROL,          "Still Probe" },
-        { VS_STILL_COMMIT_CONTROL,         "Still Commit" },
-        { VS_STILL_IMAGE_TRIGGER_CONTROL,  "Still Image Trigger" },
-        { VS_STREAM_ERROR_CODE_CONTROL,    "Stream Error Code" },
-        { VS_GENERATE_KEY_FRAME_CONTROL,   "Generate Key Frame" },
-        { VS_UPDATE_FRAME_SEGMENT_CONTROL, "Update Frame Segment" },
-        { VS_SYNCH_DELAY_CONTROL,          "Synch Delay" },
-        { 0, NULL }
+    { VS_CONTROL_UNDEFINED,            "Undefined" },
+    { VS_PROBE_CONTROL,                "Probe" },
+    { VS_COMMIT_CONTROL,               "Commit" },
+    { VS_STILL_PROBE_CONTROL,          "Still Probe" },
+    { VS_STILL_COMMIT_CONTROL,         "Still Commit" },
+    { VS_STILL_IMAGE_TRIGGER_CONTROL,  "Still Image Trigger" },
+    { VS_STREAM_ERROR_CODE_CONTROL,    "Stream Error Code" },
+    { VS_GENERATE_KEY_FRAME_CONTROL,   "Generate Key Frame" },
+    { VS_UPDATE_FRAME_SEGMENT_CONTROL, "Update Frame Segment" },
+    { VS_SYNCH_DELAY_CONTROL,          "Synch Delay" },
+    { 0, NULL }
 };
 static value_string_ext cs_streaming_interface_ext =
     VALUE_STRING_EXT_INIT(cs_streaming_interface);
 
 static const value_string cs_selector_unit[] = {
-        { SU_CONTROL_UNDEFINED,              "Undefined" },
-        { SU_INPUT_SELECT_CONTROL,           "Input Select" },
-        { 0, NULL }
+    { SU_CONTROL_UNDEFINED,              "Undefined" },
+    { SU_INPUT_SELECT_CONTROL,           "Input Select" },
+    { 0, NULL }
 };
 static value_string_ext cs_selector_unit_ext =
     VALUE_STRING_EXT_INIT(cs_selector_unit);
 
 static const value_string cs_camera_terminal[] = {
-        { CT_CONTROL_UNDEFINED,              "Undefined" },
-        { CT_SCANNING_MODE_CONTROL,          "Scanning Mode" },
-        { CT_AE_MODE_CONTROL,                "Auto-Exposure Mode" },
-        { CT_AE_PRIORITY_CONTROL,            "Auto-Exposure Priority" },
-        { CT_EXPOSURE_TIME_ABSOLUTE_CONTROL, "Exposure Time (Absolute)" },
-        { CT_EXPOSURE_TIME_RELATIVE_CONTROL, "Exposure Time (Relative)" },
-        { CT_FOCUS_ABSOLUTE_CONTROL,         "Focus (Absolute)" },
-        { CT_FOCUS_RELATIVE_CONTROL,         "Focus (Relative)" },
-        { CT_FOCUS_AUTO_CONTROL,             "Focus, Auto" },
-        { CT_IRIS_ABSOLUTE_CONTROL,          "Iris (Absolute)" },
-        { CT_IRIS_RELATIVE_CONTROL,          "Iris (Relative)" },
-        { CT_ZOOM_ABSOLUTE_CONTROL,          "Zoom (Absolute)" },
-        { CT_ZOOM_RELATIVE_CONTROL,          "Zoom (Relative)" },
-        { CT_PANTILT_ABSOLUTE_CONTROL,       "PanTilt (Absolute)" },
-        { CT_PANTILT_RELATIVE_CONTROL,       "PanTilt (Relative)" },
-        { CT_ROLL_ABSOLUTE_CONTROL,          "Roll (Absolute)" },
-        { CT_ROLL_RELATIVE_CONTROL,          "Roll (Relative)" },
-        { CT_PRIVACY_CONTROL,                "Privacy" },
-        { CT_FOCUS_SIMPLE_CONTROL,           "Focus (Simple)" },
-        { CT_WINDOW_CONTROL,                 "Window" },
-        { CT_REGION_OF_INTEREST_CONTROL,     "Region of Interest" },
-        { 0, NULL }
+    { CT_CONTROL_UNDEFINED,              "Undefined" },
+    { CT_SCANNING_MODE_CONTROL,          "Scanning Mode" },
+    { CT_AE_MODE_CONTROL,                "Auto-Exposure Mode" },
+    { CT_AE_PRIORITY_CONTROL,            "Auto-Exposure Priority" },
+    { CT_EXPOSURE_TIME_ABSOLUTE_CONTROL, "Exposure Time (Absolute)" },
+    { CT_EXPOSURE_TIME_RELATIVE_CONTROL, "Exposure Time (Relative)" },
+    { CT_FOCUS_ABSOLUTE_CONTROL,         "Focus (Absolute)" },
+    { CT_FOCUS_RELATIVE_CONTROL,         "Focus (Relative)" },
+    { CT_FOCUS_AUTO_CONTROL,             "Focus, Auto" },
+    { CT_IRIS_ABSOLUTE_CONTROL,          "Iris (Absolute)" },
+    { CT_IRIS_RELATIVE_CONTROL,          "Iris (Relative)" },
+    { CT_ZOOM_ABSOLUTE_CONTROL,          "Zoom (Absolute)" },
+    { CT_ZOOM_RELATIVE_CONTROL,          "Zoom (Relative)" },
+    { CT_PANTILT_ABSOLUTE_CONTROL,       "PanTilt (Absolute)" },
+    { CT_PANTILT_RELATIVE_CONTROL,       "PanTilt (Relative)" },
+    { CT_ROLL_ABSOLUTE_CONTROL,          "Roll (Absolute)" },
+    { CT_ROLL_RELATIVE_CONTROL,          "Roll (Relative)" },
+    { CT_PRIVACY_CONTROL,                "Privacy" },
+    { CT_FOCUS_SIMPLE_CONTROL,           "Focus (Simple)" },
+    { CT_WINDOW_CONTROL,                 "Window" },
+    { CT_REGION_OF_INTEREST_CONTROL,     "Region of Interest" },
+    { 0, NULL }
 };
 static value_string_ext cs_camera_terminal_ext =
     VALUE_STRING_EXT_INIT(cs_camera_terminal);
 
 static const value_string cs_processing_unit[] = {
-        { PU_CONTROL_UNDEFINED,                     "Undefined" },
-        { PU_BACKLIGHT_COMPENSATION_CONTROL,        "Backlight Compensation" },
-        { PU_BRIGHTNESS_CONTROL,                    "Brightness" },
-        { PU_CONTRAST_CONTROL,                      "Contrast" },
-        { PU_GAIN_CONTROL,                          "Gain" },
-        { PU_POWER_LINE_FREQUENCY_CONTROL,          "Power Line Frequency" },
-        { PU_HUE_CONTROL,                           "Hue" },
-        { PU_SATURATION_CONTROL,                    "Saturation" },
-        { PU_SHARPNESS_CONTROL,                     "Sharpness" },
-        { PU_GAMMA_CONTROL,                         "Gamma" },
-        { PU_WHITE_BALANCE_TEMPERATURE_CONTROL,     "White Balance Temperature" },
-        { PU_WHITE_BALANCE_TEMPERATURE_AUTO_CONTROL,"White Balance Temperature Auto" },
-        { PU_WHITE_BALANCE_COMPONENT_CONTROL,       "White Balance Component" },
-        { PU_WHITE_BALANCE_COMPONENT_AUTO_CONTROL,  "White Balance Component Auto" },
-        { PU_DIGITAL_MULTIPLIER_CONTROL,            "Digital Multiplier" },
-        { PU_DIGITAL_MULTIPLIER_LIMIT_CONTROL,      "Digital Multiplier Limit" },
-        { PU_HUE_AUTO_CONTROL,                      "Hue Auto" },
-        { PU_ANALOG_VIDEO_STANDARD_CONTROL,         "Video Standard" },
-        { PU_ANALOG_LOCK_STATUS_CONTROL,            "Analog Lock Status" },
-        { PU_CONTRAST_AUTO_CONTROL,                 "Contrast Auto" },
-        { 0, NULL }
+    { PU_CONTROL_UNDEFINED,                     "Undefined" },
+    { PU_BACKLIGHT_COMPENSATION_CONTROL,        "Backlight Compensation" },
+    { PU_BRIGHTNESS_CONTROL,                    "Brightness" },
+    { PU_CONTRAST_CONTROL,                      "Contrast" },
+    { PU_GAIN_CONTROL,                          "Gain" },
+    { PU_POWER_LINE_FREQUENCY_CONTROL,          "Power Line Frequency" },
+    { PU_HUE_CONTROL,                           "Hue" },
+    { PU_SATURATION_CONTROL,                    "Saturation" },
+    { PU_SHARPNESS_CONTROL,                     "Sharpness" },
+    { PU_GAMMA_CONTROL,                         "Gamma" },
+    { PU_WHITE_BALANCE_TEMPERATURE_CONTROL,     "White Balance Temperature" },
+    { PU_WHITE_BALANCE_TEMPERATURE_AUTO_CONTROL,"White Balance Temperature Auto" },
+    { PU_WHITE_BALANCE_COMPONENT_CONTROL,       "White Balance Component" },
+    { PU_WHITE_BALANCE_COMPONENT_AUTO_CONTROL,  "White Balance Component Auto" },
+    { PU_DIGITAL_MULTIPLIER_CONTROL,            "Digital Multiplier" },
+    { PU_DIGITAL_MULTIPLIER_LIMIT_CONTROL,      "Digital Multiplier Limit" },
+    { PU_HUE_AUTO_CONTROL,                      "Hue Auto" },
+    { PU_ANALOG_VIDEO_STANDARD_CONTROL,         "Video Standard" },
+    { PU_ANALOG_LOCK_STATUS_CONTROL,            "Analog Lock Status" },
+    { PU_CONTRAST_AUTO_CONTROL,                 "Contrast Auto" },
+    { 0, NULL }
 };
 static value_string_ext cs_processing_unit_ext =
     VALUE_STRING_EXT_INIT(cs_processing_unit);
 
 static const value_string vc_terminal_types[] = {
-        { TT_VENDOR_SPECIFIC,         "Vendor Specific", },
-        { TT_STREAMING,               "Streaming" },
-        { ITT_VENDOR_SPECIFIC,        "Vendor Specific Input" },
-        { ITT_CAMERA,                 "Camera Input" },
-        { ITT_MEDIA_TRANSPORT_INPUT,  "Media Transport Input" },
-        { OTT_VENDOR_SPECIFIC,        "Vendor Specific Output" },
-        { OTT_DISPLAY,                "Display Output" },
-        { OTT_MEDIA_TRANSPORT_OUTPUT, "Media Transport Output" },
-        { EXTERNAL_VENDOR_SPECIFIC,   "Vendor Specific External" },
-        { COMPOSITE_CONNECTOR,        "Composite Connector" },
-        { SVIDEO_CONNECTOR,           "SVideo Connector" },
-        { COMPONENT_CONNECTOR,        "Component Connector" },
-        { 0, NULL }
+    { TT_VENDOR_SPECIFIC,         "Vendor Specific", },
+    { TT_STREAMING,               "Streaming" },
+    { ITT_VENDOR_SPECIFIC,        "Vendor Specific Input" },
+    { ITT_CAMERA,                 "Camera Input" },
+    { ITT_MEDIA_TRANSPORT_INPUT,  "Media Transport Input" },
+    { OTT_VENDOR_SPECIFIC,        "Vendor Specific Output" },
+    { OTT_DISPLAY,                "Display Output" },
+    { OTT_MEDIA_TRANSPORT_OUTPUT, "Media Transport Output" },
+    { EXTERNAL_VENDOR_SPECIFIC,   "Vendor Specific External" },
+    { COMPOSITE_CONNECTOR,        "Composite Connector" },
+    { SVIDEO_CONNECTOR,           "SVideo Connector" },
+    { COMPONENT_CONNECTOR,        "Component Connector" },
+    { 0, NULL }
 };
 static value_string_ext vc_terminal_types_ext =
     VALUE_STRING_EXT_INIT(vc_terminal_types);
 
 static const value_string vs_if_descriptor_subtypes[] = {
-        { VS_UNDEFINED,             "Undefined" },
-        { VS_INPUT_HEADER,          "Input Header" },
-        { VS_OUTPUT_HEADER,         "Output Header" },
-        { VS_STILL_IMAGE_FRAME,     "Still Image Frame" },
-        { VS_FORMAT_UNCOMPRESSED,   "Format Uncompressed" },
-        { VS_FRAME_UNCOMPRESSED,    "Frame Uncompressed" },
-        { VS_FORMAT_MJPEG,          "Format MJPEG" },
-        { VS_FRAME_MJPEG,           "Frame MJPEG" },
-        { VS_FORMAT_MPEG1,          "Format MPEG1" },
-        { VS_FORMAT_MPEG2PS,        "Format MPEG2-PS" },
-        { VS_FORMAT_MPEG2TS,        "Format MPEG2-TS" },
-        { VS_FORMAT_MPEG4SL,        "Format MPEG4-SL" },
-        { VS_FORMAT_DV,             "Format DV" },
-        { VS_COLORFORMAT,           "Colorformat" },
-        { VS_FORMAT_VENDOR,         "Format Vendor" },
-        { VS_FRAME_VENDOR,          "Frame Vendor" },
-        { VS_FORMAT_FRAME_BASED,    "Format Frame-Based" },
-        { VS_FRAME_FRAME_BASED,     "Frame Frame-Based" },
-        { VS_FORMAT_STREAM_BASED,   "Format Stream Based" },
-        { VS_FORMAT_H264,           "Format H.264" },
-        { VS_FRAME_H264,            "Frame H.264" },
-        { VS_FORMAT_H264_SIMULCAST, "Format H.264 Simulcast" },
-        { VS_FORMAT_VP8,            "Format VP8" },
-        { VS_FRAME_VP8,             "Frame VP8" },
-        { VS_FORMAT_VP8_SIMULCAST,  "Format VP8 Simulcast" },
-        { 0, NULL }
+    { VS_UNDEFINED,             "Undefined" },
+    { VS_INPUT_HEADER,          "Input Header" },
+    { VS_OUTPUT_HEADER,         "Output Header" },
+    { VS_STILL_IMAGE_FRAME,     "Still Image Frame" },
+    { VS_FORMAT_UNCOMPRESSED,   "Format Uncompressed" },
+    { VS_FRAME_UNCOMPRESSED,    "Frame Uncompressed" },
+    { VS_FORMAT_MJPEG,          "Format MJPEG" },
+    { VS_FRAME_MJPEG,           "Frame MJPEG" },
+    { VS_FORMAT_MPEG1,          "Format MPEG1" },
+    { VS_FORMAT_MPEG2PS,        "Format MPEG2-PS" },
+    { VS_FORMAT_MPEG2TS,        "Format MPEG2-TS" },
+    { VS_FORMAT_MPEG4SL,        "Format MPEG4-SL" },
+    { VS_FORMAT_DV,             "Format DV" },
+    { VS_COLORFORMAT,           "Colorformat" },
+    { VS_FORMAT_VENDOR,         "Format Vendor" },
+    { VS_FRAME_VENDOR,          "Frame Vendor" },
+    { VS_FORMAT_FRAME_BASED,    "Format Frame-Based" },
+    { VS_FRAME_FRAME_BASED,     "Frame Frame-Based" },
+    { VS_FORMAT_STREAM_BASED,   "Format Stream Based" },
+    { VS_FORMAT_H264,           "Format H.264" },
+    { VS_FRAME_H264,            "Frame H.264" },
+    { VS_FORMAT_H264_SIMULCAST, "Format H.264 Simulcast" },
+    { VS_FORMAT_VP8,            "Format VP8" },
+    { VS_FRAME_VP8,             "Frame VP8" },
+    { VS_FORMAT_VP8_SIMULCAST,  "Format VP8 Simulcast" },
+    { 0, NULL }
 };
 static value_string_ext vs_if_descriptor_subtypes_ext =
     VALUE_STRING_EXT_INIT(vs_if_descriptor_subtypes);
 
 static const value_string interrupt_status_types[] = {
-        { INT_VIDEOCONTROL,       "VideoControl Interface"   },
-        { INT_VIDEOSTREAMING,     "VideoStreaming Interface" },
-        { 0, NULL }
+    { INT_VIDEOCONTROL,       "VideoControl Interface"   },
+    { INT_VIDEOSTREAMING,     "VideoStreaming Interface" },
+    { 0, NULL }
 };
 
 static const value_string control_change_types[] = {
-        { CONTROL_CHANGE_VALUE,   "Value" },
-        { CONTROL_CHANGE_INFO,    "Info" },
-        { CONTROL_CHANGE_FAILURE, "Failure" },
-        { CONTROL_CHANGE_MIN,     "Min" },
-        { CONTROL_CHANGE_MAX,     "Max" },
-        { 0, NULL }
+    { CONTROL_CHANGE_VALUE,   "Value" },
+    { CONTROL_CHANGE_INFO,    "Info" },
+    { CONTROL_CHANGE_FAILURE, "Failure" },
+    { CONTROL_CHANGE_MIN,     "Min" },
+    { CONTROL_CHANGE_MAX,     "Max" },
+    { 0, NULL }
 };
 static value_string_ext control_change_types_ext =
     VALUE_STRING_EXT_INIT(control_change_types);
 
 static const value_string control_interrupt_events[] = {
-        { CONTROL_INTERRUPT_EVENT_CONTROL_CHANGE,  "Control Change" },
-        { 0, NULL }
+    { CONTROL_INTERRUPT_EVENT_CONTROL_CHANGE,  "Control Change" },
+    { 0, NULL }
 };
 
 /* Table 3-13 VS Interface Input Header Descriptor - bStillCaptureMethod field */
 static const value_string vs_still_capture_methods[] = {
-        { 0,  "None" },
-        { 1,  "Uninterrupted streaming" },
-        { 2,  "Suspended streaming" },
-        { 3,  "Dedicated pipe" },
-        { 0, NULL }
+    { 0,  "None" },
+    { 1,  "Uninterrupted streaming" },
+    { 2,  "Suspended streaming" },
+    { 3,  "Dedicated pipe" },
+    { 0, NULL }
 };
 static value_string_ext vs_still_capture_methods_ext =
     VALUE_STRING_EXT_INIT(vs_still_capture_methods);
 
 /* Table 3-13 VS Interface Input Header Descriptor - bTriggerUsage field */
 static const value_string vs_trigger_usage[] = {
-        { 0,  "Initiate still image capture" },
-        { 1,  "General purpose button event" },
-        { 0, NULL }
+    { 0,  "Initiate still image capture" },
+    { 1,  "General purpose button event" },
+    { 0, NULL }
 };
 
 /* bmInterlaceFlags for format descriptors */
@@ -556,20 +568,20 @@ static const true_false_string interlaced_fields_meaning = {
 
 /* bmInterlaceFlags for format descriptors */
 static const value_string field_pattern_meaning[] = {
-        { 0,  "Field 1 only" },
-        { 1,  "Field 2 only" },
-        { 2,  "Regular pattern of fields 1 and 2" },
-        { 3,  "Random pattern of fields 1 and 2" },
-        {0, NULL},
+    { 0,  "Field 1 only" },
+    { 1,  "Field 2 only" },
+    { 2,  "Regular pattern of fields 1 and 2" },
+    { 3,  "Random pattern of fields 1 and 2" },
+    {0, NULL},
 };
 static value_string_ext field_pattern_meaning_ext =
     VALUE_STRING_EXT_INIT(field_pattern_meaning);
 
 /* bCopyProtect for format descriptors */
 static const value_string copy_protect_meaning[] = {
-        { 0,  "No restrictions" },
-        { 1,  "Restrict duplication" },
-        {0, NULL},
+    { 0,  "No restrictions" },
+    { 1,  "Restrict duplication" },
+    {0, NULL},
 };
 
 /* Table 4-46 Video Probe and Commit Controls - bmHint field */
@@ -580,57 +592,57 @@ static const true_false_string probe_hint_meaning = {
 
 /* Table 3-19 Color Matching Descriptor - bColorPrimaries field */
 static const value_string color_primaries_meaning[] = {
-        { 0,  "Unspecified" },
-        { 1,  "BT.709, sRGB" },
-        { 2,  "BT.470-2 (M)" },
-        { 3,  "BT.470-2 (B,G)" },
-        { 4,  "SMPTE 170M" },
-        { 5,  "SMPTE 240M" },
-        {0, NULL},
+    { 0,  "Unspecified" },
+    { 1,  "BT.709, sRGB" },
+    { 2,  "BT.470-2 (M)" },
+    { 3,  "BT.470-2 (B,G)" },
+    { 4,  "SMPTE 170M" },
+    { 5,  "SMPTE 240M" },
+    {0, NULL},
 };
 static value_string_ext color_primaries_meaning_ext =
     VALUE_STRING_EXT_INIT(color_primaries_meaning);
 
 /* Table 3-19 Color Matching Descriptor - bTransferCharacteristics field */
 static const value_string color_transfer_characteristics[] = {
-        { 0,  "Unspecified" },
-        { 1,  "BT.709" },
-        { 2,  "BT.470-2 (M)" },
-        { 3,  "BT.470-2 (B,G)" },
-        { 4,  "SMPTE 170M" },
-        { 5,  "SMPTE 240M" },
-        { 6,  "Linear (V=Lc)" },
-        { 7,  "sRGB" },
-        {0, NULL},
+    { 0,  "Unspecified" },
+    { 1,  "BT.709" },
+    { 2,  "BT.470-2 (M)" },
+    { 3,  "BT.470-2 (B,G)" },
+    { 4,  "SMPTE 170M" },
+    { 5,  "SMPTE 240M" },
+    { 6,  "Linear (V=Lc)" },
+    { 7,  "sRGB" },
+    {0, NULL},
 };
 static value_string_ext color_transfer_characteristics_ext =
     VALUE_STRING_EXT_INIT(color_transfer_characteristics);
 
 /* Table 3-19 Color Matching Descriptor - bMatrixCoefficients field */
 static const value_string matrix_coefficients_meaning[] = {
-        { 0,  "Unspecified" },
-        { 1,  "BT.709" },
-        { 2,  "FCC" },
-        { 3,  "BT.470-2 (B,G)" },
-        { 4,  "SMPTE 170M (BT.601)" },
-        { 5,  "SMPTE 240M" },
-        {0, NULL},
+    { 0,  "Unspecified" },
+    { 1,  "BT.709" },
+    { 2,  "FCC" },
+    { 3,  "BT.470-2 (B,G)" },
+    { 4,  "SMPTE 170M (BT.601)" },
+    { 5,  "SMPTE 240M" },
+    {0, NULL},
 };
 static value_string_ext matrix_coefficients_meaning_ext =
     VALUE_STRING_EXT_INIT(matrix_coefficients_meaning);
 
 static const value_string request_error_codes[] = {
-        { UVC_ERROR_NONE,             "No error" },
-        { UVC_ERROR_NOT_READY,        "Not ready" },
-        { UVC_ERROR_WRONG_STATE,      "Wrong state" },
-        { UVC_ERROR_POWER,            "Insufficient power" } ,
-        { UVC_ERROR_OUT_OF_RANGE,     "Out of range" },
-        { UVC_ERROR_INVALID_UNIT,     "Invalid unit" },
-        { UVC_ERROR_INVALID_CONTROL,  "Invalid control" },
-        { UVC_ERROR_INVALID_REQUEST,  "Invalid request" },
-        { UVC_ERROR_INVALID_VALUE,    "Invalid value within range" },
-        { UVC_ERROR_UNKNOWN,          "Unknown" },
-        {0, NULL},
+    { UVC_ERROR_NONE,             "No error" },
+    { UVC_ERROR_NOT_READY,        "Not ready" },
+    { UVC_ERROR_WRONG_STATE,      "Wrong state" },
+    { UVC_ERROR_POWER,            "Insufficient power" } ,
+    { UVC_ERROR_OUT_OF_RANGE,     "Out of range" },
+    { UVC_ERROR_INVALID_UNIT,     "Invalid unit" },
+    { UVC_ERROR_INVALID_CONTROL,  "Invalid control" },
+    { UVC_ERROR_INVALID_REQUEST,  "Invalid request" },
+    { UVC_ERROR_INVALID_VALUE,    "Invalid value within range" },
+    { UVC_ERROR_UNKNOWN,          "Unknown" },
+    {0, NULL},
 };
 static value_string_ext request_error_codes_ext =
     VALUE_STRING_EXT_INIT(request_error_codes);
@@ -646,7 +658,7 @@ typedef struct
 /* video_entity_t's (units/terminals) associated with each video interface */
 /* There is one such structure for each video conversation (interface) */
 typedef struct _video_conv_info_t {
-    emem_tree_t* entities;      /* indexed by entity ID */
+    wmem_tree_t* entities;      /* indexed by entity ID */
 } video_conv_info_t;
 
 /*****************************************************************************/
@@ -680,7 +692,7 @@ dissect_bmControl(proto_tree *tree, tvbuff_t *tvb, int offset,
     if (bm_size > 0)
     {
         proto_tree_add_bitmask_len(tree, tvb, offset, bm_size, hf_usb_vid_bmControl,
-                                   ett_subtree, bm_items, ENC_LITTLE_ENDIAN);
+                                   ett_subtree, bm_items, &ei_usb_vid_bitmask_len, ENC_LITTLE_ENDIAN);
         offset += bm_size;
     }
 
@@ -880,23 +892,23 @@ dissect_usb_video_extension_unit(proto_tree *tree, tvbuff_t *tvb, int offset)
  */
 static int
 dissect_usb_video_control_interface_descriptor(proto_tree *parent_tree, tvbuff_t *tvb,
-                                               guint8 descriptor_len, packet_info *pinfo)
+                                               guint8 descriptor_len, packet_info *pinfo, usb_conv_info_t *usb_conv_info)
 {
     video_conv_info_t *video_conv_info = NULL;
-    video_entity_t *entity = NULL;
-    proto_item *item = NULL;
-    proto_item *subtype_item = NULL;
-    proto_tree *tree = NULL;
-    guint8  entity_id = 0;
-    guint16 terminal_type = 0;
-    int offset = 0;
-    guint8 subtype;
+    video_entity_t    *entity          = NULL;
+    proto_item *item          = NULL;
+    proto_item *subtype_item  = NULL;
+    proto_tree *tree          = NULL;
+    guint8      entity_id     = 0;
+    guint16     terminal_type = 0;
+    int         offset        = 0;
+    guint8      subtype;
 
     subtype = tvb_get_guint8(tvb, offset+2);
 
     if (parent_tree)
     {
-        const gchar* subtype_str;
+        const gchar *subtype_str;
 
         subtype_str = val_to_str_ext(subtype, &vc_if_descriptor_subtypes_ext, "Unknown (0x%x)");
 
@@ -907,7 +919,7 @@ dissect_usb_video_control_interface_descriptor(proto_tree *parent_tree, tvbuff_t
     }
 
     /* Common fields */
-    dissect_usb_descriptor_header(tree, tvb, offset);
+    dissect_usb_descriptor_header(tree, tvb, offset, &vid_descriptor_type_vals_ext);
     subtype_item = proto_tree_add_item(tree, hf_usb_vid_control_ifdesc_subtype, tvb, offset+2, 1, ENC_NA);
     offset += 3;
 
@@ -994,7 +1006,7 @@ dissect_usb_video_control_interface_descriptor(proto_tree *parent_tree, tvbuff_t
         }
         else
         {
-            expert_add_info_format(pinfo, subtype_item, PI_UNDECODED, PI_WARN,
+            expert_add_info_format(pinfo, subtype_item, &ei_usb_vid_subtype_unknown,
                                    "Unknown VC subtype %u", subtype);
         }
     }
@@ -1003,41 +1015,34 @@ dissect_usb_video_control_interface_descriptor(proto_tree *parent_tree, tvbuff_t
     if (offset < descriptor_len)
     {
         proto_tree_add_text(tree, tvb, offset, descriptor_len-offset, "Descriptor data");
-        offset = descriptor_len;
+        /* offset = descriptor_len; */
     }
 
     if (entity_id != 0)
         proto_item_append_text(item, " (Entity %d)", entity_id);
 
-    if (subtype != VC_HEADER && pinfo->usb_conv_info)
+    if (subtype != VC_HEADER && usb_conv_info)
     {
-        /* Remember the entity ID / type for GET/SET transactions */
-        usb_conv_info_t* usb_conv_info;
-
-        /* This is the usb_conv_info of the CONTROL endpoint */
-        usb_conv_info = (usb_conv_info_t*) pinfo->usb_conv_info;
-
         /* Switch to the usb_conv_info of the Video Control interface */
         usb_conv_info = get_usb_iface_conv_info(pinfo, usb_conv_info->interfaceNum);
-        video_conv_info = usb_conv_info->class_data;
+        video_conv_info = (video_conv_info_t *)usb_conv_info->class_data;
 
         if (!video_conv_info)
         {
-            video_conv_info = se_alloc(sizeof(video_conv_info_t));
-            video_conv_info->entities = se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK,
-                                                                      "USBVIDEO Entities");
+            video_conv_info = wmem_new(wmem_file_scope(), video_conv_info_t);
+            video_conv_info->entities = wmem_tree_new(wmem_file_scope());
             usb_conv_info->class_data = video_conv_info;
         }
 
-        entity = (video_entity_t*) se_tree_lookup32(video_conv_info->entities, entity_id);
+        entity = (video_entity_t*) wmem_tree_lookup32(video_conv_info->entities, entity_id);
         if (!entity)
         {
-            entity = se_alloc(sizeof(video_entity_t));
+            entity = wmem_new(wmem_file_scope(), video_entity_t);
             entity->entityID     = entity_id;
             entity->subtype      = subtype;
             entity->terminalType = terminal_type;
 
-            se_tree_insert32(video_conv_info->entities, entity_id, entity);
+            wmem_tree_insert32(video_conv_info->entities, entity_id, entity);
         }
     }
 
@@ -1111,7 +1116,7 @@ dissect_usb_video_streaming_input_header(proto_tree *tree, tvbuff_t *tvb, int of
         for (i=0; i<num_formats; ++i)
         {
             proto_tree_add_bitmask_len(tree, tvb, offset, bm_size, hf_usb_vid_bmControl,
-                                       ett_streaming_controls, control_bits,
+                                       ett_streaming_controls, control_bits, &ei_usb_vid_bitmask_len,
                                        ENC_LITTLE_ENDIAN);
             offset += bm_size;
         }
@@ -1200,7 +1205,7 @@ dissect_usb_video_format(proto_tree *tree, tvbuff_t *tvb, int offset,
 #endif
 
     proto_tree_add_bitmask_text(tree, tvb, offset, 1, "bmInterlaceFlags", NULL,
-                                ett_interlace_flags, interlace_bits, ENC_NA, 
+                                ett_interlace_flags, interlace_bits, ENC_NA,
                                 BMT_NO_APPEND);
     offset++;
 
@@ -1238,10 +1243,10 @@ dissect_usb_video_frame(proto_tree *tree, tvbuff_t *tvb, int offset,
         NULL
     };
     proto_item *desc_item;
-    guint8 bFrameIntervalType;
-    guint8  frame_index;
-    guint16 frame_width;
-    guint16 frame_height;
+    guint8      bFrameIntervalType;
+    guint8      frame_index;
+    guint16     frame_width;
+    guint16     frame_height;
 
     frame_index = tvb_get_guint8(tvb, offset);
     proto_tree_add_item(tree, hf_usb_vid_frame_index, tvb, offset, 1, ENC_NA);
@@ -1251,7 +1256,7 @@ dissect_usb_video_frame(proto_tree *tree, tvbuff_t *tvb, int offset,
                            ett_frame_capability_flags, capability_bits, ENC_NA);
     offset++;
 
-    proto_tree_add_item(tree, hf_usb_vid_frame_width,        tvb, offset,    2, ENC_LITTLE_ENDIAN);   
+    proto_tree_add_item(tree, hf_usb_vid_frame_width,        tvb, offset,    2, ENC_LITTLE_ENDIAN);
     proto_tree_add_item(tree, hf_usb_vid_frame_height,       tvb, offset+2,  2, ENC_LITTLE_ENDIAN);
 
     /* Augment the descriptor root item with useful information */
@@ -1341,25 +1346,21 @@ static int
 dissect_usb_video_streaming_interface_descriptor(proto_tree *parent_tree, tvbuff_t *tvb,
                                                  guint8 descriptor_len)
 {
-    proto_item *item = NULL;
-    proto_tree *tree = NULL;
-    int offset = 0;
-    guint8 subtype;
+    proto_item  *item;
+    proto_tree  *tree;
+    int          offset = 0;
+    const gchar *subtype_str;
+    guint8       subtype;
 
     subtype = tvb_get_guint8(tvb, offset+2);
 
-    if (parent_tree)
-    {
-        const gchar* subtype_str;
+    subtype_str = val_to_str_ext(subtype, &vs_if_descriptor_subtypes_ext, "Unknown (0x%x)");
+    item = proto_tree_add_text(parent_tree, tvb, offset, descriptor_len,
+            "VIDEO STREAMING INTERFACE DESCRIPTOR [%s]",
+            subtype_str);
+    tree = proto_item_add_subtree(item, ett_descriptor_video_streaming);
 
-        subtype_str = val_to_str_ext(subtype, &vs_if_descriptor_subtypes_ext, "Unknown (0x%x)");
-        item = proto_tree_add_text(parent_tree, tvb, offset, descriptor_len,
-                "VIDEO STREAMING INTERFACE DESCRIPTOR [%s]",
-                subtype_str);
-        tree = proto_item_add_subtree(item, ett_descriptor_video_streaming);
-    }
-
-    dissect_usb_descriptor_header(tree, tvb, offset);
+    dissect_usb_descriptor_header(tree, tvb, offset, &vid_descriptor_type_vals_ext);
     proto_tree_add_item(tree, hf_usb_vid_streaming_ifdesc_subtype, tvb, offset+2, 1, ENC_NA);
     offset += 3;
 
@@ -1415,10 +1416,10 @@ static int
 dissect_usb_video_endpoint_descriptor(proto_tree *parent_tree, tvbuff_t *tvb,
                                       guint8 descriptor_len)
 {
-    proto_item *item = NULL;
-    proto_tree *tree = NULL;
-    int offset = 0;
-    guint8 subtype;
+    proto_item *item   = NULL;
+    proto_tree *tree   = NULL;
+    int         offset = 0;
+    guint8      subtype;
 
     subtype = tvb_get_guint8(tvb, offset+2);
 
@@ -1433,7 +1434,7 @@ dissect_usb_video_endpoint_descriptor(proto_tree *parent_tree, tvbuff_t *tvb,
         tree = proto_item_add_subtree(item, ett_descriptor_video_endpoint);
     }
 
-    dissect_usb_descriptor_header(tree, tvb, offset);
+    dissect_usb_descriptor_header(tree, tvb, offset, &vid_descriptor_type_vals_ext);
     proto_tree_add_item(tree, hf_usb_vid_epdesc_subtype, tvb, offset+2, 1, ENC_NA);
     offset += 3;
 
@@ -1464,13 +1465,13 @@ dissect_usb_video_endpoint_descriptor(proto_tree *parent_tree, tvbuff_t *tvb,
  * @return  >0   amount of data in the descriptor
  */
 static int
-dissect_usb_vid_descriptor(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
-                           void *data _U_)
+dissect_usb_vid_descriptor(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
     int    offset = 0;
     guint8 descriptor_len;
     guint8 descriptor_type;
     gint   bytes_available;
+    usb_conv_info_t  *usb_conv_info = (usb_conv_info_t *)data;
 
     tvbuff_t         *desc_tvb;
 
@@ -1487,16 +1488,13 @@ dissect_usb_vid_descriptor(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     }
     else if (descriptor_type == CS_INTERFACE)
     {
-        usb_conv_info_t  *usb_conv_info;
-
-        usb_conv_info = pinfo->usb_conv_info;
-        if (usb_conv_info->interfaceSubclass == SC_VIDEOCONTROL)
+        if (usb_conv_info && usb_conv_info->interfaceSubclass == SC_VIDEOCONTROL)
         {
             offset = dissect_usb_video_control_interface_descriptor(tree, desc_tvb,
                                                                     descriptor_len,
-                                                                    pinfo);
+                                                                    pinfo, usb_conv_info);
         }
-        else if (usb_conv_info->interfaceSubclass == SC_VIDEOSTREAMING)
+        else if (usb_conv_info && usb_conv_info->interfaceSubclass == SC_VIDEOSTREAMING)
         {
             offset = dissect_usb_video_streaming_interface_descriptor(tree, desc_tvb,
                                                                       descriptor_len);
@@ -1602,9 +1600,12 @@ get_control_selector_values(guint8 entity_id, usb_conv_info_t *usb_conv_info)
     video_entity_t         *entity = NULL;
     const value_string_ext *selectors = NULL;
 
-    video_conv_info = usb_conv_info->class_data;
+    if (usb_conv_info == NULL)
+        return NULL;
+
+    video_conv_info = (video_conv_info_t *)usb_conv_info->class_data;
     if (video_conv_info)
-        entity = (video_entity_t*) se_tree_lookup32(video_conv_info->entities, entity_id);
+        entity = (video_entity_t*) wmem_tree_lookup32(video_conv_info->entities, entity_id);
 
     if (entity_id == 0)
     {
@@ -1668,7 +1669,7 @@ get_control_selector_name(guint8 entity_id, guint8 control_sel, usb_conv_info_t 
     selectors = get_control_selector_values(entity_id, usb_conv_info);
 
     if (selectors)
-        control_name = match_strval_ext(control_sel, selectors);
+        control_name = try_val_to_str_ext(control_sel, selectors);
 
     return control_name;
 }
@@ -1710,9 +1711,9 @@ dissect_usb_vid_control_info(proto_tree *tree, tvbuff_t *tvb, int offset)
 static void
 dissect_usb_vid_control_value(proto_tree *tree, tvbuff_t *tvb, int offset, guint8 request)
 {
-    gint value_size;
-    const char* fallback_name;
-    int hf;
+    gint        value_size;
+    const char *fallback_name;
+    int         hf;
 
     switch (request)
     {
@@ -1745,7 +1746,7 @@ dissect_usb_vid_control_value(proto_tree *tree, tvbuff_t *tvb, int offset, guint
             fallback_name = "Current Value";
             break;
 
-        /* @todo UVC 1.5 USB_SETUP_x_ALL? 
+        /* @todo UVC 1.5 USB_SETUP_x_ALL?
          *       They are poorly specified.
          */
 
@@ -1793,13 +1794,13 @@ dissect_usb_vid_control_value(proto_tree *tree, tvbuff_t *tvb, int offset, guint
  */
 static int
 dissect_usb_vid_get_set(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb,
-                        int offset, gboolean is_request, 
+                        int offset, gboolean is_request,
                         usb_trans_info_t *usb_trans_info,
                         usb_conv_info_t *usb_conv_info)
 {
-    const gchar       *short_name = NULL;
-    guint8 control_sel;
-    guint8 entity_id;
+    const gchar *short_name = NULL;
+    guint8       control_sel;
+    guint8       entity_id;
 
     entity_id   = usb_trans_info->setup.wIndex >> 8;
     control_sel = usb_trans_info->setup.wValue >> 8;
@@ -1850,14 +1851,14 @@ dissect_usb_vid_get_set(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb,
         offset += 2;
 
         /* If there is an extended pseudo header, skip over it to reach the payload */
-        if ((usb_trans_info->setup.request == USB_SETUP_SET_CUR) && usb_trans_info->header_len_64)
+        if ((usb_trans_info->setup.request == USB_SETUP_SET_CUR) && (usb_trans_info->header_info & USB_HEADER_IS_64_BYTES))
             offset += 16;
     }
     else
     {
         proto_item *ti;
 
-        ti = proto_tree_add_uint(tree, hf_usb_vid_control_interface, tvb, 0, 0, 
+        ti = proto_tree_add_uint(tree, hf_usb_vid_control_interface, tvb, 0, 0,
                                  usb_trans_info->setup.wIndex & 0xFF);
         PROTO_ITEM_SET_GENERATED(ti);
 
@@ -1975,7 +1976,7 @@ static const value_string setup_request_names_vals[] = {
         {USB_SETUP_GET_RES_ALL,  "GET RES ALL"},
         {USB_SETUP_GET_DEF_ALL,  "GET DEF ALL"},
         {0, NULL}
-};  
+};
 
 /* Registered dissector for video class-specific control requests.
  * Dispatch to an appropriate dissector function.
@@ -1991,22 +1992,22 @@ static const value_string setup_request_names_vals[] = {
  * @return  >0   amount of data in the descriptor
  */
 static int
-dissect_usb_vid_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_usb_vid_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
-    gboolean is_request;
-    usb_conv_info_t  *usb_conv_info;
-    usb_trans_info_t *usb_trans_info;
-    int offset = 0;
-    usb_setup_dissector dissector;
+    gboolean             is_request = (pinfo->srcport == NO_ENDPOINT);
+    usb_conv_info_t     *usb_conv_info;
+    usb_trans_info_t    *usb_trans_info;
+    int                  offset     = 0;
+    usb_setup_dissector  dissector  = NULL;
     const usb_setup_dissector_table_t *tmp;
 
-    is_request = (pinfo->srcport == NO_ENDPOINT);
-
-    usb_conv_info  = pinfo->usb_conv_info;
+    /* Reject the packet if data or usb_trans_info are NULL */
+    if (data == NULL || ((usb_conv_info_t *)data)->usb_trans_info == NULL)
+        return 0;
+    usb_conv_info = (usb_conv_info_t *)data;
     usb_trans_info = usb_conv_info->usb_trans_info;
 
     /* See if we can find a class specific dissector for this request */
-    dissector = NULL;
     for (tmp=setup_dissectors; tmp->dissector; tmp++)
     {
         if (tmp->request == usb_trans_info->setup.request)
@@ -2048,13 +2049,13 @@ dissect_usb_vid_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
  * @return  >0   amount of data in the descriptor
  */
 static int
-dissect_usb_vid_interrupt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_usb_vid_interrupt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
-    usb_conv_info_t  *usb_conv_info;
+    usb_conv_info_t *usb_conv_info;
     gint bytes_available;
-    int offset = 0;
+    int  offset = 0;
 
-    usb_conv_info   = pinfo->usb_conv_info;
+    usb_conv_info   = (usb_conv_info_t *)data;
     bytes_available = tvb_length_remaining(tvb, offset);
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "USBVIDEO");
@@ -2232,7 +2233,7 @@ proto_register_usb_vid(void)
             { &hf_usb_vid_control_min,
                     { "Minimum value", "usbvideo.control.value.min",
                             FT_UINT32, BASE_DEC_HEX, NULL, 0,
-                            NULL, HFILL }   
+                            NULL, HFILL }
             },
 
             { &hf_usb_vid_control_max,
@@ -2281,19 +2282,19 @@ proto_register_usb_vid(void)
         /***** Camera Terminal Descriptor *****/
 
             { &hf_usb_vid_cam_objective_focal_len_min,
-                    { "wObjectiveFocalLengthMin", "usbvideo.camera.objectiveFocalLengthMin", 
+                    { "wObjectiveFocalLengthMin", "usbvideo.camera.objectiveFocalLengthMin",
                             FT_UINT16, BASE_DEC, NULL, 0,
                             "Minimum Focal Length for Optical Zoom", HFILL }
             },
 
             { &hf_usb_vid_cam_objective_focal_len_max,
-                    { "wObjectiveFocalLengthMax", "usbvideo.camera.objectiveFocalLengthMax", 
+                    { "wObjectiveFocalLengthMax", "usbvideo.camera.objectiveFocalLengthMax",
                             FT_UINT16, BASE_DEC, NULL, 0,
                             "Minimum Focal Length for Optical Zoom", HFILL }
             },
 
             { &hf_usb_vid_cam_ocular_focal_len,
-                    { "wOcularFocalLength", "usbvideo.camera.ocularFocalLength", 
+                    { "wOcularFocalLength", "usbvideo.camera.ocularFocalLength",
                             FT_UINT16, BASE_DEC, NULL, 0,
                             "Ocular Focal Length for Optical Zoom", HFILL }
             },
@@ -2483,7 +2484,7 @@ proto_register_usb_vid(void)
 
             { &hf_usb_vid_num_inputs,
                     { "bNrInPins", "usbvideo.unit.numInputs",
-                            FT_UINT8, BASE_DEC, NULL, 0, 
+                            FT_UINT8, BASE_DEC, NULL, 0,
                             "Number of input pins", HFILL }
             },
 
@@ -2679,13 +2680,13 @@ proto_register_usb_vid(void)
 
             { &hf_usb_vid_exten_guid,
                     { "guid", "usbvideo.extension.guid",
-                            FT_GUID, BASE_NONE, NULL, 0, 
+                            FT_GUID, BASE_NONE, NULL, 0,
                             "Identifier", HFILL }
             },
 
             { &hf_usb_vid_exten_num_controls,
                     { "bNumControls", "usbvideo.extension.numControls",
-                            FT_UINT8, BASE_DEC, NULL, 0, 
+                            FT_UINT8, BASE_DEC, NULL, 0,
                             "Number of controls", HFILL }
             },
 
@@ -2801,7 +2802,7 @@ proto_register_usb_vid(void)
             },
 
             { &hf_usb_vid_control_ifdesc_dwClockFrequency,
-                    { "dwClockFrequency", "usbvideo.probe.clockFrequency", 
+                    { "dwClockFrequency", "usbvideo.probe.clockFrequency",
                             FT_UINT32, BASE_DEC, NULL, 0,
                             "Device clock frequency (Hz) for selected format", HFILL }
             },
@@ -2815,37 +2816,37 @@ proto_register_usb_vid(void)
             },
 
             { &hf_usb_vid_format_num_frame_descriptors,
-                    { "bNumFrameDescriptors", "usbvideo.format.numFrameDescriptors", 
+                    { "bNumFrameDescriptors", "usbvideo.format.numFrameDescriptors",
                             FT_UINT8, BASE_DEC, NULL, 0,
                             "Number of frame descriptors for this format", HFILL }
             },
 
             { &hf_usb_vid_format_guid,
                     { "guidFormat", "usbvideo.format.guid",
-                            FT_GUID, BASE_NONE, NULL, 0, 
+                            FT_GUID, BASE_NONE, NULL, 0,
                             "Stream encoding format", HFILL }
             },
 
             { &hf_usb_vid_format_bits_per_pixel,
-                    { "bBitsPerPixel", "usbvideo.format.bitsPerPixel", 
+                    { "bBitsPerPixel", "usbvideo.format.bitsPerPixel",
                             FT_UINT8, BASE_DEC, NULL, 0,
                             "Bits per pixel", HFILL }
             },
 
             { &hf_usb_vid_default_frame_index,
-                    { "bDefaultFrameIndex", "usbvideo.format.defaultFrameIndex", 
+                    { "bDefaultFrameIndex", "usbvideo.format.defaultFrameIndex",
                             FT_UINT8, BASE_DEC, NULL, 0,
                             "Optimum frame index for this stream", HFILL }
             },
 
             { &hf_usb_vid_aspect_ratio_x,
-                    { "bAspectRatioX", "usbvideo.format.aspectRatioX", 
+                    { "bAspectRatioX", "usbvideo.format.aspectRatioX",
                             FT_UINT8, BASE_DEC, NULL, 0,
                             "X dimension of picture aspect ratio", HFILL }
             },
 
             { &hf_usb_vid_aspect_ratio_y,
-                    { "bAspectRatioY", "usbvideo.format.aspectRatioY", 
+                    { "bAspectRatioY", "usbvideo.format.aspectRatioY",
                             FT_UINT8, BASE_DEC, NULL, 0,
                             "Y dimension of picture aspect ratio", HFILL }
             },
@@ -2904,7 +2905,7 @@ proto_register_usb_vid(void)
         /***** Frame Descriptors *****/
 
             { &hf_usb_vid_frame_index,
-                    { "bFrameIndex", "usbvideo.frame.index", 
+                    { "bFrameIndex", "usbvideo.frame.index",
                             FT_UINT8, BASE_DEC, NULL, 0,
                             "Index of this frame descriptor", HFILL }
             },
@@ -2933,33 +2934,33 @@ proto_register_usb_vid(void)
                             NULL, HFILL }
             },
             { &hf_usb_vid_frame_width,
-                    { "wWidth", "usbvideo.frame.width", 
+                    { "wWidth", "usbvideo.frame.width",
                             FT_UINT16, BASE_DEC, NULL, 0,
                             "Width of frame in pixels", HFILL }
             },
             { &hf_usb_vid_frame_height,
-                    { "wHeight", "usbvideo.frame.height", 
+                    { "wHeight", "usbvideo.frame.height",
                             FT_UINT16, BASE_DEC, NULL, 0,
                             "Height of frame in pixels", HFILL }
             },
             { &hf_usb_vid_frame_min_bit_rate,
-                    { "dwMinBitRate", "usbvideo.frame.minBitRate", 
+                    { "dwMinBitRate", "usbvideo.frame.minBitRate",
                             FT_UINT32, BASE_DEC, NULL, 0,
                             "Minimum bit rate in bps", HFILL }
             },
             { &hf_usb_vid_frame_max_bit_rate,
-                    { "dwMaxBitRate", "usbvideo.frame.maxBitRate", 
+                    { "dwMaxBitRate", "usbvideo.frame.maxBitRate",
                             FT_UINT32, BASE_DEC, NULL, 0,
                             "Maximum bit rate in bps", HFILL }
             },
 
             { &hf_usb_vid_frame_max_frame_sz,
-                    { "dwMaxVideoFrameBufferSize", "usbvideo.frame.maxBuffer", 
+                    { "dwMaxVideoFrameBufferSize", "usbvideo.frame.maxBuffer",
                             FT_UINT32, BASE_DEC, NULL, 0,
                             "Maximum bytes per frame", HFILL }
             },
             { &hf_usb_vid_frame_default_interval,
-                    { "dwDefaultFrameInterval", "usbvideo.frame.interval.default", 
+                    { "dwDefaultFrameInterval", "usbvideo.frame.interval.default",
                             FT_UINT32, BASE_DEC, NULL, 0,
                             "Suggested default", HFILL }
             },
@@ -3019,13 +3020,13 @@ proto_register_usb_vid(void)
         /***** Video Control Header Descriptor *****/
 
             { &hf_usb_vid_control_ifdesc_bcdUVC,
-                    { "bcdUVC", "usbvideo.bcdUVC", 
+                    { "bcdUVC", "usbvideo.bcdUVC",
                             FT_UINT16, BASE_HEX, NULL, 0,
                             "Video Device Class Specification release number", HFILL }
             },
- 
+
             { &hf_usb_vid_control_ifdesc_bInCollection,
-                    { "bInCollection", "usbvideo.numStreamingInterfaces", 
+                    { "bInCollection", "usbvideo.numStreamingInterfaces",
                             FT_UINT8, BASE_DEC, NULL, 0,
                             "Number of VideoStreaming interfaces", HFILL }
             },
@@ -3038,7 +3039,7 @@ proto_register_usb_vid(void)
         /***** Video Streaming Input Header Descriptor *****/
 
             { &hf_usb_vid_streaming_ifdesc_bNumFormats,
-                    { "bNumFormats", "usbvideo.streaming.numFormats", 
+                    { "bNumFormats", "usbvideo.streaming.numFormats",
                             FT_UINT8, BASE_DEC, NULL, 0,
                             "Number of video payload format descriptors", HFILL }
             },
@@ -3151,20 +3152,20 @@ proto_register_usb_vid(void)
             },
 
             { &hf_usb_vid_epdesc_max_transfer_sz,
-                    { "wMaxTransferSize", "usbvideo.ep.maxInterruptSize", FT_UINT16, 
+                    { "wMaxTransferSize", "usbvideo.ep.maxInterruptSize", FT_UINT16,
                       BASE_DEC, NULL, 0x0, "Max interrupt structure size", HFILL }
             },
 
         /***** Fields used in multiple contexts *****/
 
             { &hf_usb_vid_ifdesc_wTotalLength,
-                    { "wTotalLength", "usbvideo.totalLength", 
+                    { "wTotalLength", "usbvideo.totalLength",
                             FT_UINT16, BASE_DEC, NULL, 0,
                             "Video interface descriptor size", HFILL }
             },
 
             { &hf_usb_vid_bControlSize,
-                    { "bControlSize", "usbvideo.bmcontrolSize", 
+                    { "bControlSize", "usbvideo.bmcontrolSize",
                             FT_UINT8, BASE_DEC, NULL, 0,
                             "Size of bmControls field", HFILL }
             },
@@ -3216,9 +3217,18 @@ proto_register_usb_vid(void)
             &ett_control_capabilities
     };
 
+    static ei_register_info ei[] = {
+        { &ei_usb_vid_subtype_unknown, { "usbvideo.subtype.unknown", PI_UNDECODED, PI_WARN, "Unknown VC subtype", EXPFILL }},
+        { &ei_usb_vid_bitmask_len, { "usbvideo.bitmask_len_error", PI_UNDECODED, PI_WARN, "Only least-significant bytes decoded", EXPFILL }},
+    };
+
+    expert_module_t* expert_usb_vid;
+
     proto_usb_vid = proto_register_protocol("USB Video", "USBVIDEO", "usbvideo");
     proto_register_field_array(proto_usb_vid, hf, array_length(hf));
     proto_register_subtree_array(usb_vid_subtrees, array_length(usb_vid_subtrees));
+    expert_usb_vid = expert_register_protocol(proto_usb_vid);
+    expert_register_field_array(expert_usb_vid, ei, array_length(ei));
 }
 
 void
@@ -3242,10 +3252,10 @@ proto_reg_handoff_usb_vid(void)
  *
  * Local variables:
  * c-basic-offset: 4
- * tab-width: 4
+ * tab-width: 8
  * indent-tabs-mode: nil
  * End:
  *
- * vi: set shiftwidth=4 tabstop=4 expandtab:
- * :indentSize=4:tabSize=4:noTabs=true:
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
  */

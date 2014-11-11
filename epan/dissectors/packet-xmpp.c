@@ -3,8 +3,6 @@
  *
  * Copyright 2011, Mariusz Okroj <okrojmariusz[]gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,9 +29,8 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/conversation.h>
-#include <epan/expert.h>
 #include <epan/prefs.h>
 
 #include <epan/dissectors/packet-xml.h>
@@ -45,8 +42,8 @@
 
 #define XMPP_PORT 5222
 
-static dissector_handle_t ssl_handle;
-static dissector_handle_t xml_handle;
+void proto_register_xmpp(void);
+void proto_reg_handoff_xmpp(void);
 
 int proto_xmpp = -1;
 
@@ -196,9 +193,6 @@ gint hf_xmpp_presence_status = -1;
 gint hf_xmpp_presence_caps = -1;
 
 gint hf_xmpp_auth = -1;
-gint hf_xmpp_challenge = -1;
-gint hf_xmpp_response = -1;
-gint hf_xmpp_success = -1;
 gint hf_xmpp_failure = -1;
 gint hf_xmpp_starttls = -1;
 gint hf_xmpp_proceed = -1;
@@ -360,6 +354,25 @@ gint ett_xmpp_jitsi_inputevt_rmt_ctrl = -1;
 
 gint ett_unknown[ETT_UNKNOWN_LEN];
 
+static expert_field ei_xmpp_xml_disabled = EI_INIT;
+static expert_field ei_xmpp_packet_unknown = EI_INIT;
+expert_field ei_xmpp_starttls_missing = EI_INIT;
+expert_field ei_xmpp_response = EI_INIT;
+expert_field ei_xmpp_challenge = EI_INIT;
+expert_field ei_xmpp_success = EI_INIT;
+expert_field ei_xmpp_proceed_already_in_frame = EI_INIT;
+expert_field ei_xmpp_starttls_already_in_frame = EI_INIT;
+expert_field ei_xmpp_packet_without_response = EI_INIT;
+expert_field ei_xmpp_unknown_element = EI_INIT;
+expert_field ei_xmpp_field_unexpected_value = EI_INIT;
+expert_field ei_xmpp_unknown_attribute = EI_INIT;
+expert_field ei_xmpp_required_attribute = EI_INIT;
+
+static dissector_handle_t xmpp_handle;
+
+static dissector_handle_t ssl_handle;
+static dissector_handle_t xml_handle;
+
 static void
 dissect_xmpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
@@ -371,6 +384,7 @@ dissect_xmpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
     proto_tree *xmpp_tree  = NULL;
     proto_item *xmpp_item  = NULL;
+    proto_item *outin_item;
 
     xmpp_element_t *packet = NULL;
 
@@ -380,7 +394,10 @@ dissect_xmpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
     int   indx;
     gchar last_char;
 
-    if (xmpp_desegment)
+    conversation = find_or_create_conversation(pinfo);
+    xmpp_info = (xmpp_conv_info_t *)conversation_get_proto_data(conversation, proto_xmpp);
+
+    if ((!xmpp_info || !xmpp_info->ssl_proceed) && xmpp_desegment)
     {
         indx = tvb_reported_length(tvb) - 1;
         if (indx >= 0)
@@ -405,13 +422,24 @@ dissect_xmpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
     col_clear(pinfo->cinfo, COL_INFO);
 
-    conversation = find_or_create_conversation(pinfo);
-    xmpp_info = conversation_get_proto_data(conversation, proto_xmpp);
-
     if (xmpp_info && xmpp_info->ssl_proceed &&
             xmpp_info->ssl_proceed < pinfo->fd->num)
     {
+        guint16 save_can_desegment;
+        guint32 save_ssl_proceed;
+
+        /* Make sure SSL/TLS can desegment */
+        save_can_desegment = pinfo->can_desegment;
+        pinfo->can_desegment = pinfo->saved_can_desegment;
+
+        /* Make sure the SSL dissector will not be called again after decryption */
+        save_ssl_proceed = xmpp_info->ssl_proceed;
+        xmpp_info->ssl_proceed = 0;
+
         call_dissector(ssl_handle, tvb, pinfo, tree);
+
+        pinfo->can_desegment = save_can_desegment;
+        xmpp_info->ssl_proceed = save_ssl_proceed;
         return;
     }
 
@@ -425,7 +453,7 @@ dissect_xmpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
     if (!proto_is_protocol_enabled(find_protocol_by_id(dissector_handle_get_protocol_index(xml_handle))))
     {
         col_append_str(pinfo->cinfo, COL_INFO, "(XML dissector disabled, can't dissect XMPP)");
-        expert_add_info_format(pinfo, xmpp_item, PI_UNDECODED, PI_WARN, "XML dissector disabled, can't dissect XMPP");
+        expert_add_info(pinfo, xmpp_item, &ei_xmpp_xml_disabled);
         return;
     }
 
@@ -447,11 +475,11 @@ dissect_xmpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
         return;
 
     if (!xmpp_info) {
-        xmpp_info = se_alloc(sizeof (xmpp_conv_info_t));
-        xmpp_info->req_resp = se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "xmpp_req_resp");
-        xmpp_info->jingle_sessions = se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "xmpp_jingle_sessions");
-        xmpp_info->ibb_sessions = se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "xmpp_ibb_sessions");
-        xmpp_info->gtalk_sessions = se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "xmpp_gtalk_sessions");
+        xmpp_info = wmem_new(wmem_file_scope(), xmpp_conv_info_t);
+        xmpp_info->req_resp        = wmem_tree_new(wmem_file_scope());
+        xmpp_info->jingle_sessions = wmem_tree_new(wmem_file_scope());
+        xmpp_info->ibb_sessions    = wmem_tree_new(wmem_file_scope());
+        xmpp_info->gtalk_sessions  = wmem_tree_new(wmem_file_scope());
         xmpp_info->ssl_start   = 0;
         xmpp_info->ssl_proceed = 0;
         conversation_add_proto_data(conversation, proto_xmpp, (void *) xmpp_info);
@@ -477,63 +505,58 @@ dissect_xmpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
             xmpp_ibb_session_track(pinfo, packet, xmpp_info);
         }
 
-        if (tree) { /* we are being asked for details */
-            proto_item *outin_item;
+        if (out_packet)
+            outin_item = proto_tree_add_boolean(xmpp_tree, hf_xmpp_out, tvb, 0, 0, TRUE);
+        else
+            outin_item = proto_tree_add_boolean(xmpp_tree, hf_xmpp_in, tvb, 0, 0, TRUE);
 
-            if (out_packet)
-                outin_item = proto_tree_add_boolean(xmpp_tree, hf_xmpp_out, tvb, 0, 0, TRUE);
-            else
-                outin_item = proto_tree_add_boolean(xmpp_tree, hf_xmpp_in, tvb, 0, 0, TRUE);
-
-            PROTO_ITEM_SET_HIDDEN(outin_item);
+        PROTO_ITEM_SET_HIDDEN(outin_item);
 
 
-            /*it hides tree generated by XML dissector*/
-            xmpp_proto_tree_hide_first_child(xmpp_tree);
+        /*it hides tree generated by XML dissector*/
+        xmpp_proto_tree_hide_first_child(xmpp_tree);
 
-            if (strcmp(packet->name, "iq") == 0) {
-                xmpp_iq(xmpp_tree, tvb, pinfo, packet);
-            } else if (strcmp(packet->name, "presence") == 0) {
-                xmpp_presence(xmpp_tree, tvb, pinfo, packet);
-            } else if (strcmp(packet->name, "message") == 0) {
-                xmpp_message(xmpp_tree, tvb, pinfo, packet);
-            } else if (strcmp(packet->name, "auth") == 0) {
-                xmpp_auth(xmpp_tree, tvb, pinfo, packet);
-            } else if (strcmp(packet->name, "challenge") == 0) {
-                xmpp_challenge_response_success(xmpp_tree, tvb, pinfo, packet, hf_xmpp_challenge, ett_xmpp_challenge, "CHALLENGE");
-            } else if (strcmp(packet->name, "response") == 0) {
-                xmpp_challenge_response_success(xmpp_tree, tvb, pinfo, packet, hf_xmpp_response, ett_xmpp_response, "RESPONSE");
-            } else if (strcmp(packet->name, "success") == 0) {
-                xmpp_challenge_response_success(xmpp_tree, tvb, pinfo, packet, hf_xmpp_success, ett_xmpp_success, "SUCCESS");
-            } else if (strcmp(packet->name, "failure") == 0) {
-                xmpp_failure(xmpp_tree, tvb, pinfo, packet);
-            } else if (strcmp(packet->name, "xml") == 0) {
-                xmpp_xml_header(xmpp_tree, tvb, pinfo, packet);
-            } else if (strcmp(packet->name, "stream") == 0) {
-                xmpp_stream(xmpp_tree, tvb, pinfo, packet);
-            } else if (strcmp(packet->name, "features") == 0) {
-                xmpp_features(xmpp_tree, tvb, pinfo, packet);
-            } else if (strcmp(packet->name, "starttls") == 0) {
-                xmpp_starttls(xmpp_tree, tvb, pinfo, packet, xmpp_info);
-            }else if (strcmp(packet->name, "proceed") == 0) {
-                xmpp_proceed(xmpp_tree, tvb, pinfo, packet, xmpp_info);
-            }else {
-                xmpp_proto_tree_show_first_child(xmpp_tree);
-                expert_add_info_format(pinfo, xmpp_tree, PI_UNDECODED, PI_NOTE, "Unknown packet: %s", packet->name);
-                col_clear(pinfo->cinfo, COL_INFO);
-                col_append_fstr(pinfo->cinfo, COL_INFO, "UNKNOWN PACKET ");
-            }
+        if (strcmp(packet->name, "iq") == 0) {
+            xmpp_iq(xmpp_tree, tvb, pinfo, packet);
+        } else if (strcmp(packet->name, "presence") == 0) {
+            xmpp_presence(xmpp_tree, tvb, pinfo, packet);
+        } else if (strcmp(packet->name, "message") == 0) {
+            xmpp_message(xmpp_tree, tvb, pinfo, packet);
+        } else if (strcmp(packet->name, "auth") == 0) {
+            xmpp_auth(xmpp_tree, tvb, pinfo, packet);
+        } else if (strcmp(packet->name, "challenge") == 0) {
+            xmpp_challenge_response_success(xmpp_tree, tvb, pinfo, packet, &ei_xmpp_challenge, ett_xmpp_challenge, "CHALLENGE");
+        } else if (strcmp(packet->name, "response") == 0) {
+            xmpp_challenge_response_success(xmpp_tree, tvb, pinfo, packet, &ei_xmpp_response, ett_xmpp_response, "RESPONSE");
+        } else if (strcmp(packet->name, "success") == 0) {
+            xmpp_challenge_response_success(xmpp_tree, tvb, pinfo, packet, &ei_xmpp_success, ett_xmpp_success, "SUCCESS");
+        } else if (strcmp(packet->name, "failure") == 0) {
+            xmpp_failure(xmpp_tree, tvb, pinfo, packet);
+        } else if (strcmp(packet->name, "xml") == 0) {
+            xmpp_xml_header(xmpp_tree, tvb, pinfo, packet);
+        } else if (strcmp(packet->name, "stream") == 0) {
+            xmpp_stream(xmpp_tree, tvb, pinfo, packet);
+        } else if (strcmp(packet->name, "features") == 0) {
+            xmpp_features(xmpp_tree, tvb, pinfo, packet);
+        } else if (strcmp(packet->name, "starttls") == 0) {
+            xmpp_starttls(xmpp_tree, tvb, pinfo, packet, xmpp_info);
+        }else if (strcmp(packet->name, "proceed") == 0) {
+            xmpp_proceed(xmpp_tree, tvb, pinfo, packet, xmpp_info);
+        }else {
+            xmpp_proto_tree_show_first_child(xmpp_tree);
+            expert_add_info_format(pinfo, xmpp_tree, &ei_xmpp_packet_unknown, "Unknown packet: %s", packet->name);
+            col_set_str(pinfo->cinfo, COL_INFO, "UNKNOWN PACKET ");
+        }
 
-            /*appends to COL_INFO information about src or dst*/
-            if (pinfo->match_uint == pinfo->destport) {
-                xmpp_attr_t *to = xmpp_get_attr(packet, "to");
-                if (to)
-                    col_append_fstr(pinfo->cinfo, COL_INFO, "> %s ", to->value);
-            } else {
-                xmpp_attr_t *from = xmpp_get_attr(packet, "from");
-                if (from)
-                    col_append_fstr(pinfo->cinfo, COL_INFO, "< %s ", from->value);
-            }
+        /*appends to COL_INFO information about src or dst*/
+        if (pinfo->match_uint == pinfo->destport) {
+            xmpp_attr_t *to = xmpp_get_attr(packet, "to");
+            if (to)
+                col_append_fstr(pinfo->cinfo, COL_INFO, "> %s ", to->value);
+        } else {
+            xmpp_attr_t *from = xmpp_get_attr(packet, "from");
+            if (from)
+                col_append_fstr(pinfo->cinfo, COL_INFO, "< %s ", from->value);
         }
 
         xmpp_element_t_tree_free(packet);
@@ -1097,21 +1120,6 @@ proto_register_xmpp(void) {
               "STREAM", "xmpp.stream", FT_NONE, BASE_NONE, NULL, 0x0,
               "XMPP stream", HFILL
           }},
-        { &hf_xmpp_challenge,
-          {
-              "CHALLENGE", "xmpp.challenge", FT_NONE, BASE_NONE, NULL, 0x0,
-              "challenge packet", HFILL
-          }},
-        { &hf_xmpp_response,
-          {
-              "RESPONSE", "xmpp.response", FT_NONE, BASE_NONE, NULL, 0x0,
-              "response packet", HFILL
-          }},
-        { &hf_xmpp_success,
-          {
-              "SUCCESS", "xmpp.success", FT_NONE, BASE_NONE, NULL, 0x0,
-              "success packet", HFILL
-          }},
         { &hf_xmpp_failure,
           {
               "FAILURE", "xmpp.failure", FT_NONE, BASE_NONE, NULL, 0x0,
@@ -1384,7 +1392,24 @@ proto_register_xmpp(void) {
         &ett_xmpp_proceed,
     };
 
+    static ei_register_info ei[] = {
+        { &ei_xmpp_xml_disabled, { "xmpp.xml_disabled", PI_UNDECODED, PI_WARN, "XML dissector disabled, can't dissect XMPP", EXPFILL }},
+        { &ei_xmpp_packet_unknown, { "xmpp.packet_unknown", PI_UNDECODED, PI_NOTE, "Unknown packet", EXPFILL }},
+        { &ei_xmpp_packet_without_response, { "xmpp.packet_without_response", PI_PROTOCOL, PI_CHAT, "Packet without response", EXPFILL }},
+        { &ei_xmpp_response, { "xmpp.response", PI_RESPONSE_CODE, PI_CHAT, "RESPONSE", EXPFILL }},
+        { &ei_xmpp_challenge, { "xmpp.challenge", PI_RESPONSE_CODE, PI_CHAT, "CHALLENGE", EXPFILL }},
+        { &ei_xmpp_success, { "xmpp.success", PI_RESPONSE_CODE, PI_CHAT, "SUCCESS", EXPFILL }},
+        { &ei_xmpp_starttls_already_in_frame, { "xmpp.starttls.already_in_frame", PI_PROTOCOL, PI_WARN, "Already saw STARTTLS in frame X", EXPFILL }},
+        { &ei_xmpp_starttls_missing, { "xmpp.starttls.missing", PI_PROTOCOL, PI_WARN, "Haven't seen a STARTTLS, did the capture start in the middle of a session?", EXPFILL }},
+        { &ei_xmpp_proceed_already_in_frame, { "xmpp.proceed.already_in_frame", PI_PROTOCOL, PI_WARN, "Already saw PROCEED in frame X", EXPFILL }},
+        { &ei_xmpp_unknown_element, { "xmpp.unknown.element", PI_UNDECODED, PI_NOTE, "Unknown element", EXPFILL }},
+        { &ei_xmpp_unknown_attribute, { "xmpp.unknown.attribute", PI_UNDECODED, PI_NOTE, "Unknown attribute", EXPFILL }},
+        { &ei_xmpp_required_attribute, { "xmpp.required_attribute", PI_PROTOCOL, PI_WARN, "Required attribute doesn't appear", EXPFILL }},
+        { &ei_xmpp_field_unexpected_value, { "xmpp.field.unexpected_value", PI_PROTOCOL, PI_WARN, "Field has unexpected value", EXPFILL }},
+    };
+
     module_t *xmpp_module;
+    expert_module_t* expert_xmpp;
 
     static gint* ett_unknown_ptr[ETT_UNKNOWN_LEN];
     gint i;
@@ -1412,19 +1437,18 @@ proto_register_xmpp(void) {
     proto_register_field_array(proto_xmpp, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
     proto_register_subtree_array(ett_unknown_ptr, array_length(ett_unknown_ptr));
+    expert_xmpp = expert_register_protocol(proto_xmpp);
+    expert_register_field_array(expert_xmpp, ei, array_length(ei));
 
-    register_dissector("xmpp", dissect_xmpp, proto_xmpp);
+    xmpp_handle = register_dissector("xmpp", dissect_xmpp, proto_xmpp);
 
     xmpp_init_parsers();
 }
 
 void
 proto_reg_handoff_xmpp(void) {
-    dissector_handle_t xmpp_handle;
-
     ssl_handle = find_dissector("ssl");
     xml_handle  = find_dissector("xml");
-    xmpp_handle = find_dissector("xmpp");
 
     dissector_add_uint("tcp.port", XMPP_PORT, xmpp_handle);
 

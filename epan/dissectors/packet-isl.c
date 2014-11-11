@@ -1,8 +1,6 @@
 /* packet-isl.c
  * Routines for Cisco ISL Ethernet header disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,13 +23,18 @@
 #include "config.h"
 
 #include <glib.h>
+
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/etypes.h>
 #include <epan/show_exception.h>
 
 #include "packet-isl.h"
 #include "packet-eth.h"
 #include "packet-tr.h"
+
+void proto_register_isl(void);
+void proto_reg_handoff_isl(void);
 
 /*
  * See

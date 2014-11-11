@@ -1,7 +1,6 @@
 /* sip_stat.c
  * sip_stat   2004 Martin Mathieson
  *
- * $Id$
  * Copied from http_stat.c
  *
  * Wireshark - Network traffic analyzer
@@ -198,7 +197,7 @@ sip_init_hash(sipstat_t *sp)
     /* Add all response codes */
     for (i=0; vals_status_code[i].strptr; i++)
     {
-        sip_response_code_t *sc  = g_malloc(sizeof(sip_response_code_t));
+        sip_response_code_t *sc  = (sip_response_code_t *)g_malloc(sizeof(sip_response_code_t));
 
         sc->packets       = 0;
         sc->response_code = vals_status_code[i].value;
@@ -342,7 +341,7 @@ sip_reset_hash_requests(gchar *key _U_ , sip_request_method_t *data, gpointer pt
 static void
 sipstat_reset(void *psp)
 {
-    sipstat_t *sp = psp;
+    sipstat_t *sp = (sipstat_t *)psp;
     if (sp)
     {
         sp->packets               = 0;
@@ -361,7 +360,7 @@ sipstat_reset(void *psp)
 static int
 sipstat_packet(void *psp, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const void *pri)
 {
-    const sip_info_value_t *value = pri;
+    const sip_info_value_t *value = (const sip_info_value_t *)pri;
     sipstat_t *sp = (sipstat_t *)psp;
 
     /* Total number of packets, including continuation packets */
@@ -407,7 +406,7 @@ sipstat_packet(void *psp, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const
         sip_response_code_t *sc;
 
         /* Look up response code in hash table */
-        sc = g_hash_table_lookup(sp->hash_responses, GUINT_TO_POINTER(value->response_code));
+        sc = (sip_response_code_t *)g_hash_table_lookup(sp->hash_responses, GUINT_TO_POINTER(value->response_code));
         if (sc == NULL)
         {
             /* Non-standard status code; we classify it as others
@@ -449,7 +448,7 @@ sipstat_packet(void *psp, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const
             }
 
             /* Now look up this fallback code to get its text description */
-            sc = g_hash_table_lookup(sp->hash_responses, GUINT_TO_POINTER(key));
+            sc = (sip_response_code_t *)g_hash_table_lookup(sp->hash_responses, GUINT_TO_POINTER(key));
             if (sc == NULL)
             {
                 return 0;
@@ -463,11 +462,11 @@ sipstat_packet(void *psp, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const
         sip_request_method_t *sc;
 
         /* Look up the request method in the table */
-        sc = g_hash_table_lookup(sp->hash_requests, value->request_method);
+        sc = (sip_request_method_t *)g_hash_table_lookup(sp->hash_requests, value->request_method);
         if (sc == NULL)
         {
             /* First of this type. Create structure and initialise */
-            sc = g_malloc(sizeof(sip_request_method_t));
+            sc = (sip_request_method_t *)g_malloc(sizeof(sip_request_method_t));
             sc->response = g_strdup(value->request_method);
             sc->packets  = 1;
             sc->widget   = NULL;
@@ -496,7 +495,7 @@ static void
 sipstat_draw(void *psp)
 {
     gchar      string_buff[SUM_STR_MAX];
-    sipstat_t *sp = psp;
+    sipstat_t *sp = (sipstat_t *)psp;
 
     /* Set summary label */
     g_snprintf(string_buff, sizeof(string_buff),
@@ -576,7 +575,7 @@ gtk_sipstat_init(const char *opt_arg, void *userdata _U_)
     }
 
     /* Create sip stats window structure */
-    sp = g_malloc(sizeof(sipstat_t));
+    sp = (sipstat_t *)g_malloc(sizeof(sipstat_t));
     sp->win = dlg_window_new("sip-stat");  /* transient_for top_level */
     gtk_window_set_destroy_with_parent(GTK_WINDOW(sp->win), TRUE);
 
@@ -660,7 +659,7 @@ gtk_sipstat_init(const char *opt_arg, void *userdata _U_)
     bbox = dlg_button_row_new(GTK_STOCK_CLOSE, NULL);
     gtk_box_pack_start(GTK_BOX(main_vb), bbox, FALSE, FALSE, 0);
 
-    bt_close = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+    bt_close = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
     window_set_cancel_button(sp->win, bt_close, window_cancel_button_cb);
 
     g_signal_connect(sp->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
@@ -692,12 +691,5 @@ static tap_param_dlg sip_stat_dlg = {
 void
 register_tap_listener_gtksipstat(void)
 {
-    register_dfilter_stat(&sip_stat_dlg, "_SIP", REGISTER_STAT_GROUP_TELEPHONY);
+    register_param_stat(&sip_stat_dlg, "_SIP", REGISTER_STAT_GROUP_TELEPHONY);
 }
-
-void
-sipstat_cb(GtkAction *action, gpointer user_data _U_)
-{
-    tap_param_dlg_cb(action, &sip_stat_dlg);
-}
-

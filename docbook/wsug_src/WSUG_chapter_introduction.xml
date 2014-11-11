@@ -1,5 +1,4 @@
 <!-- WSUG Chapter Introduction -->
-<!-- $Id$ -->
 
 <chapter id="ChapterIntroduction">
   <title>Introduction</title>
@@ -65,18 +64,31 @@
     </listitem>
     <listitem>
       <para>
+        <command>Open</command> files containing packet data captured with
+        tcpdump/WinDump, Wireshark, and a number of other packet capture
+        programs.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        <command>Import</command> packets from text files containing hex
+        dumps of packet data.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
         Display packets with <command>very detailed protocol information</command>.
       </para>
     </listitem>
     <listitem>
       <para>
-        <command>Open and Save</command> packet data captured.
+        <command>Save</command> packet data captured.
       </para>
     </listitem>
     <listitem>
       <para>
-        <command>Import and Export</command> packet data from and to a lot of
-        other capture programs.
+        <command>Export</command> some or all packets in a number of
+        capture file formats.
       </para>
     </listitem>
     <listitem>
@@ -210,7 +222,8 @@
     <para>
     <itemizedlist>
     <listitem><para>Windows XP Home, XP Pro, XP Tablet PC, XP Media
-    Center, Server 2003, Vista, 2008, 7, or 2008 R2
+    Center, Server 2003, Vista, Home Server, Server 2008, Server 2008 R2,
+    Home Server 2011, 7, or Server 2012.
     </para></listitem>
     <listitem><para>Any modern 32-bit x86 or 64-bit AMD64/x86-64 processor.
     </para></listitem>
@@ -535,42 +548,45 @@
     <para>
       There are several mailing lists of specific Wireshark topics available:
       <variablelist>
-    <varlistentry><term><command>wireshark-announce</command></term>
-      <listitem>
-        <para>
-          This mailing list will inform you about new program
-          releases, which usually appear about every 4-8 weeks.
-        </para>
-      </listitem>
-    </varlistentry>
-    <varlistentry><term><command>wireshark-users</command></term>
-      <listitem>
-        <para>
-          This list is for users of Wireshark.  People post
-          questions about building and using Wireshark, others (hopefully)
-          provide answers.
-        </para>
-      </listitem>
-    </varlistentry>
-    <varlistentry><term><command>wireshark-dev</command></term>
-      <listitem>
-        <para>
-          This list is for Wireshark developers. If you want to start
-          developing a protocol dissector, join this list.
-        </para>
-      </listitem>
-    </varlistentry>
+	<varlistentry><term><command>wireshark-announce</command></term>
+	  <listitem>
+	    <para>
+	      This mailing list will inform you about new program
+	      releases, which usually appear about every 4-8 weeks.
+	    </para>
+	  </listitem>
+	</varlistentry>
+	<varlistentry><term><command>wireshark-users</command></term>
+	  <listitem>
+	    <para>
+	      This list is for users of Wireshark.  People post
+	      questions about building and using Wireshark, others (hopefully)
+	      provide answers.
+	    </para>
+	  </listitem>
+	</varlistentry>
+	<varlistentry><term><command>wireshark-dev</command></term>
+	  <listitem>
+	    <para>
+	      This list is for Wireshark developers. If you want to start
+	      developing a protocol dissector, join this list.
+	    </para>
+	  </listitem>
+	</varlistentry>
       </variablelist>
+
       You can subscribe to each of these lists from the Wireshark web site:
-      <ulink url="&WiresharkWebSite;">&WiresharkWebSite;</ulink>.  Simply
-      select the <command>mailing lists</command> link on the left hand
-      side of the site. The lists are archived at the Wireshark web site
-      as well.
+      <ulink url="&WiresharkListsPage;">&WiresharkListsPage;</ulink>.
+      From there, you can choose which mailing list you want to subscribe to
+      by clicking on the Subscribe/Unsubscribe/Options button under the title
+      of the relevant list. The links to the archives are included on that
+      page as well.
+
     <tip><title>Tip!</title>
     <para>
-    You can search in the list archives to see if someone asked the same
-    question some time before and maybe already got an answer. That way you
-    don't have to wait until someone answers your question.
+      You can search in the list archives to see if someone asked the same
+      question some time before and maybe already got an answer. That way you
+      don't have to wait until someone answers your question.
     </para>
     </tip>
     </para>

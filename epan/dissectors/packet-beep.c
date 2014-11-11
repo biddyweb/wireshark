@@ -1,8 +1,6 @@
 /* packet-beep.c
  * Routines for BEEP packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2000 by Richard Sharpe <rsharpe@ns.aus.com>
  * Modified 2001 Darren New <dnew@invisible.net> for BEEP.
  *
@@ -37,10 +35,12 @@
 #include <epan/addr_resolv.h>
 #include <epan/prefs.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 
 #define TCP_PORT_BEEP 10288
+
+void proto_register_beep(void);
 void proto_reg_handoff_beep(void);
 
 static guint global_beep_tcp_port = TCP_PORT_BEEP;
@@ -111,6 +111,11 @@ static int ett_beep = -1;
 static int ett_mime_header = -1;
 static int ett_header = -1;
 static int ett_trailer = -1;
+
+static expert_field ei_beep_more = EI_INIT;
+static expert_field ei_beep_cr_terminator = EI_INIT;
+static expert_field ei_beep_lf_terminator = EI_INIT;
+static expert_field ei_beep_invalid_terminator = EI_INIT;
 
 /* Get the state of the more flag ... */
 
@@ -227,7 +232,7 @@ dissect_beep_more(tvbuff_t *tvb, packet_info *pinfo, int offset,
      ret = 1;
      break;
   default:
-    expert_add_info_format(pinfo, hidden_item, PI_PROTOCOL, PI_WARN, "Expected More Flag (* or .)");
+    expert_add_info(pinfo, hidden_item, &ei_beep_more);
     ret = -1;
     break;
   }
@@ -266,8 +271,6 @@ static int num_len(tvbuff_t *tvb, int offset)
 static int
 check_term(tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tree *tree)
 {
-  proto_item  *ti;
-
   /* First, check for CRLF, or, if global_beep_strict_term is false,
    * one of CR or LF ... If neither of these hold, we add an element
    * that complains of a protocol violation, and return -1, else
@@ -286,21 +289,19 @@ check_term(tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tree *tree)
 
   if ((tvb_get_guint8(tvb, offset) == 0x0d) && !global_beep_strict_term) {
 
-    ti = proto_tree_add_text(tree, tvb, offset, 1, "Terminator: CR");
-    expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Nonstandard Terminator: CR");
+    proto_tree_add_expert(tree, pinfo, &ei_beep_cr_terminator, tvb, offset, 1);
     return 1;
 
   }
-  
+
   if ((tvb_get_guint8(tvb, offset) == 0x0a) && !global_beep_strict_term) {
 
-    ti = proto_tree_add_text(tree, tvb, offset, 1, "Terminator: LF");
-    expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Nonstandard Terminator: LF");
+    proto_tree_add_expert(tree, pinfo, &ei_beep_lf_terminator, tvb, offset, 1);
     return 1;
   }
 
-  ti = proto_tree_add_text(tree, tvb, offset, 1, "Terminator: %s", tvb_format_text(tvb, offset, 2));
-  expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Invalid Terminator: %s", tvb_format_text(tvb, offset, 2));
+  proto_tree_add_expert_format(tree, pinfo, &ei_beep_invalid_terminator, tvb,
+                                offset, 1, "Terminator: %s", tvb_format_text(tvb, offset, 2));
   return -1;
 }
 
@@ -529,7 +530,7 @@ dissect_beep_tree(tvbuff_t *tvb, int offset, packet_info *pinfo,
     }
     else {  /* Protocol violation, so dissect rest as undisectable */
       if (tree && (tvb_length_remaining(tvb, offset) > 0)) {
-        proto_tree_add_item(tree, hf_beep_payload_undissected, tvb, offset, 
+        proto_tree_add_item(tree, hf_beep_payload_undissected, tvb, offset,
                             tvb_length_remaining(tvb, offset), ENC_NA|ENC_ASCII);
       }
       return -1;
@@ -561,7 +562,7 @@ dissect_beep_tree(tvbuff_t *tvb, int offset, packet_info *pinfo,
       /* We dissect the rest as data and bail ... */
 
       if (tree && (tvb_length_remaining(tvb, offset) > 0)) {
-        proto_tree_add_item(tree, hf_beep_payload_undissected, tvb, offset, 
+        proto_tree_add_item(tree, hf_beep_payload_undissected, tvb, offset,
                             tvb_length_remaining(tvb, offset), ENC_NA|ENC_ASCII);
       }
 
@@ -643,7 +644,7 @@ dissect_beep_tree(tvbuff_t *tvb, int offset, packet_info *pinfo,
       /* We dissect the rest as data and bail ... */
 
       if (tree && (tvb_length_remaining(tvb, offset) > 0)) {
-        proto_tree_add_item(tree, hf_beep_payload_undissected, tvb, offset, 
+        proto_tree_add_item(tree, hf_beep_payload_undissected, tvb, offset,
                             tvb_length_remaining(tvb, offset), ENC_NA|ENC_ASCII);
       }
 
@@ -672,7 +673,7 @@ dissect_beep_tree(tvbuff_t *tvb, int offset, packet_info *pinfo,
       /* We dissect the rest as data and bail ... */
 
       if (tree && (tvb_length_remaining(tvb, offset) > 0)) {
-        proto_tree_add_item(tree, hf_beep_payload_undissected, tvb, offset, 
+        proto_tree_add_item(tree, hf_beep_payload_undissected, tvb, offset,
                             tvb_length_remaining(tvb, offset), ENC_NA|ENC_ASCII);
       }
 
@@ -777,7 +778,7 @@ dissect_beep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
    * info first.
    */
 
-  beep_frame_data = p_get_proto_data(pinfo->fd, proto_beep);
+  beep_frame_data = (struct beep_proto_data *)p_get_proto_data(wmem_file_scope(), pinfo, proto_beep, 0);
 
   if (!beep_frame_data) {
 
@@ -792,10 +793,10 @@ dissect_beep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
       if (!request_val) { /* Create one */
 
-        new_request_key = se_alloc(sizeof(struct beep_request_key));
+        new_request_key = wmem_new(wmem_file_scope(), struct beep_request_key);
         new_request_key->conversation = conversation->index;
 
-        request_val = se_alloc(sizeof(struct beep_request_val));
+        request_val = wmem_new(wmem_file_scope(), struct beep_request_val);
         request_val->processed = 0;
         request_val->size = 0;
 
@@ -865,13 +866,13 @@ dissect_beep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      * elsewhere for other frames
      */
 
-    beep_frame_data = se_alloc(sizeof(struct beep_proto_data));
+    beep_frame_data = wmem_new(wmem_file_scope(), struct beep_proto_data);
 
     beep_frame_data->pl_left = pl_left;
     beep_frame_data->pl_size = 0;
     beep_frame_data->mime_hdr = 0;
 
-    p_add_proto_data(pinfo->fd, proto_beep, beep_frame_data);
+    p_add_proto_data(wmem_file_scope(), pinfo, proto_beep, 0, beep_frame_data);
 
   }
 
@@ -881,19 +882,19 @@ dissect_beep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   if (beep_frame_data == NULL) {
 
-    beep_frame_data = se_alloc(sizeof(struct beep_proto_data));
+    beep_frame_data = wmem_new(wmem_file_scope(), struct beep_proto_data);
 
     beep_frame_data->pl_left = 0;
     beep_frame_data->pl_size = 0;
     beep_frame_data->mime_hdr = 0;
 
-    p_add_proto_data(pinfo->fd, proto_beep, beep_frame_data);
+    p_add_proto_data(wmem_file_scope(), pinfo, proto_beep, 0, beep_frame_data);
 
   }
 
   if (tvb_length_remaining(tvb, offset) > 0) {
 
-    offset += dissect_beep_tree(tvb, offset, pinfo, beep_tree, request_val, beep_frame_data);
+    /*offset += */dissect_beep_tree(tvb, offset, pinfo, beep_tree, request_val, beep_frame_data);
 
   }
 
@@ -972,13 +973,23 @@ proto_register_beep(void)
     &ett_header,
     &ett_trailer,
   };
+  static ei_register_info ei[] = {
+     { &ei_beep_more, { "beep.more.expected", PI_PROTOCOL, PI_WARN, "Expected More Flag (* or .)", EXPFILL }},
+     { &ei_beep_cr_terminator, { "beep.cr_terminator", PI_PROTOCOL, PI_WARN, "Nonstandard Terminator: CR", EXPFILL }},
+     { &ei_beep_lf_terminator, { "beep.lf_terminator", PI_PROTOCOL, PI_WARN, "Nonstandard Terminator: LF", EXPFILL }},
+     { &ei_beep_invalid_terminator, { "beep.invalid_terminator", PI_PROTOCOL, PI_WARN, "Invalid Terminator", EXPFILL }},
+  };
+
   module_t *beep_module;
+  expert_module_t* expert_beep;
 
   proto_beep = proto_register_protocol("Blocks Extensible Exchange Protocol",
                                        "BEEP", "beep");
 
   proto_register_field_array(proto_beep, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_beep = expert_register_protocol(proto_beep);
+  expert_register_field_array(expert_beep, ei, array_length(ei));
   register_init_routine(&beep_init_protocol);
 
   /* Register our configuration options for BEEP, particularly our port */

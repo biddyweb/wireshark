@@ -1,7 +1,5 @@
 /* file_wrappers.c
  *
- * $Id$
- *
  * Wiretap Library
  * Copyright (c) 1998 by Gilbert Ramirez <gram@alumni.rice.edu>
  *
@@ -815,7 +813,15 @@ file_fdopen(int fd)
 
 #ifdef _STATBUF_ST_BLKSIZE
 	if (fstat(fd, &st) >= 0) {
-		want = st.st_blksize;
+		/*
+		 * Yes, st_blksize can be bigger than an int; apparently,
+		 * it's a long on LP64 Linux, for example.
+		 *
+		 * If the value is too big to fit into an int, just
+		 * use the default.
+		 */
+		if (st.st_blksize <= G_MAXINT)
+			want = (int)st.st_blksize;
 		/* XXX, verify result? */
 	}
 #endif
@@ -1046,7 +1052,8 @@ file_seek(FILE_T file, gint64 offset, int whence, int *err)
 
 	/* if within raw area while reading, just go there */
 	if (file->compression == UNCOMPRESSED && file->pos + offset >= file->raw
-			&& (offset < 0 || offset >= file->have) /* seek only when we don't have that offset in buffer */)
+			&& (offset < 0 || offset >= file->have) /* seek only when we don't have that offset in buffer */
+			&& (file->fast_seek) /* seek only when random access is supported */)
 	{
 		if (ws_lseek64(file->fd, offset - file->have, SEEK_CUR) == -1) {
 			*err = errno;
@@ -1104,10 +1111,12 @@ file_seek(FILE_T file, gint64 offset, int whence, int *err)
  * sequentially from a pipe, this could instead just skip
  * forward by reading the bytes in question.
  */
-gint64
+gboolean
 file_skip(FILE_T file, gint64 delta, int *err)
 {
-	return file_seek(file, delta, SEEK_CUR, err);
+	if (file_seek(file, delta, SEEK_CUR, err) == -1)
+		return FALSE;
+	return TRUE;
 }
 
 gint64
@@ -1196,6 +1205,53 @@ file_read(void *buf, unsigned int len, FILE_T file)
 	} while (len);
 
 	return (int)got;
+}
+
+/*
+ * XXX - this *peeks* at next byte, not a character.
+ */
+int
+file_peekc(FILE_T file)
+{
+	int ret = 0;
+
+	/* check that we're reading and that there's no error */
+	if (file->err)
+		return -1;
+
+	/* try output buffer (no need to check for skip request) */
+	if (file->have) {
+		return *(file->next);
+	}
+
+	/* process a skip request */
+	if (file->seek_pending) {
+		file->seek_pending = FALSE;
+		if (gz_skip(file, file->skip) == -1)
+			return -1;
+	}
+	/* if we processed a skip request, there may be data in the buffer,
+	 * or an error could have occured; likewise if we didn't do seek but
+	 * now call fill_out_buffer, the errors can occur.  So we do this while
+	 * loop to check before and after - this is basically the logic from
+	 * file_read() but only for peeking not consuming a byte
+	 */
+	while (1) {
+		if (file->have) {
+			return *(file->next);
+		}
+		else if (file->err) {
+			return -1;
+		}
+		else if (file->eof && file->avail_in == 0) {
+			return -1;
+		}
+		else if (fill_out_buffer(file) == -1) {
+			return -1;
+		}
+	}
+	/* it's actually impossible to get here */
+	return ret;
 }
 
 /*
@@ -1305,11 +1361,11 @@ file_eof(FILE_T file)
 int
 file_error(FILE_T fh, gchar **err_info)
 {
-	if (fh->err != 0) {
-		*err_info = (fh->err_info == NULL) ? NULL : g_strdup(fh->err_info);
-		return fh->err;
+	if (fh->err!=0 && err_info) {
+		/* g_strdup() returns NULL for NULL argument */
+		*err_info = g_strdup(fh->err_info);
 	}
-	return 0;
+	return fh->err;
 }
 
 void
@@ -1572,7 +1628,7 @@ gzwfile_write(GZWFILE_T state, const void *buf, guint len)
             memcpy(strm->next_in + strm->avail_in, buf, n);
             strm->avail_in += n;
             state->pos += n;
-            buf = (char *)buf + n;
+            buf = (const char *)buf + n;
             len -= n;
             if (len && gz_comp(state, Z_NO_FLUSH) == -1)
                 return 0;
@@ -1585,7 +1641,7 @@ gzwfile_write(GZWFILE_T state, const void *buf, guint len)
 
         /* directly compress user buffer to file */
         strm->avail_in = len;
-        strm->next_in = (voidp)buf;
+        strm->next_in = (Bytef *)buf;
         state->pos += len;
         if (gz_comp(state, Z_NO_FLUSH) == -1)
             return 0;

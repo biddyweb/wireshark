@@ -3,8 +3,6 @@
  * Richard Sharpe <rsharpe@ns.aus.com> based on the lapb module by
  * Olivier Abad <oabad@noos.fr>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998
@@ -29,6 +27,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/etypes.h>
+
+void proto_register_lapbether(void);
+void proto_reg_handoff_lapbether(void);
 
 static int proto_lapbether = -1;
 

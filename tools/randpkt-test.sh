@@ -1,6 +1,4 @@
 #!/bin/bash
-#
-# $Id$
 
 # Randpkt testing script for TShark
 #
@@ -9,17 +7,16 @@
 # The files are processed repeatedly until an error is found.
 
 TEST_TYPE="randpkt"
-. `dirname $0`/test-common.sh
+. `dirname $0`/test-common.sh || exit 1
 
 # Trigger an abort if a dissector finds a bug.
 # Uncomment to disable
 WIRESHARK_ABORT_ON_DISSECTOR_BUG="True"
 
-PKT_TYPES=`$RANDPKT -h | awk '/^\t/ {print $1}'`
-
 # To do: add options for file names and limits
-while getopts ":d:p:t:" OPTCHAR ; do
+while getopts ":b:d:p:t:" OPTCHAR ; do
     case $OPTCHAR in
+        b) BIN_DIR=$OPTARG ;;
         d) TMP_DIR=$OPTARG ;;
         p) MAX_PASSES=$OPTARG ;;
         t) PKT_TYPES=$OPTARG ;;
@@ -29,6 +26,11 @@ shift $(($OPTIND - 1))
 
 ### usually you won't have to change anything below this line ###
 
+ws_bind_exec_paths
+ws_check_exec "$TSHARK" "$RANDPKT" "$DATE" "$TMP_DIR"
+
+[[ -z "$PKT_TYPES" ]] && PKT_TYPES=$($RANDPKT -h | awk '/^\t/ {print $1}')
+
 # TShark arguments (you won't have to change these)
 # n Disable network object name resolution
 # V Print a view of the details of the packet rather than a one-line summary of the packet
@@ -36,17 +38,6 @@ shift $(($OPTIND - 1))
 # r Read packet data from the following infile
 declare -a TSHARK_ARGS=("-nVxr" "-nr")
 RANDPKT_ARGS="-b 2000 -c 5000"
-
-NOTFOUND=0
-for i in "$TSHARK" "$RANDPKT" "$DATE" "$TMP_DIR" ; do
-    if [ ! -x $i ]; then
-        echo "Couldn't find $i"
-        NOTFOUND=1
-    fi
-done
-if [ $NOTFOUND -eq 1 ]; then
-    exit 1
-fi
 
 HOWMANY="forever"
 if [ $MAX_PASSES -gt 0 ]; then
@@ -98,11 +89,8 @@ while [ $PASS -lt $MAX_PASSES -o $MAX_PASSES -lt 1 ] ; do
             > /dev/null 2>&1 && DISSECTOR_BUG=1
 
         if [ $RETVAL -ne 0 -o $DISSECTOR_BUG -ne 0 ] ; then
-            RAND_FILE="randpkt-`$DATE +%Y-%m-%d`-$$.pcap"
-            mv $TMP_DIR/$TMP_FILE $TMP_DIR/$RAND_FILE
-            echo "  Output file: $TMP_DIR/$RAND_FILE"
 
-            exit_error
+            ws_exit_error
         fi
         echo " OK"
         rm -f $TMP_DIR/$TMP_FILE $TMP_DIR/$ERR_FILE

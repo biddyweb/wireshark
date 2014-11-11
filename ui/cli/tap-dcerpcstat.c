@@ -1,8 +1,6 @@
 /* tap-dcerpcstat.c
  * dcerpcstat   2002 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,8 +23,9 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet_info.h"
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
@@ -34,6 +33,8 @@
 
 #define MICROSECS_PER_SEC   1000000
 #define NANOSECS_PER_SEC    1000000000
+
+void register_tap_listener_dcerpcstat(void);
 
 /* used to keep track of statistics for a specific procedure */
 typedef struct _rpc_procedure_t {
@@ -60,7 +61,7 @@ static int
 dcerpcstat_packet(void *prs, packet_info *pinfo, epan_dissect_t *edt _U_, const void *pri)
 {
 	const dcerpc_info *ri=(const dcerpc_info *)pri;
-	rpcstat_t *rs=prs;
+	rpcstat_t *rs=(rpcstat_t *)prs;
 	nstime_t delta;
 	rpc_procedure_t *rp;
 
@@ -149,7 +150,7 @@ dcerpcstat_draw(void *prs)
 	printf("%s Major Version %u SRT Statistics:\n", rs->prog, rs->ver);
 	printf("Filter: %s\n",rs->filter?rs->filter:"");
 	printf("Procedure                        Calls    Min SRT    Max SRT    Avg SRT\n");
-	
+
 	for(i=0;i<rs->num_procedures;i++){
 		/* Only display procs with non-zero calls */
 		if(rs->procedures[i].num==0){
@@ -173,7 +174,7 @@ dcerpcstat_draw(void *prs)
 
 
 static void
-dcerpcstat_init(const char *optarg, void* userdata _U_)
+dcerpcstat_init(const char *opt_arg, void* userdata _U_)
 {
 	rpcstat_t *rs;
 	guint32 i, max_procs;
@@ -198,7 +199,7 @@ dcerpcstat_init(const char *optarg, void* userdata _U_)
 	 * report aggregate statistics for all minor version numbers
 	 * if it's omitted?
 	 */
-	if(sscanf(optarg,
+	if(sscanf(opt_arg,
 		"dcerpc,srt,%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x,%d.%d%n",
 		&d1,&d2,&d3,&d40,&d41,&d42,&d43,&d44,&d45,&d46,&d47,
 		&major,&minor,&pos)==13){
@@ -214,7 +215,7 @@ dcerpcstat_init(const char *optarg, void* userdata _U_)
 		uuid.Data4[6]=d46;
 		uuid.Data4[7]=d47;
 		if(pos){
-			filter=optarg+pos;
+			filter=opt_arg+pos;
 		} else {
 			filter=NULL;
 		}

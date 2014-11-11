@@ -2,8 +2,6 @@
  * Routines for Subnetwork Dependent Convergence Protocol (SNDCP) dissection
  * Copyright 2000, Christian Falckenberg <christian.falckenberg@nortelnetworks.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,9 @@
 #define MASK_F      0x40
 #define MASK_T      0x20
 #define MASK_M      0x10
+
+void proto_register_sndcp(void);
+void proto_reg_handoff_sndcp(void);
 
 /* Initialize the protocol and registered fields
 */
@@ -101,14 +102,12 @@ static dissector_handle_t ip_handle;
 
 /* reassembly of N-PDU
  */
-static GHashTable       *npdu_fragment_table = NULL;
-static GHashTable       *sndcp_reassembled_table = NULL;
+static reassembly_table npdu_reassembly_table;
 
 static void
 sndcp_defragment_init(void)
 {
-  fragment_table_init(&npdu_fragment_table);
-  reassembled_table_init(&sndcp_reassembled_table);
+  reassembly_table_init(&npdu_reassembly_table, &addresses_reassembly_table_functions);
 }
 
 /* value strings
@@ -277,8 +276,7 @@ dissect_sndcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      */
     if (!unack) {
       npdu = npdu_field1 = tvb_get_guint8(tvb,offset);
-      if (check_col(pinfo->cinfo, COL_INFO))
-        col_add_fstr(pinfo->cinfo, COL_INFO, "SN-DATA N-PDU %d", npdu_field1);
+      col_add_fstr(pinfo->cinfo, COL_INFO, "SN-DATA N-PDU %d", npdu_field1);
       if (tree) {
         npdu_field_item = proto_tree_add_text(sndcp_tree, tvb, offset,1, "Acknowledged mode, N-PDU %d", npdu_field1 );
         npdu_field_tree = proto_item_add_subtree(npdu_field_item, ett_sndcp_npdu_field);
@@ -294,8 +292,7 @@ dissect_sndcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     npdu_field2     = tvb_get_ntohs(tvb, offset);
     segment         = (npdu_field2 & 0xF000) >> 12;
     npdu            = (npdu_field2 & 0x0FFF);
-    if (check_col(pinfo->cinfo, COL_INFO))
-      col_add_fstr(pinfo->cinfo, COL_INFO, "SN-UNITDATA N-PDU %d (segment %d)", npdu, segment);
+    col_add_fstr(pinfo->cinfo, COL_INFO, "SN-UNITDATA N-PDU %d (segment %d)", npdu, segment);
     if (tree) {
       npdu_field_item = proto_tree_add_text(sndcp_tree, tvb, offset,2, "Unacknowledged mode, N-PDU %d (segment %d)", npdu, segment );
       npdu_field_tree = proto_item_add_subtree(npdu_field_item, ett_sndcp_npdu_field);
@@ -320,7 +317,7 @@ dissect_sndcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   else {
     /* Try reassembling fragments
      */
-    fragment_data  *fd_npdu         = NULL;
+    fragment_head  *fd_npdu         = NULL;
     guint32         reassembled_in  = 0;
     gboolean        save_fragmented = pinfo->fragmented;
 
@@ -332,11 +329,11 @@ dissect_sndcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     pinfo->fragmented = TRUE;
 
     if (unack)
-      fd_npdu  = fragment_add_seq_check(tvb, offset, pinfo, npdu,
-                                        npdu_fragment_table, sndcp_reassembled_table, segment, len, more_frags);
+      fd_npdu  = fragment_add_seq_check(&npdu_reassembly_table, tvb, offset,
+                                        pinfo, npdu, NULL, segment, len, more_frags);
     else
-      fd_npdu  = fragment_add(tvb, offset, pinfo, npdu,
-                              npdu_fragment_table, offset, len, more_frags);
+      fd_npdu  = fragment_add(&npdu_reassembly_table, tvb, offset, pinfo, npdu, NULL,
+                              offset, len, more_frags);
 
     npdu_tvb = process_reassembled_data(tvb, offset, pinfo,
                                         "Reassembled N-PDU", fd_npdu, &npdu_frag_items,
@@ -354,11 +351,9 @@ dissect_sndcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       else {
         /* Not reassembled in this packet
          */
-        if (check_col(pinfo->cinfo, COL_INFO)) {
-          col_append_fstr(pinfo->cinfo, COL_INFO,
+        col_append_fstr(pinfo->cinfo, COL_INFO,
                           " (N-PDU payload reassembled in packet %u)",
                           fd_npdu->reassembled_in);
-        }
         if (tree) {
           proto_tree_add_text(sndcp_tree, tvb, offset, -1, "Payload");
         }
@@ -366,12 +361,11 @@ dissect_sndcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     } else {
       /* Not reassembled yet, or not reassembled at all
        */
-      if (check_col(pinfo->cinfo, COL_INFO)) {
-        if (unack)
-          col_append_fstr(pinfo->cinfo, COL_INFO, " (Unreassembled fragment %u)", segment);
-        else
-          col_append_str(pinfo->cinfo, COL_INFO, " (Unreassembled fragment)");
-      }
+      if (unack)
+        col_append_fstr(pinfo->cinfo, COL_INFO, " (Unreassembled fragment %u)", segment);
+      else
+        col_append_str(pinfo->cinfo, COL_INFO, " (Unreassembled fragment)");
+
       if (tree) {
         proto_tree_add_text(sndcp_tree, tvb, offset, -1, "Payload");
       }

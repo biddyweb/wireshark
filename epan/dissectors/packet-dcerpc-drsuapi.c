@@ -6,8 +6,6 @@
  * Routines for DRSUAPI packet disassembly
  *   ronnie sahlberg 2005
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -546,13 +544,11 @@ static gint ett_drsuapi_DsReplicaInfo = -1;
 
 
 static int
-ucarray_drsuapi_dissect_DsReplicaSyncRequest1Info_nc_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaSyncRequest1Info_nc_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	static guint32 len;
-	dcerpc_info *di;
 	int old_offset;
 
-	di=pinfo->private_data;
 	if(di->conformant_run){
 		/*just a run to handle conformant arrays, nothing to dissect 
 		  but we need to remember how long this array was.
@@ -579,9 +575,9 @@ ucarray_drsuapi_dissect_DsReplicaSyncRequest1Info_nc_dn(tvbuff_t *tvb, int offse
 }
 
 static int
-drsuapi_dissect_a_string(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_a_string(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info* di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_vstring(tvb, offset, pinfo, tree, drep, 1, hf_index, FALSE, NULL);
+    offset=dissect_ndr_vstring(tvb, offset, pinfo, tree, di, drep, 1, hf_index, FALSE, NULL);
     return offset;
 }
 
@@ -767,7 +763,7 @@ static const true_false_string DRSUAPI_SUPPORTED_EXTENSION_80000000_tfs = {
 
 
 int
-drsuapi_dissect_SupportedExtensions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_SupportedExtensions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -780,7 +776,7 @@ drsuapi_dissect_SupportedExtensions(tvbuff_t *tvb, int offset, packet_info *pinf
  	   tree=proto_item_add_subtree(item, ett_drsuapi_SupportedExtensions);
     }
 
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, NULL, drep, -1, &flags);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, NULL, di, drep, -1, &flags);
 
 
     proto_tree_add_boolean(tree, hf_drsuapi_SupportedExtensions_DRSUAPI_SUPPORTED_EXTENSION_BASE, tvb, offset-4, 4, flags);
@@ -994,48 +990,48 @@ drsuapi_dissect_SupportedExtensions(tvbuff_t *tvb, int offset, packet_info *pinf
     return offset;
 }
 static int
-drsuapi_dissect_DsBindInfo24_supported_extensions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsBindInfo24_supported_extensions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_SupportedExtensions(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsBindInfo24_supported_extensions, param);
+	 offset=drsuapi_dissect_SupportedExtensions(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsBindInfo24_supported_extensions, param);
 	 return offset;
 }
 
 
 static int
-drsuapi_dissect_GUID(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_GUID(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info* di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_index, NULL);
+    offset=dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_index, NULL);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsBindInfo24_site_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsBindInfo24_site_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsBindInfo24_site_guid, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsBindInfo24_site_guid, param);
 	 return offset;
 }
 
 
 static int
-drsuapi_dissect_uint32(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_uint32(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info* di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, NULL);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, NULL);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsBindInfo24_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsBindInfo24_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsBindInfo24_u1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsBindInfo24_u1, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsBindInfo24(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsBindInfo24(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -1049,51 +1045,51 @@ drsuapi_dissect_DsBindInfo24(tvbuff_t *tvb, int offset, packet_info *pinfo, prot
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsBindInfo24);
     }
 
-    offset=drsuapi_dissect_DsBindInfo24_supported_extensions(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsBindInfo24_supported_extensions(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsBindInfo24_site_guid(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsBindInfo24_site_guid(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsBindInfo24_u1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsBindInfo24_u1(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsBindInfo28_supported_extensions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsBindInfo28_supported_extensions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_SupportedExtensions(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsBindInfo28_supported_extensions, param);
+	 offset=drsuapi_dissect_SupportedExtensions(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsBindInfo28_supported_extensions, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsBindInfo28_site_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsBindInfo28_site_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsBindInfo28_site_guid, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsBindInfo28_site_guid, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsBindInfo28_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsBindInfo28_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsBindInfo28_u1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsBindInfo28_u1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsBindInfo28_repl_epoch(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsBindInfo28_repl_epoch(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsBindInfo28_repl_epoch, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsBindInfo28_repl_epoch, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsBindInfo28(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsBindInfo28(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -1107,37 +1103,37 @@ drsuapi_dissect_DsBindInfo28(tvbuff_t *tvb, int offset, packet_info *pinfo, prot
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsBindInfo28);
     }
 
-    offset=drsuapi_dissect_DsBindInfo28_supported_extensions(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsBindInfo28_supported_extensions(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsBindInfo28_site_guid(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsBindInfo28_site_guid(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsBindInfo28_u1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsBindInfo28_u1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsBindInfo28_repl_epoch(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsBindInfo28_repl_epoch(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_union_DsBindInfo_24_info24(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsBindInfo_24_info24(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsBindInfo24(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsBindInfo_24_info24, param);
+    offset=drsuapi_dissect_DsBindInfo24(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsBindInfo_24_info24, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsBindInfo_28_info28(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsBindInfo_28_info28(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsBindInfo28(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsBindInfo_28_info28, param);
+    offset=drsuapi_dissect_DsBindInfo28(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsBindInfo_28_info28, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_union_DsBindInfo(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_union_DsBindInfo(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -1153,17 +1149,17 @@ drsuapi_dissect_union_DsBindInfo(tvbuff_t *tvb, int offset, packet_info *pinfo, 
     }
 
     offset=dissect_ndr_uint32(tvb, offset, pinfo, tree,
- 							 drep, hf_index, &level);
+ 							 di, drep, hf_index, &level);
 
     switch(level){
     case 24:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsBindInfo_24_info24(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsBindInfo_24_info24(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case 28:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsBindInfo_28_info28(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsBindInfo_28_info28(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     }
@@ -1173,24 +1169,24 @@ drsuapi_dissect_union_DsBindInfo(tvbuff_t *tvb, int offset, packet_info *pinfo, 
    return offset;
 }
 static int
-drsuapi_dissect_DsBindInfoCtr_length(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsBindInfoCtr_length(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsBindInfoCtr_length, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsBindInfoCtr_length, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsBindInfoCtr_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsBindInfoCtr_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_union_DsBindInfo(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsBindInfoCtr_info, param);
+	 offset=drsuapi_dissect_union_DsBindInfo(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsBindInfoCtr_info, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsBindInfoCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsBindInfoCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -1204,41 +1200,41 @@ drsuapi_dissect_DsBindInfoCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, pro
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsBindInfoCtr);
     }
 
-    offset=drsuapi_dissect_DsBindInfoCtr_length(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsBindInfoCtr_length(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsBindInfoCtr_info(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsBindInfoCtr_info(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsBind_bind_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsBind_bind_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsBind_bind_guid, param);
+    offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsBind_bind_guid, param);
     return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsBind_bind_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsBind_bind_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsBind_bind_guid, NDR_POINTER_UNIQUE, "bind_guid", -1);
+    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsBind_bind_guid, NDR_POINTER_UNIQUE, "bind_guid", -1);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsBind_bind_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsBind_bind_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsBindInfoCtr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsBind_bind_info, param);
+    offset=drsuapi_dissect_DsBindInfoCtr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsBind_bind_info, param);
     return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsBind_bind_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsBind_bind_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsBind_bind_info, NDR_POINTER_UNIQUE, "bind_info", -1);
+    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsBind_bind_info, NDR_POINTER_UNIQUE, "bind_info", -1);
     return offset;
 }
 
@@ -1247,166 +1243,164 @@ static e_ctx_hnd policy_hnd;
 static proto_item *hnd_item;
 
 static int
-drsuapi_dissect_policy_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param)
+drsuapi_dissect_policy_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param)
 {
-    offset = dissect_nt_policy_hnd(tvb, offset, pinfo, tree, drep,
+    offset = dissect_nt_policy_hnd(tvb, offset, pinfo, tree, di, drep,
  				  hf_index, &policy_hnd, &hnd_item,
  				  param&0x01, param&0x02);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsBind_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsBind_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsBind_bind_handle, param);
+    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsBind_bind_handle, param);
     return offset;
 }
 
 static int
-ref_drsuapi_dissect_DsBind_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ref_drsuapi_dissect_DsBind_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsBind_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
+    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsBind_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_DsBind_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsBind_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=unique_drsuapi_dissect_DsBind_bind_guid(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=unique_drsuapi_dissect_DsBind_bind_guid(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=unique_drsuapi_dissect_DsBind_bind_info(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=unique_drsuapi_dissect_DsBind_bind_info(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DsBind_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsBind_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=unique_drsuapi_dissect_DsBind_bind_info(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=unique_drsuapi_dissect_DsBind_bind_info(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=ref_drsuapi_dissect_DsBind_bind_handle(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=ref_drsuapi_dissect_DsBind_bind_handle(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 static int
-drsuapi_dissect_DsUnbind_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsUnbind_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsUnbind_bind_handle, param);
+    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsUnbind_bind_handle, param);
     return offset;
 }
 
 static int
-ref_drsuapi_dissect_DsUnbind_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ref_drsuapi_dissect_DsUnbind_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsUnbind_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
+    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsUnbind_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_DsUnbind_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsUnbind_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=ref_drsuapi_dissect_DsUnbind_bind_handle(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=ref_drsuapi_dissect_DsUnbind_bind_handle(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DsUnbind_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsUnbind_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=ref_drsuapi_dissect_DsUnbind_bind_handle(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=ref_drsuapi_dissect_DsUnbind_bind_handle(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 static int
-drsuapi_dissect_DsReplicaSyncRequest1Info_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaSyncRequest1Info_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaSyncRequest1Info_unknown1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaSyncRequest1Info_unknown1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaSyncRequest1Info_unknown2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaSyncRequest1Info_unknown2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaSyncRequest1Info_unknown2, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaSyncRequest1Info_unknown2, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaSyncRequest1Info_guid1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaSyncRequest1Info_guid1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaSyncRequest1Info_guid1, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaSyncRequest1Info_guid1, param);
 	 return offset;
 }
 
 
 static int
-drsuapi_dissect_uint8(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_uint8(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_uint8(tvb, offset, pinfo, tree, drep, hf_index, NULL);
+    offset=dissect_ndr_uint8(tvb, offset, pinfo, tree, di, drep, hf_index, NULL);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaSyncRequest1Info_byte_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaSyncRequest1Info_byte_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint8(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaSyncRequest1Info_byte_array, param);
+	 offset=drsuapi_dissect_uint8(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaSyncRequest1Info_byte_array, param);
 	 return offset;
 }
 
 static int
-fixedarray_drsuapi_dissect_DsReplicaSyncRequest1Info_byte_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+fixedarray_drsuapi_dissect_DsReplicaSyncRequest1Info_byte_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 int count=28;
 	 while(count--){
-		 offset=drsuapi_dissect_DsReplicaSyncRequest1Info_byte_array(tvb, offset, pinfo, tree, drep);
+		 offset=drsuapi_dissect_DsReplicaSyncRequest1Info_byte_array(tvb, offset, pinfo, tree, di, drep);
 	 }
 
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaSyncRequest1Info_str_len(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaSyncRequest1Info_str_len(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaSyncRequest1Info_str_len, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaSyncRequest1Info_str_len, param);
 	 return offset;
 }
 
 
-#if 0
 static int
-drsuapi_dissect_uint16(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_uint16(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_uint16(tvb, offset, pinfo, tree, drep, hf_index, NULL);
+    offset=dissect_ndr_uint16(tvb, offset, pinfo, tree, di, drep, hf_index, NULL);
     return offset;
 }
-#endif
 
 
 int
-drsuapi_dissect_DsReplicaSyncRequest1Info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaSyncRequest1Info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -1420,17 +1414,17 @@ drsuapi_dissect_DsReplicaSyncRequest1Info(tvbuff_t *tvb, int offset, packet_info
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaSyncRequest1Info);
     }
 
-    offset=drsuapi_dissect_DsReplicaSyncRequest1Info_unknown1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaSyncRequest1Info_unknown1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaSyncRequest1Info_unknown2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaSyncRequest1Info_unknown2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaSyncRequest1Info_guid1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaSyncRequest1Info_guid1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=fixedarray_drsuapi_dissect_DsReplicaSyncRequest1Info_byte_array(tvb, offset, pinfo, tree, drep);
+    offset=fixedarray_drsuapi_dissect_DsReplicaSyncRequest1Info_byte_array(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaSyncRequest1Info_str_len(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaSyncRequest1Info_str_len(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ucarray_drsuapi_dissect_DsReplicaSyncRequest1Info_nc_dn(tvb, offset, pinfo, tree, drep);
+    offset=ucarray_drsuapi_dissect_DsReplicaSyncRequest1Info_nc_dn(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
@@ -1558,7 +1552,7 @@ static const true_false_string DRSUAPI_DS_REPLICA_SYNC_PREEMPTED_tfs = {
 
 
 int
-drsuapi_dissect_DsReplicaSyncOptions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaSyncOptions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -1571,7 +1565,7 @@ drsuapi_dissect_DsReplicaSyncOptions(tvbuff_t *tvb, int offset, packet_info *pin
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaSyncOptions);
     }
 
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, NULL, drep, -1, &flags);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, NULL, di, drep, -1, &flags);
 
 
     proto_tree_add_boolean(tree, hf_drsuapi_DsReplicaSyncOptions_DRSUAPI_DS_REPLICA_SYNC_ASYNCHRONOUS_OPERATION, tvb, offset-4, 4, flags);
@@ -1725,54 +1719,54 @@ drsuapi_dissect_DsReplicaSyncOptions(tvbuff_t *tvb, int offset, packet_info *pin
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaSyncRequest1_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaSyncRequest1_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaSyncRequest1Info(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaSyncRequest1_info, param);
+	 offset=drsuapi_dissect_DsReplicaSyncRequest1Info(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaSyncRequest1_info, param);
 	 return offset;
 }
 
 static int
-ref_drsuapi_dissect_DsReplicaSyncRequest1_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ref_drsuapi_dissect_DsReplicaSyncRequest1_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaSyncRequest1_info, NDR_POINTER_REF, "info", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaSyncRequest1_info, NDR_POINTER_REF, "info", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaSyncRequest1_guid1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaSyncRequest1_guid1, param);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsReplicaSyncRequest1_string1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaSyncRequest1_guid1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_a_string(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaSyncRequest1_string1, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaSyncRequest1_guid1, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaSyncRequest1_string1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaSyncRequest1_string1, NDR_POINTER_UNIQUE, "string1", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsReplicaSyncRequest1_options(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaSyncRequest1_string1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaSyncOptions(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaSyncRequest1_options, param);
+	 offset=drsuapi_dissect_a_string(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaSyncRequest1_string1, param);
+	 return offset;
+}
+
+static int
+unique_drsuapi_dissect_DsReplicaSyncRequest1_string1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaSyncRequest1_string1, NDR_POINTER_UNIQUE, "string1", -1);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsReplicaSyncRequest1_options(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_DsReplicaSyncOptions(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaSyncRequest1_options, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaSyncRequest1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaSyncRequest1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -1786,13 +1780,13 @@ drsuapi_dissect_DsReplicaSyncRequest1(tvbuff_t *tvb, int offset, packet_info *pi
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaSyncRequest1);
     }
 
-    offset=ref_drsuapi_dissect_DsReplicaSyncRequest1_info(tvb, offset, pinfo, tree, drep);
+    offset=ref_drsuapi_dissect_DsReplicaSyncRequest1_info(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaSyncRequest1_guid1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaSyncRequest1_guid1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaSyncRequest1_string1(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaSyncRequest1_string1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaSyncRequest1_options(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaSyncRequest1_options(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
@@ -1800,23 +1794,23 @@ drsuapi_dissect_DsReplicaSyncRequest1(tvbuff_t *tvb, int offset, packet_info *pi
 }
 
 static int
-drsuapi_dissect_int32(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_int32(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, NULL);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, NULL);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaSyncRequest_1_req1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaSyncRequest_1_req1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaSyncRequest1(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaSyncRequest_1_req1, param);
+    offset=drsuapi_dissect_DsReplicaSyncRequest1(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaSyncRequest_1_req1, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_union_DsReplicaSyncRequest(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_union_DsReplicaSyncRequest(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -1832,12 +1826,12 @@ drsuapi_dissect_union_DsReplicaSyncRequest(tvbuff_t *tvb, int offset, packet_inf
     }
 
     offset=dissect_ndr_uint32(tvb, offset, pinfo, tree,
- 							 drep, hf_index, &level);
+ 							 di, drep, hf_index, &level);
 
     switch(level){
     case 1:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaSyncRequest_1_req1(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaSyncRequest_1_req1(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     }
@@ -1847,106 +1841,106 @@ drsuapi_dissect_union_DsReplicaSyncRequest(tvbuff_t *tvb, int offset, packet_inf
    return offset;
 }
 static int
-drsuapi_dissect_DsReplicaSync_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaSync_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaSync_bind_handle, param);
+    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaSync_bind_handle, param);
     return offset;
 }
 
 static int
-ref_drsuapi_dissect_DsReplicaSync_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ref_drsuapi_dissect_DsReplicaSync_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaSync_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
+    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaSync_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaSync_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    guint32 param=0;
-    offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaSync_level, param);
-    return offset;
-}
-
-static int
-drsuapi_dissect_DsReplicaSync_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaSync_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_union_DsReplicaSyncRequest(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaSync_req, param);
+    offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaSync_level, param);
     return offset;
 }
 
 static int
-ref_drsuapi_dissect_DsReplicaSync_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaSync_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaSync_req, NDR_POINTER_REF, "req", -1);
+    guint32 param=0;
+    offset=drsuapi_dissect_union_DsReplicaSyncRequest(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaSync_req, param);
+    return offset;
+}
+
+static int
+ref_drsuapi_dissect_DsReplicaSync_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaSync_req, NDR_POINTER_REF, "req", -1);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_DsReplicaSync_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsReplicaSync_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=ref_drsuapi_dissect_DsReplicaSync_bind_handle(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=ref_drsuapi_dissect_DsReplicaSync_bind_handle(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsReplicaSync_level(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsReplicaSync_level(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=ref_drsuapi_dissect_DsReplicaSync_req(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=ref_drsuapi_dissect_DsReplicaSync_req(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaSync_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsReplicaSync_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_uint64(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_uint64(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     
     ALIGN_TO_8_BYTES;
-    offset=dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_index, NULL);
+    offset=dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_index, NULL);
 
     return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesUsnTriple_usn1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesUsnTriple_usn1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesUsnTriple_usn1, param);
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesUsnTriple_usn1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesUsnTriple_usn2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesUsnTriple_usn2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesUsnTriple_usn2, param);
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesUsnTriple_usn2, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesUsnTriple_usn3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesUsnTriple_usn3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesUsnTriple_usn3, param);
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesUsnTriple_usn3, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsGetNCChangesUsnTriple(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetNCChangesUsnTriple(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -1960,35 +1954,35 @@ drsuapi_dissect_DsGetNCChangesUsnTriple(tvbuff_t *tvb, int offset, packet_info *
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsGetNCChangesUsnTriple);
     }
 
-    offset=drsuapi_dissect_DsGetNCChangesUsnTriple_usn1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesUsnTriple_usn1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesUsnTriple_usn2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesUsnTriple_usn2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesUsnTriple_usn3(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesUsnTriple_usn3(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaCoursor_source_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor_source_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor_source_dsa_invocation_id, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor_source_dsa_invocation_id, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursor_highest_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor_highest_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor_highest_usn, param);
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor_highest_usn, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaCoursor(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaCoursor(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -2002,64 +1996,64 @@ drsuapi_dissect_DsReplicaCoursor(tvbuff_t *tvb, int offset, packet_info *pinfo, 
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaCoursor);
     }
 
-    offset=drsuapi_dissect_DsReplicaCoursor_source_dsa_invocation_id(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor_source_dsa_invocation_id(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaCoursor_highest_usn(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor_highest_usn(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaCoursor05Ctr_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor05Ctr_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor05Ctr_u1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor05Ctr_u1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursor05Ctr_u2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor05Ctr_u2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor05Ctr_u2, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor05Ctr_u2, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursor05Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor05Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor05Ctr_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor05Ctr_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursor05Ctr_u3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor05Ctr_u3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor05Ctr_u3, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor05Ctr_u3, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursor05Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor05Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaCoursor(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor05Ctr_array, param);
+	 offset=drsuapi_dissect_DsReplicaCoursor(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor05Ctr_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplicaCoursor05Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaCoursor05Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaCoursor05Ctr_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaCoursor05Ctr_array);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaCoursor05Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaCoursor05Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -2073,117 +2067,117 @@ drsuapi_dissect_DsReplicaCoursor05Ctr(tvbuff_t *tvb, int offset, packet_info *pi
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaCoursor05Ctr);
     }
 
-    offset=drsuapi_dissect_DsReplicaCoursor05Ctr_u1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor05Ctr_u1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaCoursor05Ctr_u2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor05Ctr_u2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaCoursor05Ctr_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor05Ctr_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaCoursor05Ctr_u3(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor05Ctr_u3(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ucarray_drsuapi_dissect_DsReplicaCoursor05Ctr_array(tvb, offset, pinfo, tree, drep);
+    offset=ucarray_drsuapi_dissect_DsReplicaCoursor05Ctr_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsGetNCChangesRequest5_guid1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest5_guid1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest5_guid1, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest5_guid1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest5_guid2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest5_guid2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest5_guid2, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest5_guid2, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest5_sync_req_info1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest5_sync_req_info1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaSyncRequest1Info(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest5_sync_req_info1, param);
+	 offset=drsuapi_dissect_DsReplicaSyncRequest1Info(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest5_sync_req_info1, param);
 	 return offset;
 }
 
 static int
-ref_drsuapi_dissect_DsGetNCChangesRequest5_sync_req_info1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ref_drsuapi_dissect_DsGetNCChangesRequest5_sync_req_info1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetNCChangesRequest5_sync_req_info1, NDR_POINTER_REF, "sync_req_info1", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetNCChangesRequest5_sync_req_info1, NDR_POINTER_REF, "sync_req_info1", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest5_usn1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_DsGetNCChangesUsnTriple(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest5_usn1, param);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsGetNCChangesRequest5_coursor(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest5_usn1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaCoursor05Ctr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest5_coursor, param);
+	 offset=drsuapi_dissect_DsGetNCChangesUsnTriple(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest5_usn1, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsGetNCChangesRequest5_coursor(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetNCChangesRequest5_coursor, NDR_POINTER_UNIQUE, "coursor", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsGetNCChangesRequest5_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest5_coursor(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest5_unknown1, param);
+	 offset=drsuapi_dissect_DsReplicaCoursor05Ctr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest5_coursor, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest5_unknown2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetNCChangesRequest5_coursor(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest5_unknown2, param);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetNCChangesRequest5_coursor, NDR_POINTER_UNIQUE, "coursor", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest5_unknown3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest5_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest5_unknown3, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest5_unknown1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest5_unknown4(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest5_unknown2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest5_unknown4, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest5_unknown2, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest5_h1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest5_unknown3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest5_h1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest5_unknown3, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsGetNCChangesRequest5_unknown4(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest5_unknown4, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsGetNCChangesRequest5_h1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest5_h1, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsGetNCChangesRequest5(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetNCChangesRequest5(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -2197,63 +2191,63 @@ drsuapi_dissect_DsGetNCChangesRequest5(tvbuff_t *tvb, int offset, packet_info *p
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsGetNCChangesRequest5);
     }
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest5_guid1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest5_guid1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest5_guid2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest5_guid2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ref_drsuapi_dissect_DsGetNCChangesRequest5_sync_req_info1(tvb, offset, pinfo, tree, drep);
+    offset=ref_drsuapi_dissect_DsGetNCChangesRequest5_sync_req_info1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest5_usn1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest5_usn1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsGetNCChangesRequest5_coursor(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetNCChangesRequest5_coursor(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest5_unknown1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest5_unknown1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest5_unknown2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest5_unknown2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest5_unknown3(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest5_unknown3(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest5_unknown4(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest5_unknown4(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest5_h1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest5_h1(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsGetNCChangesRequest_Ctr14_length(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest_Ctr14_length(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest_Ctr14_length, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest_Ctr14_length, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest_Ctr14_byte_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest_Ctr14_byte_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint8(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest_Ctr14_byte_array, param);
+	 offset=drsuapi_dissect_uint8(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest_Ctr14_byte_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr14_byte_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr14_byte_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetNCChangesRequest_Ctr14_byte_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetNCChangesRequest_Ctr14_byte_array);
 	 return offset;
 }
 
 static int
-unique_ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr14_byte_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr14_byte_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr14_byte_array, NDR_POINTER_UNIQUE, "byte_array", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr14_byte_array, NDR_POINTER_UNIQUE, "byte_array", -1);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsGetNCChangesRequest_Ctr14(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetNCChangesRequest_Ctr14(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -2267,33 +2261,33 @@ drsuapi_dissect_DsGetNCChangesRequest_Ctr14(tvbuff_t *tvb, int offset, packet_in
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsGetNCChangesRequest_Ctr14);
     }
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr14_length(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr14_length(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr14_byte_array(tvb, offset, pinfo, tree, drep);
+    offset=unique_ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr14_byte_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsGetNCChangesRequest_Ctr13_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest_Ctr13_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest_Ctr13_unknown1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest_Ctr13_unknown1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest_Ctr13_data(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest_Ctr13_data(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr14(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest_Ctr13_data, param);
+	 offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr14(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest_Ctr13_data, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsGetNCChangesRequest_Ctr13(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetNCChangesRequest_Ctr13(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -2307,47 +2301,47 @@ drsuapi_dissect_DsGetNCChangesRequest_Ctr13(tvbuff_t *tvb, int offset, packet_in
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsGetNCChangesRequest_Ctr13);
     }
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr13_unknown1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr13_unknown1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr13_data(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr13_data(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsGetNCChangesRequest_Ctr12_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest_Ctr12_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest_Ctr12_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest_Ctr12_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest_Ctr12_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest_Ctr12_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr13(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest_Ctr12_array, param);
+	 offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr13(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest_Ctr12_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr12_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr12_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetNCChangesRequest_Ctr12_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetNCChangesRequest_Ctr12_array);
 	 return offset;
 }
 
 static int
-unique_ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr12_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr12_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr12_array, NDR_POINTER_UNIQUE, "array", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr12_array, NDR_POINTER_UNIQUE, "array", -1);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsGetNCChangesRequest_Ctr12(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetNCChangesRequest_Ctr12(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -2361,135 +2355,135 @@ drsuapi_dissect_DsGetNCChangesRequest_Ctr12(tvbuff_t *tvb, int offset, packet_in
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsGetNCChangesRequest_Ctr12);
     }
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr12_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr12_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr12_array(tvb, offset, pinfo, tree, drep);
+    offset=unique_ucarray_drsuapi_dissect_DsGetNCChangesRequest_Ctr12_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsGetNCChangesRequest8_guid1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest8_guid1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest8_guid1, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest8_guid1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest8_guid2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest8_guid2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest8_guid2, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest8_guid2, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest8_sync_req_info1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest8_sync_req_info1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaSyncRequest1Info(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest8_sync_req_info1, param);
+	 offset=drsuapi_dissect_DsReplicaSyncRequest1Info(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest8_sync_req_info1, param);
 	 return offset;
 }
 
 static int
-ref_drsuapi_dissect_DsGetNCChangesRequest8_sync_req_info1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ref_drsuapi_dissect_DsGetNCChangesRequest8_sync_req_info1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetNCChangesRequest8_sync_req_info1, NDR_POINTER_REF, "sync_req_info1", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetNCChangesRequest8_sync_req_info1, NDR_POINTER_REF, "sync_req_info1", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest8_usn1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_DsGetNCChangesUsnTriple(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest8_usn1, param);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsGetNCChangesRequest8_coursor(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest8_usn1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaCoursor05Ctr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest8_coursor, param);
+	 offset=drsuapi_dissect_DsGetNCChangesUsnTriple(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest8_usn1, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsGetNCChangesRequest8_coursor(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetNCChangesRequest8_coursor, NDR_POINTER_UNIQUE, "coursor", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsGetNCChangesRequest8_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest8_coursor(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest8_unknown1, param);
+	 offset=drsuapi_dissect_DsReplicaCoursor05Ctr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest8_coursor, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest8_unknown2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetNCChangesRequest8_coursor(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest8_unknown2, param);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetNCChangesRequest8_coursor, NDR_POINTER_UNIQUE, "coursor", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest8_unknown3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest8_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest8_unknown3, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest8_unknown1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest8_unknown4(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest8_unknown2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest8_unknown4, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest8_unknown2, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest8_h1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest8_unknown3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest8_h1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest8_unknown3, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest8_unique_ptr1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest8_unknown4(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest8_unique_ptr1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest8_unknown4, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest8_unique_ptr2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest8_h1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest8_unique_ptr2, param);
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest8_h1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesRequest8_ctr12(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesRequest8_unique_ptr1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr12(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest8_ctr12, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest8_unique_ptr1, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsGetNCChangesRequest8_unique_ptr2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest8_unique_ptr2, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsGetNCChangesRequest8_ctr12(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr12(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest8_ctr12, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsGetNCChangesRequest8(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetNCChangesRequest8(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -2503,55 +2497,55 @@ drsuapi_dissect_DsGetNCChangesRequest8(tvbuff_t *tvb, int offset, packet_info *p
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsGetNCChangesRequest8);
     }
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest8_guid1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest8_guid1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest8_guid2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest8_guid2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ref_drsuapi_dissect_DsGetNCChangesRequest8_sync_req_info1(tvb, offset, pinfo, tree, drep);
+    offset=ref_drsuapi_dissect_DsGetNCChangesRequest8_sync_req_info1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest8_usn1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest8_usn1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsGetNCChangesRequest8_coursor(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetNCChangesRequest8_coursor(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest8_unknown1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest8_unknown1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest8_unknown2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest8_unknown2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest8_unknown3(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest8_unknown3(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest8_unknown4(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest8_unknown4(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest8_h1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest8_h1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest8_unique_ptr1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest8_unique_ptr1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest8_unique_ptr2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest8_unique_ptr2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesRequest8_ctr12(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesRequest8_ctr12(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_union_DsGetNCChangesRequest_5_req5(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsGetNCChangesRequest_5_req5(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsGetNCChangesRequest5(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest_5_req5, param);
+    offset=drsuapi_dissect_DsGetNCChangesRequest5(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest_5_req5, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsGetNCChangesRequest_8_req8(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsGetNCChangesRequest_8_req8(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsGetNCChangesRequest8(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesRequest_8_req8, param);
+    offset=drsuapi_dissect_DsGetNCChangesRequest8(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesRequest_8_req8, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_union_DsGetNCChangesRequest(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_union_DsGetNCChangesRequest(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -2567,17 +2561,17 @@ drsuapi_dissect_union_DsGetNCChangesRequest(tvbuff_t *tvb, int offset, packet_in
     }
 
     offset=dissect_ndr_uint32(tvb, offset, pinfo, tree,
- 							 drep, hf_index, &level);
+ 							 di, drep, hf_index, &level);
 
     switch(level){
     case 5:
  	   ALIGN_TO_8_BYTES;
- 	   offset=drsuapi_dissect_union_DsGetNCChangesRequest_5_req5(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsGetNCChangesRequest_5_req5(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case 8:
  	   ALIGN_TO_8_BYTES;
- 	   offset=drsuapi_dissect_union_DsGetNCChangesRequest_8_req8(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsGetNCChangesRequest_8_req8(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     }
@@ -2587,34 +2581,34 @@ drsuapi_dissect_union_DsGetNCChangesRequest(tvbuff_t *tvb, int offset, packet_in
    return offset;
 }
 static int
-drsuapi_dissect_DsReplicaCoursorEx_coursor(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursorEx_coursor(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaCoursor(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursorEx_coursor, param);
+	 offset=drsuapi_dissect_DsReplicaCoursor(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursorEx_coursor, param);
 	 return offset;
 }
 
 
 static int
-drsuapi_dissect_NTTIME_1sec(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_NTTIME_1sec(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     ALIGN_TO_8_BYTES;
-    offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, drep, hf_index);
+    offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_index);
 
     return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursorEx_time1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursorEx_time1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME_1sec(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursorEx_time1, param);
+	 offset=drsuapi_dissect_NTTIME_1sec(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursorEx_time1, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaCoursorEx(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaCoursorEx(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -2628,64 +2622,64 @@ drsuapi_dissect_DsReplicaCoursorEx(tvbuff_t *tvb, int offset, packet_info *pinfo
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaCoursorEx);
     }
 
-    offset=drsuapi_dissect_DsReplicaCoursorEx_coursor(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursorEx_coursor(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaCoursorEx_time1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursorEx_time1(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaCoursorEx05Ctr_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursorEx05Ctr_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursorEx05Ctr_u1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursorEx05Ctr_u1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursorEx05Ctr_u2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursorEx05Ctr_u2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursorEx05Ctr_u2, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursorEx05Ctr_u2, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursorEx05Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursorEx05Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursorEx05Ctr_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursorEx05Ctr_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursorEx05Ctr_u3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursorEx05Ctr_u3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursorEx05Ctr_u3, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursorEx05Ctr_u3, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursorEx05Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursorEx05Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaCoursorEx(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursorEx05Ctr_array, param);
+	 offset=drsuapi_dissect_DsReplicaCoursorEx(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursorEx05Ctr_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplicaCoursorEx05Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaCoursorEx05Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaCoursorEx05Ctr_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaCoursorEx05Ctr_array);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaCoursorEx05Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaCoursorEx05Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -2699,163 +2693,163 @@ drsuapi_dissect_DsReplicaCoursorEx05Ctr(tvbuff_t *tvb, int offset, packet_info *
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaCoursorEx05Ctr);
     }
 
-    offset=drsuapi_dissect_DsReplicaCoursorEx05Ctr_u1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursorEx05Ctr_u1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaCoursorEx05Ctr_u2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursorEx05Ctr_u2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaCoursorEx05Ctr_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursorEx05Ctr_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaCoursorEx05Ctr_u3(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursorEx05Ctr_u3(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ucarray_drsuapi_dissect_DsReplicaCoursorEx05Ctr_array(tvb, offset, pinfo, tree, drep);
+    offset=ucarray_drsuapi_dissect_DsReplicaCoursorEx05Ctr_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsGetNCChangesCtr6_guid1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesCtr6_guid1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesCtr6_guid1, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesCtr6_guid1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesCtr6_guid2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesCtr6_guid2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesCtr6_guid2, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesCtr6_guid2, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesCtr6_sync_req_info1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesCtr6_sync_req_info1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaSyncRequest1Info(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesCtr6_sync_req_info1, param);
+	 offset=drsuapi_dissect_DsReplicaSyncRequest1Info(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesCtr6_sync_req_info1, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsGetNCChangesCtr6_sync_req_info1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetNCChangesCtr6_sync_req_info1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetNCChangesCtr6_sync_req_info1, NDR_POINTER_UNIQUE, "sync_req_info1", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetNCChangesCtr6_sync_req_info1, NDR_POINTER_UNIQUE, "sync_req_info1", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesCtr6_usn1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_DsGetNCChangesUsnTriple(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesCtr6_usn1, param);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsGetNCChangesCtr6_usn2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesCtr6_usn1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsGetNCChangesUsnTriple(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesCtr6_usn2, param);
+	 offset=drsuapi_dissect_DsGetNCChangesUsnTriple(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesCtr6_usn1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesCtr6_coursor_ex(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesCtr6_usn2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaCoursorEx05Ctr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesCtr6_coursor_ex, param);
+	 offset=drsuapi_dissect_DsGetNCChangesUsnTriple(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesCtr6_usn2, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsGetNCChangesCtr6_coursor_ex(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetNCChangesCtr6_coursor_ex, NDR_POINTER_UNIQUE, "coursor_ex", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsGetNCChangesCtr6_ctr12(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesCtr6_coursor_ex(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr12(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesCtr6_ctr12, param);
+	 offset=drsuapi_dissect_DsReplicaCoursorEx05Ctr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesCtr6_coursor_ex, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesCtr6_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetNCChangesCtr6_coursor_ex(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetNCChangesCtr6_coursor_ex, NDR_POINTER_UNIQUE, "coursor_ex", -1);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsGetNCChangesCtr6_ctr12(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesCtr6_u1, param);
+	 offset=drsuapi_dissect_DsGetNCChangesRequest_Ctr12(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesCtr6_ctr12, param);
 	 return offset;
 }
 
 static int
-fixedarray_drsuapi_dissect_DsGetNCChangesCtr6_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesCtr6_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesCtr6_u1, param);
+	 return offset;
+}
+
+static int
+fixedarray_drsuapi_dissect_DsGetNCChangesCtr6_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 int count=3;
 	 while(count--){
-		 offset=drsuapi_dissect_DsGetNCChangesCtr6_u1(tvb, offset, pinfo, tree, drep);
+		 offset=drsuapi_dissect_DsGetNCChangesCtr6_u1(tvb, offset, pinfo, tree, di, drep);
 	 }
 
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesCtr6_ptr1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesCtr6_ptr1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesCtr6_ptr1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesCtr6_ptr1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesCtr6_u2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesCtr6_u2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesCtr6_u2, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesCtr6_u2, param);
 	 return offset;
 }
 
 static int
-fixedarray_drsuapi_dissect_DsGetNCChangesCtr6_u2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+fixedarray_drsuapi_dissect_DsGetNCChangesCtr6_u2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 int count=3;
 	 while(count--){
-		 offset=drsuapi_dissect_DsGetNCChangesCtr6_u2(tvb, offset, pinfo, tree, drep);
+		 offset=drsuapi_dissect_DsGetNCChangesCtr6_u2(tvb, offset, pinfo, tree, di, drep);
 	 }
 
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesCtr6_len1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesCtr6_len1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesCtr6_len1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesCtr6_len1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesCtr6_array_ptr1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesCtr6_array_ptr1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesCtr6_array_ptr1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesCtr6_array_ptr1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChangesCtr6_u3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChangesCtr6_u3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesCtr6_u3, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesCtr6_u3, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsGetNCChangesCtr6(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetNCChangesCtr6(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -2869,31 +2863,31 @@ drsuapi_dissect_DsGetNCChangesCtr6(tvbuff_t *tvb, int offset, packet_info *pinfo
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsGetNCChangesCtr6);
     }
 
-    offset=drsuapi_dissect_DsGetNCChangesCtr6_guid1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesCtr6_guid1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesCtr6_guid2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesCtr6_guid2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsGetNCChangesCtr6_sync_req_info1(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetNCChangesCtr6_sync_req_info1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesCtr6_usn1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesCtr6_usn1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesCtr6_usn2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesCtr6_usn2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsGetNCChangesCtr6_coursor_ex(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetNCChangesCtr6_coursor_ex(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesCtr6_ctr12(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesCtr6_ctr12(tvb, offset, pinfo, tree, di, drep);
 
-    offset=fixedarray_drsuapi_dissect_DsGetNCChangesCtr6_u1(tvb, offset, pinfo, tree, drep);
+    offset=fixedarray_drsuapi_dissect_DsGetNCChangesCtr6_u1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesCtr6_ptr1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesCtr6_ptr1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=fixedarray_drsuapi_dissect_DsGetNCChangesCtr6_u2(tvb, offset, pinfo, tree, drep);
+    offset=fixedarray_drsuapi_dissect_DsGetNCChangesCtr6_u2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesCtr6_len1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesCtr6_len1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesCtr6_array_ptr1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesCtr6_array_ptr1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetNCChangesCtr6_u3(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetNCChangesCtr6_u3(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
@@ -2901,7 +2895,7 @@ drsuapi_dissect_DsGetNCChangesCtr6(tvbuff_t *tvb, int offset, packet_info *pinfo
 }
 
 int
-drsuapi_dissect_DsGetNCChangesCtr7(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *parent_tree, guint8 *drep _U_, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetNCChangesCtr7(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -2918,24 +2912,24 @@ drsuapi_dissect_DsGetNCChangesCtr7(tvbuff_t *tvb, int offset, packet_info *pinfo
     return offset;
 }
 static int
-drsuapi_dissect_union_DsGetNCChangesCtr_6_ctr6(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsGetNCChangesCtr_6_ctr6(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsGetNCChangesCtr6(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesCtr_6_ctr6, param);
+    offset=drsuapi_dissect_DsGetNCChangesCtr6(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesCtr_6_ctr6, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsGetNCChangesCtr_7_ctr7(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsGetNCChangesCtr_7_ctr7(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsGetNCChangesCtr7(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChangesCtr_7_ctr7, param);
+    offset=drsuapi_dissect_DsGetNCChangesCtr7(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChangesCtr_7_ctr7, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_union_DsGetNCChangesCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_union_DsGetNCChangesCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -2951,16 +2945,16 @@ drsuapi_dissect_union_DsGetNCChangesCtr(tvbuff_t *tvb, int offset, packet_info *
     }
 
     offset=dissect_ndr_uint32(tvb, offset, pinfo, tree,
- 							 drep, hf_index, &level);
+ 							 di, drep, hf_index, &level);
 
     switch(level){
     case 6:
  	   ALIGN_TO_8_BYTES;
- 	   offset=drsuapi_dissect_union_DsGetNCChangesCtr_6_ctr6(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsGetNCChangesCtr_6_ctr6(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case 7:
- 	   offset=drsuapi_dissect_union_DsGetNCChangesCtr_7_ctr7(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsGetNCChangesCtr_7_ctr7(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     }
@@ -2970,71 +2964,71 @@ drsuapi_dissect_union_DsGetNCChangesCtr(tvbuff_t *tvb, int offset, packet_info *
    return offset;
 }
 static int
-drsuapi_dissect_DsGetNCChanges_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChanges_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChanges_bind_handle, param);
+    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChanges_bind_handle, param);
     return offset;
 }
 
 static int
-ref_drsuapi_dissect_DsGetNCChanges_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ref_drsuapi_dissect_DsGetNCChanges_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetNCChanges_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
+    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetNCChanges_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChanges_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    guint32 param=0;
-    offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChanges_level, param);
-    return offset;
-}
-
-static int
-drsuapi_dissect_DsGetNCChanges_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChanges_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_union_DsGetNCChangesRequest(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChanges_req, param);
+    offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChanges_level, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChanges_ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetNCChanges_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_union_DsGetNCChangesCtr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetNCChanges_ctr, param);
+    offset=drsuapi_dissect_union_DsGetNCChangesRequest(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChanges_req, param);
+    return offset;
+}
+
+static int
+drsuapi_dissect_DsGetNCChanges_ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    guint32 param=0;
+    offset=drsuapi_dissect_union_DsGetNCChangesCtr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetNCChanges_ctr, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_DsGetNCChanges_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsGetNCChanges_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=ref_drsuapi_dissect_DsGetNCChanges_bind_handle(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=ref_drsuapi_dissect_DsGetNCChanges_bind_handle(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsGetNCChanges_level(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsGetNCChanges_level(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsGetNCChanges_req(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsGetNCChanges_req(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DsGetNCChanges_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsGetNCChanges_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=drsuapi_dissect_DsGetNCChanges_level(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsGetNCChanges_level(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsGetNCChanges_ctr(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsGetNCChanges_ctr(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
@@ -3066,7 +3060,7 @@ static const true_false_string DRSUAPI_DS_REPLICA_UPDATE_0x00000010_tfs = {
 
 
 int
-drsuapi_dissect_DsReplicaUpdateRefsOptions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaUpdateRefsOptions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -3079,7 +3073,7 @@ drsuapi_dissect_DsReplicaUpdateRefsOptions(tvbuff_t *tvb, int offset, packet_inf
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaUpdateRefsOptions);
     }
 
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, NULL, drep, -1, &flags);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, NULL, di, drep, -1, &flags);
 
 
     proto_tree_add_boolean(tree, hf_drsuapi_DsReplicaUpdateRefsOptions_DRSUAPI_DS_REPLICA_UPDATE_ASYNCHRONOUS_OPERATION, tvb, offset-4, 4, flags);
@@ -3119,64 +3113,64 @@ drsuapi_dissect_DsReplicaUpdateRefsOptions(tvbuff_t *tvb, int offset, packet_inf
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaUpdateRefsRequest1_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaUpdateRefsRequest1_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaUpdateRefsRequest1_unknown1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaUpdateRefsRequest1_unknown1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaUpdateRefsRequest1_unknown2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaUpdateRefsRequest1_unknown2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaUpdateRefsRequest1_unknown2, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaUpdateRefsRequest1_unknown2, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaUpdateRefsRequest1_dest_dsa_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaUpdateRefsRequest1_dest_dsa_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaUpdateRefsRequest1_dest_dsa_guid, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaUpdateRefsRequest1_dest_dsa_guid, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaUpdateRefsRequest1_options(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaUpdateRefsRequest1_options(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaUpdateRefsOptions(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaUpdateRefsRequest1_options, param);
+	 offset=drsuapi_dissect_DsReplicaUpdateRefsOptions(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaUpdateRefsRequest1_options, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaUpdateRefsRequest1_sync_req_info1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaUpdateRefsRequest1_sync_req_info1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaSyncRequest1Info(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaUpdateRefsRequest1_sync_req_info1, param);
+	 offset=drsuapi_dissect_DsReplicaSyncRequest1Info(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaUpdateRefsRequest1_sync_req_info1, param);
 	 return offset;
 }
 
 
 static int
-drsuapi_dissect_ascstr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_ascstr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep, 1, hf_index, FALSE, NULL);
+    offset=dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep, 1, hf_index, FALSE, NULL);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaUpdateRefsRequest1_dest_dsa_dns_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaUpdateRefsRequest1_dest_dsa_dns_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_ascstr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaUpdateRefsRequest1_dest_dsa_dns_name, param);
+	 offset=drsuapi_dissect_ascstr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaUpdateRefsRequest1_dest_dsa_dns_name, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaUpdateRefsRequest1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaUpdateRefsRequest1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -3190,33 +3184,33 @@ drsuapi_dissect_DsReplicaUpdateRefsRequest1(tvbuff_t *tvb, int offset, packet_in
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaUpdateRefsRequest1);
     }
 
-    offset=drsuapi_dissect_DsReplicaUpdateRefsRequest1_unknown1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaUpdateRefsRequest1_unknown1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaUpdateRefsRequest1_unknown2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaUpdateRefsRequest1_unknown2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaUpdateRefsRequest1_dest_dsa_guid(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaUpdateRefsRequest1_dest_dsa_guid(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaUpdateRefsRequest1_options(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaUpdateRefsRequest1_options(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaUpdateRefsRequest1_sync_req_info1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaUpdateRefsRequest1_sync_req_info1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaUpdateRefsRequest1_dest_dsa_dns_name(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaUpdateRefsRequest1_dest_dsa_dns_name(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_union_DsReplicaUpdateRefsRequest_1_req1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaUpdateRefsRequest_1_req1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaUpdateRefsRequest1(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaUpdateRefsRequest_1_req1, param);
+    offset=drsuapi_dissect_DsReplicaUpdateRefsRequest1(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaUpdateRefsRequest_1_req1, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_union_DsReplicaUpdateRefsRequest(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_union_DsReplicaUpdateRefsRequest(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -3232,12 +3226,12 @@ drsuapi_dissect_union_DsReplicaUpdateRefsRequest(tvbuff_t *tvb, int offset, pack
     }
 
     offset=dissect_ndr_uint32(tvb, offset, pinfo, tree,
- 							 drep, hf_index, &level);
+ 							 di, drep, hf_index, &level);
 
     switch(level){
     case 1:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaUpdateRefsRequest_1_req1(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaUpdateRefsRequest_1_req1(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     }
@@ -3247,57 +3241,57 @@ drsuapi_dissect_union_DsReplicaUpdateRefsRequest(tvbuff_t *tvb, int offset, pack
    return offset;
 }
 static int
-drsuapi_dissect_DsReplicaUpdateRefs_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaUpdateRefs_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaUpdateRefs_bind_handle, param);
+    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaUpdateRefs_bind_handle, param);
     return offset;
 }
 
 static int
-ref_drsuapi_dissect_DsReplicaUpdateRefs_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ref_drsuapi_dissect_DsReplicaUpdateRefs_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaUpdateRefs_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
+    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaUpdateRefs_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaUpdateRefs_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    guint32 param=0;
-    offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaUpdateRefs_level, param);
-    return offset;
-}
-
-static int
-drsuapi_dissect_DsReplicaUpdateRefs_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaUpdateRefs_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_union_DsReplicaUpdateRefsRequest(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaUpdateRefs_req, param);
+    offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaUpdateRefs_level, param);
+    return offset;
+}
+
+static int
+drsuapi_dissect_DsReplicaUpdateRefs_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    guint32 param=0;
+    offset=drsuapi_dissect_union_DsReplicaUpdateRefsRequest(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaUpdateRefs_req, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_DsReplicaUpdateRefs_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsReplicaUpdateRefs_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=ref_drsuapi_dissect_DsReplicaUpdateRefs_bind_handle(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=ref_drsuapi_dissect_DsReplicaUpdateRefs_bind_handle(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsReplicaUpdateRefs_level(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsReplicaUpdateRefs_level(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsReplicaUpdateRefs_req(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsReplicaUpdateRefs_req(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaUpdateRefs_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsReplicaUpdateRefs_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
@@ -3314,7 +3308,7 @@ static const true_false_string DRSUAPI_DS_REPLICA_ADD_WRITEABLE_tfs = {
 
 
 int
-drsuapi_dissect_DsReplicaAddOptions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaAddOptions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -3327,7 +3321,7 @@ drsuapi_dissect_DsReplicaAddOptions(tvbuff_t *tvb, int offset, packet_info *pinf
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaAddOptions);
     }
 
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, NULL, drep, -1, &flags);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, NULL, di, drep, -1, &flags);
 
 
     proto_tree_add_boolean(tree, hf_drsuapi_DsReplicaAddOptions_DRSUAPI_DS_REPLICA_ADD_ASYNCHRONOUS_OPERATION, tvb, offset-4, 4, flags);
@@ -3350,16 +3344,16 @@ drsuapi_dissect_DsReplicaAddOptions(tvbuff_t *tvb, int offset, packet_info *pinf
 }
 
 static int
-drsuapi_dissect_DRSUAPI_REPLICA_ADD_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_REPLICA_ADD_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_REPLICA_ADD_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_REPLICA_ADD_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
@@ -3376,7 +3370,7 @@ static const true_false_string DRSUAPI_DS_REPLICA_DELETE_WRITEABLE_tfs = {
 
 
 int
-drsuapi_dissect_DsReplicaDeleteOptions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaDeleteOptions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -3389,7 +3383,7 @@ drsuapi_dissect_DsReplicaDeleteOptions(tvbuff_t *tvb, int offset, packet_info *p
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaDeleteOptions);
     }
 
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, NULL, drep, -1, &flags);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, NULL, di, drep, -1, &flags);
 
 
     proto_tree_add_boolean(tree, hf_drsuapi_DsReplicaDeleteOptions_DRSUAPI_DS_REPLICA_DELETE_ASYNCHRONOUS_OPERATION, tvb, offset-4, 4, flags);
@@ -3412,16 +3406,16 @@ drsuapi_dissect_DsReplicaDeleteOptions(tvbuff_t *tvb, int offset, packet_info *p
 }
 
 static int
-drsuapi_dissect_DRSUAPI_REPLICA_DEL_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_REPLICA_DEL_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_REPLICA_DEL_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_REPLICA_DEL_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
@@ -3438,7 +3432,7 @@ static const true_false_string DRSUAPI_DS_REPLICA_MODIFY_WRITEABLE_tfs = {
 
 
 int
-drsuapi_dissect_DsReplicaModifyOptions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaModifyOptions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -3451,7 +3445,7 @@ drsuapi_dissect_DsReplicaModifyOptions(tvbuff_t *tvb, int offset, packet_info *p
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaModifyOptions);
     }
 
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, NULL, drep, -1, &flags);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, NULL, di, drep, -1, &flags);
 
 
     proto_tree_add_boolean(tree, hf_drsuapi_DsReplicaModifyOptions_DRSUAPI_DS_REPLICA_MODIFY_ASYNCHRONOUS_OPERATION, tvb, offset-4, 4, flags);
@@ -3474,80 +3468,80 @@ drsuapi_dissect_DsReplicaModifyOptions(tvbuff_t *tvb, int offset, packet_info *p
 }
 
 static int
-drsuapi_dissect_DRSUAPI_REPLICA_MODIFY_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_REPLICA_MODIFY_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_REPLICA_MODIFY_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_REPLICA_MODIFY_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_VERIFY_NAMES_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_VERIFY_NAMES_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_VERIFY_NAMES_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_VERIFY_NAMES_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_GET_MEMBERSHIPS_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_GET_MEMBERSHIPS_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_GET_MEMBERSHIPS_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_GET_MEMBERSHIPS_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_INTER_DOMAIN_MOVE_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_INTER_DOMAIN_MOVE_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_INTER_DOMAIN_MOVE_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_INTER_DOMAIN_MOVE_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_GET_NT4_CHANGELOG_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_GET_NT4_CHANGELOG_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_GET_NT4_CHANGELOG_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_GET_NT4_CHANGELOG_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
@@ -3566,9 +3560,9 @@ const value_string drsuapi_DsNameStatus_vals[] = {
 };
 
 int
-drsuapi_dissect_DsNameStatus(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsNameStatus(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, NULL);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, NULL);
     return offset;
 }
 
@@ -3583,9 +3577,9 @@ const value_string drsuapi_DsNameFlags_vals[] = {
 };
 
 int
-drsuapi_dissect_DsNameFlags(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsNameFlags(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, NULL);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, NULL);
     return offset;
 }
 
@@ -3606,38 +3600,38 @@ const value_string drsuapi_DsNameFormat_vals[] = {
 };
 
 int
-drsuapi_dissect_DsNameFormat(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsNameFormat(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, NULL);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, NULL);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_unistr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_unistr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep, 2, hf_index, FALSE, NULL);
+    offset=dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep, 2, hf_index, FALSE, NULL);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsNameString_str(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsNameString_str(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsNameString_str, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsNameString_str, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsNameString_str(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsNameString_str(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsNameString_str, NDR_POINTER_UNIQUE, "str", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsNameString_str, NDR_POINTER_UNIQUE, "str", -1);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsNameString(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsNameString(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -3651,85 +3645,85 @@ drsuapi_dissect_DsNameString(tvbuff_t *tvb, int offset, packet_info *pinfo, prot
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsNameString);
     }
 
-    offset=unique_drsuapi_dissect_DsNameString_str(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsNameString_str(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsNameRequest1_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsNameRequest1_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsNameRequest1_unknown1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsNameRequest1_unknown1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsNameRequest1_unknown2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsNameRequest1_unknown2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsNameRequest1_unknown2, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsNameRequest1_unknown2, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsNameRequest1_format_flags(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsNameRequest1_format_flags(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsNameFlags(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsNameRequest1_format_flags, param);
+	 offset=drsuapi_dissect_DsNameFlags(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsNameRequest1_format_flags, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsNameRequest1_format_offered(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsNameRequest1_format_offered(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsNameFormat(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsNameRequest1_format_offered, param);
+	 offset=drsuapi_dissect_DsNameFormat(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsNameRequest1_format_offered, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsNameRequest1_format_desired(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsNameRequest1_format_desired(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsNameFormat(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsNameRequest1_format_desired, param);
+	 offset=drsuapi_dissect_DsNameFormat(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsNameRequest1_format_desired, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsNameRequest1_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsNameRequest1_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsNameRequest1_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsNameRequest1_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsNameRequest1_names(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsNameRequest1_names(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsNameString(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsNameRequest1_names, param);
+	 offset=drsuapi_dissect_DsNameString(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsNameRequest1_names, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsNameRequest1_names(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsNameRequest1_names(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsNameRequest1_names);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsNameRequest1_names);
 	 return offset;
 }
 
 static int
-unique_ucarray_drsuapi_dissect_DsNameRequest1_names(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_ucarray_drsuapi_dissect_DsNameRequest1_names(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, ucarray_drsuapi_dissect_DsNameRequest1_names, NDR_POINTER_UNIQUE, "names", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, ucarray_drsuapi_dissect_DsNameRequest1_names, NDR_POINTER_UNIQUE, "names", -1);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsNameRequest1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsNameRequest1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -3743,35 +3737,35 @@ drsuapi_dissect_DsNameRequest1(tvbuff_t *tvb, int offset, packet_info *pinfo, pr
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsNameRequest1);
     }
 
-    offset=drsuapi_dissect_DsNameRequest1_unknown1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsNameRequest1_unknown1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsNameRequest1_unknown2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsNameRequest1_unknown2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsNameRequest1_format_flags(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsNameRequest1_format_flags(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsNameRequest1_format_offered(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsNameRequest1_format_offered(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsNameRequest1_format_desired(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsNameRequest1_format_desired(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsNameRequest1_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsNameRequest1_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_ucarray_drsuapi_dissect_DsNameRequest1_names(tvb, offset, pinfo, tree, drep);
+    offset=unique_ucarray_drsuapi_dissect_DsNameRequest1_names(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_union_DsNameRequest_1_req1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsNameRequest_1_req1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsNameRequest1(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsNameRequest_1_req1, param);
+    offset=drsuapi_dissect_DsNameRequest1(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsNameRequest_1_req1, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_union_DsNameRequest(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_union_DsNameRequest(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -3787,12 +3781,12 @@ drsuapi_dissect_union_DsNameRequest(tvbuff_t *tvb, int offset, packet_info *pinf
     }
 
     offset=dissect_ndr_uint32(tvb, offset, pinfo, tree,
- 							 drep, hf_index, &level);
+ 							 di, drep, hf_index, &level);
 
     switch(level){
     case 1:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsNameRequest_1_req1(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsNameRequest_1_req1(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     }
@@ -3802,46 +3796,46 @@ drsuapi_dissect_union_DsNameRequest(tvbuff_t *tvb, int offset, packet_info *pinf
    return offset;
 }
 static int
-drsuapi_dissect_DsNameInfo1_status(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsNameInfo1_status(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsNameStatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsNameInfo1_status, param);
+	 offset=drsuapi_dissect_DsNameStatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsNameInfo1_status, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsNameInfo1_dns_domain_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsNameInfo1_dns_domain_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsNameInfo1_dns_domain_name, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsNameInfo1_dns_domain_name, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsNameInfo1_dns_domain_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsNameInfo1_dns_domain_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsNameInfo1_dns_domain_name, NDR_POINTER_UNIQUE, "dns_domain_name", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsNameInfo1_dns_domain_name, NDR_POINTER_UNIQUE, "dns_domain_name", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsNameInfo1_result_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsNameInfo1_result_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsNameInfo1_result_name, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsNameInfo1_result_name, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsNameInfo1_result_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsNameInfo1_result_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsNameInfo1_result_name, NDR_POINTER_UNIQUE, "result_name", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsNameInfo1_result_name, NDR_POINTER_UNIQUE, "result_name", -1);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsNameInfo1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsNameInfo1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -3855,49 +3849,49 @@ drsuapi_dissect_DsNameInfo1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsNameInfo1);
     }
 
-    offset=drsuapi_dissect_DsNameInfo1_status(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsNameInfo1_status(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsNameInfo1_dns_domain_name(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsNameInfo1_dns_domain_name(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsNameInfo1_result_name(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsNameInfo1_result_name(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsNameCtr1_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsNameCtr1_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsNameCtr1_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsNameCtr1_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsNameCtr1_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsNameCtr1_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsNameInfo1(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsNameCtr1_array, param);
+	 offset=drsuapi_dissect_DsNameInfo1(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsNameCtr1_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsNameCtr1_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsNameCtr1_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsNameCtr1_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsNameCtr1_array);
 	 return offset;
 }
 
 static int
-unique_ucarray_drsuapi_dissect_DsNameCtr1_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_ucarray_drsuapi_dissect_DsNameCtr1_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, ucarray_drsuapi_dissect_DsNameCtr1_array, NDR_POINTER_UNIQUE, "array", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, ucarray_drsuapi_dissect_DsNameCtr1_array, NDR_POINTER_UNIQUE, "array", -1);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsNameCtr1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsNameCtr1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -3911,32 +3905,32 @@ drsuapi_dissect_DsNameCtr1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsNameCtr1);
     }
 
-    offset=drsuapi_dissect_DsNameCtr1_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsNameCtr1_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_ucarray_drsuapi_dissect_DsNameCtr1_array(tvb, offset, pinfo, tree, drep);
+    offset=unique_ucarray_drsuapi_dissect_DsNameCtr1_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_union_DsNameCtr_1_ctr1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsNameCtr_1_ctr1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsNameCtr1(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsNameCtr_1_ctr1, param);
+    offset=drsuapi_dissect_DsNameCtr1(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsNameCtr_1_ctr1, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsNameCtr_1_ctr1_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsNameCtr_1_ctr1_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsNameCtr_1_ctr1, NDR_POINTER_UNIQUE, "ctr1", -1);
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsNameCtr_1_ctr1, NDR_POINTER_UNIQUE, "ctr1", -1);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_union_DsNameCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_union_DsNameCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -3952,12 +3946,12 @@ drsuapi_dissect_union_DsNameCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, p
     }
 
     offset=dissect_ndr_uint32(tvb, offset, pinfo, tree,
- 							 drep, hf_index, &level);
+ 							 di, drep, hf_index, &level);
 
     switch(level){
     case 1:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsNameCtr_1_ctr1_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsNameCtr_1_ctr1_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     }
@@ -3967,71 +3961,71 @@ drsuapi_dissect_union_DsNameCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, p
    return offset;
 }
 static int
-drsuapi_dissect_DsCrackNames_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsCrackNames_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsCrackNames_bind_handle, param);
+    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsCrackNames_bind_handle, param);
     return offset;
 }
 
 static int
-ref_drsuapi_dissect_DsCrackNames_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ref_drsuapi_dissect_DsCrackNames_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsCrackNames_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
+    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsCrackNames_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsCrackNames_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    guint32 param=0;
-    offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsCrackNames_level, param);
-    return offset;
-}
-
-static int
-drsuapi_dissect_DsCrackNames_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsCrackNames_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_union_DsNameRequest(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsCrackNames_req, param);
+    offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsCrackNames_level, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsCrackNames_ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsCrackNames_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_union_DsNameCtr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsCrackNames_ctr, param);
+    offset=drsuapi_dissect_union_DsNameRequest(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsCrackNames_req, param);
+    return offset;
+}
+
+static int
+drsuapi_dissect_DsCrackNames_ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    guint32 param=0;
+    offset=drsuapi_dissect_union_DsNameCtr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsCrackNames_ctr, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_DsCrackNames_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsCrackNames_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=ref_drsuapi_dissect_DsCrackNames_bind_handle(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=ref_drsuapi_dissect_DsCrackNames_bind_handle(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsCrackNames_level(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsCrackNames_level(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsCrackNames_req(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsCrackNames_req(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DsCrackNames_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsCrackNames_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=drsuapi_dissect_DsCrackNames_level(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsCrackNames_level(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsCrackNames_ctr(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsCrackNames_ctr(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
@@ -4045,76 +4039,76 @@ const value_string drsuapi_DsSpnOperation_vals[] = {
 };
 
 int
-drsuapi_dissect_DsSpnOperation(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsSpnOperation(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, NULL);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, NULL);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsWriteAccountSpnRequest1_operation(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsWriteAccountSpnRequest1_operation(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsSpnOperation(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsWriteAccountSpnRequest1_operation, param);
+	 offset=drsuapi_dissect_DsSpnOperation(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsWriteAccountSpnRequest1_operation, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsWriteAccountSpnRequest1_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsWriteAccountSpnRequest1_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsWriteAccountSpnRequest1_unknown1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsWriteAccountSpnRequest1_unknown1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsWriteAccountSpnRequest1_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsWriteAccountSpnRequest1_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsWriteAccountSpnRequest1_object_dn, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsWriteAccountSpnRequest1_object_dn, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsWriteAccountSpnRequest1_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsWriteAccountSpnRequest1_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsWriteAccountSpnRequest1_object_dn, NDR_POINTER_UNIQUE, "object_dn", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsWriteAccountSpnRequest1_object_dn, NDR_POINTER_UNIQUE, "object_dn", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsWriteAccountSpnRequest1_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsWriteAccountSpnRequest1_count, param);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsWriteAccountSpnRequest1_spn_names(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsWriteAccountSpnRequest1_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsNameString(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsWriteAccountSpnRequest1_spn_names, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsWriteAccountSpnRequest1_count, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsWriteAccountSpnRequest1_spn_names(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsWriteAccountSpnRequest1_spn_names(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsWriteAccountSpnRequest1_spn_names);
+	 guint32 param=0;
+	 offset=drsuapi_dissect_DsNameString(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsWriteAccountSpnRequest1_spn_names, param);
 	 return offset;
 }
 
 static int
-unique_ucarray_drsuapi_dissect_DsWriteAccountSpnRequest1_spn_names(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsWriteAccountSpnRequest1_spn_names(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, ucarray_drsuapi_dissect_DsWriteAccountSpnRequest1_spn_names, NDR_POINTER_UNIQUE, "spn_names", -1);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsWriteAccountSpnRequest1_spn_names);
+	 return offset;
+}
+
+static int
+unique_ucarray_drsuapi_dissect_DsWriteAccountSpnRequest1_spn_names(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, ucarray_drsuapi_dissect_DsWriteAccountSpnRequest1_spn_names, NDR_POINTER_UNIQUE, "spn_names", -1);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsWriteAccountSpnRequest1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsWriteAccountSpnRequest1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -4128,31 +4122,31 @@ drsuapi_dissect_DsWriteAccountSpnRequest1(tvbuff_t *tvb, int offset, packet_info
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsWriteAccountSpnRequest1);
     }
 
-    offset=drsuapi_dissect_DsWriteAccountSpnRequest1_operation(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsWriteAccountSpnRequest1_operation(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsWriteAccountSpnRequest1_unknown1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsWriteAccountSpnRequest1_unknown1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsWriteAccountSpnRequest1_object_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsWriteAccountSpnRequest1_object_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsWriteAccountSpnRequest1_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsWriteAccountSpnRequest1_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_ucarray_drsuapi_dissect_DsWriteAccountSpnRequest1_spn_names(tvb, offset, pinfo, tree, drep);
+    offset=unique_ucarray_drsuapi_dissect_DsWriteAccountSpnRequest1_spn_names(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_union_DsWriteAccountSpnRequest_1_req1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsWriteAccountSpnRequest_1_req1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsWriteAccountSpnRequest1(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsWriteAccountSpnRequest_1_req1, param);
+    offset=drsuapi_dissect_DsWriteAccountSpnRequest1(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsWriteAccountSpnRequest_1_req1, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_union_DsWriteAccountSpnRequest(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_union_DsWriteAccountSpnRequest(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -4168,12 +4162,12 @@ drsuapi_dissect_union_DsWriteAccountSpnRequest(tvbuff_t *tvb, int offset, packet
     }
 
     offset=dissect_ndr_uint32(tvb, offset, pinfo, tree,
- 							 drep, hf_index, &level);
+ 							 di, drep, hf_index, &level);
 
     switch(level){
     case 1:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsWriteAccountSpnRequest_1_req1(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsWriteAccountSpnRequest_1_req1(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     }
@@ -4184,25 +4178,25 @@ drsuapi_dissect_union_DsWriteAccountSpnRequest(tvbuff_t *tvb, int offset, packet
 }
 
 static int
-drsuapi_dissect_WERROR(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_WERROR(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, NULL);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, NULL);
 
     return offset;
 }
 
 static int
-drsuapi_dissect_DsWriteAccountSpnResult1_status(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsWriteAccountSpnResult1_status(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_WERROR(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsWriteAccountSpnResult1_status, param);
+	 offset=drsuapi_dissect_WERROR(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsWriteAccountSpnResult1_status, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsWriteAccountSpnResult1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsWriteAccountSpnResult1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -4216,23 +4210,23 @@ drsuapi_dissect_DsWriteAccountSpnResult1(tvbuff_t *tvb, int offset, packet_info 
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsWriteAccountSpnResult1);
     }
 
-    offset=drsuapi_dissect_DsWriteAccountSpnResult1_status(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsWriteAccountSpnResult1_status(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_union_DsWriteAccountSpnResult_1_res1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsWriteAccountSpnResult_1_res1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsWriteAccountSpnResult1(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsWriteAccountSpnResult_1_res1, param);
+    offset=drsuapi_dissect_DsWriteAccountSpnResult1(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsWriteAccountSpnResult_1_res1, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_union_DsWriteAccountSpnResult(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_union_DsWriteAccountSpnResult(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -4248,12 +4242,12 @@ drsuapi_dissect_union_DsWriteAccountSpnResult(tvbuff_t *tvb, int offset, packet_
     }
 
     offset=dissect_ndr_uint32(tvb, offset, pinfo, tree,
- 							 drep, hf_index, &level);
+ 							 di, drep, hf_index, &level);
 
     switch(level){
     case 1:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsWriteAccountSpnResult_1_res1(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsWriteAccountSpnResult_1_res1(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     }
@@ -4263,133 +4257,133 @@ drsuapi_dissect_union_DsWriteAccountSpnResult(tvbuff_t *tvb, int offset, packet_
    return offset;
 }
 static int
-drsuapi_dissect_DsWriteAccountSpn_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsWriteAccountSpn_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsWriteAccountSpn_bind_handle, param);
+    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsWriteAccountSpn_bind_handle, param);
     return offset;
 }
 
 static int
-ref_drsuapi_dissect_DsWriteAccountSpn_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ref_drsuapi_dissect_DsWriteAccountSpn_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsWriteAccountSpn_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
+    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsWriteAccountSpn_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsWriteAccountSpn_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsWriteAccountSpn_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsWriteAccountSpn_level, param);
+    offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsWriteAccountSpn_level, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsWriteAccountSpn_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsWriteAccountSpn_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_union_DsWriteAccountSpnRequest(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsWriteAccountSpn_req, param);
+    offset=drsuapi_dissect_union_DsWriteAccountSpnRequest(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsWriteAccountSpn_req, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsWriteAccountSpn_res(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsWriteAccountSpn_res(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_union_DsWriteAccountSpnResult(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsWriteAccountSpn_res, param);
+    offset=drsuapi_dissect_union_DsWriteAccountSpnResult(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsWriteAccountSpn_res, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_DsWriteAccountSpn_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsWriteAccountSpn_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=ref_drsuapi_dissect_DsWriteAccountSpn_bind_handle(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=ref_drsuapi_dissect_DsWriteAccountSpn_bind_handle(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsWriteAccountSpn_level(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsWriteAccountSpn_level(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsWriteAccountSpn_req(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsWriteAccountSpn_req(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DsWriteAccountSpn_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsWriteAccountSpn_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=drsuapi_dissect_DsWriteAccountSpn_level(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsWriteAccountSpn_level(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsWriteAccountSpn_res(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsWriteAccountSpn_res(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_REMOVE_DS_SERVER_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_REMOVE_DS_SERVER_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_REMOVE_DS_SERVER_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_REMOVE_DS_SERVER_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_REMOVE_DS_DOMAIN_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_REMOVE_DS_DOMAIN_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_REMOVE_DS_DOMAIN_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_REMOVE_DS_DOMAIN_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 static int
-drsuapi_dissect_DsGetDCInfoRequest1_domain_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfoRequest1_domain_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfoRequest1_domain_name, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfoRequest1_domain_name, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsGetDCInfoRequest1_domain_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetDCInfoRequest1_domain_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfoRequest1_domain_name, NDR_POINTER_UNIQUE, "domain_name", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfoRequest1_domain_name, NDR_POINTER_UNIQUE, "domain_name", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfoRequest1_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfoRequest1_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfoRequest1_level, param);
+	 offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfoRequest1_level, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsGetDCInfoRequest1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetDCInfoRequest1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -4403,25 +4397,25 @@ drsuapi_dissect_DsGetDCInfoRequest1(tvbuff_t *tvb, int offset, packet_info *pinf
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsGetDCInfoRequest1);
     }
 
-    offset=unique_drsuapi_dissect_DsGetDCInfoRequest1_domain_name(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetDCInfoRequest1_domain_name(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetDCInfoRequest1_level(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfoRequest1_level(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_union_DsGetDCInfoRequest_1_req1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsGetDCInfoRequest_1_req1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsGetDCInfoRequest1(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfoRequest_1_req1, param);
+    offset=drsuapi_dissect_DsGetDCInfoRequest1(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfoRequest_1_req1, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_union_DsGetDCInfoRequest(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_union_DsGetDCInfoRequest(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -4437,12 +4431,12 @@ drsuapi_dissect_union_DsGetDCInfoRequest(tvbuff_t *tvb, int offset, packet_info 
     }
 
     offset=dissect_ndr_uint32(tvb, offset, pinfo, tree,
- 							 drep, hf_index, &level);
+ 							 di, drep, hf_index, &level);
 
     switch(level){
     case 1:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsGetDCInfoRequest_1_req1(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsGetDCInfoRequest_1_req1(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     }
@@ -4452,99 +4446,99 @@ drsuapi_dissect_union_DsGetDCInfoRequest(tvbuff_t *tvb, int offset, packet_info 
    return offset;
 }
 static int
-drsuapi_dissect_DsGetDCInfo1_netbios_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo1_netbios_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo1_netbios_name, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo1_netbios_name, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsGetDCInfo1_netbios_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetDCInfo1_netbios_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfo1_netbios_name, NDR_POINTER_UNIQUE, "netbios_name", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfo1_netbios_name, NDR_POINTER_UNIQUE, "netbios_name", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo1_dns_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo1_dns_name, param);
-	 return offset;
-}
-
-static int
-unique_drsuapi_dissect_DsGetDCInfo1_dns_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfo1_dns_name, NDR_POINTER_UNIQUE, "dns_name", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsGetDCInfo1_site_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo1_dns_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo1_site_name, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo1_dns_name, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsGetDCInfo1_site_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetDCInfo1_dns_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfo1_site_name, NDR_POINTER_UNIQUE, "site_name", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfo1_dns_name, NDR_POINTER_UNIQUE, "dns_name", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo1_computer_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo1_computer_dn, param);
-	 return offset;
-}
-
-static int
-unique_drsuapi_dissect_DsGetDCInfo1_computer_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfo1_computer_dn, NDR_POINTER_UNIQUE, "computer_dn", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsGetDCInfo1_server_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo1_site_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo1_server_dn, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo1_site_name, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsGetDCInfo1_server_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetDCInfo1_site_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfo1_server_dn, NDR_POINTER_UNIQUE, "server_dn", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfo1_site_name, NDR_POINTER_UNIQUE, "site_name", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo1_is_pdc(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo1_is_pdc, param);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsGetDCInfo1_is_enabled(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo1_computer_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo1_is_enabled, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo1_computer_dn, param);
+	 return offset;
+}
+
+static int
+unique_drsuapi_dissect_DsGetDCInfo1_computer_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfo1_computer_dn, NDR_POINTER_UNIQUE, "computer_dn", -1);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsGetDCInfo1_server_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo1_server_dn, param);
+	 return offset;
+}
+
+static int
+unique_drsuapi_dissect_DsGetDCInfo1_server_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfo1_server_dn, NDR_POINTER_UNIQUE, "server_dn", -1);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsGetDCInfo1_is_pdc(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo1_is_pdc, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsGetDCInfo1_is_enabled(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo1_is_enabled, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsGetDCInfo1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetDCInfo1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -4558,57 +4552,57 @@ drsuapi_dissect_DsGetDCInfo1(tvbuff_t *tvb, int offset, packet_info *pinfo, prot
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsGetDCInfo1);
     }
 
-    offset=unique_drsuapi_dissect_DsGetDCInfo1_netbios_name(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetDCInfo1_netbios_name(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsGetDCInfo1_dns_name(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetDCInfo1_dns_name(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsGetDCInfo1_site_name(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetDCInfo1_site_name(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsGetDCInfo1_computer_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetDCInfo1_computer_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsGetDCInfo1_server_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetDCInfo1_server_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetDCInfo1_is_pdc(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfo1_is_pdc(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetDCInfo1_is_enabled(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfo1_is_enabled(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsGetDCInfoCtr1_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfoCtr1_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfoCtr1_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfoCtr1_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfoCtr1_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfoCtr1_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsGetDCInfo1(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfoCtr1_array, param);
+	 offset=drsuapi_dissect_DsGetDCInfo1(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfoCtr1_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsGetDCInfoCtr1_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsGetDCInfoCtr1_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfoCtr1_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfoCtr1_array);
 	 return offset;
 }
 
 static int
-unique_ucarray_drsuapi_dissect_DsGetDCInfoCtr1_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_ucarray_drsuapi_dissect_DsGetDCInfoCtr1_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, ucarray_drsuapi_dissect_DsGetDCInfoCtr1_array, NDR_POINTER_UNIQUE, "array", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, ucarray_drsuapi_dissect_DsGetDCInfoCtr1_array, NDR_POINTER_UNIQUE, "array", -1);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsGetDCInfoCtr1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetDCInfoCtr1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -4622,178 +4616,178 @@ drsuapi_dissect_DsGetDCInfoCtr1(tvbuff_t *tvb, int offset, packet_info *pinfo, p
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsGetDCInfoCtr1);
     }
 
-    offset=drsuapi_dissect_DsGetDCInfoCtr1_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfoCtr1_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_ucarray_drsuapi_dissect_DsGetDCInfoCtr1_array(tvb, offset, pinfo, tree, drep);
+    offset=unique_ucarray_drsuapi_dissect_DsGetDCInfoCtr1_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsGetDCInfo2_netbios_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo2_netbios_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo2_netbios_name, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo2_netbios_name, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsGetDCInfo2_netbios_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetDCInfo2_netbios_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfo2_netbios_name, NDR_POINTER_UNIQUE, "netbios_name", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfo2_netbios_name, NDR_POINTER_UNIQUE, "netbios_name", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo2_dns_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo2_dns_name, param);
-	 return offset;
-}
-
-static int
-unique_drsuapi_dissect_DsGetDCInfo2_dns_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfo2_dns_name, NDR_POINTER_UNIQUE, "dns_name", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsGetDCInfo2_site_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo2_dns_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo2_site_name, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo2_dns_name, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsGetDCInfo2_site_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetDCInfo2_dns_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfo2_site_name, NDR_POINTER_UNIQUE, "site_name", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfo2_dns_name, NDR_POINTER_UNIQUE, "dns_name", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo2_site_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo2_site_dn, param);
-	 return offset;
-}
-
-static int
-unique_drsuapi_dissect_DsGetDCInfo2_site_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfo2_site_dn, NDR_POINTER_UNIQUE, "site_dn", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsGetDCInfo2_computer_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo2_site_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo2_computer_dn, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo2_site_name, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsGetDCInfo2_computer_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetDCInfo2_site_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfo2_computer_dn, NDR_POINTER_UNIQUE, "computer_dn", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfo2_site_name, NDR_POINTER_UNIQUE, "site_name", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo2_server_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo2_server_dn, param);
-	 return offset;
-}
-
-static int
-unique_drsuapi_dissect_DsGetDCInfo2_server_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfo2_server_dn, NDR_POINTER_UNIQUE, "server_dn", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsGetDCInfo2_ntds_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo2_site_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo2_ntds_dn, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo2_site_dn, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsGetDCInfo2_ntds_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetDCInfo2_site_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfo2_ntds_dn, NDR_POINTER_UNIQUE, "ntds_dn", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfo2_site_dn, NDR_POINTER_UNIQUE, "site_dn", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo2_is_pdc(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo2_is_pdc, param);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsGetDCInfo2_is_enabled(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo2_computer_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo2_is_enabled, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo2_computer_dn, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo2_is_gc(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetDCInfo2_computer_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo2_is_gc, param);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfo2_computer_dn, NDR_POINTER_UNIQUE, "computer_dn", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo2_site_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo2_server_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo2_site_guid, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo2_server_dn, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo2_computer_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetDCInfo2_server_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo2_computer_guid, param);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfo2_server_dn, NDR_POINTER_UNIQUE, "server_dn", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo2_server_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo2_ntds_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo2_server_guid, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo2_ntds_dn, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo2_ntds_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetDCInfo2_ntds_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfo2_ntds_dn, NDR_POINTER_UNIQUE, "ntds_dn", -1);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsGetDCInfo2_is_pdc(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo2_ntds_guid, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo2_is_pdc, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsGetDCInfo2_is_enabled(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo2_is_enabled, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsGetDCInfo2_is_gc(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo2_is_gc, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsGetDCInfo2_site_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo2_site_guid, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsGetDCInfo2_computer_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo2_computer_guid, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsGetDCInfo2_server_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo2_server_guid, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsGetDCInfo2_ntds_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo2_ntds_guid, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsGetDCInfo2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetDCInfo2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -4807,71 +4801,71 @@ drsuapi_dissect_DsGetDCInfo2(tvbuff_t *tvb, int offset, packet_info *pinfo, prot
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsGetDCInfo2);
     }
 
-    offset=unique_drsuapi_dissect_DsGetDCInfo2_netbios_name(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetDCInfo2_netbios_name(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsGetDCInfo2_dns_name(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetDCInfo2_dns_name(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsGetDCInfo2_site_name(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetDCInfo2_site_name(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsGetDCInfo2_site_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetDCInfo2_site_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsGetDCInfo2_computer_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetDCInfo2_computer_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsGetDCInfo2_server_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetDCInfo2_server_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsGetDCInfo2_ntds_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetDCInfo2_ntds_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetDCInfo2_is_pdc(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfo2_is_pdc(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetDCInfo2_is_enabled(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfo2_is_enabled(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetDCInfo2_is_gc(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfo2_is_gc(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetDCInfo2_site_guid(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfo2_site_guid(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetDCInfo2_computer_guid(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfo2_computer_guid(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetDCInfo2_server_guid(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfo2_server_guid(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetDCInfo2_ntds_guid(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfo2_ntds_guid(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsGetDCInfoCtr2_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfoCtr2_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfoCtr2_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfoCtr2_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfoCtr2_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfoCtr2_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsGetDCInfo2(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfoCtr2_array, param);
+	 offset=drsuapi_dissect_DsGetDCInfo2(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfoCtr2_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsGetDCInfoCtr2_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsGetDCInfoCtr2_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfoCtr2_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfoCtr2_array);
 	 return offset;
 }
 
 static int
-unique_ucarray_drsuapi_dissect_DsGetDCInfoCtr2_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_ucarray_drsuapi_dissect_DsGetDCInfoCtr2_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, ucarray_drsuapi_dissect_DsGetDCInfoCtr2_array, NDR_POINTER_UNIQUE, "array", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, ucarray_drsuapi_dissect_DsGetDCInfoCtr2_array, NDR_POINTER_UNIQUE, "array", -1);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsGetDCInfoCtr2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetDCInfoCtr2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -4885,80 +4879,80 @@ drsuapi_dissect_DsGetDCInfoCtr2(tvbuff_t *tvb, int offset, packet_info *pinfo, p
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsGetDCInfoCtr2);
     }
 
-    offset=drsuapi_dissect_DsGetDCInfoCtr2_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfoCtr2_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_ucarray_drsuapi_dissect_DsGetDCInfoCtr2_array(tvb, offset, pinfo, tree, drep);
+    offset=unique_ucarray_drsuapi_dissect_DsGetDCInfoCtr2_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsGetDCInfo01_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo01_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo01_unknown1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo01_unknown1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo01_unknown2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo01_unknown2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo01_unknown2, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo01_unknown2, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo01_unknown3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo01_unknown3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo01_unknown3, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo01_unknown3, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo01_unknown4(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo01_unknown4(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo01_unknown4, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo01_unknown4, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo01_unknown5(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo01_unknown5(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo01_unknown5, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo01_unknown5, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo01_unknown6(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo01_unknown6(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo01_unknown6, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo01_unknown6, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfo01_server_nt4_account(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfo01_server_nt4_account(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfo01_server_nt4_account, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfo01_server_nt4_account, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsGetDCInfo01_server_nt4_account(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsGetDCInfo01_server_nt4_account(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfo01_server_nt4_account, NDR_POINTER_UNIQUE, "server_nt4_account", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfo01_server_nt4_account, NDR_POINTER_UNIQUE, "server_nt4_account", -1);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsGetDCInfo01(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetDCInfo01(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -4972,57 +4966,57 @@ drsuapi_dissect_DsGetDCInfo01(tvbuff_t *tvb, int offset, packet_info *pinfo, pro
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsGetDCInfo01);
     }
 
-    offset=drsuapi_dissect_DsGetDCInfo01_unknown1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfo01_unknown1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetDCInfo01_unknown2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfo01_unknown2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetDCInfo01_unknown3(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfo01_unknown3(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetDCInfo01_unknown4(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfo01_unknown4(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetDCInfo01_unknown5(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfo01_unknown5(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsGetDCInfo01_unknown6(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfo01_unknown6(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsGetDCInfo01_server_nt4_account(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsGetDCInfo01_server_nt4_account(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsGetDCInfoCtr01_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfoCtr01_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfoCtr01_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfoCtr01_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDCInfoCtr01_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDCInfoCtr01_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsGetDCInfo01(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfoCtr01_array, param);
+	 offset=drsuapi_dissect_DsGetDCInfo01(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfoCtr01_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsGetDCInfoCtr01_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsGetDCInfoCtr01_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDCInfoCtr01_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDCInfoCtr01_array);
 	 return offset;
 }
 
 static int
-unique_ucarray_drsuapi_dissect_DsGetDCInfoCtr01_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_ucarray_drsuapi_dissect_DsGetDCInfoCtr01_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, ucarray_drsuapi_dissect_DsGetDCInfoCtr01_array, NDR_POINTER_UNIQUE, "array", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, ucarray_drsuapi_dissect_DsGetDCInfoCtr01_array, NDR_POINTER_UNIQUE, "array", -1);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsGetDCInfoCtr01(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetDCInfoCtr01(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -5036,9 +5030,9 @@ drsuapi_dissect_DsGetDCInfoCtr01(tvbuff_t *tvb, int offset, packet_info *pinfo, 
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsGetDCInfoCtr01);
     }
 
-    offset=drsuapi_dissect_DsGetDCInfoCtr01_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsGetDCInfoCtr01_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_ucarray_drsuapi_dissect_DsGetDCInfoCtr01_array(tvb, offset, pinfo, tree, drep);
+    offset=unique_ucarray_drsuapi_dissect_DsGetDCInfoCtr01_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
@@ -5053,39 +5047,39 @@ const value_string drsuapi_DsGetDCInfoCtrLevels_vals[] = {
 };
 
 int
-drsuapi_dissect_DsGetDCInfoCtrLevels(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsGetDCInfoCtrLevels(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, NULL);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, NULL);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_1_ctr1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    guint32 param=0;
-    offset=drsuapi_dissect_DsGetDCInfoCtr1(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_1_ctr1, param);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_2_ctr2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_1_ctr1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsGetDCInfoCtr2(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_2_ctr2, param);
+    offset=drsuapi_dissect_DsGetDCInfoCtr1(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_1_ctr1, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_01_ctr01(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_2_ctr2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsGetDCInfoCtr01(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_01_ctr01, param);
+    offset=drsuapi_dissect_DsGetDCInfoCtr2(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_2_ctr2, param);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_01_ctr01(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    guint32 param=0;
+    offset=drsuapi_dissect_DsGetDCInfoCtr01(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_01_ctr01, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_union_DsGetDCInfoCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_union_DsGetDCInfoCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -5101,22 +5095,22 @@ drsuapi_dissect_union_DsGetDCInfoCtr(tvbuff_t *tvb, int offset, packet_info *pin
     }
 
     offset=dissect_ndr_uint32(tvb, offset, pinfo, tree,
- 							 drep, hf_index, &level);
+ 							 di, drep, hf_index, &level);
 
     switch(level){
     case DRSUAPI_DC_INFO_CTR_1:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_1_ctr1(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_1_ctr1(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DC_INFO_CTR_2:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_2_ctr2(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_2_ctr2(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DC_INFO_CTR_01:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_01_ctr01(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsGetDCInfoCtr_DRSUAPI_DC_INFO_CTR_01_ctr01(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     }
@@ -5126,103 +5120,103 @@ drsuapi_dissect_union_DsGetDCInfoCtr(tvbuff_t *tvb, int offset, packet_info *pin
    return offset;
 }
 static int
-drsuapi_dissect_DsGetDomainControllerInfo_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDomainControllerInfo_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDomainControllerInfo_bind_handle, param);
+    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDomainControllerInfo_bind_handle, param);
     return offset;
 }
 
 static int
-ref_drsuapi_dissect_DsGetDomainControllerInfo_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ref_drsuapi_dissect_DsGetDomainControllerInfo_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsGetDomainControllerInfo_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
+    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsGetDomainControllerInfo_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDomainControllerInfo_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDomainControllerInfo_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDomainControllerInfo_level, param);
+    offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDomainControllerInfo_level, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDomainControllerInfo_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDomainControllerInfo_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_union_DsGetDCInfoRequest(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDomainControllerInfo_req, param);
+    offset=drsuapi_dissect_union_DsGetDCInfoRequest(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDomainControllerInfo_req, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDomainControllerInfo_ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsGetDomainControllerInfo_ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_union_DsGetDCInfoCtr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsGetDomainControllerInfo_ctr, param);
+    offset=drsuapi_dissect_union_DsGetDCInfoCtr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsGetDomainControllerInfo_ctr, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_DsGetDomainControllerInfo_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsGetDomainControllerInfo_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=ref_drsuapi_dissect_DsGetDomainControllerInfo_bind_handle(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=ref_drsuapi_dissect_DsGetDomainControllerInfo_bind_handle(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsGetDomainControllerInfo_level(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsGetDomainControllerInfo_level(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsGetDomainControllerInfo_req(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsGetDomainControllerInfo_req(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DsGetDomainControllerInfo_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsGetDomainControllerInfo_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=drsuapi_dissect_DsGetDomainControllerInfo_level(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsGetDomainControllerInfo_level(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsGetDomainControllerInfo_ctr(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsGetDomainControllerInfo_ctr(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DsAddEntry_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsAddEntry_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DsAddEntry_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsAddEntry_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_EXECUTE_KCC_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_EXECUTE_KCC_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_EXECUTE_KCC_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_EXECUTE_KCC_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
@@ -5235,9 +5229,9 @@ const value_string drsuapi_DsReplicaGetInfoLevel_vals[] = {
 };
 
 int
-drsuapi_dissect_DsReplicaGetInfoLevel(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaGetInfoLevel(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, NULL);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, NULL);
     return offset;
 }
 
@@ -5262,46 +5256,46 @@ const value_string drsuapi_DsReplicaInfoType_vals[] = {
 };
 
 int
-drsuapi_dissect_DsReplicaInfoType(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaInfoType(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, NULL);
+    offset=dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, NULL);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaGetInfoRequest1_info_type(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaGetInfoRequest1_info_type(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaInfoType(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfoRequest1_info_type, param);
+	 offset=drsuapi_dissect_DsReplicaInfoType(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfoRequest1_info_type, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaGetInfoRequest1_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaGetInfoRequest1_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfoRequest1_object_dn, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfoRequest1_object_dn, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaGetInfoRequest1_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaGetInfoRequest1_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaGetInfoRequest1_object_dn, NDR_POINTER_UNIQUE, "object_dn", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaGetInfoRequest1_object_dn, NDR_POINTER_UNIQUE, "object_dn", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaGetInfoRequest1_guid1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaGetInfoRequest1_guid1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfoRequest1_guid1, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfoRequest1_guid1, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaGetInfoRequest1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaGetInfoRequest1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -5315,96 +5309,96 @@ drsuapi_dissect_DsReplicaGetInfoRequest1(tvbuff_t *tvb, int offset, packet_info 
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaGetInfoRequest1);
     }
 
-    offset=drsuapi_dissect_DsReplicaGetInfoRequest1_info_type(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaGetInfoRequest1_info_type(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaGetInfoRequest1_object_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaGetInfoRequest1_object_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaGetInfoRequest1_guid1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaGetInfoRequest1_guid1(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaGetInfoRequest2_info_type(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaGetInfoRequest2_info_type(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaInfoType(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfoRequest2_info_type, param);
+	 offset=drsuapi_dissect_DsReplicaInfoType(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfoRequest2_info_type, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaGetInfoRequest2_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaGetInfoRequest2_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfoRequest2_object_dn, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfoRequest2_object_dn, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaGetInfoRequest2_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaGetInfoRequest2_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaGetInfoRequest2_object_dn, NDR_POINTER_UNIQUE, "object_dn", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaGetInfoRequest2_object_dn, NDR_POINTER_UNIQUE, "object_dn", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaGetInfoRequest2_guid1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfoRequest2_guid1, param);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsReplicaGetInfoRequest2_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaGetInfoRequest2_guid1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfoRequest2_unknown1, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfoRequest2_guid1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaGetInfoRequest2_string1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaGetInfoRequest2_unknown1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfoRequest2_string1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfoRequest2_unknown1, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaGetInfoRequest2_string1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaGetInfoRequest2_string1, NDR_POINTER_UNIQUE, "string1", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsReplicaGetInfoRequest2_string2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaGetInfoRequest2_string1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfoRequest2_string2, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfoRequest2_string1, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaGetInfoRequest2_string2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaGetInfoRequest2_string1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaGetInfoRequest2_string2, NDR_POINTER_UNIQUE, "string2", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaGetInfoRequest2_string1, NDR_POINTER_UNIQUE, "string1", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaGetInfoRequest2_unknown2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaGetInfoRequest2_string2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfoRequest2_unknown2, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfoRequest2_string2, param);
+	 return offset;
+}
+
+static int
+unique_drsuapi_dissect_DsReplicaGetInfoRequest2_string2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaGetInfoRequest2_string2, NDR_POINTER_UNIQUE, "string2", -1);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsReplicaGetInfoRequest2_unknown2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfoRequest2_unknown2, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaGetInfoRequest2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaGetInfoRequest2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -5418,43 +5412,43 @@ drsuapi_dissect_DsReplicaGetInfoRequest2(tvbuff_t *tvb, int offset, packet_info 
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaGetInfoRequest2);
     }
 
-    offset=drsuapi_dissect_DsReplicaGetInfoRequest2_info_type(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaGetInfoRequest2_info_type(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaGetInfoRequest2_object_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaGetInfoRequest2_object_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaGetInfoRequest2_guid1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaGetInfoRequest2_guid1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaGetInfoRequest2_unknown1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaGetInfoRequest2_unknown1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaGetInfoRequest2_string1(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaGetInfoRequest2_string1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaGetInfoRequest2_string2(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaGetInfoRequest2_string2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaGetInfoRequest2_unknown2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaGetInfoRequest2_unknown2(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_union_DsReplicaGetInfoRequest_DRSUAPI_DS_REPLICA_GET_INFO_req1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaGetInfoRequest_DRSUAPI_DS_REPLICA_GET_INFO_req1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaGetInfoRequest1(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfoRequest_DRSUAPI_DS_REPLICA_GET_INFO_req1, param);
+    offset=drsuapi_dissect_DsReplicaGetInfoRequest1(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfoRequest_DRSUAPI_DS_REPLICA_GET_INFO_req1, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaGetInfoRequest_DRSUAPI_DS_REPLICA_GET_INFO2_req2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaGetInfoRequest_DRSUAPI_DS_REPLICA_GET_INFO2_req2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaGetInfoRequest2(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfoRequest_DRSUAPI_DS_REPLICA_GET_INFO2_req2, param);
+    offset=drsuapi_dissect_DsReplicaGetInfoRequest2(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfoRequest_DRSUAPI_DS_REPLICA_GET_INFO2_req2, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_union_DsReplicaGetInfoRequest(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_union_DsReplicaGetInfoRequest(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -5470,17 +5464,17 @@ drsuapi_dissect_union_DsReplicaGetInfoRequest(tvbuff_t *tvb, int offset, packet_
     }
 
     offset=dissect_ndr_uint32(tvb, offset, pinfo, tree,
- 							 drep, hf_index, &level);
+ 							 di, drep, hf_index, &level);
 
     switch(level){
     case DRSUAPI_DS_REPLICA_GET_INFO:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaGetInfoRequest_DRSUAPI_DS_REPLICA_GET_INFO_req1(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaGetInfoRequest_DRSUAPI_DS_REPLICA_GET_INFO_req1(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_GET_INFO2:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaGetInfoRequest_DRSUAPI_DS_REPLICA_GET_INFO2_req2(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaGetInfoRequest_DRSUAPI_DS_REPLICA_GET_INFO2_req2(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     }
@@ -5490,173 +5484,173 @@ drsuapi_dissect_union_DsReplicaGetInfoRequest(tvbuff_t *tvb, int offset, packet_
    return offset;
 }
 static int
-drsuapi_dissect_DsReplicaNeighbour_naming_context_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaNeighbour_naming_context_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_naming_context_dn, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_naming_context_dn, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaNeighbour_naming_context_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaNeighbour_naming_context_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaNeighbour_naming_context_dn, NDR_POINTER_UNIQUE, "naming_context_dn", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaNeighbour_naming_context_dn, NDR_POINTER_UNIQUE, "naming_context_dn", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaNeighbour_source_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_source_dsa_obj_dn, param);
-	 return offset;
-}
-
-static int
-unique_drsuapi_dissect_DsReplicaNeighbour_source_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaNeighbour_source_dsa_obj_dn, NDR_POINTER_UNIQUE, "source_dsa_obj_dn", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsReplicaNeighbour_source_dsa_address(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaNeighbour_source_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_source_dsa_address, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_source_dsa_obj_dn, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaNeighbour_source_dsa_address(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaNeighbour_source_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaNeighbour_source_dsa_address, NDR_POINTER_UNIQUE, "source_dsa_address", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaNeighbour_source_dsa_obj_dn, NDR_POINTER_UNIQUE, "source_dsa_obj_dn", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaNeighbour_transport_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_transport_obj_dn, param);
-	 return offset;
-}
-
-static int
-unique_drsuapi_dissect_DsReplicaNeighbour_transport_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaNeighbour_transport_obj_dn, NDR_POINTER_UNIQUE, "transport_obj_dn", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsReplicaNeighbour_replica_flags(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaNeighbour_source_dsa_address(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_replica_flags, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_source_dsa_address, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaNeighbour_reserved(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaNeighbour_source_dsa_address(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaNeighbour_source_dsa_address, NDR_POINTER_UNIQUE, "source_dsa_address", -1);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsReplicaNeighbour_transport_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_reserved, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_transport_obj_dn, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaNeighbour_naming_context_obj_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaNeighbour_transport_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaNeighbour_transport_obj_dn, NDR_POINTER_UNIQUE, "transport_obj_dn", -1);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsReplicaNeighbour_replica_flags(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_naming_context_obj_guid, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_replica_flags, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaNeighbour_source_dsa_obj_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaNeighbour_reserved(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_source_dsa_obj_guid, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_reserved, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaNeighbour_source_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaNeighbour_naming_context_obj_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_source_dsa_invocation_id, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_naming_context_obj_guid, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaNeighbour_transport_obj_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaNeighbour_source_dsa_obj_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_transport_obj_guid, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_source_dsa_obj_guid, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaNeighbour_tmp_highest_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaNeighbour_source_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_tmp_highest_usn, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_source_dsa_invocation_id, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaNeighbour_highest_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaNeighbour_transport_obj_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_highest_usn, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_transport_obj_guid, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsReplicaNeighbour_tmp_highest_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_tmp_highest_usn, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsReplicaNeighbour_highest_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_highest_usn, param);
 	 return offset;
 }
 
 
 static int
-drsuapi_dissect_NTTIME(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_NTTIME(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, drep, hf_index);
+    offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_index);
 
     return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaNeighbour_last_success(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaNeighbour_last_success(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_last_success, param);
+	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_last_success, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaNeighbour_last_attempt(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaNeighbour_last_attempt(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_last_attempt, param);
+	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_last_attempt, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaNeighbour_result_last_attempt(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaNeighbour_result_last_attempt(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_WERROR(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_result_last_attempt, param);
+	 offset=drsuapi_dissect_WERROR(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_result_last_attempt, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaNeighbour_consecutive_sync_failures(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaNeighbour_consecutive_sync_failures(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbour_consecutive_sync_failures, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbour_consecutive_sync_failures, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaNeighbour(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaNeighbour(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -5670,76 +5664,76 @@ drsuapi_dissect_DsReplicaNeighbour(tvbuff_t *tvb, int offset, packet_info *pinfo
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaNeighbour);
     }
 
-    offset=unique_drsuapi_dissect_DsReplicaNeighbour_naming_context_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaNeighbour_naming_context_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaNeighbour_source_dsa_obj_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaNeighbour_source_dsa_obj_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaNeighbour_source_dsa_address(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaNeighbour_source_dsa_address(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaNeighbour_transport_obj_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaNeighbour_transport_obj_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaNeighbour_replica_flags(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaNeighbour_replica_flags(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaNeighbour_reserved(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaNeighbour_reserved(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaNeighbour_naming_context_obj_guid(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaNeighbour_naming_context_obj_guid(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaNeighbour_source_dsa_obj_guid(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaNeighbour_source_dsa_obj_guid(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaNeighbour_source_dsa_invocation_id(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaNeighbour_source_dsa_invocation_id(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaNeighbour_transport_obj_guid(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaNeighbour_transport_obj_guid(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaNeighbour_tmp_highest_usn(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaNeighbour_tmp_highest_usn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaNeighbour_highest_usn(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaNeighbour_highest_usn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaNeighbour_last_success(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaNeighbour_last_success(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaNeighbour_last_attempt(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaNeighbour_last_attempt(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaNeighbour_result_last_attempt(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaNeighbour_result_last_attempt(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaNeighbour_consecutive_sync_failures(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaNeighbour_consecutive_sync_failures(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaNeighbourCtr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaNeighbourCtr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbourCtr_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbourCtr_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaNeighbourCtr_reserved(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaNeighbourCtr_reserved(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbourCtr_reserved, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbourCtr_reserved, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaNeighbourCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaNeighbourCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaNeighbour(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaNeighbourCtr_array, param);
+	 offset=drsuapi_dissect_DsReplicaNeighbour(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaNeighbourCtr_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplicaNeighbourCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaNeighbourCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaNeighbourCtr_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaNeighbourCtr_array);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaNeighbourCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaNeighbourCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -5753,50 +5747,50 @@ drsuapi_dissect_DsReplicaNeighbourCtr(tvbuff_t *tvb, int offset, packet_info *pi
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaNeighbourCtr);
     }
 
-    offset=drsuapi_dissect_DsReplicaNeighbourCtr_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaNeighbourCtr_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaNeighbourCtr_reserved(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaNeighbourCtr_reserved(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ucarray_drsuapi_dissect_DsReplicaNeighbourCtr_array(tvb, offset, pinfo, tree, drep);
+    offset=ucarray_drsuapi_dissect_DsReplicaNeighbourCtr_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaCoursorCtr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursorCtr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursorCtr_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursorCtr_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursorCtr_reserved(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursorCtr_reserved(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursorCtr_reserved, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursorCtr_reserved, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursorCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursorCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaCoursor(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursorCtr_array, param);
+	 offset=drsuapi_dissect_DsReplicaCoursor(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursorCtr_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplicaCoursorCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaCoursorCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaCoursorCtr_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaCoursorCtr_array);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaCoursorCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaCoursorCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -5810,74 +5804,74 @@ drsuapi_dissect_DsReplicaCoursorCtr(tvbuff_t *tvb, int offset, packet_info *pinf
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaCoursorCtr);
     }
 
-    offset=drsuapi_dissect_DsReplicaCoursorCtr_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursorCtr_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaCoursorCtr_reserved(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursorCtr_reserved(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ucarray_drsuapi_dissect_DsReplicaCoursorCtr_array(tvb, offset, pinfo, tree, drep);
+    offset=ucarray_drsuapi_dissect_DsReplicaCoursorCtr_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaObjMetaData_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData_attribute_name, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData_attribute_name, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaObjMetaData_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaObjMetaData_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaObjMetaData_attribute_name, NDR_POINTER_UNIQUE, "attribute_name", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaObjMetaData_attribute_name, NDR_POINTER_UNIQUE, "attribute_name", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaObjMetaData_version(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData_version(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData_version, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData_version, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaObjMetaData_originating_last_changed(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData_originating_last_changed(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData_originating_last_changed, param);
+	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData_originating_last_changed, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaObjMetaData_originating_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData_originating_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData_originating_dsa_invocation_id, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData_originating_dsa_invocation_id, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaObjMetaData_originating_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData_originating_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData_originating_usn, param);
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData_originating_usn, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaObjMetaData_local_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData_local_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData_local_usn, param);
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData_local_usn, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaObjMetaData(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaObjMetaData(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -5891,56 +5885,56 @@ drsuapi_dissect_DsReplicaObjMetaData(tvbuff_t *tvb, int offset, packet_info *pin
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaObjMetaData);
     }
 
-    offset=unique_drsuapi_dissect_DsReplicaObjMetaData_attribute_name(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaObjMetaData_attribute_name(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaObjMetaData_version(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaObjMetaData_version(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaObjMetaData_originating_last_changed(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaObjMetaData_originating_last_changed(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaObjMetaData_originating_dsa_invocation_id(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaObjMetaData_originating_dsa_invocation_id(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaObjMetaData_originating_usn(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaObjMetaData_originating_usn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaObjMetaData_local_usn(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaObjMetaData_local_usn(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaObjMetaDataCtr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaDataCtr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaDataCtr_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaDataCtr_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaObjMetaDataCtr_reserved(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaDataCtr_reserved(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaDataCtr_reserved, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaDataCtr_reserved, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaObjMetaDataCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaDataCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaObjMetaData(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaDataCtr_array, param);
+	 offset=drsuapi_dissect_DsReplicaObjMetaData(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaDataCtr_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplicaObjMetaDataCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaObjMetaDataCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaObjMetaDataCtr_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaObjMetaDataCtr_array);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaObjMetaDataCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaObjMetaDataCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -5954,66 +5948,66 @@ drsuapi_dissect_DsReplicaObjMetaDataCtr(tvbuff_t *tvb, int offset, packet_info *
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaObjMetaDataCtr);
     }
 
-    offset=drsuapi_dissect_DsReplicaObjMetaDataCtr_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaObjMetaDataCtr_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaObjMetaDataCtr_reserved(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaObjMetaDataCtr_reserved(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ucarray_drsuapi_dissect_DsReplicaObjMetaDataCtr_array(tvb, offset, pinfo, tree, drep);
+    offset=ucarray_drsuapi_dissect_DsReplicaObjMetaDataCtr_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaKccDsaFailure_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaKccDsaFailure_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaKccDsaFailure_dsa_obj_dn, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaKccDsaFailure_dsa_obj_dn, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaKccDsaFailure_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaKccDsaFailure_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaKccDsaFailure_dsa_obj_dn, NDR_POINTER_UNIQUE, "dsa_obj_dn", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaKccDsaFailure_dsa_obj_dn, NDR_POINTER_UNIQUE, "dsa_obj_dn", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaKccDsaFailure_dsa_obj_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaKccDsaFailure_dsa_obj_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaKccDsaFailure_dsa_obj_guid, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaKccDsaFailure_dsa_obj_guid, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaKccDsaFailure_first_failure(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaKccDsaFailure_first_failure(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaKccDsaFailure_first_failure, param);
+	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaKccDsaFailure_first_failure, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaKccDsaFailure_num_failures(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaKccDsaFailure_num_failures(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaKccDsaFailure_num_failures, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaKccDsaFailure_num_failures, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaKccDsaFailure_last_result(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaKccDsaFailure_last_result(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_WERROR(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaKccDsaFailure_last_result, param);
+	 offset=drsuapi_dissect_WERROR(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaKccDsaFailure_last_result, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaKccDsaFailure(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaKccDsaFailure(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -6027,54 +6021,54 @@ drsuapi_dissect_DsReplicaKccDsaFailure(tvbuff_t *tvb, int offset, packet_info *p
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaKccDsaFailure);
     }
 
-    offset=unique_drsuapi_dissect_DsReplicaKccDsaFailure_dsa_obj_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaKccDsaFailure_dsa_obj_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaKccDsaFailure_dsa_obj_guid(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaKccDsaFailure_dsa_obj_guid(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaKccDsaFailure_first_failure(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaKccDsaFailure_first_failure(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaKccDsaFailure_num_failures(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaKccDsaFailure_num_failures(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaKccDsaFailure_last_result(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaKccDsaFailure_last_result(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaKccDsaFailuresCtr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaKccDsaFailuresCtr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaKccDsaFailuresCtr_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaKccDsaFailuresCtr_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaKccDsaFailuresCtr_reserved(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaKccDsaFailuresCtr_reserved(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaKccDsaFailuresCtr_reserved, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaKccDsaFailuresCtr_reserved, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaKccDsaFailuresCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaKccDsaFailuresCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaKccDsaFailure(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaKccDsaFailuresCtr_array, param);
+	 offset=drsuapi_dissect_DsReplicaKccDsaFailure(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaKccDsaFailuresCtr_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplicaKccDsaFailuresCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaKccDsaFailuresCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaKccDsaFailuresCtr_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaKccDsaFailuresCtr_array);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaKccDsaFailuresCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaKccDsaFailuresCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -6088,11 +6082,11 @@ drsuapi_dissect_DsReplicaKccDsaFailuresCtr(tvbuff_t *tvb, int offset, packet_inf
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaKccDsaFailuresCtr);
     }
 
-    offset=drsuapi_dissect_DsReplicaKccDsaFailuresCtr_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaKccDsaFailuresCtr_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaKccDsaFailuresCtr_reserved(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaKccDsaFailuresCtr_reserved(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ucarray_drsuapi_dissect_DsReplicaKccDsaFailuresCtr_array(tvb, offset, pinfo, tree, drep);
+    offset=ucarray_drsuapi_dissect_DsReplicaKccDsaFailuresCtr_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
@@ -6109,63 +6103,63 @@ const value_string drsuapi_DsReplicaOpType_vals[] = {
 };
 
 int
-drsuapi_dissect_DsReplicaOpType(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaOpType(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
-    offset=dissect_ndr_uint16(tvb, offset, pinfo, tree, drep, hf_index, NULL);
+    offset=dissect_ndr_uint16(tvb, offset, pinfo, tree, di, drep, hf_index, NULL);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_SYNC_sync(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaSyncOptions(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_SYNC_sync, param);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_ADD_add(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_SYNC_sync(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaAddOptions(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_ADD_add, param);
+    offset=drsuapi_dissect_DsReplicaSyncOptions(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_SYNC_sync, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_DELETE_delete(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_ADD_add(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaDeleteOptions(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_DELETE_delete, param);
+    offset=drsuapi_dissect_DsReplicaAddOptions(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_ADD_add, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_MODIFY_modify(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_DELETE_delete(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaModifyOptions(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_MODIFY_modify, param);
+    offset=drsuapi_dissect_DsReplicaDeleteOptions(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_DELETE_delete, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_UPDATE_REFS_update_refs(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_MODIFY_modify(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaUpdateRefsOptions(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_UPDATE_REFS_update_refs, param);
+    offset=drsuapi_dissect_DsReplicaModifyOptions(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_MODIFY_modify, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsRplicaOpOptions_default_unknown(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_UPDATE_REFS_update_refs(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsRplicaOpOptions_default_unknown, param);
+    offset=drsuapi_dissect_DsReplicaUpdateRefsOptions(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_UPDATE_REFS_update_refs, param);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsRplicaOpOptions_default_unknown(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    guint32 param=0;
+    offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsRplicaOpOptions_default_unknown, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_union_DsRplicaOpOptions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_union_DsRplicaOpOptions(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -6181,37 +6175,37 @@ drsuapi_dissect_union_DsRplicaOpOptions(tvbuff_t *tvb, int offset, packet_info *
     }
 
     offset=dissect_ndr_uint16(tvb, offset, pinfo, tree,
- 							 drep, hf_index, &level);
+ 							 di, drep, hf_index, &level);
 
     switch(level){
     case DRSUAPI_DS_REPLICA_OP_TYPE_SYNC:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_SYNC_sync(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_SYNC_sync(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_OP_TYPE_ADD:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_ADD_add(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_ADD_add(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_OP_TYPE_DELETE:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_DELETE_delete(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_DELETE_delete(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_OP_TYPE_MODIFY:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_MODIFY_modify(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_MODIFY_modify(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_OP_TYPE_UPDATE_REFS:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_UPDATE_REFS_update_refs(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsRplicaOpOptions_DRSUAPI_DS_REPLICA_OP_TYPE_UPDATE_REFS_update_refs(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     default:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsRplicaOpOptions_default_unknown(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsRplicaOpOptions_default_unknown(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     }
@@ -6221,109 +6215,109 @@ drsuapi_dissect_union_DsRplicaOpOptions(tvbuff_t *tvb, int offset, packet_info *
    return offset;
 }
 static int
-drsuapi_dissect_DsReplicaOp_operation_start(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaOp_operation_start(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaOp_operation_start, param);
+	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaOp_operation_start, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaOp_serial_num(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaOp_serial_num(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaOp_serial_num, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaOp_serial_num, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaOp_priority(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaOp_priority(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaOp_priority, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaOp_priority, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaOp_operation_type(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaOp_operation_type(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaOpType(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaOp_operation_type, param);
+	 offset=drsuapi_dissect_DsReplicaOpType(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaOp_operation_type, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaOp_options(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaOp_options(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_union_DsRplicaOpOptions(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaOp_options, param);
+	 offset=drsuapi_dissect_union_DsRplicaOpOptions(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaOp_options, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaOp_nc_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaOp_nc_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaOp_nc_dn, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaOp_nc_dn, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaOp_nc_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaOp_nc_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaOp_nc_dn, NDR_POINTER_UNIQUE, "nc_dn", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaOp_nc_dn, NDR_POINTER_UNIQUE, "nc_dn", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaOp_remote_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaOp_remote_dsa_obj_dn, param);
-	 return offset;
-}
-
-static int
-unique_drsuapi_dissect_DsReplicaOp_remote_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaOp_remote_dsa_obj_dn, NDR_POINTER_UNIQUE, "remote_dsa_obj_dn", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsReplicaOp_remote_dsa_address(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaOp_remote_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaOp_remote_dsa_address, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaOp_remote_dsa_obj_dn, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaOp_remote_dsa_address(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaOp_remote_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaOp_remote_dsa_address, NDR_POINTER_UNIQUE, "remote_dsa_address", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaOp_remote_dsa_obj_dn, NDR_POINTER_UNIQUE, "remote_dsa_obj_dn", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaOp_nc_obj_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaOp_nc_obj_guid, param);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsReplicaOp_remote_dsa_obj_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaOp_remote_dsa_address(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaOp_remote_dsa_obj_guid, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaOp_remote_dsa_address, param);
+	 return offset;
+}
+
+static int
+unique_drsuapi_dissect_DsReplicaOp_remote_dsa_address(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaOp_remote_dsa_address, NDR_POINTER_UNIQUE, "remote_dsa_address", -1);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsReplicaOp_nc_obj_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaOp_nc_obj_guid, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsReplicaOp_remote_dsa_obj_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaOp_remote_dsa_obj_guid, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaOp(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaOp(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -6337,64 +6331,64 @@ drsuapi_dissect_DsReplicaOp(tvbuff_t *tvb, int offset, packet_info *pinfo, proto
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaOp);
     }
 
-    offset=drsuapi_dissect_DsReplicaOp_operation_start(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaOp_operation_start(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaOp_serial_num(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaOp_serial_num(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaOp_priority(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaOp_priority(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaOp_operation_type(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaOp_operation_type(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaOp_options(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaOp_options(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaOp_nc_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaOp_nc_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaOp_remote_dsa_obj_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaOp_remote_dsa_obj_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaOp_remote_dsa_address(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaOp_remote_dsa_address(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaOp_nc_obj_guid(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaOp_nc_obj_guid(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaOp_remote_dsa_obj_guid(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaOp_remote_dsa_obj_guid(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaOpCtr_time(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaOpCtr_time(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaOpCtr_time, param);
+	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaOpCtr_time, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaOpCtr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaOpCtr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaOpCtr_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaOpCtr_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaOpCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaOpCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaOp(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaOpCtr_array, param);
+	 offset=drsuapi_dissect_DsReplicaOp(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaOpCtr_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplicaOpCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaOpCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaOpCtr_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaOpCtr_array);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaOpCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaOpCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -6408,135 +6402,135 @@ drsuapi_dissect_DsReplicaOpCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, pr
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaOpCtr);
     }
 
-    offset=drsuapi_dissect_DsReplicaOpCtr_time(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaOpCtr_time(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaOpCtr_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaOpCtr_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ucarray_drsuapi_dissect_DsReplicaOpCtr_array(tvb, offset, pinfo, tree, drep);
+    offset=ucarray_drsuapi_dissect_DsReplicaOpCtr_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData_attribute_name, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData_attribute_name, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaAttrValMetaData_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaAttrValMetaData_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaAttrValMetaData_attribute_name, NDR_POINTER_UNIQUE, "attribute_name", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaAttrValMetaData_attribute_name, NDR_POINTER_UNIQUE, "attribute_name", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData_object_dn, param);
-	 return offset;
-}
-
-static int
-unique_drsuapi_dissect_DsReplicaAttrValMetaData_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaAttrValMetaData_object_dn, NDR_POINTER_UNIQUE, "object_dn", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsReplicaAttrValMetaData_value_length(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData_value_length, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData_object_dn, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData_value(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaAttrValMetaData_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaAttrValMetaData_object_dn, NDR_POINTER_UNIQUE, "object_dn", -1);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsReplicaAttrValMetaData_value_length(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint8(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData_value, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData_value_length, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplicaAttrValMetaData_value(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaAttrValMetaData_value);
-	 return offset;
-}
-
-static int
-unique_ucarray_drsuapi_dissect_DsReplicaAttrValMetaData_value(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, ucarray_drsuapi_dissect_DsReplicaAttrValMetaData_value, NDR_POINTER_UNIQUE, "value", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsReplicaAttrValMetaData_deleted(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData_value(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData_deleted, param);
+	 offset=drsuapi_dissect_uint8(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData_value, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData_created(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaAttrValMetaData_value(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData_created, param);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaAttrValMetaData_value);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData_version(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_ucarray_drsuapi_dissect_DsReplicaAttrValMetaData_value(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData_version, param);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, ucarray_drsuapi_dissect_DsReplicaAttrValMetaData_value, NDR_POINTER_UNIQUE, "value", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData_originating_last_changed(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData_deleted(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData_originating_last_changed, param);
+	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData_deleted, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData_originating_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData_created(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData_originating_dsa_invocation_id, param);
+	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData_created, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData_originating_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData_version(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData_originating_usn, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData_version, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData_local_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData_originating_last_changed(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData_local_usn, param);
+	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData_originating_last_changed, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsReplicaAttrValMetaData_originating_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData_originating_dsa_invocation_id, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsReplicaAttrValMetaData_originating_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData_originating_usn, param);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsReplicaAttrValMetaData_local_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 guint32 param=0;
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData_local_usn, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaAttrValMetaData(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaAttrValMetaData(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -6550,66 +6544,66 @@ drsuapi_dissect_DsReplicaAttrValMetaData(tvbuff_t *tvb, int offset, packet_info 
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaAttrValMetaData);
     }
 
-    offset=unique_drsuapi_dissect_DsReplicaAttrValMetaData_attribute_name(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaAttrValMetaData_attribute_name(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaAttrValMetaData_object_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaAttrValMetaData_object_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData_value_length(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData_value_length(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_ucarray_drsuapi_dissect_DsReplicaAttrValMetaData_value(tvb, offset, pinfo, tree, drep);
+    offset=unique_ucarray_drsuapi_dissect_DsReplicaAttrValMetaData_value(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData_deleted(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData_deleted(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData_created(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData_created(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData_version(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData_version(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData_originating_last_changed(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData_originating_last_changed(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData_originating_dsa_invocation_id(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData_originating_dsa_invocation_id(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData_originating_usn(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData_originating_usn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData_local_usn(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData_local_usn(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaAttrValMetaDataCtr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaDataCtr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaDataCtr_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaDataCtr_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaDataCtr_enumeration_context(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaDataCtr_enumeration_context(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaDataCtr_enumeration_context, param);
+	 offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaDataCtr_enumeration_context, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaDataCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaDataCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaAttrValMetaData(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaDataCtr_array, param);
+	 offset=drsuapi_dissect_DsReplicaAttrValMetaData(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaDataCtr_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplicaAttrValMetaDataCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaAttrValMetaDataCtr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaAttrValMetaDataCtr_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaAttrValMetaDataCtr_array);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaAttrValMetaDataCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaAttrValMetaDataCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -6623,43 +6617,43 @@ drsuapi_dissect_DsReplicaAttrValMetaDataCtr(tvbuff_t *tvb, int offset, packet_in
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaAttrValMetaDataCtr);
     }
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaDataCtr_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaDataCtr_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaDataCtr_enumeration_context(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaDataCtr_enumeration_context(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ucarray_drsuapi_dissect_DsReplicaAttrValMetaDataCtr_array(tvb, offset, pinfo, tree, drep);
+    offset=ucarray_drsuapi_dissect_DsReplicaAttrValMetaDataCtr_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaCoursor2_source_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor2_source_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor2_source_dsa_invocation_id, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor2_source_dsa_invocation_id, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursor2_highest_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor2_highest_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor2_highest_usn, param);
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor2_highest_usn, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursor2_last_sync_success(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor2_last_sync_success(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor2_last_sync_success, param);
+	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor2_last_sync_success, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaCoursor2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaCoursor2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -6673,50 +6667,50 @@ drsuapi_dissect_DsReplicaCoursor2(tvbuff_t *tvb, int offset, packet_info *pinfo,
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaCoursor2);
     }
 
-    offset=drsuapi_dissect_DsReplicaCoursor2_source_dsa_invocation_id(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor2_source_dsa_invocation_id(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaCoursor2_highest_usn(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor2_highest_usn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaCoursor2_last_sync_success(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor2_last_sync_success(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaCoursor2Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor2Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor2Ctr_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor2Ctr_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursor2Ctr_enumeration_context(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor2Ctr_enumeration_context(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor2Ctr_enumeration_context, param);
+	 offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor2Ctr_enumeration_context, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursor2Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor2Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaCoursor2(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor2Ctr_array, param);
+	 offset=drsuapi_dissect_DsReplicaCoursor2(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor2Ctr_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplicaCoursor2Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaCoursor2Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaCoursor2Ctr_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaCoursor2Ctr_array);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaCoursor2Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaCoursor2Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -6730,58 +6724,58 @@ drsuapi_dissect_DsReplicaCoursor2Ctr(tvbuff_t *tvb, int offset, packet_info *pin
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaCoursor2Ctr);
     }
 
-    offset=drsuapi_dissect_DsReplicaCoursor2Ctr_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor2Ctr_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaCoursor2Ctr_enumeration_context(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor2Ctr_enumeration_context(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ucarray_drsuapi_dissect_DsReplicaCoursor2Ctr_array(tvb, offset, pinfo, tree, drep);
+    offset=ucarray_drsuapi_dissect_DsReplicaCoursor2Ctr_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaCoursor3_source_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor3_source_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor3_source_dsa_invocation_id, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor3_source_dsa_invocation_id, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursor3_highest_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor3_highest_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor3_highest_usn, param);
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor3_highest_usn, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursor3_last_sync_success(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor3_last_sync_success(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor3_last_sync_success, param);
+	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor3_last_sync_success, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursor3_source_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor3_source_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor3_source_dsa_obj_dn, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor3_source_dsa_obj_dn, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaCoursor3_source_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaCoursor3_source_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaCoursor3_source_dsa_obj_dn, NDR_POINTER_UNIQUE, "source_dsa_obj_dn", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaCoursor3_source_dsa_obj_dn, NDR_POINTER_UNIQUE, "source_dsa_obj_dn", -1);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaCoursor3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaCoursor3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -6795,52 +6789,52 @@ drsuapi_dissect_DsReplicaCoursor3(tvbuff_t *tvb, int offset, packet_info *pinfo,
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaCoursor3);
     }
 
-    offset=drsuapi_dissect_DsReplicaCoursor3_source_dsa_invocation_id(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor3_source_dsa_invocation_id(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaCoursor3_highest_usn(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor3_highest_usn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaCoursor3_last_sync_success(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor3_last_sync_success(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaCoursor3_source_dsa_obj_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaCoursor3_source_dsa_obj_dn(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaCoursor3Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor3Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor3Ctr_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor3Ctr_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursor3Ctr_enumeration_context(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor3Ctr_enumeration_context(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor3Ctr_enumeration_context, param);
+	 offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor3Ctr_enumeration_context, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaCoursor3Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaCoursor3Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaCoursor3(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaCoursor3Ctr_array, param);
+	 offset=drsuapi_dissect_DsReplicaCoursor3(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaCoursor3Ctr_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplicaCoursor3Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaCoursor3Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaCoursor3Ctr_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaCoursor3Ctr_array);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaCoursor3Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaCoursor3Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -6854,89 +6848,89 @@ drsuapi_dissect_DsReplicaCoursor3Ctr(tvbuff_t *tvb, int offset, packet_info *pin
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaCoursor3Ctr);
     }
 
-    offset=drsuapi_dissect_DsReplicaCoursor3Ctr_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor3Ctr_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaCoursor3Ctr_enumeration_context(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaCoursor3Ctr_enumeration_context(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ucarray_drsuapi_dissect_DsReplicaCoursor3Ctr_array(tvb, offset, pinfo, tree, drep);
+    offset=ucarray_drsuapi_dissect_DsReplicaCoursor3Ctr_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaObjMetaData2_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData2_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData2_attribute_name, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData2_attribute_name, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaObjMetaData2_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaObjMetaData2_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaObjMetaData2_attribute_name, NDR_POINTER_UNIQUE, "attribute_name", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaObjMetaData2_attribute_name, NDR_POINTER_UNIQUE, "attribute_name", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaObjMetaData2_version(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData2_version, param);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsReplicaObjMetaData2_originating_last_changed(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData2_version(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData2_originating_last_changed, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData2_version, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaObjMetaData2_originating_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData2_originating_last_changed(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData2_originating_dsa_invocation_id, param);
+	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData2_originating_last_changed, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaObjMetaData2_originating_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData2_originating_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData2_originating_usn, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData2_originating_dsa_invocation_id, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaObjMetaData2_local_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData2_originating_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData2_local_usn, param);
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData2_originating_usn, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaObjMetaData2_originating_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData2_local_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData2_originating_dsa_obj_dn, param);
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData2_local_usn, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaObjMetaData2_originating_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData2_originating_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaObjMetaData2_originating_dsa_obj_dn, NDR_POINTER_UNIQUE, "originating_dsa_obj_dn", -1);
+	 guint32 param=0;
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData2_originating_dsa_obj_dn, param);
+	 return offset;
+}
+
+static int
+unique_drsuapi_dissect_DsReplicaObjMetaData2_originating_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaObjMetaData2_originating_dsa_obj_dn, NDR_POINTER_UNIQUE, "originating_dsa_obj_dn", -1);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaObjMetaData2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaObjMetaData2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -6950,58 +6944,58 @@ drsuapi_dissect_DsReplicaObjMetaData2(tvbuff_t *tvb, int offset, packet_info *pi
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaObjMetaData2);
     }
 
-    offset=unique_drsuapi_dissect_DsReplicaObjMetaData2_attribute_name(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaObjMetaData2_attribute_name(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaObjMetaData2_version(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaObjMetaData2_version(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaObjMetaData2_originating_last_changed(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaObjMetaData2_originating_last_changed(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaObjMetaData2_originating_dsa_invocation_id(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaObjMetaData2_originating_dsa_invocation_id(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaObjMetaData2_originating_usn(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaObjMetaData2_originating_usn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaObjMetaData2_local_usn(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaObjMetaData2_local_usn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaObjMetaData2_originating_dsa_obj_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaObjMetaData2_originating_dsa_obj_dn(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaObjMetaData2Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData2Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData2Ctr_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData2Ctr_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaObjMetaData2Ctr_enumeration_context(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData2Ctr_enumeration_context(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData2Ctr_enumeration_context, param);
+	 offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData2Ctr_enumeration_context, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaObjMetaData2Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaObjMetaData2Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaObjMetaData2(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaObjMetaData2Ctr_array, param);
+	 offset=drsuapi_dissect_DsReplicaObjMetaData2(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaObjMetaData2Ctr_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplicaObjMetaData2Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaObjMetaData2Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaObjMetaData2Ctr_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaObjMetaData2Ctr_array);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaObjMetaData2Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaObjMetaData2Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -7015,150 +7009,150 @@ drsuapi_dissect_DsReplicaObjMetaData2Ctr(tvbuff_t *tvb, int offset, packet_info 
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaObjMetaData2Ctr);
     }
 
-    offset=drsuapi_dissect_DsReplicaObjMetaData2Ctr_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaObjMetaData2Ctr_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaObjMetaData2Ctr_enumeration_context(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaObjMetaData2Ctr_enumeration_context(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ucarray_drsuapi_dissect_DsReplicaObjMetaData2Ctr_array(tvb, offset, pinfo, tree, drep);
+    offset=ucarray_drsuapi_dissect_DsReplicaObjMetaData2Ctr_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData2_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData2_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData2_attribute_name, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData2_attribute_name, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaAttrValMetaData2_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaAttrValMetaData2_attribute_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaAttrValMetaData2_attribute_name, NDR_POINTER_UNIQUE, "attribute_name", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaAttrValMetaData2_attribute_name, NDR_POINTER_UNIQUE, "attribute_name", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData2_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData2_object_dn, param);
-	 return offset;
-}
-
-static int
-unique_drsuapi_dissect_DsReplicaAttrValMetaData2_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaAttrValMetaData2_object_dn, NDR_POINTER_UNIQUE, "object_dn", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsReplicaAttrValMetaData2_value_length(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData2_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData2_value_length, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData2_object_dn, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData2_value(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplicaAttrValMetaData2_object_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaAttrValMetaData2_object_dn, NDR_POINTER_UNIQUE, "object_dn", -1);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsReplicaAttrValMetaData2_value_length(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint8(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData2_value, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData2_value_length, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplicaAttrValMetaData2_value(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaAttrValMetaData2_value);
-	 return offset;
-}
-
-static int
-unique_ucarray_drsuapi_dissect_DsReplicaAttrValMetaData2_value(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, ucarray_drsuapi_dissect_DsReplicaAttrValMetaData2_value, NDR_POINTER_UNIQUE, "value", -1);
-	 return offset;
-}
-
-static int
-drsuapi_dissect_DsReplicaAttrValMetaData2_deleted(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData2_value(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData2_deleted, param);
+	 offset=drsuapi_dissect_uint8(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData2_value, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData2_created(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaAttrValMetaData2_value(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaAttrValMetaData2_value);
+	 return offset;
+}
+
+static int
+unique_ucarray_drsuapi_dissect_DsReplicaAttrValMetaData2_value(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, ucarray_drsuapi_dissect_DsReplicaAttrValMetaData2_value, NDR_POINTER_UNIQUE, "value", -1);
+	 return offset;
+}
+
+static int
+drsuapi_dissect_DsReplicaAttrValMetaData2_deleted(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData2_created, param);
+	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData2_deleted, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData2_version(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData2_created(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData2_version, param);
+	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData2_created, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData2_originating_last_changed(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData2_version(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData2_originating_last_changed, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData2_version, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData2_originating_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData2_originating_last_changed(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData2_originating_dsa_invocation_id, param);
+	 offset=drsuapi_dissect_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData2_originating_last_changed, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData2_originating_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData2_originating_dsa_invocation_id(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData2_originating_usn, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData2_originating_dsa_invocation_id, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData2_local_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData2_originating_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData2_local_usn, param);
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData2_originating_usn, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData2_originating_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData2_local_usn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData2_originating_dsa_obj_dn, param);
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData2_local_usn, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplicaAttrValMetaData2_originating_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData2_originating_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaAttrValMetaData2_originating_dsa_obj_dn, NDR_POINTER_UNIQUE, "originating_dsa_obj_dn", -1);
+	 guint32 param=0;
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData2_originating_dsa_obj_dn, param);
+	 return offset;
+}
+
+static int
+unique_drsuapi_dissect_DsReplicaAttrValMetaData2_originating_dsa_obj_dn(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaAttrValMetaData2_originating_dsa_obj_dn, NDR_POINTER_UNIQUE, "originating_dsa_obj_dn", -1);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaAttrValMetaData2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaAttrValMetaData2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -7172,68 +7166,68 @@ drsuapi_dissect_DsReplicaAttrValMetaData2(tvbuff_t *tvb, int offset, packet_info
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaAttrValMetaData2);
     }
 
-    offset=unique_drsuapi_dissect_DsReplicaAttrValMetaData2_attribute_name(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaAttrValMetaData2_attribute_name(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaAttrValMetaData2_object_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaAttrValMetaData2_object_dn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_value_length(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_value_length(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_ucarray_drsuapi_dissect_DsReplicaAttrValMetaData2_value(tvb, offset, pinfo, tree, drep);
+    offset=unique_ucarray_drsuapi_dissect_DsReplicaAttrValMetaData2_value(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_deleted(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_deleted(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_created(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_created(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_version(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_version(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_originating_last_changed(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_originating_last_changed(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_originating_dsa_invocation_id(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_originating_dsa_invocation_id(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_originating_usn(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_originating_usn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_local_usn(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData2_local_usn(tvb, offset, pinfo, tree, di, drep);
 
-    offset=unique_drsuapi_dissect_DsReplicaAttrValMetaData2_originating_dsa_obj_dn(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplicaAttrValMetaData2_originating_dsa_obj_dn(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData2Ctr_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData2Ctr_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_enumeration_context(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_enumeration_context(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData2Ctr_enumeration_context, param);
+	 offset=drsuapi_dissect_int32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData2Ctr_enumeration_context, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaAttrValMetaData2(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaAttrValMetaData2Ctr_array, param);
+	 offset=drsuapi_dissect_DsReplicaAttrValMetaData2(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaAttrValMetaData2Ctr_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_array);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaAttrValMetaData2Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaAttrValMetaData2Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -7247,75 +7241,75 @@ drsuapi_dissect_DsReplicaAttrValMetaData2Ctr(tvbuff_t *tvb, int offset, packet_i
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaAttrValMetaData2Ctr);
     }
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_enumeration_context(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_enumeration_context(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ucarray_drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_array(tvb, offset, pinfo, tree, drep);
+    offset=ucarray_drsuapi_dissect_DsReplicaAttrValMetaData2Ctr_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaConnection04_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaConnection04_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaConnection04_u1, param);
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaConnection04_u1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaConnection04_u2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaConnection04_u2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaConnection04_u2, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaConnection04_u2, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaConnection04_u3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaConnection04_u3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaConnection04_u3, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaConnection04_u3, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaConnection04_bind_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaConnection04_bind_guid(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaConnection04_bind_guid, param);
+	 offset=drsuapi_dissect_GUID(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaConnection04_bind_guid, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaConnection04_bind_time(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaConnection04_bind_time(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_NTTIME_1sec(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaConnection04_bind_time, param);
+	 offset=drsuapi_dissect_NTTIME_1sec(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaConnection04_bind_time, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaConnection04_u4(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaConnection04_u4(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaConnection04_u4, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaConnection04_u4, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaConnection04_u5(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaConnection04_u5(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaConnection04_u5, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaConnection04_u5, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaConnection04(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaConnection04(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -7329,58 +7323,58 @@ drsuapi_dissect_DsReplicaConnection04(tvbuff_t *tvb, int offset, packet_info *pi
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaConnection04);
     }
 
-    offset=drsuapi_dissect_DsReplicaConnection04_u1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaConnection04_u1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaConnection04_u2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaConnection04_u2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaConnection04_u3(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaConnection04_u3(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaConnection04_bind_guid(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaConnection04_bind_guid(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaConnection04_bind_time(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaConnection04_bind_time(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaConnection04_u4(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaConnection04_u4(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaConnection04_u5(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaConnection04_u5(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplicaConnection04Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaConnection04Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaConnection04Ctr_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaConnection04Ctr_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaConnection04Ctr_reserved(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaConnection04Ctr_reserved(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaConnection04Ctr_reserved, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaConnection04Ctr_reserved, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaConnection04Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaConnection04Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplicaConnection04(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaConnection04Ctr_array, param);
+	 offset=drsuapi_dissect_DsReplicaConnection04(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaConnection04Ctr_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplicaConnection04Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplicaConnection04Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaConnection04Ctr_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaConnection04Ctr_array);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplicaConnection04Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplicaConnection04Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -7394,90 +7388,90 @@ drsuapi_dissect_DsReplicaConnection04Ctr(tvbuff_t *tvb, int offset, packet_info 
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplicaConnection04Ctr);
     }
 
-    offset=drsuapi_dissect_DsReplicaConnection04Ctr_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaConnection04Ctr_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplicaConnection04Ctr_reserved(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplicaConnection04Ctr_reserved(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ucarray_drsuapi_dissect_DsReplicaConnection04Ctr_array(tvb, offset, pinfo, tree, drep);
+    offset=ucarray_drsuapi_dissect_DsReplicaConnection04Ctr_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplica06_str1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplica06_str1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplica06_str1, param);
+	 offset=drsuapi_dissect_unistr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplica06_str1, param);
 	 return offset;
 }
 
 static int
-unique_drsuapi_dissect_DsReplica06_str1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+unique_drsuapi_dissect_DsReplica06_str1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplica06_str1, NDR_POINTER_UNIQUE, "str1", -1);
+	 offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplica06_str1, NDR_POINTER_UNIQUE, "str1", -1);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplica06_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplica06_u1(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplica06_u1, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplica06_u1, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplica06_u2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplica06_u2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplica06_u2, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplica06_u2, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplica06_u3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplica06_u3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplica06_u3, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplica06_u3, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplica06_u4(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplica06_u4(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplica06_u4, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplica06_u4, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplica06_u5(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplica06_u5(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplica06_u5, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplica06_u5, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplica06_u6(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplica06_u6(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplica06_u6, param);
+	 offset=drsuapi_dissect_uint64(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplica06_u6, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplica06_u7(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplica06_u7(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplica06_u7, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplica06_u7, param);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplica06(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplica06(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -7491,60 +7485,60 @@ drsuapi_dissect_DsReplica06(tvbuff_t *tvb, int offset, packet_info *pinfo, proto
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplica06);
     }
 
-    offset=unique_drsuapi_dissect_DsReplica06_str1(tvb, offset, pinfo, tree, drep);
+    offset=unique_drsuapi_dissect_DsReplica06_str1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplica06_u1(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplica06_u1(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplica06_u2(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplica06_u2(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplica06_u3(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplica06_u3(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplica06_u4(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplica06_u4(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplica06_u5(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplica06_u5(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplica06_u6(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplica06_u6(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplica06_u7(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplica06_u7(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_DsReplica06Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplica06Ctr_count(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplica06Ctr_count, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplica06Ctr_count, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplica06Ctr_reserved(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplica06Ctr_reserved(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplica06Ctr_reserved, param);
+	 offset=drsuapi_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplica06Ctr_reserved, param);
 	 return offset;
 }
 
 static int
-drsuapi_dissect_DsReplica06Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplica06Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 	 guint32 param=0;
-	 offset=drsuapi_dissect_DsReplica06(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplica06Ctr_array, param);
+	 offset=drsuapi_dissect_DsReplica06(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplica06Ctr_array, param);
 	 return offset;
 }
 
 static int
-ucarray_drsuapi_dissect_DsReplica06Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ucarray_drsuapi_dissect_DsReplica06Ctr_array(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplica06Ctr_array);
+	 offset=dissect_ndr_ucarray(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplica06Ctr_array);
 	 return offset;
 }
 
 
 int
-drsuapi_dissect_DsReplica06Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_DsReplica06Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -7558,244 +7552,244 @@ drsuapi_dissect_DsReplica06Ctr(tvbuff_t *tvb, int offset, packet_info *pinfo, pr
  	   tree=proto_item_add_subtree(item, ett_drsuapi_DsReplica06Ctr);
     }
 
-    offset=drsuapi_dissect_DsReplica06Ctr_count(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplica06Ctr_count(tvb, offset, pinfo, tree, di, drep);
 
-    offset=drsuapi_dissect_DsReplica06Ctr_reserved(tvb, offset, pinfo, tree, drep);
+    offset=drsuapi_dissect_DsReplica06Ctr_reserved(tvb, offset, pinfo, tree, di, drep);
 
-    offset=ucarray_drsuapi_dissect_DsReplica06Ctr_array(tvb, offset, pinfo, tree, drep);
+    offset=ucarray_drsuapi_dissect_DsReplica06Ctr_array(tvb, offset, pinfo, tree, di, drep);
 
     proto_item_set_len(item, offset-old_offset);
 
     return offset;
 }
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS_neighbours(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS_neighbours(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaNeighbourCtr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS_neighbours, param);
+    offset=drsuapi_dissect_DsReplicaNeighbourCtr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS_neighbours, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS_neighbours_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS_neighbours_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS_neighbours, NDR_POINTER_UNIQUE, "neighbours", -1);
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS_neighbours, NDR_POINTER_UNIQUE, "neighbours", -1);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS_coursors(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaCoursorCtr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS_coursors, param);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS_coursors_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS_coursors, NDR_POINTER_UNIQUE, "coursors", -1);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA_objmetadata(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS_coursors(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaObjMetaDataCtr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA_objmetadata, param);
+    offset=drsuapi_dissect_DsReplicaCoursorCtr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS_coursors, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA_objmetadata_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS_coursors_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA_objmetadata, NDR_POINTER_UNIQUE, "objmetadata", -1);
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS_coursors, NDR_POINTER_UNIQUE, "coursors", -1);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_CONNECT_FAILURES_connectfailures(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaKccDsaFailuresCtr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_CONNECT_FAILURES_connectfailures, param);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_CONNECT_FAILURES_connectfailures_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_CONNECT_FAILURES_connectfailures, NDR_POINTER_UNIQUE, "connectfailures", -1);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_LINK_FAILURES_linkfailures(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA_objmetadata(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaKccDsaFailuresCtr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_LINK_FAILURES_linkfailures, param);
+    offset=drsuapi_dissect_DsReplicaObjMetaDataCtr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA_objmetadata, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_LINK_FAILURES_linkfailures_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA_objmetadata_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_LINK_FAILURES_linkfailures, NDR_POINTER_UNIQUE, "linkfailures", -1);
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA_objmetadata, NDR_POINTER_UNIQUE, "objmetadata", -1);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_PENDING_OPS_pendingops(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaOpCtr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_PENDING_OPS_pendingops, param);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_PENDING_OPS_pendingops_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_PENDING_OPS_pendingops, NDR_POINTER_UNIQUE, "pendingops", -1);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA_attrvalmetadata(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_CONNECT_FAILURES_connectfailures(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaAttrValMetaDataCtr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA_attrvalmetadata, param);
+    offset=drsuapi_dissect_DsReplicaKccDsaFailuresCtr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_CONNECT_FAILURES_connectfailures, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA_attrvalmetadata_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_CONNECT_FAILURES_connectfailures_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA_attrvalmetadata, NDR_POINTER_UNIQUE, "attrvalmetadata", -1);
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_CONNECT_FAILURES_connectfailures, NDR_POINTER_UNIQUE, "connectfailures", -1);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS2_coursors2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaCoursor2Ctr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS2_coursors2, param);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS2_coursors2_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS2_coursors2, NDR_POINTER_UNIQUE, "coursors2", -1);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS3_coursors3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_LINK_FAILURES_linkfailures(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaCoursor3Ctr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS3_coursors3, param);
+    offset=drsuapi_dissect_DsReplicaKccDsaFailuresCtr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_LINK_FAILURES_linkfailures, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS3_coursors3_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_LINK_FAILURES_linkfailures_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS3_coursors3, NDR_POINTER_UNIQUE, "coursors3", -1);
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_LINK_FAILURES_linkfailures, NDR_POINTER_UNIQUE, "linkfailures", -1);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA2_objmetadata2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaObjMetaData2Ctr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA2_objmetadata2, param);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA2_objmetadata2_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA2_objmetadata2, NDR_POINTER_UNIQUE, "objmetadata2", -1);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA2_attrvalmetadata2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_PENDING_OPS_pendingops(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaAttrValMetaData2Ctr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA2_attrvalmetadata2, param);
+    offset=drsuapi_dissect_DsReplicaOpCtr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_PENDING_OPS_pendingops, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA2_attrvalmetadata2_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_PENDING_OPS_pendingops_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA2_attrvalmetadata2, NDR_POINTER_UNIQUE, "attrvalmetadata2", -1);
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_PENDING_OPS_pendingops, NDR_POINTER_UNIQUE, "pendingops", -1);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS02_neighbours02(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaNeighbourCtr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS02_neighbours02, param);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS02_neighbours02_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS02_neighbours02, NDR_POINTER_UNIQUE, "neighbours02", -1);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CONNECTIONS04_connections04(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA_attrvalmetadata(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaConnection04Ctr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CONNECTIONS04_connections04, param);
+    offset=drsuapi_dissect_DsReplicaAttrValMetaDataCtr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA_attrvalmetadata, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CONNECTIONS04_connections04_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA_attrvalmetadata_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CONNECTIONS04_connections04, NDR_POINTER_UNIQUE, "connections04", -1);
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA_attrvalmetadata, NDR_POINTER_UNIQUE, "attrvalmetadata", -1);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSURS05_coursors05(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaCoursor05Ctr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSURS05_coursors05, param);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSURS05_coursors05_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
-{
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSURS05_coursors05, NDR_POINTER_UNIQUE, "coursors05", -1);
-    return offset;
-}
-
-static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_06_i06(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS2_coursors2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplica06Ctr(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_06_i06, param);
+    offset=drsuapi_dissect_DsReplicaCoursor2Ctr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS2_coursors2, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_06_i06_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS2_coursors2_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_06_i06, NDR_POINTER_UNIQUE, "i06", -1);
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS2_coursors2, NDR_POINTER_UNIQUE, "coursors2", -1);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS3_coursors3(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    guint32 param=0;
+    offset=drsuapi_dissect_DsReplicaCoursor3Ctr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS3_coursors3, param);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS3_coursors3_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS3_coursors3, NDR_POINTER_UNIQUE, "coursors3", -1);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA2_objmetadata2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    guint32 param=0;
+    offset=drsuapi_dissect_DsReplicaObjMetaData2Ctr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA2_objmetadata2, param);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA2_objmetadata2_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA2_objmetadata2, NDR_POINTER_UNIQUE, "objmetadata2", -1);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA2_attrvalmetadata2(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    guint32 param=0;
+    offset=drsuapi_dissect_DsReplicaAttrValMetaData2Ctr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA2_attrvalmetadata2, param);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA2_attrvalmetadata2_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA2_attrvalmetadata2, NDR_POINTER_UNIQUE, "attrvalmetadata2", -1);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS02_neighbours02(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    guint32 param=0;
+    offset=drsuapi_dissect_DsReplicaNeighbourCtr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS02_neighbours02, param);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS02_neighbours02_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS02_neighbours02, NDR_POINTER_UNIQUE, "neighbours02", -1);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CONNECTIONS04_connections04(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    guint32 param=0;
+    offset=drsuapi_dissect_DsReplicaConnection04Ctr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CONNECTIONS04_connections04, param);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CONNECTIONS04_connections04_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CONNECTIONS04_connections04, NDR_POINTER_UNIQUE, "connections04", -1);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSURS05_coursors05(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    guint32 param=0;
+    offset=drsuapi_dissect_DsReplicaCoursor05Ctr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSURS05_coursors05, param);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSURS05_coursors05_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSURS05_coursors05, NDR_POINTER_UNIQUE, "coursors05", -1);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_06_i06(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    guint32 param=0;
+    offset=drsuapi_dissect_DsReplica06Ctr(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_06_i06, param);
+    return offset;
+}
+
+static int
+drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_06_i06_unique(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
+{
+    offset=dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_06_i06, NDR_POINTER_UNIQUE, "i06", -1);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_union_DsReplicaInfo(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, guint8 *drep, int hf_index, guint32 param _U_)
+drsuapi_dissect_union_DsReplicaInfo(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, dcerpc_info *di, guint8 *drep, int hf_index, guint32 param _U_)
 {
     proto_item *item=NULL;
     proto_tree *tree=NULL;
@@ -7811,82 +7805,82 @@ drsuapi_dissect_union_DsReplicaInfo(tvbuff_t *tvb, int offset, packet_info *pinf
     }
 
     offset=dissect_ndr_uint32(tvb, offset, pinfo, tree,
- 							 drep, hf_index, &level);
+ 							 di, drep, hf_index, &level);
 
     switch(level){
     case DRSUAPI_DS_REPLICA_INFO_NEIGHBORS:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS_neighbours_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS_neighbours_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_INFO_CURSORS:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS_coursors_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS_coursors_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA_objmetadata_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA_objmetadata_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_INFO_KCC_DSA_CONNECT_FAILURES:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_CONNECT_FAILURES_connectfailures_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_CONNECT_FAILURES_connectfailures_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_INFO_KCC_DSA_LINK_FAILURES:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_LINK_FAILURES_linkfailures_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_KCC_DSA_LINK_FAILURES_linkfailures_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_INFO_PENDING_OPS:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_PENDING_OPS_pendingops_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_PENDING_OPS_pendingops_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA_attrvalmetadata_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA_attrvalmetadata_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_INFO_CURSORS2:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS2_coursors2_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS2_coursors2_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_INFO_CURSORS3:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS3_coursors3_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSORS3_coursors3_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA2:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA2_objmetadata2_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_OBJ_METADATA2_objmetadata2_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA2:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA2_attrvalmetadata2_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_ATTRIBUTE_VALUE_METADATA2_attrvalmetadata2_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_INFO_NEIGHBORS02:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS02_neighbours02_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_NEIGHBORS02_neighbours02_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_INFO_CONNECTIONS04:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CONNECTIONS04_connections04_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CONNECTIONS04_connections04_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_INFO_CURSURS05:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSURS05_coursors05_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_CURSURS05_coursors05_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     case DRSUAPI_DS_REPLICA_INFO_06:
  	   ALIGN_TO_4_BYTES;
- 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_06_i06_unique(tvb, offset, pinfo, tree, drep);
+ 	   offset=drsuapi_dissect_union_DsReplicaInfo_DRSUAPI_DS_REPLICA_INFO_06_i06_unique(tvb, offset, pinfo, tree, di, drep);
  	   break;
 
     }
@@ -7896,159 +7890,159 @@ drsuapi_dissect_union_DsReplicaInfo(tvbuff_t *tvb, int offset, packet_info *pinf
    return offset;
 }
 static int
-drsuapi_dissect_DsReplicaGetInfo_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaGetInfo_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfo_bind_handle, param);
+    offset=drsuapi_dissect_policy_handle(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfo_bind_handle, param);
     return offset;
 }
 
 static int
-ref_drsuapi_dissect_DsReplicaGetInfo_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+ref_drsuapi_dissect_DsReplicaGetInfo_bind_handle(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, drsuapi_dissect_DsReplicaGetInfo_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
+    offset=dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, drsuapi_dissect_DsReplicaGetInfo_bind_handle, NDR_POINTER_REF, "bind_handle", -1);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaGetInfo_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaGetInfo_level(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaGetInfoLevel(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfo_level, param);
+    offset=drsuapi_dissect_DsReplicaGetInfoLevel(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfo_level, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaGetInfo_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaGetInfo_req(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_union_DsReplicaGetInfoRequest(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfo_req, param);
+    offset=drsuapi_dissect_union_DsReplicaGetInfoRequest(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfo_req, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaGetInfo_info_type(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaGetInfo_info_type(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_DsReplicaInfoType(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfo_info_type, param);
+    offset=drsuapi_dissect_DsReplicaInfoType(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfo_info_type, param);
     return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaGetInfo_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep)
+drsuapi_dissect_DsReplicaGetInfo_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
     guint32 param=0;
-    offset=drsuapi_dissect_union_DsReplicaInfo(tvb, offset, pinfo, tree, drep, hf_drsuapi_DsReplicaGetInfo_info, param);
+    offset=drsuapi_dissect_union_DsReplicaInfo(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_DsReplicaGetInfo_info, param);
     return offset;
 }
 
 
 static int
-drsuapi_dissect_DsReplicaGetInfo_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsReplicaGetInfo_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=ref_drsuapi_dissect_DsReplicaGetInfo_bind_handle(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=ref_drsuapi_dissect_DsReplicaGetInfo_bind_handle(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsReplicaGetInfo_level(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsReplicaGetInfo_level(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsReplicaGetInfo_req(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsReplicaGetInfo_req(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DsReplicaGetInfo_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DsReplicaGetInfo_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
- 	   offset=drsuapi_dissect_DsReplicaGetInfo_info_type(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsReplicaGetInfo_info_type(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
- 	   offset=drsuapi_dissect_DsReplicaGetInfo_info(tvb, offset, pinfo, tree, drep);
- 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, drep);
+ 	   offset=drsuapi_dissect_DsReplicaGetInfo_info(tvb, offset, pinfo, tree, di, drep);
+ 	   offset=dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_ADD_SID_HISTORY_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_ADD_SID_HISTORY_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_ADD_SID_HISTORY_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_ADD_SID_HISTORY_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_GET_MEMBERSHIPS2_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_GET_MEMBERSHIPS2_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_GET_MEMBERSHIPS2_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_GET_MEMBERSHIPS2_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_REPLICA_VERIFY_OBJECTS_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_REPLICA_VERIFY_OBJECTS_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_REPLICA_VERIFY_OBJECTS_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_REPLICA_VERIFY_OBJECTS_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_GET_OBJECT_EXISTENCE_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_GET_OBJECT_EXISTENCE_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_GET_OBJECT_EXISTENCE_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_GET_OBJECT_EXISTENCE_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_QUERY_SITES_BY_COST_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_QUERY_SITES_BY_COST_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 
    return offset;
 }
 
 static int
-drsuapi_dissect_DRSUAPI_QUERY_SITES_BY_COST_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+drsuapi_dissect_DRSUAPI_QUERY_SITES_BY_COST_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-   offset=dissect_ntstatus(tvb, offset, pinfo, tree, drep, hf_drsuapi_rc, NULL);
+   offset=dissect_ntstatus(tvb, offset, pinfo, tree, di, drep, hf_drsuapi_rc, NULL);
 
 
    return offset;

@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-dop.c                                                               */
 /* ../../tools/asn2wrs.py -b -p dop -c ./dop.cnf -s ./packet-dop-template -D . -O ../../epan/dissectors dop.asn */
 
@@ -9,8 +9,6 @@
 /* packet-dop.c
  * Routines for X.501 (DSA Operational Attributes)  packet dissection
  * Graeme Lunt 2005
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -39,6 +37,7 @@
 #include <epan/oids.h>
 #include <epan/asn1.h>
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-ber.h"
 #include "packet-acse.h"
@@ -58,6 +57,9 @@
 #define PSNAME "DOP"
 #define PFNAME "dop"
 
+void proto_register_dop(void);
+void proto_reg_handoff_dop(void);
+
 static guint global_dop_tcp_port = 102;
 static dissector_handle_t tpkt_handle;
 static void prefs_register_dop(void); /* forward declaration for use in preferences registration */
@@ -65,10 +67,9 @@ static void prefs_register_dop(void); /* forward declaration for use in preferen
 /* Initialize the protocol and registered fields */
 static int proto_dop = -1;
 
-static struct SESSION_DATA_STRUCTURE* session = NULL;
 static const char *binding_type = NULL; /* binding_type */
 
-static int call_dop_oid_callback(const char *base_string, tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, const char *col_info);
+static int call_dop_oid_callback(const char *base_string, tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, const char *col_info, void* data);
 
 
 /*--- Included file: packet-dop-hf.c ---*/
@@ -266,7 +267,7 @@ static int hf_dop_GrantsAndDenials_grantInvoke = -1;
 static int hf_dop_GrantsAndDenials_denyInvoke = -1;
 
 /*--- End of included file: packet-dop-hf.c ---*/
-#line 66 "../../asn1/dop/packet-dop-template.c"
+#line 67 "../../asn1/dop/packet-dop-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_dop = -1;
@@ -343,7 +344,9 @@ static gint ett_dop_T_basicLevels = -1;
 static gint ett_dop_GrantsAndDenials = -1;
 
 /*--- End of included file: packet-dop-ett.c ---*/
-#line 71 "../../asn1/dop/packet-dop-template.c"
+#line 72 "../../asn1/dop/packet-dop-template.c"
+
+static expert_field ei_dop_unknown_binding_parameter = EI_INIT;
 
 /* Dissector table */
 static dissector_table_t dop_dissector_table;
@@ -409,7 +412,7 @@ dissect_dop_SET_OF_ProtocolInformation(gboolean implicit_tag _U_, tvbuff_t *tvb 
 
 static int
 dissect_dop_T_identifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 172 "../../asn1/dop/dop.cnf"
+#line 179 "../../asn1/dop/dop.cnf"
 	guint32	value;
 
 	  offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
@@ -429,7 +432,7 @@ dissect_dop_T_identifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 static int
 dissect_dop_T_version(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 181 "../../asn1/dop/dop.cnf"
+#line 188 "../../asn1/dop/dop.cnf"
 	guint32	value;
 
 	  offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
@@ -575,7 +578,7 @@ static int
 dissect_dop_BindingType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &binding_type);
 
-#line 103 "../../asn1/dop/dop.cnf"
+#line 110 "../../asn1/dop/dop.cnf"
   append_oid(actx->pinfo, binding_type);
 
   return offset;
@@ -585,9 +588,9 @@ dissect_dop_BindingType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset
 
 static int
 dissect_dop_EstablishSymmetric(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 107 "../../asn1/dop/dop.cnf"
+#line 114 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("establish.symmetric", tvb, offset, actx->pinfo, tree, "symmetric");
+  offset = call_dop_oid_callback("establish.symmetric", tvb, offset, actx->pinfo, tree, "symmetric", actx->private_data);
 
 
 
@@ -598,9 +601,9 @@ dissect_dop_EstablishSymmetric(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
 
 static int
 dissect_dop_EstablishRoleAInitiates(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 111 "../../asn1/dop/dop.cnf"
+#line 118 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("establish.rolea", tvb, offset, actx->pinfo, tree, "roleA");
+  offset = call_dop_oid_callback("establish.rolea", tvb, offset, actx->pinfo, tree, "roleA", actx->private_data);
 
 
 
@@ -611,9 +614,9 @@ dissect_dop_EstablishRoleAInitiates(gboolean implicit_tag _U_, tvbuff_t *tvb _U_
 
 static int
 dissect_dop_EstablishRoleBInitiates(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 115 "../../asn1/dop/dop.cnf"
+#line 122 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("establish.roleb", tvb, offset, actx->pinfo, tree, "roleB");
+  offset = call_dop_oid_callback("establish.roleb", tvb, offset, actx->pinfo, tree, "roleB", actx->private_data);
 
 
 
@@ -648,9 +651,9 @@ dissect_dop_EstablishArgumentInitiator(gboolean implicit_tag _U_, tvbuff_t *tvb 
 
 static int
 dissect_dop_T_agreement(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 143 "../../asn1/dop/dop.cnf"
+#line 150 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("agreement", tvb, offset, actx->pinfo, tree, NULL);
+  offset = call_dop_oid_callback("agreement", tvb, offset, actx->pinfo, tree, NULL, actx->private_data);
 
 
 
@@ -813,12 +816,6 @@ dissect_dop_T_signedEstablishOperationalBindingArgument(gboolean implicit_tag _U
 }
 
 
-static const value_string dop_EstablishOperationalBindingArgument_vals[] = {
-  {   0, "unsignedEstablishOperationalBindingArgument" },
-  {   1, "signedEstablishOperationalBindingArgument" },
-  { 0, NULL }
-};
-
 static const ber_choice_t EstablishOperationalBindingArgument_choice[] = {
   {   0, &hf_dop_unsignedEstablishOperationalBindingArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dop_EstablishOperationalBindingArgumentData },
   {   1, &hf_dop_signedEstablishOperationalBindingArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dop_T_signedEstablishOperationalBindingArgument },
@@ -838,9 +835,9 @@ dissect_dop_EstablishOperationalBindingArgument(gboolean implicit_tag _U_, tvbuf
 
 static int
 dissect_dop_T_symmetric(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 147 "../../asn1/dop/dop.cnf"
+#line 154 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("establish.symmetric", tvb, offset, actx->pinfo, tree, "symmetric"); 
+  offset = call_dop_oid_callback("establish.symmetric", tvb, offset, actx->pinfo, tree, "symmetric", actx->private_data);
 
 
 
@@ -851,9 +848,9 @@ dissect_dop_T_symmetric(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset
 
 static int
 dissect_dop_T_roleA_replies(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 151 "../../asn1/dop/dop.cnf"
+#line 158 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("establish.rolea", tvb, offset, actx->pinfo, tree, "roleA");
+  offset = call_dop_oid_callback("establish.rolea", tvb, offset, actx->pinfo, tree, "roleA", actx->private_data);
 
 
 
@@ -864,9 +861,9 @@ dissect_dop_T_roleA_replies(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 
 static int
 dissect_dop_T_roleB_replies(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 155 "../../asn1/dop/dop.cnf"
+#line 162 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("establish.roleb", tvb, offset, actx->pinfo, tree, "roleB");
+  offset = call_dop_oid_callback("establish.roleb", tvb, offset, actx->pinfo, tree, "roleB", actx->private_data);
 
 
 
@@ -935,9 +932,9 @@ dissect_dop_EstablishOperationalBindingResult(gboolean implicit_tag _U_, tvbuff_
 
 static int
 dissect_dop_ModifySymmetric(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 119 "../../asn1/dop/dop.cnf"
+#line 126 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("modify.symmetric", tvb, offset, actx->pinfo, tree, "symmetric");
+  offset = call_dop_oid_callback("modify.symmetric", tvb, offset, actx->pinfo, tree, "symmetric", actx->private_data);
 
 
 
@@ -948,9 +945,9 @@ dissect_dop_ModifySymmetric(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 
 static int
 dissect_dop_ModifyRoleAInitiates(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 123 "../../asn1/dop/dop.cnf"
+#line 130 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("modify.rolea", tvb, offset, actx->pinfo, tree, "roleA");
+  offset = call_dop_oid_callback("modify.rolea", tvb, offset, actx->pinfo, tree, "roleA", actx->private_data);
 
 
 
@@ -961,9 +958,9 @@ dissect_dop_ModifyRoleAInitiates(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 
 static int
 dissect_dop_ModifyRoleBInitiates(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 127 "../../asn1/dop/dop.cnf"
+#line 134 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("modify.roleb", tvb, offset, actx->pinfo, tree, "roleB");
+  offset = call_dop_oid_callback("modify.roleb", tvb, offset, actx->pinfo, tree, "roleB", actx->private_data);
 
 
 
@@ -998,9 +995,9 @@ dissect_dop_ModifyArgumentInitiator(gboolean implicit_tag _U_, tvbuff_t *tvb _U_
 
 static int
 dissect_dop_ArgumentNewAgreement(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 167 "../../asn1/dop/dop.cnf"
+#line 174 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("agreement", tvb, offset, actx->pinfo, tree, NULL);
+  offset = call_dop_oid_callback("agreement", tvb, offset, actx->pinfo, tree, NULL, actx->private_data);
 
 
 
@@ -1046,12 +1043,6 @@ dissect_dop_T_signedModifyOperationalBindingArgument(gboolean implicit_tag _U_, 
 }
 
 
-static const value_string dop_ModifyOperationalBindingArgument_vals[] = {
-  {   0, "unsignedModifyOperationalBindingArgument" },
-  {   1, "signedModifyOperationalBindingArgument" },
-  { 0, NULL }
-};
-
 static const ber_choice_t ModifyOperationalBindingArgument_choice[] = {
   {   0, &hf_dop_unsignedModifyOperationalBindingArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dop_ModifyOperationalBindingArgumentData },
   {   1, &hf_dop_signedModifyOperationalBindingArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dop_T_signedModifyOperationalBindingArgument },
@@ -1071,9 +1062,9 @@ dissect_dop_ModifyOperationalBindingArgument(gboolean implicit_tag _U_, tvbuff_t
 
 static int
 dissect_dop_ResultNewAgreement(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 163 "../../asn1/dop/dop.cnf"
+#line 170 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("agreement", tvb, offset, actx->pinfo, tree, NULL);
+  offset = call_dop_oid_callback("agreement", tvb, offset, actx->pinfo, tree, NULL, actx->private_data);
 
 
 
@@ -1118,12 +1109,6 @@ dissect_dop_ProtectedModifyResult(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, 
 }
 
 
-static const value_string dop_ModifyOperationalBindingResult_vals[] = {
-  {   0, "null" },
-  {   1, "protected" },
-  { 0, NULL }
-};
-
 static const ber_choice_t ModifyOperationalBindingResult_choice[] = {
   {   0, &hf_dop_null            , BER_CLASS_CON, 0, 0, dissect_dop_NULL },
   {   1, &hf_dop_protectedModifyResult, BER_CLASS_CON, 1, 0, dissect_dop_ProtectedModifyResult },
@@ -1143,9 +1128,9 @@ dissect_dop_ModifyOperationalBindingResult(gboolean implicit_tag _U_, tvbuff_t *
 
 static int
 dissect_dop_TerminateSymmetric(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 131 "../../asn1/dop/dop.cnf"
+#line 138 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("terminate.symmetric", tvb, offset, actx->pinfo, tree, "symmetric");
+  offset = call_dop_oid_callback("terminate.symmetric", tvb, offset, actx->pinfo, tree, "symmetric", actx->private_data);
 
 
 
@@ -1156,9 +1141,9 @@ dissect_dop_TerminateSymmetric(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
 
 static int
 dissect_dop_TerminateRoleAInitiates(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 135 "../../asn1/dop/dop.cnf"
+#line 142 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("terminate.rolea", tvb, offset, actx->pinfo, tree, "roleA");
+  offset = call_dop_oid_callback("terminate.rolea", tvb, offset, actx->pinfo, tree, "roleA", actx->private_data);
 
 
 
@@ -1169,9 +1154,9 @@ dissect_dop_TerminateRoleAInitiates(gboolean implicit_tag _U_, tvbuff_t *tvb _U_
 
 static int
 dissect_dop_TerminateRoleBInitiates(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 139 "../../asn1/dop/dop.cnf"
+#line 146 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("terminate.roleb", tvb, offset, actx->pinfo, tree, "roleB");
+  offset = call_dop_oid_callback("terminate.roleb", tvb, offset, actx->pinfo, tree, "roleB", actx->private_data);
 
 
 
@@ -1237,12 +1222,6 @@ dissect_dop_T_signedTerminateOperationalBindingArgument(gboolean implicit_tag _U
 }
 
 
-static const value_string dop_TerminateOperationalBindingArgument_vals[] = {
-  {   0, "unsignedTerminateOperationalBindingArgument" },
-  {   1, "signedTerminateOperationalBindingArgument" },
-  { 0, NULL }
-};
-
 static const ber_choice_t TerminateOperationalBindingArgument_choice[] = {
   {   0, &hf_dop_unsignedTerminateOperationalBindingArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dop_TerminateOperationalBindingArgumentData },
   {   1, &hf_dop_signedTerminateOperationalBindingArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dop_T_signedTerminateOperationalBindingArgument },
@@ -1295,12 +1274,6 @@ dissect_dop_ProtectedTerminateResult(gboolean implicit_tag _U_, tvbuff_t *tvb _U
 }
 
 
-static const value_string dop_TerminateOperationalBindingResult_vals[] = {
-  {   0, "null" },
-  {   1, "protected" },
-  { 0, NULL }
-};
-
 static const ber_choice_t TerminateOperationalBindingResult_choice[] = {
   {   0, &hf_dop_null            , BER_CLASS_CON, 0, 0, dissect_dop_NULL },
   {   1, &hf_dop_protectedTerminateResult, BER_CLASS_CON, 1, 0, dissect_dop_ProtectedTerminateResult },
@@ -1345,9 +1318,9 @@ dissect_dop_T_problem(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _
 
 static int
 dissect_dop_T_agreementProposal(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 159 "../../asn1/dop/dop.cnf"
+#line 166 "../../asn1/dop/dop.cnf"
 
-  offset = call_dop_oid_callback("agreement", tvb, offset, actx->pinfo, tree, NULL);
+  offset = call_dop_oid_callback("agreement", tvb, offset, actx->pinfo, tree, NULL, actx->private_data);
 
 
 
@@ -1557,7 +1530,7 @@ dissect_dop_NHOBSubordinateToSuperior(gboolean implicit_tag _U_, tvbuff_t *tvb _
 
 static int
 dissect_dop_Precedence(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 190 "../../asn1/dop/dop.cnf"
+#line 197 "../../asn1/dop/dop.cnf"
   guint32 precedence = 0;
 
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
@@ -2042,18 +2015,18 @@ static void dissect_ACIItem_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto
 
 
 /*--- End of included file: packet-dop-fn.c ---*/
-#line 84 "../../asn1/dop/packet-dop-template.c"
+#line 87 "../../asn1/dop/packet-dop-template.c"
 
 static int
-call_dop_oid_callback(const char *base_string, tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, const char *col_info)
+call_dop_oid_callback(const char *base_string, tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, const char *col_info, void* data)
 {
   char* binding_param;
 
-  binding_param = ep_strdup_printf("%s.%s", base_string, binding_type ? binding_type : "");
+  binding_param = wmem_strdup_printf(wmem_packet_scope(), "%s.%s", base_string, binding_type ? binding_type : "");
 
   col_append_fstr(pinfo->cinfo, COL_INFO, " %s", col_info);
 
-  if (dissector_try_string(dop_dissector_table, binding_param, tvb, pinfo, tree)) {
+  if (dissector_try_string(dop_dissector_table, binding_param, tvb, pinfo, tree, data)) {
      offset = tvb_reported_length (tvb);
   } else {
      proto_item *item=NULL;
@@ -2064,7 +2037,7 @@ call_dop_oid_callback(const char *base_string, tvbuff_t *tvb, int offset, packet
         next_tree = proto_item_add_subtree(item, ett_dop_unknown);
      }
      offset = dissect_unknown_ber(pinfo, tvb, offset, next_tree);
-     expert_add_info_format(pinfo, item, PI_UNDECODED, PI_WARN, "Unknown binding-parameter");
+     expert_add_info(pinfo, item, &ei_dop_unknown_binding_parameter);
    }
 
    return offset;
@@ -2074,36 +2047,32 @@ call_dop_oid_callback(const char *base_string, tvbuff_t *tvb, int offset, packet
 /*
 * Dissect DOP PDUs inside a ROS PDUs
 */
-static void
-dissect_dop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_dop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data)
 {
 	int offset = 0;
 	int old_offset;
-	proto_item *item=NULL;
-	proto_tree *tree=NULL;
+	proto_item *item;
+	proto_tree *tree;
+	struct SESSION_DATA_STRUCTURE* session;
 	int (*dop_dissector)(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset, asn1_ctx_t *actx, proto_tree *tree, int hf_index _U_) = NULL;
 	const char *dop_op_name;
 	asn1_ctx_t asn1_ctx;
 
+	/* do we have operation information from the ROS dissector? */
+	if (data == NULL)
+		return 0;
+	session = (struct SESSION_DATA_STRUCTURE*)data;
+
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
-	/* do we have operation information from the ROS dissector?  */
-	if( !pinfo->private_data ){
-		if(parent_tree){
-			proto_tree_add_text(parent_tree, tvb, offset, -1,
-				"Internal error: can't get operation information from ROS dissector.");
-		}
-		return  ;
-	} else {
-		session  = ( (struct SESSION_DATA_STRUCTURE*)(pinfo->private_data) );
-	}
+	item = proto_tree_add_item(parent_tree, proto_dop, tvb, 0, -1, ENC_NA);
+	tree = proto_item_add_subtree(item, ett_dop);
 
-	if(parent_tree){
-		item = proto_tree_add_item(parent_tree, proto_dop, tvb, 0, -1, ENC_NA);
-		tree = proto_item_add_subtree(item, ett_dop);
-	}
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "DOP");
   	col_clear(pinfo->cinfo, COL_INFO);
+
+	asn1_ctx.private_data = session;
 
 	switch(session->ros_op & ROS_OP_MASK) {
 	case (ROS_OP_BIND | ROS_OP_ARGUMENT):	/*  BindInvoke */
@@ -2172,7 +2141,7 @@ dissect_dop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	  break;
 	default:
 	  proto_tree_add_text(tree, tvb, offset, -1,"Unsupported DOP PDU");
-	  return;
+	  return tvb_length(tvb);
 	}
 
 	if(dop_dissector) {
@@ -2187,6 +2156,8 @@ dissect_dop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	    }
 	  }
 	}
+
+	return tvb_length(tvb);
 }
 
 
@@ -2205,47 +2176,47 @@ void proto_register_dop(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_SupplierInformation_PDU,
-      { "SupplierInformation", "dop.SupplierInformation",
+      { "SupplierInformation", "dop.SupplierInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_ConsumerInformation_PDU,
-      { "ConsumerInformation", "dop.ConsumerInformation",
+      { "ConsumerInformation", "dop.ConsumerInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_SupplierAndConsumers_PDU,
-      { "SupplierAndConsumers", "dop.SupplierAndConsumers",
+      { "SupplierAndConsumers", "dop.SupplierAndConsumers_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_HierarchicalAgreement_PDU,
-      { "HierarchicalAgreement", "dop.HierarchicalAgreement",
+      { "HierarchicalAgreement", "dop.HierarchicalAgreement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_SuperiorToSubordinate_PDU,
-      { "SuperiorToSubordinate", "dop.SuperiorToSubordinate",
+      { "SuperiorToSubordinate", "dop.SuperiorToSubordinate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_SubordinateToSuperior_PDU,
-      { "SubordinateToSuperior", "dop.SubordinateToSuperior",
+      { "SubordinateToSuperior", "dop.SubordinateToSuperior_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_SuperiorToSubordinateModification_PDU,
-      { "SuperiorToSubordinateModification", "dop.SuperiorToSubordinateModification",
+      { "SuperiorToSubordinateModification", "dop.SuperiorToSubordinateModification_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_NonSpecificHierarchicalAgreement_PDU,
-      { "NonSpecificHierarchicalAgreement", "dop.NonSpecificHierarchicalAgreement",
+      { "NonSpecificHierarchicalAgreement", "dop.NonSpecificHierarchicalAgreement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_NHOBSuperiorToSubordinate_PDU,
-      { "NHOBSuperiorToSubordinate", "dop.NHOBSuperiorToSubordinate",
+      { "NHOBSuperiorToSubordinate", "dop.NHOBSuperiorToSubordinate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_NHOBSubordinateToSuperior_PDU,
-      { "NHOBSubordinateToSuperior", "dop.NHOBSubordinateToSuperior",
+      { "NHOBSubordinateToSuperior", "dop.NHOBSubordinateToSuperior_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_ACIItem_PDU,
-      { "ACIItem", "dop.ACIItem",
+      { "ACIItem", "dop.ACIItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_ae_title,
@@ -2253,7 +2224,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, VALS(x509if_Name_vals), 0,
         "Name", HFILL }},
     { &hf_dop_address,
-      { "address", "dop.address",
+      { "address", "dop.address_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PresentationAddress", HFILL }},
     { &hf_dop_protocolInformation,
@@ -2261,11 +2232,11 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_ProtocolInformation", HFILL }},
     { &hf_dop_protocolInformation_item,
-      { "ProtocolInformation", "dop.ProtocolInformation",
+      { "ProtocolInformation", "dop.ProtocolInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_agreementID,
-      { "agreementID", "dop.agreementID",
+      { "agreementID", "dop.agreementID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OperationalBindingID", HFILL }},
     { &hf_dop_supplier_is_master,
@@ -2273,7 +2244,7 @@ void proto_register_dop(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_dop_non_supplying_master,
-      { "non-supplying-master", "dop.non_supplying_master",
+      { "non-supplying-master", "dop.non_supplying_master_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AccessPoint", HFILL }},
     { &hf_dop_consumers,
@@ -2281,7 +2252,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_AccessPoint", HFILL }},
     { &hf_dop_consumers_item,
-      { "AccessPoint", "dop.AccessPoint",
+      { "AccessPoint", "dop.AccessPoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_bindingType,
@@ -2289,11 +2260,11 @@ void proto_register_dop(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_bindingID,
-      { "bindingID", "dop.bindingID",
+      { "bindingID", "dop.bindingID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OperationalBindingID", HFILL }},
     { &hf_dop_accessPoint,
-      { "accessPoint", "dop.accessPoint",
+      { "accessPoint", "dop.accessPoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_establishInitiator,
@@ -2301,43 +2272,43 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, VALS(dop_EstablishArgumentInitiator_vals), 0,
         "EstablishArgumentInitiator", HFILL }},
     { &hf_dop_establishSymmetric,
-      { "symmetric", "dop.symmetric",
+      { "symmetric", "dop.symmetric_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EstablishSymmetric", HFILL }},
     { &hf_dop_establishRoleAInitiates,
-      { "roleA-initiates", "dop.roleA_initiates",
+      { "roleA-initiates", "dop.roleA_initiates_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EstablishRoleAInitiates", HFILL }},
     { &hf_dop_establishRoleBInitiates,
-      { "roleB-initiates", "dop.roleB_initiates",
+      { "roleB-initiates", "dop.roleB_initiates_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EstablishRoleBInitiates", HFILL }},
     { &hf_dop_agreement,
-      { "agreement", "dop.agreement",
+      { "agreement", "dop.agreement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_valid,
-      { "valid", "dop.valid",
+      { "valid", "dop.valid_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Validity", HFILL }},
     { &hf_dop_securityParameters,
-      { "securityParameters", "dop.securityParameters",
+      { "securityParameters", "dop.securityParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_unsignedEstablishOperationalBindingArgument,
-      { "unsignedEstablishOperationalBindingArgument", "dop.unsignedEstablishOperationalBindingArgument",
+      { "unsignedEstablishOperationalBindingArgument", "dop.unsignedEstablishOperationalBindingArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EstablishOperationalBindingArgumentData", HFILL }},
     { &hf_dop_signedEstablishOperationalBindingArgument,
-      { "signedEstablishOperationalBindingArgument", "dop.signedEstablishOperationalBindingArgument",
+      { "signedEstablishOperationalBindingArgument", "dop.signedEstablishOperationalBindingArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_establishOperationalBindingArgument,
-      { "establishOperationalBindingArgument", "dop.establishOperationalBindingArgument",
+      { "establishOperationalBindingArgument", "dop.establishOperationalBindingArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EstablishOperationalBindingArgumentData", HFILL }},
     { &hf_dop_algorithmIdentifier,
-      { "algorithmIdentifier", "dop.algorithmIdentifier",
+      { "algorithmIdentifier", "dop.algorithmIdentifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_encrypted,
@@ -2357,7 +2328,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, VALS(dop_T_validFrom_vals), 0,
         NULL, HFILL }},
     { &hf_dop_now,
-      { "now", "dop.now",
+      { "now", "dop.now_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_time,
@@ -2369,7 +2340,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, VALS(dop_T_validUntil_vals), 0,
         NULL, HFILL }},
     { &hf_dop_explicitTermination,
-      { "explicitTermination", "dop.explicitTermination",
+      { "explicitTermination", "dop.explicitTermination_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_utcTime,
@@ -2385,15 +2356,15 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, VALS(dop_T_initiator_vals), 0,
         NULL, HFILL }},
     { &hf_dop_symmetric,
-      { "symmetric", "dop.symmetric",
+      { "symmetric", "dop.symmetric_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_roleA_replies,
-      { "roleA-replies", "dop.roleA_replies",
+      { "roleA-replies", "dop.roleA_replies_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_roleB_replies,
-      { "roleB-replies", "dop.roleB_replies",
+      { "roleB-replies", "dop.roleB_replies_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_performer,
@@ -2409,7 +2380,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_Attribute", HFILL }},
     { &hf_dop_notification_item,
-      { "Attribute", "dop.Attribute",
+      { "Attribute", "dop.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_modifyInitiator,
@@ -2417,51 +2388,51 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, VALS(dop_ModifyArgumentInitiator_vals), 0,
         "ModifyArgumentInitiator", HFILL }},
     { &hf_dop_modifySymmetric,
-      { "symmetric", "dop.symmetric",
+      { "symmetric", "dop.symmetric_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ModifySymmetric", HFILL }},
     { &hf_dop_modifyRoleAInitiates,
-      { "roleA-initiates", "dop.roleA_initiates",
+      { "roleA-initiates", "dop.roleA_initiates_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ModifyRoleAInitiates", HFILL }},
     { &hf_dop_modifyRoleBInitiates,
-      { "roleB-initiates", "dop.roleB_initiates",
+      { "roleB-initiates", "dop.roleB_initiates_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ModifyRoleBInitiates", HFILL }},
     { &hf_dop_newBindingID,
-      { "newBindingID", "dop.newBindingID",
+      { "newBindingID", "dop.newBindingID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OperationalBindingID", HFILL }},
     { &hf_dop_argumentNewAgreement,
-      { "newAgreement", "dop.newAgreement",
+      { "newAgreement", "dop.newAgreement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ArgumentNewAgreement", HFILL }},
     { &hf_dop_unsignedModifyOperationalBindingArgument,
-      { "unsignedModifyOperationalBindingArgument", "dop.unsignedModifyOperationalBindingArgument",
+      { "unsignedModifyOperationalBindingArgument", "dop.unsignedModifyOperationalBindingArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ModifyOperationalBindingArgumentData", HFILL }},
     { &hf_dop_signedModifyOperationalBindingArgument,
-      { "signedModifyOperationalBindingArgument", "dop.signedModifyOperationalBindingArgument",
+      { "signedModifyOperationalBindingArgument", "dop.signedModifyOperationalBindingArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_modifyOperationalBindingArgument,
-      { "modifyOperationalBindingArgument", "dop.modifyOperationalBindingArgument",
+      { "modifyOperationalBindingArgument", "dop.modifyOperationalBindingArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ModifyOperationalBindingArgumentData", HFILL }},
     { &hf_dop_null,
-      { "null", "dop.null",
+      { "null", "dop.null_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_protectedModifyResult,
-      { "protected", "dop.protected",
+      { "protected", "dop.protected_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ProtectedModifyResult", HFILL }},
     { &hf_dop_modifyOperationalBindingResultData,
-      { "modifyOperationalBindingResultData", "dop.modifyOperationalBindingResultData",
+      { "modifyOperationalBindingResultData", "dop.modifyOperationalBindingResultData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_resultNewAgreement,
-      { "newAgreement", "dop.newAgreement",
+      { "newAgreement", "dop.newAgreement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ResultNewAgreement", HFILL }},
     { &hf_dop_terminateInitiator,
@@ -2469,15 +2440,15 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, VALS(dop_TerminateArgumentInitiator_vals), 0,
         "TerminateArgumentInitiator", HFILL }},
     { &hf_dop_terminateSymmetric,
-      { "symmetric", "dop.symmetric",
+      { "symmetric", "dop.symmetric_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TerminateSymmetric", HFILL }},
     { &hf_dop_terminateRoleAInitiates,
-      { "roleA-initiates", "dop.roleA_initiates",
+      { "roleA-initiates", "dop.roleA_initiates_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TerminateRoleAInitiates", HFILL }},
     { &hf_dop_terminateRoleBInitiates,
-      { "roleB-initiates", "dop.roleB_initiates",
+      { "roleB-initiates", "dop.roleB_initiates_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TerminateRoleBInitiates", HFILL }},
     { &hf_dop_terminateAtTime,
@@ -2485,23 +2456,23 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, VALS(dop_Time_vals), 0,
         "Time", HFILL }},
     { &hf_dop_unsignedTerminateOperationalBindingArgument,
-      { "unsignedTerminateOperationalBindingArgument", "dop.unsignedTerminateOperationalBindingArgument",
+      { "unsignedTerminateOperationalBindingArgument", "dop.unsignedTerminateOperationalBindingArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TerminateOperationalBindingArgumentData", HFILL }},
     { &hf_dop_signedTerminateOperationalBindingArgument,
-      { "signedTerminateOperationalBindingArgument", "dop.signedTerminateOperationalBindingArgument",
+      { "signedTerminateOperationalBindingArgument", "dop.signedTerminateOperationalBindingArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_terminateOperationalBindingArgument,
-      { "terminateOperationalBindingArgument", "dop.terminateOperationalBindingArgument",
+      { "terminateOperationalBindingArgument", "dop.terminateOperationalBindingArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TerminateOperationalBindingArgumentData", HFILL }},
     { &hf_dop_protectedTerminateResult,
-      { "protected", "dop.protected",
+      { "protected", "dop.protected_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ProtectedTerminateResult", HFILL }},
     { &hf_dop_terminateOperationalBindingResultData,
-      { "terminateOperationalBindingResultData", "dop.terminateOperationalBindingResultData",
+      { "terminateOperationalBindingResultData", "dop.terminateOperationalBindingResultData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_terminateAtGeneralizedTime,
@@ -2513,7 +2484,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, VALS(dop_T_problem_vals), 0,
         NULL, HFILL }},
     { &hf_dop_agreementProposal,
-      { "agreementProposal", "dop.agreementProposal",
+      { "agreementProposal", "dop.agreementProposal_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_retryAt,
@@ -2537,7 +2508,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_Attribute", HFILL }},
     { &hf_dop_entryInfo_item,
-      { "Attribute", "dop.Attribute",
+      { "Attribute", "dop.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_immediateSuperiorInfo,
@@ -2545,11 +2516,11 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_Attribute", HFILL }},
     { &hf_dop_immediateSuperiorInfo_item,
-      { "Attribute", "dop.Attribute",
+      { "Attribute", "dop.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_DITcontext_item,
-      { "Vertex", "dop.Vertex",
+      { "Vertex", "dop.Vertex_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_admPointInfo,
@@ -2557,7 +2528,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_Attribute", HFILL }},
     { &hf_dop_admPointInfo_item,
-      { "Attribute", "dop.Attribute",
+      { "Attribute", "dop.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_subentries,
@@ -2565,7 +2536,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_SubentryInfo", HFILL }},
     { &hf_dop_subentries_item,
-      { "SubentryInfo", "dop.SubentryInfo",
+      { "SubentryInfo", "dop.SubentryInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_accessPoints,
@@ -2577,7 +2548,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_Attribute", HFILL }},
     { &hf_dop_info_item,
-      { "Attribute", "dop.Attribute",
+      { "Attribute", "dop.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_alias,
@@ -2601,11 +2572,11 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, VALS(dop_T_itemOrUserFirst_vals), 0,
         NULL, HFILL }},
     { &hf_dop_itemFirst,
-      { "itemFirst", "dop.itemFirst",
+      { "itemFirst", "dop.itemFirst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_protectedItems,
-      { "protectedItems", "dop.protectedItems",
+      { "protectedItems", "dop.protectedItems_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_itemPermissions,
@@ -2613,15 +2584,15 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_ItemPermission", HFILL }},
     { &hf_dop_itemPermissions_item,
-      { "ItemPermission", "dop.ItemPermission",
+      { "ItemPermission", "dop.ItemPermission_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_userFirst,
-      { "userFirst", "dop.userFirst",
+      { "userFirst", "dop.userFirst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_userClasses,
-      { "userClasses", "dop.userClasses",
+      { "userClasses", "dop.userClasses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_userPermissions,
@@ -2629,15 +2600,15 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_UserPermission", HFILL }},
     { &hf_dop_userPermissions_item,
-      { "UserPermission", "dop.UserPermission",
+      { "UserPermission", "dop.UserPermission_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_entry,
-      { "entry", "dop.entry",
+      { "entry", "dop.entry_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_allUserAttributeTypes,
-      { "allUserAttributeTypes", "dop.allUserAttributeTypes",
+      { "allUserAttributeTypes", "dop.allUserAttributeTypes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_attributeType,
@@ -2657,7 +2628,7 @@ void proto_register_dop(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_allUserAttributeTypesAndValues,
-      { "allUserAttributeTypesAndValues", "dop.allUserAttributeTypesAndValues",
+      { "allUserAttributeTypesAndValues", "dop.allUserAttributeTypesAndValues_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_attributeValue,
@@ -2665,7 +2636,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_AttributeTypeAndValue", HFILL }},
     { &hf_dop_attributeValue_item,
-      { "AttributeTypeAndValue", "dop.AttributeTypeAndValue",
+      { "AttributeTypeAndValue", "dop.AttributeTypeAndValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_selfValue,
@@ -2685,7 +2656,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_MaxValueCount", HFILL }},
     { &hf_dop_maxValueCount_item,
-      { "MaxValueCount", "dop.MaxValueCount",
+      { "MaxValueCount", "dop.MaxValueCount_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_maxImmSub,
@@ -2697,7 +2668,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_RestrictedValue", HFILL }},
     { &hf_dop_restrictedBy_item,
-      { "RestrictedValue", "dop.RestrictedValue",
+      { "RestrictedValue", "dop.RestrictedValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_contexts,
@@ -2705,7 +2676,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_ContextAssertion", HFILL }},
     { &hf_dop_contexts_item,
-      { "ContextAssertion", "dop.ContextAssertion",
+      { "ContextAssertion", "dop.ContextAssertion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_classes,
@@ -2725,11 +2696,11 @@ void proto_register_dop(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "AttributeType", HFILL }},
     { &hf_dop_allUsers,
-      { "allUsers", "dop.allUsers",
+      { "allUsers", "dop.allUsers_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_thisEntry,
-      { "thisEntry", "dop.thisEntry",
+      { "thisEntry", "dop.thisEntry_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_name,
@@ -2737,7 +2708,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_NameAndOptionalUID", HFILL }},
     { &hf_dop_name_item,
-      { "NameAndOptionalUID", "dop.NameAndOptionalUID",
+      { "NameAndOptionalUID", "dop.NameAndOptionalUID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_userGroup,
@@ -2745,7 +2716,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_NameAndOptionalUID", HFILL }},
     { &hf_dop_userGroup_item,
-      { "NameAndOptionalUID", "dop.NameAndOptionalUID",
+      { "NameAndOptionalUID", "dop.NameAndOptionalUID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_subtree,
@@ -2753,7 +2724,7 @@ void proto_register_dop(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_SubtreeSpecification", HFILL }},
     { &hf_dop_subtree_item,
-      { "SubtreeSpecification", "dop.SubtreeSpecification",
+      { "SubtreeSpecification", "dop.SubtreeSpecification_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_grantsAndDenials,
@@ -2761,7 +2732,7 @@ void proto_register_dop(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_basicLevels,
-      { "basicLevels", "dop.basicLevels",
+      { "basicLevels", "dop.basicLevels_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dop_level,
@@ -2777,7 +2748,7 @@ void proto_register_dop(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_dop_other,
-      { "other", "dop.other",
+      { "other", "dop.other_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNAL", HFILL }},
     { &hf_dop_DSEType_root,
@@ -2962,7 +2933,7 @@ void proto_register_dop(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-dop-hfarr.c ---*/
-#line 239 "../../asn1/dop/packet-dop-template.c"
+#line 240 "../../asn1/dop/packet-dop-template.c"
   };
 
   /* List of subtrees */
@@ -3041,21 +3012,28 @@ void proto_register_dop(void) {
     &ett_dop_GrantsAndDenials,
 
 /*--- End of included file: packet-dop-ettarr.c ---*/
-#line 246 "../../asn1/dop/packet-dop-template.c"
+#line 247 "../../asn1/dop/packet-dop-template.c"
   };
 
+  static ei_register_info ei[] = {
+     { &ei_dop_unknown_binding_parameter, { "dop.unknown_binding_parameter", PI_UNDECODED, PI_WARN, "Unknown binding-parameter", EXPFILL }},
+  };
+
+  expert_module_t* expert_dop;
   module_t *dop_module;
 
   /* Register protocol */
   proto_dop = proto_register_protocol(PNAME, PSNAME, PFNAME);
 
-  register_dissector("dop", dissect_dop, proto_dop);
+  new_register_dissector("dop", dissect_dop, proto_dop);
 
   dop_dissector_table = register_dissector_table("dop.oid", "DOP OID Dissectors", FT_STRING, BASE_NONE);
 
   /* Register fields and subtrees */
   proto_register_field_array(proto_dop, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_dop = expert_register_protocol(proto_dop);
+  expert_register_field_array(expert_dop, ei, array_length(ei));
 
   /* Register our configuration options for DOP, particularly our port */
 
@@ -3097,7 +3075,7 @@ void proto_reg_handoff_dop(void) {
 
 
 /*--- End of included file: packet-dop-dis-tab.c ---*/
-#line 279 "../../asn1/dop/packet-dop-template.c"
+#line 287 "../../asn1/dop/packet-dop-template.c"
   /* APPLICATION CONTEXT */
 
   oid_add_from_string("id-ac-directory-operational-binding-management","2.5.3.3");

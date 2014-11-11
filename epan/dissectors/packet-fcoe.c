@@ -3,8 +3,6 @@
  * Routines for FCoE dissection - Fibre Channel over Ethernet
  * Copyright (c) 2006 Nuova Systems, Inc. (jre@nuovasystems.com)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -39,6 +37,11 @@
 #include <epan/crc32-tvb.h>
 #include <epan/etypes.h>
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
+#include "packet-fc.h"
+
+void proto_register_fcoe(void);
+void proto_reg_handoff_fcoe(void);
 
 #define FCOE_HEADER_LEN   14        /* header: version, SOF, and padding */
 #define FCOE_TRAILER_LEN   8        /* trailer: CRC, EOF, and padding */
@@ -101,6 +104,8 @@ static int hf_fcoe_crc_good    = -1;
 static int ett_fcoe            = -1;
 static int ett_fcoe_crc        = -1;
 
+static expert_field ei_fcoe_crc = EI_INIT;
+
 static dissector_handle_t data_handle;
 static dissector_handle_t fc_handle;
 
@@ -128,6 +133,7 @@ dissect_fcoe(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     gboolean    crc_exists;
     guint32     crc_computed = 0;
     guint32     crc          = 0;
+    fc_data_t fc_data;
 
     /*
      * For now, handle both the version defined before and after August 2007.
@@ -143,7 +149,7 @@ dissect_fcoe(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         version = len_sof >> 14;
         ver = "pre-T11 ";
         if (version != 0)
-            ver = ep_strdup_printf(ver, "pre-T11 ver %d ", version);
+            ver = wmem_strdup_printf(wmem_packet_scope(), ver, "pre-T11 ver %d ", version);
     } else {
         frame_len = tvb_reported_length_remaining(tvb, 0) -
           FCOE_HEADER_LEN - FCOE_TRAILER_LEN;
@@ -156,7 +162,7 @@ dissect_fcoe(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         ver = "";
         version = tvb_get_guint8(tvb, 0) >> 4;
         if (version != 0)
-            ver = ep_strdup_printf(ver, "ver %d ", version);
+            ver = wmem_strdup_printf(wmem_packet_scope(), ver, "ver %d ", version);
     }
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "FCoE");
     crc_offset = header_len + frame_len;
@@ -212,16 +218,15 @@ dissect_fcoe(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      */
     if (crc_exists) {
         if (crc == crc_computed) {
-            item = proto_tree_add_uint_format(fcoe_tree, hf_fcoe_crc, tvb,
+            item = proto_tree_add_uint_format_value(fcoe_tree, hf_fcoe_crc, tvb,
                                               crc_offset, 4, crc,
-                                              "CRC: %8.8x [valid]", crc);
+                                              "%8.8x [valid]", crc);
         } else {
-            item = proto_tree_add_uint_format(fcoe_tree, hf_fcoe_crc, tvb,
+            item = proto_tree_add_uint_format_value(fcoe_tree, hf_fcoe_crc, tvb,
                                               crc_offset, 4, crc,
-                                              "CRC: %8.8x "
-                                              "[error: should be %8.8x]",
+                                              "%8.8x [error: should be %8.8x]",
                                               crc, crc_computed);
-            expert_add_info_format(pinfo, item, PI_CHECKSUM, PI_ERROR,
+            expert_add_info_format(pinfo, item, &ei_fcoe_crc,
                                    "Bad FC CRC %8.8x %8.x",
                                    crc, crc_computed);
         }
@@ -249,23 +254,24 @@ dissect_fcoe(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
 
     /* Set the SOF/EOF flags in the packet_info header */
-    pinfo->sof_eof = 0;
+    fc_data.sof_eof = 0;
     if (sof == FCOE_SOFi3 || sof == FCOE_SOFi2 || sof == FCOE_SOFi4) {
-        pinfo->sof_eof = PINFO_SOF_FIRST_FRAME;
+        fc_data.sof_eof = FC_DATA_SOF_FIRST_FRAME;
     } else if (sof == FCOE_SOFf) {
-        pinfo->sof_eof = PINFO_SOF_SOFF;
+        fc_data.sof_eof = FC_DATA_SOF_SOFF;
     }
 
     if (eof != FCOE_EOFn) {
-        pinfo->sof_eof |= PINFO_EOF_LAST_FRAME;
+        fc_data.sof_eof |= FC_DATA_EOF_LAST_FRAME;
     } else if (eof != FCOE_EOFt) {
-        pinfo->sof_eof |= PINFO_EOF_INVALID;
+        fc_data.sof_eof |= FC_DATA_EOF_INVALID;
     }
 
     /* Call the FC Dissector if this is carrying an FC frame */
+    fc_data.ethertype = 0;
 
     if (fc_handle) {
-        call_dissector(fc_handle, next_tvb, pinfo, tree);
+        call_dissector_with_data(fc_handle, next_tvb, pinfo, tree, &fc_data);
     } else if (data_handle) {
         call_dissector(data_handle, next_tvb, pinfo, tree);
     }
@@ -303,6 +309,12 @@ proto_register_fcoe(void)
         &ett_fcoe_crc
     };
 
+    static ei_register_info ei[] = {
+        { &ei_fcoe_crc, { "fcoe.crc.bad", PI_CHECKSUM, PI_ERROR, "Bad checksum", EXPFILL }},
+    };
+
+    expert_module_t* expert_fcoe;
+
     /* Register the protocol name and description */
     proto_fcoe = proto_register_protocol("Fibre Channel over Ethernet",
         "FCoE", "fcoe");
@@ -311,6 +323,8 @@ proto_register_fcoe(void)
      * subtrees used */
     proto_register_field_array(proto_fcoe, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_fcoe = expert_register_protocol(proto_fcoe);
+    expert_register_field_array(expert_fcoe, ei, array_length(ei));
 
     fcoe_module = prefs_register_protocol(proto_fcoe, NULL);
 

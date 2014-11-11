@@ -2,8 +2,6 @@
  * Routines for DCERPC TAPI packet disassembly
  * Copyright 2002, Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,6 +33,9 @@
 #include "packet-dcerpc-tapi.h"
 #include "packet-windows-common.h"
 
+void proto_register_dcerpc_tapi(void);
+void proto_reg_handoff_dcerpc_tapi(void);
+
 static int proto_dcerpc_tapi = -1;
 static int hf_tapi_opnum = -1;
 static int hf_tapi_rc = -1;
@@ -53,8 +54,8 @@ static gint ett_dcerpc_tapi = -1;
   IDL {
 */
 static e_uuid_t uuid_dcerpc_tapi = {
-        0x2f5f6520, 0xca46, 0x1067,
-        { 0xb3, 0x19, 0x00, 0xdd, 0x01, 0x06, 0x62, 0xda }
+	0x2f5f6520, 0xca46, 0x1067,
+	{ 0xb3, 0x19, 0x00, 0xdd, 0x01, 0x06, 0x62, 0xda }
 };
 
 static guint16 ver_dcerpc_tapi = 1;
@@ -71,16 +72,16 @@ static guint16 ver_dcerpc_tapi = 1;
 static int
 dissect_tapi_client_attach_rqst(tvbuff_t *tvb, int offset,
 			packet_info *pinfo, proto_tree *tree,
-			guint8 *drep)
+			dcerpc_info *di, guint8 *drep)
 {
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep,
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep,
 		hf_tapi_unknown_long, NULL);
 
-	offset = dissect_ndr_str_pointer_item(tvb, offset, pinfo, tree, drep,
+	offset = dissect_ndr_str_pointer_item(tvb, offset, pinfo, tree, di, drep,
 			NDR_POINTER_REF, "unknown string",
 			 hf_tapi_unknown_string, 0);
 
-	offset = dissect_ndr_str_pointer_item(tvb, offset, pinfo, tree, drep,
+	offset = dissect_ndr_str_pointer_item(tvb, offset, pinfo, tree, di, drep,
 			NDR_POINTER_REF, "unknown string",
 			 hf_tapi_unknown_string, 0);
 
@@ -89,15 +90,15 @@ dissect_tapi_client_attach_rqst(tvbuff_t *tvb, int offset,
 static int
 dissect_tapi_client_attach_reply(tvbuff_t *tvb, int offset,
 			packet_info *pinfo, proto_tree *tree,
-			guint8 *drep)
+			dcerpc_info *di, guint8 *drep)
 {
-	offset = dissect_ndr_ctx_hnd(tvb, offset, pinfo, tree, drep,
+	offset = dissect_ndr_ctx_hnd(tvb, offset, pinfo, tree, di, drep,
 			hf_tapi_hnd, NULL);
 
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep,
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep,
 		hf_tapi_unknown_long, NULL);
 
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep,
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep,
 		hf_tapi_rc, NULL);
 
 	return offset;
@@ -113,14 +114,11 @@ dissect_tapi_client_attach_reply(tvbuff_t *tvb, int offset,
 static int
 dissect_tapi_TYPE_1(tvbuff_t *tvb, int offset,
 			packet_info *pinfo, proto_tree *tree,
-			guint8 *drep)
+			dcerpc_info *di, guint8 *drep)
 {
-	dcerpc_info *di;
-
-	di=(dcerpc_info *)pinfo->private_data;
 	if(di->conformant_run){
 		/* this call is to make wireshark eat the array header for the conformant run */
-		offset =dissect_ndr_ucvarray(tvb, offset, pinfo, tree, drep, NULL);
+		offset =dissect_ndr_ucvarray(tvb, offset, pinfo, tree, di, drep, NULL);
 
 		return offset;
 	}
@@ -135,16 +133,16 @@ dissect_tapi_TYPE_1(tvbuff_t *tvb, int offset,
 static int
 dissect_tapi_client_request_rqst(tvbuff_t *tvb, int offset,
 			packet_info *pinfo, proto_tree *tree,
-			guint8 *drep)
+			dcerpc_info *di, guint8 *drep)
 {
-	offset = dissect_ndr_ctx_hnd(tvb, offset, pinfo, tree, drep,
+	offset = dissect_ndr_ctx_hnd(tvb, offset, pinfo, tree, di, drep,
 			hf_tapi_hnd, NULL);
 
-	offset = dissect_ndr_pointer(tvb, offset, pinfo, tree, drep,
+	offset = dissect_ndr_pointer(tvb, offset, pinfo, tree, di, drep,
 			dissect_tapi_TYPE_1, NDR_POINTER_REF,
 			"unknown array", -1);
 
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep,
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep,
 		hf_tapi_unknown_long, NULL);
 
 	return offset;
@@ -152,9 +150,9 @@ dissect_tapi_client_request_rqst(tvbuff_t *tvb, int offset,
 static int
 dissect_tapi_client_request_reply(tvbuff_t *tvb, int offset,
 			packet_info *pinfo, proto_tree *tree,
-			guint8 *drep)
+			dcerpc_info *di, guint8 *drep)
 {
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep,
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep,
 		hf_tapi_rc, NULL);
 
 	return offset;
@@ -169,14 +167,14 @@ dissect_tapi_client_request_reply(tvbuff_t *tvb, int offset,
 static int
 dissect_tapi_client_detach_rqst(tvbuff_t *tvb _U_, int offset _U_,
 			packet_info *pinfo _U_, proto_tree *tree _U_,
-			guint8 *drep _U_)
+			dcerpc_info *di _U_, guint8 *drep _U_)
 {
 	return offset;
 }
 static int
 dissect_tapi_client_detach_reply(tvbuff_t *tvb _U_, int offset _U_,
 			packet_info *pinfo _U_, proto_tree *tree _U_,
-			guint8 *drep _U_)
+			dcerpc_info *di _U_, guint8 *drep _U_)
 {
 	return offset;
 }
@@ -185,17 +183,17 @@ dissect_tapi_client_detach_reply(tvbuff_t *tvb _U_, int offset _U_,
   IDL }
 */
 static dcerpc_sub_dissector dcerpc_tapi_dissectors[] = {
-        { TAPI_CLIENT_ATTACH, "ClientAttach",
+	{ TAPI_CLIENT_ATTACH, "ClientAttach",
 		dissect_tapi_client_attach_rqst,
 		dissect_tapi_client_attach_reply },
-        { TAPI_CLIENT_REQUEST, "ClientRequest",
+	{ TAPI_CLIENT_REQUEST, "ClientRequest",
 		dissect_tapi_client_request_rqst,
 		dissect_tapi_client_request_reply },
-        { TAPI_CLIENT_DETACH, "ClientDetach",
+	{ TAPI_CLIENT_DETACH, "ClientDetach",
 		dissect_tapi_client_detach_rqst,
 		dissect_tapi_client_detach_reply },
 
-        {0, NULL, NULL,  NULL }
+	{0, NULL, NULL,  NULL }
 };
 
 void
@@ -206,8 +204,8 @@ static hf_register_info hf[] = {
 		"Operation", "tapi.opnum", FT_UINT16, BASE_DEC,
 		NULL, 0x0, NULL, HFILL }},
 	{ &hf_tapi_rc, {
-		"Return code", "tapi.rc", FT_UINT32, BASE_HEX,
-		VALS(NT_errors), 0x0, "TAPI return code", HFILL }},
+		"Return code", "tapi.rc", FT_UINT32, BASE_HEX | BASE_EXT_STRING,
+		&NT_errors_ext, 0x0, "TAPI return code", HFILL }},
 	{ &hf_tapi_hnd, {
 		"Context Handle", "tapi.hnd", FT_BYTES, BASE_NONE,
 		NULL, 0x0, NULL, HFILL }},
@@ -222,25 +220,38 @@ static hf_register_info hf[] = {
 		NULL, 0x0, "Unknown bytes. If you know what this is, contact wireshark developers.", HFILL }}
 	};
 
-        static gint *ett[] = {
-                &ett_dcerpc_tapi
-        };
+	static gint *ett[] = {
+		&ett_dcerpc_tapi
+	};
 
-        proto_dcerpc_tapi = proto_register_protocol(
-                "Microsoft Telephony API Service", "TAPI", "tapi");
+	proto_dcerpc_tapi = proto_register_protocol(
+		"Microsoft Telephony API Service", "TAPI", "tapi");
 
-        proto_register_field_array(proto_dcerpc_tapi, hf,
+	proto_register_field_array(proto_dcerpc_tapi, hf,
 				   array_length(hf));
 
-        proto_register_subtree_array(ett, array_length(ett));
+	proto_register_subtree_array(ett, array_length(ett));
 }
 
 void
 proto_reg_handoff_dcerpc_tapi(void)
 {
-        /* Register protocol as dcerpc */
+	/* Register protocol as dcerpc */
 
-        dcerpc_init_uuid(proto_dcerpc_tapi, ett_dcerpc_tapi,
-                         &uuid_dcerpc_tapi, ver_dcerpc_tapi,
-                         dcerpc_tapi_dissectors, hf_tapi_opnum);
+	dcerpc_init_uuid(proto_dcerpc_tapi, ett_dcerpc_tapi,
+			 &uuid_dcerpc_tapi, ver_dcerpc_tapi,
+			 dcerpc_tapi_dissectors, hf_tapi_opnum);
 }
+
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * ex: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

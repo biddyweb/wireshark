@@ -3,8 +3,6 @@
  * Used to dissect XID compression parameters negotiated in GSM (TS44.065)
  * Copyright 2008, Vincent Helfre <vincent.helfre [AT] ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -44,6 +42,9 @@
 #define ALGO_RFC1144 0
 #define ALGO_RFC2507 1
 #define ALGO_ROHC 2
+
+void proto_register_sndcp_xid(void);
+void proto_reg_handoff_sndcp_xid(void);
 
 static const value_string sndcp_xid_dcomp_algo_str[] = {
 	{0x0, "V.42 bis"},

@@ -1,7 +1,5 @@
 /* tap-hosts.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,7 +24,7 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
 
 #include "globals.h"
@@ -38,39 +36,7 @@
 #include <epan/stat_cmd_args.h>
 #include <epan/addr_resolv.h>
 
-/* Needed for addrinfo */
-#ifdef HAVE_SYS_TYPES_H
-# include <sys/types.h>
-#endif
-
-#ifdef HAVE_SYS_SOCKET_H
-#include <sys/socket.h>
-#endif
-
-#ifdef HAVE_ARPA_INET_H
-#include <arpa/inet.h>
-#endif
-
-#ifdef HAVE_NETINET_IN_H
-# include <netinet/in.h>
-#endif
-
-#ifdef HAVE_NETDB_H
-# include <netdb.h>
-#endif
-
-#ifdef HAVE_WINSOCK2_H
-# include <winsock2.h>
-#endif
-
-#if defined(_WIN32) && defined(INET6)
-# include <ws2tcpip.h>
-#endif
-
-#ifdef NEED_INET_V6DEFS_H
-# include "wsutil/inet_v6defs.h"
-#endif
-
+void register_tap_listener_hosts(void);
 
 gboolean dump_v4 = FALSE;
 gboolean dump_v6 = FALSE;
@@ -79,56 +45,58 @@ gboolean dump_v6 = FALSE;
 
 #define HOSTNAME_POS 48
 #define ADDRSTRLEN 46 /* Covers IPv4 & IPv6 */
+
+static void
+ipv4_hash_table_print_resolved(gpointer key _U_, gpointer value, gpointer user_data _U_)
+{
+	hashipv4_t *ipv4_hash_table_entry = (hashipv4_t *)value;
+
+	if((ipv4_hash_table_entry->flags & DUMMY_ADDRESS_ENTRY)== DUMMY_ADDRESS_ENTRY){
+		printf("%s\t%s",
+			ipv4_hash_table_entry->ip,
+			ipv4_hash_table_entry->name);
+	}
+}
+
+static void
+ipv6_hash_table_print_resolved(gpointer key _U_, gpointer value, gpointer user_data _U_)
+{
+	hashipv6_t *ipv6_hash_table_entry = (hashipv6_t *)value;
+
+	if((ipv6_hash_table_entry->flags & DUMMY_ADDRESS_ENTRY)== DUMMY_ADDRESS_ENTRY){
+		printf("%s\t%s",
+			ipv6_hash_table_entry->ip6,
+			ipv6_hash_table_entry->name);
+	}
+}
+
 static void
 hosts_draw(void *dummy _U_)
 {
-	struct addrinfo *ai;
-	struct sockaddr_in *sa4;
-	struct sockaddr_in6 *sa6;
-	char   addr_str[ADDRSTRLEN];
-	int i, tab_count;
+
+	GHashTable *ipv4_hash_table;
+	GHashTable *ipv6_hash_table;
 
 	printf("# TShark hosts output\n");
 	printf("#\n");
 	printf("# Host data gathered from %s\n", cfile.filename);
 	printf("\n");
 
-	/* Dump the v4 addresses first, then v6 */
-	for (ai = get_addrinfo_list(); ai; ai = ai->ai_next) {
-		if (!dump_v4 || ai->ai_family != AF_INET) {
-			continue;
-		}
-
-		sa4 = (struct sockaddr_in *)(void *)ai->ai_addr;
-		if (inet_ntop(AF_INET, &(sa4->sin_addr.s_addr), addr_str, ADDRSTRLEN)) {
-			tab_count = (HOSTNAME_POS - (int)strlen(addr_str)) / 8;
-			printf("%s", addr_str);
-			for (i = 0; i < tab_count; i++)
-				printf("\t");
-			printf("%s\n", ai->ai_canonname);
-		}
+	ipv4_hash_table = get_ipv4_hash_table();
+	if(ipv4_hash_table){
+		g_hash_table_foreach( ipv4_hash_table, ipv4_hash_table_print_resolved, NULL);
 	}
 
-
-	for (ai = get_addrinfo_list(); ai; ai = ai->ai_next) {
-		if (!dump_v6 || ai->ai_family != AF_INET6) {
-			continue;
-		}
-
-		sa6 = (struct sockaddr_in6 *)(void *)ai->ai_addr;
-		if (inet_ntop(AF_INET6, sa6->sin6_addr.s6_addr, addr_str, ADDRSTRLEN)) {
-			tab_count = (HOSTNAME_POS - (int)strlen(addr_str)) / 8;
-			printf("%s", addr_str);
-			for (i = 0; i < tab_count; i++)
-				printf("\t");
-			printf("%s\n", ai->ai_canonname);
-		}
+	ipv6_hash_table = get_ipv6_hash_table();
+	if(ipv6_hash_table){
+		g_hash_table_foreach( ipv6_hash_table, ipv6_hash_table_print_resolved, NULL);
 	}
+
 }
 
 
 static void
-hosts_init(const char *optarg, void* userdata _U_)
+hosts_init(const char *opt_arg, void* userdata _U_)
 {
 	GString *error_string;
 	gchar **tokens;
@@ -137,12 +105,12 @@ hosts_init(const char *optarg, void* userdata _U_)
 	dump_v4 = FALSE;
 	dump_v6 = FALSE;
 
-	if(strcmp(TAP_NAME, optarg)==0) {
+	if(strcmp(TAP_NAME, opt_arg)==0) {
 		/* No arguments; dump everything */
 		dump_v4 = TRUE;
 		dump_v6 = TRUE;
 	} else {
-		tokens = g_strsplit(optarg,",", 0);
+		tokens = g_strsplit(opt_arg,",", 0);
 		opt_count=0;
 		while (tokens[opt_count]) {
 			if (strcmp("ipv4", tokens[opt_count]) == 0) {

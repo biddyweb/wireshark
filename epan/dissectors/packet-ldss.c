@@ -3,8 +3,6 @@
  * Copyright 2009, Vasantha Crabb <vcrabb@managesoft.com.au>
  *  and Chris Adams <cadams@managesoft.com.au>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -24,7 +22,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-/* LDSS is a protocol for peers on a LAN to co-operatively download
+/* LDSS is a protocol for peers on a LAN to cooperatively download
  * files from a WAN. The peers ask each other about files and can
  * send files to each other, thus WAN use is minimized. However
  * if no peer possesses a file, a peer can download it via the WAN.
@@ -50,6 +48,7 @@
 #include <epan/ipproto.h>
 #include <epan/prefs.h>
 #include <epan/strutil.h>
+#include <epan/wmem/wmem.h>
 #include <epan/dissectors/packet-tcp.h>
 
 /* The digest is up to 32 bytes long */
@@ -205,7 +204,8 @@ static int ett_ldss_broadcast	 = -1;
 static int ett_ldss_transfer     = -1;
 static int ett_ldss_transfer_req = -1;
 
-static dissector_handle_t	ldss_handle;
+static dissector_handle_t	ldss_udp_handle;
+static dissector_handle_t	ldss_tcp_handle;
 
 /* Global variables associated with the preferences for ldss */
 static guint	global_udp_port_ldss	= UDP_PORT_LDSS;
@@ -222,14 +222,14 @@ prepare_ldss_transfer_conv(ldss_broadcast_t *broadcast)
 	conversation_t *transfer_conv;
 	ldss_transfer_info_t *transfer_info;
 
-	transfer_info = se_alloc0(sizeof(ldss_transfer_info_t));
+	transfer_info = wmem_new0(wmem_file_scope(), ldss_transfer_info_t);
 	transfer_info->broadcast = broadcast;
 
 	/* Preparation for later push/pull dissection */
 	transfer_conv = conversation_new (broadcast->num, &broadcast->broadcaster->addr, &broadcast->broadcaster->addr,
 					  PT_TCP, broadcast->broadcaster->port, broadcast->broadcaster->port, NO_ADDR2|NO_PORT2);
 	conversation_add_proto_data(transfer_conv, proto_ldss, transfer_info);
-	conversation_set_dissector(transfer_conv, ldss_handle);
+	conversation_set_dissector(transfer_conv, ldss_tcp_handle);
 }
 
 /* Broadcasts are searches, offers or promises.
@@ -287,7 +287,7 @@ dissect_ldss_broadcast(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	digest_type = tvb_get_guint8 (tvb,  2);
 	compression = tvb_get_guint8 (tvb,  3);
 	cookie      = tvb_get_ntohl  (tvb,  4);
-	digest      = tvb_memdup     (tvb,  8, DIGEST_LEN);
+	digest      = (guint8 *)tvb_memdup (NULL, tvb,  8, DIGEST_LEN);
 	size	    = tvb_get_ntoh64 (tvb, 40);
 	offset	    = tvb_get_ntoh64 (tvb, 48);
 	targetTime  = tvb_get_ntohl  (tvb, 56);
@@ -324,11 +324,9 @@ dissect_ldss_broadcast(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	packet_detail = val_to_str_const(messageDetail, ldss_inferred_info, "unknown");
 
 	/* Set the info column */
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO, "LDSS Broadcast (%s%s)",
+	col_add_fstr(pinfo->cinfo, COL_INFO, "LDSS Broadcast (%s%s)",
 			     packet_type,
 			     packet_detail);
-	}
 
 	/* If we have a non-null tree (ie we are building the proto_tree
 	 * instead of just filling out the columns), then give more detail. */
@@ -412,7 +410,7 @@ dissect_ldss_broadcast(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		ldss_broadcast_t *data;
 
 		/* Populate data from the broadcast */
-		data = se_alloc0(sizeof(ldss_broadcast_t));
+		data = wmem_new0(wmem_file_scope(), ldss_broadcast_t);
 		data->num = pinfo->fd->num;
 		data->ts = pinfo->fd->abs_ts;
 		data->message_id = messageID;
@@ -422,11 +420,11 @@ dissect_ldss_broadcast(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		data->offset = offset;
 		data->compression = compression;
 
-		data->file = se_alloc0(sizeof(ldss_file_t));
+		data->file = wmem_new0(wmem_file_scope(), ldss_file_t);
 		data->file->digest = digest;
 		data->file->digest_type = digest_type;
 
-		data->broadcaster = se_alloc0(sizeof(ldss_broadcaster_t));
+		data->broadcaster = wmem_new0(wmem_file_scope(), ldss_broadcaster_t);
 		COPY_ADDRESS(&data->broadcaster->addr, &pinfo->src);
 		data->broadcaster->port = port;
 
@@ -445,7 +443,7 @@ dissect_ldss_broadcast(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 /* Transfers happen in response to broadcasts, they are always TCP and are
  * used to send the file to the port mentioned in the broadcast. There are
  * 2 types of transfers: Pushes, which are direct responses to searches,
- * in which the peer that has the file connects to the peer that doesnt and
+ * in which the peer that has the file connects to the peer that doesn't and
  * sends it, then disconnects. The other type of transfer is a pull, where
  * the peer that doesn't have the file connects to the peer that does and
  * requests it be sent.
@@ -455,22 +453,26 @@ dissect_ldss_broadcast(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
  * file the implementation sends searches for is on a different TCP port
  * on the searcher's machine. */
 static int
-dissect_ldss_transfer (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+dissect_ldss_transfer (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
 	conversation_t *transfer_conv;
 	ldss_transfer_info_t *transfer_info;
 	struct tcpinfo *transfer_tcpinfo;
-
 	proto_tree	*ti, *line_tree = NULL, *ldss_tree = NULL;
-
 	nstime_t broadcast_response_time;
 
+	/* Reject the packet if data is NULL */
+	if (data == NULL)
+		return 0;
+	transfer_tcpinfo = (struct tcpinfo *)data;
+
+	col_set_str(pinfo->cinfo, COL_PROTOCOL, "LDSS");
+
 	/* Look for the transfer conversation; this was created during
-	 * earlier broadcast dissection (see prepate_ldss_transfer_conv) */
+	 * earlier broadcast dissection (see prepare_ldss_transfer_conv) */
 	transfer_conv = find_conversation (pinfo->fd->num, &pinfo->src, &pinfo->dst,
 					   PT_TCP, pinfo->srcport, pinfo->destport, 0);
-	transfer_info = conversation_get_proto_data(transfer_conv, proto_ldss);
-	transfer_tcpinfo = pinfo->private_data;
+	transfer_info = (ldss_transfer_info_t *)conversation_get_proto_data(transfer_conv, proto_ldss);
 
 	/* For a pull, the first packet in the TCP connection is the file request.
 	 * First packet is identified by relative seq/ack numbers of 1.
@@ -495,8 +497,8 @@ dissect_ldss_transfer (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		    highest_num_seen < pinfo->fd->num) {
 
 			already_dissected = FALSE;
-			transfer_info->req = se_alloc0(sizeof(ldss_file_request_t));
-			transfer_info->req->file = se_alloc0(sizeof(ldss_file_t));
+			transfer_info->req = wmem_new0(wmem_file_scope(), ldss_file_request_t);
+			transfer_info->req->file = wmem_new0(wmem_file_scope(), ldss_file_t);
 			highest_num_seen = pinfo->fd->num;
 		}
 
@@ -523,7 +525,7 @@ dissect_ldss_transfer (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 						    FALSE);
 
 			/* Include new-line in line */
-			line = tvb_memdup(tvb, offset, linelen+1); /* XXX - memory leak? */
+			line = (guint8 *)tvb_memdup(NULL, tvb, offset, linelen+1); /* XXX - memory leak? */
 
 			if (tree) {
 				ti = proto_tree_add_text(ldss_tree, tvb, offset, linelen,
@@ -609,7 +611,7 @@ dissect_ldss_transfer (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 					if(digest_bytes->len >= DIGEST_LEN)
 						digest_bytes->len = (DIGEST_LEN-1);
 					/* Ensure the digest is zero-padded */
-					transfer_info->file->digest = se_alloc0(DIGEST_LEN);
+					transfer_info->file->digest = (guint8 *)wmem_alloc0(wmem_file_scope(), DIGEST_LEN);
 					memcpy(transfer_info->file->digest, digest_bytes->data, digest_bytes->len);
 
 					g_byte_array_free(digest_bytes, TRUE);
@@ -621,7 +623,7 @@ dissect_ldss_transfer (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 								 tvb, offset, digest_type_len, transfer_info->file->digest_type);
 					PROTO_ITEM_SET_GENERATED(tii);
 					tii = proto_tree_add_bytes(line_tree, hf_ldss_digest,
-								  tvb, offset+digest_type_len, linelen-digest_type_len,
+								  tvb, offset+digest_type_len, MIN(linelen-digest_type_len, DIGEST_LEN),
 								  transfer_info->file->digest);
 					PROTO_ITEM_SET_GENERATED(tii);
 				}
@@ -680,12 +682,10 @@ dissect_ldss_transfer (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		transfer_info->resp_num = pinfo->fd->num;
 		transfer_info->resp_ts = pinfo->fd->abs_ts;
 
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_add_fstr(pinfo->cinfo, COL_INFO, "LDSS File Transfer (Sending file - %s)",
+		col_add_fstr(pinfo->cinfo, COL_INFO, "LDSS File Transfer (Sending file - %s)",
 				     transfer_info->broadcast->message_id == MESSAGE_ID_WILLSEND
 				     ? "pull"
 				     : "push");
-		}
 
 		if (tree) {
 			ti = proto_tree_add_item(tree, proto_ldss,
@@ -805,21 +805,14 @@ is_broadcast(address* addr)
 static int
 dissect_ldss (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-	if (is_broadcast(&pinfo->dl_dst) &&
-	    pinfo->ipproto == IP_PROTO_UDP) {
+	if (is_broadcast(&pinfo->dl_dst)) {
 
 		col_set_str(pinfo->cinfo, COL_PROTOCOL, "LDSS");
 		return dissect_ldss_broadcast(tvb, pinfo, tree);
 	}
-	else if (pinfo->ipproto == IP_PROTO_TCP) {
 
-		col_set_str(pinfo->cinfo, COL_PROTOCOL, "LDSS");
-		return dissect_ldss_transfer(tvb, pinfo, tree);
-	}
-	else {
-		/* Definitely not LDSS */
-		return 0;
-	}
+	/* Definitely not LDSS */
+	return 0;
 }
 
 /* Initialize the highest num seen each time a
@@ -982,13 +975,11 @@ proto_register_ldss (void) {
 
 	module_t     *ldss_module;
 
-	proto_ldss = proto_register_protocol(	"Local Download Sharing Service",
-						"LDSS", "ldss");
+	proto_ldss = proto_register_protocol("Local Download Sharing Service", "LDSS", "ldss");
 	proto_register_field_array(proto_ldss, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
 
-	ldss_module = prefs_register_protocol(	proto_ldss,
-						proto_reg_handoff_ldss);
+	ldss_module = prefs_register_protocol(	proto_ldss, proto_reg_handoff_ldss);
 	prefs_register_uint_preference(		ldss_module, "udp_port",
 						"LDSS UDP Port",
 						"The UDP port on which "
@@ -1008,12 +999,13 @@ proto_reg_handoff_ldss (void)
 	static gboolean	  ldss_initialized	= FALSE;
 
 	if (!ldss_initialized) {
-		ldss_handle = new_create_dissector_handle(dissect_ldss, proto_ldss);
+		ldss_udp_handle = new_create_dissector_handle(dissect_ldss, proto_ldss);
+		ldss_tcp_handle = new_create_dissector_handle(dissect_ldss_transfer, proto_ldss);
 		ldss_initialized = TRUE;
 	}
 	else {
-		dissector_delete_uint("udp.port", saved_udp_port_ldss, ldss_handle);
+		dissector_delete_uint("udp.port", saved_udp_port_ldss, ldss_udp_handle);
 	}
-	dissector_add_uint("udp.port", global_udp_port_ldss, ldss_handle);
+	dissector_add_uint("udp.port", global_udp_port_ldss, ldss_udp_handle);
 	saved_udp_port_ldss = global_udp_port_ldss;
 }

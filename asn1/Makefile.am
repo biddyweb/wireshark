@@ -1,8 +1,6 @@
 # Makefile.am
 # Automake file for Wireshark
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 2006 Gerald Combs
@@ -23,31 +21,34 @@
 
 include Custom.make
 
-SUBDIRS = 		\
+SUBDIRS =		\
 	$(CUSTOM_SUBDIRS)	\
 	acp133		\
 	acse		\
 	ansi_map	\
 	ansi_tcap	\
+	atn-cm		\
+	atn-cpdlc	\
+	atn-ulcs	\
 	c1222		\
 	camel		\
 	cdt		\
 	charging_ase	\
 	cmip		\
 	cmp		\
+	cms		\
 	credssp		\
 	crmf		\
-	cms		\
 	dap		\
-	dop		\
 	disp		\
+	dop		\
 	dsp		\
 	ess		\
 	ftam		\
 	gnm		\
 	goose		\
-	gsm_map		\
 	gprscdr		\
+	gsm_map		\
 	h225		\
 	h235		\
 	h245		\
@@ -62,6 +63,7 @@ SUBDIRS = 		\
 	HI2Operations	\
 	hnbap		\
 	idmp		\
+	ilp		\
 	inap		\
 	isdn-sup	\
 	kerberos	\
@@ -72,11 +74,12 @@ SUBDIRS = 		\
 	lppa		\
 	lppe		\
 	lte-rrc		\
-	m3ap	\
+	m3ap		\
 	mms		\
 	mpeg-audio	\
 	mpeg-pes	\
 	nbap		\
+	novell_pkis		\
 	ns_cert_exts	\
 	ocsp		\
 	p1		\
@@ -87,9 +90,9 @@ SUBDIRS = 		\
 	pkcs1		\
 	pkcs12		\
 	pkinit		\
-	pkixac		\
 	pkix1explicit	\
 	pkix1implicit	\
+	pkixac		\
 	pkixproxy	\
 	pkixqualified	\
 	pkixtsp		\
@@ -122,14 +125,21 @@ SUBDIRS = 		\
 	x509af		\
 	x509ce		\
 	x509if		\
-	x509sat		\
+	x509sat
+
+# x721 doesn't build
+DONT_BUILD_SUBDIRS = \
 	x721
 
+DIST_SUBDIRS = $(SUBDIRS) $(DONT_BUILD_SUBDIRS)
+
 EXTRA_DIST = \
+	CMakeLists.txt	\
+	Makefile.inc	\
 	Makefile.nmake	\
 	Makefile.inc.nmake	\
-	Makefile.preinc.nmake \
-	Custom.make
+	Makefile.preinc	\
+	Makefile.preinc.nmake
 
 MAINTAINERCLEANFILES = \
 	Makefile.in

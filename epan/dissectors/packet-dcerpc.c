@@ -4,8 +4,6 @@
  * Copyright 2003, Tim Potter <tpot[AT]samba.org>
  * Copyright 2010, Julien Kerihuel <j.kerihuel[AT]openchange.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,18 +34,22 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/conversation.h>
 #include <epan/prefs.h>
 #include <epan/reassemble.h>
 #include <epan/tap.h>
-#include <epan/emem.h>
 #include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 #include <epan/strutil.h>
 #include <epan/addr_resolv.h>
 #include <epan/show_exception.h>
+#include <epan/decode_as.h>
 #include <epan/dissectors/packet-dcerpc.h>
 #include <epan/dissectors/packet-dcerpc-nt.h>
+
+void proto_register_dcerpc(void);
+void proto_reg_handoff_dcerpc(void);
 
 static int dcerpc_tap = -1;
 
@@ -60,8 +62,10 @@ static e_uuid_t uuid_ndr64                  = { 0x71710533, 0xbeba, 0x4937,
                                                 { 0x83, 0x19, 0xb5, 0xdb, 0xef, 0x9c, 0xcc, 0x36 } };
 
 /* Bind Time Feature Negotiation, see [MS-RPCE] 3.3.1.5.3 */
-static e_uuid_t uuid_bind_time_feature_nego = { 0x6cb71c2c, 0x9812, 0x4540,
-                                                { 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
+static e_uuid_t uuid_bind_time_feature_nego_00 = { 0x6cb71c2c, 0x9812, 0x4540, { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
+static e_uuid_t uuid_bind_time_feature_nego_01 = { 0x6cb71c2c, 0x9812, 0x4540, { 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
+static e_uuid_t uuid_bind_time_feature_nego_02 = { 0x6cb71c2c, 0x9812, 0x4540, { 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
+static e_uuid_t uuid_bind_time_feature_nego_03 = { 0x6cb71c2c, 0x9812, 0x4540, { 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
 
 /* see [MS-OXRPC] Appendix A: Full IDL, http://msdn.microsoft.com/en-us/library/ee217991%28v=exchg.80%29.aspx */
 static e_uuid_t uuid_asyncemsmdb            = { 0x5261574a, 0x4572, 0x206e,
@@ -241,8 +245,8 @@ static const value_string p_provider_reason_vals[] = {
 #define DEFAULT_CONTEXT_NOT_SUPPORTED   5 /* not used */
 #define USER_DATA_NOT_READABLE          6 /* not used */
 #define NO_PSAP_AVAILABLE               7 /* not used */
-#define AUTH_TYPE_NOT_RECOGNIZED        8
-#define INVALID_CHECKSUM                9
+#define AUTH_TYPE_NOT_RECOGNIZED        8 /* [MS-RPCE] 2.2.2.5 */
+#define INVALID_CHECKSUM                9 /* [MS-RPCE] 2.2.2.5 */
 
 static const value_string reject_reason_vals[] = {
     { REASON_NOT_SPECIFIED,           "Reason not specified" },
@@ -469,6 +473,8 @@ static int hf_dcerpc_cn_bind_if_ver_minor = -1;
 static int hf_dcerpc_cn_bind_trans_syntax = -1;
 static int hf_dcerpc_cn_bind_trans_id = -1;
 static int hf_dcerpc_cn_bind_trans_ver = -1;
+static int hf_dcerpc_cn_bind_trans_btfn_01 = -1;
+static int hf_dcerpc_cn_bind_trans_btfn_02 = -1;
 static int hf_dcerpc_cn_alloc_hint = -1;
 static int hf_dcerpc_cn_sec_addr_len = -1;
 static int hf_dcerpc_cn_sec_addr = -1;
@@ -477,6 +483,7 @@ static int hf_dcerpc_cn_ack_result = -1;
 static int hf_dcerpc_cn_ack_reason = -1;
 static int hf_dcerpc_cn_ack_trans_id = -1;
 static int hf_dcerpc_cn_ack_trans_ver = -1;
+static int hf_dcerpc_cn_ack_btfn = -1;
 static int hf_dcerpc_cn_reject_reason = -1;
 static int hf_dcerpc_cn_num_protocols = -1;
 static int hf_dcerpc_cn_protocol_ver_major = -1;
@@ -563,7 +570,6 @@ static int hf_dcerpc_dg_status = -1;
 static int hf_dcerpc_array_max_count = -1;
 static int hf_dcerpc_array_offset = -1;
 static int hf_dcerpc_array_actual_count = -1;
-static int hf_dcerpc_array_buffer = -1;
 static int hf_dcerpc_op = -1;
 static int hf_dcerpc_referent_id = -1;
 static int hf_dcerpc_fragments = -1;
@@ -583,6 +589,7 @@ static gint ett_dcerpc_cn_flags = -1;
 static gint ett_dcerpc_cn_ctx = -1;
 static gint ett_dcerpc_cn_iface = -1;
 static gint ett_dcerpc_cn_trans_syntax = -1;
+static gint ett_dcerpc_cn_trans_btfn = -1;
 static gint ett_dcerpc_cn_rts_flags = -1;
 static gint ett_dcerpc_cn_rts_command = -1;
 static gint ett_dcerpc_cn_rts_pdu = -1;
@@ -594,6 +601,335 @@ static gint ett_dcerpc_string = -1;
 static gint ett_dcerpc_fragments = -1;
 static gint ett_dcerpc_fragment = -1;
 static gint ett_dcerpc_krb5_auth_verf = -1;
+
+static expert_field ei_dcerpc_fragment_multiple = EI_INIT;
+static expert_field ei_dcerpc_cn_status = EI_INIT;
+static expert_field ei_dcerpc_fragment_reassembled = EI_INIT;
+static expert_field ei_dcerpc_fragment = EI_INIT;
+static expert_field ei_dcerpc_no_request_found = EI_INIT;
+static expert_field ei_dcerpc_context_change = EI_INIT;
+static expert_field ei_dcerpc_cn_ctx_id_no_bind = EI_INIT;
+static expert_field ei_dcerpc_bind_not_acknowledged = EI_INIT;
+
+
+static GSList *decode_dcerpc_bindings = NULL;
+/*
+ * To keep track of ctx_id mappings.
+ *
+ * Every time we see a bind call we update this table.
+ * Note that we always specify a SMB FID. For non-SMB transports this
+ * value is 0.
+ */
+static GHashTable *dcerpc_binds = NULL;
+
+typedef struct _dcerpc_bind_key {
+    conversation_t *conv;
+    guint16         ctx_id;
+    guint16         smb_fid;
+} dcerpc_bind_key;
+
+typedef struct _dcerpc_bind_value {
+    e_uuid_t uuid;
+    guint16  ver;
+    e_uuid_t transport;
+} dcerpc_bind_value;
+
+/* Extra data for DCERPC handling and tracking of context ids */
+typedef struct _dcerpc_decode_as_data {
+    guint16 dcectxid;             /**< Context ID (DCERPC-specific) */
+    int     dcetransporttype;     /**< Transport type
+                                    * Value -1 means "not a DCERPC packet"
+                                    */
+    guint16 dcetransportsalt;     /**< fid: if transporttype==DCE_CN_TRANSPORT_SMBPIPE */
+} dcerpc_decode_as_data;
+
+static dcerpc_decode_as_data*
+dcerpc_get_decode_data(packet_info* pinfo)
+{
+    dcerpc_decode_as_data* data = (dcerpc_decode_as_data*)p_get_proto_data(pinfo->pool, pinfo, proto_dcerpc, 0);
+    if (data == NULL)
+    {
+        data = wmem_new0(pinfo->pool, dcerpc_decode_as_data);
+        data->dcetransporttype = -1;
+        p_add_proto_data(pinfo->pool, pinfo, proto_dcerpc, 0, data);
+    }
+
+    return data;
+}
+
+/**
+ *  Registers a conversation/UUID binding association, so that
+ *  we can invoke the proper sub-dissector for a given DCERPC
+ *  conversation.
+ *
+ *  @param binding all values needed to create and bind a new conversation
+ *
+ *  @return Pointer to newly-added UUID/conversation binding.
+ */
+static struct _dcerpc_bind_value *
+dcerpc_add_conv_to_bind_table(decode_dcerpc_bind_values_t *binding)
+{
+    dcerpc_bind_value *bind_value;
+    dcerpc_bind_key   *key;
+    conversation_t    *conv;
+
+    conv = find_conversation(
+        0,
+        &binding->addr_a,
+        &binding->addr_b,
+        binding->ptype,
+        binding->port_a,
+        binding->port_b,
+        0);
+
+    if (!conv) {
+        conv = conversation_new(
+            0,
+            &binding->addr_a,
+            &binding->addr_b,
+            binding->ptype,
+            binding->port_a,
+            binding->port_b,
+            0);
+    }
+
+    bind_value = (dcerpc_bind_value *)wmem_alloc(wmem_file_scope(), sizeof (dcerpc_bind_value));
+    bind_value->uuid = binding->uuid;
+    bind_value->ver = binding->ver;
+    /* For now, assume all DCE/RPC we pick from "decode as" is using
+       standard ndr and not ndr64.
+       We should make this selectable from the dialog in the future
+    */
+    bind_value->transport = uuid_data_repr_proto;
+
+    key = (dcerpc_bind_key *)wmem_alloc(wmem_file_scope(), sizeof (dcerpc_bind_key));
+    key->conv = conv;
+    key->ctx_id = binding->ctx_id;
+    key->smb_fid = binding->smb_fid;
+
+    /* add this entry to the bind table */
+    g_hash_table_insert(dcerpc_binds, key, bind_value);
+
+    return bind_value;
+
+}
+
+/* inject one of our bindings into the dcerpc binding table */
+static void
+decode_dcerpc_inject_binding(gpointer data, gpointer user_data _U_)
+{
+    dcerpc_add_conv_to_bind_table((decode_dcerpc_bind_values_t *) data);
+}
+
+/* inject all of our bindings into the dcerpc binding table */
+static void
+decode_dcerpc_inject_bindings(void) {
+    g_slist_foreach(decode_dcerpc_bindings, decode_dcerpc_inject_binding, NULL /* user_data */);
+}
+
+/* free a binding */
+static void
+decode_dcerpc_binding_free(void *binding_in)
+{
+    decode_dcerpc_bind_values_t *binding = (decode_dcerpc_bind_values_t *)binding_in;
+
+    g_free((void *) binding->addr_a.data);
+    g_free((void *) binding->addr_b.data);
+    if (binding->ifname)
+        g_string_free(binding->ifname, TRUE);
+    g_free(binding);
+}
+
+static void
+dcerpc_decode_as_free(gpointer value)
+{
+    decode_dcerpc_bind_values_t *binding = (decode_dcerpc_bind_values_t *)value;
+    if (binding != NULL)
+        decode_dcerpc_binding_free(binding);
+}
+
+/* removes all bindings */
+void
+decode_dcerpc_reset_all(void)
+{
+    decode_dcerpc_bind_values_t *binding;
+
+    while (decode_dcerpc_bindings) {
+        binding = (decode_dcerpc_bind_values_t *)decode_dcerpc_bindings->data;
+
+        decode_dcerpc_binding_free(binding);
+        decode_dcerpc_bindings = g_slist_remove(
+            decode_dcerpc_bindings,
+            decode_dcerpc_bindings->data);
+    }
+}
+
+
+void
+decode_dcerpc_add_show_list(decode_add_show_list_func func, gpointer user_data)
+{
+    g_slist_foreach(decode_dcerpc_bindings, func, user_data);
+}
+
+static void
+dcerpc_prompt(packet_info *pinfo, gchar* result)
+{
+    GString *str = g_string_new("Replace binding between:\r\n"),
+            *address_str = g_string_new("");
+    dcerpc_decode_as_data* decode_data = dcerpc_get_decode_data(pinfo);
+
+    switch (pinfo->ptype) {
+    case(PT_TCP):
+        g_string_append(address_str, "Address: ToBeDone TCP port");
+        break;
+    case(PT_UDP):
+        g_string_append(address_str, "Address: ToBeDone UDP port");
+        break;
+    default:
+        g_string_append(address_str, "Address: ToBeDone Unknown port type");
+    }
+
+    g_string_append_printf(str, "%s: %u\r\n", address_str->str, pinfo->srcport);
+    g_string_append(str, "&\r\n");
+    g_string_append_printf(str, "%s: %u\r\n", address_str->str, pinfo->destport);
+    g_string_append_printf(str, "&\r\nContext ID: %u\r\n", decode_data->dcectxid);
+    g_string_append_printf(str, "&\r\nSMB FID: %u\r\n", dcerpc_get_transport_salt(pinfo));
+    g_string_append(str, "with:\r\n");
+
+    g_strlcpy(result, str->str, MAX_DECODE_AS_PROMPT_LEN);
+    g_string_free(str, TRUE);
+    g_string_free(address_str, TRUE);
+}
+
+static gpointer
+dcerpc_value(packet_info *pinfo)
+{
+    decode_dcerpc_bind_values_t *binding;
+    dcerpc_decode_as_data* decode_data = dcerpc_get_decode_data(pinfo);
+
+    /* clone binding */
+    binding = g_new(decode_dcerpc_bind_values_t,1);
+    COPY_ADDRESS(&binding->addr_a, &pinfo->src);
+    COPY_ADDRESS(&binding->addr_b, &pinfo->dst);
+    binding->ptype = pinfo->ptype;
+    binding->port_a = pinfo->srcport;
+    binding->port_b = pinfo->destport;
+    binding->ctx_id = decode_data->dcectxid;
+    binding->smb_fid = dcerpc_get_transport_salt(pinfo);
+    binding->ifname = NULL;
+    /*binding->uuid = NULL;*/
+    binding->ver = 0;
+
+    return binding;
+}
+
+struct dcerpc_decode_as_populate
+{
+    decode_as_add_to_list_func add_to_list;
+    gpointer ui_element;
+};
+
+static void
+decode_dcerpc_add_to_list(gpointer key, gpointer value, gpointer user_data)
+{
+    struct dcerpc_decode_as_populate* populate = (struct dcerpc_decode_as_populate*)user_data;
+
+    /*dcerpc_uuid_key *k = key;*/
+    dcerpc_uuid_value *v = (dcerpc_uuid_value *)value;
+
+    if (strcmp(v->name, "(none)"))
+        populate->add_to_list("DCE-RPC", v->name, key, populate->ui_element);
+}
+
+static void
+dcerpc_populate_list(const gchar *table_name _U_, decode_as_add_to_list_func add_to_list, gpointer ui_element)
+{
+    struct dcerpc_decode_as_populate populate;
+
+    populate.add_to_list = add_to_list;
+    populate.ui_element = ui_element;
+
+    g_hash_table_foreach(dcerpc_uuids, decode_dcerpc_add_to_list, &populate);
+}
+
+/* compare two bindings (except the interface related things, e.g. uuid) */
+static gint
+decode_dcerpc_binding_cmp(gconstpointer a, gconstpointer b)
+{
+    const decode_dcerpc_bind_values_t *binding_a = (const decode_dcerpc_bind_values_t *)a;
+    const decode_dcerpc_bind_values_t *binding_b = (const decode_dcerpc_bind_values_t *)b;
+
+
+    /* don't compare uuid and ver! */
+    if (
+        ADDRESSES_EQUAL(&binding_a->addr_a, &binding_b->addr_a) &&
+        ADDRESSES_EQUAL(&binding_a->addr_b, &binding_b->addr_b) &&
+        binding_a->ptype == binding_b->ptype &&
+        binding_a->port_a == binding_b->port_a &&
+        binding_a->port_b == binding_b->port_b &&
+        binding_a->ctx_id == binding_b->ctx_id &&
+        binding_a->smb_fid == binding_b->smb_fid)
+    {
+        /* equal */
+        return 0;
+    }
+
+    /* unequal */
+    return 1;
+}
+
+/* remove a binding (looking the same way as the given one) */
+static gboolean
+decode_dcerpc_binding_reset(const char *name _U_, const gpointer pattern)
+{
+    decode_dcerpc_bind_values_t *binding = (decode_dcerpc_bind_values_t*)pattern;
+    GSList *le;
+    decode_dcerpc_bind_values_t *old_binding;
+
+    /* find the old binding (if it exists) */
+    le = g_slist_find_custom(decode_dcerpc_bindings,
+                                             binding,
+                                             decode_dcerpc_binding_cmp);
+    if (le == NULL)
+        return FALSE;
+
+    old_binding = (decode_dcerpc_bind_values_t *)le->data;
+
+    decode_dcerpc_bindings = g_slist_remove(decode_dcerpc_bindings, le->data);
+
+    g_free((void *) old_binding->addr_a.data);
+    g_free((void *) old_binding->addr_b.data);
+    g_string_free(old_binding->ifname, TRUE);
+    g_free(old_binding);
+    return FALSE;
+}
+
+static gboolean
+dcerpc_decode_as_change(const char *name, const gpointer pattern, gpointer handle, gchar* list_name)
+{
+    decode_dcerpc_bind_values_t *binding = (decode_dcerpc_bind_values_t*)pattern;
+    decode_dcerpc_bind_values_t *stored_binding;
+    dcerpc_uuid_key     *key = *((dcerpc_uuid_key**)handle);
+
+
+    binding->ifname = g_string_new(list_name);
+    binding->uuid = key->uuid;
+    binding->ver = key->ver;
+
+    /* remove a probably existing old binding */
+    decode_dcerpc_binding_reset(name, binding);
+
+    /* clone the new binding and append it to the list */
+    stored_binding = g_new(decode_dcerpc_bind_values_t,1);
+    *stored_binding = *binding;
+    COPY_ADDRESS(&stored_binding->addr_a, &binding->addr_a);
+    COPY_ADDRESS(&stored_binding->addr_b, &binding->addr_b);
+    stored_binding->ifname = g_string_new(binding->ifname->str);
+
+    decode_dcerpc_bindings = g_slist_append (decode_dcerpc_bindings, stored_binding);
+
+    return FALSE;
+}
 
 static const fragment_items dcerpc_frag_items = {
     &ett_dcerpc_fragments,
@@ -629,6 +965,7 @@ get_next_di(void)
     }
 
     memset(&di[di_counter], 0, sizeof(dcerpc_info));
+    di[di_counter].dcerpc_procedure_name = "";
 
     return &di[di_counter];
 }
@@ -646,16 +983,127 @@ static gboolean dcerpc_cn_desegment = TRUE;
    are coming in out of sequence, but that will hurt in a lot of other places as well.
 */
 static gboolean dcerpc_reassemble = TRUE;
-static GHashTable *dcerpc_co_fragment_table = NULL;
-static GHashTable *dcerpc_co_reassemble_table = NULL;
-static GHashTable *dcerpc_cl_reassemble_table = NULL;
+static reassembly_table dcerpc_co_reassembly_table;
+static reassembly_table dcerpc_cl_reassembly_table;
+
+typedef struct _dcerpc_fragment_key {
+    address src;
+    address dst;
+    guint32 id;
+    e_uuid_t act_id;
+} dcerpc_fragment_key;
+
+static guint
+dcerpc_fragment_hash(gconstpointer k)
+{
+    const dcerpc_fragment_key* key = (const dcerpc_fragment_key*) k;
+    guint hash_val;
+
+    hash_val = 0;
+
+    hash_val += key->id;
+    hash_val += key->act_id.Data1;
+    hash_val += key->act_id.Data2 << 16;
+    hash_val += key->act_id.Data3;
+
+    return hash_val;
+}
+
+static gint
+dcerpc_fragment_equal(gconstpointer k1, gconstpointer k2)
+{
+    const dcerpc_fragment_key* key1 = (const dcerpc_fragment_key*) k1;
+    const dcerpc_fragment_key* key2 = (const dcerpc_fragment_key*) k2;
+
+    /*key.id is the first item to compare since item is most
+      likely to differ between sessions, thus shortcircuiting
+      the comparison of addresses.
+    */
+    return (((key1->id == key2->id)
+             && (ADDRESSES_EQUAL(&key1->src, &key2->src))
+             && (ADDRESSES_EQUAL(&key1->dst, &key2->dst))
+             && (memcmp (&key1->act_id, &key2->act_id, sizeof (e_uuid_t)) == 0))
+            ? TRUE : FALSE);
+}
+
+/* allocate a persistent dcerpc fragment key to insert in the hash */
+static void *
+dcerpc_fragment_temporary_key(const packet_info *pinfo, const guint32 id,
+                              const void *data)
+{
+    dcerpc_fragment_key *key = g_slice_new(dcerpc_fragment_key);
+    e_dce_dg_common_hdr_t *hdr = (e_dce_dg_common_hdr_t *)data;
+
+    key->src = pinfo->src;
+    key->dst = pinfo->dst;
+    key->id = id;
+    key->act_id = hdr->act_id;
+
+    return key;
+}
+
+/* allocate a persistent dcerpc fragment key to insert in the hash */
+static void *
+dcerpc_fragment_persistent_key(const packet_info *pinfo, const guint32 id,
+                               const void *data)
+{
+    dcerpc_fragment_key *key = g_slice_new(dcerpc_fragment_key);
+    e_dce_dg_common_hdr_t *hdr = (e_dce_dg_common_hdr_t *)data;
+
+    COPY_ADDRESS(&key->src, &pinfo->src);
+    COPY_ADDRESS(&key->dst, &pinfo->dst);
+    key->id = id;
+    key->act_id = hdr->act_id;
+
+    return key;
+}
+
+static void
+dcerpc_fragment_free_temporary_key(gpointer ptr)
+{
+    dcerpc_fragment_key *key = (dcerpc_fragment_key *)ptr;
+
+    if (key)
+        g_slice_free(dcerpc_fragment_key, key);
+}
+
+static void
+dcerpc_fragment_free_persistent_key(gpointer ptr)
+{
+    dcerpc_fragment_key *key = (dcerpc_fragment_key *)ptr;
+
+    if (key) {
+        /*
+         * Free up the copies of the addresses from the old key.
+         */
+        g_free((gpointer)key->src.data);
+        g_free((gpointer)key->dst.data);
+
+        g_slice_free(dcerpc_fragment_key, key);
+    }
+}
+
+static const reassembly_table_functions dcerpc_cl_reassembly_table_functions = {
+    dcerpc_fragment_hash,
+    dcerpc_fragment_equal,
+    dcerpc_fragment_temporary_key,
+    dcerpc_fragment_persistent_key,
+    dcerpc_fragment_free_temporary_key,
+    dcerpc_fragment_free_persistent_key
+};
 
 static void
 dcerpc_reassemble_init(void)
 {
-    fragment_table_init(&dcerpc_co_fragment_table);
-    reassembled_table_init(&dcerpc_co_reassemble_table);
-    dcerpc_fragment_table_init(&dcerpc_cl_reassemble_table);
+    /*
+     * XXX - addresses_ports_reassembly_table_functions?
+     * Or can a single connection-oriented DCE RPC session persist
+     * over multiple transport layer connections?
+     */
+    reassembly_table_init(&dcerpc_co_reassembly_table,
+                          &addresses_reassembly_table_functions);
+    reassembly_table_init(&dcerpc_cl_reassembly_table,
+                          &dcerpc_cl_reassembly_table_functions);
 }
 
 /*
@@ -714,6 +1162,11 @@ static void dissect_auth_verf(tvbuff_t *auth_tvb, packet_info *pinfo,
                               dcerpc_auth_info *auth_info)
 {
     dcerpc_dissect_fnct_t *volatile fn = NULL;
+    /* XXX - "stub" a fake DCERPC INFO STRUCTURE
+       If a dcerpc_info is really needed, update
+       the call stacks to include it
+     */
+    FAKE_DCERPC_INFO_STRUCTURE
 
     switch (hdr->ptype) {
     case PDU_BIND:
@@ -744,7 +1197,7 @@ static void dissect_auth_verf(tvbuff_t *auth_tvb, packet_info *pinfo,
     }
 
     if (fn)
-        fn(auth_tvb, 0, pinfo, tree, hdr->drep);
+        fn(auth_tvb, 0, pinfo, tree, &di, hdr->drep);
     else {
         tvb_ensure_bytes_exist(auth_tvb, 0, hdr->auth_len);
         proto_tree_add_text(tree, auth_tvb, 0, hdr->auth_len,
@@ -919,26 +1372,6 @@ dcerpc_get_proto_sub_dissector(e_uuid_t *uuid, guint16 ver)
 }
 
 
-/*
- * To keep track of ctx_id mappings.
- *
- * Every time we see a bind call we update this table.
- * Note that we always specify a SMB FID. For non-SMB transports this
- * value is 0.
- */
-static GHashTable *dcerpc_binds = NULL;
-
-typedef struct _dcerpc_bind_key {
-    conversation_t *conv;
-    guint16         ctx_id;
-    guint16         smb_fid;
-} dcerpc_bind_key;
-
-typedef struct _dcerpc_bind_value {
-    e_uuid_t uuid;
-    guint16  ver;
-    e_uuid_t transport;
-} dcerpc_bind_value;
 
 static gint
 dcerpc_bind_equal(gconstpointer k1, gconstpointer k2)
@@ -1306,15 +1739,12 @@ dcerpc_tvb_get_uuid(tvbuff_t *tvb, gint offset, guint8 *drep, e_uuid_t *uuid)
 /* function to dissect a unidimensional conformant array */
 int
 dissect_ndr_ucarray(tvbuff_t *tvb, gint offset, packet_info *pinfo,
-                    proto_tree *tree, guint8 *drep,
+                    proto_tree *tree, dcerpc_info *di, guint8 *drep,
                     dcerpc_dissect_fnct_t *fnct)
 {
     guint32      i;
-    dcerpc_info *di;
     int          old_offset;
     int          conformance_size = 4;
-
-    di = (dcerpc_info *)pinfo->private_data;
 
     if (di->call_data->flags & DCERPC_IS_NDR64) {
         conformance_size = 8;
@@ -1326,7 +1756,7 @@ dissect_ndr_ucarray(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         /* conformant run, just dissect the max_count header */
         old_offset = offset;
         di->conformant_run = 0;
-        offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, drep,
+        offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep,
                                        hf_dcerpc_array_max_count, &val);
         di->array_max_count = (gint32)val;
         di->array_max_count_offset = offset-conformance_size;
@@ -1337,25 +1767,27 @@ dissect_ndr_ucarray(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         proto_tree_add_uint(tree, hf_dcerpc_array_max_count, tvb, di->array_max_count_offset, conformance_size, di->array_max_count);
 
         /* real run, dissect the elements */
-        for(i=0; i<di->array_max_count; i++) {
-            offset = (*fnct)(tvb, offset, pinfo, tree, drep);
+        for (i=0; i<di->array_max_count; i++) {
+            offset = (*fnct)(tvb, offset, pinfo, tree, di, drep);
         }
     }
 
     return offset;
 }
-/* function to dissect a unidimensional conformant and varying array */
-int
-dissect_ndr_ucvarray(tvbuff_t *tvb, gint offset, packet_info *pinfo,
-                     proto_tree *tree, guint8 *drep,
-                     dcerpc_dissect_fnct_t *fnct)
+
+/* function to dissect a unidimensional conformant and varying array
+ * depending on the dissection function passed as a parameter,
+ * content of the array will be dissected as a block or byte by byte
+ */
+static int
+dissect_ndr_ucvarray_core(tvbuff_t *tvb, gint offset, packet_info *pinfo,
+                     proto_tree *tree, dcerpc_info *di, guint8 *drep,
+                     dcerpc_dissect_fnct_t *fnct_bytes,
+                     dcerpc_dissect_fnct_blk_t *fnct_block)
 {
     guint32      i;
-    dcerpc_info *di;
     int          old_offset;
     int          conformance_size = 4;
-
-    di = (dcerpc_info *)pinfo->private_data;
 
     if (di->call_data->flags & DCERPC_IS_NDR64) {
         conformance_size = 8;
@@ -1367,17 +1799,17 @@ dissect_ndr_ucvarray(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         /* conformant run, just dissect the max_count header */
         old_offset = offset;
         di->conformant_run = 0;
-        offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, drep,
+        offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep,
                                        hf_dcerpc_array_max_count, &val);
         DISSECTOR_ASSERT(val <= G_MAXUINT32);
         di->array_max_count = (guint32)val;
         di->array_max_count_offset = offset-conformance_size;
-        offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, drep,
+        offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep,
                                        hf_dcerpc_array_offset, &val);
         DISSECTOR_ASSERT(val <= G_MAXUINT32);
         di->array_offset = (guint32)val;
         di->array_offset_offset = offset-conformance_size;
-        offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, drep,
+        offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep,
                                        hf_dcerpc_array_actual_count, &val);
         DISSECTOR_ASSERT(val <= G_MAXUINT32);
         di->array_actual_count = (guint32)val;
@@ -1391,28 +1823,45 @@ dissect_ndr_ucvarray(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         proto_tree_add_uint(tree, hf_dcerpc_array_actual_count, tvb, di->array_actual_count_offset, conformance_size, di->array_actual_count);
 
         /* real run, dissect the elements */
-        for(i=0 ;i<di->array_actual_count; i++) {
-            old_offset = offset;
-            offset = (*fnct)(tvb, offset, pinfo, tree, drep);
-            if (offset <= old_offset)
-                THROW(ReportedBoundsError);
+        if (fnct_block) {
+                offset = (*fnct_block)(tvb, offset, di->array_actual_count, pinfo, tree, drep);
+        } else {
+            for (i=0 ;i<di->array_actual_count; i++) {
+                old_offset = offset;
+                offset = (*fnct_bytes)(tvb, offset, pinfo, tree, di, drep);
+                if (offset <= old_offset)
+                    THROW(ReportedBoundsError);
+            }
         }
     }
 
     return offset;
 }
+
+int
+dissect_ndr_ucvarray_block(tvbuff_t *tvb, gint offset, packet_info *pinfo,
+                     proto_tree *tree, dcerpc_info *di, guint8 *drep,
+                     dcerpc_dissect_fnct_blk_t *fnct)
+{
+    return dissect_ndr_ucvarray_core(tvb, offset, pinfo, tree, di, drep, NULL, fnct);
+}
+
+int
+dissect_ndr_ucvarray(tvbuff_t *tvb, gint offset, packet_info *pinfo,
+                     proto_tree *tree, dcerpc_info *di, guint8 *drep,
+                     dcerpc_dissect_fnct_t *fnct)
+{
+    return dissect_ndr_ucvarray_core(tvb, offset, pinfo, tree, di, drep, fnct, NULL);
+}
 /* function to dissect a unidimensional varying array */
 int
 dissect_ndr_uvarray(tvbuff_t *tvb, gint offset, packet_info *pinfo,
-                    proto_tree *tree, guint8 *drep,
+                    proto_tree *tree, dcerpc_info *di, guint8 *drep,
                     dcerpc_dissect_fnct_t *fnct)
 {
     guint32      i;
-    dcerpc_info *di;
     int          old_offset;
     int          conformance_size = 4;
-
-    di = (dcerpc_info *)pinfo->private_data;
 
     if (di->call_data->flags & DCERPC_IS_NDR64) {
         conformance_size = 8;
@@ -1424,12 +1873,12 @@ dissect_ndr_uvarray(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         /* conformant run, just dissect the max_count header */
         old_offset = offset;
         di->conformant_run = 0;
-        offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, drep,
+        offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep,
                                        hf_dcerpc_array_offset, &val);
         DISSECTOR_ASSERT(val <= G_MAXUINT32);
         di->array_offset = (guint32)val;
         di->array_offset_offset = offset-conformance_size;
-        offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, drep,
+        offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep,
                                        hf_dcerpc_array_actual_count, &val);
         DISSECTOR_ASSERT(val <= G_MAXUINT32);
         di->array_actual_count = (guint32)val;
@@ -1442,8 +1891,8 @@ dissect_ndr_uvarray(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         proto_tree_add_uint(tree, hf_dcerpc_array_actual_count, tvb, di->array_actual_count_offset, conformance_size, di->array_actual_count);
 
         /* real run, dissect the elements */
-        for(i=0; i<di->array_actual_count; i++) {
-            offset = (*fnct)(tvb, offset, pinfo, tree, drep);
+        for (i=0; i<di->array_actual_count; i++) {
+            offset = (*fnct)(tvb, offset, pinfo, tree, di, drep);
         }
     }
 
@@ -1467,12 +1916,10 @@ dissect_ndr_uvarray(tvbuff_t *tvb, gint offset, packet_info *pinfo,
    varying arrays of bytes.  */
 int
 dissect_ndr_byte_array(tvbuff_t *tvb, int offset, packet_info *pinfo,
-                       proto_tree *tree, guint8 *drep)
+                       proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    dcerpc_info *di;
     guint64      len;
 
-    di = (dcerpc_info *)pinfo->private_data;
     if (di->conformant_run) {
         /* just a run to handle conformant arrays, no scalars to dissect */
         return offset;
@@ -1480,20 +1927,20 @@ dissect_ndr_byte_array(tvbuff_t *tvb, int offset, packet_info *pinfo,
 
     /* NDR array header */
 
-    offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, drep,
+    offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep,
                                   hf_dcerpc_array_max_count, NULL);
 
-    offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, drep,
+    offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep,
                                   hf_dcerpc_array_offset, NULL);
 
-    offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, drep,
+    offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep,
                                   hf_dcerpc_array_actual_count, &len);
 
     DISSECTOR_ASSERT(len <= G_MAXUINT32);
     if (tree && len) {
         tvb_ensure_bytes_exist(tvb, offset, (guint32)len);
-        proto_tree_add_item(tree, hf_dcerpc_array_buffer,
-                            tvb, offset, (guint32)len, ENC_NA);
+        proto_tree_add_item(tree, di->hf_index, tvb, offset, (guint32)len,
+                            ENC_NA);
     }
 
     offset += (guint32)len;
@@ -1511,18 +1958,20 @@ dissect_ndr_byte_array(tvbuff_t *tvb, int offset, packet_info *pinfo,
    "dissect_ndr_ucvarray()" does?  */
 int
 dissect_ndr_cvstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
-                     proto_tree *tree, guint8 *drep, int size_is,
+                     proto_tree *tree, dcerpc_info *di, guint8 *drep, int size_is,
                      int hfindex, gboolean add_subtree, char **data)
 {
-    dcerpc_info       *di;
+    header_field_info *hfinfo;
     proto_item        *string_item;
     proto_tree        *string_tree;
     guint64            len;
     guint32            buffer_len;
     char              *s;
-    header_field_info *hfinfo;
 
-    di = (dcerpc_info *)pinfo->private_data;
+    /* Make sure this really is a string field. */
+    hfinfo = proto_registrar_get_nth(hfindex);
+    DISSECTOR_ASSERT(hfinfo->type == FT_STRING);
+
     if (di->conformant_run) {
         /* just a run to handle conformant arrays, no scalars to dissect */
         return offset;
@@ -1539,13 +1988,13 @@ dissect_ndr_cvstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
 
     /* NDR array header */
 
-    offset = dissect_ndr_uint3264(tvb, offset, pinfo, string_tree, drep,
+    offset = dissect_ndr_uint3264(tvb, offset, pinfo, string_tree, di, drep,
                                   hf_dcerpc_array_max_count, NULL);
 
-    offset = dissect_ndr_uint3264(tvb, offset, pinfo, string_tree, drep,
+    offset = dissect_ndr_uint3264(tvb, offset, pinfo, string_tree, di, drep,
                                   hf_dcerpc_array_offset, NULL);
 
-    offset = dissect_ndr_uint3264(tvb, offset, pinfo, string_tree, drep,
+    offset = dissect_ndr_uint3264(tvb, offset, pinfo, string_tree, di, drep,
                                   hf_dcerpc_array_actual_count, &len);
 
     DISSECTOR_ASSERT(len <= G_MAXUINT32);
@@ -1555,44 +2004,35 @@ dissect_ndr_cvstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
     if (!di->no_align && (offset % size_is))
         offset += size_is - (offset % size_is);
 
+    /*
+     * "tvb_get_string_enc()" throws an exception if the entire string
+     * isn't in the tvbuff.  If the length is bogus, this should
+     * keep us from trying to allocate an immensely large buffer.
+     * (It won't help if the length is *valid* but immensely large,
+     * but that's another matter; in any case, that would happen only
+     * if we had an immensely large tvbuff....)
+     *
+     * XXX - so why are we doing tvb_ensure_bytes_exist()?
+     */
+    tvb_ensure_bytes_exist(tvb, offset, buffer_len);
     if (size_is == sizeof(guint16)) {
-        /* XXX - use drep to determine the byte order? */
-        /* XXX - once we have an ENC_ value for UTF-16, just use
-           proto_tree_add_item() with the appropriate ENC_ value? */
-        /* XXX - should this ever be used with something that's *not*
-           an FT_STRING? */
-        s = tvb_get_ephemeral_unicode_string(tvb, offset, buffer_len, ENC_LITTLE_ENDIAN);
-        if (tree && buffer_len) {
-            hfinfo = proto_registrar_get_nth(hfindex);
-            tvb_ensure_bytes_exist(tvb, offset, buffer_len);
-            if (hfinfo->type == FT_STRING) {
-                proto_tree_add_string(string_tree, hfindex, tvb, offset,
-                                      buffer_len, s);
-            } else {
-                proto_tree_add_item(string_tree, hfindex, tvb, offset,
-                                    buffer_len, DREP_ENC_INTEGER(drep));
-            }
-        }
-
+        /*
+         * Assume little-endian UTF-16.
+         *
+         * XXX - is this always little-endian?
+         */
+        s = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, buffer_len,
+                               ENC_UTF_16|ENC_LITTLE_ENDIAN);
     } else {
         /*
-         * "tvb_get_ephemeral_string()" throws an exception if the entire string
-         * isn't in the tvbuff.  If the length is bogus, this should
-         * keep us from trying to allocate an immensely large buffer.
-         * (It won't help if the length is *valid* but immensely large,
-         * but that's another matter; in any case, that would happen only
-         * if we had an immensely large tvbuff....)
-         *
-         * XXX - if this is an octet string, does the byte order
-         * matter?  Will this ever be anything *other* than an
-         * octet string?  What if size_is is neither 1 nor 2?
+         * XXX - what if size_is is neither 1 nor 2?
          */
-        tvb_ensure_bytes_exist(tvb, offset, buffer_len);
-        s = tvb_get_ephemeral_string(tvb, offset, buffer_len);
-        if (tree && buffer_len)
-            proto_tree_add_item(string_tree, hfindex, tvb, offset,
-                                buffer_len, DREP_ENC_INTEGER(drep));
+        s = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, buffer_len,
+                               DREP_ENC_CHAR(drep));
     }
+    if (tree && buffer_len)
+        proto_tree_add_string(string_tree, hfindex, tvb, offset,
+                              buffer_len, s);
 
     if (string_item != NULL)
         proto_item_append_text(string_item, ": %s", s);
@@ -1607,6 +2047,14 @@ dissect_ndr_cvstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
     return offset;
 }
 
+int
+dissect_ndr_cstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
+                    proto_tree *tree, dcerpc_info *di, guint8 *drep, int size_is,
+                    int hfindex, gboolean add_subtree, char **data)
+{
+    return dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep, size_is, hfindex, add_subtree, data);
+}
+
 /* Dissect an conformant varying string of chars.
    This corresponds to IDL of the form '[string] char *foo'.
 
@@ -1618,12 +2066,9 @@ dissect_ndr_cvstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
    (Not that it matters if it is.) */
 int
 dissect_ndr_char_cvstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
-                          proto_tree *tree, guint8 *drep)
+                          proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    dcerpc_info *di;
-    di = (dcerpc_info *)pinfo->private_data;
-
-    return dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep,
+    return dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep,
                                 sizeof(guint8), di->hf_index,
                                 FALSE, NULL);
 }
@@ -1639,12 +2084,9 @@ dissect_ndr_char_cvstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
    (Not that it matters if it is.) */
 int
 dissect_ndr_wchar_cvstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
-                           proto_tree *tree, guint8 *drep)
+                           proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    dcerpc_info *di;
-    di = (dcerpc_info *)pinfo->private_data;
-
-    return dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep,
+    return dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep,
                                 sizeof(guint16), di->hf_index,
                                 FALSE, NULL);
 }
@@ -1653,15 +2095,12 @@ dissect_ndr_wchar_cvstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
  * unicode string.
  */
 int
-PIDL_dissect_cvstring(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep, int chsize, int hfindex, guint32 param)
+PIDL_dissect_cvstring(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep, int chsize, int hfindex, guint32 param)
 {
-    dcerpc_info *di;
     char        *s      = NULL;
     gint         levels = CB_STR_ITEM_LEVELS(param);
 
-    di = (dcerpc_info *)pinfo->private_data;
-
-    offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep,
+    offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep,
                                   chsize, hfindex,
                                   FALSE, &s);
 
@@ -1674,7 +2113,7 @@ PIDL_dissect_cvstring(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree 
         if ((param & PIDL_STR_SAVE)
            && (!pinfo->fd->flags.visited)) {
             dcerpc_call_value *dcv = (dcerpc_call_value *)di->call_data;
-            dcv->private_data = se_strdup(s);
+            dcv->private_data = wmem_strdup(wmem_file_scope(), s);
         }
         /* Append string to upper-level proto_items */
         if ((levels > 0) && tree && s && s[0]) {
@@ -1704,18 +2143,20 @@ PIDL_dissect_cvstring(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree 
 */
 int
 dissect_ndr_vstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
-                    proto_tree *tree, guint8 *drep, int size_is,
+                    proto_tree *tree, dcerpc_info *di, guint8 *drep, int size_is,
                     int hfindex, gboolean add_subtree, char **data)
 {
-    dcerpc_info       *di;
+    header_field_info *hfinfo;
     proto_item        *string_item;
     proto_tree        *string_tree;
     guint64            len;
     guint32            buffer_len;
     char              *s;
-    header_field_info *hfinfo;
 
-    di = (dcerpc_info *)pinfo->private_data;
+    /* Make sure this really is a string field. */
+    hfinfo = proto_registrar_get_nth(hfindex);
+    DISSECTOR_ASSERT(hfinfo->type == FT_STRING);
+
     if (di->conformant_run) {
         /* just a run to handle conformant arrays, no scalars to dissect */
         return offset;
@@ -1731,10 +2172,10 @@ dissect_ndr_vstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
     }
 
     /* NDR array header */
-    offset = dissect_ndr_uint3264(tvb, offset, pinfo, string_tree, drep,
+    offset = dissect_ndr_uint3264(tvb, offset, pinfo, string_tree, di, drep,
                                   hf_dcerpc_array_offset, NULL);
 
-    offset = dissect_ndr_uint3264(tvb, offset, pinfo, string_tree, drep,
+    offset = dissect_ndr_uint3264(tvb, offset, pinfo, string_tree, di, drep,
                                   hf_dcerpc_array_actual_count, &len);
 
     DISSECTOR_ASSERT(len <= G_MAXUINT32);
@@ -1744,44 +2185,35 @@ dissect_ndr_vstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
     if (!di->no_align && (offset % size_is))
         offset += size_is - (offset % size_is);
 
+    /*
+     * "tvb_get_string_enc()" throws an exception if the entire string
+     * isn't in the tvbuff.  If the length is bogus, this should
+     * keep us from trying to allocate an immensely large buffer.
+     * (It won't help if the length is *valid* but immensely large,
+     * but that's another matter; in any case, that would happen only
+     * if we had an immensely large tvbuff....)
+     *
+     * XXX - so why are we doing tvb_ensure_bytes_exist()?
+     */
+    tvb_ensure_bytes_exist(tvb, offset, buffer_len);
     if (size_is == sizeof(guint16)) {
-        /* XXX - use drep to determine the byte order? */
-        /* XXX - once we have an ENC_ value for UTF-16, just use
-           proto_tree_add_item() with the appropriate ENC_ value? */
-        /* XXX - should this ever be used with something that's *not*
-           an FT_STRING? */
-        s = tvb_get_ephemeral_unicode_string(tvb, offset, buffer_len, ENC_LITTLE_ENDIAN);
-        if (tree && buffer_len) {
-            hfinfo = proto_registrar_get_nth(hfindex);
-            tvb_ensure_bytes_exist(tvb, offset, buffer_len);
-            if (hfinfo->type == FT_STRING) {
-                proto_tree_add_string(string_tree, hfindex, tvb, offset,
-                                      buffer_len, s);
-            } else {
-                proto_tree_add_item(string_tree, hfindex, tvb, offset,
-                                    buffer_len, DREP_ENC_INTEGER(drep));
-            }
-        }
-
+        /*
+         * Assume little-endian UTF-16.
+         *
+         * XXX - is this always little-endian?
+         */
+        s = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, buffer_len,
+                               ENC_UTF_16|ENC_LITTLE_ENDIAN);
     } else {
         /*
-         * "tvb_get_ephemeral_string()" throws an exception if the entire string
-         * isn't in the tvbuff.  If the length is bogus, this should
-         * keep us from trying to allocate an immensely large buffer.
-         * (It won't help if the length is *valid* but immensely large,
-         * but that's another matter; in any case, that would happen only
-         * if we had an immensely large tvbuff....)
-         *
-         * XXX - if this is an octet string, does the byte order
-         * matter?  Will this ever be anything *other* than an
-         * octet string?  What if size_is is neither 1 nor 2?
+         * XXX - what if size_is is neither 1 nor 2?
          */
-        tvb_ensure_bytes_exist(tvb, offset, buffer_len);
-        s = tvb_get_ephemeral_string(tvb, offset, buffer_len);
-        if (tree && buffer_len)
-            proto_tree_add_item(string_tree, hfindex, tvb, offset,
-                                buffer_len, DREP_ENC_INTEGER(drep));
+        s = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, buffer_len,
+                               DREP_ENC_CHAR(drep));
     }
+    if (tree && buffer_len)
+        proto_tree_add_string(string_tree, hfindex, tvb, offset,
+                              buffer_len, s);
 
     if (string_item != NULL)
         proto_item_append_text(string_item, ": %s", s);
@@ -1807,12 +2239,9 @@ dissect_ndr_vstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
    (Not that it matters if it is.) */
 int
 dissect_ndr_char_vstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
-                         proto_tree *tree, guint8 *drep)
+                         proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    dcerpc_info *di;
-    di = (dcerpc_info *)pinfo->private_data;
-
-    return dissect_ndr_vstring(tvb, offset, pinfo, tree, drep,
+    return dissect_ndr_vstring(tvb, offset, pinfo, tree, di, drep,
                                sizeof(guint8), di->hf_index,
                                FALSE, NULL);
 }
@@ -1828,12 +2257,9 @@ dissect_ndr_char_vstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
    (Not that it matters if it is.) */
 int
 dissect_ndr_wchar_vstring(tvbuff_t *tvb, int offset, packet_info *pinfo,
-                          proto_tree *tree, guint8 *drep)
+                          proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
-    dcerpc_info *di;
-    di = (dcerpc_info *)pinfo->private_data;
-
-    return dissect_ndr_vstring(tvb, offset, pinfo, tree, drep,
+    return dissect_ndr_vstring(tvb, offset, pinfo, tree, di, drep,
                                sizeof(guint16), di->hf_index,
                                FALSE, NULL);
 }
@@ -1862,11 +2288,8 @@ typedef struct ndr_pointer_data {
 } ndr_pointer_data_t;
 
 void
-init_ndr_pointer_list(packet_info *pinfo)
+init_ndr_pointer_list(dcerpc_info *di)
 {
-    dcerpc_info *di;
-
-    di = (dcerpc_info *)pinfo->private_data;
     di->conformant_run = 0;
 
     while (ndr_pointer_list) {
@@ -1881,21 +2304,20 @@ init_ndr_pointer_list(packet_info *pinfo)
 }
 
 int
-dissect_deferred_pointers(packet_info *pinfo, tvbuff_t *tvb, int offset, guint8 *drep)
+dissect_deferred_pointers(packet_info *pinfo, tvbuff_t *tvb, int offset, dcerpc_info *di, guint8 *drep)
 {
     int          found_new_pointer;
-    dcerpc_info *di;
     int          old_offset;
     int          next_pointer;
 
     next_pointer = 0;
-    di = (dcerpc_info *)pinfo->private_data;
+
     do{
         int i, len;
 
         found_new_pointer = 0;
         len = g_slist_length(ndr_pointer_list);
-        for(i=next_pointer; i<len; i++) {
+        for (i=next_pointer; i<len; i++) {
             ndr_pointer_data_t *tnpd = (ndr_pointer_data_t *)g_slist_nth_data(ndr_pointer_list, i);
             if (tnpd->fnct) {
                 dcerpc_dissect_fnct_t *fnct;
@@ -1911,7 +2333,7 @@ dissect_deferred_pointers(packet_info *pinfo, tvbuff_t *tvb, int offset, guint8 
                 di->conformant_run = 1;
                 di->conformant_eaten = 0;
                 old_offset = offset;
-                offset = (*(fnct))(tvb, offset, pinfo, NULL, drep);
+                offset = (*(fnct))(tvb, offset, pinfo, NULL, di, drep);
 
                 DISSECTOR_ASSERT((offset-old_offset) == di->conformant_eaten);
                 /* This is to check for any bugs in the dissectors.
@@ -1948,9 +2370,8 @@ dissect_deferred_pointers(packet_info *pinfo, tvbuff_t *tvb, int offset, guint8 
                  * this call to an external subdissector with the appropriate
                  * test for conformant_run, i.e. it will need something like
                  *
-                 *      dcerpc_info *di;
+                 *      dcerpc_info *di (received as function parameter)
                  *
-                 *      di = (dcerpc_info *)pinfo->private_data;
                  *      if (di->conformant_run) {
                  *              return offset;
                  *      }
@@ -1963,9 +2384,9 @@ dissect_deferred_pointers(packet_info *pinfo, tvbuff_t *tvb, int offset, guint8 
                 /* now we dissect the actual pointer */
                 di->conformant_run = 0;
                 old_offset = offset;
-                offset = (*(fnct))(tvb, offset, pinfo, tnpd->tree, drep);
+                offset = (*(fnct))(tvb, offset, pinfo, tnpd->tree, di, drep);
                 if (tnpd->callback)
-                    tnpd->callback(pinfo, tnpd->tree, tnpd->item, tvb, old_offset, offset, tnpd->callback_args);
+                    tnpd->callback(pinfo, tnpd->tree, tnpd->item, di, tvb, old_offset, offset, tnpd->callback_args);
                 proto_item_set_len(tnpd->item, offset - old_offset);
                 break;
             }
@@ -1978,17 +2399,15 @@ dissect_deferred_pointers(packet_info *pinfo, tvbuff_t *tvb, int offset, guint8 
 
 static void
 add_pointer_to_list(packet_info *pinfo, proto_tree *tree, proto_item *item,
-                    dcerpc_dissect_fnct_t *fnct, guint32 id, int hf_index,
+                    dcerpc_info *di, dcerpc_dissect_fnct_t *fnct, guint32 id, int hf_index,
                     dcerpc_callback_fnct_t *callback, void *callback_args)
 {
     ndr_pointer_data_t *npd;
 
     /* check if this pointer is valid */
     if (id != 0xffffffff) {
-        dcerpc_info *di;
         dcerpc_call_value *value;
 
-        di = (dcerpc_info *)pinfo->private_data;
         value = di->call_data;
 
         if (di->ptype == PDU_REQ) {
@@ -2034,7 +2453,7 @@ find_pointer_index(guint32 id)
     int                 i,len;
 
     len = g_slist_length(ndr_pointer_list);
-    for(i=0; i<len; i++) {
+    for (i=0; i<len; i++) {
         npd = (ndr_pointer_data_t *)g_slist_nth_data(ndr_pointer_list, i);
         if (npd) {
             if (npd->id == id) {
@@ -2067,16 +2486,14 @@ find_pointer_index(guint32 id)
  */
 int
 dissect_ndr_pointer_cb(tvbuff_t *tvb, gint offset, packet_info *pinfo,
-                       proto_tree *tree, guint8 *drep, dcerpc_dissect_fnct_t *fnct,
+                       proto_tree *tree, dcerpc_info *di, guint8 *drep, dcerpc_dissect_fnct_t *fnct,
                        int type, const char *text, int hf_index,
                        dcerpc_callback_fnct_t *callback, void *callback_args)
 {
-    dcerpc_info *di;
     proto_tree  *tr           = NULL;
     gint         start_offset = offset;
     int          pointer_size = 4;
 
-    di = (dcerpc_info *)pinfo->private_data;
     if (di->conformant_run) {
         /* this call was only for dissecting the header for any
            embedded conformant array. we will not parse any
@@ -2099,7 +2516,7 @@ dissect_ndr_pointer_cb(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                                    "%s", text);
         tr = proto_item_add_subtree(item,ett_dcerpc_pointer_data);
 
-        add_pointer_to_list(pinfo, tr, item, fnct, 0xffffffff,
+        add_pointer_to_list(pinfo, tr, item, di, fnct, 0xffffffff,
                             hf_index, callback, callback_args);
         goto after_ref_id;
     }
@@ -2112,7 +2529,7 @@ dissect_ndr_pointer_cb(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         proto_item *item;
 
         /* get the referent id */
-        offset = dissect_ndr_uint3264(tvb, offset, pinfo, NULL, drep, -1, &id);
+        offset = dissect_ndr_uint3264(tvb, offset, pinfo, NULL, di, drep, -1, &id);
 
         tvb_ensure_bytes_exist(tvb, offset-pointer_size, pointer_size);
         /* we got a NULL pointer */
@@ -2142,7 +2559,7 @@ dissect_ndr_pointer_cb(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         tr = proto_item_add_subtree(item,ett_dcerpc_pointer_data);
         proto_tree_add_uint(tr, hf_dcerpc_referent_id, tvb,
                             offset-pointer_size, pointer_size, (guint32)id);
-        add_pointer_to_list(pinfo, tr, item, fnct, (guint32)id, hf_index,
+        add_pointer_to_list(pinfo, tr, item, di, fnct, (guint32)id, hf_index,
                             callback, callback_args);
         goto after_ref_id;
     }
@@ -2153,7 +2570,7 @@ dissect_ndr_pointer_cb(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         proto_item *item;
 
         /* get the referent id */
-        offset = dissect_ndr_uint3264(tvb, offset, pinfo, NULL, drep, -1, &id);
+        offset = dissect_ndr_uint3264(tvb, offset, pinfo, NULL, di, drep, -1, &id);
 
         tvb_ensure_bytes_exist(tvb, offset-pointer_size, pointer_size);
         /* we got a NULL pointer */
@@ -2172,7 +2589,7 @@ dissect_ndr_pointer_cb(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         tr = proto_item_add_subtree(item,ett_dcerpc_pointer_data);
         proto_tree_add_uint(tr, hf_dcerpc_referent_id, tvb,
                             offset-pointer_size, pointer_size, (guint32)id);
-        add_pointer_to_list(pinfo, tr, item, fnct, 0xffffffff,
+        add_pointer_to_list(pinfo, tr, item, di, fnct, 0xffffffff,
                             hf_index, callback, callback_args);
         goto after_ref_id;
     }
@@ -2184,7 +2601,7 @@ dissect_ndr_pointer_cb(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         proto_item *item;
 
         /* get the referent id */
-        offset = dissect_ndr_uint3264(tvb, offset, pinfo, NULL, drep, -1, &id);
+        offset = dissect_ndr_uint3264(tvb, offset, pinfo, NULL, di, drep, -1, &id);
 
         tvb_ensure_bytes_exist(tvb, offset-pointer_size, pointer_size);
         /* new pointer */
@@ -2195,7 +2612,7 @@ dissect_ndr_pointer_cb(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         DISSECTOR_ASSERT(id <= G_MAXUINT32);
         proto_tree_add_uint(tr, hf_dcerpc_referent_id, tvb,
                             offset-pointer_size, pointer_size, (guint32)id);
-        add_pointer_to_list(pinfo, tr, item, fnct, 0xffffffff,
+        add_pointer_to_list(pinfo, tr, item, di, fnct, 0xffffffff,
                             hf_index, callback, callback_args);
         goto after_ref_id;
     }
@@ -2207,7 +2624,7 @@ dissect_ndr_pointer_cb(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         proto_item *item;
 
         /* get the referent id */
-        offset = dissect_ndr_uint3264(tvb, offset, pinfo, NULL, drep, -1, &id);
+        offset = dissect_ndr_uint3264(tvb, offset, pinfo, NULL, di, drep, -1, &id);
 
         tvb_ensure_bytes_exist(tvb, offset-pointer_size, pointer_size);
         /* we got a NULL pointer */
@@ -2226,7 +2643,7 @@ dissect_ndr_pointer_cb(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         DISSECTOR_ASSERT(id <= G_MAXUINT32);
         proto_tree_add_uint(tr, hf_dcerpc_referent_id, tvb,
                             offset-pointer_size, pointer_size, (guint32)id);
-        add_pointer_to_list(pinfo, tr, item, fnct, 0xffffffff,
+        add_pointer_to_list(pinfo, tr, item, di, fnct, 0xffffffff,
                             hf_index, callback, callback_args);
         goto after_ref_id;
     }
@@ -2239,7 +2656,7 @@ dissect_ndr_pointer_cb(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         proto_item *item;
 
         /* get the referent id */
-        offset = dissect_ndr_uint3264(tvb, offset, pinfo, NULL, drep, -1, &id);
+        offset = dissect_ndr_uint3264(tvb, offset, pinfo, NULL, di, drep, -1, &id);
 
         tvb_ensure_bytes_exist(tvb, offset-pointer_size, pointer_size);
         /* we got a NULL pointer */
@@ -2269,7 +2686,7 @@ dissect_ndr_pointer_cb(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         tr = proto_item_add_subtree(item,ett_dcerpc_pointer_data);
         proto_tree_add_uint(tr, hf_dcerpc_referent_id, tvb,
                             offset-pointer_size, pointer_size, (guint32)id);
-        add_pointer_to_list(pinfo, tr, item, fnct, (guint32)id, hf_index,
+        add_pointer_to_list(pinfo, tr, item, di, fnct, (guint32)id, hf_index,
                             callback, callback_args);
         goto after_ref_id;
     }
@@ -2281,7 +2698,7 @@ after_ref_id:
        argument */
     if (pointers_are_top_level == TRUE) {
         pointers_are_top_level = FALSE;
-        offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
+        offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
         pointers_are_top_level = TRUE;
     }
 
@@ -2294,36 +2711,36 @@ after_ref_id:
 
 int
 dissect_ndr_pointer(tvbuff_t *tvb, gint offset, packet_info *pinfo,
-                    proto_tree *tree, guint8 *drep, dcerpc_dissect_fnct_t *fnct,
+                    proto_tree *tree, dcerpc_info *di, guint8 *drep, dcerpc_dissect_fnct_t *fnct,
                     int type, const char *text, int hf_index)
 {
     return dissect_ndr_pointer_cb(
-        tvb, offset, pinfo, tree, drep, fnct, type, text, hf_index,
+        tvb, offset, pinfo, tree, di, drep, fnct, type, text, hf_index,
         NULL, NULL);
 }
 int
 dissect_ndr_toplevel_pointer(tvbuff_t *tvb, gint offset, packet_info *pinfo,
-                             proto_tree *tree, guint8 *drep, dcerpc_dissect_fnct_t *fnct,
+                             proto_tree *tree, dcerpc_info *di, guint8 *drep, dcerpc_dissect_fnct_t *fnct,
                              int type, const char *text, int hf_index)
 {
     int ret;
 
     pointers_are_top_level = TRUE;
     ret = dissect_ndr_pointer_cb(
-        tvb, offset, pinfo, tree, drep, fnct, type, text, hf_index,
+        tvb, offset, pinfo, tree, di, drep, fnct, type, text, hf_index,
         NULL, NULL);
     return ret;
 }
 int
 dissect_ndr_embedded_pointer(tvbuff_t *tvb, gint offset, packet_info *pinfo,
-                             proto_tree *tree, guint8 *drep, dcerpc_dissect_fnct_t *fnct,
+                             proto_tree *tree, dcerpc_info *di, guint8 *drep, dcerpc_dissect_fnct_t *fnct,
                              int type, const char *text, int hf_index)
 {
     int ret;
 
     pointers_are_top_level = FALSE;
     ret = dissect_ndr_pointer_cb(
-        tvb, offset, pinfo, tree, drep, fnct, type, text, hf_index,
+        tvb, offset, pinfo, tree, di, drep, fnct, type, text, hf_index,
         NULL, NULL);
     return ret;
 }
@@ -2400,7 +2817,6 @@ dcerpc_try_handoff(packet_info *pinfo, proto_tree *tree,
     dcerpc_sub_dissector *proc;
     const gchar          *name     = NULL;
     const char *volatile  saved_proto;
-    void *volatile        saved_private_data;
     guint                 length   = 0, reported_length = 0;
     tvbuff_t *volatile    stub_tvb;
     volatile guint        auth_pad_len;
@@ -2441,13 +2857,15 @@ dcerpc_try_handoff(packet_info *pinfo, proto_tree *tree,
         }
     }
 
-    if (!name)
-        name = "Unknown?!";
-
     col_set_str(pinfo->cinfo, COL_PROTOCOL, sub_proto->name);
 
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s",
-                 name, (info->ptype == PDU_REQ) ? "request" : "response");
+    if (!name)
+        col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown operation %u %s",
+                     info->call_data->opnum,
+                     (info->ptype == PDU_REQ) ? "request" : "response");
+    else
+        col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s",
+                     name, (info->ptype == PDU_REQ) ? "request" : "response");
 
     sub_dissect = (info->ptype == PDU_REQ) ?
         proc->dissect_rqst : proc->dissect_resp;
@@ -2459,7 +2877,11 @@ dcerpc_try_handoff(packet_info *pinfo, proto_tree *tree,
 
         if (sub_item) {
             sub_tree = proto_item_add_subtree(sub_item, sub_proto->ett);
-            proto_item_append_text(sub_item, ", %s", name);
+            if (!name)
+                proto_item_append_text(sub_item, ", unknown operation %u",
+                                       info->call_data->opnum);
+            else
+                proto_item_append_text(sub_item, ", %s", name);
         }
 
         /*
@@ -2470,12 +2892,14 @@ dcerpc_try_handoff(packet_info *pinfo, proto_tree *tree,
             proto_tree_add_uint_format(sub_tree, sub_proto->opnum_hf,
                                        tvb, 0, 0, info->call_data->opnum,
                                        "Operation: %s (%u)",
-                                       name, info->call_data->opnum);
+                                       name ? name : "Unknown operation",
+                                       info->call_data->opnum);
         else
-            proto_tree_add_uint_format(sub_tree, hf_dcerpc_op, tvb,
+            proto_tree_add_uint_format_value(sub_tree, hf_dcerpc_op, tvb,
                                        0, 0, info->call_data->opnum,
-                                       "Operation: %s (%u)",
-                                       name, info->call_data->opnum);
+                                       "%s (%u)",
+                                       name ? name : "Unknown operation",
+                                       info->call_data->opnum);
 
         if ((info->ptype == PDU_REQ) && (info->call_data->rep_frame != 0)) {
             pi = proto_tree_add_uint(sub_tree, hf_dcerpc_response_in,
@@ -2495,11 +2919,9 @@ dcerpc_try_handoff(packet_info *pinfo, proto_tree *tree,
         if (sub_dissect) {
             /* We have a subdissector - call it. */
             saved_proto          = pinfo->current_proto;
-            saved_private_data   = pinfo->private_data;
             pinfo->current_proto = sub_proto->name;
-            pinfo->private_data  = (void *)info;
 
-            init_ndr_pointer_list(pinfo);
+            init_ndr_pointer_list(info);
 
             length = tvb_length(decrypted_tvb);
             reported_length = tvb_reported_length(decrypted_tvb);
@@ -2567,7 +2989,7 @@ dcerpc_try_handoff(packet_info *pinfo, proto_tree *tree,
                     int remaining;
 
                     offset = sub_dissect(stub_tvb, 0, pinfo, sub_tree,
-                                          drep);
+                                          info, drep);
 
                     /* If we have a subdissector and it didn't dissect all
                        data in the tvb, make a note of it. */
@@ -2610,7 +3032,6 @@ dcerpc_try_handoff(packet_info *pinfo, proto_tree *tree,
             }
 
             pinfo->current_proto = saved_proto;
-            pinfo->private_data  = saved_private_data;
         } else {
             /* No subdissector - show it as stub data. */
             if (decrypted_tvb) {
@@ -2778,14 +3199,23 @@ dissect_dcerpc_cn_auth(tvbuff_t *tvb, int stub_offset, packet_info *pinfo,
 
 guint16 dcerpc_get_transport_salt(packet_info *pinfo)
 {
-    switch (pinfo->dcetransporttype) {
+    dcerpc_decode_as_data* decode_data = dcerpc_get_decode_data(pinfo);
+
+    switch (decode_data->dcetransporttype) {
     case DCE_CN_TRANSPORT_SMBPIPE:
         /* DCERPC over smb */
-        return pinfo->dcetransportsalt;
+        return decode_data->dcetransportsalt;
     }
 
     /* Some other transport... */
     return 0;
+}
+
+void dcerpc_set_transport_salt(guint16 dcetransportsalt, packet_info *pinfo)
+{
+    dcerpc_decode_as_data* decode_data = dcerpc_get_decode_data(pinfo);
+
+    decode_data->dcetransportsalt = dcetransportsalt;
 }
 
 /*
@@ -2810,6 +3240,7 @@ dissect_dcerpc_cn_bind(tvbuff_t *tvb, gint offset, packet_info *pinfo,
     char             *uuid_str;
     const char       *uuid_name     = NULL;
     proto_item       *iface_item    = NULL;
+    dcerpc_decode_as_data* decode_data = dcerpc_get_decode_data(pinfo);
 
     offset = dissect_dcerpc_uint16(tvb, offset, pinfo, dcerpc_tree, hdr->drep,
                                    hf_dcerpc_cn_max_xmit, NULL);
@@ -2839,7 +3270,7 @@ dissect_dcerpc_cn_bind(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         /* save context ID for use with dcerpc_add_conv_to_bind_table() */
         /* (if we have multiple contexts, this might cause "decode as"
          *  to behave unpredictably) */
-        pinfo->dcectxid = ctx_id;
+        decode_data->dcectxid = ctx_id;
 
         if (dcerpc_tree) {
             ctx_item = proto_tree_add_item(dcerpc_tree, hf_dcerpc_cn_ctx_item,
@@ -2854,7 +3285,7 @@ dissect_dcerpc_cn_bind(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                                       hf_dcerpc_cn_num_trans_items, &num_trans_items);
 
         if (dcerpc_tree) {
-            proto_item_append_text(ctx_item, "[%u]: ID:%u", i+1, ctx_id);
+            proto_item_append_text(ctx_item, "[%u]: Context ID:%u", i+1, ctx_id);
         }
 
         /* padding */
@@ -2866,16 +3297,18 @@ dissect_dcerpc_cn_bind(tvbuff_t *tvb, gint offset, packet_info *pinfo,
             iface_item = proto_tree_add_item(ctx_tree, hf_dcerpc_cn_bind_abstract_syntax, tvb, offset, 0, ENC_NA);
             iface_tree = proto_item_add_subtree(iface_item, ett_dcerpc_cn_iface);
 
-            uuid_str = guid_to_str((e_guid_t*)&if_id);
+            uuid_str = guid_to_ep_str((e_guid_t*)&if_id);
             uuid_name = guids_get_uuid_name(&if_id);
             if (uuid_name) {
                 proto_tree_add_guid_format(iface_tree, hf_dcerpc_cn_bind_if_id, tvb,
                                            offset, 16, (e_guid_t *) &if_id, "Interface: %s UUID: %s", uuid_name, uuid_str);
                 proto_item_append_text(iface_item, ": %s", uuid_name);
+                proto_item_append_text(ctx_item, ", %s", uuid_name);
             } else {
                 proto_tree_add_guid_format(iface_tree, hf_dcerpc_cn_bind_if_id, tvb,
                                            offset, 16, (e_guid_t *) &if_id, "Interface UUID: %s", uuid_str);
                 proto_item_append_text(iface_item, ": %s", uuid_str);
+                proto_item_append_text(ctx_item, ", %s", uuid_str);
             }
         }
         offset += 16;
@@ -2901,6 +3334,7 @@ dissect_dcerpc_cn_bind(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         for (j = 0; j < num_trans_items; j++) {
             proto_tree *trans_tree = NULL;
             proto_item *trans_item = NULL;
+            proto_item *uuid_item = NULL;
 
             dcerpc_tvb_get_uuid(tvb, offset, hdr->drep, &trans_id);
             if (ctx_tree) {
@@ -2908,18 +3342,24 @@ dissect_dcerpc_cn_bind(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                 trans_item = proto_tree_add_item(ctx_tree, hf_dcerpc_cn_bind_trans_syntax, tvb, offset, 0, ENC_NA);
                 trans_tree = proto_item_add_subtree(trans_item, ett_dcerpc_cn_trans_syntax);
 
-                uuid_str = guid_to_str((e_guid_t *) &trans_id);
+                uuid_str = guid_to_ep_str((e_guid_t *) &trans_id);
                 uuid_name = guids_get_uuid_name(&trans_id);
 
                 if (uuid_name) {
-                    proto_tree_add_guid_format(trans_tree, hf_dcerpc_cn_bind_trans_id, tvb,
-                                               offset, 16, (e_guid_t *) &trans_id,
-                                               "Transport Syntax: %s UUID:%s", uuid_name, uuid_str);
+                    uuid_item = proto_tree_add_guid_format(trans_tree, hf_dcerpc_cn_bind_trans_id, tvb, offset, 16, (e_guid_t *) &trans_id, "Transfer Syntax: %s UUID:%s", uuid_name, uuid_str);
                     proto_item_append_text(trans_item, "[%u]: %s", j+1, uuid_name);
+                    proto_item_append_text(ctx_item, ", %s", uuid_name);
                 } else {
-                    proto_tree_add_guid_format(trans_tree, hf_dcerpc_cn_bind_trans_id, tvb,
-                                               offset, 16, (e_guid_t *) &trans_id, "Transport Syntax: %s", uuid_str);
+                    uuid_item = proto_tree_add_guid_format(trans_tree, hf_dcerpc_cn_bind_trans_id, tvb, offset, 16, (e_guid_t *) &trans_id, "Transfer Syntax: %s", uuid_str);
                     proto_item_append_text(trans_item, "[%u]: %s", j+1, uuid_str);
+                    proto_item_append_text(ctx_item, ", %s", uuid_str);
+                }
+
+                /* check for [MS-RPCE] 3.3.1.5.3 Bind Time Feature Negotiation */
+                if (trans_id.Data1 == 0x6cb71c2c && trans_id.Data2 == 0x9812 && trans_id.Data3 == 0x4540) {
+                    proto_tree *uuid_tree = proto_item_add_subtree(uuid_item, ett_dcerpc_cn_trans_btfn);
+                    proto_tree_add_boolean(uuid_tree, hf_dcerpc_cn_bind_trans_btfn_01, tvb, offset+8, 1, trans_id.Data4[0]);
+                    proto_tree_add_boolean(uuid_tree, hf_dcerpc_cn_bind_trans_btfn_02, tvb, offset+8, 1, trans_id.Data4[0]);
                 }
             }
             offset += 16;
@@ -2941,12 +3381,12 @@ dissect_dcerpc_cn_bind(tvbuff_t *tvb, gint offset, packet_info *pinfo,
             dcerpc_bind_key   *key;
             dcerpc_bind_value *value;
 
-            key = (dcerpc_bind_key *)se_alloc(sizeof (dcerpc_bind_key));
+            key = (dcerpc_bind_key *)wmem_alloc(wmem_file_scope(), sizeof (dcerpc_bind_key));
             key->conv = conv;
             key->ctx_id = ctx_id;
             key->smb_fid = dcerpc_get_transport_salt(pinfo);
 
-            value = (dcerpc_bind_value *)se_alloc(sizeof (dcerpc_bind_value));
+            value = (dcerpc_bind_value *)wmem_alloc(wmem_file_scope(), sizeof (dcerpc_bind_value));
             value->uuid = if_id;
             value->ver = if_ver;
             value->transport = trans_id;
@@ -2988,6 +3428,7 @@ dissect_dcerpc_cn_bind_ack(tvbuff_t *tvb, gint offset, packet_info *pinfo,
     guint32           trans_ver;
     dcerpc_auth_info  auth_info;
     const char       *uuid_name = NULL;
+    const char       *result_str = NULL;
 
     offset = dissect_dcerpc_uint16(tvb, offset, pinfo, dcerpc_tree, hdr->drep,
                                    hf_dcerpc_cn_max_xmit, &max_xmit);
@@ -3022,17 +3463,24 @@ dissect_dcerpc_cn_bind_ack(tvbuff_t *tvb, gint offset, packet_info *pinfo,
 
     for (i = 0; i < num_results; i++) {
         proto_tree *ctx_tree = NULL;
+        proto_item *ctx_item = NULL;
 
         if (dcerpc_tree) {
-            proto_item *ctx_item;
-            ctx_item = proto_tree_add_text(dcerpc_tree, tvb, offset, 24, "Context ID[%u]", i+1);
+            ctx_item = proto_tree_add_text(dcerpc_tree, tvb, offset, 24, "Ctx Item[%u]:", i+1);
             ctx_tree = proto_item_add_subtree(ctx_item, ett_dcerpc_cn_ctx);
         }
 
         offset = dissect_dcerpc_uint16(tvb, offset, pinfo, ctx_tree,
                                        hdr->drep, hf_dcerpc_cn_ack_result,
                                        &result);
-        if (result != 0) {
+
+        /* [MS-RPCE] 3.3.1.5.3 check if this Ctx Item is the response to a Bind Time Feature Negotiation request */
+        if (result == 3) {
+            const int old_offset = offset;
+            offset = dissect_dcerpc_uint16(tvb, offset, pinfo, ctx_tree, hdr->drep, hf_dcerpc_cn_ack_btfn, &reason);
+            proto_tree_add_boolean(ctx_tree, hf_dcerpc_cn_bind_trans_btfn_01, tvb, old_offset, 1, reason);
+            proto_tree_add_boolean(ctx_tree, hf_dcerpc_cn_bind_trans_btfn_02, tvb, old_offset, 1, reason);
+        } else if (result != 0) {
             offset = dissect_dcerpc_uint16(tvb, offset, pinfo, ctx_tree,
                                            hdr->drep, hf_dcerpc_cn_ack_reason,
                                            &reason);
@@ -3044,13 +3492,18 @@ dissect_dcerpc_cn_bind_ack(tvbuff_t *tvb, gint offset, packet_info *pinfo,
             offset += 2;
         }
 
-        dcerpc_tvb_get_uuid(tvb, offset, hdr->drep, &trans_id);
-        uuid_name = guids_get_uuid_name(&trans_id);
+        result_str = val_to_str(result, p_cont_result_vals, "Unknown result (%u)");
 
         if (ctx_tree) {
+            dcerpc_tvb_get_uuid(tvb, offset, hdr->drep, &trans_id);
+            uuid_name = guids_get_uuid_name(&trans_id);
+            if (! uuid_name) {
+                uuid_name = guid_to_ep_str((e_guid_t *) &trans_id);
+            }
             proto_tree_add_guid_format(ctx_tree, hf_dcerpc_cn_ack_trans_id, tvb,
                                        offset, 16, (e_guid_t *) &trans_id, "Transfer Syntax: %s",
-                                       uuid_name?uuid_name:guid_to_str((e_guid_t *) &trans_id));
+                                       uuid_name);
+            proto_item_append_text(ctx_item, " %s, %s", result_str, uuid_name);
         }
         offset += 16;
 
@@ -3059,8 +3512,7 @@ dissect_dcerpc_cn_bind_ack(tvbuff_t *tvb, gint offset, packet_info *pinfo,
 
         if (i > 0)
             col_append_fstr(pinfo->cinfo, COL_INFO, ",");
-        col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
-                        val_to_str(result, p_cont_result_vals, "Unknown result (%u)"));
+        col_append_fstr(pinfo->cinfo, COL_INFO, " %s", result_str);
     }
 
     /*
@@ -3129,7 +3581,7 @@ dissect_dcerpc_cn_stub(tvbuff_t *tvb, int offset, packet_info *pinfo,
 {
     gint           length, reported_length;
     gboolean       save_fragmented;
-    fragment_data *fd_head = NULL;
+    fragment_head *fd_head = NULL;
 
     tvbuff_t *auth_tvb, *payload_tvb, *decrypted_tvb;
     proto_item *pi;
@@ -3240,8 +3692,7 @@ dissect_dcerpc_cn_stub(tvbuff_t *tvb, int offset, packet_info *pinfo,
             pinfo, tree, dcerpc_tree, payload_tvb, decrypted_tvb,
             hdr->drep, di, auth_info);
 
-        expert_add_info_format(pinfo, NULL, PI_REASSEMBLE, PI_CHAT,
-                               "%s fragment", fragment_type(hdr->flags));
+        expert_add_info_format(pinfo, NULL, &ei_dcerpc_fragment, "%s fragment", fragment_type(hdr->flags));
 
         pinfo->fragmented = save_fragmented;
         return;
@@ -3252,7 +3703,7 @@ dissect_dcerpc_cn_stub(tvbuff_t *tvb, int offset, packet_info *pinfo,
        then exit
     */
     if (pinfo->fd->flags.visited) {
-        fd_head = fragment_get_reassembled(frame, dcerpc_co_reassemble_table);
+        fd_head = fragment_get_reassembled(&dcerpc_co_reassembly_table, frame);
         goto end_cn_stub;
     }
 
@@ -3289,8 +3740,8 @@ dissect_dcerpc_cn_stub(tvbuff_t *tvb, int offset, packet_info *pinfo,
      * just use fragment_add_seq_next() and hope that TCP/SMB segments coming
      * in with the correct sequence.
      */
-    fd_head = fragment_add_seq_next(decrypted_tvb, 0, pinfo, frame,
-                                    dcerpc_co_fragment_table, dcerpc_co_reassemble_table,
+    fd_head = fragment_add_seq_next(&dcerpc_co_reassembly_table,
+                                    decrypted_tvb, 0, pinfo, frame, NULL,
                                     tvb_length(decrypted_tvb),
                                     hdr->flags&PFC_LAST_FRAG ? FALSE : TRUE /* more_frags */);
 
@@ -3306,8 +3757,8 @@ end_cn_stub:
             tvbuff_t *next_tvb;
             proto_item *frag_tree_item;
 
-            next_tvb = tvb_new_child_real_data((decrypted_tvb)?decrypted_tvb:payload_tvb,
-                                               fd_head->data, fd_head->len, fd_head->len);
+            next_tvb = tvb_new_chain((decrypted_tvb)?decrypted_tvb:payload_tvb,
+                                               fd_head->tvb_data);
 
             add_new_data_source(pinfo, next_tvb, "Reassembled DCE/RPC");
             show_fragment_tree(fd_head, &dcerpc_frag_items,
@@ -3321,9 +3772,7 @@ end_cn_stub:
 
             pinfo->fragmented = FALSE;
 
-            expert_add_info_format(pinfo, frag_tree_item, PI_REASSEMBLE, PI_CHAT,
-                                   "%s fragment, reassembled",
-                                   fragment_type(hdr->flags));
+            expert_add_info_format(pinfo, frag_tree_item, &ei_dcerpc_fragment_reassembled, "%s fragment, reassembled", fragment_type(hdr->flags));
 
             dcerpc_try_handoff(pinfo, tree, dcerpc_tree, next_tvb,
                                next_tvb, hdr->drep, di, auth_info);
@@ -3343,14 +3792,12 @@ end_cn_stub:
             }
             col_append_fstr(pinfo->cinfo, COL_INFO,
                             " [DCE/RPC %s fragment, reas: #%u]", fragment_type(hdr->flags), fd_head->reassembled_in);
-            expert_add_info_format(pinfo, NULL, PI_REASSEMBLE, PI_CHAT,
-                                   "%s fragment, reassembled in #%u", fragment_type(hdr->flags), fd_head->reassembled_in);
+            expert_add_info_format(pinfo, NULL, &ei_dcerpc_fragment_reassembled, "%s fragment, reassembled in #%u", fragment_type(hdr->flags), fd_head->reassembled_in);
         }
     } else {
         /* Reassembly not complete - some fragments
            are missing.  Just show the stub data. */
-        expert_add_info_format(pinfo, NULL, PI_REASSEMBLE, PI_CHAT,
-                               "%s fragment", fragment_type(hdr->flags));
+        expert_add_info_format(pinfo, NULL, &ei_dcerpc_fragment, "%s fragment", fragment_type(hdr->flags));
 
         if (decrypted_tvb) {
             show_stub_data(decrypted_tvb, 0, tree, auth_info, FALSE);
@@ -3360,63 +3807,6 @@ end_cn_stub:
     }
 
     pinfo->fragmented = save_fragmented;
-}
-
-/**
- *  Registers a conversation/UUID binding association, so that
- *  we can invoke the proper sub-dissector for a given DCERPC
- *  conversation.
- *
- *  @param binding all values needed to create and bind a new conversation
- *
- *  @return Pointer to newly-added UUID/conversation binding.
- */
-struct _dcerpc_bind_value *
-dcerpc_add_conv_to_bind_table(decode_dcerpc_bind_values_t *binding)
-{
-    dcerpc_bind_value *bind_value;
-    dcerpc_bind_key   *key;
-    conversation_t    *conv;
-
-    conv = find_conversation(
-        0,
-        &binding->addr_a,
-        &binding->addr_b,
-        binding->ptype,
-        binding->port_a,
-        binding->port_b,
-        0);
-
-    if (!conv) {
-        conv = conversation_new(
-            0,
-            &binding->addr_a,
-            &binding->addr_b,
-            binding->ptype,
-            binding->port_a,
-            binding->port_b,
-            0);
-    }
-
-    bind_value = (dcerpc_bind_value *)se_alloc(sizeof (dcerpc_bind_value));
-    bind_value->uuid = binding->uuid;
-    bind_value->ver = binding->ver;
-    /* For now, assume all DCE/RPC we pick from "decode as" is using
-       standard ndr and not ndr64.
-       We should make this selectable from the dialog in the future
-    */
-    bind_value->transport = uuid_data_repr_proto;
-
-    key = (dcerpc_bind_key *)se_alloc(sizeof (dcerpc_bind_key));
-    key->conv = conv;
-    key->ctx_id = binding->ctx_id;
-    key->smb_fid = binding->smb_fid;
-
-    /* add this entry to the bind table */
-    g_hash_table_insert(dcerpc_binds, key, bind_value);
-
-    return bind_value;
-
 }
 
 static void
@@ -3432,6 +3822,7 @@ dissect_dcerpc_cn_rqst(tvbuff_t *tvb, gint offset, packet_info *pinfo,
     guint32           alloc_hint;
     proto_item       *pi;
     proto_item       *parent_pi;
+    dcerpc_decode_as_data* decode_data = dcerpc_get_decode_data(pinfo);
 
     offset = dissect_dcerpc_uint32(tvb, offset, pinfo, dcerpc_tree, hdr->drep,
                                    hf_dcerpc_cn_alloc_hint, &alloc_hint);
@@ -3447,7 +3838,7 @@ dissect_dcerpc_cn_rqst(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                                    hf_dcerpc_opnum, &opnum);
 
     /* save context ID for use with dcerpc_add_conv_to_bind_table() */
-    pinfo->dcectxid = ctx_id;
+    decode_data->dcectxid = ctx_id;
 
     col_append_fstr(pinfo->cinfo, COL_INFO, ", opnum: %u, Ctx: %u",
                     opnum, ctx_id);
@@ -3457,7 +3848,7 @@ dissect_dcerpc_cn_rqst(tvbuff_t *tvb, gint offset, packet_info *pinfo,
         if (dcerpc_tree) {
             proto_tree_add_guid_format(dcerpc_tree, hf_dcerpc_obj_id, tvb,
                                        offset, 16, (e_guid_t *) &obj_id, "Object UUID: %s",
-                                       guid_to_str((e_guid_t *) &obj_id));
+                                       guid_to_ep_str((e_guid_t *) &obj_id));
         }
         offset += 16;
     }
@@ -3501,7 +3892,7 @@ dissect_dcerpc_cn_rqst(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                     call_key.call_id = hdr->call_id;
                     call_key.smb_fid = dcerpc_get_transport_salt(pinfo);
                     if ((call_value = (dcerpc_call_value *)g_hash_table_lookup(dcerpc_cn_calls, &call_key))) {
-                        new_matched_key = (dcerpc_matched_key *)se_alloc(sizeof (dcerpc_matched_key));
+                        new_matched_key = (dcerpc_matched_key *)wmem_alloc(wmem_file_scope(), sizeof (dcerpc_matched_key));
                         *new_matched_key = matched_key;
                         g_hash_table_insert(dcerpc_matched, new_matched_key, call_value);
                         value = call_value;
@@ -3515,7 +3906,7 @@ dissect_dcerpc_cn_rqst(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                        the call to both the call table and the
                        matched table
                     */
-                    call_key = (dcerpc_cn_call_key *)se_alloc(sizeof (dcerpc_cn_call_key));
+                    call_key = (dcerpc_cn_call_key *)wmem_alloc(wmem_file_scope(), sizeof (dcerpc_cn_call_key));
                     call_key->conv = conv;
                     call_key->call_id = hdr->call_id;
                     call_key->smb_fid = dcerpc_get_transport_salt(pinfo);
@@ -3526,7 +3917,7 @@ dissect_dcerpc_cn_rqst(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                         g_hash_table_remove(dcerpc_cn_calls, call_key);
                     }
 
-                    call_value = (dcerpc_call_value *)se_alloc(sizeof (dcerpc_call_value));
+                    call_value = (dcerpc_call_value *)wmem_alloc(wmem_file_scope(), sizeof (dcerpc_call_value));
                     call_value->uuid = bind_value->uuid;
                     call_value->ver = bind_value->ver;
                     call_value->object_uuid = obj_id;
@@ -3545,7 +3936,7 @@ dissect_dcerpc_cn_rqst(tvbuff_t *tvb, gint offset, packet_info *pinfo,
 
                     g_hash_table_insert(dcerpc_cn_calls, call_key, call_value);
 
-                    new_matched_key = (dcerpc_matched_key *)se_alloc(sizeof (dcerpc_matched_key));
+                    new_matched_key = (dcerpc_matched_key *)wmem_alloc(wmem_file_scope(), sizeof (dcerpc_matched_key));
                     *new_matched_key = matched_key;
                     g_hash_table_insert(dcerpc_matched, new_matched_key, call_value);
                     value = call_value;
@@ -3579,10 +3970,7 @@ dissect_dcerpc_cn_rqst(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                                     value->req_frame);
         } else {
             /* no bind information, simply show stub data */
-            pi = proto_tree_add_text(dcerpc_tree, tvb, offset, 0, "No bind info for this interface Context ID - capture start too late?");
-            PROTO_ITEM_SET_GENERATED(pi);
-            expert_add_info_format(pinfo, pi, PI_UNDECODED, PI_NOTE, "No bind info for interface Context ID:%u",
-                                   ctx_id);
+            proto_tree_add_expert_format(dcerpc_tree, pinfo, &ei_dcerpc_cn_ctx_id_no_bind, tvb, offset, 0, "No bind info for interface Context ID %u - capture start too late?", ctx_id);
             show_stub_data(tvb, offset, dcerpc_tree, &auth_info, TRUE);
         }
     }
@@ -3605,6 +3993,7 @@ dissect_dcerpc_cn_resp(tvbuff_t *tvb, gint offset, packet_info *pinfo,
     proto_item        *pi;
     proto_item        *parent_pi;
     e_uuid_t           obj_id_null = DCERPC_UUID_NULL;
+    dcerpc_decode_as_data* decode_data = dcerpc_get_decode_data(pinfo);
 
     offset = dissect_dcerpc_uint32(tvb, offset, pinfo, dcerpc_tree, hdr->drep,
                                    hf_dcerpc_cn_alloc_hint, &alloc_hint);
@@ -3617,7 +4006,7 @@ dissect_dcerpc_cn_resp(tvbuff_t *tvb, gint offset, packet_info *pinfo,
     }
 
     /* save context ID for use with dcerpc_add_conv_to_bind_table() */
-    pinfo->dcectxid = ctx_id;
+    decode_data->dcectxid = ctx_id;
 
     col_append_fstr(pinfo->cinfo, COL_INFO, ", Ctx: %u", ctx_id);
 
@@ -3661,7 +4050,7 @@ dissect_dcerpc_cn_resp(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                 /* extra sanity check,  only match them if the reply
                    came after the request */
                 if (call_value->req_frame<pinfo->fd->num) {
-                    new_matched_key = (dcerpc_matched_key *)se_alloc(sizeof (dcerpc_matched_key));
+                    new_matched_key = (dcerpc_matched_key *)wmem_alloc(wmem_file_scope(), sizeof (dcerpc_matched_key));
                     *new_matched_key = matched_key;
                     g_hash_table_insert(dcerpc_matched, new_matched_key, call_value);
                     value = call_value;
@@ -3689,7 +4078,7 @@ dissect_dcerpc_cn_resp(tvbuff_t *tvb, gint offset, packet_info *pinfo,
             if (dcerpc_tree && (memcmp(&value->object_uuid, &obj_id_null, sizeof(obj_id_null)) != 0)) {
                 pi = proto_tree_add_guid_format(dcerpc_tree, hf_dcerpc_obj_id, tvb,
                                                 offset, 0, (e_guid_t *) &value->object_uuid, "Object UUID: %s",
-                                                guid_to_str((e_guid_t *) &value->object_uuid));
+                                                guid_to_ep_str((e_guid_t *) &value->object_uuid));
                 PROTO_ITEM_SET_GENERATED(pi);
             }
 
@@ -3706,10 +4095,7 @@ dissect_dcerpc_cn_resp(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                 pi = proto_tree_add_time(dcerpc_tree, hf_dcerpc_time, tvb, offset, 0, &delta_ts);
                 PROTO_ITEM_SET_GENERATED(pi);
             } else {
-                pi = proto_tree_add_text(dcerpc_tree,
-                                         tvb, 0, 0, "No request to this DCE/RPC call found");
-                expert_add_info_format(pinfo, pi, PI_SEQUENCE, PI_NOTE,
-                                       "No request to this DCE/RPC call found");
+                proto_tree_add_expert(dcerpc_tree, pinfo, &ei_dcerpc_no_request_found, tvb, 0, 0);
             }
 
             dissect_dcerpc_cn_stub(tvb, offset, pinfo, dcerpc_tree, tree,
@@ -3717,10 +4103,7 @@ dissect_dcerpc_cn_resp(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                                    value->rep_frame);
         } else {
             /* no bind information, simply show stub data */
-            pi = proto_tree_add_text(dcerpc_tree, tvb, offset, 0, "No bind info for this interface Context ID - capture start too late?");
-            PROTO_ITEM_SET_GENERATED(pi);
-            expert_add_info_format(pinfo, pi, PI_UNDECODED, PI_NOTE, "No bind info for interface Context ID:%u",
-                                   ctx_id);
+            proto_tree_add_expert_format(dcerpc_tree, pinfo, &ei_dcerpc_cn_ctx_id_no_bind, tvb, offset, 0, "No bind info for interface Context ID %u - capture start too late?", ctx_id);
             show_stub_data(tvb, offset, dcerpc_tree, &auth_info, TRUE);
         }
     }
@@ -3740,6 +4123,7 @@ dissect_dcerpc_cn_fault(tvbuff_t *tvb, gint offset, packet_info *pinfo,
     guint32            alloc_hint;
     dcerpc_auth_info   auth_info;
     proto_item        *pi    = NULL;
+    dcerpc_decode_as_data* decode_data = dcerpc_get_decode_data(pinfo);
 
     offset = dissect_dcerpc_uint32(tvb, offset, pinfo, dcerpc_tree, hdr->drep,
                                    hf_dcerpc_cn_alloc_hint, &alloc_hint);
@@ -3760,16 +4144,13 @@ dissect_dcerpc_cn_fault(tvbuff_t *tvb, gint offset, packet_info *pinfo,
               ? tvb_get_letohl(tvb, offset)
               : tvb_get_ntohl(tvb, offset));
 
-    if (dcerpc_tree) {
-        pi = proto_tree_add_item(dcerpc_tree, hf_dcerpc_cn_status, tvb, offset, 4, DREP_ENC_INTEGER(hdr->drep));
-    }
+    pi = proto_tree_add_item(dcerpc_tree, hf_dcerpc_cn_status, tvb, offset, 4, DREP_ENC_INTEGER(hdr->drep));
     offset+=4;
 
-    expert_add_info_format(pinfo, pi, PI_RESPONSE_CODE, PI_NOTE, "Fault: %s",
-                           val_to_str(status, reject_status_vals, "Unknown (0x%08x)"));
+    expert_add_info_format(pinfo, pi, &ei_dcerpc_cn_status, "Fault: %s", val_to_str(status, reject_status_vals, "Unknown (0x%08x)"));
 
     /* save context ID for use with dcerpc_add_conv_to_bind_table() */
-    pinfo->dcectxid = ctx_id;
+    decode_data->dcectxid = ctx_id;
 
     col_append_fstr(pinfo->cinfo, COL_INFO,
                     ", Ctx: %u, status: %s", ctx_id,
@@ -3809,7 +4190,7 @@ dissect_dcerpc_cn_fault(tvbuff_t *tvb, gint offset, packet_info *pinfo,
             call_key.smb_fid = dcerpc_get_transport_salt(pinfo);
 
             if ((call_value = (dcerpc_call_value *)g_hash_table_lookup(dcerpc_cn_calls, &call_key))) {
-                new_matched_key = (dcerpc_matched_key *)se_alloc(sizeof (dcerpc_matched_key));
+                new_matched_key = (dcerpc_matched_key *)wmem_alloc(wmem_file_scope(), sizeof (dcerpc_matched_key));
                 *new_matched_key = matched_key;
                 g_hash_table_insert(dcerpc_matched, new_matched_key, call_value);
 
@@ -3848,10 +4229,7 @@ dissect_dcerpc_cn_fault(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                 pi = proto_tree_add_time(dcerpc_tree, hf_dcerpc_time, tvb, offset, 0, &delta_ts);
                 PROTO_ITEM_SET_GENERATED(pi);
             } else {
-                pi = proto_tree_add_text(dcerpc_tree,
-                                         tvb, 0, 0, "No request to this DCE/RPC call found");
-                expert_add_info_format(pinfo, pi, PI_SEQUENCE, PI_NOTE,
-                                       "No request to this DCE/RPC call found");
+                proto_tree_add_expert(dcerpc_tree, pinfo, &ei_dcerpc_no_request_found, tvb, 0, 0);
             }
 
             length = tvb_length_remaining(tvb, offset);
@@ -3920,18 +4298,19 @@ dissect_dcerpc_cn_fault(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                 }
                 if (hdr->flags&PFC_FIRST_FRAG) {  /* FIRST fragment */
                     if ( (!pinfo->fd->flags.visited) && value->rep_frame ) {
-                        fragment_add_seq_next(tvb, offset, pinfo, value->rep_frame,
-                                              dcerpc_co_fragment_table, dcerpc_co_reassemble_table,
+                        fragment_add_seq_next(&dcerpc_co_reassembly_table,
+                                              tvb, offset,
+                                              pinfo, value->rep_frame, NULL,
                                               stub_length,
                                               TRUE);
                     }
                 } else if (hdr->flags&PFC_LAST_FRAG) {  /* LAST fragment */
                     if ( value->rep_frame ) {
-                        fragment_data *fd_head;
+                        fragment_head *fd_head;
 
-                        fd_head = fragment_add_seq_next(tvb, offset, pinfo,
-                                                        value->rep_frame,
-                                                        dcerpc_co_fragment_table, dcerpc_co_reassemble_table,
+                        fd_head = fragment_add_seq_next(&dcerpc_co_reassembly_table,
+                                                        tvb, offset,
+                                                        pinfo, value->rep_frame, NULL,
                                                         stub_length,
                                                         TRUE);
 
@@ -3940,7 +4319,7 @@ dissect_dcerpc_cn_fault(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                             tvbuff_t *next_tvb;
                             proto_item *frag_tree_item;
 
-                            next_tvb = tvb_new_child_real_data(tvb, fd_head->data, fd_head->len, fd_head->len);
+                            next_tvb = tvb_new_chain(tvb, fd_head->tvb_data);
                             add_new_data_source(pinfo, next_tvb, "Reassembled DCE/RPC");
                             show_fragment_tree(fd_head, &dcerpc_frag_items,
                                                dcerpc_tree, pinfo, next_tvb, &frag_tree_item);
@@ -3968,8 +4347,9 @@ dissect_dcerpc_cn_fault(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                     }
                 } else {  /* MIDDLE fragment(s) */
                     if ( (!pinfo->fd->flags.visited) && value->rep_frame ) {
-                        fragment_add_seq_next(tvb, offset, pinfo, value->rep_frame,
-                                              dcerpc_co_fragment_table, dcerpc_co_reassemble_table,
+                        fragment_add_seq_next(&dcerpc_co_reassembly_table,
+                                              tvb, offset,
+                                              pinfo, value->rep_frame, NULL,
                                               stub_length,
                                               TRUE);
                     }
@@ -4016,7 +4396,7 @@ dissect_dcerpc_cn_rts(tvbuff_t *tvb, gint offset, packet_info *pinfo,
     tf = proto_tree_add_text(dcerpc_tree, tvb, offset, tvb_length_remaining(tvb, offset), "RTS PDU: %u commands", commands_nb);
     cn_rts_pdu_tree = proto_item_add_subtree(tf, ett_dcerpc_cn_rts_pdu);
 
-    cmd = (guint32 *)ep_alloc(sizeof (guint32) * (commands_nb + 1));
+    cmd = (guint32 *)wmem_alloc(wmem_packet_scope(), sizeof (guint32) * (commands_nb + 1));
 
     /* Dissect commands */
     for (i = 0; i < commands_nb; ++i) {
@@ -4057,7 +4437,7 @@ dissect_dcerpc_cn_rts(tvbuff_t *tvb, gint offset, packet_info *pinfo,
             const guint32 conformance_count = dcerpc_tvb_get_ntohl(tvb, offset, hdr->drep);
             proto_tree_add_uint(cn_rts_command_tree, hf_dcerpc_cn_rts_command_conformancecount, tvb, offset, 4, conformance_count);
             offset += 4;
-            padding = (guint8 *)tvb_memdup(tvb, offset, conformance_count);
+            padding = (guint8 *)tvb_memdup(NULL, tvb, offset, conformance_count);
             proto_tree_add_bytes(cn_rts_command_tree, hf_dcerpc_cn_rts_command_padding, tvb, offset, conformance_count, padding);
             offset += conformance_count;
         } break;
@@ -4083,7 +4463,7 @@ dissect_dcerpc_cn_rts(tvbuff_t *tvb, gint offset, packet_info *pinfo,
                offset += 16;
             } break;
             }
-            padding = (guint8 *)tvb_memdup(tvb, offset, 12);
+            padding = (guint8 *)tvb_memdup(NULL, tvb, offset, 12);
             proto_tree_add_bytes(cn_rts_command_tree, hf_dcerpc_cn_rts_command_padding, tvb, offset, 12, padding);
             offset += 12;
         } break;
@@ -4306,6 +4686,7 @@ dissect_dcerpc_cn(tvbuff_t *tvb, int offset, packet_info *pinfo,
     static const guint8 nulls[4]         = { 0 };
     int                    start_offset;
     int                    padding       = 0;
+    int                    subtvb_len    = 0;
     proto_item            *ti            = NULL;
     proto_item            *tf            = NULL;
     proto_tree            *dcerpc_tree   = NULL;
@@ -4314,6 +4695,7 @@ dissect_dcerpc_cn(tvbuff_t *tvb, int offset, packet_info *pinfo,
     e_dce_cn_common_hdr_t  hdr;
     dcerpc_auth_info       auth_info;
     tvbuff_t              *fragment_tvb;
+    dcerpc_decode_as_data* decode_data = dcerpc_get_decode_data(pinfo);
 
     /*
      * when done over nbt, dcerpc requests are padded with 4 bytes of null
@@ -4360,7 +4742,7 @@ dissect_dcerpc_cn(tvbuff_t *tvb, int offset, packet_info *pinfo,
     hdr.call_id = dcerpc_tvb_get_ntohl(tvb, offset, hdr.drep);
     /*offset += 4;*/
 
-    if (pinfo->dcectxid == 0) {
+    if (decode_data->dcectxid == 0) {
         col_append_fstr(pinfo->cinfo, COL_DCE_CALL, "%u", hdr.call_id);
     } else {
         /* this is not the first DCE-RPC request/response in this (TCP?-)PDU,
@@ -4378,7 +4760,7 @@ dissect_dcerpc_cn(tvbuff_t *tvb, int offset, packet_info *pinfo,
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "DCERPC");
 
-    if (pinfo->dcectxid != 0) {
+    if (decode_data->dcectxid != 0) {
         /* this is not the first DCE-RPC request/response in this (TCP?-)PDU,
          * append a delimiter and set a column fence */
         col_append_str(pinfo->cinfo, COL_INFO, " # ");
@@ -4387,9 +4769,9 @@ dissect_dcerpc_cn(tvbuff_t *tvb, int offset, packet_info *pinfo,
     col_add_fstr(pinfo->cinfo, COL_INFO, "%s: call_id: %u",
                  pckt_vals[hdr.ptype].strptr, hdr.call_id);
 
-    if (pinfo->dcectxid != 0) {
+    if (decode_data->dcectxid != 0) {
         /* this is not the first DCE-RPC request/response in this (TCP?-)PDU */
-        expert_add_info_format(pinfo, NULL, PI_SEQUENCE, PI_CHAT, "Multiple DCE/RPC fragments/PDU's in one packet");
+        expert_add_info(pinfo, NULL, &ei_dcerpc_fragment_multiple);
     }
 
     offset = start_offset;
@@ -4411,11 +4793,10 @@ dissect_dcerpc_cn(tvbuff_t *tvb, int offset, packet_info *pinfo,
 #if 0  /* XXX - too much "output noise", removed for now  */
        if (hdr.ptype == PDU_BIND || hdr.ptype == PDU_ALTER ||
        hdr.ptype == PDU_BIND_ACK || hdr.ptype == PDU_ALTER_ACK)
-       expert_add_info_format(pinfo, tf, PI_SEQUENCE, PI_CHAT, "Context change: %s",
-       val_to_str(hdr.ptype, pckt_vals, "(0x%x)"));
+       expert_add_info_format(pinfo, tf, &ei_dcerpc_context_change, "Context change: %s", val_to_str(hdr.ptype, pckt_vals, "(0x%x)"));
 #endif
     if (hdr.ptype == PDU_BIND_NAK)
-        expert_add_info_format(pinfo, tf, PI_SEQUENCE, PI_WARN, "Bind not acknowledged");
+        expert_add_info(pinfo, tf, &ei_dcerpc_bind_not_acknowledged);
 
     if (tree) {
         proto_item_append_text(ti, " %s, Fragment: %s",
@@ -4483,9 +4864,10 @@ dissect_dcerpc_cn(tvbuff_t *tvb, int offset, packet_info *pinfo,
      * (and other functions might fail as well) computing the right start
      * offset otherwise.
      */
-    fragment_tvb = tvb_new_subset(tvb, 0,
-                                  MIN((hdr.frag_len + (guint) start_offset), tvb_length(tvb)) /* length */,
-                                  hdr.frag_len + start_offset /* reported_length */);
+    subtvb_len = MIN(hdr.frag_len, tvb_length(tvb));
+    fragment_tvb = tvb_new_subset(tvb, start_offset,
+                                  subtvb_len /* length */,
+                                  hdr.frag_len /* reported_length */);
 
     /*
      * Packet type specific stuff is next.
@@ -4493,36 +4875,36 @@ dissect_dcerpc_cn(tvbuff_t *tvb, int offset, packet_info *pinfo,
     switch (hdr.ptype) {
     case PDU_BIND:
     case PDU_ALTER:
-        dissect_dcerpc_cn_bind(fragment_tvb, offset, pinfo, dcerpc_tree, &hdr);
+        dissect_dcerpc_cn_bind(fragment_tvb, MIN(offset - start_offset, subtvb_len), pinfo, dcerpc_tree, &hdr);
         break;
 
     case PDU_BIND_ACK:
     case PDU_ALTER_ACK:
-        dissect_dcerpc_cn_bind_ack(fragment_tvb, offset, pinfo, dcerpc_tree, &hdr);
+        dissect_dcerpc_cn_bind_ack(fragment_tvb, MIN(offset - start_offset, subtvb_len), pinfo, dcerpc_tree, &hdr);
         break;
 
     case PDU_AUTH3:
         /*
          * Nothing after the common header other than credentials.
          */
-        dissect_dcerpc_cn_auth(fragment_tvb, offset, pinfo, dcerpc_tree, &hdr, TRUE,
+        dissect_dcerpc_cn_auth(fragment_tvb, MIN(offset - start_offset, subtvb_len), pinfo, dcerpc_tree, &hdr, TRUE,
                                &auth_info);
         break;
 
     case PDU_REQ:
-        dissect_dcerpc_cn_rqst(fragment_tvb, offset, pinfo, dcerpc_tree, tree, &hdr);
+        dissect_dcerpc_cn_rqst(fragment_tvb, MIN(offset - start_offset, subtvb_len), pinfo, dcerpc_tree, tree, &hdr);
         break;
 
     case PDU_RESP:
-        dissect_dcerpc_cn_resp(fragment_tvb, offset, pinfo, dcerpc_tree, tree, &hdr);
+        dissect_dcerpc_cn_resp(fragment_tvb, MIN(offset - start_offset, subtvb_len), pinfo, dcerpc_tree, tree, &hdr);
         break;
 
     case PDU_FAULT:
-        dissect_dcerpc_cn_fault(fragment_tvb, offset, pinfo, dcerpc_tree, &hdr);
+        dissect_dcerpc_cn_fault(fragment_tvb, MIN(offset - start_offset, subtvb_len), pinfo, dcerpc_tree, &hdr);
         break;
 
     case PDU_BIND_NAK:
-        dissect_dcerpc_cn_bind_nak(fragment_tvb, offset, pinfo, dcerpc_tree, &hdr);
+        dissect_dcerpc_cn_bind_nak(fragment_tvb, MIN(offset - start_offset, subtvb_len), pinfo, dcerpc_tree, &hdr);
         break;
 
     case PDU_CO_CANCEL:
@@ -4531,7 +4913,7 @@ dissect_dcerpc_cn(tvbuff_t *tvb, int offset, packet_info *pinfo,
          * Nothing after the common header other than an authentication
          * verifier.
          */
-        dissect_dcerpc_cn_auth(fragment_tvb, offset, pinfo, dcerpc_tree, &hdr, FALSE,
+        dissect_dcerpc_cn_auth(fragment_tvb, MIN(offset - start_offset, subtvb_len), pinfo, dcerpc_tree, &hdr, FALSE,
                                &auth_info);
         break;
 
@@ -4542,12 +4924,12 @@ dissect_dcerpc_cn(tvbuff_t *tvb, int offset, packet_info *pinfo,
          */
         break;
     case PDU_RTS:
-      dissect_dcerpc_cn_rts(fragment_tvb, offset, pinfo, dcerpc_tree, &hdr);
+      dissect_dcerpc_cn_rts(fragment_tvb, MIN(offset - start_offset, subtvb_len), pinfo, dcerpc_tree, &hdr);
       break;
 
     default:
         /* might as well dissect the auth info */
-        dissect_dcerpc_cn_auth(fragment_tvb, offset, pinfo, dcerpc_tree, &hdr, FALSE,
+        dissect_dcerpc_cn_auth(fragment_tvb, MIN(offset - start_offset, subtvb_len), pinfo, dcerpc_tree, &hdr, FALSE,
                                &auth_info);
         break;
     }
@@ -4561,11 +4943,13 @@ dissect_dcerpc_cn(tvbuff_t *tvb, int offset, packet_info *pinfo,
 static gboolean
 dissect_dcerpc_cn_pk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
+    dcerpc_decode_as_data* decode_data = dcerpc_get_decode_data(pinfo);
+
     /*
      * Only one PDU per transport packet, and only one transport
      * packet per PDU.
      */
-    pinfo->dcetransporttype = DCE_TRANSPORT_UNKNOWN;
+    decode_data->dcetransporttype = DCE_TRANSPORT_UNKNOWN;
     if (!dissect_dcerpc_cn(tvb, 0, pinfo, tree, FALSE, NULL)) {
         /*
          * It wasn't a DCERPC PDU.
@@ -4590,7 +4974,7 @@ dissect_dcerpc_cn_bs_body(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
     volatile int      offset      = 0;
     int               pdu_len     = 0;
-    volatile gboolean dcerpc_pdus = 0;
+    volatile int      dcerpc_pdus = 0;
     volatile gboolean ret         = FALSE;
 
     /*
@@ -4623,11 +5007,33 @@ dissect_dcerpc_cn_bs_body(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             dcerpc_pdus++;
         } ENDTRY;
 
-        if (!dcerpc_pdus) {
-            /*
-             * Not a DCERPC PDU.
-             */
-            break;
+        if (dcerpc_pdus == 0) {
+            gboolean try_desegment = FALSE;
+            if (dcerpc_cn_desegment && pinfo->can_desegment &&
+                    !tvb_bytes_exist(tvb, offset, sizeof(e_dce_cn_common_hdr_t))) {
+                /* look for a previous occurrence of the DCE-RPC protocol */
+                wmem_list_frame_t *cur;
+                cur = wmem_list_frame_prev(wmem_list_tail(pinfo->layers));
+                while (cur != NULL) {
+                    if (proto_dcerpc == (gint)GPOINTER_TO_UINT(wmem_list_frame_data(cur))) {
+                        try_desegment = TRUE;
+                        break;
+                    }
+                    cur = wmem_list_frame_prev(cur);
+                }
+            }
+
+            if (try_desegment) {
+                /* It didn't look like DCE-RPC but we already had one DCE-RPC
+                 * layer in this packet and what we have is short. Assume that
+                 * it was just too short to tell and ask the TCP layer for more
+                 * data. */
+                pinfo->desegment_offset = offset;
+                pinfo->desegment_len = (guint32)(sizeof(e_dce_cn_common_hdr_t) - tvb_length_remaining(tvb, offset));
+            } else {
+                /* Really not DCE-RPC */
+                break;
+            }
         }
 
         /*
@@ -4664,21 +5070,27 @@ dissect_dcerpc_cn_bs_body(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 static gboolean
 dissect_dcerpc_cn_bs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-    pinfo->dcetransporttype = DCE_TRANSPORT_UNKNOWN;
+    dcerpc_decode_as_data* decode_data = dcerpc_get_decode_data(pinfo);
+
+    decode_data->dcetransporttype = DCE_TRANSPORT_UNKNOWN;
     return dissect_dcerpc_cn_bs_body(tvb, pinfo, tree);
 }
 
 static gboolean
 dissect_dcerpc_cn_smbpipe(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-    pinfo->dcetransporttype = DCE_CN_TRANSPORT_SMBPIPE;
+    dcerpc_decode_as_data* decode_data = dcerpc_get_decode_data(pinfo);
+
+    decode_data->dcetransporttype = DCE_CN_TRANSPORT_SMBPIPE;
     return dissect_dcerpc_cn_bs_body(tvb, pinfo, tree);
 }
 
 static gboolean
 dissect_dcerpc_cn_smb2(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-    pinfo->dcetransporttype = DCE_TRANSPORT_UNKNOWN;
+    dcerpc_decode_as_data* decode_data = dcerpc_get_decode_data(pinfo);
+
+    decode_data->dcetransporttype = DCE_TRANSPORT_UNKNOWN;
     return dissect_dcerpc_cn_bs_body(tvb, pinfo, tree);
 }
 
@@ -4860,7 +5272,7 @@ dissect_dcerpc_dg_stub(tvbuff_t *tvb, int offset, packet_info *pinfo,
 {
     int            length, reported_length, stub_length;
     gboolean       save_fragmented;
-    fragment_data *fd_head;
+    fragment_head *fd_head;
     tvbuff_t      *next_tvb;
     proto_item    *pi;
     proto_item    *parent_pi;
@@ -4924,15 +5336,16 @@ dissect_dcerpc_dg_stub(tvbuff_t *tvb, int offset, packet_info *pinfo,
             }
         }
 
-        fd_head = fragment_add_dcerpc_dg(tvb, offset, pinfo,
-                                         hdr->seqnum, &hdr->act_id, dcerpc_cl_reassemble_table,
-                                         hdr->frag_num, stub_length,
-                                         !(hdr->flags1 & PFCL1_LASTFRAG));
+        fd_head = fragment_add_seq(&dcerpc_cl_reassembly_table,
+                                   tvb, offset,
+                                   pinfo, hdr->seqnum, (void *)hdr,
+                                   hdr->frag_num, stub_length,
+                                   !(hdr->flags1 & PFCL1_LASTFRAG), 0);
         if (fd_head != NULL) {
             /* We completed reassembly... */
             if (pinfo->fd->num == fd_head->reassembled_in) {
                 /* ...and this is the reassembled RPC PDU */
-                next_tvb = tvb_new_child_real_data(tvb, fd_head->data, fd_head->len, fd_head->len);
+                next_tvb = tvb_new_chain(tvb, fd_head->tvb_data);
                 add_new_data_source(pinfo, next_tvb, "Reassembled DCE/RPC");
                 show_fragment_seq_tree(fd_head, &dcerpc_frag_items,
                                        tree, pinfo, next_tvb, &pi);
@@ -4966,7 +5379,7 @@ dissect_dcerpc_dg_rqst(tvbuff_t *tvb, int offset, packet_info *pinfo,
                        e_dce_dg_common_hdr_t *hdr, conversation_t *conv)
 {
     dcerpc_info        *di;
-    dcerpc_call_value  *value, v;
+    dcerpc_call_value  *value;
     dcerpc_matched_key  matched_key, *new_matched_key;
     proto_item         *pi;
     proto_item         *parent_pi;
@@ -4976,12 +5389,12 @@ dissect_dcerpc_dg_rqst(tvbuff_t *tvb, int offset, packet_info *pinfo,
         dcerpc_call_value *call_value;
         dcerpc_dg_call_key *call_key;
 
-        call_key = (dcerpc_dg_call_key *)se_alloc(sizeof (dcerpc_dg_call_key));
+        call_key = (dcerpc_dg_call_key *)wmem_alloc(wmem_file_scope(), sizeof (dcerpc_dg_call_key));
         call_key->conv = conv;
         call_key->seqnum = hdr->seqnum;
         call_key->act_id = hdr->act_id;
 
-        call_value = (dcerpc_call_value *)se_alloc(sizeof (dcerpc_call_value));
+        call_value = (dcerpc_call_value *)wmem_alloc(wmem_file_scope(), sizeof (dcerpc_call_value));
         call_value->uuid = hdr->if_id;
         call_value->ver = hdr->if_ver;
         call_value->object_uuid = hdr->obj_id;
@@ -4998,7 +5411,7 @@ dissect_dcerpc_dg_rqst(tvbuff_t *tvb, int offset, packet_info *pinfo,
 
         g_hash_table_insert(dcerpc_dg_calls, call_key, call_value);
 
-        new_matched_key = (dcerpc_matched_key *)se_alloc(sizeof(dcerpc_matched_key));
+        new_matched_key = (dcerpc_matched_key *)wmem_alloc(wmem_file_scope(), sizeof(dcerpc_matched_key));
         new_matched_key->frame = pinfo->fd->num;
         new_matched_key->call_id = hdr->seqnum;
         g_hash_table_insert(dcerpc_matched, new_matched_key, call_value);
@@ -5008,16 +5421,16 @@ dissect_dcerpc_dg_rqst(tvbuff_t *tvb, int offset, packet_info *pinfo,
     matched_key.call_id = hdr->seqnum;
     value = (dcerpc_call_value *)g_hash_table_lookup(dcerpc_matched, &matched_key);
     if (!value) {
-        v.uuid = hdr->if_id;
-        v.ver = hdr->if_ver;
-        v.object_uuid = hdr->obj_id;
-        v.opnum = hdr->opnum;
-        v.req_frame = pinfo->fd->num;
-        v.rep_frame = 0;
-        v.max_ptr = 0;
-        v.se_data = NULL;
-        v.private_data = NULL;
-        value = &v;
+        value = wmem_new(wmem_packet_scope(), dcerpc_call_value);
+        value->uuid = hdr->if_id;
+        value->ver = hdr->if_ver;
+        value->object_uuid = hdr->obj_id;
+        value->opnum = hdr->opnum;
+        value->req_frame = pinfo->fd->num;
+        value->rep_frame = 0;
+        value->max_ptr = 0;
+        value->se_data = NULL;
+        value->private_data = NULL;
     }
 
     di->conv = conv;
@@ -5044,7 +5457,7 @@ dissect_dcerpc_dg_resp(tvbuff_t *tvb, int offset, packet_info *pinfo,
                        e_dce_dg_common_hdr_t *hdr, conversation_t *conv)
 {
     dcerpc_info        *di;
-    dcerpc_call_value  *value, v;
+    dcerpc_call_value  *value;
     dcerpc_matched_key  matched_key, *new_matched_key;
     proto_item         *pi;
     proto_item         *parent_pi;
@@ -5059,7 +5472,7 @@ dissect_dcerpc_dg_resp(tvbuff_t *tvb, int offset, packet_info *pinfo,
         call_key.act_id = hdr->act_id;
 
         if ((call_value = (dcerpc_call_value *)g_hash_table_lookup(dcerpc_dg_calls, &call_key))) {
-            new_matched_key = (dcerpc_matched_key *)se_alloc(sizeof (dcerpc_matched_key));
+            new_matched_key = (dcerpc_matched_key *)wmem_alloc(wmem_file_scope(), sizeof (dcerpc_matched_key));
             new_matched_key->frame = pinfo->fd->num;
             new_matched_key->call_id = hdr->seqnum;
             g_hash_table_insert(dcerpc_matched, new_matched_key, call_value);
@@ -5073,15 +5486,15 @@ dissect_dcerpc_dg_resp(tvbuff_t *tvb, int offset, packet_info *pinfo,
     matched_key.call_id = hdr->seqnum;
     value = (dcerpc_call_value *)g_hash_table_lookup(dcerpc_matched, &matched_key);
     if (!value) {
-        v.uuid = hdr->if_id;
-        v.ver = hdr->if_ver;
-        v.object_uuid = hdr->obj_id;
-        v.opnum = hdr->opnum;
-        v.req_frame = 0;
-        v.rep_frame = pinfo->fd->num;
-        v.se_data = NULL;
-        v.private_data = NULL;
-        value = &v;
+        value = wmem_new(wmem_packet_scope(), dcerpc_call_value);
+        value->uuid = hdr->if_id;
+        value->ver = hdr->if_ver;
+        value->object_uuid = hdr->obj_id;
+        value->opnum = hdr->opnum;
+        value->req_frame = 0;
+        value->rep_frame = pinfo->fd->num;
+        value->se_data = NULL;
+        value->private_data = NULL;
     }
 
     di->conv = conv;
@@ -5103,10 +5516,7 @@ dissect_dcerpc_dg_resp(tvbuff_t *tvb, int offset, packet_info *pinfo,
         pi = proto_tree_add_time(dcerpc_tree, hf_dcerpc_time, tvb, offset, 0, &delta_ts);
         PROTO_ITEM_SET_GENERATED(pi);
     } else {
-        pi = proto_tree_add_text(dcerpc_tree,
-                                 tvb, 0, 0, "No request to this DCE/RPC call found");
-        expert_add_info_format(pinfo, pi, PI_SEQUENCE, PI_NOTE,
-                               "No request to this DCE/RPC call found");
+        proto_tree_add_expert(dcerpc_tree, pinfo, &ei_dcerpc_no_request_found, tvb, 0, 0);
     }
     dissect_dcerpc_dg_stub(tvb, offset, pinfo, dcerpc_tree, tree, hdr, di);
 }
@@ -5317,12 +5727,12 @@ dissect_dcerpc_dg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
     if (tree) {
         proto_tree_add_guid_format(dcerpc_tree, hf_dcerpc_obj_id, tvb,
                                    offset, 16, (e_guid_t *) &hdr.obj_id, "Object UUID: %s",
-                                   guid_to_str((e_guid_t *) &hdr.obj_id));
+                                   guid_to_ep_str((e_guid_t *) &hdr.obj_id));
     }
     offset += 16;
 
     if (tree) {
-        uuid_str = guid_to_str((e_guid_t*)&hdr.if_id);
+        uuid_str = guid_to_ep_str((e_guid_t*)&hdr.if_id);
         uuid_name = guids_get_uuid_name(&hdr.if_id);
         if (uuid_name) {
             proto_tree_add_guid_format(dcerpc_tree, hf_dcerpc_dg_if_id, tvb,
@@ -5337,7 +5747,7 @@ dissect_dcerpc_dg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
     if (tree) {
         proto_tree_add_guid_format(dcerpc_tree, hf_dcerpc_dg_act_id, tvb,
                                    offset, 16, (e_guid_t *) &hdr.act_id, "Activity: %s",
-                                   guid_to_str((e_guid_t *) &hdr.act_id));
+                                   guid_to_ep_str((e_guid_t *) &hdr.act_id));
     }
     offset += 16;
 
@@ -5348,9 +5758,9 @@ dissect_dcerpc_dg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
         server_boot.nsecs = 0;
 
         if (hdr.server_boot == 0)
-            proto_tree_add_time_format(dcerpc_tree, hf_dcerpc_dg_server_boot,
+            proto_tree_add_time_format_value(dcerpc_tree, hf_dcerpc_dg_server_boot,
                                        tvb, offset, 4, &server_boot,
-                                       "Server boot time: Unknown (0)");
+                                       "Unknown (0)");
         else
             proto_tree_add_time(dcerpc_tree, hf_dcerpc_dg_server_boot,
                                 tvb, offset, 4, &server_boot);
@@ -5520,8 +5930,7 @@ dcerpc_init_protocol(void)
     }
     dcerpc_matched = g_hash_table_new(dcerpc_matched_hash, dcerpc_matched_equal);
 
-    /* call the registered hooks */
-    g_hook_list_invoke(&dcerpc_hooks_init_protos, FALSE /* not may_recurse */);
+    decode_dcerpc_inject_bindings();
 }
 
 void
@@ -5603,6 +6012,10 @@ proto_register_dcerpc(void)
           { "ID", "dcerpc.cn_bind_trans_id", FT_GUID, BASE_NONE, NULL, 0x0, NULL, HFILL }},
         { &hf_dcerpc_cn_bind_trans_ver,
           { "ver", "dcerpc.cn_bind_trans_ver", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+        { &hf_dcerpc_cn_bind_trans_btfn_01, /* [MS-RPCE] 2.2.2.14 */
+          { "Security Context Multiplexing Supported", "dcerpc.cn_bind_trans_btfn.01", FT_BOOLEAN, 8, TFS(&tfs_set_notset), 0x01, NULL, HFILL }},
+        { &hf_dcerpc_cn_bind_trans_btfn_02,
+          { "Keep Connection On Orphan Supported", "dcerpc.cn_bind_trans_btfn.02", FT_BOOLEAN, 8, TFS(&tfs_set_notset), 0x02, NULL, HFILL }},
         { &hf_dcerpc_cn_alloc_hint,
           { "Alloc hint", "dcerpc.cn_alloc_hint", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }},
         { &hf_dcerpc_cn_sec_addr_len,
@@ -5619,6 +6032,8 @@ proto_register_dcerpc(void)
           { "Transfer Syntax", "dcerpc.cn_ack_trans_id", FT_GUID, BASE_NONE, NULL, 0x0, NULL, HFILL }},
         { &hf_dcerpc_cn_ack_trans_ver,
           { "Syntax ver", "dcerpc.cn_ack_trans_ver", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+        { &hf_dcerpc_cn_ack_btfn,
+          { "Bind Time Feature Negotiation Bitmask", "dcerpc.cn_ack_btfn", FT_UINT16, BASE_HEX, NULL, 0x0, NULL, HFILL }},
         { &hf_dcerpc_cn_reject_reason,
           { "Reject reason", "dcerpc.cn_reject_reason", FT_UINT16, BASE_DEC, VALS(reject_reason_vals), 0x0, NULL, HFILL }},
         { &hf_dcerpc_cn_num_protocols,
@@ -5756,9 +6171,6 @@ proto_register_dcerpc(void)
         { &hf_dcerpc_array_actual_count,
           { "Actual Count", "dcerpc.array.actual_count", FT_UINT32, BASE_DEC, NULL, 0x0, "Actual Count: Actual number of elements in the array", HFILL }},
 
-        { &hf_dcerpc_array_buffer,
-          { "Buffer", "dcerpc.array.buffer", FT_BYTES, BASE_NONE, NULL, 0x0, "Buffer: Buffer containing elements of the array", HFILL }},
-
         { &hf_dcerpc_op,
           { "Operation", "dcerpc.op", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL }},
 
@@ -5866,6 +6278,7 @@ proto_register_dcerpc(void)
         &ett_dcerpc_cn_ctx,
         &ett_dcerpc_cn_iface,
         &ett_dcerpc_cn_trans_syntax,
+        &ett_dcerpc_cn_trans_btfn,
         &ett_dcerpc_cn_rts_flags,
         &ett_dcerpc_cn_rts_command,
         &ett_dcerpc_cn_rts_pdu,
@@ -5878,11 +6291,37 @@ proto_register_dcerpc(void)
         &ett_dcerpc_fragment,
         &ett_dcerpc_krb5_auth_verf,
     };
+
+    static ei_register_info ei[] = {
+        { &ei_dcerpc_fragment, { "dcerpc.fragment", PI_REASSEMBLE, PI_CHAT, "%s fragment", EXPFILL }},
+        { &ei_dcerpc_fragment_reassembled, { "dcerpc.fragment_reassembled", PI_REASSEMBLE, PI_CHAT, "%s fragment, reassembled", EXPFILL }},
+        { &ei_dcerpc_cn_ctx_id_no_bind, { "dcerpc.cn_ctx_id.no_bind", PI_UNDECODED, PI_NOTE, "No bind info for interface Context ID %u - capture start too late?", EXPFILL }},
+        { &ei_dcerpc_no_request_found, { "dcerpc.no_request_found", PI_SEQUENCE, PI_NOTE, "No request to this DCE/RPC call found", EXPFILL }},
+        { &ei_dcerpc_cn_status, { "dcerpc.cn_status.expert", PI_RESPONSE_CODE, PI_NOTE, "Fault: %s", EXPFILL }},
+        { &ei_dcerpc_fragment_multiple, { "dcerpc.fragment_multiple", PI_SEQUENCE, PI_CHAT, "Multiple DCE/RPC fragments/PDU's in one packet", EXPFILL }},
+        { &ei_dcerpc_context_change, { "dcerpc.context_change", PI_SEQUENCE, PI_CHAT, "Context change: %s", EXPFILL }},
+        { &ei_dcerpc_bind_not_acknowledged, { "dcerpc.bind_not_acknowledged", PI_SEQUENCE, PI_WARN, "Bind not acknowledged", EXPFILL }},
+    };
+
+    /* Decode As handling */
+    static build_valid_func dcerpc_da_build_value[1] = {dcerpc_value};
+    static decode_as_value_t dcerpc_da_values = {dcerpc_prompt, 1, dcerpc_da_build_value};
+    static decode_as_t dcerpc_da = {"dcerpc", "DCE-RPC",
+                                    /* XXX - DCE/RPC doesn't have a true (sub)dissector table, so
+                                     provide a "fake" one to fit the Decode As algorithm */
+                                    "dcerpc.fake",
+                                    1, 0, &dcerpc_da_values, NULL, NULL,
+                                    dcerpc_populate_list, decode_dcerpc_binding_reset, dcerpc_decode_as_change, dcerpc_decode_as_free};
+
     module_t *dcerpc_module;
+    expert_module_t* expert_dcerpc;
 
     proto_dcerpc = proto_register_protocol("Distributed Computing Environment / Remote Procedure Call (DCE/RPC)", "DCERPC", "dcerpc");
     proto_register_field_array(proto_dcerpc, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_dcerpc = expert_register_protocol(proto_dcerpc);
+    expert_register_field_array(expert_dcerpc, ei, array_length(ei));
+
     register_init_routine(dcerpc_init_protocol);
     dcerpc_module = prefs_register_protocol(proto_dcerpc, NULL);
     prefs_register_bool_preference(dcerpc_module,
@@ -5902,7 +6341,7 @@ proto_register_dcerpc(void)
     dcerpc_uuids = g_hash_table_new(dcerpc_uuid_hash, dcerpc_uuid_equal);
     dcerpc_tap = register_tap("dcerpc");
 
-    g_hook_list_init(&dcerpc_hooks_init_protos, sizeof(GHook));
+    register_decode_as(&dcerpc_da);
 }
 
 void
@@ -5918,6 +6357,22 @@ proto_reg_handoff_dcerpc(void)
 
     guids_add_uuid(&uuid_data_repr_proto, "32bit NDR");
     guids_add_uuid(&uuid_ndr64, "64bit NDR");
-    guids_add_uuid(&uuid_bind_time_feature_nego, "bind time feature negotiation");
+    guids_add_uuid(&uuid_bind_time_feature_nego_00, "bind time feature negotiation");
+    guids_add_uuid(&uuid_bind_time_feature_nego_01, "bind time feature negotiation");
+    guids_add_uuid(&uuid_bind_time_feature_nego_02, "bind time feature negotiation");
+    guids_add_uuid(&uuid_bind_time_feature_nego_03, "bind time feature negotiation");
     guids_add_uuid(&uuid_asyncemsmdb, "async MAPI");
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

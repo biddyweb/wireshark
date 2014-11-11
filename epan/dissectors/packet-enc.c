@@ -2,8 +2,6 @@
  *
  * Copyright (c) 2003 Markus Friedl.  All rights reserved.
  *
- * $Id$
- *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -32,9 +30,13 @@
 #include <epan/etypes.h>
 #include <epan/addr_resolv.h>
 #include <epan/aftypes.h>
+#include <wsutil/pint.h>
 #include "packet-enc.h"
 #include "packet-ip.h"
 #include "packet-ipv6.h"
+
+void proto_register_enc(void);
+void proto_reg_handoff_enc(void);
 
 #ifndef offsetof
 /* Can't trust stddef.h to be there for us */
@@ -75,7 +77,7 @@ capture_enc(const guchar *pd, int len, packet_counts *ld)
     return;
   }
 
-  af = pntohl(pd + offsetof(struct enchdr, af));
+  af = pntoh32(pd + offsetof(struct enchdr, af));
   switch (af) {
 
   case BSD_AF_INET:

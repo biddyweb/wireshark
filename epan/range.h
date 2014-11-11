@@ -1,8 +1,6 @@
 /* range.h
  * Range routines
  *
- * $Id$
- *
  * Dick Gooris <gooris@lucent.com>
  * Ulf Lamping <ulf.lamping@web.de>
  *
@@ -47,7 +45,7 @@ typedef struct range_admin_tag {
 } range_admin_t;
 
 /** user specified range(s) */
-typedef struct range {
+typedef struct epan_range {
     guint           nranges;   /**< number of entries in ranges */
     range_admin_t   ranges[1]; /**< variable-length array */
 } range_t;
@@ -83,8 +81,8 @@ WS_DLL_PUBLIC range_t *range_empty(void);
  *   -              All values
  * @param range the range
  * @param es points to the string to be converted.
- * @param max_value' specifies the maximum value in a range.
- * @return
+ * @param max_value specifies the maximum value in a range.
+ * @return convert_ret_t
  */
 WS_DLL_PUBLIC convert_ret_t range_convert_str(range_t **range, const gchar *es,
     guint32 max_value);

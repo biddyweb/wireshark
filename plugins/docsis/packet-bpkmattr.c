@@ -2,8 +2,6 @@
  * Routines for Baseline Privacy Key Management Attributes dissection
  * Copyright 2002, Anand V. Narwani <anand[AT]narwani.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,7 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 
 /* BPKM Attributes defined in:
  * http://www.cablemodem.com/downloads/specs/SP-BPI+_I10-030730.pdf
@@ -60,6 +59,9 @@
 #define BPKM_IP_ADDRESS 27
 #define BPKM_DNLD_PARAMS 28
 #define BPKM_VENDOR_DEFINED 127
+
+void proto_register_docsis_bpkmattr(void);
+void proto_reg_handoff_docsis_bpkmattr(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_docsis_bpkmattr = -1;

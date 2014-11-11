@@ -4,8 +4,6 @@
  * Copyright 2004, Jelmer Vernooij <jelmer@samba.org>
  * Copyright 2004, Devin Heitmueller <dheitmueller@netilla.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,10 +30,9 @@
 
 #include <glib.h>
 
-#include "isprint.h"
-
 #include <epan/packet.h>
 #include <epan/strutil.h>
+#include <epan/to_str.h>
 
 #include "packet-tcp.h"
 #include "packet-aim.h"
@@ -380,8 +377,6 @@ static const value_string aim_ssi_result_codes[] = {
 	{ 0, NULL }
 };
 
-static dissector_table_t subdissector_table;
-
 /* Initialize the protocol and registered fields */
 static int proto_aim = -1;
 static int hf_aim_cmd_start = -1;
@@ -498,16 +493,13 @@ const aim_family
 }
 
 int
-aim_get_buddyname( guchar *name, tvbuff_t *tvb, int len_offset, int name_offset)
+aim_get_buddyname( guint8 **name, tvbuff_t *tvb, int offset)
 {
 	guint8 buddyname_length;
 
-	buddyname_length = tvb_get_guint8(tvb, len_offset);
+	buddyname_length = tvb_get_guint8(tvb, offset);
 
-	if(buddyname_length > MAX_BUDDYNAME_LENGTH )
-		buddyname_length = MAX_BUDDYNAME_LENGTH;
-
-	tvb_get_nstringz0(tvb, name_offset, buddyname_length + 1, name);
+	*name = tvb_get_string_enc(wmem_packet_scope(), tvb, offset + 1, buddyname_length, ENC_UTF_8|ENC_NA);
 
 	return buddyname_length;
 }
@@ -578,9 +570,9 @@ aim_get_message( guchar *msg, tvbuff_t *tvb, int msg_offset, int msg_length)
 #ifdef STRIP_TAGS
 		if( j == '<' ) bracket = TRUE;
 		if( j == '>' ) bracket = FALSE;
-		if( (isprint(j) ) && (bracket == FALSE) && (j != '>'))
+		if( (g_ascii_isprint(j) ) && (bracket == FALSE) && (j != '>'))
 #else
-			if( isprint(j) )
+			if( g_ascii_isprint(j) )
 #endif
 			{
 				msg[i] = j;
@@ -675,14 +667,12 @@ dissect_aim_snac(tvbuff_t *tvb, packet_info *pinfo, int offset,
 	guint16 flags;
 	guint32 id;
 	proto_item *ti1;
-	struct aiminfo aiminfo;
 	proto_tree *aim_tree_fnac = NULL;
 	tvbuff_t *subtvb;
 	int orig_offset;
 	const aim_subtype *subtype;
 	proto_tree *family_tree = NULL;
 	const aim_family *family;
-	void* pd_save;
 
 	orig_offset = offset;
 	family_id = tvb_get_ntohs(tvb, offset);
@@ -695,7 +685,6 @@ dissect_aim_snac(tvbuff_t *tvb, packet_info *pinfo, int offset,
 	offset += 2;
 	id = tvb_get_ntohl(tvb, offset);
 	offset += 4;
-
 
 	if( aim_tree && subtype != NULL )
 	{
@@ -740,11 +729,6 @@ dissect_aim_snac(tvbuff_t *tvb, packet_info *pinfo, int offset,
 	}
 
 	subtvb = tvb_new_subset_remaining(tvb, offset);
-	aiminfo.tcpinfo = (struct tcpinfo *)pinfo->private_data;
-	aiminfo.family = family_id;
-	aiminfo.subtype = subtype_id;
-	pd_save = pinfo->private_data;
-	pinfo->private_data = &aiminfo;
 
 	if (family)
 		col_set_str(pinfo->cinfo, COL_PROTOCOL, family->name);
@@ -776,8 +760,6 @@ dissect_aim_snac(tvbuff_t *tvb, packet_info *pinfo, int offset,
 	{
 		subtype->dissector(subtvb, pinfo, family_tree);
 	}
-
-	pinfo->private_data = pd_save;
 }
 
 static void
@@ -840,7 +822,7 @@ dissect_aim_buddyname(tvbuff_t *tvb, packet_info *pinfo _U_, int offset,
 					 tvb_format_text(tvb, offset, buddyname_length));
 		buddy_tree = proto_item_add_subtree(ti, ett_aim_buddyname);
 		proto_tree_add_item(buddy_tree, hf_aim_buddyname_len, tvb, offset-1, 1, ENC_BIG_ENDIAN);
-		proto_tree_add_item(buddy_tree, hf_aim_buddyname, tvb, offset, buddyname_length, ENC_ASCII|ENC_NA);
+		proto_tree_add_item(buddy_tree, hf_aim_buddyname, tvb, offset, buddyname_length, ENC_UTF_8|ENC_NA);
 	}
 
 	return offset+buddyname_length;
@@ -1167,7 +1149,7 @@ dissect_aim_tlv_value_string (proto_item *ti, guint16 valueid _U_, tvbuff_t *tvb
 	gint string_len;
 
 	string_len = tvb_length(tvb);
-	buf = tvb_get_ephemeral_string(tvb, 0, string_len);
+	buf = tvb_get_string_enc(wmem_packet_scope(), tvb, 0, string_len, ENC_UTF_8|ENC_NA);
 	proto_item_set_text(ti, "Value: %s", format_text(buf, string_len));
 
 	return string_len;
@@ -1184,7 +1166,7 @@ dissect_aim_tlv_value_string08_array (proto_item *ti, guint16 valueid _U_, tvbuf
 	while (tvb_reported_length_remaining(tvb, offset) > 1)
 	{
 		guint8 string_len = tvb_get_guint8(tvb, offset++);
-		guint8 *buf = tvb_get_ephemeral_string(tvb, offset, string_len);
+		guint8 *buf = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, string_len, ENC_UTF_8|ENC_NA);
 		proto_tree_add_text(entry, tvb, offset, string_len, "%s",
 				    format_text(buf, string_len));
 		offset += string_len;
@@ -1289,7 +1271,7 @@ dissect_aim_tlv_value_messageblock (proto_item *ti, guint16 valueid _U_, tvbuff_
 		offset += 2;
 
 		/* The actual message */
-		buf = tvb_get_ephemeral_string(tvb, offset, blocklen - 4);
+		buf = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, blocklen - 4, ENC_ASCII|ENC_NA);
 		proto_item_append_text(ti, "Message: %s ",
 				    format_text(buf, blocklen - 4));
 		proto_tree_add_item(entry, hf_aim_messageblock_message, tvb,
@@ -1417,8 +1399,8 @@ get_aim_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 	return plen + 6;
 }
 
-static void
-dissect_aim_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_aim_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
 	/* Header fields */
 	unsigned char  hdr_channel;           /* channel ID */
@@ -1479,11 +1461,12 @@ dissect_aim_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		break;
 	}
 
+	return tvb_length(tvb);
 }
 
 /* Code to actually dissect the packets */
 static int
-dissect_aim(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_aim(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 	/* check, if this is really an AIM packet, they start with 0x2a */
 	/* XXX - I've seen some stuff starting with 0x5a followed by 0x2a */
@@ -1500,7 +1483,7 @@ dissect_aim(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 	}
 
 	tcp_dissect_pdus(tvb, pinfo, tree, aim_desegment, 6, get_aim_pdu_len,
-			 dissect_aim_pdu);
+			 dissect_aim_pdu, data);
 	return tvb_length(tvb);
 }
 
@@ -1734,8 +1717,6 @@ proto_register_aim(void)
 				       "Whether the AIM dissector should reassemble messages spanning multiple TCP segments."
 				       " To use this option, you must also enable \"Allow subdissectors to reassemble TCP streams\" in the TCP protocol settings.",
 				       &aim_desegment);
-
-	subdissector_table = register_dissector_table("aim.family", "Family ID", FT_UINT16, BASE_HEX);
 }
 
 void

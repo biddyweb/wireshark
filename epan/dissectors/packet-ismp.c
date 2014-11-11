@@ -3,8 +3,6 @@
  * Enterasys Networks Home: http://www.enterasys.com/
  * Copyright 2003, Joshua Craig Douglas <jdouglas@enterasys.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,9 +27,12 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <epan/strutil.h>
 #include <epan/etypes.h>
 
+void proto_register_ismp(void);
+void proto_reg_handoff_ismp(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_ismp = -1;
@@ -274,8 +275,8 @@ dissect_ismp_edp(tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tree *ismp
 		device_type = tvb_get_ntohs(tvb, offset);
 		proto_tree_add_item(edp_tree, hf_ismp_edp_device_type, tvb, offset, 2, ENC_BIG_ENDIAN);
 		offset += 2;
-		proto_tree_add_uint_format(edp_tree, hf_ismp_edp_module_rev, tvb, offset, 4, tvb_get_ntohl(tvb, offset),
-			"Module Firmware Revision: %02x.%02x.%02x.%02x", tvb_get_guint8(tvb, offset),
+		proto_tree_add_uint_format_value(edp_tree, hf_ismp_edp_module_rev, tvb, offset, 4, tvb_get_ntohl(tvb, offset),
+			"%02x.%02x.%02x.%02x", tvb_get_guint8(tvb, offset),
 			tvb_get_guint8(tvb, offset+1), tvb_get_guint8(tvb, offset+2), tvb_get_guint8(tvb, offset+3));
 		offset += 4;
 
@@ -353,13 +354,13 @@ dissect_ismp_edp(tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tree *ismp
 		offset += 2;
 		if (num_neighbors > 0)
 		{
-			edp_neighbors_ti = proto_tree_add_bytes_format(edp_tree, hf_ismp_edp_neighbors, tvb,
-								       offset, num_neighbors*10, NULL, "Neighbors:");
+			edp_neighbors_ti = proto_tree_add_item(edp_tree, hf_ismp_edp_neighbors, tvb,
+										offset, num_neighbors*10, ENC_NA);
 			edp_neighbors_tree = proto_item_add_subtree(edp_neighbors_ti, ett_ismp_edp_neighbors);
 			while ( neighbors_count < num_neighbors && tvb_reported_length_remaining(tvb, offset) >= 10)
 			{
 				edp_neighbors_leaf_ti = proto_tree_add_text(edp_neighbors_tree, tvb, offset, 10,
-                        		        "Neighbor%d", (neighbors_count+1));
+										"Neighbor%d", (neighbors_count+1));
 				edp_neighbors_leaf_tree = proto_item_add_subtree(edp_neighbors_leaf_ti, ett_ismp_edp_neighbors_leaf);
 
 				proto_tree_add_text(edp_neighbors_leaf_tree, tvb, offset, 6,
@@ -443,7 +444,7 @@ dissect_ismp_edp(tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tree *ismp
 							proto_tree_add_text(edp_tuples_leaf_tree, tvb, offset, tuple_length,
 								"Interface IPX_address = %s",
 								ipx_addr_to_str(tvb_get_ntohl(tvb, offset),
-								tvb_get_ephemeral_string(tvb, offset+4, tuple_length-4)));
+								tvb_get_string(wmem_packet_scope(), tvb, offset+4, tuple_length-4)));
 							break;
 						case EDP_TUPLE_UNKNOWN:
 						default:
@@ -455,8 +456,6 @@ dissect_ismp_edp(tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tree *ismp
 				offset += tuple_length;
 
 				tuples_count++;
-				tuple_type = 0;
-				tuple_length = 0;
 			}
 			if (tuples_count != num_tuples)
 			{

@@ -1,8 +1,6 @@
 /* main.h
  * Global defines, etc.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -238,6 +236,13 @@ extern void export_carrays_cmd_cb(GtkWidget *widget, gpointer data);
  */
 extern void expand_tree_cb(GtkWidget *widget, gpointer data);
 
+/** User requested "Collapse Tree" by menu.
+ *
+ * @param widget parent widget (unused)
+ * @param data unused
+ */
+extern void collapse_tree_cb(GtkWidget *widget, gpointer data);
+
 /** User requested "Expand All" by menu.
  *
  * @param widget parent widget (unused)
@@ -350,9 +355,6 @@ extern gboolean main_filter_packets(capture_file *cf, const gchar *dftext,
 #ifdef _WIN32
 /** Win32 only: Create a console. Beware: cannot be closed again. */
 extern void create_console(void);
-
-/** Restart the tap update display timer with new configured interval */
-extern void reset_tap_update_timer(void);
 #endif
 
 /** Change configuration profile */

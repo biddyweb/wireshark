@@ -3,8 +3,6 @@
  * the SynOptics Network Management Protocol (SONMP).
  * (c) Copyright Giles Scott <giles.scott1 [AT] arubanetworks.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,6 +36,9 @@
 
 #include <epan/packet.h>
 #include <epan/nlpid.h>
+
+void proto_register_ndp(void);
+void proto_reg_handoff_ndp(void);
 
 /* Although this protocol is proprietary it is documented in the SynOptics MIB's
  * So I'm not giving anything away :-)
@@ -276,25 +277,22 @@ dissect_ndp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "NDP");
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		hello_type = "";
-		if (pinfo->dl_dst.type == AT_ETHER) {
-			const guint8 *dstmac = pinfo->dl_dst.data;
+	hello_type = "";
+	if (pinfo->dl_dst.type == AT_ETHER) {
+		const guint8 *dstmac = (const guint8 *)pinfo->dl_dst.data;
 
-			switch (dstmac[5]) {
+		switch (dstmac[5]) {
 
-			case 0:
-				hello_type = "Segment ";
-				break;
+		case 0:
+			hello_type = "Segment ";
+			break;
 
-			case 1:
-				hello_type = "FlatNet ";
-				break;
-			}
+		case 1:
+			hello_type = "FlatNet ";
+			break;
 		}
-		col_add_fstr(pinfo->cinfo, COL_INFO, "%sHello",
-		    hello_type);
 	}
+	col_add_fstr(pinfo->cinfo, COL_INFO, "%sHello", hello_type);
 
 	if (tree) {
 		ti = proto_tree_add_protocol_format(tree, proto_ndp, tvb, 0, 11,

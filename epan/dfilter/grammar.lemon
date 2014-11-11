@@ -1,7 +1,8 @@
-/* $Id$ */
 
 %include {
 #include "config.h"
+
+#include <assert.h>
 
 #include "dfilter-int.h"
 #include "syntax-tree.h"
@@ -26,7 +27,10 @@
 
 /* Terminal and Non-Terminal types and destructors */
 %token_type			{stnode_t*}
-%token_destructor		{stnode_free($$);}
+%token_destructor		{
+	(void) dfw; /* Mark unused, similar to Q_UNUSED */
+	stnode_free($$);
+}
 
 %type		sentence	{stnode_t*}
 
@@ -77,11 +81,11 @@ any "error" symbols are shifted, if possible. */
 			break;
 		case STTYPE_STRING:
 			dfilter_fail("The string \"%s\" was unexpected in this context.",
-				stnode_data(TOKEN));
+				(char *)stnode_data(TOKEN));
 			break;
 		case STTYPE_UNPARSED:
 			dfilter_fail("\"%s\" was unexpected in this context.",
-				stnode_data(TOKEN));
+				(char *)stnode_data(TOKEN));
 			break;
 		case STTYPE_INTEGER:
 			dfilter_fail("The integer %d was unexpected in this context.",
@@ -165,10 +169,10 @@ entity(E) ::= range(R).		{ E = R; }
 
 
 /* Ranges */
-range(R) ::= FIELD(F) LBRACKET drnode_list(L) RBRACKET.
+range(R) ::= entity(E) LBRACKET drnode_list(L) RBRACKET.
 {
 	R = stnode_new(STTYPE_RANGE, NULL);
-	sttype_range_set(R, F, L);
+	sttype_range_set(R, E, L);
 
 	/* Delete the list, but not the drange_nodes that
 	 * the list contains. */
@@ -309,5 +313,6 @@ funcparams(P) ::= funcparams(L) COMMA entity(E).
 expr(X) ::= LPAREN expr(Y) RPAREN.
 {
 	X = Y;
+	stnode_set_bracket(X, TRUE);
 }
 

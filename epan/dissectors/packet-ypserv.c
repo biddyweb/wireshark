@@ -1,8 +1,6 @@
 /* packet-ypserv.c
  * Routines for ypserv dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,9 @@
 
 #include "packet-rpc.h"
 #include "packet-ypserv.h"
+
+void proto_register_ypserv(void);
+void proto_reg_handoff_ypserv(void);
 
 static int proto_ypserv = -1;
 static int hf_ypserv_procedure_v1 = -1;
@@ -106,9 +107,8 @@ dissect_ypserv_status(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_t
 
 	if(status<0){
 		err=val_to_str(status, ypstat, "Unknown error:%u");
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_append_fstr(pinfo->cinfo, COL_INFO," %s", err);
-		}
+		col_append_fstr(pinfo->cinfo, COL_INFO," %s", err);
+
 		proto_item_append_text(tree, " Error:%s", err);
 	}
 
@@ -116,7 +116,7 @@ dissect_ypserv_status(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_t
 }
 
 static int
-dissect_domain_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_domain_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " DOMAIN call");
 
@@ -129,7 +129,7 @@ dissect_domain_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tre
 }
 
 static int
-dissect_domain_nonack_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_domain_nonack_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " DOMAIN_NONACK call");
 
@@ -142,7 +142,7 @@ dissect_domain_nonack_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, pr
 }
 
 static int
-dissect_maplist_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_maplist_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " MAPLIST call");
 
@@ -155,7 +155,7 @@ dissect_maplist_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tr
 }
 
 static int
-dissect_domain_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_domain_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " DOMAIN reply");
 
@@ -170,7 +170,7 @@ dissect_domain_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tr
 }
 
 static int
-dissect_domain_nonack_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_domain_nonack_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " DOMAIN_NONACK reply");
 
@@ -185,7 +185,7 @@ dissect_domain_nonack_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, p
 }
 
 static int
-dissect_match_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_match_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	const char *str;
 
@@ -193,30 +193,24 @@ dissect_match_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree
 
 	/*domain*/
 	offset = dissect_rpc_string(tvb, tree, hf_ypserv_domain, offset, &str);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(pinfo->cinfo, COL_INFO," %s/", str);
-	}
+	col_append_fstr(pinfo->cinfo, COL_INFO," %s/", str);
 	proto_item_append_text(tree, " %s/", str);
 
 	/*map*/
 	offset = dissect_rpc_string(tvb, tree, hf_ypserv_map, offset, &str);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(pinfo->cinfo, COL_INFO,"%s/", str);
-	}
+	col_append_fstr(pinfo->cinfo, COL_INFO,"%s/", str);
 	proto_item_append_text(tree, "%s/", str);
 
 	/*key*/
 	offset = dissect_rpc_string(tvb, tree, hf_ypserv_key, offset, &str);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(pinfo->cinfo, COL_INFO,"%s", str);
-	}
+	col_append_fstr(pinfo->cinfo, COL_INFO,"%s", str);
 	proto_item_append_text(tree, "%s", str);
 
 	return offset;
 }
 
 static int
-dissect_match_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree)
+dissect_match_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	gint32 status;
 	const char *str;
@@ -229,9 +223,7 @@ dissect_match_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *t
 
 		if(status>=0){
 			offset = dissect_rpc_string(tvb, tree, hf_ypserv_value,offset, &str);
-			if (check_col(pinfo->cinfo, COL_INFO)) {
-				col_append_fstr(pinfo->cinfo, COL_INFO," %s", str);
-			}
+			col_append_fstr(pinfo->cinfo, COL_INFO," %s", str);
 			proto_item_append_text(tree, " %s", str);
 
 		} else {
@@ -244,7 +236,7 @@ dissect_match_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *t
 
 
 static int
-dissect_first_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_first_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " FIRST call");
 
@@ -277,7 +269,7 @@ dissect_first_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree
 
 
 static int
-dissect_first_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree)
+dissect_first_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " FIRST reply");
 
@@ -293,7 +285,7 @@ dissect_first_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *t
 }
 
 static int
-dissect_next_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree)
+dissect_next_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " NEXT reply");
 
@@ -310,7 +302,7 @@ dissect_next_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tr
 
 
 static int
-dissect_next_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_next_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " NEXT call");
 
@@ -325,7 +317,7 @@ dissect_next_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree 
 }
 
 static int
-dissect_xfr_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_xfr_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	proto_item *sub_item=NULL;
 	proto_tree *sub_tree=NULL;
@@ -361,7 +353,7 @@ dissect_xfr_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *
 }
 
 static int
-dissect_clear_call(tvbuff_t *tvb _U_, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_clear_call(tvbuff_t *tvb _U_, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " CLEAR call");
 
@@ -369,7 +361,7 @@ dissect_clear_call(tvbuff_t *tvb _U_, int offset, packet_info *pinfo _U_, proto_
 }
 
 static int
-dissect_clear_reply(tvbuff_t *tvb _U_, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_clear_reply(tvbuff_t *tvb _U_, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " CLEAR reply");
 
@@ -377,7 +369,7 @@ dissect_clear_reply(tvbuff_t *tvb _U_, int offset, packet_info *pinfo _U_, proto
 }
 
 static int
-dissect_xfr_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_xfr_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " XFR reply");
 
@@ -390,7 +382,7 @@ dissect_xfr_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree 
 }
 
 static int
-dissect_order_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_order_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	const char *str;
 
@@ -398,23 +390,19 @@ dissect_order_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree
 
 	/*domain*/
 	offset = dissect_rpc_string(tvb, tree, hf_ypserv_domain, offset, &str);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(pinfo->cinfo, COL_INFO," %s/", str);
-	}
+	col_append_fstr(pinfo->cinfo, COL_INFO," %s/", str);
 	proto_item_append_text(tree, " %s/", str);
 
 	/*map*/
 	offset = dissect_rpc_string(tvb, tree, hf_ypserv_map, offset, &str);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_append_str(pinfo->cinfo, COL_INFO, str);
-	}
+	col_append_str(pinfo->cinfo, COL_INFO, str);
 	proto_item_append_text(tree, "%s", str);
 
 	return offset;
 }
 
 static int
-dissect_all_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_all_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " ALL call");
 
@@ -426,7 +414,7 @@ dissect_all_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *
 }
 
 static int
-dissect_master_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_master_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " MASTER call");
 
@@ -438,7 +426,7 @@ dissect_master_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tre
 }
 
 static int
-dissect_all_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree)
+dissect_all_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	guint32	more;
 
@@ -460,7 +448,7 @@ dissect_all_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tre
 }
 
 static int
-dissect_master_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree)
+dissect_master_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " MASTER reply");
 
@@ -473,7 +461,7 @@ dissect_master_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *
 
 
 static int
-dissect_order_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree)
+dissect_order_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	guint32 num;
 
@@ -484,9 +472,7 @@ dissect_order_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *t
 	/*order number*/
 	num=tvb_get_ntohl(tvb, offset);
 	offset = dissect_rpc_uint32(tvb, tree, hf_ypserv_ordernum, offset);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(pinfo->cinfo, COL_INFO," 0x%08x", num);
-	}
+	col_append_fstr(pinfo->cinfo, COL_INFO," 0x%08x", num);
 	proto_item_append_text(tree, " 0x%08x", num);
 
 	return offset;
@@ -494,7 +480,7 @@ dissect_order_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *t
 
 
 static int
-dissect_maplist_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree)
+dissect_maplist_reply(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	proto_item_append_text(tree, " MAPLIST reply");
 

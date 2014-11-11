@@ -1,8 +1,6 @@
 # Makefile.am
 # Automake file for Wireshark plugins
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -24,7 +22,6 @@
 -include Custom.make
 
 SUBDIRS = $(_CUSTOM_SUBDIRS_) \
-	asn1 \
 	docsis \
 	ethercat \
 	gryphon \
@@ -47,7 +44,6 @@ plugindir = @plugindir@
 
 EXTRA_DIST = \
 	$(_CUSTOM_EXTRA_DIST_) \
-	plugins.vcproj \
 	Makefile.common.inc \
 	Makefile.nmake \
 	Custom.make.example \

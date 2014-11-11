@@ -2,8 +2,6 @@
  * Routines for dlm3 dissection
  * Copyright 2007, Masatake YAMATO <jet@gyve.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -170,6 +168,7 @@
 #define DLM3_RESNAME_MAXLEN     64
 
 /* Forward declaration we need below */
+void proto_register_dlm3(void);
 void proto_reg_handoff_dlm3(void);
 
 
@@ -682,7 +681,7 @@ dissect_dlm3_rcom_config(tvbuff_t *tvb, proto_tree *tree,
                       hf_dlm3_rf_unused, tvb, offset, 8, ENC_LITTLE_ENDIAN);
 
 
-  offset += 8;
+  /*offset += 8;*/
   /* END */
 }
 

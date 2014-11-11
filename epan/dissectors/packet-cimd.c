@@ -5,7 +5,8 @@
  * Copyright : 2005 Viorel Suman <vsuman[AT]avmob.ro>, Lucian Piros <lpiros[AT]avmob.ro>
  *             In association with Avalanche Mobile BV, http://www.avmob.com
  *
- * $Id$
+ * Updates :
+ *            Sub routines for further dissection of Status and Error codes added by Vineeth <vineethvijaysv@gmail.com>
  *
  * Refer to the AUTHORS file or the AUTHORS section in the man page
  * for contacting the author(s) of this file.
@@ -31,8 +32,11 @@
 #include "config.h"
 
 #include <glib.h>
+#include <stdlib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
+#include <epan/wmem/wmem.h>
 
 #define CIMD_STX   0x02 /* Start of CIMD PDU */
 #define CIMD_ETX   0x03 /* End of CIMD PDU */
@@ -126,9 +130,12 @@ struct cimd_parameter_t {
   gint          *hf_p;
 };
 
+void proto_register_cimd(void);
+void proto_reg_handoff_cimd(void);
 static void dissect_cimd_parameter(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint startOffset, gint endOffset);
 static void dissect_cimd_ud(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint startOffset, gint endOffset);
 static void dissect_cimd_dcs(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint startOffset, gint endOffset);
+static void dissect_cimd_error_code(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint startOffset, gint endOffset);
 
 static int proto_cimd = -1;
 /* Initialize the subtree pointers */
@@ -140,11 +147,13 @@ static int hf_cimd_packet_number_indicator = -1;
 static int hf_cimd_checksum_indicator = -1;
 static int hf_cimd_pcode_indicator = -1;
 
-static int hf_cimd_dcs_coding_group_indicator = -1;
+static int hf_cimd_dcs_coding_group_indicatorC0 = -1;
+static int hf_cimd_dcs_coding_group_indicatorF0 = -1;
 static int hf_cimd_dcs_compressed_indicator = -1;
 static int hf_cimd_dcs_message_class_meaning_indicator = -1;
 static int hf_cimd_dcs_message_class_indicator = -1;
-static int hf_cimd_dcs_character_set_indicator = -1;
+static int hf_cimd_dcs_character_set_indicator0C = -1;
+static int hf_cimd_dcs_character_set_indicator04 = -1;
 static int hf_cimd_dcs_indication_sense = -1;
 static int hf_cimd_dcs_indication_type = -1;
 
@@ -282,6 +291,118 @@ static const value_string cimd_dcs_indication_type[] = {
   {0, NULL}
 };
 
+static const value_string cimd_error_vals[] = {
+  {1, "Unexpected operation"},
+  {2, "Syntax error"},
+  {3, "Unsupported parameter error"},
+  {4, "Connection to SMS Center lost"},
+  {5, "No response from SMS Center"},
+  {6, "General system error"},
+  {7, "Cannot find information"},
+  {8, "Parameter formatting error"},
+  {9, "Requested operation failed"},
+  {10, "Temporary congestion error"},
+  {100, "Invalid login"},
+  {101, "Incorrect access type"},
+  {102, "Too many users with this login ID"},
+  {103, "Login refused by SMS Center"},
+  {104, "Invalid window size"},
+  {105, "Windowing disabled"},
+  {106, "Virtual SMS Center-based barring"},
+  {107, "Invalid subaddr"},
+  {108, "Alias account, login refused"},
+  {300, "Incorrect destination address"},
+  {301, "Incorrect number of destination addresses"},
+  {302, "Syntax error in user data parameter"},
+  {303, "Incorrect bin/head/normal user data parameter combination"},
+  {304, "Incorrect dcs parameter usage"},
+  {305, "Incorrect validity period parameters usage"},
+  {306, "Incorrect originator address usage"},
+  {307, "Incorrect PID parameter usage"},
+  {308, "Incorrect first delivery parameter usage"},
+  {309, "Incorrect reply path usage"},
+  {310, "Incorrect status report request parameter usage"},
+  {311, "Incorrect cancel enabled parameter usage"},
+  {312, "Incorrect priority parameter usage"},
+  {313, "Incorrect tariff class parameter usage"},
+  {314, "Incorrect service description parameter usage"},
+  {315, "Incorrect transport type parameter usage"},
+  {316, "Incorrect message type parameter usage"},
+  {318, "Incorrect MMs parameter usage"},
+  {319, "Incorrect operation timer parameter usage"},
+  {320, "Incorrect dialogue ID parameter usage"},
+  {321, "Incorrect alpha originator address usage"},
+  {322, "Invalid data for alpha numeric originator"},
+  {400, "Incorrect address parameter usage"},
+  {401, "Incorrect scts parameter usage"},
+  {500, "Incorrect scts parameter usage"},
+  {501, "Incorrect mode parameter usage"},
+  {502, "Incorrect parameter combination"},
+  {600, "Incorrect scts parameter usage"},
+  {601, "Incorrect address parameter usage"},
+  {602, "Incorrect mode parameter usage"},
+  {603, "Incorrect parameter combination"},
+  {800, "Changing password failed"},
+  {801, "Changing password not allowed"},
+  {900, "Unsupported item requested"},
+  {0, NULL}
+};
+
+static value_string_ext cimd_error_vals_ext = VALUE_STRING_EXT_INIT(cimd_error_vals);
+
+static const value_string cimd_status_code_vals[] = {
+  {1, " in process"},
+  {2, " validity period expired"},
+  {3, " delivery failed"},
+  {4, " delivery successful"},
+  {5, " no response"},
+  {6, " last no response"},
+  {7, " message cancelled"},
+  {8, " message deleted"},
+  {9, " message deleted by cancel"},
+  {0, NULL}
+};
+
+static const value_string cimd_status_error_vals[] = {
+ {1, "Unknown subscriber"},
+ {9, "Illegal subscriber"},
+ {11, "Teleservice not provisioned"},
+ {13, "Call barred"},
+ {15, "CUG reject"},
+ {19, "No SMS support in MS"},
+ {20, "Error in MS"},
+ {21, "Facility not supported"},
+ {22, "Memory capacity exceeded"},
+ {29, "Absent subscriber"},
+ {30, "MS busy for MT SMS"},
+ {36, "Network/Protocol failure"},
+ {44, "Illegal equipment"},
+ {60, "No paging response"},
+ {61, "GMSC congestion"},
+ {63, "HLR timeout"},
+ {64, "MSC/SGSN_timeout"},
+ {70, "SMRSE/TCP error"},
+ {72, "MT congestion"},
+ {75, "GPRS suspended"},
+ {80, "No paging response via MSC"},
+ {81, "IMSI detached"},
+ {82, "Roaming restriction"},
+ {83, "Deregistered in HLR for GSM"},
+ {84, "Purged for GSM"},
+ {85, "No paging response via SGSN"},
+ {86, "GPRS detached"},
+ {87, "Deregistered in HLR for GPRS"},
+ {88, "The MS purged for GPRS"},
+ {89, "Unidentified subscriber via MSC"},
+ {90, "Unidentified subscriber via SGSN"},
+ {112, "Originator missing credit on prepaid account"},
+ {113, "Destination missing credit on prepaid account"},
+ {114, "Error in prepaid system"},
+ {0, NULL}
+};
+
+static value_string_ext cimd_status_error_vals_ext = VALUE_STRING_EXT_INIT(cimd_status_error_vals);
+
 static const cimd_pdissect cimd_pc_handles[] = {
  /* function handles for parsing cimd parameters */
   dissect_cimd_parameter,
@@ -308,6 +429,8 @@ static const cimd_pdissect cimd_pc_handles[] = {
   dissect_cimd_parameter,
   dissect_cimd_parameter,
   dissect_cimd_parameter,
+  dissect_cimd_error_code,
+  dissect_cimd_error_code,
   dissect_cimd_parameter,
   dissect_cimd_parameter,
   dissect_cimd_parameter,
@@ -317,9 +440,7 @@ static const cimd_pdissect cimd_pc_handles[] = {
   dissect_cimd_parameter,
   dissect_cimd_parameter,
   dissect_cimd_parameter,
-  dissect_cimd_parameter,
-  dissect_cimd_parameter,
-  dissect_cimd_parameter,
+  dissect_cimd_error_code,
   dissect_cimd_parameter
 };
 
@@ -328,44 +449,20 @@ static cimd_parameter_t vals_hdr_PC[MAXPARAMSCOUNT + 1];
 static gint ett_index[MAXPARAMSCOUNT];
 static gint hf_index[MAXPARAMSCOUNT];
 
-/**
- * Convert ASCII-hex character to binary equivalent. No checks, assume
- * is valid hex character.
- */
-#define AHex2Bin(n)	(((n) & 0x40) ? ((n) & 0x0F) + 9 : ((n) & 0x0F))
-
-static guint
-decimal_int_value(tvbuff_t *tvb, int offset, int length)
-{
-  guint value = 0;
-  int i;
-
-  for (i=0; i<length; i++, offset++)
-  {
-    value = 10 * value + tvb_get_guint8(tvb, offset) - '0';
-  }
-  return value;
-}
-
 static void dissect_cimd_parameter(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint startOffset, gint endOffset)
 {
   /* Set up structures needed to add the param subtree and manage it */
-  proto_item *param_item = NULL;
-  proto_tree *param_tree = NULL;
+  proto_item *param_item;
+  proto_tree *param_tree;
 
-  param_item = proto_tree_add_text(tree, tvb,
-    startOffset + 1, endOffset - (startOffset + 1),
-    "%s", cimd_vals_PC[pindex].strptr
-  );
+  param_item = proto_tree_add_text(tree, tvb, startOffset + 1, endOffset - (startOffset + 1),
+                                   "%s", cimd_vals_PC[pindex].strptr);
   param_tree = proto_item_add_subtree(param_item, (*vals_hdr_PC[pindex].ett_p));
-  proto_tree_add_string(param_tree, hf_cimd_pcode_indicator, tvb,
-    startOffset + 1, CIMD_PC_LENGTH,
-    tvb_format_text(tvb, startOffset + 1, CIMD_PC_LENGTH)
-  );
-  proto_tree_add_string(param_tree, (*vals_hdr_PC[pindex].hf_p), tvb,
-    startOffset + 1 + CIMD_PC_LENGTH + 1, endOffset - (startOffset + 1 + CIMD_PC_LENGTH + 1),
-    tvb_format_text(tvb, startOffset + 1 + CIMD_PC_LENGTH + 1, endOffset - (startOffset + 1 + CIMD_PC_LENGTH + 1))
-  );
+
+  proto_tree_add_item(param_tree, hf_cimd_pcode_indicator, tvb,
+    startOffset + 1, CIMD_PC_LENGTH, ENC_ASCII|ENC_NA);
+  proto_tree_add_item(param_tree, (*vals_hdr_PC[pindex].hf_p), tvb,
+    startOffset + 1 + CIMD_PC_LENGTH + 1, endOffset - (startOffset + 1 + CIMD_PC_LENGTH + 1), ENC_ASCII|ENC_NA);
 }
 
 static void dissect_cimd_ud(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint startOffset, gint endOffset)
@@ -379,7 +476,7 @@ static void dissect_cimd_ud(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint s
   gint   g_offset, g_size;
   gchar  token[4];
   gchar  ch;
-  const char* mapping[128]  = {
+  static const char* mapping[128]  = {
     "_Oa" , "_L-", ""    , "_Y-", "_e`", "_e'", "_u`", "_i`", "_o`", "_C,",        /*10*/
     ""    , "_O/", "_o/" , ""   , "_A*", "_a*", "_gd", "_--", "_gf", "_gg", "_gl", /*21*/
     "_go" , "_gp", "_gi" , "_gs", "_gt", "_gx", "_XX", "_AE", "_ae", "_ss", "_E'", /*32*/
@@ -397,16 +494,15 @@ static void dissect_cimd_ud(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint s
     "%s", cimd_vals_PC[pindex].strptr
   );
   param_tree = proto_item_add_subtree(param_item, (*vals_hdr_PC[pindex].ett_p));
-  proto_tree_add_string(param_tree, hf_cimd_pcode_indicator, tvb,
-    startOffset + 1, CIMD_PC_LENGTH, tvb_format_text(tvb, startOffset + 1, CIMD_PC_LENGTH)
-  );
+  proto_tree_add_item(param_tree, hf_cimd_pcode_indicator, tvb,
+    startOffset + 1, CIMD_PC_LENGTH, ENC_ASCII|ENC_NA);
 
   g_offset = startOffset + 1 + CIMD_PC_LENGTH + 1;
   g_size   = endOffset - g_offset;
 
   payloadText = tvb_format_text(tvb, g_offset, g_size);
   size = (int)strlen(payloadText);
-  tmpBuffer = (gchar*)ep_alloc(size+1);
+  tmpBuffer = (gchar*)wmem_alloc(wmem_packet_scope(), size+1);
   for (loop = 0; loop < size; loop++)
   {
     if (payloadText[loop] == '_')
@@ -452,7 +548,7 @@ static void dissect_cimd_ud(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint s
   tmpBuffer[bufPoz] = '\0';
 
   size1 = (int)strlen(tmpBuffer);
-  tmpBuffer1 = (gchar*)ep_alloc(size1+1);
+  tmpBuffer1 = (gchar*)wmem_alloc(wmem_packet_scope(), size1+1);
   for (loop=0; loop<size1; loop++)
   {
     ch = tmpBuffer[loop];
@@ -596,123 +692,89 @@ static void dissect_cimd_dcs(tvbuff_t *tvb, proto_tree *tree, gint pindex, gint 
   proto_item *param_item;
   proto_tree *param_tree;
   gint        offset;
-  guint       dcs;
-  guint       dcs_cg;           /* coding group */
-  guint       dcs_cf;           /* compressed flag */
-  guint       dcs_mcm;          /* message class meaning flag */
-  guint       dcs_chs;          /* character set */
-  guint       dcs_mc;           /* message class */
-  guint       dcs_is;           /* indication sense */
-  guint       dcs_it;           /* indication type */
-
-  gchar* bigbuf = (gchar*)ep_alloc(1024);
+  guint32     dcs;
+  guint32     dcs_cg;           /* coding group */
 
   param_item = proto_tree_add_text(tree, tvb,
     startOffset + 1, endOffset - (startOffset + 1),
     "%s", cimd_vals_PC[pindex].strptr
   );
   param_tree = proto_item_add_subtree(param_item, (*vals_hdr_PC[pindex].ett_p));
-  proto_tree_add_string(param_tree, hf_cimd_pcode_indicator, tvb,
-    startOffset + 1, CIMD_PC_LENGTH,
-    tvb_format_text(tvb, startOffset + 1, CIMD_PC_LENGTH)
-  );
+
+  proto_tree_add_item(param_tree, hf_cimd_pcode_indicator, tvb,
+    startOffset + 1, CIMD_PC_LENGTH, ENC_ASCII|ENC_NA);
 
   offset = startOffset + 1 + CIMD_PC_LENGTH + 1;
-  dcs    = decimal_int_value(tvb, offset, endOffset - offset);
+  dcs    = (guint32) strtoul(tvb_get_string(wmem_packet_scope(), tvb, offset, endOffset - offset), NULL, 10);
   proto_tree_add_uint(param_tree, (*vals_hdr_PC[pindex].hf_p), tvb, offset, endOffset - offset, dcs);
 
   dcs_cg = (dcs & 0xF0) >> 4;
-  other_decode_bitfield_value(bigbuf, dcs, (dcs_cg <= 0x07 ? 0xC0 : 0xF0), 8);
-  proto_tree_add_uint_format(param_tree, hf_cimd_dcs_coding_group_indicator, tvb, offset, 1,
-    dcs_cg, "%s = %s: %s (%d)", bigbuf, proto_registrar_get_nth(hf_cimd_dcs_coding_group_indicator)->name,
-    val_to_str(dcs_cg, cimd_dcs_coding_groups, "Unknown (%d)"), dcs_cg
-  );
+  if (dcs_cg <= 0x07)
+  {
+     proto_tree_add_uint(param_tree, hf_cimd_dcs_coding_group_indicatorC0, tvb, offset, 1, dcs);
+  }
+  else
+  {
+     proto_tree_add_uint(param_tree, hf_cimd_dcs_coding_group_indicatorF0, tvb, offset, 1, dcs);
+  }
 
   if (dcs_cg <= 0x07)
   {
-    dcs_cf = (dcs & 0x20) >> 5;
-    other_decode_bitfield_value(bigbuf, dcs, 0x20, 8);
-    proto_tree_add_uint_format(param_tree, hf_cimd_dcs_compressed_indicator, tvb, offset, 1,
-      dcs_cf, "%s = %s: %s (%d)", bigbuf, proto_registrar_get_nth(hf_cimd_dcs_compressed_indicator)->name,
-      val_to_str(dcs_cf, cimd_dcs_compressed, "Unknown (%d)"), dcs_cf
-    );
+    proto_tree_add_uint(param_tree, hf_cimd_dcs_compressed_indicator, tvb, offset, 1, dcs);
+    proto_tree_add_uint(param_tree, hf_cimd_dcs_message_class_meaning_indicator, tvb, offset, 1, dcs);
+    proto_tree_add_uint(param_tree, hf_cimd_dcs_character_set_indicator0C, tvb, offset, 1, dcs);
 
-    dcs_mcm = (dcs & 0x10) >> 4;
-    other_decode_bitfield_value(bigbuf, dcs, 0x10, 8);
-    proto_tree_add_uint_format(param_tree, hf_cimd_dcs_message_class_meaning_indicator, tvb, offset, 1,
-      dcs_mcm, "%s = %s: %s (%d)", bigbuf, proto_registrar_get_nth(hf_cimd_dcs_message_class_meaning_indicator)->name,
-      val_to_str(dcs_mcm, cimd_dcs_message_class_meaning, "Unknown (%d)"), dcs_mcm
-    );
-
-    dcs_chs = (dcs & 0x0C) >> 2;
-    other_decode_bitfield_value(bigbuf, dcs, 0x0C, 8);
-    proto_tree_add_uint_format(param_tree, hf_cimd_dcs_character_set_indicator, tvb, offset, 1,
-      dcs_chs, "%s = %s: %s (%d)", bigbuf, proto_registrar_get_nth(hf_cimd_dcs_character_set_indicator)->name,
-      val_to_str(dcs_chs, cimd_dcs_character_set, "Unknown (%d)"), dcs_chs
-    );
-
-    if (dcs_mcm)
+    if (dcs & 0x10)
     {
-      dcs_mc = (dcs & 0x03);
-      other_decode_bitfield_value(bigbuf, dcs, 0x03, 8);
-      proto_tree_add_uint_format(param_tree, hf_cimd_dcs_message_class_indicator, tvb, offset, 1,
-        dcs_mc, "%s = %s: %s (%d)", bigbuf, proto_registrar_get_nth(hf_cimd_dcs_message_class_indicator)->name,
-        val_to_str(dcs_mc, cimd_dcs_message_class, "Unknown (%d)"), dcs_mc
-      );
+      proto_tree_add_uint(param_tree, hf_cimd_dcs_message_class_indicator, tvb, offset, 1, dcs);
     }
   }
   else if (dcs_cg >= 0x0C && dcs_cg <= 0x0E)
   {
-    dcs_is = (dcs & 0x04) >> 2;
-    other_decode_bitfield_value(bigbuf, dcs, 0x04, 8);
-    proto_tree_add_uint_format(param_tree, hf_cimd_dcs_indication_sense, tvb, offset, 1,
-      dcs_is, "%s = %s: %s (%d)", bigbuf, proto_registrar_get_nth(hf_cimd_dcs_indication_sense)->name,
-      val_to_str(dcs_is, cimd_dcs_indication_sense, "Unknown (%d)"), dcs_is
-    );
-
-    dcs_it = (dcs & 0x03);
-    other_decode_bitfield_value(bigbuf, dcs, 0x03, 8);
-    proto_tree_add_uint_format(param_tree, hf_cimd_dcs_indication_type, tvb, offset, 1,
-      dcs_it, "%s = %s: %s (%d)", bigbuf, proto_registrar_get_nth(hf_cimd_dcs_indication_type)->name,
-      val_to_str(dcs_it, cimd_dcs_indication_type, "Unknown (%d)"), dcs_it
-    );
+    proto_tree_add_uint(param_tree, hf_cimd_dcs_indication_sense, tvb, offset, 1, dcs);
+    proto_tree_add_uint(param_tree, hf_cimd_dcs_indication_type, tvb, offset, 1, dcs);
   }
   else if (dcs_cg == 0x0F)
   {
-    dcs_chs = (dcs & 0x04) >> 2;
-    other_decode_bitfield_value(bigbuf, dcs, 0x04, 8);
-    proto_tree_add_uint_format(param_tree, hf_cimd_dcs_character_set_indicator, tvb, offset, 1,
-      dcs_chs, "%s = %s: %s (%d)", bigbuf, proto_registrar_get_nth(hf_cimd_dcs_character_set_indicator)->name,
-      val_to_str(dcs_chs, cimd_dcs_character_set, "Unknown (%d)"), dcs_chs
-    );
-
-    dcs_mc = (dcs & 0x03);
-    other_decode_bitfield_value(bigbuf, dcs, 0x03, 8);
-    proto_tree_add_uint_format(param_tree, hf_cimd_dcs_message_class_indicator, tvb, offset, 1,
-      dcs_mc, "%s = %s: %s (%d)", bigbuf, proto_registrar_get_nth(hf_cimd_dcs_message_class_indicator)->name,
-      val_to_str(dcs_mc, cimd_dcs_message_class, "Unknown (%d)"), dcs_mc
-    );
+    proto_tree_add_uint(param_tree, hf_cimd_dcs_character_set_indicator04, tvb, offset, 1, dcs);
+    proto_tree_add_uint(param_tree, hf_cimd_dcs_message_class_indicator, tvb, offset, 1, dcs);
   }
+}
+
+static void dissect_cimd_error_code( tvbuff_t *tvb, proto_tree *tree, gint pindex, gint startOffset, gint endOffset )
+{
+    /* Same routine can be used to dissect CIMD Error,Status and Status Error Codes */
+    proto_item *param_item;
+    proto_tree *param_tree;
+    guint32 err_code;
+
+    param_item = proto_tree_add_text(tree, tvb, startOffset + 1, endOffset - (startOffset + 1),
+                                     "%s", cimd_vals_PC[pindex].strptr);
+    param_tree = proto_item_add_subtree(param_item, (*vals_hdr_PC[pindex].ett_p));
+
+    proto_tree_add_item(param_tree, hf_cimd_pcode_indicator, tvb, startOffset + 1, CIMD_PC_LENGTH, ENC_ASCII|ENC_NA);
+
+    err_code = (guint32) strtoul(tvb_get_string(wmem_packet_scope(), tvb,
+                                       startOffset + 1 + CIMD_PC_LENGTH + 1, endOffset - (startOffset + 1 + CIMD_PC_LENGTH + 1)),
+                                       NULL, 10);
+    proto_tree_add_uint(param_tree, (*vals_hdr_PC[pindex].hf_p), tvb, startOffset + 1 + CIMD_PC_LENGTH + 1, endOffset - (startOffset + 1 + CIMD_PC_LENGTH + 1), err_code);
 }
 
 static void
 dissect_cimd_operation(tvbuff_t *tvb, proto_tree *tree, gint etxp, guint16 checksum, guint8 last1,guint8 OC, guint8 PN)
 {
-  guint       PC        = 0;    /* Parameter code */
+  guint32     PC        = 0;    /* Parameter code */
   gint        idx;
   gint        offset    = 0;
   gint        endOffset = 0;
-  proto_item *cimd_item = NULL;
-  proto_tree *cimd_tree = NULL;
+  proto_item *cimd_item;
+  proto_tree *cimd_tree;
 
-  if (tree)
-  {
     /* create display subtree for the protocol */
-    cimd_item = proto_tree_add_item(tree, proto_cimd, tvb, 0, etxp + 1, ENC_NA);
-    cimd_tree = proto_item_add_subtree(cimd_item, ett_cimd);
-    proto_tree_add_uint(cimd_tree, hf_cimd_opcode_indicator, tvb, CIMD_OC_OFFSET, CIMD_OC_LENGTH, OC);
-    proto_tree_add_uint(cimd_tree, hf_cimd_packet_number_indicator, tvb, CIMD_PN_OFFSET, CIMD_PN_LENGTH, PN);
-  }
+  cimd_item = proto_tree_add_item(tree, proto_cimd, tvb, 0, etxp + 1, ENC_NA);
+  cimd_tree = proto_item_add_subtree(cimd_item, ett_cimd);
+  proto_tree_add_uint(cimd_tree, hf_cimd_opcode_indicator, tvb, CIMD_OC_OFFSET, CIMD_OC_LENGTH, OC);
+  proto_tree_add_uint(cimd_tree, hf_cimd_packet_number_indicator, tvb, CIMD_PN_OFFSET, CIMD_PN_LENGTH, PN);
 
   offset = CIMD_PN_OFFSET + CIMD_PN_LENGTH;
   while (offset < etxp && tvb_get_guint8(tvb, offset) == CIMD_DELIM)
@@ -721,8 +783,8 @@ dissect_cimd_operation(tvbuff_t *tvb, proto_tree *tree, gint etxp, guint16 check
     if (endOffset == -1)
       break;
 
-    PC = decimal_int_value(tvb, offset + 1, CIMD_PC_LENGTH);
-    match_strval_idx(PC, cimd_vals_PC, &idx);
+    PC = (guint32) strtoul(tvb_get_string(wmem_packet_scope(), tvb, offset + 1, CIMD_PC_LENGTH), NULL, 10);
+    try_val_to_str_idx(PC, cimd_vals_PC, &idx);
     if (idx != -1 && tree)
     {
       (vals_hdr_PC[idx].diss)(tvb, cimd_tree, idx, offset, endOffset);
@@ -730,7 +792,7 @@ dissect_cimd_operation(tvbuff_t *tvb, proto_tree *tree, gint etxp, guint16 check
     offset = endOffset;
   }
 
-  if (tree && last1 != CIMD_DELIM)
+  if (last1 != CIMD_DELIM)
   {
     /* Checksum is present */
     proto_tree_add_uint(cimd_tree, hf_cimd_checksum_indicator, tvb, etxp - 2, 2, checksum);
@@ -740,21 +802,20 @@ dissect_cimd_operation(tvbuff_t *tvb, proto_tree *tree, gint etxp, guint16 check
 static void
 dissect_cimd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-  guint8   OC              = 0; /* Operation Code */
-  guint8   PN              = 0; /* Packet number */
+  guint8   OC;                  /* Operation Code */
+  guint8   PN;                  /* Packet number */
   guint16  checksum        = 0; /* Checksum */
   guint16  pkt_check       = 0;
   gint     etxp            = 0; /* ETX position */
   gint     offset          = 0;
-  /*gint endOffset = 0;*/
   gboolean checksumIsValid = TRUE;
   guint8   last1, last2, last3;
 
   etxp = tvb_find_guint8(tvb, CIMD_PN_OFFSET + CIMD_PN_LENGTH, -1, CIMD_ETX);
   if (etxp == -1) return;
 
-  OC = decimal_int_value(tvb, CIMD_OC_OFFSET, CIMD_OC_LENGTH);
-  PN = decimal_int_value(tvb, CIMD_PN_OFFSET, CIMD_PN_LENGTH);
+  OC = (guint8)strtoul(tvb_get_string(wmem_packet_scope(), tvb, CIMD_OC_OFFSET, CIMD_OC_LENGTH), NULL, 10);
+  PN = (guint8)strtoul(tvb_get_string(wmem_packet_scope(), tvb, CIMD_PN_OFFSET, CIMD_PN_LENGTH), NULL, 10);
 
   last1 = tvb_get_guint8(tvb, etxp - 1);
   last2 = tvb_get_guint8(tvb, etxp - 2);
@@ -765,7 +826,7 @@ dissect_cimd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   } else if (last1 != CIMD_DELIM && last2 != CIMD_DELIM && last3 == CIMD_DELIM) {
     /* looks valid, it would be nice to check that last1 and last2 are HEXA */
     /* CC is present */
-    checksum = (AHex2Bin(tvb_get_guint8(tvb, etxp - 2)) << 4) + AHex2Bin(tvb_get_guint8(tvb, etxp - 1));
+    checksum = (guint16)strtoul(tvb_get_string(wmem_packet_scope(), tvb, etxp - 2, 2), NULL, 16);
     for (; offset < (etxp - 2); offset++)
     {
       pkt_check += tvb_get_guint8(tvb, offset);
@@ -810,8 +871,8 @@ dissect_cimd_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
   }
 
   /* Try getting the operation-code */
-  opcode  = decimal_int_value(tvb, CIMD_OC_OFFSET, CIMD_OC_LENGTH);
-  if (match_strval(opcode, vals_hdr_OC) == NULL)
+  opcode = (guint8)strtoul(tvb_get_string(wmem_packet_scope(), tvb, CIMD_OC_OFFSET, CIMD_OC_LENGTH), NULL, 10);
+  if (try_val_to_str(opcode, vals_hdr_OC) == NULL)
     return FALSE;
 
   if (tvb_get_guint8(tvb, CIMD_OC_OFFSET + CIMD_OC_LENGTH) != CIMD_COLON)
@@ -849,39 +910,49 @@ proto_register_cimd(void)
         FT_UINT8, BASE_HEX, NULL, 0x00,
         NULL, HFILL }
     },
-    { &hf_cimd_dcs_coding_group_indicator,
+    { &hf_cimd_dcs_coding_group_indicatorC0,
       { "DCS Coding Group", "cimd.dcs.cg",
-        FT_UINT8, BASE_DEC, NULL, 0x00,
+        FT_UINT8, BASE_DEC, VALS(cimd_dcs_coding_groups), 0xC0,
+        NULL, HFILL }
+    },
+    { &hf_cimd_dcs_coding_group_indicatorF0,
+      { "DCS Coding Group", "cimd.dcs.cg",
+        FT_UINT8, BASE_DEC, VALS(cimd_dcs_coding_groups), 0xF0,
         NULL, HFILL }
     },
     { &hf_cimd_dcs_compressed_indicator,
       { "DCS Compressed Flag", "cimd.dcs.cf",
-        FT_UINT8, BASE_DEC, NULL, 0x00,
+        FT_UINT8, BASE_DEC, VALS(cimd_dcs_compressed), 0x20,
         NULL, HFILL }
     },
     { &hf_cimd_dcs_message_class_meaning_indicator,
       { "DCS Message Class Meaning", "cimd.dcs.mcm",
-        FT_UINT8, BASE_DEC, NULL, 0x00,
+        FT_UINT8, BASE_DEC, VALS(cimd_dcs_message_class_meaning), 0x10,
         NULL, HFILL }
     },
     { &hf_cimd_dcs_message_class_indicator,
       { "DCS Message Class", "cimd.dcs.mc",
-        FT_UINT8, BASE_DEC, NULL, 0x00,
+        FT_UINT8, BASE_DEC, VALS(cimd_dcs_message_class), 0x03,
         NULL, HFILL }
     },
-    { &hf_cimd_dcs_character_set_indicator,
+    { &hf_cimd_dcs_character_set_indicator0C,
       { "DCS Character Set", "cimd.dcs.chs",
-        FT_UINT8, BASE_DEC, NULL, 0x00,
+        FT_UINT8, BASE_DEC, VALS(cimd_dcs_character_set), 0x0C,
+        NULL, HFILL }
+    },
+    { &hf_cimd_dcs_character_set_indicator04,
+      { "DCS Character Set", "cimd.dcs.chs",
+        FT_UINT8, BASE_DEC, VALS(cimd_dcs_character_set), 0x04,
         NULL, HFILL }
     },
     { &hf_cimd_dcs_indication_sense,
       { "DCS Indication Sense", "cimd.dcs.is",
-        FT_UINT8, BASE_DEC, NULL, 0x00,
+        FT_UINT8, BASE_DEC, VALS(cimd_dcs_indication_sense), 0x04,
         NULL, HFILL }
     },
     { &hf_cimd_dcs_indication_type,
       { "DCS Indication Type", "cimd.dcs.it",
-        FT_UINT8, BASE_DEC, NULL, 0x00,
+        FT_UINT8, BASE_DEC, VALS(cimd_dcs_indication_type), 0x03,
         NULL, HFILL }
     },
     { &hf_index[0],
@@ -1006,12 +1077,12 @@ proto_register_cimd(void)
     },
     { &hf_index[24],
       { "Status Code", "cimd.stcode",
-        FT_STRING, BASE_NONE, NULL, 0x00,
+        FT_UINT8, BASE_DEC, VALS(cimd_status_code_vals), 0x00,
         NULL, HFILL }
     },
     { &hf_index[25],
       { "Status Error Code", "cimd.sterrcode",
-        FT_STRING, BASE_NONE, NULL, 0x00,
+        FT_UINT16, BASE_DEC|BASE_EXT_STRING, &cimd_status_error_vals_ext, 0x00,
         NULL, HFILL }
     },
     { &hf_index[26],
@@ -1060,8 +1131,8 @@ proto_register_cimd(void)
         NULL, HFILL }
     },
     { &hf_index[35],
-      { "Error Code", "cimd.errcode",
-        FT_STRING, BASE_NONE, NULL, 0x00,
+      { "Error Code Description", "cimd.errcode",
+        FT_UINT16, BASE_DEC|BASE_EXT_STRING, &cimd_error_vals_ext, 0x00,
         NULL, HFILL }
     },
     { &hf_index[36],

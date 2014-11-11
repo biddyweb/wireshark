@@ -1,7 +1,5 @@
 /* main_window_preferences_frame.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -47,6 +45,7 @@ MainWindowPreferencesFrame::MainWindowPreferencesFrame(QWidget *parent) :
     pref_auto_scroll_percentage_ = prefFromPrefPtr(&prefs.gui_auto_scroll_percentage);
     pref_toolbar_main_style_ = prefFromPrefPtr(&prefs.gui_toolbar_main_style);
     pref_toolbar_filter_style_ = prefFromPrefPtr(&prefs.gui_toolbar_filter_style);
+    pref_qt_language_ = prefFromPrefPtr(&prefs.gui_qt_language);
 
     QStyleOption style_opt;
     QString indent_ss = QString(
@@ -103,6 +102,7 @@ void MainWindowPreferencesFrame::updateWidgets()
 
     ui->mainToolbarComboBox->setCurrentIndex(pref_toolbar_main_style_->stashed_val.enumval);
     ui->filterToolbarComboBox->setCurrentIndex(pref_toolbar_filter_style_->stashed_val.enumval);
+    ui->languageComboBox->setCurrentIndex(pref_qt_language_->stashed_val.enumval);
 }
 
 void MainWindowPreferencesFrame::on_geometryCheckBox_toggled(bool checked)
@@ -182,6 +182,11 @@ void MainWindowPreferencesFrame::on_mainToolbarComboBox_currentIndexChanged(int 
 void MainWindowPreferencesFrame::on_filterToolbarComboBox_currentIndexChanged(int index)
 {
     pref_toolbar_filter_style_->stashed_val.enumval = index;
+}
+
+void MainWindowPreferencesFrame::on_languageComboBox_currentIndexChanged(int index)
+{
+    pref_qt_language_->stashed_val.enumval = index;
 }
 
 /*

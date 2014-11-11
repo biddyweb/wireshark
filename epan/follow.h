@@ -1,7 +1,5 @@
 /* follow.h
  *
- * $Id$
- *
  * Copyright 1998 Mike Hall <mlh@io.com>
  *
  * Wireshark - Network traffic analyzer
@@ -27,6 +25,10 @@
 #ifndef __FOLLOW_H__
 #define __FOLLOW_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 #include <epan/packet.h>
 #include "ws_symbol_export.h"
 
@@ -40,16 +42,48 @@ typedef struct _tcp_stream_chunk {
   guint8      src_addr[MAX_IPADDR_LEN];
   guint16     src_port;
   guint32     dlen;
+  guint32     packet_num;
 } tcp_stream_chunk;
 
+/** Build a follow filter based on the current packet's conversation.
+ *
+ * @param packet_info [in] The current packet.
+ * @return A filter that specifies the conversation. Must be g_free()d
+ * the caller.
+ */
 WS_DLL_PUBLIC
-char* build_follow_filter( packet_info * );
+gchar* build_follow_conv_filter( packet_info * packet_info);
+
+/** Build a follow filter based on the current TCP stream index.
+ * follow_tcp_index() must be called prior to calling this.
+ *
+ * @return A filter that specifies the current stream. Must be g_free()d
+ * the caller.
+ */
+WS_DLL_PUBLIC
+gchar* build_follow_index_filter(void);
+
 WS_DLL_PUBLIC
 gboolean follow_tcp_addr( const address *, guint, const address *, guint );
+
+/** Select a TCP stream to follow via its index.
+ *
+ * @param addr [in] The stream index to follow.
+ * @return TRUE on success, FALSE on failure.
+ */
 WS_DLL_PUBLIC
-gboolean follow_tcp_index( guint32 );
+gboolean follow_tcp_index( guint32 addr);
+
+/** Get the current TCP index being followed.
+ *
+ * @return The current TCP index. The behavior is undefined
+ * if no TCP stream is being followed.
+ */
+WS_DLL_PUBLIC
+guint32 get_follow_tcp_index(void);
+
 void reassemble_tcp( guint32, guint32, guint32, guint32, const char*, guint32,
-                     int, address *, address *, guint, guint );
+                     int, address *, address *, guint, guint, guint32 );
 WS_DLL_PUBLIC
 void  reset_tcp_reassembly( void );
 
@@ -62,5 +96,9 @@ typedef struct {
 
 WS_DLL_PUBLIC
 void follow_stats(follow_stats_t* stats);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif

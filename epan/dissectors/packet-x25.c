@@ -2,8 +2,6 @@
  * Routines for X.25 packet disassembly
  * Olivier Abad <oabad@noos.fr>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998
@@ -35,11 +33,15 @@
 #include <epan/circuit.h>
 #include <epan/reassemble.h>
 #include <epan/prefs.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 #include <epan/nlpid.h>
 #include <epan/x264_prt_id.h>
 #include <epan/lapd_sapi.h>
+#include <wiretap/wtap.h>
+
+void proto_register_x25(void);
+void proto_reg_handoff_x25(void);
 
 /*
  * Direction of packet.
@@ -219,6 +221,8 @@ static gint hf_x25_fast_select = -1;
 static gint hf_x25_icrd = -1;
 static gint hf_x25_reg_confirm_cause = -1;
 static gint hf_x25_reg_confirm_diagnostic = -1;
+
+static expert_field ei_x25_facility_length = EI_INIT;
 
 static const value_string vals_modulo[] = {
 	{ 1, "8" },
@@ -516,8 +520,7 @@ static gboolean reassemble_x25 = TRUE;
 
 /* Reassembly of X.25 */
 
-static GHashTable *x25_segment_table = NULL;
-static GHashTable *x25_reassembled_table = NULL;
+static reassembly_table x25_reassembly_table;
 
 static dissector_table_t x25_subdissector_table;
 static heur_dissector_list_t x25_heur_subdissector_list;
@@ -601,7 +604,7 @@ static const char *clear_code(unsigned char code)
 		return "Destination Absent";
 	}
 
-	return ep_strdup_printf("Unknown %02X", code);
+	return wmem_strdup_printf(wmem_packet_scope(),"Unknown %02X", code);
 }
 
 static const char *reset_code(unsigned char code)
@@ -629,7 +632,7 @@ static const char *reset_code(unsigned char code)
 		return "Network out of order";
 	}
 
-	return ep_strdup_printf("Unknown %02X", code);
+	return wmem_strdup_printf(wmem_packet_scope(),"Unknown %02X", code);
 }
 
 static const char *restart_code(unsigned char code)
@@ -649,14 +652,14 @@ static const char *restart_code(unsigned char code)
 		return "Registration/cancellation confirmed";
 	}
 
-	return ep_strdup_printf("Unknown %02X", code);
+	return wmem_strdup_printf(wmem_packet_scope(),"Unknown %02X", code);
 }
 
 static char *
 dte_address_util(tvbuff_t *tvb, int offset, guint8 len)
 {
 	int i;
-	char *tmpbuf = ep_alloc(258);
+	char *tmpbuf = (char *)wmem_alloc(wmem_packet_scope(), 258);
 
 	for (i = 0; (i<len)&&(i<256); i++) {
 		if (i % 2 == 0) {
@@ -829,7 +832,7 @@ dump_facilities(proto_tree *tree, int *offset, tvbuff_t *tvb, packet_info *pinfo
 					int i;
 
 					if ((byte1 < 4) || (byte1 % 4)) {
-						expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Bogus length");
+						expert_add_info(pinfo, ti, &ei_x25_facility_length);
 						return;
 					}
 					for (i = 0; (i<byte1); i+=4) {
@@ -847,7 +850,7 @@ dump_facilities(proto_tree *tree, int *offset, tvbuff_t *tvb, packet_info *pinfo
 					int i;
 
 					if ((byte1 < 8) || (byte1 % 8)) {
-						expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Bogus length");
+						expert_add_info(pinfo, ti, &ei_x25_facility_length);
 						return;
 					}
 					for (i = 0; (i<byte1); i+=8) {
@@ -871,12 +874,12 @@ dump_facilities(proto_tree *tree, int *offset, tvbuff_t *tvb, packet_info *pinfo
 					char *tmpbuf;
 
 					if (byte1 < 2) {
-						expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Bogus length");
+						expert_add_info(pinfo, ti, &ei_x25_facility_length);
 						return;
 					}
 					byte2 = tvb_get_guint8(tvb, *offset+2);
 					if ((byte2 & 0xC0) == 0xC0) {
-						proto_tree_add_uint_format_value(facility_tree, hf_x25_facility_call_transfer_reason, tvb, 
+						proto_tree_add_uint_format_value(facility_tree, hf_x25_facility_call_transfer_reason, tvb,
 															*offset+2, 1, byte2, "call deflection by the originally called DTE address");
 					}
 					else {
@@ -895,7 +898,7 @@ dump_facilities(proto_tree *tree, int *offset, tvbuff_t *tvb, packet_info *pinfo
 					int i;
 
 					if ((byte1 < 2) || (byte1 % 2)) {
-						expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Bogus length");
+						expert_add_info(pinfo, ti, &ei_x25_facility_length);
 						return;
 					}
 					for (i = 0; (i<byte1); i+=2) {
@@ -910,7 +913,7 @@ dump_facilities(proto_tree *tree, int *offset, tvbuff_t *tvb, packet_info *pinfo
 					char *tmpbuf;
 
 					if (byte1 < 1) {
-						expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Bogus length");
+						expert_add_info(pinfo, ti, &ei_x25_facility_length);
 						return;
 					}
 					byte2 = tvb_get_guint8(tvb, *offset+2) & 0x3F;
@@ -931,7 +934,7 @@ dump_facilities(proto_tree *tree, int *offset, tvbuff_t *tvb, packet_info *pinfo
 					char *tmpbuf;
 
 					if (byte1 < 1) {
-						expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Bogus length");
+						expert_add_info(pinfo, ti, &ei_x25_facility_length);
 						return;
 					}
 					byte2 = tvb_get_guint8(tvb, *offset+2) & 0x3F;
@@ -958,7 +961,7 @@ dump_facilities(proto_tree *tree, int *offset, tvbuff_t *tvb, packet_info *pinfo
 					char *tmpbuf;
 
 					if (byte1 < 2) {
-						expert_add_info_format(pinfo, ti, PI_PROTOCOL, PI_WARN, "Bogus length");
+						expert_add_info(pinfo, ti, &ei_x25_facility_length);
 						return;
 					}
 					byte2 = tvb_get_guint8(tvb, *offset+2);
@@ -1019,8 +1022,8 @@ x25_ntoa(proto_tree *tree, int *offset, tvbuff_t *tvb,
     guint8 byte;
     int localoffset;
 
-    addr1=ep_alloc(16);
-    addr2=ep_alloc(16);
+    addr1=(char *)wmem_alloc(wmem_packet_scope(), 16);
+    addr2=(char *)wmem_alloc(wmem_packet_scope(), 16);
 
     byte = tvb_get_guint8(tvb, *offset);
     len1 = (byte >> 0) & 0x0F;
@@ -1100,8 +1103,8 @@ x25_toa(proto_tree *tree, int *offset, tvbuff_t *tvb,
     guint8 byte;
     int localoffset;
 
-    addr1=ep_alloc(256);
-    addr2=ep_alloc(256);
+    addr1=(char *)wmem_alloc(wmem_packet_scope(), 256);
+    addr2=(char *)wmem_alloc(wmem_packet_scope(), 256);
 
     len1 = tvb_get_guint8(tvb, *offset);
     if (tree) {
@@ -1283,7 +1286,7 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     guint x25_pkt_len;
     int modulo;
     guint16 vc;
-    dissector_handle_t dissect = NULL;
+    dissector_handle_t dissect;
     gboolean toa;         /* TOA/NPI address format */
     guint16 bytes0_1;
     guint8 pkt_type;
@@ -1293,8 +1296,8 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     gboolean m_bit_set;
     gint payload_len;
     guint32 frag_key;
-    void *saved_private_data;
-    fragment_data *fd_head;
+    fragment_head *fd_head;
+    heur_dtbl_entry_t *hdtbl_entry;
 
 
     guint8 spi;
@@ -1379,8 +1382,8 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	if (x25_tree) {
 	    proto_tree_add_uint(x25_tree, hf_x25_lcn, tvb,
 		    0, 2, bytes0_1);
-	    proto_tree_add_uint_format(x25_tree, hf_x25_type, tvb, 2, 1,
-		    X25_CALL_REQUEST, "Packet Type: %s", long_name);
+	    proto_tree_add_uint_format_value(x25_tree, hf_x25_type, tvb, 2, 1,
+		    X25_CALL_REQUEST, "%s", long_name);
 	}
 	localoffset = 3;
 	if (localoffset < x25_pkt_len) { /* calling/called addresses */
@@ -1582,7 +1585,7 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		     */
 		    dissect = dissector_get_uint_handle(x25_subdissector_table, spi);
 		    if (dissect != NULL)
-			x25_hash_add_proto_start(vc, pinfo->fd->num, dissect);
+			    x25_hash_add_proto_start(vc, pinfo->fd->num, dissect);
 		}
 
 		/*
@@ -1659,8 +1662,8 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	col_add_fstr(pinfo->cinfo, COL_INFO, "%s VC:%d", short_name, vc);
 	if (x25_tree) {
 	    proto_tree_add_uint(x25_tree, hf_x25_lcn, tvb, 0, 2, bytes0_1);
-	    proto_tree_add_uint_format(x25_tree, hf_x25_type, tvb, 2, 1,
-	    	    X25_CALL_ACCEPTED, "Packet Type: %s", long_name);
+	    proto_tree_add_uint_format_value(x25_tree, hf_x25_type, tvb, 2, 1,
+	    	    X25_CALL_ACCEPTED, "%s", long_name);
 	}
 	localoffset = 3;
         if (localoffset < x25_pkt_len) { /* calling/called addresses */
@@ -1697,8 +1700,8 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	x25_hash_add_proto_end(vc, pinfo->fd->num);
 	if (x25_tree) {
 	    proto_tree_add_uint(x25_tree, hf_x25_lcn, tvb, 0, 2, bytes0_1);
-	    proto_tree_add_uint_format(x25_tree, hf_x25_type, tvb,
-	    	    localoffset+2, 1, X25_CLEAR_REQUEST, "Packet Type: %s",
+	    proto_tree_add_uint_format_value(x25_tree, hf_x25_type, tvb,
+	    	    localoffset+2, 1, X25_CLEAR_REQUEST, "%s",
 	    	    long_name);
 	    proto_tree_add_text(x25_tree, tvb, 3, 1,
 		    "Cause: %s", clear_code(tvb_get_guint8(tvb, 3)));
@@ -1778,8 +1781,8 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	x25_hash_add_proto_end(vc, pinfo->fd->num);
 	if (x25_tree) {
 	    proto_tree_add_uint(x25_tree, hf_x25_lcn, tvb, 0, 2, bytes0_1);
-	    proto_tree_add_uint_format(x25_tree, hf_x25_type, tvb, 2, 1,
-		    X25_RESET_REQUEST, "Packet Type: %s", long_name);
+	    proto_tree_add_uint_format_value(x25_tree, hf_x25_type, tvb, 2, 1,
+		    X25_RESET_REQUEST, "%s", long_name);
 	    proto_tree_add_text(x25_tree, tvb, 3, 1,
 		    "Cause: %s", reset_code(tvb_get_guint8(tvb, 3)));
 	    proto_tree_add_text(x25_tree, tvb, 4, 1,
@@ -1819,8 +1822,8 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		    restart_code(tvb_get_guint8(tvb, 3)),
 		    (int)tvb_get_guint8(tvb, 4));
 	if (x25_tree) {
-	    proto_tree_add_uint_format(x25_tree, hf_x25_type, tvb, 2, 1,
-		    X25_RESTART_REQUEST, "Packet Type: %s", long_name);
+	    proto_tree_add_uint_format_value(x25_tree, hf_x25_type, tvb, 2, 1,
+		    X25_RESTART_REQUEST, "%s", long_name);
 	    proto_tree_add_text(x25_tree, tvb, 3, 1,
 		    "Cause: %s", restart_code(tvb_get_guint8(tvb, 3)));
 	    proto_tree_add_text(x25_tree, tvb, 4, 1,
@@ -1941,10 +1944,9 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		     */
 		    frag_key |= 0x10000;
 		}
-		fd_head = fragment_add_seq_next(tvb, localoffset,
-						pinfo, frag_key,
-						x25_segment_table,
-						x25_reassembled_table,
+		fd_head = fragment_add_seq_next(&x25_reassembly_table,
+						tvb, localoffset,
+						pinfo, frag_key, NULL,
 						payload_len, m_bit_set);
 		pinfo->fragmented = m_bit_set;
 
@@ -1959,9 +1961,7 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		        proto_item *frag_tree_item;
 
 		        /* This is the last packet */
-			next_tvb = tvb_new_child_real_data(tvb, fd_head->data,
-						     fd_head->len,
-						     fd_head->len);
+			next_tvb = tvb_new_chain(tvb, fd_head->tvb_data);
 			add_new_data_source(pinfo, next_tvb, "Reassembled X.25");
                         if (x25_tree) {
                            show_fragment_seq_tree(fd_head,
@@ -2022,14 +2022,10 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     if (!next_tvb)
       next_tvb = tvb_new_subset_remaining(tvb, localoffset);
 
-    saved_private_data = pinfo->private_data;
-    pinfo->private_data = &q_bit_set;
-
     /* See if there's already a dissector for this circuit. */
     if (try_circuit_dissector(CT_X25, vc, pinfo->fd->num, next_tvb, pinfo,
-			      tree)) {
-	pinfo->private_data = saved_private_data;
-	return;	/* found it and dissected it */
+			      tree, &q_bit_set)) {
+		return;	/* found it and dissected it */
     }
 
     /* Did the user suggest QLLC/SNA? */
@@ -2037,8 +2033,7 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	/* Yes - dissect it as QLLC/SNA. */
 	if (!pinfo->fd->flags.visited)
 	    x25_hash_add_proto_start(vc, pinfo->fd->num, qllc_handle);
-	call_dissector(qllc_handle, next_tvb, pinfo, tree);
-	pinfo->private_data = saved_private_data;
+	call_dissector_with_data(qllc_handle, next_tvb, pinfo, tree, &q_bit_set);
 	return;
     }
 
@@ -2052,7 +2047,6 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	if (!pinfo->fd->flags.visited)
 	    x25_hash_add_proto_start(vc, pinfo->fd->num, ositp_handle);
 	call_dissector(ositp_handle, next_tvb, pinfo, tree);
-	pinfo->private_data = saved_private_data;
 	return;
       }
     }
@@ -2066,28 +2060,24 @@ dissect_x25_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	if (!pinfo->fd->flags.visited)
 	    x25_hash_add_proto_start(vc, pinfo->fd->num, ip_handle);
 	call_dissector(ip_handle, next_tvb, pinfo, tree);
-	pinfo->private_data = saved_private_data;
 	return;
 
     case NLPID_ISO8473_CLNP:
 	if (!pinfo->fd->flags.visited)
 	    x25_hash_add_proto_start(vc, pinfo->fd->num, clnp_handle);
 	call_dissector(clnp_handle, next_tvb, pinfo, tree);
-	pinfo->private_data = saved_private_data;
 	return;
     }
     }
 
     /* Try the heuristic dissectors. */
     if (dissector_try_heuristic(x25_heur_subdissector_list, next_tvb, pinfo,
-				tree, NULL)) {
-	pinfo->private_data = saved_private_data;
+				tree, &hdtbl_entry, NULL)) {
 	return;
     }
 
     /* All else failed; dissect it as raw data */
     call_dissector(data_handle, next_tvb, pinfo, tree);
-    pinfo->private_data = saved_private_data;
 }
 
 /*
@@ -2127,8 +2117,8 @@ dissect_x25(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 static void
 x25_reassemble_init(void)
 {
-  fragment_table_init(&x25_segment_table);
-  reassembled_table_init(&x25_reassembled_table);
+  reassembly_table_init(&x25_reassembly_table,
+                        &addresses_reassembly_table_functions);
 }
 
 void
@@ -2421,16 +2411,24 @@ proto_register_x25(void)
         &ett_x25,
 	&ett_x25_gfi,
 	&ett_x25_facilities,
-	&ett_x25_facility, 
+	&ett_x25_facility,
 	&ett_x25_user_data,
 	&ett_x25_segment,
 	&ett_x25_segments
     };
+
+    static ei_register_info ei[] = {
+        { &ei_x25_facility_length, { "x25.facility_length.bogus", PI_PROTOCOL, PI_WARN, "Bogus length", EXPFILL }},
+    };
+
     module_t *x25_module;
+    expert_module_t* expert_x25;
 
     proto_x25 = proto_register_protocol ("X.25", "X.25", "x25");
     proto_register_field_array (proto_x25, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_x25 = expert_register_protocol(proto_x25);
+    expert_register_field_array(expert_x25, ei, array_length(ei));
 
     x25_subdissector_table = register_dissector_table("x.25.spi",
 	"X.25 secondary protocol identifier", FT_UINT8, BASE_HEX);

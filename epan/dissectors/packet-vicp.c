@@ -4,8 +4,6 @@
  * Written by Frank Kingswood <frank.kingswood@artimi.com>
  * Copyright 2008, Artimi Ltd.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -41,6 +39,9 @@ static int hf_vicp_data = -1;
 static gint ett_vicp = -1;
 
 #define VICP_PORT 1861
+
+void proto_register_vicp(void);
+void proto_reg_handoff_vicp(void);
 
 static void dissect_vicp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {

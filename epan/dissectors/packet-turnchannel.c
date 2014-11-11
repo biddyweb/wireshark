@@ -3,8 +3,6 @@
  * in the STUN2 dissector
  * Copyright 2008, 8x8 Inc. <petithug@8x8.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,6 +36,9 @@
 #include <epan/packet.h>
 #include <packet-tcp.h>
 
+void proto_register_turnchannel(void);
+void proto_reg_handoff_turnchannel(void);
+
 /* heuristic subdissectors */
 static heur_dissector_list_t heur_subdissector_list;
 
@@ -65,6 +66,7 @@ dissect_turnchannel_message(tvbuff_t *tvb, packet_info *pinfo,
 	guint16 data_len;
 	proto_item *ti;
 	proto_tree *turnchannel_tree;
+	heur_dtbl_entry_t *hdtbl_entry;
 
 	len = tvb_length(tvb);
 	/* First, make sure we have enough data to do the check. */
@@ -86,8 +88,7 @@ dissect_turnchannel_message(tvbuff_t *tvb, packet_info *pinfo,
 	/* Seems to be a decent TURN channel message */
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "TURN CHANNEL");
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-	  col_add_fstr(pinfo->cinfo, COL_INFO, "Channel Id 0x%x", channel_id);
+	col_add_fstr(pinfo->cinfo, COL_INFO, "Channel Id 0x%x", channel_id);
 
 	ti = proto_tree_add_item(tree, proto_turnchannel, tvb, 0, -1, ENC_NA);
 
@@ -112,7 +113,7 @@ dissect_turnchannel_message(tvbuff_t *tvb, packet_info *pinfo,
 
 
 	  if (!dissector_try_heuristic(heur_subdissector_list,
-				       next_tvb, pinfo, tree, NULL)) {
+				       next_tvb, pinfo, tree, &hdtbl_entry, NULL)) {
 	    call_dissector(data_handle,next_tvb, pinfo, tree);
 	  }
 	}
@@ -120,25 +121,18 @@ dissect_turnchannel_message(tvbuff_t *tvb, packet_info *pinfo,
 	return tvb_length(tvb);
 }
 
-
-static void
-dissect_turnchannel_message_no_return(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
-{
-	dissect_turnchannel_message(tvb, pinfo, tree, NULL);
-}
-
-
 static guint
 get_turnchannel_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 {
 	return (guint)tvb_get_ntohs(tvb, offset+2) + TURNCHANNEL_HDR_LEN;
 }
 
-static void
-dissect_turnchannel_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_turnchannel_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
 	tcp_dissect_pdus(tvb, pinfo, tree, TRUE, TURNCHANNEL_HDR_LEN,
-			get_turnchannel_message_len, dissect_turnchannel_message_no_return);
+			get_turnchannel_message_len, dissect_turnchannel_message, data);
+	return tvb_length(tvb);
 }
 
 
@@ -211,7 +205,7 @@ proto_reg_handoff_turnchannel(void)
 	dissector_handle_t turnchannel_tcp_handle;
 	dissector_handle_t turnchannel_udp_handle;
 
-	turnchannel_tcp_handle = create_dissector_handle(dissect_turnchannel_tcp, proto_turnchannel);
+	turnchannel_tcp_handle = new_create_dissector_handle(dissect_turnchannel_tcp, proto_turnchannel);
 	turnchannel_udp_handle = find_dissector("turnchannel");
 
 	/* Used for "Decode As" in case STUN negotiation isn't captured */

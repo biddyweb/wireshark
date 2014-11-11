@@ -1,7 +1,5 @@
 /* filter_expressions_preferences_frame.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,7 +33,7 @@ class FilterExpressionsPreferencesFrame;
 class FilterExpressionsPreferencesFrame : public QFrame
 {
     Q_OBJECT
-    
+
 public:
     explicit FilterExpressionsPreferencesFrame(QWidget *parent = 0);
     ~FilterExpressionsPreferencesFrame();
@@ -60,7 +58,6 @@ private slots:
     void on_expressionTreeWidget_itemActivated(QTreeWidgetItem *item, int column);
     void lineEditDestroyed();
     void labelEditingFinished();
-    void expressionTextChanged(QString);
     void expressionEditingFinished();
     void on_newToolButton_clicked();
     void on_deleteToolButton_clicked();

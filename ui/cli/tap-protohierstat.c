@@ -1,8 +1,6 @@
 /* tap-protohierstat.c
  * protohierstat   2002 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,13 +25,16 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet_info.h"
 #include "epan/epan_dissect.h"
 #include "epan/proto.h"
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
+
+void register_tap_listener_protohierstat(void);
 
 typedef struct _phs_t {
 	struct _phs_t *sibling;
@@ -67,7 +68,7 @@ new_phs_t(phs_t *parent)
 static int
 protohierstat_packet(void *prs, packet_info *pinfo, epan_dissect_t *edt, const void *dummy _U_)
 {
-	phs_t *rs=prs;
+	phs_t *rs=(phs_t *)prs;
 	phs_t *tmprs;
 	proto_node *node;
 	field_info *fi;
@@ -166,18 +167,18 @@ protohierstat_draw(void *prs)
 
 
 static void
-protohierstat_init(const char *optarg, void* userdata _U_)
+protohierstat_init(const char *opt_arg, void* userdata _U_)
 {
 	phs_t *rs;
 	int pos=0;
 	const char *filter=NULL;
 	GString *error_string;
 
-	if(strcmp("io,phs",optarg)==0){
+	if(strcmp("io,phs",opt_arg)==0){
 		/* No arguments */
-	} else if(sscanf(optarg,"io,phs,%n",&pos)==0){
+	} else if(sscanf(opt_arg,"io,phs,%n",&pos)==0){
 		if(pos){
-			filter=optarg+pos;
+			filter=opt_arg+pos;
 		}
 	} else {
 		fprintf(stderr, "tshark: invalid \"-z io,phs[,<filter>]\" argument\n");

@@ -2,8 +2,6 @@
  * Copyright 2004, Irene Ruengeler <i.ruengeler [AT] fh-muenster.de>
  * Copyright 2009, Varun Notibala <nbvarun [AT] gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,14 +26,17 @@
 
 #include <gtk/gtk.h>
 
-#include "epan/filesystem.h"
+#include "wsutil/filesystem.h"
+#include "epan/to_str.h"
 
 #include "../globals.h"
 
 #include "ui/gtk/dlg_utils.h"
 #include "ui/gtk/gui_utils.h"
 #include "ui/gtk/main.h"
-#include "ui/gtk/sctp_stat.h"
+#include "ui/tap-sctp-analysis.h"
+#include "ui/gtk/sctp_stat_gtk.h"
+#include "ui/gtk/stock_icons.h"
 
 static GtkWidget         *clist           = NULL;
 static GList             *last_list       = NULL;
@@ -602,7 +603,7 @@ gtk_sctpstat_dlg(struct sctp_udata *u_data, unsigned int direction)
     GtkWidget *bt_close;
 
 
-    sctp_graph_t *io = g_malloc(sizeof(sctp_graph_t));
+    sctp_graph_t *io = (sctp_graph_t *)g_malloc(sizeof(sctp_graph_t));
     io->window = NULL;
     u_data->io = io;
     u_data->io->window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
@@ -635,7 +636,7 @@ gtk_sctpstat_dlg(struct sctp_udata *u_data, unsigned int direction)
     gtk_box_set_spacing(GTK_BOX (hbuttonbox2), 0);
     gtk_widget_show(hbuttonbox2);
 
-    bt_close = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
+    bt_close = ws_gtk_button_new_from_stock(GTK_STOCK_CLOSE);
     gtk_container_add (GTK_CONTAINER (hbuttonbox2), bt_close);
     gtk_widget_show (bt_close);
 
@@ -672,7 +673,7 @@ sctp_chunk_dlg(struct sctp_udata *u_data)
     gchar      label_txt[50];
     int        i, row;
 
-    sctp_graph_t *io = g_malloc(sizeof(sctp_graph_t));
+    sctp_graph_t *io = (sctp_graph_t *)g_malloc(sizeof(sctp_graph_t));
 
     io->window = NULL;
     u_data->io = io;
@@ -762,7 +763,7 @@ sctp_chunk_dlg(struct sctp_udata *u_data)
     gtk_box_set_spacing(GTK_BOX (h_button_box), 0);
     gtk_widget_show(h_button_box);
 
-    close_bt = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
+    close_bt = ws_gtk_button_new_from_stock(GTK_STOCK_CLOSE);
     gtk_box_pack_start(GTK_BOX(h_button_box), close_bt, FALSE, FALSE, 0);
     gtk_widget_show(close_bt);
     g_signal_connect(close_bt, "clicked", G_CALLBACK(on_close_dlg), u_data);
@@ -777,14 +778,14 @@ sctp_chunk_dlg_show(struct sctp_analyse* userdata)
     gint i;
     struct sctp_udata *u_data;
 
-    u_data = g_malloc(sizeof(struct sctp_udata));
-    u_data->assoc  = g_malloc(sizeof(sctp_assoc_info_t));
+    u_data = (struct sctp_udata *)g_malloc(sizeof(struct sctp_udata));
+    u_data->assoc  = (sctp_assoc_info_t *)g_malloc(sizeof(sctp_assoc_info_t));
     u_data->assoc  = userdata->assoc;
     u_data->io     = NULL;
     u_data->parent = userdata;
 
     if (selected_stream == NULL)
-        selected_stream = g_malloc(sizeof(sctp_assoc_info_t));
+        selected_stream = (sctp_assoc_info_t *)g_malloc(sizeof(sctp_assoc_info_t));
 
     selected_stream = u_data->assoc;
     for (i=0; i<NUM_CHUNKS; i++)
@@ -802,14 +803,14 @@ sctp_chunk_stat_dlg_show(unsigned int direction, struct sctp_analyse* userdata)
 {
     struct sctp_udata *u_data;
 
-    u_data = g_malloc(sizeof(struct sctp_udata));
-    u_data->assoc  = g_malloc(sizeof(sctp_assoc_info_t));
+    u_data = (struct sctp_udata *)g_malloc(sizeof(struct sctp_udata));
+    u_data->assoc  = (sctp_assoc_info_t *)g_malloc(sizeof(sctp_assoc_info_t));
     u_data->assoc  = userdata->assoc;
     u_data->io     = NULL;
     u_data->parent = userdata;
 
     if (selected_stream == NULL)
-        selected_stream = g_malloc(sizeof(sctp_assoc_info_t));
+        selected_stream = (sctp_assoc_info_t *)g_malloc(sizeof(sctp_assoc_info_t));
     selected_stream = u_data->assoc;
     selected_stream->addr_chunk_count = u_data->assoc->addr_chunk_count;
 

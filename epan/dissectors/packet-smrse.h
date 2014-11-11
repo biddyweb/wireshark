@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-smrse.h                                                             */
 /* ../../tools/asn2wrs.py -b -p smrse -c ./smrse.cnf -s ./packet-smrse-template -D . -O ../../epan/dissectors SMRSE.asn */
 
@@ -9,8 +9,6 @@
 /* packet-smrse.h
  * Routines for SMRSE Short Message Relay Service packet dissection
  *   Ronnie Sahlberg 2004
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>

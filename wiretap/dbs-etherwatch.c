@@ -1,7 +1,5 @@
 /* dbs-etherwatch.c
  *
- * $Id$
- *
  * Wiretap Library
  * Copyright (c) 2001 by Marc Milgram <ethereal@mmilgram.NOSPAMmail.net>
  *
@@ -22,7 +20,7 @@
 
 #include "config.h"
 #include "wtap-int.h"
-#include "buffer.h"
+#include <wsutil/buffer.h>
 #include "dbs-etherwatch.h"
 #include "file_wrappers.h"
 
@@ -89,10 +87,9 @@ static const char dbs_etherwatch_rec_magic[]  =
 static gboolean dbs_etherwatch_read(wtap *wth, int *err, gchar **err_info,
 	gint64 *data_offset);
 static gboolean dbs_etherwatch_seek_read(wtap *wth, gint64 seek_off,
-	struct wtap_pkthdr *phdr, guint8 *pd, int len,
-	int *err, gchar **err_info);
-static int parse_dbs_etherwatch_packet(wtap *wth, FILE_T fh, guint8* buf,
-	int *err, gchar **err_info);
+	struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info);
+static gboolean parse_dbs_etherwatch_packet(struct wtap_pkthdr *phdr, FILE_T fh,
+	Buffer* buf, int *err, gchar **err_info);
 static guint parse_single_hex_dump_line(char* rec, guint8 *buf,
 	int byte_offset);
 static guint parse_hex_dump(char* dump, guint8 *buf, char seperator, char end);
@@ -189,7 +186,7 @@ int dbs_etherwatch_open(wtap *wth, int *err, gchar **err_info)
 	}
 
 	wth->file_encap = WTAP_ENCAP_ETHERNET;
-	wth->file_type = WTAP_FILE_DBS_ETHERWATCH;
+	wth->file_type_subtype = WTAP_FILE_TYPE_SUBTYPE_DBS_ETHERWATCH;
 	wth->snapshot_length = 0;	/* not known */
 	wth->subtype_read = dbs_etherwatch_read;
 	wth->subtype_seek_read = dbs_etherwatch_seek_read;
@@ -203,62 +200,28 @@ static gboolean dbs_etherwatch_read(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset)
 {
 	gint64	offset;
-	guint8	*buf;
-	int	pkt_len;
 
 	/* Find the next packet */
 	offset = dbs_etherwatch_seek_next_packet(wth, err, err_info);
 	if (offset < 1)
 		return FALSE;
-
-	/* Make sure we have enough room for the packet */
-	buffer_assure_space(wth->frame_buffer, DBS_ETHERWATCH_MAX_PACKET_LEN);
-	buf = buffer_start_ptr(wth->frame_buffer);
+	*data_offset = offset;
 
 	/* Parse the packet */
-	pkt_len = parse_dbs_etherwatch_packet(wth, wth->fh, buf, err, err_info);
-	if (pkt_len == -1)
-		return FALSE;
-
-	/*
-	 * We don't have an FCS in this frame.
-	 */
-	wth->phdr.pseudo_header.eth.fcs_len = 0;
-
-	*data_offset = offset;
-	return TRUE;
+	return parse_dbs_etherwatch_packet(&wth->phdr, wth->fh,
+	     wth->frame_buffer, err, err_info);
 }
 
 /* Used to read packets in random-access fashion */
 static gboolean
-dbs_etherwatch_seek_read (wtap *wth, gint64 seek_off,
-	struct wtap_pkthdr *phdr,
-	guint8 *pd, int len, int *err, gchar **err_info)
+dbs_etherwatch_seek_read(wtap *wth, gint64 seek_off,
+	struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info)
 {
-	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
-	int	pkt_len;
-
 	if (file_seek(wth->random_fh, seek_off - 1, SEEK_SET, err) == -1)
 		return FALSE;
 
-	pkt_len = parse_dbs_etherwatch_packet(NULL, wth->random_fh, pd, err,
+	return parse_dbs_etherwatch_packet(phdr, wth->random_fh, buf, err,
 	    err_info);
-
-	if (pkt_len != len) {
-		if (pkt_len != -1) {
-			*err = WTAP_ERR_BAD_FILE;
-			*err_info = g_strdup_printf("dbs_etherwatch: packet length %d doesn't match requested length %d",
-			    pkt_len, len);
-		}
-		return FALSE;
-	}
-
-	/*
-	 * We don't have an FCS in this frame.
-	 */
-	pseudo_header->eth.fcs_len = 0;
-
-	return TRUE;
 }
 
 /* Parse a packet */
@@ -305,10 +268,11 @@ unnumbered. Unnumbered has length 1, numbered 2.
 */
 #define CTL_UNNUMB_MASK		0x03
 #define CTL_UNNUMB_VALUE	0x03
-static int
-parse_dbs_etherwatch_packet(wtap *wth, FILE_T fh, guint8* buf, int *err,
-    gchar **err_info)
+static gboolean
+parse_dbs_etherwatch_packet(struct wtap_pkthdr *phdr, FILE_T fh, Buffer* buf,
+    int *err, gchar **err_info)
 {
+	guint8 *pd;
 	char	line[DBS_ETHERWATCH_LINE_LENGTH];
 	int	num_items_scanned;
 	int	eth_hdr_len, pkt_len, csec;
@@ -318,6 +282,10 @@ parse_dbs_etherwatch_packet(wtap *wth, FILE_T fh, guint8* buf, int *err,
 	gchar *p;
 	static const gchar months[] = "JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC";
 	int	count, line_count;
+
+	/* Make sure we have enough room for the packet */
+	buffer_assure_space(buf, DBS_ETHERWATCH_MAX_PACKET_LEN);
+	pd = buffer_start_ptr(buf);
 
 	eth_hdr_len = 0;
 	memset(&tm, 0, sizeof(tm));
@@ -330,7 +298,7 @@ parse_dbs_etherwatch_packet(wtap *wth, FILE_T fh, guint8* buf, int *err,
 		if (*err == 0) {
 			*err = WTAP_ERR_SHORT_READ;
 		}
-		return -1;
+		return FALSE;
 	}
 
 	/* Get the destination address */
@@ -338,14 +306,14 @@ parse_dbs_etherwatch_packet(wtap *wth, FILE_T fh, guint8* buf, int *err,
 	if(!p) {
 		*err = WTAP_ERR_BAD_FILE;
 		*err_info = g_strdup("dbs_etherwatch: destination address not found");
-		return -1;
+		return FALSE;
 	}
 	p += strlen(DEST_MAC_PREFIX);
-	if(parse_hex_dump(p, &buf[eth_hdr_len], HEX_HDR_SPR, HEX_HDR_END)
+	if(parse_hex_dump(p, &pd[eth_hdr_len], HEX_HDR_SPR, HEX_HDR_END)
 				!= MAC_ADDR_LENGTH) {
 		*err = WTAP_ERR_BAD_FILE;
 		*err_info = g_strdup("dbs_etherwatch: destination address not valid");
-		return -1;
+		return FALSE;
 	}
 	eth_hdr_len += MAC_ADDR_LENGTH;
 
@@ -359,11 +327,11 @@ parse_dbs_etherwatch_packet(wtap *wth, FILE_T fh, guint8* buf, int *err,
 	while(!isxdigit((guchar)*p)) {
 		p++;
 	}
-	if(parse_hex_dump(p, &buf[eth_hdr_len], HEX_HDR_SPR,
+	if(parse_hex_dump(p, &pd[eth_hdr_len], HEX_HDR_SPR,
 		HEX_HDR_END) != MAC_ADDR_LENGTH) {
 		*err = WTAP_ERR_BAD_FILE;
 		*err_info = g_strdup("dbs_etherwatch: source address not valid");
-		return -1;
+		return FALSE;
 	}
 	eth_hdr_len += MAC_ADDR_LENGTH;
 
@@ -373,14 +341,14 @@ parse_dbs_etherwatch_packet(wtap *wth, FILE_T fh, guint8* buf, int *err,
 		if (*err == 0) {
 			*err = WTAP_ERR_SHORT_READ;
 		}
-		return -1;
+		return FALSE;
 	}
 
 	/* Check the lines is as least as long as the length position */
 	if(strlen(line) < LENGTH_POS) {
 		*err = WTAP_ERR_BAD_FILE;
 		*err_info = g_strdup("dbs_etherwatch: line too short");
-		return -1;
+		return FALSE;
 	}
 
 	num_items_scanned = sscanf(line + LENGTH_POS,
@@ -393,7 +361,7 @@ parse_dbs_etherwatch_packet(wtap *wth, FILE_T fh, guint8* buf, int *err,
 	if (num_items_scanned != 8) {
 		*err = WTAP_ERR_BAD_FILE;
 		*err_info = g_strdup("dbs_etherwatch: header line not valid");
-		return -1;
+		return FALSE;
 	}
 
 	/* Determine whether it is Ethernet II or IEEE 802 */
@@ -401,11 +369,11 @@ parse_dbs_etherwatch_packet(wtap *wth, FILE_T fh, guint8* buf, int *err,
 		strlen(ETH_II_CHECK_STR)) == 0) {
 		/* Ethernet II */
 		/* Get the Protocol */
-		if(parse_hex_dump(&line[PROTOCOL_POS], &buf[eth_hdr_len], HEX_HDR_SPR,
+		if(parse_hex_dump(&line[PROTOCOL_POS], &pd[eth_hdr_len], HEX_HDR_SPR,
 					HEX_HDR_END) != PROTOCOL_LENGTH) {
 			*err = WTAP_ERR_BAD_FILE;
 			*err_info = g_strdup("dbs_etherwatch: Ethernet II protocol value not valid");
-			return -1;
+			return FALSE;
 		}
 		eth_hdr_len += PROTOCOL_LENGTH;
 	} else {
@@ -417,29 +385,29 @@ parse_dbs_etherwatch_packet(wtap *wth, FILE_T fh, guint8* buf, int *err,
 		/* Remember how much of the header should not be added to the length */
 		length_from = eth_hdr_len;
 		/* Get the DSAP + SSAP */
-		if(parse_hex_dump(&line[SAP_POS], &buf[eth_hdr_len], HEX_HDR_SPR,
+		if(parse_hex_dump(&line[SAP_POS], &pd[eth_hdr_len], HEX_HDR_SPR,
 					HEX_HDR_END) != SAP_LENGTH) {
 			*err = WTAP_ERR_BAD_FILE;
 			*err_info = g_strdup("dbs_etherwatch: 802.2 DSAP+SSAP value not valid");
-			return -1;
+			return FALSE;
 		}
 		eth_hdr_len += SAP_LENGTH;
 		/* Get the (first part of the) control field */
-		if(parse_hex_dump(&line[CTL_POS], &buf[eth_hdr_len], HEX_HDR_SPR,
+		if(parse_hex_dump(&line[CTL_POS], &pd[eth_hdr_len], HEX_HDR_SPR,
 					HEX_HDR_END) != CTL_UNNUMB_LENGTH) {
 			*err = WTAP_ERR_BAD_FILE;
 			*err_info = g_strdup("dbs_etherwatch: 802.2 control field first part not valid");
-			return -1;
+			return FALSE;
 		}
 		/* Determine whether the control is numbered, and thus longer */
-		if((buf[eth_hdr_len] & CTL_UNNUMB_MASK) != CTL_UNNUMB_VALUE) {
+		if((pd[eth_hdr_len] & CTL_UNNUMB_MASK) != CTL_UNNUMB_VALUE) {
 			/* Get the rest of the control field, the first octet in the PID */
 			if(parse_hex_dump(&line[PID_POS],
-						&buf[eth_hdr_len + CTL_UNNUMB_LENGTH], HEX_HDR_END,
+						&pd[eth_hdr_len + CTL_UNNUMB_LENGTH], HEX_HDR_END,
 						HEX_HDR_SPR) != CTL_NUMB_LENGTH - CTL_UNNUMB_LENGTH) {
 				*err = WTAP_ERR_BAD_FILE;
 				*err_info = g_strdup("dbs_etherwatch: 802.2 control field second part value not valid");
-				return -1;
+				return FALSE;
 			}
 			eth_hdr_len += CTL_NUMB_LENGTH;
 		} else {
@@ -449,34 +417,38 @@ parse_dbs_etherwatch_packet(wtap *wth, FILE_T fh, guint8* buf, int *err,
 		if(strncmp(&line[SNAP_CHECK_POS], SNAP_CHECK_STR,
 				strlen(SNAP_CHECK_STR)) == 0) {
 			/* Get the PID */
-			if(parse_hex_dump(&line[PID_POS], &buf[eth_hdr_len], HEX_HDR_SPR,
+			if(parse_hex_dump(&line[PID_POS], &pd[eth_hdr_len], HEX_HDR_SPR,
 						HEX_PID_END) != PID_LENGTH) {
 				*err = WTAP_ERR_BAD_FILE;
 				*err_info = g_strdup("dbs_etherwatch: 802.2 PID value not valid");
-				return -1;
+				return FALSE;
 			}
 			eth_hdr_len += PID_LENGTH;
 		}
 		/* Write the length in the header */
 		length = eth_hdr_len - length_from + pkt_len;
-		buf[length_pos] = (length) >> 8;
-		buf[length_pos+1] = (length) & 0xFF;
+		pd[length_pos] = (length) >> 8;
+		pd[length_pos+1] = (length) & 0xFF;
 	}
 
-	if (wth) {
-		wth->phdr.presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
+	phdr->rec_type = REC_TYPE_PACKET;
+	phdr->presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
 
-		p = strstr(months, mon);
-		if (p)
-			tm.tm_mon = (int)(p - months) / 3;
-		tm.tm_year -= 1900;
+	p = strstr(months, mon);
+	if (p)
+		tm.tm_mon = (int)(p - months) / 3;
+	tm.tm_year -= 1900;
 
-		tm.tm_isdst = -1;
-		wth->phdr.ts.secs = mktime(&tm);
-		wth->phdr.ts.nsecs = csec * 10000000;
-		wth->phdr.caplen = eth_hdr_len + pkt_len;
-		wth->phdr.len = eth_hdr_len + pkt_len;
-	}
+	tm.tm_isdst = -1;
+	phdr->ts.secs = mktime(&tm);
+	phdr->ts.nsecs = csec * 10000000;
+	phdr->caplen = eth_hdr_len + pkt_len;
+	phdr->len = eth_hdr_len + pkt_len;
+
+	/*
+	 * We don't have an FCS in this frame.
+	 */
+	phdr->pseudo_header.eth.fcs_len = 0;
 
 	/* Parse the hex dump */
 	count = 0;
@@ -486,22 +458,22 @@ parse_dbs_etherwatch_packet(wtap *wth, FILE_T fh, guint8* buf, int *err,
 			if (*err == 0) {
 				*err = WTAP_ERR_SHORT_READ;
 			}
-			return -1;
+			return FALSE;
 		}
 		if (!(line_count = parse_single_hex_dump_line(line,
-				&buf[eth_hdr_len + count], count))) {
+				&pd[eth_hdr_len + count], count))) {
 			*err = WTAP_ERR_BAD_FILE;
 			*err_info = g_strdup("dbs_etherwatch: packet data value not valid");
-			return -1;
+			return FALSE;
 		}
 		count += line_count;
 		if (count > pkt_len) {
 			*err = WTAP_ERR_BAD_FILE;
 			*err_info = g_strdup("dbs_etherwatch: packet data value has too many bytes");
-			return -1;
+			return FALSE;
 		}
 	}
-	return eth_hdr_len + pkt_len;
+	return TRUE;
 }
 
 /* Parse a hex dump line */

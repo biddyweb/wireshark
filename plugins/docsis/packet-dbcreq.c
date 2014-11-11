@@ -2,8 +2,6 @@
  * Routines for DOCSIS 3.0 Dynamic Bonding Change Request Message dissection.
  * Copyright 2010, Guido Reismueller <g.reismueller[AT]avm.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,6 +25,9 @@
 
 #include <epan/packet.h>
 
+void proto_register_docsis_dbcreq(void);
+void proto_reg_handoff_docsis_dbcreq(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_docsis_dbcreq = -1;
 static int hf_docsis_dbcreq_tranid = -1;
@@ -48,7 +49,6 @@ dissect_dbcreq (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 
   transid = tvb_get_ntohs (tvb, 0);
 
-  col_clear (pinfo->cinfo, COL_INFO);
   col_add_fstr (pinfo->cinfo, COL_INFO,
 	    "Dynamic Bonding Change Request: Tran-Id = %u", transid);
 

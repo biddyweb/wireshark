@@ -6,8 +6,6 @@
  * Extended by Jan Kiszka <jan.kiszka@web.de>
  * Copyright 2003 Jan Kiszka
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,8 +31,9 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/xdlc.h>
 
 #include "irda-appl.h"
@@ -136,6 +135,9 @@
 
 #define TTP_PARAMETERS         0x80
 #define TTP_MORE               0x80
+
+void proto_reg_handoff_irda(void);
+void proto_register_irda(void);
 
 static dissector_handle_t data_handle;
 
@@ -550,7 +552,7 @@ static void dissect_iap_request(tvbuff_t* tvb, packet_info* pinfo, proto_tree* r
                     }
                     if (iap_conv->pnext == NULL)
                     {
-                        iap_conv->pnext = se_alloc(sizeof(iap_conversation_t));
+                        iap_conv->pnext = wmem_new(wmem_file_scope(), iap_conversation_t);
                         iap_conv = iap_conv->pnext;
                         break;
                     }
@@ -560,7 +562,7 @@ static void dissect_iap_request(tvbuff_t* tvb, packet_info* pinfo, proto_tree* r
             else
             {
                 conv = conversation_new(pinfo->fd->num, &srcaddr, &destaddr, PT_NONE, pinfo->srcport, pinfo->destport, 0);
-                iap_conv = se_alloc(sizeof(iap_conversation_t));
+                iap_conv = wmem_new(wmem_file_scope(), iap_conversation_t);
                 conversation_add_proto_data(conv, proto_iap, (void*)iap_conv);
             }
 
@@ -595,7 +597,7 @@ static void dissect_iap_request(tvbuff_t* tvb, packet_info* pinfo, proto_tree* r
                     }
             }
 
-            col_add_str(pinfo->cinfo, COL_INFO, "GetValueByClass: \"");
+            col_set_str(pinfo->cinfo, COL_INFO, "GetValueByClass: \"");
 
             tvb_memcpy(tvb, buf, offset + 1 + 1, clen);
             memcpy(&buf[clen], "\" \"", 3);
@@ -741,7 +743,7 @@ static void dissect_iap_result(tvbuff_t* tvb, packet_info* pinfo, proto_tree* ro
 
                     case IAS_STRING:
                         n = tvb_get_guint8(tvb, offset + 8);
-                        string = tvb_get_ephemeral_string(tvb, offset + 9, n);
+                        string = tvb_get_string(wmem_packet_scope(), tvb, offset + 9, n);
                         g_snprintf(buf, 300, ", \"%s\"", string);
                         break;
                 }
@@ -1224,7 +1226,7 @@ void add_lmp_conversation(packet_info* pinfo, guint8 dlsap, gboolean ttp, dissec
 
             if (lmp_conv->pnext == NULL)
             {
-                lmp_conv->pnext = se_alloc(sizeof(lmp_conversation_t));
+                lmp_conv->pnext = wmem_new(wmem_file_scope(), lmp_conversation_t);
                 lmp_conv = lmp_conv->pnext;
                 break;
             }
@@ -1234,7 +1236,7 @@ void add_lmp_conversation(packet_info* pinfo, guint8 dlsap, gboolean ttp, dissec
     else
     {
         conv = conversation_new(pinfo->fd->num, &destaddr, &srcaddr, PT_NONE, dlsap, 0, NO_PORT_B);
-        lmp_conv = se_alloc(sizeof(lmp_conversation_t));
+        lmp_conv = wmem_new(wmem_file_scope(), lmp_conversation_t);
         conversation_add_proto_data(conv, proto_irlmp, (void*)lmp_conv);
     }
 
@@ -1649,14 +1651,14 @@ static void dissect_log(tvbuff_t* tvb, packet_info* pinfo, proto_tree* root)
         char    buf[256];
 
 
-        length = tvb_length(tvb);
+        length = tvb_captured_length(tvb);
         if (length > sizeof(buf)-1)
             length = sizeof(buf)-1;
         tvb_memcpy(tvb, buf, 0, length);
         buf[length] = 0;
-        if (buf[length-1] == '\n')
+        if (length > 0 && buf[length-1] == '\n')
             buf[length-1] = 0;
-        else if (buf[length-2] == '\n')
+        else if (length > 1 && buf[length-2] == '\n')
             buf[length-2] = 0;
 
         col_add_str(pinfo->cinfo, COL_INFO, buf);

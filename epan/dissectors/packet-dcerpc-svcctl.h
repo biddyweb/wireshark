@@ -2,8 +2,6 @@
  * Routines for SMB \PIPE\svcctl packet disassembly
  * Copyright 2003, Tim Potter <tpot@samba.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,7 +30,7 @@
 #define SVC_LOCK_SERVICE_DATABASE 		0x03
 #define SVC_QUERY_SERVICE_OBJECT_SECURITY  	0x04
 #define SVC_SET_SERVICE_OBJECT_SECURITY		0x05
-#define SVC_QUERY_SERVICE_STATUS		0x06 
+#define SVC_QUERY_SERVICE_STATUS		0x06
 #define SVC_SET_SERVICE_STATUS			0x07
 #define SVC_UNLOCK_SERVICE_DATABASE 		0x08
 #define SVC_NOTIFY_BOOT_CONFIG_STATUS		0x09

@@ -13,8 +13,7 @@ MAINTAINERCLEANFILES = \
 
 EXTRA_DIST = \
 	ChmodBPF/ChmodBPF	\
-	ChmodBPF/README.macosx	\
-	ChmodBPF/StartupParameters.plist	\
+	ChmodBPF/org.wireshark.ChmodBPF.plist \
 	dmg_background.png	\
 	dmg_background.svg	\
 	util_background.png	\
@@ -27,7 +26,8 @@ EXTRA_DIST = \
 	native-gtk/glibconfig.h	\
 	osx-app.sh	\
 	osx-dmg.sh.in	\
-	Read_me_first.rtf	\
+	Read_me_first_gtk.rtf	\
+	Read_me_first_qt.rtf	\
 	Resources/bin/getdisplay.sh	\
 	Resources/bin/wireshark	\
 	Resources/etc/fonts/fonts.conf	\
@@ -87,7 +87,7 @@ EXTRA_DIST = \
 	Wireshark_package.pmdoc/02chmodbpf.xml			\
 	Wireshark_package.pmdoc/03utility-contents.xml		\
 	Wireshark_package.pmdoc/03utility.xml			\
-	Wireshark_package.pmdoc/index.xml
+	Wireshark_package.pmdoc/index.xml.in
 
 
 COPYING.txt: ../../COPYING

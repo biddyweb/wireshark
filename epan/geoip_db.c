@@ -3,8 +3,6 @@
  *
  * Copyright 2008, Gerald Combs <gerald@wireshark.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -40,8 +38,9 @@
 #include "geoip_db.h"
 #include "uat.h"
 #include "prefs.h"
-#include "report_err.h"
 #include "value_string.h"
+
+#include <wsutil/report_err.h>
 #include <wsutil/file_util.h>
 
 /* This needs to match NUM_GEOIP_COLS in hostlist_table.h */
@@ -122,8 +121,8 @@ geoip_dat_scan_dir(const char *dirname) {
 
 /* UAT callbacks */
 static void* geoip_db_path_copy_cb(void* dest, const void* orig, size_t len _U_) {
-    const geoip_db_path_t *m = orig;
-    geoip_db_path_t *d = dest;
+    const geoip_db_path_t *m = (const geoip_db_path_t *)orig;
+    geoip_db_path_t *d = (geoip_db_path_t *)dest;
 
     d->path = g_strdup(m->path);
 
@@ -131,7 +130,7 @@ static void* geoip_db_path_copy_cb(void* dest, const void* orig, size_t len _U_)
 }
 
 static void geoip_db_path_free_cb(void* p) {
-    geoip_db_path_t *m = p;
+    geoip_db_path_t *m = (geoip_db_path_t *)p;
     g_free(m->path);
 }
 
@@ -181,12 +180,12 @@ static void geoip_db_post_update_cb(void) {
      * (using "City" in reality) */
 
     /* latitude */
-    gi = g_malloc(sizeof (GeoIP));
+    gi = (GeoIP *)g_malloc(sizeof (GeoIP));
     gi->databaseType = WS_LAT_FAKE_EDITION;
     g_array_append_val(geoip_dat_arr, gi);
 
     /* longitude */
-    gi = g_malloc(sizeof (GeoIP));
+    gi = (GeoIP *)g_malloc(sizeof (GeoIP));
     gi->databaseType = WS_LON_FAKE_EDITION;
     g_array_append_val(geoip_dat_arr, gi);
 }
@@ -194,7 +193,7 @@ static void geoip_db_post_update_cb(void) {
 /**
  * Initialize GeoIP lookups
  */
-void 
+void
 geoip_db_pref_init(module_t *nameres)
 {
     static uat_field_t geoip_db_paths_fields[] = {
@@ -206,7 +205,7 @@ geoip_db_pref_init(module_t *nameres)
             sizeof(geoip_db_path_t),
             "geoip_db_paths",
             FALSE,
-            (void*)&geoip_db_paths,
+            (void**)&geoip_db_paths,
             &num_geoip_db_paths,
             /* affects dissection of packets (as the GeoIP database is
                used when dissecting), but not set of named fields */
@@ -225,32 +224,6 @@ geoip_db_pref_init(module_t *nameres)
                 "Wireshark will look in each directory for files beginning\n"
                 "with \"Geo\" and ending with \".dat\".",
             geoip_db_paths_uat);
-}
-
-void
-geoip_db_init(void) {
-    guint i;
-
-    geoip_dat_arr = g_array_new(FALSE, FALSE, sizeof(GeoIP *));
-
-    for (i = 0; i < num_geoip_db_paths; i++) {
-        if (geoip_db_paths[i].path) {
-            geoip_dat_scan_dir(geoip_db_paths[i].path);
-        }
-    }
-
-    /* add fake databases for latitude and longitude (using "City" in reality) */
-    {
-        GeoIP *gi_lat;
-        GeoIP *gi_lon;
-
-        gi_lat = g_malloc(sizeof (GeoIP));
-        gi_lat->databaseType = WS_LAT_FAKE_EDITION;
-        g_array_append_val(geoip_dat_arr, gi_lat);
-        gi_lon = g_malloc(sizeof (GeoIP));
-        gi_lon->databaseType = WS_LON_FAKE_EDITION;
-        g_array_append_val(geoip_dat_arr, gi_lon);
-    }
 }
 
 guint
@@ -568,9 +541,6 @@ geoip_db_get_paths(void) {
 }
 
 #else /* HAVE_GEOIP */
-void
-geoip_db_init(void) {}
-
 guint
 geoip_db_num_dbs(void) {
     return 0;

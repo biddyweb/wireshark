@@ -2,8 +2,6 @@
  *
  * tvbtest : tvbtest.o tvbuff.o except.o
  *
- * $Id$
- *
  * Copyright (c) 2000 by Gilbert Ramirez <gram@alumni.rice.edu>
  *
  * This program is free software; you can redistribute it and/or
@@ -29,14 +27,15 @@
 #include <string.h>
 
 #include "tvbuff.h"
-#include "pint.h"
+#include "exceptions.h"
+#include "wsutil/pint.h"
 
 gboolean failed = FALSE;
 
 /* Tests a tvbuff against the expected pattern/length.
  * Returns TRUE if all tests succeeed, FALSE if any test fails */
 gboolean
-test(tvbuff_t *tvb, gchar* name,
+test(tvbuff_t *tvb, const gchar* name,
      guint8* expected_data, guint expected_length, guint expected_reported_length)
 {
 	guint			length;
@@ -73,8 +72,14 @@ test(tvbuff_t *tvb, gchar* name,
 	CATCH(BoundsError) {
 		ex_thrown = TRUE;
 	}
+	CATCH(FragmentBoundsError) {
+		printf("02: Caught wrong exception: FragmentBoundsError\n");
+	}
 	CATCH(ReportedBoundsError) {
 		printf("02: Caught wrong exception: ReportedBoundsError\n");
+	}
+	CATCH_ALL {
+		printf("02: Caught wrong exception: %lu, exc->except_id.except_code\n");
 	}
 	ENDTRY;
 
@@ -94,8 +99,14 @@ test(tvbuff_t *tvb, gchar* name,
 	CATCH(BoundsError) {
 		printf("03: Caught wrong exception: BoundsError\n");
 	}
+	CATCH(FragmentBoundsError) {
+		printf("03: Caught wrong exception: FragmentBoundsError\n");
+	}
 	CATCH(ReportedBoundsError) {
 		ex_thrown = TRUE;
+	}
+	CATCH_ALL {
+		printf("02: Caught wrong exception: %lu, exc->except_id.except_code\n");
 	}
 	ENDTRY;
 
@@ -114,8 +125,14 @@ test(tvbuff_t *tvb, gchar* name,
 	CATCH(BoundsError) {
 		ex_thrown = TRUE;
 	}
+	CATCH(FragmentBoundsError) {
+		printf("04: Caught wrong exception: FragmentBoundsError\n");
+	}
 	CATCH(ReportedBoundsError) {
 		printf("04: Caught wrong exception: ReportedBoundsError\n");
+	}
+	CATCH_ALL {
+		printf("02: Caught wrong exception: %lu, exc->except_id.except_code\n");
 	}
 	ENDTRY;
 
@@ -134,8 +151,14 @@ test(tvbuff_t *tvb, gchar* name,
 	CATCH(BoundsError) {
 		ex_thrown = TRUE;
 	}
+	CATCH(FragmentBoundsError) {
+		printf("05: Caught wrong exception: FragmentBoundsError\n");
+	}
 	CATCH(ReportedBoundsError) {
 		printf("05: Caught wrong exception: ReportedBoundsError\n");
+	}
+	CATCH_ALL {
+		printf("02: Caught wrong exception: %lu, exc->except_id.except_code\n");
 	}
 	ENDTRY;
 
@@ -154,8 +177,14 @@ test(tvbuff_t *tvb, gchar* name,
 	CATCH(BoundsError) {
 		ex_thrown = TRUE;
 	}
+	CATCH(FragmentBoundsError) {
+		printf("06: Caught wrong exception: FragmentBoundsError\n");
+	}
 	CATCH(ReportedBoundsError) {
 		printf("06: Caught wrong exception: ReportedBoundsError\n");
+	}
+	CATCH_ALL {
+		printf("02: Caught wrong exception: %lu, exc->except_id.except_code\n");
 	}
 	ENDTRY;
 
@@ -185,7 +214,7 @@ test(tvbuff_t *tvb, gchar* name,
 			return FALSE;
 		}
 
-		expected32 = pntohl(expected_data);
+		expected32 = pntoh32(expected_data);
 		if (val32 != expected32) {
 			printf("08: Failed TVB=%s  guint32 @ 0 %u != expected %u\n",
 					name, val32, expected32);
@@ -212,7 +241,7 @@ test(tvbuff_t *tvb, gchar* name,
 			return FALSE;
 		}
 
-		expected32 = pntohl(&expected_data[length-4]);
+		expected32 = pntoh32(&expected_data[length-4]);
 		if (val32 != expected32) {
 			printf("10: Failed TVB=%s guint32 @ -4 %u != expected %u\n",
 					name, val32, expected32);
@@ -225,7 +254,7 @@ test(tvbuff_t *tvb, gchar* name,
 	 * tvb_memdup() */
 	for (incr = 1; incr < length; incr++) {
 		for (i = 0; i < length - incr; i += incr) {
-			ptr = tvb_memdup(tvb, i, incr);
+			ptr = tvb_memdup(NULL, tvb, i, incr);
 			if (memcmp(ptr, &expected_data[i], incr) != 0) {
 				printf("11: Failed TVB=%s Offset=%d Length=%d "
 						"Bad memdup\n",
@@ -239,7 +268,7 @@ test(tvbuff_t *tvb, gchar* name,
 	}
 
 	/* One big memdup */
-	ptr = tvb_memdup(tvb, 0, -1);
+	ptr = tvb_memdup(NULL, tvb, 0, -1);
 	if (memcmp(ptr, expected_data, length) != 0) {
 		printf("12: Failed TVB=%s Offset=0 Length=-1 "
 				"Bad memdup\n", name);

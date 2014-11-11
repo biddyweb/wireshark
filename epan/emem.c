@@ -2,8 +2,6 @@
  * Wireshark memory management and garbage collection functions
  * Ronnie Sahlberg 2005
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -41,8 +39,11 @@
 
 #include <glib.h>
 
+#include "app_mem_usage.h"
 #include "proto.h"
+#include "exceptions.h"
 #include "emem.h"
+#include "wmem/wmem.h"
 
 #ifdef _WIN32
 #include <windows.h>	/* VirtualAlloc, VirtualProtect */
@@ -124,8 +125,6 @@ typedef struct _emem_pool_t {
 	emem_chunk_t *free_list;
 	emem_chunk_t *used_list;
 
-	emem_tree_t *trees;		/* only used by se_mem allocator */
-
 	guint8 canary[EMEM_CANARY_DATA_SIZE];
 	void *(*memory_alloc)(size_t size, struct _emem_pool_t *);
 
@@ -172,7 +171,7 @@ static gboolean debug_use_memory_scrubber = FALSE;
 
 #if defined (_WIN32)
 static SYSTEM_INFO sysinfo;
-static OSVERSIONINFO versinfo;
+static gboolean iswindowsplatform;
 static int pagesize;
 #elif defined(USE_GUARD_PAGES)
 static intptr_t pagesize;
@@ -294,6 +293,26 @@ emem_init_chunk(emem_pool_t *mem)
 		mem->memory_alloc = emem_alloc_glib;
 }
 
+static gsize
+emem_memory_usage(const emem_pool_t *pool)
+{
+	gsize total_used = 0;
+	emem_chunk_t *chunk;
+
+	for (chunk = pool->used_list; chunk; chunk = chunk->next)
+		total_used += (chunk->amount_free_init - chunk->amount_free);
+
+	for (chunk = pool->free_list; chunk; chunk = chunk->next)
+		total_used += (chunk->amount_free_init - chunk->amount_free);
+
+	return total_used;
+}
+
+static gsize
+ep_memory_usage(void)
+{
+	return emem_memory_usage(&ep_packet_mem);
+}
 
 /* Initialize the packet-lifetime memory allocation pool.
  * This function should be called only once when Wireshark or TShark starts
@@ -302,9 +321,10 @@ emem_init_chunk(emem_pool_t *mem)
 static void
 ep_init_chunk(void)
 {
+	static const ws_mem_usage_t ep_stats = { "EP", ep_memory_usage, NULL };
+
 	ep_packet_mem.free_list=NULL;
 	ep_packet_mem.used_list=NULL;
-	ep_packet_mem.trees=NULL;	/* not used by this allocator */
 
 	ep_packet_mem.debug_use_chunks = (getenv("WIRESHARK_DEBUG_EP_NO_CHUNKS") == NULL);
 	ep_packet_mem.debug_use_canary = ep_packet_mem.debug_use_chunks && (getenv("WIRESHARK_DEBUG_EP_NO_CANARY") == NULL);
@@ -315,6 +335,14 @@ ep_init_chunk(void)
 #endif
 
 	emem_init_chunk(&ep_packet_mem);
+
+	memory_usage_component_register(&ep_stats);
+}
+
+static gsize
+se_memory_usage(void)
+{
+	return emem_memory_usage(&se_packet_mem);
 }
 
 /* Initialize the capture-lifetime memory allocation pool.
@@ -324,15 +352,18 @@ ep_init_chunk(void)
 static void
 se_init_chunk(void)
 {
+	static const ws_mem_usage_t se_stats = { "SE", se_memory_usage, NULL };
+
 	se_packet_mem.free_list = NULL;
 	se_packet_mem.used_list = NULL;
-	se_packet_mem.trees = NULL;
 
 	se_packet_mem.debug_use_chunks = (getenv("WIRESHARK_DEBUG_SE_NO_CHUNKS") == NULL);
 	se_packet_mem.debug_use_canary = se_packet_mem.debug_use_chunks && (getenv("WIRESHARK_DEBUG_SE_USE_CANARY") != NULL);
 	se_packet_mem.debug_verify_pointers = (getenv("WIRESHARK_SE_VERIFY_POINTERS") != NULL);
 
 	emem_init_chunk(&se_packet_mem);
+
+	memory_usage_component_register(&se_stats);
 }
 
 /*  Initialize all the allocators here.
@@ -353,6 +384,23 @@ emem_init(void)
 	GetSystemInfo(&sysinfo);
 	pagesize = sysinfo.dwPageSize;
 
+#if (_MSC_VER >= 1800)
+	/*
+	 * On VS2103, GetVersionEx is deprecated. Microsoft recommend to
+	 * use VerifyVersionInfo instead
+	 */
+	{
+		OSVERSIONINFOEX osvi;
+		DWORDLONG dwlConditionMask = 0;
+		int op = VER_EQUAL;
+
+		SecureZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
+		osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+		osvi.dwPlatformId = VER_PLATFORM_WIN32_WINDOWS;
+		VER_SET_CONDITION(dwlConditionMask, VER_PLATFORMID, op);
+		iswindowsplatform = VerifyVersionInfo(&osvi, VER_PLATFORMID, dwlConditionMask);
+	}
+#else
 	/* calling GetVersionEx using the OSVERSIONINFO structure.
 	 * OSVERSIONINFOEX requires Win NT4 with SP6 or newer NT Versions.
 	 * OSVERSIONINFOEX will fail on Win9x and older NT Versions.
@@ -361,8 +409,15 @@ emem_init(void)
 	 * http://msdn.microsoft.com/library/en-us/sysinfo/base/osversioninfo_str.asp
 	 * http://msdn.microsoft.com/library/en-us/sysinfo/base/osversioninfoex_str.asp
 	 */
-	versinfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-	GetVersionEx(&versinfo);
+	{
+		OSVERSIONINFO versinfo;
+
+		SecureZeroMemory(&versinfo, sizeof(OSVERSIONINFO));
+		versinfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+		GetVersionEx(&versinfo);
+		iswindowsplatform = (versinfo.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS);
+	}
+#endif
 
 #elif defined(USE_GUARD_PAGES)
 	pagesize = sysconf(_SC_PAGESIZE);
@@ -381,7 +436,7 @@ static guint allocations[NUM_ALLOC_DIST] = { 0 };
 static guint total_no_chunks = 0;
 
 static void
-print_alloc_stats()
+print_alloc_stats(void)
 {
 	guint num_chunks = 0;
 	guint num_allocs = 0;
@@ -468,7 +523,7 @@ print_alloc_stats()
 			int len;
 
 			while (ptr != NULL) {
-				ptr = emem_canary_next(se_packet_mem.canary, ptr, &len);
+				ptr = emem_canary_next(se_packet_mem.canary, (guint8*)ptr, &len);
 
 				if (ptr == (void *) -1)
 					g_error("Memory corrupted");
@@ -545,7 +600,7 @@ print_alloc_stats()
 static gboolean
 emem_verify_pointer_list(const emem_chunk_t *chunk_list, const void *ptr)
 {
-	const gchar *cptr = ptr;
+	const gchar *cptr = (const gchar *)ptr;
 	const emem_chunk_t *chunk;
 
 	for (chunk = chunk_list; chunk; chunk = chunk->next) {
@@ -566,15 +621,6 @@ ep_verify_pointer(const void *ptr)
 {
 	if (ep_packet_mem.debug_verify_pointers)
 		return emem_verify_pointer(&ep_packet_mem, ptr);
-	else
-		return FALSE;
-}
-
-gboolean
-se_verify_pointer(const void *ptr)
-{
-	if (se_packet_mem.debug_verify_pointers)
-		return emem_verify_pointer(&se_packet_mem, ptr);
 	else
 		return FALSE;
 }
@@ -638,7 +684,7 @@ emem_create_chunk(size_t size)
 	 */
 
 	/* XXX - is MEM_COMMIT|MEM_RESERVE correct? */
-	npc->buf = VirtualAlloc(NULL, size,
+	npc->buf = (char *)VirtualAlloc(NULL, size,
 		MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
 
 	if (npc->buf == NULL) {
@@ -650,7 +696,7 @@ emem_create_chunk(size_t size)
 	}
 
 #elif defined(USE_GUARD_PAGES)
-	npc->buf = mmap(NULL, size,
+	npc->buf = (char *)mmap(NULL, size,
 		PROT_READ|PROT_WRITE, ANON_PAGE_MODE, ANON_FD, 0);
 
 	if (npc->buf == MAP_FAILED) {
@@ -698,9 +744,9 @@ emem_create_chunk_gp(size_t size)
 	prot2 = (char *) ((((intptr_t) buf_end - (1 * pagesize)) / pagesize) * pagesize);
 
 	ret = VirtualProtect(prot1, pagesize, PAGE_NOACCESS, &oldprot);
-	g_assert(ret != 0 || versinfo.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS);
+	g_assert(ret != 0 || iswindowsplatform);
 	ret = VirtualProtect(prot2, pagesize, PAGE_NOACCESS, &oldprot);
-	g_assert(ret != 0 || versinfo.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS);
+	g_assert(ret != 0 || iswindowsplatform);
 
 	npc->amount_free_init = (unsigned int) (prot2 - prot1 - pagesize);
 	npc->free_offset_init = (unsigned int) (prot1 - npc->buf) + pagesize;
@@ -826,7 +872,7 @@ emem_alloc_glib(size_t size, emem_pool_t *mem)
 
 	npc=g_new(emem_chunk_t, 1);
 	npc->next=mem->used_list;
-	npc->buf=g_malloc(size);
+	npc->buf=(char *)g_malloc(size);
 	npc->canary_last = NULL;
 	mem->used_list=npc;
 	/* There's no padding/alignment involved (from our point of view) when
@@ -841,12 +887,27 @@ emem_alloc_glib(size_t size, emem_pool_t *mem)
 static void *
 emem_alloc(size_t size, emem_pool_t *mem)
 {
-	void *buf = mem->memory_alloc(size, mem);
+	void *buf;
+
+#if 0
+	/* For testing wmem, effectively redirects most emem memory to wmem.
+	 * You will also have to comment out several assertions in wmem_core.c,
+	 * specifically anything g_assert(allocator->in_scope), since it is much
+	 * stricter about when it is permitted to be called. */
+	if (mem == &ep_packet_mem) {
+		return wmem_alloc(wmem_packet_scope(), size);
+	}
+	else if (mem == &se_packet_mem) {
+		return wmem_alloc(wmem_file_scope(), size);
+	}
+#endif
+
+	buf = mem->memory_alloc(size, mem);
 
 	/*  XXX - this is a waste of time if the allocator function is going to
 	 *  memset this straight back to 0.
 	 */
-	emem_scrub_memory(buf, size, TRUE);
+	emem_scrub_memory((char *)buf, size, TRUE);
 
 	return buf;
 }
@@ -894,7 +955,7 @@ emem_strdup(const gchar *src, void *allocator(size_t))
 		src = "<NULL>";
 
 	len = (guint) strlen(src);
-	dst = memcpy(allocator(len+1), src, len+1);
+	dst = (gchar *)memcpy(allocator(len+1), src, len+1);
 
 	return dst;
 }
@@ -914,7 +975,7 @@ se_strdup(const gchar *src)
 static gchar *
 emem_strndup(const gchar *src, size_t len, void *allocator(size_t))
 {
-	gchar *dst = allocator(len+1);
+	gchar *dst = (gchar *)allocator(len+1);
 	guint i;
 
 	for (i = 0; (i < len) && src[i]; i++)
@@ -929,12 +990,6 @@ gchar *
 ep_strndup(const gchar *src, size_t len)
 {
 	return emem_strndup(src, len, ep_alloc);
-}
-
-gchar *
-se_strndup(const gchar *src, size_t len)
-{
-	return emem_strndup(src, len, se_alloc);
 }
 
 
@@ -962,7 +1017,7 @@ emem_strdup_vprintf(const gchar *fmt, va_list ap, void *allocator(size_t))
 
 	len = g_printf_string_upper_bound(fmt, ap);
 
-	dst = allocator(len+1);
+	dst = (gchar *)allocator(len+1);
 	g_vsnprintf (dst, (gulong) len, fmt, ap2);
 	va_end(ap2);
 
@@ -975,7 +1030,7 @@ ep_strdup_vprintf(const gchar *fmt, va_list ap)
 	return emem_strdup_vprintf(fmt, ap, ep_alloc);
 }
 
-gchar *
+static gchar *
 se_strdup_vprintf(const gchar* fmt, va_list ap)
 {
 	return emem_strdup_vprintf(fmt, ap, se_alloc);
@@ -1103,7 +1158,7 @@ ep_strconcat(const gchar *string1, ...)
 	}
 	va_end(args);
 
-	concat = ep_alloc(l);
+	concat = (gchar *)ep_alloc(l);
 	ptr = concat;
 
 	ptr = g_stpcpy(ptr, string1);
@@ -1127,7 +1182,6 @@ emem_free_all(emem_pool_t *mem)
 	gboolean use_chunks = mem->debug_use_chunks;
 
 	emem_chunk_t *npc;
-	emem_tree_t *tree_list;
 
 	/* move all used chunks over to the free list */
 	while(mem->used_list){
@@ -1142,7 +1196,7 @@ emem_free_all(emem_pool_t *mem)
 	while (npc != NULL) {
 		if (use_chunks) {
 			while (npc->canary_last != NULL) {
-				npc->canary_last = emem_canary_next(mem->canary, npc->canary_last, NULL);
+				npc->canary_last = emem_canary_next(mem->canary, (guint8 *)npc->canary_last, NULL);
 				/* XXX, check if canary_last is inside allocated memory? */
 
 				if (npc->canary_last == (void *) -1)
@@ -1171,11 +1225,6 @@ emem_free_all(emem_pool_t *mem)
 		/* We've freed all this memory already */
 		mem->free_list = NULL;
 	}
-
-	/* release/reset all allocated trees */
-	for(tree_list=mem->trees;tree_list;tree_list=tree_list->next){
-		tree_list->tree=NULL;
-	}
 }
 
 /* release all allocated memory back to the pool. */
@@ -1196,892 +1245,6 @@ se_free_all(void)
 	emem_free_all(&se_packet_mem);
 }
 
-ep_stack_t
-ep_stack_new(void) {
-	ep_stack_t s = ep_new(struct _ep_stack_frame_t*);
-	*s = ep_new0(struct _ep_stack_frame_t);
-	return s;
-}
-
-/*  for ep_stack_t we'll keep the popped frames so we reuse them instead
-of allocating new ones.
-*/
-
-void *
-ep_stack_push(ep_stack_t stack, void* data)
-{
-	struct _ep_stack_frame_t* frame;
-	struct _ep_stack_frame_t* head = (*stack);
-
-	if (head->above) {
-		frame = head->above;
-	} else {
-		frame = ep_new(struct _ep_stack_frame_t);
-		head->above = frame;
-		frame->below = head;
-		frame->above = NULL;
-	}
-
-	frame->payload = data;
-	(*stack) = frame;
-
-	return data;
-}
-
-void *
-ep_stack_pop(ep_stack_t stack)
-{
-
-	if ((*stack)->below) {
-		(*stack) = (*stack)->below;
-		return (*stack)->above->payload;
-	} else {
-		return NULL;
-	}
-}
-
-emem_tree_t *
-se_tree_create(int type, const char *name)
-{
-	emem_tree_t *tree_list;
-
-	tree_list=g_malloc(sizeof(emem_tree_t));
-	tree_list->next=se_packet_mem.trees;
-	tree_list->type=type;
-	tree_list->tree=NULL;
-	tree_list->name=name;
-	tree_list->malloc=se_alloc;
-	se_packet_mem.trees=tree_list;
-
-	return tree_list;
-}
-
-void *
-emem_tree_lookup32(emem_tree_t *se_tree, guint32 key)
-{
-	emem_tree_node_t *node;
-
-	node=se_tree->tree;
-
-	while(node){
-		if(key==node->key32){
-			return node->data;
-		}
-		if(key<node->key32){
-			node=node->left;
-			continue;
-		}
-		if(key>node->key32){
-			node=node->right;
-			continue;
-		}
-	}
-	return NULL;
-}
-
-void *
-emem_tree_lookup32_le(emem_tree_t *se_tree, guint32 key)
-{
-	emem_tree_node_t *node;
-
-	node=se_tree->tree;
-
-	if(!node){
-		return NULL;
-	}
-
-
-	while(node){
-		if(key==node->key32){
-			return node->data;
-		}
-		if(key<node->key32){
-			if(node->left){
-				node=node->left;
-				continue;
-			} else {
-				break;
-			}
-		}
-		if(key>node->key32){
-			if(node->right){
-				node=node->right;
-				continue;
-			} else {
-				break;
-			}
-		}
-	}
-
-
-	if(!node){
-		return NULL;
-	}
-
-	/* If we are still at the root of the tree this means that this node
-	 * is either smaller than the search key and then we return this
-	 * node or else there is no smaller key available and then
-	 * we return NULL.
-	 */
-	if(!node->parent){
-		if(key>node->key32){
-			return node->data;
-		} else {
-			return NULL;
-		}
-	}
-
-	if(node->parent->left==node){
-		/* left child */
-
-		if(key>node->key32){
-			/* if this is a left child and its key is smaller than
-			 * the search key, then this is the node we want.
-			 */
-			return node->data;
-		} else {
-			/* if this is a left child and its key is bigger than
-			 * the search key, we have to check if any
-			 * of our ancestors are smaller than the search key.
-			 */
-			while(node){
-				if(key>node->key32){
-					return node->data;
-				}
-				node=node->parent;
-			}
-			return NULL;
-		}
-	} else {
-		/* right child */
-
-		if(node->key32<key){
-			/* if this is the right child and its key is smaller
-			 * than the search key then this is the one we want.
-			 */
-			return node->data;
-		} else {
-			/* if this is the right child and its key is larger
-			 * than the search key then our parent is the one we
-			 * want.
-			 */
-			return node->parent->data;
-		}
-	}
-
-}
-
-
-static inline emem_tree_node_t *
-emem_tree_parent(emem_tree_node_t *node)
-{
-	return node->parent;
-}
-
-static inline emem_tree_node_t *
-emem_tree_grandparent(emem_tree_node_t *node)
-{
-	emem_tree_node_t *parent;
-
-	parent=emem_tree_parent(node);
-	if(parent){
-		return parent->parent;
-	}
-	return NULL;
-}
-
-static inline emem_tree_node_t *
-emem_tree_uncle(emem_tree_node_t *node)
-{
-	emem_tree_node_t *parent, *grandparent;
-
-	parent=emem_tree_parent(node);
-	if(!parent){
-		return NULL;
-	}
-	grandparent=emem_tree_parent(parent);
-	if(!grandparent){
-		return NULL;
-	}
-	if(parent==grandparent->left){
-		return grandparent->right;
-	}
-	return grandparent->left;
-}
-
-static inline void rb_insert_case1(emem_tree_t *se_tree, emem_tree_node_t *node);
-static inline void rb_insert_case2(emem_tree_t *se_tree, emem_tree_node_t *node);
-
-static inline void
-rotate_left(emem_tree_t *se_tree, emem_tree_node_t *node)
-{
-	if(node->parent){
-		if(node->parent->left==node){
-			node->parent->left=node->right;
-		} else {
-			node->parent->right=node->right;
-		}
-	} else {
-		se_tree->tree=node->right;
-	}
-	node->right->parent=node->parent;
-	node->parent=node->right;
-	node->right=node->right->left;
-	if(node->right){
-		node->right->parent=node;
-	}
-	node->parent->left=node;
-}
-
-static inline void
-rotate_right(emem_tree_t *se_tree, emem_tree_node_t *node)
-{
-	if(node->parent){
-		if(node->parent->left==node){
-			node->parent->left=node->left;
-		} else {
-			node->parent->right=node->left;
-		}
-	} else {
-		se_tree->tree=node->left;
-	}
-	node->left->parent=node->parent;
-	node->parent=node->left;
-	node->left=node->left->right;
-	if(node->left){
-		node->left->parent=node;
-	}
-	node->parent->right=node;
-}
-
-static inline void
-rb_insert_case5(emem_tree_t *se_tree, emem_tree_node_t *node)
-{
-	emem_tree_node_t *grandparent;
-	emem_tree_node_t *parent;
-
-	parent=emem_tree_parent(node);
-	grandparent=emem_tree_parent(parent);
-	parent->u.rb_color=EMEM_TREE_RB_COLOR_BLACK;
-	grandparent->u.rb_color=EMEM_TREE_RB_COLOR_RED;
-	if( (node==parent->left) && (parent==grandparent->left) ){
-		rotate_right(se_tree, grandparent);
-	} else {
-		rotate_left(se_tree, grandparent);
-	}
-}
-
-static inline void
-rb_insert_case4(emem_tree_t *se_tree, emem_tree_node_t *node)
-{
-	emem_tree_node_t *grandparent;
-	emem_tree_node_t *parent;
-
-	parent=emem_tree_parent(node);
-	grandparent=emem_tree_parent(parent);
-	if(!grandparent){
-		return;
-	}
-	if( (node==parent->right) && (parent==grandparent->left) ){
-		rotate_left(se_tree, parent);
-		node=node->left;
-	} else if( (node==parent->left) && (parent==grandparent->right) ){
-		rotate_right(se_tree, parent);
-		node=node->right;
-	}
-	rb_insert_case5(se_tree, node);
-}
-
-static inline void
-rb_insert_case3(emem_tree_t *se_tree, emem_tree_node_t *node)
-{
-	emem_tree_node_t *grandparent;
-	emem_tree_node_t *parent;
-	emem_tree_node_t *uncle;
-
-	uncle=emem_tree_uncle(node);
-	if(uncle && (uncle->u.rb_color==EMEM_TREE_RB_COLOR_RED)){
-		parent=emem_tree_parent(node);
-		parent->u.rb_color=EMEM_TREE_RB_COLOR_BLACK;
-		uncle->u.rb_color=EMEM_TREE_RB_COLOR_BLACK;
-		grandparent=emem_tree_grandparent(node);
-		grandparent->u.rb_color=EMEM_TREE_RB_COLOR_RED;
-		rb_insert_case1(se_tree, grandparent);
-	} else {
-		rb_insert_case4(se_tree, node);
-	}
-}
-
-static inline void
-rb_insert_case2(emem_tree_t *se_tree, emem_tree_node_t *node)
-{
-	emem_tree_node_t *parent;
-
-	parent=emem_tree_parent(node);
-	/* parent is always non-NULL here */
-	if(parent->u.rb_color==EMEM_TREE_RB_COLOR_BLACK){
-		return;
-	}
-	rb_insert_case3(se_tree, node);
-}
-
-static inline void
-rb_insert_case1(emem_tree_t *se_tree, emem_tree_node_t *node)
-{
-	emem_tree_node_t *parent;
-
-	parent=emem_tree_parent(node);
-	if(!parent){
-		node->u.rb_color=EMEM_TREE_RB_COLOR_BLACK;
-		return;
-	}
-	rb_insert_case2(se_tree, node);
-}
-
-/* insert a new node in the tree. if this node matches an already existing node
- * then just replace the data for that node */
-void
-emem_tree_insert32(emem_tree_t *se_tree, guint32 key, void *data)
-{
-	emem_tree_node_t *node;
-
-	node=se_tree->tree;
-
-	/* is this the first node ?*/
-	if(!node){
-		node=se_tree->malloc(sizeof(emem_tree_node_t));
-		switch(se_tree->type){
-		case EMEM_TREE_TYPE_RED_BLACK:
-			node->u.rb_color=EMEM_TREE_RB_COLOR_BLACK;
-			break;
-		}
-		node->parent=NULL;
-		node->left=NULL;
-		node->right=NULL;
-		node->key32=key;
-		node->data=data;
-		node->u.is_subtree = EMEM_TREE_NODE_IS_DATA;
-		se_tree->tree=node;
-		return;
-	}
-
-	/* it was not the new root so walk the tree until we find where to
-	 * insert this new leaf.
-	 */
-	while(1){
-		/* this node already exists, so just replace the data pointer*/
-		if(key==node->key32){
-			node->data=data;
-			return;
-		}
-		if(key<node->key32) {
-			if(!node->left){
-				/* new node to the left */
-				emem_tree_node_t *new_node;
-				new_node=se_tree->malloc(sizeof(emem_tree_node_t));
-				node->left=new_node;
-				new_node->parent=node;
-				new_node->left=NULL;
-				new_node->right=NULL;
-				new_node->key32=key;
-				new_node->data=data;
-				new_node->u.is_subtree=EMEM_TREE_NODE_IS_DATA;
-				node=new_node;
-				break;
-			}
-			node=node->left;
-			continue;
-		}
-		if(key>node->key32) {
-			if(!node->right){
-				/* new node to the right */
-				emem_tree_node_t *new_node;
-				new_node=se_tree->malloc(sizeof(emem_tree_node_t));
-				node->right=new_node;
-				new_node->parent=node;
-				new_node->left=NULL;
-				new_node->right=NULL;
-				new_node->key32=key;
-				new_node->data=data;
-				new_node->u.is_subtree=EMEM_TREE_NODE_IS_DATA;
-				node=new_node;
-				break;
-			}
-			node=node->right;
-			continue;
-		}
-	}
-
-	/* node will now point to the newly created node */
-	switch(se_tree->type){
-	case EMEM_TREE_TYPE_RED_BLACK:
-		node->u.rb_color=EMEM_TREE_RB_COLOR_RED;
-		rb_insert_case1(se_tree, node);
-		break;
-	}
-}
-
-static void *
-lookup_or_insert32(emem_tree_t *se_tree, guint32 key, void*(*func)(void*),void* ud, int is_subtree)
-{
-	emem_tree_node_t *node;
-
-	node=se_tree->tree;
-
-	/* is this the first node ?*/
-	if(!node){
-		node=se_tree->malloc(sizeof(emem_tree_node_t));
-		switch(se_tree->type){
-			case EMEM_TREE_TYPE_RED_BLACK:
-				node->u.rb_color=EMEM_TREE_RB_COLOR_BLACK;
-				break;
-		}
-		node->parent=NULL;
-		node->left=NULL;
-		node->right=NULL;
-		node->key32=key;
-		node->data= func(ud);
-		node->u.is_subtree = is_subtree;
-		se_tree->tree=node;
-		return node->data;
-	}
-
-	/* it was not the new root so walk the tree until we find where to
-		* insert this new leaf.
-		*/
-	while(1){
-		/* this node already exists, so just return the data pointer*/
-		if(key==node->key32){
-			return node->data;
-		}
-		if(key<node->key32) {
-			if(!node->left){
-				/* new node to the left */
-				emem_tree_node_t *new_node;
-				new_node=se_tree->malloc(sizeof(emem_tree_node_t));
-				node->left=new_node;
-				new_node->parent=node;
-				new_node->left=NULL;
-				new_node->right=NULL;
-				new_node->key32=key;
-				new_node->data= func(ud);
-				new_node->u.is_subtree = is_subtree;
-				node=new_node;
-				break;
-			}
-			node=node->left;
-			continue;
-		}
-		if(key>node->key32) {
-			if(!node->right){
-				/* new node to the right */
-				emem_tree_node_t *new_node;
-				new_node=se_tree->malloc(sizeof(emem_tree_node_t));
-				node->right=new_node;
-				new_node->parent=node;
-				new_node->left=NULL;
-				new_node->right=NULL;
-				new_node->key32=key;
-				new_node->data= func(ud);
-				new_node->u.is_subtree = is_subtree;
-				node=new_node;
-				break;
-			}
-			node=node->right;
-			continue;
-		}
-	}
-
-	/* node will now point to the newly created node */
-	switch(se_tree->type){
-		case EMEM_TREE_TYPE_RED_BLACK:
-			node->u.rb_color=EMEM_TREE_RB_COLOR_RED;
-			rb_insert_case1(se_tree, node);
-			break;
-	}
-
-	return node->data;
-}
-
-/* When the se data is released, this entire tree will dissapear as if it
- * never existed including all metadata associated with the tree.
- */
-emem_tree_t *
-se_tree_create_non_persistent(int type, const char *name)
-{
-	emem_tree_t *tree_list;
-
-	tree_list=se_alloc(sizeof(emem_tree_t));
-	tree_list->next=NULL;
-	tree_list->type=type;
-	tree_list->tree=NULL;
-	tree_list->name=name;
-	tree_list->malloc=se_alloc;
-
-	return tree_list;
-}
-
-/* This tree is PErmanent and will never be released
- */
-emem_tree_t *
-pe_tree_create(int type, const char *name)
-{
-	emem_tree_t *tree_list;
-
-	tree_list=g_new(emem_tree_t, 1);
-	tree_list->next=NULL;
-	tree_list->type=type;
-	tree_list->tree=NULL;
-	tree_list->name=name;
-	tree_list->malloc=(void *(*)(size_t)) g_malloc;
-
-	return tree_list;
-}
-
-/* create another (sub)tree using the same memory allocation scope
- * as the parent tree.
- */
-static emem_tree_t *
-emem_tree_create_subtree(emem_tree_t *parent_tree, const char *name)
-{
-	emem_tree_t *tree_list;
-
-	tree_list=parent_tree->malloc(sizeof(emem_tree_t));
-	tree_list->next=NULL;
-	tree_list->type=parent_tree->type;
-	tree_list->tree=NULL;
-	tree_list->name=name;
-	tree_list->malloc=parent_tree->malloc;
-
-	return tree_list;
-}
-
-static void *
-create_sub_tree(void* d)
-{
-	emem_tree_t *se_tree = d;
-	return emem_tree_create_subtree(se_tree, "subtree");
-}
-
-/* insert a new node in the tree. if this node matches an already existing node
- * then just replace the data for that node */
-
-void
-emem_tree_insert32_array(emem_tree_t *se_tree, emem_tree_key_t *key, void *data)
-{
-	emem_tree_t *insert_tree = NULL;
-	emem_tree_key_t *cur_key;
-	guint32 i, insert_key32 = 0;
-
-	if(!se_tree || !key) return;
-
-	for (cur_key = key; cur_key->length > 0; cur_key++) {
-		if(cur_key->length > 100) {
-			DISSECTOR_ASSERT_NOT_REACHED();
-		}
-
-		for (i = 0; i < cur_key->length; i++) {
-			/* Insert using the previous key32 */
-			if (!insert_tree) {
-				insert_tree = se_tree;
-			} else {
-				insert_tree = lookup_or_insert32(insert_tree, insert_key32, create_sub_tree, se_tree, EMEM_TREE_NODE_IS_SUBTREE);
-			}
-			insert_key32 = cur_key->key[i];
-		}
-	}
-
-	if(!insert_tree) {
-		/* We didn't get a valid key. Should we return NULL instead? */
-		DISSECTOR_ASSERT_NOT_REACHED();
-	}
-
-	emem_tree_insert32(insert_tree, insert_key32, data);
-
-}
-
-void *
-emem_tree_lookup32_array(emem_tree_t *se_tree, emem_tree_key_t *key)
-{
-	emem_tree_t *lookup_tree = NULL;
-	emem_tree_key_t *cur_key;
-	guint32 i, lookup_key32 = 0;
-
-	if(!se_tree || !key) return NULL; /* prevent searching on NULL pointer */
-
-	for (cur_key = key; cur_key->length > 0; cur_key++) {
-		if(cur_key->length > 100) {
-			DISSECTOR_ASSERT_NOT_REACHED();
-		}
-
-		for (i = 0; i < cur_key->length; i++) {
-			/* Lookup using the previous key32 */
-			if (!lookup_tree) {
-				lookup_tree = se_tree;
-			} else {
-				lookup_tree = emem_tree_lookup32(lookup_tree, lookup_key32);
-				if (!lookup_tree) {
-					return NULL;
-				}
-			}
-			lookup_key32 = cur_key->key[i];
-		}
-	}
-
-	if(!lookup_tree) {
-		/* We didn't get a valid key. Should we return NULL instead? */
-		DISSECTOR_ASSERT_NOT_REACHED();
-	}
-
-	return emem_tree_lookup32(lookup_tree, lookup_key32);
-}
-
-void *
-emem_tree_lookup32_array_le(emem_tree_t *se_tree, emem_tree_key_t *key)
-{
-	emem_tree_t *lookup_tree = NULL;
-	emem_tree_key_t *cur_key;
-	guint32 i, lookup_key32 = 0;
-
-	if(!se_tree || !key) return NULL; /* prevent searching on NULL pointer */
-
-	for (cur_key = key; cur_key->length > 0; cur_key++) {
-		if(cur_key->length > 100) {
-			DISSECTOR_ASSERT_NOT_REACHED();
-		}
-
-		for (i = 0; i < cur_key->length; i++) {
-			/* Lookup using the previous key32 */
-			if (!lookup_tree) {
-				lookup_tree = se_tree;
-			} else {
-				lookup_tree = emem_tree_lookup32_le(lookup_tree, lookup_key32);
-				if (!lookup_tree) {
-					return NULL;
-				}
-			}
-			lookup_key32 = cur_key->key[i];
-		}
-	}
-
-	if(!lookup_tree) {
-		/* We didn't get a valid key. Should we return NULL instead? */
-		DISSECTOR_ASSERT_NOT_REACHED();
-	}
-
-	return emem_tree_lookup32_le(lookup_tree, lookup_key32);
-
-}
-
-/* Strings are stored as an array of uint32 containing the string characters
-   with 4 characters in each uint32.
-   The first byte of the string is stored as the most significant byte.
-   If the string is not a multiple of 4 characters in length the last
-   uint32 containing the string bytes are padded with 0 bytes.
-   After the uint32's containing the string, there is one final terminator
-   uint32 with the value 0x00000001
-*/
-void
-emem_tree_insert_string(emem_tree_t* se_tree, const gchar* k, void* v, guint32 flags)
-{
-	emem_tree_key_t key[2];
-	guint32 *aligned=NULL;
-	guint32 len = (guint32) strlen(k);
-	guint32 divx = (len+3)/4+1;
-	guint32 i;
-	guint32 tmp;
-
-	aligned = g_malloc(divx * sizeof (guint32));
-
-	/* pack the bytes one one by one into guint32s */
-	tmp = 0;
-	for (i = 0;i < len;i++) {
-		unsigned char ch;
-
-		ch = (unsigned char)k[i];
-		if (flags & EMEM_TREE_STRING_NOCASE) {
-			if(isupper(ch)) {
-				ch = tolower(ch);
-			}
-		}
-		tmp <<= 8;
-		tmp |= ch;
-		if (i%4 == 3) {
-			aligned[i/4] = tmp;
-			tmp = 0;
-		}
-	}
-	/* add required padding to the last uint32 */
-	if (i%4 != 0) {
-		while (i%4 != 0) {
-			i++;
-			tmp <<= 8;
-		}
-		aligned[i/4-1] = tmp;
-	}
-
-	/* add the terminator */
-	aligned[divx-1] = 0x00000001;
-
-	key[0].length = divx;
-	key[0].key = aligned;
-	key[1].length = 0;
-	key[1].key = NULL;
-
-
-	emem_tree_insert32_array(se_tree, key, v);
-	g_free(aligned);
-}
-
-void *
-emem_tree_lookup_string(emem_tree_t* se_tree, const gchar* k, guint32 flags)
-{
-	emem_tree_key_t key[2];
-	guint32 *aligned=NULL;
-	guint32 len = (guint) strlen(k);
-	guint32 divx = (len+3)/4+1;
-	guint32 i;
-	guint32 tmp;
-	void *ret;
-
-	aligned = g_malloc(divx * sizeof (guint32));
-
-	/* pack the bytes one one by one into guint32s */
-	tmp = 0;
-	for (i = 0;i < len;i++) {
-		unsigned char ch;
-
-		ch = (unsigned char)k[i];
-		if (flags & EMEM_TREE_STRING_NOCASE) {
-			if(isupper(ch)) {
-				ch = tolower(ch);
-			}
-		}
-		tmp <<= 8;
-		tmp |= ch;
-		if (i%4 == 3) {
-			aligned[i/4] = tmp;
-			tmp = 0;
-		}
-	}
-	/* add required padding to the last uint32 */
-	if (i%4 != 0) {
-		while (i%4 != 0) {
-			i++;
-			tmp <<= 8;
-		}
-		aligned[i/4-1] = tmp;
-	}
-
-	/* add the terminator */
-	aligned[divx-1] = 0x00000001;
-
-	key[0].length = divx;
-	key[0].key = aligned;
-	key[1].length = 0;
-	key[1].key = NULL;
-
-
-	ret = emem_tree_lookup32_array(se_tree, key);
-	g_free(aligned);
-	return ret;
-}
-
-static gboolean
-emem_tree_foreach_nodes(emem_tree_node_t* node, tree_foreach_func callback, void *user_data)
-{
-	gboolean stop_traverse = FALSE;
-
-	if (!node)
-		return FALSE;
-
-	if(node->left) {
-		stop_traverse = emem_tree_foreach_nodes(node->left, callback, user_data);
-		if (stop_traverse) {
-			return TRUE;
-		}
-	}
-
-	if (node->u.is_subtree == EMEM_TREE_NODE_IS_SUBTREE) {
-		stop_traverse = emem_tree_foreach(node->data, callback, user_data);
-	} else {
-		stop_traverse = callback(node->data, user_data);
-	}
-
-	if (stop_traverse) {
-		return TRUE;
-	}
-
-	if(node->right) {
-		stop_traverse = emem_tree_foreach_nodes(node->right, callback, user_data);
-		if (stop_traverse) {
-			return TRUE;
-		}
-	}
-
-	return FALSE;
-}
-
-gboolean
-emem_tree_foreach(emem_tree_t* emem_tree, tree_foreach_func callback, void *user_data)
-{
-	if (!emem_tree)
-		return FALSE;
-
-	if(!emem_tree->tree)
-		return FALSE;
-
-	return emem_tree_foreach_nodes(emem_tree->tree, callback, user_data);
-}
-
-static void emem_print_subtree(emem_tree_t* emem_tree, guint32 level);
-
-static void
-emem_tree_print_nodes(const char *prefix, emem_tree_node_t* node, guint32 level)
-{
-	guint32 i;
-
-	if (!node)
-		return;
-
-	for(i=0;i<level;i++){
-		printf("    ");
-	}
-
-	printf("%sNODE:%p parent:%p left:%p right:%p colour:%s key:%u %s:%p\n", prefix,
-		(void *)node,(void *)(node->parent),(void *)(node->left),(void *)(node->right),
-		(node->u.rb_color)?"Black":"Red",(node->key32),(node->u.is_subtree)?"tree":"data",node->data);
-	if(node->left)
-		emem_tree_print_nodes("L-", node->left, level+1);
-	if(node->right)
-		emem_tree_print_nodes("R-", node->right, level+1);
-
-	if (node->u.is_subtree)
-		emem_print_subtree(node->data, level+1);
-}
-
-static void
-emem_print_subtree(emem_tree_t* emem_tree, guint32 level)
-{
-	guint32 i;
-
-	if (!emem_tree)
-		return;
-
-	for(i=0;i<level;i++){
-		printf("    ");
-	}
-
-	printf("EMEM tree:%p type:%s name:%s root:%p\n",emem_tree,(emem_tree->type==1)?"RedBlack":"unknown",emem_tree->name,(void *)(emem_tree->tree));
-	if(emem_tree->tree)
-		emem_tree_print_nodes("Root-", emem_tree->tree, level);
-}
-
-void
-emem_print_tree(emem_tree_t* emem_tree)
-{
-	emem_print_subtree(emem_tree, 0);
-}
 
 /*
  * String buffers
@@ -2124,7 +1287,7 @@ ep_strbuf_grow(emem_strbuf_t *strbuf, gsize wanted_alloc_len)
 	}
 
 	new_alloc_len = next_size(strbuf->alloc_len, wanted_alloc_len, strbuf->max_alloc_len);
-	new_str = ep_alloc(new_alloc_len);
+	new_str = (gchar *)ep_alloc(new_alloc_len);
 	g_strlcpy(new_str, strbuf->str, new_alloc_len);
 
 	strbuf->alloc_len = new_alloc_len;
@@ -2136,7 +1299,7 @@ ep_strbuf_sized_new(gsize alloc_len, gsize max_alloc_len)
 {
 	emem_strbuf_t *strbuf;
 
-	strbuf = ep_alloc(sizeof(emem_strbuf_t));
+	strbuf = ep_new(emem_strbuf_t);
 
 	if ((max_alloc_len == 0) || (max_alloc_len > MAX_STRBUF_LEN))
 		max_alloc_len = MAX_STRBUF_LEN;
@@ -2145,7 +1308,7 @@ ep_strbuf_sized_new(gsize alloc_len, gsize max_alloc_len)
 	else if (alloc_len > max_alloc_len)
 		alloc_len = max_alloc_len;
 
-	strbuf->str = ep_alloc(alloc_len);
+	strbuf->str = (char *)ep_alloc(alloc_len);
 	strbuf->str[0] = '\0';
 
 	strbuf->len = 0;
@@ -2163,35 +1326,6 @@ ep_strbuf_new(const gchar *init)
 	strbuf = ep_strbuf_sized_new(next_size(0, init?strlen(init)+1:0, 0), 0);  /* +1 for NULL terminator */
 	if (init) {
 		gsize full_len;
-		full_len = g_strlcpy(strbuf->str, init, strbuf->alloc_len);
-		strbuf->len = MIN(full_len, strbuf->alloc_len-1);
-	}
-
-	return strbuf;
-}
-
-emem_strbuf_t *
-ep_strbuf_new_label(const gchar *init)
-{
-	emem_strbuf_t *strbuf;
-	gsize full_len;
-
-	/* Be optimistic: Allocate default size strbuf string and only      */
-        /*  request an increase if needed.                                  */
-        /* XXX: Is it reasonable to assume that much of the usage of        */
-        /*  ep_strbuf_new_label will have  init==NULL or                    */
-        /*   strlen(init) < DEFAULT_STRBUF_LEN) ???                         */
-	strbuf = ep_strbuf_sized_new(DEFAULT_STRBUF_LEN, ITEM_LABEL_LENGTH);
-
-	if (!init)
-		return strbuf;
-
-	/* full_len does not count the trailing '\0'.                       */
-	full_len = g_strlcpy(strbuf->str, init, strbuf->alloc_len);
-	if (full_len < strbuf->alloc_len) {
-		strbuf->len += full_len;
-	} else {
-		strbuf = ep_strbuf_sized_new(full_len+1, ITEM_LABEL_LENGTH);
 		full_len = g_strlcpy(strbuf->str, init, strbuf->alloc_len);
 		strbuf->len = MIN(full_len, strbuf->alloc_len-1);
 	}
@@ -2225,7 +1359,7 @@ ep_strbuf_append(emem_strbuf_t *strbuf, const gchar *str)
 	return strbuf;
 }
 
-void
+static void
 ep_strbuf_append_vprintf(emem_strbuf_t *strbuf, const gchar *format, va_list ap)
 {
 	va_list ap2;
@@ -2291,44 +1425,6 @@ ep_strbuf_append_c(emem_strbuf_t *strbuf, const gchar c)
 		strbuf->len++;
 		strbuf->str[strbuf->len] = '\0';
 	}
-
-	return strbuf;
-}
-
-emem_strbuf_t *
-ep_strbuf_append_unichar(emem_strbuf_t *strbuf, const gunichar c)
-{
-	gchar buf[6];
-	gint charlen;
-
-	if (!strbuf) {
-		return strbuf;
-	}
-
-	charlen = g_unichar_to_utf8(c, buf);
-
-	/* +charlen for the new character & +1 for the trailing '\0'. */
-	if (strbuf->alloc_len < strbuf->len + charlen + 1) {
-		ep_strbuf_grow(strbuf, strbuf->len + charlen + 1);
-	}
-	if (strbuf->alloc_len >= strbuf->len + charlen + 1) {
-		memcpy(&strbuf->str[strbuf->len], buf, charlen);
-		strbuf->len += charlen;
-		strbuf->str[strbuf->len] = '\0';
-	}
-
-	return strbuf;
-}
-
-emem_strbuf_t *
-ep_strbuf_truncate(emem_strbuf_t *strbuf, gsize len)
-{
-	if (!strbuf || len >= strbuf->len) {
-		return strbuf;
-	}
-
-	strbuf->str[len] = '\0';
-	strbuf->len = len;
 
 	return strbuf;
 }

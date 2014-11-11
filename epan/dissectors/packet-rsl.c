@@ -4,8 +4,6 @@
  * Copyright 2007, 2011, Anders Broman <anders.broman@ericsson.com>
  * Copyright 2009-2011, Harald Welte <laforge@gnumonks.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -41,6 +39,9 @@
 
 #include "packet-rtp.h"
 #include "packet-rtcp.h"
+
+void proto_register_rsl(void);
+void proto_reg_handoff_rsl(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_rsl        = -1;
@@ -650,7 +651,7 @@ enum tlv_type {
     TLV_TYPE_T,
     TLV_TYPE_TV,
     TLV_TYPE_TLV,
-    TLV_TYPE_TL16V,
+    TLV_TYPE_TL16V
 };
 
 struct tlv_def {
@@ -1011,6 +1012,7 @@ static const value_string rsl_ra_if_data_rte_vals[] = {
     { 0,            NULL }
 };
 
+#if 0
 static const value_string rsl_data_rte_vals[] = {
     {  0x38,    "32 kbit/s" },
     {  0x22,    "39 kbit/s" },
@@ -1023,6 +1025,7 @@ static const value_string rsl_data_rte_vals[] = {
     {  0x15,    "1 200/75 bit/s (1 200 network-to-MS, 75 MS-to-network)" },
     { 0,            NULL }
 };
+#endif
 
 static int
 dissect_rsl_ie_ch_mode(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, int offset, gboolean is_mandatory)
@@ -3923,8 +3926,6 @@ dissect_rsl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 /* Register the protocol with Wireshark */
 void proto_register_rsl(void)
 {
-    void proto_reg_handoff_rsl(void);
-
     /* Setup list of header fields */
     static hf_register_info hf[] = {
         { &hf_rsl_msg_dsc,

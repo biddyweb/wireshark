@@ -1,7 +1,5 @@
 /**
  * crc7.c
- *  
- * $Id$
  *
  * Functions and types for CRC checks.
  *

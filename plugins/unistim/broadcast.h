@@ -1,9 +1,7 @@
 /* broadcast.h
-  * header field declarations, value_string def and true_false_string 
+  * header field declarations, value_string def and true_false_string
   * definitions for broadcast manager messages
   * Copyright 2007 Don Newton <dnewton@cypresscom.net>
-  *
-  * $Id$
   *
   * Wireshark - Network traffic analyzer
   * By Gerald Combs <gerald@wireshark.org>

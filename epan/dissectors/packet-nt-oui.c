@@ -1,8 +1,6 @@
 /* packet-nt-oui.c
  * Register an LLC dissector table for Nortel's OUI 00:00:0c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,8 @@
 #include "packet-llc.h"
 #include <epan/oui.h>
 
+void proto_register_nortel_oui(void);
+
 static int hf_llc_nortel_pid = -1;
 
 static const value_string nortel_pid_vals[] = {
@@ -51,5 +51,5 @@ proto_register_nortel_oui(void)
 	  }
 	};
 
-	llc_add_oui(OUI_NORTEL, "llc.nortel_pid", "Nortel OUI PID", hf);
+	llc_add_oui(OUI_NORTEL, "llc.nortel_pid", "LLC Nortel OUI PID", hf);
 }

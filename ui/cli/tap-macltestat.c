@@ -1,8 +1,6 @@
 /* tap-macltestat.c
  * Copyright 2011 Martin Mathieson
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,13 +24,16 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include <epan/packet.h>
 #include <epan/packet_info.h>
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
 #include <epan/dissectors/packet-mac-lte.h>
+
+void register_tap_listener_mac_lte_stat(void);
 
 /**********************************************/
 /* Table column identifiers and title strings */
@@ -108,10 +109,12 @@ typedef struct mac_lte_ep {
 /* Common channel stats */
 typedef struct mac_lte_common_stats {
     guint32 all_frames;
-    guint32 bch_frames;
-    guint32 bch_bytes;
+    guint32 mib_frames;
+    guint32 sib_frames;
+    guint32 sib_bytes;
     guint32 pch_frames;
     guint32 pch_bytes;
+    guint32 pch_paging_ids;
     guint32 rar_frames;
     guint32 rar_entries;
 
@@ -239,11 +242,14 @@ mac_lte_stat_packet(void *phs, packet_info *pinfo, epan_dissect_t *edt _U_,
         case P_RNTI:
             hs->common_stats.pch_frames++;
             hs->common_stats.pch_bytes += si->single_number_of_bytes;
+            hs->common_stats.pch_paging_ids += si->number_of_paging_ids;
             return 1;
         case SI_RNTI:
+            hs->common_stats.sib_frames++;
+            hs->common_stats.sib_bytes += si->single_number_of_bytes;
+            return 1;
         case NO_RNTI:
-            hs->common_stats.bch_frames++;
-            hs->common_stats.bch_bytes += si->single_number_of_bytes;
+            hs->common_stats.mib_frames++;
             return 1;
         case RA_RNTI:
             hs->common_stats.rar_frames++;
@@ -443,10 +449,12 @@ mac_lte_stat_draw(void *phs)
     /* Common channel data */
     printf("Common channel data:\n");
     printf("====================\n");
-    printf("BCH Frames: %u    ", hs->common_stats.bch_frames);
-    printf("BCH Bytes: %u    ", hs->common_stats.bch_bytes);
+    printf("MIBs: %u    ", hs->common_stats.mib_frames);
+    printf("SIB Frames: %u    ", hs->common_stats.sib_frames);
+    printf("SIB Bytes: %u    ", hs->common_stats.sib_bytes);
     printf("PCH Frames: %u    ", hs->common_stats.pch_frames);
     printf("PCH Bytes: %u    ", hs->common_stats.pch_bytes);
+    printf("PCH Paging IDs: %u    ", hs->common_stats.pch_paging_ids);
     printf("RAR Frames: %u    ", hs->common_stats.rar_frames);
     printf("RAR Entries: %u\n\n", hs->common_stats.rar_entries);
 
@@ -501,16 +509,16 @@ mac_lte_stat_draw(void *phs)
 }
 
 /* Create a new MAC LTE stats struct */
-static void mac_lte_stat_init(const char *optarg, void *userdata _U_)
+static void mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
 {
     mac_lte_stat_t    *hs;
     const char    *filter = NULL;
     GString       *error_string;
 
     /* Check for a filter string */
-    if (strncmp(optarg, "mac-lte,stat,", 13) == 0) {
+    if (strncmp(opt_arg, "mac-lte,stat,", 13) == 0) {
         /* Skip those characters from filter to display */
-        filter = optarg + 13;
+        filter = opt_arg + 13;
     }
     else {
         /* No filter */

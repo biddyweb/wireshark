@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-lppe.c                                                              */
 /* ../../tools/asn2wrs.py -p lppe -c ./lppe.cnf -s ./packet-lppe-template -D . -O ../../epan/dissectors LPPe.asn */
 
@@ -8,9 +8,7 @@
 #line 1 "../../asn1/lppe/packet-lppe-template.c"
 /* packet-lppe.c
  * Routines for LPP Extensions (LLPe) packet dissection
- * Copyright 2012, Pascal Quantin <pascal.quantin@gmail.com>
- *
- * $Id$
+ * Copyright 2012-2014, Pascal Quantin <pascal.quantin@gmail.com>
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -30,7 +28,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * Ref Open Mobile Alliance OMA-TS-LPPe V1_0-20110929-C
+ * Ref Open Mobile Alliance OMA-TS-LPPe V1_1-20140108-C
  */
 
 #include "config.h"
@@ -50,6 +48,9 @@
 /* disable: "warning C4146: unary minus operator applied to unsigned type, result still unsigned" */
 #pragma warning(disable:4146)
 #endif
+
+void proto_register_lppe(void);
+void proto_reg_handoff_lppe(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_lppe = -1;
@@ -176,6 +177,27 @@ static int hf_lppe_caType = -1;                   /* INTEGER_0_511 */
 static int hf_lppe_caValue = -1;                  /* OCTET_STRING_SIZE_1_256 */
 static int hf_lppe_duration = -1;                 /* INTEGER_1_63 */
 static int hf_lppe_durationLSB = -1;              /* INTEGER_1_89 */
+static int hf_lppe_altitudeModel = -1;            /* OMA_LPPe_ver1_1_AltitudeModel */
+static int hf_lppe_buildingsProfileModel = -1;    /* OMA_LPPe_ver1_1_BuildingsHeightModel */
+static int hf_lppe_northWestCorner = -1;          /* Ellipsoid_Point */
+static int hf_lppe_northwestCornerAltitude = -1;  /* INTEGER_M500_9000 */
+static int hf_lppe_nrows = -1;                    /* INTEGER_2_1012 */
+static int hf_lppe_ncols = -1;                    /* INTEGER_2_1012 */
+static int hf_lppe_spanX = -1;                    /* INTEGER_6_14 */
+static int hf_lppe_spanY = -1;                    /* INTEGER_6_14 */
+static int hf_lppe_deltaAltUnits = -1;            /* INTEGER_1_128 */
+static int hf_lppe_altitudeGrid = -1;             /* SEQUENCE_SIZE_1_10000_OF_DeltaAltitudes */
+static int hf_lppe_altitudeGrid_item = -1;        /* DeltaAltitudes */
+static int hf_lppe_northwestCornerHeigth = -1;    /* INTEGER_0_500 */
+static int hf_lppe_deltaHeigthUnits = -1;         /* INTEGER_1_16 */
+static int hf_lppe_buildingsHeigthGrid = -1;      /* SEQUENCE_SIZE_1_10000_OF_DeltaHeight */
+static int hf_lppe_buildingsHeigthGrid_item = -1;  /* DeltaHeight */
+static int hf_lppe_deltaAlt = -1;                 /* INTEGER_M15_16 */
+static int hf_lppe_numGridPoints = -1;            /* INTEGER_0_255 */
+static int hf_lppe_deltaHeight = -1;              /* INTEGER_M15_16 */
+static int hf_lppe_eUTRA = -1;                    /* CellGlobalIdEUTRA_AndUTRA */
+static int hf_lppe_uTRA = -1;                     /* CellGlobalIdEUTRA_AndUTRA */
+static int hf_lppe_gSM = -1;                      /* CellGlobalIdGERAN */
 static int hf_lppe_latitude = -1;                 /* INTEGER_M2147483648_2147483647 */
 static int hf_lppe_longitude = -1;                /* INTEGER_M2147483648_2147483647 */
 static int hf_lppe_cep = -1;                      /* INTEGER_0_255 */
@@ -260,6 +282,41 @@ static int hf_lppe_civic_uncertainty_and_confidence = -1;  /* OMA_LPPe_CivicUnce
 static int hf_lppe_provider_ID = -1;              /* OMA_LPPe_VendorOrOperatorID */
 static int hf_lppe_server_ID = -1;                /* OCTET_STRING_SIZE_4 */
 static int hf_lppe_session_ID = -1;               /* OCTET_STRING_SIZE_4 */
+static int hf_lppe_standardSystemID = -1;         /* INTEGER_1_16 */
+static int hf_lppe_proprietarySystemID = -1;      /* T_proprietarySystemID */
+static int hf_lppe_vendorOrOperator = -1;         /* OMA_LPPe_VendorOrOperatorID */
+static int hf_lppe_proprietarySystemID_01 = -1;   /* INTEGER_1_16 */
+static int hf_lppe_lppLabels = -1;                /* SEQUENCE_SIZE_1_maxLPPLabelSets_OF_OMA_LPPe_ver1_1_LabelSet */
+static int hf_lppe_lppLabels_item = -1;           /* OMA_LPPe_ver1_1_LabelSet */
+static int hf_lppe_lppeLabels = -1;               /* SEQUENCE_SIZE_1_maxLPPeLabelSets_OF_OMA_LPPe_ver1_1_LabelSet */
+static int hf_lppe_lppeLabels_item = -1;          /* OMA_LPPe_ver1_1_LabelSet */
+static int hf_lppe_level1_element = -1;           /* T_level1_element */
+static int hf_lppe_level1_element_value = -1;     /* INTEGER_1_maxLevel1_element */
+static int hf_lppe_level2_element = -1;           /* T_level2_element */
+static int hf_lppe_level2_element_value = -1;     /* INTEGER_1_maxLevel2_element */
+static int hf_lppe_level3_element = -1;           /* T_level3_element */
+static int hf_lppe_level3_element_value = -1;     /* INTEGER_1_maxLevel3_element */
+static int hf_lppe_lastElements = -1;             /* BIT_STRING_SIZE_1_maxFinal_element */
+static int hf_lppe_additionalElements = -1;       /* T_additionalElements */
+static int hf_lppe_gSMAccess = -1;                /* OMA_LPPe_ver1_1_MCC_MNC */
+static int hf_lppe_wCDMAAccess = -1;              /* OMA_LPPe_ver1_1_MCC_MNC */
+static int hf_lppe_lTEAccess = -1;                /* OMA_LPPe_ver1_1_MCC_MNC */
+static int hf_lppe_wiMaxAccess = -1;              /* OMA_LPPe_ver1_1_BSID */
+static int hf_lppe_wLANAccess = -1;               /* OMA_LPPe_WLAN_AP_ID */
+static int hf_lppe_mcc = -1;                      /* T_mcc */
+static int hf_lppe_mcc_item = -1;                 /* INTEGER_0_9 */
+static int hf_lppe_mnc = -1;                      /* T_mnc */
+static int hf_lppe_mnc_item = -1;                 /* INTEGER_0_9 */
+static int hf_lppe_bsID_MSB = -1;                 /* BIT_STRING_SIZE_24 */
+static int hf_lppe_bsID_LSB = -1;                 /* BIT_STRING_SIZE_24 */
+static int hf_lppe_authenticationSetID = -1;      /* OMA_LPPe_ver1_1_AuthenticationSetID */
+static int hf_lppe_rsaPublicKey = -1;             /* T_rsaPublicKey */
+static int hf_lppe_modulus = -1;                  /* BIT_STRING_SIZE_2048 */
+static int hf_lppe_exponent = -1;                 /* BIT_STRING_SIZE_2_2048 */
+static int hf_lppe_saltLength = -1;               /* INTEGER_0_32 */
+static int hf_lppe_cipherSetID = -1;              /* OMA_LPPe_ver1_1_CipherSetID */
+static int hf_lppe_cipherKey = -1;                /* BIT_STRING_SIZE_128 */
+static int hf_lppe_c0 = -1;                       /* BIT_STRING_SIZE_1_128 */
 static int hf_lppe_regionSizeInv = -1;            /* INTEGER_1_255 */
 static int hf_lppe_areaWidth = -1;                /* INTEGER_2_9180 */
 static int hf_lppe_codedLatOfNWCorner = -1;       /* INTEGER_0_4589 */
@@ -295,10 +352,14 @@ static int hf_lppe_referencePointCapabilitiesReq = -1;  /* OMA_LPPe_ReferencePoi
 static int hf_lppe_scheduledLocation_RequestCapabilities = -1;  /* OMA_LPPe_ScheduledLocation_RequestCapabilities */
 static int hf_lppe_accessCapabilitiesReq = -1;    /* OMA_LPPe_AccessCapabilitiesReq */
 static int hf_lppe_segmentedLocationInformation_ReqCapabilities = -1;  /* OMA_LPPe_SegmentedLocationInformation_ReqCapabilities */
+static int hf_lppe_ver1_1_localCellInformation_ReqCapabilities = -1;  /* OMA_LPPe_ver1_1_localCellInformation_ReqCapabilities */
+static int hf_lppe_ver1_1_broadcast_ReqCapabilities = -1;  /* OMA_LPPe_ver1_1_broadcast_ReqCapabilities */
 static int hf_lppe_vendorOrOperatorIDList = -1;   /* OMA_LPPe_VendorOrOperatorIDList */
 static int hf_lppe_OMA_LPPe_VendorOrOperatorIDList_item = -1;  /* OMA_LPPe_VendorOrOperatorID */
 static int hf_lppe_referencePointProviderSupportListReq = -1;  /* SEQUENCE_SIZE_1_128_OF_OMA_LPPe_VendorOrOperatorID */
 static int hf_lppe_referencePointProviderSupportListReq_item = -1;  /* OMA_LPPe_VendorOrOperatorID */
+static int hf_lppe_broadcastSystems = -1;         /* SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_BroadcastSystemID */
+static int hf_lppe_broadcastSystems_item = -1;    /* OMA_LPPe_ver1_1_BroadcastSystemID */
 static int hf_lppe_iP_Address_Capabilities = -1;  /* OMA_LPPe_IP_Address_Capabilities */
 static int hf_lppe_assistanceContainerSupport = -1;  /* OMA_LPPe_AssistanceContainerSupport */
 static int hf_lppe_locationInformationContainerSupport = -1;  /* OMA_LPPe_LocationInformationContainerSupport */
@@ -309,6 +370,8 @@ static int hf_lppe_referencePointCapabilities = -1;  /* OMA_LPPe_ReferencePointC
 static int hf_lppe_scheduledLocation_Capabilities = -1;  /* OMA_LPPe_ScheduledLocation_Capabilities */
 static int hf_lppe_accessCapabilities = -1;       /* OMA_LPPe_AccessCapabilities */
 static int hf_lppe_segmentedLocationInformation_ProvideCapabs = -1;  /* OMA_LPPe_SegmentedLocationInformation_ProvideCapabs */
+static int hf_lppe_ver1_1_localCellInformation_ProvideCapabilities = -1;  /* OMA_LPPe_ver1_1_localCellInformation_ProvideCapabilities */
+static int hf_lppe_ver1_1_broadcast_ProvideCapabilities = -1;  /* OMA_LPPe_ver1_1_broadcast_ProvideCapabilities */
 static int hf_lppe_iP_Address_support = -1;       /* T_iP_Address_support */
 static int hf_lppe_OMA_LPPe_AssistanceContainerSupport_item = -1;  /* OMA_LPPe_VendorOrOperatorAssistanceContainerList */
 static int hf_lppe_assistanceContainerList = -1;  /* OMA_LPPe_AssistanceContainerList */
@@ -333,25 +396,73 @@ static int hf_lppe_networkTimeReference = -1;     /* T_networkTimeReference */
 static int hf_lppe_accessTypeUnknown = -1;        /* NULL */
 static int hf_lppe_fixedAccessTypes = -1;         /* OMA_LPPe_FixedAccessTypes */
 static int hf_lppe_wirelessAccessTypes = -1;      /* OMA_LPPe_WirelessAccessTypes */
+static int hf_lppe_localCellInformation_Support = -1;  /* T_localCellInformation_Support */
+static int hf_lppe_OMA_LPPe_ver1_1_broadcast_ProvideCapabilities_item = -1;  /* OMA_LPPe_ver1_1_BroadcastSystem_Capabs */
+static int hf_lppe_broadcastSystemID = -1;        /* OMA_LPPe_ver1_1_BroadcastSystemID */
+static int hf_lppe_broadcastADTypes = -1;         /* OMA_LPPe_ver1_1_BroadcastADTypes */
+static int hf_lppe_point2pointAD = -1;            /* OMA_LPPe_ver1_1_point2pointAD */
+static int hf_lppe_ciphering = -1;                /* OMA_LPPe_ver1_1_Ciphering */
+static int hf_lppe_authentication = -1;           /* OMA_LPPe_ver1_1_Authentication */
 static int hf_lppe_approximate_location = -1;     /* EllipsoidPointWithAltitudeAndUncertaintyEllipsoid */
 static int hf_lppe_assistanceContainerRequestList = -1;  /* OMA_LPPe_AssistanceContainerRequestList */
 static int hf_lppe_requestPeriodicADwithUpdate = -1;  /* OMA_LPPe_RequestPeriodicADwithUpdate */
 static int hf_lppe_segmentedADpreference = -1;    /* T_segmentedADpreference */
 static int hf_lppe_segmentedADResume = -1;        /* OMA_LPPe_SegmentedADResume */
 static int hf_lppe_referencePointAssistanceReq = -1;  /* OMA_LPPe_ReferencePointAssistanceReq */
-static int hf_lppe_periodicAD_session_ID = -1;    /* INTEGER_1_256 */
+static int hf_lppe_ver1_1_localCellInformationReq = -1;  /* OMA_LPPe_ver1_1_LocalCellInformationReq */
+static int hf_lppe_ver1_1_BroadcastAssistanceDataReq = -1;  /* OMA_LPPe_ver1_1_BroadcastAssistanceDataReq */
+static int hf_lppe_ver1_1_AccessNetwork = -1;     /* OMA_LPPe_ver1_1_AccessNetworkID */
+static int hf_lppe_ver1_1_groundMorphologyModelReq = -1;  /* OMA_LPPe_ver1_1_GroundMorphologyModelReq */
+static int hf_lppe_periodicAD_session_ID = -1;    /* OCTET_STRING_SIZE_4 */
 static int hf_lppe_typeOfADRequest = -1;          /* TypeOfADRequest */
 static int hf_lppe_segmentedAD_session_ID = -1;   /* OMA_LPPe_Session_ID */
 static int hf_lppe_next_segment_number = -1;      /* INTEGER_1_4096 */
 static int hf_lppe_referencePointReq = -1;        /* SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ReferencePointAssistanceReqElement */
 static int hf_lppe_referencePointReq_item = -1;   /* OMA_LPPe_ReferencePointAssistanceReqElement */
 static int hf_lppe_mapDataReq = -1;               /* OCTET_STRING */
+static int hf_lppe_modelsReq = -1;                /* T_modelsReq */
+static int hf_lppe_refAreaParam = -1;             /* T_refAreaParam */
+static int hf_lppe_localCellInformationReq = -1;  /* T_localCellInformationReq */
+static int hf_lppe_localCellID = -1;              /* OMA_LPPe_ver1_1_CellGlobalID */
+static int hf_lppe_numberOfCells = -1;            /* INTEGER_0_7 */
+static int hf_lppe_broadcastSystem = -1;          /* OMA_LPPe_ver1_1_BroadcastSystem */
+static int hf_lppe_cipherSets = -1;               /* SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSetID */
+static int hf_lppe_cipherSets_item = -1;          /* OMA_LPPe_ver1_1_CipherSetID */
+static int hf_lppe_authenticationSets = -1;       /* SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSetID */
+static int hf_lppe_authenticationSets_item = -1;  /* OMA_LPPe_ver1_1_AuthenticationSetID */
 static int hf_lppe_assistanceContainerList_01 = -1;  /* OMA_LPPe_AssistanceContainerProvideList */
 static int hf_lppe_providePeriodicADwithUpdate = -1;  /* OMA_LPPe_ProvidePeriodicADwithUpdate */
 static int hf_lppe_segmentedADTransfer = -1;      /* OMA_LPPe_SegmentedADTransfer */
 static int hf_lppe_default_reference_point = -1;  /* OMA_LPPe_ReferencePoint */
+static int hf_lppe_ver1_1_localCellInformation = -1;  /* OMA_LPPe_ver1_1_LocalCellInformation */
+static int hf_lppe_ver1_1_BroadcastAssistanceData = -1;  /* OMA_LPPe_ver1_1_BroadcastAssistanceData */
+static int hf_lppe_ver1_1_groundMorphologyModel = -1;  /* OMA_LPPe_ver1_1_GroundMorphologyModel */
 static int hf_lppe_typeOfADProvide = -1;          /* OMA_LPPe_TypeOfADProvide */
 static int hf_lppe_segment_number = -1;           /* INTEGER_1_4096 */
+static int hf_lppe_ver1_1_timingInformation = -1;  /* SEQUENCE_SIZE_1_maxCellSets_OF_GNSS_ReferenceTime */
+static int hf_lppe_ver1_1_timingInformation_item = -1;  /* GNSS_ReferenceTime */
+static int hf_lppe_ver1_1_other_CellInformation = -1;  /* SEQUENCE_SIZE_1_maxCells_OF_OMA_LPPe_ver1_1_CellInformation */
+static int hf_lppe_ver1_1_other_CellInformation_item = -1;  /* OMA_LPPe_ver1_1_CellInformation */
+static int hf_lppe_cellID = -1;                   /* OMA_LPPe_ver1_1_CellGlobalID */
+static int hf_lppe_coverage = -1;                 /* T_coverage */
+static int hf_lppe_circle_01 = -1;                /* Ellipsoid_PointWithUncertaintyCircle */
+static int hf_lppe_ellipse_01 = -1;               /* EllipsoidPointWithUncertaintyEllipse */
+static int hf_lppe_arc = -1;                      /* EllipsoidArc */
+static int hf_lppe_polygon = -1;                  /* Polygon */
+static int hf_lppe_coordinates = -1;              /* EllipsoidPointWithAltitudeAndUncertaintyEllipsoid */
+static int hf_lppe_frequencyAccuracy = -1;        /* INTEGER_1_6 */
+static int hf_lppe_broadcastSystem_01 = -1;       /* OMA_LPPe_ver1_1_BroadcastSystemID */
+static int hf_lppe_accessNetworks = -1;           /* SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_AccessNetworkID */
+static int hf_lppe_accessNetworks_item = -1;      /* OMA_LPPe_ver1_1_AccessNetworkID */
+static int hf_lppe_coverageArea = -1;             /* T_coverageArea */
+static int hf_lppe_broadcastMode = -1;            /* T_broadcastMode */
+static int hf_lppe_unencapsulated = -1;           /* NULL */
+static int hf_lppe_encapsulated = -1;             /* OMA_LPPe_ver1_1_EncapsulatedMode */
+static int hf_lppe_serverID = -1;                 /* OMA_LPPe_ver1_1_ServerID */
+static int hf_lppe_cipherSets_01 = -1;            /* SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSet */
+static int hf_lppe_cipherSets_item_01 = -1;       /* OMA_LPPe_ver1_1_CipherSet */
+static int hf_lppe_authentication_01 = -1;        /* SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSet */
+static int hf_lppe_authentication_item = -1;      /* OMA_LPPe_ver1_1_AuthenticationSet */
 static int hf_lppe_iP_Address_Request = -1;       /* OMA_LPPe_IP_Address_Request */
 static int hf_lppe_locationInformationContainerRequest = -1;  /* OMA_LPPe_LocationInformationContainerRequest */
 static int hf_lppe_requestPeriodicLocInfoWithUpdate = -1;  /* OMA_LPPe_RequestPeriodicLocInfoWithUpdate */
@@ -361,7 +472,6 @@ static int hf_lppe_scheduledLocation_Request = -1;  /* OMA_LPPe_ScheduledLocatio
 static int hf_lppe_accessTypeRequest = -1;        /* OMA_LPPe_AccessTypeRequest */
 static int hf_lppe_segmentedLIpreference = -1;    /* T_segmentedLIpreference */
 static int hf_lppe_segmentedLIResume = -1;        /* OMA_LPPe_SegmentedLIResume */
-static int hf_lppe_session_ID_01 = -1;            /* INTEGER_1_256 */
 static int hf_lppe_typeOfLocInfoRequest = -1;     /* OMA_LPPe_TypeOfLocInfoRequest */
 static int hf_lppe_typeOfRequest = -1;            /* T_typeOfRequest */
 static int hf_lppe_referencePointReq_01 = -1;     /* SEQUENCE_SIZE_1_8_OF_OMA_LPPe_ReferencePointUniqueID */
@@ -382,6 +492,7 @@ static int hf_lppe_scheduledLocation = -1;        /* OMA_LPPe_ScheduledLocation 
 static int hf_lppe_accessTypes = -1;              /* OMA_LPPe_AccessTypes */
 static int hf_lppe_segmentedLITransfer = -1;      /* OMA_LPPe_SegmentedLITransfer */
 static int hf_lppe_locationInformationTimeStamp = -1;  /* OMA_LPPe_TimeStamp */
+static int hf_lppe_locationSource = -1;           /* OMA_LPPe_LocationSource */
 static int hf_lppe_subjectLocation = -1;          /* OMA_LPPe_RelativeLocation */
 static int hf_lppe_OMA_LPPe_IP_Address_List_item = -1;  /* OMA_LPPe_IP_Address */
 static int hf_lppe_local_IP_Address = -1;         /* T_local_IP_Address */
@@ -398,8 +509,18 @@ static int hf_lppe_actualWindow = -1;             /* T_actualWindow */
 static int hf_lppe_start = -1;                    /* INTEGER_M512_511 */
 static int hf_lppe_duration_02 = -1;              /* INTEGER_0_2047 */
 static int hf_lppe_relativeTime_02 = -1;          /* INTEGER_0_1024 */
+static int hf_lppe_agnss = -1;                    /* NULL */
+static int hf_lppe_otdoa = -1;                    /* NULL */
+static int hf_lppe_eotd = -1;                     /* NULL */
+static int hf_lppe_otdoaUTRA = -1;                /* NULL */
+static int hf_lppe_ecidLTE = -1;                  /* NULL */
+static int hf_lppe_ecidGSM = -1;                  /* NULL */
+static int hf_lppe_ecidUTRA = -1;                 /* NULL */
+static int hf_lppe_wlanAP = -1;                   /* NULL */
+static int hf_lppe_srn = -1;                      /* NULL */
+static int hf_lppe_sensors = -1;                  /* NULL */
 static int hf_lppe_abortCause = -1;               /* T_abortCause */
-static int hf_lppe_periodicSessionIDtoAbort = -1;  /* INTEGER_1_256 */
+static int hf_lppe_periodicSessionIDtoAbort = -1;  /* OCTET_STRING_SIZE_4 */
 static int hf_lppe_commonAssistData = -1;         /* OMA_LPPe_AGNSS_CommonAssistData */
 static int hf_lppe_genericAssistData = -1;        /* OMA_LPPe_AGNSS_GenericAssistData */
 static int hf_lppe_error_01 = -1;                 /* OMA_LPPe_AGNSS_Error */
@@ -823,7 +944,7 @@ static int hf_lppe_refPosAssist = -1;             /* OMA_LPPe_OTDOA_UTRA_RefPosA
 static int hf_lppe_ipdl_parameters = -1;          /* OMA_LPPe_OTDOA_UTRA_IPDL_Parameters */
 static int hf_lppe_cellPosition = -1;             /* T_cellPosition */
 static int hf_lppe_ellipsoidPointWithAltitude = -1;  /* EllipsoidPointWithAltitude */
-static int hf_lppe_roundTripTime = -1;            /* INTEGER_0_327 */
+static int hf_lppe_roundTripTime = -1;            /* INTEGER_0_32766 */
 static int hf_lppe_roundTripTimeExtension = -1;   /* INTEGER_0_70274 */
 static int hf_lppe_OMA_LPPe_OTDOA_UTRA_NeighborCellList_item = -1;  /* OMA_LPPe_OTDOA_UTRA_NeighborCellInfo */
 static int hf_lppe_modeSpecificInfo_01 = -1;      /* T_modeSpecificInfo_01 */
@@ -896,10 +1017,8 @@ static int hf_lppe_ecid_LTE_NetworkData = -1;     /* SEQUENCE_SIZE_1_maxLTENetwo
 static int hf_lppe_ecid_LTE_NetworkData_item = -1;  /* OMA_LPPe_ECID_LTE_NetworkData */
 static int hf_lppe_ecid_LTE_Error = -1;           /* OMA_LPPe_ECID_LTE_Error */
 static int hf_lppe_plmn_Identity = -1;            /* T_plmn_Identity */
-static int hf_lppe_mcc = -1;                      /* T_mcc */
-static int hf_lppe_mcc_item = -1;                 /* INTEGER_0_9 */
-static int hf_lppe_mnc = -1;                      /* T_mnc */
-static int hf_lppe_mnc_item = -1;                 /* INTEGER_0_9 */
+static int hf_lppe_mcc_01 = -1;                   /* T_mcc_01 */
+static int hf_lppe_mnc_01 = -1;                   /* T_mnc_01 */
 static int hf_lppe_multiple_PLMNs = -1;           /* BOOLEAN */
 static int hf_lppe_reference_location = -1;       /* OMA_LPPe_ReferencePoint */
 static int hf_lppe_ecid_lte_eNodeB_list = -1;     /* SEQUENCE_SIZE_1_maxLTEeNBs_OF_OMA_LPPe_ECID_LTE_eNodeBData */
@@ -908,7 +1027,7 @@ static int hf_lppe_ecid_lte_HeNB_list = -1;       /* SEQUENCE_SIZE_1_maxLTEHeNBs
 static int hf_lppe_ecid_lte_HeNB_list_item = -1;  /* OMA_LPPe_ECID_LTE_HeNBData */
 static int hf_lppe_ecid_lte_eNodeB_CellData = -1;  /* SEQUENCE_SIZE_1_maxLTEMacroCells_OF_OMA_LPPe_ECID_LTE_CellData */
 static int hf_lppe_ecid_lte_eNodeB_CellData_item = -1;  /* OMA_LPPe_ECID_LTE_CellData */
-static int hf_lppe_coverageArea = -1;             /* OMA_LPPe_WLANFemtoCoverageArea */
+static int hf_lppe_coverageArea_01 = -1;          /* OMA_LPPe_WLANFemtoCoverageArea */
 static int hf_lppe_ecid_lte_HeNB_CellData = -1;   /* OMA_LPPe_ECID_LTE_CellData */
 static int hf_lppe_cellIdentity_01 = -1;          /* BIT_STRING_SIZE_28 */
 static int hf_lppe_dl_CarrierFreq = -1;           /* ARFCN_ValueEUTRA */
@@ -960,8 +1079,8 @@ static int hf_lppe_ecid_gsm_NetworkData = -1;     /* SEQUENCE_SIZE_1_maxGSMNetwo
 static int hf_lppe_ecid_gsm_NetworkData_item = -1;  /* OMA_LPPe_ECID_GSM_NetworkData */
 static int hf_lppe_ecid_gsm_Error = -1;           /* OMA_LPPe_ECID_GSM_Error */
 static int hf_lppe_plmn_Identity_01 = -1;         /* T_plmn_Identity_01 */
-static int hf_lppe_mcc_01 = -1;                   /* T_mcc_01 */
-static int hf_lppe_mnc_01 = -1;                   /* T_mnc_01 */
+static int hf_lppe_mcc_02 = -1;                   /* T_mcc_02 */
+static int hf_lppe_mnc_02 = -1;                   /* T_mnc_02 */
 static int hf_lppe_base_station_list = -1;        /* SEQUENCE_SIZE_1_maxGSMBaseStations_OF_OMA_LPPe_ECID_GSM_BaseStationData */
 static int hf_lppe_base_station_list_item = -1;   /* OMA_LPPe_ECID_GSM_BaseStationData */
 static int hf_lppe_ecid_gsm_CellData = -1;        /* SEQUENCE_SIZE_1_maxGSMCells_OF_OMA_LPPe_ECID_GSM_CellData */
@@ -1001,8 +1120,8 @@ static int hf_lppe_ecid_UTRA_NetworkData = -1;    /* SEQUENCE_SIZE_1_maxUTRANetw
 static int hf_lppe_ecid_UTRA_NetworkData_item = -1;  /* OMA_LPPe_ECID_UTRA_NetworkData */
 static int hf_lppe_ecid_UTRA_Error = -1;          /* OMA_LPPe_ECID_UTRA_Error */
 static int hf_lppe_plmn_Identity_02 = -1;         /* T_plmn_Identity_02 */
-static int hf_lppe_mcc_02 = -1;                   /* T_mcc_02 */
-static int hf_lppe_mnc_02 = -1;                   /* T_mnc_02 */
+static int hf_lppe_mcc_03 = -1;                   /* T_mcc_03 */
+static int hf_lppe_mnc_03 = -1;                   /* T_mnc_03 */
 static int hf_lppe_ecid_utra_nodeB_list = -1;     /* SEQUENCE_SIZE_1_maxUTRAnodeBs_OF_OMA_LPPe_ECID_UTRA_NodeBData */
 static int hf_lppe_ecid_utra_nodeB_list_item = -1;  /* OMA_LPPe_ECID_UTRA_NodeBData */
 static int hf_lppe_ecid_utra_HNB_list = -1;       /* SEQUENCE_SIZE_1_maxUTRAHNBs_OF_OMA_LPPe_ECID_UTRA_HNBData */
@@ -1084,8 +1203,8 @@ static int hf_lppe_wlan_DataSet = -1;             /* SEQUENCE_SIZE_1_maxWLANData
 static int hf_lppe_wlan_DataSet_item = -1;        /* OMA_LPPe_WLAN_DataSet */
 static int hf_lppe_wlan_AP_Error = -1;            /* OMA_LPPe_WLAN_AP_Error */
 static int hf_lppe_plmn_Identity_03 = -1;         /* T_plmn_Identity_03 */
-static int hf_lppe_mcc_03 = -1;                   /* T_mcc_03 */
-static int hf_lppe_mnc_03 = -1;                   /* T_mnc_03 */
+static int hf_lppe_mcc_04 = -1;                   /* T_mcc_04 */
+static int hf_lppe_mnc_04 = -1;                   /* T_mnc_04 */
 static int hf_lppe_supported_channels_11a = -1;   /* Supported_Channels_11a */
 static int hf_lppe_supported_channels_11bg = -1;  /* Supported_Channels_11bg */
 static int hf_lppe_wlan_ap_list = -1;             /* SEQUENCE_SIZE_1_maxWLANAPs_OF_OMA_LPPe_WLAN_AP_Data */
@@ -1140,6 +1259,15 @@ static int hf_lppe_apRoundTripDelay = -1;         /* OMA_LPPe_WLAN_RTD */
 static int hf_lppe_ueTransmitPower = -1;          /* INTEGER_M127_128 */
 static int hf_lppe_ueAntennaGain = -1;            /* INTEGER_M127_128 */
 static int hf_lppe_apReportedLocation = -1;       /* OMA_LPPe_WLAN_ReportedLocation */
+static int hf_lppe_apTransmitPower = -1;          /* INTEGER_M127_128 */
+static int hf_lppe_apAntennaGain = -1;            /* INTEGER_M127_128 */
+static int hf_lppe_ueSignaltoNoise = -1;          /* INTEGER_M127_128 */
+static int hf_lppe_ueSignalStrength = -1;         /* INTEGER_M127_128 */
+static int hf_lppe_apSignalStrengthDelta = -1;    /* INTEGER_0_1 */
+static int hf_lppe_ueSignalStrengthDelta = -1;    /* INTEGER_0_1 */
+static int hf_lppe_apSignaltoNoiseDelta = -1;     /* INTEGER_0_1 */
+static int hf_lppe_ueSignaltoNoiseDelta = -1;     /* INTEGER_0_1 */
+static int hf_lppe_operatingClass = -1;           /* INTEGER_0_255 */
 static int hf_lppe_rTDValue = -1;                 /* INTEGER_0_16777215 */
 static int hf_lppe_rTDUnits = -1;                 /* OMA_LPPe_WLAN_RTDUnits */
 static int hf_lppe_rTDAccuracy = -1;              /* INTEGER_0_255 */
@@ -1153,10 +1281,12 @@ static int hf_lppe_altitudeResolution = -1;       /* BIT_STRING_SIZE_6 */
 static int hf_lppe_altitude_01 = -1;              /* BIT_STRING_SIZE_30 */
 static int hf_lppe_datum = -1;                    /* BIT_STRING_SIZE_8 */
 static int hf_lppe_requestedMeasurements_03 = -1;  /* T_requestedMeasurements_03 */
+static int hf_lppe_additionalRequestedMeasurements = -1;  /* T_additionalRequestedMeasurements */
 static int hf_lppe_wlan_ecid_MeasSupported = -1;  /* T_wlan_ecid_MeasSupported */
 static int hf_lppe_wlan_types_Supported = -1;     /* OMA_LPPe_WLAN_AP_Type_List */
 static int hf_lppe_ap_Capability = -1;            /* OMA_LPPe_WLAN_AP_Capability */
 static int hf_lppe_wlan_ap_ADSupported = -1;      /* T_wlan_ap_ADSupported */
+static int hf_lppe_additional_wlan_ecid_MeasSupported = -1;  /* T_additional_wlan_ecid_MeasSupported */
 static int hf_lppe_apTypes = -1;                  /* OMA_LPPe_WLAN_AP_Type_List */
 static int hf_lppe_locationServerErrorCauses_06 = -1;  /* OMA_LPPe_WLAN_AP_LocationServerErrorCauses */
 static int hf_lppe_targetDeviceErrorCauses_06 = -1;  /* OMA_LPPe_WLAN_AP_TargetDeviceErrorCauses */
@@ -1178,6 +1308,11 @@ static int hf_lppe_apRTDMeasurementNotPossible = -1;  /* NULL */
 static int hf_lppe_ueTPNotAvailable = -1;         /* NULL */
 static int hf_lppe_ueAGNotAvailable = -1;         /* NULL */
 static int hf_lppe_apRecLocNotAvailable = -1;     /* NULL */
+static int hf_lppe_apTPNotAvailable = -1;         /* NULL */
+static int hf_lppe_apAGNotAvailable = -1;         /* NULL */
+static int hf_lppe_ueSNNotAvailable = -1;         /* NULL */
+static int hf_lppe_ueRSSINotAvailable = -1;       /* NULL */
+static int hf_lppe_ocNotAvailable = -1;           /* NULL */
 static int hf_lppe_ecid_wimax_CombinedLocationInformation = -1;  /* SEQUENCE_SIZE_1_maxWiMaxECIDSize_OF_OMA_LPPe_ECID_WiMax_LocationInformationList */
 static int hf_lppe_ecid_wimax_CombinedLocationInformation_item = -1;  /* OMA_LPPe_ECID_WiMax_LocationInformationList */
 static int hf_lppe_ecid_wimax_Error = -1;         /* OMA_LPPe_ECID_WiMax_Error */
@@ -1185,8 +1320,6 @@ static int hf_lppe_ecid_wimax_LocationInformation = -1;  /* OMA_LPPe_ECID_WiMax_
 static int hf_lppe_wimaxBsID = -1;                /* OMA_LPPe_ECID_WiMax_WimaxBsID */
 static int hf_lppe_wimaxRTD = -1;                 /* OMA_LPPe_ECID_WiMax_WimaxRTD */
 static int hf_lppe_wimaxNMRList = -1;             /* OMA_LPPe_ECID_WiMax_WimaxNMRList */
-static int hf_lppe_bsID_MSB = -1;                 /* BIT_STRING_SIZE_24 */
-static int hf_lppe_bsID_LSB = -1;                 /* BIT_STRING_SIZE_24 */
 static int hf_lppe_rTD = -1;                      /* INTEGER_0_65535 */
 static int hf_lppe_rTDstd = -1;                   /* INTEGER_0_1023 */
 static int hf_lppe_OMA_LPPe_ECID_WiMax_WimaxNMRList_item = -1;  /* OMA_LPPe_ECID_WiMax_WimaxNMR */
@@ -1214,6 +1347,17 @@ static int hf_lppe_nMRbSTxPowerMeasurementNotPossible = -1;  /* NULL */
 static int hf_lppe_nMRcINRMeasurementNotPossible = -1;  /* NULL */
 static int hf_lppe_nMRcINRstdMeasurementNotPossible = -1;  /* NULL */
 static int hf_lppe_nMRbSLocationNotAvailable = -1;  /* NULL */
+static int hf_lppe_atmosphericPressureAD = -1;    /* OMA_LPPe_AtmosphericPressureAD */
+static int hf_lppe_referencePressure = -1;        /* INTEGER_M1024_1023 */
+static int hf_lppe_period = -1;                   /* T_period */
+static int hf_lppe_pressureValidityPeriod = -1;   /* OMA_LPPe_ValidityPeriod */
+static int hf_lppe_referencePressureRate = -1;    /* INTEGER_M128_127 */
+static int hf_lppe_area_01 = -1;                  /* T_area */
+static int hf_lppe_pressureValidityArea = -1;     /* OMA_LPPe_PressureValidityArea */
+static int hf_lppe_centerPoint = -1;              /* Ellipsoid_Point */
+static int hf_lppe_validityAreaWidth = -1;        /* INTEGER_1_128 */
+static int hf_lppe_validityAreaHeight = -1;       /* INTEGER_1_128 */
+static int hf_lppe_pressureSensorAD = -1;         /* OMA_LPPe_PressureSensorAD */
 static int hf_lppe_motionStateList = -1;          /* OMA_LPPe_Sensor_MotionStateList */
 static int hf_lppe_sensorError = -1;              /* OMA_LPPe_Sensor_Error */
 static int hf_lppe_OMA_LPPe_Sensor_MotionStateList_item = -1;  /* OMA_LPPe_Sensor_MotionStateElement */
@@ -1223,6 +1367,7 @@ static int hf_lppe_motionStateReq = -1;           /* OMA_LPPe_Sensor_MotionState
 static int hf_lppe_secondaryMotionStateRequest = -1;  /* NULL */
 static int hf_lppe_motionStateSupport = -1;       /* NULL */
 static int hf_lppe_secondarySupport = -1;         /* NULL */
+static int hf_lppe_barometricPressureSupport = -1;  /* NULL */
 static int hf_lppe_targetError = -1;              /* OMA_LPPe_Sensor_TargetError */
 static int hf_lppe_motionStateError = -1;         /* T_motionStateError */
 static int hf_lppe_secondaryMotionStateError = -1;  /* T_secondaryMotionStateError */
@@ -1250,7 +1395,6 @@ static int hf_lppe_targetDataValidity = -1;       /* T_targetDataValidity */
 static int hf_lppe_updatedSRNgroup = -1;          /* OMA_LPPe_SRN_SRNgroup */
 static int hf_lppe_OMA_LPPe_SRN_AntennaPattern_item = -1;  /* OMA_LPPe_SRN_AntennaPatternElement */
 static int hf_lppe_identification = -1;           /* T_identification */
-static int hf_lppe_vendorOrOperator = -1;         /* OMA_LPPe_VendorOrOperatorID */
 static int hf_lppe_antennaPatternID = -1;         /* INTEGER_0_65535 */
 static int hf_lppe_antennaData = -1;              /* T_antennaData */
 static int hf_lppe_antennaPattern_01 = -1;        /* OMA_LPPe_SRN_AntennaPatternForChannels */
@@ -1333,7 +1477,7 @@ static int hf_lppe_manufacturer = -1;             /* BIT_STRING_SIZE_8 */
 static int hf_lppe_uniqueNumber = -1;             /* BIT_STRING_SIZE_48 */
 static int hf_lppe_mobileCode = -1;               /* T_mobileCode */
 static int hf_lppe_registryID = -1;               /* BIT_STRING_SIZE_12 */
-static int hf_lppe_remainingPart = -1;            /* OCTET_STRING_SIZE_1_1 */
+static int hf_lppe_remainingPart = -1;            /* OCTET_STRING_SIZE_1_16 */
 static int hf_lppe_resolutionIdentifier = -1;     /* OCTET_STRING_SIZE_1_18 */
 static int hf_lppe_other = -1;                    /* OCTET_STRING */
 static int hf_lppe_srnTechnologies = -1;          /* T_srnTechnologies */
@@ -1354,6 +1498,8 @@ static int hf_lppe_OMA_LPPe_WLAN_AP_Type_List_ieee802_11a = -1;
 static int hf_lppe_OMA_LPPe_WLAN_AP_Type_List_ieee802_11b = -1;
 static int hf_lppe_OMA_LPPe_WLAN_AP_Type_List_ieee802_11g = -1;
 static int hf_lppe_OMA_LPPe_WLAN_AP_Type_List_ieee802_11n = -1;
+static int hf_lppe_OMA_LPPe_WLAN_AP_Type_List_ieee802_11ac = -1;
+static int hf_lppe_OMA_LPPe_WLAN_AP_Type_List_ieee802_11ad = -1;
 static int hf_lppe_T_iP_Address_support_iPv4 = -1;
 static int hf_lppe_T_iP_Address_support_iPv6 = -1;
 static int hf_lppe_T_iP_Address_support_nat = -1;
@@ -1362,6 +1508,18 @@ static int hf_lppe_OMA_LPPe_HighAccuracyFormatCapabilities_hAvelocity = -1;
 static int hf_lppe_T_relativeLocationReportingSupport_geo = -1;
 static int hf_lppe_T_relativeLocationReportingSupport_civic = -1;
 static int hf_lppe_T_relativeLocationReportingSupport_otherProviders = -1;
+static int hf_lppe_T_localCellInformation_Support_gnssTiming = -1;
+static int hf_lppe_T_localCellInformation_Support_networkTiming = -1;
+static int hf_lppe_T_localCellInformation_Support_coverage = -1;
+static int hf_lppe_T_localCellInformation_Support_coordinates = -1;
+static int hf_lppe_T_localCellInformation_Support_frequencyAccuracy = -1;
+static int hf_lppe_T_modelsReq_altitude = -1;
+static int hf_lppe_T_modelsReq_buildings = -1;
+static int hf_lppe_T_localCellInformationReq_gnssTiming = -1;
+static int hf_lppe_T_localCellInformationReq_networkTiming = -1;
+static int hf_lppe_T_localCellInformationReq_coverage = -1;
+static int hf_lppe_T_localCellInformationReq_coordinates = -1;
+static int hf_lppe_T_localCellInformationReq_frequencyAccuracy = -1;
 static int hf_lppe_T_ionoreq_klobucharModel = -1;
 static int hf_lppe_T_ionoreq_ionoStormWarning = -1;
 static int hf_lppe_T_troposphereModelReq_delay = -1;
@@ -1526,6 +1684,11 @@ static int hf_lppe_T_requestedMeasurements_03_ueAG = -1;
 static int hf_lppe_T_requestedMeasurements_03_apRepLoc = -1;
 static int hf_lppe_T_requestedMeasurements_03_non_serving = -1;
 static int hf_lppe_T_requestedMeasurements_03_historic = -1;
+static int hf_lppe_T_requestedMeasurements_03_apTP = -1;
+static int hf_lppe_T_requestedMeasurements_03_apAG = -1;
+static int hf_lppe_T_requestedMeasurements_03_ueSN = -1;
+static int hf_lppe_T_requestedMeasurements_03_ueRSSI = -1;
+static int hf_lppe_T_additionalRequestedMeasurements_oc = -1;
 static int hf_lppe_T_wlan_ecid_MeasSupported_apSSID = -1;
 static int hf_lppe_T_wlan_ecid_MeasSupported_apSN = -1;
 static int hf_lppe_T_wlan_ecid_MeasSupported_apDevType = -1;
@@ -1538,6 +1701,10 @@ static int hf_lppe_T_wlan_ecid_MeasSupported_ueAG = -1;
 static int hf_lppe_T_wlan_ecid_MeasSupported_apRepLoc = -1;
 static int hf_lppe_T_wlan_ecid_MeasSupported_non_serving = -1;
 static int hf_lppe_T_wlan_ecid_MeasSupported_historic = -1;
+static int hf_lppe_T_wlan_ecid_MeasSupported_apTP = -1;
+static int hf_lppe_T_wlan_ecid_MeasSupported_apAG = -1;
+static int hf_lppe_T_wlan_ecid_MeasSupported_ueSN = -1;
+static int hf_lppe_T_wlan_ecid_MeasSupported_ueRSSI = -1;
 static int hf_lppe_T_wlan_ap_ADSupported_aplist = -1;
 static int hf_lppe_T_wlan_ap_ADSupported_aplocation = -1;
 static int hf_lppe_T_wlan_ap_ADSupported_locationreliability = -1;
@@ -1545,6 +1712,7 @@ static int hf_lppe_T_wlan_ap_ADSupported_transmit_power = -1;
 static int hf_lppe_T_wlan_ap_ADSupported_antenna_gain = -1;
 static int hf_lppe_T_wlan_ap_ADSupported_coveragearea = -1;
 static int hf_lppe_T_wlan_ap_ADSupported_non_serving = -1;
+static int hf_lppe_T_additional_wlan_ecid_MeasSupported_oc = -1;
 static int hf_lppe_T_requestedMeasurements_04_rTD = -1;
 static int hf_lppe_T_requestedMeasurements_04_rTDstd = -1;
 static int hf_lppe_T_requestedMeasurements_04_nMR = -1;
@@ -1586,7 +1754,7 @@ static int hf_lppe_T_srnMeasurements_rssi = -1;
 static int hf_lppe_T_srnMeasurements_rtd = -1;
 
 /*--- End of included file: packet-lppe-hf.c ---*/
-#line 50 "../../asn1/lppe/packet-lppe-template.c"
+#line 51 "../../asn1/lppe/packet-lppe-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_lppe = -1;
@@ -1621,6 +1789,14 @@ static gint ett_lppe_OMA_LPPe_CivicAddressElementList = -1;
 static gint ett_lppe_OMA_LPPe_CivicAddressElement = -1;
 static gint ett_lppe_OMA_LPPe_Duration = -1;
 static gint ett_lppe_OMA_LPPe_FixedAccessTypes = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_GroundMorphologyModel = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_AltitudeModel = -1;
+static gint ett_lppe_SEQUENCE_SIZE_1_10000_OF_DeltaAltitudes = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_BuildingsHeightModel = -1;
+static gint ett_lppe_SEQUENCE_SIZE_1_10000_OF_DeltaHeight = -1;
+static gint ett_lppe_DeltaAltitudes = -1;
+static gint ett_lppe_DeltaHeight = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_CellGlobalID = -1;
 static gint ett_lppe_OMA_LPPe_HighAccuracy3Dposition = -1;
 static gint ett_lppe_OMA_LPPe_HighAccuracy3Dvelocity = -1;
 static gint ett_lppe_OMA_LPPe_LocationInformationContainerID = -1;
@@ -1653,6 +1829,24 @@ static gint ett_lppe_OMA_LPPe_GeodeticUncertaintyAndConfidence = -1;
 static gint ett_lppe_OMA_LPPe_CivicRelativeAltitude = -1;
 static gint ett_lppe_OMA_LPPe_CivicUncertaintyAndConfidence = -1;
 static gint ett_lppe_OMA_LPPe_Session_ID = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_BroadcastSystemID = -1;
+static gint ett_lppe_T_proprietarySystemID = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_BroadcastADTypes = -1;
+static gint ett_lppe_SEQUENCE_SIZE_1_maxLPPLabelSets_OF_OMA_LPPe_ver1_1_LabelSet = -1;
+static gint ett_lppe_SEQUENCE_SIZE_1_maxLPPeLabelSets_OF_OMA_LPPe_ver1_1_LabelSet = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_LabelSet = -1;
+static gint ett_lppe_T_level1_element = -1;
+static gint ett_lppe_T_level2_element = -1;
+static gint ett_lppe_T_level3_element = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_AccessNetworkID = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_MCC_MNC = -1;
+static gint ett_lppe_T_mcc = -1;
+static gint ett_lppe_T_mnc = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_BSID = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_AuthenticationSet = -1;
+static gint ett_lppe_T_rsaPublicKey = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_CipherSet = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_ServerID = -1;
 static gint ett_lppe_OMA_LPPe_ValidityArea = -1;
 static gint ett_lppe_OMA_LPPe_RleList = -1;
 static gint ett_lppe_OMA_LPPe_ValidityPeriod = -1;
@@ -1679,6 +1873,9 @@ static gint ett_lppe_SEQUENCE_SIZE_1_128_OF_OMA_LPPe_VendorOrOperatorID = -1;
 static gint ett_lppe_OMA_LPPe_ScheduledLocation_RequestCapabilities = -1;
 static gint ett_lppe_OMA_LPPe_AccessCapabilitiesReq = -1;
 static gint ett_lppe_OMA_LPPe_SegmentedLocationInformation_ReqCapabilities = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_localCellInformation_ReqCapabilities = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_broadcast_ReqCapabilities = -1;
+static gint ett_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_BroadcastSystemID = -1;
 static gint ett_lppe_OMA_LPPe_CommonIEsProvideCapabilities = -1;
 static gint ett_lppe_OMA_LPPe_IP_Address_Capabilities = -1;
 static gint ett_lppe_T_iP_Address_support = -1;
@@ -1699,15 +1896,43 @@ static gint ett_lppe_T_mapDataSupport = -1;
 static gint ett_lppe_OMA_LPPe_ScheduledLocation_Capabilities = -1;
 static gint ett_lppe_OMA_LPPe_AccessCapabilities = -1;
 static gint ett_lppe_OMA_LPPe_SegmentedLocationInformation_ProvideCapabs = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_localCellInformation_ProvideCapabilities = -1;
+static gint ett_lppe_T_localCellInformation_Support = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_broadcast_ProvideCapabilities = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_BroadcastSystem_Capabs = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_point2pointAD = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_Ciphering = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_Authentication = -1;
 static gint ett_lppe_OMA_LPPe_CommonIEsRequestAssistanceData = -1;
 static gint ett_lppe_OMA_LPPe_RequestPeriodicADwithUpdate = -1;
 static gint ett_lppe_OMA_LPPe_SegmentedADResume = -1;
 static gint ett_lppe_OMA_LPPe_ReferencePointAssistanceReq = -1;
 static gint ett_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ReferencePointAssistanceReqElement = -1;
 static gint ett_lppe_OMA_LPPe_ReferencePointAssistanceReqElement = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_GroundMorphologyModelReq = -1;
+static gint ett_lppe_T_modelsReq = -1;
+static gint ett_lppe_T_refAreaParam = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_LocalCellInformationReq = -1;
+static gint ett_lppe_T_localCellInformationReq = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_BroadcastAssistanceDataReq = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_BroadcastSystem = -1;
+static gint ett_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSetID = -1;
+static gint ett_lppe_SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSetID = -1;
 static gint ett_lppe_OMA_LPPe_CommonIEsProvideAssistanceData = -1;
 static gint ett_lppe_OMA_LPPe_ProvidePeriodicADwithUpdate = -1;
 static gint ett_lppe_OMA_LPPe_SegmentedADTransfer = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_LocalCellInformation = -1;
+static gint ett_lppe_SEQUENCE_SIZE_1_maxCellSets_OF_GNSS_ReferenceTime = -1;
+static gint ett_lppe_SEQUENCE_SIZE_1_maxCells_OF_OMA_LPPe_ver1_1_CellInformation = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_CellInformation = -1;
+static gint ett_lppe_T_coverage = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_BroadcastAssistanceData = -1;
+static gint ett_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_AccessNetworkID = -1;
+static gint ett_lppe_T_coverageArea = -1;
+static gint ett_lppe_T_broadcastMode = -1;
+static gint ett_lppe_OMA_LPPe_ver1_1_EncapsulatedMode = -1;
+static gint ett_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSet = -1;
+static gint ett_lppe_SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSet = -1;
 static gint ett_lppe_OMA_LPPe_CommonIEsRequestLocationInformation = -1;
 static gint ett_lppe_OMA_LPPe_IP_Address_Request = -1;
 static gint ett_lppe_OMA_LPPe_RequestPeriodicLocInfoWithUpdate = -1;
@@ -1730,6 +1955,7 @@ static gint ett_lppe_T_actualWindow = -1;
 static gint ett_lppe_OMA_LPPe_AccessTypes = -1;
 static gint ett_lppe_OMA_LPPe_SegmentedLITransfer = -1;
 static gint ett_lppe_OMA_LPPe_TimeStamp = -1;
+static gint ett_lppe_OMA_LPPe_LocationSource = -1;
 static gint ett_lppe_OMA_LPPe_CommonIEsAbort = -1;
 static gint ett_lppe_OMA_LPPe_CommonIEsError = -1;
 static gint ett_lppe_OMA_LPPe_AGNSS_ProvideAssistanceData = -1;
@@ -1994,8 +2220,8 @@ static gint ett_lppe_OMA_LPPe_ECID_LTE_ProvideAssistanceData = -1;
 static gint ett_lppe_SEQUENCE_SIZE_1_maxLTENetworks_OF_OMA_LPPe_ECID_LTE_NetworkData = -1;
 static gint ett_lppe_OMA_LPPe_ECID_LTE_NetworkData = -1;
 static gint ett_lppe_T_plmn_Identity = -1;
-static gint ett_lppe_T_mcc = -1;
-static gint ett_lppe_T_mnc = -1;
+static gint ett_lppe_T_mcc_01 = -1;
+static gint ett_lppe_T_mnc_01 = -1;
 static gint ett_lppe_SEQUENCE_SIZE_1_maxLTEeNBs_OF_OMA_LPPe_ECID_LTE_eNodeBData = -1;
 static gint ett_lppe_SEQUENCE_SIZE_1_maxLTEHeNBs_OF_OMA_LPPe_ECID_LTE_HeNBData = -1;
 static gint ett_lppe_OMA_LPPe_ECID_LTE_eNodeBData = -1;
@@ -2023,8 +2249,8 @@ static gint ett_lppe_OMA_LPPe_ECID_GSM_ProvideAssistanceData = -1;
 static gint ett_lppe_SEQUENCE_SIZE_1_maxGSMNetworks_OF_OMA_LPPe_ECID_GSM_NetworkData = -1;
 static gint ett_lppe_OMA_LPPe_ECID_GSM_NetworkData = -1;
 static gint ett_lppe_T_plmn_Identity_01 = -1;
-static gint ett_lppe_T_mcc_01 = -1;
-static gint ett_lppe_T_mnc_01 = -1;
+static gint ett_lppe_T_mcc_02 = -1;
+static gint ett_lppe_T_mnc_02 = -1;
 static gint ett_lppe_SEQUENCE_SIZE_1_maxGSMBaseStations_OF_OMA_LPPe_ECID_GSM_BaseStationData = -1;
 static gint ett_lppe_OMA_LPPe_ECID_GSM_BaseStationData = -1;
 static gint ett_lppe_SEQUENCE_SIZE_1_maxGSMCells_OF_OMA_LPPe_ECID_GSM_CellData = -1;
@@ -2050,8 +2276,8 @@ static gint ett_lppe_OMA_LPPe_ECID_UTRA_ProvideAssistanceData = -1;
 static gint ett_lppe_SEQUENCE_SIZE_1_maxUTRANetworks_OF_OMA_LPPe_ECID_UTRA_NetworkData = -1;
 static gint ett_lppe_OMA_LPPe_ECID_UTRA_NetworkData = -1;
 static gint ett_lppe_T_plmn_Identity_02 = -1;
-static gint ett_lppe_T_mcc_02 = -1;
-static gint ett_lppe_T_mnc_02 = -1;
+static gint ett_lppe_T_mcc_03 = -1;
+static gint ett_lppe_T_mnc_03 = -1;
 static gint ett_lppe_SEQUENCE_SIZE_1_maxUTRAnodeBs_OF_OMA_LPPe_ECID_UTRA_NodeBData = -1;
 static gint ett_lppe_SEQUENCE_SIZE_1_maxUTRAHNBs_OF_OMA_LPPe_ECID_UTRA_HNBData = -1;
 static gint ett_lppe_OMA_LPPe_ECID_UTRA_NodeBData = -1;
@@ -2094,8 +2320,8 @@ static gint ett_lppe_OMA_LPPe_WLAN_AP_ProvideAssistanceData = -1;
 static gint ett_lppe_SEQUENCE_SIZE_1_maxWLANDataSets_OF_OMA_LPPe_WLAN_DataSet = -1;
 static gint ett_lppe_OMA_LPPe_WLAN_DataSet = -1;
 static gint ett_lppe_T_plmn_Identity_03 = -1;
-static gint ett_lppe_T_mcc_03 = -1;
-static gint ett_lppe_T_mnc_03 = -1;
+static gint ett_lppe_T_mcc_04 = -1;
+static gint ett_lppe_T_mnc_04 = -1;
 static gint ett_lppe_SEQUENCE_SIZE_1_maxWLANAPs_OF_OMA_LPPe_WLAN_AP_Data = -1;
 static gint ett_lppe_Supported_Channels_11a = -1;
 static gint ett_lppe_Supported_Channels_11bg = -1;
@@ -2113,9 +2339,11 @@ static gint ett_lppe_OMA_LPPe_WLAN_ReportedLocation = -1;
 static gint ett_lppe_OMA_LPPe_WLAN_LocationDataLCI = -1;
 static gint ett_lppe_OMA_LPPe_WLAN_AP_RequestLocationInformation = -1;
 static gint ett_lppe_T_requestedMeasurements_03 = -1;
+static gint ett_lppe_T_additionalRequestedMeasurements = -1;
 static gint ett_lppe_OMA_LPPe_WLAN_AP_ProvideCapabilities = -1;
 static gint ett_lppe_T_wlan_ecid_MeasSupported = -1;
 static gint ett_lppe_T_wlan_ap_ADSupported = -1;
+static gint ett_lppe_T_additional_wlan_ecid_MeasSupported = -1;
 static gint ett_lppe_OMA_LPPe_WLAN_AP_Capability = -1;
 static gint ett_lppe_OMA_LPPe_WLAN_AP_RequestCapabilities = -1;
 static gint ett_lppe_OMA_LPPe_WLAN_AP_Error = -1;
@@ -2138,7 +2366,12 @@ static gint ett_lppe_OMA_LPPe_ECID_WiMax_Error = -1;
 static gint ett_lppe_OMA_LPPe_ECID_WiMax_LocationServerErrorCauses = -1;
 static gint ett_lppe_OMA_LPPe_ECID_WiMax_TargetDeviceErrorCauses = -1;
 static gint ett_lppe_OMA_LPPe_Sensor_ProvideAssistanceData = -1;
+static gint ett_lppe_OMA_LPPe_AtmosphericPressureAD = -1;
+static gint ett_lppe_T_period = -1;
+static gint ett_lppe_T_area = -1;
+static gint ett_lppe_OMA_LPPe_PressureValidityArea = -1;
 static gint ett_lppe_OMA_LPPe_Sensor_RequestAssistanceData = -1;
+static gint ett_lppe_OMA_LPPe_PressureSensorAD = -1;
 static gint ett_lppe_OMA_LPPe_Sensor_ProvideLocationInformation = -1;
 static gint ett_lppe_OMA_LPPe_Sensor_MotionStateList = -1;
 static gint ett_lppe_OMA_LPPe_Sensor_MotionStateElement = -1;
@@ -2215,7 +2448,7 @@ static gint ett_lppe_OMA_LPPe_SRN_MeasurementMask = -1;
 static gint ett_lppe_T_srnMeasurements = -1;
 
 /*--- End of included file: packet-lppe-ett.c ---*/
-#line 54 "../../asn1/lppe/packet-lppe-template.c"
+#line 55 "../../asn1/lppe/packet-lppe-template.c"
 
 /* Include constants */
 
@@ -2223,8 +2456,16 @@ static gint ett_lppe_T_srnMeasurements = -1;
 #line 1 "../../asn1/lppe/packet-lppe-val.h"
 #define maxAssistanceContainerList     16
 #define maxLocationInformationContainerDataList 10
+#define maxLevel1_element              32
+#define maxLevel2_element              32
+#define maxLevel3_element              32
+#define maxFinal_element               32
+#define maxLPPLabelSets                64
+#define maxLPPeLabelSets               128
 #define maxVendorOrOperatorIDList      32
 #define maxLocationInformationContainerList 64
+#define maxCellSets                    8
+#define maxCells                       128
 #define maxIPAddress                   5
 #define maxRelativeLocation            5
 #define maxReferenceStations           8
@@ -2254,7 +2495,7 @@ static gint ett_lppe_T_srnMeasurements = -1;
 #define maxChannels                    512
 
 /*--- End of included file: packet-lppe-val.h ---*/
-#line 57 "../../asn1/lppe/packet-lppe-template.c"
+#line 58 "../../asn1/lppe/packet-lppe-template.c"
 
 
 
@@ -2541,6 +2782,94 @@ dissect_lppe_OMA_LPPe_SegmentedLocationInformation_ReqCapabilities(tvbuff_t *tvb
 }
 
 
+static const per_sequence_t OMA_LPPe_ver1_1_localCellInformation_ReqCapabilities_sequence[] = {
+  { NULL, ASN1_EXTENSION_ROOT, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_localCellInformation_ReqCapabilities(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_localCellInformation_ReqCapabilities, OMA_LPPe_ver1_1_localCellInformation_ReqCapabilities_sequence);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_INTEGER_1_16(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            1U, 16U, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t T_proprietarySystemID_sequence[] = {
+  { &hf_lppe_vendorOrOperator, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_VendorOrOperatorID },
+  { &hf_lppe_proprietarySystemID_01, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_1_16 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_T_proprietarySystemID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_T_proprietarySystemID, T_proprietarySystemID_sequence);
+
+  return offset;
+}
+
+
+static const value_string lppe_OMA_LPPe_ver1_1_BroadcastSystemID_vals[] = {
+  {   0, "standardSystemID" },
+  {   1, "proprietarySystemID" },
+  { 0, NULL }
+};
+
+static const per_choice_t OMA_LPPe_ver1_1_BroadcastSystemID_choice[] = {
+  {   0, &hf_lppe_standardSystemID, ASN1_EXTENSION_ROOT    , dissect_lppe_INTEGER_1_16 },
+  {   1, &hf_lppe_proprietarySystemID, ASN1_EXTENSION_ROOT    , dissect_lppe_T_proprietarySystemID },
+  { 0, NULL, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_BroadcastSystemID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_choice(tvb, offset, actx, tree, hf_index,
+                                 ett_lppe_OMA_LPPe_ver1_1_BroadcastSystemID, OMA_LPPe_ver1_1_BroadcastSystemID_choice,
+                                 NULL);
+
+  return offset;
+}
+
+
+static const per_sequence_t SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_BroadcastSystemID_sequence_of[1] = {
+  { &hf_lppe_broadcastSystems_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_BroadcastSystemID },
+};
+
+static int
+dissect_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_BroadcastSystemID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_BroadcastSystemID, SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_BroadcastSystemID_sequence_of,
+                                                  1, 16, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_broadcast_ReqCapabilities_sequence[] = {
+  { &hf_lppe_broadcastSystems, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_BroadcastSystemID },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_broadcast_ReqCapabilities(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_broadcast_ReqCapabilities, OMA_LPPe_ver1_1_broadcast_ReqCapabilities_sequence);
+
+  return offset;
+}
+
+
 static const per_sequence_t OMA_LPPe_CommonIEsRequestCapabilities_sequence[] = {
   { &hf_lppe_iP_Address_RequestCapabilities, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_IP_Address_RequestCapabilities },
   { &hf_lppe_assistanceContainerSupportReq, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_AssistanceContainerSupportReq },
@@ -2552,6 +2881,8 @@ static const per_sequence_t OMA_LPPe_CommonIEsRequestCapabilities_sequence[] = {
   { &hf_lppe_scheduledLocation_RequestCapabilities, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ScheduledLocation_RequestCapabilities },
   { &hf_lppe_accessCapabilitiesReq, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_AccessCapabilitiesReq },
   { &hf_lppe_segmentedLocationInformation_ReqCapabilities, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_SegmentedLocationInformation_ReqCapabilities },
+  { &hf_lppe_ver1_1_localCellInformation_ReqCapabilities, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_localCellInformation_ReqCapabilities },
+  { &hf_lppe_ver1_1_broadcast_ReqCapabilities, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_broadcast_ReqCapabilities },
   { NULL, 0, 0, NULL }
 };
 
@@ -2836,7 +3167,7 @@ dissect_lppe_OMA_LPPe_RequestCapabilities(tvbuff_t *tvb _U_, int offset _U_, asn
 static int
 dissect_lppe_T_iP_Address_support(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -2998,7 +3329,7 @@ dissect_lppe_OMA_LPPe_RelativeLocationChange_Capabilities(tvbuff_t *tvb _U_, int
 static int
 dissect_lppe_OMA_LPPe_HighAccuracyFormatCapabilities(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3045,7 +3376,7 @@ dissect_lppe_OMA_LPPe_SegmentedAssistanceData_ProvideCapabs(tvbuff_t *tvb _U_, i
 static int
 dissect_lppe_T_relativeLocationReportingSupport(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3145,7 +3476,7 @@ dissect_lppe_OMA_LPPe_ScheduledLocation_Capabilities(tvbuff_t *tvb _U_, int offs
 static int
 dissect_lppe_OMA_LPPe_FixedAccessTypes(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3155,7 +3486,7 @@ dissect_lppe_OMA_LPPe_FixedAccessTypes(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 static int
 dissect_lppe_OMA_LPPe_WirelessAccessTypes(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3194,6 +3525,260 @@ dissect_lppe_OMA_LPPe_SegmentedLocationInformation_ProvideCapabs(tvbuff_t *tvb _
 }
 
 
+
+static int
+dissect_lppe_T_localCellInformation_Support(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
+                                     1, 16, FALSE, NULL, NULL);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_localCellInformation_ProvideCapabilities_sequence[] = {
+  { &hf_lppe_localCellInformation_Support, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_T_localCellInformation_Support },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_localCellInformation_ProvideCapabilities(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_localCellInformation_ProvideCapabilities, OMA_LPPe_ver1_1_localCellInformation_ProvideCapabilities_sequence);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_INTEGER_1_maxLevel1_element(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            1U, maxLevel1_element, NULL, FALSE);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_INTEGER_1_maxLevel2_element(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            1U, maxLevel2_element, NULL, FALSE);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_INTEGER_1_maxLevel3_element(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            1U, maxLevel3_element, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t T_level3_element_sequence[] = {
+  { &hf_lppe_level3_element_value, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_1_maxLevel3_element },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_T_level3_element(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_T_level3_element, T_level3_element_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t T_level2_element_sequence[] = {
+  { &hf_lppe_level2_element_value, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_1_maxLevel2_element },
+  { &hf_lppe_level3_element , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_T_level3_element },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_T_level2_element(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_T_level2_element, T_level2_element_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t T_level1_element_sequence[] = {
+  { &hf_lppe_level1_element_value, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_1_maxLevel1_element },
+  { &hf_lppe_level2_element , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_T_level2_element },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_T_level1_element(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_T_level1_element, T_level1_element_sequence);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_BIT_STRING_SIZE_1_maxFinal_element(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
+                                     1, maxFinal_element, FALSE, NULL, NULL);
+
+  return offset;
+}
+
+
+static const value_string lppe_T_additionalElements_vals[] = {
+  {   0, "none" },
+  {   1, "all" },
+  { 0, NULL }
+};
+
+
+static int
+dissect_lppe_T_additionalElements(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
+                                     2, NULL, TRUE, 0, NULL);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_LabelSet_sequence[] = {
+  { &hf_lppe_level1_element , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_T_level1_element },
+  { &hf_lppe_lastElements   , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_BIT_STRING_SIZE_1_maxFinal_element },
+  { &hf_lppe_additionalElements, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_T_additionalElements },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_LabelSet(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_LabelSet, OMA_LPPe_ver1_1_LabelSet_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t SEQUENCE_SIZE_1_maxLPPLabelSets_OF_OMA_LPPe_ver1_1_LabelSet_sequence_of[1] = {
+  { &hf_lppe_lppLabels_item , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_LabelSet },
+};
+
+static int
+dissect_lppe_SEQUENCE_SIZE_1_maxLPPLabelSets_OF_OMA_LPPe_ver1_1_LabelSet(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lppe_SEQUENCE_SIZE_1_maxLPPLabelSets_OF_OMA_LPPe_ver1_1_LabelSet, SEQUENCE_SIZE_1_maxLPPLabelSets_OF_OMA_LPPe_ver1_1_LabelSet_sequence_of,
+                                                  1, maxLPPLabelSets, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t SEQUENCE_SIZE_1_maxLPPeLabelSets_OF_OMA_LPPe_ver1_1_LabelSet_sequence_of[1] = {
+  { &hf_lppe_lppeLabels_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_LabelSet },
+};
+
+static int
+dissect_lppe_SEQUENCE_SIZE_1_maxLPPeLabelSets_OF_OMA_LPPe_ver1_1_LabelSet(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lppe_SEQUENCE_SIZE_1_maxLPPeLabelSets_OF_OMA_LPPe_ver1_1_LabelSet, SEQUENCE_SIZE_1_maxLPPeLabelSets_OF_OMA_LPPe_ver1_1_LabelSet_sequence_of,
+                                                  1, maxLPPeLabelSets, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_BroadcastADTypes_sequence[] = {
+  { &hf_lppe_lppLabels      , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_SEQUENCE_SIZE_1_maxLPPLabelSets_OF_OMA_LPPe_ver1_1_LabelSet },
+  { &hf_lppe_lppeLabels     , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_SEQUENCE_SIZE_1_maxLPPeLabelSets_OF_OMA_LPPe_ver1_1_LabelSet },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_BroadcastADTypes(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_BroadcastADTypes, OMA_LPPe_ver1_1_BroadcastADTypes_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_point2pointAD_sequence[] = {
+  { NULL, ASN1_EXTENSION_ROOT, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_point2pointAD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_point2pointAD, OMA_LPPe_ver1_1_point2pointAD_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_Ciphering_sequence[] = {
+  { NULL, ASN1_EXTENSION_ROOT, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_Ciphering(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_Ciphering, OMA_LPPe_ver1_1_Ciphering_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_Authentication_sequence[] = {
+  { NULL, ASN1_EXTENSION_ROOT, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_Authentication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_Authentication, OMA_LPPe_ver1_1_Authentication_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_BroadcastSystem_Capabs_sequence[] = {
+  { &hf_lppe_broadcastSystemID, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_BroadcastSystemID },
+  { &hf_lppe_broadcastADTypes, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_BroadcastADTypes },
+  { &hf_lppe_point2pointAD  , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_point2pointAD },
+  { &hf_lppe_ciphering      , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_Ciphering },
+  { &hf_lppe_authentication , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_Authentication },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_BroadcastSystem_Capabs(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_BroadcastSystem_Capabs, OMA_LPPe_ver1_1_BroadcastSystem_Capabs_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_broadcast_ProvideCapabilities_sequence_of[1] = {
+  { &hf_lppe_OMA_LPPe_ver1_1_broadcast_ProvideCapabilities_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_BroadcastSystem_Capabs },
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_broadcast_ProvideCapabilities(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lppe_OMA_LPPe_ver1_1_broadcast_ProvideCapabilities, OMA_LPPe_ver1_1_broadcast_ProvideCapabilities_sequence_of,
+                                                  1, 16, FALSE);
+
+  return offset;
+}
+
+
 static const per_sequence_t OMA_LPPe_CommonIEsProvideCapabilities_sequence[] = {
   { &hf_lppe_iP_Address_Capabilities, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_IP_Address_Capabilities },
   { &hf_lppe_assistanceContainerSupport, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_AssistanceContainerSupport },
@@ -3205,6 +3790,8 @@ static const per_sequence_t OMA_LPPe_CommonIEsProvideCapabilities_sequence[] = {
   { &hf_lppe_scheduledLocation_Capabilities, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ScheduledLocation_Capabilities },
   { &hf_lppe_accessCapabilities, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_AccessCapabilities },
   { &hf_lppe_segmentedLocationInformation_ProvideCapabs, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_SegmentedLocationInformation_ProvideCapabs },
+  { &hf_lppe_ver1_1_localCellInformation_ProvideCapabilities, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_localCellInformation_ProvideCapabilities },
+  { &hf_lppe_ver1_1_broadcast_ProvideCapabilities, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_broadcast_ProvideCapabilities },
   { NULL, 0, 0, NULL }
 };
 
@@ -3221,7 +3808,7 @@ dissect_lppe_OMA_LPPe_CommonIEsProvideCapabilities(tvbuff_t *tvb _U_, int offset
 static int
 dissect_lppe_T_ionoModel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3245,7 +3832,7 @@ dissect_lppe_OMA_LPPe_AGNSS_IonosphericModelSupport(tvbuff_t *tvb _U_, int offse
 static int
 dissect_lppe_T_tropoModel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3463,7 +4050,7 @@ dissect_lppe_OMA_LPPe_AGNSS_AssistanceDataSupportList(tvbuff_t *tvb _U_, int off
 static int
 dissect_lppe_T_ionosphereMeasurementSupport(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3489,7 +4076,7 @@ dissect_lppe_OMA_LPPe_AGNSS_EnvironmentObservationSupportList(tvbuff_t *tvb _U_,
 static int
 dissect_lppe_T_modeSupport(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     2, 2, FALSE, NULL);
+                                     2, 2, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3499,7 +4086,7 @@ dissect_lppe_T_modeSupport(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
 static int
 dissect_lppe_T_haGNSSantennaInformationSupport(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3612,7 +4199,7 @@ dissect_lppe_OMA_LPPe_OTDOA_ProvideCapabilities(tvbuff_t *tvb _U_, int offset _U
 static int
 dissect_lppe_T_eotdSupport(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     NO_BOUND, NO_BOUND, FALSE, NULL);
+                                     NO_BOUND, NO_BOUND, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3652,7 +4239,7 @@ dissect_lppe_OMA_LPPe_OTDOA_UTRA_ProvideCapabilities(tvbuff_t *tvb _U_, int offs
 static int
 dissect_lppe_T_ecid_lte_MeasSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3662,7 +4249,7 @@ dissect_lppe_T_ecid_lte_MeasSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_ct
 static int
 dissect_lppe_T_ecid_lte_eNodeB_ADSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3672,7 +4259,7 @@ dissect_lppe_T_ecid_lte_eNodeB_ADSupported(tvbuff_t *tvb _U_, int offset _U_, as
 static int
 dissect_lppe_T_ecid_utra_HeNB_ADSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3698,7 +4285,7 @@ dissect_lppe_OMA_LPPe_ECID_LTE_ProvideCapabilities(tvbuff_t *tvb _U_, int offset
 static int
 dissect_lppe_T_ecid_gsm_MeasSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3708,7 +4295,7 @@ dissect_lppe_T_ecid_gsm_MeasSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_ct
 static int
 dissect_lppe_T_ecid_gsm_ADSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3733,7 +4320,7 @@ dissect_lppe_OMA_LPPe_ECID_GSM_ProvideCapabilities(tvbuff_t *tvb _U_, int offset
 static int
 dissect_lppe_T_ecid_utra_MeasSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3743,7 +4330,7 @@ dissect_lppe_T_ecid_utra_MeasSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 static int
 dissect_lppe_T_ecid_utra_nodeB_ADSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3753,7 +4340,7 @@ dissect_lppe_T_ecid_utra_nodeB_ADSupported(tvbuff_t *tvb _U_, int offset _U_, as
 static int
 dissect_lppe_T_ecid_utra_HNB_ADSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3779,7 +4366,7 @@ dissect_lppe_OMA_LPPe_ECID_UTRA_ProvideCapabilities(tvbuff_t *tvb _U_, int offse
 static int
 dissect_lppe_T_wlan_ecid_MeasSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3789,7 +4376,7 @@ dissect_lppe_T_wlan_ecid_MeasSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 static int
 dissect_lppe_OMA_LPPe_WLAN_AP_Type_List(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3799,7 +4386,7 @@ dissect_lppe_OMA_LPPe_WLAN_AP_Type_List(tvbuff_t *tvb _U_, int offset _U_, asn1_
 static int
 dissect_lppe_BIT_STRING_SIZE_48(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     48, 48, FALSE, NULL);
+                                     48, 48, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3838,7 +4425,17 @@ dissect_lppe_OMA_LPPe_WLAN_AP_Capability(tvbuff_t *tvb _U_, int offset _U_, asn1
 static int
 dissect_lppe_T_wlan_ap_ADSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_T_additional_wlan_ecid_MeasSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3849,6 +4446,7 @@ static const per_sequence_t OMA_LPPe_WLAN_AP_ProvideCapabilities_sequence[] = {
   { &hf_lppe_wlan_types_Supported, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_WLAN_AP_Type_List },
   { &hf_lppe_ap_Capability  , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_WLAN_AP_Capability },
   { &hf_lppe_wlan_ap_ADSupported, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_T_wlan_ap_ADSupported },
+  { &hf_lppe_additional_wlan_ecid_MeasSupported, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_T_additional_wlan_ecid_MeasSupported },
   { NULL, 0, 0, NULL }
 };
 
@@ -3865,7 +4463,7 @@ dissect_lppe_OMA_LPPe_WLAN_AP_ProvideCapabilities(tvbuff_t *tvb _U_, int offset 
 static int
 dissect_lppe_T_ecid_wimax_MeasSupported(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3888,6 +4486,7 @@ dissect_lppe_OMA_LPPe_ECID_WiMax_ProvideCapabilities(tvbuff_t *tvb _U_, int offs
 static const per_sequence_t OMA_LPPe_Sensor_ProvideCapabilities_sequence[] = {
   { &hf_lppe_motionStateSupport, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_NULL },
   { &hf_lppe_secondarySupport, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { &hf_lppe_barometricPressureSupport, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_NULL },
   { NULL, 0, 0, NULL }
 };
 
@@ -3904,7 +4503,7 @@ dissect_lppe_OMA_LPPe_Sensor_ProvideCapabilities(tvbuff_t *tvb _U_, int offset _
 static int
 dissect_lppe_T_srnMeasurements(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3928,7 +4527,7 @@ dissect_lppe_OMA_LPPe_SRN_MeasurementMask(tvbuff_t *tvb _U_, int offset _U_, asn
 static int
 dissect_lppe_T_supportedAssistanceData(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4144,9 +4743,9 @@ dissect_lppe_OMA_LPPe_AssistanceContainerRequestList(tvbuff_t *tvb _U_, int offs
 
 
 static int
-dissect_lppe_INTEGER_1_256(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            1U, 256U, NULL, FALSE);
+dissect_lppe_OCTET_STRING_SIZE_4(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
+                                       4, 4, FALSE, NULL);
 
   return offset;
 }
@@ -4170,7 +4769,7 @@ dissect_lppe_TypeOfADRequest(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx
 
 
 static const per_sequence_t OMA_LPPe_RequestPeriodicADwithUpdate_sequence[] = {
-  { &hf_lppe_periodicAD_session_ID, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_1_256 },
+  { &hf_lppe_periodicAD_session_ID, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OCTET_STRING_SIZE_4 },
   { &hf_lppe_typeOfADRequest, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_TypeOfADRequest },
   { NULL, 0, 0, NULL }
 };
@@ -4195,16 +4794,6 @@ static int
 dissect_lppe_T_segmentedADpreference(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
                                      2, NULL, TRUE, 0, NULL);
-
-  return offset;
-}
-
-
-
-static int
-dissect_lppe_OCTET_STRING_SIZE_4(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
-                                       4, 4, FALSE, NULL);
 
   return offset;
 }
@@ -4294,6 +4883,301 @@ dissect_lppe_OMA_LPPe_ReferencePointAssistanceReq(tvbuff_t *tvb _U_, int offset 
 }
 
 
+
+static int
+dissect_lppe_T_localCellInformationReq(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
+                                     1, 16, FALSE, NULL, NULL);
+
+  return offset;
+}
+
+
+static const value_string lppe_OMA_LPPe_ver1_1_CellGlobalID_vals[] = {
+  {   0, "eUTRA" },
+  {   1, "uTRA" },
+  {   2, "gSM" },
+  { 0, NULL }
+};
+
+static const per_choice_t OMA_LPPe_ver1_1_CellGlobalID_choice[] = {
+  {   0, &hf_lppe_eUTRA          , ASN1_EXTENSION_ROOT    , dissect_lpp_CellGlobalIdEUTRA_AndUTRA },
+  {   1, &hf_lppe_uTRA           , ASN1_EXTENSION_ROOT    , dissect_lpp_CellGlobalIdEUTRA_AndUTRA },
+  {   2, &hf_lppe_gSM            , ASN1_EXTENSION_ROOT    , dissect_lpp_CellGlobalIdGERAN },
+  { 0, NULL, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_CellGlobalID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_choice(tvb, offset, actx, tree, hf_index,
+                                 ett_lppe_OMA_LPPe_ver1_1_CellGlobalID, OMA_LPPe_ver1_1_CellGlobalID_choice,
+                                 NULL);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_INTEGER_0_7(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            0U, 7U, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_LocalCellInformationReq_sequence[] = {
+  { &hf_lppe_localCellInformationReq, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_T_localCellInformationReq },
+  { &hf_lppe_localCellID    , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_CellGlobalID },
+  { &hf_lppe_numberOfCells  , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_0_7 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_LocalCellInformationReq(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_LocalCellInformationReq, OMA_LPPe_ver1_1_LocalCellInformationReq_sequence);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_CipherSetID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            0U, 65535U, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSetID_sequence_of[1] = {
+  { &hf_lppe_cipherSets_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_CipherSetID },
+};
+
+static int
+dissect_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSetID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSetID, SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSetID_sequence_of,
+                                                  1, 16, FALSE);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_AuthenticationSetID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            0U, 255U, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSetID_sequence_of[1] = {
+  { &hf_lppe_authenticationSets_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_AuthenticationSetID },
+};
+
+static int
+dissect_lppe_SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSetID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lppe_SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSetID, SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSetID_sequence_of,
+                                                  1, 4, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_BroadcastSystem_sequence[] = {
+  { &hf_lppe_broadcastSystemID, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_BroadcastSystemID },
+  { &hf_lppe_cipherSets     , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSetID },
+  { &hf_lppe_authenticationSets, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSetID },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_BroadcastSystem(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_BroadcastSystem, OMA_LPPe_ver1_1_BroadcastSystem_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_BroadcastAssistanceDataReq_sequence[] = {
+  { &hf_lppe_broadcastSystem, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_BroadcastSystem },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_BroadcastAssistanceDataReq(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_BroadcastAssistanceDataReq, OMA_LPPe_ver1_1_BroadcastAssistanceDataReq_sequence);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_INTEGER_0_9(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            0U, 9U, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t T_mcc_sequence_of[1] = {
+  { &hf_lppe_mcc_item       , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_0_9 },
+};
+
+static int
+dissect_lppe_T_mcc(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lppe_T_mcc, T_mcc_sequence_of,
+                                                  3, 3, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t T_mnc_sequence_of[1] = {
+  { &hf_lppe_mnc_item       , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_0_9 },
+};
+
+static int
+dissect_lppe_T_mnc(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lppe_T_mnc, T_mnc_sequence_of,
+                                                  2, 3, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_MCC_MNC_sequence[] = {
+  { &hf_lppe_mcc            , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_T_mcc },
+  { &hf_lppe_mnc            , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_T_mnc },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_MCC_MNC(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_MCC_MNC, OMA_LPPe_ver1_1_MCC_MNC_sequence);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_BIT_STRING_SIZE_24(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
+                                     24, 24, FALSE, NULL, NULL);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_BSID_sequence[] = {
+  { &hf_lppe_bsID_MSB       , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_BIT_STRING_SIZE_24 },
+  { &hf_lppe_bsID_LSB       , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_BIT_STRING_SIZE_24 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_BSID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_BSID, OMA_LPPe_ver1_1_BSID_sequence);
+
+  return offset;
+}
+
+
+static const value_string lppe_OMA_LPPe_ver1_1_AccessNetworkID_vals[] = {
+  {   0, "gSMAccess" },
+  {   1, "wCDMAAccess" },
+  {   2, "lTEAccess" },
+  {   3, "wiMaxAccess" },
+  {   4, "wLANAccess" },
+  { 0, NULL }
+};
+
+static const per_choice_t OMA_LPPe_ver1_1_AccessNetworkID_choice[] = {
+  {   0, &hf_lppe_gSMAccess      , ASN1_EXTENSION_ROOT    , dissect_lppe_OMA_LPPe_ver1_1_MCC_MNC },
+  {   1, &hf_lppe_wCDMAAccess    , ASN1_EXTENSION_ROOT    , dissect_lppe_OMA_LPPe_ver1_1_MCC_MNC },
+  {   2, &hf_lppe_lTEAccess      , ASN1_EXTENSION_ROOT    , dissect_lppe_OMA_LPPe_ver1_1_MCC_MNC },
+  {   3, &hf_lppe_wiMaxAccess    , ASN1_EXTENSION_ROOT    , dissect_lppe_OMA_LPPe_ver1_1_BSID },
+  {   4, &hf_lppe_wLANAccess     , ASN1_EXTENSION_ROOT    , dissect_lppe_OMA_LPPe_WLAN_AP_ID },
+  { 0, NULL, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_AccessNetworkID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_choice(tvb, offset, actx, tree, hf_index,
+                                 ett_lppe_OMA_LPPe_ver1_1_AccessNetworkID, OMA_LPPe_ver1_1_AccessNetworkID_choice,
+                                 NULL);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_T_modelsReq(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
+                                     1, 8, FALSE, NULL, NULL);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_INTEGER_6_14(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            6U, 14U, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t T_refAreaParam_sequence[] = {
+  { &hf_lppe_northWestCorner, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_Ellipsoid_Point },
+  { &hf_lppe_spanX          , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_6_14 },
+  { &hf_lppe_spanY          , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_6_14 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_T_refAreaParam(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_T_refAreaParam, T_refAreaParam_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_GroundMorphologyModelReq_sequence[] = {
+  { &hf_lppe_modelsReq      , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_T_modelsReq },
+  { &hf_lppe_refAreaParam   , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_T_refAreaParam },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_GroundMorphologyModelReq(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_GroundMorphologyModelReq, OMA_LPPe_ver1_1_GroundMorphologyModelReq_sequence);
+
+  return offset;
+}
+
+
 static const per_sequence_t OMA_LPPe_CommonIEsRequestAssistanceData_sequence[] = {
   { &hf_lppe_approximate_location, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_EllipsoidPointWithAltitudeAndUncertaintyEllipsoid },
   { &hf_lppe_assistanceContainerRequestList, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_AssistanceContainerRequestList },
@@ -4301,6 +5185,10 @@ static const per_sequence_t OMA_LPPe_CommonIEsRequestAssistanceData_sequence[] =
   { &hf_lppe_segmentedADpreference, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_T_segmentedADpreference },
   { &hf_lppe_segmentedADResume, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_SegmentedADResume },
   { &hf_lppe_referencePointAssistanceReq, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ReferencePointAssistanceReq },
+  { &hf_lppe_ver1_1_localCellInformationReq, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_LocalCellInformationReq },
+  { &hf_lppe_ver1_1_BroadcastAssistanceDataReq, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_BroadcastAssistanceDataReq },
+  { &hf_lppe_ver1_1_AccessNetwork, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_AccessNetworkID },
+  { &hf_lppe_ver1_1_groundMorphologyModelReq, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_GroundMorphologyModelReq },
   { NULL, 0, 0, NULL }
 };
 
@@ -4317,7 +5205,7 @@ dissect_lppe_OMA_LPPe_CommonIEsRequestAssistanceData(tvbuff_t *tvb _U_, int offs
 static int
 dissect_lppe_T_ionoreq(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4439,7 +5327,7 @@ dissect_lppe_OMA_LPPe_AGNSS_IonosphericModelReq(tvbuff_t *tvb _U_, int offset _U
 static int
 dissect_lppe_T_troposphereModelReq(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4898,7 +5786,7 @@ dissect_lppe_T_lteCell(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, 
 static int
 dissect_lppe_T_requestedCells(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4923,7 +5811,7 @@ dissect_lppe_OMA_LPPe_OTDOA_RequestAssistanceData(tvbuff_t *tvb _U_, int offset 
 static int
 dissect_lppe_T_eotdAssistanceReq(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     NO_BOUND, NO_BOUND, FALSE, NULL);
+                                     NO_BOUND, NO_BOUND, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4947,7 +5835,7 @@ dissect_lppe_OMA_LPPe_EOTD_RequestAssistanceData(tvbuff_t *tvb _U_, int offset _
 static int
 dissect_lppe_T_otdoaUtraAssistanceReq(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4971,7 +5859,7 @@ dissect_lppe_OMA_LPPe_OTDOA_UTRA_RequestAssistanceData(tvbuff_t *tvb _U_, int of
 static int
 dissect_lppe_T_eNBrequestedAD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4981,7 +5869,7 @@ dissect_lppe_T_eNBrequestedAD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 static int
 dissect_lppe_T_heNBrequestedAD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -5006,7 +5894,7 @@ dissect_lppe_OMA_LPPe_ECID_LTE_RequestAssistanceData(tvbuff_t *tvb _U_, int offs
 static int
 dissect_lppe_T_requestedAD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -5030,7 +5918,7 @@ dissect_lppe_OMA_LPPe_ECID_GSM_RequestAssistanceData(tvbuff_t *tvb _U_, int offs
 static int
 dissect_lppe_T_nBrequestedAD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -5040,7 +5928,7 @@ dissect_lppe_T_nBrequestedAD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx
 static int
 dissect_lppe_T_hNBrequestedAD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -5065,7 +5953,7 @@ dissect_lppe_OMA_LPPe_ECID_UTRA_RequestAssistanceData(tvbuff_t *tvb _U_, int off
 static int
 dissect_lppe_T_requestedAD_01(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -5086,8 +5974,22 @@ dissect_lppe_OMA_LPPe_WLAN_AP_RequestAssistanceData(tvbuff_t *tvb _U_, int offse
 }
 
 
-static const per_sequence_t OMA_LPPe_Sensor_RequestAssistanceData_sequence[] = {
+static const per_sequence_t OMA_LPPe_PressureSensorAD_sequence[] = {
   { NULL, ASN1_EXTENSION_ROOT, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_PressureSensorAD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_PressureSensorAD, OMA_LPPe_PressureSensorAD_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_Sensor_RequestAssistanceData_sequence[] = {
+  { &hf_lppe_pressureSensorAD, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_PressureSensorAD },
+  { NULL, 0, 0, NULL }
 };
 
 static int
@@ -5163,7 +6065,7 @@ dissect_lppe_OMA_LPPe_SRN_SRNgroupRequest(tvbuff_t *tvb _U_, int offset _U_, asn
 static int
 dissect_lppe_BIT_STRING_SIZE_8(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -5188,7 +6090,7 @@ dissect_lppe_T_nfc(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, prot
 static int
 dissect_lppe_BIT_STRING_SIZE_12(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     12, 12, FALSE, NULL);
+                                     12, 12, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -5196,9 +6098,9 @@ dissect_lppe_BIT_STRING_SIZE_12(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 
 
 static int
-dissect_lppe_OCTET_STRING_SIZE_1_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_lppe_OCTET_STRING_SIZE_1_16(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
-                                       1, 1, FALSE, NULL);
+                                       1, 16, FALSE, NULL);
 
   return offset;
 }
@@ -5216,7 +6118,7 @@ dissect_lppe_OCTET_STRING_SIZE_1_18(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_
 
 static const per_sequence_t T_mobileCode_sequence[] = {
   { &hf_lppe_registryID     , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_BIT_STRING_SIZE_12 },
-  { &hf_lppe_remainingPart  , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OCTET_STRING_SIZE_1_1 },
+  { &hf_lppe_remainingPart  , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OCTET_STRING_SIZE_1_16 },
   { &hf_lppe_resolutionIdentifier, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OCTET_STRING_SIZE_1_18 },
   { NULL, 0, 0, NULL }
 };
@@ -5645,7 +6547,7 @@ dissect_lppe_OMA_LPPe_TypeOfADProvide(tvbuff_t *tvb _U_, int offset _U_, asn1_ct
 
 
 static const per_sequence_t OMA_LPPe_ProvidePeriodicADwithUpdate_sequence[] = {
-  { &hf_lppe_periodicAD_session_ID, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_1_256 },
+  { &hf_lppe_periodicAD_session_ID, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OCTET_STRING_SIZE_4 },
   { &hf_lppe_typeOfADProvide, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_TypeOfADProvide },
   { NULL, 0, 0, NULL }
 };
@@ -6052,9 +6954,12 @@ dissect_lppe_SEQUENCE_SIZE_1_8_OF_OMA_LPPe_ReferencePointRelationship(tvbuff_t *
 
 static int
 dissect_lppe_OMA_LPPe_Uri(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+#line 30 "../../asn1/lppe/lppe.cnf"
   offset = dissect_per_restricted_character_string(tvb, offset, actx, tree, hf_index,
-                                                      NO_BOUND, NO_BOUND, FALSE, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/?#[]@!$&'()*+,;=-._~", 84,
+                                                      NO_BOUND, NO_BOUND, FALSE, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/?#[]@!$&'()*+,;=-._~%", 85,
                                                       NULL);
+
+
 
   return offset;
 }
@@ -6226,11 +7131,509 @@ dissect_lppe_OMA_LPPe_ReferencePoint(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
 }
 
 
+static const per_sequence_t SEQUENCE_SIZE_1_maxCellSets_OF_GNSS_ReferenceTime_sequence_of[1] = {
+  { &hf_lppe_ver1_1_timingInformation_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lpp_GNSS_ReferenceTime },
+};
+
+static int
+dissect_lppe_SEQUENCE_SIZE_1_maxCellSets_OF_GNSS_ReferenceTime(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lppe_SEQUENCE_SIZE_1_maxCellSets_OF_GNSS_ReferenceTime, SEQUENCE_SIZE_1_maxCellSets_OF_GNSS_ReferenceTime_sequence_of,
+                                                  1, maxCellSets, FALSE);
+
+  return offset;
+}
+
+
+static const value_string lppe_T_coverage_vals[] = {
+  {   0, "circle" },
+  {   1, "ellipse" },
+  {   2, "arc" },
+  {   3, "polygon" },
+  { 0, NULL }
+};
+
+static const per_choice_t T_coverage_choice[] = {
+  {   0, &hf_lppe_circle_01      , ASN1_EXTENSION_ROOT    , dissect_lpp_Ellipsoid_PointWithUncertaintyCircle },
+  {   1, &hf_lppe_ellipse_01     , ASN1_EXTENSION_ROOT    , dissect_lpp_EllipsoidPointWithUncertaintyEllipse },
+  {   2, &hf_lppe_arc            , ASN1_EXTENSION_ROOT    , dissect_lpp_EllipsoidArc },
+  {   3, &hf_lppe_polygon        , ASN1_EXTENSION_ROOT    , dissect_lpp_Polygon },
+  { 0, NULL, 0, NULL }
+};
+
+static int
+dissect_lppe_T_coverage(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_choice(tvb, offset, actx, tree, hf_index,
+                                 ett_lppe_T_coverage, T_coverage_choice,
+                                 NULL);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_INTEGER_1_6(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            1U, 6U, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_CellInformation_sequence[] = {
+  { &hf_lppe_cellID         , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_CellGlobalID },
+  { &hf_lppe_coverage       , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_T_coverage },
+  { &hf_lppe_coordinates    , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lpp_EllipsoidPointWithAltitudeAndUncertaintyEllipsoid },
+  { &hf_lppe_frequencyAccuracy, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_1_6 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_CellInformation(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_CellInformation, OMA_LPPe_ver1_1_CellInformation_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t SEQUENCE_SIZE_1_maxCells_OF_OMA_LPPe_ver1_1_CellInformation_sequence_of[1] = {
+  { &hf_lppe_ver1_1_other_CellInformation_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_CellInformation },
+};
+
+static int
+dissect_lppe_SEQUENCE_SIZE_1_maxCells_OF_OMA_LPPe_ver1_1_CellInformation(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lppe_SEQUENCE_SIZE_1_maxCells_OF_OMA_LPPe_ver1_1_CellInformation, SEQUENCE_SIZE_1_maxCells_OF_OMA_LPPe_ver1_1_CellInformation_sequence_of,
+                                                  1, maxCells, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_LocalCellInformation_sequence[] = {
+  { &hf_lppe_ver1_1_timingInformation, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_SEQUENCE_SIZE_1_maxCellSets_OF_GNSS_ReferenceTime },
+  { &hf_lppe_ver1_1_other_CellInformation, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_SEQUENCE_SIZE_1_maxCells_OF_OMA_LPPe_ver1_1_CellInformation },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_LocalCellInformation(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_LocalCellInformation, OMA_LPPe_ver1_1_LocalCellInformation_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_AccessNetworkID_sequence_of[1] = {
+  { &hf_lppe_accessNetworks_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_AccessNetworkID },
+};
+
+static int
+dissect_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_AccessNetworkID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_AccessNetworkID, SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_AccessNetworkID_sequence_of,
+                                                  1, 16, FALSE);
+
+  return offset;
+}
+
+
+static const value_string lppe_T_coverageArea_vals[] = {
+  {   0, "circle" },
+  {   1, "ellipse" },
+  {   2, "polygon" },
+  { 0, NULL }
+};
+
+static const per_choice_t T_coverageArea_choice[] = {
+  {   0, &hf_lppe_circle_01      , ASN1_EXTENSION_ROOT    , dissect_lpp_Ellipsoid_PointWithUncertaintyCircle },
+  {   1, &hf_lppe_ellipse_01     , ASN1_EXTENSION_ROOT    , dissect_lpp_EllipsoidPointWithUncertaintyEllipse },
+  {   2, &hf_lppe_polygon        , ASN1_EXTENSION_ROOT    , dissect_lpp_Polygon },
+  { 0, NULL, 0, NULL }
+};
+
+static int
+dissect_lppe_T_coverageArea(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_choice(tvb, offset, actx, tree, hf_index,
+                                 ett_lppe_T_coverageArea, T_coverageArea_choice,
+                                 NULL);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_ServerID_sequence[] = {
+  { &hf_lppe_provider_ID    , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_VendorOrOperatorID },
+  { &hf_lppe_server_ID      , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OCTET_STRING_SIZE_4 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_ServerID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_ServerID, OMA_LPPe_ver1_1_ServerID_sequence);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_BIT_STRING_SIZE_128(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
+                                     128, 128, FALSE, NULL, NULL);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_BIT_STRING_SIZE_1_128(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
+                                     1, 128, FALSE, NULL, NULL);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_CipherSet_sequence[] = {
+  { &hf_lppe_cipherSetID    , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_CipherSetID },
+  { &hf_lppe_cipherKey      , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_BIT_STRING_SIZE_128 },
+  { &hf_lppe_c0             , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_BIT_STRING_SIZE_1_128 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_CipherSet(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_CipherSet, OMA_LPPe_ver1_1_CipherSet_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSet_sequence_of[1] = {
+  { &hf_lppe_cipherSets_item_01, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_CipherSet },
+};
+
+static int
+dissect_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSet(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSet, SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSet_sequence_of,
+                                                  1, 16, FALSE);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_BIT_STRING_SIZE_2048(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
+                                     2048, 2048, FALSE, NULL, NULL);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_BIT_STRING_SIZE_2_2048(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
+                                     2, 2048, FALSE, NULL, NULL);
+
+  return offset;
+}
+
+
+static const per_sequence_t T_rsaPublicKey_sequence[] = {
+  { &hf_lppe_modulus        , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_BIT_STRING_SIZE_2048 },
+  { &hf_lppe_exponent       , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_BIT_STRING_SIZE_2_2048 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_T_rsaPublicKey(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_T_rsaPublicKey, T_rsaPublicKey_sequence);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_INTEGER_0_32(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            0U, 32U, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_AuthenticationSet_sequence[] = {
+  { &hf_lppe_authenticationSetID, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_AuthenticationSetID },
+  { &hf_lppe_rsaPublicKey   , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_T_rsaPublicKey },
+  { &hf_lppe_saltLength     , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_0_32 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_AuthenticationSet(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_AuthenticationSet, OMA_LPPe_ver1_1_AuthenticationSet_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSet_sequence_of[1] = {
+  { &hf_lppe_authentication_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_AuthenticationSet },
+};
+
+static int
+dissect_lppe_SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSet(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lppe_SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSet, SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSet_sequence_of,
+                                                  1, 4, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_EncapsulatedMode_sequence[] = {
+  { &hf_lppe_serverID       , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_ServerID },
+  { &hf_lppe_cipherSets_01  , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSet },
+  { &hf_lppe_authentication_01, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSet },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_EncapsulatedMode(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_EncapsulatedMode, OMA_LPPe_ver1_1_EncapsulatedMode_sequence);
+
+  return offset;
+}
+
+
+static const value_string lppe_T_broadcastMode_vals[] = {
+  {   0, "unencapsulated" },
+  {   1, "encapsulated" },
+  { 0, NULL }
+};
+
+static const per_choice_t T_broadcastMode_choice[] = {
+  {   0, &hf_lppe_unencapsulated , ASN1_EXTENSION_ROOT    , dissect_lppe_NULL },
+  {   1, &hf_lppe_encapsulated   , ASN1_EXTENSION_ROOT    , dissect_lppe_OMA_LPPe_ver1_1_EncapsulatedMode },
+  { 0, NULL, 0, NULL }
+};
+
+static int
+dissect_lppe_T_broadcastMode(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_choice(tvb, offset, actx, tree, hf_index,
+                                 ett_lppe_T_broadcastMode, T_broadcastMode_choice,
+                                 NULL);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_BroadcastAssistanceData_sequence[] = {
+  { &hf_lppe_broadcastSystem_01, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ver1_1_BroadcastSystemID },
+  { &hf_lppe_accessNetworks , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_AccessNetworkID },
+  { &hf_lppe_coverageArea   , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_T_coverageArea },
+  { &hf_lppe_broadcastADTypes, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_BroadcastADTypes },
+  { &hf_lppe_broadcastMode  , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_T_broadcastMode },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_BroadcastAssistanceData(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_BroadcastAssistanceData, OMA_LPPe_ver1_1_BroadcastAssistanceData_sequence);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_INTEGER_M500_9000(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            -500, 9000U, NULL, FALSE);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_INTEGER_2_1012(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            2U, 1012U, NULL, FALSE);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_INTEGER_1_128(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            1U, 128U, NULL, FALSE);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_INTEGER_M15_16(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            -15, 16U, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t DeltaAltitudes_sequence[] = {
+  { &hf_lppe_deltaAlt       , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_M15_16 },
+  { &hf_lppe_numGridPoints  , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_0_255 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_DeltaAltitudes(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_DeltaAltitudes, DeltaAltitudes_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t SEQUENCE_SIZE_1_10000_OF_DeltaAltitudes_sequence_of[1] = {
+  { &hf_lppe_altitudeGrid_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_DeltaAltitudes },
+};
+
+static int
+dissect_lppe_SEQUENCE_SIZE_1_10000_OF_DeltaAltitudes(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lppe_SEQUENCE_SIZE_1_10000_OF_DeltaAltitudes, SEQUENCE_SIZE_1_10000_OF_DeltaAltitudes_sequence_of,
+                                                  1, 10000, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_AltitudeModel_sequence[] = {
+  { &hf_lppe_northWestCorner, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_Ellipsoid_Point },
+  { &hf_lppe_northwestCornerAltitude, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_M500_9000 },
+  { &hf_lppe_nrows          , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_2_1012 },
+  { &hf_lppe_ncols          , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_2_1012 },
+  { &hf_lppe_spanX          , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_6_14 },
+  { &hf_lppe_spanY          , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_6_14 },
+  { &hf_lppe_deltaAltUnits  , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_1_128 },
+  { &hf_lppe_altitudeGrid   , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_SEQUENCE_SIZE_1_10000_OF_DeltaAltitudes },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_AltitudeModel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_AltitudeModel, OMA_LPPe_ver1_1_AltitudeModel_sequence);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_INTEGER_0_500(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            0U, 500U, NULL, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t DeltaHeight_sequence[] = {
+  { &hf_lppe_deltaHeight    , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_M15_16 },
+  { &hf_lppe_numGridPoints  , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_0_255 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_DeltaHeight(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_DeltaHeight, DeltaHeight_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t SEQUENCE_SIZE_1_10000_OF_DeltaHeight_sequence_of[1] = {
+  { &hf_lppe_buildingsHeigthGrid_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_DeltaHeight },
+};
+
+static int
+dissect_lppe_SEQUENCE_SIZE_1_10000_OF_DeltaHeight(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_lppe_SEQUENCE_SIZE_1_10000_OF_DeltaHeight, SEQUENCE_SIZE_1_10000_OF_DeltaHeight_sequence_of,
+                                                  1, 10000, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_BuildingsHeightModel_sequence[] = {
+  { &hf_lppe_northWestCorner, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_Ellipsoid_Point },
+  { &hf_lppe_northwestCornerHeigth, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_0_500 },
+  { &hf_lppe_nrows          , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_2_1012 },
+  { &hf_lppe_ncols          , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_2_1012 },
+  { &hf_lppe_spanX          , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_6_14 },
+  { &hf_lppe_spanY          , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_6_14 },
+  { &hf_lppe_deltaHeigthUnits, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_1_16 },
+  { &hf_lppe_buildingsHeigthGrid, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_SEQUENCE_SIZE_1_10000_OF_DeltaHeight },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_BuildingsHeightModel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_BuildingsHeightModel, OMA_LPPe_ver1_1_BuildingsHeightModel_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_ver1_1_GroundMorphologyModel_sequence[] = {
+  { &hf_lppe_altitudeModel  , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_AltitudeModel },
+  { &hf_lppe_buildingsProfileModel, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_BuildingsHeightModel },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_ver1_1_GroundMorphologyModel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_ver1_1_GroundMorphologyModel, OMA_LPPe_ver1_1_GroundMorphologyModel_sequence);
+
+  return offset;
+}
+
+
 static const per_sequence_t OMA_LPPe_CommonIEsProvideAssistanceData_sequence[] = {
   { &hf_lppe_assistanceContainerList_01, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_AssistanceContainerProvideList },
   { &hf_lppe_providePeriodicADwithUpdate, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ProvidePeriodicADwithUpdate },
   { &hf_lppe_segmentedADTransfer, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_SegmentedADTransfer },
   { &hf_lppe_default_reference_point, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ReferencePoint },
+  { &hf_lppe_ver1_1_localCellInformation, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_LocalCellInformation },
+  { &hf_lppe_ver1_1_BroadcastAssistanceData, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_BroadcastAssistanceData },
+  { &hf_lppe_ver1_1_groundMorphologyModel, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_ver1_1_GroundMorphologyModel },
   { NULL, 0, 0, NULL }
 };
 
@@ -7340,16 +8743,6 @@ dissect_lppe_INTEGER_0_31(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
 }
 
 
-
-static int
-dissect_lppe_INTEGER_0_7(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            0U, 7U, NULL, FALSE);
-
-  return offset;
-}
-
-
 static const per_sequence_t OMA_LPPe_AGNSS_ClockModelDegradationModel_sequence[] = {
   { &hf_lppe_clockRMS0      , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_0_31 },
   { &hf_lppe_clockRMS1      , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_0_7 },
@@ -8021,7 +9414,7 @@ dissect_lppe_OMA_LPPe_AGNSS_ProvideAssistanceData(tvbuff_t *tvb _U_, int offset 
 static int
 dissect_lppe_BIT_STRING_SIZE_10(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     10, 10, FALSE, NULL);
+                                     10, 10, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -8989,9 +10382,9 @@ dissect_lppe_T_cellPosition(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
 
 
 static int
-dissect_lppe_INTEGER_0_327(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_lppe_INTEGER_0_32766(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            0U, 327U, NULL, FALSE);
+                                                            0U, 32766U, NULL, FALSE);
 
   return offset;
 }
@@ -9009,7 +10402,7 @@ dissect_lppe_INTEGER_0_70274(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx
 
 static const per_sequence_t OMA_LPPe_OTDOA_UTRA_RefPosAssist_sequence[] = {
   { &hf_lppe_cellPosition   , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_T_cellPosition },
-  { &hf_lppe_roundTripTime  , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_0_327 },
+  { &hf_lppe_roundTripTime  , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_0_32766 },
   { &hf_lppe_roundTripTimeExtension, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_0_70274 },
   { NULL, 0, 0, NULL }
 };
@@ -9063,16 +10456,6 @@ dissect_lppe_OMA_LPPe_OTDOA_UTRA_IP_Length(tvbuff_t *tvb _U_, int offset _U_, as
 
 
 static int
-dissect_lppe_INTEGER_0_9(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            0U, 9U, NULL, FALSE);
-
-  return offset;
-}
-
-
-
-static int
 dissect_lppe_INTEGER_0_15(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 15U, NULL, FALSE);
@@ -9086,16 +10469,6 @@ static int
 dissect_lppe_INTEGER_10_25(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             10U, 25U, NULL, FALSE);
-
-  return offset;
-}
-
-
-
-static int
-dissect_lppe_INTEGER_1_16(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            1U, 16U, NULL, FALSE);
 
   return offset;
 }
@@ -9435,7 +10808,7 @@ static const per_sequence_t OMA_LPPe_OTDOA_UTRA_PositioningAssistance_sequence[]
   { &hf_lppe_relativeEast_02, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_M20000_20000 },
   { &hf_lppe_relativeAltitude_01, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_M4000_4000 },
   { &hf_lppe_fineSFN_SFN    , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_OTDOA_UTRA_fineSFN_SFN },
-  { &hf_lppe_roundTripTime  , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_0_327 },
+  { &hf_lppe_roundTripTime  , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_0_32766 },
   { &hf_lppe_roundTripTimeExtension, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_0_70274 },
   { NULL, 0, 0, NULL }
 };
@@ -9588,28 +10961,28 @@ dissect_lppe_OMA_LPPe_OTDOA_UTRA_ProvideAssistanceData(tvbuff_t *tvb _U_, int of
 }
 
 
-static const per_sequence_t T_mcc_sequence_of[1] = {
+static const per_sequence_t T_mcc_01_sequence_of[1] = {
   { &hf_lppe_mcc_item       , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_0_9 },
 };
 
 static int
-dissect_lppe_T_mcc(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_lppe_T_mcc_01(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
-                                                  ett_lppe_T_mcc, T_mcc_sequence_of,
+                                                  ett_lppe_T_mcc_01, T_mcc_01_sequence_of,
                                                   3, 3, FALSE);
 
   return offset;
 }
 
 
-static const per_sequence_t T_mnc_sequence_of[1] = {
+static const per_sequence_t T_mnc_01_sequence_of[1] = {
   { &hf_lppe_mnc_item       , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_0_9 },
 };
 
 static int
-dissect_lppe_T_mnc(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_lppe_T_mnc_01(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
-                                                  ett_lppe_T_mnc, T_mnc_sequence_of,
+                                                  ett_lppe_T_mnc_01, T_mnc_01_sequence_of,
                                                   2, 3, FALSE);
 
   return offset;
@@ -9617,8 +10990,8 @@ dissect_lppe_T_mnc(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, prot
 
 
 static const per_sequence_t T_plmn_Identity_sequence[] = {
-  { &hf_lppe_mcc            , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_T_mcc },
-  { &hf_lppe_mnc            , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_T_mnc },
+  { &hf_lppe_mcc_01         , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_T_mcc_01 },
+  { &hf_lppe_mnc_01         , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_T_mnc_01 },
   { NULL, 0, 0, NULL }
 };
 
@@ -9635,7 +11008,7 @@ dissect_lppe_T_plmn_Identity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx
 static int
 dissect_lppe_BIT_STRING_SIZE_28(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     28, 28, FALSE, NULL);
+                                     28, 28, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -9878,7 +11251,7 @@ dissect_lppe_OMA_LPPe_WLANFemtoCoverageArea(tvbuff_t *tvb _U_, int offset _U_, a
 static const per_sequence_t OMA_LPPe_ECID_LTE_HeNBData_sequence[] = {
   { &hf_lppe_relative_location, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_RelativeLocation },
   { &hf_lppe_location_reliability, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_1_100 },
-  { &hf_lppe_coverageArea   , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_WLANFemtoCoverageArea },
+  { &hf_lppe_coverageArea_01, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_WLANFemtoCoverageArea },
   { &hf_lppe_ecid_lte_HeNB_CellData, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ECID_LTE_CellData },
   { NULL, 0, 0, NULL }
 };
@@ -10059,28 +11432,28 @@ dissect_lppe_OMA_LPPe_ECID_LTE_ProvideAssistanceData(tvbuff_t *tvb _U_, int offs
 }
 
 
-static const per_sequence_t T_mcc_01_sequence_of[1] = {
+static const per_sequence_t T_mcc_02_sequence_of[1] = {
   { &hf_lppe_mcc_item       , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_0_9 },
 };
 
 static int
-dissect_lppe_T_mcc_01(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_lppe_T_mcc_02(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
-                                                  ett_lppe_T_mcc_01, T_mcc_01_sequence_of,
+                                                  ett_lppe_T_mcc_02, T_mcc_02_sequence_of,
                                                   3, 3, FALSE);
 
   return offset;
 }
 
 
-static const per_sequence_t T_mnc_01_sequence_of[1] = {
+static const per_sequence_t T_mnc_02_sequence_of[1] = {
   { &hf_lppe_mnc_item       , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_0_9 },
 };
 
 static int
-dissect_lppe_T_mnc_01(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_lppe_T_mnc_02(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
-                                                  ett_lppe_T_mnc_01, T_mnc_01_sequence_of,
+                                                  ett_lppe_T_mnc_02, T_mnc_02_sequence_of,
                                                   2, 3, FALSE);
 
   return offset;
@@ -10088,8 +11461,8 @@ dissect_lppe_T_mnc_01(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, p
 
 
 static const per_sequence_t T_plmn_Identity_01_sequence[] = {
-  { &hf_lppe_mcc_01         , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_T_mcc_01 },
-  { &hf_lppe_mnc_01         , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_T_mnc_01 },
+  { &hf_lppe_mcc_02         , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_T_mcc_02 },
+  { &hf_lppe_mnc_02         , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_T_mnc_02 },
   { NULL, 0, 0, NULL }
 };
 
@@ -10106,7 +11479,7 @@ dissect_lppe_T_plmn_Identity_01(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_lppe_BIT_STRING_SIZE_16(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     16, 16, FALSE, NULL);
+                                     16, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -10332,28 +11705,28 @@ dissect_lppe_OMA_LPPe_ECID_GSM_ProvideAssistanceData(tvbuff_t *tvb _U_, int offs
 }
 
 
-static const per_sequence_t T_mcc_02_sequence_of[1] = {
+static const per_sequence_t T_mcc_03_sequence_of[1] = {
   { &hf_lppe_mcc_item       , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_0_9 },
 };
 
 static int
-dissect_lppe_T_mcc_02(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_lppe_T_mcc_03(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
-                                                  ett_lppe_T_mcc_02, T_mcc_02_sequence_of,
+                                                  ett_lppe_T_mcc_03, T_mcc_03_sequence_of,
                                                   3, 3, FALSE);
 
   return offset;
 }
 
 
-static const per_sequence_t T_mnc_02_sequence_of[1] = {
+static const per_sequence_t T_mnc_03_sequence_of[1] = {
   { &hf_lppe_mnc_item       , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_0_9 },
 };
 
 static int
-dissect_lppe_T_mnc_02(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_lppe_T_mnc_03(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
-                                                  ett_lppe_T_mnc_02, T_mnc_02_sequence_of,
+                                                  ett_lppe_T_mnc_03, T_mnc_03_sequence_of,
                                                   2, 3, FALSE);
 
   return offset;
@@ -10361,8 +11734,8 @@ dissect_lppe_T_mnc_02(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, p
 
 
 static const per_sequence_t T_plmn_Identity_02_sequence[] = {
-  { &hf_lppe_mcc_02         , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_T_mcc_02 },
-  { &hf_lppe_mnc_02         , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_T_mnc_02 },
+  { &hf_lppe_mcc_03         , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_T_mcc_03 },
+  { &hf_lppe_mnc_03         , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_T_mnc_03 },
   { NULL, 0, 0, NULL }
 };
 
@@ -10379,7 +11752,7 @@ dissect_lppe_T_plmn_Identity_02(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_lppe_BIT_STRING_SIZE_32(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     32, 32, FALSE, NULL);
+                                     32, 32, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -10504,7 +11877,7 @@ dissect_lppe_SEQUENCE_SIZE_1_maxUTRAnodeBs_OF_OMA_LPPe_ECID_UTRA_NodeBData(tvbuf
 static const per_sequence_t OMA_LPPe_ECID_UTRA_HNBData_sequence[] = {
   { &hf_lppe_relative_location, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_RelativeLocation },
   { &hf_lppe_location_reliability, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_1_100 },
-  { &hf_lppe_coverageArea   , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_WLANFemtoCoverageArea },
+  { &hf_lppe_coverageArea_01, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_WLANFemtoCoverageArea },
   { &hf_lppe_ecid_utra_HNB_CellData, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ECID_UTRA_CellData },
   { NULL, 0, 0, NULL }
 };
@@ -10688,28 +12061,28 @@ dissect_lppe_OMA_LPPe_ECID_UTRA_ProvideAssistanceData(tvbuff_t *tvb _U_, int off
 }
 
 
-static const per_sequence_t T_mcc_03_sequence_of[1] = {
+static const per_sequence_t T_mcc_04_sequence_of[1] = {
   { &hf_lppe_mcc_item       , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_0_9 },
 };
 
 static int
-dissect_lppe_T_mcc_03(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_lppe_T_mcc_04(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
-                                                  ett_lppe_T_mcc_03, T_mcc_03_sequence_of,
+                                                  ett_lppe_T_mcc_04, T_mcc_04_sequence_of,
                                                   3, 3, FALSE);
 
   return offset;
 }
 
 
-static const per_sequence_t T_mnc_03_sequence_of[1] = {
+static const per_sequence_t T_mnc_04_sequence_of[1] = {
   { &hf_lppe_mnc_item       , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_0_9 },
 };
 
 static int
-dissect_lppe_T_mnc_03(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_lppe_T_mnc_04(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
-                                                  ett_lppe_T_mnc_03, T_mnc_03_sequence_of,
+                                                  ett_lppe_T_mnc_04, T_mnc_04_sequence_of,
                                                   2, 3, FALSE);
 
   return offset;
@@ -10717,8 +12090,8 @@ dissect_lppe_T_mnc_03(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, p
 
 
 static const per_sequence_t T_plmn_Identity_03_sequence[] = {
-  { &hf_lppe_mcc_03         , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_T_mcc_03 },
-  { &hf_lppe_mnc_03         , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_T_mnc_03 },
+  { &hf_lppe_mcc_04         , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_T_mcc_04 },
+  { &hf_lppe_mnc_04         , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_lppe_T_mnc_04 },
   { NULL, 0, 0, NULL }
 };
 
@@ -10792,6 +12165,8 @@ static const value_string lppe_OMA_LPPe_WLAN_AP_Type_vals[] = {
   {   1, "ieee802-11b" },
   {   2, "ieee802-11g" },
   {   3, "ieee802-11n" },
+  {   4, "ieee802-11ac" },
+  {   5, "ieee802-11ad" },
   { 0, NULL }
 };
 
@@ -10799,7 +12174,7 @@ static const value_string lppe_OMA_LPPe_WLAN_AP_Type_vals[] = {
 static int
 dissect_lppe_OMA_LPPe_WLAN_AP_Type(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
-                                     4, NULL, TRUE, 0, NULL);
+                                     4, NULL, TRUE, 2, NULL);
 
   return offset;
 }
@@ -10809,7 +12184,7 @@ static const per_sequence_t OMA_LPPe_WLAN_AP_Type_Data_sequence[] = {
   { &hf_lppe_wlan_AP_Type   , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_WLAN_AP_Type },
   { &hf_lppe_transmit_power , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_M127_128 },
   { &hf_lppe_antenna_gain   , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_M127_128 },
-  { &hf_lppe_coverageArea   , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_WLANFemtoCoverageArea },
+  { &hf_lppe_coverageArea_01, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_WLANFemtoCoverageArea },
   { NULL, 0, 0, NULL }
 };
 
@@ -10841,7 +12216,7 @@ static const per_sequence_t OMA_LPPe_WLAN_AP_Data_sequence[] = {
   { &hf_lppe_relative_location, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_RelativeLocation },
   { &hf_lppe_location_reliability, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_1_100 },
   { &hf_lppe_wlan_ap_Type_Data, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_SEQUENCE_SIZE_1_maxWLANTypes_OF_OMA_LPPe_WLAN_AP_Type_Data },
-  { &hf_lppe_coverageArea   , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_WLANFemtoCoverageArea },
+  { &hf_lppe_coverageArea_01, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_WLANFemtoCoverageArea },
   { NULL, 0, 0, NULL }
 };
 
@@ -10969,6 +12344,11 @@ static const per_sequence_t OMA_LPPe_WLAN_AP_TargetDeviceErrorCauses_sequence[] 
   { &hf_lppe_apRecLocNotAvailable, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_NULL },
   { &hf_lppe_non_servingMeasurementsNotAvailable, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_NULL },
   { &hf_lppe_historicMeasurementsNotAvailable, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { &hf_lppe_apTPNotAvailable, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { &hf_lppe_apAGNotAvailable, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { &hf_lppe_ueSNNotAvailable, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { &hf_lppe_ueRSSINotAvailable, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { &hf_lppe_ocNotAvailable , ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_NULL },
   { NULL, 0, 0, NULL }
 };
 
@@ -11018,8 +12398,72 @@ dissect_lppe_OMA_LPPe_WLAN_AP_ProvideAssistanceData(tvbuff_t *tvb _U_, int offse
 }
 
 
+static const per_sequence_t T_period_sequence[] = {
+  { &hf_lppe_pressureValidityPeriod, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_ValidityPeriod },
+  { &hf_lppe_referencePressureRate, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_M128_127 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_T_period(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_T_period, T_period_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_PressureValidityArea_sequence[] = {
+  { &hf_lppe_centerPoint    , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lpp_Ellipsoid_Point },
+  { &hf_lppe_validityAreaWidth, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_1_128 },
+  { &hf_lppe_validityAreaHeight, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_1_128 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_PressureValidityArea(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_PressureValidityArea, OMA_LPPe_PressureValidityArea_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t T_area_sequence[] = {
+  { &hf_lppe_pressureValidityArea, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_PressureValidityArea },
+  { &hf_lppe_gN_pressure    , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_M128_127 },
+  { &hf_lppe_gE_pressure    , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_M128_127 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_T_area(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_T_area, T_area_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t OMA_LPPe_AtmosphericPressureAD_sequence[] = {
+  { &hf_lppe_referencePressure, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_M1024_1023 },
+  { &hf_lppe_period         , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_T_period },
+  { &hf_lppe_area_01        , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_T_area },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_AtmosphericPressureAD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_AtmosphericPressureAD, OMA_LPPe_AtmosphericPressureAD_sequence);
+
+  return offset;
+}
+
+
 static const per_sequence_t OMA_LPPe_Sensor_ProvideAssistanceData_sequence[] = {
-  { NULL, ASN1_EXTENSION_ROOT, 0, NULL }
+  { &hf_lppe_atmosphericPressureAD, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_AtmosphericPressureAD },
+  { NULL, 0, 0, NULL }
 };
 
 static int
@@ -11799,7 +13243,7 @@ dissect_lppe_OMA_LPPe_TypeOfLocInfoRequest(tvbuff_t *tvb _U_, int offset _U_, as
 
 
 static const per_sequence_t OMA_LPPe_RequestPeriodicLocInfoWithUpdate_sequence[] = {
-  { &hf_lppe_session_ID_01  , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_1_256 },
+  { &hf_lppe_session_ID     , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OCTET_STRING_SIZE_4 },
   { &hf_lppe_typeOfLocInfoRequest, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_TypeOfLocInfoRequest },
   { NULL, 0, 0, NULL }
 };
@@ -11914,6 +13358,16 @@ static int
 dissect_lppe_T_segmentedLIpreference(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
                                      2, NULL, TRUE, 0, NULL);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_INTEGER_1_256(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            1U, 256U, NULL, FALSE);
 
   return offset;
 }
@@ -12038,7 +13492,7 @@ dissect_lppe_OMA_LPPe_AGNSS_PositioningInstructions(tvbuff_t *tvb _U_, int offse
 static int
 dissect_lppe_T_ionosphereMeasurementsReq(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -12117,7 +13571,7 @@ dissect_lppe_OMA_LPPe_OTDOA_UTRA_RequestLocationInformation(tvbuff_t *tvb _U_, i
 static int
 dissect_lppe_T_requestedMeasurements(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -12141,7 +13595,7 @@ dissect_lppe_OMA_LPPe_ECID_LTE_RequestLocationInformation(tvbuff_t *tvb _U_, int
 static int
 dissect_lppe_T_requestedMeasurements_01(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -12165,7 +13619,7 @@ dissect_lppe_OMA_LPPe_ECID_GSM_RequestLocationInformation(tvbuff_t *tvb _U_, int
 static int
 dissect_lppe_T_requestedMeasurements_02(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -12189,7 +13643,17 @@ dissect_lppe_OMA_LPPe_ECID_UTRA_RequestLocationInformation(tvbuff_t *tvb _U_, in
 static int
 dissect_lppe_T_requestedMeasurements_03(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
+
+  return offset;
+}
+
+
+
+static int
+dissect_lppe_T_additionalRequestedMeasurements(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -12197,6 +13661,7 @@ dissect_lppe_T_requestedMeasurements_03(tvbuff_t *tvb _U_, int offset _U_, asn1_
 
 static const per_sequence_t OMA_LPPe_WLAN_AP_RequestLocationInformation_sequence[] = {
   { &hf_lppe_requestedMeasurements_03, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_T_requestedMeasurements_03 },
+  { &hf_lppe_additionalRequestedMeasurements, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_T_additionalRequestedMeasurements },
   { NULL, 0, 0, NULL }
 };
 
@@ -12213,7 +13678,7 @@ dissect_lppe_OMA_LPPe_WLAN_AP_RequestLocationInformation(tvbuff_t *tvb _U_, int 
 static int
 dissect_lppe_T_requestedMeasurements_04(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -12390,16 +13855,6 @@ dissect_lppe_OMA_LPPe_HighAccuracy3Dvelocity(tvbuff_t *tvb _U_, int offset _U_, 
 }
 
 
-
-static int
-dissect_lppe_BIT_STRING_SIZE_128(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     128, 128, FALSE, NULL);
-
-  return offset;
-}
-
-
 static const value_string lppe_T_local_IP_Address_vals[] = {
   {   0, "iPv4" },
   {   1, "iPv6" },
@@ -12538,7 +13993,7 @@ dissect_lppe_OMA_LPPe_TypeOfLocInfoProvide(tvbuff_t *tvb _U_, int offset _U_, as
 
 
 static const per_sequence_t OMA_LPPe_ProvidePeriodicLocInfowithUpdate_sequence[] = {
-  { &hf_lppe_session_ID_01  , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_INTEGER_1_256 },
+  { &hf_lppe_session_ID     , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OCTET_STRING_SIZE_4 },
   { &hf_lppe_typeOfLocInfoProvide, ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_TypeOfLocInfoProvide },
   { NULL, 0, 0, NULL }
 };
@@ -12717,6 +14172,29 @@ dissect_lppe_OMA_LPPe_TimeStamp(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 }
 
 
+static const per_sequence_t OMA_LPPe_LocationSource_sequence[] = {
+  { &hf_lppe_agnss          , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { &hf_lppe_otdoa          , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { &hf_lppe_eotd           , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { &hf_lppe_otdoaUTRA      , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { &hf_lppe_ecidLTE        , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { &hf_lppe_ecidGSM        , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { &hf_lppe_ecidUTRA       , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { &hf_lppe_wlanAP         , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { &hf_lppe_srn            , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { &hf_lppe_sensors        , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_NULL },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_lppe_OMA_LPPe_LocationSource(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_lppe_OMA_LPPe_LocationSource, OMA_LPPe_LocationSource_sequence);
+
+  return offset;
+}
+
+
 static const per_sequence_t OMA_LPPe_CommonIEsProvideLocationInformation_sequence[] = {
   { &hf_lppe_highAccuracy3Dposition, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_HighAccuracy3Dposition },
   { &hf_lppe_localPosition  , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_LocalPosition },
@@ -12729,6 +14207,7 @@ static const per_sequence_t OMA_LPPe_CommonIEsProvideLocationInformation_sequenc
   { &hf_lppe_accessTypes    , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_AccessTypes },
   { &hf_lppe_segmentedLITransfer, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_SegmentedLITransfer },
   { &hf_lppe_locationInformationTimeStamp, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_TimeStamp },
+  { &hf_lppe_locationSource , ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_LocationSource },
   { NULL, 0, 0, NULL }
 };
 
@@ -13113,7 +14592,7 @@ dissect_lppe_OMA_LPPe_EOTD_ModuloTimeSlot(tvbuff_t *tvb _U_, int offset _U_, asn
 static int
 dissect_lppe_BIT_STRING_SIZE_5(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     5, 5, FALSE, NULL);
+                                     5, 5, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -13123,7 +14602,7 @@ dissect_lppe_BIT_STRING_SIZE_5(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_lppe_BIT_STRING_SIZE_3(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     3, 3, FALSE, NULL);
+                                     3, 3, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -13148,7 +14627,7 @@ dissect_lppe_OMA_LPPe_EOTD_TOA_MeasurementsOfRef(tvbuff_t *tvb _U_, int offset _
 static int
 dissect_lppe_BIT_STRING_SIZE_2(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     2, 2, FALSE, NULL);
+                                     2, 2, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -14130,7 +15609,7 @@ dissect_lppe_OMA_LPPe_WLAN_RTD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_lppe_BIT_STRING_SIZE_6(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     6, 6, FALSE, NULL);
+                                     6, 6, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -14140,7 +15619,7 @@ dissect_lppe_BIT_STRING_SIZE_6(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_lppe_BIT_STRING_SIZE_34(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     34, 34, FALSE, NULL);
+                                     34, 34, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -14150,7 +15629,7 @@ dissect_lppe_BIT_STRING_SIZE_34(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_lppe_BIT_STRING_SIZE_4(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     4, 4, FALSE, NULL);
+                                     4, 4, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -14160,7 +15639,7 @@ dissect_lppe_BIT_STRING_SIZE_4(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_lppe_BIT_STRING_SIZE_30(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     30, 30, FALSE, NULL);
+                                     30, 30, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -14201,6 +15680,16 @@ dissect_lppe_OMA_LPPe_WLAN_ReportedLocation(tvbuff_t *tvb _U_, int offset _U_, a
 }
 
 
+
+static int
+dissect_lppe_INTEGER_0_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
+                                                            0U, 1U, NULL, FALSE);
+
+  return offset;
+}
+
+
 static const per_sequence_t OMA_LPPe_WLAN_AP_LocationInformation_sequence[] = {
   { &hf_lppe_apMACAddress   , ASN1_EXTENSION_ROOT    , ASN1_NOT_OPTIONAL, dissect_lppe_OMA_LPPe_WLAN_AP_ID },
   { &hf_lppe_apSSID         , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OCTET_STRING_SIZE_1_32 },
@@ -14213,6 +15702,15 @@ static const per_sequence_t OMA_LPPe_WLAN_AP_LocationInformation_sequence[] = {
   { &hf_lppe_ueTransmitPower, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_M127_128 },
   { &hf_lppe_ueAntennaGain  , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_M127_128 },
   { &hf_lppe_apReportedLocation, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OMA_LPPe_WLAN_ReportedLocation },
+  { &hf_lppe_apTransmitPower, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_INTEGER_M127_128 },
+  { &hf_lppe_apAntennaGain  , ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_INTEGER_M127_128 },
+  { &hf_lppe_ueSignaltoNoise, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_INTEGER_M127_128 },
+  { &hf_lppe_ueSignalStrength, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_INTEGER_M127_128 },
+  { &hf_lppe_apSignalStrengthDelta, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_INTEGER_0_1 },
+  { &hf_lppe_ueSignalStrengthDelta, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_INTEGER_0_1 },
+  { &hf_lppe_apSignaltoNoiseDelta, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_INTEGER_0_1 },
+  { &hf_lppe_ueSignaltoNoiseDelta, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_INTEGER_0_1 },
+  { &hf_lppe_operatingClass , ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_lppe_INTEGER_0_255 },
   { NULL, 0, 0, NULL }
 };
 
@@ -14265,16 +15763,6 @@ static int
 dissect_lppe_OMA_LPPe_WLAN_AP_ProvideLocationInformation(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_lppe_OMA_LPPe_WLAN_AP_ProvideLocationInformation, OMA_LPPe_WLAN_AP_ProvideLocationInformation_sequence);
-
-  return offset;
-}
-
-
-
-static int
-dissect_lppe_BIT_STRING_SIZE_24(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     24, 24, FALSE, NULL);
 
   return offset;
 }
@@ -14530,7 +16018,7 @@ dissect_lppe_T_primaryMotionState(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 static int
 dissect_lppe_T_secondaryMotionState(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -14798,7 +16286,7 @@ dissect_lppe_T_abortCause(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
 
 static const per_sequence_t OMA_LPPe_CommonIEsAbort_sequence[] = {
   { &hf_lppe_abortCause     , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_T_abortCause },
-  { &hf_lppe_periodicSessionIDtoAbort, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_INTEGER_1_256 },
+  { &hf_lppe_periodicSessionIDtoAbort, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_lppe_OCTET_STRING_SIZE_4 },
   { NULL, 0, 0, NULL }
 };
 
@@ -14933,11 +16421,12 @@ static const per_sequence_t OMA_LPPe_MessageExtension_sequence[] = {
 
 static int
 dissect_lppe_OMA_LPPe_MessageExtension(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 18 "../../asn1/lppe/lppe.cnf"
-	
+#line 24 "../../asn1/lppe/lppe.cnf"
+
   proto_tree_add_item(tree, proto_lppe, tvb, 0, -1, ENC_NA);
 
   col_append_sep_str(actx->pinfo->cinfo, COL_PROTOCOL, "/", "LPPe");
+
 
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_lppe_OMA_LPPe_MessageExtension, OMA_LPPe_MessageExtension_sequence);
@@ -14958,7 +16447,7 @@ static int dissect_OMA_LPPe_MessageExtension_PDU(tvbuff_t *tvb _U_, packet_info 
 
 
 /*--- End of included file: packet-lppe-fn.c ---*/
-#line 60 "../../asn1/lppe/packet-lppe-template.c"
+#line 61 "../../asn1/lppe/packet-lppe-template.c"
 
 
 /*--- proto_register_lpp -------------------------------------------*/
@@ -14971,7 +16460,7 @@ void proto_register_lppe(void) {
 /*--- Included file: packet-lppe-hfarr.c ---*/
 #line 1 "../../asn1/lppe/packet-lppe-hfarr.c"
     { &hf_lppe_OMA_LPPe_MessageExtension_PDU,
-      { "OMA-LPPe-MessageExtension", "lppe.OMA_LPPe_MessageExtension",
+      { "OMA-LPPe-MessageExtension", "lppe.OMA_LPPe_MessageExtension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_lppeCompatibilityLevel,
@@ -14979,7 +16468,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_LPPeCompatibilityLevel", HFILL }},
     { &hf_lppe_lppeVersion,
-      { "lppeVersion", "lppe.lppeVersion",
+      { "lppeVersion", "lppe.lppeVersion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_LPPeVersion", HFILL }},
     { &hf_lppe_lppeMode,
@@ -14999,327 +16488,327 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_255", HFILL }},
     { &hf_lppe_requestCapabilities,
-      { "requestCapabilities", "lppe.requestCapabilities",
+      { "requestCapabilities", "lppe.requestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RequestCapabilities", HFILL }},
     { &hf_lppe_provideCapabilities,
-      { "provideCapabilities", "lppe.provideCapabilities",
+      { "provideCapabilities", "lppe.provideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ProvideCapabilities", HFILL }},
     { &hf_lppe_requestAssistanceData,
-      { "requestAssistanceData", "lppe.requestAssistanceData",
+      { "requestAssistanceData", "lppe.requestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RequestAssistanceData", HFILL }},
     { &hf_lppe_provideAssistanceData,
-      { "provideAssistanceData", "lppe.provideAssistanceData",
+      { "provideAssistanceData", "lppe.provideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ProvideAssistanceData", HFILL }},
     { &hf_lppe_requestLocationInformation,
-      { "requestLocationInformation", "lppe.requestLocationInformation",
+      { "requestLocationInformation", "lppe.requestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RequestLocationInformation", HFILL }},
     { &hf_lppe_provideLocationInformation,
-      { "provideLocationInformation", "lppe.provideLocationInformation",
+      { "provideLocationInformation", "lppe.provideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ProvideLocationInformation", HFILL }},
     { &hf_lppe_error,
-      { "error", "lppe.error",
+      { "error", "lppe.error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_Error", HFILL }},
     { &hf_lppe_abort,
-      { "abort", "lppe.abort",
+      { "abort", "lppe.abort_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_Abort", HFILL }},
     { &hf_lppe_commonIEsRequestCapabilities,
-      { "commonIEsRequestCapabilities", "lppe.commonIEsRequestCapabilities",
+      { "commonIEsRequestCapabilities", "lppe.commonIEsRequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_CommonIEsRequestCapabilities", HFILL }},
     { &hf_lppe_agnss_RequestCapabilities,
-      { "agnss-RequestCapabilities", "lppe.agnss_RequestCapabilities",
+      { "agnss-RequestCapabilities", "lppe.agnss_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_RequestCapabilities", HFILL }},
     { &hf_lppe_otdoa_RequestCapabilities,
-      { "otdoa-RequestCapabilities", "lppe.otdoa_RequestCapabilities",
+      { "otdoa-RequestCapabilities", "lppe.otdoa_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_RequestCapabilities", HFILL }},
     { &hf_lppe_eotd_RequestCapabilities,
-      { "eotd-RequestCapabilities", "lppe.eotd_RequestCapabilities",
+      { "eotd-RequestCapabilities", "lppe.eotd_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_RequestCapabilities", HFILL }},
     { &hf_lppe_otdoa_utra_RequestCapabilities,
-      { "otdoa-utra-RequestCapabilities", "lppe.otdoa_utra_RequestCapabilities",
+      { "otdoa-utra-RequestCapabilities", "lppe.otdoa_utra_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_RequestCapabilities", HFILL }},
     { &hf_lppe_ecid_lte_RequestCapabilities,
-      { "ecid-lte-RequestCapabilities", "lppe.ecid_lte_RequestCapabilities",
+      { "ecid-lte-RequestCapabilities", "lppe.ecid_lte_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_LTE_RequestCapabilities", HFILL }},
     { &hf_lppe_ecid_gsm_RequestCapabilities,
-      { "ecid-gsm-RequestCapabilities", "lppe.ecid_gsm_RequestCapabilities",
+      { "ecid-gsm-RequestCapabilities", "lppe.ecid_gsm_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_GSM_RequestCapabilities", HFILL }},
     { &hf_lppe_ecid_utra_RequestCapabilities,
-      { "ecid-utra-RequestCapabilities", "lppe.ecid_utra_RequestCapabilities",
+      { "ecid-utra-RequestCapabilities", "lppe.ecid_utra_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_UTRA_RequestCapabilities", HFILL }},
     { &hf_lppe_wlan_ap_RequestCapabilities,
-      { "wlan-ap-RequestCapabilities", "lppe.wlan_ap_RequestCapabilities",
+      { "wlan-ap-RequestCapabilities", "lppe.wlan_ap_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_AP_RequestCapabilities", HFILL }},
     { &hf_lppe_ecid_wimax_RequestCapabilities,
-      { "ecid-wimax-RequestCapabilities", "lppe.ecid_wimax_RequestCapabilities",
+      { "ecid-wimax-RequestCapabilities", "lppe.ecid_wimax_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_WiMax_RequestCapabilities", HFILL }},
     { &hf_lppe_sensor_RequestCapabilities,
-      { "sensor-RequestCapabilities", "lppe.sensor_RequestCapabilities",
+      { "sensor-RequestCapabilities", "lppe.sensor_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_Sensor_RequestCapabilities", HFILL }},
     { &hf_lppe_srn_RequestCapabilities,
-      { "srn-RequestCapabilities", "lppe.srn_RequestCapabilities",
+      { "srn-RequestCapabilities", "lppe.srn_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_RequestCapabilities", HFILL }},
     { &hf_lppe_commonIEsProvideCapabilities,
-      { "commonIEsProvideCapabilities", "lppe.commonIEsProvideCapabilities",
+      { "commonIEsProvideCapabilities", "lppe.commonIEsProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_CommonIEsProvideCapabilities", HFILL }},
     { &hf_lppe_agnss_ProvideCapabilities,
-      { "agnss-ProvideCapabilities", "lppe.agnss_ProvideCapabilities",
+      { "agnss-ProvideCapabilities", "lppe.agnss_ProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_ProvideCapabilities", HFILL }},
     { &hf_lppe_otdoa_ProvideCapabilities,
-      { "otdoa-ProvideCapabilities", "lppe.otdoa_ProvideCapabilities",
+      { "otdoa-ProvideCapabilities", "lppe.otdoa_ProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_ProvideCapabilities", HFILL }},
     { &hf_lppe_eotd_ProvideCapabilities,
-      { "eotd-ProvideCapabilities", "lppe.eotd_ProvideCapabilities",
+      { "eotd-ProvideCapabilities", "lppe.eotd_ProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_ProvideCapabilities", HFILL }},
     { &hf_lppe_otdoa_utra_ProvideCapabilities,
-      { "otdoa-utra-ProvideCapabilities", "lppe.otdoa_utra_ProvideCapabilities",
+      { "otdoa-utra-ProvideCapabilities", "lppe.otdoa_utra_ProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_ProvideCapabilities", HFILL }},
     { &hf_lppe_ecid_lte_ProvideCapabilities,
-      { "ecid-lte-ProvideCapabilities", "lppe.ecid_lte_ProvideCapabilities",
+      { "ecid-lte-ProvideCapabilities", "lppe.ecid_lte_ProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_LTE_ProvideCapabilities", HFILL }},
     { &hf_lppe_ecid_gsm_ProvideCapabilities,
-      { "ecid-gsm-ProvideCapabilities", "lppe.ecid_gsm_ProvideCapabilities",
+      { "ecid-gsm-ProvideCapabilities", "lppe.ecid_gsm_ProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_GSM_ProvideCapabilities", HFILL }},
     { &hf_lppe_ecid_utra_ProvideCapabilities,
-      { "ecid-utra-ProvideCapabilities", "lppe.ecid_utra_ProvideCapabilities",
+      { "ecid-utra-ProvideCapabilities", "lppe.ecid_utra_ProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_UTRA_ProvideCapabilities", HFILL }},
     { &hf_lppe_wlan_ap_ProvideCapabilities,
-      { "wlan-ap-ProvideCapabilities", "lppe.wlan_ap_ProvideCapabilities",
+      { "wlan-ap-ProvideCapabilities", "lppe.wlan_ap_ProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_AP_ProvideCapabilities", HFILL }},
     { &hf_lppe_ecid_wimax_ProvideCapabilities,
-      { "ecid-wimax-ProvideCapabilities", "lppe.ecid_wimax_ProvideCapabilities",
+      { "ecid-wimax-ProvideCapabilities", "lppe.ecid_wimax_ProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_WiMax_ProvideCapabilities", HFILL }},
     { &hf_lppe_sensor_ProvideCapabilities,
-      { "sensor-ProvideCapabilities", "lppe.sensor_ProvideCapabilities",
+      { "sensor-ProvideCapabilities", "lppe.sensor_ProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_Sensor_ProvideCapabilities", HFILL }},
     { &hf_lppe_srn_ProvideCapabilities,
-      { "srn-ProvideCapabilities", "lppe.srn_ProvideCapabilities",
+      { "srn-ProvideCapabilities", "lppe.srn_ProvideCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_ProvideCapabilities", HFILL }},
     { &hf_lppe_commonIEsRequestAssistanceData,
-      { "commonIEsRequestAssistanceData", "lppe.commonIEsRequestAssistanceData",
+      { "commonIEsRequestAssistanceData", "lppe.commonIEsRequestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_CommonIEsRequestAssistanceData", HFILL }},
     { &hf_lppe_agnss_RequestAssistanceData,
-      { "agnss-RequestAssistanceData", "lppe.agnss_RequestAssistanceData",
+      { "agnss-RequestAssistanceData", "lppe.agnss_RequestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_RequestAssistanceData", HFILL }},
     { &hf_lppe_otdoa_RequestAssistanceData,
-      { "otdoa-RequestAssistanceData", "lppe.otdoa_RequestAssistanceData",
+      { "otdoa-RequestAssistanceData", "lppe.otdoa_RequestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_RequestAssistanceData", HFILL }},
     { &hf_lppe_eotd_RequestAssistanceData,
-      { "eotd-RequestAssistanceData", "lppe.eotd_RequestAssistanceData",
+      { "eotd-RequestAssistanceData", "lppe.eotd_RequestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_RequestAssistanceData", HFILL }},
     { &hf_lppe_otdoa_utra_RequestAssistanceData,
-      { "otdoa-utra-RequestAssistanceData", "lppe.otdoa_utra_RequestAssistanceData",
+      { "otdoa-utra-RequestAssistanceData", "lppe.otdoa_utra_RequestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_RequestAssistanceData", HFILL }},
     { &hf_lppe_ecid_lte_RequestAssistanceData,
-      { "ecid-lte-RequestAssistanceData", "lppe.ecid_lte_RequestAssistanceData",
+      { "ecid-lte-RequestAssistanceData", "lppe.ecid_lte_RequestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_LTE_RequestAssistanceData", HFILL }},
     { &hf_lppe_ecid_gsm_RequestAssistanceData,
-      { "ecid-gsm-RequestAssistanceData", "lppe.ecid_gsm_RequestAssistanceData",
+      { "ecid-gsm-RequestAssistanceData", "lppe.ecid_gsm_RequestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_GSM_RequestAssistanceData", HFILL }},
     { &hf_lppe_ecid_utra_RequestAssistanceData,
-      { "ecid-utra-RequestAssistanceData", "lppe.ecid_utra_RequestAssistanceData",
+      { "ecid-utra-RequestAssistanceData", "lppe.ecid_utra_RequestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_UTRA_RequestAssistanceData", HFILL }},
     { &hf_lppe_wlan_ap_RequestAssistanceData,
-      { "wlan-ap-RequestAssistanceData", "lppe.wlan_ap_RequestAssistanceData",
+      { "wlan-ap-RequestAssistanceData", "lppe.wlan_ap_RequestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_AP_RequestAssistanceData", HFILL }},
     { &hf_lppe_sensor_RequestAssistanceData,
-      { "sensor-RequestAssistanceData", "lppe.sensor_RequestAssistanceData",
+      { "sensor-RequestAssistanceData", "lppe.sensor_RequestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_Sensor_RequestAssistanceData", HFILL }},
     { &hf_lppe_srn_RequestAssistanceData,
-      { "srn-RequestAssistanceData", "lppe.srn_RequestAssistanceData",
+      { "srn-RequestAssistanceData", "lppe.srn_RequestAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_RequestAssistanceData", HFILL }},
     { &hf_lppe_commonIEsProvideAssistanceData,
-      { "commonIEsProvideAssistanceData", "lppe.commonIEsProvideAssistanceData",
+      { "commonIEsProvideAssistanceData", "lppe.commonIEsProvideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_CommonIEsProvideAssistanceData", HFILL }},
     { &hf_lppe_agnss_ProvideAssistanceData,
-      { "agnss-ProvideAssistanceData", "lppe.agnss_ProvideAssistanceData",
+      { "agnss-ProvideAssistanceData", "lppe.agnss_ProvideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_ProvideAssistanceData", HFILL }},
     { &hf_lppe_otdoa_ProvideAssistanceData,
-      { "otdoa-ProvideAssistanceData", "lppe.otdoa_ProvideAssistanceData",
+      { "otdoa-ProvideAssistanceData", "lppe.otdoa_ProvideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_ProvideAssistanceData", HFILL }},
     { &hf_lppe_eotd_ProvideAssistanceData,
-      { "eotd-ProvideAssistanceData", "lppe.eotd_ProvideAssistanceData",
+      { "eotd-ProvideAssistanceData", "lppe.eotd_ProvideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_ProvideAssistanceData", HFILL }},
     { &hf_lppe_otdoa_utra_ProvideAssistanceData,
-      { "otdoa-utra-ProvideAssistanceData", "lppe.otdoa_utra_ProvideAssistanceData",
+      { "otdoa-utra-ProvideAssistanceData", "lppe.otdoa_utra_ProvideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_ProvideAssistanceData", HFILL }},
     { &hf_lppe_ecid_lte_ProvideAssistanceData,
-      { "ecid-lte-ProvideAssistanceData", "lppe.ecid_lte_ProvideAssistanceData",
+      { "ecid-lte-ProvideAssistanceData", "lppe.ecid_lte_ProvideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_LTE_ProvideAssistanceData", HFILL }},
     { &hf_lppe_ecid_gsm_ProvideAssistanceData,
-      { "ecid-gsm-ProvideAssistanceData", "lppe.ecid_gsm_ProvideAssistanceData",
+      { "ecid-gsm-ProvideAssistanceData", "lppe.ecid_gsm_ProvideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_GSM_ProvideAssistanceData", HFILL }},
     { &hf_lppe_ecid_utra_ProvideAssistanceData,
-      { "ecid-utra-ProvideAssistanceData", "lppe.ecid_utra_ProvideAssistanceData",
+      { "ecid-utra-ProvideAssistanceData", "lppe.ecid_utra_ProvideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_UTRA_ProvideAssistanceData", HFILL }},
     { &hf_lppe_wlan_ap_ProvideAssistanceData,
-      { "wlan-ap-ProvideAssistanceData", "lppe.wlan_ap_ProvideAssistanceData",
+      { "wlan-ap-ProvideAssistanceData", "lppe.wlan_ap_ProvideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_AP_ProvideAssistanceData", HFILL }},
     { &hf_lppe_sensor_ProvideAssistanceData,
-      { "sensor-ProvideAssistanceData", "lppe.sensor_ProvideAssistanceData",
+      { "sensor-ProvideAssistanceData", "lppe.sensor_ProvideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_Sensor_ProvideAssistanceData", HFILL }},
     { &hf_lppe_srn_ProvideAssistanceData,
-      { "srn-ProvideAssistanceData", "lppe.srn_ProvideAssistanceData",
+      { "srn-ProvideAssistanceData", "lppe.srn_ProvideAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_ProvideAssistanceData", HFILL }},
     { &hf_lppe_commonIEsRequestLocationInformation,
-      { "commonIEsRequestLocationInformation", "lppe.commonIEsRequestLocationInformation",
+      { "commonIEsRequestLocationInformation", "lppe.commonIEsRequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_CommonIEsRequestLocationInformation", HFILL }},
     { &hf_lppe_agnss_RequestLocationInformation,
-      { "agnss-RequestLocationInformation", "lppe.agnss_RequestLocationInformation",
+      { "agnss-RequestLocationInformation", "lppe.agnss_RequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_RequestLocationInformation", HFILL }},
     { &hf_lppe_otdoa_RequestLocationInformation,
-      { "otdoa-RequestLocationInformation", "lppe.otdoa_RequestLocationInformation",
+      { "otdoa-RequestLocationInformation", "lppe.otdoa_RequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_RequestLocationInformation", HFILL }},
     { &hf_lppe_eotd_RequestLocationInformation,
-      { "eotd-RequestLocationInformation", "lppe.eotd_RequestLocationInformation",
+      { "eotd-RequestLocationInformation", "lppe.eotd_RequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_RequestLocationInformation", HFILL }},
     { &hf_lppe_otdoa_utra_RequestLocationInformation,
-      { "otdoa-utra-RequestLocationInformation", "lppe.otdoa_utra_RequestLocationInformation",
+      { "otdoa-utra-RequestLocationInformation", "lppe.otdoa_utra_RequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_RequestLocationInformation", HFILL }},
     { &hf_lppe_ecid_lte_RequestLocationInformation,
-      { "ecid-lte-RequestLocationInformation", "lppe.ecid_lte_RequestLocationInformation",
+      { "ecid-lte-RequestLocationInformation", "lppe.ecid_lte_RequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_LTE_RequestLocationInformation", HFILL }},
     { &hf_lppe_ecid_gsm_RequestLocationInformation,
-      { "ecid-gsm-RequestLocationInformation", "lppe.ecid_gsm_RequestLocationInformation",
+      { "ecid-gsm-RequestLocationInformation", "lppe.ecid_gsm_RequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_GSM_RequestLocationInformation", HFILL }},
     { &hf_lppe_ecid_utra_RequestLocationInformation,
-      { "ecid-utra-RequestLocationInformation", "lppe.ecid_utra_RequestLocationInformation",
+      { "ecid-utra-RequestLocationInformation", "lppe.ecid_utra_RequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_UTRA_RequestLocationInformation", HFILL }},
     { &hf_lppe_wlan_ap_RequestLocationInformation,
-      { "wlan-ap-RequestLocationInformation", "lppe.wlan_ap_RequestLocationInformation",
+      { "wlan-ap-RequestLocationInformation", "lppe.wlan_ap_RequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_AP_RequestLocationInformation", HFILL }},
     { &hf_lppe_ecid_wimax_RequestLocationInformation,
-      { "ecid-wimax-RequestLocationInformation", "lppe.ecid_wimax_RequestLocationInformation",
+      { "ecid-wimax-RequestLocationInformation", "lppe.ecid_wimax_RequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_WiMax_RequestLocationInformation", HFILL }},
     { &hf_lppe_sensor_RequestLocationInformation,
-      { "sensor-RequestLocationInformation", "lppe.sensor_RequestLocationInformation",
+      { "sensor-RequestLocationInformation", "lppe.sensor_RequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_Sensor_RequestLocationInformation", HFILL }},
     { &hf_lppe_srn_RequestLocationInformation,
-      { "srn-RequestLocationInformation", "lppe.srn_RequestLocationInformation",
+      { "srn-RequestLocationInformation", "lppe.srn_RequestLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_RequestLocationInformation", HFILL }},
     { &hf_lppe_commonIEsProvideLocationInformation,
-      { "commonIEsProvideLocationInformation", "lppe.commonIEsProvideLocationInformation",
+      { "commonIEsProvideLocationInformation", "lppe.commonIEsProvideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_CommonIEsProvideLocationInformation", HFILL }},
     { &hf_lppe_agnss_ProvideLocationInformation,
-      { "agnss-ProvideLocationInformation", "lppe.agnss_ProvideLocationInformation",
+      { "agnss-ProvideLocationInformation", "lppe.agnss_ProvideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_ProvideLocationInformation", HFILL }},
     { &hf_lppe_otdoa_ProvideLocationInformation,
-      { "otdoa-ProvideLocationInformation", "lppe.otdoa_ProvideLocationInformation",
+      { "otdoa-ProvideLocationInformation", "lppe.otdoa_ProvideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_ProvideLocationInformation", HFILL }},
     { &hf_lppe_eotd_ProvideLocationInformation,
-      { "eotd-ProvideLocationInformation", "lppe.eotd_ProvideLocationInformation",
+      { "eotd-ProvideLocationInformation", "lppe.eotd_ProvideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_ProvideLocationInformation", HFILL }},
     { &hf_lppe_otdoa_utra_ProvideLocationInformation,
-      { "otdoa-utra-ProvideLocationInformation", "lppe.otdoa_utra_ProvideLocationInformation",
+      { "otdoa-utra-ProvideLocationInformation", "lppe.otdoa_utra_ProvideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_ProvideLocationInformation", HFILL }},
     { &hf_lppe_ecid_lte_ProvideLocationInformation,
-      { "ecid-lte-ProvideLocationInformation", "lppe.ecid_lte_ProvideLocationInformation",
+      { "ecid-lte-ProvideLocationInformation", "lppe.ecid_lte_ProvideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_LTE_ProvideLocationInformation", HFILL }},
     { &hf_lppe_ecid_gsm_ProvideLocationInformation,
-      { "ecid-gsm-ProvideLocationInformation", "lppe.ecid_gsm_ProvideLocationInformation",
+      { "ecid-gsm-ProvideLocationInformation", "lppe.ecid_gsm_ProvideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_GSM_ProvideLocationInformation", HFILL }},
     { &hf_lppe_ecid_utra_ProvideLocationInformation,
-      { "ecid-utra-ProvideLocationInformation", "lppe.ecid_utra_ProvideLocationInformation",
+      { "ecid-utra-ProvideLocationInformation", "lppe.ecid_utra_ProvideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_UTRA_ProvideLocationInformation", HFILL }},
     { &hf_lppe_wlan_ap_ProvideLocationInformastion,
-      { "wlan-ap-ProvideLocationInformastion", "lppe.wlan_ap_ProvideLocationInformastion",
+      { "wlan-ap-ProvideLocationInformastion", "lppe.wlan_ap_ProvideLocationInformastion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_AP_ProvideLocationInformation", HFILL }},
     { &hf_lppe_ecid_wimax_ProvideLocationInformastion,
-      { "ecid-wimax-ProvideLocationInformastion", "lppe.ecid_wimax_ProvideLocationInformastion",
+      { "ecid-wimax-ProvideLocationInformastion", "lppe.ecid_wimax_ProvideLocationInformastion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_WiMax_ProvideLocationInformation", HFILL }},
     { &hf_lppe_sensor_ProvideLocationInformation,
-      { "sensor-ProvideLocationInformation", "lppe.sensor_ProvideLocationInformation",
+      { "sensor-ProvideLocationInformation", "lppe.sensor_ProvideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_Sensor_ProvideLocationInformation", HFILL }},
     { &hf_lppe_srn_ProvideLocationInformation,
-      { "srn-ProvideLocationInformation", "lppe.srn_ProvideLocationInformation",
+      { "srn-ProvideLocationInformation", "lppe.srn_ProvideLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_ProvideLocationInformation", HFILL }},
     { &hf_lppe_commonIEsAbort,
-      { "commonIEsAbort", "lppe.commonIEsAbort",
+      { "commonIEsAbort", "lppe.commonIEsAbort_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_CommonIEsAbort", HFILL }},
     { &hf_lppe_agnssAbort,
-      { "agnssAbort", "lppe.agnssAbort",
+      { "agnssAbort", "lppe.agnssAbort_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_Abort", HFILL }},
     { &hf_lppe_commonIEsError,
-      { "commonIEsError", "lppe.commonIEsError",
+      { "commonIEsError", "lppe.commonIEsError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_CommonIEsError", HFILL }},
     { &hf_lppe_dataSerialNumber,
@@ -15331,11 +16820,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_65535", HFILL }},
     { &hf_lppe_OMA_LPPe_AssistanceContainerProvideList_item,
-      { "OMA-LPPe-AssistanceContainerProvide", "lppe.OMA_LPPe_AssistanceContainerProvide",
+      { "OMA-LPPe-AssistanceContainerProvide", "lppe.OMA_LPPe_AssistanceContainerProvide_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_dataIdentifier,
-      { "dataIdentifier", "lppe.dataIdentifier",
+      { "dataIdentifier", "lppe.dataIdentifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_VendorOrOperatorAssistanceDataIdentifier", HFILL }},
     { &hf_lppe_checkOrUpdateOrError,
@@ -15351,15 +16840,15 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_5000", HFILL }},
     { &hf_lppe_data,
-      { "data", "lppe.data",
+      { "data", "lppe.data_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AssistanceContainerData", HFILL }},
     { &hf_lppe_errorCode,
-      { "errorCode", "lppe.errorCode",
+      { "errorCode", "lppe.errorCode_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AssistanceContainerProvideError", HFILL }},
     { &hf_lppe_dataSerialNumber_01,
-      { "dataSerialNumber", "lppe.dataSerialNumber",
+      { "dataSerialNumber", "lppe.dataSerialNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AssistanceContainer_DataSerialNumber", HFILL }},
     { &hf_lppe_data_01,
@@ -15367,11 +16856,11 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_lppe_validityPeriod,
-      { "validityPeriod", "lppe.validityPeriod",
+      { "validityPeriod", "lppe.validityPeriod_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ValidityPeriod", HFILL }},
     { &hf_lppe_validityArea,
-      { "validityArea", "lppe.validityArea",
+      { "validityArea", "lppe.validityArea_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ValidityArea", HFILL }},
     { &hf_lppe_serverError,
@@ -15379,7 +16868,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_serverError_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_OMA_LPPe_AssistanceContainerRequestList_item,
-      { "OMA-LPPe-AssistanceContainerRequest", "lppe.OMA_LPPe_AssistanceContainerRequest",
+      { "OMA-LPPe-AssistanceContainerRequest", "lppe.OMA_LPPe_AssistanceContainerRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_simulatedReq,
@@ -15387,11 +16876,11 @@ void proto_register_lppe(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lppe_checkOrUpdateReq,
-      { "checkOrUpdateReq", "lppe.checkOrUpdateReq",
+      { "checkOrUpdateReq", "lppe.checkOrUpdateReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AssistanceContainerCheckOrUpdateReq", HFILL }},
     { &hf_lppe_validityTimeRequest,
-      { "validityTimeRequest", "lppe.validityTimeRequest",
+      { "validityTimeRequest", "lppe.validityTimeRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ValidityPeriod", HFILL }},
     { &hf_lppe_proprietaryRequestParameters,
@@ -15427,7 +16916,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_CivicAddressElementList", HFILL }},
     { &hf_lppe_OMA_LPPe_CivicAddressElementList_item,
-      { "OMA-LPPe-CivicAddressElement", "lppe.OMA_LPPe_CivicAddressElement",
+      { "OMA-LPPe-CivicAddressElement", "lppe.OMA_LPPe_CivicAddressElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_caType,
@@ -15446,6 +16935,90 @@ void proto_register_lppe(void) {
       { "durationLSB", "lppe.durationLSB",
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_89", HFILL }},
+    { &hf_lppe_altitudeModel,
+      { "altitudeModel", "lppe.altitudeModel_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_AltitudeModel", HFILL }},
+    { &hf_lppe_buildingsProfileModel,
+      { "buildingsProfileModel", "lppe.buildingsProfileModel_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_BuildingsHeightModel", HFILL }},
+    { &hf_lppe_northWestCorner,
+      { "northWestCorner", "lppe.northWestCorner_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "Ellipsoid_Point", HFILL }},
+    { &hf_lppe_northwestCornerAltitude,
+      { "northwestCornerAltitude", "lppe.northwestCornerAltitude",
+        FT_INT32, BASE_DEC, NULL, 0,
+        "INTEGER_M500_9000", HFILL }},
+    { &hf_lppe_nrows,
+      { "nrows", "lppe.nrows",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_2_1012", HFILL }},
+    { &hf_lppe_ncols,
+      { "ncols", "lppe.ncols",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_2_1012", HFILL }},
+    { &hf_lppe_spanX,
+      { "spanX", "lppe.spanX",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_6_14", HFILL }},
+    { &hf_lppe_spanY,
+      { "spanY", "lppe.spanY",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_6_14", HFILL }},
+    { &hf_lppe_deltaAltUnits,
+      { "deltaAltUnits", "lppe.deltaAltUnits",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_1_128", HFILL }},
+    { &hf_lppe_altitudeGrid,
+      { "altitudeGrid", "lppe.altitudeGrid",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "SEQUENCE_SIZE_1_10000_OF_DeltaAltitudes", HFILL }},
+    { &hf_lppe_altitudeGrid_item,
+      { "DeltaAltitudes", "lppe.DeltaAltitudes_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_northwestCornerHeigth,
+      { "northwestCornerHeigth", "lppe.northwestCornerHeigth",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_500", HFILL }},
+    { &hf_lppe_deltaHeigthUnits,
+      { "deltaHeigthUnits", "lppe.deltaHeigthUnits",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_1_16", HFILL }},
+    { &hf_lppe_buildingsHeigthGrid,
+      { "buildingsHeigthGrid", "lppe.buildingsHeigthGrid",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "SEQUENCE_SIZE_1_10000_OF_DeltaHeight", HFILL }},
+    { &hf_lppe_buildingsHeigthGrid_item,
+      { "DeltaHeight", "lppe.DeltaHeight_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_deltaAlt,
+      { "deltaAlt", "lppe.deltaAlt",
+        FT_INT32, BASE_DEC, NULL, 0,
+        "INTEGER_M15_16", HFILL }},
+    { &hf_lppe_numGridPoints,
+      { "numGridPoints", "lppe.numGridPoints",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_255", HFILL }},
+    { &hf_lppe_deltaHeight,
+      { "deltaHeight", "lppe.deltaHeight",
+        FT_INT32, BASE_DEC, NULL, 0,
+        "INTEGER_M15_16", HFILL }},
+    { &hf_lppe_eUTRA,
+      { "eUTRA", "lppe.eUTRA_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "CellGlobalIdEUTRA_AndUTRA", HFILL }},
+    { &hf_lppe_uTRA,
+      { "uTRA", "lppe.uTRA_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "CellGlobalIdEUTRA_AndUTRA", HFILL }},
+    { &hf_lppe_gSM,
+      { "gSM", "lppe.gSM_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "CellGlobalIdGERAN", HFILL }},
     { &hf_lppe_latitude,
       { "latitude", "lppe.latitude",
         FT_INT32, BASE_DEC, NULL, 0,
@@ -15487,7 +17060,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_99", HFILL }},
     { &hf_lppe_enu_origin,
-      { "enu-origin", "lppe.enu_origin",
+      { "enu-origin", "lppe.enu_origin_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_HighAccuracy3Dposition", HFILL }},
     { &hf_lppe_east_component,
@@ -15495,7 +17068,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_511", HFILL }},
     { &hf_lppe_negative_sign_east,
-      { "negative-sign-east", "lppe.negative_sign_east",
+      { "negative-sign-east", "lppe.negative_sign_east_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_north_component,
@@ -15503,7 +17076,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_511", HFILL }},
     { &hf_lppe_negative_sign_north,
-      { "negative-sign-north", "lppe.negative_sign_north",
+      { "negative-sign-north", "lppe.negative_sign_north_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_up_component,
@@ -15511,7 +17084,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_511", HFILL }},
     { &hf_lppe_negative_sign_up,
-      { "negative-sign-up", "lppe.negative_sign_up",
+      { "negative-sign-up", "lppe.negative_sign_up_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_uncertainty_up_component,
@@ -15531,11 +17104,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_LocationInformationContainerDataList", HFILL }},
     { &hf_lppe_OMA_LPPe_LocationInformationContainerDataList_item,
-      { "OMA-LPPe-LocationInformationContainerData", "lppe.OMA_LPPe_LocationInformationContainerData",
+      { "OMA-LPPe-LocationInformationContainerData", "lppe.OMA_LPPe_LocationInformationContainerData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_containerID_01,
-      { "containerID", "lppe.containerID",
+      { "containerID", "lppe.containerID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_LocationInformationContainerID", HFILL }},
     { &hf_lppe_containerData,
@@ -15547,7 +17120,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_LocationInformationContainerRequestList", HFILL }},
     { &hf_lppe_OMA_LPPe_LocationInformationContainerRequestList_item,
-      { "OMA-LPPe-LocationInformationContainerRequestItem", "lppe.OMA_LPPe_LocationInformationContainerRequestItem",
+      { "OMA-LPPe-LocationInformationContainerRequestItem", "lppe.OMA_LPPe_LocationInformationContainerRequestItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_additionalInformation,
@@ -15555,7 +17128,7 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_lppe_dataID,
-      { "dataID", "lppe.dataID",
+      { "dataID", "lppe.dataID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AssistanceContainerID", HFILL }},
     { &hf_lppe_mapReference,
@@ -15567,7 +17140,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_5000", HFILL }},
     { &hf_lppe_eulerAngles,
-      { "eulerAngles", "lppe.eulerAngles",
+      { "eulerAngles", "lppe.eulerAngles_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_alpha,
@@ -15583,7 +17156,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_359", HFILL }},
     { &hf_lppe_referencePointUniqueID,
-      { "referencePointUniqueID", "lppe.referencePointUniqueID",
+      { "referencePointUniqueID", "lppe.referencePointUniqueID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ReferencePointUniqueID", HFILL }},
     { &hf_lppe_referencePointGeographicLocation,
@@ -15591,19 +17164,19 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_referencePointGeographicLocation_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_location3D,
-      { "location3D", "lppe.location3D",
+      { "location3D", "lppe.location3D_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EllipsoidPointWithAltitude", HFILL }},
     { &hf_lppe_location3DwithUncertainty,
-      { "location3DwithUncertainty", "lppe.location3DwithUncertainty",
+      { "location3DwithUncertainty", "lppe.location3DwithUncertainty_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EllipsoidPointWithAltitudeAndUncertaintyEllipsoid", HFILL }},
     { &hf_lppe_locationwithhighaccuracy,
-      { "locationwithhighaccuracy", "lppe.locationwithhighaccuracy",
+      { "locationwithhighaccuracy", "lppe.locationwithhighaccuracy_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_HighAccuracy3Dposition", HFILL }},
     { &hf_lppe_referencePointCivicLocation,
-      { "referencePointCivicLocation", "lppe.referencePointCivicLocation",
+      { "referencePointCivicLocation", "lppe.referencePointCivicLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_CivicLocation", HFILL }},
     { &hf_lppe_referencePointFloorLevel,
@@ -15615,7 +17188,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_8_OF_OMA_LPPe_ReferencePointRelationship", HFILL }},
     { &hf_lppe_relatedReferencePoints_item,
-      { "OMA-LPPe-ReferencePointRelationship", "lppe.OMA_LPPe_ReferencePointRelationship",
+      { "OMA-LPPe-ReferencePointRelationship", "lppe.OMA_LPPe_ReferencePointRelationship_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_mapDataInformation,
@@ -15623,7 +17196,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_MapDataInformation", HFILL }},
     { &hf_lppe_OMA_LPPe_MapDataInformation_item,
-      { "OMA-LPPe-MapDataReferenceElement", "lppe.OMA_LPPe_MapDataReferenceElement",
+      { "OMA-LPPe-MapDataReferenceElement", "lppe.OMA_LPPe_MapDataReferenceElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_mapDataUrl,
@@ -15635,7 +17208,7 @@ void proto_register_lppe(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "OMA_LPPe_Uri", HFILL }},
     { &hf_lppe_mapDataRef,
-      { "mapDataRef", "lppe.mapDataRef",
+      { "mapDataRef", "lppe.mapDataRef_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_MapDataReference", HFILL }},
     { &hf_lppe_mapProvider,
@@ -15643,7 +17216,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_mapProvider_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_sameAsRefPointProvider,
-      { "sameAsRefPointProvider", "lppe.sameAsRefPointProvider",
+      { "sameAsRefPointProvider", "lppe.sameAsRefPointProvider_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_notSameAsRefPointProvider,
@@ -15655,7 +17228,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_mapAssociation_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_referencePointUniqueID_01,
-      { "referencePointUniqueID", "lppe.referencePointUniqueID",
+      { "referencePointUniqueID", "lppe.referencePointUniqueID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_otherID,
@@ -15663,11 +17236,11 @@ void proto_register_lppe(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "VisibleString_SIZE_1_64", HFILL }},
     { &hf_lppe_mapOffset,
-      { "mapOffset", "lppe.mapOffset",
+      { "mapOffset", "lppe.mapOffset_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RelativeLocation", HFILL }},
     { &hf_lppe_origin,
-      { "origin", "lppe.origin",
+      { "origin", "lppe.origin_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_mapHorizontalOrientation,
@@ -15675,7 +17248,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_359", HFILL }},
     { &hf_lppe_relativeLocation,
-      { "relativeLocation", "lppe.relativeLocation",
+      { "relativeLocation", "lppe.relativeLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RelativeLocation", HFILL }},
     { &hf_lppe_providerID,
@@ -15707,11 +17280,11 @@ void proto_register_lppe(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M524288_524287", HFILL }},
     { &hf_lppe_relativeAltitude,
-      { "relativeAltitude", "lppe.relativeAltitude",
+      { "relativeAltitude", "lppe.relativeAltitude_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RelativeAltitude", HFILL }},
     { &hf_lppe_horizontalUncertainty,
-      { "horizontalUncertainty", "lppe.horizontalUncertainty",
+      { "horizontalUncertainty", "lppe.horizontalUncertainty_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_HorizontalUncertaintyAndConfidence", HFILL }},
     { &hf_lppe_uncShape,
@@ -15723,7 +17296,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_127", HFILL }},
     { &hf_lppe_ellipse,
-      { "ellipse", "lppe.ellipse",
+      { "ellipse", "lppe.ellipse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_semimajor,
@@ -15743,11 +17316,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_99", HFILL }},
     { &hf_lppe_geodeticRelativeAltitude,
-      { "geodeticRelativeAltitude", "lppe.geodeticRelativeAltitude",
+      { "geodeticRelativeAltitude", "lppe.geodeticRelativeAltitude_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_GeodeticRelativeAltitude", HFILL }},
     { &hf_lppe_civicRelativeAltitude,
-      { "civicRelativeAltitude", "lppe.civicRelativeAltitude",
+      { "civicRelativeAltitude", "lppe.civicRelativeAltitude_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_CivicRelativeAltitude", HFILL }},
     { &hf_lppe_geodetic_height_depth,
@@ -15755,7 +17328,7 @@ void proto_register_lppe(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M32768_32767", HFILL }},
     { &hf_lppe_geodetic_uncertainty_and_confidence,
-      { "geodetic-uncertainty-and-confidence", "lppe.geodetic_uncertainty_and_confidence",
+      { "geodetic-uncertainty-and-confidence", "lppe.geodetic_uncertainty_and_confidence_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_GeodeticUncertaintyAndConfidence", HFILL }},
     { &hf_lppe_uncertainty,
@@ -15767,7 +17340,7 @@ void proto_register_lppe(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M255_256", HFILL }},
     { &hf_lppe_civic_uncertainty_and_confidence,
-      { "civic-uncertainty-and-confidence", "lppe.civic_uncertainty_and_confidence",
+      { "civic-uncertainty-and-confidence", "lppe.civic_uncertainty_and_confidence_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_CivicUncertaintyAndConfidence", HFILL }},
     { &hf_lppe_provider_ID,
@@ -15782,6 +17355,146 @@ void proto_register_lppe(void) {
       { "session-ID", "lppe.session_ID",
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING_SIZE_4", HFILL }},
+    { &hf_lppe_standardSystemID,
+      { "standardSystemID", "lppe.standardSystemID",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_1_16", HFILL }},
+    { &hf_lppe_proprietarySystemID,
+      { "proprietarySystemID", "lppe.proprietarySystemID_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_vendorOrOperator,
+      { "vendorOrOperator", "lppe.vendorOrOperator",
+        FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_VendorOrOperatorID_vals), 0,
+        "OMA_LPPe_VendorOrOperatorID", HFILL }},
+    { &hf_lppe_proprietarySystemID_01,
+      { "proprietarySystemID", "lppe.proprietarySystemID",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_1_16", HFILL }},
+    { &hf_lppe_lppLabels,
+      { "lppLabels", "lppe.lppLabels",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "SEQUENCE_SIZE_1_maxLPPLabelSets_OF_OMA_LPPe_ver1_1_LabelSet", HFILL }},
+    { &hf_lppe_lppLabels_item,
+      { "OMA-LPPe-ver1-1-LabelSet", "lppe.OMA_LPPe_ver1_1_LabelSet_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_lppeLabels,
+      { "lppeLabels", "lppe.lppeLabels",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "SEQUENCE_SIZE_1_maxLPPeLabelSets_OF_OMA_LPPe_ver1_1_LabelSet", HFILL }},
+    { &hf_lppe_lppeLabels_item,
+      { "OMA-LPPe-ver1-1-LabelSet", "lppe.OMA_LPPe_ver1_1_LabelSet_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_level1_element,
+      { "level1-element", "lppe.level1_element_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_level1_element_value,
+      { "level1-element-value", "lppe.level1_element_value",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_1_maxLevel1_element", HFILL }},
+    { &hf_lppe_level2_element,
+      { "level2-element", "lppe.level2_element_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_level2_element_value,
+      { "level2-element-value", "lppe.level2_element_value",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_1_maxLevel2_element", HFILL }},
+    { &hf_lppe_level3_element,
+      { "level3-element", "lppe.level3_element_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_level3_element_value,
+      { "level3-element-value", "lppe.level3_element_value",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_1_maxLevel3_element", HFILL }},
+    { &hf_lppe_lastElements,
+      { "lastElements", "lppe.lastElements",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        "BIT_STRING_SIZE_1_maxFinal_element", HFILL }},
+    { &hf_lppe_additionalElements,
+      { "additionalElements", "lppe.additionalElements",
+        FT_UINT32, BASE_DEC, VALS(lppe_T_additionalElements_vals), 0,
+        NULL, HFILL }},
+    { &hf_lppe_gSMAccess,
+      { "gSMAccess", "lppe.gSMAccess_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_MCC_MNC", HFILL }},
+    { &hf_lppe_wCDMAAccess,
+      { "wCDMAAccess", "lppe.wCDMAAccess_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_MCC_MNC", HFILL }},
+    { &hf_lppe_lTEAccess,
+      { "lTEAccess", "lppe.lTEAccess_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_MCC_MNC", HFILL }},
+    { &hf_lppe_wiMaxAccess,
+      { "wiMaxAccess", "lppe.wiMaxAccess_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_BSID", HFILL }},
+    { &hf_lppe_wLANAccess,
+      { "wLANAccess", "lppe.wLANAccess_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_WLAN_AP_ID", HFILL }},
+    { &hf_lppe_mcc,
+      { "mcc", "lppe.mcc",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_mcc_item,
+      { "mcc item", "lppe.mcc_item",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_9", HFILL }},
+    { &hf_lppe_mnc,
+      { "mnc", "lppe.mnc",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_mnc_item,
+      { "mnc item", "lppe.mnc_item",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_9", HFILL }},
+    { &hf_lppe_bsID_MSB,
+      { "bsID-MSB", "lppe.bsID_MSB",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        "BIT_STRING_SIZE_24", HFILL }},
+    { &hf_lppe_bsID_LSB,
+      { "bsID-LSB", "lppe.bsID_LSB",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        "BIT_STRING_SIZE_24", HFILL }},
+    { &hf_lppe_authenticationSetID,
+      { "authenticationSetID", "lppe.authenticationSetID",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "OMA_LPPe_ver1_1_AuthenticationSetID", HFILL }},
+    { &hf_lppe_rsaPublicKey,
+      { "rsaPublicKey", "lppe.rsaPublicKey_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_modulus,
+      { "modulus", "lppe.modulus",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        "BIT_STRING_SIZE_2048", HFILL }},
+    { &hf_lppe_exponent,
+      { "exponent", "lppe.exponent",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        "BIT_STRING_SIZE_2_2048", HFILL }},
+    { &hf_lppe_saltLength,
+      { "saltLength", "lppe.saltLength",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_32", HFILL }},
+    { &hf_lppe_cipherSetID,
+      { "cipherSetID", "lppe.cipherSetID",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "OMA_LPPe_ver1_1_CipherSetID", HFILL }},
+    { &hf_lppe_cipherKey,
+      { "cipherKey", "lppe.cipherKey",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        "BIT_STRING_SIZE_128", HFILL }},
+    { &hf_lppe_c0,
+      { "c0", "lppe.c0",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        "BIT_STRING_SIZE_1_128", HFILL }},
     { &hf_lppe_regionSizeInv,
       { "regionSizeInv", "lppe.regionSizeInv",
         FT_UINT32, BASE_DEC, NULL, 0,
@@ -15807,7 +17520,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_255", HFILL }},
     { &hf_lppe_beginTime,
-      { "beginTime", "lppe.beginTime",
+      { "beginTime", "lppe.beginTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SystemTime", HFILL }},
     { &hf_lppe_beginTimeAlt,
@@ -15819,7 +17532,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_2881", HFILL }},
     { &hf_lppe_assistanceDataID,
-      { "assistanceDataID", "lppe.assistanceDataID",
+      { "assistanceDataID", "lppe.assistanceDataID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AssistanceContainerID", HFILL }},
     { &hf_lppe_standard_VendorOrOperatorID,
@@ -15827,7 +17540,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_1024", HFILL }},
     { &hf_lppe_nonStandard_VendorOrOperatorID,
-      { "nonStandard-VendorOrOperatorID", "lppe.nonStandard_VendorOrOperatorID",
+      { "nonStandard-VendorOrOperatorID", "lppe.nonStandard_VendorOrOperatorID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_NonStandard_VendorOrOperatorID", HFILL }},
     { &hf_lppe_encodedID,
@@ -15855,11 +17568,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_16_OF_OMA_LPPe_WLANFemtoCoverageAreaElement", HFILL }},
     { &hf_lppe_componentList_item,
-      { "OMA-LPPe-WLANFemtoCoverageAreaElement", "lppe.OMA_LPPe_WLANFemtoCoverageAreaElement",
+      { "OMA-LPPe-WLANFemtoCoverageAreaElement", "lppe.OMA_LPPe_WLANFemtoCoverageAreaElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_refPointAndArea,
-      { "refPointAndArea", "lppe.refPointAndArea",
+      { "refPointAndArea", "lppe.refPointAndArea_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_referenceLocation,
@@ -15867,11 +17580,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_referenceLocation_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_referencePoint,
-      { "referencePoint", "lppe.referencePoint",
+      { "referencePoint", "lppe.referencePoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ReferencePointUniqueID", HFILL }},
     { &hf_lppe_locationAndArea,
-      { "locationAndArea", "lppe.locationAndArea",
+      { "locationAndArea", "lppe.locationAndArea_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RelativeLocation", HFILL }},
     { &hf_lppe_type,
@@ -15883,45 +17596,53 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_100", HFILL }},
     { &hf_lppe_iP_Address_RequestCapabilities,
-      { "iP-Address-RequestCapabilities", "lppe.iP_Address_RequestCapabilities",
+      { "iP-Address-RequestCapabilities", "lppe.iP_Address_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_IP_Address_RequestCapabilities", HFILL }},
     { &hf_lppe_assistanceContainerSupportReq,
-      { "assistanceContainerSupportReq", "lppe.assistanceContainerSupportReq",
+      { "assistanceContainerSupportReq", "lppe.assistanceContainerSupportReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AssistanceContainerSupportReq", HFILL }},
     { &hf_lppe_locationInformationContainerSupportReq,
-      { "locationInformationContainerSupportReq", "lppe.locationInformationContainerSupportReq",
+      { "locationInformationContainerSupportReq", "lppe.locationInformationContainerSupportReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_LocationInformationContainerSupportReq", HFILL }},
     { &hf_lppe_relativeLocationChange_RequestCapabilities,
-      { "relativeLocationChange-RequestCapabilities", "lppe.relativeLocationChange_RequestCapabilities",
+      { "relativeLocationChange-RequestCapabilities", "lppe.relativeLocationChange_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RelativeLocationChange_RequestCapabilities", HFILL }},
     { &hf_lppe_highAccuracyFormatCapabilitiesReq,
-      { "highAccuracyFormatCapabilitiesReq", "lppe.highAccuracyFormatCapabilitiesReq",
+      { "highAccuracyFormatCapabilitiesReq", "lppe.highAccuracyFormatCapabilitiesReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_HighAccuracyFormatCapabilitiesReq", HFILL }},
     { &hf_lppe_segmentedAssistanceData_ReqCapabilities,
-      { "segmentedAssistanceData-ReqCapabilities", "lppe.segmentedAssistanceData_ReqCapabilities",
+      { "segmentedAssistanceData-ReqCapabilities", "lppe.segmentedAssistanceData_ReqCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SegmentedAssistanceData_ReqCapabilities", HFILL }},
     { &hf_lppe_referencePointCapabilitiesReq,
-      { "referencePointCapabilitiesReq", "lppe.referencePointCapabilitiesReq",
+      { "referencePointCapabilitiesReq", "lppe.referencePointCapabilitiesReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ReferencePointCapabilitiesReq", HFILL }},
     { &hf_lppe_scheduledLocation_RequestCapabilities,
-      { "scheduledLocation-RequestCapabilities", "lppe.scheduledLocation_RequestCapabilities",
+      { "scheduledLocation-RequestCapabilities", "lppe.scheduledLocation_RequestCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ScheduledLocation_RequestCapabilities", HFILL }},
     { &hf_lppe_accessCapabilitiesReq,
-      { "accessCapabilitiesReq", "lppe.accessCapabilitiesReq",
+      { "accessCapabilitiesReq", "lppe.accessCapabilitiesReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AccessCapabilitiesReq", HFILL }},
     { &hf_lppe_segmentedLocationInformation_ReqCapabilities,
-      { "segmentedLocationInformation-ReqCapabilities", "lppe.segmentedLocationInformation_ReqCapabilities",
+      { "segmentedLocationInformation-ReqCapabilities", "lppe.segmentedLocationInformation_ReqCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SegmentedLocationInformation_ReqCapabilities", HFILL }},
+    { &hf_lppe_ver1_1_localCellInformation_ReqCapabilities,
+      { "ver1-1-localCellInformation-ReqCapabilities", "lppe.ver1_1_localCellInformation_ReqCapabilities_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_localCellInformation_ReqCapabilities", HFILL }},
+    { &hf_lppe_ver1_1_broadcast_ReqCapabilities,
+      { "ver1-1-broadcast-ReqCapabilities", "lppe.ver1_1_broadcast_ReqCapabilities_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_broadcast_ReqCapabilities", HFILL }},
     { &hf_lppe_vendorOrOperatorIDList,
       { "vendorOrOperatorIDList", "lppe.vendorOrOperatorIDList",
         FT_UINT32, BASE_DEC, NULL, 0,
@@ -15938,8 +17659,16 @@ void proto_register_lppe(void) {
       { "OMA-LPPe-VendorOrOperatorID", "lppe.OMA_LPPe_VendorOrOperatorID",
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_VendorOrOperatorID_vals), 0,
         NULL, HFILL }},
+    { &hf_lppe_broadcastSystems,
+      { "broadcastSystems", "lppe.broadcastSystems",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_BroadcastSystemID", HFILL }},
+    { &hf_lppe_broadcastSystems_item,
+      { "OMA-LPPe-ver1-1-BroadcastSystemID", "lppe.OMA_LPPe_ver1_1_BroadcastSystemID",
+        FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_ver1_1_BroadcastSystemID_vals), 0,
+        NULL, HFILL }},
     { &hf_lppe_iP_Address_Capabilities,
-      { "iP-Address-Capabilities", "lppe.iP_Address_Capabilities",
+      { "iP-Address-Capabilities", "lppe.iP_Address_Capabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_IP_Address_Capabilities", HFILL }},
     { &hf_lppe_assistanceContainerSupport,
@@ -15951,7 +17680,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_LocationInformationContainerSupport", HFILL }},
     { &hf_lppe_relativeLocationChange_Capabilities,
-      { "relativeLocationChange-Capabilities", "lppe.relativeLocationChange_Capabilities",
+      { "relativeLocationChange-Capabilities", "lppe.relativeLocationChange_Capabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RelativeLocationChange_Capabilities", HFILL }},
     { &hf_lppe_highAccuracyFormatCapabilities,
@@ -15959,31 +17688,39 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OMA_LPPe_HighAccuracyFormatCapabilities", HFILL }},
     { &hf_lppe_segmentedAssistanceData_ProvideCapabs,
-      { "segmentedAssistanceData-ProvideCapabs", "lppe.segmentedAssistanceData_ProvideCapabs",
+      { "segmentedAssistanceData-ProvideCapabs", "lppe.segmentedAssistanceData_ProvideCapabs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SegmentedAssistanceData_ProvideCapabs", HFILL }},
     { &hf_lppe_referencePointCapabilities,
-      { "referencePointCapabilities", "lppe.referencePointCapabilities",
+      { "referencePointCapabilities", "lppe.referencePointCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ReferencePointCapabilities", HFILL }},
     { &hf_lppe_scheduledLocation_Capabilities,
-      { "scheduledLocation-Capabilities", "lppe.scheduledLocation_Capabilities",
+      { "scheduledLocation-Capabilities", "lppe.scheduledLocation_Capabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ScheduledLocation_Capabilities", HFILL }},
     { &hf_lppe_accessCapabilities,
-      { "accessCapabilities", "lppe.accessCapabilities",
+      { "accessCapabilities", "lppe.accessCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AccessCapabilities", HFILL }},
     { &hf_lppe_segmentedLocationInformation_ProvideCapabs,
-      { "segmentedLocationInformation-ProvideCapabs", "lppe.segmentedLocationInformation_ProvideCapabs",
+      { "segmentedLocationInformation-ProvideCapabs", "lppe.segmentedLocationInformation_ProvideCapabs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SegmentedLocationInformation_ProvideCapabs", HFILL }},
+    { &hf_lppe_ver1_1_localCellInformation_ProvideCapabilities,
+      { "ver1-1-localCellInformation-ProvideCapabilities", "lppe.ver1_1_localCellInformation_ProvideCapabilities_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_localCellInformation_ProvideCapabilities", HFILL }},
+    { &hf_lppe_ver1_1_broadcast_ProvideCapabilities,
+      { "ver1-1-broadcast-ProvideCapabilities", "lppe.ver1_1_broadcast_ProvideCapabilities",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "OMA_LPPe_ver1_1_broadcast_ProvideCapabilities", HFILL }},
     { &hf_lppe_iP_Address_support,
       { "iP-Address-support", "lppe.iP_Address_support",
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_OMA_LPPe_AssistanceContainerSupport_item,
-      { "OMA-LPPe-VendorOrOperatorAssistanceContainerList", "lppe.OMA_LPPe_VendorOrOperatorAssistanceContainerList",
+      { "OMA-LPPe-VendorOrOperatorAssistanceContainerList", "lppe.OMA_LPPe_VendorOrOperatorAssistanceContainerList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_assistanceContainerList,
@@ -15991,11 +17728,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_AssistanceContainerList", HFILL }},
     { &hf_lppe_OMA_LPPe_AssistanceContainerList_item,
-      { "OMA-LPPe-AssistanceContainerID", "lppe.OMA_LPPe_AssistanceContainerID",
+      { "OMA-LPPe-AssistanceContainerID", "lppe.OMA_LPPe_AssistanceContainerID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_OMA_LPPe_LocationInformationContainerSupport_item,
-      { "OMA-LPPe-VendorOrOperatorLocationInformationContainerList", "lppe.OMA_LPPe_VendorOrOperatorLocationInformationContainerList",
+      { "OMA-LPPe-VendorOrOperatorLocationInformationContainerList", "lppe.OMA_LPPe_VendorOrOperatorLocationInformationContainerList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_locationInformationContainerList,
@@ -16003,7 +17740,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_LocationInformationContainerList", HFILL }},
     { &hf_lppe_OMA_LPPe_LocationInformationContainerList_item,
-      { "OMA-LPPe-LocationInformationContainerID", "lppe.OMA_LPPe_LocationInformationContainerID",
+      { "OMA-LPPe-LocationInformationContainerID", "lppe.OMA_LPPe_LocationInformationContainerID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_numberOfChanges,
@@ -16023,7 +17760,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_5000", HFILL }},
     { &hf_lppe_resume,
-      { "resume", "lppe.resume",
+      { "resume", "lppe.resume_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_relativeLocationReportingSupport,
@@ -16035,7 +17772,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_128_OF_OMA_LPPe_ReferencePointProviderSupportElement", HFILL }},
     { &hf_lppe_referencePointProviderSupportList_item,
-      { "OMA-LPPe-ReferencePointProviderSupportElement", "lppe.OMA_LPPe_ReferencePointProviderSupportElement",
+      { "OMA-LPPe-ReferencePointProviderSupportElement", "lppe.OMA_LPPe_ReferencePointProviderSupportElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_referencePointProvider,
@@ -16043,7 +17780,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_VendorOrOperatorID_vals), 0,
         "OMA_LPPe_VendorOrOperatorID", HFILL }},
     { &hf_lppe_mapDataSupport,
-      { "mapDataSupport", "lppe.mapDataSupport",
+      { "mapDataSupport", "lppe.mapDataSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_mapDataFormat,
@@ -16055,7 +17792,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_1024", HFILL }},
     { &hf_lppe_gnssTimeReference,
-      { "gnssTimeReference", "lppe.gnssTimeReference",
+      { "gnssTimeReference", "lppe.gnssTimeReference_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_ID_Bitmap", HFILL }},
     { &hf_lppe_networkTimeReference,
@@ -16063,7 +17800,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_networkTimeReference_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_accessTypeUnknown,
-      { "accessTypeUnknown", "lppe.accessTypeUnknown",
+      { "accessTypeUnknown", "lppe.accessTypeUnknown_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_fixedAccessTypes,
@@ -16074,8 +17811,36 @@ void proto_register_lppe(void) {
       { "wirelessAccessTypes", "lppe.wirelessAccessTypes",
         FT_BYTES, BASE_NONE, NULL, 0,
         "OMA_LPPe_WirelessAccessTypes", HFILL }},
+    { &hf_lppe_localCellInformation_Support,
+      { "localCellInformation-Support", "lppe.localCellInformation_Support",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_OMA_LPPe_ver1_1_broadcast_ProvideCapabilities_item,
+      { "OMA-LPPe-ver1-1-BroadcastSystem-Capabs", "lppe.OMA_LPPe_ver1_1_BroadcastSystem_Capabs_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_broadcastSystemID,
+      { "broadcastSystemID", "lppe.broadcastSystemID",
+        FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_ver1_1_BroadcastSystemID_vals), 0,
+        "OMA_LPPe_ver1_1_BroadcastSystemID", HFILL }},
+    { &hf_lppe_broadcastADTypes,
+      { "broadcastADTypes", "lppe.broadcastADTypes_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_BroadcastADTypes", HFILL }},
+    { &hf_lppe_point2pointAD,
+      { "point2pointAD", "lppe.point2pointAD_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_point2pointAD", HFILL }},
+    { &hf_lppe_ciphering,
+      { "ciphering", "lppe.ciphering_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_Ciphering", HFILL }},
+    { &hf_lppe_authentication,
+      { "authentication", "lppe.authentication_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_Authentication", HFILL }},
     { &hf_lppe_approximate_location,
-      { "approximate-location", "lppe.approximate_location",
+      { "approximate-location", "lppe.approximate_location_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EllipsoidPointWithAltitudeAndUncertaintyEllipsoid", HFILL }},
     { &hf_lppe_assistanceContainerRequestList,
@@ -16083,7 +17848,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_AssistanceContainerRequestList", HFILL }},
     { &hf_lppe_requestPeriodicADwithUpdate,
-      { "requestPeriodicADwithUpdate", "lppe.requestPeriodicADwithUpdate",
+      { "requestPeriodicADwithUpdate", "lppe.requestPeriodicADwithUpdate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RequestPeriodicADwithUpdate", HFILL }},
     { &hf_lppe_segmentedADpreference,
@@ -16091,23 +17856,39 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_segmentedADpreference_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_segmentedADResume,
-      { "segmentedADResume", "lppe.segmentedADResume",
+      { "segmentedADResume", "lppe.segmentedADResume_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SegmentedADResume", HFILL }},
     { &hf_lppe_referencePointAssistanceReq,
-      { "referencePointAssistanceReq", "lppe.referencePointAssistanceReq",
+      { "referencePointAssistanceReq", "lppe.referencePointAssistanceReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ReferencePointAssistanceReq", HFILL }},
+    { &hf_lppe_ver1_1_localCellInformationReq,
+      { "ver1-1-localCellInformationReq", "lppe.ver1_1_localCellInformationReq_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_LocalCellInformationReq", HFILL }},
+    { &hf_lppe_ver1_1_BroadcastAssistanceDataReq,
+      { "ver1-1-BroadcastAssistanceDataReq", "lppe.ver1_1_BroadcastAssistanceDataReq_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_BroadcastAssistanceDataReq", HFILL }},
+    { &hf_lppe_ver1_1_AccessNetwork,
+      { "ver1-1-AccessNetwork", "lppe.ver1_1_AccessNetwork",
+        FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_ver1_1_AccessNetworkID_vals), 0,
+        "OMA_LPPe_ver1_1_AccessNetworkID", HFILL }},
+    { &hf_lppe_ver1_1_groundMorphologyModelReq,
+      { "ver1-1-groundMorphologyModelReq", "lppe.ver1_1_groundMorphologyModelReq_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_GroundMorphologyModelReq", HFILL }},
     { &hf_lppe_periodicAD_session_ID,
       { "periodicAD-session-ID", "lppe.periodicAD_session_ID",
-        FT_UINT32, BASE_DEC, NULL, 0,
-        "INTEGER_1_256", HFILL }},
+        FT_BYTES, BASE_NONE, NULL, 0,
+        "OCTET_STRING_SIZE_4", HFILL }},
     { &hf_lppe_typeOfADRequest,
       { "typeOfADRequest", "lppe.typeOfADRequest",
         FT_UINT32, BASE_DEC, VALS(lppe_TypeOfADRequest_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_segmentedAD_session_ID,
-      { "segmentedAD-session-ID", "lppe.segmentedAD_session_ID",
+      { "segmentedAD-session-ID", "lppe.segmentedAD_session_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_Session_ID", HFILL }},
     { &hf_lppe_next_segment_number,
@@ -16119,29 +17900,81 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ReferencePointAssistanceReqElement", HFILL }},
     { &hf_lppe_referencePointReq_item,
-      { "OMA-LPPe-ReferencePointAssistanceReqElement", "lppe.OMA_LPPe_ReferencePointAssistanceReqElement",
+      { "OMA-LPPe-ReferencePointAssistanceReqElement", "lppe.OMA_LPPe_ReferencePointAssistanceReqElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_mapDataReq,
       { "mapDataReq", "lppe.mapDataReq",
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
+    { &hf_lppe_modelsReq,
+      { "modelsReq", "lppe.modelsReq",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_refAreaParam,
+      { "refAreaParam", "lppe.refAreaParam_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_localCellInformationReq,
+      { "localCellInformationReq", "lppe.localCellInformationReq",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_localCellID,
+      { "localCellID", "lppe.localCellID",
+        FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_ver1_1_CellGlobalID_vals), 0,
+        "OMA_LPPe_ver1_1_CellGlobalID", HFILL }},
+    { &hf_lppe_numberOfCells,
+      { "numberOfCells", "lppe.numberOfCells",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_7", HFILL }},
+    { &hf_lppe_broadcastSystem,
+      { "broadcastSystem", "lppe.broadcastSystem_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_BroadcastSystem", HFILL }},
+    { &hf_lppe_cipherSets,
+      { "cipherSets", "lppe.cipherSets",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSetID", HFILL }},
+    { &hf_lppe_cipherSets_item,
+      { "OMA-LPPe-ver1-1-CipherSetID", "lppe.OMA_LPPe_ver1_1_CipherSetID",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_authenticationSets,
+      { "authenticationSets", "lppe.authenticationSets",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSetID", HFILL }},
+    { &hf_lppe_authenticationSets_item,
+      { "OMA-LPPe-ver1-1-AuthenticationSetID", "lppe.OMA_LPPe_ver1_1_AuthenticationSetID",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
     { &hf_lppe_assistanceContainerList_01,
       { "assistanceContainerList", "lppe.assistanceContainerList",
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_AssistanceContainerProvideList", HFILL }},
     { &hf_lppe_providePeriodicADwithUpdate,
-      { "providePeriodicADwithUpdate", "lppe.providePeriodicADwithUpdate",
+      { "providePeriodicADwithUpdate", "lppe.providePeriodicADwithUpdate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ProvidePeriodicADwithUpdate", HFILL }},
     { &hf_lppe_segmentedADTransfer,
-      { "segmentedADTransfer", "lppe.segmentedADTransfer",
+      { "segmentedADTransfer", "lppe.segmentedADTransfer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SegmentedADTransfer", HFILL }},
     { &hf_lppe_default_reference_point,
-      { "default-reference-point", "lppe.default_reference_point",
+      { "default-reference-point", "lppe.default_reference_point_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ReferencePoint", HFILL }},
+    { &hf_lppe_ver1_1_localCellInformation,
+      { "ver1-1-localCellInformation", "lppe.ver1_1_localCellInformation_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_LocalCellInformation", HFILL }},
+    { &hf_lppe_ver1_1_BroadcastAssistanceData,
+      { "ver1-1-BroadcastAssistanceData", "lppe.ver1_1_BroadcastAssistanceData_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_BroadcastAssistanceData", HFILL }},
+    { &hf_lppe_ver1_1_groundMorphologyModel,
+      { "ver1-1-groundMorphologyModel", "lppe.ver1_1_groundMorphologyModel_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_GroundMorphologyModel", HFILL }},
     { &hf_lppe_typeOfADProvide,
       { "typeOfADProvide", "lppe.typeOfADProvide",
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_TypeOfADProvide_vals), 0,
@@ -16150,32 +17983,128 @@ void proto_register_lppe(void) {
       { "segment-number", "lppe.segment_number",
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_4096", HFILL }},
+    { &hf_lppe_ver1_1_timingInformation,
+      { "ver1-1-timingInformation", "lppe.ver1_1_timingInformation",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "SEQUENCE_SIZE_1_maxCellSets_OF_GNSS_ReferenceTime", HFILL }},
+    { &hf_lppe_ver1_1_timingInformation_item,
+      { "GNSS-ReferenceTime", "lppe.GNSS_ReferenceTime_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_ver1_1_other_CellInformation,
+      { "ver1-1-other-CellInformation", "lppe.ver1_1_other_CellInformation",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "SEQUENCE_SIZE_1_maxCells_OF_OMA_LPPe_ver1_1_CellInformation", HFILL }},
+    { &hf_lppe_ver1_1_other_CellInformation_item,
+      { "OMA-LPPe-ver1-1-CellInformation", "lppe.OMA_LPPe_ver1_1_CellInformation_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_cellID,
+      { "cellID", "lppe.cellID",
+        FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_ver1_1_CellGlobalID_vals), 0,
+        "OMA_LPPe_ver1_1_CellGlobalID", HFILL }},
+    { &hf_lppe_coverage,
+      { "coverage", "lppe.coverage",
+        FT_UINT32, BASE_DEC, VALS(lppe_T_coverage_vals), 0,
+        NULL, HFILL }},
+    { &hf_lppe_circle_01,
+      { "circle", "lppe.circle_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "Ellipsoid_PointWithUncertaintyCircle", HFILL }},
+    { &hf_lppe_ellipse_01,
+      { "ellipse", "lppe.ellipse_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "EllipsoidPointWithUncertaintyEllipse", HFILL }},
+    { &hf_lppe_arc,
+      { "arc", "lppe.arc_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "EllipsoidArc", HFILL }},
+    { &hf_lppe_polygon,
+      { "polygon", "lppe.polygon",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_coordinates,
+      { "coordinates", "lppe.coordinates_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "EllipsoidPointWithAltitudeAndUncertaintyEllipsoid", HFILL }},
+    { &hf_lppe_frequencyAccuracy,
+      { "frequencyAccuracy", "lppe.frequencyAccuracy",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_1_6", HFILL }},
+    { &hf_lppe_broadcastSystem_01,
+      { "broadcastSystem", "lppe.broadcastSystem",
+        FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_ver1_1_BroadcastSystemID_vals), 0,
+        "OMA_LPPe_ver1_1_BroadcastSystemID", HFILL }},
+    { &hf_lppe_accessNetworks,
+      { "accessNetworks", "lppe.accessNetworks",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_AccessNetworkID", HFILL }},
+    { &hf_lppe_accessNetworks_item,
+      { "OMA-LPPe-ver1-1-AccessNetworkID", "lppe.OMA_LPPe_ver1_1_AccessNetworkID",
+        FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_ver1_1_AccessNetworkID_vals), 0,
+        NULL, HFILL }},
+    { &hf_lppe_coverageArea,
+      { "coverageArea", "lppe.coverageArea",
+        FT_UINT32, BASE_DEC, VALS(lppe_T_coverageArea_vals), 0,
+        NULL, HFILL }},
+    { &hf_lppe_broadcastMode,
+      { "broadcastMode", "lppe.broadcastMode",
+        FT_UINT32, BASE_DEC, VALS(lppe_T_broadcastMode_vals), 0,
+        NULL, HFILL }},
+    { &hf_lppe_unencapsulated,
+      { "unencapsulated", "lppe.unencapsulated_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_encapsulated,
+      { "encapsulated", "lppe.encapsulated_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_EncapsulatedMode", HFILL }},
+    { &hf_lppe_serverID,
+      { "serverID", "lppe.serverID_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ver1_1_ServerID", HFILL }},
+    { &hf_lppe_cipherSets_01,
+      { "cipherSets", "lppe.cipherSets",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSet", HFILL }},
+    { &hf_lppe_cipherSets_item_01,
+      { "OMA-LPPe-ver1-1-CipherSet", "lppe.OMA_LPPe_ver1_1_CipherSet_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_authentication_01,
+      { "authentication", "lppe.authentication",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSet", HFILL }},
+    { &hf_lppe_authentication_item,
+      { "OMA-LPPe-ver1-1-AuthenticationSet", "lppe.OMA_LPPe_ver1_1_AuthenticationSet_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
     { &hf_lppe_iP_Address_Request,
-      { "iP-Address-Request", "lppe.iP_Address_Request",
+      { "iP-Address-Request", "lppe.iP_Address_Request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_IP_Address_Request", HFILL }},
     { &hf_lppe_locationInformationContainerRequest,
-      { "locationInformationContainerRequest", "lppe.locationInformationContainerRequest",
+      { "locationInformationContainerRequest", "lppe.locationInformationContainerRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_LocationInformationContainerRequest", HFILL }},
     { &hf_lppe_requestPeriodicLocInfoWithUpdate,
-      { "requestPeriodicLocInfoWithUpdate", "lppe.requestPeriodicLocInfoWithUpdate",
+      { "requestPeriodicLocInfoWithUpdate", "lppe.requestPeriodicLocInfoWithUpdate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RequestPeriodicLocInfoWithUpdate", HFILL }},
     { &hf_lppe_relativeLocationChange_Request,
-      { "relativeLocationChange-Request", "lppe.relativeLocationChange_Request",
+      { "relativeLocationChange-Request", "lppe.relativeLocationChange_Request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RelativeLocationChange_Request", HFILL }},
     { &hf_lppe_localPositionRequest,
-      { "localPositionRequest", "lppe.localPositionRequest",
+      { "localPositionRequest", "lppe.localPositionRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_LocalPositionRequest", HFILL }},
     { &hf_lppe_scheduledLocation_Request,
-      { "scheduledLocation-Request", "lppe.scheduledLocation_Request",
+      { "scheduledLocation-Request", "lppe.scheduledLocation_Request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ScheduledLocation_Request", HFILL }},
     { &hf_lppe_accessTypeRequest,
-      { "accessTypeRequest", "lppe.accessTypeRequest",
+      { "accessTypeRequest", "lppe.accessTypeRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AccessTypeRequest", HFILL }},
     { &hf_lppe_segmentedLIpreference,
@@ -16183,13 +18112,9 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_segmentedLIpreference_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_segmentedLIResume,
-      { "segmentedLIResume", "lppe.segmentedLIResume",
+      { "segmentedLIResume", "lppe.segmentedLIResume_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SegmentedLIResume", HFILL }},
-    { &hf_lppe_session_ID_01,
-      { "session-ID", "lppe.session_ID",
-        FT_UINT32, BASE_DEC, NULL, 0,
-        "INTEGER_1_256", HFILL }},
     { &hf_lppe_typeOfLocInfoRequest,
       { "typeOfLocInfoRequest", "lppe.typeOfLocInfoRequest",
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_TypeOfLocInfoRequest_vals), 0,
@@ -16203,15 +18128,15 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_8_OF_OMA_LPPe_ReferencePointUniqueID", HFILL }},
     { &hf_lppe_referencePointReq_item_01,
-      { "OMA-LPPe-ReferencePointUniqueID", "lppe.OMA_LPPe_ReferencePointUniqueID",
+      { "OMA-LPPe-ReferencePointUniqueID", "lppe.OMA_LPPe_ReferencePointUniqueID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_gnssTime,
-      { "gnssTime", "lppe.gnssTime",
+      { "gnssTime", "lppe.gnssTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SystemTime", HFILL }},
     { &hf_lppe_networkTime,
-      { "networkTime", "lppe.networkTime",
+      { "networkTime", "lppe.networkTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_relativeTime,
@@ -16227,15 +18152,15 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_256", HFILL }},
     { &hf_lppe_highAccuracy3Dposition,
-      { "highAccuracy3Dposition", "lppe.highAccuracy3Dposition",
+      { "highAccuracy3Dposition", "lppe.highAccuracy3Dposition_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_HighAccuracy3Dposition", HFILL }},
     { &hf_lppe_localPosition,
-      { "localPosition", "lppe.localPosition",
+      { "localPosition", "lppe.localPosition_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_LocalPosition", HFILL }},
     { &hf_lppe_highAccuracy3Dvelocity,
-      { "highAccuracy3Dvelocity", "lppe.highAccuracy3Dvelocity",
+      { "highAccuracy3Dvelocity", "lppe.highAccuracy3Dvelocity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_HighAccuracy3Dvelocity", HFILL }},
     { &hf_lppe_iP_Address_List,
@@ -16243,11 +18168,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_IP_Address_List", HFILL }},
     { &hf_lppe_locationInformationContainer,
-      { "locationInformationContainer", "lppe.locationInformationContainer",
+      { "locationInformationContainer", "lppe.locationInformationContainer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_LocationInformationContainer", HFILL }},
     { &hf_lppe_providePeriodicLocInfoWithUpdate,
-      { "providePeriodicLocInfoWithUpdate", "lppe.providePeriodicLocInfoWithUpdate",
+      { "providePeriodicLocInfoWithUpdate", "lppe.providePeriodicLocInfoWithUpdate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ProvidePeriodicLocInfowithUpdate", HFILL }},
     { &hf_lppe_relativeLocationChangeList,
@@ -16255,27 +18180,31 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_RelativeLocationChangeList", HFILL }},
     { &hf_lppe_scheduledLocation,
-      { "scheduledLocation", "lppe.scheduledLocation",
+      { "scheduledLocation", "lppe.scheduledLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ScheduledLocation", HFILL }},
     { &hf_lppe_accessTypes,
-      { "accessTypes", "lppe.accessTypes",
+      { "accessTypes", "lppe.accessTypes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AccessTypes", HFILL }},
     { &hf_lppe_segmentedLITransfer,
-      { "segmentedLITransfer", "lppe.segmentedLITransfer",
+      { "segmentedLITransfer", "lppe.segmentedLITransfer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SegmentedLITransfer", HFILL }},
     { &hf_lppe_locationInformationTimeStamp,
       { "locationInformationTimeStamp", "lppe.locationInformationTimeStamp",
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_TimeStamp_vals), 0,
         "OMA_LPPe_TimeStamp", HFILL }},
+    { &hf_lppe_locationSource,
+      { "locationSource", "lppe.locationSource_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_LocationSource", HFILL }},
     { &hf_lppe_subjectLocation,
-      { "subjectLocation", "lppe.subjectLocation",
+      { "subjectLocation", "lppe.subjectLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RelativeLocation", HFILL }},
     { &hf_lppe_OMA_LPPe_IP_Address_List_item,
-      { "OMA-LPPe-IP-Address", "lppe.OMA_LPPe_IP_Address",
+      { "OMA-LPPe-IP-Address", "lppe.OMA_LPPe_IP_Address_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_local_IP_Address,
@@ -16303,7 +18232,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_TypeOfLocInfoProvide_vals), 0,
         "OMA_LPPe_TypeOfLocInfoProvide", HFILL }},
     { &hf_lppe_OMA_LPPe_RelativeLocationChangeList_item,
-      { "OMA-LPPe-RelativeLocationChange", "lppe.OMA_LPPe_RelativeLocationChange",
+      { "OMA-LPPe-RelativeLocationChange", "lppe.OMA_LPPe_RelativeLocationChange_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_relativeTime_01,
@@ -16319,7 +18248,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_disposition_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_actualWindow,
-      { "actualWindow", "lppe.actualWindow",
+      { "actualWindow", "lppe.actualWindow_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_start,
@@ -16334,16 +18263,56 @@ void proto_register_lppe(void) {
       { "relativeTime", "lppe.relativeTime",
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_1024", HFILL }},
+    { &hf_lppe_agnss,
+      { "agnss", "lppe.agnss_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_otdoa,
+      { "otdoa", "lppe.otdoa_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_eotd,
+      { "eotd", "lppe.eotd_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_otdoaUTRA,
+      { "otdoaUTRA", "lppe.otdoaUTRA_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_ecidLTE,
+      { "ecidLTE", "lppe.ecidLTE_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_ecidGSM,
+      { "ecidGSM", "lppe.ecidGSM_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_ecidUTRA,
+      { "ecidUTRA", "lppe.ecidUTRA_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_wlanAP,
+      { "wlanAP", "lppe.wlanAP_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_srn,
+      { "srn", "lppe.srn_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_sensors,
+      { "sensors", "lppe.sensors_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
     { &hf_lppe_abortCause,
       { "abortCause", "lppe.abortCause",
         FT_UINT32, BASE_DEC, VALS(lppe_T_abortCause_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_periodicSessionIDtoAbort,
       { "periodicSessionIDtoAbort", "lppe.periodicSessionIDtoAbort",
-        FT_UINT32, BASE_DEC, NULL, 0,
-        "INTEGER_1_256", HFILL }},
+        FT_BYTES, BASE_NONE, NULL, 0,
+        "OCTET_STRING_SIZE_4", HFILL }},
     { &hf_lppe_commonAssistData,
-      { "commonAssistData", "lppe.commonAssistData",
+      { "commonAssistData", "lppe.commonAssistData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_CommonAssistData", HFILL }},
     { &hf_lppe_genericAssistData,
@@ -16359,7 +18328,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_AGNSS_IonosphericModel_vals), 0,
         "OMA_LPPe_AGNSS_IonosphericModel", HFILL }},
     { &hf_lppe_troposphereModel,
-      { "troposphereModel", "lppe.troposphereModel",
+      { "troposphereModel", "lppe.troposphereModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_TroposphereModel", HFILL }},
     { &hf_lppe_altitudeAssistance,
@@ -16367,7 +18336,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_AGNSS_AltitudeAssistanceList", HFILL }},
     { &hf_lppe_solarRadiation,
-      { "solarRadiation", "lppe.solarRadiation",
+      { "solarRadiation", "lppe.solarRadiation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_SolarRadiation", HFILL }},
     { &hf_lppe_ccpAssistCommonProvide,
@@ -16375,11 +18344,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_AGNSS_CCPassistCommonProvide_vals), 0,
         "OMA_LPPe_AGNSS_CCPassistCommonProvide", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_GenericAssistData_item,
-      { "OMA-LPPe-AGNSS-GenericAssistDataElement", "lppe.OMA_LPPe_AGNSS_GenericAssistDataElement",
+      { "OMA-LPPe-AGNSS-GenericAssistDataElement", "lppe.OMA_LPPe_AGNSS_GenericAssistDataElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_gnss_ID,
-      { "gnss-ID", "lppe.gnss_ID",
+      { "gnss-ID", "lppe.gnss_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_wideAreaIonoSurfacePerSVlist,
@@ -16403,11 +18372,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_AGNSS_CCPassistGenericProvide", HFILL }},
     { &hf_lppe_navModelList,
-      { "navModelList", "lppe.navModelList",
+      { "navModelList", "lppe.navModelList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModelList", HFILL }},
     { &hf_lppe_staticModels,
-      { "staticModels", "lppe.staticModels",
+      { "staticModels", "lppe.staticModels_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_localKlobucharModelList,
@@ -16415,7 +18384,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_AGNSS_LocalKlobucharModelList", HFILL }},
     { &hf_lppe_ionoStormIndication,
-      { "ionoStormIndication", "lppe.ionoStormIndication",
+      { "ionoStormIndication", "lppe.ionoStormIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_IonoStormIndication", HFILL }},
     { &hf_lppe_waIono,
@@ -16423,15 +18392,15 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_waIono_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_controlParameters,
-      { "controlParameters", "lppe.controlParameters",
+      { "controlParameters", "lppe.controlParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_WideAreaIonoSurfaceControlParametersProvide", HFILL }},
     { &hf_lppe_commonProvide,
-      { "commonProvide", "lppe.commonProvide",
+      { "commonProvide", "lppe.commonProvide_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_WideAreaIonoSurfaceCommon", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_LocalKlobucharModelList_item,
-      { "OMA-LPPe-AGNSS-LocalKlobucharModelElement", "lppe.OMA_LPPe_AGNSS_LocalKlobucharModelElement",
+      { "OMA-LPPe-AGNSS-LocalKlobucharModelElement", "lppe.OMA_LPPe_AGNSS_LocalKlobucharModelElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_klobucharModel,
@@ -16439,7 +18408,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_8_OF_OMA_LPPe_AGNSS_LocalKlobucharModel", HFILL }},
     { &hf_lppe_klobucharModel_item,
-      { "OMA-LPPe-AGNSS-LocalKlobucharModel", "lppe.OMA_LPPe_AGNSS_LocalKlobucharModel",
+      { "OMA-LPPe-AGNSS-LocalKlobucharModel", "lppe.OMA_LPPe_AGNSS_LocalKlobucharModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_alfa0,
@@ -16475,7 +18444,7 @@ void proto_register_lppe(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M128_127", HFILL }},
     { &hf_lppe_area,
-      { "area", "lppe.area",
+      { "area", "lppe.area_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ValidityArea", HFILL }},
     { &hf_lppe_stormList,
@@ -16483,7 +18452,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_AGNSS_StormList", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_StormList_item,
-      { "OMA-LPPe-AGNSS-StormElement", "lppe.OMA_LPPe_AGNSS_StormElement",
+      { "OMA-LPPe-AGNSS-StormElement", "lppe.OMA_LPPe_AGNSS_StormElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_rleListIono,
@@ -16491,7 +18460,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_AGNSS_RleListIono", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_RleListIono_item,
-      { "OMA-LPPe-AGNSS-RleIonoElement", "lppe.OMA_LPPe_AGNSS_RleIonoElement",
+      { "OMA-LPPe-AGNSS-RleIonoElement", "lppe.OMA_LPPe_AGNSS_RleIonoElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_regionCount,
@@ -16507,7 +18476,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_AGNSS_NoaaScales_vals), 0,
         "OMA_LPPe_AGNSS_NoaaScales", HFILL }},
     { &hf_lppe_duration_03,
-      { "duration", "lppe.duration",
+      { "duration", "lppe.duration_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_Duration", HFILL }},
     { &hf_lppe_rate,
@@ -16515,15 +18484,15 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_64", HFILL }},
     { &hf_lppe_referencePosition,
-      { "referencePosition", "lppe.referencePosition",
+      { "referencePosition", "lppe.referencePosition_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ellipsoid_Point", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_WideAreaIonoSurfacePerSVlist_item,
-      { "OMA-LPPe-AGNSS-WideAreaIonoSurfacePerSVelement", "lppe.OMA_LPPe_AGNSS_WideAreaIonoSurfacePerSVelement",
+      { "OMA-LPPe-AGNSS-WideAreaIonoSurfacePerSVelement", "lppe.OMA_LPPe_AGNSS_WideAreaIonoSurfacePerSVelement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_svID,
-      { "svID", "lppe.svID",
+      { "svID", "lppe.svID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SV_ID", HFILL }},
     { &hf_lppe_a0,
@@ -16559,7 +18528,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_AGNSS_LocalSurfaceParametersList", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_LocalTroposphereDelayList_item,
-      { "OMA-LPPe-AGNSS-LocalTroposphereDelayAreaElement", "lppe.OMA_LPPe_AGNSS_LocalTroposphereDelayAreaElement",
+      { "OMA-LPPe-AGNSS-LocalTroposphereDelayAreaElement", "lppe.OMA_LPPe_AGNSS_LocalTroposphereDelayAreaElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_refAltitude,
@@ -16567,7 +18536,7 @@ void proto_register_lppe(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M1000_8192", HFILL }},
     { &hf_lppe_gradientReferencePosition,
-      { "gradientReferencePosition", "lppe.gradientReferencePosition",
+      { "gradientReferencePosition", "lppe.gradientReferencePosition_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ellipsoid_Point", HFILL }},
     { &hf_lppe_delayList,
@@ -16575,7 +18544,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_8_OF_OMA_LPPe_AGNSS_LocalTroposphereDelayTimeElement", HFILL }},
     { &hf_lppe_delayList_item,
-      { "OMA-LPPe-AGNSS-LocalTroposphereDelayTimeElement", "lppe.OMA_LPPe_AGNSS_LocalTroposphereDelayTimeElement",
+      { "OMA-LPPe-AGNSS-LocalTroposphereDelayTimeElement", "lppe.OMA_LPPe_AGNSS_LocalTroposphereDelayTimeElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_zh0,
@@ -16603,11 +18572,11 @@ void proto_register_lppe(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M8192_8191", HFILL }},
     { &hf_lppe_mappingFunctionParameters,
-      { "mappingFunctionParameters", "lppe.mappingFunctionParameters",
+      { "mappingFunctionParameters", "lppe.mappingFunctionParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_MappingFunctionParameters", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_LocalSurfaceParametersList_item,
-      { "OMA-LPPe-AGNSS-LocalSurfaceParametersAreaElement", "lppe.OMA_LPPe_AGNSS_LocalSurfaceParametersAreaElement",
+      { "OMA-LPPe-AGNSS-LocalSurfaceParametersAreaElement", "lppe.OMA_LPPe_AGNSS_LocalSurfaceParametersAreaElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_parameterList,
@@ -16615,7 +18584,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_8_OF_OMA_LPPe_AGNSS_LocalSurfaceParametersTimeElement", HFILL }},
     { &hf_lppe_parameterList_item,
-      { "OMA-LPPe-AGNSS-LocalSurfaceParametersTimeElement", "lppe.OMA_LPPe_AGNSS_LocalSurfaceParametersTimeElement",
+      { "OMA-LPPe-AGNSS-LocalSurfaceParametersTimeElement", "lppe.OMA_LPPe_AGNSS_LocalSurfaceParametersTimeElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_pressure,
@@ -16675,11 +18644,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_16383", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_AltitudeAssistanceList_item,
-      { "OMA-LPPe-AGNSS-AltitudeAssistanceAreaElement", "lppe.OMA_LPPe_AGNSS_AltitudeAssistanceAreaElement",
+      { "OMA-LPPe-AGNSS-AltitudeAssistanceAreaElement", "lppe.OMA_LPPe_AGNSS_AltitudeAssistanceAreaElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_gradientReferencePosition_01,
-      { "gradientReferencePosition", "lppe.gradientReferencePosition",
+      { "gradientReferencePosition", "lppe.gradientReferencePosition_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EllipsoidPointWithAltitudeAndUncertaintyEllipsoid", HFILL }},
     { &hf_lppe_pressureAssistanceList,
@@ -16687,7 +18656,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_16_OF_OMA_LPPe_AGNSS_PressureAssistanceElement", HFILL }},
     { &hf_lppe_pressureAssistanceList_item,
-      { "OMA-LPPe-AGNSS-PressureAssistanceElement", "lppe.OMA_LPPe_AGNSS_PressureAssistanceElement",
+      { "OMA-LPPe-AGNSS-PressureAssistanceElement", "lppe.OMA_LPPe_AGNSS_PressureAssistanceElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_gN_01,
@@ -16703,11 +18672,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1000_2000", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_MechanicsForAllSVs_item,
-      { "OMA-LPPe-AGNSS-MechanicsElement", "lppe.OMA_LPPe_AGNSS_MechanicsElement",
+      { "OMA-LPPe-AGNSS-MechanicsElement", "lppe.OMA_LPPe_AGNSS_MechanicsElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_svid,
-      { "svid", "lppe.svid",
+      { "svid", "lppe.svid_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SV_ID", HFILL }},
     { &hf_lppe_mass,
@@ -16719,11 +18688,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_511", HFILL }},
     { &hf_lppe_pco,
-      { "pco", "lppe.pco",
+      { "pco", "lppe.pco_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_PCOelement", HFILL }},
     { &hf_lppe_svInfo,
-      { "svInfo", "lppe.svInfo",
+      { "svInfo", "lppe.svInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_svType,
@@ -16747,15 +18716,15 @@ void proto_register_lppe(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M30000_30000", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_DCBsForAllSVs_item,
-      { "OMA-LPPe-AGNSS-DCBlistElement", "lppe.OMA_LPPe_AGNSS_DCBlistElement",
+      { "OMA-LPPe-AGNSS-DCBlistElement", "lppe.OMA_LPPe_AGNSS_DCBlistElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_reference,
-      { "reference", "lppe.reference",
+      { "reference", "lppe.reference_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_signal,
-      { "signal", "lppe.signal",
+      { "signal", "lppe.signal_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SignalID", HFILL }},
     { &hf_lppe_pd,
@@ -16767,7 +18736,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_AGNSS_DCBlist", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_DCBlist_item,
-      { "OMA-LPPe-AGNSS-DCBelement", "lppe.OMA_LPPe_AGNSS_DCBelement",
+      { "OMA-LPPe-AGNSS-DCBelement", "lppe.OMA_LPPe_AGNSS_DCBelement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_pd_01,
@@ -16779,15 +18748,15 @@ void proto_register_lppe(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M4096_4095", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_NavModelDegradationModelList_item,
-      { "OMA-LPPe-AGNSS-NavModelDegradationModelElement", "lppe.OMA_LPPe_AGNSS_NavModelDegradationModelElement",
+      { "OMA-LPPe-AGNSS-NavModelDegradationModelElement", "lppe.OMA_LPPe_AGNSS_NavModelDegradationModelElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_clockDegradationModel,
-      { "clockDegradationModel", "lppe.clockDegradationModel",
+      { "clockDegradationModel", "lppe.clockDegradationModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_ClockModelDegradationModel", HFILL }},
     { &hf_lppe_orbitDegradationModel,
-      { "orbitDegradationModel", "lppe.orbitDegradationModel",
+      { "orbitDegradationModel", "lppe.orbitDegradationModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_OrbitModelDegradationModel", HFILL }},
     { &hf_lppe_clockRMS0,
@@ -16807,19 +18776,19 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_7", HFILL }},
     { &hf_lppe_ccpProvideCommonParameters,
-      { "ccpProvideCommonParameters", "lppe.ccpProvideCommonParameters",
+      { "ccpProvideCommonParameters", "lppe.ccpProvideCommonParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_CCPprovideCommonParameters", HFILL }},
     { &hf_lppe_ccpProvideControlParameters,
-      { "ccpProvideControlParameters", "lppe.ccpProvideControlParameters",
+      { "ccpProvideControlParameters", "lppe.ccpProvideControlParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_CCPprovideControlParameters", HFILL }},
     { &hf_lppe_ccpReferenceTime,
-      { "ccpReferenceTime", "lppe.ccpReferenceTime",
+      { "ccpReferenceTime", "lppe.ccpReferenceTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SystemTime", HFILL }},
     { &hf_lppe_ccpSupportArea,
-      { "ccpSupportArea", "lppe.ccpSupportArea",
+      { "ccpSupportArea", "lppe.ccpSupportArea_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_CCPsupportArea", HFILL }},
     { &hf_lppe_ccpNeighborList,
@@ -16831,7 +18800,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_AGNSS_CCPreferenceStationList", HFILL }},
     { &hf_lppe_areaDescription,
-      { "areaDescription", "lppe.areaDescription",
+      { "areaDescription", "lppe.areaDescription_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ValidityArea", HFILL }},
     { &hf_lppe_signalSupport,
@@ -16839,35 +18808,35 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_8_OF_OMA_LPPe_AGNSS_CCPsignalSupport", HFILL }},
     { &hf_lppe_signalSupport_item,
-      { "OMA-LPPe-AGNSS-CCPsignalSupport", "lppe.OMA_LPPe_AGNSS_CCPsignalSupport",
+      { "OMA-LPPe-AGNSS-CCPsignalSupport", "lppe.OMA_LPPe_AGNSS_CCPsignalSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_gnss,
-      { "gnss", "lppe.gnss",
+      { "gnss", "lppe.gnss_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_ID", HFILL }},
     { &hf_lppe_signals,
-      { "signals", "lppe.signals",
+      { "signals", "lppe.signals_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SignalIDs", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_CCPreferenceStationList_item,
-      { "OMA-LPPe-AGNSS-CCPreferenceStationElement", "lppe.OMA_LPPe_AGNSS_CCPreferenceStationElement",
+      { "OMA-LPPe-AGNSS-CCPreferenceStationElement", "lppe.OMA_LPPe_AGNSS_CCPreferenceStationElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_referenceStationID,
-      { "referenceStationID", "lppe.referenceStationID",
+      { "referenceStationID", "lppe.referenceStationID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_CCPreferenceStationID", HFILL }},
     { &hf_lppe_referenceStationLocation,
-      { "referenceStationLocation", "lppe.referenceStationLocation",
+      { "referenceStationLocation", "lppe.referenceStationLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_HighAccuracy3Dposition", HFILL }},
     { &hf_lppe_antennaDescription,
-      { "antennaDescription", "lppe.antennaDescription",
+      { "antennaDescription", "lppe.antennaDescription_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_AntennaDescription", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_CCPassistGenericProvide_item,
-      { "OMA-LPPe-AGNSS-CCPassistGenericProvideElement", "lppe.OMA_LPPe_AGNSS_CCPassistGenericProvideElement",
+      { "OMA-LPPe-AGNSS-CCPassistGenericProvideElement", "lppe.OMA_LPPe_AGNSS_CCPassistGenericProvideElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ccpPerSignalList,
@@ -16875,11 +18844,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_8_OF_OMA_LPPe_AGNSS_CCPperSignalElement", HFILL }},
     { &hf_lppe_ccpPerSignalList_item,
-      { "OMA-LPPe-AGNSS-CCPperSignalElement", "lppe.OMA_LPPe_AGNSS_CCPperSignalElement",
+      { "OMA-LPPe-AGNSS-CCPperSignalElement", "lppe.OMA_LPPe_AGNSS_CCPperSignalElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_signal_ID,
-      { "signal-ID", "lppe.signal_ID",
+      { "signal-ID", "lppe.signal_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SignalID", HFILL }},
     { &hf_lppe_ccpPerSVlist,
@@ -16887,7 +18856,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_64_OF_OMA_LPPe_AGNSS_CCPperSVelement", HFILL }},
     { &hf_lppe_ccpPerSVlist_item,
-      { "OMA-LPPe-AGNSS-CCPperSVelement", "lppe.OMA_LPPe_AGNSS_CCPperSVelement",
+      { "OMA-LPPe-AGNSS-CCPperSVelement", "lppe.OMA_LPPe_AGNSS_CCPperSVelement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_integerCodePhase,
@@ -16923,11 +18892,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_255", HFILL }},
     { &hf_lppe_coordinateBased,
-      { "coordinateBased", "lppe.coordinateBased",
+      { "coordinateBased", "lppe.coordinateBased_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModel_CoordinateBased", HFILL }},
     { &hf_lppe_fixedInterval,
-      { "fixedInterval", "lppe.fixedInterval",
+      { "fixedInterval", "lppe.fixedInterval_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_interval,
@@ -16935,7 +18904,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_30", HFILL }},
     { &hf_lppe_bases,
-      { "bases", "lppe.bases",
+      { "bases", "lppe.bases_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_baseForPosVel,
@@ -16943,7 +18912,7 @@ void proto_register_lppe(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M100000000_100000000", HFILL }},
     { &hf_lppe_baseForCcRate,
-      { "baseForCcRate", "lppe.baseForCcRate",
+      { "baseForCcRate", "lppe.baseForCcRate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModel_BigNumber", HFILL }},
     { &hf_lppe_referencedTo,
@@ -16955,11 +18924,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_97_OF_OMA_LPPe_AGNSS_NavModel_CoordinateBasedElement", HFILL }},
     { &hf_lppe_pointList_item,
-      { "OMA-LPPe-AGNSS-NavModel-CoordinateBasedElement", "lppe.OMA_LPPe_AGNSS_NavModel_CoordinateBasedElement",
+      { "OMA-LPPe-AGNSS-NavModel-CoordinateBasedElement", "lppe.OMA_LPPe_AGNSS_NavModel_CoordinateBasedElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_time_of_record,
-      { "time-of-record", "lppe.time_of_record",
+      { "time-of-record", "lppe.time_of_record_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SystemTime", HFILL }},
     { &hf_lppe_svIdList,
@@ -16967,51 +18936,51 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_64_OF_OMA_LPPe_AGNSS_NavModel_PVTelement", HFILL }},
     { &hf_lppe_svIdList_item,
-      { "OMA-LPPe-AGNSS-NavModel-PVTelement", "lppe.OMA_LPPe_AGNSS_NavModel_PVTelement",
+      { "OMA-LPPe-AGNSS-NavModel-PVTelement", "lppe.OMA_LPPe_AGNSS_NavModel_PVTelement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_svClockOffset,
-      { "svClockOffset", "lppe.svClockOffset",
+      { "svClockOffset", "lppe.svClockOffset_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModel_BigNumber", HFILL }},
     { &hf_lppe_ecefPositionX,
-      { "ecefPositionX", "lppe.ecefPositionX",
+      { "ecefPositionX", "lppe.ecefPositionX_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModel_BigNumber", HFILL }},
     { &hf_lppe_ecefPositionY,
-      { "ecefPositionY", "lppe.ecefPositionY",
+      { "ecefPositionY", "lppe.ecefPositionY_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModel_BigNumber", HFILL }},
     { &hf_lppe_ecefPositionZ,
-      { "ecefPositionZ", "lppe.ecefPositionZ",
+      { "ecefPositionZ", "lppe.ecefPositionZ_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModel_BigNumber", HFILL }},
     { &hf_lppe_clockPosSTD,
-      { "clockPosSTD", "lppe.clockPosSTD",
+      { "clockPosSTD", "lppe.clockPosSTD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModel_STDmatrix", HFILL }},
     { &hf_lppe_rateRecord,
-      { "rateRecord", "lppe.rateRecord",
+      { "rateRecord", "lppe.rateRecord_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_svClockRate,
-      { "svClockRate", "lppe.svClockRate",
+      { "svClockRate", "lppe.svClockRate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModel_BigNumber", HFILL }},
     { &hf_lppe_ecefVelocityX,
-      { "ecefVelocityX", "lppe.ecefVelocityX",
+      { "ecefVelocityX", "lppe.ecefVelocityX_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModel_BigNumber", HFILL }},
     { &hf_lppe_ecefVelocityY,
-      { "ecefVelocityY", "lppe.ecefVelocityY",
+      { "ecefVelocityY", "lppe.ecefVelocityY_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModel_BigNumber", HFILL }},
     { &hf_lppe_ecefVelocityZ,
-      { "ecefVelocityZ", "lppe.ecefVelocityZ",
+      { "ecefVelocityZ", "lppe.ecefVelocityZ_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModel_BigNumber", HFILL }},
     { &hf_lppe_clockRateVelSTD,
-      { "clockRateVelSTD", "lppe.clockRateVelSTD",
+      { "clockRateVelSTD", "lppe.clockRateVelSTD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModel_STDmatrix", HFILL }},
     { &hf_lppe_msb,
@@ -17063,7 +19032,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_10000000", HFILL }},
     { &hf_lppe_commonAssistDataReq,
-      { "commonAssistDataReq", "lppe.commonAssistDataReq",
+      { "commonAssistDataReq", "lppe.commonAssistDataReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_CommonAssistanceDataReq", HFILL }},
     { &hf_lppe_genericAssistDataReq,
@@ -17075,51 +19044,51 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_AGNSS_IonosphericModelReq_vals), 0,
         "OMA_LPPe_AGNSS_IonosphericModelReq", HFILL }},
     { &hf_lppe_troposphereModelReq,
-      { "troposphereModelReq", "lppe.troposphereModelReq",
+      { "troposphereModelReq", "lppe.troposphereModelReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_TroposphereModelReq", HFILL }},
     { &hf_lppe_altitudeAssistanceReq,
-      { "altitudeAssistanceReq", "lppe.altitudeAssistanceReq",
+      { "altitudeAssistanceReq", "lppe.altitudeAssistanceReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_AltitudeAssistanceReq", HFILL }},
     { &hf_lppe_solarRadiationRequest,
-      { "solarRadiationRequest", "lppe.solarRadiationRequest",
+      { "solarRadiationRequest", "lppe.solarRadiationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_SolarRadiationReq", HFILL }},
     { &hf_lppe_ccpRequestControlParameters,
-      { "ccpRequestControlParameters", "lppe.ccpRequestControlParameters",
+      { "ccpRequestControlParameters", "lppe.ccpRequestControlParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_CCPrequestControlParameters", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_GenericAssistanceDataReq_item,
-      { "OMA-LPPe-AGNSS-GenericAssistDataReqElement", "lppe.OMA_LPPe_AGNSS_GenericAssistDataReqElement",
+      { "OMA-LPPe-AGNSS-GenericAssistDataReqElement", "lppe.OMA_LPPe_AGNSS_GenericAssistDataReqElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_waIonoSurfaceReq,
-      { "waIonoSurfaceReq", "lppe.waIonoSurfaceReq",
+      { "waIonoSurfaceReq", "lppe.waIonoSurfaceReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_WaIonoSurfaceRequest", HFILL }},
     { &hf_lppe_mechanicsReq,
-      { "mechanicsReq", "lppe.mechanicsReq",
+      { "mechanicsReq", "lppe.mechanicsReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_MechanicsReq", HFILL }},
     { &hf_lppe_dcbReq,
-      { "dcbReq", "lppe.dcbReq",
+      { "dcbReq", "lppe.dcbReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_DCBreq", HFILL }},
     { &hf_lppe_navModelDegradationModelReq,
-      { "navModelDegradationModelReq", "lppe.navModelDegradationModelReq",
+      { "navModelDegradationModelReq", "lppe.navModelDegradationModelReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModelDegradationModelReq", HFILL }},
     { &hf_lppe_ccpAssistGenericReq,
-      { "ccpAssistGenericReq", "lppe.ccpAssistGenericReq",
+      { "ccpAssistGenericReq", "lppe.ccpAssistGenericReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_CCPassistGenericReq", HFILL }},
     { &hf_lppe_navigationModelReq,
-      { "navigationModelReq", "lppe.navigationModelReq",
+      { "navigationModelReq", "lppe.navigationModelReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavigationModelReq", HFILL }},
     { &hf_lppe_staticModels_01,
-      { "staticModels", "lppe.staticModels",
+      { "staticModels", "lppe.staticModels_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_staticModels_01", HFILL }},
     { &hf_lppe_ionoreq,
@@ -17127,15 +19096,15 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_requestBeginTime,
-      { "requestBeginTime", "lppe.requestBeginTime",
+      { "requestBeginTime", "lppe.requestBeginTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SystemTime", HFILL }},
     { &hf_lppe_periodicModels,
-      { "periodicModels", "lppe.periodicModels",
+      { "periodicModels", "lppe.periodicModels_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_waIonoSurface,
-      { "waIonoSurface", "lppe.waIonoSurface",
+      { "waIonoSurface", "lppe.waIonoSurface_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_WideAreaIonoSurfaceControlParametersRequest", HFILL }},
     { &hf_lppe_troposphereModelReq_01,
@@ -17147,7 +19116,7 @@ void proto_register_lppe(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lppe_reference_01,
-      { "reference", "lppe.reference",
+      { "reference", "lppe.reference_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_reference_01", HFILL }},
     { &hf_lppe_pd_02,
@@ -17171,15 +19140,15 @@ void proto_register_lppe(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lppe_ccpSupportAreaRequest,
-      { "ccpSupportAreaRequest", "lppe.ccpSupportAreaRequest",
+      { "ccpSupportAreaRequest", "lppe.ccpSupportAreaRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ccpNeighborListRequest,
-      { "ccpNeighborListRequest", "lppe.ccpNeighborListRequest",
+      { "ccpNeighborListRequest", "lppe.ccpNeighborListRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ccpCommonRequest,
-      { "ccpCommonRequest", "lppe.ccpCommonRequest",
+      { "ccpCommonRequest", "lppe.ccpCommonRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_refStation,
@@ -17187,11 +19156,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_refStation_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_posBasedReferenceStationRequest,
-      { "posBasedReferenceStationRequest", "lppe.posBasedReferenceStationRequest",
+      { "posBasedReferenceStationRequest", "lppe.posBasedReferenceStationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_requestedReferenceStationLocation,
-      { "requestedReferenceStationLocation", "lppe.requestedReferenceStationLocation",
+      { "requestedReferenceStationLocation", "lppe.requestedReferenceStationLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_HighAccuracy3Dposition", HFILL }},
     { &hf_lppe_qor,
@@ -17207,11 +19176,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_AGNSS_ReferenceStationIDlist", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_ReferenceStationIDlist_item,
-      { "OMA-LPPe-AGNSS-CCPreferenceStationID", "lppe.OMA_LPPe_AGNSS_CCPreferenceStationID",
+      { "OMA-LPPe-AGNSS-CCPreferenceStationID", "lppe.OMA_LPPe_AGNSS_CCPreferenceStationID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ccpAssist_SignalsReq,
-      { "ccpAssist-SignalsReq", "lppe.ccpAssist_SignalsReq",
+      { "ccpAssist-SignalsReq", "lppe.ccpAssist_SignalsReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SignalIDs", HFILL }},
     { &hf_lppe_navModelID_PrefList,
@@ -17223,7 +19192,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_8", HFILL }},
     { &hf_lppe_highAccuracyReferenceTime,
-      { "highAccuracyReferenceTime", "lppe.highAccuracyReferenceTime",
+      { "highAccuracyReferenceTime", "lppe.highAccuracyReferenceTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SystemTime", HFILL }},
     { &hf_lppe_highAccuracyMeasurements,
@@ -17231,31 +19200,31 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_AGNSS_HAgnssProvide_vals), 0,
         "OMA_LPPe_AGNSS_HAgnssProvide", HFILL }},
     { &hf_lppe_ionosphereMeasurements,
-      { "ionosphereMeasurements", "lppe.ionosphereMeasurements",
+      { "ionosphereMeasurements", "lppe.ionosphereMeasurements_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_IonosphereMeasurements", HFILL }},
     { &hf_lppe_localSurfaceMeasurements,
-      { "localSurfaceMeasurements", "lppe.localSurfaceMeasurements",
+      { "localSurfaceMeasurements", "lppe.localSurfaceMeasurements_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_LocalSurfaceMeasurements", HFILL }},
     { &hf_lppe_controlParameters_01,
-      { "controlParameters", "lppe.controlParameters",
+      { "controlParameters", "lppe.controlParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_measurements,
-      { "measurements", "lppe.measurements",
+      { "measurements", "lppe.measurements_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_position,
-      { "position", "lppe.position",
+      { "position", "lppe.position_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EllipsoidPointWithAltitudeAndUncertaintyEllipsoid", HFILL }},
     { &hf_lppe_referenceTime,
-      { "referenceTime", "lppe.referenceTime",
+      { "referenceTime", "lppe.referenceTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SystemTime", HFILL }},
     { &hf_lppe_localPressure,
-      { "localPressure", "lppe.localPressure",
+      { "localPressure", "lppe.localPressure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_pressureUncertainty,
@@ -17271,7 +19240,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_16_OF_OMA_LPPe_AGNSS_HAgnssMeasurementElement", HFILL }},
     { &hf_lppe_signalMeasurements_item,
-      { "OMA-LPPe-AGNSS-HAgnssMeasurementElement", "lppe.OMA_LPPe_AGNSS_HAgnssMeasurementElement",
+      { "OMA-LPPe-AGNSS-HAgnssMeasurementElement", "lppe.OMA_LPPe_AGNSS_HAgnssMeasurementElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_haGNSSperSignalList,
@@ -17279,7 +19248,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_8_OF_OMA_LPPe_HAgnssPerSignalElement", HFILL }},
     { &hf_lppe_haGNSSperSignalList_item,
-      { "OMA-LPPe-HAgnssPerSignalElement", "lppe.OMA_LPPe_HAgnssPerSignalElement",
+      { "OMA-LPPe-HAgnssPerSignalElement", "lppe.OMA_LPPe_HAgnssPerSignalElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_haGNSSperSVlist,
@@ -17287,7 +19256,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_64_OF_OMA_LPPe_HAgnssPerSVelement", HFILL }},
     { &hf_lppe_haGNSSperSVlist_item,
-      { "OMA-LPPe-HAgnssPerSVelement", "lppe.OMA_LPPe_HAgnssPerSVelement",
+      { "OMA-LPPe-HAgnssPerSVelement", "lppe.OMA_LPPe_HAgnssPerSVelement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_multipathDetection,
@@ -17307,11 +19276,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_AGNSS_TECPerSV", HFILL }},
     { &hf_lppe_tecAtZenith,
-      { "tecAtZenith", "lppe.tecAtZenith",
+      { "tecAtZenith", "lppe.tecAtZenith_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_TECAtZenith", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_TECPerSV_item,
-      { "OMA-LPPe-AGNSS-TECPerSVElement", "lppe.OMA_LPPe_AGNSS_TECPerSVElement",
+      { "OMA-LPPe-AGNSS-TECPerSVElement", "lppe.OMA_LPPe_AGNSS_TECPerSVElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_azimuth,
@@ -17339,7 +19308,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_63", HFILL }},
     { &hf_lppe_temperatureMeasurement,
-      { "temperatureMeasurement", "lppe.temperatureMeasurement",
+      { "temperatureMeasurement", "lppe.temperatureMeasurement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_temperatureUncertainty,
@@ -17347,7 +19316,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_7", HFILL }},
     { &hf_lppe_positioningInstructions,
-      { "positioningInstructions", "lppe.positioningInstructions",
+      { "positioningInstructions", "lppe.positioningInstructions_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_PositioningInstructions", HFILL }},
     { &hf_lppe_ionosphereMeasurementsReq,
@@ -17355,7 +19324,7 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_localSurfaceMeasurementReq,
-      { "localSurfaceMeasurementReq", "lppe.localSurfaceMeasurementReq",
+      { "localSurfaceMeasurementReq", "lppe.localSurfaceMeasurementReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_LocalSurfaceMeasurementReq", HFILL }},
     { &hf_lppe_highAccuracyMethodRequested,
@@ -17363,7 +19332,7 @@ void proto_register_lppe(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lppe_haGNSSreq,
-      { "haGNSSreq", "lppe.haGNSSreq",
+      { "haGNSSreq", "lppe.haGNSSreq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_HAgnssRequestControlParameters", HFILL }},
     { &hf_lppe_rate_01,
@@ -17383,27 +19352,27 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_16_OF_OMA_LPPe_AGNSS_HAgnssSignalReqElement", HFILL }},
     { &hf_lppe_signalReqList_item,
-      { "OMA-LPPe-AGNSS-HAgnssSignalReqElement", "lppe.OMA_LPPe_AGNSS_HAgnssSignalReqElement",
+      { "OMA-LPPe-AGNSS-HAgnssSignalReqElement", "lppe.OMA_LPPe_AGNSS_HAgnssSignalReqElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_gnssID,
-      { "gnssID", "lppe.gnssID",
+      { "gnssID", "lppe.gnssID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_ID", HFILL }},
     { &hf_lppe_assistanceDataSupportList,
-      { "assistanceDataSupportList", "lppe.assistanceDataSupportList",
+      { "assistanceDataSupportList", "lppe.assistanceDataSupportList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_AssistanceDataSupportList", HFILL }},
     { &hf_lppe_environmentObservationSupportList,
-      { "environmentObservationSupportList", "lppe.environmentObservationSupportList",
+      { "environmentObservationSupportList", "lppe.environmentObservationSupportList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_EnvironmentObservationSupportList", HFILL }},
     { &hf_lppe_haGNSSsupport,
-      { "haGNSSsupport", "lppe.haGNSSsupport",
+      { "haGNSSsupport", "lppe.haGNSSsupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_HAgnssSupport", HFILL }},
     { &hf_lppe_commonAssistanceDataSupport,
-      { "commonAssistanceDataSupport", "lppe.commonAssistanceDataSupport",
+      { "commonAssistanceDataSupport", "lppe.commonAssistanceDataSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_CommonAssistanceDataSupport", HFILL }},
     { &hf_lppe_genericAssistanceDataSupport,
@@ -17423,23 +19392,23 @@ void proto_register_lppe(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lppe_ionosphericModelSupport,
-      { "ionosphericModelSupport", "lppe.ionosphericModelSupport",
+      { "ionosphericModelSupport", "lppe.ionosphericModelSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_IonosphericModelSupport", HFILL }},
     { &hf_lppe_troposphereModelSupport,
-      { "troposphereModelSupport", "lppe.troposphereModelSupport",
+      { "troposphereModelSupport", "lppe.troposphereModelSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_TroposphereModelSupport", HFILL }},
     { &hf_lppe_altitudeAssistanceSupport,
-      { "altitudeAssistanceSupport", "lppe.altitudeAssistanceSupport",
+      { "altitudeAssistanceSupport", "lppe.altitudeAssistanceSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_AltitudeAssistanceSupport", HFILL }},
     { &hf_lppe_solarRadiationSupport,
-      { "solarRadiationSupport", "lppe.solarRadiationSupport",
+      { "solarRadiationSupport", "lppe.solarRadiationSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_SolarRadiationSupport", HFILL }},
     { &hf_lppe_ccpSupport,
-      { "ccpSupport", "lppe.ccpSupport",
+      { "ccpSupport", "lppe.ccpSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_CCPsupport", HFILL }},
     { &hf_lppe_ionoModel,
@@ -17459,27 +19428,27 @@ void proto_register_lppe(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lppe_OMA_LPPe_AGNSS_GenericAssistanceDataSupport_item,
-      { "OMA-LPPe-AGNSS-GenericAssistDataSupportElement", "lppe.OMA_LPPe_AGNSS_GenericAssistDataSupportElement",
+      { "OMA-LPPe-AGNSS-GenericAssistDataSupportElement", "lppe.OMA_LPPe_AGNSS_GenericAssistDataSupportElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_mechnanicsSupport,
-      { "mechnanicsSupport", "lppe.mechnanicsSupport",
+      { "mechnanicsSupport", "lppe.mechnanicsSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_MechanicsSupport", HFILL }},
     { &hf_lppe_dcbSupport,
-      { "dcbSupport", "lppe.dcbSupport",
+      { "dcbSupport", "lppe.dcbSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_DCBsupport", HFILL }},
     { &hf_lppe_navModelAccuracyModelDegradationSupport,
-      { "navModelAccuracyModelDegradationSupport", "lppe.navModelAccuracyModelDegradationSupport",
+      { "navModelAccuracyModelDegradationSupport", "lppe.navModelAccuracyModelDegradationSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModelAccuracyModelDegradationSupport", HFILL }},
     { &hf_lppe_ccpAssistanceSuppport,
-      { "ccpAssistanceSuppport", "lppe.ccpAssistanceSuppport",
+      { "ccpAssistanceSuppport", "lppe.ccpAssistanceSuppport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SignalIDs", HFILL }},
     { &hf_lppe_navModelSupport,
-      { "navModelSupport", "lppe.navModelSupport",
+      { "navModelSupport", "lppe.navModelSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_NavModelSupport", HFILL }},
     { &hf_lppe_navModelSupport_01,
@@ -17507,31 +19476,31 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_8_OF_OMA_LPPe_AGNSS_HAgnssPerGNSSsupport", HFILL }},
     { &hf_lppe_haGNSSperGNSSsupport_item,
-      { "OMA-LPPe-AGNSS-HAgnssPerGNSSsupport", "lppe.OMA_LPPe_AGNSS_HAgnssPerGNSSsupport",
+      { "OMA-LPPe-AGNSS-HAgnssPerGNSSsupport", "lppe.OMA_LPPe_AGNSS_HAgnssPerGNSSsupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_haGNSSsignalSupport,
-      { "haGNSSsignalSupport", "lppe.haGNSSsignalSupport",
+      { "haGNSSsignalSupport", "lppe.haGNSSsignalSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GNSS_SignalIDs", HFILL }},
     { &hf_lppe_assistanceDataSupportListReq,
-      { "assistanceDataSupportListReq", "lppe.assistanceDataSupportListReq",
+      { "assistanceDataSupportListReq", "lppe.assistanceDataSupportListReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_environmentObservationSupportListReq,
-      { "environmentObservationSupportListReq", "lppe.environmentObservationSupportListReq",
+      { "environmentObservationSupportListReq", "lppe.environmentObservationSupportListReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_haGNSSsupportReq,
-      { "haGNSSsupportReq", "lppe.haGNSSsupportReq",
+      { "haGNSSsupportReq", "lppe.haGNSSsupportReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_agnss_locationServerErrorCauses,
-      { "agnss-locationServerErrorCauses", "lppe.agnss_locationServerErrorCauses",
+      { "agnss-locationServerErrorCauses", "lppe.agnss_locationServerErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_LocationServerErrorCauses", HFILL }},
     { &hf_lppe_agnss_targetDeviceErrorCauses,
-      { "agnss-targetDeviceErrorCauses", "lppe.agnss_targetDeviceErrorCauses",
+      { "agnss-targetDeviceErrorCauses", "lppe.agnss_targetDeviceErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_AGNSS_TargetDeviceErrorCauses", HFILL }},
     { &hf_lppe_waIonoErrorCauses,
@@ -17583,7 +19552,7 @@ void proto_register_lppe(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "OMA_LPPe_CharArray", HFILL }},
     { &hf_lppe_targetDeviceAbortCauses,
-      { "targetDeviceAbortCauses", "lppe.targetDeviceAbortCauses",
+      { "targetDeviceAbortCauses", "lppe.targetDeviceAbortCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ccpAbort,
@@ -17595,7 +19564,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_waIonoAbort_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_otdoa_ReferenceCellInfo,
-      { "otdoa-ReferenceCellInfo", "lppe.otdoa_ReferenceCellInfo",
+      { "otdoa-ReferenceCellInfo", "lppe.otdoa_ReferenceCellInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_ReferenceCellInfo", HFILL }},
     { &hf_lppe_otdoa_NeighbourCellInfo,
@@ -17607,11 +19576,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_OTDOA_Error_vals), 0,
         "OMA_LPPe_OTDOA_Error", HFILL }},
     { &hf_lppe_referenceCellInfo,
-      { "referenceCellInfo", "lppe.referenceCellInfo",
+      { "referenceCellInfo", "lppe.referenceCellInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OTDOA_ReferenceCellInfo", HFILL }},
     { &hf_lppe_positionCalculationInfoRef,
-      { "positionCalculationInfoRef", "lppe.positionCalculationInfoRef",
+      { "positionCalculationInfoRef", "lppe.positionCalculationInfoRef_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_PositionCalculationInfoRef", HFILL }},
     { &hf_lppe_systemFrameNumber,
@@ -17619,23 +19588,23 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_10", HFILL }},
     { &hf_lppe_rtdReferenceStd,
-      { "rtdReferenceStd", "lppe.rtdReferenceStd",
+      { "rtdReferenceStd", "lppe.rtdReferenceStd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_RTDquality", HFILL }},
     { &hf_lppe_cellLocation,
-      { "cellLocation", "lppe.cellLocation",
+      { "cellLocation", "lppe.cellLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_reference_point,
-      { "reference-point", "lppe.reference_point",
+      { "reference-point", "lppe.reference_point_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ReferencePoint", HFILL }},
     { &hf_lppe_relative_location,
-      { "relative-location", "lppe.relative_location",
+      { "relative-location", "lppe.relative_location_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RelativeLocation", HFILL }},
     { &hf_lppe_femtoCellInfo,
-      { "femtoCellInfo", "lppe.femtoCellInfo",
+      { "femtoCellInfo", "lppe.femtoCellInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_location_reliability,
@@ -17643,7 +19612,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_100", HFILL }},
     { &hf_lppe_OMA_LPPe_OTDOA_NeighbourCellInfoList_item,
-      { "OMA-LPPe-OTDOA-NeighbourFreqCellInfoList", "lppe.OMA_LPPe_OTDOA_NeighbourFreqCellInfoList",
+      { "OMA-LPPe-OTDOA-NeighbourFreqCellInfoList", "lppe.OMA_LPPe_OTDOA_NeighbourFreqCellInfoList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_neighbourCellInfoList_eNB,
@@ -17651,7 +19620,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxLTEeNBs_OF_OMA_LPPe_OTDOA_NeighbourCellInfoElement_eNB", HFILL }},
     { &hf_lppe_neighbourCellInfoList_eNB_item,
-      { "OMA-LPPe-OTDOA-NeighbourCellInfoElement-eNB", "lppe.OMA_LPPe_OTDOA_NeighbourCellInfoElement_eNB",
+      { "OMA-LPPe-OTDOA-NeighbourCellInfoElement-eNB", "lppe.OMA_LPPe_OTDOA_NeighbourCellInfoElement_eNB_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_neighbourCellInfoList_HeNB,
@@ -17659,11 +19628,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxLTEHeNBs_OF_OMA_LPPe_OTDOA_NeighbourCellInfoElement_HeNB", HFILL }},
     { &hf_lppe_neighbourCellInfoList_HeNB_item,
-      { "OMA-LPPe-OTDOA-NeighbourCellInfoElement-HeNB", "lppe.OMA_LPPe_OTDOA_NeighbourCellInfoElement_HeNB",
+      { "OMA-LPPe-OTDOA-NeighbourCellInfoElement-HeNB", "lppe.OMA_LPPe_OTDOA_NeighbourCellInfoElement_HeNB_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_relative_Location,
-      { "relative-Location", "lppe.relative_Location",
+      { "relative-Location", "lppe.relative_Location_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RelativeLocation", HFILL }},
     { &hf_lppe_otdoa_eNB_CellDataList,
@@ -17671,19 +19640,19 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxLTEMacroCells_OF_OMA_LPPe_OTDOA_CellData", HFILL }},
     { &hf_lppe_otdoa_eNB_CellDataList_item,
-      { "OMA-LPPe-OTDOA-CellData", "lppe.OMA_LPPe_OTDOA_CellData",
+      { "OMA-LPPe-OTDOA-CellData", "lppe.OMA_LPPe_OTDOA_CellData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_otdoa_HeNB_CellDataList,
-      { "otdoa-HeNB-CellDataList", "lppe.otdoa_HeNB_CellDataList",
+      { "otdoa-HeNB-CellDataList", "lppe.otdoa_HeNB_CellDataList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_CellData", HFILL }},
     { &hf_lppe_otdoa_NeighbourCellInfoElement,
-      { "otdoa-NeighbourCellInfoElement", "lppe.otdoa_NeighbourCellInfoElement",
+      { "otdoa-NeighbourCellInfoElement", "lppe.otdoa_NeighbourCellInfoElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_rtdInfo,
-      { "rtdInfo", "lppe.rtdInfo",
+      { "rtdInfo", "lppe.rtdInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_subframeOffset,
@@ -17695,7 +19664,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_99999", HFILL }},
     { &hf_lppe_fineRTDstd,
-      { "fineRTDstd", "lppe.fineRTDstd",
+      { "fineRTDstd", "lppe.fineRTDstd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_RTDquality", HFILL }},
     { &hf_lppe_fineRTDdriftRate,
@@ -17711,7 +19680,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_127", HFILL }},
     { &hf_lppe_lteCell,
-      { "lteCell", "lppe.lteCell",
+      { "lteCell", "lppe.lteCell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_physCellId,
@@ -17723,7 +19692,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ARFCN_ValueEUTRA", HFILL }},
     { &hf_lppe_ecgi,
-      { "ecgi", "lppe.ecgi",
+      { "ecgi", "lppe.ecgi_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CellGlobalIdEUTRA_AndUTRA", HFILL }},
     { &hf_lppe_requestedCells,
@@ -17731,7 +19700,7 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_otdoaLocationInformation,
-      { "otdoaLocationInformation", "lppe.otdoaLocationInformation",
+      { "otdoaLocationInformation", "lppe.otdoaLocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_LocationInformation", HFILL }},
     { &hf_lppe_otdoaError,
@@ -17739,7 +19708,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_OTDOA_Error_vals), 0,
         "OMA_LPPe_OTDOA_Error", HFILL }},
     { &hf_lppe_cellGlobalId,
-      { "cellGlobalId", "lppe.cellGlobalId",
+      { "cellGlobalId", "lppe.cellGlobalId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CellGlobalIdEUTRA_AndUTRA", HFILL }},
     { &hf_lppe_assistanceAvailability,
@@ -17747,19 +19716,19 @@ void proto_register_lppe(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lppe_eNodeB_AD_sup,
-      { "eNodeB-AD-sup", "lppe.eNodeB_AD_sup",
+      { "eNodeB-AD-sup", "lppe.eNodeB_AD_sup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_home_eNodeB_AD_sup,
-      { "home-eNodeB-AD-sup", "lppe.home_eNodeB_AD_sup",
+      { "home-eNodeB-AD-sup", "lppe.home_eNodeB_AD_sup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_locationServerErrorCauses,
-      { "locationServerErrorCauses", "lppe.locationServerErrorCauses",
+      { "locationServerErrorCauses", "lppe.locationServerErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_LocationServerErrorCauses", HFILL }},
     { &hf_lppe_targetDeviceErrorCauses,
-      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses",
+      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_TargetDeviceErrorCauses", HFILL }},
     { &hf_lppe_cause,
@@ -17771,7 +19740,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_cause_01_vals), 0,
         "T_cause_01", HFILL }},
     { &hf_lppe_referenceBTS,
-      { "referenceBTS", "lppe.referenceBTS",
+      { "referenceBTS", "lppe.referenceBTS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_ReferenceBTSForAssistance", HFILL }},
     { &hf_lppe_msrAssistDataList,
@@ -17787,7 +19756,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_EOTD_Error_vals), 0,
         "OMA_LPPe_EOTD_Error", HFILL }},
     { &hf_lppe_bsicAndCarrier,
-      { "bsicAndCarrier", "lppe.bsicAndCarrier",
+      { "bsicAndCarrier", "lppe.bsicAndCarrier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_CellNonUniqueIDGERAN", HFILL }},
     { &hf_lppe_timeSlotScheme,
@@ -17799,15 +19768,15 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_btsPosition_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_ellipsoidPoint,
-      { "ellipsoidPoint", "lppe.ellipsoidPoint",
+      { "ellipsoidPoint", "lppe.ellipsoidPoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ellipsoid_Point", HFILL }},
     { &hf_lppe_ellipsoidPointWithAltitudeAndUncertaintyEllipsoid,
-      { "ellipsoidPointWithAltitudeAndUncertaintyEllipsoid", "lppe.ellipsoidPointWithAltitudeAndUncertaintyEllipsoid",
+      { "ellipsoidPointWithAltitudeAndUncertaintyEllipsoid", "lppe.ellipsoidPointWithAltitudeAndUncertaintyEllipsoid_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_OMA_LPPe_EOTD_MsrAssistDataList_item,
-      { "OMA-LPPe-EOTD-MsrAssistBTS", "lppe.OMA_LPPe_EOTD_MsrAssistBTS",
+      { "OMA-LPPe-EOTD-MsrAssistBTS", "lppe.OMA_LPPe_EOTD_MsrAssistBTS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_multiFrameOffset,
@@ -17819,11 +19788,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_EOTD_RoughRTD", HFILL }},
     { &hf_lppe_expectedOTD,
-      { "expectedOTD", "lppe.expectedOTD",
+      { "expectedOTD", "lppe.expectedOTD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_ExpectedOTD", HFILL }},
     { &hf_lppe_calcAssistanceBTS,
-      { "calcAssistanceBTS", "lppe.calcAssistanceBTS",
+      { "calcAssistanceBTS", "lppe.calcAssistanceBTS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_CalcAssistanceBTS", HFILL }},
     { &hf_lppe_OMA_LPPe_EOTD_SystemInfoAssistDataList_item,
@@ -17831,11 +19800,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_EOTD_SystemInfoAssistBTS_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_notPresent,
-      { "notPresent", "lppe.notPresent",
+      { "notPresent", "lppe.notPresent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_present,
-      { "present", "lppe.present",
+      { "present", "lppe.present_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_AssistBTSData", HFILL }},
     { &hf_lppe_fineRTD_01,
@@ -17843,7 +19812,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_EOTD_FineRTD", HFILL }},
     { &hf_lppe_relativePos,
-      { "relativePos", "lppe.relativePos",
+      { "relativePos", "lppe.relativePos_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_relativePos", HFILL }},
     { &hf_lppe_relativeNorth_01,
@@ -17863,7 +19832,7 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_eotdMsrElement,
-      { "eotdMsrElement", "lppe.eotdMsrElement",
+      { "eotdMsrElement", "lppe.eotdMsrElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_MsrElement", HFILL }},
     { &hf_lppe_refFrameNumber,
@@ -17875,7 +19844,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_EOTD_ModuloTimeSlot", HFILL }},
     { &hf_lppe_toaMeasurementsOfRef,
-      { "toaMeasurementsOfRef", "lppe.toaMeasurementsOfRef",
+      { "toaMeasurementsOfRef", "lppe.toaMeasurementsOfRef_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_TOA_MeasurementsOfRef", HFILL }},
     { &hf_lppe_stdResolution,
@@ -17891,7 +19860,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_15_OF_OMA_LPPe_EOTD_MeasurementWithID", HFILL }},
     { &hf_lppe_otd_FirstSetMsrs_item,
-      { "OMA-LPPe-EOTD-MeasurementWithID", "lppe.OMA_LPPe_EOTD_MeasurementWithID",
+      { "OMA-LPPe-EOTD-MeasurementWithID", "lppe.OMA_LPPe_EOTD_MeasurementWithID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_refQuality,
@@ -17911,7 +19880,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_EOTD_ModuloTimeSlot", HFILL }},
     { &hf_lppe_eotdQuality,
-      { "eotdQuality", "lppe.eotdQuality",
+      { "eotdQuality", "lppe.eotdQuality_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_EOTDQuality", HFILL }},
     { &hf_lppe_otdValue,
@@ -17923,7 +19892,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_EOTD_CellID", HFILL }},
     { &hf_lppe_multiFrameCarrier,
-      { "multiFrameCarrier", "lppe.multiFrameCarrier",
+      { "multiFrameCarrier", "lppe.multiFrameCarrier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_MultiFrameCarrier", HFILL }},
     { &hf_lppe_requestIndex,
@@ -17935,7 +19904,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_EOTD_SystemInfoIndex", HFILL }},
     { &hf_lppe_ciAndLac,
-      { "ciAndLac", "lppe.ciAndLac",
+      { "ciAndLac", "lppe.ciAndLac_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_CellLocalIdGERAN", HFILL }},
     { &hf_lppe_nbrOfMeasurements,
@@ -17955,11 +19924,11 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_locationServerErrorCauses_01,
-      { "locationServerErrorCauses", "lppe.locationServerErrorCauses",
+      { "locationServerErrorCauses", "lppe.locationServerErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_LocationServerErrorCauses", HFILL }},
     { &hf_lppe_targetDeviceErrorCauses_01,
-      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses",
+      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_EOTD_TargetDeviceErrorCauses", HFILL }},
     { &hf_lppe_cause_02,
@@ -17979,7 +19948,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_7", HFILL }},
     { &hf_lppe_referenceCellInfo_01,
-      { "referenceCellInfo", "lppe.referenceCellInfo",
+      { "referenceCellInfo", "lppe.referenceCellInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_ReferenceCellInfo", HFILL }},
     { &hf_lppe_neigborCellList,
@@ -17999,31 +19968,31 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_modeSpecificInfo_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_fdd,
-      { "fdd", "lppe.fdd",
+      { "fdd", "lppe.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_primaryCPICH_info,
-      { "primaryCPICH-info", "lppe.primaryCPICH_info",
+      { "primaryCPICH-info", "lppe.primaryCPICH_info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_PrimaryCPICH_Info", HFILL }},
     { &hf_lppe_tdd,
-      { "tdd", "lppe.tdd",
+      { "tdd", "lppe.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_cellAndChannelIdentity,
-      { "cellAndChannelIdentity", "lppe.cellAndChannelIdentity",
+      { "cellAndChannelIdentity", "lppe.cellAndChannelIdentity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_CellAndChannelIdentity", HFILL }},
     { &hf_lppe_frequencyInfo,
-      { "frequencyInfo", "lppe.frequencyInfo",
+      { "frequencyInfo", "lppe.frequencyInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_UTRA_FrequencyInfo", HFILL }},
     { &hf_lppe_refPosAssist,
-      { "refPosAssist", "lppe.refPosAssist",
+      { "refPosAssist", "lppe.refPosAssist_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_RefPosAssist", HFILL }},
     { &hf_lppe_ipdl_parameters,
-      { "ipdl-parameters", "lppe.ipdl_parameters",
+      { "ipdl-parameters", "lppe.ipdl_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_IPDL_Parameters", HFILL }},
     { &hf_lppe_cellPosition,
@@ -18031,19 +20000,19 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_cellPosition_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_ellipsoidPointWithAltitude,
-      { "ellipsoidPointWithAltitude", "lppe.ellipsoidPointWithAltitude",
+      { "ellipsoidPointWithAltitude", "lppe.ellipsoidPointWithAltitude_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_roundTripTime,
       { "roundTripTime", "lppe.roundTripTime",
         FT_UINT32, BASE_DEC, NULL, 0,
-        "INTEGER_0_327", HFILL }},
+        "INTEGER_0_32766", HFILL }},
     { &hf_lppe_roundTripTimeExtension,
       { "roundTripTimeExtension", "lppe.roundTripTimeExtension",
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_70274", HFILL }},
     { &hf_lppe_OMA_LPPe_OTDOA_UTRA_NeighborCellList_item,
-      { "OMA-LPPe-OTDOA-UTRA-NeighborCellInfo", "lppe.OMA_LPPe_OTDOA_UTRA_NeighborCellInfo",
+      { "OMA-LPPe-OTDOA-UTRA-NeighborCellInfo", "lppe.OMA_LPPe_OTDOA_UTRA_NeighborCellInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_modeSpecificInfo_01,
@@ -18051,15 +20020,15 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_modeSpecificInfo_01_vals), 0,
         "T_modeSpecificInfo_01", HFILL }},
     { &hf_lppe_fdd_01,
-      { "fdd", "lppe.fdd",
+      { "fdd", "lppe.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_01", HFILL }},
     { &hf_lppe_tdd_01,
-      { "tdd", "lppe.tdd",
+      { "tdd", "lppe.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_01", HFILL }},
     { &hf_lppe_sfn_SFN_relTimeDifference,
-      { "sfn-SFN-relTimeDifference", "lppe.sfn_SFN_relTimeDifference",
+      { "sfn-SFN-relTimeDifference", "lppe.sfn_SFN_relTimeDifference_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_SFN_SFN_RelTimeDifference1", HFILL }},
     { &hf_lppe_sfn_offsetValidity,
@@ -18075,7 +20044,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_OTDOA_UTRA_SearchWindowSize_vals), 0,
         "OMA_LPPe_OTDOA_UTRA_SearchWindowSize", HFILL }},
     { &hf_lppe_positioningAssistance,
-      { "positioningAssistance", "lppe.positioningAssistance",
+      { "positioningAssistance", "lppe.positioningAssistance_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_PositioningAssistance", HFILL }},
     { &hf_lppe_sfn_offset,
@@ -18107,7 +20076,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_modeSpecificInfo_02_vals), 0,
         "T_modeSpecificInfo_02", HFILL }},
     { &hf_lppe_fdd_02,
-      { "fdd", "lppe.fdd",
+      { "fdd", "lppe.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_02", HFILL }},
     { &hf_lppe_ip_spacing,
@@ -18127,11 +20096,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_63", HFILL }},
     { &hf_lppe_burstModeParameters,
-      { "burstModeParameters", "lppe.burstModeParameters",
+      { "burstModeParameters", "lppe.burstModeParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_BurstModeParameters", HFILL }},
     { &hf_lppe_tdd_02,
-      { "tdd", "lppe.tdd",
+      { "tdd", "lppe.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_02", HFILL }},
     { &hf_lppe_ip_spacing_tdd,
@@ -18167,11 +20136,11 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_otdoaUtraMeasurement,
-      { "otdoaUtraMeasurement", "lppe.otdoaUtraMeasurement",
+      { "otdoaUtraMeasurement", "lppe.otdoaUtraMeasurement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_Measurement", HFILL }},
     { &hf_lppe_timeStampData,
-      { "timeStampData", "lppe.timeStampData",
+      { "timeStampData", "lppe.timeStampData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_TimeStampData", HFILL }},
     { &hf_lppe_modeSpecificInfoMeas,
@@ -18179,19 +20148,19 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_modeSpecificInfoMeas_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_fdd_03,
-      { "fdd", "lppe.fdd",
+      { "fdd", "lppe.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_03", HFILL }},
     { &hf_lppe_referenceCellIdentity,
-      { "referenceCellIdentity", "lppe.referenceCellIdentity",
+      { "referenceCellIdentity", "lppe.referenceCellIdentity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_PrimaryCPICH_Info", HFILL }},
     { &hf_lppe_ue_RX_TX_TimeDifferenceType2Info,
-      { "ue-RX-TX-TimeDifferenceType2Info", "lppe.ue_RX_TX_TimeDifferenceType2Info",
+      { "ue-RX-TX-TimeDifferenceType2Info", "lppe.ue_RX_TX_TimeDifferenceType2Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_UE_RX_TX_TimeDifferenceType2Info", HFILL }},
     { &hf_lppe_tdd_03,
-      { "tdd", "lppe.tdd",
+      { "tdd", "lppe.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_03", HFILL }},
     { &hf_lppe_neighborList,
@@ -18203,11 +20172,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_TimeDifferenceType2", HFILL }},
     { &hf_lppe_neighborQuality,
-      { "neighborQuality", "lppe.neighborQuality",
+      { "neighborQuality", "lppe.neighborQuality_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_NeighborQuality", HFILL }},
     { &hf_lppe_OMA_LPPe_OTDOA_UTRA_NeighborList_item,
-      { "OMA-LPPe-OTDOA-UTRA-Neighbor", "lppe.OMA_LPPe_OTDOA_UTRA_Neighbor",
+      { "OMA-LPPe-OTDOA-UTRA-Neighbor", "lppe.OMA_LPPe_OTDOA_UTRA_Neighbor_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_modeSpecificInfo_03,
@@ -18215,19 +20184,19 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_modeSpecificInfo_03_vals), 0,
         "T_modeSpecificInfo_03", HFILL }},
     { &hf_lppe_fdd_04,
-      { "fdd", "lppe.fdd",
+      { "fdd", "lppe.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_04", HFILL }},
     { &hf_lppe_neighborIdentity_01,
-      { "neighborIdentity", "lppe.neighborIdentity",
+      { "neighborIdentity", "lppe.neighborIdentity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_PrimaryCPICH_Info", HFILL }},
     { &hf_lppe_ue_RX_TX_timeDifferenceType2Info,
-      { "ue-RX-TX-timeDifferenceType2Info", "lppe.ue_RX_TX_timeDifferenceType2Info",
+      { "ue-RX-TX-timeDifferenceType2Info", "lppe.ue_RX_TX_timeDifferenceType2Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_UE_RX_TX_TimeDifferenceType2Info", HFILL }},
     { &hf_lppe_tdd_04,
-      { "tdd", "lppe.tdd",
+      { "tdd", "lppe.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_04", HFILL }},
     { &hf_lppe_uarfcn,
@@ -18239,7 +20208,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_SFN_SFN_ObsTimeDifference2", HFILL }},
     { &hf_lppe_quality_01,
-      { "quality", "lppe.quality",
+      { "quality", "lppe.quality_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_Quality", HFILL }},
     { &hf_lppe_numberOfOTDOA_Measurements,
@@ -18251,7 +20220,7 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_5", HFILL }},
     { &hf_lppe_utraCellGlobalID,
-      { "utraCellGlobalID", "lppe.utraCellGlobalID",
+      { "utraCellGlobalID", "lppe.utraCellGlobalID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CellGlobalIdEUTRA_AndUTRA", HFILL }},
     { &hf_lppe_nonUniqueCellID,
@@ -18279,11 +20248,11 @@ void proto_register_lppe(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lppe_locationServerErrorCauses_02,
-      { "locationServerErrorCauses", "lppe.locationServerErrorCauses",
+      { "locationServerErrorCauses", "lppe.locationServerErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_LocationServerErrorCauses", HFILL }},
     { &hf_lppe_targetDeviceErrorCauses_02,
-      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses",
+      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_OTDOA_UTRA_TargetDeviceErrorCauses", HFILL }},
     { &hf_lppe_cause_04,
@@ -18315,7 +20284,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxLTENetworks_OF_OMA_LPPe_ECID_LTE_NetworkData", HFILL }},
     { &hf_lppe_ecid_LTE_NetworkData_item,
-      { "OMA-LPPe-ECID-LTE-NetworkData", "lppe.OMA_LPPe_ECID_LTE_NetworkData",
+      { "OMA-LPPe-ECID-LTE-NetworkData", "lppe.OMA_LPPe_ECID_LTE_NetworkData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_LTE_Error,
@@ -18323,31 +20292,23 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_ECID_LTE_Error_vals), 0,
         "OMA_LPPe_ECID_LTE_Error", HFILL }},
     { &hf_lppe_plmn_Identity,
-      { "plmn-Identity", "lppe.plmn_Identity",
+      { "plmn-Identity", "lppe.plmn_Identity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
-    { &hf_lppe_mcc,
+    { &hf_lppe_mcc_01,
       { "mcc", "lppe.mcc",
         FT_UINT32, BASE_DEC, NULL, 0,
-        NULL, HFILL }},
-    { &hf_lppe_mcc_item,
-      { "mcc item", "lppe.mcc_item",
-        FT_UINT32, BASE_DEC, NULL, 0,
-        "INTEGER_0_9", HFILL }},
-    { &hf_lppe_mnc,
+        "T_mcc_01", HFILL }},
+    { &hf_lppe_mnc_01,
       { "mnc", "lppe.mnc",
         FT_UINT32, BASE_DEC, NULL, 0,
-        NULL, HFILL }},
-    { &hf_lppe_mnc_item,
-      { "mnc item", "lppe.mnc_item",
-        FT_UINT32, BASE_DEC, NULL, 0,
-        "INTEGER_0_9", HFILL }},
+        "T_mnc_01", HFILL }},
     { &hf_lppe_multiple_PLMNs,
       { "multiple-PLMNs", "lppe.multiple_PLMNs",
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lppe_reference_location,
-      { "reference-location", "lppe.reference_location",
+      { "reference-location", "lppe.reference_location_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ReferencePoint", HFILL }},
     { &hf_lppe_ecid_lte_eNodeB_list,
@@ -18355,7 +20316,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxLTEeNBs_OF_OMA_LPPe_ECID_LTE_eNodeBData", HFILL }},
     { &hf_lppe_ecid_lte_eNodeB_list_item,
-      { "OMA-LPPe-ECID-LTE-eNodeBData", "lppe.OMA_LPPe_ECID_LTE_eNodeBData",
+      { "OMA-LPPe-ECID-LTE-eNodeBData", "lppe.OMA_LPPe_ECID_LTE_eNodeBData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_lte_HeNB_list,
@@ -18363,7 +20324,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxLTEHeNBs_OF_OMA_LPPe_ECID_LTE_HeNBData", HFILL }},
     { &hf_lppe_ecid_lte_HeNB_list_item,
-      { "OMA-LPPe-ECID-LTE-HeNBData", "lppe.OMA_LPPe_ECID_LTE_HeNBData",
+      { "OMA-LPPe-ECID-LTE-HeNBData", "lppe.OMA_LPPe_ECID_LTE_HeNBData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_lte_eNodeB_CellData,
@@ -18371,15 +20332,15 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxLTEMacroCells_OF_OMA_LPPe_ECID_LTE_CellData", HFILL }},
     { &hf_lppe_ecid_lte_eNodeB_CellData_item,
-      { "OMA-LPPe-ECID-LTE-CellData", "lppe.OMA_LPPe_ECID_LTE_CellData",
+      { "OMA-LPPe-ECID-LTE-CellData", "lppe.OMA_LPPe_ECID_LTE_CellData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
-    { &hf_lppe_coverageArea,
-      { "coverageArea", "lppe.coverageArea",
+    { &hf_lppe_coverageArea_01,
+      { "coverageArea", "lppe.coverageArea_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLANFemtoCoverageArea", HFILL }},
     { &hf_lppe_ecid_lte_HeNB_CellData,
-      { "ecid-lte-HeNB-CellData", "lppe.ecid_lte_HeNB_CellData",
+      { "ecid-lte-HeNB-CellData", "lppe.ecid_lte_HeNB_CellData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_LTE_CellData", HFILL }},
     { &hf_lppe_cellIdentity_01,
@@ -18427,11 +20388,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxLTEECIDSize_OF_OMA_LPPe_ECID_LTE_LocationInformationList", HFILL }},
     { &hf_lppe_ecid_LTE_CombinedLocationInformation_item,
-      { "OMA-LPPe-ECID-LTE-LocationInformationList", "lppe.OMA_LPPe_ECID_LTE_LocationInformationList",
+      { "OMA-LPPe-ECID-LTE-LocationInformationList", "lppe.OMA_LPPe_ECID_LTE_LocationInformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_LTE_LocationInformation,
-      { "ecid-LTE-LocationInformation", "lppe.ecid_LTE_LocationInformation",
+      { "ecid-LTE-LocationInformation", "lppe.ecid_LTE_LocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_LTE_LocationInformation", HFILL }},
     { &hf_lppe_relativeTimeStamp,
@@ -18443,7 +20404,7 @@ void proto_register_lppe(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lppe_lpp_ECID_SignalMeasurementInformation,
-      { "lpp-ECID-SignalMeasurementInformation", "lppe.lpp_ECID_SignalMeasurementInformation",
+      { "lpp-ECID-SignalMeasurementInformation", "lppe.lpp_ECID_SignalMeasurementInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ECID_SignalMeasurementInformation", HFILL }},
     { &hf_lppe_requestedMeasurements,
@@ -18463,11 +20424,11 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_locationServerErrorCauses_03,
-      { "locationServerErrorCauses", "lppe.locationServerErrorCauses",
+      { "locationServerErrorCauses", "lppe.locationServerErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_LTE_LocationServerErrorCauses", HFILL }},
     { &hf_lppe_targetDeviceErrorCauses_03,
-      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses",
+      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_LTE_TargetDeviceErrorCauses", HFILL }},
     { &hf_lppe_cause_06,
@@ -18475,71 +20436,71 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_cause_06_vals), 0,
         "T_cause_06", HFILL }},
     { &hf_lppe_eNodeBMandatoryDataUnavailable,
-      { "eNodeBMandatoryDataUnavailable", "lppe.eNodeBMandatoryDataUnavailable",
+      { "eNodeBMandatoryDataUnavailable", "lppe.eNodeBMandatoryDataUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_eNodeBLocationsUnavailable,
-      { "eNodeBLocationsUnavailable", "lppe.eNodeBLocationsUnavailable",
+      { "eNodeBLocationsUnavailable", "lppe.eNodeBLocationsUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_eNodeBcellTransmitPowerUnavailable,
-      { "eNodeBcellTransmitPowerUnavailable", "lppe.eNodeBcellTransmitPowerUnavailable",
+      { "eNodeBcellTransmitPowerUnavailable", "lppe.eNodeBcellTransmitPowerUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_eNodeBcellAntennaPortConfigUnavailable,
-      { "eNodeBcellAntennaPortConfigUnavailable", "lppe.eNodeBcellAntennaPortConfigUnavailable",
+      { "eNodeBcellAntennaPortConfigUnavailable", "lppe.eNodeBcellAntennaPortConfigUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_eNodeBcallAntennaGainUnavailable,
-      { "eNodeBcallAntennaGainUnavailable", "lppe.eNodeBcallAntennaGainUnavailable",
+      { "eNodeBcallAntennaGainUnavailable", "lppe.eNodeBcallAntennaGainUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_eNodeBcellBeamWidthUnavailable,
-      { "eNodeBcellBeamWidthUnavailable", "lppe.eNodeBcellBeamWidthUnavailable",
+      { "eNodeBcellBeamWidthUnavailable", "lppe.eNodeBcellBeamWidthUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_eNodeBcellTransmitDirectionUnavailable,
-      { "eNodeBcellTransmitDirectionUnavailable", "lppe.eNodeBcellTransmitDirectionUnavailable",
+      { "eNodeBcellTransmitDirectionUnavailable", "lppe.eNodeBcellTransmitDirectionUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_eNodeBcellFrequencyAccuracyUnavailable,
-      { "eNodeBcellFrequencyAccuracyUnavailable", "lppe.eNodeBcellFrequencyAccuracyUnavailable",
+      { "eNodeBcellFrequencyAccuracyUnavailable", "lppe.eNodeBcellFrequencyAccuracyUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_eNodeBnonservingADUnavailable,
-      { "eNodeBnonservingADUnavailable", "lppe.eNodeBnonservingADUnavailable",
+      { "eNodeBnonservingADUnavailable", "lppe.eNodeBnonservingADUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_heNBMandatoryDataUnavailable,
-      { "heNBMandatoryDataUnavailable", "lppe.heNBMandatoryDataUnavailable",
+      { "heNBMandatoryDataUnavailable", "lppe.heNBMandatoryDataUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_heNBLocationUnavailable,
-      { "heNBLocationUnavailable", "lppe.heNBLocationUnavailable",
+      { "heNBLocationUnavailable", "lppe.heNBLocationUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_heNBLocationReliabilityUnavailable,
-      { "heNBLocationReliabilityUnavailable", "lppe.heNBLocationReliabilityUnavailable",
+      { "heNBLocationReliabilityUnavailable", "lppe.heNBLocationReliabilityUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_heNBcellTransmitPowerUnavailable,
-      { "heNBcellTransmitPowerUnavailable", "lppe.heNBcellTransmitPowerUnavailable",
+      { "heNBcellTransmitPowerUnavailable", "lppe.heNBcellTransmitPowerUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_heNBcellAntennaPortConfigUnavailable,
-      { "heNBcellAntennaPortConfigUnavailable", "lppe.heNBcellAntennaPortConfigUnavailable",
+      { "heNBcellAntennaPortConfigUnavailable", "lppe.heNBcellAntennaPortConfigUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_heNBcellFrequencyAccuracyUnavailable,
-      { "heNBcellFrequencyAccuracyUnavailable", "lppe.heNBcellFrequencyAccuracyUnavailable",
+      { "heNBcellFrequencyAccuracyUnavailable", "lppe.heNBcellFrequencyAccuracyUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_heNBCoverageAreaUnavailable,
-      { "heNBCoverageAreaUnavailable", "lppe.heNBCoverageAreaUnavailable",
+      { "heNBCoverageAreaUnavailable", "lppe.heNBCoverageAreaUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_heNBnonservingADUnavailable,
-      { "heNBnonservingADUnavailable", "lppe.heNBnonservingADUnavailable",
+      { "heNBnonservingADUnavailable", "lppe.heNBnonservingADUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_cause_07,
@@ -18547,23 +20508,23 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_cause_07_vals), 0,
         "T_cause_07", HFILL }},
     { &hf_lppe_rsrpMeasurementNotPossible,
-      { "rsrpMeasurementNotPossible", "lppe.rsrpMeasurementNotPossible",
+      { "rsrpMeasurementNotPossible", "lppe.rsrpMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_rsrqMeasurementNotPossible,
-      { "rsrqMeasurementNotPossible", "lppe.rsrqMeasurementNotPossible",
+      { "rsrqMeasurementNotPossible", "lppe.rsrqMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ueRxTxMeasurementNotPossible,
-      { "ueRxTxMeasurementNotPossible", "lppe.ueRxTxMeasurementNotPossible",
+      { "ueRxTxMeasurementNotPossible", "lppe.ueRxTxMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_non_servingMeasurementsNotAvailable,
-      { "non-servingMeasurementsNotAvailable", "lppe.non_servingMeasurementsNotAvailable",
+      { "non-servingMeasurementsNotAvailable", "lppe.non_servingMeasurementsNotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_historicMeasurementsNotAvailable,
-      { "historicMeasurementsNotAvailable", "lppe.historicMeasurementsNotAvailable",
+      { "historicMeasurementsNotAvailable", "lppe.historicMeasurementsNotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_gsm_NetworkData,
@@ -18571,7 +20532,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxGSMNetworks_OF_OMA_LPPe_ECID_GSM_NetworkData", HFILL }},
     { &hf_lppe_ecid_gsm_NetworkData_item,
-      { "OMA-LPPe-ECID-GSM-NetworkData", "lppe.OMA_LPPe_ECID_GSM_NetworkData",
+      { "OMA-LPPe-ECID-GSM-NetworkData", "lppe.OMA_LPPe_ECID_GSM_NetworkData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_gsm_Error,
@@ -18579,23 +20540,23 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_ECID_GSM_Error_vals), 0,
         "OMA_LPPe_ECID_GSM_Error", HFILL }},
     { &hf_lppe_plmn_Identity_01,
-      { "plmn-Identity", "lppe.plmn_Identity",
+      { "plmn-Identity", "lppe.plmn_Identity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_plmn_Identity_01", HFILL }},
-    { &hf_lppe_mcc_01,
+    { &hf_lppe_mcc_02,
       { "mcc", "lppe.mcc",
         FT_UINT32, BASE_DEC, NULL, 0,
-        "T_mcc_01", HFILL }},
-    { &hf_lppe_mnc_01,
+        "T_mcc_02", HFILL }},
+    { &hf_lppe_mnc_02,
       { "mnc", "lppe.mnc",
         FT_UINT32, BASE_DEC, NULL, 0,
-        "T_mnc_01", HFILL }},
+        "T_mnc_02", HFILL }},
     { &hf_lppe_base_station_list,
       { "base-station-list", "lppe.base_station_list",
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxGSMBaseStations_OF_OMA_LPPe_ECID_GSM_BaseStationData", HFILL }},
     { &hf_lppe_base_station_list_item,
-      { "OMA-LPPe-ECID-GSM-BaseStationData", "lppe.OMA_LPPe_ECID_GSM_BaseStationData",
+      { "OMA-LPPe-ECID-GSM-BaseStationData", "lppe.OMA_LPPe_ECID_GSM_BaseStationData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_gsm_CellData,
@@ -18603,15 +20564,15 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxGSMCells_OF_OMA_LPPe_ECID_GSM_CellData", HFILL }},
     { &hf_lppe_ecid_gsm_CellData_item,
-      { "OMA-LPPe-ECID-GSM-CellData", "lppe.OMA_LPPe_ECID_GSM_CellData",
+      { "OMA-LPPe-ECID-GSM-CellData", "lppe.OMA_LPPe_ECID_GSM_CellData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_cellNonUniqueIDGERAN,
-      { "cellNonUniqueIDGERAN", "lppe.cellNonUniqueIDGERAN",
+      { "cellNonUniqueIDGERAN", "lppe.cellNonUniqueIDGERAN_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_CellNonUniqueIDGERAN", HFILL }},
     { &hf_lppe_cellLocalIDGERAN,
-      { "cellLocalIDGERAN", "lppe.cellLocalIDGERAN",
+      { "cellLocalIDGERAN", "lppe.cellLocalIDGERAN_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_CellLocalIdGERAN", HFILL }},
     { &hf_lppe_transmit_power,
@@ -18627,7 +20588,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxGSMECIDSize_OF_OMA_LPPe_ECID_GSM_LocationInformationList", HFILL }},
     { &hf_lppe_ecid_GSM_CombinedLocationInformation_item,
-      { "OMA-LPPe-ECID-GSM-LocationInformationList", "lppe.OMA_LPPe_ECID_GSM_LocationInformationList",
+      { "OMA-LPPe-ECID-GSM-LocationInformationList", "lppe.OMA_LPPe_ECID_GSM_LocationInformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_GSM_Error,
@@ -18635,11 +20596,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_ECID_GSM_Error_vals), 0,
         "OMA_LPPe_ECID_GSM_Error", HFILL }},
     { &hf_lppe_ecid_GSM_LocationInformation,
-      { "ecid-GSM-LocationInformation", "lppe.ecid_GSM_LocationInformation",
+      { "ecid-GSM-LocationInformation", "lppe.ecid_GSM_LocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_GSM_LocationInformation", HFILL }},
     { &hf_lppe_cellGlobalIdGERAN,
-      { "cellGlobalIdGERAN", "lppe.cellGlobalIdGERAN",
+      { "cellGlobalIdGERAN", "lppe.cellGlobalIdGERAN_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_rxLevel,
@@ -18655,7 +20616,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_NMR_GERAN", HFILL }},
     { &hf_lppe_OMA_LPPe_NMR_GERAN_item,
-      { "OMA-LPPe-NMR-GERAN item", "lppe.OMA_LPPe_NMR_GERAN_item",
+      { "OMA-LPPe-NMR-GERAN item", "lppe.OMA_LPPe_NMR_GERAN_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_requestedMeasurements_01,
@@ -18671,11 +20632,11 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_locationServerErrorCauses_04,
-      { "locationServerErrorCauses", "lppe.locationServerErrorCauses",
+      { "locationServerErrorCauses", "lppe.locationServerErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_GSM_LocationServerErrorCauses", HFILL }},
     { &hf_lppe_targetDeviceErrorCauses_04,
-      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses",
+      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_GSM_TargetDeviceErrorCauses", HFILL }},
     { &hf_lppe_cause_08,
@@ -18683,35 +20644,35 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_cause_08_vals), 0,
         "T_cause_08", HFILL }},
     { &hf_lppe_mandatoryDataUnavailable,
-      { "mandatoryDataUnavailable", "lppe.mandatoryDataUnavailable",
+      { "mandatoryDataUnavailable", "lppe.mandatoryDataUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_bsLocationsUnavailable,
-      { "bsLocationsUnavailable", "lppe.bsLocationsUnavailable",
+      { "bsLocationsUnavailable", "lppe.bsLocationsUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_cellTransmitPowerUnavailable,
-      { "cellTransmitPowerUnavailable", "lppe.cellTransmitPowerUnavailable",
+      { "cellTransmitPowerUnavailable", "lppe.cellTransmitPowerUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_callAntennaGainUnavailable,
-      { "callAntennaGainUnavailable", "lppe.callAntennaGainUnavailable",
+      { "callAntennaGainUnavailable", "lppe.callAntennaGainUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_cellBeamWidthUnavailable,
-      { "cellBeamWidthUnavailable", "lppe.cellBeamWidthUnavailable",
+      { "cellBeamWidthUnavailable", "lppe.cellBeamWidthUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_cellTransmitDirectionUnavailable,
-      { "cellTransmitDirectionUnavailable", "lppe.cellTransmitDirectionUnavailable",
+      { "cellTransmitDirectionUnavailable", "lppe.cellTransmitDirectionUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_cellFrequencyAccuracyUnavailable,
-      { "cellFrequencyAccuracyUnavailable", "lppe.cellFrequencyAccuracyUnavailable",
+      { "cellFrequencyAccuracyUnavailable", "lppe.cellFrequencyAccuracyUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nonservingADUnavailable,
-      { "nonservingADUnavailable", "lppe.nonservingADUnavailable",
+      { "nonservingADUnavailable", "lppe.nonservingADUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_cause_09,
@@ -18719,15 +20680,15 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_cause_09_vals), 0,
         "T_cause_09", HFILL }},
     { &hf_lppe_rxLevelMeasurementNotPossible,
-      { "rxLevelMeasurementNotPossible", "lppe.rxLevelMeasurementNotPossible",
+      { "rxLevelMeasurementNotPossible", "lppe.rxLevelMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_taMeasurementNotPossible,
-      { "taMeasurementNotPossible", "lppe.taMeasurementNotPossible",
+      { "taMeasurementNotPossible", "lppe.taMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nMRMeasurementNotPossible,
-      { "nMRMeasurementNotPossible", "lppe.nMRMeasurementNotPossible",
+      { "nMRMeasurementNotPossible", "lppe.nMRMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_UTRA_NetworkData,
@@ -18735,7 +20696,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxUTRANetworks_OF_OMA_LPPe_ECID_UTRA_NetworkData", HFILL }},
     { &hf_lppe_ecid_UTRA_NetworkData_item,
-      { "OMA-LPPe-ECID-UTRA-NetworkData", "lppe.OMA_LPPe_ECID_UTRA_NetworkData",
+      { "OMA-LPPe-ECID-UTRA-NetworkData", "lppe.OMA_LPPe_ECID_UTRA_NetworkData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_UTRA_Error,
@@ -18743,23 +20704,23 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_ECID_UTRA_Error_vals), 0,
         "OMA_LPPe_ECID_UTRA_Error", HFILL }},
     { &hf_lppe_plmn_Identity_02,
-      { "plmn-Identity", "lppe.plmn_Identity",
+      { "plmn-Identity", "lppe.plmn_Identity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_plmn_Identity_02", HFILL }},
-    { &hf_lppe_mcc_02,
+    { &hf_lppe_mcc_03,
       { "mcc", "lppe.mcc",
         FT_UINT32, BASE_DEC, NULL, 0,
-        "T_mcc_02", HFILL }},
-    { &hf_lppe_mnc_02,
+        "T_mcc_03", HFILL }},
+    { &hf_lppe_mnc_03,
       { "mnc", "lppe.mnc",
         FT_UINT32, BASE_DEC, NULL, 0,
-        "T_mnc_02", HFILL }},
+        "T_mnc_03", HFILL }},
     { &hf_lppe_ecid_utra_nodeB_list,
       { "ecid-utra-nodeB-list", "lppe.ecid_utra_nodeB_list",
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxUTRAnodeBs_OF_OMA_LPPe_ECID_UTRA_NodeBData", HFILL }},
     { &hf_lppe_ecid_utra_nodeB_list_item,
-      { "OMA-LPPe-ECID-UTRA-NodeBData", "lppe.OMA_LPPe_ECID_UTRA_NodeBData",
+      { "OMA-LPPe-ECID-UTRA-NodeBData", "lppe.OMA_LPPe_ECID_UTRA_NodeBData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_utra_HNB_list,
@@ -18767,7 +20728,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxUTRAHNBs_OF_OMA_LPPe_ECID_UTRA_HNBData", HFILL }},
     { &hf_lppe_ecid_utra_HNB_list_item,
-      { "OMA-LPPe-ECID-UTRA-HNBData", "lppe.OMA_LPPe_ECID_UTRA_HNBData",
+      { "OMA-LPPe-ECID-UTRA-HNBData", "lppe.OMA_LPPe_ECID_UTRA_HNBData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_utra_nodeB_CellData,
@@ -18775,11 +20736,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxUTRAMacroCells_OF_OMA_LPPe_ECID_UTRA_CellData", HFILL }},
     { &hf_lppe_ecid_utra_nodeB_CellData_item,
-      { "OMA-LPPe-ECID-UTRA-CellData", "lppe.OMA_LPPe_ECID_UTRA_CellData",
+      { "OMA-LPPe-ECID-UTRA-CellData", "lppe.OMA_LPPe_ECID_UTRA_CellData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_utra_HNB_CellData,
-      { "ecid-utra-HNB-CellData", "lppe.ecid_utra_HNB_CellData",
+      { "ecid-utra-HNB-CellData", "lppe.ecid_utra_HNB_CellData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_UTRA_CellData", HFILL }},
     { &hf_lppe_cellIdentity_02,
@@ -18791,7 +20752,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_modeSpecificInfo_04_vals), 0,
         "T_modeSpecificInfo_04", HFILL }},
     { &hf_lppe_fdd_05,
-      { "fdd", "lppe.fdd",
+      { "fdd", "lppe.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_05", HFILL }},
     { &hf_lppe_primaryCPICH_Scrambling_Code,
@@ -18807,7 +20768,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ARFCN_ValueUTRA", HFILL }},
     { &hf_lppe_tdd_05,
-      { "tdd", "lppe.tdd",
+      { "tdd", "lppe.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_05", HFILL }},
     { &hf_lppe_primaryCCPCH_Tx_Power,
@@ -18831,7 +20792,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxECIDUTRASize_OF_OMA_LPPe_ECID_UTRA_LocationInformationList", HFILL }},
     { &hf_lppe_ecid_UTRA_CombinedLocationInformation_item,
-      { "OMA-LPPe-ECID-UTRA-LocationInformationList", "lppe.OMA_LPPe_ECID_UTRA_LocationInformationList",
+      { "OMA-LPPe-ECID-UTRA-LocationInformationList", "lppe.OMA_LPPe_ECID_UTRA_LocationInformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_Error,
@@ -18839,11 +20800,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_ECID_UTRA_Error_vals), 0,
         "OMA_LPPe_ECID_UTRA_Error", HFILL }},
     { &hf_lppe_ecid_utra_LocationInformation,
-      { "ecid-utra-LocationInformation", "lppe.ecid_utra_LocationInformation",
+      { "ecid-utra-LocationInformation", "lppe.ecid_utra_LocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_UTRA_LocationInformation", HFILL }},
     { &hf_lppe_cellGlobalIdUTRA,
-      { "cellGlobalIdUTRA", "lppe.cellGlobalIdUTRA",
+      { "cellGlobalIdUTRA", "lppe.cellGlobalIdUTRA_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CellGlobalIdEUTRA_AndUTRA", HFILL }},
     { &hf_lppe_measuredResultsList,
@@ -18851,7 +20812,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_ECID_UTRA_MeasuredResultsList", HFILL }},
     { &hf_lppe_utratimingAdvance,
-      { "utratimingAdvance", "lppe.utratimingAdvance",
+      { "utratimingAdvance", "lppe.utratimingAdvance_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_UTRA_UTRATimingAdvance", HFILL }},
     { &hf_lppe_tA_01,
@@ -18871,11 +20832,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_UTRA_ModeSpecificInfo_vals), 0,
         "OMA_LPPe_UTRA_ModeSpecificInfo", HFILL }},
     { &hf_lppe_fdd_06,
-      { "fdd", "lppe.fdd",
+      { "fdd", "lppe.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_UTRA_FrequencyInfoFDD", HFILL }},
     { &hf_lppe_tdd_06,
-      { "tdd", "lppe.tdd",
+      { "tdd", "lppe.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_UTRA_FrequencyInfoTDD", HFILL }},
     { &hf_lppe_uarfcn_UL,
@@ -18891,7 +20852,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ARFCN_ValueUTRA", HFILL }},
     { &hf_lppe_OMA_LPPe_ECID_UTRA_MeasuredResultsList_item,
-      { "OMA-LPPe-ECID-UTRA-MeasuredResults", "lppe.OMA_LPPe_ECID_UTRA_MeasuredResults",
+      { "OMA-LPPe-ECID-UTRA-MeasuredResults", "lppe.OMA_LPPe_ECID_UTRA_MeasuredResults_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_utra_CarrierRSSI,
@@ -18903,7 +20864,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_ECID_UTRA_CellMeasuredResultsList", HFILL }},
     { &hf_lppe_OMA_LPPe_ECID_UTRA_CellMeasuredResultsList_item,
-      { "OMA-LPPe-ECID-UTRA-CellMeasuredResults", "lppe.OMA_LPPe_ECID_UTRA_CellMeasuredResults",
+      { "OMA-LPPe-ECID-UTRA-CellMeasuredResults", "lppe.OMA_LPPe_ECID_UTRA_CellMeasuredResults_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_modeSpecificInfo_06,
@@ -18911,7 +20872,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_modeSpecificInfo_05_vals), 0,
         "T_modeSpecificInfo_05", HFILL }},
     { &hf_lppe_fdd_07,
-      { "fdd", "lppe.fdd",
+      { "fdd", "lppe.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_06", HFILL }},
     { &hf_lppe_primaryCPICH_Info,
@@ -18931,7 +20892,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_ECID_UTRA_Pathloss", HFILL }},
     { &hf_lppe_tdd_07,
-      { "tdd", "lppe.tdd",
+      { "tdd", "lppe.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_06", HFILL }},
     { &hf_lppe_primaryCCPCH_RSCP,
@@ -18955,11 +20916,11 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_locationServerErrorCauses_05,
-      { "locationServerErrorCauses", "lppe.locationServerErrorCauses",
+      { "locationServerErrorCauses", "lppe.locationServerErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_UTRA_LocationServerErrorCauses", HFILL }},
     { &hf_lppe_targetDeviceErrorCauses_05,
-      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses",
+      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_UTRA_TargetDeviceErrorCauses", HFILL }},
     { &hf_lppe_cause_10,
@@ -18967,63 +20928,63 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_cause_10_vals), 0,
         "T_cause_10", HFILL }},
     { &hf_lppe_nodeBMandatoryDataUnavailable,
-      { "nodeBMandatoryDataUnavailable", "lppe.nodeBMandatoryDataUnavailable",
+      { "nodeBMandatoryDataUnavailable", "lppe.nodeBMandatoryDataUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nodeBLocationUnavailable,
-      { "nodeBLocationUnavailable", "lppe.nodeBLocationUnavailable",
+      { "nodeBLocationUnavailable", "lppe.nodeBLocationUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nodeBcellTransmitPowerUnavailable,
-      { "nodeBcellTransmitPowerUnavailable", "lppe.nodeBcellTransmitPowerUnavailable",
+      { "nodeBcellTransmitPowerUnavailable", "lppe.nodeBcellTransmitPowerUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nodeBcallAntennaGainUnavailable,
-      { "nodeBcallAntennaGainUnavailable", "lppe.nodeBcallAntennaGainUnavailable",
+      { "nodeBcallAntennaGainUnavailable", "lppe.nodeBcallAntennaGainUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nodeBcellBeamWidthUnavailable,
-      { "nodeBcellBeamWidthUnavailable", "lppe.nodeBcellBeamWidthUnavailable",
+      { "nodeBcellBeamWidthUnavailable", "lppe.nodeBcellBeamWidthUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nodeBcellTransmitDirectionUnavailable,
-      { "nodeBcellTransmitDirectionUnavailable", "lppe.nodeBcellTransmitDirectionUnavailable",
+      { "nodeBcellTransmitDirectionUnavailable", "lppe.nodeBcellTransmitDirectionUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nodeBcellFrequencyAccuracyUnavailable,
-      { "nodeBcellFrequencyAccuracyUnavailable", "lppe.nodeBcellFrequencyAccuracyUnavailable",
+      { "nodeBcellFrequencyAccuracyUnavailable", "lppe.nodeBcellFrequencyAccuracyUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nodeBnonservingADUnavailable,
-      { "nodeBnonservingADUnavailable", "lppe.nodeBnonservingADUnavailable",
+      { "nodeBnonservingADUnavailable", "lppe.nodeBnonservingADUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_hNBMandatoryDataUnavailable,
-      { "hNBMandatoryDataUnavailable", "lppe.hNBMandatoryDataUnavailable",
+      { "hNBMandatoryDataUnavailable", "lppe.hNBMandatoryDataUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_hNBLocationUnavailable,
-      { "hNBLocationUnavailable", "lppe.hNBLocationUnavailable",
+      { "hNBLocationUnavailable", "lppe.hNBLocationUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_hNBLocationReliabilityUnavailable,
-      { "hNBLocationReliabilityUnavailable", "lppe.hNBLocationReliabilityUnavailable",
+      { "hNBLocationReliabilityUnavailable", "lppe.hNBLocationReliabilityUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_hNBcellTransmitPowerUnavailable,
-      { "hNBcellTransmitPowerUnavailable", "lppe.hNBcellTransmitPowerUnavailable",
+      { "hNBcellTransmitPowerUnavailable", "lppe.hNBcellTransmitPowerUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_hNBcellFrequencyAccuracyUnavailable,
-      { "hNBcellFrequencyAccuracyUnavailable", "lppe.hNBcellFrequencyAccuracyUnavailable",
+      { "hNBcellFrequencyAccuracyUnavailable", "lppe.hNBcellFrequencyAccuracyUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_hNBCoverageAreaUnavailable,
-      { "hNBCoverageAreaUnavailable", "lppe.hNBCoverageAreaUnavailable",
+      { "hNBCoverageAreaUnavailable", "lppe.hNBCoverageAreaUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_hNBnonservingADUnavailable,
-      { "hNBnonservingADUnavailable", "lppe.hNBnonservingADUnavailable",
+      { "hNBnonservingADUnavailable", "lppe.hNBnonservingADUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_cause_11,
@@ -19031,35 +20992,35 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_cause_11_vals), 0,
         "T_cause_11", HFILL }},
     { &hf_lppe_mRLMeasurementsNotPossible,
-      { "mRLMeasurementsNotPossible", "lppe.mRLMeasurementsNotPossible",
+      { "mRLMeasurementsNotPossible", "lppe.mRLMeasurementsNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_tdd_timingAdvanceMeasurementNotPossible,
-      { "tdd-timingAdvanceMeasurementNotPossible", "lppe.tdd_timingAdvanceMeasurementNotPossible",
+      { "tdd-timingAdvanceMeasurementNotPossible", "lppe.tdd_timingAdvanceMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_mRL_utra_CarrierRSSIMeasurementNotPossible,
-      { "mRL-utra-CarrierRSSIMeasurementNotPossible", "lppe.mRL_utra_CarrierRSSIMeasurementNotPossible",
+      { "mRL-utra-CarrierRSSIMeasurementNotPossible", "lppe.mRL_utra_CarrierRSSIMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_mRL_FDD_cpich_Ec_N0MeasurementNotPossible,
-      { "mRL-FDD-cpich-Ec-N0MeasurementNotPossible", "lppe.mRL_FDD_cpich_Ec_N0MeasurementNotPossible",
+      { "mRL-FDD-cpich-Ec-N0MeasurementNotPossible", "lppe.mRL_FDD_cpich_Ec_N0MeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_mRL_FDD_cpich_RSCPMeasurementNotPossible,
-      { "mRL-FDD-cpich-RSCPMeasurementNotPossible", "lppe.mRL_FDD_cpich_RSCPMeasurementNotPossible",
+      { "mRL-FDD-cpich-RSCPMeasurementNotPossible", "lppe.mRL_FDD_cpich_RSCPMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_mRL_FDD_pathlossMeasurementNotPossible,
-      { "mRL-FDD-pathlossMeasurementNotPossible", "lppe.mRL_FDD_pathlossMeasurementNotPossible",
+      { "mRL-FDD-pathlossMeasurementNotPossible", "lppe.mRL_FDD_pathlossMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_mRL_TDD_primaryCCPCH_RSCPMeasurementNotPossible,
-      { "mRL-TDD-primaryCCPCH-RSCPMeasurementNotPossible", "lppe.mRL_TDD_primaryCCPCH_RSCPMeasurementNotPossible",
+      { "mRL-TDD-primaryCCPCH-RSCPMeasurementNotPossible", "lppe.mRL_TDD_primaryCCPCH_RSCPMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_mRL_TDD_pathlossMeasurementNotPossible,
-      { "mRL-TDD-pathlossMeasurementNotPossible", "lppe.mRL_TDD_pathlossMeasurementNotPossible",
+      { "mRL-TDD-pathlossMeasurementNotPossible", "lppe.mRL_TDD_pathlossMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_wlan_DataSet,
@@ -19067,7 +21028,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxWLANDataSets_OF_OMA_LPPe_WLAN_DataSet", HFILL }},
     { &hf_lppe_wlan_DataSet_item,
-      { "OMA-LPPe-WLAN-DataSet", "lppe.OMA_LPPe_WLAN_DataSet",
+      { "OMA-LPPe-WLAN-DataSet", "lppe.OMA_LPPe_WLAN_DataSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_wlan_AP_Error,
@@ -19075,23 +21036,23 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_WLAN_AP_Error_vals), 0,
         "OMA_LPPe_WLAN_AP_Error", HFILL }},
     { &hf_lppe_plmn_Identity_03,
-      { "plmn-Identity", "lppe.plmn_Identity",
+      { "plmn-Identity", "lppe.plmn_Identity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_plmn_Identity_03", HFILL }},
-    { &hf_lppe_mcc_03,
+    { &hf_lppe_mcc_04,
       { "mcc", "lppe.mcc",
         FT_UINT32, BASE_DEC, NULL, 0,
-        "T_mcc_03", HFILL }},
-    { &hf_lppe_mnc_03,
+        "T_mcc_04", HFILL }},
+    { &hf_lppe_mnc_04,
       { "mnc", "lppe.mnc",
         FT_UINT32, BASE_DEC, NULL, 0,
-        "T_mnc_03", HFILL }},
+        "T_mnc_04", HFILL }},
     { &hf_lppe_supported_channels_11a,
-      { "supported-channels-11a", "lppe.supported_channels_11a",
+      { "supported-channels-11a", "lppe.supported_channels_11a_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_supported_channels_11bg,
-      { "supported-channels-11bg", "lppe.supported_channels_11bg",
+      { "supported-channels-11bg", "lppe.supported_channels_11bg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_wlan_ap_list,
@@ -19099,7 +21060,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxWLANAPs_OF_OMA_LPPe_WLAN_AP_Data", HFILL }},
     { &hf_lppe_wlan_ap_list_item,
-      { "OMA-LPPe-WLAN-AP-Data", "lppe.OMA_LPPe_WLAN_AP_Data",
+      { "OMA-LPPe-WLAN-AP-Data", "lppe.OMA_LPPe_WLAN_AP_Data_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ch34,
@@ -19223,7 +21184,7 @@ void proto_register_lppe(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lppe_wlan_ap_id,
-      { "wlan-ap-id", "lppe.wlan_ap_id",
+      { "wlan-ap-id", "lppe.wlan_ap_id_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_AP_ID", HFILL }},
     { &hf_lppe_wlan_ap_Type_Data,
@@ -19231,7 +21192,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxWLANTypes_OF_OMA_LPPe_WLAN_AP_Type_Data", HFILL }},
     { &hf_lppe_wlan_ap_Type_Data_item,
-      { "OMA-LPPe-WLAN-AP-Type-Data", "lppe.OMA_LPPe_WLAN_AP_Type_Data",
+      { "OMA-LPPe-WLAN-AP-Type-Data", "lppe.OMA_LPPe_WLAN_AP_Type_Data_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_wlan_AP_Type,
@@ -19251,15 +21212,15 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxWLANAPSize_OF_OMA_LPPe_WLAN_AP_LocationInformationList", HFILL }},
     { &hf_lppe_wlan_AP_CombinedLocationInformation_item,
-      { "OMA-LPPe-WLAN-AP-LocationInformationList", "lppe.OMA_LPPe_WLAN_AP_LocationInformationList",
+      { "OMA-LPPe-WLAN-AP-LocationInformationList", "lppe.OMA_LPPe_WLAN_AP_LocationInformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_wlan_AP_LocationInformation,
-      { "wlan-AP-LocationInformation", "lppe.wlan_AP_LocationInformation",
+      { "wlan-AP-LocationInformation", "lppe.wlan_AP_LocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_AP_LocationInformation", HFILL }},
     { &hf_lppe_apMACAddress,
-      { "apMACAddress", "lppe.apMACAddress",
+      { "apMACAddress", "lppe.apMACAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_AP_ID", HFILL }},
     { &hf_lppe_apSSID,
@@ -19287,7 +21248,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_256", HFILL }},
     { &hf_lppe_apRoundTripDelay,
-      { "apRoundTripDelay", "lppe.apRoundTripDelay",
+      { "apRoundTripDelay", "lppe.apRoundTripDelay_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_RTD", HFILL }},
     { &hf_lppe_ueTransmitPower,
@@ -19299,9 +21260,45 @@ void proto_register_lppe(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M127_128", HFILL }},
     { &hf_lppe_apReportedLocation,
-      { "apReportedLocation", "lppe.apReportedLocation",
+      { "apReportedLocation", "lppe.apReportedLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_ReportedLocation", HFILL }},
+    { &hf_lppe_apTransmitPower,
+      { "apTransmitPower", "lppe.apTransmitPower",
+        FT_INT32, BASE_DEC, NULL, 0,
+        "INTEGER_M127_128", HFILL }},
+    { &hf_lppe_apAntennaGain,
+      { "apAntennaGain", "lppe.apAntennaGain",
+        FT_INT32, BASE_DEC, NULL, 0,
+        "INTEGER_M127_128", HFILL }},
+    { &hf_lppe_ueSignaltoNoise,
+      { "ueSignaltoNoise", "lppe.ueSignaltoNoise",
+        FT_INT32, BASE_DEC, NULL, 0,
+        "INTEGER_M127_128", HFILL }},
+    { &hf_lppe_ueSignalStrength,
+      { "ueSignalStrength", "lppe.ueSignalStrength",
+        FT_INT32, BASE_DEC, NULL, 0,
+        "INTEGER_M127_128", HFILL }},
+    { &hf_lppe_apSignalStrengthDelta,
+      { "apSignalStrengthDelta", "lppe.apSignalStrengthDelta",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_1", HFILL }},
+    { &hf_lppe_ueSignalStrengthDelta,
+      { "ueSignalStrengthDelta", "lppe.ueSignalStrengthDelta",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_1", HFILL }},
+    { &hf_lppe_apSignaltoNoiseDelta,
+      { "apSignaltoNoiseDelta", "lppe.apSignaltoNoiseDelta",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_1", HFILL }},
+    { &hf_lppe_ueSignaltoNoiseDelta,
+      { "ueSignaltoNoiseDelta", "lppe.ueSignaltoNoiseDelta",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_1", HFILL }},
+    { &hf_lppe_operatingClass,
+      { "operatingClass", "lppe.operatingClass",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_255", HFILL }},
     { &hf_lppe_rTDValue,
       { "rTDValue", "lppe.rTDValue",
         FT_UINT32, BASE_DEC, NULL, 0,
@@ -19315,7 +21312,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_255", HFILL }},
     { &hf_lppe_locationDataLCI,
-      { "locationDataLCI", "lppe.locationDataLCI",
+      { "locationDataLCI", "lppe.locationDataLCI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_LocationDataLCI", HFILL }},
     { &hf_lppe_latitudeResolution,
@@ -19354,6 +21351,10 @@ void proto_register_lppe(void) {
       { "requestedMeasurements", "lppe.requestedMeasurements",
         FT_BYTES, BASE_NONE, NULL, 0,
         "T_requestedMeasurements_03", HFILL }},
+    { &hf_lppe_additionalRequestedMeasurements,
+      { "additionalRequestedMeasurements", "lppe.additionalRequestedMeasurements",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
     { &hf_lppe_wlan_ecid_MeasSupported,
       { "wlan-ecid-MeasSupported", "lppe.wlan_ecid_MeasSupported",
         FT_BYTES, BASE_NONE, NULL, 0,
@@ -19363,11 +21364,15 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_AP_Type_List", HFILL }},
     { &hf_lppe_ap_Capability,
-      { "ap-Capability", "lppe.ap_Capability",
+      { "ap-Capability", "lppe.ap_Capability_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_AP_Capability", HFILL }},
     { &hf_lppe_wlan_ap_ADSupported,
       { "wlan-ap-ADSupported", "lppe.wlan_ap_ADSupported",
+        FT_BYTES, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_additional_wlan_ecid_MeasSupported,
+      { "additional-wlan-ecid-MeasSupported", "lppe.additional_wlan_ecid_MeasSupported",
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_apTypes,
@@ -19375,11 +21380,11 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_AP_Type_List", HFILL }},
     { &hf_lppe_locationServerErrorCauses_06,
-      { "locationServerErrorCauses", "lppe.locationServerErrorCauses",
+      { "locationServerErrorCauses", "lppe.locationServerErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_AP_LocationServerErrorCauses", HFILL }},
     { &hf_lppe_targetDeviceErrorCauses_06,
-      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses",
+      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_AP_TargetDeviceErrorCauses", HFILL }},
     { &hf_lppe_cause_12,
@@ -19387,27 +21392,27 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_cause_12_vals), 0,
         "T_cause_12", HFILL }},
     { &hf_lppe_apMandatoryDataUnavailable,
-      { "apMandatoryDataUnavailable", "lppe.apMandatoryDataUnavailable",
+      { "apMandatoryDataUnavailable", "lppe.apMandatoryDataUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_apLocationsUnavailable,
-      { "apLocationsUnavailable", "lppe.apLocationsUnavailable",
+      { "apLocationsUnavailable", "lppe.apLocationsUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_apLocationReliabilityUnavailable,
-      { "apLocationReliabilityUnavailable", "lppe.apLocationReliabilityUnavailable",
+      { "apLocationReliabilityUnavailable", "lppe.apLocationReliabilityUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_apTransmitPowerUnavailable,
-      { "apTransmitPowerUnavailable", "lppe.apTransmitPowerUnavailable",
+      { "apTransmitPowerUnavailable", "lppe.apTransmitPowerUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_apAntennaGainUnavailable,
-      { "apAntennaGainUnavailable", "lppe.apAntennaGainUnavailable",
+      { "apAntennaGainUnavailable", "lppe.apAntennaGainUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_apCoverageAreaUnavailable,
-      { "apCoverageAreaUnavailable", "lppe.apCoverageAreaUnavailable",
+      { "apCoverageAreaUnavailable", "lppe.apCoverageAreaUnavailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_cause_13,
@@ -19415,43 +21420,63 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_cause_13_vals), 0,
         "T_cause_13", HFILL }},
     { &hf_lppe_apSSIDnotAvailable,
-      { "apSSIDnotAvailable", "lppe.apSSIDnotAvailable",
+      { "apSSIDnotAvailable", "lppe.apSSIDnotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_apSNMeasurementNotPossible,
-      { "apSNMeasurementNotPossible", "lppe.apSNMeasurementNotPossible",
+      { "apSNMeasurementNotPossible", "lppe.apSNMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_apDevTypeNotAvailable,
-      { "apDevTypeNotAvailable", "lppe.apDevTypeNotAvailable",
+      { "apDevTypeNotAvailable", "lppe.apDevTypeNotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_apPhyTypeNotAvailable,
-      { "apPhyTypeNotAvailable", "lppe.apPhyTypeNotAvailable",
+      { "apPhyTypeNotAvailable", "lppe.apPhyTypeNotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_apRSSIMeasurementNotPossible,
-      { "apRSSIMeasurementNotPossible", "lppe.apRSSIMeasurementNotPossible",
+      { "apRSSIMeasurementNotPossible", "lppe.apRSSIMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_apChanFreqNotAvailable,
-      { "apChanFreqNotAvailable", "lppe.apChanFreqNotAvailable",
+      { "apChanFreqNotAvailable", "lppe.apChanFreqNotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_apRTDMeasurementNotPossible,
-      { "apRTDMeasurementNotPossible", "lppe.apRTDMeasurementNotPossible",
+      { "apRTDMeasurementNotPossible", "lppe.apRTDMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ueTPNotAvailable,
-      { "ueTPNotAvailable", "lppe.ueTPNotAvailable",
+      { "ueTPNotAvailable", "lppe.ueTPNotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ueAGNotAvailable,
-      { "ueAGNotAvailable", "lppe.ueAGNotAvailable",
+      { "ueAGNotAvailable", "lppe.ueAGNotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_apRecLocNotAvailable,
-      { "apRecLocNotAvailable", "lppe.apRecLocNotAvailable",
+      { "apRecLocNotAvailable", "lppe.apRecLocNotAvailable_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_apTPNotAvailable,
+      { "apTPNotAvailable", "lppe.apTPNotAvailable_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_apAGNotAvailable,
+      { "apAGNotAvailable", "lppe.apAGNotAvailable_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_ueSNNotAvailable,
+      { "ueSNNotAvailable", "lppe.ueSNNotAvailable_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_ueRSSINotAvailable,
+      { "ueRSSINotAvailable", "lppe.ueRSSINotAvailable_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_ocNotAvailable,
+      { "ocNotAvailable", "lppe.ocNotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_wimax_CombinedLocationInformation,
@@ -19459,7 +21484,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxWiMaxECIDSize_OF_OMA_LPPe_ECID_WiMax_LocationInformationList", HFILL }},
     { &hf_lppe_ecid_wimax_CombinedLocationInformation_item,
-      { "OMA-LPPe-ECID-WiMax-LocationInformationList", "lppe.OMA_LPPe_ECID_WiMax_LocationInformationList",
+      { "OMA-LPPe-ECID-WiMax-LocationInformationList", "lppe.OMA_LPPe_ECID_WiMax_LocationInformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_ecid_wimax_Error,
@@ -19467,29 +21492,21 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_ECID_WiMax_Error_vals), 0,
         "OMA_LPPe_ECID_WiMax_Error", HFILL }},
     { &hf_lppe_ecid_wimax_LocationInformation,
-      { "ecid-wimax-LocationInformation", "lppe.ecid_wimax_LocationInformation",
+      { "ecid-wimax-LocationInformation", "lppe.ecid_wimax_LocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_WiMax_LocationInformation", HFILL }},
     { &hf_lppe_wimaxBsID,
-      { "wimaxBsID", "lppe.wimaxBsID",
+      { "wimaxBsID", "lppe.wimaxBsID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_WiMax_WimaxBsID", HFILL }},
     { &hf_lppe_wimaxRTD,
-      { "wimaxRTD", "lppe.wimaxRTD",
+      { "wimaxRTD", "lppe.wimaxRTD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_WiMax_WimaxRTD", HFILL }},
     { &hf_lppe_wimaxNMRList,
       { "wimaxNMRList", "lppe.wimaxNMRList",
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_ECID_WiMax_WimaxNMRList", HFILL }},
-    { &hf_lppe_bsID_MSB,
-      { "bsID-MSB", "lppe.bsID_MSB",
-        FT_BYTES, BASE_NONE, NULL, 0,
-        "BIT_STRING_SIZE_24", HFILL }},
-    { &hf_lppe_bsID_LSB,
-      { "bsID-LSB", "lppe.bsID_LSB",
-        FT_BYTES, BASE_NONE, NULL, 0,
-        "BIT_STRING_SIZE_24", HFILL }},
     { &hf_lppe_rTD,
       { "rTD", "lppe.rTD",
         FT_UINT32, BASE_DEC, NULL, 0,
@@ -19499,7 +21516,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_1023", HFILL }},
     { &hf_lppe_OMA_LPPe_ECID_WiMax_WimaxNMRList_item,
-      { "OMA-LPPe-ECID-WiMax-WimaxNMR", "lppe.OMA_LPPe_ECID_WiMax_WimaxNMR",
+      { "OMA-LPPe-ECID-WiMax-WimaxNMR", "lppe.OMA_LPPe_ECID_WiMax_WimaxNMR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_relDelay,
@@ -19531,7 +21548,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_63", HFILL }},
     { &hf_lppe_bSLocation,
-      { "bSLocation", "lppe.bSLocation",
+      { "bSLocation", "lppe.bSLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_ReportedLocation", HFILL }},
     { &hf_lppe_requestedMeasurements_04,
@@ -19543,11 +21560,11 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_locationServerErrorCauses_07,
-      { "locationServerErrorCauses", "lppe.locationServerErrorCauses",
+      { "locationServerErrorCauses", "lppe.locationServerErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_WiMax_LocationServerErrorCauses", HFILL }},
     { &hf_lppe_targetDeviceErrorCauses_07,
-      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses",
+      { "targetDeviceErrorCauses", "lppe.targetDeviceErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ECID_WiMax_TargetDeviceErrorCauses", HFILL }},
     { &hf_lppe_cause_14,
@@ -19559,45 +21576,89 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_cause_15_vals), 0,
         "T_cause_15", HFILL }},
     { &hf_lppe_rTDMeasurementNotPossible,
-      { "rTDMeasurementNotPossible", "lppe.rTDMeasurementNotPossible",
+      { "rTDMeasurementNotPossible", "lppe.rTDMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_rTDstdMeasurementNotPossible,
-      { "rTDstdMeasurementNotPossible", "lppe.rTDstdMeasurementNotPossible",
+      { "rTDstdMeasurementNotPossible", "lppe.rTDstdMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nMRrelDelayMeasurementNotPossible,
-      { "nMRrelDelayMeasurementNotPossible", "lppe.nMRrelDelayMeasurementNotPossible",
+      { "nMRrelDelayMeasurementNotPossible", "lppe.nMRrelDelayMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nMRrelDelaystdMeasurementNotPossible,
-      { "nMRrelDelaystdMeasurementNotPossible", "lppe.nMRrelDelaystdMeasurementNotPossible",
+      { "nMRrelDelaystdMeasurementNotPossible", "lppe.nMRrelDelaystdMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nMRrSSIMeasurementNotPossible,
-      { "nMRrSSIMeasurementNotPossible", "lppe.nMRrSSIMeasurementNotPossible",
+      { "nMRrSSIMeasurementNotPossible", "lppe.nMRrSSIMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nMRrSSIstdMeasurementNotPossible,
-      { "nMRrSSIstdMeasurementNotPossible", "lppe.nMRrSSIstdMeasurementNotPossible",
+      { "nMRrSSIstdMeasurementNotPossible", "lppe.nMRrSSIstdMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nMRbSTxPowerMeasurementNotPossible,
-      { "nMRbSTxPowerMeasurementNotPossible", "lppe.nMRbSTxPowerMeasurementNotPossible",
+      { "nMRbSTxPowerMeasurementNotPossible", "lppe.nMRbSTxPowerMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nMRcINRMeasurementNotPossible,
-      { "nMRcINRMeasurementNotPossible", "lppe.nMRcINRMeasurementNotPossible",
+      { "nMRcINRMeasurementNotPossible", "lppe.nMRcINRMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nMRcINRstdMeasurementNotPossible,
-      { "nMRcINRstdMeasurementNotPossible", "lppe.nMRcINRstdMeasurementNotPossible",
+      { "nMRcINRstdMeasurementNotPossible", "lppe.nMRcINRstdMeasurementNotPossible_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_nMRbSLocationNotAvailable,
-      { "nMRbSLocationNotAvailable", "lppe.nMRbSLocationNotAvailable",
+      { "nMRbSLocationNotAvailable", "lppe.nMRbSLocationNotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
+    { &hf_lppe_atmosphericPressureAD,
+      { "atmosphericPressureAD", "lppe.atmosphericPressureAD_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_AtmosphericPressureAD", HFILL }},
+    { &hf_lppe_referencePressure,
+      { "referencePressure", "lppe.referencePressure",
+        FT_INT32, BASE_DEC, NULL, 0,
+        "INTEGER_M1024_1023", HFILL }},
+    { &hf_lppe_period,
+      { "period", "lppe.period_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_pressureValidityPeriod,
+      { "pressureValidityPeriod", "lppe.pressureValidityPeriod_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_ValidityPeriod", HFILL }},
+    { &hf_lppe_referencePressureRate,
+      { "referencePressureRate", "lppe.referencePressureRate",
+        FT_INT32, BASE_DEC, NULL, 0,
+        "INTEGER_M128_127", HFILL }},
+    { &hf_lppe_area_01,
+      { "area", "lppe.area_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_pressureValidityArea,
+      { "pressureValidityArea", "lppe.pressureValidityArea_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_PressureValidityArea", HFILL }},
+    { &hf_lppe_centerPoint,
+      { "centerPoint", "lppe.centerPoint_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "Ellipsoid_Point", HFILL }},
+    { &hf_lppe_validityAreaWidth,
+      { "validityAreaWidth", "lppe.validityAreaWidth",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_1_128", HFILL }},
+    { &hf_lppe_validityAreaHeight,
+      { "validityAreaHeight", "lppe.validityAreaHeight",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_1_128", HFILL }},
+    { &hf_lppe_pressureSensorAD,
+      { "pressureSensorAD", "lppe.pressureSensorAD_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        "OMA_LPPe_PressureSensorAD", HFILL }},
     { &hf_lppe_motionStateList,
       { "motionStateList", "lppe.motionStateList",
         FT_UINT32, BASE_DEC, NULL, 0,
@@ -19607,7 +21668,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_Sensor_Error_vals), 0,
         "OMA_LPPe_Sensor_Error", HFILL }},
     { &hf_lppe_OMA_LPPe_Sensor_MotionStateList_item,
-      { "OMA-LPPe-Sensor-MotionStateElement", "lppe.OMA_LPPe_Sensor_MotionStateElement",
+      { "OMA-LPPe-Sensor-MotionStateElement", "lppe.OMA_LPPe_Sensor_MotionStateElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_primaryMotionState,
@@ -19619,23 +21680,27 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_motionStateReq,
-      { "motionStateReq", "lppe.motionStateReq",
+      { "motionStateReq", "lppe.motionStateReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_Sensor_MotionStateRequest", HFILL }},
     { &hf_lppe_secondaryMotionStateRequest,
-      { "secondaryMotionStateRequest", "lppe.secondaryMotionStateRequest",
+      { "secondaryMotionStateRequest", "lppe.secondaryMotionStateRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_motionStateSupport,
-      { "motionStateSupport", "lppe.motionStateSupport",
+      { "motionStateSupport", "lppe.motionStateSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_secondarySupport,
-      { "secondarySupport", "lppe.secondarySupport",
+      { "secondarySupport", "lppe.secondarySupport_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lppe_barometricPressureSupport,
+      { "barometricPressureSupport", "lppe.barometricPressureSupport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_targetError,
-      { "targetError", "lppe.targetError",
+      { "targetError", "lppe.targetError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_Sensor_TargetError", HFILL }},
     { &hf_lppe_motionStateError,
@@ -19651,7 +21716,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_srnGroup_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_srnGroupList,
-      { "srnGroupList", "lppe.srnGroupList",
+      { "srnGroupList", "lppe.srnGroupList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_SRNgroupList", HFILL }},
     { &hf_lppe_srnGroupUpdateResponse,
@@ -19671,7 +21736,7 @@ void proto_register_lppe(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_lppe_defaultReferencePoint,
-      { "defaultReferencePoint", "lppe.defaultReferencePoint",
+      { "defaultReferencePoint", "lppe.defaultReferencePoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ReferencePoint", HFILL }},
     { &hf_lppe_groupList,
@@ -19679,23 +21744,23 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_64_OF_OMA_LPPe_SRN_SRNgroup", HFILL }},
     { &hf_lppe_groupList_item,
-      { "OMA-LPPe-SRN-SRNgroup", "lppe.OMA_LPPe_SRN_SRNgroup",
+      { "OMA-LPPe-SRN-SRNgroup", "lppe.OMA_LPPe_SRN_SRNgroup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_srnGroupID,
-      { "srnGroupID", "lppe.srnGroupID",
+      { "srnGroupID", "lppe.srnGroupID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_SRNgroupUniqueID", HFILL }},
     { &hf_lppe_defaultSRNtype,
-      { "defaultSRNtype", "lppe.defaultSRNtype",
+      { "defaultSRNtype", "lppe.defaultSRNtype_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_SRNtype", HFILL }},
     { &hf_lppe_referencePoint_01,
-      { "referencePoint", "lppe.referencePoint",
+      { "referencePoint", "lppe.referencePoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ReferencePoint", HFILL }},
     { &hf_lppe_globalOrientation,
-      { "globalOrientation", "lppe.globalOrientation",
+      { "globalOrientation", "lppe.globalOrientation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_srnsInGroupList,
@@ -19703,19 +21768,19 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_1024_OF_OMA_LPPe_SRN_SRNinfo", HFILL }},
     { &hf_lppe_srnsInGroupList_item,
-      { "OMA-LPPe-SRN-SRNinfo", "lppe.OMA_LPPe_SRN_SRNinfo",
+      { "OMA-LPPe-SRN-SRNinfo", "lppe.OMA_LPPe_SRN_SRNinfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_srnID,
-      { "srnID", "lppe.srnID",
+      { "srnID", "lppe.srnID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_SRNid", HFILL }},
     { &hf_lppe_srnType,
-      { "srnType", "lppe.srnType",
+      { "srnType", "lppe.srnType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_SRNtype", HFILL }},
     { &hf_lppe_relativePosition,
-      { "relativePosition", "lppe.relativePosition",
+      { "relativePosition", "lppe.relativePosition_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_RelativeLocation", HFILL }},
     { &hf_lppe_orientation,
@@ -19723,7 +21788,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_Orientation_vals), 0,
         "OMA_LPPe_Orientation", HFILL }},
     { &hf_lppe_OMA_LPPe_SRN_SRNgroupUpdateResponse_item,
-      { "OMA-LPPe-SRN-SRNgroupUpdateResponseElement", "lppe.OMA_LPPe_SRN_SRNgroupUpdateResponseElement",
+      { "OMA-LPPe-SRN-SRNgroupUpdateResponseElement", "lppe.OMA_LPPe_SRN_SRNgroupUpdateResponseElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_targetDataValidity,
@@ -19731,21 +21796,17 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_targetDataValidity_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_updatedSRNgroup,
-      { "updatedSRNgroup", "lppe.updatedSRNgroup",
+      { "updatedSRNgroup", "lppe.updatedSRNgroup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_SRNgroup", HFILL }},
     { &hf_lppe_OMA_LPPe_SRN_AntennaPattern_item,
-      { "OMA-LPPe-SRN-AntennaPatternElement", "lppe.OMA_LPPe_SRN_AntennaPatternElement",
+      { "OMA-LPPe-SRN-AntennaPatternElement", "lppe.OMA_LPPe_SRN_AntennaPatternElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_identification,
-      { "identification", "lppe.identification",
+      { "identification", "lppe.identification_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
-    { &hf_lppe_vendorOrOperator,
-      { "vendorOrOperator", "lppe.vendorOrOperator",
-        FT_UINT32, BASE_DEC, VALS(lppe_OMA_LPPe_VendorOrOperatorID_vals), 0,
-        "OMA_LPPe_VendorOrOperatorID", HFILL }},
     { &hf_lppe_antennaPatternID,
       { "antennaPatternID", "lppe.antennaPatternID",
         FT_UINT32, BASE_DEC, NULL, 0,
@@ -19755,7 +21816,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_antennaData_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_antennaPattern_01,
-      { "antennaPattern", "lppe.antennaPattern",
+      { "antennaPattern", "lppe.antennaPattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_AntennaPatternForChannels", HFILL }},
     { &hf_lppe_antennaContainer,
@@ -19763,7 +21824,7 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_lppe_evenGrid,
-      { "evenGrid", "lppe.evenGrid",
+      { "evenGrid", "lppe.evenGrid_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_inAzimuth,
@@ -19779,7 +21840,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxChannels_OF_OMA_LPPe_SRN_ChannelResponse", HFILL }},
     { &hf_lppe_patternList_item,
-      { "OMA-LPPe-SRN-ChannelResponse", "lppe.OMA_LPPe_SRN_ChannelResponse",
+      { "OMA-LPPe-SRN-ChannelResponse", "lppe.OMA_LPPe_SRN_ChannelResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_channelNumber,
@@ -19791,7 +21852,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_7_901_OF_OMA_LPPe_SRN_ResponseInElevation", HFILL }},
     { &hf_lppe_responseInElevation_item,
-      { "OMA-LPPe-SRN-ResponseInElevation", "lppe.OMA_LPPe_SRN_ResponseInElevation",
+      { "OMA-LPPe-SRN-ResponseInElevation", "lppe.OMA_LPPe_SRN_ResponseInElevation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_elevation_01,
@@ -19803,7 +21864,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_18_3601_OF_OMA_LPPe_SRN_ResponseInAzimuth", HFILL }},
     { &hf_lppe_responseInAzimuth_item,
-      { "OMA-LPPe-SRN-ResponseInAzimuth", "lppe.OMA_LPPe_SRN_ResponseInAzimuth",
+      { "OMA-LPPe-SRN-ResponseInAzimuth", "lppe.OMA_LPPe_SRN_ResponseInAzimuth_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_azimuth_01,
@@ -19811,7 +21872,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_3599", HFILL }},
     { &hf_lppe_response,
-      { "response", "lppe.response",
+      { "response", "lppe.response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_ComplexNumber", HFILL }},
     { &hf_lppe_amplitude,
@@ -19827,7 +21888,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_srnGroup_01_vals), 0,
         "T_srnGroup_01", HFILL }},
     { &hf_lppe_srnGroupRequest,
-      { "srnGroupRequest", "lppe.srnGroupRequest",
+      { "srnGroupRequest", "lppe.srnGroupRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_SRNgroupRequest", HFILL }},
     { &hf_lppe_srnGroupUpdateRequest,
@@ -19839,11 +21900,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OMA_LPPe_SRN_AntennaPatternRequest", HFILL }},
     { &hf_lppe_doNotProvideList,
-      { "doNotProvideList", "lppe.doNotProvideList",
+      { "doNotProvideList", "lppe.doNotProvideList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_SRNProvideList", HFILL }},
     { &hf_lppe_doProvideList,
-      { "doProvideList", "lppe.doProvideList",
+      { "doProvideList", "lppe.doProvideList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_SRNProvideList", HFILL }},
     { &hf_lppe_groupList_01,
@@ -19851,7 +21912,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_256_OF_OMA_LPPe_SRN_SRNgroupUniqueID", HFILL }},
     { &hf_lppe_groupList_item_01,
-      { "OMA-LPPe-SRN-SRNgroupUniqueID", "lppe.OMA_LPPe_SRN_SRNgroupUniqueID",
+      { "OMA-LPPe-SRN-SRNgroupUniqueID", "lppe.OMA_LPPe_SRN_SRNgroupUniqueID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_categoryList,
@@ -19859,15 +21920,15 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_16_OF_OMA_LPPe_SRN_Category", HFILL }},
     { &hf_lppe_categoryList_item,
-      { "OMA-LPPe-SRN-Category", "lppe.OMA_LPPe_SRN_Category",
+      { "OMA-LPPe-SRN-Category", "lppe.OMA_LPPe_SRN_Category_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_OMA_LPPe_SRN_SRNgroupUpdateRequest_item,
-      { "OMA-LPPe-SRN-SRNgroupUpdateRequestElement", "lppe.OMA_LPPe_SRN_SRNgroupUpdateRequestElement",
+      { "OMA-LPPe-SRN-SRNgroupUpdateRequestElement", "lppe.OMA_LPPe_SRN_SRNgroupUpdateRequestElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_provideIndicationOnly,
-      { "provideIndicationOnly", "lppe.provideIndicationOnly",
+      { "provideIndicationOnly", "lppe.provideIndicationOnly_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_inTheGroup,
@@ -19875,15 +21936,15 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_1024_OF_OMA_LPPe_SRN_SRNid", HFILL }},
     { &hf_lppe_inTheGroup_item,
-      { "OMA-LPPe-SRN-SRNid", "lppe.OMA_LPPe_SRN_SRNid",
+      { "OMA-LPPe-SRN-SRNid", "lppe.OMA_LPPe_SRN_SRNid_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_OMA_LPPe_SRN_AntennaPatternRequest_item,
-      { "OMA-LPPe-SRN-AntennaPatternRequestElement", "lppe.OMA_LPPe_SRN_AntennaPatternRequestElement",
+      { "OMA-LPPe-SRN-AntennaPatternRequestElement", "lppe.OMA_LPPe_SRN_AntennaPatternRequestElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_antennaPatternID_01,
-      { "antennaPatternID", "lppe.antennaPatternID",
+      { "antennaPatternID", "lppe.antennaPatternID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_srnMeasurementList,
@@ -19891,11 +21952,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_64_OF_OMA_LPPe_SRN_MeasurementElement", HFILL }},
     { &hf_lppe_srnMeasurementList_item,
-      { "OMA-LPPe-SRN-MeasurementElement", "lppe.OMA_LPPe_SRN_MeasurementElement",
+      { "OMA-LPPe-SRN-MeasurementElement", "lppe.OMA_LPPe_SRN_MeasurementElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_srnCategory,
-      { "srnCategory", "lppe.srnCategory",
+      { "srnCategory", "lppe.srnCategory_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_Category", HFILL }},
     { &hf_lppe_measurementList,
@@ -19903,7 +21964,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_64_OF_OMA_LPPe_SRN_srnMeasurementElement", HFILL }},
     { &hf_lppe_measurementList_item,
-      { "OMA-LPPe-SRN-srnMeasurementElement", "lppe.OMA_LPPe_SRN_srnMeasurementElement",
+      { "OMA-LPPe-SRN-srnMeasurementElement", "lppe.OMA_LPPe_SRN_srnMeasurementElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_relativeTimeStamp_01,
@@ -19915,7 +21976,7 @@ void proto_register_lppe(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M128_127", HFILL }},
     { &hf_lppe_rtd,
-      { "rtd", "lppe.rtd",
+      { "rtd", "lppe.rtd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_WLAN_RTD", HFILL }},
     { &hf_lppe_requestInfo,
@@ -19923,11 +21984,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_16_OF_OMA_LPPe_SRN_ReqLocInfo_Category", HFILL }},
     { &hf_lppe_requestInfo_item,
-      { "OMA-LPPe-SRN-ReqLocInfo-Category", "lppe.OMA_LPPe_SRN_ReqLocInfo_Category",
+      { "OMA-LPPe-SRN-ReqLocInfo-Category", "lppe.OMA_LPPe_SRN_ReqLocInfo_Category_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_category,
-      { "category", "lppe.category",
+      { "category", "lppe.category_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_Category", HFILL }},
     { &hf_lppe_multipleMeasurements,
@@ -19935,11 +21996,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_multipleMeasurements_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_allowedMeasurements,
-      { "allowedMeasurements", "lppe.allowedMeasurements",
+      { "allowedMeasurements", "lppe.allowedMeasurements_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_MeasurementMask", HFILL }},
     { &hf_lppe_historicMeasurementsRequested,
-      { "historicMeasurementsRequested", "lppe.historicMeasurementsRequested",
+      { "historicMeasurementsRequested", "lppe.historicMeasurementsRequested_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_capabilitiesPerSRNCategory,
@@ -19947,11 +22008,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_16_OF_OMA_LPPe_SRN_ProvideCapabilitiesElement", HFILL }},
     { &hf_lppe_capabilitiesPerSRNCategory_item,
-      { "OMA-LPPe-SRN-ProvideCapabilitiesElement", "lppe.OMA_LPPe_SRN_ProvideCapabilitiesElement",
+      { "OMA-LPPe-SRN-ProvideCapabilitiesElement", "lppe.OMA_LPPe_SRN_ProvideCapabilitiesElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_supportedMeasurements,
-      { "supportedMeasurements", "lppe.supportedMeasurements",
+      { "supportedMeasurements", "lppe.supportedMeasurements_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_MeasurementMask", HFILL }},
     { &hf_lppe_supportedAssistanceData,
@@ -19959,7 +22020,7 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_historicMeasurementsSupported,
-      { "historicMeasurementsSupported", "lppe.historicMeasurementsSupported",
+      { "historicMeasurementsSupported", "lppe.historicMeasurementsSupported_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_capabilitiesRequestedFor,
@@ -19967,15 +22028,15 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_16_OF_OMA_LPPe_SRN_Category", HFILL }},
     { &hf_lppe_capabilitiesRequestedFor_item,
-      { "OMA-LPPe-SRN-Category", "lppe.OMA_LPPe_SRN_Category",
+      { "OMA-LPPe-SRN-Category", "lppe.OMA_LPPe_SRN_Category_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_srnLocationServerErrorCauses,
-      { "srnLocationServerErrorCauses", "lppe.srnLocationServerErrorCauses",
+      { "srnLocationServerErrorCauses", "lppe.srnLocationServerErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_LocationServerErrorCauses", HFILL }},
     { &hf_lppe_srnTargetDeviceErrorCauses,
-      { "srnTargetDeviceErrorCauses", "lppe.srnTargetDeviceErrorCauses",
+      { "srnTargetDeviceErrorCauses", "lppe.srnTargetDeviceErrorCauses_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_TargetDeviceErrorCauses", HFILL }},
     { &hf_lppe_groupErrors,
@@ -19995,7 +22056,7 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_16_OF_OMA_LPPe_SRN_TargetDeviceError", HFILL }},
     { &hf_lppe_srnErrorsPerCategory_item,
-      { "OMA-LPPe-SRN-TargetDeviceError", "lppe.OMA_LPPe_SRN_TargetDeviceError",
+      { "OMA-LPPe-SRN-TargetDeviceError", "lppe.OMA_LPPe_SRN_TargetDeviceError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_srnErrors,
@@ -20003,15 +22064,15 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, VALS(lppe_T_srnErrors_vals), 0,
         NULL, HFILL }},
     { &hf_lppe_rssiNotAvailable,
-      { "rssiNotAvailable", "lppe.rssiNotAvailable",
+      { "rssiNotAvailable", "lppe.rssiNotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_rtdNotAvailable,
-      { "rtdNotAvailable", "lppe.rtdNotAvailable",
+      { "rtdNotAvailable", "lppe.rtdNotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_multipleSetsNotAvailable,
-      { "multipleSetsNotAvailable", "lppe.multipleSetsNotAvailable",
+      { "multipleSetsNotAvailable", "lppe.multipleSetsNotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_srnDataVersion,
@@ -20023,7 +22084,7 @@ void proto_register_lppe(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M300_500", HFILL }},
     { &hf_lppe_srnAntennaInfo,
-      { "srnAntennaInfo", "lppe.srnAntennaInfo",
+      { "srnAntennaInfo", "lppe.srnAntennaInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_switchingPatternID,
@@ -20031,11 +22092,11 @@ void proto_register_lppe(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_65535", HFILL }},
     { &hf_lppe_srnTechnologyType,
-      { "srnTechnologyType", "lppe.srnTechnologyType",
+      { "srnTechnologyType", "lppe.srnTechnologyType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OMA_LPPe_SRN_Technologies", HFILL }},
     { &hf_lppe_srnVendorInformation,
-      { "srnVendorInformation", "lppe.srnVendorInformation",
+      { "srnVendorInformation", "lppe.srnVendorInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_vendor,
@@ -20055,7 +22116,7 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_48", HFILL }},
     { &hf_lppe_nfc,
-      { "nfc", "lppe.nfc",
+      { "nfc", "lppe.nfc_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_manufacturer,
@@ -20067,7 +22128,7 @@ void proto_register_lppe(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_48", HFILL }},
     { &hf_lppe_mobileCode,
-      { "mobileCode", "lppe.mobileCode",
+      { "mobileCode", "lppe.mobileCode_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_lppe_registryID,
@@ -20077,7 +22138,7 @@ void proto_register_lppe(void) {
     { &hf_lppe_remainingPart,
       { "remainingPart", "lppe.remainingPart",
         FT_BYTES, BASE_NONE, NULL, 0,
-        "OCTET_STRING_SIZE_1_1", HFILL }},
+        "OCTET_STRING_SIZE_1_16", HFILL }},
     { &hf_lppe_resolutionIdentifier,
       { "resolutionIdentifier", "lppe.resolutionIdentifier",
         FT_BYTES, BASE_NONE, NULL, 0,
@@ -20154,6 +22215,14 @@ void proto_register_lppe(void) {
       { "ieee802-11n", "lppe.ieee802-11n",
         FT_BOOLEAN, 8, NULL, 0x10,
         NULL, HFILL }},
+    { &hf_lppe_OMA_LPPe_WLAN_AP_Type_List_ieee802_11ac,
+      { "ieee802-11ac", "lppe.ieee802-11ac",
+        FT_BOOLEAN, 8, NULL, 0x08,
+        NULL, HFILL }},
+    { &hf_lppe_OMA_LPPe_WLAN_AP_Type_List_ieee802_11ad,
+      { "ieee802-11ad", "lppe.ieee802-11ad",
+        FT_BOOLEAN, 8, NULL, 0x04,
+        NULL, HFILL }},
     { &hf_lppe_T_iP_Address_support_iPv4,
       { "iPv4", "lppe.iPv4",
         FT_BOOLEAN, 8, NULL, 0x80,
@@ -20185,6 +22254,54 @@ void proto_register_lppe(void) {
     { &hf_lppe_T_relativeLocationReportingSupport_otherProviders,
       { "otherProviders", "lppe.otherProviders",
         FT_BOOLEAN, 8, NULL, 0x20,
+        NULL, HFILL }},
+    { &hf_lppe_T_localCellInformation_Support_gnssTiming,
+      { "gnssTiming", "lppe.gnssTiming",
+        FT_BOOLEAN, 8, NULL, 0x80,
+        NULL, HFILL }},
+    { &hf_lppe_T_localCellInformation_Support_networkTiming,
+      { "networkTiming", "lppe.networkTiming",
+        FT_BOOLEAN, 8, NULL, 0x40,
+        NULL, HFILL }},
+    { &hf_lppe_T_localCellInformation_Support_coverage,
+      { "coverage", "lppe.coverage",
+        FT_BOOLEAN, 8, NULL, 0x20,
+        NULL, HFILL }},
+    { &hf_lppe_T_localCellInformation_Support_coordinates,
+      { "coordinates", "lppe.coordinates",
+        FT_BOOLEAN, 8, NULL, 0x10,
+        NULL, HFILL }},
+    { &hf_lppe_T_localCellInformation_Support_frequencyAccuracy,
+      { "frequencyAccuracy", "lppe.frequencyAccuracy",
+        FT_BOOLEAN, 8, NULL, 0x08,
+        NULL, HFILL }},
+    { &hf_lppe_T_modelsReq_altitude,
+      { "altitude", "lppe.altitude",
+        FT_BOOLEAN, 8, NULL, 0x80,
+        NULL, HFILL }},
+    { &hf_lppe_T_modelsReq_buildings,
+      { "buildings", "lppe.buildings",
+        FT_BOOLEAN, 8, NULL, 0x40,
+        NULL, HFILL }},
+    { &hf_lppe_T_localCellInformationReq_gnssTiming,
+      { "gnssTiming", "lppe.gnssTiming",
+        FT_BOOLEAN, 8, NULL, 0x80,
+        NULL, HFILL }},
+    { &hf_lppe_T_localCellInformationReq_networkTiming,
+      { "networkTiming", "lppe.networkTiming",
+        FT_BOOLEAN, 8, NULL, 0x40,
+        NULL, HFILL }},
+    { &hf_lppe_T_localCellInformationReq_coverage,
+      { "coverage", "lppe.coverage",
+        FT_BOOLEAN, 8, NULL, 0x20,
+        NULL, HFILL }},
+    { &hf_lppe_T_localCellInformationReq_coordinates,
+      { "coordinates", "lppe.coordinates",
+        FT_BOOLEAN, 8, NULL, 0x10,
+        NULL, HFILL }},
+    { &hf_lppe_T_localCellInformationReq_frequencyAccuracy,
+      { "frequencyAccuracy", "lppe.frequencyAccuracy",
+        FT_BOOLEAN, 8, NULL, 0x08,
         NULL, HFILL }},
     { &hf_lppe_T_ionoreq_klobucharModel,
       { "klobucharModel", "lppe.klobucharModel",
@@ -20842,6 +22959,26 @@ void proto_register_lppe(void) {
       { "historic", "lppe.historic",
         FT_BOOLEAN, 8, NULL, 0x10,
         NULL, HFILL }},
+    { &hf_lppe_T_requestedMeasurements_03_apTP,
+      { "apTP", "lppe.apTP",
+        FT_BOOLEAN, 8, NULL, 0x08,
+        NULL, HFILL }},
+    { &hf_lppe_T_requestedMeasurements_03_apAG,
+      { "apAG", "lppe.apAG",
+        FT_BOOLEAN, 8, NULL, 0x04,
+        NULL, HFILL }},
+    { &hf_lppe_T_requestedMeasurements_03_ueSN,
+      { "ueSN", "lppe.ueSN",
+        FT_BOOLEAN, 8, NULL, 0x02,
+        NULL, HFILL }},
+    { &hf_lppe_T_requestedMeasurements_03_ueRSSI,
+      { "ueRSSI", "lppe.ueRSSI",
+        FT_BOOLEAN, 8, NULL, 0x01,
+        NULL, HFILL }},
+    { &hf_lppe_T_additionalRequestedMeasurements_oc,
+      { "oc", "lppe.oc",
+        FT_BOOLEAN, 8, NULL, 0x80,
+        NULL, HFILL }},
     { &hf_lppe_T_wlan_ecid_MeasSupported_apSSID,
       { "apSSID", "lppe.apSSID",
         FT_BOOLEAN, 8, NULL, 0x80,
@@ -20890,6 +23027,22 @@ void proto_register_lppe(void) {
       { "historic", "lppe.historic",
         FT_BOOLEAN, 8, NULL, 0x10,
         NULL, HFILL }},
+    { &hf_lppe_T_wlan_ecid_MeasSupported_apTP,
+      { "apTP", "lppe.apTP",
+        FT_BOOLEAN, 8, NULL, 0x08,
+        NULL, HFILL }},
+    { &hf_lppe_T_wlan_ecid_MeasSupported_apAG,
+      { "apAG", "lppe.apAG",
+        FT_BOOLEAN, 8, NULL, 0x04,
+        NULL, HFILL }},
+    { &hf_lppe_T_wlan_ecid_MeasSupported_ueSN,
+      { "ueSN", "lppe.ueSN",
+        FT_BOOLEAN, 8, NULL, 0x02,
+        NULL, HFILL }},
+    { &hf_lppe_T_wlan_ecid_MeasSupported_ueRSSI,
+      { "ueRSSI", "lppe.ueRSSI",
+        FT_BOOLEAN, 8, NULL, 0x01,
+        NULL, HFILL }},
     { &hf_lppe_T_wlan_ap_ADSupported_aplist,
       { "aplist", "lppe.aplist",
         FT_BOOLEAN, 8, NULL, 0x80,
@@ -20917,6 +23070,10 @@ void proto_register_lppe(void) {
     { &hf_lppe_T_wlan_ap_ADSupported_non_serving,
       { "non-serving", "lppe.non-serving",
         FT_BOOLEAN, 8, NULL, 0x02,
+        NULL, HFILL }},
+    { &hf_lppe_T_additional_wlan_ecid_MeasSupported_oc,
+      { "oc", "lppe.oc",
+        FT_BOOLEAN, 8, NULL, 0x80,
         NULL, HFILL }},
     { &hf_lppe_T_requestedMeasurements_04_rTD,
       { "rTD", "lppe.rTD",
@@ -21076,7 +23233,7 @@ void proto_register_lppe(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-lppe-hfarr.c ---*/
-#line 69 "../../asn1/lppe/packet-lppe-template.c"
+#line 70 "../../asn1/lppe/packet-lppe-template.c"
   };
 
   /* List of subtrees */
@@ -21113,6 +23270,14 @@ void proto_register_lppe(void) {
     &ett_lppe_OMA_LPPe_CivicAddressElement,
     &ett_lppe_OMA_LPPe_Duration,
     &ett_lppe_OMA_LPPe_FixedAccessTypes,
+    &ett_lppe_OMA_LPPe_ver1_1_GroundMorphologyModel,
+    &ett_lppe_OMA_LPPe_ver1_1_AltitudeModel,
+    &ett_lppe_SEQUENCE_SIZE_1_10000_OF_DeltaAltitudes,
+    &ett_lppe_OMA_LPPe_ver1_1_BuildingsHeightModel,
+    &ett_lppe_SEQUENCE_SIZE_1_10000_OF_DeltaHeight,
+    &ett_lppe_DeltaAltitudes,
+    &ett_lppe_DeltaHeight,
+    &ett_lppe_OMA_LPPe_ver1_1_CellGlobalID,
     &ett_lppe_OMA_LPPe_HighAccuracy3Dposition,
     &ett_lppe_OMA_LPPe_HighAccuracy3Dvelocity,
     &ett_lppe_OMA_LPPe_LocationInformationContainerID,
@@ -21145,6 +23310,24 @@ void proto_register_lppe(void) {
     &ett_lppe_OMA_LPPe_CivicRelativeAltitude,
     &ett_lppe_OMA_LPPe_CivicUncertaintyAndConfidence,
     &ett_lppe_OMA_LPPe_Session_ID,
+    &ett_lppe_OMA_LPPe_ver1_1_BroadcastSystemID,
+    &ett_lppe_T_proprietarySystemID,
+    &ett_lppe_OMA_LPPe_ver1_1_BroadcastADTypes,
+    &ett_lppe_SEQUENCE_SIZE_1_maxLPPLabelSets_OF_OMA_LPPe_ver1_1_LabelSet,
+    &ett_lppe_SEQUENCE_SIZE_1_maxLPPeLabelSets_OF_OMA_LPPe_ver1_1_LabelSet,
+    &ett_lppe_OMA_LPPe_ver1_1_LabelSet,
+    &ett_lppe_T_level1_element,
+    &ett_lppe_T_level2_element,
+    &ett_lppe_T_level3_element,
+    &ett_lppe_OMA_LPPe_ver1_1_AccessNetworkID,
+    &ett_lppe_OMA_LPPe_ver1_1_MCC_MNC,
+    &ett_lppe_T_mcc,
+    &ett_lppe_T_mnc,
+    &ett_lppe_OMA_LPPe_ver1_1_BSID,
+    &ett_lppe_OMA_LPPe_ver1_1_AuthenticationSet,
+    &ett_lppe_T_rsaPublicKey,
+    &ett_lppe_OMA_LPPe_ver1_1_CipherSet,
+    &ett_lppe_OMA_LPPe_ver1_1_ServerID,
     &ett_lppe_OMA_LPPe_ValidityArea,
     &ett_lppe_OMA_LPPe_RleList,
     &ett_lppe_OMA_LPPe_ValidityPeriod,
@@ -21171,6 +23354,9 @@ void proto_register_lppe(void) {
     &ett_lppe_OMA_LPPe_ScheduledLocation_RequestCapabilities,
     &ett_lppe_OMA_LPPe_AccessCapabilitiesReq,
     &ett_lppe_OMA_LPPe_SegmentedLocationInformation_ReqCapabilities,
+    &ett_lppe_OMA_LPPe_ver1_1_localCellInformation_ReqCapabilities,
+    &ett_lppe_OMA_LPPe_ver1_1_broadcast_ReqCapabilities,
+    &ett_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_BroadcastSystemID,
     &ett_lppe_OMA_LPPe_CommonIEsProvideCapabilities,
     &ett_lppe_OMA_LPPe_IP_Address_Capabilities,
     &ett_lppe_T_iP_Address_support,
@@ -21191,15 +23377,43 @@ void proto_register_lppe(void) {
     &ett_lppe_OMA_LPPe_ScheduledLocation_Capabilities,
     &ett_lppe_OMA_LPPe_AccessCapabilities,
     &ett_lppe_OMA_LPPe_SegmentedLocationInformation_ProvideCapabs,
+    &ett_lppe_OMA_LPPe_ver1_1_localCellInformation_ProvideCapabilities,
+    &ett_lppe_T_localCellInformation_Support,
+    &ett_lppe_OMA_LPPe_ver1_1_broadcast_ProvideCapabilities,
+    &ett_lppe_OMA_LPPe_ver1_1_BroadcastSystem_Capabs,
+    &ett_lppe_OMA_LPPe_ver1_1_point2pointAD,
+    &ett_lppe_OMA_LPPe_ver1_1_Ciphering,
+    &ett_lppe_OMA_LPPe_ver1_1_Authentication,
     &ett_lppe_OMA_LPPe_CommonIEsRequestAssistanceData,
     &ett_lppe_OMA_LPPe_RequestPeriodicADwithUpdate,
     &ett_lppe_OMA_LPPe_SegmentedADResume,
     &ett_lppe_OMA_LPPe_ReferencePointAssistanceReq,
     &ett_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ReferencePointAssistanceReqElement,
     &ett_lppe_OMA_LPPe_ReferencePointAssistanceReqElement,
+    &ett_lppe_OMA_LPPe_ver1_1_GroundMorphologyModelReq,
+    &ett_lppe_T_modelsReq,
+    &ett_lppe_T_refAreaParam,
+    &ett_lppe_OMA_LPPe_ver1_1_LocalCellInformationReq,
+    &ett_lppe_T_localCellInformationReq,
+    &ett_lppe_OMA_LPPe_ver1_1_BroadcastAssistanceDataReq,
+    &ett_lppe_OMA_LPPe_ver1_1_BroadcastSystem,
+    &ett_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSetID,
+    &ett_lppe_SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSetID,
     &ett_lppe_OMA_LPPe_CommonIEsProvideAssistanceData,
     &ett_lppe_OMA_LPPe_ProvidePeriodicADwithUpdate,
     &ett_lppe_OMA_LPPe_SegmentedADTransfer,
+    &ett_lppe_OMA_LPPe_ver1_1_LocalCellInformation,
+    &ett_lppe_SEQUENCE_SIZE_1_maxCellSets_OF_GNSS_ReferenceTime,
+    &ett_lppe_SEQUENCE_SIZE_1_maxCells_OF_OMA_LPPe_ver1_1_CellInformation,
+    &ett_lppe_OMA_LPPe_ver1_1_CellInformation,
+    &ett_lppe_T_coverage,
+    &ett_lppe_OMA_LPPe_ver1_1_BroadcastAssistanceData,
+    &ett_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_AccessNetworkID,
+    &ett_lppe_T_coverageArea,
+    &ett_lppe_T_broadcastMode,
+    &ett_lppe_OMA_LPPe_ver1_1_EncapsulatedMode,
+    &ett_lppe_SEQUENCE_SIZE_1_16_OF_OMA_LPPe_ver1_1_CipherSet,
+    &ett_lppe_SEQUENCE_SIZE_1_4_OF_OMA_LPPe_ver1_1_AuthenticationSet,
     &ett_lppe_OMA_LPPe_CommonIEsRequestLocationInformation,
     &ett_lppe_OMA_LPPe_IP_Address_Request,
     &ett_lppe_OMA_LPPe_RequestPeriodicLocInfoWithUpdate,
@@ -21222,6 +23436,7 @@ void proto_register_lppe(void) {
     &ett_lppe_OMA_LPPe_AccessTypes,
     &ett_lppe_OMA_LPPe_SegmentedLITransfer,
     &ett_lppe_OMA_LPPe_TimeStamp,
+    &ett_lppe_OMA_LPPe_LocationSource,
     &ett_lppe_OMA_LPPe_CommonIEsAbort,
     &ett_lppe_OMA_LPPe_CommonIEsError,
     &ett_lppe_OMA_LPPe_AGNSS_ProvideAssistanceData,
@@ -21486,8 +23701,8 @@ void proto_register_lppe(void) {
     &ett_lppe_SEQUENCE_SIZE_1_maxLTENetworks_OF_OMA_LPPe_ECID_LTE_NetworkData,
     &ett_lppe_OMA_LPPe_ECID_LTE_NetworkData,
     &ett_lppe_T_plmn_Identity,
-    &ett_lppe_T_mcc,
-    &ett_lppe_T_mnc,
+    &ett_lppe_T_mcc_01,
+    &ett_lppe_T_mnc_01,
     &ett_lppe_SEQUENCE_SIZE_1_maxLTEeNBs_OF_OMA_LPPe_ECID_LTE_eNodeBData,
     &ett_lppe_SEQUENCE_SIZE_1_maxLTEHeNBs_OF_OMA_LPPe_ECID_LTE_HeNBData,
     &ett_lppe_OMA_LPPe_ECID_LTE_eNodeBData,
@@ -21515,8 +23730,8 @@ void proto_register_lppe(void) {
     &ett_lppe_SEQUENCE_SIZE_1_maxGSMNetworks_OF_OMA_LPPe_ECID_GSM_NetworkData,
     &ett_lppe_OMA_LPPe_ECID_GSM_NetworkData,
     &ett_lppe_T_plmn_Identity_01,
-    &ett_lppe_T_mcc_01,
-    &ett_lppe_T_mnc_01,
+    &ett_lppe_T_mcc_02,
+    &ett_lppe_T_mnc_02,
     &ett_lppe_SEQUENCE_SIZE_1_maxGSMBaseStations_OF_OMA_LPPe_ECID_GSM_BaseStationData,
     &ett_lppe_OMA_LPPe_ECID_GSM_BaseStationData,
     &ett_lppe_SEQUENCE_SIZE_1_maxGSMCells_OF_OMA_LPPe_ECID_GSM_CellData,
@@ -21542,8 +23757,8 @@ void proto_register_lppe(void) {
     &ett_lppe_SEQUENCE_SIZE_1_maxUTRANetworks_OF_OMA_LPPe_ECID_UTRA_NetworkData,
     &ett_lppe_OMA_LPPe_ECID_UTRA_NetworkData,
     &ett_lppe_T_plmn_Identity_02,
-    &ett_lppe_T_mcc_02,
-    &ett_lppe_T_mnc_02,
+    &ett_lppe_T_mcc_03,
+    &ett_lppe_T_mnc_03,
     &ett_lppe_SEQUENCE_SIZE_1_maxUTRAnodeBs_OF_OMA_LPPe_ECID_UTRA_NodeBData,
     &ett_lppe_SEQUENCE_SIZE_1_maxUTRAHNBs_OF_OMA_LPPe_ECID_UTRA_HNBData,
     &ett_lppe_OMA_LPPe_ECID_UTRA_NodeBData,
@@ -21586,8 +23801,8 @@ void proto_register_lppe(void) {
     &ett_lppe_SEQUENCE_SIZE_1_maxWLANDataSets_OF_OMA_LPPe_WLAN_DataSet,
     &ett_lppe_OMA_LPPe_WLAN_DataSet,
     &ett_lppe_T_plmn_Identity_03,
-    &ett_lppe_T_mcc_03,
-    &ett_lppe_T_mnc_03,
+    &ett_lppe_T_mcc_04,
+    &ett_lppe_T_mnc_04,
     &ett_lppe_SEQUENCE_SIZE_1_maxWLANAPs_OF_OMA_LPPe_WLAN_AP_Data,
     &ett_lppe_Supported_Channels_11a,
     &ett_lppe_Supported_Channels_11bg,
@@ -21605,9 +23820,11 @@ void proto_register_lppe(void) {
     &ett_lppe_OMA_LPPe_WLAN_LocationDataLCI,
     &ett_lppe_OMA_LPPe_WLAN_AP_RequestLocationInformation,
     &ett_lppe_T_requestedMeasurements_03,
+    &ett_lppe_T_additionalRequestedMeasurements,
     &ett_lppe_OMA_LPPe_WLAN_AP_ProvideCapabilities,
     &ett_lppe_T_wlan_ecid_MeasSupported,
     &ett_lppe_T_wlan_ap_ADSupported,
+    &ett_lppe_T_additional_wlan_ecid_MeasSupported,
     &ett_lppe_OMA_LPPe_WLAN_AP_Capability,
     &ett_lppe_OMA_LPPe_WLAN_AP_RequestCapabilities,
     &ett_lppe_OMA_LPPe_WLAN_AP_Error,
@@ -21630,7 +23847,12 @@ void proto_register_lppe(void) {
     &ett_lppe_OMA_LPPe_ECID_WiMax_LocationServerErrorCauses,
     &ett_lppe_OMA_LPPe_ECID_WiMax_TargetDeviceErrorCauses,
     &ett_lppe_OMA_LPPe_Sensor_ProvideAssistanceData,
+    &ett_lppe_OMA_LPPe_AtmosphericPressureAD,
+    &ett_lppe_T_period,
+    &ett_lppe_T_area,
+    &ett_lppe_OMA_LPPe_PressureValidityArea,
     &ett_lppe_OMA_LPPe_Sensor_RequestAssistanceData,
+    &ett_lppe_OMA_LPPe_PressureSensorAD,
     &ett_lppe_OMA_LPPe_Sensor_ProvideLocationInformation,
     &ett_lppe_OMA_LPPe_Sensor_MotionStateList,
     &ett_lppe_OMA_LPPe_Sensor_MotionStateElement,
@@ -21707,7 +23929,7 @@ void proto_register_lppe(void) {
     &ett_lppe_T_srnMeasurements,
 
 /*--- End of included file: packet-lppe-ettarr.c ---*/
-#line 75 "../../asn1/lppe/packet-lppe-template.c"
+#line 76 "../../asn1/lppe/packet-lppe-template.c"
   };
 
 
@@ -21719,7 +23941,7 @@ void proto_register_lppe(void) {
   proto_register_field_array(proto_lppe, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
 
- 
+
 }
 
 

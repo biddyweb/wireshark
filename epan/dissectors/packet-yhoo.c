@@ -2,8 +2,6 @@
  * Routines for yahoo messenger packet dissection
  * Copyright 1999, Nathan Neulinger <nneul@umr.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,9 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+
+void proto_register_yhoo(void);
+void proto_reg_handoff_yhoo(void);
 
 static int proto_yhoo = -1;
 static int hf_yhoo_version = -1;
@@ -200,12 +201,10 @@ dissect_yhoo(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "YHOO");
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO, "%s: %s",
+	col_add_fstr(pinfo->cinfo, COL_INFO, "%s: %s",
 			     ( tvb_memeql(tvb, offset + 0, "YPNS", 4) == 0 ) ? "Request" : "Response",
 			     val_to_str(tvb_get_letohl(tvb, offset + 12),
 					yhoo_service_vals, "Unknown Service: %u"));
-	}
 
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_yhoo, tvb,

@@ -7,8 +7,6 @@
  * Copyright 2000, Jeffrey C. Foster <jfoste@woodward.com> and
  * Guy Harris <guy@alum.mit.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2000 Gerald Combs
@@ -44,6 +42,9 @@
 #include <string.h>
 
 #include <gtk/gtk.h>
+
+#include <epan/ftypes/ftypes-int.h>
+#include <epan/to_str.h>
 
 #include "ui/simple_dialog.h"
 
@@ -189,7 +190,8 @@ field_select_row_cb(GtkTreeSelection *sel, gpointer tree)
 	/* XXX: ToDo: Implement "range-string" filter ?   */
         if ((hfinfo->strings != NULL) &&
             ! (hfinfo->display & BASE_RANGE_STRING) &&
-            ! ((hfinfo->display & BASE_DISPLAY_E_MASK) == BASE_CUSTOM)) {
+            ! (hfinfo->display & BASE_VAL64_STRING) &&
+            ! ((hfinfo->display & FIELD_DISPLAY_E_MASK) == BASE_CUSTOM)) {
             const value_string *vals = (const value_string *)hfinfo->strings;
             if (hfinfo->display & BASE_EXT_STRING)
                 vals = VALUE_STRING_EXT_VS_P((const value_string_ext *)vals);
@@ -542,7 +544,7 @@ value_list_sel_cb(GtkTreeSelection *sel, gpointer value_entry_arg)
          * selected item, and display it in the base for this
          * field.
          */
-        switch ((hfinfo->display) & BASE_DISPLAY_E_MASK) {
+        switch ((hfinfo->display) & FIELD_DISPLAY_E_MASK) {
 
         case BASE_NONE:
         case BASE_DEC:

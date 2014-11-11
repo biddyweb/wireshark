@@ -5,8 +5,6 @@
  * Copyright 2006, Stephen Fisher (see AUTHORS file)
  * Copyright 2007, Kevin A. Noll <maillistnoll@earthlink.net>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -68,6 +66,9 @@
 #include <epan/oui.h>
 #include "packet-llc.h"
 
+void proto_register_wlccp(void);
+void proto_reg_handoff_wlccp(void);
+void proto_register_wlccp_oui(void);
 
 /* The UDP port that WLCCP is expected to ride on */
 /* WLCCP also uses an LLC OUI type and an ethertype */
@@ -707,93 +708,81 @@ dissect_wlccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	/* Make entries in Protocol column and Info column on summary display */
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "WLCCP");
 
-	if (check_col(pinfo->cinfo, COL_INFO))
+	if(tvb_get_guint8(tvb, 0) == 0xC1)  /* Get the version number */
 	{
-		if(tvb_get_guint8(tvb, 0) == 0xC1)  /* Get the version number */
+
+		sap_id = tvb_get_guint8(tvb,1) & SAP_VALUE_MASK;
+		base_message_type=(tvb_get_guint8(tvb,6)) & MT_BASE_MSG_TYPE;
+		message_sub_type=(tvb_get_guint8(tvb, 6) &  MT_SUBTYPE ) >> 6;
+
+
+		switch (sap_id)
 		{
 
-			sap_id = tvb_get_guint8(tvb,1) & SAP_VALUE_MASK;
-			base_message_type=(tvb_get_guint8(tvb,6)) & MT_BASE_MSG_TYPE;
-			message_sub_type=(tvb_get_guint8(tvb, 6) &  MT_SUBTYPE ) >> 6;
-
-
-			switch (sap_id)
+			case WLCCP_SAP_CCM:
 			{
 
-				case WLCCP_SAP_CCM:
-				{
-
-					col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %-27s  SubType: %s",
+				col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %-27s  SubType: %s",
 						val_to_str_const(base_message_type, wlccp_msg_type_vs_0, "Unknown"),
-						val_to_str_const(message_sub_type, wlccp_subtype_vs, "Unknown")
-					);
-					break;
+						val_to_str_const(message_sub_type, wlccp_subtype_vs, "Unknown"));
+				break;
 
-				} /* case WLCCP_SAP_CCM */
+			} /* case WLCCP_SAP_CCM */
 
-				case WLCCP_SAP_SEC:
-				{
+			case WLCCP_SAP_SEC:
+			{
 
-					col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %-27s  SubType: %s",
+				col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %-27s  SubType: %s",
 						val_to_str_const(base_message_type, wlccp_msg_type_vs_1, "Unknown"),
-						val_to_str_const(message_sub_type, wlccp_subtype_vs, "Unknown")
-					);
-					break;
-				} /* case WLCCP_SAP_SEC */
+						val_to_str_const(message_sub_type, wlccp_subtype_vs, "Unknown"));
+				break;
+			} /* case WLCCP_SAP_SEC */
 
-				case WLCCP_SAP_RRM:
-				{
-					col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %-27s  SubType: %s",
+			case WLCCP_SAP_RRM:
+			{
+				col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %-27s  SubType: %s",
 						val_to_str_const(base_message_type, wlccp_msg_type_vs_2, "Unknown"),
-						val_to_str_const(message_sub_type, wlccp_subtype_vs, "Unknown")
-					);
-					break;
+						val_to_str_const(message_sub_type, wlccp_subtype_vs, "Unknown"));
+				break;
 
-				} /* case WLCCP_SAP_RRM */
+			} /* case WLCCP_SAP_RRM */
 
-				case WLCCP_SAP_QOS:
-				{
-					col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %-27s  SubType: %s",
+			case WLCCP_SAP_QOS:
+			{
+				col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %-27s  SubType: %s",
 						val_to_str_const(base_message_type, wlccp_msg_type_vs_3, "Unknown"),
-						val_to_str_const(message_sub_type, wlccp_subtype_vs, "Unknown")
-					);
-					break;
-				} /* case WLCCP_SAP_QOS */
+						val_to_str_const(message_sub_type, wlccp_subtype_vs, "Unknown"));
+				break;
+			} /* case WLCCP_SAP_QOS */
 
-				case WLCCP_SAP_NM:
-				{
-					col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %-27s  SubType: %s",
+			case WLCCP_SAP_NM:
+			{
+				col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %-27s  SubType: %s",
 						val_to_str_const(base_message_type, wlccp_msg_type_vs_4, "Unknown"),
-						val_to_str_const(message_sub_type, wlccp_subtype_vs, "Unknown")
-					);
-					break;
+						val_to_str_const(message_sub_type, wlccp_subtype_vs, "Unknown"));
+				break;
 
-				} /* case WLCCP_SAP_NM */
+			} /* case WLCCP_SAP_NM */
 
-				case WLCCP_SAP_MIP:
-				{
-					col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %-27s  SubType: %s",
+			case WLCCP_SAP_MIP:
+			{
+				col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %-27s  SubType: %s",
 						val_to_str_const(base_message_type, wlccp_msg_type_vs_5, "Unknown"),
-						val_to_str_const(message_sub_type, wlccp_subtype_vs, "Unknown")
-					);
-					break;
-				} /* case WLCCP_SAP_MIP */
+						val_to_str_const(message_sub_type, wlccp_subtype_vs, "Unknown"));
+				break;
+			} /* case WLCCP_SAP_MIP */
 
-				default:
-				{
-					col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %-27s  SubType: %s",
-						"Unknown",
-						val_to_str_const(message_sub_type, wlccp_subtype_vs, "Unknown")
-					);
-					break;
-				} /* default for switch sap */
+			default:
+			{
+				col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type: %-27s  SubType: %s", "Unknown",
+						val_to_str_const(message_sub_type, wlccp_subtype_vs, "Unknown"));
+				break;
+			} /* default for switch sap */
 
 
-			} /* switch sap */
+		} /* switch sap */
 
-		} /* if version=0xC1 (tvb_get_guint8(tvb, 0) == 0xC1)*/
-
-	} /* if check_col */
+	} /* if version=0xC1 (tvb_get_guint8(tvb, 0) == 0xC1)*/
 
 	if (tree) {
 		/* create display subtree for the protocol */
@@ -4137,6 +4126,6 @@ proto_register_wlccp_oui(void)
 		}
 	};
 
-	llc_add_oui(OUI_CISCOWL, "llc.wlccp_pid", "Cisco WLCCP OUI PID", hf);
+	llc_add_oui(OUI_CISCOWL, "llc.wlccp_pid", "LLC Cisco WLCCP OUI PID", hf);
 
 }

@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-idmp.h                                                              */
 /* ../../tools/asn2wrs.py -b -L -p idmp -c ./idmp.cnf -s ./packet-idmp-template -D . -O ../../epan/dissectors IDMProtocolSpecification.asn CommonProtocolSpecification.asn */
 
@@ -9,8 +9,6 @@
 /* packet-idmp.h
  * Routines for X.519 Internet Directly Mapped Protocol (IDMP) packet dissection
  * Graeme Lunt 2010
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>

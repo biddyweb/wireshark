@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-h323.c                                                              */
 /* ../../tools/asn2wrs.py -p h323 -c ./h323.cnf -s ./packet-h323-template -D . -O ../../epan/dissectors RAS-PROTOCOL-TUNNEL.asn ROBUSTNESS-DATA.asn */
 
@@ -9,8 +9,6 @@
 /* packet-h323.c
  * Routines for H.323 packet dissection
  * 2007  Tomas Kukosa
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -37,6 +35,7 @@
 #include <epan/packet.h>
 #include <epan/oids.h>
 #include <epan/asn1.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-per.h"
 #include "packet-h225.h"
@@ -46,12 +45,14 @@
 #define PSNAME "H.323"
 #define PFNAME "h323"
 
+void proto_register_h323(void);
+void proto_reg_handoff_h323(void);
 
 /* Generic Extensible Framework */
 gef_ctx_t* gef_ctx_alloc(gef_ctx_t *parent, const gchar *type) {
   gef_ctx_t *gefx;
 
-  gefx = ep_alloc0(sizeof(gef_ctx_t));
+  gefx = wmem_new0(wmem_packet_scope(), gef_ctx_t);
   gefx->signature = GEF_CTX_SIGNATURE;
   gefx->parent = parent;
   gefx->type = type;
@@ -66,13 +67,13 @@ gef_ctx_t* gef_ctx_get(void *ptr) {
   gef_ctx_t *gefx = (gef_ctx_t*)ptr;
   asn1_ctx_t *actx = (asn1_ctx_t*)ptr;
 
-  if (!asn1_ctx_check_signature(actx)) 
+  if (!asn1_ctx_check_signature(actx))
     actx = NULL;
 
   if (actx)
-    gefx = actx->private_data;
+    gefx = (gef_ctx_t *)actx->private_data;
 
-  if (!gef_ctx_check_signature(gefx)) 
+  if (!gef_ctx_check_signature(gefx))
     gefx = NULL;
 
   return gefx;
@@ -83,7 +84,7 @@ void gef_ctx_update_key(gef_ctx_t *gefx) {
 
   if (!gefx) return;
   parent_key = (gefx->parent) ? gefx->parent->key : NULL;
-  gefx->key = ep_strdup_printf(
+  gefx->key = wmem_strdup_printf(wmem_packet_scope(),
     "%s%s"    /* parent prefix */
     "%s%s%s"  /* type, id */
     "%s%s"    /* subid */,
@@ -128,7 +129,7 @@ static int hf_h323_timeToLive = -1;               /* TimeToLive */
 static int hf_h323_includeFastStart = -1;         /* NULL */
 
 /*--- End of included file: packet-h323-hf.c ---*/
-#line 91 "../../asn1/h323/packet-h323-template.c"
+#line 92 "../../asn1/h323/packet-h323-template.c"
 
 /* Initialize the subtree pointers */
 
@@ -149,7 +150,7 @@ static gint ett_h323_T_fastStart = -1;
 static gint ett_h323_StatusInquiry_RD = -1;
 
 /*--- End of included file: packet-h323-ett.c ---*/
-#line 94 "../../asn1/h323/packet-h323-template.c"
+#line 95 "../../asn1/h323/packet-h323-template.c"
 
 
 /*--- Included file: packet-h323-fn.c ---*/
@@ -440,7 +441,7 @@ static int dissect_RobustnessData_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_,
 
 
 /*--- End of included file: packet-h323-fn.c ---*/
-#line 96 "../../asn1/h323/packet-h323-template.c"
+#line 97 "../../asn1/h323/packet-h323-template.c"
 
 /*--- proto_register_h323 ----------------------------------------------*/
 void proto_register_h323(void) {
@@ -451,15 +452,15 @@ void proto_register_h323(void) {
 /*--- Included file: packet-h323-hfarr.c ---*/
 #line 1 "../../asn1/h323/packet-h323-hfarr.c"
     { &hf_h323_RasTunnelledSignallingMessage_PDU,
-      { "RasTunnelledSignallingMessage", "h323.RasTunnelledSignallingMessage",
+      { "RasTunnelledSignallingMessage", "h323.RasTunnelledSignallingMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h323_RobustnessData_PDU,
-      { "RobustnessData", "h323.RobustnessData",
+      { "RobustnessData", "h323.RobustnessData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h323_tunnelledProtocolID,
-      { "tunnelledProtocolID", "h323.tunnelledProtocolID",
+      { "tunnelledProtocolID", "h323.tunnelledProtocolID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TunnelledProtocol", HFILL }},
     { &hf_h323_messageContent,
@@ -471,11 +472,11 @@ void proto_register_h323(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_h323_tunnellingRequired,
-      { "tunnellingRequired", "h323.tunnellingRequired",
+      { "tunnellingRequired", "h323.tunnellingRequired_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h323_nonStandardData,
-      { "nonStandardData", "h323.nonStandardData",
+      { "nonStandardData", "h323.nonStandardData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NonStandardParameter", HFILL }},
     { &hf_h323_versionID,
@@ -487,27 +488,27 @@ void proto_register_h323(void) {
         FT_UINT32, BASE_DEC, VALS(h323_T_robustnessData_vals), 0,
         NULL, HFILL }},
     { &hf_h323_rrqData,
-      { "rrqData", "h323.rrqData",
+      { "rrqData", "h323.rrqData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Rrq_RD", HFILL }},
     { &hf_h323_rcfData,
-      { "rcfData", "h323.rcfData",
+      { "rcfData", "h323.rcfData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Rcf_RD", HFILL }},
     { &hf_h323_setupData,
-      { "setupData", "h323.setupData",
+      { "setupData", "h323.setupData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Setup_RD", HFILL }},
     { &hf_h323_connectData,
-      { "connectData", "h323.connectData",
+      { "connectData", "h323.connectData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Connect_RD", HFILL }},
     { &hf_h323_statusData,
-      { "statusData", "h323.statusData",
+      { "statusData", "h323.statusData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Status_RD", HFILL }},
     { &hf_h323_statusInquiryData,
-      { "statusInquiryData", "h323.statusInquiryData",
+      { "statusInquiryData", "h323.statusInquiryData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "StatusInquiry_RD", HFILL }},
     { &hf_h323_BackupCallSignalAddresses_item,
@@ -519,7 +520,7 @@ void proto_register_h323(void) {
         FT_UINT32, BASE_DEC, VALS(h225_TransportAddress_vals), 0,
         "TransportAddress", HFILL }},
     { &hf_h323_alternateTransport,
-      { "alternateTransport", "h323.alternateTransport",
+      { "alternateTransport", "h323.alternateTransport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlternateTransportAddresses", HFILL }},
     { &hf_h323_backupCallSignalAddresses,
@@ -527,7 +528,7 @@ void proto_register_h323(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_h323_hasSharedRepository,
-      { "hasSharedRepository", "h323.hasSharedRepository",
+      { "hasSharedRepository", "h323.hasSharedRepository_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h323_irrFrequency,
@@ -551,7 +552,7 @@ void proto_register_h323(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_h323_resetH245,
-      { "resetH245", "h323.resetH245",
+      { "resetH245", "h323.resetH245_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h323_timeToLive,
@@ -559,12 +560,12 @@ void proto_register_h323(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_h323_includeFastStart,
-      { "includeFastStart", "h323.includeFastStart",
+      { "includeFastStart", "h323.includeFastStart_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
 
 /*--- End of included file: packet-h323-hfarr.c ---*/
-#line 103 "../../asn1/h323/packet-h323-template.c"
+#line 104 "../../asn1/h323/packet-h323-template.c"
   };
 
   /* List of subtrees */
@@ -587,7 +588,7 @@ void proto_register_h323(void) {
     &ett_h323_StatusInquiry_RD,
 
 /*--- End of included file: packet-h323-ettarr.c ---*/
-#line 108 "../../asn1/h323/packet-h323-template.c"
+#line 109 "../../asn1/h323/packet-h323-template.c"
   };
 
   /* Register protocol */
@@ -601,9 +602,9 @@ void proto_register_h323(void) {
 
 
 /*--- proto_reg_handoff_h323 -------------------------------------------*/
-void proto_reg_handoff_h323(void) 
+void proto_reg_handoff_h323(void)
 {
-  dissector_handle_t q931_handle; 
+  dissector_handle_t q931_handle;
 
   q931_handle = find_dissector("q931");
 
@@ -611,11 +612,11 @@ void proto_reg_handoff_h323(void)
   dissector_add_string("h225.tp", "1.3.12.9", q931_handle);
 
   /* H.323, Annex M4, Tunnelling of narrow-band signalling syntax (NSS) for H.323 */
-  dissector_add_string("h225.gef.content", "GenericData/1000/1", 
+  dissector_add_string("h225.gef.content", "GenericData/1000/1",
                        new_create_dissector_handle(dissect_RasTunnelledSignallingMessage_PDU, proto_h323));
 
   /* H.323, Annex R, Robustness methods for H.323 entities */
-  dissector_add_string("h225.gef.content", "GenericData/1/1", 
+  dissector_add_string("h225.gef.content", "GenericData/1/1",
                        new_create_dissector_handle(dissect_RobustnessData_PDU, proto_h323));
 }
 

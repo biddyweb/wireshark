@@ -3,8 +3,6 @@
  * Copyright 2001, Tom Uijldert <tom.uijldert@cmg.nl>
  * Copyright 2004, Olivier Biot
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -40,10 +38,14 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <epan/strutil.h>
+#include <epan/wmem/wmem.h>
 #include "packet-wap.h"
 #include "packet-wsp.h"
-/* #include "packet-mmse.h" */		/* We autoregister	*/
+
+void proto_register_mmse(void);
+void proto_reg_handoff_mmse(void);
 
 #define	MM_QUOTE		0x7F	/* Quoted string	*/
 
@@ -459,9 +461,9 @@ get_text_string(tvbuff_t *tvb, guint offset, const char **strval)
     len = tvb_strsize(tvb, offset);
     DebugLog((" [1] tvb_strsize(tvb, offset) == %u\n", len));
     if (tvb_get_guint8(tvb, offset) == MM_QUOTE)
-	*strval = ep_tvb_memdup(tvb, offset+1, len-1);
+	*strval = (const char *)tvb_memdup(wmem_packet_scope(), tvb, offset+1, len-1);
     else
-	*strval = ep_tvb_memdup(tvb, offset, len);
+	*strval = (const char *)tvb_memdup(wmem_packet_scope(), tvb, offset, len);
     DebugLog((" [3] Return(len) == %u\n", len));
     return len;
 }
@@ -524,7 +526,7 @@ get_encoded_strval(tvbuff_t *tvb, guint offset, const char **strval)
 	    *strval = "";
 	} else {
 	    /* \todo	Something with "Char-set", skip for now	*/
-	    *strval = (char *)tvb_get_ephemeral_string(tvb, offset + count + 1, length - 1);
+	    *strval = (char *)tvb_get_string(wmem_packet_scope(), tvb, offset + count + 1, length - 1);
 	}
 	return count + length;
     } else
@@ -642,7 +644,7 @@ dissect_mmse_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
     if (tvb_get_guint8(tvb, 0) != MM_MTYPE_HDR)
 	return FALSE;
     pdut = tvb_get_guint8(tvb, 1);
-    if (match_strval(pdut, vals_message_type) == NULL)
+    if (try_val_to_str(pdut, vals_message_type) == NULL)
 	return FALSE;
     if ((tvb_get_guint8(tvb, 2) != MM_TID_HDR) &&
 	(tvb_get_guint8(tvb, 2) != MM_VERSION_HDR))
@@ -666,10 +668,7 @@ dissect_mmse_standalone(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* Make entries in Protocol column and Info column on summary display */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "MMSE");
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-	col_clear(pinfo->cinfo, COL_INFO);
 	col_add_fstr(pinfo->cinfo, COL_INFO, "MMS %s", message_type);
-    }
 
     dissect_mmse(tvb, pinfo, tree, pdut, message_type);
 }
@@ -687,10 +686,8 @@ dissect_mmse_encapsulated(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     message_type = val_to_str(pdut, vals_message_type, "Unknown type %u");
 
     /* Make entries in Info column on summary display */
-    if (check_col(pinfo->cinfo, COL_INFO)) {
 	col_append_sep_fstr(pinfo->cinfo, COL_INFO, " ", "(MMS %s)",
 		message_type);
-    }
 
     dissect_mmse(tvb, pinfo, tree, pdut, message_type);
 }
@@ -768,9 +765,9 @@ dissect_mmse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 pdut,
 			major = (version & 0x70) >> 4;
 			minor = version & 0x0F;
 			if (minor == 0x0F)
-			    vers_string = ep_strdup_printf("%u", major);
+			    vers_string = wmem_strdup_printf(wmem_packet_scope(), "%u", major);
 			else
-			    vers_string = ep_strdup_printf("%u.%u", major, minor);
+			    vers_string = wmem_strdup_printf(wmem_packet_scope(), "%u.%u", major, minor);
 			proto_tree_add_string(mmse_tree, hf_mmse_mms_version,
 				tvb, offset - 2, 2, vers_string);
 		    }
@@ -1202,7 +1199,7 @@ dissect_mmse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 pdut,
 				&count2);
 			tmptime.secs = tval;
 			tmptime.nsecs = 0;
-			strval = abs_time_to_str(&tmptime, ABSOLUTE_TIME_LOCAL,
+			strval = abs_time_to_ep_str(&tmptime, ABSOLUTE_TIME_LOCAL,
 			    TRUE);
 			/* Now render the fields */
 			tvb_ensure_bytes_exist(tvb, offset - 1, length + count + 1);
@@ -1282,7 +1279,7 @@ dissect_mmse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 pdut,
 			    proto_tree_add_string_format(mmse_tree,
 				    hf_mmse_ffheader, tvb, offset,
 				    length + length2,
-				    tvb_get_ephemeral_string(tvb, offset,
+				    tvb_get_string(wmem_packet_scope(), tvb, offset,
 					    length + length2),
 				    "%s: %s",
 				    format_text(strval, strlen(strval)),

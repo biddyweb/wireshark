@@ -1,7 +1,5 @@
 /* progress_bar.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,8 +25,14 @@
 
 #include "wireshark_application.h"
 
+#include "ui/progress_dlg.h"
+
 #include <QGraphicsOpacityEffect>
 #include <QPropertyAnimation>
+
+// XXX We should probably call ITaskbarList3::SetProgressState and
+// ::SetProgressState on Windows and add an NSProgressIndicator to the
+// dock icon on OS X.
 
 static progdlg_t *
 common_create_progress_dlg(bool animate, const gpointer top_level_window,
@@ -56,6 +60,7 @@ common_create_progress_dlg(bool animate, const gpointer top_level_window,
     return pb->show(animate, terminate_is_stop, stop_flag, value);
 }
 
+#if 0
 progdlg_t *
 create_progress_dlg(const gpointer top_level_window, const gchar *task_title, const gchar *item_title,
                             gboolean terminate_is_stop, gboolean *stop_flag,
@@ -67,6 +72,7 @@ create_progress_dlg(const gpointer top_level_window, const gchar *task_title, co
 
     return common_create_progress_dlg(false, top_level_window, terminate_is_stop, stop_flag, progress * 100);
 }
+#endif
 
 progdlg_t *
 delayed_create_progress_dlg(const gpointer top_level_window, const gchar *task_title, const gchar *item_title,
@@ -88,7 +94,7 @@ update_progress_dlg(progdlg_t *dlg, gfloat percentage, const gchar *status)
 {
     Q_UNUSED(status);
 
-    dlg->progressBar->setValue(percentage * 100);
+    dlg->progress_bar->setValue(percentage * 100);
 
     /*
      * Flush out the update and process any input events.
@@ -102,19 +108,19 @@ update_progress_dlg(progdlg_t *dlg, gfloat percentage, const gchar *status)
 void
 destroy_progress_dlg(progdlg_t *dlg)
 {
-    dlg->progressBar->hide();
+    dlg->progress_bar->hide();
 }
 
 // XXX - Add a "stop what you're doing this instant" button.
 // XXX - We need to show the task and item titles. Maybe as a tooltip or popped
 //       into our sibling status message?
 ProgressBar::ProgressBar(QWidget *parent) :
-    QProgressBar(parent), m_terminate_is_stop(false), m_stop_flag(NULL)
+    QProgressBar(parent), terminate_is_stop_(false), stop_flag_(NULL)
 {
-    m_dlg.progressBar = this;
-    m_dlg.topLevelWindow = window();
+    progress_dialog_.progress_bar = this;
+    progress_dialog_.top_level_window = window();
 
-//#ifdef Q_WS_MAC
+//#ifdef Q_OS_MAC
 //    // https://bugreports.qt-project.org/browse/QTBUG-11569
 //    setAttribute(Qt::WA_MacSmallSize, true);
 //#endif
@@ -133,12 +139,12 @@ ProgressBar::ProgressBar(QWidget *parent) :
 
 progdlg_t * ProgressBar::show(bool animate, bool terminate_is_stop, gboolean *stop_flag, int value) {
 
-    m_terminate_is_stop = terminate_is_stop;
-    m_stop_flag = stop_flag;
+    terminate_is_stop_ = terminate_is_stop;
+    stop_flag_ = stop_flag;
 
     setValue(value);
 
-#ifndef Q_WS_MAC
+#if !defined(Q_OS_MAC) || QT_VERSION > QT_VERSION_CHECK(5, 0, 0)
     if (animate) {
         QGraphicsOpacityEffect *effect = new QGraphicsOpacityEffect(this);
         this->setGraphicsEffect(effect);
@@ -148,6 +154,7 @@ progdlg_t * ProgressBar::show(bool animate, bool terminate_is_stop, gboolean *st
         animation->setDuration(750);
         animation->setStartValue(0.1);
         animation->setEndValue(1.0);
+        animation->setEasingCurve(QEasingCurve::InOutQuad);
         animation->start();
     }
 #else
@@ -155,7 +162,7 @@ progdlg_t * ProgressBar::show(bool animate, bool terminate_is_stop, gboolean *st
 #endif
 
     QProgressBar::show();
-    return &m_dlg;
+    return &progress_dialog_;
 }
 
 /*

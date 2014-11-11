@@ -4,8 +4,6 @@
  * 3GPP TS 36.423 packet dissection
  * Copyright 2007-2010, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -49,6 +47,8 @@
 #define PNAME  "EUTRAN X2 Application Protocol (X2AP)"
 #define PSNAME "X2AP"
 #define PFNAME "x2ap"
+
+void proto_register_x2ap(void);
 
 /* Dissector will use SCTP PPID 27 or SCTP port. IANA assigned port = 36422 */
 #define SCTP_PORT_X2AP	36422

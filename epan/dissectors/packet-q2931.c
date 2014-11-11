@@ -2,8 +2,6 @@
  * Routines for Q.2931 frame disassembly
  * Guy Harris <guy@alum.mit.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998
@@ -42,6 +40,8 @@
  * type and information element values - those I got from the FreeBSD 3.2
  * ATM code, and from Q.2931 (and Q.931) itself.
  */
+
+void proto_register_q2931(void);
 
 static int proto_q2931 = -1;
 static int hf_q2931_discriminator = -1;
@@ -251,7 +251,7 @@ static const value_string q2931_codeset_vals[] = {
 	{ 0x00, NULL },
 };
 
-static const true_false_string tfs_q2931_handling_instructions = { "Follow explicit error handling instructions", 
+static const true_false_string tfs_q2931_handling_instructions = { "Follow explicit error handling instructions",
 																   "Regular error handling procedures apply" };
 
 static void
@@ -376,7 +376,7 @@ dissect_q2931_aal_parameters_ie(tvbuff_t *tvb, int offset, int len,
 			len = 4;
 		proto_tree_add_text(tree, tvb, offset, len,
 		    "User defined AAL information: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 		return;
 	}
 
@@ -958,7 +958,7 @@ l2_done:
 				if (len < 6)
 					return;
 				offset += 1;
-				len -= 1;
+				/*len -= 1;*/
 				organization_code = tvb_get_ntoh24(tvb, offset);
 				proto_tree_add_text(tree, tvb, offset, 3,
 				    "Organization Code: 0x%06X (%s)",
@@ -966,7 +966,7 @@ l2_done:
 				    val_to_str_const(organization_code, oui_vals,
 				        "Unknown"));
 				offset += 3;
-				len -= 3;
+				/*len -= 3;*/
 
 				pid = tvb_get_ntohs(tvb, offset);
 				switch (organization_code) {
@@ -1205,7 +1205,7 @@ dissect_q2931_cause_ie(tvbuff_t *tvb, int offset, int len,
 		case Q2931_REJ_USER_SPECIFIC:
 			proto_tree_add_text(tree, tvb, offset, len,
 			    "User specific diagnostic: %s",
-			    tvb_bytes_to_str(tvb, offset, len));
+			    tvb_bytes_to_ep_str(tvb, offset, len));
 			break;
 
 		case Q2931_REJ_IE_MISSING:
@@ -1225,7 +1225,7 @@ dissect_q2931_cause_ie(tvbuff_t *tvb, int offset, int len,
 		default:
 			proto_tree_add_text(tree, tvb, offset, len,
 			    "Diagnostic: %s",
-			    tvb_bytes_to_str(tvb, offset, len));
+			    tvb_bytes_to_ep_str(tvb, offset, len));
 			break;
 		}
 		break;
@@ -1295,13 +1295,13 @@ dissect_q2931_cause_ie(tvbuff_t *tvb, int offset, int len,
 		if (len < 3)
 			return;
 		proto_tree_add_text(tree, tvb, offset, 3,
-		    "Timer: %.3s", tvb_get_ephemeral_string(tvb, offset, 3));
+		    "Timer: %.3s", tvb_get_string(wmem_packet_scope(), tvb, offset, 3));
 		break;
 
 	default:
 		proto_tree_add_text(tree, tvb, offset, len,
 		    "Diagnostics: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 	}
 }
 
@@ -1430,14 +1430,14 @@ dissect_q2931_number_ie(tvbuff_t *tvb, int offset, int len,
 
 	case Q2931_ISDN_NUMBERING:
 		proto_tree_add_text(tree, tvb, offset, len, "Number: %.*s",
-		    len, tvb_get_ephemeral_string(tvb, offset, len));
+		    len, tvb_get_string(wmem_packet_scope(), tvb, offset, len));
 		break;
 
 	case Q2931_NSAP_ADDRESSING:
 		if (len < 20) {
 			proto_tree_add_text(tree, tvb, offset, len,
 			    "Number (too short): %s",
-			    tvb_bytes_to_str(tvb, offset, len));
+			    tvb_bytes_to_ep_str(tvb, offset, len));
 			return;
 		}
 		ti = proto_tree_add_text(tree, tvb, offset, len, "Number");
@@ -1447,7 +1447,7 @@ dissect_q2931_number_ie(tvbuff_t *tvb, int offset, int len,
 
 	default:
 		proto_tree_add_text(tree, tvb, offset, len, "Number: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 		break;
 	}
 }
@@ -1491,7 +1491,7 @@ dissect_q2931_party_subaddr_ie(tvbuff_t *tvb, int offset, int len,
 	if (len == 0)
 		return;
 	proto_tree_add_text(tree, tvb, offset, len, "Subaddress: %s",
-	    tvb_bytes_to_str(tvb, offset, len));
+	    tvb_bytes_to_ep_str(tvb, offset, len));
 }
 
 /*
@@ -1734,7 +1734,7 @@ dissect_q2931_transit_network_sel_ie(tvbuff_t *tvb, int offset, int len,
 	if (len == 0)
 		return;
 	proto_tree_add_text(tree, tvb, offset, len,
-	    "Network identification: %.*s", len, tvb_get_ephemeral_string(tvb, offset, len));
+	    "Network identification: %.*s", len, tvb_get_string(wmem_packet_scope(), tvb, offset, len));
 }
 
 /*
@@ -2007,7 +2007,7 @@ dissect_q2931_ie(tvbuff_t *tvb, int offset, int len, proto_tree *tree,
 		 * dump it as data and be done with it.
 		 */
 		proto_tree_add_text(ie_tree, tvb, offset + 4,  len,
-		    "Data: %s", tvb_bytes_to_str(tvb, offset + 4, len));
+		    "Data: %s", tvb_bytes_to_ep_str(tvb, offset + 4, len));
 	}
 }
 
@@ -2056,11 +2056,10 @@ dissect_q2931(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		offset += call_ref_len;
 	}
 	message_type = tvb_get_guint8(tvb, offset);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_str(pinfo->cinfo, COL_INFO,
+	col_add_str(pinfo->cinfo, COL_INFO,
 		    val_to_str(message_type, q2931_message_type_vals,
 		      "Unknown message type (0x%02X)"));
-	}
+
 	if (q2931_tree != NULL)
 		proto_tree_add_uint(q2931_tree, hf_q2931_message_type, tvb, offset, 1, message_type);
 	offset += 1;

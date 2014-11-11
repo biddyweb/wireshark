@@ -1,8 +1,6 @@
 /* conversation.c
  * Routines for building lists of packets that are part of a "conversation"
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,14 @@
 #include "packet.h"
 #include "emem.h"
 #include "conversation.h"
+
+/* define DEBUG_CONVERSATION for pretty debug printing */
+/* #define DEBUG_CONVERSATION */
+#include "conversation_debug.h"
+
+#ifdef DEBUG_CONVERSATION
+int _debug_conversation_indent = 0;
+#endif
 
 /*
  * Hash table for conversations with no wildcards.
@@ -180,17 +186,32 @@ conversation_create_from_template(conversation_t *conversation, const address *a
  * Compute the hash value for two given address/port pairs if the match
  * is to be exact.
  */
+/* http://eternallyconfuzzled.com/tuts/algorithms/jsw_tut_hashing.aspx#existing
+ * One-at-a-Time hash
+ */
 static guint
 conversation_hash_exact(gconstpointer v)
 {
 	const conversation_key *key = (const conversation_key *)v;
 	guint hash_val;
+	address tmp_addr;
 
 	hash_val = 0;
+	tmp_addr.len  = 4;
+
 	ADD_ADDRESS_TO_HASH(hash_val, &key->addr1);
-	hash_val += key->port1;
+
+	tmp_addr.data = &key->port1;
+	ADD_ADDRESS_TO_HASH(hash_val, &tmp_addr);
+
 	ADD_ADDRESS_TO_HASH(hash_val, &key->addr2);
-	hash_val += key->port2;
+
+	tmp_addr.data = &key->port2;
+	ADD_ADDRESS_TO_HASH(hash_val, &tmp_addr);
+
+	hash_val += ( hash_val << 3 );
+	hash_val ^= ( hash_val >> 11 );
+	hash_val += ( hash_val << 15 );
 
 	return hash_val;
 }
@@ -256,11 +277,22 @@ conversation_hash_no_addr2(gconstpointer v)
 {
 	const conversation_key *key = (const conversation_key *)v;
 	guint hash_val;
+	address tmp_addr;
 
 	hash_val = 0;
+	tmp_addr.len  = 4;
+
 	ADD_ADDRESS_TO_HASH(hash_val, &key->addr1);
-	hash_val += key->port1;
-	hash_val += key->port2;
+
+	tmp_addr.data = &key->port1;
+	ADD_ADDRESS_TO_HASH(hash_val, &tmp_addr);
+
+	tmp_addr.data = &key->port2;
+	ADD_ADDRESS_TO_HASH(hash_val, &tmp_addr);
+
+	hash_val += ( hash_val << 3 );
+	hash_val ^= ( hash_val >> 11 );
+	hash_val += ( hash_val << 15 );
 
 	return hash_val;
 }
@@ -310,11 +342,21 @@ conversation_hash_no_port2(gconstpointer v)
 {
 	const conversation_key *key = (const conversation_key *)v;
 	guint hash_val;
+	address tmp_addr;
 
 	hash_val = 0;
+	tmp_addr.len  = 4;
+
 	ADD_ADDRESS_TO_HASH(hash_val, &key->addr1);
-	hash_val += key->port1;
+
+	tmp_addr.data = &key->port1;
+	ADD_ADDRESS_TO_HASH(hash_val, &tmp_addr);
+
 	ADD_ADDRESS_TO_HASH(hash_val, &key->addr2);
+
+	hash_val += ( hash_val << 3 );
+	hash_val ^= ( hash_val >> 11 );
+	hash_val += ( hash_val << 15 );
 
 	return hash_val;
 }
@@ -364,10 +406,19 @@ conversation_hash_no_addr2_or_port2(gconstpointer v)
 {
 	const conversation_key *key = (const conversation_key *)v;
 	guint hash_val;
+	address tmp_addr;
 
 	hash_val = 0;
+	tmp_addr.len  = 4;
+
 	ADD_ADDRESS_TO_HASH(hash_val, &key->addr1);
-	hash_val += key->port1;
+
+	tmp_addr.data = &key->port1;
+	ADD_ADDRESS_TO_HASH(hash_val, &tmp_addr);
+
+	hash_val += ( hash_val << 3 );
+	hash_val ^= ( hash_val >> 11 );
+	hash_val += ( hash_val << 15 );
 
 	return hash_val;
 }
@@ -496,7 +547,7 @@ conversation_init(void)
  *
  * Mostly adapted from the old conversation_new().
  */
-void
+static void
 conversation_insert_into_hashtable(GHashTable *hashtable, conversation_t *conv)
 {
 	conversation_t *chain_head, *chain_tail, *cur, *prev;
@@ -508,9 +559,11 @@ conversation_insert_into_hashtable(GHashTable *hashtable, conversation_t *conv)
 		conv->next = NULL;
 		conv->last = conv;
 		g_hash_table_insert(hashtable, conv->key_ptr, conv);
+		DPRINT(("created a new conversation chain"));
 	}
 	else {
 		/* There's an existing chain for this key */
+		DPRINT(("there's an existing conversation chain"));
 
 		chain_tail = chain_head->last;
 
@@ -550,7 +603,7 @@ conversation_insert_into_hashtable(GHashTable *hashtable, conversation_t *conv)
  * Does the right thing when removing from one of the conversation hash tables,
  * taking into account ordering and hash chains and all that good stuff.
  */
-void
+static void
 conversation_remove_from_hashtable(GHashTable *hashtable, conversation_t *conv)
 {
 	conversation_t *chain_head, *cur, *prev;
@@ -623,6 +676,10 @@ conversation_new(const guint32 setup_frame, const address *addr1, const address 
 	conversation_t *conversation=NULL;
 	conversation_key *new_key;
 
+	DPRINT(("creating conversation for frame #%d: %s:%d -> %s:%d (ptype=%d)",
+		    setup_frame, ep_address_to_str(addr1), port1,
+		    ep_address_to_str(addr2), port2, ptype));
+
 	if (options & NO_ADDR2) {
 		if (options & (NO_PORT2|NO_PORT2_FORCE)) {
 			hashtable = conversation_hashtable_no_addr2_or_port2;
@@ -637,7 +694,7 @@ conversation_new(const guint32 setup_frame, const address *addr1, const address 
 		}
 	}
 
-	new_key = se_alloc(sizeof(struct conversation_key));
+	new_key = se_new(struct conversation_key);
 	new_key->next = conversation_keys;
 	conversation_keys = new_key;
 	SE_COPY_ADDRESS(&new_key->addr1, addr1);
@@ -646,11 +703,11 @@ conversation_new(const guint32 setup_frame, const address *addr1, const address 
 	new_key->port1 = port1;
 	new_key->port2 = port2;
 
-	conversation = se_new(conversation_t); 
+	conversation = se_new(conversation_t);
 	memset(conversation, 0, sizeof(conversation_t));
 
 	conversation->index = new_index;
-	conversation->setup_frame = setup_frame;
+	conversation->setup_frame = conversation->last_frame = setup_frame;
 	conversation->data_list = NULL;
 
 	/* clear dissector handle */
@@ -662,7 +719,9 @@ conversation_new(const guint32 setup_frame, const address *addr1, const address 
 
 	new_index++;
 
+	DINDENT();
 	conversation_insert_into_hashtable(hashtable, conversation);
+	DENDENT();
 
 	return conversation;
 }
@@ -677,12 +736,15 @@ conversation_set_port2(conversation_t *conv, const guint32 port)
    DISSECTOR_ASSERT_HINT(!(conv->options & CONVERSATION_TEMPLATE),
             "Use the conversation_create_from_template function when the CONVERSATION_TEMPLATE bit is set in the options mask");
 
+	DPRINT(("called for port=%d", port));
+
 	/*
 	 * If the port 2 value is not wildcarded, don't set it.
 	 */
 	if ((!(conv->options & NO_PORT2)) || (conv->options & NO_PORT2_FORCE))
 		return;
 
+	DINDENT();
 	if (conv->options & NO_ADDR2) {
 		conversation_remove_from_hashtable(conversation_hashtable_no_addr2_or_port2, conv);
 	} else {
@@ -695,6 +757,7 @@ conversation_set_port2(conversation_t *conv, const guint32 port)
 	} else {
 		conversation_insert_into_hashtable(conversation_hashtable_exact, conv);
 	}
+	DENDENT();
 }
 
 /*
@@ -707,12 +770,15 @@ conversation_set_addr2(conversation_t *conv, const address *addr)
    DISSECTOR_ASSERT_HINT(!(conv->options & CONVERSATION_TEMPLATE),
             "Use the conversation_create_from_template function when the CONVERSATION_TEMPLATE bit is set in the options mask");
 
+	DPRINT(("called for addr=%s",ep_address_to_str(addr)));
+
 	/*
 	 * If the address 2 value is not wildcarded, don't set it.
 	 */
 	if (!(conv->options & NO_ADDR2))
 		return;
 
+	DINDENT();
 	if (conv->options & NO_PORT2) {
 		conversation_remove_from_hashtable(conversation_hashtable_no_addr2_or_port2, conv);
 	} else {
@@ -725,6 +791,7 @@ conversation_set_addr2(conversation_t *conv, const address *addr)
 	} else {
 		conversation_insert_into_hashtable(conversation_hashtable_exact, conv);
 	}
+	DENDENT();
 }
 
 /*
@@ -750,7 +817,7 @@ conversation_lookup_hashtable(GHashTable *hashtable, const guint32 frame_num, co
 	key.port1 = port1;
 	key.port2 = port2;
 
-	chain_head = g_hash_table_lookup(hashtable, &key);
+	chain_head = (conversation_t *)g_hash_table_lookup(hashtable, &key);
 
 	if (chain_head && (chain_head->setup_frame <= frame_num)) {
 		match = chain_head;
@@ -824,12 +891,20 @@ find_conversation(const guint32 frame_num, const address *addr_a, const address 
       /*
        * Neither search address B nor search port B are wildcarded,
        * start out with an exact match.
-       * Exact matches check both directions.
        */
+      DPRINT(("trying exact match"));
       conversation =
          conversation_lookup_hashtable(conversation_hashtable_exact,
          frame_num, addr_a, addr_b, ptype,
          port_a, port_b);
+      /* Didn't work, try the other direction */
+      if (conversation == NULL) {
+	      DPRINT(("trying opposite direction"));
+	      conversation =
+		 conversation_lookup_hashtable(conversation_hashtable_exact,
+		 frame_num, addr_b, addr_a, ptype,
+		 port_b, port_a);
+      }
       if ((conversation == NULL) && (addr_a->type == AT_FC)) {
          /* In Fibre channel, OXID & RXID are never swapped as
           * TCP/UDP ports are in TCP/IP.
@@ -839,6 +914,7 @@ find_conversation(const guint32 frame_num, const address *addr_a, const address 
             frame_num, addr_b, addr_a, ptype,
             port_a, port_b);
       }
+	  DPRINT(("exact match %sfound",conversation?"":"not "));
       if (conversation != NULL)
          return conversation;
    }
@@ -857,6 +933,7 @@ find_conversation(const guint32 frame_num, const address *addr_a, const address 
        * address and port.
        * ("addr_b" doesn't take part in this lookup.)
        */
+      DPRINT(("trying wildcarded dest address"));
       conversation =
          conversation_lookup_hashtable(conversation_hashtable_no_addr2,
          frame_num, addr_a, addr_b, ptype, port_a, port_b);
@@ -881,6 +958,7 @@ find_conversation(const guint32 frame_num, const address *addr_a, const address 
           * don't get packets in a given direction coming from more than one
           * address, unless the CONVERSATION_TEMPLATE option is set.)
           */
+         DPRINT(("wildcarded dest address match found"));
          if (!(conversation->options & NO_ADDR_B) && ptype != PT_UDP)
          {
             if(!(conversation->options & CONVERSATION_TEMPLATE))
@@ -907,6 +985,7 @@ find_conversation(const guint32 frame_num, const address *addr_a, const address 
        * ("addr_a" doesn't take part in this lookup.)
        */
       if (!(options & NO_ADDR_B)) {
+         DPRINT(("trying dest addr:port as source addr:port with wildcarded dest addr"));
          conversation =
             conversation_lookup_hashtable(conversation_hashtable_no_addr2,
             frame_num, addr_b, addr_a, ptype, port_b, port_a);
@@ -919,6 +998,7 @@ find_conversation(const guint32 frame_num, const address *addr_a, const address 
              * wildcarded second address for this
              * conversation.
              */
+	        DPRINT(("match found"));
             if (ptype != PT_UDP) {
                if(!(conversation->options & CONVERSATION_TEMPLATE))
                {
@@ -949,6 +1029,7 @@ find_conversation(const guint32 frame_num, const address *addr_a, const address 
        * address and port.
        * ("port_b" doesn't take part in this lookup.)
        */
+      DPRINT(("trying wildcarded dest port"));
       conversation =
          conversation_lookup_hashtable(conversation_hashtable_no_port2,
          frame_num, addr_a, addr_b, ptype, port_a, port_b);
@@ -972,6 +1053,7 @@ find_conversation(const guint32 frame_num, const address *addr_a, const address 
           * get packets in a given direction coming from more than one port,
           * unless the CONVERSATION_TEMPLATE option is set.)
           */
+         DPRINT(("match found"));
          if (!(conversation->options & NO_PORT_B) && ptype != PT_UDP)
          {
             if(!(conversation->options & CONVERSATION_TEMPLATE))
@@ -998,6 +1080,7 @@ find_conversation(const guint32 frame_num, const address *addr_a, const address 
        * ("port_a" doesn't take part in this lookup.)
        */
       if (!(options & NO_PORT_B)) {
+         DPRINT(("trying dest addr:port as source addr:port and wildcarded dest port"));
          conversation =
             conversation_lookup_hashtable(conversation_hashtable_no_port2,
             frame_num, addr_b, addr_a, ptype, port_b, port_a);
@@ -1010,6 +1093,7 @@ find_conversation(const guint32 frame_num, const address *addr_a, const address 
              * wildcarded second address for this
              * conversation.
              */
+            DPRINT(("match found"));
             if (ptype != PT_UDP)
             {
                if(!(conversation->options & CONVERSATION_TEMPLATE))
@@ -1035,6 +1119,7 @@ find_conversation(const guint32 frame_num, const address *addr_a, const address 
     * and port A as the first address and port.
     * (Neither "addr_b" nor "port_b" take part in this lookup.)
     */
+   DPRINT(("trying wildcarding dest addr:port"));
    conversation =
       conversation_lookup_hashtable(conversation_hashtable_no_addr2_or_port2,
       frame_num, addr_a, addr_b, ptype, port_a, port_b);
@@ -1052,6 +1137,7 @@ find_conversation(const guint32 frame_num, const address *addr_a, const address 
        * as that's the port that matched the wildcarded
        * second port for this conversation.
        */
+      DPRINT(("match found"));
       if (ptype != PT_UDP)
       {
          if(!(conversation->options & CONVERSATION_TEMPLATE))
@@ -1079,6 +1165,7 @@ find_conversation(const guint32 frame_num, const address *addr_a, const address 
     * first packet in the conversation).
     * (Neither "addr_a" nor "port_a" take part in this lookup.)
     */
+   DPRINT(("trying dest addr:port as source addr:port and wildcarding dest addr:port"));
    if (addr_a->type == AT_FC)
       conversation =
       conversation_lookup_hashtable(conversation_hashtable_no_addr2_or_port2,
@@ -1097,6 +1184,7 @@ find_conversation(const guint32 frame_num, const address *addr_a, const address 
        * that matched the wildcarded second port for this
        * conversation.
        */
+      DPRINT(("match found"));
       if (ptype != PT_UDP)
       {
          if(!(conversation->options & CONVERSATION_TEMPLATE))
@@ -1111,6 +1199,8 @@ find_conversation(const guint32 frame_num, const address *addr_a, const address 
       }
       return conversation;
    }
+
+   DPRINT(("no matches found"));
 
    /*
     * We found no conversation.
@@ -1135,7 +1225,7 @@ p_compare(gconstpointer a, gconstpointer b)
 void
 conversation_add_proto_data(conversation_t *conv, const int proto, void *proto_data)
 {
-	conv_proto_data *p1 = se_alloc(sizeof(conv_proto_data));
+	conv_proto_data *p1 = se_new(conv_proto_data);
 
 	p1->proto = proto;
 	p1->proto_data = proto_data;
@@ -1197,13 +1287,13 @@ conversation_set_dissector(conversation_t *conversation, const dissector_handle_
  *
  * This helper uses call_dissector_only which will NOT call the default
  * "data" dissector if the packet was rejected.
- * Our caller is responsible to call the data dissector explicitely in case
+ * Our caller is responsible to call the data dissector explicitly in case
  * this function returns FALSE.
  */
 gboolean
 try_conversation_dissector(const address *addr_a, const address *addr_b, const port_type ptype,
     const guint32 port_a, const guint32 port_b, tvbuff_t *tvb, packet_info *pinfo,
-    proto_tree *tree)
+    proto_tree *tree, void* data)
 {
 	conversation_t *conversation;
 
@@ -1215,7 +1305,7 @@ try_conversation_dissector(const address *addr_a, const address *addr_b, const p
 		if (conversation->dissector_handle == NULL)
 			return FALSE;
 		ret=call_dissector_only(conversation->dissector_handle, tvb, pinfo,
-		    tree, NULL);
+		    tree, data);
 		if(!ret) {
 			/* this packet was rejected by the dissector
 			 * so return FALSE in case our caller wants
@@ -1239,15 +1329,69 @@ find_or_create_conversation(packet_info *pinfo)
 {
 	conversation_t *conv=NULL;
 
+	DPRINT(("called for frame #%d: %s:%d -> %s:%d (ptype=%d)",
+		pinfo->fd->num, ep_address_to_str(&pinfo->src), pinfo->srcport,
+		ep_address_to_str(&pinfo->dst), pinfo->destport, pinfo->ptype));
+	DINDENT();
+
 	/* Have we seen this conversation before? */
 	if((conv = find_conversation(pinfo->fd->num, &pinfo->src, &pinfo->dst,
 				     pinfo->ptype, pinfo->srcport,
-				     pinfo->destport, 0)) == NULL) {
+				     pinfo->destport, 0)) != NULL) {
+		DPRINT(("found previous conversation for frame #%d (last_frame=%d)",
+				pinfo->fd->num, conv->last_frame));
+		if (pinfo->fd->num > conv->last_frame) {
+			conv->last_frame = pinfo->fd->num;
+		}
+	} else {
 		/* No, this is a new conversation. */
+		DPRINT(("did not find previous conversation for frame #%d",
+				pinfo->fd->num));
+		DINDENT();
 		conv = conversation_new(pinfo->fd->num, &pinfo->src,
 					&pinfo->dst, pinfo->ptype,
 					pinfo->srcport, pinfo->destport, 0);
+		DENDENT();
 	}
+
+	DENDENT();
 
 	return conv;
 }
+
+GHashTable *
+get_conversation_hashtable_exact(void)
+{
+	return conversation_hashtable_exact;
+}
+
+GHashTable *
+get_conversation_hashtable_no_addr2(void)
+{
+	return conversation_hashtable_no_addr2;
+}
+
+GHashTable *
+get_conversation_hashtable_no_port2(void)
+{
+	return conversation_hashtable_no_port2;
+}
+
+GHashTable *
+get_conversation_hashtable_no_addr2_or_port2(void)
+{
+	return conversation_hashtable_no_addr2_or_port2;
+}
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

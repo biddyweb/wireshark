@@ -3,8 +3,6 @@
  * Martin Mathieson
  * Based on packet-sdp.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,7 @@
  * Doesn't do a detailed dissection of the lines of the message, just treat as text.
  */
 
+void proto_register_sipfrag(void);
 
 /* Initialize the protocol and registered fields. */
 static int proto_sipfrag = -1;
@@ -74,7 +73,7 @@ static void dissect_sipfrag(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         /* For now, add all lines as unparsed strings */
 
         /* Extract & add the string. */
-        string = (char*)tvb_get_ephemeral_string(tvb, offset, linelen);
+        string = (char*)tvb_get_string(wmem_packet_scope(), tvb, offset, linelen);
         proto_tree_add_string_format(sipfrag_tree, hf_sipfrag_line,
                                      tvb, offset,
                                      linelen, string,

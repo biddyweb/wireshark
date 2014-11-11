@@ -5,8 +5,6 @@
  *
  * (c) 2006, Luis E. Garcia Ontanon <luis@ontanon.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -46,8 +44,6 @@
 #include <epan/prefs.h>
 #include <epan/funnel.h>
 
-#include "../timestats.h"
-#include "ui/simple_dialog.h"
 #include "../file.h"
 #include "../stat_menu.h"
 #include "ui/progress_dlg.h"
@@ -64,6 +60,7 @@
 #include "ui/gtk/gtkglobals.h"
 #include "ui/gtk/old-gtk-compat.h"
 
+void register_tap_listener_gtkfunnel(void);
 
 struct _funnel_text_window_t {
     GtkWidget* win;
@@ -85,7 +82,7 @@ struct _funnel_node_t {
 };
 
 static void text_window_cancel_button_cb(GtkWidget *bt _U_, gpointer data) {
-    funnel_text_window_t* tw = data;
+    funnel_text_window_t* tw = (funnel_text_window_t *)data;
 
     window_destroy(GTK_WIDGET(tw->win));
     tw->win = NULL;
@@ -95,7 +92,7 @@ static void text_window_cancel_button_cb(GtkWidget *bt _U_, gpointer data) {
 }
 
 static void unref_text_win_cancel_bt_cb(GtkWidget *bt _U_, gpointer data) {
-    funnel_text_window_t* tw = data;
+    funnel_text_window_t* tw = (funnel_text_window_t *)data;
     guint i;
 
     window_destroy(GTK_WIDGET(tw->win));
@@ -105,7 +102,7 @@ static void unref_text_win_cancel_bt_cb(GtkWidget *bt _U_, gpointer data) {
         tw->close_cb(tw->close_data);
 
     for (i = 0; i < tw->buttons->len; i++) {
-        funnel_bt_t* cbd = g_ptr_array_index(tw->buttons,i);
+        funnel_bt_t* cbd = (funnel_bt_t *)g_ptr_array_index(tw->buttons,i);
         /* XXX a free cb should be passed somehow */
         if (cbd->data && cbd->free_data_fcn) cbd->free_data_fcn(cbd->data);
         if (cbd->free_fcn) cbd->free_fcn(cbd);
@@ -116,7 +113,7 @@ static void unref_text_win_cancel_bt_cb(GtkWidget *bt _U_, gpointer data) {
 
 
 static gboolean text_window_unref_del_event_cb(GtkWidget *win _U_, GdkEvent *event _U_, gpointer user_data) {
-    funnel_text_window_t* tw = user_data;
+    funnel_text_window_t* tw = (funnel_text_window_t *)user_data;
     guint i;
 
     window_destroy(GTK_WIDGET(tw->win));
@@ -126,7 +123,7 @@ static gboolean text_window_unref_del_event_cb(GtkWidget *win _U_, GdkEvent *eve
         tw->close_cb(tw->close_data);
 
     for (i = 0; i < tw->buttons->len; i++) {
-        funnel_bt_t* cbd = g_ptr_array_index(tw->buttons,i);
+        funnel_bt_t* cbd = (funnel_bt_t *)g_ptr_array_index(tw->buttons,i);
         /* XXX a free cb should be passed somehow */
         if (cbd->data && cbd->free_data_fcn) cbd->free_data_fcn(cbd->data);
         if (cbd->free_fcn) cbd->free_fcn(cbd);
@@ -139,7 +136,7 @@ static gboolean text_window_unref_del_event_cb(GtkWidget *win _U_, GdkEvent *eve
 
 static gboolean text_window_delete_event_cb(GtkWidget *win _U_, GdkEvent *event _U_, gpointer user_data)
 {
-    funnel_text_window_t* tw = user_data;
+    funnel_text_window_t* tw = (funnel_text_window_t *)user_data;
 
     window_destroy(GTK_WIDGET(tw->win));
     tw->win = NULL;
@@ -151,7 +148,7 @@ static gboolean text_window_delete_event_cb(GtkWidget *win _U_, GdkEvent *event 
 }
 
 static funnel_text_window_t* new_text_window(const gchar* title) {
-    funnel_text_window_t* tw = g_malloc(sizeof(funnel_text_window_t));
+    funnel_text_window_t* tw = (funnel_text_window_t *)g_malloc(sizeof(funnel_text_window_t));
     GtkWidget *txt_scrollw, *main_vb, *hbox;
 
     tw->close_cb = NULL;
@@ -326,7 +323,7 @@ static void text_window_destroy(funnel_text_window_t*  tw) {
          * the window already just free the container
          */
         for (i = 0; i < tw->buttons->len; i++) {
-            funnel_bt_t* cbd = g_ptr_array_index(tw->buttons,i);
+            funnel_bt_t* cbd = (funnel_bt_t *)g_ptr_array_index(tw->buttons,i);
             /* XXX a free cb should be passed somehow */
             if (cbd->data && cbd->free_data_fcn) cbd->free_data_fcn(cbd->data);
             if (cbd->free_fcn) cbd->free_fcn(cbd);
@@ -343,7 +340,7 @@ static void text_window_set_editable(funnel_text_window_t*  tw, gboolean editabl
 
 static gboolean text_window_button_cb(GtkWidget *bt _U_, gpointer user_data)
 {
-    funnel_bt_t* cbd = user_data;
+    funnel_bt_t* cbd = (funnel_bt_t *)user_data;
 
     if (cbd->func) {
         return cbd->func(cbd->tw,cbd->data);
@@ -378,13 +375,13 @@ struct _funnel_dlg_data {
 
 static gboolean funnel_dlg_cb(GtkWidget *win _U_, gpointer user_data)
 {
-    struct _funnel_dlg_data* dd = user_data;
+    struct _funnel_dlg_data* dd = (struct _funnel_dlg_data *)user_data;
     guint i;
     guint len = dd->entries->len;
     GPtrArray* returns = g_ptr_array_new();
 
     for(i=0; i<len; i++) {
-        GtkEntry* entry = g_ptr_array_index(dd->entries,i);
+        GtkEntry* entry = (GtkEntry *)g_ptr_array_index(dd->entries,i);
         g_ptr_array_add(returns,g_strdup(gtk_entry_get_text(entry)));
     }
 
@@ -401,7 +398,7 @@ static gboolean funnel_dlg_cb(GtkWidget *win _U_, gpointer user_data)
 }
 
 static void funnel_cancel_btn_cb(GtkWidget *bt _U_, gpointer data) {
-    GtkWidget* win = data;
+    GtkWidget* win = (GtkWidget *)data;
 
     window_destroy(GTK_WIDGET(win));
 }
@@ -413,7 +410,7 @@ static void funnel_new_dialog(const gchar* title,
     GtkWidget *win, *main_grid, *main_vb, *bbox, *bt_cancel, *bt_ok;
     guint i;
     const gchar* fieldname;
-    struct _funnel_dlg_data* dd = g_malloc(sizeof(struct _funnel_dlg_data));
+    struct _funnel_dlg_data* dd = (struct _funnel_dlg_data *)g_malloc(sizeof(struct _funnel_dlg_data));
 
     dd->entries = g_ptr_array_new();
     dd->dlg_cb = dlg_cb;
@@ -453,11 +450,11 @@ static void funnel_new_dialog(const gchar* title,
     bbox = dlg_button_row_new(GTK_STOCK_CANCEL,GTK_STOCK_OK, NULL);
     gtk_box_pack_start(GTK_BOX(main_vb), bbox, FALSE, FALSE, 0);
 
-    bt_ok = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+    bt_ok = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
     g_signal_connect(bt_ok, "clicked", G_CALLBACK(funnel_dlg_cb), dd);
     gtk_widget_grab_default(bt_ok);
 
-    bt_cancel = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
+    bt_cancel = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
     g_signal_connect(bt_cancel, "clicked", G_CALLBACK(funnel_cancel_btn_cb), win);
     gtk_widget_grab_default(bt_cancel);
 
@@ -518,8 +515,8 @@ static gboolean funnel_open_file(const char* fname, const char* filter, const ch
         }
     }
 
-
-    if (cf_open(&cfile, fname, FALSE, &err) != CF_OK) {
+    /* This closes the current file if it succeeds. */
+    if (cf_open(&cfile, fname, WTAP_TYPE_AUTO, FALSE, &err) != CF_OK) {
         *err_str = g_strerror(err);
         if (rfcode != NULL) dfilter_free(rfcode);
         return FALSE;
@@ -538,8 +535,6 @@ static gboolean funnel_open_file(const char* fname, const char* filter, const ch
 
     return TRUE;
 }
-
-typedef struct progdlg _funnel_progress_window_t;
 
 static funnel_progress_window_t* funnel_new_progress_window(const gchar* label, const gchar* task, gboolean terminate_is_stop, gboolean *stop_flag) {
     return (funnel_progress_window_t*)create_progress_dlg(top_level, label, task, terminate_is_stop, stop_flag);
@@ -594,26 +589,9 @@ typedef struct _menu_cb_t {
 } menu_cb_t;
 
 static void our_menu_callback(void* unused _U_, gpointer data) {
-    menu_cb_t* mcb = data;
+    menu_cb_t* mcb = (menu_cb_t *)data;
     mcb->callback(mcb->callback_data);
     if (mcb->retap) cf_retap_packets(&cfile);
-}
-
-static const char* stat_group_name(register_stat_group_t group) {
-    /* See make_menu_xml() for an explanation of the string format */
-    static const value_string group_name_vals[] = {
-        {REGISTER_ANALYZE_GROUP_UNSORTED,            "/Menubar/AnalyzeMenu|Analyze"},                                                              /* unsorted analyze stuff */
-        {REGISTER_ANALYZE_GROUP_CONVERSATION_FILTER, "/Menubar/AnalyzeMenu|Analyze/ConversationFilterMenu|Analyze#ConversationFilter"},            /* conversation filters */
-        {REGISTER_STAT_GROUP_UNSORTED,               "/Menubar/StatisticsMenu|Statistics"},                                                        /* unsorted statistic function */
-        {REGISTER_STAT_GROUP_GENERIC,                "/Menubar/StatisticsMenu|Statistics"},                                                        /* generic statistic function, not specific to a protocol */
-        {REGISTER_STAT_GROUP_CONVERSATION_LIST,      "/Menubar/StatisticsMenu|Statistics/ConversationListMenu|Statistics#ConversationList"},       /* member of the conversation list */
-        {REGISTER_STAT_GROUP_ENDPOINT_LIST,          "/Menubar/StatisticsMenu|Statistics/EndpointListMenu|Statistics#EndpointList"},               /* member of the endpoint list */
-        {REGISTER_STAT_GROUP_RESPONSE_TIME,          "/Menubar/StatisticsMenu|Statistics/ServiceResponseTimeMenu|Statistics#ServiceResponseTime"}, /* member of the service response time list */
-        {REGISTER_STAT_GROUP_TELEPHONY,              "/Menubar/TelephonyMenu|Telephony"},                                                          /* telephony specific */
-        {REGISTER_TOOLS_GROUP_UNSORTED,              "/Menubar/ToolsMenu|Tools"},                                                                  /* unsorted tools */
-        {0, NULL}
-    };
-    return val_to_str_const(group, group_name_vals, "/Menubar/ToolsMenu|Tools");
 }
 
 static void register_menu_cb(const char *name,
@@ -622,7 +600,7 @@ static void register_menu_cb(const char *name,
                              gpointer callback_data,
                              gboolean retap) {
 
-    menu_cb_t* mcb = g_malloc(sizeof(menu_cb_t));
+    menu_cb_t* mcb = (menu_cb_t *)g_malloc(sizeof(menu_cb_t));
     const char *label = NULL, *str = NULL;
 
     mcb->callback = callback;
@@ -636,7 +614,7 @@ static void register_menu_cb(const char *name,
         label = name;
     }
 
-    register_lua_menu_bar_menu_items(
+    register_menu_bar_menu_items(
         stat_group_name(group), /* GUI path to the place holder in the menu */
         name, /* Action name */
         NULL, /* Stock id */

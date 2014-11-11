@@ -1,7 +1,5 @@
 /* column_preferences_frame.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,13 +33,13 @@ class ColumnPreferencesFrame;
 class ColumnPreferencesFrame : public QFrame
 {
     Q_OBJECT
-    
+
 public:
     explicit ColumnPreferencesFrame(QWidget *parent = 0);
     ~ColumnPreferencesFrame();
 
     void unstash();
-    
+
 protected:
     void keyPressEvent(QKeyEvent *evt);
 
@@ -64,7 +62,6 @@ private slots:
     void comboDestroyed();
     void columnTitleEditingFinished();
     void columnTypeCurrentIndexChanged(int index);
-    void customFieldTextChanged(QString);
     void customFieldEditingFinished();
     void customOccurrenceTextChanged(QString);
     void customOccurrenceEditingFinished();
@@ -73,3 +70,16 @@ private slots:
 };
 
 #endif // COLUMN_PREFERENCES_FRAME_H
+
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

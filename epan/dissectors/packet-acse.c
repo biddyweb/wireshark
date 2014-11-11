@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-acse.c                                                              */
 /* ../../tools/asn2wrs.py -b -C -p acse -c ./acse.cnf -s ./packet-acse-template -D . -O ../../epan/dissectors acse.asn */
 
@@ -19,9 +19,6 @@
  *   Ronnie Sahlberg 2005
  * dissect_acse() based original handwritten dissector by Sid
  *   Yuriy Sidelnikov <YSidelnikov@hotmail.com>
- *
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -46,7 +43,8 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/exceptions.h>
+#include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 #include <epan/oids.h>
 #include <epan/asn1.h>
@@ -67,8 +65,10 @@
 #define CLPSNAME "CLACSE"
 #define CLPFNAME "clacse"
 
-
 #define ACSE_APDU_OID "2.2.1.0.1"
+
+void proto_register_acse(void);
+void proto_reg_handoff_acse(void);
 
 /* Initialize the protocol and registered fields */
 int proto_acse = -1;
@@ -165,8 +165,8 @@ static int hf_acse_P_context_result_list_item = -1;  /* P_context_result_list_it
 static int hf_acse_pcontext_result = -1;          /* Result */
 static int hf_acse_concrete_syntax_name = -1;     /* Concrete_syntax_name */
 static int hf_acse_provider_reason = -1;          /* T_provider_reason */
-static int hf_acse_acse_service_user = -1;        /* T_acse_service_user */
-static int hf_acse_acse_service_provider = -1;    /* T_acse_service_provider */
+static int hf_acse_service_user = -1;             /* T_service_user */
+static int hf_acse_service_provider = -1;         /* T_service_provider */
 static int hf_acse_Association_data_item = -1;    /* EXTERNALt */
 static int hf_acse_simply_encoded_data = -1;      /* Simply_encoded_data */
 static int hf_acse_fully_encoded_data = -1;       /* PDV_list */
@@ -235,7 +235,7 @@ static gint ett_acse_Authentication_value = -1;
 /*--- End of included file: packet-acse-ett.c ---*/
 #line 76 "../../asn1/acse/packet-acse-template.c"
 
-static struct SESSION_DATA_STRUCTURE* session = NULL;
+static expert_field ei_acse_dissector_not_available = EI_INIT;
 
 static const char *object_identifier_id;
 /* indirect_reference, used to pick up the signalling so we know what
@@ -284,9 +284,9 @@ static void
 register_ctx_id_and_oid(packet_info *pinfo _U_, guint32 idx, char *oid)
 {
 	acse_ctx_oid_t *aco, *tmpaco;
-	aco=se_alloc(sizeof(acse_ctx_oid_t));
+	aco=wmem_new(wmem_file_scope(), acse_ctx_oid_t);
 	aco->ctx_id=idx;
-	aco->oid=se_strdup(oid);
+	aco->oid=wmem_strdup(wmem_file_scope(), oid);
 
 	/* if this ctx already exists, remove the old one first */
 	tmpaco=(acse_ctx_oid_t *)g_hash_table_lookup(acse_ctx_oid_table, aco);
@@ -325,15 +325,17 @@ dissect_acse_T_direct_reference(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 static int
 dissect_acse_T_indirect_reference(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 71 "../../asn1/acse/acse.cnf"
+#line 72 "../../asn1/acse/acse.cnf"
   char *oid;
+  struct SESSION_DATA_STRUCTURE* session = (struct SESSION_DATA_STRUCTURE*) actx->private_data;
+
   offset = dissect_ber_integer(FALSE, actx, tree, tvb, offset,
                 hf_acse_indirect_reference,
                 &indir_ref);
 
   /* look up the indirect reference */
   if((oid = find_oid_by_pres_ctx_id(actx->pinfo, indir_ref)) != NULL) {
-    object_identifier_id = ep_strdup(oid);
+    object_identifier_id = wmem_strdup(wmem_packet_scope(), oid);
   }
 
   if(session)
@@ -359,8 +361,8 @@ dissect_acse_ObjectDescriptor(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
 
 static int
 dissect_acse_T_single_ASN1_type(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 88 "../../asn1/acse/acse.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, top_tree ? top_tree : tree);
+#line 91 "../../asn1/acse/acse.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, top_tree ? top_tree : tree, actx->private_data);
 
 
 
@@ -371,8 +373,8 @@ dissect_acse_T_single_ASN1_type(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 static int
 dissect_acse_T_octet_aligned(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 91 "../../asn1/acse/acse.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, top_tree ? top_tree : tree);
+#line 94 "../../asn1/acse/acse.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, top_tree ? top_tree : tree, actx->private_data);
 
 
 
@@ -469,7 +471,7 @@ dissect_acse_ASO_context_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
 
 static int
 dissect_acse_T_AARQ_aSO_context_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 55 "../../asn1/acse/acse.cnf"
+#line 56 "../../asn1/acse/acse.cnf"
   offset = dissect_ber_object_identifier_str(FALSE, actx, tree, tvb, offset,
                                          hf_index, &object_identifier_id);
 
@@ -677,8 +679,8 @@ dissect_acse_T_other_mechanism_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_
 
 static int
 dissect_acse_T_other_mechanism_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 49 "../../asn1/acse/acse.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, top_tree);
+#line 50 "../../asn1/acse/acse.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, top_tree, actx->private_data);
 
 
 
@@ -957,8 +959,8 @@ dissect_acse_AARQ_apdu_U(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 static int
 dissect_acse_AARQ_apdu(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 94 "../../asn1/acse/acse.cnf"
-  col_append_fstr(actx->pinfo->cinfo, COL_INFO, "A-Associate-Request");
+#line 97 "../../asn1/acse/acse.cnf"
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "A-Associate-Request");
 
     offset = dissect_ber_tagged_type(implicit_tag, actx, tree, tvb, offset,
                                       hf_index, BER_CLASS_APP, 0, TRUE, dissect_acse_AARQ_apdu_U);
@@ -988,7 +990,7 @@ dissect_acse_T_AARE_protocol_version(gboolean implicit_tag _U_, tvbuff_t *tvb _U
 
 static int
 dissect_acse_T_AARE_aSO_context_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 59 "../../asn1/acse/acse.cnf"
+#line 60 "../../asn1/acse/acse.cnf"
   offset = dissect_ber_object_identifier_str(FALSE, actx, tree, tvb, offset,
                                          hf_index, &object_identifier_id);
 
@@ -1015,7 +1017,7 @@ dissect_acse_Associate_result(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
 }
 
 
-static const value_string acse_T_acse_service_user_vals[] = {
+static const value_string acse_T_service_user_vals[] = {
   {   0, "null" },
   {   1, "no-reason-given" },
   {   2, "application-context-name-not-supported" },
@@ -1036,7 +1038,7 @@ static const value_string acse_T_acse_service_user_vals[] = {
 
 
 static int
-dissect_acse_T_acse_service_user(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_acse_T_service_user(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_ber_constrained_integer(implicit_tag, actx, tree, tvb, offset,
                                                             0U, 14U, hf_index, NULL);
 
@@ -1044,7 +1046,7 @@ dissect_acse_T_acse_service_user(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 }
 
 
-static const value_string acse_T_acse_service_provider_vals[] = {
+static const value_string acse_T_service_provider_vals[] = {
   {   0, "null" },
   {   1, "no-reason-given" },
   {   2, "no-common-acse-version" },
@@ -1053,7 +1055,7 @@ static const value_string acse_T_acse_service_provider_vals[] = {
 
 
 static int
-dissect_acse_T_acse_service_provider(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_acse_T_service_provider(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_ber_constrained_integer(implicit_tag, actx, tree, tvb, offset,
                                                             0U, 2U, hf_index, NULL);
 
@@ -1062,14 +1064,14 @@ dissect_acse_T_acse_service_provider(gboolean implicit_tag _U_, tvbuff_t *tvb _U
 
 
 static const value_string acse_Associate_source_diagnostic_vals[] = {
-  {   1, "acse-service-user" },
-  {   2, "acse-service-provider" },
+  {   1, "service-user" },
+  {   2, "service-provider" },
   { 0, NULL }
 };
 
 static const ber_choice_t Associate_source_diagnostic_choice[] = {
-  {   1, &hf_acse_acse_service_user, BER_CLASS_CON, 1, 0, dissect_acse_T_acse_service_user },
-  {   2, &hf_acse_acse_service_provider, BER_CLASS_CON, 2, 0, dissect_acse_T_acse_service_provider },
+  {   1, &hf_acse_service_user   , BER_CLASS_CON, 1, 0, dissect_acse_T_service_user },
+  {   2, &hf_acse_service_provider, BER_CLASS_CON, 2, 0, dissect_acse_T_service_provider },
   { 0, NULL, 0, 0, 0, NULL }
 };
 
@@ -1189,8 +1191,8 @@ dissect_acse_AARE_apdu_U(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 static int
 dissect_acse_AARE_apdu(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 99 "../../asn1/acse/acse.cnf"
-  col_append_fstr(actx->pinfo->cinfo, COL_INFO, "A-Associate-Response");
+#line 102 "../../asn1/acse/acse.cnf"
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "A-Associate-Response");
 
     offset = dissect_ber_tagged_type(implicit_tag, actx, tree, tvb, offset,
                                       hf_index, BER_CLASS_APP, 1, TRUE, dissect_acse_AARE_apdu_U);
@@ -1212,9 +1214,9 @@ static const value_string acse_Release_request_reason_vals[] = {
 
 static int
 dissect_acse_Release_request_reason(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 112 "../../asn1/acse/acse.cnf"
+#line 115 "../../asn1/acse/acse.cnf"
   int reason = -1;
- 
+
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &reason);
 
@@ -1248,8 +1250,8 @@ dissect_acse_RLRQ_apdu_U(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 static int
 dissect_acse_RLRQ_apdu(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 104 "../../asn1/acse/acse.cnf"
-  col_append_fstr(actx->pinfo->cinfo, COL_INFO, "Release-Request");
+#line 107 "../../asn1/acse/acse.cnf"
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "Release-Request");
 
     offset = dissect_ber_tagged_type(implicit_tag, actx, tree, tvb, offset,
                                       hf_index, BER_CLASS_APP, 2, TRUE, dissect_acse_RLRQ_apdu_U);
@@ -1271,9 +1273,9 @@ static const value_string acse_Release_response_reason_vals[] = {
 
 static int
 dissect_acse_Release_response_reason(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 128 "../../asn1/acse/acse.cnf"
+#line 131 "../../asn1/acse/acse.cnf"
   int reason = -1;
- 
+
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &reason);
 
@@ -1307,8 +1309,8 @@ dissect_acse_RLRE_apdu_U(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 static int
 dissect_acse_RLRE_apdu(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 120 "../../asn1/acse/acse.cnf"
-  col_append_fstr(actx->pinfo->cinfo, COL_INFO, "Release-Response");
+#line 123 "../../asn1/acse/acse.cnf"
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "Release-Response");
 
     offset = dissect_ber_tagged_type(implicit_tag, actx, tree, tvb, offset,
                                       hf_index, BER_CLASS_APP, 3, TRUE, dissect_acse_RLRE_apdu_U);
@@ -1321,15 +1323,15 @@ dissect_acse_RLRE_apdu(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset 
 
 
 static const value_string acse_ABRT_source_vals[] = {
-  {   0, "acse-service-user" },
-  {   1, "acse-service-provider" },
+  {   0, "service-user" },
+  {   1, "service-provider" },
   { 0, NULL }
 };
 
 
 static int
 dissect_acse_ABRT_source(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 141 "../../asn1/acse/acse.cnf"
+#line 144 "../../asn1/acse/acse.cnf"
   int source = -1;
 
     offset = dissect_ber_constrained_integer(implicit_tag, actx, tree, tvb, offset,
@@ -1338,7 +1340,7 @@ dissect_acse_ABRT_source(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
   if(source != -1)
    col_append_fstr(actx->pinfo->cinfo, COL_INFO, " (%s)", val_to_str(source, acse_ABRT_source_vals, "source(%d)"));
-  
+
 
 
   return offset;
@@ -1386,8 +1388,8 @@ dissect_acse_ABRT_apdu_U(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 static int
 dissect_acse_ABRT_apdu(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 136 "../../asn1/acse/acse.cnf"
-  col_append_fstr(actx->pinfo->cinfo, COL_INFO, "Abort");
+#line 139 "../../asn1/acse/acse.cnf"
+  col_append_str(actx->pinfo->cinfo, COL_INFO, "Abort");
 
     offset = dissect_ber_tagged_type(implicit_tag, actx, tree, tvb, offset,
                                       hf_index, BER_CLASS_APP, 4, TRUE, dissect_acse_ABRT_apdu_U);
@@ -1421,7 +1423,7 @@ dissect_acse_Simply_encoded_data(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 
 static int
 dissect_acse_T_simple_ASN1_type(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 52 "../../asn1/acse/acse.cnf"
+#line 53 "../../asn1/acse/acse.cnf"
 /*XXX not implemented yet */
 
 
@@ -1533,7 +1535,7 @@ dissect_acse_A_DT_apdu(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset 
 
 static int
 dissect_acse_T_ACRQ_aSO_context_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 63 "../../asn1/acse/acse.cnf"
+#line 64 "../../asn1/acse/acse.cnf"
   offset = dissect_ber_object_identifier_str(FALSE, actx, tree, tvb, offset,
                                          hf_index, &object_identifier_id);
 
@@ -1575,7 +1577,7 @@ dissect_acse_ACRQ_apdu(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset 
 
 static int
 dissect_acse_T_ACRP_aSO_context_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 67 "../../asn1/acse/acse.cnf"
+#line 68 "../../asn1/acse/acse.cnf"
   offset = dissect_ber_object_identifier_str(FALSE, actx, tree, tvb, offset,
                                          hf_index, &object_identifier_id);
 
@@ -1612,18 +1614,6 @@ dissect_acse_ACRP_apdu(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset 
   return offset;
 }
 
-
-static const value_string acse_ACSE_apdu_vals[] = {
-  {   0, "aarq" },
-  {   1, "aare" },
-  {   2, "rlrq" },
-  {   3, "rlre" },
-  {   4, "abrt" },
-  {   5, "adt" },
-  {   6, "acrq" },
-  {   7, "acrp" },
-  { 0, NULL }
-};
 
 static const ber_choice_t ACSE_apdu_choice[] = {
   {   0, &hf_acse_aarq           , BER_CLASS_APP, 0, BER_FLAGS_IMPLTAG, dissect_acse_AARQ_apdu },
@@ -1694,16 +1684,21 @@ dissect_acse_AE_title(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _
 /*
 * Dissect ACSE PDUs inside a PPDU.
 */
-static void
-dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data)
 {
 	int offset = 0;
-	proto_item    *item=NULL;
-	proto_tree    *tree=NULL;
+	proto_item *item;
+	proto_tree *tree;
 	char *oid;
+	struct SESSION_DATA_STRUCTURE* session;
 	asn1_ctx_t asn1_ctx;
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
+	/* do we have spdu type from the session dissector?  */
+	if( data == NULL){
+		return 0;
+	}
 
 	/* first, try to check length   */
 	/* do we have at least 2 bytes  */
@@ -1711,24 +1706,19 @@ dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		proto_tree_add_text(parent_tree, tvb, offset,
 			tvb_reported_length_remaining(tvb,offset),
 			"User data");
-		return;  /* no, it isn't a ACSE PDU */
+		return 0;  /* no, it isn't a ACSE PDU */
 	}
-	/* do we have spdu type from the session dissector?  */
-	if( !pinfo->private_data ){
+
+	session  = ( (struct SESSION_DATA_STRUCTURE*)data);
+	if(session->spdu_type == 0 ) {
 		if(parent_tree){
-			REPORT_DISSECTOR_BUG("Can't get SPDU type from session dissector.");
-		}
-		return  ;
-	} else {
-		session  = ( (struct SESSION_DATA_STRUCTURE*)(pinfo->private_data) );
-		if(session->spdu_type == 0 ) {
-			if(parent_tree){
-				REPORT_DISSECTOR_BUG(
-					ep_strdup_printf("Wrong spdu type %x from session dissector.",session->spdu_type));
-				return  ;
-			}
+			REPORT_DISSECTOR_BUG(
+				wmem_strdup_printf(wmem_packet_scope(), "Wrong spdu type %x from session dissector.",session->spdu_type));
+			return 0;
 		}
 	}
+
+	asn1_ctx.private_data = session;
 	/* save parent_tree so subdissectors can create new top nodes */
 	top_tree=parent_tree;
 
@@ -1742,7 +1732,7 @@ dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	case SES_DISCONNECT:			/*   RLRQ   */
 	case SES_FINISH:			/*   RLRE   */
 	case SES_ABORT:				/*   ABRT   */
-	case CLSES_UNIT_DATA:		/* AARQ Connetctionless session */		
+	case CLSES_UNIT_DATA:		/* AARQ Connetctionless session */
 		break;
 	case SES_DATA_TRANSFER:
 		oid=find_oid_by_pres_ctx_id(pinfo, indir_ref);
@@ -1752,39 +1742,35 @@ dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 				    "Invalid OID: %s", ACSE_APDU_OID);
 				THROW(ReportedBoundsError);
 			}
-			call_ber_oid_callback(oid, tvb, offset, pinfo, parent_tree);
+			call_ber_oid_callback(oid, tvb, offset, pinfo, parent_tree, NULL);
 		} else {
-			proto_item *ti = proto_tree_add_text(parent_tree, tvb, offset, -1, "dissector is not available");
-			expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN, "Dissector is not available");
+			proto_tree_add_expert(parent_tree, pinfo, &ei_acse_dissector_not_available,
+                                    tvb, offset, -1);
 		}
 		top_tree = NULL;
-		return;
+		return 0;
 	default:
 		top_tree = NULL;
-		return;
+		return 0;
 	}
 
 	if(session->spdu_type == CLSES_UNIT_DATA)
 	{
 		/* create display subtree for the connectionless protocol */
-		if(parent_tree)
-		{
-			item = proto_tree_add_item(parent_tree, proto_clacse, tvb, 0, -1, ENC_NA);
-			tree = proto_item_add_subtree(item, ett_acse);
-		}
+		item = proto_tree_add_item(parent_tree, proto_clacse, tvb, 0, -1, ENC_NA);
+		tree = proto_item_add_subtree(item, ett_acse);
+
 		col_set_str(pinfo->cinfo, COL_PROTOCOL, "CL-ACSE");
-  		col_clear(pinfo->cinfo, COL_INFO);
+		col_clear(pinfo->cinfo, COL_INFO);
 	}
 	else
 	{
 		/* create display subtree for the protocol */
-		if(parent_tree)
-		{
-			item = proto_tree_add_item(parent_tree, proto_acse, tvb, 0, -1, ENC_NA);
-			tree = proto_item_add_subtree(item, ett_acse);
-		}
+		item = proto_tree_add_item(parent_tree, proto_acse, tvb, 0, -1, ENC_NA);
+		tree = proto_item_add_subtree(item, ett_acse);
+
 		col_set_str(pinfo->cinfo, COL_PROTOCOL, "ACSE");
-  		col_clear(pinfo->cinfo, COL_INFO);
+		col_clear(pinfo->cinfo, COL_INFO);
 	}
 
 	/*  we can't make any additional checking here   */
@@ -1797,8 +1783,9 @@ dissect_acse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			break;
 		}
 	}
-	
-top_tree = NULL;
+
+	top_tree = NULL;
+	return tvb_length(tvb);
 }
 
 /*--- proto_register_acse ----------------------------------------------*/
@@ -1826,7 +1813,7 @@ void proto_register_acse(void) {
         FT_UINT32, BASE_DEC, VALS(acse_T_encoding_vals), 0,
         NULL, HFILL }},
     { &hf_acse_single_ASN1_type,
-      { "single-ASN1-type", "acse.single_ASN1_type",
+      { "single-ASN1-type", "acse.single_ASN1_type_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_acse_octet_aligned,
@@ -1838,35 +1825,35 @@ void proto_register_acse(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING", HFILL }},
     { &hf_acse_aarq,
-      { "aarq", "acse.aarq",
+      { "aarq", "acse.aarq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AARQ_apdu", HFILL }},
     { &hf_acse_aare,
-      { "aare", "acse.aare",
+      { "aare", "acse.aare_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AARE_apdu", HFILL }},
     { &hf_acse_rlrq,
-      { "rlrq", "acse.rlrq",
+      { "rlrq", "acse.rlrq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RLRQ_apdu", HFILL }},
     { &hf_acse_rlre,
-      { "rlre", "acse.rlre",
+      { "rlre", "acse.rlre_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RLRE_apdu", HFILL }},
     { &hf_acse_abrt,
-      { "abrt", "acse.abrt",
+      { "abrt", "acse.abrt_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ABRT_apdu", HFILL }},
     { &hf_acse_adt,
-      { "adt", "acse.adt",
+      { "adt", "acse.adt_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "A_DT_apdu", HFILL }},
     { &hf_acse_acrq,
-      { "acrq", "acse.acrq",
+      { "acrq", "acse.acrq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ACRQ_apdu", HFILL }},
     { &hf_acse_acrp,
-      { "acrp", "acse.acrp",
+      { "acrp", "acse.acrp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ACRP_apdu", HFILL }},
     { &hf_acse_aARQ_protocol_version,
@@ -2082,7 +2069,7 @@ void proto_register_acse(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_acse_ASOI_tag_item,
-      { "ASOI-tag item", "acse.ASOI_tag_item",
+      { "ASOI-tag item", "acse.ASOI_tag_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_acse_qualifier,
@@ -2106,7 +2093,7 @@ void proto_register_acse(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Default_Context_List", HFILL }},
     { &hf_acse_Context_list_item,
-      { "Context-list item", "acse.Context_list_item",
+      { "Context-list item", "acse.Context_list_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_acse_pci,
@@ -2126,7 +2113,7 @@ void proto_register_acse(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_acse_Default_Context_List_item,
-      { "Default-Context-List item", "acse.Default_Context_List_item",
+      { "Default-Context-List item", "acse.Default_Context_List_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_acse_abstract_syntax_name,
@@ -2138,7 +2125,7 @@ void proto_register_acse(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "TransferSyntaxName", HFILL }},
     { &hf_acse_P_context_result_list_item,
-      { "P-context-result-list item", "acse.P_context_result_list_item",
+      { "P-context-result-list item", "acse.P_context_result_list_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_acse_pcontext_result,
@@ -2153,16 +2140,16 @@ void proto_register_acse(void) {
       { "provider-reason", "acse.provider_reason",
         FT_INT32, BASE_DEC, VALS(acse_T_provider_reason_vals), 0,
         NULL, HFILL }},
-    { &hf_acse_acse_service_user,
-      { "acse-service-user", "acse.acse_service_user",
-        FT_UINT32, BASE_DEC, VALS(acse_T_acse_service_user_vals), 0,
+    { &hf_acse_service_user,
+      { "service-user", "acse.service_user",
+        FT_UINT32, BASE_DEC, VALS(acse_T_service_user_vals), 0,
         NULL, HFILL }},
-    { &hf_acse_acse_service_provider,
-      { "acse-service-provider", "acse.acse_service_provider",
-        FT_UINT32, BASE_DEC, VALS(acse_T_acse_service_provider_vals), 0,
+    { &hf_acse_service_provider,
+      { "service-provider", "acse.service_provider",
+        FT_UINT32, BASE_DEC, VALS(acse_T_service_provider_vals), 0,
         NULL, HFILL }},
     { &hf_acse_Association_data_item,
-      { "Association-data", "acse.EXTERNALt",
+      { "Association-data", "acse.EXTERNALt_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNALt", HFILL }},
     { &hf_acse_simply_encoded_data,
@@ -2170,7 +2157,7 @@ void proto_register_acse(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_acse_fully_encoded_data,
-      { "fully-encoded-data", "acse.fully_encoded_data",
+      { "fully-encoded-data", "acse.fully_encoded_data_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PDV_list", HFILL }},
     { &hf_acse_presentation_context_identifier,
@@ -2182,7 +2169,7 @@ void proto_register_acse(void) {
         FT_UINT32, BASE_DEC, VALS(acse_T_presentation_data_values_vals), 0,
         NULL, HFILL }},
     { &hf_acse_simple_ASN1_type,
-      { "simple-ASN1-type", "acse.simple_ASN1_type",
+      { "simple-ASN1-type", "acse.simple_ASN1_type_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_acse_pDVList_octet_aligned,
@@ -2194,7 +2181,7 @@ void proto_register_acse(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_acse_other_mechanism_value,
-      { "other-mechanism-value", "acse.other_mechanism_value",
+      { "other-mechanism-value", "acse.other_mechanism_value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_acse_charstring,
@@ -2206,11 +2193,11 @@ void proto_register_acse(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING", HFILL }},
     { &hf_acse_external,
-      { "external", "acse.external",
+      { "external", "acse.external_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNALt", HFILL }},
     { &hf_acse_other,
-      { "other", "acse.other",
+      { "other", "acse.other_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Authentication_value_other", HFILL }},
     { &hf_acse_T_AARQ_protocol_version_version1,
@@ -2239,7 +2226,7 @@ void proto_register_acse(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-acse-hfarr.c ---*/
-#line 270 "../../asn1/acse/packet-acse-template.c"
+#line 267 "../../asn1/acse/packet-acse-template.c"
   };
 
   /* List of subtrees */
@@ -2285,12 +2272,18 @@ void proto_register_acse(void) {
     &ett_acse_Authentication_value,
 
 /*--- End of included file: packet-acse-ettarr.c ---*/
-#line 276 "../../asn1/acse/packet-acse-template.c"
+#line 273 "../../asn1/acse/packet-acse-template.c"
   };
+
+  static ei_register_info ei[] = {
+     { &ei_acse_dissector_not_available, { "acse.dissector_not_available", PI_UNDECODED, PI_WARN, "Dissector is not available", EXPFILL }},
+  };
+
+  expert_module_t* expert_acse;
 
   /* Register protocol */
   proto_acse = proto_register_protocol(PNAME, PSNAME, PFNAME);
-  register_dissector("acse", dissect_acse, proto_acse);
+  new_register_dissector("acse", dissect_acse, proto_acse);
 
   /* Register connectionless protocol */
   proto_clacse = proto_register_protocol(CLPNAME, CLPSNAME, CLPFNAME);
@@ -2299,16 +2292,18 @@ void proto_register_acse(void) {
   /* Register fields and subtrees */
   proto_register_field_array(proto_acse, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
-
+  expert_acse = expert_register_protocol(proto_acse);
+  expert_register_field_array(expert_acse, ei, array_length(ei));
 }
 
 
 /*--- proto_reg_handoff_acse -------------------------------------------*/
 void proto_reg_handoff_acse(void) {
 /*#include "packet-acse-dis-tab.c"*/
+	dissector_handle_t acse_handle = find_dissector("acse");
 
 	oid_add_from_string("id-aCSE","2.2.3.1.1");
-	register_ber_oid_dissector(ACSE_APDU_OID, dissect_acse, proto_acse, "id-as-acse");
+	register_ber_oid_dissector_handle(ACSE_APDU_OID, acse_handle, proto_acse, "id-as-acse");
 
 
 }

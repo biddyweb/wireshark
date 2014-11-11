@@ -2,8 +2,6 @@
  * Routines for SMB Browser packet dissection
  * Copyright 1999, Richard Sharpe <rsharpe@ns.aus.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,10 +30,14 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <epan/dissectors/packet-smb.h>
 
 #include "packet-smb-browse.h"
 #include "packet-dcerpc.h"
+
+void proto_register_smb_browse(void);
+void proto_reg_handoff_smb_browse(void);
 
 static int proto_smb_browse = -1;
 static int hf_command = -1;
@@ -486,7 +488,7 @@ dissect_smb_server_type_flags(tvbuff_t *tvb, int offset, packet_info *pinfo,
 		 * it with the values of the individual bits).
 		 */
 		offset = dissect_ndr_uint32(
-			tvb, offset, pinfo, NULL, drep, hf_server_type, &flags);
+			tvb, offset, pinfo, NULL, NULL, drep, hf_server_type, &flags);
 	} else {
 		/*
 		 * Called from SMB browser or RAP, where the server type
@@ -505,13 +507,11 @@ dissect_smb_server_type_flags(tvbuff_t *tvb, int offset, packet_info *pinfo,
 
 	if (infoflag) {
 		/* Append the type(s) of the system to the COL_INFO line ... */
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			for (i = 0; i < 32; i++) {
-				if (flags & (1<<i)) {
-					col_append_fstr(pinfo->cinfo, COL_INFO, ", %s",
-						val_to_str(i, server_types,
-						"Unknown server type:%d"));
-				}
+		for (i = 0; i < 32; i++) {
+			if (flags & (1<<i)) {
+				col_append_fstr(pinfo->cinfo, COL_INFO, ", %s",
+					val_to_str(i, server_types,
+					"Unknown server type:%d"));
 			}
 		}
 	}
@@ -570,6 +570,7 @@ dissect_smb_server_type_flags(tvbuff_t *tvb, int offset, packet_info *pinfo,
 	return offset;
 }
 
+#define HOST_NAME_LEN	16
 
 static void
 dissect_mailslot_browse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
@@ -579,8 +580,7 @@ dissect_mailslot_browse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tr
 	proto_tree *tree = NULL;
 	proto_item *item = NULL;
 	guint32 periodicity;
-	gchar host_name[17];
-	gchar *utf8_host_name;
+	guint8 *host_name;
 	gint namelen;
 	guint8 server_count, reset_cmd;
 	guint8 os_major_ver, os_minor_ver;
@@ -593,17 +593,12 @@ dissect_mailslot_browse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tr
 
 	cmd = tvb_get_guint8(tvb, offset);
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		/* Put in something, and replace it later */
-		col_add_str(pinfo->cinfo, COL_INFO, val_to_str(cmd, commands, "Unknown command:0x%02x"));
-	}
+	/* Put in something, and replace it later */
+	col_add_str(pinfo->cinfo, COL_INFO, val_to_str(cmd, commands, "Unknown command:0x%02x"));
 
 
-	if (parent_tree) {
-		item = proto_tree_add_item(parent_tree, proto_smb_browse, tvb, offset, -1, ENC_NA);
-
-		tree = proto_item_add_subtree(item, ett_browse);
-	}
+	item = proto_tree_add_item(parent_tree, proto_smb_browse, tvb, offset, -1, ENC_NA);
+	tree = proto_item_add_subtree(item, ett_browse);
 
 	/* command */
 	proto_tree_add_uint(tree, hf_command, tvb, offset, 1, cmd);
@@ -619,31 +614,23 @@ dissect_mailslot_browse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tr
 
 		/* periodicity (in milliseconds) */
 		periodicity = tvb_get_letohl(tvb, offset);
-		proto_tree_add_uint_format(tree, hf_periodicity, tvb, offset, 4,
+		proto_tree_add_uint_format_value(tree, hf_periodicity, tvb, offset, 4,
 		    periodicity,
-		    "Update Periodicity: %s",
-		    time_msecs_to_str(periodicity));
+		    "%s",
+		    time_msecs_to_ep_str(periodicity));
 		offset += 4;
 
 		/* server name */
-		tvb_get_nstringz0(tvb, offset, sizeof(host_name), host_name);
-		utf8_host_name = g_convert(host_name, strlen(host_name),
-			"UTF-8", "CP437", NULL, NULL, NULL);
-		if (utf8_host_name == NULL)
-			utf8_host_name = host_name;
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_append_fstr(pinfo->cinfo, COL_INFO, " %s", utf8_host_name);
-		}
+		host_name = tvb_get_stringzpad(wmem_packet_scope(), tvb, offset, HOST_NAME_LEN, ENC_CP437|ENC_NA);
+		col_append_fstr(pinfo->cinfo, COL_INFO, " %s", host_name);
 		proto_tree_add_string_format(tree, hf_server_name,
-			tvb, offset, 16,
-			utf8_host_name,
+			tvb, offset, HOST_NAME_LEN,
+			host_name,
 			(cmd==BROWSE_DOMAIN_ANNOUNCEMENT)?
 				"Domain/Workgroup: %s":
 				"Host Name: %s",
-			utf8_host_name);
-		if (utf8_host_name != host_name)
-			g_free(utf8_host_name);
-		offset += 16;
+			host_name);
+		offset += HOST_NAME_LEN;
 
 		/* Windows version (See "OSVERSIONINFO Structure" on MSDN) */
 		os_major_ver = tvb_get_guint8(tvb, offset);
@@ -710,12 +697,10 @@ dissect_mailslot_browse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tr
 		offset += 1;
 
 		/* name of computer to which to send reply */
-		computer_name = tvb_get_ephemeral_stringz(tvb, offset, &namelen);
+		computer_name = tvb_get_stringz(wmem_packet_scope(), tvb, offset, &namelen);
 		proto_tree_add_string(tree, hf_response_computer_name,
 			tvb, offset, namelen, computer_name);
-		if (check_col(pinfo->cinfo, COL_INFO))
-			col_append_fstr(
-				pinfo->cinfo, COL_INFO, " %s", computer_name);
+		col_append_fstr(pinfo->cinfo, COL_INFO, " %s", computer_name);
 		break;
 	}
 
@@ -730,10 +715,10 @@ dissect_mailslot_browse(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tr
 
 		/* server uptime */
 		uptime = tvb_get_letohl(tvb, offset);
-		proto_tree_add_uint_format(tree, hf_server_uptime,
+		proto_tree_add_uint_format_value(tree, hf_server_uptime,
 		    tvb, offset, 4, uptime,
-		    "Uptime: %s",
-		    time_msecs_to_str(uptime));
+		    "%s",
+		    time_msecs_to_ep_str(uptime));
 		offset += 4;
 
 		/* next 4 bytes must be zero */
@@ -844,11 +829,8 @@ dissect_mailslot_lanman(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tr
 
 	cmd = tvb_get_guint8(tvb, offset);
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		/* Put in something, and replace it later */
-		col_add_str(pinfo->cinfo, COL_INFO, val_to_str(cmd, commands, "Unknown command:0x%02x"));
-	}
-
+	/* Put in something, and replace it later */
+	col_add_str(pinfo->cinfo, COL_INFO, val_to_str(cmd, commands, "Unknown command:0x%02x"));
 
 	if (parent_tree) {
 		item = proto_tree_add_item(parent_tree, proto_smb_browse, tvb, offset, -1, ENC_NA);
@@ -864,7 +846,6 @@ dissect_mailslot_lanman(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tr
 	case BROWSE_DOMAIN_ANNOUNCEMENT:
 	case BROWSE_LOCAL_MASTER_ANNOUNCEMENT:
 	case BROWSE_HOST_ANNOUNCE:
-
 		/* update count */
 		proto_tree_add_item(tree, hf_update_count, tvb, offset, 1, ENC_LITTLE_ENDIAN);
 		offset += 1;
@@ -892,17 +873,16 @@ dissect_mailslot_lanman(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tr
 
 		/* periodicity (in seconds; convert to milliseconds) */
 		periodicity = tvb_get_letohs(tvb, offset)*1000;
-		proto_tree_add_uint_format(tree, hf_periodicity, tvb, offset, 2,
+		proto_tree_add_uint_format_value(tree, hf_periodicity, tvb, offset, 2,
 		    periodicity,
-		    "Update Periodicity: %s",
-		    time_msecs_to_str(periodicity));
+		    "%s",
+		    time_msecs_to_ep_str(periodicity));
 		offset += 2;
 
 		/* server name */
-		host_name = tvb_get_const_stringz(tvb, offset, &namelen);
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_append_fstr(pinfo->cinfo, COL_INFO, " %s", host_name);
-		}
+		host_name = tvb_get_stringz_enc(wmem_packet_scope(), tvb, offset, &namelen, ENC_CP437|ENC_NA);
+		col_append_fstr(pinfo->cinfo, COL_INFO, " %s", host_name);
+
 		proto_tree_add_item(tree, hf_server_name,
 			tvb, offset, namelen, ENC_ASCII|ENC_NA);
 		offset += namelen;
@@ -912,7 +892,7 @@ dissect_mailslot_lanman(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tr
 		proto_tree_add_item(tree,
 			(cmd==BROWSE_DOMAIN_ANNOUNCEMENT)?
 			    hf_mb_server_name : hf_server_comment,
-			tvb, offset, namelen, ENC_ASCII|ENC_NA);
+			tvb, offset, namelen, ENC_CP437|ENC_NA);
 		break;
 	}
 }

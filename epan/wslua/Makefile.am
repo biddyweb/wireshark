@@ -1,7 +1,5 @@
 # Makefile.am
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -31,21 +29,30 @@ noinst_LTLIBRARIES = libwslua.la
 
 wslua_modules = 	\
 	$(srcdir)/lua_bitop.c \
+	$(srcdir)/lrexlib.c \
+	$(srcdir)/lrexlib_glib.c \
+	$(srcdir)/lrexlib_glib_f.c \
 	$(srcdir)/wslua_tvb.c \
 	$(srcdir)/wslua_proto.c \
+	$(srcdir)/wslua_int64.c \
 	$(srcdir)/wslua_tree.c \
 	$(srcdir)/wslua_pinfo.c \
 	$(srcdir)/wslua_listener.c \
 	$(srcdir)/wslua_gui.c \
+	$(srcdir)/wslua_dir.c \
 	$(srcdir)/wslua_util.c \
 	$(srcdir)/wslua_field.c \
-	$(srcdir)/wslua_dumper.c
+	$(srcdir)/wslua_file.c \
+	$(srcdir)/wslua_struct.c \
+	$(srcdir)/wslua_dumper.c \
+	$(srcdir)/wslua_internals.c
 
 libwslua_la_SOURCES = \
 	$(wslua_modules) \
 	taps_wslua.c \
 	register_wslua.c \
 	init_wslua.c \
+	init_wslua.h \
 	wslua.h
 
 libwslua_la_LIBADD = @LUA_LIBS@
@@ -78,6 +85,9 @@ MAINTAINERCLEANFILES = \
 
 EXTRA_DIST = \
 	declare_wslua.h		\
+	lua_bitop.h		\
+	lrexlib.h 			\
+	lrexlib_algo.h 		\
 	register_wslua.c	\
 	taps			\
 	make-reg.pl		\
@@ -116,16 +126,23 @@ init.lua: template-init.lua make-init-lua.pl ../ftypes/ftypes.h ../../wiretap/wt
 	$(PERL) $(srcdir)/make-init-lua.pl $(top_srcdir) $(srcdir)/template-init.lua > init.lua
 
 checkapi:
-	$(PERL) ../../tools/checkAPIs.pl -g termoutput -build \
+	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -g termoutput -build \
+	-sourcedir=$(srcdir) \
 	init_wslua.c \
 	register_wslua.c \
 	taps_wslua.c \
+	lrexlib_glib.c \
+	lrexlib_glib_f.c \
 	wslua_dumper.c \
 	wslua_field.c \
+	wslua_file.c \
 	wslua_gui.c \
+	wslua_int64.c \
 	wslua_pinfo.c \
 	wslua_proto.c \
-	wslua_listener.c \
+	wslua_struct.c \
+	wslua_tree.c \
 	wslua_tree.c \
 	wslua_tvb.c \
+	wslua_dir.c \
 	wslua_util.c

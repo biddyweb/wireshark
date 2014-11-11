@@ -1,8 +1,6 @@
 # Makefile.am
 # Automake file for the airpdcap for Wireshark
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -29,7 +27,6 @@ endif
 
 AM_CPPFLAGS = \
 	-I$(top_srcdir)
-	$(LIBGCRYPT_CFLAGS)
 
 noinst_LTLIBRARIES = libairpdcap.la
 
@@ -53,5 +50,6 @@ EXTRA_DIST = \
 	Makefile.nmake
 
 checkapi:
-	$(PERL) ../../tools/checkAPIs.pl -g termoutput -build \
+	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -g termoutput -build \
+	-sourcedir=$(srcdir) \
 	$(LIBAIRPDCAP_SRC)

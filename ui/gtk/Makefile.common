@@ -3,8 +3,6 @@
 #     a) common to both files and
 #     b) portable between both files
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -51,13 +49,11 @@ WIRESHARK_GTK_SRC = \
 	capture_file_dlg.c	\
 	capture_if_dlg.c	\
 	capture_info_dlg.c	\
-	cfilter_combo_utils.c	\
 	color_dlg.c	\
 	color_edit_dlg.c	\
 	color_utils.c	\
+	conversation_hastables_dlg.c	\
 	conversations_table.c	\
-	decode_as_ber.c	\
-	decode_as_dcerpc.c	\
 	decode_as_dlg.c	\
 	dfilter_expr_dlg.c	\
 	dissector_tables_dlg.c	\
@@ -128,7 +124,6 @@ WIRESHARK_GTK_SRC = \
 	sctp_byte_graph_dlg.c	\
 	sctp_error_dlg.c	\
 	sctp_graph_dlg.c	\
-	sctp_stat.c	\
 	service_response_time_table.c	\
 	simple_dialog.c	\
 	stock_icons.c	\
@@ -142,11 +137,14 @@ WIRESHARK_GTK_SRC = \
 	webbrowser.c	\
 	$(WIRESHARK_CUSTOM_GTK_SRC)
 
-about_dlg.c main_welcome.c: ../../image/wssplash.xpm ../../image/wssplash-dev.xpm remote_icons.h
-main_statusbar.c: expert_indicators.h capture_comment_icons.h
+about_dlg.c main_welcome.c: wssplash.h remote_icons.h
 capture_if_dlg.c: network_icons.h remote_icons.h pipe_icon.h
-stock_icons.c: toolbar_icons.h
+gui_utils.c: wsicon.h
+main.c: wsicon.h wsiconcap.h
+main_statusbar.c: expert_indicators.h capture_comment_icons.h
+main_welcome.c: wssplash.h
 prefs_layout.c: layouts.h
+stock_icons.c: stock_icons.h toolbar_icons.h wsicon.h
 
 WIRESHARK_TAP_SRC = \
 	afp_stat.c	\
@@ -174,6 +172,7 @@ WIRESHARK_TAP_SRC = \
 	dcerpc_stat.c	\
 	diameter_stat.c	\
 	expert_comp_dlg.c     \
+	export_pdu_dlg.c	\
 	fc_stat.c	\
 	flow_graph.c	\
 	funnel_stat.c	\
@@ -200,6 +199,8 @@ WIRESHARK_TAP_SRC = \
 	hostlist_wlan.c \
 	iax2_analysis.c	\
 	io_stat.c	\
+	lbm_stream_dlg.c	\
+	lbm_uimflow_dlg.c	\
 	ldap_stat.c	\
 	mac_lte_stat_dlg.c	\
 	mcast_stream_dlg.c	\
@@ -244,10 +245,9 @@ noinst_HEADERS = \
 	color_dlg.h	\
 	color_edit_dlg.h	\
 	color_utils.h	\
+	conversation_hastables_dlg.h	\
 	conversations_table.h \
-	decode_as_ber.h	\
 	decode_as_dlg.h	\
-	decode_as_dcerpc.h \
 	dfilter_expr_dlg.h \
 	dissector_tables_dlg.h	\
 	dlg_utils.h	\
@@ -257,6 +257,7 @@ noinst_HEADERS = \
 	expert_comp_table.h	\
 	expert_indicators.h	\
 	export_object_dlg.h	\
+	export_pdu_dlg.h	\
 	export_sslkeys.h	\
 	file_dlg.h	\
 	file_import_dlg.h	\
@@ -285,6 +286,8 @@ noinst_HEADERS = \
 	iax2_analysis.h	\
 	keys.h		\
 	layouts.h	\
+	lbm_stream_dlg.h	\
+	lbm_uimflow_dlg.h	\
 	macros_dlg.h	\
 	main.h		\
 	main_airpcap_toolbar.h	\
@@ -326,12 +329,10 @@ noinst_HEADERS = \
 	proto_tree_model.h \
 	range_utils.h \
 	remote_icons.h	\
-	rtp_analysis.h	\
 	rtp_player.h	\
-	rtp_stream.h	\
 	rtp_stream_dlg.h \
 	sat.h		\
-	sctp_stat.h	\
+	sctp_stat_gtk.h	\
 	service_response_time_table.h	\
 	time_shift_dlg.h	\
 	stock_icons.h	\
@@ -344,4 +345,7 @@ noinst_HEADERS = \
 	voip_calls.h	\
 	voip_calls_dlg.h \
 	webbrowser.h	\
+	wsiconcap.h \
+	wsicon.h \
+	wssplash.h \
 	$(WIRESHARK_CUSTOM_HDRS)

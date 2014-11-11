@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-rrc.h                                                               */
 /* ../../tools/asn2wrs.py -p rrc -c ./rrc.cnf -s ./packet-rrc-template -D . -O ../../epan/dissectors Class-definitions.asn PDU-definitions.asn InformationElements.asn Constant-definitions.asn Internode-definitions.asn */
 
@@ -8,8 +8,6 @@
 #line 1 "../../asn1/rrc/packet-rrc-template.h"
 /* packet-rrc-template.h
  * Copyright 2009, Anders Broman <anders.broman@ericsson.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -52,7 +50,7 @@ int dissect_rrc_ToTargetRNC_Container_PDU(tvbuff_t *tvb _U_, packet_info *pinfo 
 int dissect_rrc_TargetRNC_ToSourceRNC_Container_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_);
 
 /*--- End of included file: packet-rrc-exp.h ---*/
-#line 32 "../../asn1/rrc/packet-rrc-template.h"
+#line 30 "../../asn1/rrc/packet-rrc-template.h"
 
 enum rrc_message_type {
   RRC_MESSAGE_TYPE_INVALID    = 0,
@@ -79,9 +77,9 @@ typedef struct rrc_ciph_info_
   GTree * /*guint32*/ start_ps;    /*Start value for PS counter*/
   guint32 conf_algo_indicator;    /*Indicates which type of ciphering algorithm used*/
   guint32 int_algo_indiccator;    /*Indicates which type of integrity algorithm used*/
-  unsigned int setup_frame;    /*Store which frame contained this information*/    
+  unsigned int setup_frame;    /*Store which frame contained this information*/
   guint32 ps_conf_counters[31][2];    /*This should also be made for CS*/
-  
+
 } rrc_ciphering_info;
 
 extern GTree * hsdsch_muxed_flows;

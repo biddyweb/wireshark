@@ -2,8 +2,6 @@
  *
  * Ronnie Sahlberg 2005
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,7 +28,6 @@
 #include <epan/packet.h>
 #include <epan/asn1.h>
 #include <epan/expert.h>
-#include <epan/nstime.h>
 
 #include "packet-ber.h"
 #include "packet-acse.h"
@@ -40,6 +37,9 @@
 #define PSNAME "MMS"
 #define PFNAME "mms"
 
+void proto_register_mms(void);
+void proto_reg_handoff_mms(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_mms = -1;
 
@@ -48,6 +48,9 @@ static int proto_mms = -1;
 /* Initialize the subtree pointers */
 static gint ett_mms = -1;
 #include "packet-mms-ett.c"
+
+static expert_field ei_mms_mal_timeofday_encoding = EI_INIT;
+static expert_field ei_mms_mal_utctime_encoding = EI_INIT;
 
 #include "packet-mms-fn.c"
 
@@ -97,13 +100,21 @@ void proto_register_mms(void) {
 #include "packet-mms-ettarr.c"
   };
 
+  static ei_register_info ei[] = {
+     { &ei_mms_mal_timeofday_encoding, { "mms.malformed.timeofday_encoding", PI_MALFORMED, PI_WARN, "BER Error: malformed TimeOfDay encoding", EXPFILL }},
+     { &ei_mms_mal_utctime_encoding, { "mms.malformed.utctime", PI_MALFORMED, PI_WARN, "BER Error: malformed IEC61850 UTCTime encoding", EXPFILL }},
+  };
+
+  expert_module_t* expert_mms;
+
   /* Register protocol */
   proto_mms = proto_register_protocol(PNAME, PSNAME, PFNAME);
   register_dissector("mms", dissect_mms, proto_mms);
   /* Register fields and subtrees */
   proto_register_field_array(proto_mms, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
-
+  expert_mms = expert_register_protocol(proto_mms);
+  expert_register_field_array(expert_mms, ei, array_length(ei));
 
 }
 
@@ -136,7 +147,7 @@ dissect_mms_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, voi
 		return FALSE;
 
 	/* see if the tag is a valid MMS PDU */
-	match_strval_idx(tmp_tag, mms_MMSpdu_vals, &idx);
+	try_val_to_str_idx(tmp_tag, mms_MMSpdu_vals, &idx);
 	if  (idx == -1) {
 	 	return FALSE;  /* no, it isn't an MMS PDU */
 	}

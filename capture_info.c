@@ -1,8 +1,6 @@
 /* capture_info.c
  * capture info functions
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,7 +30,8 @@
 /* XXX - try to remove this later */
 #include <epan/prefs.h>
 /* XXX - try to remove this later */
-#include <epan/filesystem.h>
+
+#include <wiretap/wtap.h>
 
 #include "capture_info.h"
 
@@ -58,6 +57,9 @@
 #include <epan/dissectors/packet-enc.h>
 #include <epan/dissectors/packet-i2c.h>
 #include <epan/dissectors/packet-ax25-kiss.h>
+#include <epan/dissectors/packet-pktap.h>
+
+#include <wsutil/filesystem.h>
 
 static void capture_info_packet(
 packet_counts *counts, gint wtap_linktype, const guchar *pd, guint32 caplen, union wtap_pseudo_header *pseudo_header);
@@ -75,7 +77,7 @@ static info_data_t info_data;
 
 
 /* open the info */
-void capture_info_open(capture_options *capture_opts)
+void capture_info_open(capture_session *cap_session)
 {
     info_data.counts.total      = 0;
     info_data.counts.sctp       = 0;
@@ -95,7 +97,7 @@ void capture_info_open(capture_options *capture_opts)
     info_data.wtap = NULL;
     info_data.ui.counts = &info_data.counts;
 
-    capture_info_ui_create(&info_data.ui, capture_opts);
+    capture_info_ui_create(&info_data.ui, cap_session);
 }
 
 
@@ -132,7 +134,7 @@ cf_open_error_message(int err, gchar *err_info, gboolean for_writing,
             /* Seen only when opening a capture file for writing. */
             g_snprintf(errmsg_errno, sizeof(errmsg_errno),
                        "The file \"%%s\" is a pipe, and %s capture files can't be "
-                       "written to a pipe.", wtap_file_type_string(file_type));
+                       "written to a pipe.", wtap_file_type_subtype_string(file_type));
             errmsg = errmsg_errno;
             break;
 
@@ -218,9 +220,9 @@ gboolean capture_info_new_file(const char *new_filename)
         wtap_close(info_data.wtap);
     }
 
-    info_data.wtap = wtap_open_offline(new_filename, &err, &err_info, FALSE);
+    info_data.wtap = wtap_open_offline(new_filename, WTAP_TYPE_AUTO, &err, &err_info, FALSE);
     if (!info_data.wtap) {
-        err_msg = g_strdup_printf(cf_open_error_message(err, err_info, FALSE, WTAP_FILE_PCAP),
+        err_msg = g_strdup_printf(cf_open_error_message(err, err_info, FALSE, WTAP_FILE_TYPE_SUBTYPE_UNKNOWN),
                                   new_filename);
         g_warning("capture_info_new_file: %d (%s)", err, err_msg);
         g_free (err_msg);
@@ -360,6 +362,14 @@ capture_info_packet(packet_counts *counts, gint wtap_linktype, const guchar *pd,
         /* XXX - some ATM drivers on FreeBSD might prepend a 4-byte ATM
            pseudo-header to DLT_ATM_RFC1483, with LLC header following;
            we might have to implement that at some point. */
+    case WTAP_ENCAP_PKTAP:
+    case WTAP_ENCAP_USER2:
+        /* XXX - WTAP_ENCAP_USER2 to handle Mavericks' botch wherein it
+           uses DLT_USER2 for PKTAP; if you are using DLT_USER2 for your
+           own purposes, feel free to call your own capture_ routine for
+           WTAP_ENCAP_USER2. */
+        capture_pktap(pd, caplen, counts);
+        break;
     }
 }
 

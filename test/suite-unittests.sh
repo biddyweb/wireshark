@@ -2,8 +2,6 @@
 #
 # Run the epan unit tests
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 #
@@ -48,10 +46,10 @@ unittests_step_test() {
 			test_step_failed "install $DUT failed"
 			return
 		fi
-		DUT=../wireshark-gtk2/`basename $DUT`
+		DUT=$SOURCE_DIR/wireshark-gtk2/`basename $DUT`
 	fi
 
-	$DUT > testout.txt 2>&1
+	$DUT $ARGS > testout.txt 2>&1
 	RETURNVALUE=$?
 	if [ ! $RETURNVALUE -eq $EXIT_OK ]; then
 		echo
@@ -64,17 +62,32 @@ unittests_step_test() {
 
 
 unittests_step_exntest() {
-	DUT=../epan/exntest
+	DUT=$SOURCE_DIR/epan/exntest
+	ARGS=
+	unittests_step_test
+}
+
+unittests_step_oids_test() {
+	DUT=$SOURCE_DIR/epan/oids_test
+	ARGS=
 	unittests_step_test
 }
 
 unittests_step_reassemble_test() {
-	DUT=../epan/reassemble_test
+	DUT=$SOURCE_DIR/epan/reassemble_test
+	ARGS=
 	unittests_step_test
 }
 
 unittests_step_tvbtest() {
-	DUT=../epan/tvbtest
+	DUT=$SOURCE_DIR/epan/tvbtest
+	ARGS=
+	unittests_step_test
+}
+
+unittests_step_wmem_test() {
+	DUT=$SOURCE_DIR/epan/wmem/wmem_test
+	ARGS=--verbose
 	unittests_step_test
 }
 
@@ -86,8 +99,10 @@ unittests_suite() {
 	test_step_set_pre unittests_cleanup_step
 	test_step_set_post unittests_cleanup_step
 	test_step_add "exntest" unittests_step_exntest
+	test_step_add "oids_test" unittests_step_oids_test
 	test_step_add "reassemble_test" unittests_step_reassemble_test
 	test_step_add "tvbtest" unittests_step_tvbtest
+	test_step_add "wmem_test" unittests_step_wmem_test
 }
 #
 # Editor modelines  -  http://www.wireshark.org/tools/modelines.html

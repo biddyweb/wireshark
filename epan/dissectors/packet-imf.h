@@ -1,8 +1,6 @@
 /* packet-imf.h
  * Routines for Internet Message Format (IMF) packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2007 by Graeme Lunt
  *
  * Wireshark - Network traffic analyzer
@@ -24,9 +22,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-/* Find the end of the next IMF field in the tvb. 
+/* Find the end of the next IMF field in the tvb.
  * This is not necessarily the first \r\n as there may be continuation lines.
- * 
+ *
  * If we have found the last field (terminated by \r\n\r\n) we indicate this in last_field .
  */
 

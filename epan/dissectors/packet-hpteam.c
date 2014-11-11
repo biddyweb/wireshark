@@ -2,8 +2,6 @@
  * Routines for HP Teaming heartbeat dissection
  * Copyright 2009, Nathan Hartwell <nhartwell@gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,14 +27,14 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <epan/oui.h>
 #include <packet-llc.h>
 
+void proto_register_hpteam(void);
+void proto_reg_handoff_hpteam(void);
 
 static int proto_hpteam = -1;
-
-/* Handle of the "data" subdissector */
-static dissector_handle_t data_handle;
 
 /* Known HP NIC teaming PID values */
 static const value_string hpteam_pid_vals[] = {
@@ -128,7 +126,7 @@ void proto_register_hpteam(void)
 	proto_hpteam = proto_register_protocol ("HP NIC Teaming Heartbeat", "HPTEAM", "hpteam");
 
 	/*Tied into the LLC dissector so register the OUI with LLC*/
-	llc_add_oui(OUI_HP_2, "llc.hpteam_pid", "Hewlett Packard OUI PID", &hf_pid);
+	llc_add_oui(OUI_HP_2, "llc.hpteam_pid", "LLC Hewlett Packard OUI PID", &hf_pid);
 	proto_register_field_array(proto_hpteam, hf_data, array_length(hf_data));
 	proto_register_subtree_array(ett, array_length(ett));
 	register_dissector("hpteam", dissect_hpteam, proto_hpteam);
@@ -138,7 +136,6 @@ void proto_reg_handoff_hpteam(void)
 {
 	dissector_handle_t hpteam_handle;
 
-	data_handle   = find_dissector("data");
 	hpteam_handle = find_dissector("hpteam");
 	/* Register dissector to key off of known PID / OUI combination */
 	dissector_add_uint("llc.hpteam_pid", 0x0002, hpteam_handle);

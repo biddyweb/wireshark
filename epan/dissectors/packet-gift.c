@@ -4,8 +4,6 @@
  *
  * See http://www.giftproject.org/
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,9 @@
 
 #include <epan/packet.h>
 #include <epan/strutil.h>
+
+void proto_register_gift(void);
+void proto_reg_handoff_gift(void);
 
 #define TCP_PORT_GIFT 1213
 
@@ -67,8 +68,7 @@ dissect_gift(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	line = tvb_get_ptr(tvb, offset, linelen);
 
 	/* set "Info" column text */
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_fstr(pinfo->cinfo, COL_INFO, "%s: %s",
+	col_add_fstr(pinfo->cinfo, COL_INFO, "%s: %s",
 			     is_request ? "Request" : "Response",
 			     format_text(line, linelen));
 
@@ -84,8 +84,7 @@ dissect_gift(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		}
 		PROTO_ITEM_SET_HIDDEN(hidden_item);
 
-		ti = proto_tree_add_text(gift_tree, tvb, offset, next_offset - offset, "%s",
-					 tvb_format_text(tvb, offset, next_offset - offset));
+		ti = proto_tree_add_format_text(gift_tree, tvb, offset, next_offset - offset);
 		cmd_tree = proto_item_add_subtree(ti, ett_gift_cmd);
 
 		tokenlen = get_token_len(line, line + linelen, &next_token);

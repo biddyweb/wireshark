@@ -1,8 +1,6 @@
 /* packet-hdcp.c
  * Routines for HDCP dissection
- * Copyright 2011-2012, Martin Kaiser <martin@kaiser.cx>
- *
- * $Id$
+ * Copyright 2011-2014, Martin Kaiser <martin@kaiser.cx>
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -37,16 +35,16 @@
 #include <epan/packet.h>
 #include <epan/ptvcursor.h>
 #include <epan/expert.h>
-#include "packet-hdcp.h"
+#include <epan/wmem/wmem.h>
 
+void proto_register_hdcp(void);
 
 static int proto_hdcp  = -1;
 
-static emem_tree_t *transactions = NULL;
+static wmem_tree_t *transactions = NULL;
 
 static gint ett_hdcp = -1;
 
-static int hf_hdcp_addr = -1;
 static int hf_hdcp_reg = -1;
 static int hf_hdcp_resp_in = -1;
 static int hf_hdcp_resp_to = -1;
@@ -66,16 +64,6 @@ static int hf_hdcp_max_devs_exc = -1;
 static int hf_hdcp_downstream = -1;
 static int hf_hdcp_link_vfy = -1;
 
-/* the addresses used by this dissector are 8bit, including the direction bit
-   (to be in line with the HDCP specification) */
-#define ADDR8_HDCP_WRITE 0x74  /* transmitter->receiver */
-#define ADDR8_HDCP_READ  0x75  /* receiver->transmitter */
-
-#define HDCP_ADDR8(x)   (x==ADDR8_HDCP_WRITE || x==ADDR8_HDCP_READ)
-
-#define ADDR8_RCV "Receiver"
-#define ADDR8_TRX "Transmitter"
-
 #define REG_BKSV    0x0
 #define REG_AKSV    0x10
 #define REG_AN      0x18
@@ -88,12 +76,6 @@ typedef struct _hdcp_transaction_t {
     guint8 rqst_type;
 } hdcp_transaction_t;
 
-static const value_string hdcp_addr[] = {
-    { ADDR8_HDCP_WRITE, "transmitter writes data for receiver" },
-    { ADDR8_HDCP_READ, "transmitter reads data from receiver" },
-    { 0, NULL }
-};
-
 static const value_string hdcp_reg[] = {
     { REG_BKSV, "B_ksv" },
     { REG_AKSV, "A_ksv" },
@@ -103,63 +85,37 @@ static const value_string hdcp_reg[] = {
     { 0, NULL }
 };
 
-gboolean
-sub_check_hdcp(packet_info *pinfo _U_)
-{
-    /* by looking at the i2c_phdr only, we can't decide if this packet is HDCPv1
-       this function is called when the user explicitly selected HDCPv1
-       in the preferences
-       therefore, we always return TRUE and hand the data to the (new
-       style) dissector who will check if the packet is HDCPv1 */
 
-   return TRUE;
-}
-
-
-static void
-hdcp_init(void)
-{
-   /* se_...() allocations are automatically cleared when a new capture starts,
-      so we should be safe to create the tree without any previous checks */
-    transactions = se_tree_create_non_persistent(
-            EMEM_TREE_TYPE_RED_BLACK, "hdcp_transactions");
-}
-
-
+/* the input tvb contains an HDCP message without the leading address byte
+   (the address byte is handled by the HDMI dissector)
+   the caller must set the direction in pinfo */
 static int
 dissect_hdcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-    guint8 addr, reg;
+    guint8 reg;
     proto_item *pi;
     ptvcursor_t *cursor;
-    proto_tree *hdcp_tree = NULL;
+    proto_tree *hdcp_tree;
     hdcp_transaction_t *hdcp_trans;
     proto_item *it;
     guint64 a_ksv, b_ksv;
 
-    addr = tvb_get_guint8(tvb, 0);
-    if (!HDCP_ADDR8(addr))
-        return 0;
+    /* XXX check if the packet is really HDCP? */
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "HDCP");
     col_clear(pinfo->cinfo, COL_INFO);
 
-    if (tree) {
-        pi = proto_tree_add_protocol_format(tree, proto_hdcp,
-                tvb, 0, tvb_reported_length(tvb), "HDCP");
-        hdcp_tree = proto_item_add_subtree(pi, ett_hdcp);
-    }
+    pi = proto_tree_add_protocol_format(tree, proto_hdcp,
+            tvb, 0, tvb_reported_length(tvb), "HDCP");
+    hdcp_tree = proto_item_add_subtree(pi, ett_hdcp);
 
     cursor = ptvcursor_new(hdcp_tree, tvb, 0);
-    /* all values in HDCP are little endian */
-    ptvcursor_add(cursor, hf_hdcp_addr, 1, ENC_LITTLE_ENDIAN);
 
-    if (addr==ADDR8_HDCP_WRITE) {
+    if (pinfo->p2p_dir==P2P_DIR_SENT) {
         /* transmitter sends data to the receiver */
-        SET_ADDRESS(&pinfo->src, AT_STRINGZ, (int)strlen(ADDR8_TRX)+1, ADDR8_TRX);
-        SET_ADDRESS(&pinfo->dst, AT_STRINGZ, (int)strlen(ADDR8_RCV)+1, ADDR8_RCV);
 
         reg = tvb_get_guint8(tvb, ptvcursor_current_offset(cursor));
+        /* all values in HDCP are little endian */
         ptvcursor_add(cursor, hf_hdcp_reg, 1, ENC_LITTLE_ENDIAN);
 
         if (tvb_reported_length_remaining(tvb,
@@ -170,7 +126,7 @@ dissect_hdcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
             if (PINFO_FD_VISITED(pinfo)) {
                 /* we've already dissected the receiver's response */
-                hdcp_trans = (hdcp_transaction_t *)se_tree_lookup32(
+                hdcp_trans = (hdcp_transaction_t *)wmem_tree_lookup32(
                         transactions, PINFO_FD_NUM(pinfo));
                 if (hdcp_trans && hdcp_trans->rqst_frame==PINFO_FD_NUM(pinfo) &&
                         hdcp_trans->resp_frame!=0) {
@@ -188,12 +144,11 @@ dissect_hdcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
             else {
                 /* we've not yet dissected the response */
                 if (transactions) {
-                    hdcp_trans = (hdcp_transaction_t *)se_alloc(
-                            sizeof(hdcp_transaction_t));
+                    hdcp_trans = wmem_new(wmem_file_scope(), hdcp_transaction_t);
                     hdcp_trans->rqst_frame = PINFO_FD_NUM(pinfo);
                     hdcp_trans->resp_frame = 0;
                     hdcp_trans->rqst_type = reg;
-                    se_tree_insert32(transactions,
+                    wmem_tree_insert32(transactions,
                             hdcp_trans->rqst_frame, (void *)hdcp_trans);
                 }
             }
@@ -221,11 +176,9 @@ dissect_hdcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
     }
     else {
         /* transmitter reads from receiver */
-        SET_ADDRESS(&pinfo->src, AT_STRINGZ, (int)strlen(ADDR8_RCV)+1, ADDR8_RCV);
-        SET_ADDRESS(&pinfo->dst, AT_STRINGZ, (int)strlen(ADDR8_TRX)+1, ADDR8_TRX);
 
        if (transactions) {
-           hdcp_trans = (hdcp_transaction_t *)se_tree_lookup32_le(
+           hdcp_trans = (hdcp_transaction_t *)wmem_tree_lookup32_le(
                    transactions, PINFO_FD_NUM(pinfo));
            if (hdcp_trans) {
                if (hdcp_trans->resp_frame==0) {
@@ -308,9 +261,6 @@ void
 proto_register_hdcp(void)
 {
     static hf_register_info hf[] = {
-        { &hf_hdcp_addr,
-            { "8bit I2C address", "hdcp.addr", FT_UINT8, BASE_HEX,
-                VALS(hdcp_addr), 0, NULL, HFILL } },
         { &hf_hdcp_reg,
             { "Register offset", "hdcp.reg", FT_UINT8, BASE_HEX,
                 VALS(hdcp_reg), 0, NULL, HFILL } },
@@ -381,7 +331,7 @@ proto_register_hdcp(void)
 
     new_register_dissector("hdcp", dissect_hdcp, proto_hdcp);
 
-    register_init_routine(hdcp_init);
+    transactions = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope());
 }
 
 /*

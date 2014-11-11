@@ -1,8 +1,6 @@
 /* packet-cosine.c
  * Routines for decoding CoSine IPNOS L2 debug output
  *
- * $Id$
- *
  * Motonori Shindo <motonori@shin.do>
  *
  * Wireshark - Network traffic analyzer
@@ -32,7 +30,12 @@
 #include "config.h"
 
 #include <glib.h>
+
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
+
+void proto_register_cosine(void);
+void proto_reg_handoff_cosine(void);
 
 static int proto_cosine = -1;
 static int hf_pro = -1;

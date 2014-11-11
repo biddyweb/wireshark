@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -24,11 +22,13 @@
 
 #include <stdio.h>
 #include <ftypes-int.h>
+#include <epan/emem.h>
 #include <string.h>
 
 #define CMP_MATCHES cmp_matches
 
 #include <ctype.h>
+#include <strutil.h>
 
 static void
 string_fvalue_new(fvalue_t *fv)
@@ -43,10 +43,9 @@ string_fvalue_free(fvalue_t *fv)
 }
 
 static void
-string_fvalue_set(fvalue_t *fv, gpointer value, gboolean already_copied)
+string_fvalue_set_string(fvalue_t *fv, const gchar *value)
 {
-    DISSECTOR_ASSERT(value != NULL);
-    DISSECTOR_ASSERT(!already_copied);
+	DISSECTOR_ASSERT(value != NULL);
 
 	/* Free up the old value, if we have one */
 	string_fvalue_free(fv);
@@ -57,32 +56,12 @@ string_fvalue_set(fvalue_t *fv, gpointer value, gboolean already_copied)
 static int
 string_repr_len(fvalue_t *fv, ftrepr_t rtype)
 {
-	gchar *p, c;
-	int repr_len;
-
 	switch (rtype) {
 		case FTREPR_DISPLAY:
 			return (int)strlen(fv->value.string);
+
 		case FTREPR_DFILTER:
-			repr_len = 0;
-			for (p = fv->value.string; (c = *p) != '\0'; p++) {
-				/* Backslashes and double-quotes must
-				 * be escaped */
-				if (c == '\\' || c == '"') {
-					repr_len += 2;
-				}
-				/* Values that can't nicely be represented
-				 * in ASCII need to be escaped. */
-				else if (!isprint((unsigned char)c)) {
-					/* c --> \xNN */
-					repr_len += 4;
-				}
-				/* Other characters are just passed through. */
-				else {
-					repr_len++;
-				}
-			}
-			return repr_len + 2;	/* string plus leading and trailing quotes */
+			return escape_string_len(fv->value.string);
 	}
 	g_assert_not_reached();
 	return -1;
@@ -91,41 +70,16 @@ string_repr_len(fvalue_t *fv, ftrepr_t rtype)
 static void
 string_to_repr(fvalue_t *fv, ftrepr_t rtype, char *buf)
 {
-	gchar *p, c;
-	char *bufp;
-	char hex[3];
+	switch (rtype) {
+		case FTREPR_DISPLAY:
+			strcpy(buf, fv->value.string);
+			return;
 
-	if (rtype == FTREPR_DFILTER) {
-		bufp = buf;
-		*bufp++ = '"';
-		for (p = fv->value.string; (c = *p) != '\0'; p++) {
-			/* Backslashes and double-quotes must
-			 * be escaped. */
-			if (c == '\\' || c == '"') {
-				*bufp++ = '\\';
-				*bufp++ = c;
-			}
-			/* Values that can't nicely be represented
-			 * in ASCII need to be escaped. */
-			else if (!isprint((unsigned char)c)) {
-				/* c --> \xNN */
-				g_snprintf(hex, sizeof(hex), "%02x", (unsigned char) c);
-				*bufp++ = '\\';
-				*bufp++ = 'x';
-				*bufp++ = hex[0];
-				*bufp++ = hex[1];
-			}
-			/* Other characters are just passed through. */
-			else {
-				*bufp++ = c;
-			}
-		}
-		*bufp++ = '"';
-		*bufp = '\0';
+		case FTREPR_DFILTER:
+			escape_string(buf, fv->value.string);
+			return;
 	}
-	else {
-		strcpy(buf, fv->value.string);
-	}
+	g_assert_not_reached();
 }
 
 
@@ -136,7 +90,7 @@ value_get(fvalue_t *fv)
 }
 
 static gboolean
-val_from_string(fvalue_t *fv, char *s, LogFunc logfunc _U_)
+val_from_string(fvalue_t *fv, const char *s, LogFunc logfunc _U_)
 {
 	/* Free up the old value, if we have one */
 	string_fvalue_free(fv);
@@ -146,7 +100,7 @@ val_from_string(fvalue_t *fv, char *s, LogFunc logfunc _U_)
 }
 
 static gboolean
-val_from_unparsed(fvalue_t *fv, char *s, gboolean allow_partial_value _U_, LogFunc logfunc)
+val_from_unparsed(fvalue_t *fv, const char *s, gboolean allow_partial_value _U_, LogFunc logfunc)
 {
 	fvalue_t *fv_bytes;
 
@@ -266,7 +220,7 @@ cmp_matches(const fvalue_t *fv_a, const fvalue_t *fv_b)
 			str,		/* The data to check for the pattern... */
 			(int)strlen(str),	/* ... and its length */
 			0,		/* Start offset within data */
-			0,		/* GRegexMatchFlags */
+			(GRegexMatchFlags)0,		/* GRegexMatchFlags */
 			NULL,		/* We are not interested in the match information */
 			NULL		/* We don't want error information */
 			);
@@ -288,7 +242,12 @@ ftype_register_string(void)
 		string_to_repr,			/* val_to_string_repr */
 		string_repr_len,		/* len_string_repr */
 
-		string_fvalue_set,		/* set_value */
+		NULL,				/* set_value_byte_array */
+		NULL,				/* set_value_bytes */
+		NULL,				/* set_value_guid */
+		NULL,				/* set_value_time */
+		string_fvalue_set_string,       /* set_value_string */
+		NULL,				/* set_value_tvbuff */
 		NULL,				/* set_value_uinteger */
 		NULL,				/* set_value_sinteger */
 		NULL,				/* set_value_integer64 */
@@ -325,7 +284,12 @@ ftype_register_string(void)
 		string_to_repr,			/* val_to_string_repr */
 		string_repr_len,		/* len_string_repr */
 
-		string_fvalue_set,		/* set_value */
+		NULL,				/* set_value_byte_array */
+		NULL,				/* set_value_bytes */
+		NULL,				/* set_value_guid */
+		NULL,				/* set_value_time */
+		string_fvalue_set_string,       /* set_value_string */
+		NULL,				/* set_value_tvbuff */
 		NULL,				/* set_value_uinteger */
 		NULL,				/* set_value_sinteger */
 		NULL,				/* set_value_integer64 */
@@ -362,7 +326,54 @@ ftype_register_string(void)
 		string_to_repr,			/* val_to_string_repr */
 		string_repr_len,		/* len_string_repr */
 
-		string_fvalue_set,		/* set_value */
+		NULL,				/* set_value_byte_array */
+		NULL,				/* set_value_bytes */
+		NULL,				/* set_value_guid */
+		NULL,				/* set_value_time */
+		string_fvalue_set_string,       /* set_value_string */
+		NULL,				/* set_value_tvbuff */
+		NULL,				/* set_value_uinteger */
+		NULL,				/* set_value_sinteger */
+		NULL,				/* set_value_integer64 */
+		NULL,				/* set_value_floating */
+
+		value_get,			/* get_value */
+		NULL,				/* get_value_uinteger */
+		NULL,				/* get_value_sinteger */
+		NULL,				/* get_value_integer64 */
+		NULL,				/* get_value_floating */
+
+		cmp_eq,
+		cmp_ne,
+		cmp_gt,
+		cmp_ge,
+		cmp_lt,
+		cmp_le,
+		NULL,				/* cmp_bitwise_and */
+		cmp_contains,			/* cmp_contains */
+		CMP_MATCHES,
+
+		len,
+		slice,
+	};
+	static ftype_t stringzpad_type = {
+		FT_STRINGZPAD,			/* ftype */
+		"FT_STRINGZPAD",		/* name */
+		"Character string",		/* pretty name */
+		0,				/* wire_size */
+		string_fvalue_new,		/* new_value */
+		string_fvalue_free,		/* free_value */
+		val_from_unparsed,		/* val_from_unparsed */
+		val_from_string,		/* val_from_string */
+		string_to_repr,			/* val_to_string_repr */
+		string_repr_len,		/* len_string_repr */
+
+		NULL,				/* set_value_byte_array */
+		NULL,				/* set_value_bytes */
+		NULL,				/* set_value_guid */
+		NULL,				/* set_value_time */
+		string_fvalue_set_string,       /* set_value_string */
+		NULL,				/* set_value_tvbuff */
 		NULL,				/* set_value_uinteger */
 		NULL,				/* set_value_sinteger */
 		NULL,				/* set_value_integer64 */
@@ -391,4 +402,5 @@ ftype_register_string(void)
 	ftype_register(FT_STRING, &string_type);
 	ftype_register(FT_STRINGZ, &stringz_type);
 	ftype_register(FT_UINT_STRING, &uint_string_type);
+	ftype_register(FT_STRINGZPAD, &stringzpad_type);
 }

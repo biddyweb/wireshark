@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-q932.c                                                              */
 /* ../../tools/asn2wrs.py -b -p q932 -c ./q932.cnf -s ./packet-q932-template -D . -O ../../epan/dissectors Addressing-Data-Elements.asn Network-Facility-Extension.asn Network-Protocol-Profile-component.asn Interpretation-component.asn */
 
@@ -9,8 +9,6 @@
 /* packet-q932.c
  * Routines for Q.932 packet dissection
  * 2007  Tomas Kukosa
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -44,6 +42,8 @@
 #define PNAME  "Q.932"
 #define PSNAME "Q932"
 #define PFNAME "q932"
+
+void proto_register_q932(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_q932 = -1;
@@ -136,7 +136,7 @@ static gint g_facility_encoding = 0; /* Default to QSIG */
 
 void proto_reg_handoff_q932(void);
 /* Subdissectors */
-static dissector_handle_t q932_ros_handle; 
+static dissector_handle_t q932_ros_handle;
 
 #define	Q932_IE_EXTENDED_FACILITY   0x0D
 #define	Q932_IE_FACILITY            0x1C
@@ -647,9 +647,9 @@ static void dissect_InterpretationComponent_PDU(tvbuff_t *tvb _U_, packet_info *
 #line 134 "../../asn1/q932/packet-q932-template.c"
 
 /*--- dissect_q932_facility_ie -------------------------------------------------------*/
-/*static*/ void
+static void
 dissect_q932_facility_ie(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, int length) {
-  gint8 class;
+  gint8 appclass;
   gboolean pc;
   gint32 tag;
   guint32 len;
@@ -662,11 +662,11 @@ dissect_q932_facility_ie(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tr
   offset++;
   while (offset < ie_end) {
     hoffset = offset;
-    offset = get_ber_identifier(tvb, offset, &class, &pc, &tag);
+    offset = get_ber_identifier(tvb, offset, &appclass, &pc, &tag);
     offset = get_ber_length(tvb, offset, &len, NULL);
     eoffset = offset + len;
     next_tvb =  tvb_new_subset(tvb, hoffset, eoffset - hoffset, eoffset - hoffset);
-    switch (class) {
+    switch (appclass) {
       case BER_CLASS_CON:
         switch (tag) {
           case 10 :  /* Network Facility Extension */
@@ -684,8 +684,7 @@ dissect_q932_facility_ie(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tr
           case  3 :  /* returnError */
           case  4 :  /* reject */
             q932_rose_ctx.apdu_depth = 1;
-            pinfo->private_data = &q932_rose_ctx;
-            call_dissector(q932_ros_handle, next_tvb, pinfo, tree);
+            call_dissector_with_data(q932_ros_handle, next_tvb, pinfo, tree, &q932_rose_ctx);
             break;
           /* DSE APDU */
           case 12 :  /* begin */
@@ -745,7 +744,7 @@ dissect_q932_ni_ie(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree
   proto_tree_add_uint(tree, hf_q932_nd, tvb, offset - (length - remain), length - remain, value);
 
   if (remain > 0) {
-    proto_tree_add_text(tree, tvb, offset - remain, remain, "ASN.1 Encoded Data Structure(NOT IMPLEMENTED): %s", tvb_bytes_to_str(tvb, offset - remain, remain));
+    proto_tree_add_text(tree, tvb, offset - remain, remain, "ASN.1 Encoded Data Structure(NOT IMPLEMENTED): %s", tvb_bytes_to_ep_str(tvb, offset - remain, remain));
   }
 }
 
@@ -767,7 +766,7 @@ dissect_q932_ie(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
   ti_ie = proto_tree_add_text(tree, tvb, offset, -1, "%s",
             val_to_str(ie_type, VALS(q932_str_ie_type), "unknown (0x%02X)"));
-  ie_tree = proto_item_add_subtree(ti_ie, ett_q932_ie); 
+  ie_tree = proto_item_add_subtree(ti_ie, ett_q932_ie);
   proto_tree_add_item(ie_tree, hf_q932_ie_type, tvb, offset, 1, ENC_BIG_ENDIAN);
   proto_tree_add_item(ie_tree, hf_q932_ie_len, tvb, offset + 1, 1, ENC_BIG_ENDIAN);
   offset += 2;
@@ -817,7 +816,7 @@ void proto_register_q932(void) {
 /*--- Included file: packet-q932-hfarr.c ---*/
 #line 1 "../../asn1/q932/packet-q932-hfarr.c"
     { &hf_q932_NetworkFacilityExtension_PDU,
-      { "NetworkFacilityExtension", "q932.NetworkFacilityExtension",
+      { "NetworkFacilityExtension", "q932.NetworkFacilityExtension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_q932_NetworkProtocolProfile_PDU,
@@ -829,39 +828,39 @@ void proto_register_q932(void) {
         FT_UINT32, BASE_DEC, VALS(q932_InterpretationComponent_U_vals), 0,
         NULL, HFILL }},
     { &hf_q932_presentationAlIowedAddress,
-      { "presentationAlIowedAddress", "q932.presentationAlIowedAddress",
+      { "presentationAlIowedAddress", "q932.presentationAlIowedAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AddressScreened", HFILL }},
     { &hf_q932_presentationRestricted,
-      { "presentationRestricted", "q932.presentationRestricted",
+      { "presentationRestricted", "q932.presentationRestricted_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_q932_numberNotAvailableDueTolnterworking,
-      { "numberNotAvailableDueTolnterworking", "q932.numberNotAvailableDueTolnterworking",
+      { "numberNotAvailableDueTolnterworking", "q932.numberNotAvailableDueTolnterworking_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_q932_presentationRestrictedAddressScreened,
-      { "presentationRestrictedAddress", "q932.presentationRestrictedAddress",
+      { "presentationRestrictedAddress", "q932.presentationRestrictedAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AddressScreened", HFILL }},
     { &hf_q932_presentationAllowedAddress,
-      { "presentationAllowedAddress", "q932.presentationAllowedAddress",
+      { "presentationAllowedAddress", "q932.presentationAllowedAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Address", HFILL }},
     { &hf_q932_presentationRestrictedAddress,
-      { "presentationRestrictedAddress", "q932.presentationRestrictedAddress",
+      { "presentationRestrictedAddress", "q932.presentationRestrictedAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Address", HFILL }},
     { &hf_q932_presentationAllowedNumberScreened,
-      { "presentationAllowedNumber", "q932.presentationAllowedNumber",
+      { "presentationAllowedNumber", "q932.presentationAllowedNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NumberScreened", HFILL }},
     { &hf_q932_numberNotAvailableDueToInterworking,
-      { "numberNotAvailableDueToInterworking", "q932.numberNotAvailableDueToInterworking",
+      { "numberNotAvailableDueToInterworking", "q932.numberNotAvailableDueToInterworking_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_q932_presentationRestrictedNumberScreened,
-      { "presentationRestrictedNumber", "q932.presentationRestrictedNumber",
+      { "presentationRestrictedNumber", "q932.presentationRestrictedNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NumberScreened", HFILL }},
     { &hf_q932_presentationAllowedNumber,
@@ -893,7 +892,7 @@ void proto_register_q932(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "NumberDigits", HFILL }},
     { &hf_q932_publicPartyNumber,
-      { "publicPartyNumber", "q932.publicPartyNumber",
+      { "publicPartyNumber", "q932.publicPartyNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_q932_nsapEncodedNumber,
@@ -909,7 +908,7 @@ void proto_register_q932(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "NumberDigits", HFILL }},
     { &hf_q932_privatePartyNumber,
-      { "privatePartyNumber", "q932.privatePartyNumber",
+      { "privatePartyNumber", "q932.privatePartyNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_q932_nationalStandardPartyNumber,
@@ -933,7 +932,7 @@ void proto_register_q932(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "NumberDigits", HFILL }},
     { &hf_q932_userSpecifiedSubaddress,
-      { "userSpecifiedSubaddress", "q932.userSpecifiedSubaddress",
+      { "userSpecifiedSubaddress", "q932.userSpecifiedSubaddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_q932_nSAPSubaddress,
@@ -966,7 +965,7 @@ void proto_register_q932(void) {
         "AddressInformation", HFILL }},
 
 /*--- End of included file: packet-q932-hfarr.c ---*/
-#line 303 "../../asn1/q932/packet-q932-template.c"
+#line 302 "../../asn1/q932/packet-q932-template.c"
   };
 
   /* List of subtrees */
@@ -991,7 +990,7 @@ void proto_register_q932(void) {
     &ett_q932_NetworkFacilityExtension_U,
 
 /*--- End of included file: packet-q932-ettarr.c ---*/
-#line 310 "../../asn1/q932/packet-q932-template.c"
+#line 309 "../../asn1/q932/packet-q932-template.c"
   };
 
    module_t *q932_module;
@@ -1017,13 +1016,13 @@ void proto_register_q932(void) {
   q932_rose_ctx.res_global_dissector_table = register_dissector_table("q932.ros.global.res", "Q.932 Operation Result (global opcode)", FT_STRING, BASE_NONE);
   q932_rose_ctx.err_global_dissector_table = register_dissector_table("q932.ros.global.err", "Q.932 Error (global opcode)", FT_STRING, BASE_NONE);
 
-  qsig_arg_local_dissector_table = register_dissector_table("q932.ros.local.arg", "Q.932 Operation Argument (local opcode)", FT_UINT32, BASE_HEX); 
-  qsig_res_local_dissector_table = register_dissector_table("q932.ros.local.res", "Q.932 Operation Result (local opcode)", FT_UINT32, BASE_HEX); 
-  qsig_err_local_dissector_table = register_dissector_table("q932.ros.local.err", "Q.932 Error (local opcode)", FT_UINT32, BASE_HEX); 
+  qsig_arg_local_dissector_table = register_dissector_table("q932.ros.local.arg", "Q.932 Operation Argument (local opcode)", FT_UINT32, BASE_HEX);
+  qsig_res_local_dissector_table = register_dissector_table("q932.ros.local.res", "Q.932 Operation Result (local opcode)", FT_UINT32, BASE_HEX);
+  qsig_err_local_dissector_table = register_dissector_table("q932.ros.local.err", "Q.932 Error (local opcode)", FT_UINT32, BASE_HEX);
 
-  etsi_arg_local_dissector_table = register_dissector_table("q932.ros.etsi.local.arg", "Q.932 ETSI Operation Argument (local opcode)", FT_UINT32, BASE_HEX); 
-  etsi_res_local_dissector_table = register_dissector_table("q932.ros.etsi.local.res", "Q.932 ETSI Operation Result (local opcode)", FT_UINT32, BASE_HEX); 
-  etsi_err_local_dissector_table = register_dissector_table("q932.ros.etsi.local.err", "Q.932 ETSI Error (local opcode)", FT_UINT32, BASE_HEX); 
+  etsi_arg_local_dissector_table = register_dissector_table("q932.ros.etsi.local.arg", "Q.932 ETSI Operation Argument (local opcode)", FT_UINT32, BASE_HEX);
+  etsi_res_local_dissector_table = register_dissector_table("q932.ros.etsi.local.res", "Q.932 ETSI Operation Result (local opcode)", FT_UINT32, BASE_HEX);
+  etsi_err_local_dissector_table = register_dissector_table("q932.ros.etsi.local.err", "Q.932 ETSI Error (local opcode)", FT_UINT32, BASE_HEX);
 
   q932_module = prefs_register_protocol(proto_q932, proto_reg_handoff_q932);
 
@@ -1042,7 +1041,7 @@ void proto_reg_handoff_q932(void) {
   if (!q931_prefs_initialized) {
     q932_ie_handle = create_dissector_handle(dissect_q932_ie, proto_q932);
     /* Facility */
-    dissector_add_uint("q931.ie", (0x00 << 8) | Q932_IE_FACILITY, q932_ie_handle); 
+    dissector_add_uint("q931.ie", (0x00 << 8) | Q932_IE_FACILITY, q932_ie_handle);
     /* Notification indicator */
     dissector_add_uint("q931.ie", (0x00 << 8) | Q932_IE_NOTIFICATION_INDICATOR, q932_ie_handle);
     q932_ros_handle = find_dissector("q932.ros");
@@ -1057,7 +1056,7 @@ void proto_reg_handoff_q932(void) {
     q932_rose_ctx.res_local_dissector_table = etsi_res_local_dissector_table;
     q932_rose_ctx.err_local_dissector_table = etsi_err_local_dissector_table;
   }
-  
+
 }
 
 /*---------------------------------------------------------------------------*/

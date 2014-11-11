@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -75,7 +73,7 @@ raw_flag_needed(const gchar *pattern)
 /* Generate a FT_PCRE from a parsed string pattern.
  * Uses the specified logfunc() to report errors. */
 static gboolean
-val_from_string(fvalue_t *fv, char *pattern, LogFunc logfunc)
+val_from_string(fvalue_t *fv, const char *pattern, LogFunc logfunc)
 {
     GError *regex_error = NULL;
     GRegexCompileFlags cflags = G_REGEX_OPTIMIZE;
@@ -84,7 +82,7 @@ val_from_string(fvalue_t *fv, char *pattern, LogFunc logfunc)
        sequences. Otherwise, omit it so that GRegex treats its
        input as UTF8-encoded string. */
     if (raw_flag_needed(pattern)) {
-        cflags |= G_REGEX_RAW;
+        cflags = (GRegexCompileFlags)(G_REGEX_OPTIMIZE | G_REGEX_RAW);
     }
 
     /* Free up the old value, if we have one */
@@ -93,7 +91,7 @@ val_from_string(fvalue_t *fv, char *pattern, LogFunc logfunc)
     fv->value.re = g_regex_new(
             pattern,            /* pattern */
             cflags,             /* Compile options */
-            0,                  /* Match options */
+            (GRegexMatchFlags)0,                  /* Match options */
             &regex_error        /* Compile / study errors */
             );
 
@@ -113,7 +111,7 @@ val_from_string(fvalue_t *fv, char *pattern, LogFunc logfunc)
 /* Generate a FT_PCRE from an unparsed string pattern.
  * Uses the specified logfunc() to report errors. */
 static gboolean
-val_from_unparsed(fvalue_t *fv, char *pattern, gboolean allow_partial_value _U_, LogFunc logfunc)
+val_from_unparsed(fvalue_t *fv, const char *pattern, gboolean allow_partial_value _U_, LogFunc logfunc)
 {
     g_assert(! allow_partial_value);
 
@@ -137,13 +135,12 @@ gregex_to_repr(fvalue_t *fv, ftrepr_t rtype, char *buf)
 /* BEHOLD - value contains the string representation of the regular expression,
  * and we want to store the compiled PCRE RE object into the value. */
 static void
-gregex_fvalue_set(fvalue_t *fv, gpointer value, gboolean already_copied)
+gregex_fvalue_set(fvalue_t *fv, const char *value)
 {
     g_assert(value != NULL);
     /* Free up the old value, if we have one */
     gregex_fvalue_free(fv);
-    g_assert(! already_copied);
-    val_from_unparsed(fv, (char *)value, FALSE, NULL);
+    val_from_unparsed(fv, value, FALSE, NULL);
 }
 
 static gpointer
@@ -167,7 +164,12 @@ ftype_register_pcre(void)
         gregex_to_repr,     /* val_to_string_repr */
         gregex_repr_len,    /* len_string_repr */
 
-        gregex_fvalue_set,  /* set_value */
+        NULL,               /* set_value_byte_array */
+        NULL,               /* set_value_bytes */
+        NULL,               /* set_value_guid */
+        NULL,               /* set_value_time */
+        gregex_fvalue_set,  /* set_value_string */
+        NULL,               /* set_value_tvbuff */
         NULL,               /* set_value_uinteger */
         NULL,               /* set_value_sinteger */
         NULL,               /* set_value_integer64 */

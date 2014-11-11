@@ -1,8 +1,6 @@
 /* packet-ypxfr.c
  * Routines for ypxfr dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,9 @@
 
 #include "packet-rpc.h"
 #include "packet-ypxfr.h"
+
+void proto_register_ypxfr(void);
+void proto_reg_handoff_ypxfr(void);
 
 static int proto_ypxfr = -1;
 static int hf_ypxfr_procedure_v1 = -1;

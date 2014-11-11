@@ -2,8 +2,6 @@
  * Routines for SMB net logon packet dissection
  * Copyright 2000, Jeffrey C. Foster <jfoste@woodward.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,8 @@
 #include <epan/packet.h>
 #include "packet-windows-common.h"
 #include "packet-smb-common.h"
+
+void proto_register_smb_logon(void);
 
 static int proto_smb_logon = -1;
 static int hf_command = -1;
@@ -218,9 +218,9 @@ display_LMNT_token(tvbuff_t *tvb, int offset, proto_tree *tree)
 	Token = tvb_get_letohs(tvb, offset);
 
 	if (Token == 0xffff) {
-		proto_tree_add_uint_format(tree, hf_lmnt_token, tvb, offset, 2,
+		proto_tree_add_uint_format_value(tree, hf_lmnt_token, tvb, offset, 2,
 			Token,
-			"LMNT Token: 0x%04x (Windows NT Networking)", Token);
+			"0x%04x (Windows NT Networking)", Token);
 	} else {
 		/*
 		 * XXX - what is it if it's not 0xffff?
@@ -334,8 +334,7 @@ dissect_smb_pdc_query(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, i
 	/* computer name */
 	offset = display_ms_string(tvb, tree, offset, hf_computer_name, &name);
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_append_fstr(pinfo->cinfo, COL_INFO, " from %s", name);
+	col_append_fstr(pinfo->cinfo, COL_INFO, " from %s", name);
 
 	/* mailslot name */
 	offset = display_ms_string(tvb, tree, offset, hf_mailslot_name, NULL);
@@ -389,7 +388,7 @@ dissect_smb_pdc_startup(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 	  /* pdc name */
 	  offset = display_unicode_string(tvb, tree, offset, hf_unicode_pdc_name, &name);
 
-	  if (name && check_col(pinfo->cinfo, COL_INFO)) {
+	  if (name) {
 		  col_append_fstr(pinfo->cinfo, COL_INFO, ": host %s", name);
 		  name = NULL;
 	  }
@@ -399,7 +398,7 @@ dissect_smb_pdc_startup(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 	  /* domain name */
 	  offset = display_unicode_string(tvb, tree, offset, hf_domain_name, &name);
 
-	  if (name && check_col(pinfo->cinfo, COL_INFO)) {
+	  if (name) {
 		  col_append_fstr(pinfo->cinfo, COL_INFO, ", domain %s", name);
 		  name = NULL;
 	  }
@@ -926,10 +925,9 @@ dissect_smb_logon(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	/* get the Command field */
    	cmd = tvb_get_guint8(tvb, offset);
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_str(pinfo->cinfo, COL_INFO, val_to_str(cmd, commands, "Unknown Command:%02x") );
+	col_add_str(pinfo->cinfo, COL_INFO, val_to_str(cmd, commands, "Unknown Command:%02x") );
 
-    	if (tree) {
+   	if (tree) {
 		item = proto_tree_add_item(tree, proto_smb_logon, tvb,
 			offset,	-1, ENC_NA);
 

@@ -4,8 +4,6 @@
  * By Jakob Bratkovic <j.bratkovic@iskratel.si> and
  * Miha Jemec <m.jemec@iskratel.si>
  *
- * $Id$
- *
  * based on rtp_stream_dlg.c
  * Copyright 2003, Alcatel Business Systems
  * By Lars Ruoff <lars.ruoff@gmx.net>
@@ -31,12 +29,13 @@
 
 #include "config.h"
 
+#include <stdlib.h>
 #include <string.h>
 #include <locale.h>
 
 #include <gtk/gtk.h>
 
-#include "epan/filesystem.h"
+#include "wsutil/filesystem.h"
 #include <epan/address.h>
 #include <epan/addr_resolv.h>
 #include <epan/strutil.h>
@@ -52,6 +51,9 @@
 #include "ui/gtk/gui_utils.h"
 #include "ui/gtk/gtkglobals.h"
 #include "ui/gtk/old-gtk-compat.h"
+#include "ui/gtk/stock_icons.h"
+
+void register_tap_listener_mcast_stream_dlg(void);
 
 /* Capture callback data keys */
 #define E_MCAST_ENTRY_1     "burst_interval"
@@ -177,9 +179,9 @@ mcaststream_on_select_row(GtkTreeSelection *selection, gpointer data _U_)
 	{
 		gtk_tree_model_get(GTK_TREE_MODEL(list_store), &list_iter, MC_COL_DATA, &selected_stream_fwd, -1);
 		g_snprintf(label_text, sizeof(label_text), "Selected: %s:%u -> %s:%u",
-			get_addr_name(&(selected_stream_fwd->src_addr)),
+			ep_address_to_display(&(selected_stream_fwd->src_addr)),
 			selected_stream_fwd->src_port,
-			get_addr_name(&(selected_stream_fwd->dest_addr)),
+			ep_address_to_display(&(selected_stream_fwd->dest_addr)),
 			selected_stream_fwd->dest_port
 		);
 		gtk_label_set_text(GTK_LABEL(label_fwd), label_text);
@@ -331,9 +333,9 @@ mcast_on_params(GtkButton *button _U_, gpointer data _U_)
 	/* button row */
 	hbuttonbox = gtk_button_box_new(GTK_ORIENTATION_HORIZONTAL);
 	ws_gtk_grid_attach_defaults(GTK_GRID(grid), hbuttonbox, 0, 5, 2, 1);
-	ok_bt = gtk_button_new_from_stock(GTK_STOCK_OK);
+	ok_bt = ws_gtk_button_new_from_stock(GTK_STOCK_OK);
 	gtk_container_add (GTK_CONTAINER(hbuttonbox), ok_bt);
-	cancel_bt = gtk_button_new_from_stock(GTK_STOCK_CANCEL);
+	cancel_bt = ws_gtk_button_new_from_stock(GTK_STOCK_CANCEL);
 	gtk_container_add (GTK_CONTAINER(hbuttonbox), cancel_bt);
 	gtk_widget_set_can_default(cancel_bt, TRUE);
 	gtk_button_box_set_layout(GTK_BUTTON_BOX(hbuttonbox), GTK_BUTTONBOX_END);
@@ -367,13 +369,13 @@ add_to_list_store(mcast_stream_info_t* strinfo)
 	char  *savelocale;
 
 	/* save the current locale */
-	savelocale = setlocale(LC_NUMERIC, NULL);
+	savelocale = g_strdup(setlocale(LC_NUMERIC, NULL));
 	/* switch to "C" locale to avoid problems with localized decimal separators
 		in g_snprintf("%f") functions */
 	setlocale(LC_NUMERIC, "C");
-	data[0] = g_strdup(get_addr_name(&(strinfo->src_addr)));
+	data[0] = g_strdup(ep_address_to_display(&(strinfo->src_addr)));
 	data[1] = g_strdup_printf("%u", strinfo->src_port);
-	data[2] = g_strdup(get_addr_name(&(strinfo->dest_addr)));
+	data[2] = g_strdup(ep_address_to_display(&(strinfo->dest_addr)));
 	data[3] = g_strdup_printf("%u", strinfo->dest_port);
 	data[4] = g_strdup_printf("%u", strinfo->npackets);
 	data[5] = g_strdup_printf("%u /s", strinfo->apackets);
@@ -386,6 +388,7 @@ add_to_list_store(mcast_stream_info_t* strinfo)
 
 	/* restore previous locale setting */
 	setlocale(LC_NUMERIC, savelocale);
+	g_free(savelocale);
 
 	/* Acquire an iterator */
 	gtk_list_store_append(list_store, &list_iter);
@@ -693,7 +696,7 @@ mcaststream_dlg_create(void)
 	gtk_container_add (GTK_CONTAINER (hbuttonbox), bt_filter);
 	gtk_widget_set_tooltip_text (bt_filter, "Prepare a display filter of the selected stream");
 
-	bt_close = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
+	bt_close = ws_gtk_button_new_from_stock(GTK_STOCK_CLOSE);
 	gtk_container_add (GTK_CONTAINER (hbuttonbox), bt_close);
 	gtk_widget_set_tooltip_text (bt_close, "Close this dialog");
 	gtk_widget_set_can_default(bt_close, TRUE);
@@ -791,3 +794,15 @@ register_tap_listener_mcast_stream_dlg(void)
 {
 }
 
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 noexpandtab:
+ * :indentSize=4:tabSize=8:noTabs=false:
+ */

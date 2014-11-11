@@ -2,8 +2,6 @@
  * Routines for DOCSIS 3.0 CM Control Response Message dissection.
  * Copyright 2010, Guido Reismueller <g.reismueller[AT]avm.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,6 +33,9 @@
 #define RNGRSP_DOWN_FREQ_OVER 6
 #define RNGRSP_UP_CHID_OVER 7
 
+void proto_register_docsis_cmctrlrsp(void);
+void proto_reg_handoff_docsis_cmctrlrsp(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_docsis_cmctrlrsp = -1;
 static int hf_docsis_cmctrlrsp_tranid = -1;
@@ -54,7 +55,6 @@ dissect_cmctrlrsp (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 
   transid = tvb_get_ntohs (tvb, 0);
 
-  col_clear (pinfo->cinfo, COL_INFO);
   col_add_fstr (pinfo->cinfo, COL_INFO,
 	    "CM Control Response: Transaction-Id = %u", transid);
 

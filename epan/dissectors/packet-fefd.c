@@ -1,8 +1,6 @@
 /* packet-fefd.c
  * Routines for the disassembly of the "Far End Failure Detection"
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,7 +30,8 @@
 #include <epan/oui.h>
 #include <epan/nlpid.h>
 
-
+void proto_register_fefd(void);
+void proto_reg_handoff_fefd(void);
 
 /* Offsets in TLV structure. */
 #define TLV_TYPE        0
@@ -147,8 +146,7 @@ dissect_fefd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         case TYPE_DEVICE_ID:
             /* Device ID */
 
-            if (check_col(pinfo->cinfo, COL_INFO))
-                col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL,
+            col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL,
                                     "Device ID: %s",
                                     tvb_format_stringzpad(tvb, offset + 4,
                                                           length - 4));
@@ -181,8 +179,7 @@ dissect_fefd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 real_length = length + 3;
             }
 
-            if (check_col(pinfo->cinfo, COL_INFO))
-                col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL,
+            col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL,
                                     "Port ID: %s",
                                     tvb_format_stringzpad(tvb, offset + 4, real_length - 4));
 

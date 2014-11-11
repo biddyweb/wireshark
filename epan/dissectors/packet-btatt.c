@@ -3,8 +3,6 @@
  *
  * Copyright 2012, Allan M. Madsen <allan.m@madsen.dk>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,8 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/expert.h>
+
+#include "packet-bluetooth-hci.h"
 #include "packet-btl2cap.h"
 
 /* Initialize the protocol and registered fields */
@@ -57,10 +57,17 @@ static int hf_btatt_offset = -1;
 static int hf_btatt_flags = -1;
 static int hf_btatt_sign_counter = -1;
 static int hf_btatt_signature = -1;
+static int hf_btatt_attribute_data = -1;
+static int hf_btatt_handles_info = -1;
 
 /* Initialize the subtree pointers */
 static gint ett_btatt = -1;
 static gint ett_btatt_list = -1;
+
+static expert_field ei_btatt_uuid_format_unknown = EI_INIT;
+static expert_field ei_btatt_handle_too_few = EI_INIT;
+
+static dissector_handle_t btatt_handle;
 
 /* Opcodes */
 static const value_string opcode_vals[] = {
@@ -121,120 +128,6 @@ static const value_string error_vals[] = {
     {0x0, NULL}
 };
 
-static const value_string uuid_vals[] = {
-    /* Services - http://developer.bluetooth.org/gatt/services/Pages/ServicesHome.aspx */
-    {0x1800, "Generic Access"},
-    {0x1801, "Generic Attribute"},
-    {0x1802, "Immediate Alert"},
-    {0x1803, "Link Loss"},
-    {0x1804, "Tx Power"},
-    {0x1805, "Current Time Service"},
-    {0x1806, "Reference Time Update Service"},
-    {0x1807, "Next DST Change Service"},
-    {0x1808, "Glucose"},
-    {0x1809, "Health Thermometer"},
-    {0x180a, "Device Information"},
-    {0x180d, "Heart Rate"},
-    {0x180e, "Phone Alert Status Service"},
-    {0x180f, "Battery Service"},
-    {0x1810, "Blood Pressure"},
-    {0x1811, "Alert Notification Service"},
-    {0x1812, "Human Interface Device"},
-    {0x1813, "Scan Parameters"},
-    {0x1814, "Running Speed and Cadence"},
-    {0x1816, "Cycling Speed and Cadence"},
-    /* Declarations - http://developer.bluetooth.org/gatt/declarations/Pages/DeclarationsHome.aspx */
-    {0x2800, "GATT Primary Service Declaration"},
-    {0x2801, "GATT Secondary Service Declaration"},
-    {0x2802, "GATT Include Declaration"},
-    {0x2803, "GATT Characteristic Declaration"},
-    /* Descriptors - http://developer.bluetooth.org/gatt/descriptors/Pages/DescriptorsHomePage.aspx */
-    {0x2900, "Characteristic Extended Properties"},
-    {0x2901, "Characteristic User Description"},
-    {0x2902, "Client Characteristic Configuration"},
-    {0x2903, "Server Characteristic Configuration"},
-    {0x2904, "Characteristic Presentation Format"},
-    {0x2905, "Characteristic Aggregate Format"},
-    {0x2906, "Valid Range"},
-    {0x2907, "External Report Reference"},
-    {0x2908, "Report Reference"},
-    /* Characteristics - http://developer.bluetooth.org/gatt/characteristics/Pages/CharacteristicsHome.aspx */
-    {0x2a00, "Device Name"},
-    {0x2a01, "Appearance"},
-    {0x2a02, "Peripheral Privacy Flag"},
-    {0x2a03, "Reconnection Address"},
-    {0x2a04, "Peripheral Preferred Connection Parameters"},
-    {0x2a05, "Service Changed"},
-    {0x2a06, "Alert Level"},
-    {0x2a07, "Tx Power Level"},
-    {0x2a08, "Date Time"},
-    {0x2a09, "Day of Week"},
-    {0x2a0a, "Day Date Time"},
-    {0x2a0c, "Exact Time 256"},
-    {0x2a0d, "DST Offset"},
-    {0x2a0e, "Time Zone"},
-    {0x2a0f, "Local Time Information"},
-    {0x2a11, "Time with DST"},
-    {0x2a12, "Time Accuracy"},
-    {0x2a13, "Time Source"},
-    {0x2a14, "Reference Time Information"},
-    {0x2a16, "Time Update Control Point"},
-    {0x2a17, "Time Update State"},
-    {0x2a18, "Glucose Measurement"},
-    {0x2a19, "Battery Level"},
-    {0x2a1c, "Temperature Measurement"},
-    {0x2a1d, "Temperature Type"},
-    {0x2a1e, "Intermediate Temperature"},
-    {0x2a21, "Measurement Interval"},
-    {0x2a22, "Boot Keyboard Input Report"},
-    {0x2a23, "System ID"},
-    {0x2a24, "Model Number String"},
-    {0x2a25, "Serial Number String"},
-    {0x2a26, "Firmware Revision String"},
-    {0x2a27, "Hardware Revision String"},
-    {0x2a28, "Software Revision String"},
-    {0x2a29, "Manufacturer Name String"},
-    {0x2a2a, "IEEE 11073-20601 Reg. Cert. Data List"},
-    {0x2a2b, "Current Time"},
-    {0x2a31, "Scan Refresh"},
-    {0x2a32, "Boot Keyboard Output Report"},
-    {0x2a33, "Boot Mouse Input Report"},
-    {0x2a34, "Glucose Measurement Context"},
-    {0x2a35, "Blood Pressure Measurement"},
-    {0x2a36, "Intermediate Cuff Pressure"},
-    {0x2a37, "Heart Rate Measurement"},
-    {0x2a38, "Body Sensor Location"},
-    {0x2a39, "Heart Rate Control Point"},
-    {0x2a3f, "Alert Status"},
-    {0x2a40, "Ringer Control Point"},
-    {0x2a41, "Ringer Setting"},
-    {0x2a42, "Alert Category ID Bit Mask"},
-    {0x2a43, "Alert Category ID"},
-    {0x2a44, "Alert Notification Control Point"},
-    {0x2a45, "Unread Alert Status"},
-    {0x2a46, "New Alert"},
-    {0x2a47, "Supported New Alert Category"},
-    {0x2a48, "Supported Unread Alert Category"},
-    {0x2a49, "Blood Pressure Feature"},
-    {0x2a4a, "HID Information"},
-    {0x2a4b, "Report Map"},
-    {0x2a4c, "HID Control Point"},
-    {0x2a4d, "Report"},
-    {0x2a4e, "Protocol Mode"},
-    {0x2a4f, "Scan Interval Window"},
-    {0x2a50, "PnP ID"},
-    {0x2a51, "Glucose Feature"},
-    {0x2a52, "Record Access Control Point"},
-    {0x2a53, "RSC Measurement"},
-    {0x2a54, "RSC Feature"},
-    {0x2a55, "SC Control Point"},
-    {0x2a5b, "CSC Measurement"},
-    {0x2a5c, "CSC Feature"},
-    {0x2a5d, "Sensor Location"},
-    {0x0, NULL}
-};
-static value_string_ext uuid_vals_ext = VALUE_STRING_EXT_INIT(uuid_vals);
-
 static const value_string uuid_format_vals[] = {
     {0x01, "16-bit UUIDs"},
     {0x02, "128-bit UUIDs"},
@@ -247,46 +140,43 @@ static const value_string flags_vals[] = {
     {0x0, NULL}
 };
 
-static void
-dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+void proto_register_btatt(void);
+void proto_reg_handoff_btatt(void);
+
+static int
+dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
     int offset = 0;
     proto_item *ti, *item;
     proto_tree *st, *ltree;
     guint8 opcode;
 
-    col_set_str(pinfo->cinfo, COL_PROTOCOL, "ATT");
-    
-    switch (pinfo->p2p_dir) {
-
-    case P2P_DIR_SENT:
-        col_add_str(pinfo->cinfo, COL_INFO, "Sent ");
-        break;
-
-    case P2P_DIR_RECV:
-        col_add_str(pinfo->cinfo, COL_INFO, "Rcvd ");
-        break;
-
-    case P2P_DIR_UNKNOWN:
-        break;
-
-    default:
-        col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
-            pinfo->p2p_dir);
-        break;
-    }
-
     if (tvb_length_remaining(tvb, 0) < 1)
-        return;
+        return 0;
 
     ti = proto_tree_add_item(tree, proto_btatt, tvb, 0, -1, ENC_NA);
     st = proto_item_add_subtree(ti, ett_btatt);
+
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, "ATT");
+
+    switch (pinfo->p2p_dir) {
+        case P2P_DIR_SENT:
+            col_set_str(pinfo->cinfo, COL_INFO, "Sent ");
+            break;
+        case P2P_DIR_RECV:
+            col_set_str(pinfo->cinfo, COL_INFO, "Rcvd ");
+            break;
+        default:
+            col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
+                pinfo->p2p_dir);
+            break;
+    }
 
     item = proto_tree_add_item(st, hf_btatt_opcode, tvb, 0, 1, ENC_LITTLE_ENDIAN);
     opcode = tvb_get_guint8(tvb, 0);
     offset++;
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "%s", val_to_str_const(opcode, opcode_vals, "<unknown>"));
+    col_append_str(pinfo->cinfo, COL_INFO, val_to_str_const(opcode, opcode_vals, "<unknown>"));
 
     switch (opcode) {
     case 0x01: /* Error Response */
@@ -346,34 +236,34 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 }
             }
             else {
-                expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, "Unknown format");
+                expert_add_info(pinfo, item, &ei_btatt_uuid_format_unknown);
             }
         }
         break;
 
     case 0x06: /* Find By Type Value Request */
         col_append_fstr(pinfo->cinfo, COL_INFO, ", %s, Handles: 0x%04x..0x%04x",
-                            val_to_str_ext_const(tvb_get_letohs(tvb, offset+4), &uuid_vals_ext, "<unknown>"),
+                            val_to_str_ext_const(tvb_get_letohs(tvb, offset+4), &bt_sig_uuid_vals_ext, "<unknown>"),
                             tvb_get_letohs(tvb, offset), tvb_get_letohs(tvb, offset+2));
-        
+
         proto_tree_add_item(st, hf_btatt_starting_handle, tvb, offset, 2, ENC_LITTLE_ENDIAN);
         offset += 2;
         proto_tree_add_item(st, hf_btatt_ending_handle, tvb, offset, 2, ENC_LITTLE_ENDIAN);
         offset += 2;
         proto_tree_add_item(st, hf_btatt_uuid16, tvb, offset, 2, ENC_LITTLE_ENDIAN);
         offset += 2;
-        if( tvb_length_remaining(tvb, offset)  > 0)
-            proto_tree_add_item(st, hf_btatt_value, tvb, offset, -1, ENC_NA);
+        proto_tree_add_item(st, hf_btatt_value, tvb, offset, -1, ENC_NA);
+        offset = tvb_reported_length(tvb);
         break;
 
     case 0x07: /* Find By Type Value Response */
         while( tvb_length_remaining(tvb, offset) > 0 ) {
-            item = proto_tree_add_text(st, tvb, offset, 4,
+            item = proto_tree_add_none_format(st, hf_btatt_handles_info, tvb, offset, 4,
                                             "Handles Info, Handle: 0x%04x, Group End Handle: 0x%04x",
                                             tvb_get_letohs(tvb, offset), tvb_get_letohs(tvb, offset+2));
 
             ltree = proto_item_add_subtree(item, ett_btatt_list);
-            
+
             proto_tree_add_item(ltree, hf_btatt_handle, tvb, offset, 2, ENC_LITTLE_ENDIAN);
             offset += 2;
             proto_tree_add_item(ltree, hf_btatt_group_end_handle, tvb, offset, 2, ENC_LITTLE_ENDIAN);
@@ -384,14 +274,14 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     case 0x08: /* Read By Type Request */
     case 0x10: /* Read By Group Type Request */
         col_append_fstr(pinfo->cinfo, COL_INFO, ", %s, Handles: 0x%04x..0x%04x",
-                            val_to_str_ext_const(tvb_get_letohs(tvb, offset+4), &uuid_vals_ext, "<unknown>"),
+                            val_to_str_ext_const(tvb_get_letohs(tvb, offset+4), &bt_sig_uuid_vals_ext, "<unknown>"),
                             tvb_get_letohs(tvb, offset), tvb_get_letohs(tvb, offset+2));
-        
+
         proto_tree_add_item(st, hf_btatt_starting_handle, tvb, offset, 2, ENC_LITTLE_ENDIAN);
         offset += 2;
         proto_tree_add_item(st, hf_btatt_ending_handle, tvb, offset, 2, ENC_LITTLE_ENDIAN);
         offset += 2;
-        
+
         if (tvb_length_remaining(tvb, offset) == 2) {
             proto_tree_add_item(st, hf_btatt_uuid16, tvb, offset, 2, ENC_LITTLE_ENDIAN);
             offset += 2;
@@ -399,7 +289,7 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         else if (tvb_length_remaining(tvb, offset) == 16) {
             item = proto_tree_add_item(st, hf_btatt_uuid128, tvb, offset, 16, ENC_NA);
             proto_item_append_text(item, " (%s)", val_to_str_ext_const(tvb_get_letohs(tvb, offset),
-                                            &uuid_vals_ext, "<unknown>"));
+                                            &bt_sig_uuid_vals_ext, "<unknown>"));
             offset += 16;
         }
         break;
@@ -417,14 +307,15 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
                 while (tvb_length_remaining(tvb, offset) >= length)
                 {
-                    item = proto_tree_add_text(st, tvb, offset, length, "Attribute Data, Handle: 0x%04x",
+                    item = proto_tree_add_none_format(st, hf_btatt_attribute_data, tvb,
+                                                    offset, length, "Attribute Data, Handle: 0x%04x",
                                                     tvb_get_letohs(tvb, offset));
 
                     ltree = proto_item_add_subtree(item, ett_btatt_list);
-                    
+
                     proto_tree_add_item(ltree, hf_btatt_handle, tvb, offset, 2, ENC_LITTLE_ENDIAN);
                     offset += 2;
-                    proto_tree_add_item(ltree, hf_btatt_value, tvb, offset, length-2, ENC_LITTLE_ENDIAN);
+                    proto_tree_add_item(ltree, hf_btatt_value, tvb, offset, length - 2, ENC_NA);
                     offset += (length-2);
                 }
             }
@@ -441,6 +332,7 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     case 0x0d: /* Read Blob Response */
     case 0x0f: /* Multiple Read Response */
         proto_tree_add_item(st, hf_btatt_value, tvb, offset, -1, ENC_NA);
+        offset = tvb_reported_length(tvb);
         break;
 
     case 0x0c: /* Read Blob Request */
@@ -454,11 +346,10 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     case 0x0e: /* Multiple Read Request */
         if(tvb_length_remaining(tvb, offset) < 4) {
-            expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN,
-                                                    "Too few handles, should be 2 or more");
+            expert_add_info(pinfo, item, &ei_btatt_handle_too_few);
             break;
         }
-        
+
         col_append_str(pinfo->cinfo, COL_INFO, ", Handles: ");
         while (tvb_length_remaining(tvb, offset) >= 2) {
             proto_tree_add_item(st, hf_btatt_handle, tvb, offset, 2, ENC_LITTLE_ENDIAN);
@@ -476,19 +367,19 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
             if(length > 0) {
                 col_append_fstr(pinfo->cinfo, COL_INFO, ", Attribute List Length: %u", tvb_length_remaining(tvb, offset)/length);
-            
+
                 while (tvb_length_remaining(tvb, offset) >= length) {
-                    item = proto_tree_add_text(st, tvb, offset, length,
+                    item = proto_tree_add_none_format(st, hf_btatt_attribute_data, tvb, offset, length,
                                                     "Attribute Data, Handle: 0x%04x, Group End Handle: 0x%04x",
                                                     tvb_get_letohs(tvb, offset), tvb_get_letohs(tvb, offset+2));
 
                     ltree = proto_item_add_subtree(item, ett_btatt_list);
-                
+
                     proto_tree_add_item(ltree, hf_btatt_handle, tvb, offset, 2, ENC_LITTLE_ENDIAN);
                     offset += 2;
                     proto_tree_add_item(ltree, hf_btatt_group_end_handle, tvb, offset, 2, ENC_LITTLE_ENDIAN);
                     offset += 2;
-                    proto_tree_add_item(ltree, hf_btatt_value, tvb, offset, length-4, ENC_LITTLE_ENDIAN);
+                    proto_tree_add_item(ltree, hf_btatt_value, tvb, offset, length - 4, ENC_NA);
                     offset += (length-4);
                 }
             }
@@ -503,6 +394,7 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         proto_tree_add_item(st, hf_btatt_handle, tvb, offset, 2, ENC_LITTLE_ENDIAN);
         offset += 2;
         proto_tree_add_item(st, hf_btatt_value, tvb, offset, -1, ENC_NA);
+        offset = tvb_reported_length(tvb);
         break;
 
     case 0x16: /* Prepare Write Request */
@@ -514,6 +406,7 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         proto_tree_add_item(st, hf_btatt_offset, tvb, offset, 2, ENC_LITTLE_ENDIAN);
         offset += 2;
         proto_tree_add_item(st, hf_btatt_value, tvb, offset, -1, ENC_NA);
+        offset = tvb_reported_length(tvb);
         break;
 
     case 0x18: /* Execute Write Request */
@@ -545,107 +438,118 @@ dissect_btatt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     default:
         break;
     }
+    return offset;
 }
 
 void
 proto_register_btatt(void)
 {
     module_t *module;
-    
+
     static hf_register_info hf[] = {
         {&hf_btatt_opcode,
             {"Opcode", "btatt.opcode",
-            FT_UINT8, BASE_HEX, VALS(opcode_vals), 0x0,          
+            FT_UINT8, BASE_HEX, VALS(opcode_vals), 0x0,
+            NULL, HFILL}
+        },
+        {&hf_btatt_handles_info,
+            {"Handles Info", "btatt.handles_info",
+            FT_NONE, BASE_NONE, NULL, 0x0,
+            NULL, HFILL}
+        },
+        {&hf_btatt_attribute_data,
+            {"Attribute Data", "btatt.attribute_data",
+            FT_NONE, BASE_NONE, NULL, 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_handle,
             {"Handle", "btatt.handle",
-            FT_UINT16, BASE_HEX, NULL, 0x0,          
+            FT_UINT16, BASE_HEX, NULL, 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_starting_handle,
             {"Starting Handle", "btatt.starting_handle",
-            FT_UINT16, BASE_HEX, NULL, 0x0,          
+            FT_UINT16, BASE_HEX, NULL, 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_ending_handle,
             {"Ending Handle", "btatt.ending_handle",
-            FT_UINT16, BASE_HEX, NULL, 0x0,          
+            FT_UINT16, BASE_HEX, NULL, 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_group_end_handle,
             {"Group End Handle", "btatt.group_end_handle",
-            FT_UINT16, BASE_HEX, NULL, 0x0,          
+            FT_UINT16, BASE_HEX, NULL, 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_value,
             {"Value", "btatt.value",
-            FT_BYTES, BASE_NONE, NULL, 0x0,          
+            FT_BYTES, BASE_NONE, NULL, 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_req_opcode_in_error,
             {"Request Opcode in Error", "btatt.req_opcode_in_error",
-            FT_UINT8, BASE_HEX, VALS(opcode_vals), 0x0,          
+            FT_UINT8, BASE_HEX, VALS(opcode_vals), 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_handle_in_error,
             {"Handle in Error", "btatt.handle_in_error",
-            FT_UINT16, BASE_HEX, NULL, 0x0,          
+            FT_UINT16, BASE_HEX, NULL, 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_error_code,
             {"Error Code", "btatt.error_code",
-            FT_UINT8, BASE_HEX, VALS(error_vals), 0x0,          
+            FT_UINT8, BASE_HEX, VALS(error_vals), 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_uuid16,
             {"UUID", "btatt.uuid16",
-            FT_UINT16, BASE_HEX |BASE_EXT_STRING, &uuid_vals_ext, 0x0,          
+            FT_UINT16, BASE_HEX |BASE_EXT_STRING, &bt_sig_uuid_vals_ext, 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_uuid128,
             {"UUID", "btatt.uuid128",
-            FT_BYTES, BASE_NONE, NULL, 0x0,          
+            FT_BYTES, BASE_NONE, NULL, 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_client_rx_mtu,
             {"Client Rx MTU", "btatt.client_rx_mtu",
-            FT_UINT16, BASE_DEC, NULL, 0x0,          
+            FT_UINT16, BASE_DEC, NULL, 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_server_rx_mtu,
             {"Server Rx MTU", "btatt.server_rx_mtu",
-            FT_UINT16, BASE_DEC, NULL, 0x0,          
+            FT_UINT16, BASE_DEC, NULL, 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_uuid_format,
             {"UUID Format", "btatt.uuid_format",
-            FT_UINT8, BASE_HEX, VALS(uuid_format_vals), 0x0,          
+            FT_UINT8, BASE_HEX, VALS(uuid_format_vals), 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_length,
             {"Length", "btatt.length",
-            FT_UINT8, BASE_DEC, NULL, 0x0,          
+            FT_UINT8, BASE_DEC, NULL, 0x0,
             "Length of Handle/Value Pair", HFILL}
         },
         {&hf_btatt_offset,
             {"Offset", "btatt.offset",
-            FT_UINT16, BASE_DEC, NULL, 0x0,          
+            FT_UINT16, BASE_DEC, NULL, 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_flags,
             {"Flags", "btatt.flags",
-            FT_UINT8, BASE_HEX, VALS(flags_vals), 0x0,          
+            FT_UINT8, BASE_HEX, VALS(flags_vals), 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_sign_counter,
             {"Sign Counter", "btatt.sign_counter",
-            FT_UINT32, BASE_DEC, NULL, 0x0,          
+            FT_UINT32, BASE_DEC, NULL, 0x0,
             NULL, HFILL}
         },
         {&hf_btatt_signature,
             {"Signature", "btatt.signature",
-            FT_BYTES, BASE_NONE, NULL, 0x0,          
+            FT_BYTES, BASE_NONE, NULL, 0x0,
             NULL, HFILL}
         }
     };
@@ -656,14 +560,23 @@ proto_register_btatt(void)
         &ett_btatt_list
     };
 
-    /* Register the protocol name and description */
-    proto_btatt = proto_register_protocol("Bluetooth Attribute Protocol", "ATT", "btatt");
+    static ei_register_info ei[] = {
+        { &ei_btatt_uuid_format_unknown, { "btatt.uuid_format.unknown", PI_PROTOCOL, PI_WARN, "Unknown format", EXPFILL }},
+        { &ei_btatt_handle_too_few, { "btatt.handle.too_few", PI_PROTOCOL, PI_WARN, "Too few handles, should be 2 or more", EXPFILL }},
+    };
 
-    register_dissector("btatt", dissect_btatt, proto_btatt);
+    expert_module_t* expert_btatt;
+
+    /* Register the protocol name and description */
+    proto_btatt = proto_register_protocol("Bluetooth Attribute Protocol", "BT ATT", "btatt");
+
+    btatt_handle = new_register_dissector("btatt", dissect_btatt, proto_btatt);
 
     /* Required function calls to register the header fields and subtrees used */
     proto_register_field_array(proto_btatt, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_btatt = expert_register_protocol(proto_btatt);
+    expert_register_field_array(expert_btatt, ei, array_length(ei));
 
     module = prefs_register_protocol(proto_btatt, NULL);
     prefs_register_static_text_preference(module, "att.version",
@@ -674,9 +587,6 @@ proto_register_btatt(void)
 void
 proto_reg_handoff_btatt(void)
 {
-    dissector_handle_t btatt_handle;
-
-    btatt_handle = find_dissector("btatt");
     dissector_add_uint("btl2cap.psm", BTL2CAP_PSM_ATT, btatt_handle);
     dissector_add_uint("btl2cap.cid", BTL2CAP_FIXED_CID_ATT, btatt_handle);
 }

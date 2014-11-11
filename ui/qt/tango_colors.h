@@ -1,8 +1,6 @@
 /* qt_gui_utils.h
  * Tango theme colors
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -84,13 +82,6 @@ const QRgb tango_sky_blue_3    = 0x729fcf;
 const QRgb tango_sky_blue_4    = 0x3465a4;
 const QRgb tango_sky_blue_5    = 0x204a87;
 const QRgb tango_sky_blue_6    = 0x0a3050;
-
-const QRgb ws_syntax_invalid_background = tango_scarlet_red_1;
-const QRgb ws_syntax_invalid_foreground = tango_aluminium_6;
-const QRgb ws_syntax_deprecated_background = tango_butter_1;
-const QRgb ws_syntax_deprecated_foreground = tango_aluminium_6;
-const QRgb ws_syntax_valid_background = tango_chameleon_1;
-const QRgb ws_syntax_valid_foreground = tango_aluminium_6;
 
 const QRgb ws_css_warn_background = tango_butter_2;
 const QRgb ws_css_warn_text       = tango_aluminium_6;

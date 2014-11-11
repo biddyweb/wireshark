@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-h283.c                                                              */
 /* ../../tools/asn2wrs.py -p h283 -c ./h283.cnf -s ./packet-h283-template -D . -O ../../epan/dissectors LCT-PROTOCOL.asn */
 
@@ -9,8 +9,6 @@
 /* packet-h283.c
  * Routines for H.283 packet dissection
  * 2007  Tomas Kukosa
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -43,6 +41,9 @@
 #define PNAME  "H.283 Logical Channel Transport"
 #define PSNAME "LCT"
 #define PFNAME "lct"
+
+void proto_register_h283(void);
+void proto_reg_handoff_h283(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_h283 = -1;
@@ -83,7 +84,7 @@ static int hf_h283_deviceListResp = -1;           /* T_deviceListResp */
 static int hf_h283_deviceChange = -1;             /* NULL */
 
 /*--- End of included file: packet-h283-hf.c ---*/
-#line 42 "../../asn1/h283/packet-h283-template.c"
+#line 43 "../../asn1/h283/packet-h283-template.c"
 
 /* Initialize the subtree pointers */
 static int ett_h283 = -1;
@@ -106,7 +107,7 @@ static gint ett_h283_LCTIndication = -1;
 static gint ett_h283_NonStandardMessage = -1;
 
 /*--- End of included file: packet-h283-ett.c ---*/
-#line 46 "../../asn1/h283/packet-h283-template.c"
+#line 47 "../../asn1/h283/packet-h283-template.c"
 
 /* Subdissectors */
 static dissector_handle_t rdc_pdu_handle;
@@ -268,7 +269,7 @@ static const per_choice_t LCTRequest_choice[] = {
 
 static int
 dissect_h283_LCTRequest(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 58 "../../asn1/h283/h283.cnf"
+#line 56 "../../asn1/h283/h283.cnf"
   gint32 msg_type = -1;
   const gchar *p = NULL;
 
@@ -276,8 +277,8 @@ dissect_h283_LCTRequest(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_,
                                  ett_h283_LCTRequest, LCTRequest_choice,
                                  &msg_type);
 
-#line 61 "../../asn1/h283/h283.cnf"
-  p = match_strval(msg_type, VALS(h283_LCTRequest_vals));
+#line 59 "../../asn1/h283/h283.cnf"
+  p = try_val_to_str(msg_type, VALS(h283_LCTRequest_vals));
   if (!info_is_set && p ) {
     col_add_fstr(actx->pinfo->cinfo, COL_INFO, "LCTRequest/%s", p);
     info_is_set = TRUE;
@@ -290,7 +291,7 @@ dissect_h283_LCTRequest(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_,
 
 static int
 dissect_h283_T_deviceListResp(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 105 "../../asn1/h283/h283.cnf"
+#line 103 "../../asn1/h283/h283.cnf"
   tvbuff_t *next_tvb = NULL;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
@@ -319,7 +320,7 @@ static const per_choice_t LCTResponse_choice[] = {
 
 static int
 dissect_h283_LCTResponse(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 71 "../../asn1/h283/h283.cnf"
+#line 69 "../../asn1/h283/h283.cnf"
   gint32 msg_type = -1;
   const gchar *p = NULL;
 
@@ -327,8 +328,8 @@ dissect_h283_LCTResponse(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_
                                  ett_h283_LCTResponse, LCTResponse_choice,
                                  &msg_type);
 
-#line 74 "../../asn1/h283/h283.cnf"
-  p = match_strval(msg_type, VALS(h283_LCTResponse_vals));
+#line 72 "../../asn1/h283/h283.cnf"
+  p = try_val_to_str(msg_type, VALS(h283_LCTResponse_vals));
   if (!info_is_set && p ) {
     col_add_fstr(actx->pinfo->cinfo, COL_INFO, "LCTResponse/%s", p);
     info_is_set = TRUE;
@@ -350,7 +351,7 @@ static const per_choice_t LCTIndication_choice[] = {
 
 static int
 dissect_h283_LCTIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 84 "../../asn1/h283/h283.cnf"
+#line 82 "../../asn1/h283/h283.cnf"
   gint32 msg_type = -1;
   const gchar *p = NULL;
 
@@ -358,8 +359,8 @@ dissect_h283_LCTIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
                                  ett_h283_LCTIndication, LCTIndication_choice,
                                  &msg_type);
 
-#line 87 "../../asn1/h283/h283.cnf"
-  p = match_strval(msg_type, VALS(h283_LCTIndication_vals));
+#line 85 "../../asn1/h283/h283.cnf"
+  p = try_val_to_str(msg_type, VALS(h283_LCTIndication_vals));
   if (!info_is_set && p ) {
     col_add_fstr(actx->pinfo->cinfo, COL_INFO, "LCTIndication/%s", p);
     info_is_set = TRUE;
@@ -414,7 +415,7 @@ static const per_choice_t LCTMessage_choice[] = {
 
 static int
 dissect_h283_LCTMessage(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 45 "../../asn1/h283/h283.cnf"
+#line 43 "../../asn1/h283/h283.cnf"
   gint32 msg_type = -1;
   const gchar *p = NULL;
 
@@ -422,8 +423,8 @@ dissect_h283_LCTMessage(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_,
                                  ett_h283_LCTMessage, LCTMessage_choice,
                                  &msg_type);
 
-#line 48 "../../asn1/h283/h283.cnf"
-  p = match_strval(msg_type, VALS(h283_LCTMessage_vals));
+#line 46 "../../asn1/h283/h283.cnf"
+  p = try_val_to_str(msg_type, VALS(h283_LCTMessage_vals));
   if (!info_is_set && p ) {
     col_add_fstr(actx->pinfo->cinfo, COL_INFO, "LCTMessage/%s", p);
     info_is_set = TRUE;
@@ -436,7 +437,7 @@ dissect_h283_LCTMessage(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_,
 
 static int
 dissect_h283_T_rdcPDU(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 95 "../../asn1/h283/h283.cnf"
+#line 93 "../../asn1/h283/h283.cnf"
   tvbuff_t *next_tvb = NULL;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
@@ -466,7 +467,7 @@ static const per_choice_t T_dataType_choice[] = {
 
 static int
 dissect_h283_T_dataType(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 32 "../../asn1/h283/h283.cnf"
+#line 30 "../../asn1/h283/h283.cnf"
   gint32 data_type = -1;
   const gchar *p = NULL;
 
@@ -474,8 +475,8 @@ dissect_h283_T_dataType(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_,
                                  ett_h283_T_dataType, T_dataType_choice,
                                  &data_type);
 
-#line 35 "../../asn1/h283/h283.cnf"
-  p = match_strval(data_type, VALS(h283_T_dataType_vals));
+#line 33 "../../asn1/h283/h283.cnf"
+  p = try_val_to_str(data_type, VALS(h283_T_dataType_vals));
   if (!info_is_set && p ) {
     col_add_fstr(actx->pinfo->cinfo, COL_INFO, "RDCData/%s", p);
     info_is_set = TRUE;
@@ -514,7 +515,7 @@ static const per_choice_t T_pduType_choice[] = {
 
 static int
 dissect_h283_T_pduType(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 19 "../../asn1/h283/h283.cnf"
+#line 17 "../../asn1/h283/h283.cnf"
   gint32 pdu_type = -1;
   const gchar *p = NULL;
 
@@ -522,8 +523,8 @@ dissect_h283_T_pduType(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, 
                                  ett_h283_T_pduType, T_pduType_choice,
                                  &pdu_type);
 
-#line 22 "../../asn1/h283/h283.cnf"
-  p = match_strval(pdu_type, VALS(h283_T_pduType_vals));
+#line 20 "../../asn1/h283/h283.cnf"
+  p = try_val_to_str(pdu_type, VALS(h283_T_pduType_vals));
   if (!info_is_set && p ) {
     col_set_str(actx->pinfo->cinfo, COL_INFO, p);
     info_is_set = TRUE;
@@ -564,7 +565,7 @@ static int dissect_LCTPDU_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_t
 
 
 /*--- End of included file: packet-h283-fn.c ---*/
-#line 55 "../../asn1/h283/packet-h283-template.c"
+#line 56 "../../asn1/h283/packet-h283-template.c"
 
 static int
 dissect_h283_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
@@ -591,7 +592,7 @@ void proto_register_h283(void) {
 /*--- Included file: packet-h283-hfarr.c ---*/
 #line 1 "../../asn1/h283/packet-h283-hfarr.c"
     { &hf_h283_LCTPDU_PDU,
-      { "LCTPDU", "h283.LCTPDU",
+      { "LCTPDU", "h283.LCTPDU_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_t35CountryCode,
@@ -611,7 +612,7 @@ void proto_register_h283(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_h283_h221NonStandard,
-      { "h221NonStandard", "h283.h221NonStandard",
+      { "h221NonStandard", "h283.h221NonStandard_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_nonStandardIdentifier,
@@ -623,11 +624,11 @@ void proto_register_h283(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_h283_srcAddr,
-      { "srcAddr", "h283.srcAddr",
+      { "srcAddr", "h283.srcAddr_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MTAddress", HFILL }},
     { &hf_h283_dstAddr,
-      { "dstAddr", "h283.dstAddr",
+      { "dstAddr", "h283.dstAddr_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MTAddress", HFILL }},
     { &hf_h283_timestamp,
@@ -643,11 +644,11 @@ void proto_register_h283(void) {
         FT_UINT32, BASE_DEC, VALS(h283_T_pduType_vals), 0,
         NULL, HFILL }},
     { &hf_h283_ack,
-      { "ack", "h283.ack",
+      { "ack", "h283.ack_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_rdcData,
-      { "rdcData", "h283.rdcData",
+      { "rdcData", "h283.rdcData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_nonStandardParameters,
@@ -655,7 +656,7 @@ void proto_register_h283(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_NonStandardParameter", HFILL }},
     { &hf_h283_nonStandardParameters_item,
-      { "NonStandardParameter", "h283.NonStandardParameter",
+      { "NonStandardParameter", "h283.NonStandardParameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_mAddress,
@@ -695,19 +696,19 @@ void proto_register_h283(void) {
         FT_UINT32, BASE_DEC, VALS(h283_LCTIndication_vals), 0,
         NULL, HFILL }},
     { &hf_h283_nonStandardMessage,
-      { "nonStandardMessage", "h283.nonStandardMessage",
+      { "nonStandardMessage", "h283.nonStandardMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_announceReq,
-      { "announceReq", "h283.announceReq",
+      { "announceReq", "h283.announceReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_deviceListReq,
-      { "deviceListReq", "h283.deviceListReq",
+      { "deviceListReq", "h283.deviceListReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_announceResp,
-      { "announceResp", "h283.announceResp",
+      { "announceResp", "h283.announceResp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_deviceListResp,
@@ -715,12 +716,12 @@ void proto_register_h283(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_h283_deviceChange,
-      { "deviceChange", "h283.deviceChange",
+      { "deviceChange", "h283.deviceChange_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
 
 /*--- End of included file: packet-h283-hfarr.c ---*/
-#line 78 "../../asn1/h283/packet-h283-template.c"
+#line 79 "../../asn1/h283/packet-h283-template.c"
   };
 
   /* List of subtrees */
@@ -745,7 +746,7 @@ void proto_register_h283(void) {
     &ett_h283_NonStandardMessage,
 
 /*--- End of included file: packet-h283-ettarr.c ---*/
-#line 84 "../../asn1/h283/packet-h283-template.c"
+#line 85 "../../asn1/h283/packet-h283-template.c"
   };
 
   /* Register protocol */

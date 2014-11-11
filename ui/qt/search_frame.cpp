@@ -1,7 +1,5 @@
 /* search_frame.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -50,7 +48,7 @@ SearchFrame::SearchFrame(QWidget *parent) :
 {
     sf_ui_->setupUi(this);
 
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     foreach (QWidget *w, findChildren<QWidget *>()) {
         w->setAttribute(Qt::WA_MacSmallSize, true);
     }
@@ -135,7 +133,6 @@ void SearchFrame::enableWidgets()
         return;
     }
 
-    dfilter_t *dfp = NULL;
     bool enable = sf_ui_->searchTypeComboBox->currentIndex() == string_search;
     sf_ui_->searchInComboBox->setEnabled(enable);
     sf_ui_->caseCheckBox->setEnabled(enable);
@@ -143,24 +140,7 @@ void SearchFrame::enableWidgets()
 
     switch (sf_ui_->searchTypeComboBox->currentIndex()) {
     case df_search:
-        // XXX - Merge this with DisplayFitlerEdit::checkFilter
-        if (dfilter_compile(sf_ui_->searchLineEdit->text().toUtf8().constData(), &dfp)) {
-                GPtrArray *depr = NULL;
-                if (dfp != NULL) {
-                    depr = dfilter_deprecated_tokens(dfp);
-                }
-                if (sf_ui_->searchLineEdit->text().isEmpty()) {
-                    sf_ui_->searchLineEdit->setSyntaxState(SyntaxLineEdit::Empty);
-                } else if (depr) {
-                    /* You keep using that word. I do not think it means what you think it means. */
-                    sf_ui_->searchLineEdit->setSyntaxState(SyntaxLineEdit::Deprecated);
-                } else {
-                    sf_ui_->searchLineEdit->setSyntaxState(SyntaxLineEdit::Valid);
-                }
-                dfilter_free(dfp);
-        } else {
-            sf_ui_->searchLineEdit->setSyntaxState(SyntaxLineEdit::Invalid);
-        }
+        sf_ui_->searchLineEdit->checkDisplayFilter(sf_ui_->searchLineEdit->text());
         break;
     case hex_search:
         if (sf_ui_->searchLineEdit->text().isEmpty()) {

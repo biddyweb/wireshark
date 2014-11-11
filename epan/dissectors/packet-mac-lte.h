@@ -1,7 +1,6 @@
 /* packet-mac-lte.h
  *
  * Martin Mathieson
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -23,9 +22,9 @@
  *
  * This header file may also be distributed under
  * the terms of the BSD Licence as follows:
- * 
+ *
  * Copyright (C) 2009 Martin Mathieson. All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -34,7 +33,7 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -89,6 +88,14 @@ typedef enum mac_lte_crc_status {
     crc_false_dci = 5
 } mac_lte_crc_status;
 
+typedef enum mac_lte_carrier_id {
+    carrier_id_primary,
+    carrier_id_secondary_1,
+    carrier_id_secondary_2,
+    carrier_id_secondary_3,
+    carrier_id_secondary_4
+} mac_lte_carrier_id;
+
 /* Context info attached to each LTE MAC frame */
 typedef struct mac_lte_info
 {
@@ -116,15 +123,20 @@ typedef struct mac_lte_info
     /* Length of DL PDU or UL grant size in bytes */
     guint16         length;
 
-    /* UL only.  0=newTx, 1=first-retx, etc */
+    /* 0=newTx, 1=first-retx, etc */
     guint8          reTxCount;
     guint8          isPHICHNACK; /* FALSE=PDCCH retx grant, TRUE=PHICH NACK */
 
     /* UL only.  Indicates if the R10 extendedBSR-Sizes parameter is set */
     gboolean        isExtendedBSRSizes;
 
-    /* DL only.  Status of CRC check */
-    mac_lte_crc_status   crcStatusValid;
+    /* Status of CRC check. For UE it is DL only. For eNodeB it is UL
+       only. For an analyzer, it is present for both DL and UL. */
+    gboolean        crcStatusValid;
+    mac_lte_crc_status crcStatus;
+
+    /* Carrier ID */
+    mac_lte_carrier_id   carrierId;
 
     /* DL only.  Is this known to be a retransmission? */
     mac_lte_dl_retx dl_retx;
@@ -143,17 +155,16 @@ typedef struct mac_lte_info
         } ul_info;
         struct mac_lte_dl_phy_info
         {
-            guint8 present; /* Remaining UL fields are present and should be displayed */
+            guint8 present; /* Remaining DL fields are present and should be displayed */
             guint8 dci_format;
             guint8 resource_allocation_type;
             guint8 aggregation_level;
             guint8 mcs_index;
             guint8 redundancy_version_index;
             guint8 resource_block_length;
-            mac_lte_crc_status crc_status;
             guint8 harq_id;
             gboolean ndi;
-            guint8   transport_block;  /* 1..2 */
+            guint8   transport_block;  /* 0..1 */
         } dl_info;
     } detailed_phy_info;
 
@@ -175,7 +186,7 @@ typedef struct mac_lte_tap_info {
     guint16  ueid;
     guint8   rntiType;
     guint8   isPredefinedData;
-    guint8   crcStatusValid;
+    gboolean crcStatusValid;
     mac_lte_crc_status   crcStatus;
     guint8   direction;
 
@@ -189,6 +200,7 @@ typedef struct mac_lte_tap_info {
     guint32  bytes_for_lcid[11];
     guint32  sdus_for_lcid[11];
     guint8   number_of_rars;
+    guint8   number_of_paging_ids;
 
     /* Number of padding bytes includes padding subheaders and trailing padding */
     guint16  padding_bytes;
@@ -210,9 +222,7 @@ int is_mac_lte_frame_retx(packet_info *pinfo, guint8 direction);
 /* provided at http://wiki.wireshark.org/MAC-LTE                 */
 /*                                                               */
 /* A heuristic dissecter (enabled by a preference) will          */
-/* recognise a signature at the beginning of these frames   .    */
-/* Until someone is using this format, suggestions for changes   */
-/* are welcome.                                                  */
+/* recognise a signature at the beginning of these frames.       */
 /*****************************************************************/
 
 
@@ -223,7 +233,7 @@ int is_mac_lte_frame_retx(packet_info *pinfo, guint8 direction);
 
 /* Fixed fields.  This is followed by the following 3 mandatory fields:
    - radioType (1 byte)
-   - direction (1 byte) 
+   - direction (1 byte)
    - rntiType (1 byte)
    (where the allowed values are defined above */
 
@@ -239,8 +249,8 @@ int is_mac_lte_frame_retx(packet_info *pinfo, guint8 direction);
 #define MAC_LTE_UEID_TAG            0x03
 /* 2 bytes, network order */
 
-#define MAC_LTE_SUBFRAME_TAG        0x04
-/* 2 bytes, network order */
+#define MAC_LTE_FRAME_SUBFRAME_TAG  0x04
+/* 2 bytes, network order, SFN is stored in 12 MSB and SF in 4 LSB */
 
 #define MAC_LTE_PREDEFINED_DATA_TAG 0x05
 /* 1 byte */
@@ -254,17 +264,77 @@ int is_mac_lte_frame_retx(packet_info *pinfo, guint8 direction);
 #define MAC_LTE_EXT_BSR_SIZES_TAG   0x08
 /* 0 byte */
 
+#define MAC_LTE_SEND_PREAMBLE_TAG   0x09
+/* 2 bytes, RAPID value (1 byte) followed by RACH attempt number (1 byte) */
+
+#define MAC_LTE_CARRIER_ID_TAG      0x0A
+/* 1 byte */
+
+#define MAC_LTE_PHY_TAG             0x0B
+/* variable length, length (1 byte) then depending on direction
+   in UL: modulation type (1 byte), TBS index (1 byte), RB length (1 byte),
+          RB start (1 byte), HARQ id (1 byte), NDI (1 byte)
+   in DL: DCI format (1 byte), resource allocation type (1 byte), aggregation level (1 byte),
+          MCS index (1 byte), redundancy version (1 byte), resource block length (1 byte),
+          HARQ id (1 byte), NDI (1 byte), TB (1 byte), DL reTx (1 byte) */
+
 /* MAC PDU. Following this tag comes the actual MAC PDU (there is no length, the PDU
    continues until the end of the frame) */
 #define MAC_LTE_PAYLOAD_TAG 0x01
 
 
+/* Type to store parameters for configuring LCID->RLC channel settings for DRB */
+/* Some are optional, and may not be seen (e.g. on reestablishment) */
+typedef struct drb_mapping_t
+{
+    guint16    ueid;              /* Mandatory */
+    guint8     drbid;             /* Mandatory */
+    gboolean   lcid_present;
+    guint8     lcid;              /* Part of LogicalChannelConfig - optional */
+    gboolean   rlcMode_present;
+    guint8     rlcMode;           /* Part of RLC config - optional */
+    gboolean   um_sn_length_present;
+    guint8     um_sn_length;      /* Part of RLC config - optional */
+    gboolean   ul_priority_present;
+    guint8     ul_priority;       /* Part of LogicalChannelConfig - optional */
+    gboolean   pdcp_sn_size_present;
+    guint8     pdcp_sn_size;      /* Part of pdcp-Config - optional */
+} drb_mapping_t;
+
+
 /* Set details of an LCID -> drb channel mapping.  To be called from
    configuration protocol (e.g. RRC) */
-void set_mac_lte_channel_mapping(guint16 ueid, guint8 lcid,
-                                 guint8  srbid, guint8 drbid,
-                                 guint8  rlcMode, guint8 um_sn_length,
-                                 guint8  ul_priority);
+void set_mac_lte_channel_mapping(drb_mapping_t *drb_mapping);
+
+
+/* Dedicated DRX config. Used to verify that a sensible config is given.
+   Also, beginning to configure MAC with this config and (optionally) show
+   DRX config and state (cycles/timers) attached to each UL/DL PDU! */
+typedef struct drx_config_t {
+    gboolean    configured;
+    guint32     frameNum;
+    guint32     previousFrameNum;
+
+    guint32     onDurationTimer;
+    guint32     inactivityTimer;
+    guint32     retransmissionTimer;
+    guint32     longCycle;
+    guint32     cycleOffset;
+    /* Optional Short cycle */
+    gboolean    shortCycleConfigured;
+    guint32     shortCycle;
+    guint32     shortCycleTimer;
+} drx_config_t;
+
+/* Functions to set/release up dedicated DRX config */
+void set_mac_lte_drx_config(guint16 ueid, drx_config_t *drx_config, packet_info *pinfo);
+void set_mac_lte_drx_config_release(guint16 ueid,  packet_info *pinfo);
+
+/* RRC can tell this dissector which RAPIDs are Group A, Group A&B */
+void set_mac_lte_rapid_ranges(guint groupA, guint all_RA);
+
+/* RRC can indicate whether extended BSR sizes are used */
+void set_mac_lte_extended_bsr_sizes(guint16 ueid, gboolean use_ext_bsr_sizes);
 
 /* Functions to be called from outside this module (e.g. in a plugin, where mac_lte_info
    isn't available) to get/set per-packet data */

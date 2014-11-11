@@ -2,8 +2,6 @@
  * Routines for decoding MDS Port Analyzer Adapter (FC in Eth) Header
  * Copyright 2001, Dinesh G Dutt <ddutt@andiamo.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,7 @@
 
 #include <epan/packet.h>
 #include <epan/etypes.h>
+#include "packet-fc.h"
 
 #define BRDWLK_MAX_PACKET_CNT  0xFFFF
 #define BRDWLK_TRUNCATED_BIT   0x8
@@ -56,6 +55,9 @@
 #define FCM_DELIM_EOFRTI        0x0E
 #define FCM_DELIM_NOEOF         0xF0
 #define FCM_DELIM_EOFJUMBO      0xF1
+
+void proto_register_brdwlk(void);
+void proto_reg_handoff_brdwlk(void);
 
 static const value_string brdwlk_sof_vals[] = {
     {FCM_DELIM_SOFI1, "SOFi1"},
@@ -101,7 +103,6 @@ static gint proto_brdwlk = -1;
 static guint16 packet_count = 0;
 static gboolean first_pkt = TRUE;                /* start of capture */
 
-static dissector_handle_t data_handle;
 static dissector_handle_t fc_dissector_handle;
 
 
@@ -199,7 +200,7 @@ dissect_brdwlk_err(proto_tree *parent_tree, tvbuff_t *tvb, int offset)
     if (flags & 0x80) {
         proto_item_append_text(item, "  Ctrl Char Inside Frame");
     }
-    flags &= (~( 0x80 ));
+    /*flags &= (~( 0x80 ));*/
 }
 
 /* Code to actually dissect the packets */
@@ -217,21 +218,22 @@ dissect_brdwlk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     gint len, reported_len, plen;
     guint16 pkt_cnt;
     gboolean dropped_packets;
+    fc_data_t fc_data;
 
     /* Make entries in Protocol column and Info column on summary display */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "Boardwalk");
 
     col_clear(pinfo->cinfo, COL_INFO);
 
-    pinfo->vsan = (tvb_get_ntohs(tvb, offset) & 0xFFF);
     sof = (tvb_get_guint8(tvb, offset) & 0xF0) >> 4;
 
+    fc_data.sof_eof = 0;
     if ((sof == FCM_DELIM_SOFI3) || (sof == FCM_DELIM_SOFI2) || (sof == FCM_DELIM_SOFI1)
         || (sof == FCM_DELIM_SOFI4)) {
-        pinfo->sof_eof = PINFO_SOF_FIRST_FRAME;
+        fc_data.sof_eof = FC_DATA_SOF_FIRST_FRAME;
     }
     else if (sof == FCM_DELIM_SOFF) {
-        pinfo->sof_eof = PINFO_SOF_SOFF;
+        fc_data.sof_eof = FC_DATA_SOF_SOFF;
     }
 
     if (tree) {
@@ -292,7 +294,7 @@ dissect_brdwlk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
              * We therefore attach a non-null pointer as frame data to
              * any frame preceded by dropped packets.
              */
-            if (p_get_proto_data(pinfo->fd, proto_brdwlk) != NULL)
+            if (p_get_proto_data(wmem_file_scope(), pinfo, proto_brdwlk, 0) != NULL)
                 dropped_packets = TRUE;
         } else {
             /*
@@ -313,16 +315,16 @@ dissect_brdwlk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                      * packets.  (The data we use as the frame data doesn't
                      * matter - it just matters that it's non-null.)
                      */
-                    p_add_proto_data(pinfo->fd, proto_brdwlk, &packet_count);
+                    p_add_proto_data(wmem_file_scope(), pinfo, proto_brdwlk, 0, &packet_count);
                 }
             }
-
-            if (tree) {
-                hidden_item = proto_tree_add_boolean(brdwlk_tree, hf_brdwlk_drop,
-                                                     tvb, offset, 0, dropped_packets);
-                PROTO_ITEM_SET_HIDDEN(hidden_item);
-            }
         }
+        if (tree) {
+            hidden_item = proto_tree_add_boolean(brdwlk_tree, hf_brdwlk_drop,
+                                                     tvb, offset, 0, dropped_packets);
+            PROTO_ITEM_SET_HIDDEN(hidden_item);
+        }
+
         packet_count = pkt_cnt;
 
         error=tvb_get_guint8(tvb, offset+2);
@@ -330,10 +332,10 @@ dissect_brdwlk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
         eof = tvb_get_guint8(tvb, offset+3);
         if (eof != FCM_DELIM_EOFN) {
-            pinfo->sof_eof |= PINFO_EOF_LAST_FRAME;
+            fc_data.sof_eof |= FC_DATA_EOF_LAST_FRAME;
         }
         else if (eof != FCM_DELIM_EOFT) {
-            pinfo->sof_eof |= PINFO_EOF_INVALID;
+            fc_data.sof_eof |= FC_DATA_EOF_INVALID;
         }
 
         if (tree) {
@@ -362,10 +364,9 @@ dissect_brdwlk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         }
     }
 
+    fc_data.ethertype = ETHERTYPE_BRDWALK;
     next_tvb = tvb_new_subset(tvb, 2, len, reported_len);
-    if (fc_dissector_handle) {
-        call_dissector(fc_dissector_handle, next_tvb, pinfo, tree);
-    }
+    call_dissector_with_data(fc_dissector_handle, next_tvb, pinfo, tree, &fc_data);
 }
 
 static void
@@ -460,6 +461,5 @@ proto_reg_handoff_brdwlk(void)
     brdwlk_handle = create_dissector_handle(dissect_brdwlk, proto_brdwlk);
     dissector_add_uint("ethertype", ETHERTYPE_BRDWALK, brdwlk_handle);
     dissector_add_uint("ethertype", 0xABCD, brdwlk_handle);
-    data_handle = find_dissector("data");
     fc_dissector_handle = find_dissector("fc");
 }

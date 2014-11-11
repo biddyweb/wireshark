@@ -1,8 +1,6 @@
 /* packet-wreth.c
  * Functions for the WSE Remote Ethernet Dissector
  *
- * $Id$
- *
  * Dissector - WSE RemoteEthernet
  * By Clement Marrast <clement.marrast@molex.com>
  * Copyright 2012 Clement Marrast
@@ -26,6 +24,9 @@
 #include <epan/packet.h>
 
 #define WRETH_PORT 0xAAAA
+
+void proto_register_wreth(void);
+void proto_reg_handoff_wreth(void);
 
 static void dissect_wreth(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 static gint WrethIdentPacket(tvbuff_t *tvb, guint8 Offset, packet_info * pInfo, proto_tree * pWrethTree);
@@ -884,7 +885,7 @@ gint WrethIdentPacket(tvbuff_t *tvb, guint8 Offset, packet_info * pInfo, proto_t
     proto_tree_add_item(pWrethTree, hf_Wreth_IdentificationState, tvb, Offset + 12, 1, ENC_LITTLE_ENDIAN);
 
     /*Client MAC address*/
-    proto_tree_add_item(pWrethTree, hf_Wreth_IdentificationMacAddr, tvb, Offset + 13, 6, ENC_BIG_ENDIAN);
+    proto_tree_add_item(pWrethTree, hf_Wreth_IdentificationMacAddr, tvb, Offset + 13, 6, ENC_NA);
 
     col_set_str(pInfo->cinfo, COL_INFO, "Identification response");
 
@@ -1057,7 +1058,7 @@ gint WrethNackPacket(tvbuff_t *tvb, guint8 Offset, packet_info * pInfo, proto_tr
     guint16 ErrorCode;
 
     Size      = tvb_get_letohs(tvb,2);
-    ErrorCode = tvb_get_letohs(tvb,2);  /* XXX:  what offset should be used  ??  */
+    ErrorCode = tvb_get_letohs(tvb,8);
 
     if((Size != 0)&&(Size != 6))
     {
@@ -1071,7 +1072,7 @@ gint WrethNackPacket(tvbuff_t *tvb, guint8 Offset, packet_info * pInfo, proto_tr
 
     if(Size == 6)
     {
-        proto_tree_add_item(pWrethTree, hf_Wreth_IdentificationMacAddr, tvb, Offset, 6, ENC_BIG_ENDIAN);
+        proto_tree_add_item(pWrethTree, hf_Wreth_IdentificationMacAddr, tvb, Offset, 6, ENC_NA);
     }
 
     return Offset;
@@ -1181,7 +1182,7 @@ gint WrethMailDissection(tvbuff_t *tvb, guint8 Offset, packet_info * pInfo, prot
 
         col_add_fstr(pInfo->cinfo, COL_INFO, "Mail : Codef = Ox%X (%s), Status = %02d (%s), Card = %d, Chan = %d" ,
                      Codef,
-                     val_to_str_ext(Codef, &tabCodef_ext, "Unknown 0x%04x%"),
+                     val_to_str_ext(Codef, &tabCodef_ext, "Unknown 0x%04x"),
                      Status,
                      val_to_str_ext(Status, &tabStatus_ext, "Unknown %d"),
                      Card,

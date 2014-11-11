@@ -3,8 +3,6 @@
 #     a) common to both files and
 #     b) portable between both files
 #
-# $Id$
-#
 # Adapted by Gerhard Gappmeier for OpcUa
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
@@ -43,16 +41,19 @@ NONGENERATED_C_FILES = \
 	opcua_simpletypes.c \
 	opcua_servicetable.c \
 	opcua_extensionobjecttable.c \
-	opcua_hfindeces.c
+	opcua_hfindeces.c \
+	opcua_statuscode.c
 
 # Headers.
 CLEAN_HEADER_FILES = \
 	opcua_complextypeparser.h \
 	opcua_enumparser.h \
 	opcua_hfindeces.h \
+	opcua_statuscode.h \
 	opcua_identifiers.h \
 	opcua_serviceparser.h \
 	opcua_simpletypes.h \
+	opcua_servicetable.h \
 	opcua_application_layer.h \
 	opcua_security_layer.h \
 	opcua_transport_layer.h \

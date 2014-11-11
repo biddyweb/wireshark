@@ -3,8 +3,6 @@
  * Routines for Amateur Packet Radio protocol dissection
  * Copyright 2005,2006,2007,2008,2009,2010,2012 R.W. Stearn <richard@rns-stearn.demon.co.uk>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -43,6 +41,9 @@
 #include <epan/packet.h>
 #include <epan/ax25_pids.h>
 
+void proto_register_flexnet(void);
+void proto_reg_handoff_flexnet(void);
+
 #define FLEXNET_ADRLEN  15
 #define FLEXNET_CTLLEN  15
 #define FLEXNET_HDRLEN  (FLEXNET_ADRLEN + FLEXNET_ADRLEN + FLEXNET_CTLLEN)
@@ -60,7 +61,6 @@ static gint ett_flexnet_ctl = -1;
 static void
 dissect_flexnet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 {
-	void	   *saved_private_data;
 	tvbuff_t   *next_tvb;
 
 	col_set_str( pinfo->cinfo, COL_PROTOCOL, "Flexnet");
@@ -92,12 +92,8 @@ dissect_flexnet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 
 	/* Call sub-dissectors here */
 
-	saved_private_data = pinfo->private_data;
 	next_tvb = tvb_new_subset_remaining(tvb, FLEXNET_HDRLEN);
-
 	call_dissector( default_handle , next_tvb, pinfo, parent_tree );
-
-	pinfo->private_data = saved_private_data;
 }
 
 void

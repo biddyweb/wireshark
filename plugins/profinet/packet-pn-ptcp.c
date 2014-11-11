@@ -2,8 +2,6 @@
  * Routines for PN-PTCP (PROFINET Precision Time Clock Protocol)
  * packet dissection.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,7 +31,8 @@
 
 #include "packet-pn.h"
 
-
+void proto_register_pn_ptcp(void);
+void proto_reg_handoff_pn_ptcp(void);
 
 static int proto_pn_ptcp = -1;
 
@@ -153,11 +152,13 @@ static const value_string pn_ptcp_master_prio1_vals_active[] = {
     { 0, NULL }
 };
 
+#if 0
 static const value_string pn_ptcp_master_prio1_short_vals[] = {
     { 0x01, "Primary" },
     { 0x02, "Secondary" },
     { 0, NULL }
 };
+#endif
 
 static const value_string pn_ptcp_master_prio2_vals[] = {
     { 0xFF, "Default" },
@@ -344,7 +345,7 @@ dissect_PNPTCP_Master(tvbuff_t *tvb, int offset,
             ClockVariance);
     }
     else {
-        col_append_fstr(pinfo->cinfo, COL_INFO, " active");
+        col_append_str(pinfo->cinfo, COL_INFO, " active");
         proto_item_append_text(item, ": Prio1=\"%s\" is active, Prio2=%s, Clock: Class=\"%s\", Accuracy=%s, Variance=%d",
             val_to_str(MasterPriority1 & 0x7, pn_ptcp_master_prio1_vals, "(Reserved: 0x%x)"),
             val_to_str(MasterPriority2, pn_ptcp_master_prio2_vals, "(Reserved: 0x%x)"),
@@ -441,7 +442,7 @@ dissect_PNPTCP_Option_PROFINET(tvbuff_t *tvb, int offset,
 
     /* SubType */
     offset  = dissect_pn_uint8(tvb, offset, pinfo, tree, hf_pn_ptcp_profinet_subtype, &subType);
-    length -= 1;;
+    length -= 1;
 
     switch (subType) {
     case 1: /* RTData */

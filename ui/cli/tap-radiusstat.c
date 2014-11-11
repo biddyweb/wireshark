@@ -1,8 +1,6 @@
 /* tap-radiusstat.c
  * Copyright 2006 Alejandro Vaquero <alejandrovaquero@yahoo.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,14 +23,17 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet_info.h"
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
 #include "epan/value_string.h"
 #include <epan/dissectors/packet-radius.h>
-#include "timestats.h"
+#include "epan/timestats.h"
+
+void register_tap_listener_radiusstat(void);
 
 typedef enum _radius_category {
 	RADIUS_CAT_OVERALL = 0,
@@ -185,15 +186,15 @@ radiusstat_draw(void *prs)
 
 
 static void
-radiusstat_init(const char *optarg, void* userdata _U_)
+radiusstat_init(const char *opt_arg, void* userdata _U_)
 {
 	radiusstat_t *rs;
 	int i;
 	GString *error_string;
 
 	rs=g_new(radiusstat_t,1);
-	if(!strncmp(optarg,"radius,rtd,",11)){
-		rs->filter=g_strdup(optarg+11);
+	if(!strncmp(opt_arg,"radius,rtd,",11)){
+		rs->filter=g_strdup(opt_arg+11);
 	} else {
 		rs->filter=NULL;
 	}

@@ -2,8 +2,6 @@
  *
  * Copyright 2011-2013, QA Cafe <info@qacafe.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <glib.h>
 #include <epan/addr_resolv.h>
@@ -46,13 +45,15 @@
 #include <epan/tvbuff-int.h>
 
 #include "wsutil/file_util.h"
-#include "tempfile.h"
+#include "wsutil/tempfile.h"
 
 #ifdef SSL_PLUGIN
 #include "packet-ssl-utils.h"
 #else
 #include <epan/dissectors/packet-ssl-utils.h>
 #endif
+
+void register_tap_listener_follow(void);
 
 WS_DLL_PUBLIC FILE *data_out_file;
 
@@ -325,8 +326,9 @@ followUdpPacket(
   if (tvbp->length > 0)
   {
     memcpy(sc.src_addr, pip->net_src.data, pip->net_src.len);
-    sc.src_port = pip->srcport;
-    sc.dlen     = tvbp->length;
+    sc.src_port   = pip->srcport;
+    sc.dlen       = tvbp->length;
+    sc.packet_num = pip->fd->num;
 
     size = fwrite(&sc, 1, sizeof sc, fp->filep);
     if (sizeof sc != size)
@@ -353,7 +355,7 @@ followSslPacket(
   )
 {
   follow_t *            fp      = (follow_t *)contextp;
-  SslPacketInfo *       spip    = (SslPacketInfo *)p_get_proto_data(pip->fd, GPOINTER_TO_INT(datap));
+  SslPacketInfo *       spip    = (SslPacketInfo *)p_get_proto_data(wmem_file_scope(), pip, GPOINTER_TO_INT(datap), 0);
   SslDataInfo *         sdip;
   gint                  length;
   tcp_stream_chunk      sc;
@@ -387,8 +389,9 @@ followSslPacket(
   if (length > 0)
   {
     memcpy(sc.src_addr, pip->net_src.data, pip->net_src.len);
-    sc.src_port = pip->srcport;
-    sc.dlen     = length;
+    sc.src_port   = pip->srcport;
+    sc.dlen       = length;
+    sc.packet_num = pip->fd->num;
 
     size = fwrite(&sc, 1, sizeof sc, fp->filep);
     if (sizeof sc != size)
@@ -491,7 +494,7 @@ followDraw(
   void *        contextp
   )
 {
-  static const char     seperator[] =
+  static const char     separator[] =
     "===================================================================\n";
 
   follow_t *            fp      = (follow_t *)contextp;
@@ -581,7 +584,7 @@ followDraw(
     port[1] = fp->port[0];
   }
 
-  printf("\n%s", seperator);
+  printf("\n%s", separator);
   printf("Follow: %s,%s\n", followStrType(fp), followStrMode(fp));
   printf("Filter: %s\n", followStrFilter(fp));
 
@@ -662,7 +665,7 @@ followDraw(
               data[ii] = bin[ii];
             break;
             default:
-              data[ii] = isprint(bin[ii]) ? bin[ii] : '.';
+              data[ii] = g_ascii_isprint(bin[ii]) ? bin[ii] : '.';
               break;
             }
           }
@@ -711,22 +714,22 @@ followDraw(
 
 done:
 
-  printf("%s", seperator);
+  printf("%s", separator);
 
   followFileClose(fp);
 }
 
 static gboolean
 followArgStrncmp(
-  const char ** optargp,
+  const char ** opt_argp,
   const char *  strp
   )
 {
   int           len     = (guint32)strlen(strp);
 
-  if (strncmp(*optargp, strp, len) == 0)
+  if (strncmp(*opt_argp, strp, len) == 0)
   {
-    *optargp += len;
+    *opt_argp += len;
     return TRUE;
   }
   return FALSE;
@@ -734,19 +737,19 @@ followArgStrncmp(
 
 static void
 followArgMode(
-  const char ** optargp,
+  const char ** opt_argp,
   follow_t *    fp
   )
 {
-  if (followArgStrncmp(optargp, STR_HEX))
+  if (followArgStrncmp(opt_argp, STR_HEX))
   {
     fp->mode = mode_HEX;
   }
-  else if (followArgStrncmp(optargp, STR_ASCII))
+  else if (followArgStrncmp(opt_argp, STR_ASCII))
   {
     fp->mode = mode_ASCII;
   }
-  else if (followArgStrncmp(optargp, STR_RAW))
+  else if (followArgStrncmp(opt_argp, STR_RAW))
   {
     fp->mode = mode_RAW;
   }
@@ -758,7 +761,7 @@ followArgMode(
 
 static void
 followArgFilter(
-  const char ** optargp,
+  const char ** opt_argp,
   follow_t *    fp
   )
 {
@@ -774,17 +777,17 @@ followArgFilter(
   unsigned int  ii;
   char          addr[ADDR_LEN];
 
-  if (sscanf(*optargp, ",%u%n", &fp->index, &len) == 1 &&
-      ((*optargp)[len] == 0 || (*optargp)[len] == ','))
+  if (sscanf(*opt_argp, ",%u%n", &fp->index, &len) == 1 &&
+      ((*opt_argp)[len] == 0 || (*opt_argp)[len] == ','))
   {
-    *optargp += len;
+    *opt_argp += len;
   }
   else
   {
     for (ii = 0; ii < sizeof fp->addr/sizeof *fp->addr; ii++)
     {
-      if ((sscanf(*optargp, ADDRv6_FMT, addr, &fp->port[ii], &len) != 2 &&
-           sscanf(*optargp, ADDRv4_FMT, addr, &fp->port[ii], &len) != 2) ||
+      if ((sscanf(*opt_argp, ADDRv6_FMT, addr, &fp->port[ii], &len) != 2 &&
+           sscanf(*opt_argp, ADDRv4_FMT, addr, &fp->port[ii], &len) != 2) ||
           fp->port[ii] <= 0 || fp->port[ii] > G_MAXUINT16)
       {
         followExit("Invalid address:port pair.");
@@ -807,7 +810,7 @@ followArgFilter(
         SET_ADDRESS(&fp->addr[ii], AT_IPv4, 4, fp->addrBuf[ii]);
       }
 
-      *optargp += len;
+      *opt_argp += len;
     }
 
     if (fp->addr[0].type != fp->addr[1].type)
@@ -820,27 +823,27 @@ followArgFilter(
 
 static void
 followArgRange(
-  const char ** optargp,
+  const char ** opt_argp,
   follow_t *    fp
   )
 {
   int           len;
 
-  if (**optargp == 0)
+  if (**opt_argp == 0)
   {
     fp->chunkMin = 1;
     fp->chunkMax = G_MAXUINT32;
   }
   else
   {
-    if (sscanf(*optargp, ",%u-%u%n",  &fp->chunkMin, &fp->chunkMax, &len) == 2)
+    if (sscanf(*opt_argp, ",%u-%u%n",  &fp->chunkMin, &fp->chunkMax, &len) == 2)
     {
-      *optargp += len;
+      *opt_argp += len;
     }
-    else if (sscanf(*optargp, ",%u%n", &fp->chunkMin, &len) == 1)
+    else if (sscanf(*opt_argp, ",%u%n", &fp->chunkMin, &len) == 1)
     {
       fp->chunkMax = fp->chunkMin;
-      *optargp += len;
+      *opt_argp += len;
     }
     else
     {
@@ -856,10 +859,10 @@ followArgRange(
 
 static void
 followArgDone(
-  const char * optargp
+  const char * opt_argp
   )
 {
-  if (*optargp != 0)
+  if (*opt_argp != 0)
   {
     followExit("Invalid parameter.");
   }
@@ -867,21 +870,21 @@ followArgDone(
 
 static void
 followTcp(
-  const char *  optargp,
+  const char *  opt_argp,
   void *        userdata _U_
   )
 {
   follow_t *    fp;
   GString *     errp;
 
-  optargp += strlen(STR_FOLLOW_TCP);
+  opt_argp += strlen(STR_FOLLOW_TCP);
 
   fp = followAlloc(type_TCP);
 
-  followArgMode(&optargp, fp);
-  followArgFilter(&optargp, fp);
-  followArgRange(&optargp, fp);
-  followArgDone(optargp);
+  followArgMode(&opt_argp, fp);
+  followArgFilter(&opt_argp, fp);
+  followArgRange(&opt_argp, fp);
+  followArgDone(opt_argp);
 
   reset_tcp_reassembly();
   if (fp->index != G_MAXUINT32)
@@ -908,27 +911,27 @@ followTcp(
   {
     followFree(fp);
     g_string_free(errp, TRUE);
-    followExit("Error registering tcp tap listner.");
+    followExit("Error registering tcp tap listener.");
   }
 }
 
 static void
 followUdp(
-  const char *  optargp,
+  const char *  opt_argp,
   void *        userdata _U_
   )
 {
   follow_t *    fp;
   GString *     errp;
 
-  optargp += strlen(STR_FOLLOW_UDP);
+  opt_argp += strlen(STR_FOLLOW_UDP);
 
   fp = followAlloc(type_UDP);
 
-  followArgMode(&optargp, fp);
-  followArgFilter(&optargp, fp);
-  followArgRange(&optargp, fp);
-  followArgDone(optargp);
+  followArgMode(&opt_argp, fp);
+  followArgFilter(&opt_argp, fp);
+  followArgRange(&opt_argp, fp);
+  followArgDone(opt_argp);
 
   if (fp->index != G_MAXUINT32)
   {
@@ -949,21 +952,21 @@ followUdp(
 
 static void
 followSsl(
-  const char *  optargp,
+  const char *  opt_argp,
   void *        userdata _U_
   )
 {
   follow_t *    fp;
   GString *     errp;
 
-  optargp += strlen(STR_FOLLOW_SSL);
+  opt_argp += strlen(STR_FOLLOW_SSL);
 
   fp = followAlloc(type_SSL);
 
-  followArgMode(&optargp, fp);
-  followArgFilter(&optargp, fp);
-  followArgRange(&optargp, fp);
-  followArgDone(optargp);
+  followArgMode(&opt_argp, fp);
+  followArgFilter(&opt_argp, fp);
+  followArgRange(&opt_argp, fp);
+  followArgDone(opt_argp);
 
   if (fp->index == G_MAXUINT32)
   {
@@ -978,7 +981,7 @@ followSsl(
   {
     followFree(fp);
     g_string_free(errp, TRUE);
-    followExit("Error registering ssl tap listner.");
+    followExit("Error registering ssl tap listener.");
   }
 }
 

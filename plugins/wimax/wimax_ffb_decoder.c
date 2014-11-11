@@ -5,8 +5,6 @@
  *
  * Author: Lu Pan <lu.pan@intel.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1999 Gerald Combs
@@ -34,6 +32,8 @@
 #include <epan/packet.h>
 
 extern gint proto_wimax;
+
+void proto_register_wimax_ffb(void);
 
 static gint proto_wimax_ffb_decoder = -1;
 static gint ett_wimax_ffb_decoder = -1;

@@ -1,7 +1,5 @@
 /* packet-usb-masstorage.c
  *
- * $Id$
- *
  * usb mass storage dissector
  * Ronnie Sahlberg 2006
  *
@@ -25,10 +23,13 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/conversation.h>
 #include "packet-usb.h"
 #include "packet-scsi.h"
+
+void proto_register_usb_ms(void);
+void proto_reg_handoff_usb_ms(void);
 
 /* protocols and header fields */
 static int proto_usb_ms = -1;
@@ -52,8 +53,8 @@ static gint ett_usb_ms = -1;
 
 /* there is one such structure for each masstorage conversation */
 typedef struct _usb_ms_conv_info_t {
-    emem_tree_t *itl;		/* indexed by LUN */
-    emem_tree_t *itlq;		/* pinfo->fd->num */
+    wmem_tree_t *itl;		/* indexed by LUN */
+    wmem_tree_t *itlq;		/* pinfo->fd->num */
 } usb_ms_conv_info_t;
 
 
@@ -123,28 +124,28 @@ static const value_string setup_request_names_vals[] = {
 };
 
 /* Dissector for mass storage control .
- * Returns TRUE if a class specific dissector was found
- * and FALSE othervise.
+ * Returns tvb_length(tvb) if a class specific dissector was found
+ * and 0 othervise.
  */
 static gint
-dissect_usb_ms_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_usb_ms_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
     gboolean is_request;
     usb_conv_info_t *usb_conv_info;
     usb_trans_info_t *usb_trans_info;
     int offset=0;
-    usb_setup_dissector dissector;
+    usb_setup_dissector dissector = NULL;
     const usb_setup_dissector_table_t *tmp;
 
+    /* Reject the packet if data or usb_trans_info are NULL */
+    if (data == NULL || ((usb_conv_info_t *)data)->usb_trans_info == NULL)
+        return 0;
+    usb_conv_info = (usb_conv_info_t *)data;
+    usb_trans_info = usb_conv_info->usb_trans_info;
 
     is_request=(pinfo->srcport==NO_ENDPOINT);
 
-    usb_conv_info=pinfo->usb_conv_info;
-    usb_trans_info=usb_conv_info->usb_trans_info;
-
-
     /* See if we can find a class specific dissector for this request */
-    dissector=NULL;
     for(tmp=setup_dissectors;tmp->dissector;tmp++){
         if (tmp->request == usb_trans_info->setup.request){
             dissector=tmp->dissector;
@@ -152,20 +153,17 @@ dissect_usb_ms_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void
         }
     }
     /* No we could not find any class specific dissector for this request
-     * return FALSE and let USB try any of the standard requests.
+     * return 0 and let USB try any of the standard requests.
      */
     if(!dissector){
-        return FALSE;
+        return 0;
     }
-
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "USBMS");
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s",
-            val_to_str(usb_trans_info->setup.request, setup_request_names_vals, "Unknown type %x"),
-            is_request?"Request":"Response");
-    }
+    col_add_fstr(pinfo->cinfo, COL_INFO, "%s %s",
+        val_to_str(usb_trans_info->setup.request, setup_request_names_vals, "Unknown type %x"),
+        is_request?"Request":"Response");
 
     if(is_request){
         proto_tree_add_item(tree, hf_usb_ms_request, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -173,13 +171,13 @@ dissect_usb_ms_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void
     }
 
     dissector(pinfo, tree, tvb, offset, is_request, usb_trans_info, usb_conv_info);
-    return TRUE;
+    return tvb_length(tvb);
 }
 
 
 /* dissector for mass storage bulk data */
-static void
-dissect_usb_ms_bulk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_usb_ms_bulk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data)
 {
     usb_conv_info_t *usb_conv_info;
     usb_ms_conv_info_t *usb_ms_conv_info;
@@ -190,13 +188,17 @@ dissect_usb_ms_bulk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
     itl_nexus_t *itl;
     itlq_nexus_t *itlq;
 
-    usb_conv_info=pinfo->usb_conv_info;
+    /* Reject the packet if data is NULL */
+    if (data == NULL)
+        return 0;
+    usb_conv_info = (usb_conv_info_t *)data;
+
     /* verify that we do have a usb_ms_conv_info */
-    usb_ms_conv_info=usb_conv_info->class_data;
+    usb_ms_conv_info=(usb_ms_conv_info_t *)usb_conv_info->class_data;
     if(!usb_ms_conv_info){
-        usb_ms_conv_info=se_alloc(sizeof(usb_ms_conv_info_t));
-        usb_ms_conv_info->itl=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "USB ITL");
-        usb_ms_conv_info->itlq=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "USB ITLQ");
+        usb_ms_conv_info=wmem_new(wmem_file_scope(), usb_ms_conv_info_t);
+        usb_ms_conv_info->itl=wmem_tree_new(wmem_file_scope());
+        usb_ms_conv_info->itlq=wmem_tree_new(wmem_file_scope());
         usb_conv_info->class_data=usb_ms_conv_info;
     }
 
@@ -251,18 +253,18 @@ dissect_usb_ms_bulk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
         offset+=1;
 
         /* make sure we have a ITL structure for this LUN */
-        itl=(itl_nexus_t *)se_tree_lookup32(usb_ms_conv_info->itl, lun);
+        itl=(itl_nexus_t *)wmem_tree_lookup32(usb_ms_conv_info->itl, lun);
         if(!itl){
-            itl=se_alloc(sizeof(itl_nexus_t));
+            itl=wmem_new(wmem_file_scope(), itl_nexus_t);
             itl->cmdset=0xff;
             itl->conversation=NULL;
-            se_tree_insert32(usb_ms_conv_info->itl, lun, itl);
+            wmem_tree_insert32(usb_ms_conv_info->itl, lun, itl);
         }
 
         /* make sure we have an ITLQ structure for this LUN/transaction */
-        itlq=(itlq_nexus_t *)se_tree_lookup32(usb_ms_conv_info->itlq, pinfo->fd->num);
+        itlq=(itlq_nexus_t *)wmem_tree_lookup32(usb_ms_conv_info->itlq, pinfo->fd->num);
         if(!itlq){
-            itlq=se_alloc(sizeof(itlq_nexus_t));
+            itlq=wmem_new(wmem_file_scope(), itlq_nexus_t);
             itlq->lun=lun;
             itlq->scsi_opcode=0xffff;
             itlq->task_flags=0;
@@ -281,7 +283,7 @@ dissect_usb_ms_bulk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
             itlq->flags=0;
             itlq->alloc_len=0;
             itlq->extra_data=NULL;
-            se_tree_insert32(usb_ms_conv_info->itlq, pinfo->fd->num, itlq);
+            wmem_tree_insert32(usb_ms_conv_info->itlq, pinfo->fd->num, itlq);
         }
 
         /* dCBWCBLength */
@@ -297,7 +299,7 @@ dissect_usb_ms_bulk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
             cdb_tvb=tvb_new_subset(tvb, offset, cdblen, cdbrlen);
             dissect_scsi_cdb(cdb_tvb, pinfo, parent_tree, SCSI_DEV_UNKNOWN, itlq, itl);
         }
-        return;
+        return tvb_length(tvb);
     }
 
 
@@ -324,15 +326,15 @@ dissect_usb_ms_bulk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
         status=tvb_get_guint8(tvb, offset);
         /*offset+=1;*/
 
-        itlq=(itlq_nexus_t *)se_tree_lookup32_le(usb_ms_conv_info->itlq, pinfo->fd->num);
+        itlq=(itlq_nexus_t *)wmem_tree_lookup32_le(usb_ms_conv_info->itlq, pinfo->fd->num);
         if(!itlq){
-            return;
+            return tvb_length(tvb);
         }
         itlq->last_exchange_frame=pinfo->fd->num;
 
-        itl=(itl_nexus_t *)se_tree_lookup32(usb_ms_conv_info->itl, itlq->lun);
+        itl=(itl_nexus_t *)wmem_tree_lookup32(usb_ms_conv_info->itl, itlq->lun);
         if(!itl){
-            return;
+            return tvb_length(tvb);
         }
 
         if(!status){
@@ -341,28 +343,28 @@ dissect_usb_ms_bulk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
             /* just send "check condition" */
             dissect_scsi_rsp(tvb, pinfo, parent_tree, itlq, itl, 0x02);
         }
-        return;
+        return tvb_length(tvb);
     }
 
     /*
      * Ok it was neither CDB not STATUS so just assume it is either data in/out
      */
-    itlq=(itlq_nexus_t *)se_tree_lookup32_le(usb_ms_conv_info->itlq, pinfo->fd->num);
+    itlq=(itlq_nexus_t *)wmem_tree_lookup32_le(usb_ms_conv_info->itlq, pinfo->fd->num);
     if(!itlq){
-        return;
+        return tvb_length(tvb);
     }
 
-    itl=(itl_nexus_t *)se_tree_lookup32(usb_ms_conv_info->itl, itlq->lun);
+    itl=(itl_nexus_t *)wmem_tree_lookup32(usb_ms_conv_info->itl, itlq->lun);
     if(!itl){
-        return;
+        return tvb_length(tvb);
     }
 
     dissect_scsi_payload(tvb, pinfo, parent_tree, is_request, itlq, itl, 0);
-
+    return tvb_length(tvb);
 }
 
 static gboolean
-dissect_usb_ms_bulk_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
+dissect_usb_ms_bulk_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
     const gchar usbc[] = {0x55, 0x53, 0x42, 0x43};
     const gchar usbs[] = {0x55, 0x53, 0x42, 0x53};
@@ -371,7 +373,7 @@ dissect_usb_ms_bulk_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, vo
 
     if (tvb_memeql(tvb, 0, usbc, sizeof(usbc)) == 0 ||
         tvb_memeql(tvb, 0, usbs, sizeof(usbs)) == 0) {
-        dissect_usb_ms_bulk(tvb, pinfo, tree);
+        dissect_usb_ms_bulk(tvb, pinfo, tree, data);
         return TRUE;
     }
 
@@ -449,7 +451,7 @@ proto_register_usb_ms(void)
     proto_register_field_array(proto_usb_ms, hf, array_length(hf));
     proto_register_subtree_array(usb_ms_subtrees, array_length(usb_ms_subtrees));
 
-    register_dissector("usbms", dissect_usb_ms_bulk, proto_usb_ms);
+    new_register_dissector("usbms", dissect_usb_ms_bulk, proto_usb_ms);
 }
 
 void

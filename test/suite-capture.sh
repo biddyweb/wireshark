@@ -2,8 +2,6 @@
 #
 # Test the capture engine of the Wireshark tools
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 2005 Ulf Lamping
@@ -29,7 +27,7 @@ EXIT_OK=0
 EXIT_COMMAND_LINE=1
 EXIT_ERROR=2
 
-WIRESHARK_CMD="$WIRESHARK -k"
+WIRESHARK_CMD="$WIRESHARK -o gui.update.enabled:FALSE -k"
 
 capture_test_output_print() {
 	wait
@@ -317,7 +315,7 @@ capture_step_read_filter() {
 	$DUT -i $TRAFFIC_CAPTURE_IFACE $TRAFFIC_CAPTURE_PROMISC \
 		-w ./testout.pcap \
 		-a duration:$TRAFFIC_CAPTURE_DURATION \
-		-R 'dcerpc.cn_call_id==123456' \
+		-2 -R 'dcerpc.cn_call_id==123456' \
 		-c 10 \
 		-f icmp \
 		>> ./testout.txt 2>&1
@@ -389,7 +387,7 @@ capture_step_snapshot() {
 	fi
 
 	# use tshark to filter out all packets, which are larger than 68 bytes
-	$TSHARK -r ./testout.pcap -w ./testout2.pcap -R 'frame.cap_len>68' > ./testout.txt 2>&1
+	$TSHARK -r ./testout.pcap -w ./testout2.pcap -Y 'frame.cap_len>68' > ./testout.txt 2>&1
 	if [ $? -ne 0 ]; then
 		echo
 		capture_test_output_print ./testout.txt
@@ -413,6 +411,23 @@ capture_step_snapshot() {
 wireshark_capture_suite() {
 	# k: start capture immediately
 	# WIRESHARK_QUIT_AFTER_CAPTURE needs to be set.
+
+	#
+	# NOTE: if, on OS X, we start using a native-Quartz toolkit,
+	# this would need to change to check for WS_SYSTEM being
+	# "Darwin" and, if it is, check whether the standard output
+	# of "launchctl managername" is "Aqua".
+	#
+	# This may not do the right thing if we use toolkits that
+	# use Wayland or Mir directly, unless they also depend on
+	# the DISPLAY environment variable.
+	#
+	if [[ $WS_SYSTEM != Windows ]] && [ -z "$DISPLAY" ]; then
+		echo -n ' (X server not available)'
+		test_step_skipped
+		return
+	fi
+
 	DUT="$WIRESHARK_CMD"
 	test_step_add "Capture 10 packets" capture_step_10packets
 	# piping to stdout doesn't work with Wireshark and capturing!
@@ -483,4 +498,3 @@ capture_suite() {
 # vi: set shiftwidth=8 tabstop=8 noexpandtab:
 # :indentSize=8:tabSize=8:noTabs=false:
 #
-

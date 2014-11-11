@@ -1,8 +1,6 @@
 /* goto_dlg.c
  * Routines for "go to packet" window
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,8 @@
 #include "config.h"
 
 #include <gtk/gtk.h>
+
+#include <stdlib.h>
 
 #include <epan/proto.h>
 

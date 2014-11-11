@@ -2,8 +2,6 @@
  *
  * Laurent Deniel <laurent.deniel@free.fr>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2000 Gerald Combs
@@ -149,7 +147,7 @@ void supported_cb(GtkWidget *w _U_, gpointer data _U_)
   gtk_box_pack_end(GTK_BOX(main_vb), bbox, FALSE, FALSE, 0);
   gtk_widget_show(bbox);
 
-  ok_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+  ok_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
   window_set_cancel_button(supported_w, ok_bt, window_cancel_button_cb);
 
   g_signal_connect(supported_w, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
@@ -257,9 +255,9 @@ static void set_supported_text(GtkWidget *w, supported_type_t type)
          i = proto_get_next_protocol(&cookie)) {
 
 	    for (hfinfo = proto_get_first_protocol_field(i, &cookie2); hfinfo != NULL;
-		 hfinfo = proto_get_next_protocol_field(&cookie2)) {
+		 hfinfo = proto_get_next_protocol_field(i, &cookie2)) {
 
-		    if (hfinfo->same_name_prev != NULL) /* ignore duplicate names */
+		    if (hfinfo->same_name_prev_id != -1) /* ignore duplicate names */
 			    continue;
 
 		    if ((len = (int) strlen(hfinfo->abbrev)) > maxlen)
@@ -285,9 +283,9 @@ static void set_supported_text(GtkWidget *w, supported_type_t type)
 
 	    count = 0;
 	    for (hfinfo = proto_get_first_protocol_field(i, &cookie2); hfinfo != NULL;
-		 hfinfo = proto_get_next_protocol_field(&cookie2)) {
+		 hfinfo = proto_get_next_protocol_field(i, &cookie2)) {
 
-		    if (hfinfo->same_name_prev != NULL) /* ignore duplicate names */
+		    if (hfinfo->same_name_prev_id != -1) /* ignore duplicate names */
 			    continue;
 		    count++;
 	    }
@@ -298,9 +296,9 @@ static void set_supported_text(GtkWidget *w, supported_type_t type)
 	    insert_text(w, buffer, len);
 
 	    for (hfinfo = proto_get_first_protocol_field(i, &cookie2); hfinfo != NULL;
-		 hfinfo = proto_get_next_protocol_field(&cookie2)) {
+		 hfinfo = proto_get_next_protocol_field(i, &cookie2)) {
 
-		    if (hfinfo->same_name_prev != NULL) /* ignore duplicate names */
+		    if (hfinfo->same_name_prev_id != -1) /* ignore duplicate names */
 			    continue;
 
 		    type_name = ftype_pretty_name(hfinfo->type);

@@ -5,8 +5,6 @@
  * http://tools.ietf.org/html/rfc5444
  * http://tools.ietf.org/html/rfc5498
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,9 @@
 #include <epan/uat.h>
 
 #include <string.h>
+
+void proto_reg_handoff_packetbb(void);
+void proto_register_packetbb(void);
 
 #define PACKET_HEADER_HASSEQNR     0x08
 #define PACKET_HEADER_HASTLV       0x04

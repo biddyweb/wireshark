@@ -5,8 +5,6 @@
  * 	3GPP TS 31.102
  * Copyright 2010-2011 by Harald Welte <laforge@gnumonks.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,6 +32,9 @@
 #include <epan/emem.h>
 #include <epan/lapd_sapi.h>
 #include <epan/prefs.h>
+
+void proto_register_gsm_sim(void);
+void proto_reg_handoff_gsm_sim(void);
 
 static int proto_gsm_sim = -1;
 
@@ -89,6 +90,7 @@ static int hf_tprof_b28 = -1;
 static int hf_tprof_b29 = -1;
 static int hf_tprof_b30 = -1;
 static int hf_tprof_b31 = -1;
+static int hf_tprof_b32 = -1;
 /* First byte */
 static int hf_tp_prof_dld = -1;
 static int hf_tp_sms_data_dld = -1;
@@ -305,6 +307,13 @@ static int hf_tp_cat_over_modem_itf = -1;
 static int hf_tp_evt_incoming_data_ims = -1;
 static int hf_tp_evt_ims_registration = -1;
 static int hf_tp_pa_prof_env_cont = -1;
+/* 32th byte */
+static int hf_tp_bip_ims = -1;
+static int hf_tp_pa_prov_loci_henb_ip_addr = -1;
+static int hf_tp_pa_prov_loci_henb_surround_macro = -1;
+static int hf_tp_launch_params_support_open_chan_server_mode = -1;
+static int hf_tp_direct_com_support_open_chan_server_mode = -1;
+static int hf_tp_rfu11 = -1;
 
 static int hf_cat_ber_tag = -1;
 
@@ -344,6 +353,7 @@ static int ett_tprof_b28 = -1;
 static int ett_tprof_b29 = -1;
 static int ett_tprof_b30 = -1;
 static int ett_tprof_b31 = -1;
+static int ett_tprof_b32 = -1;
 
 static dissector_handle_t sub_handle_cap;
 
@@ -654,6 +664,16 @@ static const int *tprof_b31_fields[] = {
 	NULL
 };
 
+static const int *tprof_b32_fields[] = {
+	&hf_tp_bip_ims,
+	&hf_tp_pa_prov_loci_henb_ip_addr,
+	&hf_tp_pa_prov_loci_henb_surround_macro,
+	&hf_tp_launch_params_support_open_chan_server_mode,
+	&hf_tp_direct_com_support_open_chan_server_mode,
+	&hf_tp_rfu11,
+	NULL
+};
+
 /* According to Section 7.2 of ETSI TS 101 220 / Chapter 7.2 */
 /* BER-TLV tag CAT templates */
 static const value_string ber_tlv_cat_tag_vals[] = {
@@ -753,6 +773,9 @@ static const value_string mf_dfs[] = {
 	{ 0x7f20, "DF.GSM" },
 	{ 0x7f22, "DF.IS-41" },
 	{ 0x7f23, "DF.FP-CTS" },
+	{ 0x7f31, "DF.iDEN" },
+	{ 0x7f80, "DF.PDC" },
+	{ 0x7f90, "DF.TETRA" },
 	{ 0x7fff, "ADF" },
 #if 0
 	{ 0, NULL }
@@ -999,7 +1022,7 @@ static const value_string sw_vals[] = {
 	{ 0x9810, "In contradiction with invalidation status" },
 	{ 0x9840, "Unsuccessful CHV verification, no attempt left / CHV blocked" },
 	{ 0x9850, "Increase cannot be performed, max value reached" },
-	{ 0x6b00, "Incorrect paramaeter P1 or P2" },
+	{ 0x6b00, "Incorrect parameter P1 or P2" },
 	/* Section 10.2.1.3 of TS 102 221 */
 	{ 0x6200, "Warning: No information given, state of volatile memory unchanged" },
 	{ 0x6281, "Warning: Part of returned data may be corrupted" },
@@ -1080,7 +1103,7 @@ dissect_bertlv(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	unsigned int pos = 0;
 
-	while (pos < tvb_length(tvb)) {
+	while (pos < tvb_reported_length(tvb)) {
 		guint8 tag;
 		guint32 len;
 		tvbuff_t *subtvb;
@@ -1089,6 +1112,8 @@ dissect_bertlv(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 		/* FIXME: properly follow BER coding rules */
 		tag = tvb_get_guint8(tvb, pos++);
+		col_append_fstr(pinfo->cinfo, COL_INFO, "%s ",
+				val_to_str(tag, ber_tlv_cat_tag_vals, "%02x "));
 		len = tvb_get_guint8(tvb, pos++);
 		switch (len) {
 		case 0x81:
@@ -1112,7 +1137,7 @@ dissect_bertlv(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		case 0xD1:	/* sms-pp download */
 		case 0xD6:	/* event download */
 		case 0xD7:	/* timer expiration */
-			call_dissector(sub_handle_cap, subtvb, pinfo, tree);
+			call_dissector_with_data(sub_handle_cap, subtvb, pinfo, tree, GUINT_TO_POINTER((guint)tag));
 			break;
 		}
 
@@ -1148,16 +1173,16 @@ dissect_gsm_apdu(guint8 ins, guint8 p1, guint8 p2, guint8 p3, tvbuff_t *tvb,
 			break;
 		switch (p1) {
 		case 0x03:	/* parent DF */
-			col_append_fstr(pinfo->cinfo, COL_INFO, "Parent DF ");
+			col_append_str(pinfo->cinfo, COL_INFO, "Parent DF ");
 			break;
 		case 0x04:	/* select by AID */
 			col_append_fstr(pinfo->cinfo, COL_INFO, "Application %s ",
-					tvb_bytes_to_str(tvb, offset+DATA_OFFS, p3));
+					tvb_bytes_to_ep_str(tvb, offset+DATA_OFFS, p3));
 			proto_tree_add_item(tree, hf_aid, tvb, offset+DATA_OFFS, p3, ENC_NA);
 			break;
 
 		case 0x09:	/* select by relative path */
-			col_append_fstr(pinfo->cinfo, COL_INFO, ".");
+			col_append_str(pinfo->cinfo, COL_INFO, ".");
 			/* fallthrough */
 		case 0x08:	/* select by absolute path */
 			for (i = 0; i < p3; i += 2) {
@@ -1166,7 +1191,7 @@ dissect_gsm_apdu(guint8 ins, guint8 p1, guint8 p2, guint8 p3, tvbuff_t *tvb,
 						val_to_str(g16, mf_dfs, "%04x"));
 				proto_tree_add_item(tree, hf_file_id, tvb, offset+DATA_OFFS+i, 2, ENC_BIG_ENDIAN);
 			}
-			col_append_fstr(pinfo->cinfo, COL_INFO, " ");
+			col_append_str(pinfo->cinfo, COL_INFO, " ");
 			break;
 		default:
 			g16 = tvb_get_ntohs(tvb, offset+DATA_OFFS);
@@ -1272,6 +1297,7 @@ dissect_gsm_apdu(guint8 ins, guint8 p1, guint8 p2, guint8 p3, tvbuff_t *tvb,
 		ADD_TP_BYTE(29);
 		ADD_TP_BYTE(30);
 		ADD_TP_BYTE(31);
+		ADD_TP_BYTE(32);
 		break;
 	case 0x12: /* FETCH */
 		proto_tree_add_item(tree, hf_le, tvb, offset+P3_OFFS, 1, ENC_BIG_ENDIAN);
@@ -1282,7 +1308,7 @@ dissect_gsm_apdu(guint8 ins, guint8 p1, guint8 p2, guint8 p3, tvbuff_t *tvb,
 		break;
 	case 0x14: /* TERMINAL RESPONSE */
 		subtvb = tvb_new_subset(tvb, offset+DATA_OFFS, p3, p3);
-		call_dissector(sub_handle_cap, subtvb, pinfo, tree);
+		call_dissector_with_data(sub_handle_cap, subtvb, pinfo, tree, GUINT_TO_POINTER(0x14));
 		break;
 	case 0x70: /* MANAGE CHANNEL */
 		proto_tree_add_item(tree, hf_chan_op, tvb, offset-3, 1, ENC_BIG_ENDIAN);
@@ -1328,7 +1354,7 @@ dissect_rsp_apdu_tvb(tvbuff_t *tvb, gint offset, packet_info *pinfo, proto_tree 
 {
 	guint16 sw;
 	proto_item *ti;
-	guint tvb_len = tvb_length(tvb);
+	guint tvb_len = tvb_reported_length(tvb);
 
 	if (tree && !sim_tree) {
 		ti = proto_tree_add_item(tree, proto_gsm_sim, tvb, 0, -1, ENC_NA);
@@ -1370,7 +1396,7 @@ dissect_cmd_apdu_tvb(tvbuff_t *tvb, gint offset, packet_info *pinfo, proto_tree 
 	proto_item *ti;
 	proto_tree *sim_tree = NULL;
 	gint rc = -1;
-	guint tvb_len = tvb_length(tvb);
+	guint tvb_len = tvb_reported_length(tvb);
 
 	cla = tvb_get_guint8(tvb, offset);
 	ins = tvb_get_guint8(tvb, offset+1);
@@ -1398,7 +1424,7 @@ dissect_cmd_apdu_tvb(tvbuff_t *tvb, gint offset, packet_info *pinfo, proto_tree 
 		proto_tree_add_item(sim_tree, hf_apdu_p1, tvb, offset+0, 1, ENC_BIG_ENDIAN);
 		proto_tree_add_item(sim_tree, hf_apdu_p2, tvb, offset+1, 1, ENC_BIG_ENDIAN);
 		proto_tree_add_item(sim_tree, hf_apdu_p3, tvb, offset+2, 1, ENC_BIG_ENDIAN);
-		if (p3 && (p3 <= tvb_length_remaining(tvb, offset+3))) {
+		if (p3 && (p3 <= tvb_reported_length_remaining(tvb, offset+3))) {
 			proto_tree_add_item(sim_tree, hf_apdu_data, tvb, offset+3, p3, ENC_NA);
 		}
 	}
@@ -1414,23 +1440,23 @@ dissect_cmd_apdu_tvb(tvbuff_t *tvb, gint offset, packet_info *pinfo, proto_tree 
 static void
 dissect_gsm_sim(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
+	col_set_str(pinfo->cinfo, COL_PROTOCOL, "GSM SIM");
 	dissect_cmd_apdu_tvb(tvb, 0, pinfo, tree, TRUE);
 }
 
 static void
 dissect_gsm_sim_command(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
+	col_set_str(pinfo->cinfo, COL_PROTOCOL, "GSM SIM");
 	dissect_cmd_apdu_tvb(tvb, 0, pinfo, tree, FALSE);
 }
 
 static void
 dissect_gsm_sim_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
+	col_set_str(pinfo->cinfo, COL_PROTOCOL, "GSM SIM");
 	dissect_rsp_apdu_tvb(tvb, 0, pinfo, tree, NULL);
 }
-
-void
-proto_reg_handoff_gsm_sim(void);
 
 void
 proto_register_gsm_sim(void)
@@ -1616,6 +1642,7 @@ proto_register_gsm_sim(void)
 			  FT_BOOLEAN, 8, TFS(&tfs_supported_not_supported), 0x80,
 			  "TP Display of the Extension Text", HFILL }
 		},
+
 		/* Terminal Profile Byte 3 */
 		{ &hf_tprof_b3,
 			{ "Terminal Profile Byte 3 (Proactive SIM)", "gsm_sim.tp.b3",
@@ -1662,6 +1689,7 @@ proto_register_gsm_sim(void)
 			  FT_BOOLEAN, 8, TFS(&tfs_supported_not_supported), 0x80,
 			  NULL, HFILL }
 		},
+
 		/* Terminal Profile Byte 4 */
 		{ &hf_tprof_b4,
 			{ "Terminal Profile Byte 4 (Proactive SIM)", "gsm_sim.tp.b4",
@@ -1708,6 +1736,7 @@ proto_register_gsm_sim(void)
 			  FT_BOOLEAN, 8, TFS(&tfs_supported_not_supported), 0x80,
 			  NULL, HFILL }
 		},
+
 		/* Terminal Profile Byte 5 */
 		{ &hf_tprof_b5,
 			{ "Terminal Profile Byte 5 (Event driven information)", "gsm_sim.tp.b5",
@@ -1754,6 +1783,7 @@ proto_register_gsm_sim(void)
 			  FT_BOOLEAN, 8, TFS(&tfs_supported_not_supported), 0x80,
 			  NULL, HFILL }
 		},
+
 		/* Terminal Profile Byte 6 */
 		{ &hf_tprof_b6,
 			{ "Terminal Profile Byte 6 (Event driven information extension)", "gsm_sim.tp.b6",
@@ -1800,6 +1830,7 @@ proto_register_gsm_sim(void)
 			  FT_BOOLEAN, 8, TFS(&tfs_supported_not_supported), 0x80,
 			  NULL, HFILL }
 		},
+
 		/* Terminal Profile Byte 7 */
 		{ &hf_tprof_b7,
 			{ "Terminal Profile Byte 7 (Multiple card proactive commands)", "gsm_sim.tp.b7",
@@ -1836,6 +1867,7 @@ proto_register_gsm_sim(void)
 			  FT_UINT8, BASE_HEX, NULL, 0xe0,
 			  NULL, HFILL },
 		},
+
 		/* Terminal Profile Byte 8 */
 		{ &hf_tprof_b8,
 			{ "Terminal Profile Byte 8 (Proactive SIM)", "gsm_sim.tp.b8",
@@ -2152,12 +2184,12 @@ proto_register_gsm_sim(void)
 			  NULL, HFILL }
 		},
 		{ &hf_tp_bip_tcp_local,
-			{ "TCP client mode local connection", "gsm_sim.tp.bip.tcp_remote",
+			{ "TCP client mode local connection", "gsm_sim.tp.bip.tcp_local",
 			  FT_BOOLEAN, 8, TFS(&tfs_supported_not_supported), 0x08,
 			  NULL, HFILL }
 		},
 		{ &hf_tp_bip_udp_local,
-			{ "UDP client mode local connection", "gsm_sim.tp.bip.udp_remote",
+			{ "UDP client mode local connection", "gsm_sim.tp.bip.udp_local",
 			  FT_BOOLEAN, 8, TFS(&tfs_supported_not_supported), 0x10,
 			  NULL, HFILL }
 		},
@@ -2661,6 +2693,43 @@ proto_register_gsm_sim(void)
 			  NULL, HFILL }
 		},
 
+		/* Terminal Profile Byte 32 */
+		{ &hf_tprof_b32,
+			{ "Terminal Profile Byte 32", "gsm_sim.tp.b32",
+			  FT_UINT8, BASE_HEX, NULL, 0,
+			  NULL, HFILL },
+		},
+		{ &hf_tp_bip_ims,
+			{ "IMS bearer", "gsm_sim.tp.bip.ims",
+			  FT_BOOLEAN, 8, TFS(&tfs_supported_not_supported), 0x01,
+			  NULL, HFILL }
+		},
+		{ &hf_tp_pa_prov_loci_henb_ip_addr,
+			{ "Proactive SIM: PROVIDE LOCAL INFORMATION (H(e)NB IP address)", "gsm_sim.tp.pa.prov_loci_henb_ip_addr",
+			  FT_BOOLEAN, 8, TFS(&tfs_supported_not_supported), 0x02,
+			  NULL, HFILL }
+		},
+		{ &hf_tp_pa_prov_loci_henb_surround_macro,
+			{ "Proactive SIM: PROVIDE LOCAL INFORMATION (H(e)NB surrounding macrocells)", "gsm_sim.tp.pa.prov_loci_henb_surround_macro",
+			  FT_BOOLEAN, 8, TFS(&tfs_supported_not_supported), 0x04,
+			  NULL, HFILL }
+		},
+		{ &hf_tp_launch_params_support_open_chan_server_mode,
+			{ "Launch parameters supported for OPEN CHANNEL in Terminal Server Mode", "gsm_sim.tp.launch_params_support_open_chan_server_mode",
+			  FT_BOOLEAN, 8, TFS(&tfs_supported_not_supported), 0x08,
+			  NULL, HFILL }
+		},
+		{ &hf_tp_direct_com_support_open_chan_server_mode,
+			{ "Direct communication channel supported for OPEN CHANNEL in Terminal Server Mode", "gsm_sim.tp.direct_com_support_open_chan_server_mode",
+			  FT_BOOLEAN, 8, TFS(&tfs_supported_not_supported), 0x10,
+			  NULL, HFILL }
+		},
+		{ &hf_tp_rfu11,
+			{ "RFU", "gsm_sim.tp.rfu",
+			  FT_UINT8, BASE_HEX, NULL, 0xe0,
+			  NULL, HFILL },
+		},
+
 		{ &hf_cat_ber_tag,
 			{ "BER-TLV Tag", "gsm_sim.cat.ber_tlv_tag",
 			  FT_UINT8, BASE_HEX, VALS(ber_tlv_cat_tag_vals), 0,
@@ -2715,6 +2784,7 @@ proto_register_gsm_sim(void)
 		&ett_tprof_b29,
 		&ett_tprof_b30,
 		&ett_tprof_b31,
+		&ett_tprof_b32,
 	};
 
 	proto_gsm_sim = proto_register_protocol("GSM SIM 11.11", "GSM SIM",
@@ -2727,6 +2797,7 @@ proto_register_gsm_sim(void)
 	register_dissector("gsm_sim", dissect_gsm_sim, proto_gsm_sim);
 	register_dissector("gsm_sim.command", dissect_gsm_sim_command, proto_gsm_sim);
 	register_dissector("gsm_sim.response", dissect_gsm_sim_response, proto_gsm_sim);
+	register_dissector("gsm_sim.bertlv", dissect_bertlv, proto_gsm_sim);
 }
 
 /* This function is called once at startup and every time the user hits

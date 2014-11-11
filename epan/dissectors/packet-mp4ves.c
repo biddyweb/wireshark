@@ -3,8 +3,6 @@
  * Routines for MPEG4 dissection
  * Copyright 2007-2008, Anders Broman <anders.broman[at]ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,6 +35,11 @@
 #include <epan/asn1.h>
 
 #include <epan/prefs.h>
+
+#include "packet-mp4ves.h"
+
+void proto_register_mp4ves(void);
+void proto_reg_handoff_mp4ves(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_mp4ves	= -1;
@@ -676,7 +679,7 @@ dissect_mp4ves_config(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	dissect_mp4ves_VisualObjectSequence(tvb, pinfo, mp4ves_tree, 0);
 }
 
-void
+static void
 dissect_mp4ves(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	int bit_offset = 0;
@@ -762,11 +765,11 @@ dissect_mp4ves(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			break;
 		case 0xb0:
 			/* VS start code */
-			bit_offset = dissect_mp4ves_VisualObjectSequence(tvb, pinfo, mp4ves_tree, 0);
+			/*bit_offset = */dissect_mp4ves_VisualObjectSequence(tvb, pinfo, mp4ves_tree, 0);
 			break;
 		default:
 			proto_tree_add_bits_item(mp4ves_tree, hf_mp4ves_start_code_prefix, tvb, bit_offset, 24, ENC_BIG_ENDIAN);
-			bit_offset = bit_offset+24;
+			/*bit_offset = bit_offset+24;*/
 			break;
 		}
 	}
@@ -782,18 +785,21 @@ dissect_mp4ves(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
  * unsignedMax       INTEGER(0..65535), -- Look for max
  */
 static int
-dissect_mp4ves_par_profile(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_)
+dissect_mp4ves_par_profile(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, void *data)
 {
 	int offset = 0;
 	guint16 lvl;
 	const gchar *p = NULL;
 	asn1_ctx_t *actx;
 
-	actx = get_asn1_ctx(pinfo->private_data);
+	/* Reject the packet if data is NULL */
+	if (data == NULL)
+		return 0;
+	actx = get_asn1_ctx(data);
 	DISSECTOR_ASSERT(actx);
 
 	lvl = tvb_get_ntohs(tvb, offset);
-	p = match_strval(lvl, VALS(mp4ves_level_indication_vals));
+	p = try_val_to_str(lvl, VALS(mp4ves_level_indication_vals));
 	if (p) {
 		proto_item_append_text(actx->created_item, " - profileAndLevel %s", p);
 	}
@@ -801,18 +807,21 @@ dissect_mp4ves_par_profile(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tr
 	return offset;
 }
 static int
-dissect_mp4ves_par_video_object_type(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_)
+dissect_mp4ves_par_video_object_type(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree _U_, void *data)
 {
 	int offset = 0;
 	guint16 lvl;
 	const gchar *p = NULL;
 	asn1_ctx_t *actx;
 
-	actx = get_asn1_ctx(pinfo->private_data);
+	/* Reject the packet if data is NULL */
+	if (data == NULL)
+		return 0;
+	actx = get_asn1_ctx(data);
 	DISSECTOR_ASSERT(actx);
 
 	lvl = tvb_get_ntohs(tvb, offset);
-	p = match_strval(lvl, VALS(mp4ves_video_object_type_vals));
+	p = try_val_to_str(lvl, VALS(mp4ves_video_object_type_vals));
 	if (p) {
 		proto_item_append_text(actx->created_item, " - video_object_type %s", p);
 	}
@@ -821,11 +830,14 @@ dissect_mp4ves_par_video_object_type(tvbuff_t *tvb, packet_info *pinfo _U_, prot
 }
 
 static int
-dissect_mp4ves_par_decoderConfigurationInformation(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_mp4ves_par_decoderConfigurationInformation(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 	asn1_ctx_t *actx;
 
-	actx = get_asn1_ctx(pinfo->private_data);
+	/* Reject the packet if data is NULL */
+	if (data == NULL)
+		return 0;
+	actx = get_asn1_ctx(data);
 	DISSECTOR_ASSERT(actx);
 
 	dissect_mp4ves_config(tvb, pinfo, tree);
@@ -859,14 +871,18 @@ static mp4ves_capability_t *find_cap(const gchar *id) {
 	return ftr;
 }
 
-static void
-dissect_mp4ves_name(tvbuff_t *tvb _U_, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_mp4ves_name(tvbuff_t *tvb _U_, packet_info *pinfo, proto_tree *tree, void* data)
 {
 	asn1_ctx_t *actx;
-	mp4ves_capability_t *ftr = NULL;
+	mp4ves_capability_t *ftr;
 
-	actx = get_asn1_ctx(pinfo->private_data);
+	/* Reject the packet if data is NULL */
+	if (data == NULL)
+		return 0;
+	actx = get_asn1_ctx(data);
 	DISSECTOR_ASSERT(actx);
+
 	if (tree) {
 		ftr = find_cap(pinfo->match_string);
 		if (ftr) {
@@ -876,10 +892,9 @@ dissect_mp4ves_name(tvbuff_t *tvb _U_, packet_info *pinfo, proto_tree *tree)
 			proto_item_append_text(actx->created_item, " - unknown(%s)", pinfo->match_string);
 		}
 	}
-}
 
-void
-proto_reg_handoff_mp4ves(void);
+	return tvb_length(tvb);
+}
 
 void
 proto_register_mp4ves(void)
@@ -1010,7 +1025,7 @@ proto_reg_handoff_mp4ves(void)
 		dissector_add_string("rtp_dyn_payload_type","MP4V-ES", mp4ves_handle);
 		mp4ves_prefs_initialized = TRUE;
 
-		mp4ves_name_handle = create_dissector_handle(dissect_mp4ves_name, proto_mp4ves);
+		mp4ves_name_handle = new_create_dissector_handle(dissect_mp4ves_name, proto_mp4ves);
 		for (ftr=mp4ves_capability_tab; ftr->id; ftr++) {
 		    if (ftr->name)
 				dissector_add_string("h245.gef.name", ftr->id, mp4ves_name_handle);

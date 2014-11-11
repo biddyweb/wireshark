@@ -11,8 +11,6 @@
  *  [5] ETSI TS 101 376-4-12 V3.2.1 - GMR-1 3G 44.060
  *  [6] ETSI TS 101 376-5-6 V1.3.1 - GMR-1 05.008
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -45,7 +43,7 @@ typedef enum {
 	GMR1_PD_RR	= 0x06,
 	GMR1_PD_GMM	= 0x08,
 	GMR1_PD_SM	= 0x0a,
-	GMR1_PD_DTRS	= 0x1e,
+	GMR1_PD_DTRS	= 0x1e
 } gmr1_pd_e;
 
 #define GMR1_PD_EXT_MSK	0x0f

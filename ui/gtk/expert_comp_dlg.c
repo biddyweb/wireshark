@@ -1,8 +1,6 @@
 /* expert_comp_dlg.c
  * expert_comp_dlg   2005 Greg Morris
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,7 +30,6 @@
 #include <epan/prefs.h>
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
-#include <epan/prefs.h>
 
 #include "../stat_menu.h"
 
@@ -51,6 +48,9 @@
 #include "ui/gtk/old-gtk-compat.h"
 #include "ui/gtk/edit_packet_comment_dlg.h"
 #include "ui/gtk/capture_comment_icons.h"
+#include "ui/gtk/gtkglobals.h"
+
+void register_tap_listener_expert_comp(void);
 
 enum
 {
@@ -86,12 +86,14 @@ typedef struct _expert_comp_dlg_t {
     error_equiv_table note_table;
     error_equiv_table warn_table;
     error_equiv_table error_table;
+    expert_tapdata_t *etd; /* details tab info similar to error_equiv_table for others */
     guint32 pkt_comments_events;
     guint32 disp_events;
     guint32 chat_events;
     guint32 note_events;
     guint32 warn_events;
     guint32 error_events;
+    gboolean use_dfilter;
 } expert_comp_dlg_t;
 
 struct expert_tapdata_s {
@@ -138,6 +140,35 @@ select_row_cb(GtkTreeSelection *selection, gpointer *user_data _U_)
 
 }
 
+static void
+expert_comp_select_filter_cb(GtkWidget *widget, gpointer callback_data, guint callback_action _U_)
+{
+    expert_comp_dlg_t *ss = (expert_comp_dlg_t *)callback_data;
+    const char *filter;
+    GString *error_string;
+
+    ss->use_dfilter = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON (widget));
+    if (ss->use_dfilter) {
+        filter = gtk_entry_get_text(GTK_ENTRY(main_display_filter_widget));
+    } else {
+        filter = NULL;
+    }
+    error_string = set_tap_dfilter (ss, filter);
+    if (error_string) {
+        simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "%s", error_string->str);
+        g_string_free(error_string, TRUE);
+        return;
+    }
+    error_string = set_tap_dfilter (ss->etd, filter);
+    if (error_string) {
+        simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "%s", error_string->str);
+        g_string_free(error_string, TRUE);
+        return;
+    }
+
+    cf_retap_packets(&cfile);
+}
+
 /* reset of display only, e.g. for filtering */
 static void expert_dlg_display_reset(expert_tapdata_t * etd)
 {
@@ -155,7 +186,7 @@ static void expert_dlg_display_reset(expert_tapdata_t * etd)
 static void
 expert_dlg_reset(void *tapdata)
 {
-    expert_tapdata_t * etd = tapdata;
+    expert_tapdata_t * etd = (expert_tapdata_t *)tapdata;
 
     etd->chat_events = 0;
     etd->note_events = 0;
@@ -176,7 +207,7 @@ static int
 expert_dlg_packet(void *tapdata, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const void *pointer)
 {
     expert_info_t    *ei;
-    expert_tapdata_t *etd = tapdata;
+    expert_tapdata_t *etd = (expert_tapdata_t *)tapdata;
 
     g_array_append_val(etd->ei_array, *(expert_info_t *)pointer);
     etd->last = etd->ei_array->len;
@@ -226,6 +257,7 @@ error_reset(void *pss)
     ss->note_events = 0;
     ss->chat_events = 0;
     ss->disp_events = 0;
+    ss->use_dfilter = FALSE;
     ss->pkt_comments_events = 0;
 
     reset_error_table_data(&ss->error_table);
@@ -259,7 +291,7 @@ static gboolean
 error_packet(void *pss, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const void *prv)
 {
     expert_comp_dlg_t *ss=(expert_comp_dlg_t *)pss;
-    const expert_info_t *error_pkt=prv;
+    const expert_info_t *error_pkt=(const expert_info_t *)prv;
 
     /* if return value is 0 then no error */
     if(error_pkt==NULL){
@@ -366,7 +398,7 @@ expert_dlg_destroy_cb(GtkWindow *win _U_, gpointer data)
 static expert_tapdata_t * expert_dlg_new_table(void)
 {
     expert_tapdata_t * etd;
-    etd=g_malloc0(sizeof(expert_tapdata_t));
+    etd=(expert_tapdata_t *)g_malloc0(sizeof(expert_tapdata_t));
 
     etd->ei_array = g_array_sized_new(FALSE, FALSE, sizeof(expert_info_t), 1000);
     etd->text = g_string_chunk_new(100);
@@ -643,7 +675,7 @@ expert_dlg_init_table(expert_tapdata_t * etd, GtkWidget *vbox)
 static void
 expert_dlg_draw(void *data)
 {
-    expert_tapdata_t *etd = data;
+    expert_tapdata_t *etd = (expert_tapdata_t *)data;
     expert_info_t *ei;
     gchar *title;
     const char *entries[2];   /**< column entries */
@@ -664,7 +696,7 @@ expert_dlg_draw(void *data)
     }
 
     list_store = GTK_LIST_STORE(gtk_tree_view_get_model(etd->tree_view)); /* Get store */
-    comments_list_store = GTK_LIST_STORE(gtk_tree_view_get_model(etd->tree_view_comments)); 
+    comments_list_store = GTK_LIST_STORE(gtk_tree_view_get_model(etd->tree_view_comments));
 
     /* append new events (remove from new list, append to displayed list and clist) */
     while(etd->first < etd->last){
@@ -681,11 +713,11 @@ expert_dlg_draw(void *data)
             packet_no = ei->packet_num;
         }
 
-        /*  match_strval return a static string or NULL
+        /*  try_val_to_str return a static string or NULL
             severity */
-        severity_str = match_strval(ei->severity, expert_severity_vals);
+        severity_str = try_val_to_str(ei->severity, expert_severity_vals);
         /* group */
-        group_str = match_strval(ei->group, expert_group_vals);
+        group_str = try_val_to_str(ei->group, expert_group_vals);
 
         /* protocol */
         if(ei->protocol) {
@@ -761,7 +793,6 @@ static void
 expert_comp_init(const char *opt_arg _U_, void* userdata _U_)
 {
     expert_comp_dlg_t *ss;
-    const char *filter=NULL;
     GString *error_string;
     GtkWidget *temp_page, *details_page, *comments_page;
     GtkWidget *main_nb;
@@ -771,9 +802,9 @@ expert_comp_init(const char *opt_arg _U_, void* userdata _U_)
     GtkWidget *bbox;
     GtkWidget *close_bt;
     GtkWidget *help_bt;
-    expert_tapdata_t *etd;
+    GtkWidget *filter_cb;
 
-    ss=g_malloc(sizeof(expert_comp_dlg_t));
+    ss = (expert_comp_dlg_t *)g_malloc(sizeof(expert_comp_dlg_t));
 
     ss->pkt_comments_events = 0;
     ss->disp_events = 0;
@@ -788,7 +819,7 @@ expert_comp_init(const char *opt_arg _U_, void* userdata _U_)
 
     error_set_title(ss);
 
-    vbox=ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 3, FALSE);
+    vbox = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 3, FALSE);
     gtk_container_add(GTK_CONTAINER(ss->win), vbox);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
 
@@ -799,7 +830,7 @@ expert_comp_init(const char *opt_arg _U_, void* userdata _U_)
     gtk_widget_show_all(ss->win);
 
     /* Errors */
-    temp_page =ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 6, FALSE);
+    temp_page = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 6, FALSE);
     ss->error_label = gtk_label_new("Errors: 0/y");
     gtk_widget_show(ss->error_label);
     hbox = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3, FALSE);
@@ -881,33 +912,34 @@ expert_comp_init(const char *opt_arg _U_, void* userdata _U_)
     gtk_box_pack_start(GTK_BOX(hbox), ss->pkt_comments_label, TRUE, TRUE, 0);
     gtk_notebook_append_page(GTK_NOTEBOOK(main_nb), comments_page, hbox);
 
-    etd = expert_dlg_new_table();
-    etd->label=gtk_label_new("Please wait ...");
-    gtk_misc_set_alignment(GTK_MISC(etd->label), 0.0f, 0.5f);
+    ss->etd = expert_dlg_new_table();
+    ss->etd->label=gtk_label_new("Please wait ...");
+    gtk_misc_set_alignment(GTK_MISC(ss->etd->label), 0.0f, 0.5f);
 
-    etd->win=ss->win;
-    expert_dlg_init_table(etd, details_page);
-    expert_dlg_init_comments_table(etd, comments_page);
+    ss->etd->win=ss->win;
+    expert_dlg_init_table(ss->etd, details_page);
+    expert_dlg_init_comments_table(ss->etd, comments_page);
 
     /* Add tap listener functions for expert details, From expert_dlg.c*/
-    error_string=register_tap_listener("expert", etd, NULL /* fstring */,
-                                       TL_REQUIRES_PROTO_TREE,
+    error_string=register_tap_listener("expert", ss->etd, NULL,
+                                       TL_REQUIRES_NOTHING,
                                        expert_dlg_reset,
                                        expert_dlg_packet,
                                        expert_dlg_draw);
     if(error_string){
         simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "%s", error_string->str);
         g_string_free(error_string, TRUE);
-        g_free(etd);
+        g_free(ss->etd);
         return;
     }
 
-    g_signal_connect(etd->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
-    g_signal_connect(etd->win, "destroy", G_CALLBACK(expert_dlg_destroy_cb), etd);
+    g_signal_connect(ss->etd->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
+    g_signal_connect(ss->etd->win, "destroy", G_CALLBACK(expert_dlg_destroy_cb), ss->etd);
 
     /* Register the tap listener */
 
-    error_string=register_tap_listener("expert", ss, filter, 0, error_reset, error_packet, expert_comp_draw);
+    error_string=register_tap_listener("expert", ss, NULL,
+        TL_REQUIRES_NOTHING, error_reset, error_packet, expert_comp_draw);
     if(error_string){
         simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "%s", error_string->str);
         g_string_free(error_string, TRUE);
@@ -915,14 +947,23 @@ expert_comp_init(const char *opt_arg _U_, void* userdata _U_)
         return;
     }
 
+    hbox = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, DLG_UNRELATED_SPACING, FALSE);
+    gtk_box_pack_start(GTK_BOX(vbox), hbox, FALSE, FALSE, 0);
+
+    filter_cb = gtk_check_button_new_with_mnemonic("Limit to display filter");
+    gtk_box_pack_start(GTK_BOX(hbox), filter_cb, FALSE, FALSE, 0);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(filter_cb), FALSE);
+    gtk_widget_set_tooltip_text(filter_cb, "Limit the expert infos to packets matching the current display filter.");
+    g_signal_connect(filter_cb, "toggled", G_CALLBACK(expert_comp_select_filter_cb), ss);
+
     /* Button row. */
     bbox = dlg_button_row_new(GTK_STOCK_CLOSE, GTK_STOCK_HELP, NULL);
     gtk_box_pack_end(GTK_BOX(vbox), bbox, FALSE, FALSE, 0);
 
-    close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+    close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
     window_set_cancel_button(ss->win, close_bt, window_cancel_button_cb);
 
-    help_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+    help_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
     g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), (gpointer)HELP_EXPERT_INFO_DIALOG);
     gtk_widget_set_tooltip_text (help_bt, "Show topic specific help");
 

@@ -3,8 +3,6 @@
  *
  * Copyright 2008, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -51,6 +49,10 @@
 #define PFNAME "pcap"
 
 #define MAX_SSN 254
+
+void proto_register_pcap(void);
+void proto_reg_handoff_pcap(void);
+
 static range_t *global_ssn_range;
 
 static dissector_table_t sccp_ssn_table;
@@ -72,7 +74,7 @@ static int ett_pcap = -1;
 /* Global variables */
 static guint32 ProcedureCode;
 static guint32 ProtocolIE_ID;
-static guint32 ProtocolExtensionID;
+/*static guint32 ProtocolExtensionID;*/
 
 /* Dissector tables */
 static dissector_table_t pcap_ies_dissector_table;
@@ -100,7 +102,7 @@ static int dissect_ProtocolIEFieldValue(tvbuff_t *tvb, packet_info *pinfo, proto
 
 static int dissect_ProtocolExtensionFieldExtensionValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-  return (dissector_try_uint(pcap_extension_dissector_table, ProtocolExtensionID, tvb, pinfo, tree)) ? tvb_length(tvb) : 0;
+  return (dissector_try_uint(pcap_extension_dissector_table, ProtocolIE_ID, tvb, pinfo, tree)) ? tvb_length(tvb) : 0;
 }
 
 static int dissect_InitiatingMessageValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
@@ -139,21 +141,6 @@ dissect_pcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	dissect_PCAP_PDU_PDU(tvb, pinfo, pcap_tree, NULL);
 }
 
-
-static void range_delete_callback(guint32 ssn)
-{
-    if ( ssn ) {
-        dissector_delete_uint("sccp.ssn", ssn, pcap_handle);
-    }
-}
-
-static void range_add_callback(guint32 ssn)
-{
-    if (ssn) {
-        dissector_add_uint("sccp.ssn", ssn, pcap_handle);
-    }
-}
-
 /*--- proto_reg_handoff_pcap ---------------------------------------*/
 void
 proto_reg_handoff_pcap(void)
@@ -167,11 +154,11 @@ proto_reg_handoff_pcap(void)
         prefs_initialized = TRUE;
 #include "packet-pcap-dis-tab.c"
     } else {
-        range_foreach(ssn_range, range_delete_callback);
+        dissector_delete_uint_range("sccp.ssn", ssn_range, pcap_handle);
         g_free(ssn_range);
     }
     ssn_range = range_copy(global_ssn_range);
-    range_foreach(ssn_range, range_add_callback);
+    dissector_add_uint_range("sccp.ssn", ssn_range, pcap_handle);
 }
 
 /*--- proto_register_pcap -------------------------------------------*/

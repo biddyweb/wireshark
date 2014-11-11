@@ -76,9 +76,7 @@
  *   Mobile radio interface Layer 3 specification;
  *   Core network protocols;
  *   Stage 3
- *   (3GPP TS 24.008 version 11.5.0 Release 11)
- *
- * $Id$
+ *   (3GPP TS 24.008 version 11.6.0 Release 11)
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -106,7 +104,7 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/tap.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/asn1.h>
 #include <epan/strutil.h>
 
@@ -119,6 +117,9 @@
 #include "packet-gsm_sms.h"
 #include "expert.h"
 #include "packet-isup.h"
+
+void proto_register_gsm_a_dtap(void);
+void proto_reg_handoff_gsm_a_dtap(void);
 
 /* PROTOTYPES/FORWARDS */
 
@@ -243,96 +244,97 @@ const value_string gsm_a_dtap_msg_tp_strings[] = {
 	{ 0, NULL }
 };
 
-const value_string gsm_dtap_elem_strings[] = {
+static const value_string gsm_dtap_elem_strings[] = {
 	/* Mobility Management Information Elements 10.5.3 */
-	{ 0x00,	"Authentication Parameter RAND" },
-	{ 0x01,	"Authentication Parameter AUTN (UMTS and EPS authentication challenge)" },
-	{ 0x02,	"Authentication Response Parameter" },
-	{ 0x03,	"Authentication Response Parameter (extension) (UMTS authentication challenge only)" },
-	{ 0x04,	"Authentication Failure Parameter (UMTS and EPS authentication challenge)" },
-	{ 0x05,	"CM Service Type" },
-	{ 0x06,	"Identity Type" },
-	{ 0x07,	"Location Updating Type" },
-	{ 0x08,	"Network Name" },
-	{ 0x09,	"Reject Cause" },
-	{ 0x0a,	"Follow-on Proceed" },
-	{ 0x0b,	"Time Zone" },
-	{ 0x0c,	"Time Zone and Time" },
-	{ 0x0d,	"CTS Permission" },
-	{ 0x0e,	"LSA Identifier" },
-	{ 0x0f,	"Daylight Saving Time" },
-	{ 0x10, "Emergency Number List" },
-	{ 0x11, "Additional update parameters" },
-	{ 0x12, "MM Timer" },
+	{ DE_AUTH_PARAM_RAND,	"Authentication Parameter RAND" },
+	{ DE_AUTH_PARAM_AUTN,	"Authentication Parameter AUTN (UMTS and EPS authentication challenge)" },
+	{ DE_AUTH_RESP_PARAM,	"Authentication Response Parameter" },
+	{ DE_AUTH_RESP_PARAM_EXT,	"Authentication Response Parameter (extension) (UMTS authentication challenge only)" },
+	{ DE_AUTH_FAIL_PARAM,	"Authentication Failure Parameter (UMTS and EPS authentication challenge)" },
+	{ DE_CM_SRVC_TYPE,	"CM Service Type" },
+	{ DE_ID_TYPE,	"Identity Type" },
+	{ DE_LOC_UPD_TYPE,	"Location Updating Type" },
+	{ DE_NETWORK_NAME,	"Network Name" },
+	{ DE_REJ_CAUSE,	"Reject Cause" },
+	{ DE_FOP,	"Follow-on Proceed" },
+	{ DE_TIME_ZONE,	"Time Zone" },
+	{ DE_TIME_ZONE_TIME,	"Time Zone and Time" },
+	{ DE_CTS_PERM,	"CTS Permission" },
+	{ DE_LSA_ID,	"LSA Identifier" },
+	{ DE_DAY_SAVING_TIME,	"Daylight Saving Time" },
+	{ DE_EMERGENCY_NUM_LIST, "Emergency Number List" },
+	{ DE_ADD_UPD_PARAMS, "Additional update parameters" },
+	{ DE_MM_TIMER, "MM Timer" },
 	/* Call Control Information Elements 10.5.4 */
-	{ 0x13,	"Auxiliary States" },					/* 10.5.4.4 Auxiliary states */
-	{ 0x14,	"Bearer Capability" },					/* 10.5.4.4a Backup bearer capability */
-	{ 0x15,	"Call Control Capabilities" },
-	{ 0x16,	"Call State" },
-	{ 0x17,	"Called Party BCD Number" },
-	{ 0x18,	"Called Party Subaddress" },
-	{ 0x19,	"Calling Party BCD Number" },
-	{ 0x1a,	"Calling Party Subaddress" },
-	{ 0x1b,	"Cause" },
-	{ 0x1c,	"CLIR Suppression" },
-	{ 0x1d,	"CLIR Invocation" },
-	{ 0x1e,	"Congestion Level" },
-	{ 0x1f,	"Connected Number" },
-	{ 0x20,	"Connected Subaddress" },
-	{ 0x21,	"Facility" },
-	{ 0x22,	"High Layer Compatibility" },
-	{ 0x23,	"Keypad Facility" },
-	{ 0x24,	"Low Layer Compatibility" },
-	{ 0x25,	"More Data" },
-	{ 0x26,	"Notification Indicator" },
-	{ 0x27,	"Progress Indicator" },
-	{ 0x28,	"Recall type $(CCBS)$" },
-	{ 0x29,	"Redirecting Party BCD Number" },
-	{ 0x2a,	"Redirecting Party Subaddress" },
-	{ 0x2b,	"Repeat Indicator" },
-	{ 0x2c,	"Reverse Call Setup Direction" },
-	{ 0x2d,	"SETUP Container $(CCBS)$" },
-	{ 0x2e,	"Signal" },
-	{ 0x2f,	"SS Version Indicator" },
-	{ 0x30,	"User-user" },
-	{ 0x31,	"Alerting Pattern $(NIA)$" },				/* 10.5.4.26 Alerting Pattern $(NIA)$ */
-	{ 0x32,	"Allowed Actions $(CCBS)$" },
-	{ 0x33,	"Stream Identifier" },
-	{ 0x34,	"Network Call Control Capabilities" },
-	{ 0x35,	"Cause of No CLI" },						/* 10.5.4.30 Cause of No CLI */
+	{ DE_AUX_STATES,	"Auxiliary States" },					/* 10.5.4.4 Auxiliary states */
+	{ DE_BEARER_CAP,	"Bearer Capability" },					/* 10.5.4.4a Backup bearer capability */
+	{ DE_CC_CAP,	"Call Control Capabilities" },
+	{ DE_CALL_STATE,	"Call State" },
+	{ DE_CLD_PARTY_BCD_NUM,	"Called Party BCD Number" },
+	{ DE_CLD_PARTY_SUB_ADDR,	"Called Party Subaddress" },
+	{ DE_CLG_PARTY_BCD_NUM,	"Calling Party BCD Number" },
+	{ DE_CLG_PARTY_SUB_ADDR,	"Calling Party Subaddress" },
+	{ DE_CAUSE,	"Cause" },
+	{ DE_CLIR_SUP,	"CLIR Suppression" },
+	{ DE_CLIR_INV,	"CLIR Invocation" },
+	{ DE_CONGESTION,	"Congestion Level" },
+	{ DE_CONN_NUM,	"Connected Number" },
+	{ DE_CONN_SUB_ADDR,	"Connected Subaddress" },
+	{ DE_FACILITY,	"Facility" },
+	{ DE_HLC,	"High Layer Compatibility" },
+	{ DE_KEYPAD_FACILITY,	"Keypad Facility" },
+	{ DE_LLC,	"Low Layer Compatibility" },
+	{ DE_MORE_DATA,	"More Data" },
+	{ DE_NOT_IND,	"Notification Indicator" },
+	{ DE_PROG_IND,	"Progress Indicator" },
+	{ DE_RECALL_TYPE,	"Recall type $(CCBS)$" },
+	{ DE_RED_PARTY_BCD_NUM,	"Redirecting Party BCD Number" },
+	{ DE_RED_PARTY_SUB_ADDR,	"Redirecting Party Subaddress" },
+	{ DE_REPEAT_IND,	"Repeat Indicator" },
+	{ DE_REV_CALL_SETUP_DIR,	"Reverse Call Setup Direction" },
+	{ DE_SETUP_CONTAINER,	"SETUP Container $(CCBS)$" },
+	{ DE_SIGNAL,	"Signal" },
+	{ DE_SS_VER_IND,	"SS Version Indicator" },
+	{ DE_USER_USER,	"User-user" },
+	{ DE_ALERT_PATTERN,	"Alerting Pattern $(NIA)$" },				/* 10.5.4.26 Alerting Pattern $(NIA)$ */
+	{ DE_ALLOWED_ACTIONS,	"Allowed Actions $(CCBS)$" },
+	{ DE_SI,	"Stream Identifier" },
+	{ DE_NET_CC_CAP,	"Network Call Control Capabilities" },
+	{ DE_CAUSE_NO_CLI,	"Cause of No CLI" },						/* 10.5.4.30 Cause of No CLI */
 	/* 10.5.4.31 Void */
-	{ 0x36,	"Supported Codec List" },				/* 10.5.4.32 Supported codec list */
-	{ 0x37,	"Service Category" },					/* 10.5.4.33 Service category */
-	{ 0x38,	"Redial" },						/* 10.5.4.34 Redial */
-	{ 0x39, "Network-initiated Service Upgrade indicator" },
+	{ DE_SUP_CODEC_LIST,	"Supported Codec List" },				/* 10.5.4.32 Supported codec list */
+	{ DE_SERV_CAT,	"Service Category" },					/* 10.5.4.33 Service category */
+	{ DE_REDIAL,	"Redial" },						/* 10.5.4.34 Redial */
+	{ DE_NET_INIT_SERV_UPG, "Network-initiated Service Upgrade indicator" },
 	/* 10.5.4.35 Network-initiated Service Upgrade indicator */
 	/* Short Message Service Information Elements [5] 8.1.4 */
-	{ 0x3a,	"CP-User Data" },
-	{ 0x3b,	"CP-Cause" },
+	{ DE_CP_USER_DATA,	"CP-User Data" },
+	{ DE_CP_CAUSE,	"CP-Cause" },
 	/* Tests procedures information elements 3GPP TS 44.014 6.4.0, 3GPP TS 34.109 6.4.0 and 3GPP TS 36.509 9.1.0*/
-	{ 0x3c, "Close TCH Loop Cmd Sub-channel"},
-	{ 0x3d, "Open Loop Cmd Ack"},
-	{ 0x3e, "Close Multi-slot Loop Cmd Loop type"},
-	{ 0x3f, "Close Multi-slot Loop Ack Result"},
-	{ 0x40, "Test Interface Tested device"},
-	{ 0x41, "GPRS Test Mode Cmd PDU description"},
-	{ 0x42, "GPRS Test Mode Cmd Mode flag"},
-	{ 0x43, "EGPRS Start Radio Block Loopback Cmd Mode flag"},
-	{ 0x44, "MS Positioning Technology"},
-	{ 0x45, "Close UE Test Loop Mode"},
-	{ 0x46, "UE Positioning Technology"},
-	{ 0x47, "RLC SDU Counter Value"},
-	{ 0x48, "UE Test Loop Mode"},
-	{ 0x49, "UE Test Loop Mode A LB Setup"},
-	{ 0x4a, "UE Test Loop Mode B LB Setup"},
-	{ 0x4b, "UE Test Loop Mode C Setup"},
-	{ 0x4c, "UE Positioning Technology"},
-	{ 0x4d, "MBMS Packet Counter Value"},
-	{ 0x4e, "Ellipsoid Point With Altitude"},
-	{ 0x4f, "Horizontal Velocity"},
-	{ 0x50, "GNSS-TOD-msec"},
+	{ DE_TP_SUB_CHANNEL, "Close TCH Loop Cmd Sub-channel"},
+	{ DE_TP_ACK, "Open Loop Cmd Ack"},
+	{ DE_TP_LOOP_TYPE, "Close Multi-slot Loop Cmd Loop type"},
+	{ DE_TP_LOOP_ACK, "Close Multi-slot Loop Ack Result"},
+	{ DE_TP_TESTED_DEVICE, "Test Interface Tested device"},
+	{ DE_TP_PDU_DESCRIPTION, "GPRS Test Mode Cmd PDU description"},
+	{ DE_TP_MODE_FLAG, "GPRS Test Mode Cmd Mode flag"},
+	{ DE_TP_EGPRS_MODE_FLAG, "EGPRS Start Radio Block Loopback Cmd Mode flag"},
+	{ DE_TP_MS_POSITIONING_TECHNOLOGY, "MS Positioning Technology"},
+	{ DE_TP_UE_TEST_LOOP_MODE, "Close UE Test Loop Mode"},
+	{ DE_TP_UE_POSITIONING_TECHNOLOGY, "UE Positioning Technology"},
+	{ DE_TP_RLC_SDU_COUNTER_VALUE, "RLC SDU Counter Value"},
+	{ DE_TP_EPC_UE_TEST_LOOP_MODE, "UE Test Loop Mode"},
+	{ DE_TP_EPC_UE_TL_A_LB_SETUP, "UE Test Loop Mode A LB Setup"},
+	{ DE_TP_EPC_UE_TL_B_LB_SETUP, "UE Test Loop Mode B LB Setup"},
+	{ DE_TP_EPC_UE_TL_C_SETUP, "UE Test Loop Mode C Setup"},
+	{ DE_TP_EPC_UE_POSITIONING_TECHNOLOGY, "UE Positioning Technology"},
+	{ DE_TP_EPC_MBMS_PACKET_COUNTER_VALUE, "MBMS Packet Counter Value"},
+	{ DE_TP_EPC_ELLIPSOID_POINT_WITH_ALT, "Ellipsoid Point With Altitude"},
+	{ DE_TP_EPC_HORIZONTAL_VELOCITY, "Horizontal Velocity"},
+	{ DE_TP_EPC_GNSS_TOD_MSEC, "GNSS-TOD-msec"},
 	{ 0, NULL }
 };
+value_string_ext gsm_dtap_elem_strings_ext = VALUE_STRING_EXT_INIT(gsm_dtap_elem_strings);
 
 const gchar *gsm_a_pd_str[] = {
 	"Group Call Control",
@@ -392,6 +394,8 @@ const value_string gsm_a_pd_short_str_vals[] = {
 	{0xf,		"TP"},		/*  for tests procedures described in 3GPP TS 44.014 6.4.0 and 3GPP TS 34.109 6.4.0.*/
 	{ 0,	NULL }
 };
+
+static const true_false_string tfs_acceptable_not_acceptable = { "Acceptable", "Not Acceptable" };
 
 
 #define	DTAP_PD_MASK		0x0f
@@ -512,6 +516,100 @@ static int hf_gsm_a_dtap_epc_bearing = -1;
 static int hf_gsm_a_dtap_epc_horizontal_speed = -1;
 static int hf_gsm_a_dtap_epc_gnss_tod_msec = -1;
 
+/* Generated from convert_proto_tree_add_text.pl */
+static int hf_gsm_a_dtap_maximum_number_of_supported_bearers = -1;
+static int hf_gsm_a_dtap_edge_channel_codings = -1;
+static int hf_gsm_a_dtap_acceptable_channel_codings_TCH_F9_6 = -1;
+static int hf_gsm_a_dtap_assignor_assignee = -1;
+static int hf_gsm_a_dtap_configuration = -1;
+static int hf_gsm_a_dtap_de_cause_coding_standard = -1;
+static int hf_gsm_a_dtap_ss_version_indicator = -1;
+static int hf_gsm_a_dtap_mode_of_operation = -1;
+static int hf_gsm_a_dtap_bearer_cap_coding_standard = -1;
+static int hf_gsm_a_dtap_nirr = -1;
+static int hf_gsm_a_dtap_other_rate_adaption = -1;
+static int hf_gsm_a_dtap_connection_element = -1;
+static int hf_gsm_a_dtap_nic_on_tx = -1;
+static int hf_gsm_a_dtap_user_rate = -1;
+static int hf_gsm_a_dtap_protocol_discriminator = -1;
+static int hf_gsm_a_dtap_cp_cause = -1;
+static int hf_gsm_a_dtap_rate_adaption_header = -1;
+static int hf_gsm_a_dtap_synchronous = -1;
+static int hf_gsm_a_dtap_logical_link_identifier_negotiation = -1;
+static int hf_gsm_a_dtap_multi_party_auxiliary_state = -1;
+static int hf_gsm_a_dtap_parity_information = -1;
+static int hf_gsm_a_dtap_channel_coding03 = -1;
+static int hf_gsm_a_dtap_channel_coding30 = -1;
+static int hf_gsm_a_dtap_acceptable_channel_codings_ext_TCH_F43_2 = -1;
+static int hf_gsm_a_dtap_ue_positioning_technology = -1;
+static int hf_gsm_a_dtap_acceptable_channel_codings_TCH_F4_8 = -1;
+static int hf_gsm_a_dtap_number_of_spare_bits = -1;
+static int hf_gsm_a_dtap_tie = -1;
+static int hf_gsm_a_dtap_updating_type = -1;
+static int hf_gsm_a_dtap_multiple_frame_establishment_support = -1;
+static int hf_gsm_a_dtap_maximum_number_of_traffic_channels = -1;
+static int hf_gsm_a_dtap_compression = -1;
+static int hf_gsm_a_dtap_compression_up = -1;
+static int hf_gsm_a_dtap_downlink_timeslot_offset = -1;
+static int hf_gsm_a_dtap_acceptable_channel_codings_ext_TCH_F32_0 = -1;
+static int hf_gsm_a_dtap_tio = -1;
+static int hf_gsm_a_dtap_other_modem_type = -1;
+static int hf_gsm_a_dtap_other_itc = -1;
+static int hf_gsm_a_dtap_negotiation = -1;
+static int hf_gsm_a_dtap_rate_adaption = -1;
+static int hf_gsm_a_dtap_ms_positioning_technology = -1;
+static int hf_gsm_a_dtap_number_of_data_bits = -1;
+static int hf_gsm_a_dtap_follow_on_request = -1;
+static int hf_gsm_a_dtap_repeat_indicator = -1;
+static int hf_gsm_a_dtap_dst_adjustment = -1;
+static int hf_gsm_a_dtap_pcp = -1;
+static int hf_gsm_a_dtap_user_information_layer_2_protocol = -1;
+static int hf_gsm_a_dtap_structure = -1;
+static int hf_gsm_a_dtap_congestion_level = -1;
+static int hf_gsm_a_dtap_access_identity = -1;
+static int hf_gsm_a_dtap_modem_type = -1;
+static int hf_gsm_a_dtap_test_loop = -1;
+static int hf_gsm_a_dtap_layer_1_identity = -1;
+static int hf_gsm_a_dtap_ciphering_key_sequence_number70 = -1;
+static int hf_gsm_a_dtap_tp_pdu_description = -1;
+static int hf_gsm_a_dtap_dtmf = -1;
+static int hf_gsm_a_dtap_coding = -1;
+static int hf_gsm_a_dtap_nic_on_rx = -1;
+static int hf_gsm_a_dtap_emergency_number_information = -1;
+static int hf_gsm_a_dtap_uimi = -1;
+static int hf_gsm_a_dtap_number_of_stop_bits = -1;
+static int hf_gsm_a_dtap_acceptable_channel_codings_spare78 = -1;
+static int hf_gsm_a_dtap_type_of_identity = -1;
+static int hf_gsm_a_dtap_ciphering_key_sequence_number = -1;
+static int hf_gsm_a_dtap_recommendation = -1;
+static int hf_gsm_a_dtap_max_num_of_speech_bearers = -1;
+static int hf_gsm_a_dtap_keypad_information = -1;
+static int hf_gsm_a_dtap_signalling_access_protocol = -1;
+static int hf_gsm_a_dtap_user_information_layer_1_protocol = -1;
+static int hf_gsm_a_dtap_wanted_air_interface_user_rate = -1;
+static int hf_gsm_a_dtap_hold_auxiliary_state = -1;
+static int hf_gsm_a_dtap_radio_channel_requirement = -1;
+static int hf_gsm_a_dtap_channel_coding_asymmetry_indication = -1;
+static int hf_gsm_a_dtap_service_type = -1;
+static int hf_gsm_a_dtap_text_string = -1;
+static int hf_gsm_a_dtap_tp_tested_device = -1;
+static int hf_gsm_a_dtap_fixed_network_user_rate = -1;
+static int hf_gsm_a_dtap_coding_scheme = -1;
+static int hf_gsm_a_dtap_acceptable_channel_codings_ext_TCH_F28_8 = -1;
+static int hf_gsm_a_dtap_v110_x30_rate_adaptation = -1;
+static int hf_gsm_a_dtap_transfer_mode = -1;
+static int hf_gsm_a_dtap_layer_2_identity = -1;
+static int hf_gsm_a_dtap_add_ci = -1;
+static int hf_gsm_a_dtap_mm_timer = -1;
+static int hf_gsm_a_dtap_in_out_band = -1;
+static int hf_gsm_a_dtap_data = -1;
+static int hf_gsm_a_dtap_acceptable_channel_codings_TCH_F14_4 = -1;
+static int hf_gsm_a_dtap_ti_flag = -1;
+static int hf_gsm_a_dtap_time_zone_time = -1;
+static int hf_gsm_a_dtap_acceptable_channel_codings_spare20 = -1;
+static int hf_gsm_a_dtap_establishment = -1;
+static int hf_gsm_a_dtap_duplex_mode = -1;
+
 /* Initialize the subtree pointers */
 static gint ett_dtap_msg = -1;
 static gint ett_dtap_oct_1 = -1;
@@ -535,6 +633,13 @@ static gint ett_bc_oct_7 = -1;
 static gint ett_epc_ue_tl_a_lb_setup = -1;
 static gint ett_mm_timer = -1;
 
+static expert_field ei_gsm_a_dtap_keypad_info_not_dtmf_digit = EI_INIT;
+static expert_field ei_gsm_a_dtap_text_string_not_multiple_of_7 = EI_INIT;
+static expert_field ei_gsm_a_dtap_autn = EI_INIT;
+static expert_field ei_gsm_a_dtap_invalid_ia5_character = EI_INIT;
+static expert_field ei_gsm_a_dtap_auts = EI_INIT;
+static expert_field ei_gsm_a_dtap_end_mark_unexpected = EI_INIT;
+
 static char a_bigbuf[1024];
 
 static dissector_handle_t data_handle;
@@ -554,8 +659,8 @@ gint ett_gsm_dtap_elem[NUM_GSM_DTAP_ELEM];
 
 static dgt_set_t Dgt_mbcd = {
 	{
-      /*  0   1   2   3   4   5   6   7   8   9   a   b   c   d   e */
-	 '0','1','2','3','4','5','6','7','8','9','*','#','a','b','c'
+	/* 0   1   2   3   4   5   6   7   8   9   a   b   c   d   e   f */
+	  '0','1','2','3','4','5','6','7','8','9','*','#','a','b','c','?'
 	}
 };
 
@@ -591,8 +696,7 @@ de_auth_param_autn(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 
 		proto_tree_add_item(subtree, hf_gsm_a_dtap_autn_mac, tvb, offset + 8, 8, ENC_NA);
 	}
 	else
-		expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN,
-			"AUTN length not equal to 16");
+		expert_add_info(pinfo, item, &ei_gsm_a_dtap_autn);
 
 	return(len);
 }
@@ -640,8 +744,7 @@ de_auth_fail_param(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 
 		proto_tree_add_item(subtree, hf_gsm_a_dtap_auts_mac_s, tvb, offset + 6, 8, ENC_NA);
 	}
 	else
-		expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN,
-			"AUTS length not equal to 14");
+		expert_add_info(pinfo, item, &ei_gsm_a_dtap_auts);
 
 	return(len);
 }
@@ -661,6 +764,21 @@ de_auth_fail_param(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 
 /*
  * [3] 10.5.3.5a Network Name
  */
+static const value_string gsm_a_dtap_number_of_spare_bits_vals[] = {
+	{ 0, "this field carries no information about the number of spare bits in octet n"},
+	{ 1, "bit 8 is spare and set to '0' in octet n"},
+	{ 2, "bits 7 and 8 are spare and set to '0' in octet n"},
+	{ 3, "bits 6 to 8(inclusive) are spare and set to '0' in octet n"},
+	{ 4, "bits 5 to 8(inclusive) are spare and set to '0' in octet n"},
+	{ 5, "bits 4 to 8(inclusive) are spare and set to '0' in octet n"},
+	{ 6, "bits 3 to 8(inclusive) are spare and set to '0' in octet n"},
+	{ 7, "bits 2 to 8(inclusive) are spare and set to '0' in octet n"},
+	{ 0, NULL }
+};
+
+const true_false_string tfs_add_ci = { "The MS should add the letters for the Country's Initials and a separator (e.g. a space) to the text string",
+                                       "The MS should not add the letters for the Country's Initials to the text string" };
+
 static guint16
 de_network_name(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string _U_, int string_len _U_)
 {
@@ -668,10 +786,8 @@ de_network_name(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 off
 	guint32      curr_offset;
 	const gchar *str;
 	guint8       coding_scheme, num_spare_bits;
-	guint32      num_chars, num_text_bits;
+	guint32      num_text_bits;
 	gchar       *net_name     = NULL;
-	GIConv       cd;
-	GError      *l_conv_error = NULL;
 	proto_item  *item;
 
 	curr_offset = offset;
@@ -690,87 +806,28 @@ de_network_name(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 off
 	break;
 	}
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0x70, 8);
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s = Coding Scheme: %s",
-		a_bigbuf,
-		str);
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x08, 8);
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s = Add CI: The MS should %s",
-		a_bigbuf,
-		(oct & 0x08) ?
-			"add the letters for the Country's Initials and a separator (e.g. a space) to the text string" :
-			"not add the letters for the Country's Initials to the text string");
+	proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_coding_scheme, tvb, curr_offset, 1, oct, "%s", str);
+	proto_tree_add_item(tree, hf_gsm_a_dtap_add_ci, tvb, curr_offset, 1, ENC_NA);
 
 	num_spare_bits = oct & 0x07;
-	switch (num_spare_bits)
-	{
-	case 1: str = "bit 8 is spare and set to '0' in octet n"; break;
-	case 2: str = "bits 7 and 8 are spare and set to '0' in octet n"; break;
-	case 3: str = "bits 6 to 8(inclusive) are spare and set to '0' in octet n"; break;
-	case 4: str = "bits 5 to 8(inclusive) are spare and set to '0' in octet n"; break;
-	case 5: str = "bits 4 to 8(inclusive) are spare and set to '0' in octet n"; break;
-	case 6: str = "bits 3 to 8(inclusive) are spare and set to '0' in octet n"; break;
-	case 7: str = "bits 2 to 8(inclusive) are spare and set to '0' in octet n"; break;
-	default:
-		str = "this field carries no information about the number of spare bits in octet n";
-	break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x07, 8);
-	item = proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s = Number of spare bits in last octet: %s",
-		a_bigbuf,
-		str);
-
+	item = proto_tree_add_item(tree, hf_gsm_a_dtap_number_of_spare_bits, tvb, curr_offset, 1, ENC_NA);
 	curr_offset++;
 
 	NO_MORE_DATA_CHECK(len);
 	switch(coding_scheme)
 	{
 	case 0:
-		num_chars = gsm_sms_char_7bit_unpack(0, len - 1, sizeof(a_bigbuf),
-			tvb_get_ptr(tvb, curr_offset, len - 1), a_bigbuf);
-
 		/* Check if there was a reasonable value for number of spare bits in last octet */
 		num_text_bits = ((len - 1) << 3) - num_spare_bits;
 		if (num_spare_bits && (num_text_bits % 7))
 		{
-			expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN, "Value leads to a Text String whose length is not a multiple of 7 bits");
+			expert_add_info(pinfo, item, &ei_gsm_a_dtap_text_string_not_multiple_of_7);
 		}
-		/*
-		 * If the number of spare bits is 7, then we have unpacked one extra
-		 * character. Disregard this character.
-		 */
-		if (num_spare_bits == 7)
-			num_chars--;
-		a_bigbuf[num_chars] = '\0';
-		net_name = gsm_sms_chars_to_utf8(a_bigbuf, num_chars);
-		proto_tree_add_text(tree, tvb , curr_offset, len - 1, "Text String: %s", net_name);
+		proto_tree_add_ts_23_038_7bits_item(tree, hf_gsm_a_dtap_text_string, tvb, curr_offset<<3, num_text_bits/7);
 		break;
 	case 1:
-		if ((cd = g_iconv_open("UTF-8","UCS-2BE")) != (GIConv)-1)
-		{
-			net_name = g_convert_with_iconv(tvb_get_ptr(tvb, curr_offset, len - 1), len - 1, cd, NULL, NULL, &l_conv_error);
-			if(!l_conv_error){
-				proto_tree_add_text(tree, tvb, curr_offset, len - 1, "Text String: %s", net_name);
-			}else{
-				proto_tree_add_text(tree, tvb, curr_offset, len - 1, "Failed on UCS2 contact wireshark developers");
-			}
-
-			g_free(net_name);
-			g_iconv_close(cd);
-		}
-		else
-		{
-			net_name = tvb_get_ephemeral_unicode_string(tvb, curr_offset, (len - 1), ENC_BIG_ENDIAN);
-			proto_tree_add_text(tree, tvb, curr_offset, len - 1, "Text String: %s", net_name);
-		}
+		net_name = tvb_get_string_enc(wmem_packet_scope(), tvb, curr_offset, (len - 1), ENC_UCS_2|ENC_BIG_ENDIAN);
+		proto_tree_add_string(tree, hf_gsm_a_dtap_text_string, tvb, curr_offset, len - 1, net_name);
 		break;
 	default:
 		proto_tree_add_text(tree,
@@ -824,7 +881,7 @@ de_rej_cause(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 of
 
 	oct = tvb_get_guint8(tvb, offset);
 
-	str = match_strrval(oct, gsm_a_dtap_rej_cause_vals);
+	str = try_rval_to_str(oct, gsm_a_dtap_rej_cause_vals);
 	if(!str)
 	{
 		if(is_uplink == IS_UPLINK_TRUE)
@@ -871,7 +928,7 @@ de_time_zone(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 of
 	oct = (oct >> 4) + (oct & 0x07) * 10;
 
 	proto_tree_add_text(tree,
-		tvb, offset, 1,
+		tvb, curr_offset, 1,
 		"Timezone: GMT %c %d hours %d minutes",
 		sign, oct / 4, oct % 4 * 15);
 	curr_offset++;
@@ -887,43 +944,38 @@ de_time_zone(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 of
 static guint16
 de_time_zone_time(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_)
 {
-	guint8	oct, oct2, oct3;
+	guint8	oct;
 	guint32	curr_offset;
 	char    sign;
+	nstime_t tv;
+    struct tm tm;
 
 	curr_offset = offset;
 
-	oct = tvb_get_guint8(tvb, curr_offset);
-	oct2 = tvb_get_guint8(tvb, curr_offset+1);
-	oct3 = tvb_get_guint8(tvb, curr_offset+2);
-
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 3,
-		"Year %u%u, Month %u%u, Day %u%u",
-		oct & 0x0f,
-		(oct & 0xf0) >> 4,
-		oct2 & 0x0f,
-		(oct2 & 0xf0) >> 4,
-		oct3 & 0x0f,
-		(oct3 & 0xf0) >> 4);
-
-	curr_offset += 3;
+	/* "unused" part of structure */
+	tm.tm_wday = 0;
+	tm.tm_yday = 0;
+	tm.tm_isdst = -1;
 
 	oct = tvb_get_guint8(tvb, curr_offset);
-	oct2 = tvb_get_guint8(tvb, curr_offset+1);
-	oct3 = tvb_get_guint8(tvb, curr_offset+2);
+	tm.tm_year = (oct & 0x0f)*10 + ((oct & 0xf0) >> 4) + 100;
+	oct = tvb_get_guint8(tvb, curr_offset+1);
+	tm.tm_mon = (oct & 0x0f)*10 + ((oct & 0xf0) >> 4) - 1;
+	oct = tvb_get_guint8(tvb, curr_offset+2);
+	tm.tm_mday = (oct & 0x0f)*10 + ((oct & 0xf0) >> 4);
+	oct = tvb_get_guint8(tvb, curr_offset+3);
+	tm.tm_hour = (oct & 0x0f)*10 + ((oct & 0xf0) >> 4);
+	oct = tvb_get_guint8(tvb, curr_offset+4);
+	tm.tm_min = (oct & 0x0f)*10 + ((oct & 0xf0) >> 4);
+	oct = tvb_get_guint8(tvb, curr_offset+5);
+	tm.tm_sec = (oct & 0x0f)*10 + ((oct & 0xf0) >> 4);
 
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 3,
-		"Hour %u%u, Minutes %u%u, Seconds %u%u",
-		oct & 0x0f,
-		(oct & 0xf0) >> 4,
-		oct2 & 0x0f,
-		(oct2 & 0xf0) >> 4,
-		oct3 & 0x0f,
-		(oct3 & 0xf0) >> 4);
+	tv.secs = mktime(&tm);
+	tv.nsecs = 0;
 
-	curr_offset += 3;
+	proto_tree_add_time_format_value(tree, hf_gsm_a_dtap_time_zone_time, tvb, curr_offset, 6,
+	                                 &tv, "%s", abs_time_to_ep_str(&tv, ABSOLUTE_TIME_LOCAL, FALSE));
+	curr_offset += 6;
 
 	/* 3GPP TS 23.040 version 6.6.0 Release 6
 	 * 9.2.3.11 TP-Service-Centre-Time-Stamp (TP-SCTS)
@@ -939,7 +991,7 @@ de_time_zone_time(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint
 	oct = (oct >> 4) + (oct & 0x07) * 10;
 
 	proto_tree_add_text(tree,
-		tvb, offset, 1,
+		tvb, curr_offset, 1,
 		"Timezone: GMT %c %d hours %d minutes",
 		sign, oct / 4, oct % 4 * 15);
 
@@ -980,36 +1032,24 @@ de_lsa_id(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offse
 /*
  * [3] 10.5.3.12 Daylight Saving Time
  */
+static const value_string gsm_a_dtap_dst_adjustment_vals[] = {
+	{ 0, "No adjustment for Daylight Saving Time"},
+	{ 1, "+1 hour adjustment for Daylight Saving Time"},
+	{ 2, "+2 hours adjustment for Daylight Saving Time"},
+	{ 3, "Reserved"},
+	{ 0, NULL }
+};
+
 static guint16
 de_day_saving_time(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len, gchar *add_string _U_, int string_len _U_)
 {
-	guint8       oct;
 	guint32      curr_offset;
-	const gchar *str;
 
 	curr_offset = offset;
 
-	oct = tvb_get_guint8(tvb, curr_offset);
-
 	proto_tree_add_bits_item(tree, hf_gsm_a_spare_bits, tvb, curr_offset<<3, 6, ENC_BIG_ENDIAN);
 
-	switch (oct & 0x03)
-	{
-	case 0: str = "No adjustment for Daylight Saving Time"; break;
-	case 1: str = "+1 hour adjustment for Daylight Saving Time"; break;
-	case 2: str = "+2 hours adjustment for Daylight Saving Time"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x03, 8);
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s = %s",
-		a_bigbuf,
-		str);
-
+	proto_tree_add_item(tree, hf_gsm_a_dtap_dst_adjustment, tvb, curr_offset, 1, ENC_NA);
 	curr_offset++;
 
 	EXTRANEOUS_DATA_CHECK(len, curr_offset - offset);
@@ -1041,9 +1081,8 @@ de_emerg_num_list(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 o
 		 */
 		en_len = tvb_get_guint8(tvb, curr_offset);
 
-		item = proto_tree_add_text(tree,
-			tvb, curr_offset, en_len + 1,
-			"Emergency Number Information %u", count);
+		item = proto_tree_add_uint(tree, hf_gsm_a_dtap_emergency_number_information,
+			tvb, curr_offset, en_len + 1, count);
 		subtree = proto_item_add_subtree(item, ett_gsm_dtap_elem[DE_EMERGENCY_NUM_LIST]);
 		proto_tree_add_item(subtree, hf_gsm_a_dtap_emerg_num_info_length, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
 
@@ -1061,7 +1100,7 @@ de_emerg_num_list(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 o
 		curr_offset++;
 		en_len--;
 
-		poctets = tvb_get_ephemeral_string(tvb, curr_offset, en_len);
+		poctets = (guint8 *)tvb_memdup(wmem_packet_scope(), tvb, curr_offset, en_len);
 
 		my_dgt_tbcd_unpack(a_bigbuf, poctets, en_len, &Dgt_mbcd);
 
@@ -1087,7 +1126,7 @@ de_emerg_num_list(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 o
 			malformed_number = TRUE;
 
 		if(malformed_number)
-			expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN, "\'f\' end mark present in unexpected position");
+			expert_add_info(pinfo, item, &ei_gsm_a_dtap_end_mark_unexpected);
 
 		curr_offset = curr_offset + en_len;
 		count++;
@@ -1152,15 +1191,15 @@ de_mm_timer(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 off
 		case 1:  str = "min"; break;
 		case 2:  str = "min"; val*=6; break;
 		case 7:  str = "";
-			item = proto_tree_add_text(tree, tvb, offset, 1,
-			                           "MM Timer: timer is deactivated");
+			item = proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_mm_timer, tvb, offset, 1,
+			                           oct, "timer is deactivated");
 			break;
 		default:  str = "min";
 	}
 
 	if (item == NULL) {
-		item = proto_tree_add_text(tree, tvb, offset, 1,
-		                           "MM Timer: %u %s", val, str);
+		item = proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_mm_timer, tvb, offset, 1, val,
+		                           "%u %s", val, str);
 	}
 
 	subtree = proto_item_add_subtree(item, ett_mm_timer);
@@ -1173,55 +1212,35 @@ de_mm_timer(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 off
  /*
  * [3] 10.5.4.4 Auxiliary states
  */
+
+static const value_string gsm_a_dtap_hold_auxilary_state_vals[] = {
+	{ 0x00, "Idle" },
+	{ 0x01, "Hold request" },
+	{ 0x02, "Call held" },
+	{ 0x03, "Retrieve request" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_multi_party_auxilary_state_vals[] = {
+	{ 0x00, "Idle" },
+	{ 0x01, "MPTY request" },
+	{ 0x02, "Call in MPTY" },
+	{ 0x03, "Split request" },
+	{ 0, NULL }
+};
+
 static guint16
 de_aux_states(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len, gchar *add_string _U_, int string_len _U_)
 {
-	guint8       oct;
 	guint32      curr_offset;
-	const gchar *str;
 
 	curr_offset = offset;
-
-	oct = tvb_get_guint8(tvb, curr_offset);
 
 	proto_tree_add_item(tree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
 
 	proto_tree_add_bits_item(tree, hf_gsm_a_spare_bits, tvb, (curr_offset<<3)+1, 3, ENC_BIG_ENDIAN);
-
-	switch ((oct & 0x0c) >> 2)
-	{
-	case 0: str = "Idle"; break;
-	case 1: str = "Hold request"; break;
-	case 2: str = "Call held"; break;
-	default:
-		str = "Retrieve request";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x0c, 8);
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s = Hold auxiliary state: %s",
-		a_bigbuf,
-		str);
-
-	switch (oct & 0x03)
-	{
-	case 0: str = "Idle"; break;
-	case 1: str = "MPTY request"; break;
-	case 2: str = "Call in MPTY"; break;
-	default:
-		str = "Split request";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x03, 8);
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s = Multi party auxiliary state: %s",
-		a_bigbuf,
-		str);
-
+	proto_tree_add_item(tree, hf_gsm_a_dtap_hold_auxiliary_state, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(tree, hf_gsm_a_dtap_multi_party_auxiliary_state, tvb, curr_offset, 1, ENC_NA);
 	curr_offset++;
 
 	EXTRANEOUS_DATA_CHECK(len, curr_offset - offset);
@@ -1270,6 +1289,209 @@ static const value_string gsm_a_dtap_itc_values[] = {
 	{ 0x7,	"Reserved,(In Network alternate speech/facsimile group 3)" },
 	{ 0, NULL }
 };
+
+static const value_string gsm_a_dtap_structure_vals[] = {
+	{ 0x0,	"Service data unit integrity" },
+	{ 0x1,	"Reserved" },
+	{ 0x2,	"Reserved" },
+	{ 0x3,	"Unstructured" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_access_identity_vals[] = {
+	{ 0x0,	"Octet identifier" },
+	{ 0x1,	"Octet identifier" },
+	{ 0x2,	"Octet identifier" },
+	{ 0x3,	"Reserved" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_rate_adaption_vals[] = {
+	{ 0x0,	"No rate adaption" },
+	{ 0x1,	"Rate adaptation according to ITU-T Rec. V.110 and ITU-T Rec. X.30" },
+	{ 0x2,	"Flag stuffing according to ITU-T Rec. X.31" },
+	{ 0x3,	"Other rate adaption (see octet 5a)" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_signal_access_protocol_vals[] = {
+	{ 0x0,	"Reserved" },
+	{ 0x1,	"Rate adaptation according to ITU-T Rec. V.110 and ITU-T Rec. X.30" },
+	{ 0x2,	"Flag stuffing according to ITU-T Rec. X.31" },
+	{ 0x3,	"Other rate adaption (see octet 5a)" },
+	{ 0x4,	"No rate adaption" },
+	{ 0x5,	"Rate adaptation according to ITU-T Rec. V.110 and ITU-T Rec. X.30" },
+	{ 0x6,	"Flag stuffing according to ITU-T Rec. X.31" },
+	{ 0x7,	"Reserved" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_other_itc_vals[] = {
+	{ 0x0,	"Restricted digital information" },
+	{ 0x1,	"Restricted digital information" },
+	{ 0x2,	"Restricted digital information" },
+	{ 0x3,	"Reserved" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_other_rate_adaption_vals[] = {
+	{ 0x0,	"According to ITU-T Rec. V.120" },
+	{ 0x1,	"According to ITU-T Rec. H.223 and ITU-T Rec. H.245" },
+	{ 0x2,	"PIAFS" },
+	{ 0x3,	"Reserved" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_user_rate_vals[] = {
+	{ 0x1,	"0.3 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)" },
+	{ 0x2,	"1.2 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)" },
+	{ 0x3,	"2.4 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)" },
+	{ 0x4,	"4.8 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)" },
+	{ 0x5,	"9.6 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)" },
+	{ 0x6,	"12.0 kbit/s transparent (non compliance with ITU-T Rec. X.1 and ITU-T Rec. V.110)" },
+	{ 0x7,	"Reserved: was allocated in earlier phases of the protocol" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_v110_x30_rate_adaptation_vals[] = {
+	{ 0x0,	"Reserved" },
+	{ 0x1,	"Reserved" },
+	{ 0x2,	"8 kbit/s" },
+	{ 0x3,	"16 kbit/s" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_parity_info_vals[] = {
+	{ 0x0,	"Odd" },
+	{ 0x1,	"Reserved" },
+	{ 0x2,	"Even" },
+	{ 0x3,	"None" },
+	{ 0x4,	"Forced to 0" },
+	{ 0x5,	"Forced to 1" },
+	{ 0x6,	"Reserved" },
+	{ 0x7,	"Reserved" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_connection_element_vals[] = {
+	{ 0x0,	"Transparent" },
+	{ 0x1,	"Non transparent (RLP)" },
+	{ 0x2,	"Both, transparent preferred" },
+	{ 0x3,	"Both, non transparent preferred" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_modem_type_vals[] = {
+	{ 0x0,	"None" },
+	{ 0x1,	"According to ITU-T Rec. V.21" },
+	{ 0x2,	"According to ITU-T Rec. V.22" },
+	{ 0x3,	"According to ITU-T Rec. V.22 bis" },
+	{ 0x4,	"Reserved: was allocated in earlier phases of the protocol" },
+	{ 0x5,	"According to ITU-T Rec. V.26 ter" },
+	{ 0x6,	"According to ITU-T Rec. V.32" },
+	{ 0x7,	"Modem for undefined interface" },
+	{ 0x8,	"Autobauding type 1" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_other_modem_type_vals[] = {
+	{ 0x0,	"No other modem type specified in this field" },
+	{ 0x1,	"Reserved" },
+	{ 0x2,	"According to ITU-T Rec. V.34" },
+	{ 0x3,	"Reserved" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_fixed_network_user_rate_vals[] = {
+    { 0x00, "Fixed network user rate not applicable/No meaning is associated with this value"},
+	{ 0x01, "9.6 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)"},
+	{ 0x02, "14.4 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)"},
+	{ 0x03, "19.2 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)"},
+	{ 0x04, "28.8 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)"},
+	{ 0x05, "38.4 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)"},
+	{ 0x06, "48.0 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110 (synch))"},
+	{ 0x07, "56.0 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110 (synch) /bit transparent)"},
+	{ 0x08, "64.0 kbit/s bit transparent"},
+	{ 0x09, "33.6 kbit/s bit transparent"},
+	{ 0x0a, "32.0 kbit/s (according to ITU-T Rec. I.460)"},
+	{ 0x0b, "31.2 kbit/s (according to ITU-T Rec. V.34)"},
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_uimi_vals[] = {
+	{ 0x0,	"not allowed/required/applicable" },
+	{ 0x1,	"up to 1 TCH/F allowed/may be requested" },
+	{ 0x2,	"up to 2 TCH/F allowed/may be requested" },
+	{ 0x3,	"up to 3 TCH/F allowed/may be requested" },
+	{ 0x4,	"up to 4 TCH/F allowed/may be requested" },
+	{ 0x5,	"up to 4 TCH/F may be requested" },
+	{ 0x6,	"up to 4 TCH/F may be requested" },
+	{ 0x7,	"up to 4 TCH/F may be requested" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_wanted_air_rate_vals[] = {
+	{ 0x0,	"Air interface user rate not applicable/No meaning associated with this value" },
+	{ 0x1,	"9.6 kbit/s" },
+	{ 0x2,	"14.4 kbit/s" },
+	{ 0x3,	"19.2 kbit/s" },
+	{ 0x4,	"Reserved" },
+	{ 0x5,	"28.8 kbit/s" },
+	{ 0x6,	"38.4 kbit/s" },
+	{ 0x7,	"43.2 kbit/s" },
+	{ 0x8,	"57.6 kbit/s" },
+	{ 0x9,	"interpreted by the network as 38.4 kbit/s in this version of the protocol" },
+	{ 0xa,	"interpreted by the network as 38.4 kbit/s in this version of the protocol" },
+	{ 0xb,	"interpreted by the network as 38.4 kbit/s in this version of the protocol" },
+	{ 0xc,	"interpreted by the network as 38.4 kbit/s in this version of the protocol" },
+	{ 0xd,	"Reserved" },
+	{ 0xe,	"Reserved" },
+	{ 0xf,	"Reserved" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_channel_coding_asymmetry_ind_vals[] = {
+	{ 0x0,	"Channel coding symmetry preferred" },
+	{ 0x1,	"Uplink biased channel coding asymmetry is preferred" },
+	{ 0x2,	"Downlink biased channel coding asymmetry is preferred" },
+	{ 0x3,	"Unused, treat as Channel coding symmetry preferred" },
+	{ 0, NULL }
+};
+
+static const value_string gsm_a_dtap_user_info_layer2_vals[] = {
+	{ 0x06,	"Reserved: was allocated in earlier phases of the protocol" },
+	{ 0x08,	"According to ISO/IEC 6429, codeset 0 (DC1/DC3)" },
+	{ 0x09,	"Reserved: was allocated but never used in earlier phases of the protocol" },
+	{ 0x0a,	"Videotex profile 1" },
+	{ 0x0c,	"COPnoFlCt (Character oriented Protocol with no Flow Control mechanism)" },
+	{ 0x0d,	"Reserved: was allocated in earlier phases of the protocol" },
+	{ 0, NULL }
+};
+
+static const true_false_string tfs_bearer_cap_coding_standard = { "reserved", "GSM standardized coding" };
+static const true_false_string tfs_bearer_cap_transfer_mode = { "packet", "circuit" };
+static const true_false_string tfs_bearer_cap_coding = { "octet used for other extension of octet 3", "octet used for extension of information transfer capability" };
+static const true_false_string tfs_possible_not_possible = { "Possible", "Not Possible" };
+static const true_false_string tfs_duplex_mode = { "Full", "Half" };
+static const true_false_string tfs_bearer_cap_configuration = { "Reserved", "Point-to-point" };
+static const true_false_string tfs_nirr = { "Data up to and including 4.8 kb/s, full rate, non-transparent, 6 kb/s radio interface rate is requested",
+                                                             "No meaning is associated with this value" };
+static const true_false_string tfs_bearer_cap_establishment = { "Reserved", "Demand" };
+static const true_false_string tfs_included_not_included = { "Included", "Not Included" };
+static const true_false_string tfs_frame_est_supported_not_supported = { "Supported", "Not supported, only UI frames allowed" };
+static const true_false_string tfs_mode_of_operation = { "Protocol sensitive", "Bit transparent" };
+static const true_false_string tfs_log_link_neg = { "Full protocol negotiation", "Default, LLI=256 only" };
+static const true_false_string tfs_assignor_assignee = { "Message originator is assignor only", "Message originator is default assignee" };
+static const true_false_string tfs_in_out_band = { "Negotiation is done with USER INFORMATION messages on a temporary signalling connection",
+                                                   "Negotiation is done in-band using logical link zero" };
+static const true_false_string tfs_asynchronous_synchronous = { "Asynchronous", "Synchronous" };
+static const true_false_string tfs_stop_bits = { "2", "1" };
+static const true_false_string tfs_negotiation = { "Reserved", "In-band negotiation not possible" };
+static const true_false_string tfs_parity_bits = { "8", "7" };
+static const true_false_string tfs_nic_on_tx = { "requires to send data with network independent clock",
+                                                 "does not require to send data with network independent clock" };
+static const true_false_string tfs_nic_on_rx = { "can accept data with network independent clock",
+                                                 "cannot accept data with network independent clock" };
 
 guint16
 de_bearer_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len, gchar *add_string, int string_len)
@@ -1369,26 +1591,11 @@ de_bearer_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 o
 			break;
 		}
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0x60, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Radio channel requirement: %s",
-		a_bigbuf,
-		str);
+	proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_radio_channel_requirement, tvb, curr_offset, 1,
+		                             oct, "%s", str);
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0x10, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Coding standard: %s",
-		a_bigbuf,
-		(oct & 0x10) ? "reserved" : "GSM standardized coding");
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x08, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Transfer mode: %s",
-		a_bigbuf,
-		(oct & 0x08) ? "packet" : "circuit");
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_bearer_cap_coding_standard, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_transfer_mode, tvb, curr_offset, 1, ENC_NA);
 
 	proto_tree_add_item(subtree, hf_gsm_a_dtap_itc, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
 
@@ -1420,17 +1627,8 @@ de_bearer_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 o
 			extended = (oct & 0x80) ? FALSE : TRUE;
 
 			proto_tree_add_item(subtree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-
-			other_decode_bitfield_value(a_bigbuf, oct, 0x40, 8);
-			proto_tree_add_text(subtree,
-				tvb, curr_offset, 1,
-				"%s = Coding: octet used for %s",
-				a_bigbuf,
-				(oct & 0x40) ? "other extension of octet 3" :
-				"extension of information transfer capability");
-
+			proto_tree_add_item(subtree, hf_gsm_a_dtap_coding, tvb, curr_offset, 1, ENC_NA);
 			proto_tree_add_bits_item(subtree, hf_gsm_a_spare_bits, tvb, (curr_offset<<3)+2, 2, ENC_BIG_ENDIAN);
-
 			proto_tree_add_item(subtree, hf_gsm_a_dtap_speech_vers_ind, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
 			curr_offset++;
 		}
@@ -1450,64 +1648,15 @@ de_bearer_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 o
 
 		subtree = proto_item_add_subtree(item, ett_bc_oct_4);
 
-		oct = tvb_get_guint8(tvb, curr_offset);
-
 		proto_tree_add_item(subtree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
+		proto_tree_add_item(subtree, is_uplink ? hf_gsm_a_dtap_compression_up : hf_gsm_a_dtap_compression,
+			tvb, curr_offset, 1, ENC_NA);
 
-		other_decode_bitfield_value(a_bigbuf, oct, 0x40, 8);
-		proto_tree_add_text(subtree,
-			tvb, curr_offset, 1,
-			"%s = Compression: data compression %s%s",
-			a_bigbuf,
-			(oct & 0x40) ? "" : "not ",
-			is_uplink ? "allowed" : "possible");
-
-		switch ((oct & 0x30) >> 4)
-		{
-		case 0x00: str = "Service data unit integrity"; break;
-		case 0x03: str = "Unstructured"; break;
-		default:
-			str = "Reserved";
-			break;
-		}
-
-		other_decode_bitfield_value(a_bigbuf, oct, 0x30, 8);
-		proto_tree_add_text(subtree,
-			tvb, curr_offset, 1,
-			"%s = Structure: %s",
-			a_bigbuf,
-			str);
-
-		other_decode_bitfield_value(a_bigbuf, oct, 0x08, 8);
-		proto_tree_add_text(subtree,
-			tvb, curr_offset, 1,
-			"%s = Duplex mode: %s",
-			a_bigbuf,
-			(oct & 0x08) ? "Full" : "Half");
-
-		other_decode_bitfield_value(a_bigbuf, oct, 0x04, 8);
-		proto_tree_add_text(subtree,
-			tvb, curr_offset, 1,
-			"%s = Configuration: %s",
-			a_bigbuf,
-			(oct & 0x04) ? "Reserved" : "Point-to-point");
-
-		other_decode_bitfield_value(a_bigbuf, oct, 0x02, 8);
-		proto_tree_add_text(subtree,
-			tvb, curr_offset, 1,
-			"%s = NIRR: %s",
-			a_bigbuf,
-			(oct & 0x02) ?
-			"Data up to and including 4.8 kb/s, full rate, non-transparent, 6 kb/s radio interface rate is requested" :
-			"No meaning is associated with this value");
-
-		other_decode_bitfield_value(a_bigbuf, oct, 0x01, 8);
-		proto_tree_add_text(subtree,
-			tvb, curr_offset, 1,
-			"%s = Establishment: %s",
-			a_bigbuf,
-			(oct & 0x01) ? "Reserved" : "Demand");
-
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_structure, tvb, curr_offset, 1, ENC_NA);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_duplex_mode, tvb, curr_offset, 1, ENC_NA);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_configuration, tvb, curr_offset, 1, ENC_NA);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_nirr, tvb, curr_offset, 1, ENC_NA);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_establishment, tvb, curr_offset, 1, ENC_NA);
 		curr_offset++;
 
 	NO_MORE_DATA_CHECK(len);
@@ -1526,51 +1675,9 @@ de_bearer_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 o
 	extended = (oct & 0x80) ? FALSE : TRUE;
 
 	proto_tree_add_item(subtree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x60, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Access Identity: %s",
-		a_bigbuf,
-		(oct & 0x60) ? "Reserved" : "Octet identifier");
-
-	switch ((oct & 0x18) >> 3)
-	{
-	case 0x00: str = "No rate adaption"; break;
-	case 0x01: str = "Rate adaptation according to ITU-T Rec. V.110 and ITU-T Rec. X.30"; break;
-	case 0x02: str = "Flag stuffing according to ITU-T Rec. X.31"; break;
-	default:
-		str = "Other rate adaption (see octet 5a)";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x18, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Rate Adaption: %s",
-		a_bigbuf,
-		str);
-
-	switch (oct & 0x07)
-	{
-	case 0x01: str = "According to ITU-T Rec. Q.920 and ITU-T Rec. Q.930"; break;
-	case 0x02: str = "Reserved: was allocated in earlier phases of the protocol"; break;
-	case 0x03: str = "Reserved: was allocated in earlier phases of the protocol"; break;
-	case 0x04: str = "Reserved: was allocated in earlier phases of the protocol"; break;
-	case 0x05: str = "Reserved: was allocated in earlier phases of the protocol"; break;
-	case 0x06: str = "Reserved: was allocated in earlier phases of the protocol"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x07, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Signalling Access Protocol: %s",
-		a_bigbuf,
-		str);
-
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_access_identity, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_rate_adaption, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_signalling_access_protocol, tvb, curr_offset, 1, ENC_NA);
 	curr_offset++;
 
 	NO_MORE_DATA_CHECK(len);
@@ -1591,33 +1698,9 @@ de_bearer_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 o
 	extended = (oct & 0x80) ? FALSE : TRUE;
 
 	proto_tree_add_item(subtree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x60, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Other ITC: %s",
-		a_bigbuf,
-		(oct & 0x60) ? "Reserved" : "Restricted digital information");
-
-	switch ((oct & 0x18) >> 3)
-	{
-	case 0x00: str = "According to ITU-T Rec. V.120"; break;
-	case 0x01: str = "According to ITU-T Rec. H.223 and ITU-T Rec. H.245"; break;
-	case 0x02: str = "PIAFS"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x18, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Other Rate Adaption: %s",
-		a_bigbuf,
-		str);
-
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_other_itc, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_other_rate_adaption, tvb, curr_offset, 1, ENC_NA);
 	proto_tree_add_bits_item(tree, hf_gsm_a_spare_bits, tvb, (curr_offset<<3)+5, 3, ENC_BIG_ENDIAN);
-
 	curr_offset++;
 
 	NO_MORE_DATA_CHECK(len);
@@ -1633,54 +1716,13 @@ de_bearer_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 o
 
 	subtree = proto_item_add_subtree(item, ett_bc_oct_5b);
 
-	oct = tvb_get_guint8(tvb, curr_offset);
-
 	proto_tree_add_item(subtree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x40, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Rate Adaption Header: %sincluded",
-		a_bigbuf,
-		(oct & 0x40) ? "" : "not ");
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x20, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Multiple frame establishment support in data link: %s",
-		a_bigbuf,
-		(oct & 0x20) ? "Supported" : "Not supported, only UI frames allowed");
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x10, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Mode of operation: %s",
-		a_bigbuf,
-		(oct & 0x10) ? "Protocol sensitive" : "Bit transparent");
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x08, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Logical link identifier negotiation: %s",
-		a_bigbuf,
-		(oct & 0x08) ? "Full protocol negotiation" : "Default, LLI=256 only");
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x04, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Assignor/Assignee: Message originator is '%s'",
-		a_bigbuf,
-		(oct & 0x04) ? "assignor only" : "default assignee");
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x02, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = In band/Out of band negotiation: Negotiation is done %s",
-		a_bigbuf,
-		(oct & 0x02) ?
-		"with USER INFORMATION messages on a temporary signalling connection" :
-		"in-band using logical link zero");
-
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_rate_adaption_header, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_multiple_frame_establishment_support, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_mode_of_operation, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_logical_link_identifier_negotiation, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_assignor_assignee, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_in_out_band, tvb, curr_offset, 1, ENC_NA);
 	proto_tree_add_bits_item(tree, hf_gsm_a_spare_bits, tvb, (curr_offset<<3)+7, 1, ENC_BIG_ENDIAN);
 
 	curr_offset++;
@@ -1704,27 +1746,14 @@ bc_octet_6:
 
 	proto_tree_add_item(subtree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0x60, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Layer 1 Identity: %s",
-		a_bigbuf,
-		((oct & 0x60) == 0x20) ? "Octet identifier" : "Reserved");
+	proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_layer_1_identity, tvb, curr_offset, 1, oct,
+		"%s", ((oct & 0x60) == 0x20) ? "Octet identifier" : "Reserved");
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0x1e, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = User information layer 1 protocol: %s",
-		a_bigbuf,
+	proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_user_information_layer_1_protocol,
+		tvb, curr_offset, 1, oct, "%s",
 		(oct & 0x1e) ? "Reserved" : "Default layer 1 protocol");
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0x01, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Synchronous/asynchronous: %s",
-		a_bigbuf,
-		(oct & 0x01) ? "Asynchronous" : "Synchronous");
-
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_synchronous, tvb, curr_offset, 1, ENC_NA);
 	curr_offset++;
 
 	NO_MORE_DATA_CHECK(len);
@@ -1745,48 +1774,12 @@ bc_octet_6:
 	extended = (oct & 0x80) ? FALSE : TRUE;
 
 	proto_tree_add_item(subtree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_number_of_stop_bits, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_negotiation, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_number_of_data_bits, tvb, curr_offset, 1, ENC_NA);
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0x40, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Number of Stop Bits: %s",
-		a_bigbuf,
-		(oct & 0x40) ? "2" : "1");
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x20, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Negotiation: %s",
-		a_bigbuf,
-		(oct & 0x20) ? "Reserved" : "In-band negotiation not possible");
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x10, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Number of data bits excluding parity bit if present: %s",
-		a_bigbuf,
-		(oct & 0x10) ? "8" : "7");
-
-	switch (oct & 0x0f)
-	{
-	case 0x01: str = "0.3 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)"; break;
-	case 0x02: str = "1.2 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)"; break;
-	case 0x03: str = "2.4 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)"; break;
-	case 0x04: str = "4.8 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)"; break;
-	case 0x05: str = "9.6 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)"; break;
-	case 0x06: str = "12.0 kbit/s transparent (non compliance with ITU-T Rec. X.1 and ITU-T Rec. V.110)"; break;
-	case 0x07: str = "Reserved: was allocated in earlier phases of the protocol"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x0f, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = User rate: %s",
-		a_bigbuf,
-		str);
+	proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_user_rate,
+		tvb, curr_offset, 1, oct, "%s", val_to_str_const(oct & 0xF, gsm_a_dtap_user_rate_vals, "Reserved"));
 
 	curr_offset++;
 
@@ -1808,56 +1801,10 @@ bc_octet_6:
 	extended = (oct & 0x80) ? FALSE : TRUE;
 
 	proto_tree_add_item(subtree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-
-	switch ((oct & 0x60) >> 5)
-	{
-	case 0x02: str = "8 kbit/s"; break;
-	case 0x03: str = "16 kbit/s"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x60, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = V.110/X.30 rate adaptation Intermediate rate: %s",
-		a_bigbuf,
-		str);
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x10, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Network independent clock (NIC) on transmission (Tx): %s to send data with network independent clock",
-		a_bigbuf,
-		(oct & 0x10) ? "requires" : "does not require");
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x08, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Network independent clock (NIC) on reception (Rx): %s accept data with network independent clock",
-		a_bigbuf,
-		(oct & 0x08) ? "can" : "cannot");
-
-	switch (oct & 0x07)
-	{
-	case 0x00: str = "Odd"; break;
-	case 0x02: str = "Even"; break;
-	case 0x03: str = "None"; break;
-	case 0x04: str = "Forced to 0"; break;
-	case 0x05: str = "Forced to 1"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x07, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Parity information: %s",
-		a_bigbuf,
-		str);
-
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_v110_x30_rate_adaptation, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_nic_on_tx, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_nic_on_rx, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_parity_information, tvb, curr_offset, 1, ENC_NA);
 	curr_offset++;
 
 	NO_MORE_DATA_CHECK(len);
@@ -1878,46 +1825,9 @@ bc_octet_6:
 	extended = (oct & 0x80) ? FALSE : TRUE;
 
 	proto_tree_add_item(subtree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-
-	switch ((oct & 0x60) >> 5)
-	{
-	case 0x01: str = "Non transparent (RLP)"; break;
-	case 0x02: str = "Both, transparent preferred"; break;
-	case 0x03: str = "Both, non transparent preferred"; break;
-	default:
-		str = "Transparent";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x60, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Connection element: %s",
-		a_bigbuf,
-		str);
-
-	switch (oct & 0x1f)
-	{
-	case 0x00: str = "None"; break;
-	case 0x01: str = "According to ITU-T Rec. V.21"; break;
-	case 0x02: str = "According to ITU-T Rec. V.22"; break;
-	case 0x03: str = "According to ITU-T Rec. V.22 bis"; break;
-	case 0x04: str = "Reserved: was allocated in earlier phases of the protocol"; break;
-	case 0x05: str = "According to ITU-T Rec. V.26 ter"; break;
-	case 0x06: str = "According to ITU-T Rec. V.32"; break;
-	case 0x07: str = "Modem for undefined interface"; break;
-	case 0x08: str = "Autobauding type 1"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x1f, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Modem type: %s",
-		a_bigbuf,
-		str);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_connection_element, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_modem_type, tvb, curr_offset, 1,
+		oct, "%s", val_to_str_const(oct & 0x1f, gsm_a_dtap_modem_type_vals, "Reserved"));
 
 	curr_offset++;
 
@@ -1939,49 +1849,9 @@ bc_octet_6:
 	extended = (oct & 0x80) ? FALSE : TRUE;
 
 	proto_tree_add_item(subtree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-
-	switch ((oct & 0x60) >> 5)
-	{
-	case 0x00: str = "No other modem type specified in this field"; break;
-	case 0x02: str = "According to ITU-T Rec. V.34"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x60, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Other modem type: %s",
-		a_bigbuf,
-		str);
-
-	switch (oct & 0x1f)
-	{
-	case 0x00: str = "Fixed network user rate not applicable/No meaning is associated with this value"; break;
-	case 0x01: str = "9.6 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)"; break;
-	case 0x02: str = "14.4 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)"; break;
-	case 0x03: str = "19.2 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)"; break;
-	case 0x04: str = "28.8 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)"; break;
-	case 0x05: str = "38.4 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110)"; break;
-	case 0x06: str = "48.0 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110 (synch))"; break;
-	case 0x07: str = "56.0 kbit/s (according to ITU-T Rec. X.1 and ITU-T Rec. V.110 (synch) /bit transparent)"; break;
-	case 0x08: str = "64.0 kbit/s bit transparent"; break;
-	case 0x09: str = "33.6 kbit/s bit transparent"; break;
-	case 0x0a: str = "32.0 kbit/s (according to ITU-T Rec. I.460)"; break;
-	case 0x0b: str = "31.2 kbit/s (according to ITU-T Rec. V.34)"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x1f, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Fixed network user rate: %s",
-		a_bigbuf,
-		str);
-
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_other_modem_type, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_fixed_network_user_rate, tvb, curr_offset, 1,
+		oct, "%s", val_to_str_const(oct & 0x1f, gsm_a_dtap_fixed_network_user_rate_vals, "Reserved"));
 	curr_offset++;
 
 	NO_MORE_DATA_CHECK(len);
@@ -2005,53 +1875,20 @@ bc_octet_6:
 
 	if (is_uplink == IS_UPLINK_TRUE)
 	{
-		other_decode_bitfield_value(a_bigbuf, oct, 0x40, 8);
-		proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Acceptable channel codings: TCH/F14.4 %sacceptable",
-		a_bigbuf,
-		(oct & 0x40) ? "" : "not ");
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_acceptable_channel_codings_TCH_F14_4, tvb, curr_offset, 1, ENC_NA);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_acceptable_channel_codings_spare20, tvb, curr_offset, 1, ENC_NA);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_acceptable_channel_codings_TCH_F9_6, tvb, curr_offset, 1, ENC_NA);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_acceptable_channel_codings_TCH_F4_8, tvb, curr_offset, 1, ENC_NA);
 
-		other_decode_bitfield_value(a_bigbuf, oct, 0x20, 8);
-		proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Acceptable channel codings: Spare",
-		a_bigbuf);
-
-		other_decode_bitfield_value(a_bigbuf, oct, 0x10, 8);
-		proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Acceptable channel codings: TCH/F9.6 %sacceptable",
-		a_bigbuf,
-		(oct & 0x10) ? "" : "not ");
-
-		other_decode_bitfield_value(a_bigbuf, oct, 0x08, 8);
-		proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Acceptable channel codings: TCH/F4.8 %sacceptable",
-		a_bigbuf,
-		(oct & 0x08) ? "" : "not ");
-
-		other_decode_bitfield_value(a_bigbuf, oct, 0x07, 8);
-		proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Maximum number of traffic channels: %u TCH",
-		a_bigbuf,
-		(oct & 0x07) + 1);
+		proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_maximum_number_of_traffic_channels, tvb, curr_offset, 1,
+            (oct & 0x07) + 1, "%u TCH", (oct & 0x07) + 1);
 	}
 	else
 	{
-		other_decode_bitfield_value(a_bigbuf, oct, 0x78, 8);
-		proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Acceptable channel codings: Spare",
-		a_bigbuf);
-
-		other_decode_bitfield_value(a_bigbuf, oct, 0x07, 8);
-		proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Maximum number of traffic channels: Spare",
-		a_bigbuf);
+		proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_acceptable_channel_codings_spare78, tvb, curr_offset, 1,
+            oct, "Spare");
+		proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_maximum_number_of_traffic_channels, tvb, curr_offset, 1,
+            oct, "Spare");
 	}
 
 	curr_offset++;
@@ -2074,61 +1911,16 @@ bc_octet_6:
 	extended = (oct & 0x80) ? FALSE : TRUE;
 
 	proto_tree_add_item(subtree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-
-	switch ((oct & 0x70) >> 4)
-	{
-	case 0x00: str = "not allowed/required/applicable"; break;
-	case 0x01: str = "up to 1 TCH/F allowed/may be requested"; break;
-	case 0x02: str = "up to 2 TCH/F allowed/may be requested"; break;
-	case 0x03: str = "up to 3 TCH/F allowed/may be requested"; break;
-	case 0x04: str = "up to 4 TCH/F allowed/may be requested"; break;
-	default:
-		str = "up to 4 TCH/F may be requested";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x70, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = UIMI, User initiated modification indication: %s",
-		a_bigbuf,
-		str);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_uimi, tvb, curr_offset, 1, ENC_NA);
 
 	if (is_uplink == IS_UPLINK_TRUE)
 	{
-		switch (oct & 0x0f)
-		{
-		case 0x00: str = "Air interface user rate not applicable/No meaning associated with this value"; break;
-		case 0x01: str = "9.6 kbit/s"; break;
-		case 0x02: str = "14.4 kbit/s"; break;
-		case 0x03: str = "19.2 kbit/s"; break;
-		case 0x05: str = "28.8 kbit/s"; break;
-		case 0x06: str = "38.4 kbit/s"; break;
-		case 0x07: str = "43.2 kbit/s"; break;
-		case 0x08: str = "57.6 kbit/s"; break;
-		case 0x09: str = "interpreted by the network as 38.4 kbit/s in this version of the protocol"; break;
-		case 0x0a: str = "interpreted by the network as 38.4 kbit/s in this version of the protocol"; break;
-		case 0x0b: str = "interpreted by the network as 38.4 kbit/s in this version of the protocol"; break;
-		case 0x0c: str = "interpreted by the network as 38.4 kbit/s in this version of the protocol"; break;
-		default:
-		str = "Reserved";
-		break;
-		}
-
-		other_decode_bitfield_value(a_bigbuf, oct, 0x0f, 8);
-		proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Wanted air interface user rate: %s",
-		a_bigbuf,
-		str);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_wanted_air_interface_user_rate, tvb, curr_offset, 1, ENC_NA);
 	}
 	else
 	{
-		other_decode_bitfield_value(a_bigbuf, oct, 0x0f, 8);
-		proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Wanted air interface user rate: Spare",
-		a_bigbuf);
+		proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_wanted_air_interface_user_rate, tvb, curr_offset, 1,
+            oct, "Spare");
 	}
 
 	curr_offset++;
@@ -2152,58 +1944,14 @@ bc_octet_6:
 
 	if (is_uplink == IS_UPLINK_TRUE)
 	{
-		other_decode_bitfield_value(a_bigbuf, oct, 0x40, 8);
-		proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Acceptable channel codings extended: TCH/F28.8 %sacceptable",
-		a_bigbuf,
-		(oct & 0x40) ? "" : "not ");
-
-		other_decode_bitfield_value(a_bigbuf, oct, 0x20, 8);
-		proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Acceptable channel codings extended: TCH/F32.0 %sacceptable",
-		a_bigbuf,
-		(oct & 0x20) ? "" : "not ");
-
-		other_decode_bitfield_value(a_bigbuf, oct, 0x10, 8);
-		proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Acceptable channel codings extended: TCH/F43.2 %sacceptable",
-		a_bigbuf,
-		(oct & 0x10) ? "" : "not ");
-
-		other_decode_bitfield_value(a_bigbuf, oct, 0x10, 8);
-		proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Acceptable channel codings extended: TCH/F43.2 %sacceptable",
-		a_bigbuf,
-		(oct & 0x10) ? "" : "not ");
-
-		switch ((oct & 0x0c) >> 2)
-		{
-		case 0: str = "Channel coding symmetry preferred"; break;
-		case 2: str = "Downlink biased channel coding asymmetry is preferred"; break;
-		case 1: str = "Uplink biased channel coding asymmetry is preferred"; break;
-		default:
-		str = "Unused, treat as Channel coding symmetry preferred";
-		break;
-		}
-
-		other_decode_bitfield_value(a_bigbuf, oct, 0x0c, 8);
-		proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Channel Coding Asymmetry Indication: %s",
-		a_bigbuf,
-		str);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_acceptable_channel_codings_ext_TCH_F28_8, tvb, curr_offset, 1, ENC_NA);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_acceptable_channel_codings_ext_TCH_F32_0, tvb, curr_offset, 1, ENC_NA);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_acceptable_channel_codings_ext_TCH_F43_2, tvb, curr_offset, 1, ENC_NA);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_channel_coding_asymmetry_indication, tvb, curr_offset, 1, ENC_NA);
 	}
 	else
 	{
-		other_decode_bitfield_value(a_bigbuf, oct, 0x7c, 8);
-		proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = EDGE Channel Codings: Spare",
-		a_bigbuf);
+		proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_edge_channel_codings, tvb, curr_offset, 1, oct, "Spare");
 	}
 
 	proto_tree_add_bits_item(tree, hf_gsm_a_spare_bits, tvb, (curr_offset<<3)+6, 2, ENC_BIG_ENDIAN);
@@ -2223,34 +1971,13 @@ bc_octet_7:
 	subtree = proto_item_add_subtree(item, ett_bc_oct_7);
 		oct = tvb_get_guint8(tvb, curr_offset);
 
-		proto_tree_add_item(subtree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
+	proto_tree_add_item(subtree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0x60, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Layer 2 Identity: %s",
-		a_bigbuf,
-		((oct & 0x60) == 0x40) ? "Octet identifier" : "Reserved");
+	proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_layer_2_identity, tvb, curr_offset, 1, oct,
+		"%s", ((oct & 0x60) == 0x40) ? "Octet identifier" : "Reserved");
 
-	switch (oct & 0x1f)
-	{
-	case 0x06: str = "Reserved: was allocated in earlier phases of the protocol"; break;
-	case 0x08: str = "According to ISO/IEC 6429, codeset 0 (DC1/DC3)"; break;
-	case 0x09: str = "Reserved: was allocated but never used in earlier phases of the protocol"; break;
-	case 0x0a: str = "Videotex profile 1"; break;
-	case 0x0c: str = "COPnoFlCt (Character oriented Protocol with no Flow Control mechanism)"; break;
-	case 0x0d: str = "Reserved: was allocated in earlier phases of the protocol"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x1f, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = User information layer 2 protocol: %s",
-		a_bigbuf,
-		str);
+	proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_user_information_layer_2_protocol, tvb, curr_offset, 1,
+        oct, "%s", val_to_str_const(oct & 0x1F, gsm_a_dtap_user_info_layer2_vals, "Reserved"));
 	break;
 	}
 
@@ -2281,6 +2008,11 @@ const true_false_string gsm_a_dtap_enicm_value = {
 	"The mobile station does not support the Enhanced Network-initiated In-Call Modification procedure"
 };
 
+const true_false_string gsm_a_dtap_dtmf_value = {
+	"the mobile station supports DTMF as specified in subclause 5.5.7 of TS 24.008",
+	"reserved for earlier versions of the protocol"
+};
+
 static guint16
 de_cc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len, gchar *add_string _U_, int string_len _U_){
 	guint8	oct;
@@ -2290,59 +2022,26 @@ de_cc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offse
 
 	oct = tvb_get_guint8(tvb, curr_offset);
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0xf0, 8);
-
-	switch ((oct & 0xf0) >> 4)
-	{
-	case 0:
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s = Maximum number of supported bearers: 1",
-		a_bigbuf);
-	break;
-
-	default:
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s =  Maximum number of supported bearers: %u",
-		a_bigbuf,
-		(oct & 0xf0) >> 4);
-	break;
-	}
+    if (((oct & 0xf0) >> 4) == 0)
+    {
+    	proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_maximum_number_of_supported_bearers, tvb, curr_offset, 1, 0, "1");
+    }
+    else
+    {
+    	proto_tree_add_item(tree, hf_gsm_a_dtap_maximum_number_of_supported_bearers, tvb, curr_offset, 1, ENC_NA);
+    }
 
 	proto_tree_add_item(tree, hf_gsm_a_dtap_mcat, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
 	proto_tree_add_item(tree, hf_gsm_a_dtap_enicm, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x02, 8);
-		proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s = PCP: the mobile station %s the Prolonged Clearing Procedure",
-		a_bigbuf,
-		(oct & 0x02) ? "supports" : "does not support");
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x01, 8);
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s = DTMF: %s",
-		a_bigbuf,
-		(oct & 0x01) ?
-			"the mobile station supports DTMF as specified in subclause 5.5.7 of TS 24.008" :
-			"reserved for earlier versions of the protocol");
+	proto_tree_add_item(tree, hf_gsm_a_dtap_pcp, tvb, curr_offset, 1, ENC_NA);
+	proto_tree_add_item(tree, hf_gsm_a_dtap_dtmf, tvb, curr_offset, 1, ENC_NA);
 
 	curr_offset++;
 
 	NO_MORE_DATA_CHECK(len);
 
-	oct = tvb_get_guint8(tvb, curr_offset);
-
 	proto_tree_add_bits_item(tree, hf_gsm_a_spare_bits, tvb, curr_offset<<3, 4, ENC_BIG_ENDIAN);
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x0f, 8);
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s = Maximum number of speech bearers: %u",
-		a_bigbuf,
-		oct & 0x0f);
+	proto_tree_add_item(tree, hf_gsm_a_dtap_max_num_of_speech_bearers, tvb, curr_offset, 1, ENC_NA);
 
 	curr_offset++;
 
@@ -2397,7 +2096,7 @@ de_call_state(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 o
 	item =
 	proto_tree_add_text(tree,
 		tvb, offset, 1, "%s",
-		gsm_dtap_elem_strings[DE_CALL_STATE].strptr);
+		val_to_str_ext_const(DE_CALL_STATE, &gsm_dtap_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_dtap_elem[DE_CALL_STATE]);
 	proto_tree_add_item(subtree, hf_gsm_a_dtap_coding_standard, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -2505,7 +2204,7 @@ de_bcd_num(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, 
 	NO_MORE_DATA_CHECK(len);
 
 	num_string_len = len - (curr_offset - offset);
-	poctets = tvb_get_ephemeral_string(tvb, curr_offset, num_string_len);
+	poctets = (guint8 *)tvb_memdup(wmem_packet_scope(), tvb, curr_offset, num_string_len);
 
 	*address_extracted = TRUE;
 	my_dgt_tbcd_unpack(a_bigbuf, poctets, num_string_len,
@@ -2533,7 +2232,7 @@ de_bcd_num(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, 
 		malformed_number = TRUE;
 
 	if(malformed_number)
-		expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN, "\'f\' end mark present in unexpected position");
+		expert_add_info(pinfo, item, &ei_gsm_a_dtap_end_mark_unexpected);
 
 	return(len);
 }
@@ -2586,7 +2285,7 @@ de_sub_addr(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset,
 		if (afi == 0x50)
 		{
 			ia5_string_len = len - (curr_offset - offset);
-			ia5_string = tvb_get_ephemeral_string(tvb, curr_offset, ia5_string_len);
+			ia5_string = (guint8 *)tvb_memdup(wmem_packet_scope(), tvb, curr_offset, ia5_string_len);
 
 			invalid_ia5_char = FALSE;
 			for(i = 0; i < ia5_string_len; i++)
@@ -2608,7 +2307,7 @@ de_sub_addr(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset,
 				"Subaddress: %s", a_bigbuf);
 
 			if(invalid_ia5_char)
-				expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN, "Invalid IA5 character(s) in string (value > 127)");
+				expert_add_info(pinfo, item, &ei_gsm_a_dtap_invalid_ia5_character);
 
 			return(len);
 		}
@@ -2633,7 +2332,7 @@ de_cld_party_bcd_num(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, gu
 
 	if(addr_extr) {
 		if (sccp_assoc && ! sccp_assoc->called_party) {
-			sccp_assoc->called_party = se_strdup(a_bigbuf);
+			sccp_assoc->called_party = wmem_strdup(wmem_file_scope(), a_bigbuf);
 		}
 
 		if (add_string)
@@ -2706,6 +2405,14 @@ static const value_string gsm_a_dtap_cause_ss_diagnostics_vals[] = {
 	{ 0, NULL }
 };
 
+static const value_string gsm_a_dtap_de_cause_coding_standard_vals[] = {
+	{ 0x00, "Coding as specified in ITU-T Rec. Q.931" },
+	{ 0x01, "Reserved for other international standards" },
+	{ 0x02, "National standard" },
+	{ 0x03, "Standard defined for the GSM PLMNS" },
+	{ 0, NULL }
+};
+
 static guint16
 de_cause(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len, gchar *add_string, int string_len)
 {
@@ -2719,51 +2426,12 @@ de_cause(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset
 
 	curr_offset = offset;
 
-	oct = tvb_get_guint8(tvb, curr_offset);
-
 	proto_tree_add_item(tree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-
-	switch ((oct & 0x60) >> 5)
-	{
-	case 0: str = "Coding as specified in ITU-T Rec. Q.931"; break;
-	case 1: str = "Reserved for other international standards"; break;
-	case 2: str = "National standard"; break;
-	default:
-		str = "Standard defined for the GSM PLMNS";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x60, 8);
-	proto_tree_add_text(tree,
-	tvb, curr_offset, 1,
-	"%s = Coding standard: %s",
-	a_bigbuf,
-	str);
+	proto_tree_add_item(tree, hf_gsm_a_dtap_de_cause_coding_standard, tvb, curr_offset, 1, ENC_NA);
 
 	proto_tree_add_bits_item(tree, hf_gsm_a_spare_bits, tvb, (curr_offset<<3)+3, 1, ENC_BIG_ENDIAN);
 
-	switch (oct & 0x0f)
-	{
-	case 0: str = "User"; break;
-	case 1: str = "Private network serving the local user"; break;
-	case 2: str = "Public network serving the local user"; break;
-	case 3: str = "Transit network"; break;
-	case 4: str = "Public network serving the remote user"; break;
-	case 5: str = "Private network serving the remote user"; break;
-	case 7: str = "International network"; break;
-	case 10: str = "Network beyond interworking point"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x0f, 8);
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s = Location: %s",
-		a_bigbuf,
-		str);
-
+	proto_tree_add_item(tree, hf_gsm_a_dtap_location, tvb, curr_offset, 1, ENC_NA);
 	curr_offset++;
 
 	oct = tvb_get_guint8(tvb, curr_offset);
@@ -2771,12 +2439,7 @@ de_cause(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset
 	if (!(oct & 0x80))
 	{
 	proto_tree_add_item(tree, hf_gsm_a_extension, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x7f, 8);
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s = Recommendation",
-		a_bigbuf);
+	proto_tree_add_item(tree, hf_gsm_a_dtap_recommendation, tvb, curr_offset, 1, ENC_NA);
 
 	curr_offset++;
 
@@ -2845,15 +2508,13 @@ de_cause(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset
 		else if ((cause >= 64) && (cause <= 79)) { str = "Treat as Service or option not implemented, unspecified"; }
 		else if ((cause >= 80) && (cause <= 95)) { str = "Treat as Semantically incorrect message"; }
 		else if ((cause >= 96) && (cause <= 111)) { str = "Treat as Protocol error, unspecified"; }
-		else if ((cause >= 112) && (cause <= 127)) { str = "Treat as Interworking, unspecified"; }
+		else { str = "Treat as Interworking, unspecified"; }
 		break;
 	}
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0x7f, 8);
-	proto_tree_add_uint_format(tree, hf_gsm_a_dtap_cause,
+	proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_cause,
 		tvb, curr_offset, 1, cause,
-		"%s = Cause: (%u) %s",
-		a_bigbuf,
+		"Cause: (%u) %s",
 		cause,
 		str);
 
@@ -2888,8 +2549,7 @@ de_cause(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset
 	else
 	{
 		diag_length = len - (curr_offset - offset);
-		proto_tree_add_text(subtree, tvb, curr_offset, diag_length,
-			"Data: %s", tvb_bytes_to_str(tvb, curr_offset, diag_length));
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_data, tvb, curr_offset, diag_length, ENC_NA);
 		curr_offset += diag_length;
 	}
 
@@ -2949,7 +2609,7 @@ static guint16
 de_facility(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint fac_len, gchar *add_string _U_, int string_len _U_)
 {
 	guint        saved_offset;
-	gint8        class;
+	gint8        appclass;
 	gboolean     pc;
 	gboolean     ind           = FALSE;
 	guint32      component_len = 0;
@@ -2971,7 +2631,7 @@ de_facility(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset,
 
 		/* Get the length of the component there can be more than one component in a facility message */
 
-		header_end_offset = get_ber_identifier(tvb, offset, &class, &pc, &comp_type_tag);
+		header_end_offset = get_ber_identifier(tvb, offset, &appclass, &pc, &comp_type_tag);
 		header_end_offset = get_ber_length(tvb, header_end_offset, &component_len, &ind);
 		header_len = header_end_offset - offset;
 		component_len = header_len + component_len;
@@ -3010,28 +2670,23 @@ de_hlc(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, 
 static guint16
 de_keypad_facility(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len _U_, gchar *add_string, int string_len)
 {
-	guint8      oct, keypad_char;
+	guint8      keypad_char;
 	guint32     curr_offset;
 	proto_item *item;
 
 	curr_offset = offset;
 
-	oct = tvb_get_guint8(tvb, curr_offset);
-	keypad_char = oct & 0x7f;
+	keypad_char = tvb_get_guint8(tvb, curr_offset) & 0x7f;
 
 	proto_tree_add_bits_item(tree, hf_gsm_a_spare_bits, tvb, curr_offset<<3, 1, ENC_BIG_ENDIAN);
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0x7f, 8);
-	item = proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s = Keypad information: %c",
-		a_bigbuf,
-		keypad_char);
+	item = proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_keypad_information, tvb, curr_offset, 1,
+                    keypad_char, "%c", keypad_char);
 
 	if (((keypad_char < '0') || (keypad_char > '9')) &&
 		((keypad_char < 'A') || (keypad_char > 'D')) &&
 		(keypad_char != '*') && (keypad_char != '#'))
-		expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN, "Keypad information contains character that is not a DTMF digit");
+		expert_add_info(pinfo, item, &ei_gsm_a_dtap_keypad_info_not_dtmf_digit);
 	curr_offset++;
 
 	if (add_string)
@@ -3087,8 +2742,10 @@ static const value_string gsm_a_dtap_location_vals[] = {
 	{ 0x00, "User" },
 	{ 0x01, "Private network serving the local user" },
 	{ 0x02, "Public network serving the local user" },
+	{ 0x03, "Transit network" },
 	{ 0x04, "Public network serving the remote user" },
 	{ 0x05, "Private network serving the remote user" },
+	{ 0x07, "International network" },
 	{ 0x0a, "Network beyond interworking point" },
 	{ 0, NULL }
 };
@@ -3204,34 +2861,25 @@ de_red_party_sub_addr(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint
 /*
  * [3] 10.5.4.22 Repeat indicator
  */
+static const value_string gsm_a_dtap_repeat_indicator_vals[] = {
+	{ 0x01, "Circular for successive selection 'mode 1 alternate mode 2'" },
+	{ 0x02, "Support of fallback mode 1 preferred, mode 2 selected if setup of mode 1 fails" },
+	{ 0x03, "Reserved: was allocated in earlier phases of the protocol" },
+	{ 0, NULL }
+};
+
 static guint16
 de_repeat_ind(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_)
 {
 	guint8	oct;
 	guint32	curr_offset;
-	const gchar *str;
 
 	curr_offset = offset;
 
 	oct = tvb_get_guint8(tvb, curr_offset);
 
-	switch (oct & 0x0f)
-	{
-	case 1: str = "Circular for successive selection 'mode 1 alternate mode 2'"; break;
-	case 2: str = "Support of fallback mode 1 preferred, mode 2 selected if setup of mode 1 fails"; break;
-	case 3: str = "Reserved: was allocated in earlier phases of the protocol"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x0f, 8);
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s = %s",
-		a_bigbuf,
-		str);
-
+	proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_repeat_indicator, tvb, curr_offset, 1, oct,
+            "%s", val_to_str_const(oct & 0xF, gsm_a_dtap_repeat_indicator_vals, "Reserved"));
 	curr_offset++;
 
 	/* no length check possible */
@@ -3285,31 +2933,24 @@ de_signal(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offse
 /*
  * 10.5.4.24 SS Version Indicator
  */
+static const value_string gsm_a_dtap_ss_ver_ind_vals[] = {
+	{ 0x00, "Phase 2 service, ellipsis notation, and phase 2 error handling is supported" },
+	{ 0x01, "SS-Protocol version 3 is supported, and phase 2 error handling is supported" },
+	{ 0, NULL }
+};
+
 static guint16
 de_ss_ver_ind(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len, gchar *add_string _U_, int string_len _U_)
 {
 	guint8       oct;
 	guint32      curr_offset;
-	const gchar *str;
 
 	curr_offset = offset;
 
 	oct = tvb_get_guint8(tvb, curr_offset);
 
-	switch (oct)
-	{
-	case 0: str = "Phase 2 service, ellipsis notation, and phase 2 error handling is supported"; break;
-	case 1: str = "SS-Protocol version 3 is supported, and phase 2 error handling is supported"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"%s",
-		str);
-
+	proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_ss_version_indicator, tvb, curr_offset, 1,
+                        oct, "%s", val_to_str_const(oct, gsm_a_dtap_ss_ver_ind_vals, "Reserved"));
 	curr_offset++;
 
 	EXTRANEOUS_DATA_CHECK(len, curr_offset - offset);
@@ -3374,8 +3015,7 @@ de_u2u(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, 
 
 	item = proto_tree_add_text(tree, tvb, curr_offset, len - 1, "User-user information");
 	subtree = proto_item_add_subtree(item, ett_gsm_dtap_elem[DE_USER_USER]);
-	proto_tree_add_text(subtree, tvb, curr_offset, len - 1,
-			"Data: %s", tvb_bytes_to_str(tvb, curr_offset, len - 1));
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_data, tvb, curr_offset, len - 1, ENC_NA);
 
 	return(len);
 }
@@ -3446,16 +3086,15 @@ de_stream_id(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 of
 	oct = tvb_get_guint8(tvb, curr_offset);
 	if (oct == 0x00)
 	{
-		proto_tree_add_uint_format(tree, hf_gsm_a_dtap_stream_identifier, tvb, curr_offset, 1, oct,
-			"Stream Identifier: No Bearer (%u)", oct);
+		proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_stream_identifier, tvb, curr_offset, 1, oct,
+			"No Bearer (%u)", oct);
 
 		if (add_string)
 			g_snprintf(add_string, string_len, " - (No Bearer)");
 	}
 	else
 	{
-		proto_tree_add_uint_format(tree, hf_gsm_a_dtap_stream_identifier, tvb, curr_offset, 1, oct,
-			"Stream Identifier: %u", oct);
+		proto_tree_add_item(tree, hf_gsm_a_dtap_stream_identifier, tvb, curr_offset, 1, ENC_NA);
 
 		if (add_string)
 			g_snprintf(add_string, string_len, " - (%u)", oct);
@@ -3501,6 +3140,7 @@ static const value_string gsm_a_cause_of_no_cli_values[] = {
 	{ 0x03,	"Coin line/payphone" },
 	{ 0, NULL }
 };
+
 static guint16
 de_ca_of_no_cli(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string, int string_len)
 {
@@ -3510,8 +3150,8 @@ de_ca_of_no_cli(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32
 	curr_offset = offset;
 
 	oct = tvb_get_guint8(tvb, curr_offset);
-	proto_tree_add_uint_format(tree, hf_gsm_a_dtap_cause_of_no_cli, tvb, curr_offset, 1, oct,
-				   "Cause of no CLI: %s (%u)",
+	proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_cause_of_no_cli, tvb, curr_offset, 1, oct,
+				   "%s (%u)",
 				   val_to_str_const(oct, gsm_a_cause_of_no_cli_values, "Unavailable"),
 				   oct);
 
@@ -3699,6 +3339,19 @@ de_cp_user_data(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 off
 /*
  * [5] 8.1.4.2
  */
+static const value_string gsm_a_dtap_cp_cause_values[] = {
+    { 17, "Network failure"},
+	{ 22, "Congestion"},
+	{ 81, "Invalid Transaction Identifier value"},
+	{ 95, "Semantically incorrect message"},
+	{ 96, "Invalid mandatory information"},
+	{ 97, "Message type non-existent or not implemented"},
+	{ 98, "Message not compatible with the short message protocol state"},
+	{ 99, "Information element non-existent or not implemented"},
+	{ 111, "Protocol error, unspecified"},
+	{ 0, NULL }
+};
+
 static guint16
 de_cp_cause(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string, int string_len)
 {
@@ -3709,29 +3362,9 @@ de_cp_cause(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 off
 	curr_offset = offset;
 
 	oct = tvb_get_guint8(tvb, curr_offset);
-
-	switch (oct)
-	{
-	case 17: str = "Network failure"; break;
-	case 22: str = "Congestion"; break;
-	case 81: str = "Invalid Transaction Identifier value"; break;
-	case 95: str = "Semantically incorrect message"; break;
-	case 96: str = "Invalid mandatory information"; break;
-	case 97: str = "Message type non-existent or not implemented"; break;
-	case 98: str = "Message not compatible with the short message protocol state"; break;
-	case 99: str = "Information element non-existent or not implemented"; break;
-	case 111: str = "Protocol error, unspecified"; break;
-	default:
-		str = "Reserved, treat as Protocol error, unspecified";
-		break;
-	}
-
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"Cause: (%u) %s",
-		oct,
-		str);
-
+    str = val_to_str_const(oct, gsm_a_dtap_cp_cause_values, "Reserved, treat as Protocol error, unspecified");
+	proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_cp_cause, tvb, curr_offset, 1,
+        oct, "(%u) %s", oct, str);
 	curr_offset++;
 
 	if (add_string)
@@ -3769,9 +3402,8 @@ de_tp_sub_channel(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint
 	else
 		str = "unknown";
 
-	proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"Test Loop %s",str);
+	proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_test_loop, tvb, curr_offset, 1,
+                oct, "%s", str);
 
 	if (oct & 0x01)
 		proto_tree_add_text(tree,
@@ -3807,6 +3439,14 @@ de_tp_ack(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offse
 	return(curr_offset - offset);
 }
 
+static const value_string gsm_channel_coding_vals[] = {
+	{ 0x00,	"not needed. The Burst-by-Burst loop is activated, type G" },
+	{ 0x01,	"Channel coding needed. Frame erasure is to be signalled, type H" },
+	{ 0x02,	"reserved" },
+	{ 0x03,	"reserved" },
+	{ 0, NULL }
+};
+
 static guint16
 de_tp_loop_type(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_)
 {
@@ -3817,18 +3457,7 @@ de_tp_loop_type(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32
 
 	oct = tvb_get_guint8(tvb, curr_offset);
 
-	switch (oct & 0x03)
-	{
-		case 0x00:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "Channel coding not needed. The Burst-by-Burst loop is activated, type G");
-			break;
-		case 0x01:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "Channel coding needed. Frame erasure is to be signalled, type H");
-			break;
-		default:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "Channel coding reserved (%d)",oct & 0x03);
-			break;
-	}
+    proto_tree_add_item(tree, hf_gsm_a_dtap_channel_coding03, tvb, curr_offset, 1, ENC_NA);
 
 	switch (oct & 0x1c)
 	{
@@ -3859,18 +3488,7 @@ de_tp_loop_ack(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 
 
 	oct = tvb_get_guint8(tvb, curr_offset);
 
-	switch (oct & 0x30)
-	{
-		case 0x00:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "Channel coding not needed. The Burst-by-Burst loop is activated, type G");
-			break;
-		case 0x10:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "Channel coding needed. Frame erasure is to be signalled, type H");
-			break;
-		default:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "Channel coding reserved (%d)",(oct & 0x30)>>4);
-			break;
-	}
+    proto_tree_add_item(tree, hf_gsm_a_dtap_channel_coding30, tvb, curr_offset, 1, ENC_NA);
 
 	switch (oct & 0x0e)
 	{
@@ -3895,6 +3513,14 @@ de_tp_loop_ack(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 
 	return(curr_offset - offset);
 }
 
+static const value_string gsm_tp_tested_device_vals[] = {
+	{ 0x00,	"Normal operation (no tested device via DAI)" },
+	{ 0x01,	"Test of speech decoder / DTX functions (downlink)" },
+	{ 0x02,	"Test of speech encoder / DTX functions (uplink)" },
+	{ 0x03,	"Test of acoustic devices and A/D & D/A" },
+	{ 0, NULL }
+};
+
 static guint16
 de_tp_tested_device(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_)
 {
@@ -3904,26 +3530,8 @@ de_tp_tested_device(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, gui
 	curr_offset = offset;
 
 	oct = tvb_get_guint8(tvb, curr_offset);
-
-	switch (oct)
-	{
-		case 0:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "Normal operation (no tested device via DAI)");
-			break;
-		case 1:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "Test of speech decoder / DTX functions (downlink)");
-			break;
-		case 2:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "Test of speech encoder / DTX functions (uplink)");
-			break;
-		case 4:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "Test of acoustic devices and A/D & D/A");
-			break;
-		default:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "Tested device reserved (%d)",oct);
-			break;
-	}
-
+    proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_tp_tested_device, tvb, curr_offset, 1,
+                oct, "%s", val_to_str(oct, gsm_tp_tested_device_vals, "Reserved (%d)"));
 	curr_offset+= 1;
 
 	return(curr_offset - offset);
@@ -3943,12 +3551,15 @@ de_tp_pdu_description(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, g
 	if (value & 0x8000)
 	{
 		if ((value & 0xfff) == 0)
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "Infinite number of PDUs to be transmitted in the TBF");
+			proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_tp_pdu_description,
+                    tvb, curr_offset, 2, value, "Infinite number of PDUs to be transmitted in the TBF");
 		else
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "%d PDUs to be transmitted in the TBF",value & 0xfff);
+			proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_tp_pdu_description,
+                    tvb, curr_offset, 2, value & 0xfff, "%d PDUs to be transmitted in the TBF", value & 0xfff);
 	}
 	else
-		proto_tree_add_text(tree, tvb, curr_offset, 1, "PDU description reserved");
+		proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_tp_pdu_description,
+                    tvb, curr_offset, 2, value, "reserved");
 
 	return(curr_offset - offset);
 }
@@ -3968,7 +3579,7 @@ de_tp_mode_flag(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32
 	else
 		proto_tree_add_text(tree, tvb, curr_offset, 1, "MS shall itself generate the pseudorandom data");
 
-	proto_tree_add_text(tree, tvb, curr_offset, 1, "Downlink Timeslot Offset: timeslot number %d",(oct & 0x0e)>>1);
+	proto_tree_add_item(tree, hf_gsm_a_dtap_downlink_timeslot_offset, tvb, curr_offset, 1, ENC_NA);
 
 	curr_offset+= 1;
 
@@ -3990,12 +3601,18 @@ de_tp_egprs_mode_flag(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, g
 	else
 		proto_tree_add_text(tree, tvb, curr_offset, 1, "MS loops back blocks on the uplink using either GMSK or 8-PSK modulation following the detected received modulation");
 
-	proto_tree_add_text(tree, tvb, curr_offset, 1, "Downlink Timeslot Offset: timeslot number %d",(oct & 0x0e)>>1);
+	proto_tree_add_item(tree, hf_gsm_a_dtap_downlink_timeslot_offset, tvb, curr_offset, 1, ENC_NA);
 
 	curr_offset+= 1;
 
 	return(curr_offset - offset);
 }
+
+static const value_string gsm_positioning_technology_vals[] = {
+	{ 0x00,	"AGPS" },
+	{ 0x01,	"AGNSS" },
+	{ 0, NULL }
+};
 
 static guint16
 de_tp_ms_positioning_technology(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_)
@@ -4006,20 +3623,8 @@ de_tp_ms_positioning_technology(tvbuff_t *tvb, proto_tree *tree, packet_info *pi
 	curr_offset = offset;
 
 	oct = tvb_get_guint8(tvb, curr_offset);
-
-	switch (oct)
-	{
-		case 0:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "AGPS");
-			break;
-		case 1:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "AGNSS");
-			break;
-		default:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "MS positioning technology reserved (%d)",oct);
-			break;
-	}
-
+	proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_ms_positioning_technology, tvb, curr_offset, 1,
+        oct, "%s", val_to_str(oct, gsm_positioning_technology_vals, "Reserved (%d)"));
 	curr_offset+= 1;
 
 	return(curr_offset - offset);
@@ -4084,19 +3689,8 @@ de_tp_ue_positioning_technology(tvbuff_t *tvb, proto_tree *tree, packet_info *pi
 
 	oct = tvb_get_guint8(tvb, curr_offset);
 
-	switch (oct)
-	{
-		case 0:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "AGPS");
-			break;
-		case 1:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "AGNSS");
-			break;
-		default:
-			proto_tree_add_text(tree, tvb, curr_offset, 1, "UE positioning technology reserved (%d)",oct);
-			break;
-	}
-
+	proto_tree_add_uint_format_value(tree, hf_gsm_a_dtap_ue_positioning_technology, tvb, curr_offset, 1,
+        oct, "%s", val_to_str(oct, gsm_positioning_technology_vals, "Reserved (%d)"));
 	curr_offset+= 1;
 
 	return(curr_offset - offset);
@@ -4113,7 +3707,7 @@ de_tp_rlc_sdu_counter_value(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo 
 	value = tvb_get_ntohl(tvb, curr_offset);
 	curr_offset+= 4;
 
-	proto_tree_add_text(tree, tvb, curr_offset, 1, "UE received RLC SDU counter value %d",value);
+	proto_tree_add_text(tree, tvb, curr_offset, 1, "UE received RLC SDU counter value: %d",value);
 
 	return(curr_offset - offset);
 }
@@ -4150,6 +3744,7 @@ de_tp_epc_ue_tl_a_lb_setup(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _
 {
 	guint32     curr_offset;
 	guint32     count, nb_lb;
+	guint8      drb;
 	proto_item *item          = NULL;
 	proto_tree *lb_setup_tree = NULL;
 
@@ -4164,7 +3759,9 @@ de_tp_epc_ue_tl_a_lb_setup(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _
 		lb_setup_tree = proto_item_add_subtree(item, ett_epc_ue_tl_a_lb_setup);
 		proto_tree_add_bits_item(lb_setup_tree, hf_gsm_a_dtap_epc_ue_tl_a_ul_sdu_size, tvb, curr_offset<<3, 16, ENC_BIG_ENDIAN);
 		curr_offset += 2;
-		proto_tree_add_bits_item(lb_setup_tree, hf_gsm_a_dtap_epc_ue_tl_a_drb, tvb, (curr_offset<<3)+3, 5, ENC_BIG_ENDIAN);
+		drb = tvb_get_guint8(tvb, curr_offset) & 0x1f;
+		proto_tree_add_uint_format_value(lb_setup_tree, hf_gsm_a_dtap_epc_ue_tl_a_drb, tvb, curr_offset, 1,
+		                                 drb, "%d (%d)", drb+1, drb);
 		curr_offset++;
 		count++;
 	}
@@ -4209,6 +3806,7 @@ static const value_string epc_ue_positioning_technology_vals[] = {
 	{ 1,	"OTDOA"},
 	{ 0, NULL }
 };
+
 static guint16
 de_tp_epc_ue_positioning_technology(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_)
 {
@@ -4414,29 +4012,21 @@ dtap_mm_auth_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint3
 	item =
 	proto_tree_add_text(tree,
 		tvb, curr_offset, 1, "%s",
-		gsm_common_elem_strings[DE_CIPH_KEY_SEQ_NUM].strptr);
+		val_to_str_ext_const(DE_CIPH_KEY_SEQ_NUM, &gsm_common_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_common_elem[DE_CIPH_KEY_SEQ_NUM]);
 
 	proto_tree_add_bits_item(subtree, hf_gsm_a_spare_bits, tvb, (curr_offset<<3)+4, 1, ENC_BIG_ENDIAN);
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0x07, 8);
-
 	switch (oct & 0x07)
 	{
 	case 0x07:
-		proto_tree_add_text(subtree,
-			tvb, curr_offset, 1,
-			"%s = Ciphering Key Sequence Number: No key is available",
-			a_bigbuf);
+        proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_ciphering_key_sequence_number, tvb, curr_offset, 1,
+                                        oct, "No key is available");
 		break;
 
 	default:
-		proto_tree_add_text(subtree,
-			tvb, curr_offset, 1,
-			"%s = Ciphering Key Sequence Number: %u",
-			a_bigbuf,
-			oct & 0x07);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_ciphering_key_sequence_number, tvb, curr_offset, 1, ENC_NA);
 		break;
 	}
 
@@ -4524,29 +4114,21 @@ dtap_mm_cm_reestab_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, 
 	item =
 	proto_tree_add_text(tree,
 		tvb, curr_offset, 1, "%s",
-		gsm_common_elem_strings[DE_CIPH_KEY_SEQ_NUM].strptr);
+		val_to_str_ext_const(DE_CIPH_KEY_SEQ_NUM, &gsm_common_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_common_elem[DE_CIPH_KEY_SEQ_NUM]);
 
 	proto_tree_add_bits_item(subtree, hf_gsm_a_spare_bits, tvb, (curr_offset<<3)+4, 1, ENC_BIG_ENDIAN);
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0x07, 8);
-
 	switch (oct & 0x07)
 	{
 	case 0x07:
-		proto_tree_add_text(subtree,
-			tvb, curr_offset, 1,
-			"%s = Ciphering Key Sequence Number: No key is available",
-			a_bigbuf);
+        proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_ciphering_key_sequence_number, tvb, curr_offset, 1,
+                                        oct, "No key is available");
 		break;
 
 	default:
-		proto_tree_add_text(subtree,
-			tvb, curr_offset, 1,
-			"%s = Ciphering Key Sequence Number: %u",
-			a_bigbuf,
-			oct & 0x07);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_ciphering_key_sequence_number, tvb, curr_offset, 1, ENC_NA);
 		break;
 	}
 
@@ -4560,7 +4142,7 @@ dtap_mm_cm_reestab_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, 
 	ELEM_MAND_LV(GSM_A_PDU_TYPE_COMMON, DE_MID, NULL);
 
 	ELEM_OPT_TV(0x13, GSM_A_PDU_TYPE_COMMON, DE_LAI, NULL);
-	
+
 	ELEM_OPT_TV_SHORT(0xD0, GSM_A_PDU_TYPE_GM, DE_DEVICE_PROPERTIES, NULL);
 
 
@@ -4632,6 +4214,26 @@ dtap_mm_abort(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 o
 /*
  * [3] 9.2.9 CM service request
  */
+static const value_string gsm_a_dtap_service_type_vals[] = {
+	{ 0x00, "Reserved"},
+    { 0x01, "Mobile originating call establishment or packet mode connection establishment"},
+	{ 0x02, "Emergency call establishment"},
+	{ 0x03, "Reserved"},
+	{ 0x04, "Short message service"},
+	{ 0x05, "Reserved"},
+	{ 0x06, "Reserved"},
+	{ 0x07, "Reserved"},
+	{ 0x08, "Supplementary service activation"},
+	{ 0x09, "Voice group call establishment"},
+	{ 0x0a, "Voice broadcast call establishment"},
+	{ 0x0b, "Location Services"},
+	{ 0x0c, "Reserved"},
+	{ 0x0d, "Reserved"},
+	{ 0x0e, "Reserved"},
+	{ 0x0f, "Reserved"},
+	{ 0, NULL }
+};
+
 static void
 dtap_mm_cm_srvc_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len)
 {
@@ -4641,7 +4243,6 @@ dtap_mm_cm_srvc_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, gui
 	guint8       oct;
 	proto_tree  *subtree;
 	proto_item  *item;
-	const gchar *str;
 
 	curr_offset = offset;
 	curr_len = len;
@@ -4656,59 +4257,32 @@ dtap_mm_cm_srvc_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, gui
 	item =
 	proto_tree_add_text(tree,
 		tvb, curr_offset, 1, "%s",
-		gsm_common_elem_strings[DE_CIPH_KEY_SEQ_NUM].strptr);
+		val_to_str_ext_const(DE_CIPH_KEY_SEQ_NUM, &gsm_common_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_common_elem[DE_CIPH_KEY_SEQ_NUM]);
 
 	proto_tree_add_bits_item(subtree, hf_gsm_a_spare_bits, tvb, curr_offset<<3, 1, ENC_BIG_ENDIAN);
-	other_decode_bitfield_value(a_bigbuf, oct, 0x70, 8);
 
 	switch ((oct & 0x70) >> 4)
 	{
 	case 0x07:
-		proto_tree_add_text(subtree,
-			tvb, curr_offset, 1,
-			"%s = Ciphering Key Sequence Number: No key is available",
-			a_bigbuf);
+        proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_ciphering_key_sequence_number70, tvb, curr_offset, 1,
+                                        oct, "No key is available");
 		break;
 
 	default:
-		proto_tree_add_text(subtree,
-			tvb, curr_offset, 1,
-			"%s = Ciphering Key Sequence Number: %u",
-			a_bigbuf,
-			(oct & 0x70) >> 4);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_ciphering_key_sequence_number70, tvb, curr_offset, 1, ENC_NA);
 		break;
 	}
 
 	item =
 	proto_tree_add_text(tree,
 		tvb, curr_offset, 1, "%s",
-		gsm_dtap_elem_strings[DE_CM_SRVC_TYPE].strptr);
+		val_to_str_ext_const(DE_CM_SRVC_TYPE, &gsm_dtap_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_dtap_elem[DE_CM_SRVC_TYPE]);
 
-	switch (oct & 0x0f)
-	{
-	case 0x01: str = "Mobile originating call establishment or packet mode connection establishment"; break;
-	case 0x02: str = "Emergency call establishment"; break;
-	case 0x04: str = "Short message service"; break;
-	case 0x08: str = "Supplementary service activation"; break;
-	case 0x09: str = "Voice group call establishment"; break;
-	case 0x0a: str = "Voice broadcast call establishment"; break;
-	case 0x0b: str = "Location Services"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x0f, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Service Type: (%u) %s",
-		a_bigbuf,
-		oct & 0x0f,
-		str);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_service_type, tvb, curr_offset, 1, ENC_NA);
 
 	curr_offset++;
 	curr_len--;
@@ -4731,15 +4305,25 @@ dtap_mm_cm_srvc_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, gui
 /*
  * [3] 9.2.10 Identity request
  */
+static const value_string gsm_a_dtap_type_of_identity_vals[] = {
+	{ 0x00, "Reserved"},
+    { 0x01, "IMSI"},
+	{ 0x02, "IMEI"},
+	{ 0x03, "IMEISV"},
+	{ 0x04, "TMSI"},
+	{ 0x05, "P-TMSI, RAI, P-TMSI signature"},
+	{ 0x06, "Reserved"},
+	{ 0x07, "Reserved"},
+	{ 0, NULL }
+};
+
 static void
 dtap_mm_id_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len)
 {
-	guint8       oct;
 	guint32      curr_offset;
 	guint        curr_len;
 	proto_tree  *subtree;
 	proto_item  *item;
-	const gchar *str;
 
 	curr_offset = offset;
 	curr_len = len;
@@ -4749,37 +4333,17 @@ dtap_mm_id_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 
 	/*
 	 * special dissection for Identity Type
 	 */
-	oct = tvb_get_guint8(tvb, curr_offset);
-
 	proto_tree_add_bits_item(tree, hf_gsm_a_spare_bits, tvb, curr_offset<<3, 4, ENC_BIG_ENDIAN);
 
 	item =
 	proto_tree_add_text(tree,
 		tvb, curr_offset, 1, "%s",
-		gsm_dtap_elem_strings[DE_ID_TYPE].strptr);
+		val_to_str_ext_const(DE_ID_TYPE, &gsm_dtap_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_dtap_elem[DE_ID_TYPE]);
 
 	proto_tree_add_bits_item(subtree, hf_gsm_a_spare_bits, tvb, (curr_offset<<3)+4, 1, ENC_BIG_ENDIAN);
-
-	switch (oct & 0x07)
-	{
-	case 1: str = "IMSI"; break;
-	case 2: str = "IMEI"; break;
-	case 3: str = "IMEISV"; break;
-	case 4: str = "TMSI"; break;
-	case 5: str = "P-TMSI, RAI, P-TMSI signature"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x07, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Type of identity: %s",
-		a_bigbuf,
-		str);
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_type_of_identity, tvb, curr_offset, 1, ENC_NA);
 
 	curr_offset++;
 	curr_len--;
@@ -4895,6 +4459,19 @@ dtap_mm_loc_upd_rej(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, gui
 /*
  * [3] 9.2.15 Location updating request
  */
+static const value_string gsm_a_dtap_updating_type_vals[] = {
+	{ 0x00, "Normal"},
+    { 0x01, "Periodic"},
+	{ 0x02, "IMSI attach"},
+	{ 0x03, "Reserved"},
+	{ 0, NULL }
+};
+
+static const true_false_string tfs_follow_on_request_value = {
+	"Follow-on request pending",
+	"No follow-on request pending"
+};
+
 static void
 dtap_mm_loc_upd_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len)
 {
@@ -4904,7 +4481,6 @@ dtap_mm_loc_upd_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, gui
 	guint8	oct;
 	proto_tree	*subtree;
 	proto_item	*item;
-	const gchar *str;
 
 	curr_offset = offset;
 	curr_len = len;
@@ -4919,66 +4495,38 @@ dtap_mm_loc_upd_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, gui
 	item =
 	proto_tree_add_text(tree,
 		tvb, curr_offset, 1, "%s",
-		gsm_common_elem_strings[DE_CIPH_KEY_SEQ_NUM].strptr);
+		val_to_str_ext_const(DE_CIPH_KEY_SEQ_NUM, &gsm_common_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_common_elem[DE_CIPH_KEY_SEQ_NUM]);
 
 	proto_tree_add_bits_item(subtree, hf_gsm_a_spare_bits, tvb, curr_offset<<3, 1, ENC_BIG_ENDIAN);
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0x70, 8);
-
 	switch ((oct & 0x70) >> 4)
 	{
 	case 0x07:
-		proto_tree_add_text(subtree,
-			tvb, curr_offset, 1,
-			"%s = Ciphering Key Sequence Number: No key is available",
-			a_bigbuf);
+        proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_ciphering_key_sequence_number70, tvb, curr_offset, 1,
+                                        oct, "No key is available");
 		break;
 
 	default:
-		proto_tree_add_text(subtree,
-			tvb, curr_offset, 1,
-			"%s = Ciphering Key Sequence Number: %u",
-			a_bigbuf,
-			(oct & 0x70) >> 4);
+		proto_tree_add_item(subtree, hf_gsm_a_dtap_ciphering_key_sequence_number70, tvb, curr_offset, 1, ENC_NA);
 		break;
 	}
 
 	item =
 	proto_tree_add_text(tree,
 		tvb, curr_offset, 1, "%s",
-		gsm_dtap_elem_strings[DE_LOC_UPD_TYPE].strptr);
+		val_to_str_ext_const(DE_LOC_UPD_TYPE, &gsm_dtap_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_dtap_elem[DE_LOC_UPD_TYPE]);
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0x08, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Follow-On Request (FOR): %s",
-		a_bigbuf,
-		(oct & 0x08) ? "Follow-on request pending" : "No follow-on request pending");
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_follow_on_request, tvb, curr_offset, 1, ENC_NA);
 
 	proto_tree_add_bits_item(subtree, hf_gsm_a_spare_bits, tvb, (curr_offset<<3)+5, 1, ENC_BIG_ENDIAN);
 
-	switch (oct & 0x03)
-	{
-	case 0: str = "Normal"; break;
-	case 1: str = "Periodic"; break;
-	case 2: str = "IMSI attach"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
+	proto_tree_add_item(subtree, hf_gsm_a_dtap_updating_type, tvb, curr_offset, 1, ENC_NA);
 
-	other_decode_bitfield_value(a_bigbuf, oct, 0x03, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Updating Type: %s",
-		a_bigbuf,
-		str);
-
-	proto_item_append_text(item, " - %s", str);
+	proto_item_append_text(item, " - %s", val_to_str_const(oct & 0x03, gsm_a_dtap_updating_type_vals, "Reserved"));
 
 	curr_offset++;
 	curr_len--;
@@ -5179,6 +4727,12 @@ dtap_cc_call_proceed(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, gu
 /*
  * [4] 9.3.4 Congestion control
  */
+static const value_string gsm_a_dtap_congestion_level_vals[] = {
+	{ 0, "Receiver ready"},
+	{ 15, "Receiver not ready"},
+	{ 0, NULL }
+};
+
 static void
 dtap_cc_congestion_control(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len)
 {
@@ -5188,7 +4742,6 @@ dtap_cc_congestion_control(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _
 	guint8       oct;
 	proto_tree  *subtree;
 	proto_item  *item;
-	const gchar *str;
 
 	curr_offset = offset;
 	curr_len = len;
@@ -5205,25 +4758,12 @@ dtap_cc_congestion_control(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _
 	item =
 		proto_tree_add_text(tree,
 			tvb, curr_offset, 1, "%s",
-			gsm_dtap_elem_strings[DE_CONGESTION].strptr);
+			val_to_str_ext_const(DE_CONGESTION, &gsm_dtap_elem_strings_ext, ""));
 
 	subtree = proto_item_add_subtree(item, ett_gsm_dtap_elem[DE_CONGESTION]);
 
-	switch (oct & 0x0f)
-	{
-	case 0: str = "Receiver ready"; break;
-	case 15: str = "Receiver not ready"; break;
-	default:
-		str = "Reserved";
-		break;
-	}
-
-	other_decode_bitfield_value(a_bigbuf, oct, 0x0f, 8);
-	proto_tree_add_text(subtree,
-		tvb, curr_offset, 1,
-		"%s = Congestion level: %s",
-		a_bigbuf,
-		str);
+	proto_tree_add_uint_format_value(subtree, hf_gsm_a_dtap_congestion_level, tvb, curr_offset, 1,
+            oct, "%s", val_to_str_const(oct & 0xF, gsm_a_dtap_congestion_level_vals, "Reserved"));
 
 	curr_offset++;
 	curr_len--;
@@ -6341,6 +5881,8 @@ static void (*dtap_msg_tp_fcn[])(tvbuff_t *tvb, proto_tree *tree, packet_info *p
 
 /* GENERIC DISSECTOR FUNCTIONS */
 
+static const true_false_string tfs_ti_flags = { "allocated by receiver", "allocated by sender"};
+
 static void
 dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
@@ -6354,7 +5896,7 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	guint8	      pd;
 	guint32	      offset;
 	guint32	      len;
-	guint32	      oct_1, oct_2;
+	guint32	      oct_1;
 	gint	      idx;
 	proto_item   *dtap_item   = NULL;
 	proto_tree   *dtap_tree   = NULL;
@@ -6392,7 +5934,6 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 
 	offset = 0;
-	oct_2 = 0;
 
 	g_tree = tree;
 
@@ -6408,7 +5949,7 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		 * we rely on the TI/SKIP indicator to be 0 to avoid taking this
 		 * octet
 		 */
-		oct_2 = tvb_get_guint8(tvb, offset++);
+		offset++;
 	}
 
 	oct = tvb_get_guint8(tvb, offset);
@@ -6425,22 +5966,30 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	/*
 	 * octet 1
 	 */
+	/* Initialize hf_idx, ett_tree and dtap_msg_fcn.
+	   ett_tree and dtap_msg_fcn will not be used if msg_str == NULL. */
 	switch (pd)
 	{
 	case 3:
-		msg_str = match_strval_idx((guint32) (oct & DTAP_CC_IEI_MASK), gsm_a_dtap_msg_cc_strings, &idx);
-		ett_tree = ett_gsm_dtap_msg_cc[idx];
+		msg_str = try_val_to_str_idx((guint32) (oct & DTAP_CC_IEI_MASK), gsm_a_dtap_msg_cc_strings, &idx);
+		if (msg_str != NULL)
+		{
+			ett_tree = ett_gsm_dtap_msg_cc[idx];
+			dtap_msg_fcn = dtap_msg_cc_fcn[idx];
+		}
 		hf_idx = hf_gsm_a_dtap_msg_cc_type;
-		dtap_msg_fcn = dtap_msg_cc_fcn[idx];
 		ti = (oct_1 & DTAP_TI_MASK) >> 4;
 		nsd = TRUE;
 		break;
 
 	case 5:
-		msg_str = match_strval_idx((guint32) (oct & DTAP_MM_IEI_MASK), gsm_a_dtap_msg_mm_strings, &idx);
-		ett_tree = ett_gsm_dtap_msg_mm[idx];
+		msg_str = try_val_to_str_idx((guint32) (oct & DTAP_MM_IEI_MASK), gsm_a_dtap_msg_mm_strings, &idx);
+		if (msg_str != NULL)
+		{
+			ett_tree = ett_gsm_dtap_msg_mm[idx];
+			dtap_msg_fcn = dtap_msg_mm_fcn[idx];
+		}
 		hf_idx = hf_gsm_a_dtap_msg_mm_type;
-		dtap_msg_fcn = dtap_msg_mm_fcn[idx];
 		nsd = TRUE;
 		break;
 
@@ -6453,10 +6002,13 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		break;
 
 	case 9:
-		msg_str = match_strval_idx((guint32) (oct & DTAP_SMS_IEI_MASK), gsm_a_dtap_msg_sms_strings, &idx);
-		ett_tree = ett_gsm_dtap_msg_sms[idx];
+		msg_str = try_val_to_str_idx((guint32) (oct & DTAP_SMS_IEI_MASK), gsm_a_dtap_msg_sms_strings, &idx);
 		hf_idx = hf_gsm_a_dtap_msg_sms_type;
-		dtap_msg_fcn = dtap_msg_sms_fcn[idx];
+		if (msg_str != NULL)
+		{
+			ett_tree = ett_gsm_dtap_msg_sms[idx];
+			dtap_msg_fcn = dtap_msg_sms_fcn[idx];
+		}
 		ti = (oct_1 & DTAP_TI_MASK) >> 4;
 		break;
 
@@ -6466,19 +6018,25 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		break;
 
 	case 11:
-		msg_str = match_strval_idx((guint32) (oct & DTAP_SS_IEI_MASK), gsm_a_dtap_msg_ss_strings, &idx);
-		ett_tree = ett_gsm_dtap_msg_ss[idx];
+		msg_str = try_val_to_str_idx((guint32) (oct & DTAP_SS_IEI_MASK), gsm_a_dtap_msg_ss_strings, &idx);
 		hf_idx = hf_gsm_a_dtap_msg_ss_type;
-		dtap_msg_fcn = dtap_msg_ss_fcn[idx];
+		if (msg_str != NULL)
+		{
+			ett_tree = ett_gsm_dtap_msg_ss[idx];
+			dtap_msg_fcn = dtap_msg_ss_fcn[idx];
+		}
 		ti = (oct_1 & DTAP_TI_MASK) >> 4;
 		nsd = TRUE;
 		break;
 
 	case 15:
-		msg_str = match_strval_idx((guint32) (oct & DTAP_TP_IEI_MASK), gsm_a_dtap_msg_tp_strings, &idx);
-		ett_tree = ett_gsm_dtap_msg_tp[idx];
+		msg_str = try_val_to_str_idx((guint32) (oct & DTAP_TP_IEI_MASK), gsm_a_dtap_msg_tp_strings, &idx);
 		hf_idx = hf_gsm_a_dtap_msg_tp_type;
-		dtap_msg_fcn = dtap_msg_tp_fcn[idx];
+		if (msg_str != NULL)
+		{
+			ett_tree = ett_gsm_dtap_msg_tp[idx];
+			dtap_msg_fcn = dtap_msg_tp_fcn[idx];
+		}
 		nsd = TRUE;
 		break;
 
@@ -6509,7 +6067,7 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		dtap_tree = proto_item_add_subtree(dtap_item, ett_dtap_msg);
 
 		if (sccp_msg && !sccp_msg->data.co.label) {
-			sccp_msg->data.co.label = se_strdup_printf("DTAP (0x%02x)",oct);
+			sccp_msg->data.co.label = wmem_strdup_printf(wmem_file_scope(), "DTAP (0x%02x)",oct);
 		}
 
 
@@ -6524,20 +6082,16 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		dtap_tree = proto_item_add_subtree(dtap_item, ett_tree);
 
 		if (sccp_msg && !sccp_msg->data.co.label) {
-			sccp_msg->data.co.label = se_strdup(msg_str);
+			sccp_msg->data.co.label = wmem_strdup(wmem_file_scope(), msg_str);
 		}
 
 		col_append_fstr(pinfo->cinfo, COL_INFO, "%s ", msg_str);
 		col_set_fence(pinfo->cinfo, COL_INFO);
 	}
 
-	oct_1_item =
-	proto_tree_add_text(dtap_tree,
-		tvb, 0, 1,
-		"Protocol Discriminator: %s",
-		val_to_str(pd, protocol_discriminator_vals, "Unknown (%u)"));
-
+	oct_1_item = proto_tree_add_uint(dtap_tree, hf_gsm_a_dtap_protocol_discriminator, tvb, 0, 1, pd);
 	pd_tree = proto_item_add_subtree(oct_1_item, ett_dtap_oct_1);
+
 	proto_tree_add_item(pd_tree, hf_gsm_a_L3_protocol_discriminator, tvb, 0, 1, ENC_BIG_ENDIAN);
 
 	if (ti == -1)
@@ -6546,31 +6100,18 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	}
 	else
 	{
-		other_decode_bitfield_value(a_bigbuf, oct_1, 0x80, 8);
-		proto_tree_add_text(pd_tree,
-			tvb, 0, 1,
-			"%s = TI flag: %s",
-			a_bigbuf,
-			((oct_1 & 0x80) ?  "allocated by receiver" : "allocated by sender"));
+
+		proto_tree_add_item(pd_tree, hf_gsm_a_dtap_ti_flag, tvb, 0, 1, ENC_NA);
 
 		if ((ti & DTAP_TIE_PRES_MASK) == DTAP_TIE_PRES_MASK)
 		{
 			/* ti is extended to next octet */
-
-			other_decode_bitfield_value(a_bigbuf, oct_1, 0x70, 8);
-			proto_tree_add_text(pd_tree,
-				tvb, 0, 1,
-				"%s = TIO: The TI value is given by the TIE in octet 2",
-				a_bigbuf);
+			proto_tree_add_uint_format_value(pd_tree, hf_gsm_a_dtap_tio, tvb, 0, 1,
+                    oct_1, "The TI value is given by the TIE in octet 2");
 		}
 		else
 		{
-			other_decode_bitfield_value(a_bigbuf, oct_1, 0x70, 8);
-			proto_tree_add_text(pd_tree,
-				tvb, 0, 1,
-				"%s = TIO: %u",
-				a_bigbuf,
-				ti & DTAP_TIE_PRES_MASK);
+			proto_tree_add_item(pd_tree, hf_gsm_a_dtap_tio, tvb, 0, 1, ENC_NA);
 		}
 	}
 
@@ -6578,13 +6119,7 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		(ti & DTAP_TIE_PRES_MASK) == DTAP_TIE_PRES_MASK)
 	{
 		proto_tree_add_item(tree, hf_gsm_a_extension, tvb, 1, 1, ENC_BIG_ENDIAN);
-
-		other_decode_bitfield_value(a_bigbuf, oct_2, DTAP_TIE_MASK, 8);
-		proto_tree_add_text(pd_tree,
-			tvb, 1, 1,
-			"%s = TIE: %u",
-			a_bigbuf,
-			oct_2 & DTAP_TIE_MASK);
+		proto_tree_add_item(pd_tree, hf_gsm_a_dtap_tie, tvb, 1, 1, ENC_NA);
 	}
 
 	/*
@@ -6614,7 +6149,7 @@ dissect_dtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	tap_p->pdu_type = GSM_A_PDU_TYPE_DTAP;
 	tap_p->message_type = (nsd ? (oct & 0x3f) : oct);
-	tap_p->protocol_disc = pd;
+	tap_p->protocol_disc = (gsm_a_pd_str_e)pd;
 
 	tap_queue_packet(gsm_a_tap, pinfo, tap_p);
 
@@ -6706,7 +6241,7 @@ proto_register_gsm_a_dtap(void)
 	},
 	{ &hf_gsm_a_dtap_cause,
 		{ "DTAP Cause", "gsm_a.dtap.cause",
-		FT_UINT8, BASE_HEX, 0, 0x0,
+		FT_UINT8, BASE_HEX, 0, 0x7f,
 		NULL, HFILL }
 	},
 	{ &hf_gsm_a_dtap_type_of_number,
@@ -7056,7 +6591,7 @@ proto_register_gsm_a_dtap(void)
 	},
 	{ &hf_gsm_a_dtap_epc_ue_tl_a_drb,
 		{ "Data Radio Bearer identity number","gsm_a.dtap.epc.ue_tl_a_drb",
-		FT_UINT8,BASE_DEC, NULL, 0x0,
+		FT_UINT8,BASE_DEC, NULL, 0x1f,
 		NULL, HFILL }
 	},
 	{ &hf_gsm_a_dtap_epc_ue_tl_b_ip_pdu_delay,
@@ -7129,6 +6664,99 @@ proto_register_gsm_a_dtap(void)
 		FT_UINT24, BASE_DEC, NULL, 0x0,
 		NULL, HFILL }
 	},
+      /* Generated from convert_proto_tree_add_text.pl */
+      { &hf_gsm_a_dtap_coding_scheme, { "Coding Scheme", "gsm_a.dtap.coding_scheme", FT_UINT8, BASE_DEC, NULL, 0x70, NULL, HFILL }},
+      { &hf_gsm_a_dtap_add_ci, { "Add CI", "gsm_a.dtap.add_ci", FT_BOOLEAN, 8, TFS(&tfs_add_ci), 0x08, NULL, HFILL }},
+      { &hf_gsm_a_dtap_number_of_spare_bits, { "Number of spare bits in last octet", "gsm_a.dtap.number_of_spare_bits", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_number_of_spare_bits_vals), 0x07, NULL, HFILL }},
+      { &hf_gsm_a_dtap_text_string, { "Text String", "gsm_a.dtap.text_string", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+      { &hf_gsm_a_dtap_time_zone_time, { "Time", "gsm_a.dtap.time_zone_time", FT_ABSOLUTE_TIME, ABSOLUTE_TIME_UTC, NULL, 0x0, NULL, HFILL }},
+      { &hf_gsm_a_dtap_dst_adjustment, { "DST Adjustment", "gsm_a.dtap.dst_adjustment", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_dst_adjustment_vals), 0x03, NULL, HFILL }},
+      { &hf_gsm_a_dtap_emergency_number_information, { "Emergency Number Information", "gsm_a.dtap.emergency_number_information", FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+      { &hf_gsm_a_dtap_mm_timer, { "MM Timer", "gsm_a.dtap.mm_timer", FT_UINT8, BASE_DEC, NULL, 0, NULL, HFILL }},
+      { &hf_gsm_a_dtap_hold_auxiliary_state, { "Hold auxiliary state", "gsm_a.dtap.hold_auxiliary_state", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_hold_auxilary_state_vals), 0x0C, NULL, HFILL }},
+      { &hf_gsm_a_dtap_multi_party_auxiliary_state, { "Multi party auxiliary state", "gsm_a.dtap.multi_party_auxiliary_state", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_multi_party_auxilary_state_vals), 0x03, NULL, HFILL }},
+      { &hf_gsm_a_dtap_radio_channel_requirement, { "Radio channel requirement", "gsm_a.dtap.radio_channel_requirement", FT_UINT8, BASE_DEC, NULL, 0x60, NULL, HFILL }},
+      { &hf_gsm_a_dtap_bearer_cap_coding_standard, { "Coding standard", "gsm_a.dtap.coding_standard", FT_BOOLEAN, 8, TFS(&tfs_bearer_cap_coding_standard), 0x10, NULL, HFILL }},
+      { &hf_gsm_a_dtap_transfer_mode, { "Transfer mode", "gsm_a.dtap.transfer_mode", FT_BOOLEAN, 8, TFS(&tfs_bearer_cap_transfer_mode), 0x08, NULL, HFILL }},
+      { &hf_gsm_a_dtap_coding, { "Coding", "gsm_a.dtap.coding", FT_BOOLEAN, 8, TFS(&tfs_bearer_cap_coding), 0x40, NULL, HFILL }},
+      { &hf_gsm_a_dtap_compression, { "Compression", "gsm_a.dtap.compression", FT_BOOLEAN, 8, TFS(&tfs_possible_not_possible), 0x40, NULL, HFILL }},
+      { &hf_gsm_a_dtap_compression_up, { "Compression", "gsm_a.dtap.compression", FT_BOOLEAN, 8, TFS(&tfs_allowed_not_allowed), 0x40, NULL, HFILL }},
+      { &hf_gsm_a_dtap_structure, { "Structure", "gsm_a.dtap.structure", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_structure_vals), 0x30, NULL, HFILL }},
+      { &hf_gsm_a_dtap_duplex_mode, { "Duplex mode", "gsm_a.dtap.duplex_mode", FT_BOOLEAN, 8, TFS(&tfs_duplex_mode), 0x08, NULL, HFILL }},
+      { &hf_gsm_a_dtap_configuration, { "Configuration", "gsm_a.dtap.configuration", FT_BOOLEAN, 8, TFS(&tfs_bearer_cap_configuration), 0x04, NULL, HFILL }},
+      { &hf_gsm_a_dtap_nirr, { "NIRR", "gsm_a.dtap.nirr", FT_BOOLEAN, 8, TFS(&tfs_nirr), 0x02, NULL, HFILL }},
+      { &hf_gsm_a_dtap_establishment, { "Establishment", "gsm_a.dtap.establishment", FT_BOOLEAN, 8, TFS(&tfs_bearer_cap_establishment), 0x01, NULL, HFILL }},
+      { &hf_gsm_a_dtap_access_identity, { "Access Identity", "gsm_a.dtap.access_identity", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_access_identity_vals), 0x60, NULL, HFILL }},
+      { &hf_gsm_a_dtap_rate_adaption, { "Rate Adaption", "gsm_a.dtap.rate_adaption", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_rate_adaption_vals), 0x18, NULL, HFILL }},
+      { &hf_gsm_a_dtap_signalling_access_protocol, { "Signalling Access Protocol", "gsm_a.dtap.signalling_access_protocol", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_signal_access_protocol_vals), 0x07, NULL, HFILL }},
+      { &hf_gsm_a_dtap_other_itc, { "Other ITC", "gsm_a.dtap.other_itc", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_other_itc_vals), 0x60, NULL, HFILL }},
+      { &hf_gsm_a_dtap_other_rate_adaption, { "Other Rate Adaption", "gsm_a.dtap.other_rate_adaption", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_other_rate_adaption_vals), 0x18, NULL, HFILL }},
+      { &hf_gsm_a_dtap_rate_adaption_header, { "Rate Adaption Header", "gsm_a.dtap.rate_adaption_header", FT_BOOLEAN, 8, TFS(&tfs_included_not_included), 0x40, NULL, HFILL }},
+      { &hf_gsm_a_dtap_multiple_frame_establishment_support, { "Multiple frame establishment support in data link", "gsm_a.dtap.multiple_frame_establishment_support", FT_BOOLEAN, 8, TFS(&tfs_frame_est_supported_not_supported), 0x20, NULL, HFILL }},
+      { &hf_gsm_a_dtap_mode_of_operation, { "Mode of operation", "gsm_a.dtap.mode_of_operation", FT_BOOLEAN, 8, TFS(&tfs_mode_of_operation), 0x10, NULL, HFILL }},
+      { &hf_gsm_a_dtap_logical_link_identifier_negotiation, { "Logical link identifier negotiation", "gsm_a.dtap.logical_link_identifier_negotiation", FT_BOOLEAN, 8, TFS(&tfs_log_link_neg), 0x08, NULL, HFILL }},
+      { &hf_gsm_a_dtap_assignor_assignee, { "Assignor/Assignee", "gsm_a.dtap.assignor_assignee", FT_BOOLEAN, 8, TFS(&tfs_assignor_assignee), 0x04, NULL, HFILL }},
+      { &hf_gsm_a_dtap_in_out_band, { "In band/Out of band negotiation", "gsm_a.dtap.in_out_band", FT_BOOLEAN, 8, TFS(&tfs_in_out_band), 0x02, NULL, HFILL }},
+      { &hf_gsm_a_dtap_layer_1_identity, { "Layer 1 Identity", "gsm_a.dtap.layer_1_identity", FT_UINT8, BASE_DEC, NULL, 0x60, NULL, HFILL }},
+      { &hf_gsm_a_dtap_user_information_layer_1_protocol, { "User information layer 1 protocol", "gsm_a.dtap.user_information_layer_1_protocol", FT_UINT8, BASE_DEC, NULL, 0x1e, NULL, HFILL }},
+      { &hf_gsm_a_dtap_synchronous, { "Synchronous/asynchronous", "gsm_a.dtap.synchronous", FT_BOOLEAN, 8, TFS(&tfs_asynchronous_synchronous), 0x01, NULL, HFILL }},
+      { &hf_gsm_a_dtap_number_of_stop_bits, { "Number of Stop Bits", "gsm_a.dtap.number_of_stop_bits", FT_BOOLEAN, 8, TFS(&tfs_stop_bits), 0x40, NULL, HFILL }},
+      { &hf_gsm_a_dtap_negotiation, { "Negotiation", "gsm_a.dtap.negotiation", FT_BOOLEAN, 8, TFS(&tfs_negotiation), 0x20, NULL, HFILL }},
+      { &hf_gsm_a_dtap_number_of_data_bits, { "Number of data bits excluding parity bit if present", "gsm_a.dtap.number_of_data_bits", FT_BOOLEAN, 8, TFS(&tfs_parity_bits), 0x10, NULL, HFILL }},
+      { &hf_gsm_a_dtap_user_rate, { "User rate", "gsm_a.dtap.user_rate", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_user_rate_vals), 0x0F, NULL, HFILL }},
+      { &hf_gsm_a_dtap_v110_x30_rate_adaptation, { "V.110/X.30 rate adaptation Intermediate rate", "gsm_a.dtap.v110_x30_rate_adaptation", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_v110_x30_rate_adaptation_vals), 0x60, NULL, HFILL }},
+      { &hf_gsm_a_dtap_nic_on_tx, { "Network independent clock (NIC) on transmission (Tx)", "gsm_a.dtap.nic_on_tx", FT_BOOLEAN, 8, TFS(&tfs_nic_on_tx), 0x10, NULL, HFILL }},
+      { &hf_gsm_a_dtap_nic_on_rx, { "Network independent clock (NIC) on reception (Rx)", "gsm_a.dtap.nic_on_rx", FT_BOOLEAN, 8, TFS(&tfs_nic_on_rx), 0x08, NULL, HFILL }},
+      { &hf_gsm_a_dtap_parity_information, { "Parity information", "gsm_a.dtap.parity_information", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_parity_info_vals), 0x07, NULL, HFILL }},
+      { &hf_gsm_a_dtap_connection_element, { "Connection element", "gsm_a.dtap.connection_element", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_connection_element_vals), 0x60, NULL, HFILL }},
+      { &hf_gsm_a_dtap_modem_type, { "Modem type", "gsm_a.dtap.modem_type", FT_UINT8, BASE_DEC, NULL, 0x1f, NULL, HFILL }},
+      { &hf_gsm_a_dtap_other_modem_type, { "Other modem type", "gsm_a.dtap.other_modem_type", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_other_modem_type_vals), 0x60, NULL, HFILL }},
+      { &hf_gsm_a_dtap_fixed_network_user_rate, { "Fixed network user rate", "gsm_a.dtap.fixed_network_user_rate", FT_UINT8, BASE_DEC, NULL, 0x1f, NULL, HFILL }},
+      { &hf_gsm_a_dtap_acceptable_channel_codings_TCH_F14_4, { "Acceptable channel codings (TCH/F14.4)", "gsm_a.dtap.acceptable_channel_codings.TCH_F14_4", FT_BOOLEAN, 8, TFS(&tfs_acceptable_not_acceptable), 0x40, NULL, HFILL }},
+      { &hf_gsm_a_dtap_acceptable_channel_codings_spare20, { "Acceptable channel codings (Spare)", "gsm_a.dtap.acceptable_channel_codings.spare", FT_BOOLEAN, 8, NULL, 0x20, NULL, HFILL }},
+      { &hf_gsm_a_dtap_acceptable_channel_codings_TCH_F9_6, { "Acceptable channel codings (TCH/F9.6)", "gsm_a.dtap.acceptable_channel_codings.TCH_F9_6", FT_BOOLEAN, 8, TFS(&tfs_acceptable_not_acceptable), 0x10, NULL, HFILL }},
+      { &hf_gsm_a_dtap_acceptable_channel_codings_TCH_F4_8, { "Acceptable channel codings (TCH/F4.8)", "gsm_a.dtap.acceptable_channel_codings.TCH_F4_8", FT_BOOLEAN, 8, TFS(&tfs_acceptable_not_acceptable), 0x08, NULL, HFILL }},
+      { &hf_gsm_a_dtap_maximum_number_of_traffic_channels, { "Maximum number of traffic channels", "gsm_a.dtap.maximum_number_of_traffic_channels", FT_UINT8, BASE_DEC, NULL, 0x07, NULL, HFILL }},
+      { &hf_gsm_a_dtap_acceptable_channel_codings_spare78, { "Acceptable channel codings", "gsm_a.dtap.acceptable_channel_codings", FT_UINT8, BASE_DEC, NULL, 0x78, NULL, HFILL }},
+      { &hf_gsm_a_dtap_uimi, { "UIMI, User initiated modification indication", "gsm_a.dtap.uimi", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_uimi_vals), 0x70, NULL, HFILL }},
+      { &hf_gsm_a_dtap_wanted_air_interface_user_rate, { "Wanted air interface user rate", "gsm_a.dtap.wanted_air_interface_user_rate", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_wanted_air_rate_vals), 0x0F, NULL, HFILL }},
+      { &hf_gsm_a_dtap_acceptable_channel_codings_ext_TCH_F28_8, { "Acceptable channel codings extended (TCH/F28.8)", "gsm_a.dtap.acceptable_channel_codings_ext.TCH_F28_8", FT_BOOLEAN, 8, TFS(&tfs_acceptable_not_acceptable), 0x40, NULL, HFILL }},
+      { &hf_gsm_a_dtap_acceptable_channel_codings_ext_TCH_F32_0, { "Acceptable channel codings extended (TCH/F32.0)", "gsm_a.dtap.acceptable_channel_codings_ext.TCH_F32_0", FT_BOOLEAN, 8, TFS(&tfs_acceptable_not_acceptable), 0x20, NULL, HFILL }},
+      { &hf_gsm_a_dtap_acceptable_channel_codings_ext_TCH_F43_2, { "Acceptable channel codings extended (TCH/F43.2)", "gsm_a.dtap.acceptable_channel_codings_ext.TCH_F43_2", FT_BOOLEAN, 8, TFS(&tfs_acceptable_not_acceptable), 0x10, NULL, HFILL }},
+      { &hf_gsm_a_dtap_channel_coding_asymmetry_indication, { "Channel Coding Asymmetry Indication", "gsm_a.dtap.channel_coding_asymmetry_indication", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_channel_coding_asymmetry_ind_vals), 0x0c, NULL, HFILL }},
+      { &hf_gsm_a_dtap_edge_channel_codings, { "EDGE Channel Codings", "gsm_a.dtap.edge_channel_codings", FT_UINT8, BASE_DEC, NULL, 0x7c, NULL, HFILL }},
+      { &hf_gsm_a_dtap_layer_2_identity, { "Layer 2 Identity", "gsm_a.dtap.layer_2_identity", FT_UINT8, BASE_DEC, NULL, 0x60, NULL, HFILL }},
+      { &hf_gsm_a_dtap_user_information_layer_2_protocol, { "User information layer 2 protocol", "gsm_a.dtap.user_information_layer_2_protocol", FT_UINT8, BASE_DEC, NULL, 0x1f, NULL, HFILL }},
+      { &hf_gsm_a_dtap_maximum_number_of_supported_bearers, { "Maximum number of supported bearers", "gsm_a.dtap.maximum_number_of_supported_bearers", FT_UINT8, BASE_DEC, NULL, 0xf0, NULL, HFILL }},
+      { &hf_gsm_a_dtap_pcp, { "Prolonged Clearing Procedure", "gsm_a.dtap.pcp", FT_BOOLEAN, 8, TFS(&tfs_supported_not_supported), 0x02, NULL, HFILL }},
+      { &hf_gsm_a_dtap_dtmf, { "DTMF", "gsm_a.dtap.dtmf", FT_BOOLEAN, 8, TFS(&gsm_a_dtap_dtmf_value), 0x01, NULL, HFILL }},
+      { &hf_gsm_a_dtap_max_num_of_speech_bearers, { "Maximum number of speech bearers", "gsm_a.dtap.max_num_of_speech_bearers", FT_UINT8, BASE_DEC, NULL, 0x0f, NULL, HFILL }},
+      { &hf_gsm_a_dtap_de_cause_coding_standard, { "Coding standard", "gsm_a.dtap.coding_standard", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_de_cause_coding_standard_vals), 0x60, NULL, HFILL }},
+      { &hf_gsm_a_dtap_recommendation, { "Recommendation", "gsm_a.dtap.recommendation", FT_UINT8, BASE_DEC, NULL, 0x7f, NULL, HFILL }},
+      { &hf_gsm_a_dtap_data, { "Data", "gsm_a.dtap.data", FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+      { &hf_gsm_a_dtap_keypad_information, { "Keypad information", "gsm_a.dtap.keypad_information", FT_UINT8, BASE_DEC, NULL, 0x7f, NULL, HFILL }},
+      { &hf_gsm_a_dtap_repeat_indicator, { "Repeat Indicator", "gsm_a.dtap.repeat_indicator", FT_UINT8, BASE_DEC, NULL, 0x0f, NULL, HFILL }},
+      { &hf_gsm_a_dtap_ss_version_indicator, { "SS Version Indicator", "gsm_a.dtap.ss_version_indicator", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+      { &hf_gsm_a_dtap_cp_cause, { "Cause", "gsm_a.dtap.cp_cause", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+      { &hf_gsm_a_dtap_test_loop, { "Test Loop", "gsm_a.dtap.test_loop", FT_UINT8, BASE_DEC, NULL, 0x3f, NULL, HFILL }},
+      { &hf_gsm_a_dtap_channel_coding03, { "Channel coding", "gsm_a.dtap.channel_coding", FT_UINT8, BASE_DEC, VALS(gsm_channel_coding_vals), 0x03, NULL, HFILL }},
+      { &hf_gsm_a_dtap_channel_coding30, { "Channel coding", "gsm_a.dtap.channel_coding", FT_UINT8, BASE_DEC, VALS(gsm_channel_coding_vals), 0x30, NULL, HFILL }},
+      { &hf_gsm_a_dtap_tp_tested_device, { "Tested device", "gsm_a.dtap.tp_tested_device", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+      { &hf_gsm_a_dtap_tp_pdu_description, { "PDUs transmitted", "gsm_a.dtap.tp_pdu_description", FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+      { &hf_gsm_a_dtap_downlink_timeslot_offset, { "Downlink Timeslot Offset", "gsm_a.dtap.downlink_timeslot_offset", FT_UINT8, BASE_DEC, NULL, 0x0E, NULL, HFILL }},
+      { &hf_gsm_a_dtap_ms_positioning_technology, { "MS positioning technology", "gsm_a.dtap.ms_positioning_technology", FT_UINT8, BASE_DEC, VALS(gsm_positioning_technology_vals), 0x0, NULL, HFILL }},
+      { &hf_gsm_a_dtap_ue_positioning_technology, { "UE positioning technology", "gsm_a.dtap.ue_positioning_technology", FT_UINT8, BASE_DEC, VALS(gsm_positioning_technology_vals), 0x0, NULL, HFILL }},
+      { &hf_gsm_a_dtap_ciphering_key_sequence_number, { "Ciphering Key Sequence Number", "gsm_a.dtap.ciphering_key_sequence_number", FT_UINT8, BASE_DEC, NULL, 0x07, NULL, HFILL }},
+      { &hf_gsm_a_dtap_ciphering_key_sequence_number70, { "Ciphering Key Sequence Number", "gsm_a.dtap.ciphering_key_sequence_number", FT_UINT8, BASE_DEC, NULL, 0x70, NULL, HFILL }},
+      { &hf_gsm_a_dtap_service_type, { "Service Type", "gsm_a.dtap.service_type", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_service_type_vals), 0x0F, NULL, HFILL }},
+      { &hf_gsm_a_dtap_type_of_identity, { "Type of identity", "gsm_a.dtap.type_of_identity", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_type_of_identity_vals), 0x07, NULL, HFILL }},
+      { &hf_gsm_a_dtap_follow_on_request, { "Follow-On Request (FOR)", "gsm_a.dtap.follow_on_request", FT_BOOLEAN, 8, TFS(&tfs_follow_on_request_value ), 0x08, NULL, HFILL }},
+      { &hf_gsm_a_dtap_updating_type, { "Updating Type", "gsm_a.dtap.updating_type", FT_UINT8, BASE_DEC, VALS(gsm_a_dtap_updating_type_vals), 0x03, NULL, HFILL }},
+      { &hf_gsm_a_dtap_congestion_level, { "Congestion level", "gsm_a.dtap.congestion_level", FT_UINT8, BASE_DEC, NULL, 0x0F, NULL, HFILL }},
+      { &hf_gsm_a_dtap_protocol_discriminator, { "Protocol Discriminator", "gsm_a.dtap.protocol_discriminator", FT_UINT8, BASE_DEC, VALS(protocol_discriminator_vals), 0x0, NULL, HFILL }},
+      { &hf_gsm_a_dtap_ti_flag, { "TI flag", "gsm_a.dtap.ti_flag", FT_BOOLEAN, 8, TFS(&tfs_ti_flags), 0x80, NULL, HFILL }},
+      { &hf_gsm_a_dtap_tio, { "TIO", "gsm_a.dtap.tio", FT_UINT8, BASE_DEC, NULL, 0x70, NULL, HFILL }},
+      { &hf_gsm_a_dtap_tie, { "TIE", "gsm_a.dtap.tie", FT_UINT8, BASE_DEC, NULL, DTAP_TIE_MASK, NULL, HFILL }},
 	};
 
 	/* Setup protocol subtree array */
@@ -7137,6 +6765,17 @@ proto_register_gsm_a_dtap(void)
 		  NUM_GSM_DTAP_MSG_MM + NUM_GSM_DTAP_MSG_CC +
 		  NUM_GSM_DTAP_MSG_SMS + NUM_GSM_DTAP_MSG_SS + NUM_GSM_DTAP_MSG_TP +
 		  NUM_GSM_DTAP_ELEM];
+
+	static ei_register_info ei[] = {
+		{ &ei_gsm_a_dtap_autn, { "gsm_a.dtap.autn.invalid", PI_MALFORMED, PI_WARN, "AUTN length not equal to 16", EXPFILL }},
+		{ &ei_gsm_a_dtap_auts, { "gsm_a.dtap.auts.invalid", PI_MALFORMED, PI_WARN, "AUTS length not equal to 14", EXPFILL }},
+		{ &ei_gsm_a_dtap_text_string_not_multiple_of_7, { "gsm_a.dtap.text_string_not_multiple_of_7", PI_MALFORMED, PI_WARN, "Value leads to a Text String whose length is not a multiple of 7 bits", EXPFILL }},
+		{ &ei_gsm_a_dtap_end_mark_unexpected, { "gsm_a.dtap.end_mark_unexpected", PI_MALFORMED, PI_WARN, "\'f\' end mark present in unexpected position", EXPFILL }},
+		{ &ei_gsm_a_dtap_invalid_ia5_character, { "gsm_a.dtap.invalid_ia5_character", PI_MALFORMED, PI_WARN, "Invalid IA5 character(s) in string (value > 127)", EXPFILL }},
+		{ &ei_gsm_a_dtap_keypad_info_not_dtmf_digit, { "gsm_a.dtap.keypad_info_not_dtmf_digit", PI_MALFORMED, PI_WARN, "Keypad information contains character that is not a DTMF digit", EXPFILL }},
+ 	};
+
+	expert_module_t* expert_a_dtap;
 
 	ett[0]  = &ett_dtap_msg;
 	ett[1]  = &ett_dtap_oct_1;
@@ -7206,6 +6845,9 @@ proto_register_gsm_a_dtap(void)
 	proto_register_field_array(proto_a_dtap, hf, array_length(hf));
 
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_a_dtap = expert_register_protocol(proto_a_dtap);
+	expert_register_field_array(expert_a_dtap, ei, array_length(ei));
+
 
 	/* subdissector code */
 	register_dissector("gsm_a_dtap", dissect_dtap, proto_a_dtap);

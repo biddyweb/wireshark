@@ -5,8 +5,6 @@
 # Script to run CppCheck Static Analyzer.
 # http://cppcheck.sourceforge.net/
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 2012 Gerald Combs
@@ -67,7 +65,7 @@ trap : INT
 
 $CPPCHECK --force --enable=style $QUIET  \
           $SUPPRESSIONS $INCLUDES        \
-          --template=$TEMPLATE           \
+          --std=c89 --template=$TEMPLATE \
           -j $THREADS $TARGET 2>&1
 
 if [ "$MODE" = "html" ]; then

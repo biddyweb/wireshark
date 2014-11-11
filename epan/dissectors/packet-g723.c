@@ -2,8 +2,6 @@
  * Routines for G.723 dissection
  * Copyright 2005, Anders Broman <anders.broman[at]ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,8 @@
 #include <epan/packet.h>
 #include <epan/rtp_pt.h>
 
+void proto_reg_handoff_g723(void);
+void proto_register_g723(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_g723					= -1;

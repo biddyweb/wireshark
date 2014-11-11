@@ -2,8 +2,6 @@
  * Routines for the disassembly of Foundry LLC messages (currently
  * Foundry Discovery Protocol - FDP only)
  *
- * $Id$
- *
  * Copyright 2012 Joerg Mayer (see AUTHORS file)
  *
  * Wireshark - Network traffic analyzer
@@ -33,6 +31,10 @@
 #include <epan/in_cksum.h>
 #include "packet-llc.h"
 #include <epan/oui.h>
+
+void proto_register_fdp(void);
+void proto_reg_handoff_fdp(void);
+void proto_register_foundry_oui(void);
 
 static int hf_llc_foundry_pid = -1;
 
@@ -90,7 +92,7 @@ typedef enum {
 	FDP_TYPE_VERSION = 5,
 	FDP_TYPE_MODEL = 6,
 	FDP_TYPE_VLANMAP = 0x0101,
-	FDP_TYPE_TAG = 0x0102,
+	FDP_TYPE_TAG = 0x0102
 } fdp_type_t;
 
 static const value_string fdp_type_vals[] = {
@@ -148,12 +150,12 @@ dissect_string_tlv(tvbuff_t *tvb, packet_info *pinfo, int offset, int length, pr
 	offset += 4;
 	length -= 4;
 
-	string_value = tvb_get_ephemeral_string(tvb, offset, length);
+	string_value = tvb_get_string(wmem_packet_scope(), tvb, offset, length);
 	proto_item_append_text(string_item, ": \"%s\"",
 		format_text(string_value, strlen(string_value)));
 
 	proto_tree_add_item(string_tree, hf_fdp_string_data, tvb, offset, length, ENC_NA);
-	proto_tree_add_item(string_tree, hf_fdp_string_text, tvb, offset, length, ENC_ASCII);
+	proto_tree_add_item(string_tree, hf_fdp_string_text, tvb, offset, length, ENC_ASCII|ENC_NA);
 
 	return offset;
 }
@@ -306,8 +308,7 @@ dissect_fdp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				break;
 			}
 			type_string = val_to_str(tlv_type, fdp_type_vals, "[%u]");
-			if (check_col(pinfo->cinfo, COL_INFO))
-				col_append_fstr(pinfo->cinfo, COL_INFO, " %s", type_string);
+			col_append_fstr(pinfo->cinfo, COL_INFO, " %s", type_string);
 
 			switch (tlv_type) {
 			case FDP_TYPE_NAME:
@@ -464,5 +465,5 @@ proto_register_foundry_oui(void)
 	  }
 	};
 
-	llc_add_oui(OUI_FOUNDRY, "llc.foundry_pid", "Foundry OUI PID", hf);
+	llc_add_oui(OUI_FOUNDRY, "llc.foundry_pid", "LLC Foundry OUI PID", hf);
 }

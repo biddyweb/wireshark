@@ -11,12 +11,10 @@
  * Copyright 2003, LUKAS POKORNY <maskis@seznam.cz>
  *                 PETR SMOLIK   <petr.smolik@wo.cz>
  *                 ZDENEK SEBEK  <sebek@fel.cvut.cz>
- * 
- * Czech Technical University in Prague 
+ *
+ * Czech Technical University in Prague
  *  Faculty of Electrical Engineering <www.fel.cvut.cz>
- *  Department of Control Engineering <dce.felk.cvut.cz>                
- *                   
- * $Id$
+ *  Department of Control Engineering <dce.felk.cvut.cz>
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -26,12 +24,12 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
- *  
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *  
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
@@ -40,16 +38,16 @@
  *
  * The following file is part of the RTPS packet dissector for Wireshark.
  *
- * RTPS protocol was developed by Real-Time Innovations, Inc. as wire 
+ * RTPS protocol was developed by Real-Time Innovations, Inc. as wire
  * protocol for Data Distribution System.
  * Additional information at:
- *   Full OMG DDS Standard Specification: 
+ *   Full OMG DDS Standard Specification:
  *                             http://www.omg.org/cgi-bin/doc?ptc/2003-07-07
- *   
+ *
  *   NDDS and RTPS information: http://www.rti.com/resources.html
  *
  */
- 
+
 #ifndef _TYPEDEFS_DEFINES_RTPS_H
 #define _TYPEDEFS_DEFINES_RTPS_H
 
@@ -85,6 +83,7 @@ typedef enum {
     RTI_CDR_TK_VALUE_PARARM
 } RTICdrTCKind;
 
+#define RTPS_MAGIC_NUMBER   0x52545053 /* RTPS */
 
 /* Traffic type */
 #define PORT_BASE                       (7400)
@@ -96,9 +95,14 @@ typedef enum {
 /* Flags defined in the 'flag' bitmask of a submessage */
 #define FLAG_E                  (0x01)  /* Common to all the submessages */
 #define FLAG_DATA_D             (0x02)
+#define FLAG_DATA_D_v2          (0x04)
 #define FLAG_DATA_A             (0x04)
 #define FLAG_DATA_H             (0x08)
 #define FLAG_DATA_Q             (0x10)
+#define FLAG_DATA_Q_v2          (0x02)
+#define FLAG_DATA_FRAG_Q        (0x02)
+#define FLAG_DATA_FRAG_H        (0x04)
+#define FLAG_DATA_I             (0x10)
 #define FLAG_DATA_U             (0x20)
 #define FLAG_NOKEY_DATA_Q       (0x02)
 #define FLAG_NOKEY_DATA_D       (0x04)
@@ -108,7 +112,18 @@ typedef enum {
 #define FLAG_INFO_TS_T          (0x02)
 #define FLAG_INFO_REPLY_IP4_M   (0x02)
 #define FLAG_INFO_REPLY_M       (0x02)
-
+#define FLAG_RTPS_DATA_Q        (0x02)
+#define FLAG_RTPS_DATA_D        (0x04)
+#define FLAG_RTPS_DATA_K        (0x08)
+#define FLAG_RTPS_DATA_FRAG_Q   (0x02)
+#define FLAG_RTPS_DATA_FRAG_K   (0x04)
+#define FLAG_RTPS_DATA_BATCH_Q  (0x02)
+#define FLAG_SAMPLE_INFO_T      (0x01)
+#define FLAG_SAMPLE_INFO_Q      (0x02)
+#define FLAG_SAMPLE_INFO_O      (0x04)
+#define FLAG_SAMPLE_INFO_D      (0x08)
+#define FLAG_SAMPLE_INFO_I      (0x10)
+#define FLAG_SAMPLE_INFO_K      (0x20)
 
 
 /* The following PIDs are defined since RTPS 1.0 */
@@ -183,6 +198,29 @@ typedef enum {
 #define PID_LATENCY_BUDGET_OFFERED              (0x28)
 #define PID_PARTITION_OFFERED                   (0x2a)
 
+/* The following PIDs are defined since RTPS 2.0 */
+#define PID_DEFAULT_MULTICAST_LOCATOR           (0x0048)
+#define PID_TRANSPORT_PRIORITY                  (0x0049)
+#define PID_CONTENT_FILTER_INFO                 (0x0055)
+#define PID_DIRECTED_WRITE                      (0x0057)
+#define PID_BUILTIN_ENDPOINT_SET                (0x0058)
+#define PID_PROPERTY_LIST                       (0x0059)        /* RTI DDS 4.2e and newer */
+#define PID_ENDPOINT_GUID                       (0x005a)
+#define PID_TYPE_MAX_SIZE_SERIALIZED            (0x0060)
+#define PID_ORIGINAL_WRITER_INFO                (0x0061)
+#define PID_ENTITY_NAME                         (0x0062)
+#define PID_KEY_HASH                            (0x0070)
+#define PID_STATUS_INFO                         (0x0071)
+
+/* Vendor-specific: RTI */
+#define PID_PRODUCT_VERSION                     (0x8000)
+#define PID_PLUGIN_PROMISCUITY_KIND             (0x8001)
+#define PID_ENTITY_VIRTUAL_GUID                 (0x8002)
+#define PID_SERVICE_KIND                        (0x8003)
+#define PID_TYPECODE_RTPS2                      (0x8004)        /* Was: 0x47 in RTPS 1.2 */
+#define PID_DISABLE_POSITIVE_ACKS               (0x8005)
+#define PID_LOCATOR_FILTER_LIST                 (0x8006)
+
 /* appId.appKind possible values */
 #define APPKIND_UNKNOWN                         (0x00)
 #define APPKIND_MANAGED_APPLICATION             (0x01)
@@ -192,6 +230,7 @@ typedef enum {
 
 /* Predefined EntityId */
 #define ENTITYID_UNKNOWN                        (0x00000000)
+#define ENTITYID_PARTICIPANT                    (0x000001c1)
 #define ENTITYID_BUILTIN_TOPIC_WRITER           (0x000002c2)
 #define ENTITYID_BUILTIN_TOPIC_READER           (0x000002c7)
 #define ENTITYID_BUILTIN_PUBLICATIONS_WRITER    (0x000003c2)
@@ -200,6 +239,8 @@ typedef enum {
 #define ENTITYID_BUILTIN_SUBSCRIPTIONS_READER   (0x000004c7)
 #define ENTITYID_BUILTIN_SDP_PARTICIPANT_WRITER (0x000100c2)
 #define ENTITYID_BUILTIN_SDP_PARTICIPANT_READER (0x000100c7)
+#define ENTITYID_P2P_BUILTIN_PARTICIPANT_MESSAGE_WRITER (0x000200c2)
+#define ENTITYID_P2P_BUILTIN_PARTICIPANT_MESSAGE_READER (0x000200c7)
 
 /* Deprecated EntityId */
 #define ENTITYID_APPLICATIONS_WRITER            (0x000001c2)
@@ -229,21 +270,34 @@ typedef enum {
 
 
 /* Submessage Type */
-#define PAD                             (0x01)
-#define DATA                            (0x02)
-#define NOKEY_DATA                      (0x03)
-#define ACKNACK                         (0x06)
-#define HEARTBEAT                       (0x07)
-#define GAP                             (0x08)
-#define INFO_TS                         (0x09)
-#define INFO_SRC                        (0x0c)
-#define INFO_REPLY_IP4                  (0x0d)
-#define INFO_DST                        (0x0e)
-#define INFO_REPLY                      (0x0f)
+#define SUBMESSAGE_PAD                                  (0x01)
+#define SUBMESSAGE_DATA                                 (0x02)
+#define SUBMESSAGE_NOKEY_DATA                           (0x03)
+#define SUBMESSAGE_ACKNACK                              (0x06)
+#define SUBMESSAGE_HEARTBEAT                            (0x07)
+#define SUBMESSAGE_GAP                                  (0x08)
+#define SUBMESSAGE_INFO_TS                              (0x09)
+#define SUBMESSAGE_INFO_SRC                             (0x0c)
+#define SUBMESSAGE_INFO_REPLY_IP4                       (0x0d)
+#define SUBMESSAGE_INFO_DST                             (0x0e)
+#define SUBMESSAGE_INFO_REPLY                           (0x0f)
+
+#define SUBMESSAGE_DATA_FRAG                            (0x10)  /* RTPS 2.0 Only */
+#define SUBMESSAGE_NOKEY_DATA_FRAG                      (0x11)  /* RTPS 2.0 Only */
+#define SUBMESSAGE_NACK_FRAG                            (0x12)  /* RTPS 2.0 Only */
+#define SUBMESSAGE_HEARTBEAT_FRAG                       (0x13)  /* RTPS 2.0 Only */
+
+#define SUBMESSAGE_RTPS_DATA_SESSION                    (0x14)  /* RTPS 2.1 only */
+#define SUBMESSAGE_RTPS_DATA                            (0x15)  /* RTPS 2.1 only */
+#define SUBMESSAGE_RTPS_DATA_FRAG                       (0x16)  /* RTPS 2.1 only */
+#define SUBMESSAGE_ACKNACK_BATCH                        (0x17)  /* RTPS 2.1 only */
+#define SUBMESSAGE_RTPS_DATA_BATCH                      (0x18)  /* RTPS 2.1 Only */
+#define SUBMESSAGE_HEARTBEAT_BATCH                      (0x19)  /* RTPS 2.1 only */
+#define SUBMESSAGE_ACKNACK_SESSION                      (0x1a)  /* RTPS 2.1 only */
+#define SUBMESSAGE_HEARTBEAT_SESSION                    (0x1b)  /* RTPS 2.1 only */
 
 
-
-/* An invalid IP Address: 
+/* An invalid IP Address:
  * Make sure the _STRING macro is bigger than a normal IP
  */
 #define IPADDRESS_INVALID               (0)
@@ -256,13 +310,42 @@ typedef enum {
 #define PORT_INVALID_STRING             "PORT_INVALID"
 
 /* Protocol Vendor Information (guint16) */
-#define RTPS_VENDOR_UNKNOWN             (0x0000)
-#define RTPS_VENDOR_UNKNOWN_STRING      "VENDOR_ID_UNKNOWN (0x0000)"
-#define RTPS_VENDOR_RTI                 (0x0101)
-#define RTPS_VENDOR_RTI_STRING          "Real-Time Innovations, Inc."
-#define RTPS_VENDOR_TOC                 (0x0106)
-#define RTPS_VENDOR_TOC_STRING          "Twin Oaks Computing, Inc."
+#define RTPS_VENDOR_UNKNOWN              (0x0000)
+#define RTPS_VENDOR_UNKNOWN_STRING       "VENDOR_ID_UNKNOWN (0x0000)"
+#define RTPS_VENDOR_RTI_DDS              (0x0101)
+#define RTPS_VENDOR_RTI_DDS_STRING       "Real-Time Innovations, Inc. - Connext DDS"
+#define RTPS_VENDOR_PT_DDS               (0x0102)
+#define RTPS_VENDOR_PT_DDS_STRING        "PrismTech Inc. - OpenSplice DDS"
+#define RTPS_VENDOR_OCI                  (0x0103)
+#define RTPS_VENDOR_OCI_STRING           "Object Computing Incorporated, Inc. (OCI) - OpenDDS"
+#define RTPS_VENDOR_MILSOFT              (0x0104)
+#define RTPS_VENDOR_MILSOFT_STRING       "MilSoft"
+#define RTPS_VENDOR_GALLIUM              (0x0105)
+#define RTPS_VENDOR_GALLIUM_STRING       "Gallium Visual Systems Inc. - InterCOM DDS"
+#define RTPS_VENDOR_TOC                  (0x0106)
+#define RTPS_VENDOR_TOC_STRING           "TwinOaks Computing, Inc. - CoreDX DDS"
+#define RTPS_VENDOR_LAKOTA_TSI           (0x0107)
+#define RTPS_VENDOR_LAKOTA_TSI_STRING    "Lakota Technical Solutions, Inc."
+#define RTPS_VENDOR_ICOUP                (0x0108)
+#define RTPS_VENDOR_ICOUP_STRING         "ICOUP Consulting"
+#define RTPS_VENDOR_ETRI                 (0x0109)
+#define RTPS_VENDOR_ETRI_STRING          "ETRI Electronics and Telecommunication Research Institute"
+#define RTPS_VENDOR_RTI_DDS_MICRO        (0x010A)
+#define RTPS_VENDOR_RTI_DDS_MICRO_STRING "Real-Time Innovations, Inc. (RTI) - Connext DDS Micro"
+#define RTPS_VENDOR_PT_MOBILE            (0x010B)
+#define RTPS_VENDOR_PT_MOBILE_STRING     "PrismTech - OpenSplice Mobile"
+#define RTPS_VENDOR_PT_GATEWAY           (0x010C)
+#define RTPS_VENDOR_PT_GATEWAY_STRING    "PrismTech - OpenSplice Gateway"
+#define RTPS_VENDOR_PT_LITE              (0x010D)
+#define RTPS_VENDOR_PT_LITE_STRING       "PrismTech - OpenSplice Lite"
+#define RTPS_VENDOR_TECHNICOLOR          (0x010E)
+#define RTPS_VENDOR_TECHNICOLOR_STRING   "Technicolor Inc. - Qeo"
 
+/* Data encapsulation */
+#define ENCAPSULATION_CDR_BE            (0x0000)
+#define ENCAPSULATION_CDR_LE            (0x0001)
+#define ENCAPSULATION_PL_CDR_BE         (0x0002)
+#define ENCAPSULATION_PL_CDR_LE         (0x0003)
 
 /* Parameter Liveliness */
 #define LIVELINESS_AUTOMATIC            (0)
@@ -302,9 +385,14 @@ typedef enum {
 #define BY_RECEPTION_TIMESTAMP          (0)
 #define BY_SOURCE_TIMESTAMP             (1)
 
+/* Participant message data kind */
+#define PARTICIPANT_MESSAGE_DATA_KIND_UNKNOWN (0x00000000)
+#define PARTICIPANT_MESSAGE_DATA_KIND_AUTOMATIC_LIVELINESS_UPDATE (0x00000001)
+#define PARTICIPANT_MESSAGE_DATA_KIND_MANUAL_LIVELINESS_UPDATE (0x00000002)
+
 /* Utilities to add elements to the protocol tree for packet-rtps.h and packet-rtps2.h */
 extern guint16 rtps_util_add_protocol_version(proto_tree *tree, tvbuff_t* tvb, gint offset);
-extern void rtps_util_add_vendor_id(proto_tree *tree, tvbuff_t * tvb, gint offset);
+extern guint16 rtps_util_add_vendor_id(proto_tree *tree, tvbuff_t * tvb, gint offset);
 extern void rtps_util_add_locator_t(proto_tree *tree, packet_info *pinfo, tvbuff_t * tvb, gint offset,
                              gboolean little_endian, const guint8 * label);
 extern int rtps_util_add_locator_list(proto_tree *tree, packet_info *pinfo, tvbuff_t * tvb,
@@ -316,23 +404,24 @@ extern void rtps_util_add_locator_udp_v4(proto_tree *tree, packet_info *pinfo, t
 extern int rtps_util_add_entity_id(proto_tree *tree, tvbuff_t * tvb, gint offset,
                             int hf_item, int hf_item_entity_key, int hf_item_entity_kind,
                             int subtree_entity_id, const char *label, guint32* entity_id_out);
-extern void rtps_util_add_generic_entity_id(proto_tree *, tvbuff_t *,
-                        gint, const char *,
-                        guint8 *, gint);
+extern void rtps_util_add_generic_entity_id(proto_tree *tree, tvbuff_t * tvb, gint offset, const char* label,
+                                     int hf_item, int hf_item_entity_key, int hf_item_entity_kind,
+                                     int subtree_entity_id);
 extern guint64 rtps_util_add_seq_number(proto_tree *, tvbuff_t *,
                         gint, int, const char *);
 extern void rtps_util_add_ntp_time(proto_tree *tree, tvbuff_t * tvb, gint offset,
                                    gboolean little_endian, int hf_time);
-extern gint rtps_util_add_string(proto_tree *, tvbuff_t *,
-                        gint, int, int, const guint8 *, guint8 *, size_t);
+extern gint rtps_util_add_string(proto_tree *tree, tvbuff_t* tvb, gint offset,
+                          int hf_item, gboolean little_endian);
 extern void rtps_util_add_port(proto_tree *tree, packet_info *pinfo, tvbuff_t * tvb,
                         gint offset, gboolean little_endian, int hf_item);
 extern void rtps_util_add_durability_service_qos(proto_tree *tree, tvbuff_t * tvb,
                                                  gint offset, gboolean little_endian);
 extern void rtps_util_add_liveliness_qos(proto_tree *tree, tvbuff_t * tvb, gint offset,
                                          gboolean little_endian);
-extern gint rtps_util_add_seq_string(proto_tree *, tvbuff_t *,
-                        gint, int, int, const char *, guint8 *, gint);
+extern gint rtps_util_add_seq_string(proto_tree *tree, tvbuff_t* tvb, gint offset,
+                              gboolean little_endian, int param_length, int hf_numstring,
+                              int hf_string, const char *label);
 extern void rtps_util_add_seq_octets(proto_tree *tree, packet_info *pinfo, tvbuff_t* tvb,
                               gint offset, gboolean little_endian, int param_length, int hf_id);
 extern gint rtps_util_add_seq_ulong(proto_tree *tree, tvbuff_t * tvb, gint offset, int hf_item,
@@ -341,10 +430,10 @@ extern gint rtps_util_add_seq_ulong(proto_tree *tree, tvbuff_t * tvb, gint offse
 extern gboolean rtps_is_ping(tvbuff_t *tvb, packet_info *pinfo, gint offset);
 
 /* Shared submessage dissection */
-extern void dissect_PAD(tvbuff_t *tvb, packet_info *pinfo, gint offset, guint8 flags, 
+extern void dissect_PAD(tvbuff_t *tvb, packet_info *pinfo, gint offset, guint8 flags,
                         gboolean little_endian, int octects_to_next_header, proto_tree *tree);
 extern void dissect_INFO_SRC(tvbuff_t *tvb, packet_info *pinfo, gint offset, guint8 flags,
-                        gboolean little_endian, int octets_to_next_header, proto_tree *tree);
+                        gboolean little_endian, int octets_to_next_header, proto_tree *tree, guint16 rtps_version);
 extern void dissect_INFO_TS(tvbuff_t *tvb, packet_info *pinfo, gint offset, guint8 flags,
                         gboolean little_endian, int octets_to_next_header, proto_tree *tree);
 
@@ -352,5 +441,5 @@ extern void dissect_INFO_TS(tvbuff_t *tvb, packet_info *pinfo, gint offset, guin
 #ifdef __cplusplus
 } /* extern "C"*/
 #endif
-            
+
 #endif /* _TYPEDEFS_DEFINES_RTPS_H */

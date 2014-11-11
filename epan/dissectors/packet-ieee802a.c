@@ -1,8 +1,6 @@
 /* packet-ieee802a.c
  * Routines for IEEE 802a
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,10 +24,14 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-#include <epan/oui.h>
+#include <epan/addr_resolv.h>
+#include <epan/strutil.h>
 #include <epan/etypes.h>
 
 #include "packet-ieee802a.h"
+
+void proto_register_ieee802a(void);
+void proto_reg_handoff_ieee802a(void);
 
 static int proto_ieee802a = -1;
 static int hf_ieee802a_oui = -1;
@@ -60,7 +62,7 @@ ieee802a_add_oui(guint32 oui, const char *table_name, const char *table_ui_name,
 {
 	oui_info_t *new_info;
 
-	new_info = g_malloc(sizeof (oui_info_t));
+	new_info = (oui_info_t *)g_malloc(sizeof (oui_info_t));
 	new_info->table = register_dissector_table(table_name,
 	    table_ui_name, FT_UINT16, BASE_HEX);
 	new_info->field_info = hf_item;
@@ -82,7 +84,9 @@ dissect_ieee802a(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	proto_tree	*ieee802a_tree = NULL;
 	proto_item	*ti;
 	tvbuff_t	*next_tvb;
-	guint32		oui;
+	const gchar	*manuf;
+	guint8		oui[3];
+	guint32		oui32;
 	guint16		pid;
 	oui_info_t	*oui_info;
 	dissector_table_t subdissector_table;
@@ -96,25 +100,25 @@ dissect_ieee802a(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		ieee802a_tree = proto_item_add_subtree(ti, ett_ieee802a);
 	}
 
-	oui =	tvb_get_ntoh24(tvb, 0);
+	tvb_memcpy(tvb, oui, 0, 3);
+	oui32 = oui[0] << 16 | oui[1] << 8 | oui[2];
+	manuf = get_manuf_name_if_known(oui);
 	pid = tvb_get_ntohs(tvb, 3);
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO,
-		    "OUI 0x%06X (%s), PID 0x%04X",
-		    oui, val_to_str_const(oui, oui_vals, "Unknown"), pid);
-	}
-	if (tree) {
-		proto_tree_add_uint(ieee802a_tree, hf_ieee802a_oui,
-		    tvb, 0, 3, oui);
-	}
+	col_add_fstr(pinfo->cinfo, COL_INFO, "OUI %s (%s), PID 0x%04X",
+	    bytes_to_ep_str_punct(oui, 3, ':'),
+	    manuf ? manuf : "Unknown", pid);
+
+	proto_tree_add_uint_format_value(ieee802a_tree, hf_ieee802a_oui,
+	    tvb, 0, 3, oui32, "%s (%s)",
+	    bytes_to_ep_str_punct(oui, 3, ':'), manuf ? manuf : "Unknown");
 
 	/*
 	 * Do we have information for this OUI?
 	 */
 	if (oui_info_table != NULL &&
-	    (oui_info = g_hash_table_lookup(oui_info_table,
-	      GUINT_TO_POINTER(oui))) != NULL) {
+	    (oui_info = (oui_info_t *)g_hash_table_lookup(oui_info_table,
+	      GUINT_TO_POINTER(oui32))) != NULL) {
 		/*
 		 * Yes - use it.
 		 */
@@ -146,7 +150,7 @@ proto_register_ieee802a(void)
 	static hf_register_info hf[] = {
 		{ &hf_ieee802a_oui,
 		{ "Organization Code",	"ieee802a.oui", FT_UINT24, BASE_HEX,
-			VALS(oui_vals), 0x0, NULL, HFILL }},
+			NULL, 0x0, NULL, HFILL }},
 
 		{ &hf_ieee802a_pid,
 		{ "Protocol ID", "ieee802a.pid", FT_UINT16, BASE_HEX,
@@ -164,7 +168,7 @@ proto_register_ieee802a(void)
 static void
 register_hf(gpointer key _U_, gpointer value, gpointer user_data _U_)
 {
-	oui_info_t *info = value;
+	oui_info_t *info = (oui_info_t *)value;
 
 	proto_register_field_array(proto_ieee802a, info->field_info, 1);
 }

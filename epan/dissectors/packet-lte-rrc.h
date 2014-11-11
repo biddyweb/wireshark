@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-lte-rrc.h                                                           */
 /* ../../tools/asn2wrs.py -L -p lte-rrc -c ./lte-rrc.cnf -s ./packet-lte-rrc-template -D . -O ../../epan/dissectors EUTRA-RRC-Definitions.asn EUTRA-UE-Variables.asn EUTRA-InterNodeDefinitions.asn */
 
@@ -8,8 +8,6 @@
 #line 1 "../../asn1/lte-rrc/packet-lte-rrc-template.h"
 /* packet-llc-rrc-template.h
  * Copyright 2009, Anders Broman <anders.broman@ericsson.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -46,6 +44,6 @@ int dissect_lte_rrc_HandoverPreparationInformation_PDU(tvbuff_t *tvb _U_, packet
 int dissect_lte_rrc_UERadioAccessCapabilityInformation_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_);
 
 /*--- End of included file: packet-lte-rrc-exp.h ---*/
-#line 29 "../../asn1/lte-rrc/packet-lte-rrc-template.h"
+#line 27 "../../asn1/lte-rrc/packet-lte-rrc-template.h"
 
 #endif  /* PACKET_LTE_RRC_H */

@@ -2,8 +2,6 @@
  * Routines for World of Warcraft (WoW) protocol dissection
  * Copyright 2008-2009, Stephen Fisher (see AUTHORS file)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,9 @@
 #include <epan/prefs.h>
 #include "packet-tcp.h"
 
+void proto_register_wow(void);
+void proto_reg_handoff_wow(void);
+
 typedef enum {
 	AUTH_LOGON_CHALLENGE = 0x00,
 	AUTH_LOGON_PROOF     = 0x01,
@@ -59,6 +60,7 @@ static const value_string cmd_vs[] = {
 	{ 0, NULL                                                }
 };
 
+#if 0
 static const value_string account_type_vs[] = {
 	{ 0, "Player"        },
 	{ 1, "Moderator"     },
@@ -66,6 +68,7 @@ static const value_string account_type_vs[] = {
 	{ 3, "Administrator" },
 	{ 0, NULL            }
 };
+#endif
 
 static const value_string realm_status_vs[] = {
 	{ 0, "Online"  },
@@ -136,37 +139,6 @@ static gboolean wow_preference_desegment = TRUE;
 static gint ett_wow = -1;
 static gint ett_wow_realms = -1;
 
-static void dissect_wow_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
-static guint get_wow_pdu_len(packet_info *pinfo, tvbuff_t *tvb, int offset);
-
-
-static gboolean
-dissect_wow(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
-{
-	gint8 size_field_offset = -1;
-	guint8 cmd;
-
-	cmd = tvb_get_guint8(tvb, 0);
-
-	if(WOW_SERVER_TO_CLIENT && cmd == REALM_LIST)
-		size_field_offset = 1;
-	if(WOW_CLIENT_TO_SERVER && cmd == AUTH_LOGON_CHALLENGE)
-		size_field_offset = 2;
-
-	if(size_field_offset > -1) {
-		tcp_dissect_pdus(tvb, pinfo, tree, wow_preference_desegment,
-				 size_field_offset+2, get_wow_pdu_len,
-				 dissect_wow_pdu);
-
-	} else {
-		/* Doesn't have a size field, so it cannot span multiple
-		   segments.  Therefore, dissect this packet normally. */
-		dissect_wow_pdu(tvb, pinfo, tree);
-	}
-
-	return TRUE;
-}
-
 static guint
 get_wow_pdu_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 {
@@ -187,8 +159,8 @@ get_wow_pdu_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 }
 
 
-static void
-dissect_wow_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_wow_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	proto_item *ti;
 	proto_tree *wow_tree, *wow_realms_tree;
@@ -205,11 +177,9 @@ dissect_wow_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	cmd = tvb_get_guint8(tvb, offset);
 
-	if(check_col(pinfo->cinfo, COL_INFO)) {
-		col_set_str(pinfo->cinfo, COL_INFO,
+	col_set_str(pinfo->cinfo, COL_INFO,
 			    val_to_str_const(cmd, cmd_vs,
 				       "Unrecognized packet type"));
-	}
 
 	if(tree) {
 		ti = proto_tree_add_item(tree, proto_wow, tvb, 0, -1, ENC_NA);
@@ -232,7 +202,7 @@ dissect_wow_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 						    tvb, offset, 2, ENC_LITTLE_ENDIAN);
 				offset += 2;
 
-				string = g_strreverse(tvb_get_ephemeral_string(tvb, offset, 4));
+				string = g_strreverse(tvb_get_string(wmem_packet_scope(), tvb, offset, 4));
 				proto_tree_add_string(wow_tree, hf_wow_gamename,
 						      tvb, offset, 4, string);
 				offset += 4;
@@ -253,17 +223,17 @@ dissect_wow_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 						    offset, 2, ENC_LITTLE_ENDIAN);
 				offset += 2;
 
-				string = g_strreverse(tvb_get_ephemeral_string(tvb, offset, 4));
+				string = g_strreverse(tvb_get_string(wmem_packet_scope(), tvb, offset, 4));
 				proto_tree_add_string(wow_tree, hf_wow_platform,
 						      tvb, offset, 4, string);
 				offset += 4;
 
-				string = g_strreverse(tvb_get_ephemeral_string(tvb, offset, 4));
+				string = g_strreverse(tvb_get_string(wmem_packet_scope(), tvb, offset, 4));
 				proto_tree_add_string(wow_tree, hf_wow_os, tvb,
 						      offset, 4, string);
 				offset += 4;
 
-				string = g_strreverse(tvb_get_ephemeral_string(tvb, offset, 4));
+				string = g_strreverse(tvb_get_string(wmem_packet_scope(), tvb, offset, 4));
 				proto_tree_add_string(wow_tree, hf_wow_country,
 						      tvb, offset, 4, string);
 				offset += 4;
@@ -384,7 +354,7 @@ dissect_wow_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				offset += 2;
 
 				for(ii = 0; ii < num_realms; ii++) {
-					realm_name = tvb_get_ephemeral_stringz(tvb,
+					realm_name = tvb_get_stringz(wmem_packet_scope(), tvb,
 								     offset + 3,
 								     &len);
 
@@ -406,7 +376,7 @@ dissect_wow_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 					proto_tree_add_string(wow_realms_tree, hf_wow_realm_name, tvb, offset, len, realm_name);
 					offset += len;
 
-					string = tvb_get_ephemeral_stringz(tvb, offset,
+					string = tvb_get_stringz(wmem_packet_scope(), tvb, offset,
 								 &len);
 					proto_tree_add_string(wow_realms_tree, hf_wow_realm_socket, tvb, offset, len, string);
 					offset += len;
@@ -427,6 +397,35 @@ dissect_wow_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			}
 		}
 	}
+
+	return tvb_length(tvb);
+}
+
+static gboolean
+dissect_wow(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
+{
+	gint8 size_field_offset = -1;
+	guint8 cmd;
+
+	cmd = tvb_get_guint8(tvb, 0);
+
+	if(WOW_SERVER_TO_CLIENT && cmd == REALM_LIST)
+		size_field_offset = 1;
+	if(WOW_CLIENT_TO_SERVER && cmd == AUTH_LOGON_CHALLENGE)
+		size_field_offset = 2;
+
+	if(size_field_offset > -1) {
+		tcp_dissect_pdus(tvb, pinfo, tree, wow_preference_desegment,
+				 size_field_offset+2, get_wow_pdu_len,
+				 dissect_wow_pdu, data);
+
+	} else {
+		/* Doesn't have a size field, so it cannot span multiple
+		   segments.  Therefore, dissect this packet normally. */
+		dissect_wow_pdu(tvb, pinfo, tree, data);
+	}
+
+	return TRUE;
 }
 
 

@@ -5,8 +5,6 @@
  *
  * Author: Allison Obourn <aobourn@isilon.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1999 Gerald Combs
@@ -35,6 +33,9 @@
 #include <epan/dissectors/packet-tcp.h>
 #include <epan/prefs.h>
 
+void proto_register_hdfs(void);
+void proto_reg_handoff_hdfs(void);
+
 #if 0
 #define NAMENODE_PORT 8020
 #endif
@@ -54,9 +55,11 @@
 #define SECOND_READ_FRAGMENT_LEN 29
 
 
+#if 0
 static const int START = 0;
 static const int AUTHENTICATION = 1;
 static const int DATA = 2;
+#endif
 
 static guint tcp_port = 0;
 
@@ -114,11 +117,9 @@ static int hf_hdfs_password = -1;
 static int hf_hdfs_kind = -1;
 static int hf_hdfs_service = -1;
 
-
-
 static gint ett_hdfs = -1;
 
-void proto_reg_handoff_hdfs(void);
+static dissector_handle_t hdfs_handle;
 
 /* Parses the parameters of a function.
    Parses the type length which is always in 2 bytes.
@@ -522,8 +523,8 @@ dissect_resp_locatedblocks (tvbuff_t *tvb, proto_tree *hdfs_tree, int offset) {
 }
 
 
-static void
-dissect_hdfs_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_hdfs_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
     guint offset = 0;
     int success = 0;
@@ -554,7 +555,7 @@ dissect_hdfs_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             offset += 4;
 
             if (success != 0) {
-                return;
+                return offset;
             }
 
             if (!tvb_memeql(tvb, offset + 2, "long", 4)) {
@@ -651,6 +652,7 @@ dissect_hdfs_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             }
         }
     }
+    return tvb_length(tvb);
 }
 
 /* determine PDU length of protocol  */
@@ -666,8 +668,8 @@ static guint get_hdfs_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int off
 
 }
 
-static void
-dissect_hdfs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_hdfs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
     int frame_header_len = 0;
     gboolean need_reassemble = FALSE;
@@ -678,8 +680,8 @@ dissect_hdfs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         need_reassemble = TRUE;
     }
 
-
-    tcp_dissect_pdus(tvb, pinfo, tree, need_reassemble, frame_header_len, get_hdfs_message_len, dissect_hdfs_message);
+    tcp_dissect_pdus(tvb, pinfo, tree, need_reassemble, frame_header_len, get_hdfs_message_len, dissect_hdfs_message, data);
+    return tvb_length(tvb);
 }
 
 /* registers the protcol with the given names */
@@ -1059,7 +1061,7 @@ proto_register_hdfs(void)
                                    10,
                                    &tcp_port);
 
-    register_dissector("hdfs", dissect_hdfs, proto_hdfs);
+    hdfs_handle = new_register_dissector("hdfs", dissect_hdfs, proto_hdfs);
 }
 
 /* registers handoff */
@@ -1067,11 +1069,9 @@ void
 proto_reg_handoff_hdfs(void)
 {
     static gboolean initialized = FALSE;
-    static dissector_handle_t hdfs_handle;
     static guint saved_tcp_port;
 
     if (!initialized) {
-        hdfs_handle = create_dissector_handle(dissect_hdfs, proto_hdfs);
         dissector_add_handle("tcp.port", hdfs_handle);  /* for "decode as" */
         initialized = TRUE;
     } else if (saved_tcp_port != 0) {

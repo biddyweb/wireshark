@@ -1,7 +1,6 @@
 /* tap_sipstat.c
  * sip message counter for wireshark
  *
- * $Id$
  * Copied from ui/gtk/sip_stat.c and tap-httpstat.c
  *
  * Wireshark - Network traffic analyzer
@@ -26,13 +25,16 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet_info.h"
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
 #include "epan/value_string.h"
 #include <epan/dissectors/packet-sip.h>
+
+void register_tap_listener_sipstat(void);
 
 /* used to keep track of the statictics for an entire program interface */
 typedef struct _sip_stats_t {
@@ -386,19 +388,19 @@ sipstat_draw(void *psp  )
 }
 
 static void
-sipstat_init(const char *optarg, void* userdata _U_)
+sipstat_init(const char *opt_arg, void* userdata _U_)
 {
 	sipstat_t *sp;
 	const char *filter=NULL;
 	GString	*error_string;
 
-	if (strncmp (optarg, "sip,stat,", 9) == 0){
-		filter=optarg+9;
+	if (strncmp (opt_arg, "sip,stat,", 9) == 0){
+		filter=opt_arg+9;
 	} else {
 		filter=NULL;
 	}
 
-	sp = g_new(sipstat_t,1);
+	sp = g_new0(sipstat_t,1);
 	if(filter){
 		sp->filter=g_strdup(filter);
 	} else {

@@ -2,8 +2,6 @@
  * Routines for Babel dissection (RFC 6126)
  * Copyright 2011 by Juliusz Chroboczek <jch@pps.jussieu.fr>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,11 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
+#include <epan/wmem/wmem.h>
+
+void proto_register_babel(void);
+void proto_reg_handoff_babel(void);
 
 static int proto_babel = -1;
 
@@ -116,7 +119,7 @@ format_address(const unsigned char *prefix)
 static const char *
 format_prefix(const unsigned char *prefix, unsigned char plen)
 {
-    return ep_strdup_printf("%s/%u", format_address(prefix), plen);
+    return wmem_strdup_printf(wmem_packet_scope(), "%s/%u", format_address(prefix), plen);
 }
 
 static int

@@ -1,8 +1,6 @@
 /* color_filters.h
  * Definitions for color filters
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,8 @@
 extern "C" {
 #endif /* __cplusplus */
 
+struct epan_dissect;
+
 #define CONVERSATION_COLOR_PREFIX       "___conversation_color_filter___"
 /** @file
  *  Color filters.
@@ -43,7 +43,7 @@ typedef struct _color_filter {
     gboolean   selected;            /* set if the filter is selected in the color dialog box */
 
                                     /* only used inside of color_filters.c */
-    dfilter_t *c_colorfilter;       /* compiled filter expression */
+    struct epan_dfilter *c_colorfilter;  /* compiled filter expression */
 
                                     /* only used outside of color_filters.c (beside init) */
     void      *color_edit_dlg_info; /* if filter is being edited, ptr to req'd info */
@@ -98,16 +98,15 @@ color_filters_reset_tmp(void);
  *
  * @param the epan dissector details
  */
-void color_filters_prime_edt(epan_dissect_t *edt);
+void color_filters_prime_edt(struct epan_dissect *edt);
 
 /** Colorize a specific packet.
  *
- * @param row the row in the packet list
  * @param edt the dissected packet
  * @return the matching color filter or NULL
  */
 const color_filter_t *
-color_filters_colorize_packet(epan_dissect_t *edt);
+color_filters_colorize_packet(struct epan_dissect *edt);
 
 /** Clone the currently active filter list.
  *

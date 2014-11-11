@@ -4,8 +4,6 @@
  * Copyright 2008, Ericsson AB
  * By Balint Reczey <balint.reczey@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,7 +36,7 @@
 #include "epan/gcp.h"
 #include <epan/prefs-int.h>
 
-#include "../timestats.h"
+#include "epan/timestats.h"
 #include "ui/simple_dialog.h"
 #include "../file.h"
 #include "../stat_menu.h"
@@ -49,9 +47,11 @@
 #include "ui/gtk/gui_utils.h"
 #include "ui/gtk/main.h"
 
-#include "tap-megaco-common.h"
+#include "ui/tap-megaco-common.h"
 
 #include "ui/gtk/old-gtk-compat.h"
+
+void register_tap_listener_gtkmegacostat(void);
 
 static void
 megacostat_reset(void *pms)
@@ -158,7 +158,7 @@ gtk_megacostat_init(const char *opt_arg, void *userdata _U_)
 		return;
 	}
 
-	ms=g_malloc(sizeof(megacostat_t));
+	ms=(megacostat_t *)g_malloc(sizeof(megacostat_t));
 
 	if(strncmp(opt_arg,"megaco,srt,",11) == 0){
 		ms->filter=g_strdup(opt_arg+11);
@@ -195,7 +195,7 @@ gtk_megacostat_init(const char *opt_arg, void *userdata _U_)
 	bbox = dlg_button_row_new(GTK_STOCK_CLOSE, NULL);
 	gtk_box_pack_start(GTK_BOX(ms->vbox), bbox, FALSE, FALSE, 0);
 
-	bt_close = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+	bt_close = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
 	window_set_cancel_button(ms->win, bt_close, window_cancel_button_cb);
 
 	g_signal_connect(ms->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
@@ -224,12 +224,6 @@ static tap_param_dlg megaco_srt_dlg = {
 void
 register_tap_listener_gtkmegacostat(void)
 {
-	register_dfilter_stat(&megaco_srt_dlg, "MEGACO",
+	register_param_stat(&megaco_srt_dlg, "MEGACO",
 	    REGISTER_STAT_GROUP_RESPONSE_TIME);
 }
-
-void megaco_srt_cb(GtkAction *action, gpointer user_data _U_)
-{
-	tap_param_dlg_cb(action, &megaco_srt_dlg);
-}
-

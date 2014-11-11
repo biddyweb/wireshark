@@ -1,7 +1,5 @@
 /* export_object_dialog.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,7 +30,7 @@
 
 #include <ui/alert_box.h>
 
-#include <epan/filesystem.h>
+#include <wsutil/filesystem.h>
 
 #include <wsutil/str_util.h>
 
@@ -77,7 +75,7 @@ ExportObjectDialog::ExportObjectDialog(QWidget *parent, capture_file *cf, Object
     eo_ui_->setupUi(this);
     setAttribute(Qt::WA_DeleteOnClose, true);
 
-#if defined(Q_WS_MAC)
+#if defined(Q_OS_MAC)
     eo_ui_->progressLabel->setAttribute(Qt::WA_MacSmallSize, true);
     eo_ui_->progressBar->setAttribute(Qt::WA_MacSmallSize, true);
 #endif
@@ -106,6 +104,8 @@ ExportObjectDialog::ExportObjectDialog(QWidget *parent, capture_file *cf, Object
     save_bt_ = eo_ui_->buttonBox->button(QDialogButtonBox::Save);
     save_all_bt_ = eo_ui_->buttonBox->button(QDialogButtonBox::SaveAll);
     close_bt = eo_ui_->buttonBox->button(QDialogButtonBox::Close);
+
+    this->setWindowTitle(QString(tr("Wireshark: %1 object list")).arg(name_));
 
     if (save_bt_) save_bt_->setEnabled(false);
     if (save_all_bt_) save_all_bt_->setEnabled(false);
@@ -265,7 +265,7 @@ void ExportObjectDialog::saveCurrentEntry()
     }
 }
 
-#define MAXFILELEN		255
+#define MAXFILELEN  255
 void ExportObjectDialog::saveAllEntries()
 {
     int i;
@@ -307,7 +307,6 @@ void ExportObjectDialog::saveAllEntries()
             file_name = path.filePath(safe_filename->str);
             g_string_free(safe_filename, TRUE);
         } while (g_file_test(file_path.toUtf8().constData(), G_FILE_TEST_EXISTS) && ++count < 1000);
-        count = 0;
         if (!eo_save_entry(file_path.toUtf8().constData(), entry, FALSE))
             all_saved = false;
     }

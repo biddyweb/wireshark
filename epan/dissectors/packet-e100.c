@@ -1,8 +1,6 @@
 /* packet-e100.c
  * Routines for Arbor Networks E100 packet encapsulation disassembly
  *
- * $Id$
- *
  * Copyright (c) 2009 by Bradley Higgins <bhiggins@arbor.net>
  *
  * Wireshark - Network traffic analyzer
@@ -27,6 +25,9 @@
 #include "config.h"
 
 #include <epan/packet.h>
+
+void proto_register_e100(void);
+void proto_reg_handoff_e100(void);
 
 static int proto_e100 = -1;
 

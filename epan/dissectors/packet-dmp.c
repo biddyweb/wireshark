@@ -7,8 +7,6 @@
  *
  * Copyright 2006, Stig Bjorlykke <stig@bjorlykke.org>, Thales Norway AS
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -46,7 +44,7 @@
 #include <epan/addr_resolv.h>
 #include <epan/to_str.h>
 #include <epan/prefs.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 #include <epan/crc16-tvb.h>
 #include <epan/asn1.h>
@@ -55,6 +53,9 @@
 
 #include "packet-p1.h"
 #include "packet-p22.h"
+
+void proto_register_dmp(void);
+void proto_reg_handoff_dmp(void);
 
 #define PNAME  "Direct Message Profile"
 #define PSNAME "DMP"
@@ -161,8 +162,6 @@
 
 /* Maximum lengths */
 #define MAX_SIC_LEN         30
-
-void proto_reg_handoff_dmp (void);
 
 static int proto_dmp = -1;
 
@@ -314,6 +313,7 @@ static int hf_message_subject = -1;
 static int hf_message_eit = -1;
 static int hf_message_compr = -1;
 static int hf_message_body_data = -1;
+static int hf_message_body_compressed = -1;
 static int hf_message_body_plain = -1;
 static int hf_message_bodyid_uint8 = -1;
 static int hf_message_bodyid_uint16 = -1;
@@ -322,8 +322,6 @@ static int hf_message_bodyid_uint64 = -1;
 static int hf_message_bodyid_string = -1;
 static int hf_message_bodyid_zstring = -1;
 static int hf_message_body_structured = -1;
-static int hf_message_body_uncompr = -1;
-static int hf_message_body_uncompressed = -1;
 
 static int hf_delivery_report = -1;
 static int hf_non_delivery_report = -1;
@@ -367,7 +365,6 @@ static int hf_analysis_total_time = -1;
 static int hf_analysis_retrans_time = -1;
 static int hf_analysis_total_retrans_time = -1;
 static int hf_analysis_msg_num = -1;
-static int hf_analysis_msg_missing = -1;
 static int hf_analysis_retrans_no = -1;
 static int hf_analysis_ack_num = -1;
 static int hf_analysis_ack_missing = -1;
@@ -452,7 +449,6 @@ static gint ett_message_eit = -1;
 static gint ett_message_compr = -1;
 static gint ett_message_body_reserved = -1;
 static gint ett_message_body = -1;
-static gint ett_message_body_uncompr = -1;
 
 static gint ett_report = -1;
 static gint ett_report_type = -1;
@@ -478,6 +474,22 @@ static gint ett_ack_recips = -1;
 static gint ett_checksum = -1;
 
 static gint ett_analysis = -1;
+
+static expert_field ei_reserved_value = EI_INIT;
+static expert_field ei_message_sic_illegal = EI_INIT;
+static expert_field ei_envelope_version_value = EI_INIT;
+static expert_field ei_message_compr = EI_INIT;
+static expert_field ei_ack_reason = EI_INIT;
+static expert_field ei_addr_dir_rec_no_generated = EI_INIT;
+static expert_field ei_checksum_bad = EI_INIT;
+static expert_field ei_message_body_uncompress = EI_INIT;
+static expert_field ei_addr_ext_rec_no_generated = EI_INIT;
+static expert_field ei_envelope_msg_id = EI_INIT;
+static expert_field ei_analysis_ack_missing = EI_INIT;
+static expert_field ei_analysis_ack_dup_no = EI_INIT;
+static expert_field ei_analysis_ack_unexpected = EI_INIT;
+static expert_field ei_analysis_msg_missing = EI_INIT;
+static expert_field ei_analysis_retrans_no = EI_INIT;
 
 static dissector_handle_t dmp_handle;
 
@@ -1079,7 +1091,7 @@ static const gchar *msg_type_to_str (void)
 
   case STANAG:
     /* Include message type and precedence */
-    msg_type = ep_strdup_printf ("%s (%s) [%s]",
+    msg_type = wmem_strdup_printf (wmem_packet_scope(), "%s (%s) [%s]",
                 val_to_str_const (dmp.msg_type, type_vals, "Unknown"),
                 val_to_str_const (dmp.st_type, message_type_vals, "Unknown"),
                 (dmp.prec == 0x6 || dmp.prec == 0x7) ?
@@ -1089,14 +1101,14 @@ static const gchar *msg_type_to_str (void)
 
   case IPM:
     /* Include importance */
-    msg_type = ep_strdup_printf ("%s [%s]",
+    msg_type = wmem_strdup_printf (wmem_packet_scope(), "%s [%s]",
                 val_to_str_const (dmp.msg_type, type_vals, "Unknown"),
                 val_to_str_const (dmp.prec, importance, "Unknown"));
     break;
 
   case REPORT:
     /* Include report types included */
-    msg_type = ep_strdup_printf ("Report (%s%s%s)",
+    msg_type = wmem_strdup_printf (wmem_packet_scope(), "Report (%s%s%s)",
                 dmp.dr ? "DR" : "", (dmp.dr && dmp.ndr) ? " and " : "",
                 dmp.ndr ? "NDR" : "");
     break;
@@ -1109,7 +1121,7 @@ static const gchar *msg_type_to_str (void)
     /* If we have msg_time we have a matching packet */
     have_msg = (dmp.id_val &&
                 (dmp.id_val->msg_time.secs>0 || dmp.id_val->msg_time.nsecs>0));
-    msg_type = ep_strdup_printf ( "Acknowledgement%s%s",
+    msg_type = wmem_strdup_printf (wmem_packet_scope(), "Acknowledgement%s%s",
                 have_msg ? val_to_str (dmp.id_val->msg_type, ack_msg_type,
                                        " (unknown:%d)") : "",
                 dmp.ack_reason ? " [negative]" : "");
@@ -1355,14 +1367,14 @@ static gboolean dmp_dec_xbyte_sic (guint64 bin, gchar *sic,
 
 static guint dmp_id_hash (gconstpointer k)
 {
-  dmp_id_key *dmpx=(dmp_id_key *)k;
+  const dmp_id_key *dmpx=(const dmp_id_key *)k;
   return dmpx->id;
 }
 
 static gint dmp_id_hash_equal (gconstpointer k1, gconstpointer k2)
 {
-  dmp_id_key *dmp1=(dmp_id_key *)k1;
-  dmp_id_key *dmp2=(dmp_id_key *)k2;
+  const dmp_id_key *dmp1=(const dmp_id_key *)k1;
+  const dmp_id_key *dmp2=(const dmp_id_key *)k2;
   if (dmp1->id != dmp2->id)
     return 0;
 
@@ -1384,7 +1396,7 @@ static void register_dmp_id (packet_info *pinfo, guint8 reason)
 
   nstime_set_zero(&msg_time);
 
-  dmp_key = se_new (dmp_id_key);
+  dmp_key = wmem_new (wmem_file_scope(), dmp_id_key);
 
   if (!pinfo->fd->flags.visited &&
       (dmp.msg_type == REPORT || dmp.msg_type == NOTIF))
@@ -1441,7 +1453,7 @@ static void register_dmp_id (packet_info *pinfo, guint8 reason)
       }
     } else {
       /* New message */
-      dmp_data = se_new0 (dmp_id_val);
+      dmp_data = wmem_new0 (wmem_file_scope(), dmp_id_val);
       dmp_data->msg_type = dmp.msg_type;
 
       if (dmp.msg_type == ACK) {
@@ -1467,12 +1479,12 @@ static void register_dmp_id (packet_info *pinfo, guint8 reason)
       }
     }
 
-    pkg_data = se_new (dmp_id_val);
+    pkg_data = wmem_new (wmem_file_scope(), dmp_id_val);
     *pkg_data = *dmp_data;
-    p_add_proto_data (pinfo->fd, proto_dmp, pkg_data);
+    p_add_proto_data(wmem_file_scope(), pinfo, proto_dmp, 0, pkg_data);
   } else {
     /* Fetch last values from data saved in packet */
-    pkg_data = (dmp_id_val *)p_get_proto_data (pinfo->fd, proto_dmp);
+    pkg_data = (dmp_id_val *)p_get_proto_data(wmem_file_scope(), pinfo, proto_dmp, 0);
 
     if (dmp_data && pkg_data && dmp.msg_type != ACK && pkg_data->ack_id == 0) {
       pkg_data->ack_id = dmp_data->ack_id;
@@ -1509,16 +1521,14 @@ static void dmp_add_seq_ack_analysis (tvbuff_t *tvb, packet_info *pinfo,
       PROTO_ITEM_SET_GENERATED (en);
       if (!dmp.checksum) {
         proto_item_append_text (en, " (unexpected)");
-        expert_add_info_format (pinfo, en, PI_SEQUENCE, PI_NOTE,
-                                "Unexpected ACK");
+        expert_add_info(pinfo, en, &ei_analysis_ack_unexpected);
       }
     } else if (dmp.checksum && !dmp.id_val->msg_resend_count) {
       en = proto_tree_add_item (analysis_tree, hf_analysis_ack_missing, tvb, offset, 0, ENC_NA);
       if (pinfo->fd->flags.visited) {
         /* We do not know this on first visit and we do not want to
            add a entry in the "Expert Severity Info" for this note */
-        expert_add_info_format (pinfo, en, PI_SEQUENCE, PI_NOTE,
-                                "Acknowledgement missing");
+        expert_add_info(pinfo, en, &ei_analysis_ack_missing);
         PROTO_ITEM_SET_GENERATED (en);
       }
     }
@@ -1534,11 +1544,7 @@ static void dmp_add_seq_ack_analysis (tvbuff_t *tvb, packet_info *pinfo,
                                   tvb, 0, 0, &ns);
         PROTO_ITEM_SET_GENERATED (en);
       } else {
-        en = proto_tree_add_item (analysis_tree, hf_analysis_msg_missing, tvb, 0, 0, ENC_NA);
-        PROTO_ITEM_SET_GENERATED (en);
-
-        expert_add_info_format (pinfo, en, PI_SEQUENCE, PI_NOTE,
-                                "Message missing");
+        proto_tree_add_expert (analysis_tree, pinfo, &ei_analysis_msg_missing, tvb, 0, 0);
       }
     } else if (dmp.msg_type == NOTIF) {
       if (dmp.id_val->msg_id) {
@@ -1551,11 +1557,7 @@ static void dmp_add_seq_ack_analysis (tvbuff_t *tvb, packet_info *pinfo,
                                   tvb, 0, 0, &ns);
         PROTO_ITEM_SET_GENERATED (en);
       } else {
-        en = proto_tree_add_item (analysis_tree, hf_analysis_msg_missing, tvb, 0, 0, ENC_NA);
-        PROTO_ITEM_SET_GENERATED (en);
-
-        expert_add_info_format (pinfo, en, PI_SEQUENCE, PI_NOTE,
-                                "Message missing");
+        proto_tree_add_expert (analysis_tree, pinfo, &ei_analysis_msg_missing, tvb, 0, 0);
       }
     }
 
@@ -1564,9 +1566,7 @@ static void dmp_add_seq_ack_analysis (tvbuff_t *tvb, packet_info *pinfo,
                                 tvb, 0, 0, dmp.id_val->msg_resend_count);
       PROTO_ITEM_SET_GENERATED (en);
 
-      expert_add_info_format (pinfo, en, PI_SEQUENCE, PI_NOTE,
-                              "Retransmission #%d",
-                              dmp.id_val->msg_resend_count);
+      expert_add_info_format(pinfo, en, &ei_analysis_retrans_no, "Retransmission #%d", dmp.id_val->msg_resend_count);
 
       if (dmp.msg_type == REPORT) {
         en = proto_tree_add_uint (analysis_tree, hf_analysis_rep_resend_from,
@@ -1630,11 +1630,7 @@ static void dmp_add_seq_ack_analysis (tvbuff_t *tvb, packet_info *pinfo,
                                 dmp.id_val->prev_msg_id);
       }
     } else {
-      en = proto_tree_add_item (analysis_tree, hf_analysis_msg_missing, tvb, 0, 0, ENC_NA);
-      PROTO_ITEM_SET_GENERATED (en);
-
-      expert_add_info_format (pinfo, en, PI_SEQUENCE, PI_NOTE,
-                              "Message missing");
+      proto_tree_add_expert (analysis_tree, pinfo, &ei_analysis_msg_missing, tvb, 0, 0);
     }
 
     if (dmp.id_val->ack_resend_count) {
@@ -1642,8 +1638,7 @@ static void dmp_add_seq_ack_analysis (tvbuff_t *tvb, packet_info *pinfo,
                                 tvb, 0, 0, dmp.id_val->ack_resend_count);
       PROTO_ITEM_SET_GENERATED (en);
 
-      expert_add_info_format (pinfo, en, PI_SEQUENCE, PI_NOTE,
-                              "Dup ACK #%d", dmp.id_val->ack_resend_count);
+      expert_add_info_format(pinfo, en, &ei_analysis_ack_dup_no, "Dup ACK #%d", dmp.id_val->ack_resend_count);
 
       en = proto_tree_add_uint (analysis_tree, hf_analysis_ack_resend_from,
                                 tvb, 0, 0, dmp.id_val->ack_id);
@@ -1654,8 +1649,8 @@ static void dmp_add_seq_ack_analysis (tvbuff_t *tvb, packet_info *pinfo,
 
 static gchar *dissect_7bit_string (tvbuff_t *tvb, gint offset, gint length)
 {
-  guchar *encoded = tvb_get_ephemeral_string (tvb, offset, length);
-  guchar *decoded = ep_alloc0 ((size_t)(length * 1.2) + 1);
+  guchar *encoded = tvb_get_string (wmem_packet_scope(), tvb, offset, length);
+  guchar *decoded = (guchar *)wmem_alloc0 (wmem_packet_scope(), (size_t)(length * 1.2) + 1);
   guchar  rest = 0, bits = 1;
   gint    len = 0, i;
 
@@ -1678,10 +1673,10 @@ static const gchar *dissect_thales_mts_id (tvbuff_t *tvb, gint offset, gint leng
 {
   /* Thales XOmail uses this format: "MTA-NAME/000000000000" */
   if (length >= 7 && length <= 22) {
-    return ep_strdup_printf ("%s/%08X%04X",
-                             dissect_7bit_string (tvb, offset, length - 6),
-                             tvb_get_ntohl (tvb, offset + length - 6),
-                             tvb_get_ntohs (tvb, offset + length - 2));
+    return wmem_strdup_printf (wmem_packet_scope(), "%s/%08X%04X",
+                               dissect_7bit_string (tvb, offset, length - 6),
+                               tvb_get_ntohl (tvb, offset + length - 6),
+                               tvb_get_ntohs (tvb, offset + length - 2));
   }
 
   return ILLEGAL_FORMAT;
@@ -1702,11 +1697,11 @@ static const gchar *dissect_thales_ipm_id (tvbuff_t *tvb, gint offset, gint leng
       number += (65536 - 1024);
     }
 
-    return ep_strdup_printf ("%s%0*d %02d%02d%02d%02d%02d%02dZ",
-                             (length == 6) ? "" : dissect_7bit_string (tvb, offset, length - 6),
-                             number_len, number,
-                             tmp->tm_year % 100, tmp->tm_mon + 1, tmp->tm_mday,
-                             tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
+    return wmem_strdup_printf (wmem_packet_scope(), "%s%0*d %02d%02d%02d%02d%02d%02dZ",
+                               (length == 6) ? "" : dissect_7bit_string (tvb, offset, length - 6),
+                               number_len, number,
+                               tmp->tm_year % 100, tmp->tm_mon + 1, tmp->tm_mday,
+                               tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
   }
 
   return ILLEGAL_FORMAT;
@@ -1725,19 +1720,19 @@ static gint dissect_dmp_sic (tvbuff_t *tvb, packet_info *pinfo,
   gchar      *sic = NULL;
 
   key = tvb_get_guint8 (tvb, offset);
-  sic = ep_alloc (MAX_SIC_LEN);
+  sic = (gchar *)wmem_alloc (wmem_packet_scope(), MAX_SIC_LEN);
 
   if (key <= 0xB6) {
     /* 2 bytes, single 3-character SIC, characters [A-Z0-9] only */
 
     value = tvb_get_ntohs (tvb, offset);
     failure = dmp_dec_xbyte_sic (value, sic, 3, FALSE);
-    sf = proto_tree_add_string_format (message_tree, hf_message_sic, tvb,
+    sf = proto_tree_add_string_format_value(message_tree, hf_message_sic, tvb,
                                        offset, 2, sic,
-                                       "SIC: %s [A-Z0-9 only]%s", sic,
+                                       "%s [A-Z0-9 only]%s", sic,
                                        failure ? " (invalid)": "");
     if (failure) {
-      expert_add_info_format (pinfo, sf, PI_UNDECODED, PI_NOTE, "Illegal SIC");
+      expert_add_info(pinfo, sf, &ei_message_sic_illegal);
     }
     offset += 2;
 
@@ -1747,12 +1742,12 @@ static gint dissect_dmp_sic (tvbuff_t *tvb, packet_info *pinfo,
     value = tvb_get_ntohl (tvb, offset);
     value = (value >> 8) & 0x48FFFF;
     failure = dmp_dec_xbyte_sic (value, sic, 3, TRUE);
-    sf = proto_tree_add_string_format (message_tree, hf_message_sic, tvb,
+    sf = proto_tree_add_string_format_value(message_tree, hf_message_sic, tvb,
                                        offset, 3, sic,
-                                       "SIC: %s [any character]%s", sic,
+                                       "%s [any character]%s", sic,
                                        failure ? " (invalid)": "");
     if (failure) {
-      expert_add_info_format (pinfo, sf, PI_UNDECODED, PI_NOTE, "Illegal SIC");
+      expert_add_info(pinfo, sf, &ei_message_sic_illegal);
     }
     offset += 3;
 
@@ -1792,8 +1787,7 @@ static gint dissect_dmp_sic (tvbuff_t *tvb, packet_info *pinfo,
                                          "SIC %d: %s%s", i + 1, sic,
                                          failure ? " (invalid)": "");
       if (failure) {
-        expert_add_info_format (pinfo, bf, PI_UNDECODED, PI_NOTE,
-                                "Illegal SIC");
+        expert_add_info(pinfo, bf, &ei_message_sic_illegal);
       }
       offset += bytes;
     }
@@ -1907,8 +1901,7 @@ static gint dissect_dmp_sic (tvbuff_t *tvb, packet_info *pinfo,
         }
       }
       if (failure) {
-        expert_add_info_format (pinfo, bf, PI_UNDECODED, PI_NOTE,
-                                "Illegal SIC");
+        expert_add_info(pinfo, bf, &ei_message_sic_illegal);
       }
       offset += bytes;
     }
@@ -1973,8 +1966,7 @@ static gint dissect_dmp_direct_addr (tvbuff_t *tvb, packet_info *pinfo,
     proto_tree_add_item (addr_tree, hf_addr_dir_addr_ext, tvb, offset, 1, ENC_BIG_ENDIAN);
     en = proto_tree_add_item (addr_tree, hf_reserved_0x40, tvb, offset, 1, ENC_BIG_ENDIAN);
     if (value & 0x40) {
-      expert_add_info_format (pinfo, en, PI_UNDECODED, PI_WARN,
-                              "Reserved value");
+      expert_add_info(pinfo, en, &ei_reserved_value);
     }
     proto_tree_add_item (addr_tree, hf_addr_dir_address2, tvb, offset, 1, ENC_BIG_ENDIAN);
     offset += 1;
@@ -1991,8 +1983,7 @@ static gint dissect_dmp_direct_addr (tvbuff_t *tvb, packet_info *pinfo,
       addr_tree = proto_item_add_subtree (en, ett_address_direct);
       en = proto_tree_add_item (addr_tree, hf_reserved_0xC0, tvb, offset, 1, ENC_BIG_ENDIAN);
       if (value & 0xC0) {
-        expert_add_info_format (pinfo, en, PI_UNDECODED, PI_WARN,
-                                "Reserved value");
+        expert_add_info(pinfo, en, &ei_reserved_value);
       }
       proto_tree_add_item (addr_tree, hf_addr_dir_address3, tvb, offset, 1, ENC_BIG_ENDIAN);
       offset += 1;
@@ -2174,8 +2165,7 @@ static gint dissect_dmp_originator (tvbuff_t *tvb, packet_info *pinfo,
 
     en = proto_tree_add_item (rec_tree, hf_reserved_0x1F, tvb, offset, 1, ENC_BIG_ENDIAN);
     if (value & 0x1F) {
-      expert_add_info_format (pinfo, en, PI_UNDECODED, PI_WARN,
-                              "Reserved value");
+      expert_add_info(pinfo, en, &ei_reserved_value);
     }
     offset += 1;
 
@@ -2376,8 +2366,7 @@ static gint dissect_dmp_direct_encoding (tvbuff_t *tvb, packet_info *pinfo,
       proto_tree_add_item (rec_tree, hf_addr_dir_rep_req3, tvb, offset, 1, ENC_BIG_ENDIAN);
       en = proto_tree_add_item (rec_tree, hf_reserved_0x20, tvb, offset, 1, ENC_BIG_ENDIAN);
       if (value & 0x20) {
-        expert_add_info_format (pinfo, en, PI_UNDECODED, PI_WARN,
-                                "Reserved value");
+        expert_add_info(pinfo, en, &ei_reserved_value);
       }
       proto_tree_add_item (rec_tree, hf_addr_dir_rec_no3, tvb, offset, 1, ENC_BIG_ENDIAN);
       offset += 1;
@@ -2428,8 +2417,7 @@ static gint dissect_dmp_direct_encoding (tvbuff_t *tvb, packet_info *pinfo,
                                    "Recipient Number: %d", rec_no);
   if (rec_no > 32767) {
     proto_item_append_text (en, " (maximum 32767)");
-    expert_add_info_format (pinfo, en, PI_MALFORMED, PI_WARN,
-                            "Recipient number too big");
+    expert_add_info(pinfo, en, &ei_addr_dir_rec_no_generated);
   }
   PROTO_ITEM_SET_GENERATED (en);
 
@@ -2549,8 +2537,7 @@ static gint dissect_dmp_ext_encoding (tvbuff_t *tvb, packet_info *pinfo,
                                    "Recipient Number: %d", rec_no);
   if (rec_no > 32767) {
     proto_item_append_text (en, " (maximum 32767)");
-    expert_add_info_format (pinfo, en, PI_MALFORMED, PI_WARN,
-                            "Recipient number too big");
+    expert_add_info(pinfo, en, &ei_addr_ext_rec_no_generated);
   }
   PROTO_ITEM_SET_GENERATED (en);
 
@@ -2646,8 +2633,7 @@ static gint dissect_dmp_ack (tvbuff_t *tvb, packet_info *pinfo,
 
   rt = proto_tree_add_item (ack_tree, hf_ack_reason, tvb, offset, 1, ENC_BIG_ENDIAN);
   if (dmp.ack_reason != 0) {
-    expert_add_info_format (pinfo, rt, PI_RESPONSE_CODE, PI_NOTE, "ACK reason: %s",
-                            val_to_str_const (dmp.ack_reason, ack_reason, "Reserved"));
+    expert_add_info_format(pinfo, rt, &ei_ack_reason, "ACK reason: %s", val_to_str_const (dmp.ack_reason, ack_reason, "Reserved"));
   }
   offset += 1;
 
@@ -2699,7 +2685,7 @@ static gint dissect_mts_identifier (tvbuff_t *tvb, packet_info *pinfo _U_, proto
   } else if (dmp_nat_decode == NAT_DECODE_THALES) {
     mts_id = dissect_thales_mts_id (tvb, offset, dmp.mts_id_length);
   } else {
-    mts_id = tvb_bytes_to_str (tvb, offset, dmp.mts_id_length);
+    mts_id = tvb_bytes_to_ep_str (tvb, offset, dmp.mts_id_length);
   }
   proto_item_append_text (dmp.mts_id_item, " (%zu bytes decompressed)", strlen (mts_id));
   mts_id = format_text (mts_id, strlen (mts_id));
@@ -2750,7 +2736,7 @@ static gint dissect_ipm_identifier (tvbuff_t *tvb, packet_info *pinfo _U_, proto
   } else if (dmp_nat_decode == NAT_DECODE_THALES) {
     ipm_id = dissect_thales_ipm_id (tvb, offset, ipm_id_length, modifier);
   } else {
-    ipm_id = tvb_bytes_to_str (tvb, offset, ipm_id_length);
+    ipm_id = tvb_bytes_to_ep_str (tvb, offset, ipm_id_length);
   }
   proto_item_append_text (tf, " (%zu bytes decompressed)", strlen (ipm_id));
   ipm_id = format_text (ipm_id, strlen (ipm_id));
@@ -2816,8 +2802,7 @@ static gint dissect_dmp_envelope (tvbuff_t *tvb, packet_info *pinfo,
     /* Unsupported DMP Version */
     proto_item_append_text (vf, " (unsupported)");
     proto_item_append_text (tf, " (unsupported)");
-    expert_add_info_format (pinfo, vf, PI_UNDECODED, PI_ERROR,
-                            "Unsupported DMP Version: %d", dmp.version);
+    expert_add_info_format(pinfo, vf, &ei_envelope_version_value, "Unsupported DMP Version: %d", dmp.version);
     return offset;
   }
 
@@ -2930,7 +2915,7 @@ static gint dissect_dmp_envelope (tvbuff_t *tvb, packet_info *pinfo,
       } else {
         tf = proto_tree_add_item (field_tree, hf_reserved_0x0F, tvb, offset, 1, ENC_BIG_ENDIAN);
         if (envelope & 0x0F) {
-          expert_add_info_format (pinfo, tf, PI_UNDECODED, PI_WARN, "Reserved value");
+          expert_add_info(pinfo, tf, &ei_reserved_value);
         }
         offset += 1;
       }
@@ -2948,7 +2933,7 @@ static gint dissect_dmp_envelope (tvbuff_t *tvb, packet_info *pinfo,
     field_tree = proto_item_add_subtree (tf, ett_envelope_msg_id);
     proto_tree_add_item (field_tree, hf_envelope_msg_id_12bit, tvb, offset, 2, ENC_BIG_ENDIAN);
   } else if (dmp.version >= DMP_VERSION_2 && dmp.msg_id_type == ONLY_DMP_ID && dmp.msg_id < 4096) {
-    expert_add_info_format (pinfo, tf, PI_PROTOCOL, PI_NOTE, "Id < 4096 - should use ShortId");
+    expert_add_info(pinfo, tf, &ei_envelope_msg_id);
   }
   PROTO_ITEM_SET_HIDDEN (hidden_item);
   offset += 2;
@@ -2968,7 +2953,7 @@ static gint dissect_dmp_envelope (tvbuff_t *tvb, packet_info *pinfo,
                                    "Submission time: %s",
                                    (subm_time & 0x7FFF) >= 0x7FF8 ?
                                    "Reserved" :
-                                   abs_time_secs_to_str (dmp.subm_time, ABSOLUTE_TIME_LOCAL, TRUE));
+                                   abs_time_secs_to_ep_str (dmp.subm_time, ABSOLUTE_TIME_LOCAL, TRUE));
   field_tree = proto_item_add_subtree (tf, ett_envelope_subm_time);
   proto_tree_add_item (field_tree, hf_envelope_time_diff_present, tvb, offset, 2, ENC_BIG_ENDIAN);
   proto_tree_add_item (field_tree, hf_envelope_subm_time_value, tvb, offset, 2, ENC_BIG_ENDIAN);
@@ -2986,7 +2971,7 @@ static gint dissect_dmp_envelope (tvbuff_t *tvb, packet_info *pinfo,
     if (secs == DMP_TIME_RESERVED) {
       proto_item_append_text (tf, "Reserved (0x%2.2x)", time_diff);
     } else {
-      proto_item_append_text (tf, "%s", time_secs_to_str (secs));
+      proto_item_append_text (tf, "%s", time_secs_to_ep_str (secs));
     }
     offset += 1;
   }
@@ -3003,10 +2988,10 @@ static gint dissect_dmp_envelope (tvbuff_t *tvb, packet_info *pinfo,
   proto_tree_add_item (field_tree, hf_envelope_dl_expansion_prohib, tvb, offset, 1, ENC_BIG_ENDIAN);
 
   if (envelope & 0xE0) {
-    env_flags = ep_strdup_printf ("%s%s%s",
-                                  (envelope & 0x80) ? ", ContId discarded" : "",
-                                  (envelope & 0x40) ? ", Reass prohibited" : "",
-                                  (envelope & 0x20) ? ", DLE prohibited"   : "");
+    env_flags = wmem_strdup_printf (wmem_packet_scope(), "%s%s%s",
+                                    (envelope & 0x80) ? ", ContId discarded" : "",
+                                    (envelope & 0x40) ? ", Reass prohibited" : "",
+                                    (envelope & 0x20) ? ", DLE prohibited"   : "");
     proto_item_append_text (tf, ":%s", &env_flags[1]);
   } else {
     proto_item_append_text (tf, " (none)");
@@ -3035,8 +3020,7 @@ static gint dissect_dmp_envelope (tvbuff_t *tvb, packet_info *pinfo,
     field_tree = proto_item_add_subtree (tf, ett_envelope_ext_recipients);
     en = proto_tree_add_item (field_tree, hf_reserved_0x8000, tvb, offset, 2, ENC_BIG_ENDIAN);
     if (value16 & 0x8000) {
-      expert_add_info_format (pinfo, en, PI_UNDECODED, PI_WARN,
-                              "Reserved value");
+      expert_add_info(pinfo, en, &ei_reserved_value);
     }
     proto_tree_add_item (field_tree, hf_envelope_ext_recipients, tvb, offset, 2, ENC_BIG_ENDIAN);
     offset += 2;
@@ -3075,32 +3059,32 @@ static void dissect_dmp_structured_id (tvbuff_t *tvb, proto_tree *body_tree,
   switch (dmp_struct_format) {
 
   case STRUCT_ID_UINT8:
-    dmp.struct_id = ep_strdup_printf ("%u", tvb_get_guint8 (tvb, offset));
+    dmp.struct_id = wmem_strdup_printf (wmem_packet_scope(), "%u", tvb_get_guint8 (tvb, offset));
     proto_tree_add_item (body_tree, hf_message_bodyid_uint8, tvb, offset, 1, ENC_BIG_ENDIAN);
     break;
 
   case STRUCT_ID_UINT16:
-    dmp.struct_id = ep_strdup_printf ("%u", tvb_get_ntohs (tvb, offset));
+    dmp.struct_id = wmem_strdup_printf (wmem_packet_scope(), "%u", tvb_get_ntohs (tvb, offset));
     proto_tree_add_item (body_tree, hf_message_bodyid_uint16, tvb, offset, 2, ENC_BIG_ENDIAN);
     break;
 
   case STRUCT_ID_UINT32:
-    dmp.struct_id = ep_strdup_printf ("%u", tvb_get_ntohl (tvb, offset));
+    dmp.struct_id = wmem_strdup_printf (wmem_packet_scope(), "%u", tvb_get_ntohl (tvb, offset));
     proto_tree_add_item (body_tree, hf_message_bodyid_uint32, tvb, offset, 4, ENC_BIG_ENDIAN);
     break;
 
   case STRUCT_ID_UINT64:
-    dmp.struct_id = ep_strdup_printf ("%" G_GINT64_MODIFIER "u", tvb_get_ntoh64 (tvb, offset));
+    dmp.struct_id = wmem_strdup_printf (wmem_packet_scope(), "%" G_GINT64_MODIFIER "u", tvb_get_ntoh64 (tvb, offset));
     proto_tree_add_item (body_tree, hf_message_bodyid_uint64, tvb, offset, 8, ENC_BIG_ENDIAN);
     break;
 
   case STRUCT_ID_STRING:
-    dmp.struct_id = tvb_get_ephemeral_string (tvb, offset, (gint) dmp_struct_length);
+    dmp.struct_id = tvb_get_string (wmem_packet_scope(), tvb, offset, (gint) dmp_struct_length);
     proto_tree_add_item (body_tree, hf_message_bodyid_string, tvb, offset, dmp_struct_length, ENC_ASCII|ENC_NA);
     break;
 
   case STRUCT_ID_ZSTRING:
-    dmp.struct_id = tvb_get_ephemeral_stringz (tvb, offset, &length);
+    dmp.struct_id = tvb_get_stringz (wmem_packet_scope(), tvb, offset, &length);
     proto_tree_add_item (body_tree, hf_message_bodyid_zstring, tvb, offset, length, ENC_ASCII|ENC_NA);
     break;
 
@@ -3114,12 +3098,12 @@ static void dissect_dmp_structured_id (tvbuff_t *tvb, proto_tree *body_tree,
 static gint dissect_dmp_message (tvbuff_t *tvb, packet_info *pinfo,
                                  proto_tree *dmp_tree, gint offset)
 {
-  tvbuff_t   *next_tvb = NULL;
+  tvbuff_t   *body_tvb = NULL;
   proto_tree *message_tree = NULL;
   proto_tree *field_tree = NULL;
   proto_item *en = NULL, *tf = NULL, *tr = NULL;
   guint8      message, eit = 0, compr_alg = ALGORITHM_NONE;
-  gint        len, boffset = offset;
+  gint        len, boffset = offset, body_offset = 0, body_len = 0;
 
   en = proto_tree_add_item (dmp_tree, hf_message_body, tvb, offset, -1, ENC_NA);
   message_tree = proto_item_add_subtree (en, ett_message);
@@ -3127,7 +3111,7 @@ static gint dissect_dmp_message (tvbuff_t *tvb, packet_info *pinfo,
   if (dmp.body_format == FREE_TEXT_SUBJECT) {
     len = tvb_strsize (tvb, offset);
     if (dmp_subject_as_id) {
-      dmp.struct_id = tvb_get_ephemeral_string (tvb, offset, len);
+      dmp.struct_id = tvb_get_string (wmem_packet_scope(), tvb, offset, len);
     }
     proto_tree_add_item (message_tree, hf_message_subject, tvb, offset, len, ENC_ASCII|ENC_NA);
     offset += len;
@@ -3158,8 +3142,7 @@ static gint dissect_dmp_message (tvbuff_t *tvb, packet_info *pinfo,
     if (compr_alg == ALGORITHM_ZLIB) {
       proto_item_append_text (en, " (compressed)");
     } else if (compr_alg != ALGORITHM_NONE) {
-      expert_add_info_format (pinfo, tr, PI_UNDECODED, PI_WARN,
-                              "Unknown compression algorithm");
+      expert_add_info(pinfo, tr, &ei_message_compr);
     }
 
     if (message & 0x07) {
@@ -3169,8 +3152,7 @@ static gint dissect_dmp_message (tvbuff_t *tvb, packet_info *pinfo,
                                        "Reserved: %d",  message & 0x07);
       field_tree = proto_item_add_subtree (tf, ett_message_body_reserved);
       tf = proto_tree_add_item (field_tree, hf_reserved_0x07, tvb, offset, 1, ENC_BIG_ENDIAN);
-      expert_add_info_format (pinfo, tf, PI_UNDECODED, PI_WARN,
-                              "Reserved value");
+      expert_add_info(pinfo, tf, &ei_reserved_value);
     }
     offset += 1;
   }
@@ -3180,38 +3162,43 @@ static gint dissect_dmp_message (tvbuff_t *tvb, packet_info *pinfo,
     len -= 2;
   }
 
-  tf = proto_tree_add_none_format (message_tree, hf_message_body_data, tvb,
-                                   offset, len,
-                                   "%sUser data, Length: %d",
-                                   (compr_alg == ALGORITHM_ZLIB) ?
-                                   "Compressed " : "", len);
-  field_tree = proto_item_add_subtree (tf, ett_message_body);
+  if (compr_alg == ALGORITHM_ZLIB) {
+    tf = proto_tree_add_item (message_tree, hf_message_body_compressed,
+                              tvb, offset, len, ENC_NA);
+  } else {
+    tf = proto_tree_add_item (message_tree, hf_message_body_data,
+                              tvb, offset, len, ENC_NA);
+  }
+  proto_item_append_text (tf, ", Length: %d", len);
 
   if (dmp.body_format == STRUCTURED) {
     /* Structured Message ID */
+    field_tree = proto_item_add_subtree (tf, ett_message_body);
     dissect_dmp_structured_id (tvb, field_tree, offset);
     proto_tree_add_item (field_tree, hf_message_body_structured, tvb, offset, len, ENC_NA);
   } else if (len > 0 && (dmp.body_format == FREE_TEXT ||
                          dmp.body_format == FREE_TEXT_SUBJECT)) {
     if (compr_alg == ALGORITHM_ZLIB) {
-      if ((next_tvb = tvb_child_uncompress (tvb, tvb, offset, len)) != NULL) {
-                gint zlen = tvb_length (next_tvb);
-                add_new_data_source (pinfo, next_tvb, "Uncompressed User data");
-                tf = proto_tree_add_none_format (message_tree,
-                                                 hf_message_body_uncompr,
-                                                 next_tvb, 0, zlen,
-                                                 "Uncompressed User data, "
-                                                 "Length: %d", zlen);
-                field_tree = proto_item_add_subtree (tf, ett_message_body_uncompr);
-                proto_tree_add_item (field_tree, hf_message_body_uncompressed, next_tvb, 0, -1, ENC_ASCII|ENC_NA);
+      if ((body_tvb = tvb_child_uncompress (tvb, tvb, offset, len)) != NULL) {
+        body_len = tvb_length (body_tvb);
+        add_new_data_source (pinfo, body_tvb, "Uncompressed User data");
+        tf = proto_tree_add_item (message_tree, hf_message_body_data,
+                                  body_tvb, 0, body_len, ENC_NA);
+        proto_item_append_text (tf, ", Length: %d", body_len);
+        PROTO_ITEM_SET_GENERATED (tf);
       } else {
-                tf = proto_tree_add_text (message_tree, tvb, offset, -1,
-                                          "Error: Unable to uncompress content");
-                expert_add_info_format (pinfo, tf, PI_UNDECODED, PI_WARN,
-                                        "Unable to uncompress content");
+        proto_tree_add_expert (message_tree, pinfo, &ei_message_body_uncompress, tvb, offset, len);
       }
-    } else if (eit != EIT_BILATERAL) {
-      proto_tree_add_item (field_tree, hf_message_body_plain, tvb, offset, len, ENC_ASCII|ENC_NA);
+    } else {
+      body_tvb = tvb;
+      body_offset = offset;
+      body_len = len;
+    }
+
+    if (eit != EIT_BILATERAL && body_len > 0) {
+      field_tree = proto_item_add_subtree (tf, ett_message_body);
+      proto_tree_add_item (field_tree, hf_message_body_plain, body_tvb,
+                           body_offset, body_len, ENC_ASCII|ENC_NA);
     }
   }
   offset += len;
@@ -3287,8 +3274,7 @@ static gint dissect_dmp_report (tvbuff_t *tvb, packet_info *pinfo,
                                        "Reserved: %d", report & 0x1F);
       field_tree = proto_item_add_subtree (tf, ett_report_reserved);
       tf = proto_tree_add_item (field_tree, hf_reserved_0x1F, tvb, offset, 1, ENC_BIG_ENDIAN);
-      expert_add_info_format (pinfo, tf, PI_UNDECODED, PI_WARN,
-                              "Reserved value");
+      expert_add_info(pinfo, tf, &ei_reserved_value);
 
     }
     offset += 1;
@@ -3305,9 +3291,9 @@ static gint dissect_dmp_report (tvbuff_t *tvb, packet_info *pinfo,
       proto_item_append_text (tf, "Reserved (0x%2.2x)", report);
       proto_item_append_text (ei, " (Reserved)");
     } else {
-      proto_item_append_text (tf, "%s (%s)", time_secs_to_str (secs),
-                              abs_time_secs_to_str (dmp.subm_time - secs, ABSOLUTE_TIME_LOCAL, TRUE));
-      proto_item_append_text (ei, " (%s from submission time)", time_secs_to_str (secs));
+      proto_item_append_text (tf, "%s (%s)", time_secs_to_ep_str (secs),
+                              abs_time_secs_to_ep_str (dmp.subm_time - secs, ABSOLUTE_TIME_LOCAL, TRUE));
+      proto_item_append_text (ei, " (%s from submission time)", time_secs_to_ep_str (secs));
     }
   } else {
     dmp.ndr = TRUE;
@@ -3419,9 +3405,9 @@ static gint dissect_dmp_notification (tvbuff_t *tvb, packet_info *pinfo _U_,
       proto_item_append_text (tf, "Reserved (0x%2.2x)", rec_time);
       proto_item_append_text (ei, " (Reserved)");
     } else {
-      proto_item_append_text (tf, "%s (%s)", time_secs_to_str (secs),
-                              abs_time_secs_to_str (dmp.subm_time - secs, ABSOLUTE_TIME_LOCAL, TRUE));
-      proto_item_append_text (ei, " (%s from submission time)", time_secs_to_str (secs));
+      proto_item_append_text (tf, "%s (%s)", time_secs_to_ep_str (secs),
+                              abs_time_secs_to_ep_str (dmp.subm_time - secs, ABSOLUTE_TIME_LOCAL, TRUE));
+      proto_item_append_text (ei, " (%s from submission time)", time_secs_to_ep_str (secs));
     }
     offset += 1;
 
@@ -3516,21 +3502,21 @@ static gint dissect_dmp_security_category (tvbuff_t *tvb, packet_info *pinfo,
 
     tr = proto_tree_add_item (field_tree, hf_reserved_0x08, tvb, offset, 1, ENC_BIG_ENDIAN);
     if (message & 0x08) {
-      expert_add_info_format (pinfo, tr, PI_UNDECODED, PI_WARN, "Reserved value");
+      expert_add_info(pinfo, tr, &ei_reserved_value);
     }
     tr = proto_tree_add_item (field_tree, hf_reserved_0x04, tvb, offset, 1, ENC_BIG_ENDIAN);
     if (message & 0x04) {
-      expert_add_info_format (pinfo, tr, PI_UNDECODED, PI_WARN, "Reserved value");
+      expert_add_info(pinfo, tr, &ei_reserved_value);
     }
 
     if (message & 0xF0) {
-      sec_cat = ep_strdup_printf ("%s%s%s%s",
-                                  (message & 0x80) ? ",cl" : "",
-                                  (message & 0x40) ? ",cs" : "",
-                                  (message & 0x20) ? ",ex" : "",
-                                  (message & 0x10) ? ",ne" : "");
+      sec_cat = wmem_strdup_printf (wmem_packet_scope(), "%s%s%s%s",
+                                    (message & 0x80) ? ",cl" : "",
+                                    (message & 0x40) ? ",cs" : "",
+                                    (message & 0x20) ? ",ex" : "",
+                                    (message & 0x10) ? ",ne" : "");
       proto_item_append_text (tf, ": %s", &sec_cat[1]);
-      *label_string = ep_strconcat(*label_string, sec_cat, NULL);
+      *label_string = wmem_strconcat(wmem_packet_scope(), *label_string, sec_cat, NULL);
     }
     break;
 
@@ -3543,9 +3529,9 @@ static gint dissect_dmp_security_category (tvbuff_t *tvb, packet_info *pinfo,
     } else {
       tr = proto_tree_add_item (field_tree, hf_message_sec_cat_permissive, tvb, offset, 1, ENC_BIG_ENDIAN);
       proto_item_append_text (tf, ": rel-to-%s", get_nat_pol_id_short (message >> 2));
-      *label_string = ep_strdup_printf("%s,rel-to-%s", *label_string, get_nat_pol_id_short (message >> 2));
+      *label_string = wmem_strdup_printf(wmem_packet_scope(), "%s,rel-to-%s", *label_string, get_nat_pol_id_short (message >> 2));
       if ((message >> 2) == 0) {
-        expert_add_info_format (pinfo, tr, PI_UNDECODED, PI_WARN, "Reserved value");
+        expert_add_info(pinfo, tr, &ei_reserved_value);
       }
     }
     break;
@@ -3564,16 +3550,16 @@ static gint dissect_dmp_security_category (tvbuff_t *tvb, packet_info *pinfo,
   if (dmp.version == 1) {
     tr = proto_tree_add_item (field_tree, hf_reserved_0x02, tvb, offset, 1, ENC_BIG_ENDIAN);
     if (message & 0x02) {
-      expert_add_info_format (pinfo, tr, PI_UNDECODED, PI_WARN, "Reserved value");
+      expert_add_info(pinfo, tr, &ei_reserved_value);
     }
     tr = proto_tree_add_item (field_tree, hf_reserved_0x01, tvb, offset, 1, ENC_BIG_ENDIAN);
     if (message & 0x01) {
-      expert_add_info_format (pinfo, tr, PI_UNDECODED, PI_WARN, "Reserved value");
+      expert_add_info(pinfo, tr, &ei_reserved_value);
     }
   } else {
     tr = proto_tree_add_item (field_tree, hf_message_sec_cat_extended, tvb, offset, 1, ENC_BIG_ENDIAN);
     if ((message & 0x01) && (message & 0x02)) {
-      expert_add_info_format (pinfo, tr, PI_UNDECODED, PI_WARN, "Reserved value");
+      expert_add_info(pinfo, tr, &ei_reserved_value);
     } else if (message & 0x01 || message & 0x02) {
       proto_item_append_text (tf, " (extended)");
       offset = dissect_dmp_security_category (tvb, pinfo, tree, label_string, offset+1, message & 0x03);
@@ -3603,7 +3589,7 @@ static gint dissect_dmp_content (tvbuff_t *tvb, packet_info *pinfo,
   proto_tree *field_tree = NULL;
   proto_item *en = NULL, *ei = NULL, *tf = NULL;
   proto_item *hidden_item;
-  const char  *label_string = ep_strdup ("");
+  const char  *label_string = wmem_strdup (wmem_packet_scope(), "");
   const gchar *class_name = NULL;
   guint8      message, dmp_sec_pol, dmp_sec_class, dmp_nation = 0, exp_time, dtg;
   gint32      secs = 0;
@@ -3643,8 +3629,7 @@ static gint dissect_dmp_content (tvbuff_t *tvb, packet_info *pinfo,
                                          "Reserved: %d", (message & 0x20)>>5);
         field_tree = proto_item_add_subtree (tf, ett_message_reserved);
         tf = proto_tree_add_item (field_tree, hf_reserved_0x20, tvb, offset, 1, ENC_BIG_ENDIAN);
-        expert_add_info_format (pinfo, tf, PI_UNDECODED, PI_WARN,
-                                "Reserved value");
+        expert_add_info(pinfo, tf, &ei_reserved_value);
       }
 
       /* Precedence */
@@ -3665,8 +3650,7 @@ static gint dissect_dmp_content (tvbuff_t *tvb, packet_info *pinfo,
                                          "Reserved: %d", (message & 0xE0)>>5);
         field_tree = proto_item_add_subtree (tf, ett_message_reserved);
         tf = proto_tree_add_item (field_tree, hf_reserved_0xE0, tvb, offset, 1, ENC_BIG_ENDIAN);
-        expert_add_info_format (pinfo, tf, PI_UNDECODED, PI_WARN,
-                                "Reserved value");
+        expert_add_info(pinfo, tf, &ei_reserved_value);
       }
 
       /* Importance */
@@ -3724,7 +3708,7 @@ static gint dissect_dmp_content (tvbuff_t *tvb, packet_info *pinfo,
   tf = proto_tree_add_item (field_tree, hf_message_sec_class_val, tvb, offset, 1, ENC_BIG_ENDIAN);
   if (class_name) {
     proto_item_append_text (tf, " (%s)", class_name);
-    label_string = ep_strconcat(label_string, class_name, NULL);
+    label_string = wmem_strconcat(wmem_packet_scope(), label_string, class_name, NULL);
   }
 
   /* Security Policy */
@@ -3767,8 +3751,7 @@ static gint dissect_dmp_content (tvbuff_t *tvb, packet_info *pinfo,
                                      "Reserved: %d", message & 0x02);
     field_tree = proto_item_add_subtree (tf, ett_message_reserved);
     tf = proto_tree_add_item (field_tree, hf_reserved_0x02, tvb, offset, 1, ENC_BIG_ENDIAN);
-    expert_add_info_format (pinfo, tf, PI_UNDECODED, PI_WARN,
-                            "Reserved value");
+    expert_add_info(pinfo, tf, &ei_reserved_value);
   }
   offset += 1;
 
@@ -3785,9 +3768,9 @@ static gint dissect_dmp_content (tvbuff_t *tvb, packet_info *pinfo,
     /* Mission Policy Identifier */
     message = tvb_get_guint8 (tvb, offset);
     if (message == 0xFF) {
-      proto_tree_add_uint_format (message_tree, hf_message_mission_policy_id,
-                                  tvb, offset, 1, message,
-                                  "Mission Policy Identifier: Reserved (0xFF)");
+      proto_tree_add_uint_format_value (message_tree, hf_message_mission_policy_id,
+                                        tvb, offset, 1, message,
+                                        "Reserved (0xFF)");
     } else {
       proto_tree_add_item (message_tree, hf_message_mission_policy_id, tvb, offset, 1, ENC_BIG_ENDIAN);
     }
@@ -3832,9 +3815,9 @@ static gint dissect_dmp_content (tvbuff_t *tvb, packet_info *pinfo,
       proto_item_append_text (tf, "Reserved (0x%2.2x)", exp_time);
       proto_item_append_text (ei, " (Reserved)");
     } else {
-      proto_item_append_text (tf, "%s (%s)", time_secs_to_str (secs),
-                              abs_time_secs_to_str (dmp.subm_time + secs, ABSOLUTE_TIME_LOCAL, TRUE));
-      proto_item_append_text (ei, " (%s from submission time)", time_secs_to_str (secs));
+      proto_item_append_text (tf, "%s (%s)", time_secs_to_ep_str (secs),
+                              abs_time_secs_to_ep_str (dmp.subm_time + secs, ABSOLUTE_TIME_LOCAL, TRUE));
+      proto_item_append_text (ei, " (%s from submission time)", time_secs_to_ep_str (secs));
     }
     offset += 1;
   }
@@ -3854,13 +3837,13 @@ static gint dissect_dmp_content (tvbuff_t *tvb, packet_info *pinfo,
       proto_item_append_text (tf, "0 minutes in the %s (%s)",
                               (dtg & 0x80) ? dtg_sign.true_string :
                               dtg_sign.false_string,
-                              abs_time_secs_to_str (dmp.subm_time, ABSOLUTE_TIME_LOCAL, TRUE));
+                              abs_time_secs_to_ep_str (dmp.subm_time, ABSOLUTE_TIME_LOCAL, TRUE));
     } else {
-      proto_item_append_text (tf, "%s in the %s (%s)", time_secs_to_str(secs),
+      proto_item_append_text (tf, "%s in the %s (%s)", time_secs_to_ep_str(secs),
                               (dtg & 0x80) ? dtg_sign.true_string :
                               dtg_sign.false_string, (dtg & 0x80) ?
-                              abs_time_secs_to_str (dmp.subm_time + secs, ABSOLUTE_TIME_LOCAL, TRUE) :
-                              abs_time_secs_to_str (dmp.subm_time - secs, ABSOLUTE_TIME_LOCAL, TRUE));
+                              abs_time_secs_to_ep_str (dmp.subm_time + secs, ABSOLUTE_TIME_LOCAL, TRUE) :
+                              abs_time_secs_to_ep_str (dmp.subm_time - secs, ABSOLUTE_TIME_LOCAL, TRUE));
     }
     offset += 1;
   }
@@ -4017,7 +4000,7 @@ static void dissect_dmp (tvbuff_t *tvb, packet_info *pinfo,
     } else {
       proto_item_append_text (en, " (incorrect, should be 0x%04x)",
                               checksum1);
-      expert_add_info_format (pinfo, en, PI_CHECKSUM, PI_WARN, "Bad checksum");
+      expert_add_info(pinfo, en, &ei_checksum_bad);
       en = proto_tree_add_boolean (checksum_tree, hf_checksum_good, tvb,
                                    offset, 2, FALSE);
       PROTO_ITEM_SET_GENERATED (en);
@@ -4355,13 +4338,13 @@ void proto_register_dmp (void)
     */
     { &hf_addr_ext_form,
       { "Address Form", "dmp.addr_form", FT_UINT8, BASE_DEC,
-        VALS (&addr_form), 0xE0, NULL, HFILL } },
+        VALS (addr_form), 0xE0, NULL, HFILL } },
     { &hf_addr_ext_form_orig_v1,
       { "Address Form", "dmp.addr_form", FT_UINT8, BASE_DEC,
-        VALS (&addr_form_orig_v1), 0xE0, NULL, HFILL } },
+        VALS (addr_form_orig_v1), 0xE0, NULL, HFILL } },
     { &hf_addr_ext_form_orig,
       { "Address Form", "dmp.addr_form", FT_UINT8, BASE_DEC,
-        VALS (&addr_form_orig), 0xE0, NULL, HFILL } },
+        VALS (addr_form_orig), 0xE0, NULL, HFILL } },
     { &hf_addr_ext_action,
       { "Action", "dmp.action", FT_BOOLEAN, 8,
         TFS (&tfs_yes_no), 0x10, NULL, HFILL } },
@@ -4391,10 +4374,10 @@ void proto_register_dmp (void)
         NULL, 0x0, NULL, HFILL } },
     { &hf_addr_ext_type,
       { "Address Type", "dmp.addr_type", FT_UINT8, BASE_DEC,
-        VALS (&ext_addr_type), 0xE0, NULL, HFILL } },
+        VALS (ext_addr_type), 0xE0, NULL, HFILL } },
     { &hf_addr_ext_type_ext,
       { "Address Type Extended", "dmp.addr_type_ext", FT_UINT8,
-        BASE_DEC, VALS (&ext_addr_type_ext), 0xE0, NULL,
+        BASE_DEC, VALS (ext_addr_type_ext), 0xE0, NULL,
         HFILL } },
     { &hf_addr_ext_length,
       { "Address Length", "dmp.addr_length", FT_UINT8,
@@ -4622,6 +4605,9 @@ void proto_register_dmp (void)
     { &hf_message_body_data,
       { "User data", "dmp.body.data", FT_NONE, BASE_NONE,
         NULL, 0x0, NULL, HFILL } },
+    { &hf_message_body_compressed,
+      { "Compressed User data", "dmp.body.compressed", FT_NONE, BASE_NONE,
+        NULL, 0x0, NULL, HFILL } },
     { &hf_message_body_plain,
       { "Message Body", "dmp.body.plain", FT_STRING, BASE_NONE,
         NULL, 0x0, NULL, HFILL } },
@@ -4647,13 +4633,6 @@ void proto_register_dmp (void)
     { &hf_message_body_structured,
       { "Structured Body", "dmp.body.structured", FT_BYTES, BASE_NONE,
         NULL, 0x0, NULL, HFILL } },
-    { &hf_message_body_uncompr,
-      { "Uncompressed User data", "dmp.body.uncompressed", FT_NONE,
-        BASE_NONE, NULL, 0x0, NULL, HFILL } },
-    { &hf_message_body_uncompressed,
-      { "Uncompressed Message Body", "dmp.body.uncompressed",
-        FT_STRING, BASE_NONE, NULL, 0x0, NULL,
-        HFILL } },
 
     /*
     ** Report
@@ -4757,7 +4736,7 @@ void proto_register_dmp (void)
         NULL, 0x0, NULL, HFILL } },
     { &hf_ack_reason,
       { "Ack Reason", "dmp.ack_reason", FT_UINT8, BASE_DEC,
-        VALS (&ack_reason), 0x0, "Reason", HFILL } },
+        VALS (ack_reason), 0x0, "Reason", HFILL } },
     { &hf_ack_diagnostic,
       { "Ack Diagnostic", "dmp.ack_diagnostic", FT_UINT8, BASE_DEC,
         NULL, 0x0, "Diagnostic", HFILL } },
@@ -4811,9 +4790,6 @@ void proto_register_dmp (void)
     { &hf_analysis_not_num,
       { "Notification in", "dmp.analysis.notif_in", FT_FRAMENUM, BASE_NONE,
         NULL, 0x0, "This packet has a Notification in this frame", HFILL } },
-    { &hf_analysis_msg_missing,
-      { "Message missing", "dmp.analysis.msg_missing", FT_NONE, BASE_NONE,
-        NULL, 0x0, "The Message for this packet is missing", HFILL } },
     { &hf_analysis_ack_missing,
       { "Acknowledgement missing", "dmp.analysis.ack_missing", FT_NONE, BASE_NONE,
         NULL, 0x0, "The acknowledgement for this packet is missing", HFILL } },
@@ -4936,7 +4912,6 @@ void proto_register_dmp (void)
     &ett_message_compr,
     &ett_message_body_reserved,
     &ett_message_body,
-    &ett_message_body_uncompr,
     &ett_report,
     &ett_report_type,
     &ett_report_info_present_dr,
@@ -4959,6 +4934,24 @@ void proto_register_dmp (void)
     &ett_analysis
   };
 
+  static ei_register_info ei[] = {
+     { &ei_reserved_value, { "dmp.reserved.expert", PI_UNDECODED, PI_WARN, "Reserved value", EXPFILL }},
+     { &ei_message_sic_illegal, { "dmp.sic.illegal", PI_UNDECODED, PI_NOTE, "Illegal SIC", EXPFILL }},
+     { &ei_analysis_ack_unexpected, { "dmp.analysis.ack_unexpected", PI_SEQUENCE, PI_NOTE, "Unexpected ACK", EXPFILL }},
+     { &ei_analysis_ack_missing, { "dmp.analysis.ack_missing.expert", PI_SEQUENCE, PI_NOTE, "Acknowledgement missing", EXPFILL }},
+     { &ei_analysis_msg_missing, { "dmp.analysis.msg_missing", PI_SEQUENCE, PI_NOTE, "Message missing", EXPFILL }},
+     { &ei_analysis_retrans_no, { "dmp.analysis.retrans_no.expert", PI_SEQUENCE, PI_NOTE, "Retransmission #", EXPFILL }},
+     { &ei_analysis_ack_dup_no, { "dmp.analysis.dup_ack_no.expert", PI_SEQUENCE, PI_NOTE, "Dup ACK #", EXPFILL }},
+     { &ei_addr_dir_rec_no_generated, { "dmp.rec_no.expert", PI_MALFORMED, PI_WARN, "Recipient number too big", EXPFILL }},
+     { &ei_addr_ext_rec_no_generated, { "dmp.rec_no.expert", PI_MALFORMED, PI_WARN, "Recipient number too big", EXPFILL }},
+     { &ei_ack_reason, { "dmp.ack_reason.expert", PI_RESPONSE_CODE, PI_NOTE, "ACK reason: %s", EXPFILL }},
+     { &ei_envelope_version_value, { "dmp.version_value.unsupported", PI_UNDECODED, PI_ERROR, "Unsupported DMP Version", EXPFILL }},
+     { &ei_envelope_msg_id, { "dmp.msg_id.short_id", PI_PROTOCOL, PI_NOTE, "Id < 4096 - should use ShortId", EXPFILL }},
+     { &ei_message_compr, { "dmp.body.compression.unknown", PI_UNDECODED, PI_WARN, "Unknown compression algorithm", EXPFILL }},
+     { &ei_message_body_uncompress, { "dmp.body.uncompress.fail", PI_UNDECODED, PI_WARN, "Error: Unable to uncompress content", EXPFILL }},
+     { &ei_checksum_bad, { "dmp.checksum_bad.expert", PI_CHECKSUM, PI_WARN, "Bad checksum", EXPFILL }},
+  };
+
   static uat_field_t attributes_flds[] = {
     UAT_FLD_VS(dmp_security_class,nation, "Nation", nat_pol_id, 0),
     UAT_FLD_DEC(dmp_security_class,sec_class, "Classification", "Security Classification"),
@@ -4970,7 +4963,7 @@ void proto_register_dmp (void)
                                   sizeof(dmp_security_class_t),
                                   "dmp_security_classifications",
                                   TRUE,
-                                  (void*) &dmp_security_classes,
+                                  &dmp_security_classes,
                                   &num_dmp_security_classes,
                                   UAT_AFFECTS_DISSECTION, /* affects dissection of packets, but not set of named fields */
                                   "ChDMPSecurityClassifications",
@@ -4981,12 +4974,16 @@ void proto_register_dmp (void)
                                   attributes_flds);
 
   module_t *dmp_module;
+  expert_module_t* expert_dmp;
 
   proto_dmp = proto_register_protocol (PNAME, PSNAME, PFNAME);
-  register_dissector(PFNAME, dissect_dmp, proto_dmp);
+
+  dmp_handle = register_dissector(PFNAME, dissect_dmp, proto_dmp);
 
   proto_register_field_array (proto_dmp, hf, array_length (hf));
   proto_register_subtree_array (ett, array_length (ett));
+  expert_dmp = expert_register_protocol(proto_dmp);
+  expert_register_field_array(expert_dmp, ei, array_length(ei));
   register_init_routine (&dmp_init_routine);
 
   /* Set default UDP ports */
@@ -5058,33 +5055,22 @@ void proto_register_dmp (void)
                                   10, &dmp_struct_length);
 }
 
-static void range_delete_callback (guint32 port)
-{
-    dissector_delete_uint ("udp.port", port, dmp_handle);
-}
-
-static void range_add_callback (guint32 port)
-{
-    dissector_add_uint ("udp.port", port, dmp_handle);
-}
-
 void proto_reg_handoff_dmp (void)
 {
   static range_t *dmp_port_range;
   static gboolean dmp_prefs_initialized = FALSE;
 
   if (!dmp_prefs_initialized) {
-    dmp_handle = find_dissector (PFNAME);
     dmp_prefs_initialized = TRUE;
   } else {
-    range_foreach (dmp_port_range, range_delete_callback);
+    dissector_delete_uint_range ("udp.port", dmp_port_range, dmp_handle);
     g_free (dmp_port_range);
   }
 
   /* Save port number for later deletion */
   dmp_port_range = range_copy (global_dmp_port_range);
 
-  range_foreach (dmp_port_range, range_add_callback);
+  dissector_add_uint_range ("udp.port", dmp_port_range, dmp_handle);
 }
 
 /*

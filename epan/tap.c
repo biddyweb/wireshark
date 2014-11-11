@@ -1,8 +1,6 @@
 /* tap.c
  * packet tap interface   2002 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -60,7 +58,7 @@ typedef struct _tap_packet_t {
 	const void *tap_specific_data;
 } tap_packet_t;
 
-#define TAP_PACKET_QUEUE_LEN 100
+#define TAP_PACKET_QUEUE_LEN 5000
 static tap_packet_t tap_packet_array[TAP_PACKET_QUEUE_LEN];
 static guint tap_packet_index;
 
@@ -77,6 +75,77 @@ typedef struct _tap_listener_t {
 } tap_listener_t;
 static volatile tap_listener_t *tap_listener_queue=NULL;
 
+#ifdef HAVE_PLUGINS
+
+#include <gmodule.h>
+
+#include <wsutil/plugins.h>
+
+/*
+ * List of tap plugins.
+ */
+typedef struct {
+	void (*register_tap_listener_fn)(void);   /* routine to call to register tap listener */
+} tap_plugin;
+
+static GSList *tap_plugins = NULL;
+
+/*
+ * Callback for each plugin found.
+ */
+static gboolean
+check_for_tap_plugin(GModule *handle)
+{
+	gpointer gp;
+	void (*register_tap_listener_fn)(void);
+	tap_plugin *plugin;
+
+	/*
+	 * Do we have a register_tap_listener routine?
+	 */
+	if (!g_module_symbol(handle, "plugin_register_tap_listener", &gp)) {
+		/* No, so this isn't a tap plugin. */
+		return FALSE;
+	}
+
+	/*
+	 * Yes - this plugin includes one or more taps.
+	 */
+	register_tap_listener_fn = (void (*)(void))gp;
+
+	/*
+	 * Add this one to the list of tap plugins.
+	 */
+	plugin = (tap_plugin *)g_malloc(sizeof (tap_plugin));
+	plugin->register_tap_listener_fn = register_tap_listener_fn;
+	tap_plugins = g_slist_append(tap_plugins, plugin);
+	return TRUE;
+}
+
+void
+register_tap_plugin_type(void)
+{
+	add_plugin_type("tap", check_for_tap_plugin);
+}
+
+static void
+register_tap_plugin_listener(gpointer data, gpointer user_data _U_)
+{
+	tap_plugin *plugin = (tap_plugin *)data;
+
+	(plugin->register_tap_listener_fn)();
+}
+
+/*
+ * For all tap plugins, call their register routines.
+ */
+void
+register_all_plugin_tap_listeners(void)
+{
+	g_slist_foreach(tap_plugins, register_tap_plugin_listener, NULL);
+}
+#endif /* HAVE_PLUGINS */
+
 /* **********************************************************************
  * Init routine only called from epan at application startup
  * ********************************************************************** */
@@ -87,8 +156,6 @@ void
 tap_init(void)
 {
 	tap_packet_index=0;
-
-	return;
 }
 
 /* **********************************************************************
@@ -123,7 +190,7 @@ register_tap(const char *name)
 			return tap_id;
 	}
 
-	td=g_malloc(sizeof(tap_dissector_t));
+	td=(tap_dissector_t *)g_malloc(sizeof(tap_dissector_t));
 	td->next=NULL;
 	td->name = g_strdup(name);
 
@@ -352,7 +419,21 @@ draw_tap_listeners(gboolean draw_all)
 	}
 }
 
+/* Gets a GList of the tap names. The content of the list
+   is owned by the tap table and should not be modified or freed.
+   Use g_list_free() when done using the list. */
+GList*
+get_tap_names(void)
+{
+	GList *list = NULL;
+	tap_dissector_t *td;
 
+	for(td=tap_dissector_list; td; td=td->next) {
+		list = g_list_prepend(list, td->name);
+	}
+
+	return g_list_reverse(list);
+}
 
 /* **********************************************************************
  * Functions used by tap to
@@ -399,7 +480,7 @@ register_tap_listener(const char *tapname, void *tapdata, const char *fstring,
 		return error_string;
 	}
 
-	tl=g_malloc(sizeof(tap_listener_t));
+	tl=(tap_listener_t *)g_malloc(sizeof(tap_listener_t));
 	tl->code=NULL;
 	tl->needs_redraw=TRUE;
 	tl->flags=flags;

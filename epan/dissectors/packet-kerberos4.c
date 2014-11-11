@@ -3,8 +3,6 @@
  *
  * Ronnie Sahlberg 2004
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,6 +35,9 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+
+void proto_register_krb4(void);
+void proto_reg_handoff_krb4(void);
 
 static int proto_krb4 = -1;
 static int hf_krb4_version = -1;
@@ -136,7 +137,7 @@ dissect_krb4_kdc_request(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb, in
 
 	/* lifetime */
 	lifetime=tvb_get_guint8(tvb, offset);
-	proto_tree_add_uint_format(tree, hf_krb4_lifetime, tvb, offset, 1, lifetime, "Lifetime: %d (%d minutes)", lifetime, lifetime*5);
+	proto_tree_add_uint_format_value(tree, hf_krb4_lifetime, tvb, offset, 1, lifetime, "%d (%d minutes)", lifetime, lifetime*5);
 	offset++;
 
 	/* service Name */
@@ -185,7 +186,7 @@ dissect_krb4_kdc_reply(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb, int 
 
 	/* length2 */
 	length=little_endian?tvb_get_letohs(tvb, offset):tvb_get_ntohs(tvb, offset);
-	proto_tree_add_uint_format(tree, hf_krb4_length, tvb, offset, 2, length, "Length: %d", length);
+	proto_tree_add_uint_format_value(tree, hf_krb4_length, tvb, offset, 2, length, "%d", length);
 	offset+=2;
 
 	/* encrypted blob */
@@ -236,7 +237,7 @@ dissect_krb4_appl_request(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb, i
 
 	/* lifetime */
 	lifetime=tvb_get_guint8(tvb, offset);
-	proto_tree_add_uint_format(tree, hf_krb4_lifetime, tvb, offset, 1, lifetime, "Lifetime: %d (%d minutes)", lifetime, lifetime*5);
+	proto_tree_add_uint_format_value(tree, hf_krb4_lifetime, tvb, offset, 1, lifetime, "%d (%d minutes)", lifetime, lifetime*5);
 	offset++;
 
 	/* service Name */
@@ -263,8 +264,7 @@ dissect_krb4_auth_msg_type(packet_info *pinfo, proto_tree *parent_tree, tvbuff_t
 
 	/* m_type */
 	proto_tree_add_item(tree, hf_krb4_m_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-	if (check_col(pinfo->cinfo, COL_INFO))
-	  col_append_fstr(pinfo->cinfo, COL_INFO, "%s%s",
+	col_append_fstr(pinfo->cinfo, COL_INFO, "%s%s",
 	   (version==TRANSARC_SPECIAL_VERSION)?"TRANSARC-":"",
 	    val_to_str(auth_msg_type>>1, m_type_vals, "Unknown (0x%04x)"));
 	proto_item_append_text(item, " %s%s",
@@ -327,13 +327,13 @@ dissect_krb4(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *d
 
 	switch(opcode>>1){
 	case AUTH_MSG_KDC_REQUEST:
-		offset = dissect_krb4_kdc_request(pinfo, tree, tvb, offset, opcode&0x01, version);
+		/*offset =*/ dissect_krb4_kdc_request(pinfo, tree, tvb, offset, opcode&0x01, version);
 		break;
 	case AUTH_MSG_KDC_REPLY:
-		offset = dissect_krb4_kdc_reply(pinfo, tree, tvb, offset, opcode&0x01);
+		/*offset =*/ dissect_krb4_kdc_reply(pinfo, tree, tvb, offset, opcode&0x01);
 		break;
 	case AUTH_MSG_APPL_REQUEST:
-		offset = dissect_krb4_appl_request(pinfo, tree, tvb, offset, opcode&0x01);
+		/*offset =*/ dissect_krb4_appl_request(pinfo, tree, tvb, offset, opcode&0x01);
 		break;
 	case AUTH_MSG_APPL_REQUEST_MUTUAL:
 	case AUTH_MSG_ERR_REPLY:

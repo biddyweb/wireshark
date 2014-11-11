@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -27,13 +25,15 @@
 #include "ws_symbol_export.h"
 
 /* Passed back to user */
-typedef struct _dfilter_t dfilter_t;
+typedef struct epan_dfilter dfilter_t;
 
 #include <epan/proto.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
+struct epan_dissect;
 
 /* Module-level initialization */
 void
@@ -80,7 +80,7 @@ WS_DLL_PUBLIC const gchar *dfilter_error_msg;
 /* Apply compiled dfilter */
 WS_DLL_PUBLIC
 gboolean
-dfilter_apply_edt(dfilter_t *df, epan_dissect_t* edt);
+dfilter_apply_edt(dfilter_t *df, struct epan_dissect *edt);
 
 /* Apply compiled dfilter */
 gboolean

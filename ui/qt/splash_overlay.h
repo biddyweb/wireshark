@@ -1,7 +1,5 @@
 /* splash_overlay.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -42,11 +40,11 @@ class SplashOverlay;
 class SplashOverlay : public QWidget
 {
     Q_OBJECT
-    
+
 public:
     explicit SplashOverlay(QWidget *parent = 0);
     ~SplashOverlay();
-    
+
 protected:
     void paintEvent(QPaintEvent *event);
 

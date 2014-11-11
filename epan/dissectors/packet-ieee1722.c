@@ -6,8 +6,6 @@
  *
  * Copyright 2011, Thomas Bottom <tom.bottom@labxtechnologies.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,6 +33,9 @@
 
 #include <epan/packet.h>
 #include <epan/etypes.h>
+
+void proto_register_1722(void);
+void proto_reg_handoff_1722(void);
 
 /* 1722 Offsets */
 #define IEEE_1722_CD_OFFSET                  0
@@ -150,7 +151,7 @@ dissect_1722(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         proto_tree_add_item(ieee1722_tree, hf_1722_svfield, tvb, IEEE_1722_VERSION_OFFSET, 1, ENC_BIG_ENDIAN);
         proto_tree_add_item(ieee1722_tree, hf_1722_verfield, tvb, IEEE_1722_VERSION_OFFSET, 1, ENC_BIG_ENDIAN);
     }
-        
+
 
     /* Version field ends the common AVTPDU. Now parse the specfic packet type */
     subtype = tvb_get_guint8(tvb, IEEE_1722_CD_OFFSET);
@@ -163,7 +164,7 @@ dissect_1722(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         proto_tree_add_item(ieee1722_tree, hf_1722_mrfield, tvb, IEEE_1722_VERSION_OFFSET, 1, ENC_BIG_ENDIAN);
         proto_tree_add_item(ieee1722_tree, hf_1722_gvfield, tvb, IEEE_1722_VERSION_OFFSET, 1, ENC_BIG_ENDIAN);
         proto_tree_add_item(ieee1722_tree, hf_1722_tvfield, tvb, IEEE_1722_VERSION_OFFSET, 1, ENC_BIG_ENDIAN);
-        
+
         /* Add the rest of the packet fields */
         proto_tree_add_item(ieee1722_tree, hf_1722_seqnum, tvb,
                             IEEE_1722_SEQ_NUM_OFFSET, 1, ENC_BIG_ENDIAN);
@@ -388,10 +389,10 @@ void proto_register_1722(void)
     /* Required function calls to register the header fields and subtrees used */
     proto_register_field_array(proto_1722, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
-    
+
     /* Sub-dissector for 1772.1 */
     avb_dissector_table = register_dissector_table("ieee1722.subtype",
-                          "AVBTP Subtype", FT_UINT8, BASE_HEX);
+                          "IEEE1722 AVBTP Subtype", FT_UINT8, BASE_HEX);
 }
 
 void proto_reg_handoff_1722(void)

@@ -1,7 +1,5 @@
 /* main.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -21,14 +19,17 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include "config.h"
+
 #include "wireshark_application.h"
 #include "main_window.h"
 
-#include "config.h"
 #include <ctype.h>
 #include "globals.h"
 
 #include <glib.h>
+
+#include <signal.h>
 
 #ifndef HAVE_GETOPT
 #  include "wsutil/wsgetopt.h"
@@ -36,19 +37,22 @@
 #  include <getopt.h>
 #endif
 
-#ifdef HAVE_LIBPORTAUDIO
-#  include <portaudio.h>
-#endif /* HAVE_LIBPORTAUDIO */
-
 #include <wsutil/crash_info.h>
+#include <wsutil/filesystem.h>
+#include <wsutil/file_util.h>
+#include <wsutil/privileges.h>
+#ifdef HAVE_PLUGINS
+#include <wsutil/plugins.h>
+#endif
+#include <wsutil/report_err.h>
+#include <wsutil/u3.h>
+
+#include <wiretap/merge.h>
 
 #include <epan/epan.h>
-#include <epan/filesystem.h>
-#include <wsutil/privileges.h>
 #include <epan/epan_dissect.h>
 #include <epan/timestamp.h>
 #include <epan/packet.h>
-#include <epan/plugins.h>
 #include <epan/dfilter/dfilter.h>
 #include <epan/strutil.h>
 #include <epan/addr_resolv.h>
@@ -63,30 +67,31 @@
 #include <epan/stat_cmd_args.h>
 #include <epan/uat.h>
 #include <epan/column.h>
+#include <epan/disabled_protos.h>
+#include <epan/print.h>
+
+#ifdef HAVE_PLUGINS
+#include <codecs/codecs.h>
+#endif
 
 /* general (not Qt specific) */
 #include "file.h"
 #include "summary.h"
-#include "disabled_protos.h"
 #include "color.h"
 #include "color_filters.h"
-#include "print.h"
 #include "register.h"
 #include "ringbuffer.h"
 #include "ui/util.h"
 #include "clopts_common.h"
-#include "console_io.h"
 #include "cmdarg_err.h"
 #include "version_info.h"
-#include "merge.h"
 #include "log.h"
-#include "u3.h"
-#include <wsutil/file_util.h>
 
 #include "ui/alert_box.h"
 #include "ui/capture_globals.h"
 #include "ui/iface_lists.h"
 #include "ui/main_statusbar.h"
+#include "ui/persfilepath_opt.h"
 #include "ui/recent.h"
 #include "ui/simple_dialog.h"
 #include "ui/ui_util.h"
@@ -128,6 +133,11 @@
 #include <qlocale.h>
 #include <qlibraryinfo.h>
 
+#ifdef HAVE_LIBPCAP
+capture_options global_capture_opts;
+capture_session global_capture_session;
+#endif
+
 capture_file cfile;
 
 #ifdef HAVE_AIRPCAP
@@ -138,22 +148,20 @@ GString *comp_info_str, *runtime_info_str;
 
 //static gboolean have_capture_file = FALSE; /* XXX - is there an equivalent in cfile? */
 
-//static guint  tap_update_timer_id;
-
 static void console_log_handler(const char *log_domain,
     GLogLevelFlags log_level, const char *message, gpointer user_data);
 
 
 #ifdef HAVE_LIBPCAP
 extern capture_options global_capture_opts;
-#endif
 
 static void
-main_capture_callback(gint event, capture_options *capture_opts, gpointer user_data )
+main_capture_callback(gint event, capture_session *cap_session, gpointer user_data )
 {
     Q_UNUSED(user_data);
-    wsApp->captureCallback(event, capture_opts);
+    wsApp->captureCallback(event, cap_session);
 }
+#endif // HAVE_LIBPCAP
 
 static void
 main_cf_callback(gint event, gpointer data, gpointer user_data )
@@ -168,25 +176,19 @@ void main_window_update(void)
     WiresharkApplication::processEvents();
 }
 
-/* exit the main window */
-void main_window_exit(void)
-{
-    exit(0);
-}
-
 #ifdef HAVE_LIBPCAP
 
 /* quit a nested main window */
 void main_window_nested_quit(void)
 {
 //    if (gtk_main_level() > 0)
-    WiresharkApplication::quit();
+    wsApp->quit();
 }
 
 /* quit the main window */
 void main_window_quit(void)
 {
-    WiresharkApplication::quit();
+    wsApp->quit();
 }
 
 #endif /* HAVE_LIBPCAP */
@@ -208,7 +210,7 @@ print_usage(gboolean print_ver) {
                 "See http://www.wireshark.org for more information.\n"
                 "\n"
                 "%s",
-                wireshark_svnversion, get_copyright_info());
+                wireshark_gitversion, get_copyright_info());
     } else {
         output = stderr;
     }
@@ -293,10 +295,6 @@ print_usage(gboolean print_ver) {
 static void
 show_version(void)
 {
-#ifdef _WIN32
-    create_console();
-#endif
-
     printf(PACKAGE " " VERSION "%s\n"
            "\n"
            "%s"
@@ -304,38 +302,8 @@ show_version(void)
            "%s"
            "\n"
            "%s",
-           wireshark_svnversion, get_copyright_info(), comp_info_str->str,
+           wireshark_gitversion, get_copyright_info(), comp_info_str->str,
            runtime_info_str->str);
-
-#ifdef _WIN32
-    destroy_console();
-#endif
-}
-
-/*
- * Print to the standard error.  On Windows, create a console for the
- * standard error to show up on, if necessary.
- * XXX - pop this up in a window of some sort on UNIX+X11 if the controlling
- * terminal isn't the standard error?
- */
-// xxx copied from ../gtk/main.c
-void
-vfprintf_stderr(const char *fmt, va_list ap)
-{
-#ifdef _WIN32
-    create_console();
-#endif
-    vfprintf(stderr, fmt, ap);
-}
-
-void
-fprintf_stderr(const char *fmt, ...)
-{
-    va_list ap;
-
-    va_start(ap, fmt);
-    vfprintf_stderr(fmt, ap);
-    va_end(ap);
 }
 
 /*
@@ -348,11 +316,14 @@ cmdarg_err(const char *fmt, ...)
 {
     va_list ap;
 
-    fprintf_stderr("wireshark: ");
+#ifdef _WIN32
+    create_console();
+#endif
+    fprintf(stderr, "wireshark: ");
     va_start(ap, fmt);
-    vfprintf_stderr(fmt, ap);
+    vfprintf(stderr, fmt, ap);
     va_end(ap);
-    fprintf_stderr("\n");
+    fprintf(stderr, "\n");
 }
 
 /*
@@ -367,9 +338,12 @@ cmdarg_err_cont(const char *fmt, ...)
 {
     va_list ap;
 
+#ifdef _WIN32
+    create_console();
+#endif
     va_start(ap, fmt);
-    vfprintf_stderr(fmt, ap);
-    fprintf_stderr("\n");
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
     va_end(ap);
 }
 
@@ -425,10 +399,10 @@ console_log_handler(const char *log_domain, GLogLevelFlags log_level,
 static void
 get_qt_compiled_info(GString *str)
 {
-  g_string_append(str, "with ");
-  g_string_append_printf(str,
+    g_string_append(str, "with ");
+    g_string_append_printf(str,
 #ifdef QT_VERSION
-                     "Qt %s ", QT_VERSION_STR);
+                    "Qt %s ", QT_VERSION_STR);
 #else
                     "Qt (version unknown) ");
 #endif
@@ -438,25 +412,16 @@ get_qt_compiled_info(GString *str)
 static void
 get_gui_compiled_info(GString *str)
 {
-  epan_get_compiled_version_info(str);
+    epan_get_compiled_version_info(str);
 
-  g_string_append(str, ", ");
-#ifdef HAVE_LIBPORTAUDIO
-#ifdef PORTAUDIO_API_1
-  g_string_append(str, "with PortAudio <= V18");
-#else /* PORTAUDIO_API_1 */
-  g_string_append(str, "with ");
-  g_string_append(str, Pa_GetVersionText());
-#endif /* PORTAUDIO_API_1 */
-#else /* HAVE_LIBPORTAUDIO */
-  g_string_append(str, "without PortAudio");
-#endif /* HAVE_LIBPORTAUDIO */
+    g_string_append(str, ", ");
+    g_string_append(str, "without PortAudio");
 
   g_string_append(str, ", ");
 #ifdef HAVE_AIRPCAP
-  get_compiled_airpcap_version(str);
+    get_compiled_airpcap_version(str);
 #else
-  g_string_append(str, "without AirPcap");
+    g_string_append(str, "without AirPcap");
 #endif
 }
 
@@ -464,18 +429,18 @@ get_gui_compiled_info(GString *str)
 static void
 get_gui_runtime_info(GString *str)
 {
-  epan_get_runtime_version_info(str);
+    epan_get_runtime_version_info(str);
 
 #ifdef HAVE_AIRPCAP
-  g_string_append(str, ", ");
-  get_runtime_airpcap_version(str);
+    g_string_append(str, ", ");
+    get_runtime_airpcap_version(str);
 #endif
 
 
-  if(u3_active()) {
-    g_string_append(str, ", ");
-    u3_runtime_info(str);
-  }
+    if(u3_active()) {
+        g_string_append(str, ", ");
+        u3_runtime_info(str);
+    }
 
 }
 
@@ -485,13 +450,8 @@ int main(int argc, char *argv[])
     WiresharkApplication ws_app(argc, argv);
     MainWindow *main_w;
 
-//    char                *init_progfile_dir_error;
-//    char                *s;
     int                  opt;
-//    gboolean             arg_error = FALSE;
-
-//    extern int           info_update_freq;  /* Found in about_dlg.c. */
-//    const gchar         *filter;
+    gboolean             arg_error = FALSE;
 
 #ifdef _WIN32
     WSADATA	       wsaData;
@@ -500,9 +460,9 @@ int main(int argc, char *argv[])
     char                *rf_path;
     int                  rf_open_errno;
     char                *gdp_path, *dp_path;
-    int                  err;
 #ifdef HAVE_LIBPCAP
-//    gboolean             start_capture = FALSE;
+    int                  err;
+    gboolean             start_capture = FALSE;
 //    gboolean             list_link_layer_types = FALSE;
     GList               *if_list;
     gchar               *err_str;
@@ -514,35 +474,18 @@ int main(int argc, char *argv[])
 #endif
 #endif
 #endif
-//    gint                 pl_size = 280, tv_size = 95, bv_size = 75;
-//    gchar               *rc_file, *cf_name = NULL, *rfilter = NULL, *jfilter = NULL;
-//    dfilter_t           *rfcode = NULL;
-//    gboolean             rfilter_parse_failed = FALSE;
     e_prefs             *prefs_p;
-//    char                 badopt;
     GLogLevelFlags       log_flags;
-//    guint                go_to_packet = 0;
-//    gboolean             jump_backwards = FALSE;
-//    dfilter_t           *jump_to_filter = NULL;
-//    int                  optind_initial;
-    int                  status;
-
-    //initialize language !
 
 #ifdef _WIN32
     create_app_running_mutex();
 #endif
 
-    QString locale = QLocale::system().name();
-
-    g_log(NULL, G_LOG_LEVEL_DEBUG, "Translator %s", locale.toStdString().c_str());
-    QTranslator translator;
-    translator.load(QString(":/i18n/qtshark_") + locale);
-    ws_app.installTranslator(&translator);
-
-    QTranslator qtTranslator;
-    qtTranslator.load("qt_" + QLocale::system().name(), QLibraryInfo::location(QLibraryInfo::TranslationsPath));
-    ws_app.installTranslator(&qtTranslator);
+    QString locale;
+    QString *cf_name = NULL;
+    QString *display_filter = NULL;
+    int optind_initial;
+    unsigned int in_file_type = WTAP_TYPE_AUTO;
 
     // In Qt 5, C strings are treated always as UTF-8 when converted to
     // QStrings; in Qt 4, the codec must be set to make that happen
@@ -554,13 +497,6 @@ int main(int argc, char *argv[])
     QTextCodec::setCodecForTr(utf8codec);
 #endif
 
-    main_w = new(MainWindow);
-//    w->setEnabled(false);
-    main_w->show();
-    // We may not need a queued connection here but it would seem to make sense
-    // to force the issue.
-    main_w->connect(&ws_app, SIGNAL(openCaptureFile(QString&)),
-            main_w, SLOT(openCaptureFile(QString&)));
 
     // XXX Should the remaining code be in WiresharkApplcation::WiresharkApplication?
 #ifdef HAVE_LIBPCAP
@@ -580,7 +516,10 @@ int main(int argc, char *argv[])
 #endif
 
 #define OPTSTRING "a:b:" OPTSTRING_B "c:C:Df:g:Hhi:" OPTSTRING_I "jJ:kK:lLm:nN:o:P:pQr:R:Ss:t:u:vw:X:y:z:"
-
+    struct option     long_options[] = {
+        {(char *)"read-file", required_argument, NULL, (int)'r' },
+        {0, 0, 0, 0 }
+    };
     static const char optstring[] = OPTSTRING;
 
     /* Assemble the compile-time version information string */
@@ -599,7 +538,7 @@ int main(int argc, char *argv[])
            "%s"
            "\n"
            "%s",
-        wireshark_svnversion, comp_info_str->str, runtime_info_str->str);
+        wireshark_gitversion, comp_info_str->str, runtime_info_str->str);
 
     /*
      * Get credential information for later use, and drop privileges
@@ -612,7 +551,7 @@ int main(int argc, char *argv[])
     /*
      * Attempt to get the pathname of the executable file.
      */
-    /* init_progfile_dir_error = */ init_progfile_dir(argv[0], main);
+    /* init_progfile_dir_error = */ init_progfile_dir(QCoreApplication::applicationFilePath().toUtf8().constData(), NULL);
     g_log(NULL, G_LOG_LEVEL_DEBUG, "progfile_dir: %s", get_progfile_dir());
 
     /* initialize the funnel mini-api */
@@ -678,93 +617,225 @@ int main(int argc, char *argv[])
     profile_store_persconffiles (TRUE);
 
     /* Read the profile independent recent file.  We have to do this here so we can */
-    /* set the profile before it can be set from the command line parameterts */
+    /* set the profile before it can be set from the command line parameter */
     recent_read_static(&rf_path, &rf_open_errno);
     if (rf_path != NULL && rf_open_errno != 0) {
         simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
                       "Could not open common recent file\n\"%s\": %s.",
                       rf_path, strerror(rf_open_errno));
     }
+    wsApp->emitAppSignal(WiresharkApplication::StaticRecentFilesRead);
+
 
     /* "pre-scan" the command line parameters, if we have "console only"
-       parameters.  We do this so we don't start GTK+ if we're only showing
+       parameters.  We do this so we don't start Qt if we're only showing
        command-line help or version information.
 
-       XXX - this pre-scan is done before we start GTK+, so we haven't
-       run gtk_init() on the arguments.  That means that GTK+ arguments
-       have not been removed from the argument list; those arguments
+        XXX - this pre-scan is done before we start Qt. That means that Qt
+       arguments have not been removed from the argument list; those arguments
        begin with "--", and will be treated as an error by getopt().
 
        We thus ignore errors - *and* set "opterr" to 0 to suppress the
-       error messages. */
+       error messages.*/
+
     opterr = 0;
-    // optind_initial = optind;
+    optind_initial = optind;
     while ((opt = getopt(argc, argv, optstring)) != -1) {
         switch (opt) {
-        case 'C':        /* Configuration Profile */
-            if (profile_exists (optarg, FALSE)) {
-                set_profile_name (optarg);
-            } else {
-                cmdarg_err("Configuration Profile \"%s\" does not exist", optarg);
-                exit(1);
-            }
-            break;
-        case 'D':        /* Print a list of capture devices and exit */
-#ifdef HAVE_LIBPCAP
-            if_list = capture_interface_list(&err, &err_str);
-            if (if_list == NULL) {
-                switch (err) {
-                case CANT_GET_INTERFACE_LIST:
-                    cmdarg_err("%s", err_str);
-                    g_free(err_str);
-                    break;
-
-                case NO_INTERFACES_FOUND:
-                    cmdarg_err("There are no interfaces on which a capture can be done");
-                    break;
+            case 'C':        /* Configuration Profile */
+                if (profile_exists (optarg, FALSE)) {
+                    set_profile_name (optarg);
+                } else {
+                    cmdarg_err("Configuration Profile \"%s\" does not exist", optarg);
+                    exit(1);
                 }
-                exit(2);
-            }
-            capture_opts_print_interfaces(if_list);
-            free_interface_list(if_list);
-            exit(0);
-#else
-            capture_option_specified = TRUE;
-            arg_error = TRUE;
+                break;
+            case 'D':        /* Print a list of capture devices and exit */
+#ifdef HAVE_LIBPCAP
+                if_list = capture_interface_list(&err, &err_str,main_window_update);
+                if (if_list == NULL) {
+                    switch (err) {
+                        case CANT_GET_INTERFACE_LIST:
+                        case DONT_HAVE_PCAP:
+                            cmdarg_err("%s", err_str);
+                            g_free(err_str);
+                            break;
+
+                        case NO_INTERFACES_FOUND:
+                            cmdarg_err("There are no interfaces on which a capture can be done");
+                            break;
+                    }
+                    exit(2);
+                }
+#ifdef _WIN32
+                create_console();
+#endif /* _WIN32 */
+                capture_opts_print_interfaces(if_list);
+                free_interface_list(if_list);
+#ifdef _WIN32
+                destroy_console();
+#endif /* _WIN32 */
+                exit(0);
+#else /* HAVE_LIBPCAP */
+                capture_option_specified = TRUE;
+                arg_error = TRUE;
+#endif /* HAVE_LIBPCAP */
+                break;
+            case 'h':        /* Print help and exit */
+                print_usage(TRUE);
+                exit(0);
+                break;
+#ifdef _WIN32
+            case 'i':
+                if (strcmp(optarg, "-") == 0)
+                    set_stdin_capture(TRUE);
+                break;
 #endif
+            case 'P':        /* Personal file directory path settings - change these before the Preferences and alike are processed */
+                if (!persfilepath_opt(opt, optarg)) {
+                    cmdarg_err("-P flag \"%s\" failed (hint: is it quoted and existing?)", optarg);
+                    exit(2);
+                }
+                break;
+            case 'v':        /* Show version and exit */
+#ifdef _WIN32
+                create_console();
+#endif
+                show_version();
+#ifdef _WIN32
+                destroy_console();
+#endif
+                exit(0);
+                break;
+            case 'X':
+                /*
+                 *  Extension command line options have to be processed before
+                 *  we call epan_init() as they are supposed to be used by dissectors
+                 *  or taps very early in the registration process.
+                 */
+                ex_opt_add(optarg);
+                break;
+            case '?':        /* Ignore errors - the "real" scan will catch them. */
+                break;
+        }
+    }
+
+    /* Init the "Open file" dialog directory */
+    /* (do this after the path settings are processed) */
+
+    /* Read the profile dependent (static part) of the recent file. */
+    /* Only the static part of it will be read, as we don't have the gui now to fill the */
+    /* recent lists which is done in the dynamic part. */
+    /* We have to do this already here, so command line parameters can overwrite these values. */
+    recent_read_profile_static(&rf_path, &rf_open_errno);
+    if (rf_path != NULL && rf_open_errno != 0) {
+        simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
+                      "Could not open recent file\n\"%s\": %s.",
+                      rf_path, g_strerror(rf_open_errno));
+    }
+
+
+    /* Set getopt index back to initial value, so it will start with the
+       first command line parameter again.  Also reset opterr to 1, so that
+       error messages are printed by getopt().
+
+       XXX - this seems to work on most platforms, but time will tell.
+       The Single UNIX Specification says "The getopt() function need
+       not be reentrant", so this isn't guaranteed to work.  The Mac
+       OS X 10.4[.x] getopt() man page says
+
+         In order to use getopt() to evaluate multiple sets of arguments, or to
+         evaluate a single set of arguments multiple times, the variable optreset
+         must be set to 1 before the second and each additional set of calls to
+         getopt(), and the variable optind must be reinitialized.
+
+           ...
+
+         The optreset variable was added to make it possible to call the getopt()
+         function multiple times.  This is an extension to the IEEE Std 1003.2
+         (``POSIX.2'') specification.
+
+       which I think comes from one of the other BSDs.
+
+       XXX - if we want to control all the command-line option errors, so
+       that we can display them where we choose (e.g., in a window), we'd
+       want to leave opterr as 0, and produce our own messages using optopt.
+       We'd have to check the value of optopt to see if it's a valid option
+       letter, in which case *presumably* the error is "this option requires
+       an argument but none was specified", or not a valid option letter,
+       in which case *presumably* the error is "this option isn't valid".
+       Some versions of getopt() let you supply a option string beginning
+       with ':', which means that getopt() will return ':' rather than '?'
+       for "this option requires an argument but none was specified", but
+       not all do. */
+    optind = optind_initial;
+    opterr = 1;
+
+    // Init the main window (and splash)
+    main_w = new(MainWindow);
+    main_w->show();
+    // We may not need a queued connection here but it would seem to make sense
+    // to force the issue.
+    main_w->connect(&ws_app, SIGNAL(openCaptureFile(QString&,QString&,unsigned int)),
+            main_w, SLOT(openCaptureFile(QString&,QString&,unsigned int)));
+
+    while ((opt = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
+        switch (opt) {
+        case 'r':
+            cf_name = new QString(optarg);
             break;
-        case 'h':        /* Print help and exit */
+        case '?':
             print_usage(TRUE);
             exit(0);
             break;
-#ifdef _WIN32
-        case 'i':
-            if (strcmp(optarg, "-") == 0)
-                set_stdin_capture(TRUE);
-            break;
-#endif
-        case 'P':        /* Path settings - change these before the Preferences and alike are processed */
-            status = filesystem_opt(opt, optarg);
-            if(status != 0) {
-                cmdarg_err("-P flag \"%s\" failed (hint: is it quoted and existing?)", optarg);
-                exit(status);
-            }
-            break;
-        case 'v':        /* Show version and exit */
-            show_version();
-            exit(0);
-            break;
-        case 'X':
-            /*
-           *  Extension command line options have to be processed before
-           *  we call epan_init() as they are supposed to be used by dissectors
-           *  or taps very early in the registration process.
-           */
-            ex_opt_add(optarg);
-            break;
-        case '?':        /* Ignore errors - the "real" scan will catch them. */
-            break;
         }
+    }
+
+    if (!arg_error) {
+        argc -= optind;
+        argv += optind;
+        if (argc >= 1) {
+            if (cf_name != NULL) {
+                /*
+                 * Input file name specified with "-r" *and* specified as a regular
+                 * command-line argument.
+                 */
+                cmdarg_err("File name specified both with -r and regular argument");
+                arg_error = TRUE;
+            } else {
+                /*
+                 * Input file name not specified with "-r", and a command-line argument
+                 * was specified; treat it as the input file name.
+                 *
+                 * Yes, this is different from tshark, where non-flag command-line
+                 * arguments are a filter, but this works better on GUI desktops
+                 * where a command can be specified to be run to open a particular
+                 * file - yes, you could have "-r" as the last part of the command,
+                 * but that's a bit ugly.
+                 */
+                cf_name = new QString(g_strdup(argv[0]));
+
+            }
+            argc--;
+            argv++;
+        }
+
+        if (argc != 0) {
+            /*
+             * Extra command line arguments were specified; complain.
+             */
+            cmdarg_err("Invalid argument: %s", argv[0]);
+            arg_error = TRUE;
+        }
+    }
+    if (arg_error) {
+#ifndef HAVE_LIBPCAP
+        if (capture_option_specified) {
+            cmdarg_err("This version of Wireshark was not built with support for capturing packets.");
+        }
+#endif
+        print_usage(FALSE);
+        exit(1);
     }
 
     /* Init the "Open file" dialog directory */
@@ -787,6 +858,11 @@ int main(int argc, char *argv[])
     } else {
       wsApp->setLastOpenDir(get_persdatafile_dir());
     }
+
+#ifdef Q_OS_UNIX
+    // Replicates behavior in gtk_init();
+    signal(SIGPIPE, SIG_IGN);
+#endif
 
 #ifdef HAVE_LIBPCAP
     capture_callback_add(main_capture_callback, NULL);
@@ -828,7 +904,31 @@ int main(int argc, char *argv[])
 
     /* Set the initial values in the capture options. This might be overwritten
        by preference settings and then again by the command line parameters. */
-    capture_opts_init(&global_capture_opts, &cfile);
+    capture_opts_init(&global_capture_opts);
+
+    capture_session_init(&global_capture_session, (void *)&cfile);
+#endif
+
+    init_report_err(failure_alert_box, open_failure_alert_box,
+                    read_failure_alert_box, write_failure_alert_box);
+
+    init_open_routines();
+
+#ifdef HAVE_PLUGINS
+    /* Register all the plugin types we have. */
+    epan_register_plugin_types(); /* Types known to libwireshark */
+    wtap_register_plugin_types(); /* Types known to libwiretap */
+    codec_register_plugin_types(); /* Types known to libcodec */
+
+    /* Scan for plugins.  This does *not* call their registration routines;
+       that's done later. */
+    scan_plugins();
+
+    /* Register all libwiretap plugin modules. */
+    register_all_wiretap_modules();
+
+    /* Register all audio codec plugins. */
+    register_all_codecs();
 #endif
 
     /* Register all dissectors; we must do this before checking for the
@@ -836,10 +936,7 @@ int main(int argc, char *argv[])
        dissectors, and we must do it before we read the preferences, in
        case any dissectors register preferences. */
     epan_init(register_all_protocols,register_all_protocol_handoffs,
-              splash_update, NULL,
-              failure_alert_box,open_failure_alert_box,read_failure_alert_box,
-              write_failure_alert_box
-              );
+              splash_update, NULL);
 
     splash_update(RA_LISTENERS, NULL, NULL);
 
@@ -851,17 +948,50 @@ int main(int argc, char *argv[])
             by stats_tree_stat.c and need to registered before that */
 
     g_log(NULL, G_LOG_LEVEL_DEBUG, "plugin_dir: %s", get_plugin_dir());
-  #ifdef HAVE_PLUGINS
+#ifdef HAVE_PLUGINS
     register_all_plugin_tap_listeners();
-  #endif
+#endif
 
-//    register_all_tap_listeners();
+    register_all_tap_listeners();
+
+    if (ex_opt_count("read_format") > 0) {
+        in_file_type = open_info_name_to_type(ex_opt_get_next("read_format"));
+    }
 
     splash_update(RA_PREFERENCES, NULL, NULL);
-
     prefs_p = ws_app.readConfigurationFiles (&gdp_path, &dp_path);
+
+    // Initialize our language
+
+    /*TODO: Enhance... may be get the locale from the enum gui_qt_language */
+    switch(prefs_p->gui_qt_language){
+        case 1: /* English */
+        locale = "en";
+        break;
+        case 2: /* French */
+        locale = "fr";
+        break;
+        case 3: /* German */
+        locale = "de";
+        break;
+        case 4: /* Chinese */
+        locale = "zh_CN";
+        break;
+        default: /* Auto-Detect */
+        locale = QLocale::system().name();
+        break;
+    }
+    g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Translator %s", locale.toStdString().c_str());
+    QTranslator translator;
+    translator.load(QString(":/i18n/qtshark_") + locale);
+    wsApp->installTranslator(&translator);
+
+    QTranslator qtTranslator;
+    qtTranslator.load("qt_" + locale, QLibraryInfo::location(QLibraryInfo::TranslationsPath));
+    wsApp->installTranslator(&qtTranslator);
+
     /* Removed thread code:
-     * http://anonsvn.wireshark.org/viewvc/viewvc.cgi?view=rev&revision=35027
+     * https://code.wireshark.org/review/gitweb?p=wireshark.git;a=commit;h=9e277ae6154fd04bf6a0a34ec5655a73e5a736a3
      */
 
     g_log(NULL, G_LOG_LEVEL_DEBUG, "FIX: timestamp types should be set elsewhere");
@@ -869,100 +999,8 @@ int main(int argc, char *argv[])
     timestamp_set_precision(TS_PREC_AUTO_USEC);
     timestamp_set_seconds_type(TS_SECONDS_DEFAULT);
 
-/////////
-
 #ifdef HAVE_LIBPCAP
-    fill_in_local_interfaces();
-//  if (start_capture && list_link_layer_types) {
-//    /* Specifying *both* is bogus. */
-//    cmdarg_err("You can't specify both -L and a live capture.");
-//    exit(1);
-//  }
-
-//  if (list_link_layer_types) {
-//    /* We're supposed to list the link-layer types for an interface;
-//       did the user also specify a capture file to be read? */
-//    if (cf_name) {
-//      /* Yes - that's bogus. */
-//      cmdarg_err("You can't specify -L and a capture file to be read.");
-//      exit(1);
-//    }
-//    /* No - did they specify a ring buffer option? */
-//    if (global_capture_opts.multi_files_on) {
-//      cmdarg_err("Ring buffer requested, but a capture isn't being done.");
-//      exit(1);
-//    }
-//  } else {
-//    /* We're supposed to do a live capture; did the user also specify
-//       a capture file to be read? */
-//    if (start_capture && cf_name) {
-//      /* Yes - that's bogus. */
-//      cmdarg_err("You can't specify both a live capture and a capture file to be read.");
-//      exit(1);
-//    }
-
-//    /* No - was the ring buffer option specified and, if so, does it make
-//       sense? */
-//    if (global_capture_opts.multi_files_on) {
-//      /* Ring buffer works only under certain conditions:
-//      a) ring buffer does not work with temporary files;
-//      b) real_time_mode and multi_files_on are mutually exclusive -
-//         real_time_mode takes precedence;
-//      c) it makes no sense to enable the ring buffer if the maximum
-//         file size is set to "infinite". */
-//      if (global_capture_opts.save_file == NULL) {
-//        cmdarg_err("Ring buffer requested, but capture isn't being saved to a permanent file.");
-//        global_capture_opts.multi_files_on = FALSE;
-//      }
-//      if (!global_capture_opts.has_autostop_filesize && !global_capture_opts.has_file_duration) {
-//        cmdarg_err("Ring buffer requested, but no maximum capture file size or duration were specified.");
-//        /* XXX - this must be redesigned as the conditions changed */
-//      }
-//    }
-//  }
-
-//  if (start_capture || list_link_layer_types) {
-//    /* Did the user specify an interface to use? */
-//    status = capture_opts_trim_iface(&global_capture_opts,
-//        (prefs_p->capture_device) ? get_if_name(prefs_p->capture_device) : NULL);
-//    if (status != 0) {
-//      exit(status);
-//    }
-//  }
-
-//  if (list_link_layer_types) {
-//    /* Get the list of link-layer types for the capture devices. */
-//    if_capabilities_t *caps;
-//    guint i;
-//    interface_t device;
-//    for (i = 0; i < global_capture_opts.all_ifaces->len; i++) {
-
-//      device = g_array_index(global_capture_opts.all_ifaces, interface_t, i);
-//      if (device.selected) {
-//#if defined(HAVE_PCAP_CREATE)
-//        caps = capture_get_if_capabilities(device.name, device.monitor_mode_supported, &err_str);
-//#else
-//        caps = capture_get_if_capabilities(device.name, FALSE, &err_str);
-//#endif
-//        if (caps == NULL) {
-//          cmdarg_err("%s", err_str);
-//          g_free(err_str);
-//          exit(2);
-//        }
-//        if (caps->data_link_types == NULL) {
-//          cmdarg_err("The capture device \"%s\" has no data link types.", device.name);
-//          exit(2);
-//        }
-//#if defined(HAVE_PCAP_CREATE)
-//        capture_opts_print_if_capabilities(caps, device.name, device.monitor_mode_supported);
-//#else
-//        capture_opts_print_if_capabilities(caps, device.name, FALSE);
-//#endif
-//        free_if_capabilities(caps);
-//      }
-//    }
-//    exit(0);
-//  }
+    fill_in_local_interfaces(main_window_update);
 
     capture_opts_trim_snaplen(&global_capture_opts, MIN_PACKET_SIZE);
     capture_opts_trim_ring_num_files(&global_capture_opts);
@@ -999,29 +1037,17 @@ int main(int argc, char *argv[])
 
     build_column_format_array(&cfile.cinfo, prefs_p->num_cols, TRUE);
 
-//    /* read in rc file from global and personal configuration paths. */
-//    rc_file = get_datafile_path(RC_FILE);
-//  #if GTK_CHECK_VERSION(3,0,0)
-//    /* XXX resolve later */
-//  #else
-//    gtk_rc_parse(rc_file);
-//    g_free(rc_file);
-//    rc_file = get_persconffile_path(RC_FILE, FALSE, FALSE);
-//    gtk_rc_parse(rc_file);
-//  #endif
-//    g_free(rc_file);
-
     wsApp->setMonospaceFont(prefs.gui_qt_font_name);
 
 ////////
 
     /* Read the dynamic part of the recent file, as we have the gui now ready for
-  it. */
+       it. */
     recent_read_dynamic(&rf_path, &rf_open_errno);
     if (rf_path != NULL && rf_open_errno != 0) {
-      simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
-                    "Could not open recent file\n\"%s\": %s.",
-                    rf_path, g_strerror(rf_open_errno));
+        simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
+                      "Could not open recent file\n\"%s\": %s.",
+                      rf_path, g_strerror(rf_open_errno));
     }
 
     color_filters_enable(recent.packet_list_colorize);
@@ -1031,34 +1057,33 @@ int main(int argc, char *argv[])
 
 ////////
 
-//    switch (user_font_apply()) {
-//    case FA_SUCCESS:
-//        break;
-//    case FA_FONT_NOT_RESIZEABLE:
-//        /* "user_font_apply()" popped up an alert box. */
-//        /* turn off zooming - font can't be resized */
-//    case FA_FONT_NOT_AVAILABLE:
-//        /* XXX - did we successfully load the un-zoomed version earlier?
-//        If so, this *probably* means the font is available, but not at
-//        this particular zoom level, but perhaps some other failure
-//        occurred; I'm not sure you can determine which is the case,
-//        however. */
-//        /* turn off zooming - zoom level is unavailable */
-//    default:
-//        /* in any other case than FA_SUCCESS, turn off zooming */
-////        recent.gui_zoom_level = 0;
-//        /* XXX: would it be a good idea to disable zooming (insensitive GUI)? */
-//        break;
-//    }
 
 ////////
     color_filters_init();
 
 ////////
 
+#ifdef HAVE_LIBPCAP
+    /* if the user didn't supply a capture filter, use the one to filter out remote connections like SSH */
+    if (!start_capture && !global_capture_opts.default_options.cfilter) {
+        global_capture_opts.default_options.cfilter = g_strdup(get_conn_cfilter());
+    }
+#else /* HAVE_LIBPCAP */
+    ////////
+#endif /* HAVE_LIBPCAP */
+
 //    w->setEnabled(true);
     wsApp->allSystemsGo();
     g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_INFO, "Wireshark is up and ready to go");
+
+    /* user could specify filename, or display filter, or both */
+    if (cf_name != NULL || display_filter != NULL) {
+        if (display_filter == NULL)
+            display_filter = new QString();
+        if (cf_name == NULL)
+            cf_name = new QString();
+        main_w->openCaptureFile(*cf_name, *display_filter, in_file_type);
+    }
 
     g_main_loop_new(NULL, FALSE);
     return wsApp->exec();

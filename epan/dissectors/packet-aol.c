@@ -6,8 +6,6 @@
  * More information on the P3 frame protocol can be found on page 66 of:
  * http://koin.org/files/aol.aim/aol/fdo/manuals/WAOL.doc
  *
- * $Id$
- *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
@@ -130,6 +128,9 @@ static int hf_aol_conn_spd      = -1;
 static int ett_aol              = -1;
 static int ett_aol_data         = -1;
 
+static expert_field ei_aol_pdu_length_bad = EI_INIT;
+static expert_field ei_aol_end_missing = EI_INIT;
+
 /* Prefs */
 static gboolean aol_desegment  = TRUE;
 
@@ -160,7 +161,7 @@ static guint dissect_aol_init(tvbuff_t *tvb, packet_info *pinfo _U_, guint offse
 	proto_tree_add_item(data_tree,hf_aol_udo_timestamp,tvb,offset,4,ENC_LITTLE_ENDIAN); offset += 4;
 
 	dos_ver = tvb_get_ntohs(tvb,offset);
-	proto_tree_add_uint_format(data_tree,hf_aol_dos_ver,tvb,offset,2,dos_ver,"DOS Version: %d.%d",(dos_ver & 0xFF00) >> 8,dos_ver & 0xFF);
+	proto_tree_add_uint_format_value(data_tree,hf_aol_dos_ver,tvb,offset,2,dos_ver,"%d.%d",(dos_ver & 0xFF00) >> 8,dos_ver & 0xFF);
 	offset += 2;
 
 	proto_tree_add_item(data_tree,hf_aol_sess_flags,   tvb,offset,2,ENC_LITTLE_ENDIAN); offset += 2;
@@ -170,7 +171,7 @@ static guint dissect_aol_init(tvbuff_t *tvb, packet_info *pinfo _U_, guint offse
 
 	/* Windows version is a 32-bit value, but only the lower 16 bits are populated */
 	win_ver = tvb_get_ntohs(tvb,offset);
-	proto_tree_add_uint_format(data_tree,hf_aol_win_ver,tvb,offset,2,dos_ver,"Windows Version: %d.%d",(win_ver & 0xFF00) >> 8,win_ver & 0xFF);
+	proto_tree_add_uint_format_value(data_tree,hf_aol_win_ver,tvb,offset,2,dos_ver,"%d.%d",(win_ver & 0xFF00) >> 8,win_ver & 0xFF);
 	offset += 4;
 
 	proto_tree_add_item(data_tree,hf_aol_wmem_mode,    tvb,offset,1,ENC_NA);            offset += 1;
@@ -208,7 +209,7 @@ static guint get_aol_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset) 
 /**
  * Dissect a PDU
  */
-static void dissect_aol_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
+static int dissect_aol_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_) {
 	proto_item    *ti         = NULL;
 	proto_tree    *aol_tree   = NULL;
 	guint          offset     = 0;
@@ -263,7 +264,7 @@ static void dissect_aol_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 					/* Add it */
 					col_append_fstr(pinfo->cinfo,COL_INFO," [Token: '%c%c']",(token & 0xFF00) >> 8,token & 0xFF);
 					proto_item_append_text(ti," [Token: '%c%c']",(token & 0xFF00) >> 8,token & 0xFF);
-					proto_tree_add_uint_format(aol_tree,hf_aol_token,tvb,offset,2,token,"Token: '%c%c'",(token & 0xFF00) >> 8,token & 0xFF);
+					proto_tree_add_uint_format_value(aol_tree,hf_aol_token,tvb,offset,2,token,"'%c%c'",(token & 0xFF00) >> 8,token & 0xFF);
 					offset += 2; pdu_len -= 2;
 				}
 
@@ -281,7 +282,7 @@ static void dissect_aol_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			}
 		} else {
 			/* Malformed packet */
-			expert_add_info_format(pinfo,ti,PI_MALFORMED,PI_ERROR,"[Malformed Packet] pdu length > tvb length");
+			expert_add_info(pinfo,ti,&ei_aol_pdu_length_bad);
 		}
 	}
 
@@ -290,21 +291,21 @@ static void dissect_aol_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		proto_tree_add_item(aol_tree,hf_aol_end,tvb,offset,1,ENC_NA);/* offset += 1;*/
 	} else {
 		/* Malformed Packet */
-		expert_add_info_format(pinfo,ti,PI_MALFORMED,PI_ERROR,"[Malformed Packet] End of frame marker expected");
+		expert_add_info(pinfo,ti,&ei_aol_end_missing);
 	}
 
-	return;
+	return tvb_length(tvb);
 }
 
 /**
  * Dissect a packet
  */
-static int dissect_aol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
+static int dissect_aol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data) {
 	/* Ensure this really is an AOL packet */
 	if (tvb_length(tvb) >= 1 && tvb_get_guint8(tvb,0) != AOL_P3_FRAME_START) return 0;
 
 	/* Dissect PDUs */
-	tcp_dissect_pdus(tvb,pinfo,tree,aol_desegment,9,get_aol_pdu_len,dissect_aol_pdu);
+	tcp_dissect_pdus(tvb,pinfo,tree,aol_desegment,9,get_aol_pdu_len,dissect_aol_pdu,data);
 	return tvb_length(tvb);
 }
 
@@ -365,13 +366,22 @@ void proto_register_aol(void) {
 		&ett_aol_data
 	};
 
+	static ei_register_info ei[] = {
+		{ &ei_aol_pdu_length_bad, { "aol.pdu_length_bad", PI_MALFORMED, PI_ERROR, "pdu length > tvb length", EXPFILL }},
+		{ &ei_aol_end_missing, { "aol.end_missing", PI_PROTOCOL, PI_WARN, "End of frame marker expected", EXPFILL }},
+	};
+
 	/* Module (for prefs) */
 	module_t *aol_module;
+	expert_module_t* expert_aol;
 
 	/* Register the protocol and header fields */
 	proto_aol = proto_register_protocol("America Online","AOL","aol");
 	proto_register_field_array(proto_aol,hf,array_length(hf));
 	proto_register_subtree_array(ett,array_length(ett));
+
+	expert_aol = expert_register_protocol(proto_aol);
+	expert_register_field_array(expert_aol, ei, array_length(ei));
 
 	/* Register prefs */
 	aol_module = prefs_register_protocol(proto_aol,NULL);

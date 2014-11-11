@@ -1,7 +1,5 @@
 /* capture_preferences_frame.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,7 @@
 #include <QSpacerItem>
 
 #include "capture_ui_utils.h"
+#include "ui/ui_util.h"
 
 #include <cstdio>
 #include <epan/prefs-int.h>
@@ -69,11 +68,12 @@ void CapturePreferencesFrame::showEvent(QShowEvent *evt)
 
 void CapturePreferencesFrame::updateWidgets()
 {
+#ifdef HAVE_LIBPCAP
     GList *if_list, *combo_list, *combo_entry;
     int err;
 
     ui->defaultInterfaceComboBox->clear();
-    if_list = capture_interface_list(&err, NULL);
+    if_list = capture_interface_list(&err, NULL,main_window_update);
     combo_list = build_capture_combo_list(if_list, FALSE);
     free_interface_list(if_list);
     for (combo_entry = combo_list; combo_entry != NULL && combo_entry->data != NULL; combo_entry = g_list_next(combo_entry)) {
@@ -91,6 +91,7 @@ void CapturePreferencesFrame::updateWidgets()
     ui->captureRealTimeCheckBox->setChecked(pref_real_time_->stashed_val.boolval);
     ui->captureAutoScrollCheckBox->setChecked(pref_auto_scroll_->stashed_val.boolval);
     ui->captureShowInfoCheckBox->setChecked(pref_show_info_->stashed_val.boolval);
+#endif // HAVE_LIBPCAP
 }
 
 void CapturePreferencesFrame::on_defaultInterfaceComboBox_editTextChanged(const QString &new_iface)

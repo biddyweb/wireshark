@@ -2,8 +2,6 @@
  * Routines for RPKI-Router Protocol dissection (RFC6810)
  * Copyright 2013, Alexis La Goutte <alexis.lagoutte at gmail dot com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,7 +30,9 @@
 
 #include <epan/packet.h>
 #include <epan/prefs.h>
+#include "packet-tcp.h"
 
+void proto_register_rpkirtr(void);
 void proto_reg_handoff_rpkirtr(void);
 
 static int proto_rpkirtr = -1;
@@ -104,7 +104,21 @@ static const true_false_string tfs_flag_type_aw = {
     "Withdrawal"
 };
 
-int dissect_rpkirtr(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+static guint
+get_rpkirtr_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
+{
+  guint32 plen;
+
+  /*
+  * Get the length of the RPKI-RTR packet.
+  */
+  plen = tvb_get_ntohl(tvb, offset+4);
+
+  return plen;
+}
+
+
+static int dissect_rpkirtr_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 
     proto_item *ti = NULL, *ti_flags;
@@ -135,6 +149,7 @@ int dissect_rpkirtr(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
         switch (pdu_type) {
             case RPKI_RTR_SERIAL_NOTIFY_PDU: /* Serial Notify (0) */
             case RPKI_RTR_SERIAL_QUERY_PDU:  /* Serial Query (1)  */
+            case RPKI_RTR_END_OF_DATA_PDU: /* End Of Data (7) */
                 proto_tree_add_item(rpkirtr_tree, hf_rpkirtr_session_id,       tvb, offset, 2, ENC_BIG_ENDIAN);
                 offset += 2;
                 proto_tree_add_item(rpkirtr_tree, hf_rpkirtr_length,           tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -152,7 +167,6 @@ int dissect_rpkirtr(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
                 offset += 4;
                 break;
             case RPKI_RTR_CACHE_RESPONSE_PDU:  /* Cache Response (3) */
-            case RPKI_RTR_END_OF_DATA_PDU: /* End Of Data (7) */
                 proto_tree_add_item(rpkirtr_tree, hf_rpkirtr_session_id,       tvb, offset, 2, ENC_BIG_ENDIAN);
                 offset += 2;
                 proto_tree_add_item(rpkirtr_tree, hf_rpkirtr_length,           tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -225,10 +239,16 @@ int dissect_rpkirtr(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
                 break;
         }
     }
-    return offset;
+
+    return tvb_length(tvb);
 }
 
-
+static int
+dissect_rpkirtr(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
+{
+    tcp_dissect_pdus(tvb, pinfo, tree, 1, 8, get_rpkirtr_pdu_len, dissect_rpkirtr_pdu, data);
+    return tvb_length(tvb);
+}
 
 void
 proto_register_rpkirtr(void)

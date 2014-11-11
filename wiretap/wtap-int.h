@@ -1,7 +1,5 @@
 /* wtap-int.h
  *
- * $Id$
- *
  * Wiretap Library
  * Copyright (c) 1998 by Gilbert Ramirez <gram@alumni.rice.edu>
  *
@@ -44,15 +42,15 @@ int wtap_fstat(wtap *wth, ws_statb64 *statb, int *err);
 
 typedef gboolean (*subtype_read_func)(struct wtap*, int*, char**, gint64*);
 typedef gboolean (*subtype_seek_read_func)(struct wtap*, gint64,
-                                           struct wtap_pkthdr *, guint8*,
-                                           int, int *, char **);
+                                           struct wtap_pkthdr *, Buffer *buf,
+                                           int *, char **);
 /**
  * Struct holding data of the currently read file.
  */
 struct wtap {
     FILE_T                      fh;
     FILE_T                      random_fh;              /**< Secondary FILE_T for random access */
-    int                         file_type;
+    int                         file_type_subtype;
     guint                       snapshot_length;
     struct Buffer               *frame_buffer;
     struct wtap_pkthdr          phdr;
@@ -60,7 +58,8 @@ struct wtap {
     guint                       number_of_interfaces;   /**< The number of interfaces a capture was made on, number of IDB:s in a pcapng file or equivalent(?)*/
     GArray                      *interface_data;        /**< An array holding the interface data from pcapng IDB:s or equivalent(?)*/
 
-    void                        *priv;
+    void                        *priv;          /* this one holds per-file state and is free'd automatically by wtap_close() */
+    void                        *wslua_data;    /* this one holds wslua state info and is not free'd */
 
     subtype_read_func           subtype_read;
     subtype_seek_read_func      subtype_seek_read;
@@ -93,13 +92,14 @@ typedef gboolean (*subtype_close_func)(struct wtap_dumper*, int*);
 
 struct wtap_dumper {
     WFILE_T                 fh;
-    int                     file_type;
+    int                     file_type_subtype;
     int                     snaplen;
     int                     encap;
     gboolean                compressed;
     gint64                  bytes_dumped;
 
-    void                    *priv;
+    void                    *priv;       /* this one holds per-file state and is free'd automatically by wtap_dump_close() */
+    void                    *wslua_data; /* this one holds wslua state info and is not free'd */
 
     subtype_write_func      subtype_write;
     subtype_close_func      subtype_close;
@@ -107,38 +107,20 @@ struct wtap_dumper {
     int                     tsprecision;    /**< timestamp precision of the lower 32bits
                                              * e.g. WTAP_FILE_TSPREC_USEC
                                              */
-    struct addrinfo         *addrinfo_list;
+    addrinfo_lists_t        *addrinfo_lists;        /**< Struct containing lists of resolved addresses */
     struct wtapng_section_s *shb_hdr;
-    guint                   number_of_interfaces;   /**< The number of interfaces a capture was made on, number of IDB:s in a pcapng file or equivalent(?)*/
     GArray                  *interface_data;        /**< An array holding the interface data from pcapng IDB:s or equivalent(?) NULL if not present.*/
 };
 
-gboolean wtap_dump_file_write(wtap_dumper *wdh, const void *buf,
+WS_DLL_PUBLIC gboolean wtap_dump_file_write(wtap_dumper *wdh, const void *buf,
     size_t bufsize, int *err);
-extern gint64 wtap_dump_file_seek(wtap_dumper *wdh, gint64 offset, int whence, int *err);
-extern gint64 wtap_dump_file_tell(wtap_dumper *wdh);
+WS_DLL_PUBLIC gint64 wtap_dump_file_seek(wtap_dumper *wdh, gint64 offset, int whence, int *err);
+WS_DLL_PUBLIC gint64 wtap_dump_file_tell(wtap_dumper *wdh, int *err);
 
 
 extern gint wtap_num_file_types;
 
-/* Macros to byte-swap 64-bit, 32-bit and 16-bit quantities. */
-#define BSWAP64(x) \
-    ((((x)&G_GINT64_CONSTANT(0xFF00000000000000U))>>56) |    \
-         (((x)&G_GINT64_CONSTANT(0x00FF000000000000U))>>40) |    \
-     (((x)&G_GINT64_CONSTANT(0x0000FF0000000000U))>>24) |    \
-     (((x)&G_GINT64_CONSTANT(0x000000FF00000000U))>>8) |    \
-     (((x)&G_GINT64_CONSTANT(0x00000000FF000000U))<<8) |    \
-     (((x)&G_GINT64_CONSTANT(0x0000000000FF0000U))<<24) |    \
-     (((x)&G_GINT64_CONSTANT(0x000000000000FF00U))<<40) |    \
-     (((x)&G_GINT64_CONSTANT(0x00000000000000FFU))<<56))
-#define    BSWAP32(x) \
-    ((((x)&0xFF000000)>>24) | \
-     (((x)&0x00FF0000)>>8) | \
-     (((x)&0x0000FF00)<<8) | \
-     (((x)&0x000000FF)<<24))
-#define    BSWAP16(x) \
-     ((((x)&0xFF00)>>8) | \
-      (((x)&0x00FF)<<8))
+#include <wsutil/pint.h>
 
 /* Macros to byte-swap possibly-unaligned 64-bit, 32-bit and 16-bit quantities;
  * they take a pointer to the quantity, and byte-swap it in place.
@@ -177,82 +159,6 @@ extern gint wtap_num_file_types;
         (p)[0] = tmp;      \
     }
 
-/* Turn host-byte-order values into little-endian values. */
-#define htoles(s) GUINT16_TO_LE(s)
-#define htolel(l) GUINT32_TO_LE(l)
-#define htolell(ll) GUINT64_TO_LE(ll)
-
-/* Pointer versions of ntohs and ntohl.  Given a pointer to a member of a
- * byte array, returns the value of the two or four bytes at the pointer.
- * The pletoh[sl] versions return the little-endian representation.
- * We also provide pntohll and pletohll, which extract 64-bit integral
- * quantities.
- *
- * These will work regardless of the byte alignment of the pointer.
- */
-
-#ifndef pntohs
-#define pntohs(p)  ((guint16)                       \
-                    ((guint16)*((const guint8 *)(p)+0)<<8|  \
-                     (guint16)*((const guint8 *)(p)+1)<<0))
-#endif
-
-#ifndef pntoh24
-#define pntoh24(p)  ((guint32)*((const guint8 *)(p)+0)<<16| \
-                     (guint32)*((const guint8 *)(p)+1)<<8|  \
-                     (guint32)*((const guint8 *)(p)+2)<<0)
-#endif
-
-#ifndef pntohl
-#define pntohl(p)  ((guint32)*((const guint8 *)(p)+0)<<24|  \
-                    (guint32)*((const guint8 *)(p)+1)<<16|  \
-                    (guint32)*((const guint8 *)(p)+2)<<8|   \
-                    (guint32)*((const guint8 *)(p)+3)<<0)
-#endif
-
-#ifndef pntohll
-#define pntohll(p)  ((guint64)*((const guint8 *)(p)+0)<<56|  \
-                     (guint64)*((const guint8 *)(p)+1)<<48|  \
-                     (guint64)*((const guint8 *)(p)+2)<<40|  \
-                     (guint64)*((const guint8 *)(p)+3)<<32|  \
-                     (guint64)*((const guint8 *)(p)+4)<<24|  \
-                     (guint64)*((const guint8 *)(p)+5)<<16|  \
-                     (guint64)*((const guint8 *)(p)+6)<<8|   \
-                     (guint64)*((const guint8 *)(p)+7)<<0)
-#endif
-
-
-#ifndef pletohs
-#define pletohs(p) ((guint16)                       \
-                    ((guint16)*((const guint8 *)(p)+1)<<8|  \
-                     (guint16)*((const guint8 *)(p)+0)<<0))
-#endif
-
-#ifndef pletoh24
-#define pletoh24(p) ((guint32)*((const guint8 *)(p)+2)<<16|  \
-                     (guint32)*((const guint8 *)(p)+1)<<8|  \
-                     (guint32)*((const guint8 *)(p)+0)<<0)
-#endif
-
-
-#ifndef pletohl
-#define pletohl(p) ((guint32)*((const guint8 *)(p)+3)<<24|  \
-                    (guint32)*((const guint8 *)(p)+2)<<16|  \
-                    (guint32)*((const guint8 *)(p)+1)<<8|   \
-                    (guint32)*((const guint8 *)(p)+0)<<0)
-#endif
-
-
-#ifndef pletohll
-#define pletohll(p) ((guint64)*((const guint8 *)(p)+7)<<56|  \
-                     (guint64)*((const guint8 *)(p)+6)<<48|  \
-                     (guint64)*((const guint8 *)(p)+5)<<40|  \
-                     (guint64)*((const guint8 *)(p)+4)<<32|  \
-                     (guint64)*((const guint8 *)(p)+3)<<24|  \
-                     (guint64)*((const guint8 *)(p)+2)<<16|  \
-                     (guint64)*((const guint8 *)(p)+1)<<8|   \
-                     (guint64)*((const guint8 *)(p)+0)<<0)
-#endif
 
 /* Pointer routines to put items out in a particular byte order.
  * These will work regardless of the byte alignment of the pointer.
@@ -365,6 +271,20 @@ extern gint wtap_num_file_types;
 
 /*** get GSList of all compressed file extensions ***/
 GSList *wtap_get_compressed_file_extensions(void);
+
+/*
+ * Read packet data into a Buffer, growing the buffer as necessary.
+ *
+ * This returns an error on a short read, even if the short read hit
+ * the EOF immediately.  (The assumption is that each packet has a
+ * header followed by raw packet data, and that we've already read the
+ * header, so if we get an EOF trying to read the packet data, the file
+ * has been cut short, even if the read didn't read any data at all.)
+ */
+WS_DLL_PUBLIC
+gboolean
+wtap_read_packet_bytes(FILE_T fh, Buffer *buf, guint length, int *err,
+    gchar **err_info);
 
 #endif /* __WTAP_INT_H__ */
 

@@ -1,18 +1,15 @@
 /* DO NOT EDIT
 	This filter was automatically generated
 	from frsrpc.idl and frsrpc.cnf.
-	
+
 	Pidl is a perl based IDL compiler for DCE/RPC idl files. 
 	It is maintained by the Samba team, not the Wireshark team.
 	Instructions on how to download and install Pidl can be 
 	found at http://wiki.wireshark.org/Pidl
-
-	$Id$
 */
 
 
 #include "config.h"
-
 #ifdef _MSC_VER
 #pragma warning(disable:4005)
 #pragma warning(disable:4013)
@@ -235,12 +232,12 @@ static e_uuid_t uuid_dcerpc_frsrpc = {
 };
 static guint16 ver_dcerpc_frsrpc = 1;
 
-static int frsrpc_dissect_element_CommPktChunkGuidName_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkGuidName_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkGuidName_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkGuidName_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktGSVN_vsn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktGSVN_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkGuidName_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkGuidName_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkGuidName_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkGuidName_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktGSVN_vsn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktGSVN_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
 static const true_false_string frsrpc_CommPktCoCmdFlags_FRSRPC_CO_FLAG_ABORT_CO_tfs = {
    "FRSRPC_CO_FLAG_ABORT_CO is SET",
    "FRSRPC_CO_FLAG_ABORT_CO is NOT SET",
@@ -425,81 +422,81 @@ const value_string frsrpc_frsrpc_CommPktCoCmdLocationCmd_vals[] = {
 	{ FRSRPC_CO_LOCATION_DIR_NO_CMD, "FRSRPC_CO_LOCATION_DIR_NO_CMD" },
 { 0, NULL }
 };
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_sequence_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_flags(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_iflags(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_status(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_content_cmd(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_location_cmd(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_file_attributes(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_file_version_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_partern_ack_sequence_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_not_used(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_file_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_file_offset(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_frs_vsn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_file_usn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_jrnl_usn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_jrnl_first_usn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_original_replica_num(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_new_replica_num(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_change_order_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_originator_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_file_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_old_parent_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_new_parent_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_connection_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_ack_version(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare2ul1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare1guid_p1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare1guid_p2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare2guid_p1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare3guid_p2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare1wcs(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare2wcs(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_extension(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare2bin(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_event_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_file_name_length(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_padding1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_padding2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_padding3(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderCommand_padding4(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_sequence_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_flags(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_iflags(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_status(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_content_cmd(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_location_cmd(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_file_attributes(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_file_version_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_partern_ack_sequence_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_not_used(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_file_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_file_offset(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_frs_vsn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_file_usn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_jrnl_usn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_jrnl_first_usn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_original_replica_num(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_new_replica_num(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_change_order_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_originator_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_file_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_old_parent_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_new_parent_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_connection_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_ack_version(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare2ul1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare1guid_p1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare1guid_p2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare2guid_p1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare3guid_p2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare1wcs(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare2wcs(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_extension(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_spare2bin(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_event_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_file_name_length(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_padding1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_padding2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_padding3(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderCommand_padding4(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
 const value_string frsrpc_frsrpc_CommPktDataExtensionType_vals[] = {
 	{ FRSRPC_DATA_EXTENSION_TERMINATOR, "FRSRPC_DATA_EXTENSION_TERMINATOR" },
 	{ FRSRPC_DATA_EXTENSION_MD5_CHECKSUM, "FRSRPC_DATA_EXTENSION_MD5_CHECKSUM" },
 	{ FRSRPC_DATA_EXTENSION_RETRY_TIMEOUT, "FRSRPC_DATA_EXTENSION_RETRY_TIMEOUT" },
 { 0, NULL }
 };
-static int frsrpc_dissect_element_CommPktDataExtensionChecksum_prefix_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktDataExtensionChecksum_prefix_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktDataExtensionChecksum_data(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktDataExtensionChecksum_data_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_prefix_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_prefix_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_count(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_not_used(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_first_try_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktDataExtensionChecksum_prefix_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktDataExtensionChecksum_prefix_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktDataExtensionChecksum_data(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktDataExtensionChecksum_data_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_prefix_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_prefix_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_count(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_not_used(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_first_try_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
 const value_string frsrpc_frsrpc_CommPktCoRecordExtensionMajor_vals[] = {
 	{ FRSRPC_CO_RECORD_EXTENSION_VERSION_WIN2K, "FRSRPC_CO_RECORD_EXTENSION_VERSION_WIN2K" },
 	{ FRSRPC_CO_RECORD_EXTENSION_VERSION_1, "FRSRPC_CO_RECORD_EXTENSION_VERSION_1" },
 { 0, NULL }
 };
-static int frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_field_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_major(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset_count(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset_last(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_data_checksum(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_field_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_major(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset_count(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset0(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset_last(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_not_used(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_data_checksum(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_data_retry_timeout(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_field_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_major(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset_count(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset_last(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_data_checksum(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_field_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_major(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset_count(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset0(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset_last(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_not_used(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_data_checksum(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChangeOrderRecordExtension_data_retry_timeout(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
 const value_string frsrpc_frsrpc_CommPktCommand_vals[] = {
 	{ FRSRPC_COMMAND_REMOTE_CO, "FRSRPC_COMMAND_REMOTE_CO" },
 	{ FRSRPC_COMMAND_RECEIVING_STATE, "FRSRPC_COMMAND_RECEIVING_STATE" },
@@ -541,41 +538,41 @@ const value_string frsrpc_frsrpc_CommPktChunkType_vals[] = {
 	{ FRSRPC_COMM_PKT_CHUNK_EOP, "FRSRPC_COMM_PKT_CHUNK_EOP" },
 { 0, NULL }
 };
-static int frsrpc_dissect_element_CommPktChunkData_blob(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_bop(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_command(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_to(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_from(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_replica(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_connection(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_join_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_join_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_last_join_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_vvector(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_vvector_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_join_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_join_time_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_replica_version_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_replica_version_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_compression_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_block(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_block_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_file_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_file_offset(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_gvsn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_gvsn_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_co_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_co_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_co_sequnence_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_remote_co(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_remote_co_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_co_ext_win2k(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_co_ext_win2k_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_co_extension2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunkData_bopend(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_CommPktChunk_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_, guint1632 *type);
-static int frsrpc_dissect_element_CommPktChunk_data(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_, guint1632 *type);
-static int frsrpc_dissect_element_CommPktChunk_data_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_, guint1632 *type);
+static int frsrpc_dissect_element_CommPktChunkData_blob(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_bop(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_command(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_to(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_from(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_replica(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_connection(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_join_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_join_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_last_join_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_vvector(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_vvector_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_join_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_join_time_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_replica_version_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_replica_version_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_compression_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_block(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_block_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_file_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_file_offset(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_gvsn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_gvsn_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_co_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_co_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_co_sequnence_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_remote_co(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_remote_co_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_co_ext_win2k(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_co_ext_win2k_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_co_extension2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunkData_bopend(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_CommPktChunk_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, guint1632 *type);
+static int frsrpc_dissect_element_CommPktChunk_data(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, guint1632 *type);
+static int frsrpc_dissect_element_CommPktChunk_data_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, guint1632 *type);
 const value_string frsrpc_frsrpc_CommPktMajor_vals[] = {
 	{ FRSRPC_COMM_PKT_MAJOR_0, "FRSRPC_COMM_PKT_MAJOR_0" },
 { 0, NULL }
@@ -593,62 +590,61 @@ const value_string frsrpc_frsrpc_CommPktMinor_vals[] = {
 	{ FRSRPC_COMM_PKT_MINOR_9, "FRSRPC_COMM_PKT_MINOR_9" },
 { 0, NULL }
 };
-static int frsrpc_dissect_element_FrsSendCommPktReq_major(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsSendCommPktReq_minor(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsSendCommPktReq_cs_id(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsSendCommPktReq_memory_len(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsSendCommPktReq_pkt_len(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsSendCommPktReq_upk_len(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsSendCommPktReq_ctr(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsSendCommPktReq_ctr_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsSendCommPktReq_ctr__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsSendCommPktReq_data_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsSendCommPktReq_data_handle(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsSendCommPktReq_major(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsSendCommPktReq_minor(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsSendCommPktReq_cs_id(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsSendCommPktReq_memory_len(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsSendCommPktReq_pkt_len(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsSendCommPktReq_upk_len(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsSendCommPktReq_ctr(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsSendCommPktReq_ctr_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsSendCommPktReq_ctr__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsSendCommPktReq_data_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsSendCommPktReq_data_handle(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
 const value_string frsrpc_frsrpc_PartnerAuthLevel_vals[] = {
 	{ FRSRPC_PARENT_AUTH_LEVEL_ENCRYPTED_KERBEROS, "FRSRPC_PARENT_AUTH_LEVEL_ENCRYPTED_KERBEROS" },
 	{ FRSRPC_PARENT_AUTH_LEVEL_NO_AUTHENTICATION, "FRSRPC_PARENT_AUTH_LEVEL_NO_AUTHENTICATION" },
 { 0, NULL }
 };
-static int frsrpc_dissect_element_FrsSendCommPkt_req(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsVerifyPromotionParent_parent_account(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsVerifyPromotionParent_parent_account_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsVerifyPromotionParent_parent_password(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsVerifyPromotionParent_parent_password_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_type_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsVerifyPromotionParent_partner_auth_level(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsVerifyPromotionParent___ndr_guid_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_parent_account(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_parent_account_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_parent_password(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_parent_password_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_replica_set_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_replica_set_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_replica_set_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_replica_set_type_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_connection_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_connection_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_partner_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_partner_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_partner_princ_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_partner_princ_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_partner_auth_level(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent___ndr_guid_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_connection_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_connection_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_connection_guid__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_partner_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_partner_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_partner_guid__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_parent_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_parent_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
-static int frsrpc_dissect_element_FrsStartPromotionParent_parent_guid__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsSendCommPkt_req(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsVerifyPromotionParent_parent_account(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsVerifyPromotionParent_parent_account_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsVerifyPromotionParent_parent_password(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsVerifyPromotionParent_parent_password_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_type_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsVerifyPromotionParent_partner_auth_level(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsVerifyPromotionParent___ndr_guid_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_parent_account(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_parent_account_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_parent_password(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_parent_password_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_replica_set_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_replica_set_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_replica_set_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_replica_set_type_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_connection_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_connection_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_partner_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_partner_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_partner_princ_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_partner_princ_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_partner_auth_level(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent___ndr_guid_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_connection_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_connection_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_connection_guid__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_partner_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_partner_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_partner_guid__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_parent_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_parent_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
+static int frsrpc_dissect_element_FrsStartPromotionParent_parent_guid__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_);
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_file_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_file_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
 	int conformant = di->conformant_run;
 	if (!conformant) {
 		guint32 soffset = dissect_null_term_wstring(tvb, offset, pinfo, tree, drep, hf_frsrpc_CommPktChangeOrderCommand_file_name, 0);
@@ -659,14 +655,13 @@ frsrpc_dissect_element_CommPktChangeOrderCommand_file_name(tvbuff_t *tvb _U_, in
 	return offset;
 }
 int
-frsrpc_dissect_struct_CommPktChunk(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
+frsrpc_dissect_struct_CommPktChunk(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
 {
 	guint1632 type = 0;
 	int i = 0;
 	const char *s = NULL;
 	proto_item *item = NULL;
 	proto_tree *tree = NULL;
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
 	int old_offset;
 	old_offset = offset;
 	if (parent_tree) {
@@ -674,8 +669,8 @@ frsrpc_dissect_struct_CommPktChunk(tvbuff_t *tvb _U_, int offset _U_, packet_inf
 		tree = proto_item_add_subtree(item, ett_frsrpc_frsrpc_CommPktChunk);
 	}
 	
-	offset = frsrpc_dissect_element_CommPktChunk_type(tvb, offset, pinfo, tree, drep, &type);
-	offset = frsrpc_dissect_element_CommPktChunk_data(tvb, offset, pinfo, tree, drep, &type);
+	offset = frsrpc_dissect_element_CommPktChunk_type(tvb, offset, pinfo, tree, di, drep, &type);
+	offset = frsrpc_dissect_element_CommPktChunk_data(tvb, offset, pinfo, tree, di, drep, &type);
 	for (i=0; frsrpc_frsrpc_CommPktChunkType_vals[i].strptr; i++) {
 		if (frsrpc_frsrpc_CommPktChunkType_vals[i].value == type) {
 			s = frsrpc_frsrpc_CommPktChunkType_vals[i].strptr;
@@ -691,7 +686,7 @@ frsrpc_dissect_struct_CommPktChunk(tvbuff_t *tvb _U_, int offset _U_, packet_inf
 	return offset;
 }
 int
-frsrpc_dissect_enum_CommPktCommand(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
+frsrpc_dissect_enum_CommPktCommand(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
 {
 	guint32 parameter=0;
 	int i = 0;
@@ -699,13 +694,13 @@ frsrpc_dissect_enum_CommPktCommand(tvbuff_t *tvb _U_, int offset _U_, packet_inf
 	if(param){
 		parameter=(guint32)*param;
 	}
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, &parameter);
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, &parameter);
 	for (i=0; frsrpc_frsrpc_CommPktCommand_vals[i].strptr != NULL; i++) {
 		if (frsrpc_frsrpc_CommPktCommand_vals[i].value == parameter) {
 			s = frsrpc_frsrpc_CommPktCommand_vals[i].strptr;
 		}
 	}
-	if (s!= NULL && check_col(pinfo->cinfo, COL_INFO))
+	if (s!= NULL)
 		col_append_fstr(pinfo->cinfo, COL_INFO, ",command = %s",
 				s);
 	if(param){
@@ -714,18 +709,17 @@ frsrpc_dissect_enum_CommPktCommand(tvbuff_t *tvb _U_, int offset _U_, packet_inf
 	return offset;
 }
 static int
-frsrpc_dissect_struct_frsrpc_CommPktChunkCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, guint8 *drep _U_, int hf_index, guint32 param _U_)
+frsrpc_dissect_struct_frsrpc_CommPktChunkCtr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index, guint32 param _U_)
 {
 	guint32 nb_chunk = 0;
 	guint32 remaining = tvb_length_remaining(tvb, offset);
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
 	int align_status = di->no_align;
 	if (remaining > 0) {
 		proto_item *item = proto_tree_add_item(tree, hf_index, tvb, offset, -1, TRUE);
 		proto_tree *subtree = proto_item_add_subtree(item, ett_ChunkCtr);
 		di->no_align = 1;
 		for(nb_chunk = 0; remaining > 0; nb_chunk++) {
-			offset = frsrpc_dissect_struct_CommPktChunk(tvb, offset, pinfo, subtree, drep, hf_CommPktChunk, param);
+			offset = frsrpc_dissect_struct_CommPktChunk(tvb, offset, pinfo, subtree, di, drep, hf_CommPktChunk, param);
 			remaining = tvb_length_remaining(tvb, offset);
 		}
 		di->no_align = align_status;
@@ -740,51 +734,55 @@ frsrpc_dissect_struct_frsrpc_CommPktChunkCtr(tvbuff_t *tvb, int offset, packet_i
 /* IDL: } */
 
 static int
-frsrpc_dissect_element_CommPktChunkGuidName_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkGuidName_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
-	guint32 size;
+	guint3264 size;
 	int conformant = di->conformant_run;
 	tvbuff_t *subtvb;
 
 	if (!conformant) {
-		offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkGuidName_guid_, &size);
-		subtvb = tvb_new_subset(tvb, offset, size, -1);
-		frsrpc_dissect_element_CommPktChunkGuidName_guid_(subtvb, 0, pinfo, tree, drep);
-		offset += size;
+		guint32 saved_flags = di->call_data->flags;
+		offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkGuidName_guid_, &size);
+		di->call_data->flags &= ~DCERPC_IS_NDR64;
+		subtvb = tvb_new_subset(tvb, offset, (gint)size, -1);
+		frsrpc_dissect_element_CommPktChunkGuidName_guid_(subtvb, 0, pinfo, tree, di, drep);
+		offset += (gint)size;
+		di->call_data->flags = saved_flags;
 	}
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkGuidName_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkGuidName_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkGuidName_guid, NULL);
+	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkGuidName_guid, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkGuidName_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkGuidName_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
-	guint32 size;
+	guint3264 size;
 	int conformant = di->conformant_run;
 	tvbuff_t *subtvb;
 
 	if (!conformant) {
-		offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkGuidName_name_, &size);
-		subtvb = tvb_new_subset(tvb, offset, size, -1);
-		frsrpc_dissect_element_CommPktChunkGuidName_name_(subtvb, 0, pinfo, tree, drep);
-		offset += size;
+		guint32 saved_flags = di->call_data->flags;
+		offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkGuidName_name_, &size);
+		di->call_data->flags &= ~DCERPC_IS_NDR64;
+		subtvb = tvb_new_subset(tvb, offset, (gint)size, -1);
+		frsrpc_dissect_element_CommPktChunkGuidName_name_(subtvb, 0, pinfo, tree, di, drep);
+		offset += (gint)size;
+		di->call_data->flags = saved_flags;
 	}
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkGuidName_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkGuidName_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	offset = dissect_null_term_wstring(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkGuidName_name , 0);
 
@@ -792,7 +790,7 @@ frsrpc_dissect_element_CommPktChunkGuidName_name_(tvbuff_t *tvb _U_, int offset 
 }
 
 int
-frsrpc_dissect_struct_CommPktChunkGuidName(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
+frsrpc_dissect_struct_CommPktChunkGuidName(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, dcerpc_info *di _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
 {
 	proto_item *item = NULL;
 	proto_tree *tree = NULL;
@@ -802,13 +800,13 @@ frsrpc_dissect_struct_CommPktChunkGuidName(tvbuff_t *tvb _U_, int offset _U_, pa
 	old_offset = offset;
 
 	if (parent_tree) {
-		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, TRUE);
+		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, ENC_NA);
 		tree = proto_item_add_subtree(item, ett_frsrpc_frsrpc_CommPktChunkGuidName);
 	}
 	
-	offset = frsrpc_dissect_element_CommPktChunkGuidName_guid(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChunkGuidName_guid(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChunkGuidName_name(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChunkGuidName_name(tvb, offset, pinfo, tree, di, drep);
 
 
 	proto_item_set_len(item, offset-old_offset);
@@ -824,27 +822,26 @@ frsrpc_dissect_struct_CommPktChunkGuidName(tvbuff_t *tvb _U_, int offset _U_, pa
 /* IDL: } */
 
 static int
-frsrpc_dissect_element_CommPktGSVN_vsn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktGSVN_vsn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktGSVN_vsn, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktGSVN_vsn, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktGSVN_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktGSVN_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktGSVN_guid, NULL);
+	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktGSVN_guid, NULL);
 
 	return offset;
 }
 
 int
-frsrpc_dissect_struct_CommPktGSVN(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
+frsrpc_dissect_struct_CommPktGSVN(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, dcerpc_info *di _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
 {
 	proto_item *item = NULL;
 	proto_tree *tree = NULL;
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
 	int old_offset;
 
 	ALIGN_TO_8_BYTES;
@@ -852,13 +849,13 @@ frsrpc_dissect_struct_CommPktGSVN(tvbuff_t *tvb _U_, int offset _U_, packet_info
 	old_offset = offset;
 
 	if (parent_tree) {
-		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, TRUE);
+		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, ENC_NA);
 		tree = proto_item_add_subtree(item, ett_frsrpc_frsrpc_CommPktGSVN);
 	}
 	
-	offset = frsrpc_dissect_element_CommPktGSVN_vsn(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktGSVN_vsn(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktGSVN_guid(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktGSVN_guid(tvb, offset, pinfo, tree, di, drep);
 
 
 	proto_item_set_len(item, offset-old_offset);
@@ -894,7 +891,7 @@ frsrpc_dissect_struct_CommPktGSVN(tvbuff_t *tvb _U_, int offset _U_, packet_info
 /* IDL: } */
 
 int
-frsrpc_dissect_bitmap_CommPktCoCmdFlags(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
+frsrpc_dissect_bitmap_CommPktCoCmdFlags(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, dcerpc_info *di _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
 {
 	proto_item *item = NULL;
 	proto_tree *tree = NULL;
@@ -903,11 +900,11 @@ frsrpc_dissect_bitmap_CommPktCoCmdFlags(tvbuff_t *tvb _U_, int offset _U_, packe
 	ALIGN_TO_4_BYTES;
 
 	if (parent_tree) {
-		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, 4, TRUE);
+		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, 4, DREP_ENC_INTEGER(drep));
 		tree = proto_item_add_subtree(item,ett_frsrpc_frsrpc_CommPktCoCmdFlags);
 	}
 
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, NULL, drep, -1, &flags);
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, NULL, di, drep, -1, &flags);
 	proto_item_append_text(item, ": ");
 
 	if (!flags)
@@ -1072,7 +1069,7 @@ frsrpc_dissect_bitmap_CommPktCoCmdFlags(tvbuff_t *tvb _U_, int offset _U_, packe
 /* IDL: } */
 
 int
-frsrpc_dissect_bitmap_CommPktCoCmdIFlags(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
+frsrpc_dissect_bitmap_CommPktCoCmdIFlags(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, dcerpc_info *di _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
 {
 	proto_item *item = NULL;
 	proto_tree *tree = NULL;
@@ -1081,11 +1078,11 @@ frsrpc_dissect_bitmap_CommPktCoCmdIFlags(tvbuff_t *tvb _U_, int offset _U_, pack
 	ALIGN_TO_4_BYTES;
 
 	if (parent_tree) {
-		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, 4, TRUE);
+		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, 4, DREP_ENC_INTEGER(drep));
 		tree = proto_item_add_subtree(item,ett_frsrpc_frsrpc_CommPktCoCmdIFlags);
 	}
 
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, NULL, drep, -1, &flags);
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, NULL, di, drep, -1, &flags);
 	proto_item_append_text(item, ": ");
 
 	if (!flags)
@@ -1149,13 +1146,13 @@ frsrpc_dissect_bitmap_CommPktCoCmdIFlags(tvbuff_t *tvb _U_, int offset _U_, pack
 /* IDL: } */
 
 int
-frsrpc_dissect_enum_CommPktCoCmdStatus(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
+frsrpc_dissect_enum_CommPktCoCmdStatus(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
 {
 	guint32 parameter=0;
 	if(param){
 		parameter=(guint32)*param;
 	}
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, &parameter);
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, &parameter);
 	if(param){
 		*param=(guint32)parameter;
 	}
@@ -1181,7 +1178,7 @@ frsrpc_dissect_enum_CommPktCoCmdStatus(tvbuff_t *tvb _U_, int offset _U_, packet
 /* IDL: } */
 
 int
-frsrpc_dissect_bitmap_CommPktCoCmdContentCmd(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
+frsrpc_dissect_bitmap_CommPktCoCmdContentCmd(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
 {
 	proto_item *item = NULL;
 	proto_tree *tree = NULL;
@@ -1190,11 +1187,11 @@ frsrpc_dissect_bitmap_CommPktCoCmdContentCmd(tvbuff_t *tvb _U_, int offset _U_, 
 	ALIGN_TO_4_BYTES;
 
 	if (parent_tree) {
-		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, 4, TRUE);
+		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, 4, DREP_ENC_INTEGER(drep));
 		tree = proto_item_add_subtree(item,ett_frsrpc_frsrpc_CommPktCoCmdContentCmd);
 	}
 
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, NULL, drep, -1, &flags);
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, NULL, di, drep, -1, &flags);
 	proto_item_append_text(item, ": ");
 
 	if (!flags)
@@ -1340,13 +1337,13 @@ frsrpc_dissect_bitmap_CommPktCoCmdContentCmd(tvbuff_t *tvb _U_, int offset _U_, 
 /* IDL: } */
 
 int
-frsrpc_dissect_enum_CommPktCoCmdLocationCmd(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
+frsrpc_dissect_enum_CommPktCoCmdLocationCmd(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
 {
 	guint32 parameter=0;
 	if(param){
 		parameter=(guint32)*param;
 	}
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, &parameter);
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, &parameter);
 	if(param){
 		*param=(guint32)parameter;
 	}
@@ -1399,331 +1396,330 @@ frsrpc_dissect_enum_CommPktCoCmdLocationCmd(tvbuff_t *tvb _U_, int offset _U_, p
 /* IDL: } */
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_sequence_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_sequence_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_sequence_number, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_sequence_number, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_flags(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_flags(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_bitmap_CommPktCoCmdFlags(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_flags, 0);
+	offset = frsrpc_dissect_bitmap_CommPktCoCmdFlags(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_flags, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_iflags(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_iflags(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_bitmap_CommPktCoCmdIFlags(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_iflags, 0);
+	offset = frsrpc_dissect_bitmap_CommPktCoCmdIFlags(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_iflags, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_status(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_status(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_enum_CommPktCoCmdStatus(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_status, 0);
+	offset = frsrpc_dissect_enum_CommPktCoCmdStatus(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_status, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_content_cmd(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_content_cmd(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_bitmap_CommPktCoCmdContentCmd(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_content_cmd, 0);
+	offset = frsrpc_dissect_bitmap_CommPktCoCmdContentCmd(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_content_cmd, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_location_cmd(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_location_cmd(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_enum_CommPktCoCmdLocationCmd(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_location_cmd, 0);
+	offset = frsrpc_dissect_enum_CommPktCoCmdLocationCmd(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_location_cmd, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_file_attributes(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_file_attributes(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_file_attributes, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_file_attributes, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_file_version_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_file_version_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_file_version_number, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_file_version_number, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_partern_ack_sequence_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_partern_ack_sequence_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_partern_ack_sequence_number, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_partern_ack_sequence_number, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_not_used(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_not_used(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_not_used, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_not_used, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_file_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_file_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_file_size, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_file_size, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_file_offset(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_file_offset(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_file_offset, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_file_offset, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_frs_vsn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_frs_vsn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_frs_vsn, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_frs_vsn, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_file_usn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_file_usn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_file_usn, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_file_usn, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_jrnl_usn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_jrnl_usn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_jrnl_usn, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_jrnl_usn, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_jrnl_first_usn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_jrnl_first_usn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_jrnl_first_usn, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_jrnl_first_usn, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_original_replica_num(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_original_replica_num(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_original_replica_num, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_original_replica_num, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_new_replica_num(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_new_replica_num(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_new_replica_num, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_new_replica_num, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_change_order_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_change_order_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_change_order_guid, NULL);
+	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_change_order_guid, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_originator_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_originator_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_originator_guid, NULL);
+	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_originator_guid, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_file_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_file_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_file_guid, NULL);
+	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_file_guid, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_old_parent_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_old_parent_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_old_parent_guid, NULL);
+	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_old_parent_guid, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_new_parent_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_new_parent_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_new_parent_guid, NULL);
+	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_new_parent_guid, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_connection_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_connection_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_connection_guid, NULL);
+	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_connection_guid, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_ack_version(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_ack_version(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_ack_version, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_ack_version, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_spare2ul1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_spare2ul1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare2ul1, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare2ul1, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_spare1guid_p1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_spare1guid_p1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare1guid_p1, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare1guid_p1, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_spare1guid_p2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_spare1guid_p2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare1guid_p2, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare1guid_p2, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_spare2guid_p1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_spare2guid_p1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare2guid_p1, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare2guid_p1, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_spare3guid_p2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_spare3guid_p2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare3guid_p2, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare3guid_p2, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_spare1wcs(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_spare1wcs(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare1wcs, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare1wcs, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_spare2wcs(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_spare2wcs(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare2wcs, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare2wcs, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_extension(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_extension(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_extension, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_extension, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_spare2bin(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_spare2bin(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare2bin, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_spare2bin, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_event_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_event_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_event_time);
+	offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_event_time);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_file_name_length(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_file_name_length(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint16(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_file_name_length, 0);
+	offset = PIDL_dissect_uint16(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_file_name_length, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_padding1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_padding1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint8(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_padding1, 0);
+	offset = PIDL_dissect_uint8(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_padding1, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_padding2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_padding2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint8(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_padding2, 0);
+	offset = PIDL_dissect_uint8(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_padding2, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_padding3(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_padding3(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint8(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_padding3, 0);
+	offset = PIDL_dissect_uint8(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_padding3, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderCommand_padding4(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderCommand_padding4(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint8(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_padding4, 0);
+	offset = PIDL_dissect_uint8(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderCommand_padding4, 0);
 
 	return offset;
 }
 
 int
-frsrpc_dissect_struct_CommPktChangeOrderCommand(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
+frsrpc_dissect_struct_CommPktChangeOrderCommand(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
 {
 	proto_item *item = NULL;
 	proto_tree *tree = NULL;
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
 	int old_offset;
 
 	ALIGN_TO_8_BYTES;
@@ -1731,91 +1727,91 @@ frsrpc_dissect_struct_CommPktChangeOrderCommand(tvbuff_t *tvb _U_, int offset _U
 	old_offset = offset;
 
 	if (parent_tree) {
-		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, TRUE);
+		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, ENC_NA);
 		tree = proto_item_add_subtree(item, ett_frsrpc_frsrpc_CommPktChangeOrderCommand);
 	}
 	
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_sequence_number(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_sequence_number(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_flags(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_flags(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_iflags(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_iflags(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_status(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_status(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_content_cmd(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_content_cmd(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_location_cmd(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_location_cmd(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_attributes(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_attributes(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_version_number(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_version_number(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_partern_ack_sequence_number(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_partern_ack_sequence_number(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_not_used(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_not_used(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_size(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_size(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_offset(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_offset(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_frs_vsn(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_frs_vsn(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_usn(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_usn(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_jrnl_usn(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_jrnl_usn(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_jrnl_first_usn(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_jrnl_first_usn(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_original_replica_num(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_original_replica_num(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_new_replica_num(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_new_replica_num(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_change_order_guid(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_change_order_guid(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_originator_guid(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_originator_guid(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_guid(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_guid(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_old_parent_guid(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_old_parent_guid(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_new_parent_guid(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_new_parent_guid(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_connection_guid(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_connection_guid(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_ack_version(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_ack_version(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare2ul1(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare2ul1(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare1guid_p1(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare1guid_p1(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare1guid_p2(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare1guid_p2(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare2guid_p1(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare2guid_p1(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare3guid_p2(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare3guid_p2(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare1wcs(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare1wcs(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare2wcs(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare2wcs(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_extension(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_extension(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare2bin(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_spare2bin(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_event_time(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_event_time(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_name_length(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_name_length(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_name(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_file_name(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_padding1(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_padding1(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_padding2(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_padding2(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_padding3(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_padding3(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_padding4(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderCommand_padding4(tvb, offset, pinfo, tree, di, drep);
 
 
 	proto_item_set_len(item, offset-old_offset);
@@ -1836,13 +1832,13 @@ frsrpc_dissect_struct_CommPktChangeOrderCommand(tvbuff_t *tvb _U_, int offset _U
 /* IDL: } */
 
 int
-frsrpc_dissect_enum_CommPktDataExtensionType(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
+frsrpc_dissect_enum_CommPktDataExtensionType(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
 {
 	guint32 parameter=0;
 	if(param){
 		parameter=(guint32)*param;
 	}
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, &parameter);
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, &parameter);
 	if(param){
 		*param=(guint32)parameter;
 	}
@@ -1857,45 +1853,44 @@ frsrpc_dissect_enum_CommPktDataExtensionType(tvbuff_t *tvb _U_, int offset _U_, 
 /* IDL: } */
 
 static int
-frsrpc_dissect_element_CommPktDataExtensionChecksum_prefix_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktDataExtensionChecksum_prefix_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktDataExtensionChecksum_prefix_size, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktDataExtensionChecksum_prefix_size, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktDataExtensionChecksum_prefix_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktDataExtensionChecksum_prefix_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_enum_CommPktDataExtensionType(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktDataExtensionChecksum_prefix_type, 0);
+	offset = frsrpc_dissect_enum_CommPktDataExtensionType(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktDataExtensionChecksum_prefix_type, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktDataExtensionChecksum_data(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktDataExtensionChecksum_data(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	int i;
 	for (i = 0; i < 16; i++)
-		offset = frsrpc_dissect_element_CommPktDataExtensionChecksum_data_(tvb, offset, pinfo, tree, drep);
+		offset = frsrpc_dissect_element_CommPktDataExtensionChecksum_data_(tvb, offset, pinfo, tree, di, drep);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktDataExtensionChecksum_data_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktDataExtensionChecksum_data_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint8(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktDataExtensionChecksum_data, 0);
+	offset = PIDL_dissect_uint8(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktDataExtensionChecksum_data, 0);
 
 	return offset;
 }
 
 int
-frsrpc_dissect_struct_CommPktDataExtensionChecksum(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
+frsrpc_dissect_struct_CommPktDataExtensionChecksum(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
 {
 	proto_item *item = NULL;
 	proto_tree *tree = NULL;
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
 	int old_offset;
 
 	ALIGN_TO_4_BYTES;
@@ -1903,15 +1898,15 @@ frsrpc_dissect_struct_CommPktDataExtensionChecksum(tvbuff_t *tvb _U_, int offset
 	old_offset = offset;
 
 	if (parent_tree) {
-		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, TRUE);
+		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, ENC_NA);
 		tree = proto_item_add_subtree(item, ett_frsrpc_frsrpc_CommPktDataExtensionChecksum);
 	}
 	
-	offset = frsrpc_dissect_element_CommPktDataExtensionChecksum_prefix_size(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktDataExtensionChecksum_prefix_size(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktDataExtensionChecksum_prefix_type(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktDataExtensionChecksum_prefix_type(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktDataExtensionChecksum_data(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktDataExtensionChecksum_data(tvb, offset, pinfo, tree, di, drep);
 
 
 	proto_item_set_len(item, offset-old_offset);
@@ -1934,51 +1929,50 @@ frsrpc_dissect_struct_CommPktDataExtensionChecksum(tvbuff_t *tvb _U_, int offset
 /* IDL: } */
 
 static int
-frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_prefix_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_prefix_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktDataExtensionRetryTimeout_prefix_size, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktDataExtensionRetryTimeout_prefix_size, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_prefix_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_prefix_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_enum_CommPktDataExtensionType(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktDataExtensionRetryTimeout_prefix_type, 0);
+	offset = frsrpc_dissect_enum_CommPktDataExtensionType(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktDataExtensionRetryTimeout_prefix_type, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_count(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_count(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktDataExtensionRetryTimeout_count, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktDataExtensionRetryTimeout_count, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_not_used(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_not_used(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktDataExtensionRetryTimeout_not_used, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktDataExtensionRetryTimeout_not_used, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_first_try_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_first_try_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktDataExtensionRetryTimeout_first_try_time);
+	offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktDataExtensionRetryTimeout_first_try_time);
 
 	return offset;
 }
 
 int
-frsrpc_dissect_struct_CommPktDataExtensionRetryTimeout(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
+frsrpc_dissect_struct_CommPktDataExtensionRetryTimeout(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
 {
 	proto_item *item = NULL;
 	proto_tree *tree = NULL;
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
 	int old_offset;
 
 	ALIGN_TO_4_BYTES;
@@ -1986,19 +1980,19 @@ frsrpc_dissect_struct_CommPktDataExtensionRetryTimeout(tvbuff_t *tvb _U_, int of
 	old_offset = offset;
 
 	if (parent_tree) {
-		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, TRUE);
+		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, ENC_NA);
 		tree = proto_item_add_subtree(item, ett_frsrpc_frsrpc_CommPktDataExtensionRetryTimeout);
 	}
 	
-	offset = frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_prefix_size(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_prefix_size(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_prefix_type(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_prefix_type(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_count(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_count(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_not_used(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_not_used(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_first_try_time(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktDataExtensionRetryTimeout_first_try_time(tvb, offset, pinfo, tree, di, drep);
 
 
 	proto_item_set_len(item, offset-old_offset);
@@ -2018,13 +2012,13 @@ frsrpc_dissect_struct_CommPktDataExtensionRetryTimeout(tvbuff_t *tvb _U_, int of
 /* IDL: } */
 
 int
-frsrpc_dissect_enum_CommPktCoRecordExtensionMajor(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
+frsrpc_dissect_enum_CommPktCoRecordExtensionMajor(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
 {
 	guint1632 parameter=0;
 	if(param){
 		parameter=(guint1632)*param;
 	}
-	offset = dissect_ndr_uint1632(tvb, offset, pinfo, tree, drep, hf_index, &parameter);
+	offset = dissect_ndr_uint1632(tvb, offset, pinfo, tree, di, drep, hf_index, &parameter);
 	if(param){
 		*param=(guint32)parameter;
 	}
@@ -2042,59 +2036,58 @@ frsrpc_dissect_enum_CommPktCoRecordExtensionMajor(tvbuff_t *tvb _U_, int offset 
 /* IDL: } */
 
 static int
-frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_field_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_field_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktCoRecordExtensionWin2k_field_size, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktCoRecordExtensionWin2k_field_size, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_major(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_major(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_enum_CommPktCoRecordExtensionMajor(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktCoRecordExtensionWin2k_major, 0);
+	offset = frsrpc_dissect_enum_CommPktCoRecordExtensionMajor(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktCoRecordExtensionWin2k_major, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset_count(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset_count(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint16(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktCoRecordExtensionWin2k_offset_count, 0);
+	offset = PIDL_dissect_uint16(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktCoRecordExtensionWin2k_offset_count, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktCoRecordExtensionWin2k_offset, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktCoRecordExtensionWin2k_offset, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset_last(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset_last(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktCoRecordExtensionWin2k_offset_last, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktCoRecordExtensionWin2k_offset_last, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_data_checksum(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_data_checksum(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_struct_CommPktDataExtensionChecksum(tvb,offset,pinfo,tree,drep,hf_frsrpc_frsrpc_CommPktCoRecordExtensionWin2k_data_checksum,0);
+	offset = frsrpc_dissect_struct_CommPktDataExtensionChecksum(tvb,offset,pinfo,tree,di,drep,hf_frsrpc_frsrpc_CommPktCoRecordExtensionWin2k_data_checksum,0);
 
 	return offset;
 }
 
 int
-frsrpc_dissect_struct_CommPktCoRecordExtensionWin2k(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
+frsrpc_dissect_struct_CommPktCoRecordExtensionWin2k(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
 {
 	proto_item *item = NULL;
 	proto_tree *tree = NULL;
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
 	int old_offset;
 
 	ALIGN_TO_4_BYTES;
@@ -2102,21 +2095,21 @@ frsrpc_dissect_struct_CommPktCoRecordExtensionWin2k(tvbuff_t *tvb _U_, int offse
 	old_offset = offset;
 
 	if (parent_tree) {
-		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, TRUE);
+		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, ENC_NA);
 		tree = proto_item_add_subtree(item, ett_frsrpc_frsrpc_CommPktCoRecordExtensionWin2k);
 	}
 	
-	offset = frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_field_size(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_field_size(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_major(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_major(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset_count(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset_count(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset_last(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_offset_last(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_data_checksum(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktCoRecordExtensionWin2k_data_checksum(tvb, offset, pinfo, tree, di, drep);
 
 
 	proto_item_set_len(item, offset-old_offset);
@@ -2143,83 +2136,82 @@ frsrpc_dissect_struct_CommPktCoRecordExtensionWin2k(tvbuff_t *tvb _U_, int offse
 /* IDL: } */
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderRecordExtension_field_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderRecordExtension_field_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_field_size, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_field_size, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderRecordExtension_major(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderRecordExtension_major(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_enum_CommPktCoRecordExtensionMajor(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_major, 0);
+	offset = frsrpc_dissect_enum_CommPktCoRecordExtensionMajor(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_major, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset_count(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset_count(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint16(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_offset_count, 0);
+	offset = PIDL_dissect_uint16(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_offset_count, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset0(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset0(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_offset0, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_offset0, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset1(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_offset1, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_offset1, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset_last(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset_last(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_offset_last, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_offset_last, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderRecordExtension_not_used(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderRecordExtension_not_used(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_not_used, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_not_used, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderRecordExtension_data_checksum(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderRecordExtension_data_checksum(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_struct_CommPktDataExtensionChecksum(tvb,offset,pinfo,tree,drep,hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_data_checksum,0);
+	offset = frsrpc_dissect_struct_CommPktDataExtensionChecksum(tvb,offset,pinfo,tree,di,drep,hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_data_checksum,0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChangeOrderRecordExtension_data_retry_timeout(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChangeOrderRecordExtension_data_retry_timeout(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_struct_CommPktDataExtensionRetryTimeout(tvb,offset,pinfo,tree,drep,hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_data_retry_timeout,0);
+	offset = frsrpc_dissect_struct_CommPktDataExtensionRetryTimeout(tvb,offset,pinfo,tree,di,drep,hf_frsrpc_frsrpc_CommPktChangeOrderRecordExtension_data_retry_timeout,0);
 
 	return offset;
 }
 
 int
-frsrpc_dissect_struct_CommPktChangeOrderRecordExtension(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
+frsrpc_dissect_struct_CommPktChangeOrderRecordExtension(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
 {
 	proto_item *item = NULL;
 	proto_tree *tree = NULL;
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
 	int old_offset;
 
 	ALIGN_TO_4_BYTES;
@@ -2227,27 +2219,27 @@ frsrpc_dissect_struct_CommPktChangeOrderRecordExtension(tvbuff_t *tvb _U_, int o
 	old_offset = offset;
 
 	if (parent_tree) {
-		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, TRUE);
+		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, ENC_NA);
 		tree = proto_item_add_subtree(item, ett_frsrpc_frsrpc_CommPktChangeOrderRecordExtension);
 	}
 	
-	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_field_size(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_field_size(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_major(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_major(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset_count(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset_count(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset0(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset0(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset1(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset1(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset_last(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_offset_last(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_not_used(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_not_used(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_data_checksum(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_data_checksum(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_data_retry_timeout(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_CommPktChangeOrderRecordExtension_data_retry_timeout(tvb, offset, pinfo, tree, di, drep);
 
 
 	proto_item_set_len(item, offset-old_offset);
@@ -2304,13 +2296,13 @@ frsrpc_dissect_struct_CommPktChangeOrderRecordExtension(tvbuff_t *tvb _U_, int o
 /* IDL: } */
 
 int
-frsrpc_dissect_enum_CommPktChunkType(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
+frsrpc_dissect_enum_CommPktChunkType(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
 {
 	guint1632 parameter=0;
 	if(param){
 		parameter=(guint1632)*param;
 	}
-	offset = dissect_ndr_uint1632(tvb, offset, pinfo, tree, drep, hf_index, &parameter);
+	offset = dissect_ndr_uint1632(tvb, offset, pinfo, tree, di, drep, hf_index, &parameter);
 	if(param){
 		*param=(guint32)parameter;
 	}
@@ -2332,7 +2324,7 @@ frsrpc_dissect_enum_CommPktChunkType(tvbuff_t *tvb _U_, int offset _U_, packet_i
 /* IDL: [case(FRSRPC_COMM_PKT_CHUNK_JOIN_TIME)] [subcontext(4)] [case(FRSRPC_COMM_PKT_CHUNK_JOIN_TIME)] NTTIME join_time; */
 /* IDL: [case(FRSRPC_COMM_PKT_CHUNK_REPLICA_VERSION_GUID)] [subcontext(4)] [case(FRSRPC_COMM_PKT_CHUNK_REPLICA_VERSION_GUID)] GUID replica_version_guid; */
 /* IDL: [case(FRSRPC_COMM_PKT_CHUNK_COMPRESSION_GUID)] [case(FRSRPC_COMM_PKT_CHUNK_COMPRESSION_GUID)] GUID compression_guid; */
-/* IDL: [case(FRSRPC_COMM_PKT_CHUNK_BLOCK)] [case(FRSRPC_COMM_PKT_CHUNK_BLOCK)] DATA_BLOB block; */
+/* IDL: [case(FRSRPC_COMM_PKT_CHUNK_BLOCK)] [flag(LIBNDR_FLAG_REMAINING)] [case(FRSRPC_COMM_PKT_CHUNK_BLOCK)] DATA_BLOB block; */
 /* IDL: [case(FRSRPC_COMM_PKT_CHUNK_BLOCK_SIZE)] [case(FRSRPC_COMM_PKT_CHUNK_BLOCK_SIZE)] hyper block_size; */
 /* IDL: [case(FRSRPC_COMM_PKT_CHUNK_FILE_SIZE)] [case(FRSRPC_COMM_PKT_CHUNK_FILE_SIZE)] hyper file_size; */
 /* IDL: [case(FRSRPC_COMM_PKT_CHUNK_FILE_OFFSET)] [case(FRSRPC_COMM_PKT_CHUNK_FILE_OFFSET)] hyper file_offset; */
@@ -2346,343 +2338,359 @@ frsrpc_dissect_enum_CommPktChunkType(tvbuff_t *tvb _U_, int offset _U_, packet_i
 /* IDL: } */
 
 static int
-frsrpc_dissect_element_CommPktChunkData_blob(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_blob(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_datablob(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_blob, 1);
+	offset = dissect_ndr_datablob(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_blob, 1);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_bop(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_bop(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_bop, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_bop, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_command(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_command(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_enum_CommPktCommand(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_command, 0);
+	offset = frsrpc_dissect_enum_CommPktCommand(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_command, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_to(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_to(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_struct_CommPktChunkGuidName(tvb,offset,pinfo,tree,drep,hf_frsrpc_frsrpc_CommPktChunkData_to,0);
+	offset = frsrpc_dissect_struct_CommPktChunkGuidName(tvb,offset,pinfo,tree,di,drep,hf_frsrpc_frsrpc_CommPktChunkData_to,0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_from(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_from(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_struct_CommPktChunkGuidName(tvb,offset,pinfo,tree,drep,hf_frsrpc_frsrpc_CommPktChunkData_from,0);
+	offset = frsrpc_dissect_struct_CommPktChunkGuidName(tvb,offset,pinfo,tree,di,drep,hf_frsrpc_frsrpc_CommPktChunkData_from,0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_replica(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_replica(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_struct_CommPktChunkGuidName(tvb,offset,pinfo,tree,drep,hf_frsrpc_frsrpc_CommPktChunkData_replica,0);
+	offset = frsrpc_dissect_struct_CommPktChunkGuidName(tvb,offset,pinfo,tree,di,drep,hf_frsrpc_frsrpc_CommPktChunkData_replica,0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_connection(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_connection(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_struct_CommPktChunkGuidName(tvb,offset,pinfo,tree,drep,hf_frsrpc_frsrpc_CommPktChunkData_connection,0);
+	offset = frsrpc_dissect_struct_CommPktChunkGuidName(tvb,offset,pinfo,tree,di,drep,hf_frsrpc_frsrpc_CommPktChunkData_connection,0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_join_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_join_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
-	guint32 size;
+	guint3264 size;
 	int conformant = di->conformant_run;
 	tvbuff_t *subtvb;
 
 	if (!conformant) {
-		offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_join_guid_, &size);
-		subtvb = tvb_new_subset(tvb, offset, size, -1);
-		frsrpc_dissect_element_CommPktChunkData_join_guid_(subtvb, 0, pinfo, tree, drep);
-		offset += size;
+		guint32 saved_flags = di->call_data->flags;
+		offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_join_guid_, &size);
+		di->call_data->flags &= ~DCERPC_IS_NDR64;
+		subtvb = tvb_new_subset(tvb, offset, (gint)size, -1);
+		frsrpc_dissect_element_CommPktChunkData_join_guid_(subtvb, 0, pinfo, tree, di, drep);
+		offset += (gint)size;
+		di->call_data->flags = saved_flags;
 	}
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_join_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_join_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_join_guid, NULL);
+	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_join_guid, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_last_join_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_last_join_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_last_join_time);
+	offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_last_join_time);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_vvector(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_vvector(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
-	guint32 size;
+	guint3264 size;
 	int conformant = di->conformant_run;
 	tvbuff_t *subtvb;
 
 	if (!conformant) {
-		offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_vvector_, &size);
-		subtvb = tvb_new_subset(tvb, offset, size, -1);
-		frsrpc_dissect_element_CommPktChunkData_vvector_(subtvb, 0, pinfo, tree, drep);
-		offset += size;
+		guint32 saved_flags = di->call_data->flags;
+		offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_vvector_, &size);
+		di->call_data->flags &= ~DCERPC_IS_NDR64;
+		subtvb = tvb_new_subset(tvb, offset, (gint)size, -1);
+		frsrpc_dissect_element_CommPktChunkData_vvector_(subtvb, 0, pinfo, tree, di, drep);
+		offset += (gint)size;
+		di->call_data->flags = saved_flags;
 	}
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_vvector_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_vvector_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_struct_CommPktGSVN(tvb,offset,pinfo,tree,drep,hf_frsrpc_frsrpc_CommPktChunkData_vvector,0);
+	offset = frsrpc_dissect_struct_CommPktGSVN(tvb,offset,pinfo,tree,di,drep,hf_frsrpc_frsrpc_CommPktChunkData_vvector,0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_join_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_join_time(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
-	guint32 size;
+	guint3264 size;
 	int conformant = di->conformant_run;
 	tvbuff_t *subtvb;
 
 	if (!conformant) {
-		offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_join_time_, &size);
-		subtvb = tvb_new_subset(tvb, offset, size, -1);
-		frsrpc_dissect_element_CommPktChunkData_join_time_(subtvb, 0, pinfo, tree, drep);
-		offset += size;
+		guint32 saved_flags = di->call_data->flags;
+		offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_join_time_, &size);
+		di->call_data->flags &= ~DCERPC_IS_NDR64;
+		subtvb = tvb_new_subset(tvb, offset, (gint)size, -1);
+		frsrpc_dissect_element_CommPktChunkData_join_time_(subtvb, 0, pinfo, tree, di, drep);
+		offset += (gint)size;
+		di->call_data->flags = saved_flags;
 	}
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_join_time_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_join_time_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_join_time);
+	offset = dissect_ndr_nt_NTTIME(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_join_time);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_replica_version_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_replica_version_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
-	guint32 size;
+	guint3264 size;
 	int conformant = di->conformant_run;
 	tvbuff_t *subtvb;
 
 	if (!conformant) {
-		offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_replica_version_guid_, &size);
-		subtvb = tvb_new_subset(tvb, offset, size, -1);
-		frsrpc_dissect_element_CommPktChunkData_replica_version_guid_(subtvb, 0, pinfo, tree, drep);
-		offset += size;
+		guint32 saved_flags = di->call_data->flags;
+		offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_replica_version_guid_, &size);
+		di->call_data->flags &= ~DCERPC_IS_NDR64;
+		subtvb = tvb_new_subset(tvb, offset, (gint)size, -1);
+		frsrpc_dissect_element_CommPktChunkData_replica_version_guid_(subtvb, 0, pinfo, tree, di, drep);
+		offset += (gint)size;
+		di->call_data->flags = saved_flags;
 	}
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_replica_version_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_replica_version_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_replica_version_guid, NULL);
+	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_replica_version_guid, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_compression_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_compression_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_compression_guid, NULL);
+	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_compression_guid, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_block(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_block(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_datablob(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_block, 0);
+	offset = dissect_ndr_datablob(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_block, 1);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_block_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_block_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_block_size, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_block_size, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_file_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_file_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_file_size, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_file_size, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_file_offset(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_file_offset(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_file_offset, NULL);
+	offset = dissect_ndr_uint64(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_file_offset, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_gvsn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_gvsn(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
-	guint32 size;
+	guint3264 size;
 	int conformant = di->conformant_run;
 	tvbuff_t *subtvb;
 
 	if (!conformant) {
-		offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_gvsn_, &size);
-		subtvb = tvb_new_subset(tvb, offset, size, -1);
-		frsrpc_dissect_element_CommPktChunkData_gvsn_(subtvb, 0, pinfo, tree, drep);
-		offset += size;
+		guint32 saved_flags = di->call_data->flags;
+		offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_gvsn_, &size);
+		di->call_data->flags &= ~DCERPC_IS_NDR64;
+		subtvb = tvb_new_subset(tvb, offset, (gint)size, -1);
+		frsrpc_dissect_element_CommPktChunkData_gvsn_(subtvb, 0, pinfo, tree, di, drep);
+		offset += (gint)size;
+		di->call_data->flags = saved_flags;
 	}
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_gvsn_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_gvsn_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_struct_CommPktGSVN(tvb,offset,pinfo,tree,drep,hf_frsrpc_frsrpc_CommPktChunkData_gvsn,0);
+	offset = frsrpc_dissect_struct_CommPktGSVN(tvb,offset,pinfo,tree,di,drep,hf_frsrpc_frsrpc_CommPktChunkData_gvsn,0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_co_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_co_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
-	guint32 size;
+	guint3264 size;
 	int conformant = di->conformant_run;
 	tvbuff_t *subtvb;
 
 	if (!conformant) {
-		offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_co_guid_, &size);
-		subtvb = tvb_new_subset(tvb, offset, size, -1);
-		frsrpc_dissect_element_CommPktChunkData_co_guid_(subtvb, 0, pinfo, tree, drep);
-		offset += size;
+		guint32 saved_flags = di->call_data->flags;
+		offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_co_guid_, &size);
+		di->call_data->flags &= ~DCERPC_IS_NDR64;
+		subtvb = tvb_new_subset(tvb, offset, (gint)size, -1);
+		frsrpc_dissect_element_CommPktChunkData_co_guid_(subtvb, 0, pinfo, tree, di, drep);
+		offset += (gint)size;
+		di->call_data->flags = saved_flags;
 	}
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_co_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_co_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_co_guid, NULL);
+	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_co_guid, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_co_sequnence_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_co_sequnence_number(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_co_sequnence_number, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_co_sequnence_number, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_remote_co(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_remote_co(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
-	guint32 size;
+	guint3264 size;
 	int conformant = di->conformant_run;
 	tvbuff_t *subtvb;
 
 	if (!conformant) {
-		offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_remote_co_, &size);
-		subtvb = tvb_new_subset(tvb, offset, size, -1);
-		frsrpc_dissect_element_CommPktChunkData_remote_co_(subtvb, 0, pinfo, tree, drep);
-		offset += size;
+		guint32 saved_flags = di->call_data->flags;
+		offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_remote_co_, &size);
+		di->call_data->flags &= ~DCERPC_IS_NDR64;
+		subtvb = tvb_new_subset(tvb, offset, (gint)size, -1);
+		frsrpc_dissect_element_CommPktChunkData_remote_co_(subtvb, 0, pinfo, tree, di, drep);
+		offset += (gint)size;
+		di->call_data->flags = saved_flags;
 	}
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_remote_co_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_remote_co_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_struct_CommPktChangeOrderCommand(tvb,offset,pinfo,tree,drep,hf_frsrpc_frsrpc_CommPktChunkData_remote_co,0);
+	offset = frsrpc_dissect_struct_CommPktChangeOrderCommand(tvb,offset,pinfo,tree,di,drep,hf_frsrpc_frsrpc_CommPktChunkData_remote_co,0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_co_ext_win2k(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_co_ext_win2k(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
-	guint32 size;
+	guint3264 size;
 	int conformant = di->conformant_run;
 	tvbuff_t *subtvb;
 
 	if (!conformant) {
-		offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_co_ext_win2k_, &size);
-		subtvb = tvb_new_subset(tvb, offset, size, -1);
-		frsrpc_dissect_element_CommPktChunkData_co_ext_win2k_(subtvb, 0, pinfo, tree, drep);
-		offset += size;
+		guint32 saved_flags = di->call_data->flags;
+		offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_co_ext_win2k_, &size);
+		di->call_data->flags &= ~DCERPC_IS_NDR64;
+		subtvb = tvb_new_subset(tvb, offset, (gint)size, -1);
+		frsrpc_dissect_element_CommPktChunkData_co_ext_win2k_(subtvb, 0, pinfo, tree, di, drep);
+		offset += (gint)size;
+		di->call_data->flags = saved_flags;
 	}
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_co_ext_win2k_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_co_ext_win2k_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_struct_CommPktCoRecordExtensionWin2k(tvb,offset,pinfo,tree,drep,hf_frsrpc_frsrpc_CommPktChunkData_co_ext_win2k,0);
+	offset = frsrpc_dissect_struct_CommPktCoRecordExtensionWin2k(tvb,offset,pinfo,tree,di,drep,hf_frsrpc_frsrpc_CommPktChunkData_co_ext_win2k,0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_co_extension2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_co_extension2(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_struct_CommPktChangeOrderRecordExtension(tvb,offset,pinfo,tree,drep,hf_frsrpc_frsrpc_CommPktChunkData_co_extension2,0);
+	offset = frsrpc_dissect_struct_CommPktChangeOrderRecordExtension(tvb,offset,pinfo,tree,di,drep,hf_frsrpc_frsrpc_CommPktChunkData_co_extension2,0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunkData_bopend(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_CommPktChunkData_bopend(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunkData_bopend, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunkData_bopend, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_CommPktChunkData(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
+frsrpc_dissect_CommPktChunkData(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
 {
 	proto_item *item = NULL;
 	proto_tree *tree = NULL;
@@ -2697,99 +2705,99 @@ frsrpc_dissect_CommPktChunkData(tvbuff_t *tvb _U_, int offset _U_, packet_info *
 
 	switch(level) {
 		default:
-			offset = frsrpc_dissect_element_CommPktChunkData_blob(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_blob(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_BOP:
-			offset = frsrpc_dissect_element_CommPktChunkData_bop(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_bop(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_COMMAND:
-			offset = frsrpc_dissect_element_CommPktChunkData_command(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_command(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_TO:
-			offset = frsrpc_dissect_element_CommPktChunkData_to(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_to(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_FROM:
-			offset = frsrpc_dissect_element_CommPktChunkData_from(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_from(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_REPLICA:
-			offset = frsrpc_dissect_element_CommPktChunkData_replica(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_replica(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_CONNECTION:
-			offset = frsrpc_dissect_element_CommPktChunkData_connection(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_connection(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_JOIN_GUID:
-			offset = frsrpc_dissect_element_CommPktChunkData_join_guid(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_join_guid(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_LAST_JOIN_TIME:
-			offset = frsrpc_dissect_element_CommPktChunkData_last_join_time(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_last_join_time(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_VVECTOR:
-			offset = frsrpc_dissect_element_CommPktChunkData_vvector(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_vvector(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_JOIN_TIME:
-			offset = frsrpc_dissect_element_CommPktChunkData_join_time(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_join_time(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_REPLICA_VERSION_GUID:
-			offset = frsrpc_dissect_element_CommPktChunkData_replica_version_guid(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_replica_version_guid(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_COMPRESSION_GUID:
-			offset = frsrpc_dissect_element_CommPktChunkData_compression_guid(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_compression_guid(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_BLOCK:
-			offset = frsrpc_dissect_element_CommPktChunkData_block(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_block(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_BLOCK_SIZE:
-			offset = frsrpc_dissect_element_CommPktChunkData_block_size(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_block_size(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_FILE_SIZE:
-			offset = frsrpc_dissect_element_CommPktChunkData_file_size(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_file_size(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_FILE_OFFSET:
-			offset = frsrpc_dissect_element_CommPktChunkData_file_offset(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_file_offset(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_GVSN:
-			offset = frsrpc_dissect_element_CommPktChunkData_gvsn(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_gvsn(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_CO_GUID:
-			offset = frsrpc_dissect_element_CommPktChunkData_co_guid(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_co_guid(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_CO_SEQUENCE_NUMBER:
-			offset = frsrpc_dissect_element_CommPktChunkData_co_sequnence_number(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_co_sequnence_number(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_REMOTE_CO:
-			offset = frsrpc_dissect_element_CommPktChunkData_remote_co(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_remote_co(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_CO_EXT_WIN2K:
-			offset = frsrpc_dissect_element_CommPktChunkData_co_ext_win2k(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_co_ext_win2k(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_CO_EXTENTION_2:
-			offset = frsrpc_dissect_element_CommPktChunkData_co_extension2(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_co_extension2(tvb, offset, pinfo, tree, di, drep);
 		break;
 
 		case FRSRPC_COMM_PKT_CHUNK_EOP:
-			offset = frsrpc_dissect_element_CommPktChunkData_bopend(tvb, offset, pinfo, tree, drep);
+			offset = frsrpc_dissect_element_CommPktChunkData_bopend(tvb, offset, pinfo, tree, di, drep);
 		break;
 	}
 	proto_item_set_len(item, offset-old_offset);
@@ -2804,35 +2812,37 @@ frsrpc_dissect_CommPktChunkData(tvbuff_t *tvb _U_, int offset _U_, packet_info *
 /* IDL: } */
 
 static int
-frsrpc_dissect_element_CommPktChunk_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_, guint1632 *type)
+frsrpc_dissect_element_CommPktChunk_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, guint1632 *type)
 {
-	offset = frsrpc_dissect_enum_CommPktChunkType(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunk_type, type);
+	offset = frsrpc_dissect_enum_CommPktChunkType(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunk_type, type);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunk_data(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_, guint1632 *type)
+frsrpc_dissect_element_CommPktChunk_data(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, guint1632 *type)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
-	guint32 size;
+	guint3264 size;
 	int conformant = di->conformant_run;
 	tvbuff_t *subtvb;
 
 	if (!conformant) {
-		offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunk_data_, &size);
-		subtvb = tvb_new_subset(tvb, offset, size, -1);
-		frsrpc_dissect_element_CommPktChunk_data_(subtvb, 0, pinfo, tree, drep, type);
-		offset += size;
+		guint32 saved_flags = di->call_data->flags;
+		offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunk_data_, &size);
+		di->call_data->flags &= ~DCERPC_IS_NDR64;
+		subtvb = tvb_new_subset(tvb, offset, (gint)size, -1);
+		frsrpc_dissect_element_CommPktChunk_data_(subtvb, 0, pinfo, tree, di, drep, type);
+		offset += (gint)size;
+		di->call_data->flags = saved_flags;
 	}
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_CommPktChunk_data_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_, guint1632 *type)
+frsrpc_dissect_element_CommPktChunk_data_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, guint1632 *type)
 {
-	offset = frsrpc_dissect_CommPktChunkData(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_CommPktChunk_data, *type);
+	offset = frsrpc_dissect_CommPktChunkData(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_CommPktChunk_data, *type);
 
 	return offset;
 }
@@ -2849,13 +2859,13 @@ frsrpc_dissect_element_CommPktChunk_data_(tvbuff_t *tvb _U_, int offset _U_, pac
 /* IDL: } */
 
 int
-frsrpc_dissect_enum_CommPktMajor(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
+frsrpc_dissect_enum_CommPktMajor(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
 {
 	guint32 parameter=0;
 	if(param){
 		parameter=(guint32)*param;
 	}
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, &parameter);
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, &parameter);
 	if(param){
 		*param=(guint32)parameter;
 	}
@@ -2877,13 +2887,13 @@ frsrpc_dissect_enum_CommPktMajor(tvbuff_t *tvb _U_, int offset _U_, packet_info 
 /* IDL: } */
 
 int
-frsrpc_dissect_enum_CommPktMinor(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
+frsrpc_dissect_enum_CommPktMinor(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
 {
 	guint32 parameter=0;
 	if(param){
 		parameter=(guint32)*param;
 	}
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, &parameter);
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, &parameter);
 	if(param){
 		*param=(guint32)parameter;
 	}
@@ -2899,114 +2909,115 @@ frsrpc_dissect_enum_CommPktMinor(tvbuff_t *tvb _U_, int offset _U_, packet_info 
 /* IDL: 	[value(ndr_size_frsrpc_CommPktChunkCtr(r->ctr,ndr->flags))] [range(0,262144)] uint32 pkt_len; */
 /* IDL: 	[value(0)] uint32 upk_len; */
 /* IDL: 	[unique(1)] [subcontext_size(pkt_len)] [subcontext(4)] frsrpc_CommPktChunkCtr *ctr; */
-/* IDL: 	[value(0)] uint32 data_name; */
-/* IDL: 	[value(0)] uint32 data_handle; */
+/* IDL: 	[value(0)] uint3264 data_name; */
+/* IDL: 	[value(0)] uint3264 data_handle; */
 /* IDL: } */
 
 static int
-frsrpc_dissect_element_FrsSendCommPktReq_major(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsSendCommPktReq_major(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_enum_CommPktMajor(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_major, 0);
+	offset = frsrpc_dissect_enum_CommPktMajor(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_major, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsSendCommPktReq_minor(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsSendCommPktReq_minor(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_enum_CommPktMinor(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_minor, 0);
+	offset = frsrpc_dissect_enum_CommPktMinor(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_minor, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsSendCommPktReq_cs_id(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsSendCommPktReq_cs_id(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_cs_id, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_cs_id, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsSendCommPktReq_memory_len(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsSendCommPktReq_memory_len(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_memory_len, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_memory_len, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsSendCommPktReq_pkt_len(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsSendCommPktReq_pkt_len(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_pkt_len, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_pkt_len, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsSendCommPktReq_upk_len(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsSendCommPktReq_upk_len(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_upk_len, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_upk_len, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsSendCommPktReq_ctr(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsSendCommPktReq_ctr(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, drep, frsrpc_dissect_element_FrsSendCommPktReq_ctr_, NDR_POINTER_UNIQUE, "Pointer to Ctr (frsrpc_CommPktChunkCtr)",hf_frsrpc_frsrpc_FrsSendCommPktReq_ctr);
+	offset = dissect_ndr_embedded_pointer(tvb, offset, pinfo, tree, di, drep, frsrpc_dissect_element_FrsSendCommPktReq_ctr_, NDR_POINTER_UNIQUE, "Pointer to Ctr (frsrpc_CommPktChunkCtr)",hf_frsrpc_frsrpc_FrsSendCommPktReq_ctr);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsSendCommPktReq_ctr_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsSendCommPktReq_ctr_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
-	guint32 size;
+	guint3264 size;
 	int conformant = di->conformant_run;
 	tvbuff_t *subtvb;
 
 	if (!conformant) {
-		offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_ctr_, &size);
-		subtvb = tvb_new_subset(tvb, offset, size, -1);
-		frsrpc_dissect_element_FrsSendCommPktReq_ctr__(subtvb, 0, pinfo, tree, drep);
-		offset += size;
+		guint32 saved_flags = di->call_data->flags;
+		offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_ctr_, &size);
+		di->call_data->flags &= ~DCERPC_IS_NDR64;
+		subtvb = tvb_new_subset(tvb, offset, (gint)size, -1);
+		frsrpc_dissect_element_FrsSendCommPktReq_ctr__(subtvb, 0, pinfo, tree, di, drep);
+		offset += (gint)size;
+		di->call_data->flags = saved_flags;
 	}
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsSendCommPktReq_ctr__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsSendCommPktReq_ctr__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_struct_frsrpc_CommPktChunkCtr(tvb,offset,pinfo,tree,drep,hf_frsrpc_frsrpc_FrsSendCommPktReq_ctr,0);
+	offset = frsrpc_dissect_struct_frsrpc_CommPktChunkCtr(tvb,offset,pinfo,tree,di,drep,hf_frsrpc_frsrpc_FrsSendCommPktReq_ctr,0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsSendCommPktReq_data_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsSendCommPktReq_data_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_data_name, 0);
+	offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_data_name, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsSendCommPktReq_data_handle(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsSendCommPktReq_data_handle(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_data_handle, 0);
+	offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsSendCommPktReq_data_handle, NULL);
 
 	return offset;
 }
 
 int
-frsrpc_dissect_struct_FrsSendCommPktReq(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
+frsrpc_dissect_struct_FrsSendCommPktReq(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *parent_tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 param _U_)
 {
 	proto_item *item = NULL;
 	proto_tree *tree = NULL;
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
 	int old_offset;
 
 	ALIGN_TO_5_BYTES;
@@ -3014,27 +3025,27 @@ frsrpc_dissect_struct_FrsSendCommPktReq(tvbuff_t *tvb _U_, int offset _U_, packe
 	old_offset = offset;
 
 	if (parent_tree) {
-		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, TRUE);
+		item = proto_tree_add_item(parent_tree, hf_index, tvb, offset, -1, ENC_NA);
 		tree = proto_item_add_subtree(item, ett_frsrpc_frsrpc_FrsSendCommPktReq);
 	}
 	
-	offset = frsrpc_dissect_element_FrsSendCommPktReq_major(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_FrsSendCommPktReq_major(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_FrsSendCommPktReq_minor(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_FrsSendCommPktReq_minor(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_FrsSendCommPktReq_cs_id(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_FrsSendCommPktReq_cs_id(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_FrsSendCommPktReq_memory_len(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_FrsSendCommPktReq_memory_len(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_FrsSendCommPktReq_pkt_len(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_FrsSendCommPktReq_pkt_len(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_FrsSendCommPktReq_upk_len(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_FrsSendCommPktReq_upk_len(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_FrsSendCommPktReq_ctr(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_FrsSendCommPktReq_ctr(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_FrsSendCommPktReq_data_name(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_FrsSendCommPktReq_data_name(tvb, offset, pinfo, tree, di, drep);
 
-	offset = frsrpc_dissect_element_FrsSendCommPktReq_data_handle(tvb, offset, pinfo, tree, drep);
+	offset = frsrpc_dissect_element_FrsSendCommPktReq_data_handle(tvb, offset, pinfo, tree, di, drep);
 
 
 	proto_item_set_len(item, offset-old_offset);
@@ -3054,13 +3065,13 @@ frsrpc_dissect_struct_FrsSendCommPktReq(tvbuff_t *tvb _U_, int offset _U_, packe
 /* IDL: } */
 
 int
-frsrpc_dissect_enum_PartnerAuthLevel(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
+frsrpc_dissect_enum_PartnerAuthLevel(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_, int hf_index _U_, guint32 *param _U_)
 {
 	guint32 parameter=0;
 	if(param){
 		parameter=(guint32)*param;
 	}
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_index, &parameter);
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_index, &parameter);
 	if(param){
 		*param=(guint32)parameter;
 	}
@@ -3068,9 +3079,9 @@ frsrpc_dissect_enum_PartnerAuthLevel(tvbuff_t *tvb _U_, int offset _U_, packet_i
 }
 
 static int
-frsrpc_dissect_element_FrsSendCommPkt_req(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsSendCommPkt_req(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_struct_FrsSendCommPktReq(tvb,offset,pinfo,tree,drep,hf_frsrpc_frsrpc_FrsSendCommPkt_req,0);
+	offset = frsrpc_dissect_struct_FrsSendCommPktReq(tvb,offset,pinfo,tree,di,drep,hf_frsrpc_frsrpc_FrsSendCommPkt_req,0);
 
 	return offset;
 }
@@ -3080,116 +3091,116 @@ frsrpc_dissect_element_FrsSendCommPkt_req(tvbuff_t *tvb _U_, int offset _U_, pac
 /* IDL: ); */
 
 static int
-frsrpc_dissect_FrsSendCommPkt_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_FrsSendCommPkt_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	guint32 status;
 
-	pinfo->dcerpc_procedure_name="FrsSendCommPkt";
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_werror, &status);
+	di->dcerpc_procedure_name="FrsSendCommPkt";
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_werror, &status);
 
-	if (status != 0 && check_col(pinfo->cinfo, COL_INFO))
+	if (status != 0)
 		col_append_fstr(pinfo->cinfo, COL_INFO, ", Error: %s", val_to_str(status, WERR_errors, "Unknown DOS error 0x%08x"));
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_FrsSendCommPkt_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_FrsSendCommPkt_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	pinfo->dcerpc_procedure_name="FrsSendCommPkt";
-	offset = frsrpc_dissect_element_FrsSendCommPkt_req(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
+	di->dcerpc_procedure_name="FrsSendCommPkt";
+	offset = frsrpc_dissect_element_FrsSendCommPkt_req(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsVerifyPromotionParent_parent_account(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsVerifyPromotionParent_parent_account(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, frsrpc_dissect_element_FrsVerifyPromotionParent_parent_account_, NDR_POINTER_UNIQUE, "Pointer to Parent Account (uint16)",hf_frsrpc_frsrpc_FrsVerifyPromotionParent_parent_account);
+	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, frsrpc_dissect_element_FrsVerifyPromotionParent_parent_account_, NDR_POINTER_UNIQUE, "Pointer to Parent Account (uint16)",hf_frsrpc_frsrpc_FrsVerifyPromotionParent_parent_account);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsVerifyPromotionParent_parent_account_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsVerifyPromotionParent_parent_account_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	char *data;
 
-	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsVerifyPromotionParent_parent_account, FALSE, &data);
+	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsVerifyPromotionParent_parent_account, FALSE, &data);
 	proto_item_append_text(tree, ": %s", data);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsVerifyPromotionParent_parent_password(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsVerifyPromotionParent_parent_password(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, frsrpc_dissect_element_FrsVerifyPromotionParent_parent_password_, NDR_POINTER_UNIQUE, "Pointer to Parent Password (uint16)",hf_frsrpc_frsrpc_FrsVerifyPromotionParent_parent_password);
+	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, frsrpc_dissect_element_FrsVerifyPromotionParent_parent_password_, NDR_POINTER_UNIQUE, "Pointer to Parent Password (uint16)",hf_frsrpc_frsrpc_FrsVerifyPromotionParent_parent_password);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsVerifyPromotionParent_parent_password_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsVerifyPromotionParent_parent_password_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	char *data;
 
-	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsVerifyPromotionParent_parent_password, FALSE, &data);
+	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsVerifyPromotionParent_parent_password, FALSE, &data);
 	proto_item_append_text(tree, ": %s", data);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_name_, NDR_POINTER_UNIQUE, "Pointer to Replica Set Name (uint16)",hf_frsrpc_frsrpc_FrsVerifyPromotionParent_replica_set_name);
+	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_name_, NDR_POINTER_UNIQUE, "Pointer to Replica Set Name (uint16)",hf_frsrpc_frsrpc_FrsVerifyPromotionParent_replica_set_name);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	char *data;
 
-	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsVerifyPromotionParent_replica_set_name, FALSE, &data);
+	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsVerifyPromotionParent_replica_set_name, FALSE, &data);
 	proto_item_append_text(tree, ": %s", data);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_type_, NDR_POINTER_UNIQUE, "Pointer to Replica Set Type (uint16)",hf_frsrpc_frsrpc_FrsVerifyPromotionParent_replica_set_type);
+	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_type_, NDR_POINTER_UNIQUE, "Pointer to Replica Set Type (uint16)",hf_frsrpc_frsrpc_FrsVerifyPromotionParent_replica_set_type);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_type_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_type_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	char *data;
 
-	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsVerifyPromotionParent_replica_set_type, FALSE, &data);
+	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsVerifyPromotionParent_replica_set_type, FALSE, &data);
 	proto_item_append_text(tree, ": %s", data);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsVerifyPromotionParent_partner_auth_level(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsVerifyPromotionParent_partner_auth_level(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_enum_PartnerAuthLevel(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsVerifyPromotionParent_partner_auth_level, 0);
+	offset = frsrpc_dissect_enum_PartnerAuthLevel(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsVerifyPromotionParent_partner_auth_level, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsVerifyPromotionParent___ndr_guid_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsVerifyPromotionParent___ndr_guid_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsVerifyPromotionParent___ndr_guid_size, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsVerifyPromotionParent___ndr_guid_size, 0);
 
 	return offset;
 }
@@ -3204,285 +3215,291 @@ frsrpc_dissect_element_FrsVerifyPromotionParent___ndr_guid_size(tvbuff_t *tvb _U
 /* IDL: ); */
 
 static int
-frsrpc_dissect_FrsVerifyPromotionParent_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_FrsVerifyPromotionParent_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	guint32 status;
 
-	pinfo->dcerpc_procedure_name="FrsVerifyPromotionParent";
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_werror, &status);
+	di->dcerpc_procedure_name="FrsVerifyPromotionParent";
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_werror, &status);
 
-	if (status != 0 && check_col(pinfo->cinfo, COL_INFO))
+	if (status != 0)
 		col_append_fstr(pinfo->cinfo, COL_INFO, ", Error: %s", val_to_str(status, WERR_errors, "Unknown DOS error 0x%08x"));
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_FrsVerifyPromotionParent_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_FrsVerifyPromotionParent_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	pinfo->dcerpc_procedure_name="FrsVerifyPromotionParent";
-	offset = frsrpc_dissect_element_FrsVerifyPromotionParent_parent_account(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsVerifyPromotionParent_parent_password(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_name(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_type(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsVerifyPromotionParent_partner_auth_level(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsVerifyPromotionParent___ndr_guid_size(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
+	di->dcerpc_procedure_name="FrsVerifyPromotionParent";
+	offset = frsrpc_dissect_element_FrsVerifyPromotionParent_parent_account(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsVerifyPromotionParent_parent_password(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_name(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsVerifyPromotionParent_replica_set_type(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsVerifyPromotionParent_partner_auth_level(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsVerifyPromotionParent___ndr_guid_size(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_parent_account(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_parent_account(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, frsrpc_dissect_element_FrsStartPromotionParent_parent_account_, NDR_POINTER_UNIQUE, "Pointer to Parent Account (uint16)",hf_frsrpc_frsrpc_FrsStartPromotionParent_parent_account);
+	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, frsrpc_dissect_element_FrsStartPromotionParent_parent_account_, NDR_POINTER_UNIQUE, "Pointer to Parent Account (uint16)",hf_frsrpc_frsrpc_FrsStartPromotionParent_parent_account);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_parent_account_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_parent_account_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	char *data;
 
-	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsStartPromotionParent_parent_account, FALSE, &data);
+	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsStartPromotionParent_parent_account, FALSE, &data);
 	proto_item_append_text(tree, ": %s", data);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_parent_password(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_parent_password(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, frsrpc_dissect_element_FrsStartPromotionParent_parent_password_, NDR_POINTER_UNIQUE, "Pointer to Parent Password (uint16)",hf_frsrpc_frsrpc_FrsStartPromotionParent_parent_password);
+	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, frsrpc_dissect_element_FrsStartPromotionParent_parent_password_, NDR_POINTER_UNIQUE, "Pointer to Parent Password (uint16)",hf_frsrpc_frsrpc_FrsStartPromotionParent_parent_password);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_parent_password_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_parent_password_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	char *data;
 
-	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsStartPromotionParent_parent_password, FALSE, &data);
+	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsStartPromotionParent_parent_password, FALSE, &data);
 	proto_item_append_text(tree, ": %s", data);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_replica_set_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_replica_set_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, frsrpc_dissect_element_FrsStartPromotionParent_replica_set_name_, NDR_POINTER_UNIQUE, "Pointer to Replica Set Name (uint16)",hf_frsrpc_frsrpc_FrsStartPromotionParent_replica_set_name);
+	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, frsrpc_dissect_element_FrsStartPromotionParent_replica_set_name_, NDR_POINTER_UNIQUE, "Pointer to Replica Set Name (uint16)",hf_frsrpc_frsrpc_FrsStartPromotionParent_replica_set_name);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_replica_set_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_replica_set_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	char *data;
 
-	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsStartPromotionParent_replica_set_name, FALSE, &data);
+	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsStartPromotionParent_replica_set_name, FALSE, &data);
 	proto_item_append_text(tree, ": %s", data);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_replica_set_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_replica_set_type(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, frsrpc_dissect_element_FrsStartPromotionParent_replica_set_type_, NDR_POINTER_UNIQUE, "Pointer to Replica Set Type (uint16)",hf_frsrpc_frsrpc_FrsStartPromotionParent_replica_set_type);
+	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, frsrpc_dissect_element_FrsStartPromotionParent_replica_set_type_, NDR_POINTER_UNIQUE, "Pointer to Replica Set Type (uint16)",hf_frsrpc_frsrpc_FrsStartPromotionParent_replica_set_type);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_replica_set_type_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_replica_set_type_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	char *data;
 
-	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsStartPromotionParent_replica_set_type, FALSE, &data);
+	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsStartPromotionParent_replica_set_type, FALSE, &data);
 	proto_item_append_text(tree, ": %s", data);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_connection_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_connection_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, frsrpc_dissect_element_FrsStartPromotionParent_connection_name_, NDR_POINTER_UNIQUE, "Pointer to Connection Name (uint16)",hf_frsrpc_frsrpc_FrsStartPromotionParent_connection_name);
+	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, frsrpc_dissect_element_FrsStartPromotionParent_connection_name_, NDR_POINTER_UNIQUE, "Pointer to Connection Name (uint16)",hf_frsrpc_frsrpc_FrsStartPromotionParent_connection_name);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_connection_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_connection_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	char *data;
 
-	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsStartPromotionParent_connection_name, FALSE, &data);
+	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsStartPromotionParent_connection_name, FALSE, &data);
 	proto_item_append_text(tree, ": %s", data);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_partner_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_partner_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, frsrpc_dissect_element_FrsStartPromotionParent_partner_name_, NDR_POINTER_UNIQUE, "Pointer to Partner Name (uint16)",hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_name);
+	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, frsrpc_dissect_element_FrsStartPromotionParent_partner_name_, NDR_POINTER_UNIQUE, "Pointer to Partner Name (uint16)",hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_name);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_partner_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_partner_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	char *data;
 
-	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_name, FALSE, &data);
+	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_name, FALSE, &data);
 	proto_item_append_text(tree, ": %s", data);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_partner_princ_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_partner_princ_name(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, frsrpc_dissect_element_FrsStartPromotionParent_partner_princ_name_, NDR_POINTER_UNIQUE, "Pointer to Partner Princ Name (uint16)",hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_princ_name);
+	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, frsrpc_dissect_element_FrsStartPromotionParent_partner_princ_name_, NDR_POINTER_UNIQUE, "Pointer to Partner Princ Name (uint16)",hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_princ_name);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_partner_princ_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_partner_princ_name_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	char *data;
 
-	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_princ_name, FALSE, &data);
+	offset = dissect_ndr_cvstring(tvb, offset, pinfo, tree, di, drep, sizeof(guint16), hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_princ_name, FALSE, &data);
 	proto_item_append_text(tree, ": %s", data);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_partner_auth_level(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_partner_auth_level(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = frsrpc_dissect_enum_PartnerAuthLevel(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_auth_level, 0);
+	offset = frsrpc_dissect_enum_PartnerAuthLevel(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_auth_level, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent___ndr_guid_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent___ndr_guid_size(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent___ndr_guid_size, 0);
+	offset = PIDL_dissect_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent___ndr_guid_size, 0);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_connection_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_connection_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, frsrpc_dissect_element_FrsStartPromotionParent_connection_guid_, NDR_POINTER_UNIQUE, "Pointer to Connection Guid (GUID)",hf_frsrpc_frsrpc_FrsStartPromotionParent_connection_guid);
+	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, frsrpc_dissect_element_FrsStartPromotionParent_connection_guid_, NDR_POINTER_UNIQUE, "Pointer to Connection Guid (GUID)",hf_frsrpc_frsrpc_FrsStartPromotionParent_connection_guid);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_connection_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_connection_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
-	guint32 size;
+	guint3264 size;
 	int conformant = di->conformant_run;
 	tvbuff_t *subtvb;
 
 	if (!conformant) {
-		offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent_connection_guid_, &size);
-		subtvb = tvb_new_subset(tvb, offset, size, -1);
-		frsrpc_dissect_element_FrsStartPromotionParent_connection_guid__(subtvb, 0, pinfo, tree, drep);
-		offset += size;
+		guint32 saved_flags = di->call_data->flags;
+		offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent_connection_guid_, &size);
+		di->call_data->flags &= ~DCERPC_IS_NDR64;
+		subtvb = tvb_new_subset(tvb, offset, (gint)size, -1);
+		frsrpc_dissect_element_FrsStartPromotionParent_connection_guid__(subtvb, 0, pinfo, tree, di, drep);
+		offset += (gint)size;
+		di->call_data->flags = saved_flags;
 	}
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_connection_guid__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_connection_guid__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent_connection_guid, NULL);
+	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent_connection_guid, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_partner_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_partner_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, frsrpc_dissect_element_FrsStartPromotionParent_partner_guid_, NDR_POINTER_UNIQUE, "Pointer to Partner Guid (GUID)",hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_guid);
+	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, frsrpc_dissect_element_FrsStartPromotionParent_partner_guid_, NDR_POINTER_UNIQUE, "Pointer to Partner Guid (GUID)",hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_guid);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_partner_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_partner_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
-	guint32 size;
+	guint3264 size;
 	int conformant = di->conformant_run;
 	tvbuff_t *subtvb;
 
 	if (!conformant) {
-		offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_guid_, &size);
-		subtvb = tvb_new_subset(tvb, offset, size, -1);
-		frsrpc_dissect_element_FrsStartPromotionParent_partner_guid__(subtvb, 0, pinfo, tree, drep);
-		offset += size;
+		guint32 saved_flags = di->call_data->flags;
+		offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_guid_, &size);
+		di->call_data->flags &= ~DCERPC_IS_NDR64;
+		subtvb = tvb_new_subset(tvb, offset, (gint)size, -1);
+		frsrpc_dissect_element_FrsStartPromotionParent_partner_guid__(subtvb, 0, pinfo, tree, di, drep);
+		offset += (gint)size;
+		di->call_data->flags = saved_flags;
 	}
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_partner_guid__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_partner_guid__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_guid, NULL);
+	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent_partner_guid, NULL);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_parent_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_parent_guid(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, drep, frsrpc_dissect_element_FrsStartPromotionParent_parent_guid_, NDR_POINTER_UNIQUE, "Pointer to Parent Guid (GUID)",hf_frsrpc_frsrpc_FrsStartPromotionParent_parent_guid);
+	offset = dissect_ndr_toplevel_pointer(tvb, offset, pinfo, tree, di, drep, frsrpc_dissect_element_FrsStartPromotionParent_parent_guid_, NDR_POINTER_UNIQUE, "Pointer to Parent Guid (GUID)",hf_frsrpc_frsrpc_FrsStartPromotionParent_parent_guid);
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_parent_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_parent_guid_(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	dcerpc_info *di = (dcerpc_info *)pinfo->private_data;
-	guint32 size;
+	guint3264 size;
 	int conformant = di->conformant_run;
 	tvbuff_t *subtvb;
 
 	if (!conformant) {
-		offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent_parent_guid_, &size);
-		subtvb = tvb_new_subset(tvb, offset, size, -1);
-		frsrpc_dissect_element_FrsStartPromotionParent_parent_guid__(subtvb, 0, pinfo, tree, drep);
-		offset += size;
+		guint32 saved_flags = di->call_data->flags;
+		offset = dissect_ndr_uint3264(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent_parent_guid_, &size);
+		di->call_data->flags &= ~DCERPC_IS_NDR64;
+		subtvb = tvb_new_subset(tvb, offset, (gint)size, -1);
+		frsrpc_dissect_element_FrsStartPromotionParent_parent_guid__(subtvb, 0, pinfo, tree, di, drep);
+		offset += (gint)size;
+		di->call_data->flags = saved_flags;
 	}
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_element_FrsStartPromotionParent_parent_guid__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_element_FrsStartPromotionParent_parent_guid__(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent_parent_guid, NULL);
+	offset = dissect_ndr_uuid_t(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_frsrpc_FrsStartPromotionParent_parent_guid, NULL);
 
 	return offset;
 }
@@ -3503,50 +3520,50 @@ frsrpc_dissect_element_FrsStartPromotionParent_parent_guid__(tvbuff_t *tvb _U_, 
 /* IDL: ); */
 
 static int
-frsrpc_dissect_FrsStartPromotionParent_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_FrsStartPromotionParent_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	guint32 status;
 
-	pinfo->dcerpc_procedure_name="FrsStartPromotionParent";
-	offset = frsrpc_dissect_element_FrsStartPromotionParent_parent_guid(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
+	di->dcerpc_procedure_name="FrsStartPromotionParent";
+	offset = frsrpc_dissect_element_FrsStartPromotionParent_parent_guid(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_werror, &status);
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_werror, &status);
 
-	if (status != 0 && check_col(pinfo->cinfo, COL_INFO))
+	if (status != 0)
 		col_append_fstr(pinfo->cinfo, COL_INFO, ", Error: %s", val_to_str(status, WERR_errors, "Unknown DOS error 0x%08x"));
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_FrsStartPromotionParent_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_FrsStartPromotionParent_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	pinfo->dcerpc_procedure_name="FrsStartPromotionParent";
-	offset = frsrpc_dissect_element_FrsStartPromotionParent_parent_account(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsStartPromotionParent_parent_password(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsStartPromotionParent_replica_set_name(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsStartPromotionParent_replica_set_type(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsStartPromotionParent_connection_name(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsStartPromotionParent_partner_name(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsStartPromotionParent_partner_princ_name(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsStartPromotionParent_partner_auth_level(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsStartPromotionParent___ndr_guid_size(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsStartPromotionParent_connection_guid(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsStartPromotionParent_partner_guid(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
-	offset = frsrpc_dissect_element_FrsStartPromotionParent_parent_guid(tvb, offset, pinfo, tree, drep);
-	offset = dissect_deferred_pointers(pinfo, tvb, offset, drep);
+	di->dcerpc_procedure_name="FrsStartPromotionParent";
+	offset = frsrpc_dissect_element_FrsStartPromotionParent_parent_account(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsStartPromotionParent_parent_password(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsStartPromotionParent_replica_set_name(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsStartPromotionParent_replica_set_type(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsStartPromotionParent_connection_name(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsStartPromotionParent_partner_name(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsStartPromotionParent_partner_princ_name(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsStartPromotionParent_partner_auth_level(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsStartPromotionParent___ndr_guid_size(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsStartPromotionParent_connection_guid(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsStartPromotionParent_partner_guid(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
+	offset = frsrpc_dissect_element_FrsStartPromotionParent_parent_guid(tvb, offset, pinfo, tree, di, drep);
+	offset = dissect_deferred_pointers(pinfo, tvb, offset, di, drep);
 	return offset;
 }
 
@@ -3555,23 +3572,149 @@ frsrpc_dissect_FrsStartPromotionParent_request(tvbuff_t *tvb _U_, int offset _U_
 /* IDL: ); */
 
 static int
-frsrpc_dissect_FrsNOP_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_FrsNOP_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
 	guint32 status;
 
-	pinfo->dcerpc_procedure_name="FrsNOP";
-	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, drep, hf_frsrpc_werror, &status);
+	di->dcerpc_procedure_name="FrsNOP";
+	offset = dissect_ndr_uint32(tvb, offset, pinfo, tree, di, drep, hf_frsrpc_werror, &status);
 
-	if (status != 0 && check_col(pinfo->cinfo, COL_INFO))
+	if (status != 0)
 		col_append_fstr(pinfo->cinfo, COL_INFO, ", Error: %s", val_to_str(status, WERR_errors, "Unknown DOS error 0x%08x"));
 
 	return offset;
 }
 
 static int
-frsrpc_dissect_FrsNOP_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, guint8 *drep _U_)
+frsrpc_dissect_FrsNOP_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
 {
-	pinfo->dcerpc_procedure_name="FrsNOP";
+	di->dcerpc_procedure_name="FrsNOP";
+	return offset;
+}
+
+/* IDL: void FRSRPC_BACKUP_COMPLETE( */
+/* IDL:  */
+/* IDL: ); */
+
+static int
+frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
+{
+	di->dcerpc_procedure_name="FRSRPC_BACKUP_COMPLETE";
+	return offset;
+}
+
+static int
+frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
+{
+	di->dcerpc_procedure_name="FRSRPC_BACKUP_COMPLETE";
+	return offset;
+}
+
+/* IDL: void FRSRPC_BACKUP_COMPLETE_5( */
+/* IDL:  */
+/* IDL: ); */
+
+static int
+frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_5_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
+{
+	di->dcerpc_procedure_name="FRSRPC_BACKUP_COMPLETE_5";
+	return offset;
+}
+
+static int
+frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_5_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
+{
+	di->dcerpc_procedure_name="FRSRPC_BACKUP_COMPLETE_5";
+	return offset;
+}
+
+/* IDL: void FRSRPC_BACKUP_COMPLETE_6( */
+/* IDL:  */
+/* IDL: ); */
+
+static int
+frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_6_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
+{
+	di->dcerpc_procedure_name="FRSRPC_BACKUP_COMPLETE_6";
+	return offset;
+}
+
+static int
+frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_6_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
+{
+	di->dcerpc_procedure_name="FRSRPC_BACKUP_COMPLETE_6";
+	return offset;
+}
+
+/* IDL: void FRSRPC_BACKUP_COMPLETE_7( */
+/* IDL:  */
+/* IDL: ); */
+
+static int
+frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_7_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
+{
+	di->dcerpc_procedure_name="FRSRPC_BACKUP_COMPLETE_7";
+	return offset;
+}
+
+static int
+frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_7_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
+{
+	di->dcerpc_procedure_name="FRSRPC_BACKUP_COMPLETE_7";
+	return offset;
+}
+
+/* IDL: void FRSRPC_BACKUP_COMPLETE_8( */
+/* IDL:  */
+/* IDL: ); */
+
+static int
+frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_8_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
+{
+	di->dcerpc_procedure_name="FRSRPC_BACKUP_COMPLETE_8";
+	return offset;
+}
+
+static int
+frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_8_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
+{
+	di->dcerpc_procedure_name="FRSRPC_BACKUP_COMPLETE_8";
+	return offset;
+}
+
+/* IDL: void FRSRPC_BACKUP_COMPLETE_9( */
+/* IDL:  */
+/* IDL: ); */
+
+static int
+frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_9_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
+{
+	di->dcerpc_procedure_name="FRSRPC_BACKUP_COMPLETE_9";
+	return offset;
+}
+
+static int
+frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_9_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
+{
+	di->dcerpc_procedure_name="FRSRPC_BACKUP_COMPLETE_9";
+	return offset;
+}
+
+/* IDL: void FRSRPC_VERIFY_PROMOTION_PARENT_EX( */
+/* IDL:  */
+/* IDL: ); */
+
+static int
+frsrpc_dissect_FRSRPC_VERIFY_PROMOTION_PARENT_EX_response(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
+{
+	di->dcerpc_procedure_name="FRSRPC_VERIFY_PROMOTION_PARENT_EX";
+	return offset;
+}
+
+static int
+frsrpc_dissect_FRSRPC_VERIFY_PROMOTION_PARENT_EX_request(tvbuff_t *tvb _U_, int offset _U_, packet_info *pinfo _U_, proto_tree *tree _U_, dcerpc_info* di _U_, guint8 *drep _U_)
+{
+	di->dcerpc_procedure_name="FRSRPC_VERIFY_PROMOTION_PARENT_EX";
 	return offset;
 }
 
@@ -3585,6 +3728,20 @@ static dcerpc_sub_dissector frsrpc_dissectors[] = {
 	   frsrpc_dissect_FrsStartPromotionParent_request, frsrpc_dissect_FrsStartPromotionParent_response},
 	{ 3, "FrsNOP",
 	   frsrpc_dissect_FrsNOP_request, frsrpc_dissect_FrsNOP_response},
+	{ 4, "FRSRPC_BACKUP_COMPLETE",
+	   frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_request, frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_response},
+	{ 5, "FRSRPC_BACKUP_COMPLETE_5",
+	   frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_5_request, frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_5_response},
+	{ 6, "FRSRPC_BACKUP_COMPLETE_6",
+	   frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_6_request, frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_6_response},
+	{ 7, "FRSRPC_BACKUP_COMPLETE_7",
+	   frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_7_request, frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_7_response},
+	{ 8, "FRSRPC_BACKUP_COMPLETE_8",
+	   frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_8_request, frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_8_response},
+	{ 9, "FRSRPC_BACKUP_COMPLETE_9",
+	   frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_9_request, frsrpc_dissect_FRSRPC_BACKUP_COMPLETE_9_response},
+	{ 10, "FRSRPC_VERIFY_PROMOTION_PARENT_EX",
+	   frsrpc_dissect_FRSRPC_VERIFY_PROMOTION_PARENT_EX_request, frsrpc_dissect_FRSRPC_VERIFY_PROMOTION_PARENT_EX_response},
 	{ 0, NULL, NULL, NULL }
 };
 

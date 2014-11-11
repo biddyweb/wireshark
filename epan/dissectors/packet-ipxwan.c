@@ -1,8 +1,6 @@
 /* packet-ipxwan.c
  * Routines for NetWare IPX WAN Protocol
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,9 @@
 #include <epan/packet.h>
 #include <epan/expert.h>
 #include "packet-ipx.h"
+
+void proto_register_ipxwan(void);
+void proto_reg_handoff_ipxwan(void);
 
 /*
  * See RFC 1362 for version 1 of this protocol; see the NetWare Link
@@ -62,6 +63,8 @@ static int hf_ipxwan_option_value = -1;
 
 static gint ett_ipxwan = -1;
 static gint ett_ipxwan_option = -1;
+
+static expert_field ei_ipxwan_option_data_len = EI_INIT;
 
 static const value_string ipxwan_packet_type_vals[] = {
 	{ 0,    "Timer Request" },
@@ -152,12 +155,11 @@ dissect_ipxwan(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	}
 	offset += 4;
 	packet_type = tvb_get_guint8(tvb, offset);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_str(pinfo->cinfo, COL_INFO,
+	col_add_str(pinfo->cinfo, COL_INFO,
 		    val_to_str(packet_type, ipxwan_packet_type_vals,
 		        "Unknown packet type %u"));
-	}
-	if (tree) {
+
+    if (tree) {
 		proto_tree_add_uint(ipxwan_tree, hf_ipxwan_packet_type, tvb,
 			offset, 1, packet_type);
 		offset += 1;
@@ -196,7 +198,7 @@ dissect_ipxwan(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 			case OPT_ROUTING_TYPE:
 				if (option_data_len != 1) {
-					expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, 
+					expert_add_info_format(pinfo, ti, &ei_ipxwan_option_data_len,
 						"Bogus length: %u, should be 1", option_data_len);
 				} else {
 					proto_tree_add_item(option_tree,
@@ -207,15 +209,15 @@ dissect_ipxwan(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 			case OPT_RIP_SAP_INFO_EXCHANGE:
 				if (option_data_len != 54) {
-					expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, 
+					expert_add_info_format(pinfo, ti, &ei_ipxwan_option_data_len,
 						"Bogus length: %u, should be 54", option_data_len);
 				} else {
 					wan_link_delay = tvb_get_ntohs(tvb,
 					    offset);
-					proto_tree_add_uint_format(option_tree,
+					proto_tree_add_uint_format_value(option_tree,
 					    hf_ipxwan_wan_link_delay, tvb,
 					    offset, 2, wan_link_delay,
-					    "WAN Link Delay: %ums",
+					    "%ums",
 					    wan_link_delay);
 					proto_tree_add_item(option_tree,
 					    hf_ipxwan_common_network_number,
@@ -228,43 +230,43 @@ dissect_ipxwan(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 			case OPT_NLSP_INFORMATION:
 				if (option_data_len != 8) {
-					expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, 
+					expert_add_info_format(pinfo, ti, &ei_ipxwan_option_data_len,
 						"Bogus length: %u, should be 8", option_data_len);
 				} else {
 					delay = tvb_get_ntohl(tvb, offset);
-					proto_tree_add_uint_format(option_tree,
+					proto_tree_add_uint_format_value(option_tree,
 					    hf_ipxwan_delay, tvb,
 					    offset, 4, delay,
-					    "Delay: %uus", delay);
+					    "%uus", delay);
 					throughput = tvb_get_ntohl(tvb, offset);
-					proto_tree_add_uint_format(option_tree,
+					proto_tree_add_uint_format_value(option_tree,
 					    hf_ipxwan_throughput, tvb,
 					    offset, 4, throughput,
-					    "Throughput: %uus",
+					    "%uus",
 					    throughput);
 				}
 				break;
 
 			case OPT_NLSP_RAW_THROUGHPUT_DATA:
 				if (option_data_len != 8) {
-					expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, 
+					expert_add_info_format(pinfo, ti, &ei_ipxwan_option_data_len,
 						"Bogus length: %u, should be 8", option_data_len);
 				} else {
 					proto_tree_add_item(option_tree,
 					    hf_ipxwan_request_size, tvb,
 					    offset, 4, ENC_BIG_ENDIAN);
 					delta_time = tvb_get_ntohl(tvb, offset);
-					proto_tree_add_uint_format(option_tree,
+					proto_tree_add_uint_format_value(option_tree,
 					    hf_ipxwan_delta_time, tvb,
 					    offset, 4, delta_time,
-					    "Delta Time: %uus",
+					    "%uus",
 					    delta_time);
 				}
 				break;
 
 			case OPT_EXTENDED_NODE_ID:
 				if (option_data_len != 4) {
-					expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, 
+					expert_add_info_format(pinfo, ti, &ei_ipxwan_option_data_len,
 						"Bogus length: %u, should be 4", option_data_len);
 				} else {
 					proto_tree_add_item(option_tree,
@@ -275,7 +277,7 @@ dissect_ipxwan(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 			case OPT_NODE_NUMBER:
 				if (option_data_len != 6) {
-					expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, 
+					expert_add_info_format(pinfo, ti, &ei_ipxwan_option_data_len,
 						"Bogus length: %u, should be 6", option_data_len);
 				} else {
 					proto_tree_add_item(option_tree,
@@ -286,7 +288,7 @@ dissect_ipxwan(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 			case OPT_COMPRESSION:
 				if (option_data_len < 1) {
-					expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, 
+					expert_add_info_format(pinfo, ti, &ei_ipxwan_option_data_len,
 						"Bogus length: %u, should be >= 1", option_data_len);
 				} else {
 					compression_type = tvb_get_guint8(tvb,
@@ -298,18 +300,18 @@ dissect_ipxwan(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 					case COMP_TYPE_TELEBIT:
 						if (option_data_len < 3) {
-							expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, 
+							expert_add_info_format(pinfo, ti, &ei_ipxwan_option_data_len,
 								"Bogus length: %u, should be >= 3", option_data_len);
 						} else {
-							proto_tree_add_item(option_tree, hf_ipxwan_compression_options, 
+							proto_tree_add_item(option_tree, hf_ipxwan_compression_options,
 								tvb, offset+1, 1, ENC_BIG_ENDIAN);
-							proto_tree_add_item(option_tree, hf_ipxwan_compression_slots, 
+							proto_tree_add_item(option_tree, hf_ipxwan_compression_slots,
 								tvb, offset+2, 1, ENC_BIG_ENDIAN);
 						}
 						break;
 
 					default:
-						proto_tree_add_item(option_tree, hf_ipxwan_compression_parameters, 
+						proto_tree_add_item(option_tree, hf_ipxwan_compression_parameters,
 							tvb, offset+1, option_data_len-1, ENC_NA);
 						break;
 					}
@@ -317,12 +319,12 @@ dissect_ipxwan(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				break;
 
 			case OPT_PAD:
-				proto_tree_add_item(option_tree, hf_ipxwan_padding, 
+				proto_tree_add_item(option_tree, hf_ipxwan_padding,
 					tvb, offset, option_data_len, ENC_NA);
 				break;
 
 			default:
-				proto_tree_add_item(option_tree, hf_ipxwan_option_value, 
+				proto_tree_add_item(option_tree, hf_ipxwan_option_value,
 					tvb, offset, option_data_len, ENC_NA);
 				break;
 			}
@@ -441,10 +443,17 @@ proto_register_ipxwan(void)
 		&ett_ipxwan,
 		&ett_ipxwan_option,
 	};
+	static ei_register_info ei[] = {
+		{ &ei_ipxwan_option_data_len, { "ipxwan.option_data_len.invalid", PI_MALFORMED, PI_ERROR, "Wrong length", EXPFILL }},
+	};
+
+	expert_module_t* expert_ipxwan;
 
 	proto_ipxwan = proto_register_protocol("IPX WAN", "IPX WAN", "ipxwan");
 	proto_register_field_array(proto_ipxwan, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_ipxwan = expert_register_protocol(proto_ipxwan);
+	expert_register_field_array(expert_ipxwan, ei, array_length(ei));
 }
 
 void

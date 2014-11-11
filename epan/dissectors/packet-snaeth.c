@@ -1,8 +1,6 @@
 /* packet-snaeth.c
  * Routines for SNA-over-Ethernet (Ethernet type 80d5)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,8 @@
  *
  * http://www.cisco.com/univercd/cc/td/doc/product/software/ssr90/rpc_r/18059.pdf
  */
+void proto_register_snaeth(void);
+void proto_reg_handoff_snaeth(void);
 
 static int proto_snaeth = -1;
 static int hf_snaeth_len = -1;

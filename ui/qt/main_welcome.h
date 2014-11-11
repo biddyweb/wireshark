@@ -1,7 +1,5 @@
 /* main_welcome.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,7 @@
 #include <QTreeWidgetItem>
 
 #include "splash_overlay.h"
+#include "interface_tree.h"
 
 namespace Ui {
     class MainWelcome;
@@ -39,6 +38,7 @@ class MainWelcome : public QFrame
     Q_OBJECT
 public:
     explicit MainWelcome(QWidget *parent = 0);
+    InterfaceTree *getInterfaceTree();
 
 protected:
     void resizeEvent(QResizeEvent *event);
@@ -57,6 +57,9 @@ private:
 signals:
     void startCapture();
     void recentFileActivated(QString& cfile);
+    void pushFilterSyntaxStatus(QString&);
+    void popFilterSyntaxStatus();
+    void captureFilterSyntaxChanged(bool valid);
 
 private slots:
     void destroySplashOverlay();

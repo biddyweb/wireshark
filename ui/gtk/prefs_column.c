@@ -1,8 +1,6 @@
 /* column_prefs.c
  * Dialog box for column preferences
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -24,12 +22,13 @@
 
 #include "config.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #include <gtk/gtk.h>
 
 #include <epan/prefs.h>
-#include <epan/column_info.h>
+#include <epan/column-info.h>
 #include <epan/column.h>
 #include <epan/strutil.h>
 
@@ -44,6 +43,7 @@
 #include "ui/gtk/filter_dlg.h"
 #include "ui/gtk/filter_autocomplete.h"
 #include "ui/gtk/old-gtk-compat.h"
+#include "ui/gtk/stock_icons.h"
 
 static GtkWidget *remove_bt, *field_te, *field_lb, *occurrence_te, *occurrence_lb, *fmt_cmb;
 static gulong column_menu_changed_handler_id;
@@ -101,22 +101,22 @@ visible_toggled(GtkCellRendererToggle *cell _U_, gchar *path_str, gpointer data)
  */
 GtkWidget *
 column_prefs_show(GtkWidget *prefs_window) {
-    GtkWidget         *main_vb, *bottom_hb, *column_l, *add_bt, *grid, *lb;
-    GtkWidget         *list_vb, *list_lb, *list_sc;
-    GtkWidget         *add_remove_vb;
-    GtkWidget         *props_fr, *props_hb;
-    GList             *clp;
-    fmt_data          *cfmt;
-    gint               i;
-    gchar             *fmt;
-    const gchar       *column_titles[] = {"Displayed", "Title", "Field type"};
-    GtkListStore      *store;
-    GtkCellRenderer   *renderer;
-    GtkTreeViewColumn *column;
-    GtkTreeSelection  *sel;
-    GtkTreeIter        iter;
-    GtkTreeIter        first_iter;
-    gint               first_row = TRUE;
+    GtkWidget          *main_vb, *bottom_hb, *column_l, *add_bt, *grid, *lb;
+    GtkWidget          *list_vb, *list_lb, *list_sc;
+    GtkWidget          *add_remove_vb;
+    GtkWidget          *props_fr, *props_hb;
+    GList              *clp;
+    fmt_data           *cfmt;
+    gint                i;
+    gchar              *fmt;
+    static const gchar *column_titles[] = {"Displayed", "Title", "Field type"};
+    GtkListStore       *store;
+    GtkCellRenderer    *renderer;
+    GtkTreeViewColumn  *column;
+    GtkTreeSelection   *sel;
+    GtkTreeIter         iter;
+    GtkTreeIter         first_iter;
+    gint                first_row = TRUE;
 
     /* Container for each row of widgets */
     main_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 5, FALSE);
@@ -219,13 +219,13 @@ column_prefs_show(GtkWidget *prefs_window) {
     gtk_box_pack_start (GTK_BOX (bottom_hb), add_remove_vb, FALSE, FALSE, 0);
     gtk_widget_show(add_remove_vb);
 
-    add_bt = gtk_button_new_from_stock(GTK_STOCK_ADD);
+    add_bt = ws_gtk_button_new_from_stock(GTK_STOCK_ADD);
     g_signal_connect(add_bt, "clicked", G_CALLBACK(column_list_new_cb), column_l);
     gtk_box_pack_start (GTK_BOX (add_remove_vb), add_bt, FALSE, FALSE, 0);
     gtk_widget_set_tooltip_text(add_bt, "Add a new column at the end of the list.");
     gtk_widget_show(add_bt);
 
-    remove_bt = gtk_button_new_from_stock(GTK_STOCK_REMOVE);
+    remove_bt = ws_gtk_button_new_from_stock(GTK_STOCK_REMOVE);
     gtk_widget_set_sensitive(remove_bt, FALSE);
     g_signal_connect(remove_bt, "clicked", G_CALLBACK(column_list_delete_cb), column_l);
     gtk_box_pack_start (GTK_BOX (add_remove_vb), remove_bt, FALSE, FALSE, 0);
@@ -253,22 +253,21 @@ column_prefs_show(GtkWidget *prefs_window) {
 
     lb = gtk_label_new("Field type:");
     gtk_misc_set_alignment(GTK_MISC(lb), 0.0f, 0.5f);
-    ws_gtk_grid_attach_extended(GTK_GRID(grid), lb, 0, 0, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+    ws_gtk_grid_attach_extended(GTK_GRID(grid), lb, 0, 0, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_tooltip_text(lb, "Select which packet information to present in the column.");
     gtk_widget_show(lb);
 
     props_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5, FALSE);
-    ws_gtk_grid_attach_extended(GTK_GRID(grid), props_hb, 1, 0, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+    ws_gtk_grid_attach_extended(GTK_GRID(grid), props_hb, 1, 0, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_tooltip_text(props_hb, "Select which packet information to present in the column.");
     gtk_widget_show(props_hb);
 
     field_lb = gtk_label_new("Field name:");
     gtk_misc_set_alignment(GTK_MISC(field_lb), 0.0f, 0.5f);
-    ws_gtk_grid_attach_extended(GTK_GRID(grid), field_lb, 0, 1, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+    ws_gtk_grid_attach_extended(GTK_GRID(grid), field_lb, 0, 1, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_sensitive(field_lb, FALSE);
     gtk_widget_set_tooltip_text(field_lb,
-                          "Field name used when field type is \"Custom\". "
-                          "This string has the same syntax as a display filter string.");
+                          "Display filter field name to show when the field type is \"Custom\".");
     gtk_widget_show(field_lb);
 
     field_te = gtk_entry_new();
@@ -285,16 +284,15 @@ column_prefs_show(GtkWidget *prefs_window) {
     g_signal_connect(field_te, "key-press-event", G_CALLBACK (filter_string_te_key_pressed_cb), NULL);
     g_signal_connect(prefs_window, "key-press-event", G_CALLBACK (filter_parent_dlg_key_pressed_cb), NULL);
     colorize_filter_te_as_empty(field_te);
-    ws_gtk_grid_attach_extended(GTK_GRID(grid), field_te, 1, 1, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+    ws_gtk_grid_attach_extended(GTK_GRID(grid), field_te, 1, 1, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_sensitive(field_te, FALSE);
     gtk_widget_set_tooltip_text(field_te,
-                          "Field name used when field type is \"Custom\". "
-                          "This string has the same syntax as a display filter string.");
+                          "Display filter field name to show when the field type is \"Custom\".");
     gtk_widget_show(field_te);
 
     occurrence_lb = gtk_label_new("Field occurrence:");
     gtk_misc_set_alignment(GTK_MISC(occurrence_lb), 0.0f, 0.5f);
-    ws_gtk_grid_attach_extended(GTK_GRID(grid), occurrence_lb, 2, 1, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+    ws_gtk_grid_attach_extended(GTK_GRID(grid), occurrence_lb, 2, 1, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_sensitive(occurrence_lb, FALSE);
     gtk_widget_set_tooltip_text(occurrence_lb,
                           "Field occurrence to use. "
@@ -310,7 +308,7 @@ column_prefs_show(GtkWidget *prefs_window) {
     column_occurrence_changed_handler_id =
         g_signal_connect(occurrence_te, "changed", G_CALLBACK(column_occurrence_changed_cb), column_l);
 
-    ws_gtk_grid_attach_extended(GTK_GRID(grid), occurrence_te, 3, 1, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+    ws_gtk_grid_attach_extended(GTK_GRID(grid), occurrence_te, 3, 1, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     gtk_widget_set_sensitive(occurrence_te, FALSE);
     gtk_widget_set_tooltip_text(occurrence_te,
                           "Field occurrence to use. "

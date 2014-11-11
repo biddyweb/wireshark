@@ -1,6 +1,5 @@
 # inap.cnf
 # inap conformation file
-# $Id$
 
 #.IMPORT ../dap/dap-exp.cnf
 #.IMPORT ../dsp/dsp-exp.cnf
@@ -18,7 +17,8 @@ MiscCallInfo
 RedirectionInformation
 ServiceKey
 
-#.NO_EMIT
+#.NO_EMIT ONLY_VALS
+ROS
 
 #.OMIT_ASSIGNMENT
 # Removed as they are giving 'defined but not used' warnings currently.
@@ -76,7 +76,6 @@ static const value_string inap_err_code_string_vals[] = {
 #
 #.TABLE2_HDR
 static int dissect_invokeData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_ctx_t *actx) {
-  proto_item *cause;
 
   switch(opcode){
 #.TABLE2_BODY OPERATION.&ArgumentType
@@ -85,9 +84,8 @@ static int dissect_invokeData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_
       break;
 #.TABLE2_FTR
     default:
-      cause=proto_tree_add_text(tree, tvb, offset, -1, "Unknown invokeData blob");
-      proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-      expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "Unknown invokeData %d",opcode);
+      proto_tree_add_expert_format(tree, actx->pinfo, &ei_inap_unknown_invokeData,
+	                               tvb, offset, -1, "Unknown invokeData %d", opcode);
       /* todo call the asn.1 dissector */
       break;
   }
@@ -96,8 +94,6 @@ static int dissect_invokeData(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_
 #.END
 #.TABLE2_HDR
 static int dissect_returnResultData(proto_tree *tree, tvbuff_t *tvb, int offset,asn1_ctx_t *actx) {
-  proto_item *cause;
-
   switch(opcode){
 #.TABLE2_BODY OPERATION.&ResultType
     case %(&operationCode)s:  /* %(_ident)s */
@@ -105,17 +101,14 @@ static int dissect_returnResultData(proto_tree *tree, tvbuff_t *tvb, int offset,
       break;
 #.TABLE2_FTR
   default:
-    cause=proto_tree_add_text(tree, tvb, offset, -1, "Unknown returnResultData blob");
-    proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-    expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "Unknown returnResultData %d",opcode);
+    proto_tree_add_expert_format(tree, actx->pinfo, &ei_inap_unknown_returnResultData,
+	                               tvb, offset, -1, "Unknown returnResultData %d", opcode);
   }
   return offset;
 }
 #.END
 #.TABLE2_HDR
 static int dissect_returnErrorData(proto_tree *tree, tvbuff_t *tvb, int offset,asn1_ctx_t *actx) {
-  proto_item *cause;
-
   switch(errorCode) {
 #.TABLE2_BODY ERROR.&ParameterType
     case %(&errorCode)s:  /* %(_ident)s */
@@ -123,9 +116,8 @@ static int dissect_returnErrorData(proto_tree *tree, tvbuff_t *tvb, int offset,a
       break;
 #.TABLE2_FTR
   default:
-    cause=proto_tree_add_text(tree, tvb, offset, -1, "Unknown returnErrorData blob");
-    proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-    expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "Unknown returnErrorData %d",errorCode);
+    proto_tree_add_expert_format(tree, actx->pinfo, &ei_inap_unknown_returnErrorData,
+	                               tvb, offset, -1, "Unknown returnErrorData %d", opcode);
   }
   return offset;
 }
@@ -216,17 +208,17 @@ static const inap_err_t inap_err_tab[] = {
 
 #.FN_HDR ExtensionField
 	obj_id = NULL;
-	
+
 #.FN_PARS Code/global FN_VARIANT = _str  VAL_PTR = &obj_id
 
 #.FN_BODY ExtensionField/value
   proto_tree_add_text(tree, tvb, offset, -1, "Extension Data");
   if (obj_id){
-	 offset=call_ber_oid_callback(obj_id, tvb, offset, actx->pinfo, tree);
+	 offset=call_ber_oid_callback(obj_id, tvb, offset, actx->pinfo, tree, NULL);
   }else{
 	 call_dissector(data_handle, tvb, actx->pinfo, tree);
 	 offset = tvb_length_remaining(tvb,offset);
-  }	
+  }
 
 
 

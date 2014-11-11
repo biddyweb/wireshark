@@ -2,8 +2,6 @@
  * Code to manage the global list of interfaces and to update widgets/windows
  * displaying items from those lists
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,8 +36,7 @@
 
 #include "ui/capture_globals.h"
 #include "ui/iface_lists.h"
-
-capture_options global_capture_opts;
+#include "../log.h"
 
 /*
  * Used when sorting an interface list into alphabetical order by
@@ -48,7 +45,7 @@ capture_options global_capture_opts;
 gint
 if_list_comparator_alph(const void *first_arg, const void *second_arg)
 {
-    const if_info_t *first = first_arg, *second = second_arg;
+    const if_info_t *first = (const if_info_t *)first_arg, *second = (const if_info_t *)second_arg;
 
     if (first != NULL && first->friendly_name != NULL &&
         second != NULL && second->friendly_name != NULL) {
@@ -64,7 +61,7 @@ if_list_comparator_alph(const void *first_arg, const void *second_arg)
  * those interfaces.
  */
 void
-scan_local_interfaces(void)
+scan_local_interfaces(void (*update_cb)(void))
 {
     GList             *if_entry, *lt_entry, *if_list;
     if_info_t         *if_info, *temp;
@@ -88,17 +85,17 @@ scan_local_interfaces(void)
     if (global_capture_opts.all_ifaces->len > 0) {
         for (i = (int)global_capture_opts.all_ifaces->len-1; i >= 0; i--) {
             device = g_array_index(global_capture_opts.all_ifaces, interface_t, i);
-            if (device.local) {
+            if (device.local && device.type != IF_PIPE && device.type != IF_STDIN) {
                 global_capture_opts.all_ifaces = g_array_remove_index(global_capture_opts.all_ifaces, i);
             }
         }
     }
 
     /* Scan through the list and build a list of strings to display. */
-    if_list = capture_interface_list(&err, NULL);
+    if_list = capture_interface_list(&err, NULL, update_cb);
     count = 0;
     for (if_entry = if_list; if_entry != NULL; if_entry = g_list_next(if_entry)) {
-        if_info = if_entry->data;
+        if_info = (if_info_t *)if_entry->data;
         ip_str = g_string_new("");
         ips = 0;
         if (strstr(if_info->name, "rpcap:")) {
@@ -112,11 +109,12 @@ scan_local_interfaces(void)
         }
         device.hidden = FALSE;
         device.locked = FALSE;
-        temp = g_malloc0(sizeof(if_info_t));
+        temp = (if_info_t *)g_malloc0(sizeof(if_info_t));
         temp->name = g_strdup(if_info->name);
         temp->friendly_name = g_strdup(if_info->friendly_name);
         temp->vendor_description = g_strdup(if_info->vendor_description);
         temp->loopback = if_info->loopback;
+        temp->type = if_info->type;
         /* Is this interface hidden and, if so, should we include it anyway? */
 
         /* Do we have a user-supplied description? */
@@ -159,11 +157,11 @@ scan_local_interfaces(void)
         if (prefs_is_capture_device_hidden(if_info->name)) {
             device.hidden = TRUE;
         }
-        device.type = get_interface_type(if_info->name, if_info->vendor_description);
+        device.type = if_info->type;
         monitor_mode = prefs_capture_device_monitor_mode(if_info->name);
-        caps = capture_get_if_capabilities(if_info->name, monitor_mode, NULL);
+        caps = capture_get_if_capabilities(if_info->name, monitor_mode, NULL, update_cb);
         for (; (curr_addr = g_slist_nth(if_info->addrs, ips)) != NULL; ips++) {
-            temp_addr = g_malloc0(sizeof(if_addr_t));
+            temp_addr = (if_addr_t *)g_malloc0(sizeof(if_addr_t));
             if (ips != 0) {
                 g_string_append(ip_str, "\n");
             }
@@ -177,7 +175,7 @@ scan_local_interfaces(void)
                         break;
                     case IF_AT_IPv6:
                         memcpy(temp_addr->addr.ip6_addr, addr->addr.ip6_addr, sizeof(addr->addr));
-                        g_string_append(ip_str,  ip6_to_str((struct e_in6_addr *)&addr->addr.ip6_addr));
+                        g_string_append(ip_str,  ip6_guint8_to_str(addr->addr.ip6_addr));
                         break;
                     default:
                         /* In case we add non-IP addresses */
@@ -214,9 +212,27 @@ scan_local_interfaces(void)
             device.monitor_mode_enabled = monitor_mode;
             device.monitor_mode_supported = caps->can_set_rfmon;
 #endif
+            /*
+             * If there's a preference for the link-layer header type for
+             * this interface, use it.  If not, use the all-interface
+             * default; if that's not set on the command line, that will
+             * be -1, meaning "use per-interface defaults", otherwise
+             * we'll fail if it's not one of the types the interface
+             * supports.
+             */
+            if ((device.active_dlt = capture_dev_user_linktype_find(if_info->name)) == -1) {
+                device.active_dlt = global_capture_opts.default_options.linktype;
+            }
+
+            /*
+             * Process the list of link-layer header types.
+             * If the active link-layer header type wasn't set from a
+             * preference or a global option (meaning it's -1), default
+             * to the first link-layer header type in the list.
+             */
             for (lt_entry = caps->data_link_types; lt_entry != NULL; lt_entry = g_list_next(lt_entry)) {
-                data_link_info = lt_entry->data;
-                if (linktype_count == 0) {
+                data_link_info = (data_link_info_t *)lt_entry->data;
+                if (linktype_count == 0 && device.active_dlt == -1) {
                     device.active_dlt = data_link_info->dlt;
                 }
                 link = (link_row *)g_malloc(sizeof(link_row));
@@ -242,12 +258,22 @@ scan_local_interfaces(void)
         device.local = TRUE;
         device.if_info = *temp;
         device.last_packets = 0;
-        device.pmode        = global_capture_opts.default_options.promisc_mode;
-        device.has_snaplen  = global_capture_opts.default_options.has_snaplen;
-        device.snaplen      = global_capture_opts.default_options.snaplen;
+        if ((device.pmode = capture_dev_user_pmode_find(if_info->name)) == -1) {
+            device.pmode = global_capture_opts.default_options.promisc_mode;
+        }
+        if ((device.has_snaplen = capture_dev_user_hassnap_find(if_info->name)) == -1) {
+            device.has_snaplen = global_capture_opts.default_options.has_snaplen;
+        }
+        if (capture_dev_user_snaplen_find(if_info->name) == -1) {
+            device.snaplen = global_capture_opts.default_options.snaplen;
+        } else {
+            device.snaplen = (guint)capture_dev_user_snaplen_find(if_info->name);
+        }
         device.cfilter      = g_strdup(global_capture_opts.default_options.cfilter);
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
-        device.buffer = DEFAULT_CAPTURE_BUFFER_SIZE;
+        if ((device.buffer = capture_dev_user_buffersize_find(if_info->name)) == -1) {
+            device.buffer = global_capture_opts.default_options.buffer_size;
+        }
 #endif
 
         if (global_capture_opts.ifaces->len > 0) {
@@ -262,7 +288,9 @@ scan_local_interfaces(void)
                     device.has_snaplen = interface_opts.has_snaplen;
                     device.snaplen = interface_opts.snaplen;
                     device.cfilter = g_strdup(interface_opts.cfilter);
-                    device.active_dlt = interface_opts.linktype;
+                    if (interface_opts.linktype != -1) {
+                        device.active_dlt = interface_opts.linktype;
+                    }
                     device.selected = TRUE;
                     global_capture_opts.num_selected++;
                     break;
@@ -296,7 +324,7 @@ scan_local_interfaces(void)
         }
         if (!found) {  /* new interface, maybe a pipe */
             device.name         = g_strdup(interface_opts.name);
-            device.display_name = g_strdup_printf("%s", device.name);
+            device.display_name = g_strdup_printf("%s: %s", device.name, interface_opts.descr);
             device.hidden       = FALSE;
             device.selected     = TRUE;
             device.type         = IF_PIPE;
@@ -331,18 +359,33 @@ scan_local_interfaces(void)
 }
 
 /*
- * Get the global interface list.  Generate it if we haven't
- * done so already.
+ * Get the global interface list.  Generate it if we haven't done so
+ * already.  This can be quite time consuming the first time, so
+ * record how long it takes in the info log.
  */
 void
-fill_in_local_interfaces(void)
+fill_in_local_interfaces(void(*update_cb)(void))
 {
-    static gboolean initialized = FALSE;
+	GTimeVal start_time;
+	GTimeVal end_time;
+	float elapsed;
+	static gboolean initialized = FALSE;
+
+	/* record the time we started, so we can log total time later */
+	g_get_current_time(&start_time);
+	g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_INFO, "fill_in_local_interfaces() starts");
 
     if (!initialized) {
-        scan_local_interfaces();
+		/* do the actual work */
+        scan_local_interfaces(update_cb);
         initialized = TRUE;
     }
+	/* log how long it took */
+    g_get_current_time(&end_time);
+    elapsed = (float) ((end_time.tv_sec - start_time.tv_sec) +
+                        ((end_time.tv_usec - start_time.tv_usec) / 1e6));
+
+    g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_INFO, "fill_in_local_interfaces() ends, taking %.3fs", elapsed);
 }
 
 void
@@ -362,7 +405,7 @@ hide_interface(gchar* new_hide)
         device = g_array_index(global_capture_opts.all_ifaces, interface_t, i);
         found = FALSE;
         for (entry = hidden_devices; entry != NULL; entry = g_list_next(entry)) {
-            if (strcmp(entry->data, device.name)==0) {
+            if (strcmp((char *)entry->data, device.name)==0) {
                 device.hidden = TRUE;
                 if (device.selected) {
                     device.selected = FALSE;

@@ -5,22 +5,20 @@
  * compiler warnings about deprecated definitions.
  * Try to work around these warnings to ensure a clean build with -Werror.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2007 Gerald Combs
- * 
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
@@ -30,6 +28,15 @@
 #define __WSGCRYPT_H__
 
 #ifdef HAVE_LIBGCRYPT
+
+#ifdef __CLANG__
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#include <gcrypt.h>
+#pragma clang diagnostic pop
+
+#else
 
 #if defined(__GNUC__) && defined(__GNUC_MINOR__)
 #define _GCC_VERSION (__GNUC__*100 + __GNUC_MINOR__*10)
@@ -50,7 +57,7 @@
 
 /* gcc version is between 4.2.0 and 4.6.0:
    diagnostic warning/error is supported, diagnostic push/pop is not supported */
-#pragma GCC diagnostic warning "-Wdeprecated-declarations"
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <gcrypt.h>
 #pragma GCC diagnostic error "-Wdeprecated-declarations"
 
@@ -58,12 +65,14 @@
 
 /* gcc version is >= 4.6.0: we can use push/pop */
 #pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wdeprecated-declarations"
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <gcrypt.h>
 #pragma GCC diagnostic pop
 
 #endif /* _GCC_VERSION */
 
-#endif /* HAVE_LIBGRYPT */
+#endif /* __CLANG__ */
+
+#endif /* HAVE_LIBGCRYPT */
 
 #endif /* __WSGCRYPT_H__ */

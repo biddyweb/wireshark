@@ -2,8 +2,6 @@
  * Routines for DOCSIS 3.0 Dynamic Bonding Change Response Message dissection.
  * Copyright 2010, Guido Reismueller <g.reismueller[AT]avm.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,9 @@
 
 extern value_string docsis_conf_code[];
 
+void proto_register_docsis_dbcrsp(void);
+void proto_reg_handoff_docsis_dbcrsp(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_docsis_dbcrsp = -1;
 static int hf_docsis_dbcrsp_tranid = -1;
@@ -51,7 +52,6 @@ dissect_dbcrsp (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
   transid = tvb_get_ntohs (tvb, 0);
   confcode = tvb_get_guint8 (tvb, 2);
 
-  col_clear (pinfo->cinfo, COL_INFO);
   col_add_fstr (pinfo->cinfo, COL_INFO,
 	    "Dynamic Bonding Change Response: Tran-Id = %u (%s)", transid,
 		 val_to_str (confcode, docsis_conf_code, "%d"));

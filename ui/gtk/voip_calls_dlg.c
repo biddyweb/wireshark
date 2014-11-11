@@ -1,8 +1,6 @@
 /* voip_calls_dlg.c
  * VoIP calls summary addition for Wireshark
  *
- * $Id$
- *
  * Copyright 2004, Ericsson , Spain
  * By Francisco Alcoba <francisco.alcoba@ericsson.com>
  *
@@ -43,7 +41,7 @@
 
 #include <epan/epan.h>
 #include <epan/packet.h>
-#include "epan/filesystem.h"
+#include "wsutil/filesystem.h"
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
 #include <epan/to_str.h>
@@ -53,8 +51,6 @@
 
 #include "../globals.h"
 #include "../stat_menu.h"
-
-#include "ui/simple_dialog.h"
 
 #include "ui/gtk/graph_analysis.h"
 #include "ui/gtk/voip_calls_dlg.h"
@@ -66,11 +62,13 @@
 #include "ui/gtk/stock_icons.h"
 
 #ifdef HAVE_LIBPORTAUDIO
-#include "ui/gtk/rtp_analysis.h"
+#include "ui/rtp_analysis.h"
 #include "ui/gtk/rtp_player.h"
 #endif /* HAVE_LIBPORTAUDIO */
 
 #include "ui/gtk/old-gtk-compat.h"
+
+void register_tap_listener_voip_calls_dlg(void);
 
 /****************************************************************************/
 /* pointer to the one and only dialog window */
@@ -183,7 +181,7 @@ voip_calls_on_filter(GtkButton *button _U_, gpointer user_data _U_)
 	GList* lista;
 	GList* listb;
 	voip_calls_info_t *listinfo;
-	graph_analysis_item_t *gai;
+	seq_analysis_item_t *gai;
 	size_t filter_length;
 	size_t max_filter_length = 2048; /* What's this based on ? */
 	int pos;
@@ -213,11 +211,11 @@ voip_calls_on_filter(GtkButton *button _U_, gpointer user_data _U_)
 	/* Build a new filter based on frame numbers */
 	lista = g_list_first(voip_calls_get_info()->callsinfo_list);
 	while (lista) {
-		listinfo = lista->data;
+		listinfo = (voip_calls_info_t *)lista->data;
 		if (listinfo->selected) {
 			listb = g_list_first(voip_calls_get_info()->graph_analysis->list);
 			while (listb) {
-				gai = listb->data;
+				gai = (seq_analysis_item_t *)listb->data;
 				if (gai->conv_num == listinfo->call_num) {
 					g_string_append_printf(filter_string_fwd, "%sframe.number == %u", is_first?"":" or ", gai->fd->num);
 					is_first = FALSE;
@@ -242,20 +240,20 @@ voip_calls_on_filter(GtkButton *button _U_, gpointer user_data _U_)
 		/* Build a new filter based on protocol fields */
 		lista = g_list_first(voip_calls_get_info()->callsinfo_list);
 		while (lista) {
-			listinfo = lista->data;
+			listinfo = (voip_calls_info_t *)lista->data;
 			if (listinfo->selected) {
 				if (!is_first)
 					g_string_append_printf(filter_string_fwd, " or ");
 				switch (listinfo->protocol) {
 				case VOIP_SIP:
-					sipinfo = listinfo->prot_info;
+					sipinfo = (sip_calls_info_t *)listinfo->prot_info;
 					g_string_append_printf(filter_string_fwd,
 						"(sip.Call-ID == \"%s\")",
 						sipinfo->call_identifier
 					);
 					break;
 				case VOIP_ISUP:
-					isupinfo = listinfo->prot_info;
+					isupinfo = (isup_calls_info_t *)listinfo->prot_info;
 					g_string_append_printf(filter_string_fwd,
 						"(isup.cic == %i and frame.number >= %i and frame.number <= %i and mtp3.network_indicator == %i and ((mtp3.dpc == %i) and (mtp3.opc == %i)) or ((mtp3.dpc == %i) and (mtp3.opc == %i)))",
 						isupinfo->cic, listinfo->start_fd->num,
@@ -265,17 +263,17 @@ voip_calls_on_filter(GtkButton *button _U_, gpointer user_data _U_)
 					);
 					break;
 				case VOIP_H323:
-					h323info = listinfo->prot_info;
+					h323info = (h323_calls_info_t *)listinfo->prot_info;
 					g_string_append_printf(filter_string_fwd,
 						"((h225.guid == %s || q931.call_ref == %x:%x || q931.call_ref == %x:%x)",
-						guid_to_str(&h323info->guid[0]),
+						guid_to_ep_str(&h323info->guid[0]),
 						(guint8) (h323info->q931_crv & 0x00ff),
 						(guint8)((h323info->q931_crv & 0xff00)>>8),
 						(guint8) (h323info->q931_crv2 & 0x00ff),
 						(guint8)((h323info->q931_crv2 & 0xff00)>>8));
 					listb = g_list_first(h323info->h245_list);
 					while (listb) {
-						h245_add = listb->data;
+						h245_add = (h245_address_t *)listb->data;
 						g_string_append_printf(filter_string_fwd,
 							" || (ip.addr == %s && tcp.port == %d && h245)",
 							ip_to_str((guint8 *)(h245_add->h245_address.data)), h245_add->h245_port);
@@ -284,7 +282,7 @@ voip_calls_on_filter(GtkButton *button _U_, gpointer user_data _U_)
 					g_string_append_printf(filter_string_fwd, ")");
 					break;
 				case TEL_H248:
-					ctx = listinfo->prot_info;
+					ctx = (gcp_ctx_t *)listinfo->prot_info;
 					g_string_append_printf(filter_string_fwd,
 						"(h248.ctx == 0x%x)", ctx->id);
 					break;
@@ -320,8 +318,8 @@ voip_calls_on_select_all(GtkButton *button _U_, gpointer user_data _U_)
 static gint
 graph_analysis_sort_compare(gconstpointer a, gconstpointer b)
 {
-    const graph_analysis_item_t *entry_a = (const graph_analysis_item_t *)a;
-    const graph_analysis_item_t *entry_b = (const graph_analysis_item_t *)b;
+    const seq_analysis_item_t *entry_a = (const seq_analysis_item_t *)a;
+    const seq_analysis_item_t *entry_b = (const seq_analysis_item_t *)b;
 
 	if(entry_a->fd->num < entry_b->fd->num)
 		return -1;
@@ -336,7 +334,7 @@ graph_analysis_sort_compare(gconstpointer a, gconstpointer b)
 static void
 on_graph_bt_clicked(GtkButton *button _U_, gpointer user_data _U_)
 {
-	graph_analysis_item_t *gai;
+	seq_analysis_item_t *gai;
 	GList* lista;
 	GList* listb;
 	voip_calls_info_t *listinfo;
@@ -351,7 +349,7 @@ on_graph_bt_clicked(GtkButton *button _U_, gpointer user_data _U_)
 	/* reset the "display" parameter in graph analysis */
 	listb = g_list_first(voip_calls_get_info()->graph_analysis->list);
 	while (listb) {
-		gai = listb->data;
+		gai = (seq_analysis_item_t *)listb->data;
 		gai->display = FALSE;
 		listb = g_list_next(listb);
 	}
@@ -359,11 +357,11 @@ on_graph_bt_clicked(GtkButton *button _U_, gpointer user_data _U_)
 	/* set the display for selected calls */
 	lista = g_list_first(voip_calls_get_info()->callsinfo_list);
 	while (lista) {
-		listinfo = lista->data;
+		listinfo = (voip_calls_info_t *)lista->data;
 		if (listinfo->selected) {
 			listb = g_list_first(voip_calls_get_info()->graph_analysis->list);
 			while (listb) {
-				gai = listb->data;
+				gai = (seq_analysis_item_t *)listb->data;
 				if (gai->conv_num == listinfo->call_num) {
 					gai->display = TRUE;
 				}
@@ -439,7 +437,7 @@ add_to_list_store(voip_calls_info_t* strinfo)
 	h323_calls_info_t *h323info;
 	gboolean flag = FALSE;
 
-	g_snprintf(field[CALL_COL_INITIAL_SPEAKER], 30, "%s", get_addr_name(&(strinfo->initial_speaker)));
+	g_snprintf(field[CALL_COL_INITIAL_SPEAKER], 30, "%s", ep_address_to_display(&(strinfo->initial_speaker)));
 	g_snprintf(field[CALL_COL_FROM],            50, "%s", strinfo->from_identity);
 	g_snprintf(field[CALL_COL_TO],              50, "%s", strinfo->to_identity);
 	g_snprintf(field[CALL_COL_PROTOCOL],        15, "%s",
@@ -450,12 +448,12 @@ add_to_list_store(voip_calls_info_t* strinfo)
 	/* Add comments based on the protocol */
 	switch (strinfo->protocol) {
 		case VOIP_ISUP:
-			isupinfo = strinfo->prot_info;
+			isupinfo = (isup_calls_info_t *)strinfo->prot_info;
 			g_snprintf(field[CALL_COL_COMMENTS],30, "%i-%i -> %i-%i", isupinfo->ni, isupinfo->opc,
 				isupinfo->ni, isupinfo->dpc);
 			break;
 		case VOIP_H323:
-			h323info = strinfo->prot_info;
+			h323info = (h323_calls_info_t *)strinfo->prot_info;
 			if (strinfo->call_state == VOIP_CALL_SETUP)
 				flag = h323info->is_faststart_Setup;
 			else
@@ -479,8 +477,8 @@ add_to_list_store(voip_calls_info_t* strinfo)
 
 	/* Fill the new row */
 	gtk_list_store_set(list_store, &list_iter,
-			   CALL_COL_START_TIME,       nstime_to_sec(&strinfo->start_fd->rel_ts),
-			   CALL_COL_STOP_TIME,        nstime_to_sec(&strinfo->stop_fd->rel_ts),
+			   CALL_COL_START_TIME,       nstime_to_sec(&strinfo->start_rel_ts),
+			   CALL_COL_STOP_TIME,        nstime_to_sec(&strinfo->stop_rel_ts),
 			   CALL_COL_INITIAL_SPEAKER,  &field[CALL_COL_INITIAL_SPEAKER][0],
 			   CALL_COL_FROM,             &field[CALL_COL_FROM][0],
 			   CALL_COL_TO,               &field[CALL_COL_TO][0],
@@ -714,30 +712,30 @@ voip_calls_dlg_create(void)
 	gtk_container_add (GTK_CONTAINER (hbuttonbox), bt_unselect);
 	gtk_widget_set_tooltip_text (bt_unselect, "Unselect this conversation");*/
 
-	bt_filter = gtk_button_new_from_stock(WIRESHARK_STOCK_PREPARE_FILTER);
+	bt_filter = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_PREPARE_FILTER);
 	gtk_container_add(GTK_CONTAINER(hbuttonbox), bt_filter);
 	gtk_widget_set_tooltip_text(bt_filter, "Prepare a display filter of the selected conversation");
 
-	bt_graph = gtk_button_new_from_stock(WIRESHARK_STOCK_VOIP_FLOW);
+	bt_graph = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_VOIP_FLOW);
 	gtk_container_add(GTK_CONTAINER(hbuttonbox), bt_graph);
 	gtk_widget_show(bt_graph);
 	g_signal_connect(bt_graph, "clicked", G_CALLBACK(on_graph_bt_clicked), NULL);
 	gtk_widget_set_tooltip_text(bt_graph, "Show a flow graph of the selected calls.");
 
 #ifdef HAVE_LIBPORTAUDIO
-	bt_player = gtk_button_new_from_stock(WIRESHARK_STOCK_AUDIO_PLAYER);
+	bt_player = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_AUDIO_PLAYER);
 	gtk_container_add(GTK_CONTAINER(hbuttonbox), bt_player);
 	gtk_widget_show(bt_player);
 	g_signal_connect(bt_player, "clicked", G_CALLBACK(on_player_bt_clicked), NULL);
 	gtk_widget_set_tooltip_text(bt_player, "Launch the RTP player to listen the selected calls.");
 #endif /* HAVE_LIBPORTAUDIO */
 
-	bt_select_all = gtk_button_new_from_stock(GTK_STOCK_SELECT_ALL);
+	bt_select_all = ws_gtk_button_new_from_stock(GTK_STOCK_SELECT_ALL);
 	gtk_container_add(GTK_CONTAINER(hbuttonbox), bt_select_all);
 	gtk_widget_set_can_default(bt_select_all, TRUE);
 	gtk_widget_set_tooltip_text(bt_select_all, "Select all the calls");
 
-	bt_close = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
+	bt_close = ws_gtk_button_new_from_stock(GTK_STOCK_CLOSE);
 	gtk_container_add(GTK_CONTAINER (hbuttonbox), bt_close);
 	gtk_widget_set_can_default(bt_close, TRUE);
 	gtk_widget_set_tooltip_text(bt_close, "Close this dialog");
@@ -830,6 +828,11 @@ voip_calls_dlg_draw(void *ptr _U_)
 void
 voip_calls_dlg_reset(void *ptr _U_)
 {
+	/* Clear gtk list store */
+	if (graph_analysis_data) {
+		gtk_list_store_clear(list_store);
+	}
+
 	/* Clean up memory used by calls tap */
 	voip_calls_reset(voip_calls_get_info());
 
@@ -848,8 +851,7 @@ voip_calls_init_tap(const char *dummy _U_, void* userdata _U_)
 	if (graph_analysis_data == NULL) {
 		graph_analysis_data_init();
 		/* init the Graph Analysys */
-		graph_analysis_data = graph_analysis_init();
-		graph_analysis_data->graph_info = voip_calls_get_info()->graph_analysis;
+		graph_analysis_data = graph_analysis_init(voip_calls_get_info()->graph_analysis);
 	}
 
 	/* Clean up memory used by calls tap */

@@ -1,8 +1,6 @@
 # CMS.cnf
 # CMS conformation file
 
-# $Id$
-
 #.IMPORT ../x509af/x509af-exp.cnf
 #.IMPORT ../x509ce/x509ce-exp.cnf
 #.IMPORT ../x509if/x509if-exp.cnf
@@ -97,7 +95,7 @@ RevocationInfoChoice/other		otherRIC
 	}
 
 #.FN_BODY ContentInfo/content
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, NULL);
 
 
 #.FN_BODY EncapsulatedContentInfo/eContent
@@ -105,24 +103,24 @@ RevocationInfoChoice/other		otherRIC
   offset = dissect_ber_octet_string(FALSE, actx, tree, tvb, offset, hf_index, &content_tvb);
   proto_item_set_text(actx->created_item, "eContent (%%u bytes)", tvb_length (content_tvb));
 
-  call_ber_oid_callback(object_identifier_id, content_tvb, 0, actx->pinfo, top_tree ? top_tree : tree);
+  call_ber_oid_callback(object_identifier_id, content_tvb, 0, actx->pinfo, top_tree ? top_tree : tree, NULL);
 
 #.FN_PARS OtherRecipientInfo/oriType
   FN_VARIANT = _str  VAL_PTR = &object_identifier_id
 
 #.FN_BODY OtherRecipientInfo/oriValue
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, NULL);
 
 #.FN_PARS OtherKeyAttribute/keyAttrId
   FN_VARIANT = _str  HF_INDEX = hf_cms_ci_contentType  VAL_PTR = &object_identifier_id
 
 #.FN_BODY OtherKeyAttribute/keyAttr
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, NULL);
 #.FN_PARS OtherRevocationInfoFormat/otherRevInfoFormat
   FN_VARIANT = _str  VAL_PTR = &object_identifier_id
 
 #.FN_BODY OtherRevocationInfoFormat/otherRevInfo
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, NULL);
 
 #.FN_PARS Attribute/attrType
   FN_VARIANT = _str  HF_INDEX = hf_cms_attrType  VAL_PTR = &object_identifier_id
@@ -139,14 +137,14 @@ RevocationInfoChoice/other		otherRIC
 
 #.FN_BODY AttributeValue
 
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, NULL);
 
 #.FN_BODY MessageDigest
   proto_item *pi;
   int old_offset = offset;
 
   %(DEFAULT_BODY)s
- 
+
   pi = actx->created_item;
 
   /* move past TLV */
@@ -172,7 +170,7 @@ RevocationInfoChoice/other		otherRIC
 
 #.FN_BODY SMIMECapability/parameters
 
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, NULL);
 
 #.FN_PARS RC2ParameterVersion
   VAL_PTR = &length

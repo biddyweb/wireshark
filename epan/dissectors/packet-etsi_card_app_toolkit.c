@@ -5,8 +5,6 @@
  *	3GPP TS 31.111 v9.7.0 (Release 9 / 2012-03)
  * Copyright 2010-2011 by Harald Welte <laforge@gnumonks.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -39,9 +37,12 @@
 #include "packet-gsm_a_common.h"
 #include "packet-gsm_sms.h"
 
+void proto_register_card_app_toolkit(void);
+void proto_reg_handoff_card_app_toolkit(void);
+
 static int proto_cat = -1;
 
-static dissector_table_t sms_dissector_table;	/* SMS TPDU */
+static dissector_handle_t gsm_sms_handle;	/* SMS TPDU */
 
 static int hf_cat_tlv = -1;
 
@@ -79,7 +80,19 @@ static int hf_ctlv_date_time_hr = -1;
 static int hf_ctlv_date_time_min = -1;
 static int hf_ctlv_date_time_sec = -1;
 static int hf_ctlv_date_time_tz = -1;
+static int hf_ctlv_at_cmd = -1;
+static int hf_ctlv_at_rsp = -1;
 static int hf_ctlv_language = -1;
+static int hf_ctlv_me_status = -1;
+static int hf_ctlv_timing_adv = -1;
+static int hf_ctlv_aid_rid = -1;
+static int hf_ctlv_aid_pix_app_code_etsi = -1;
+static int hf_ctlv_aid_pix_app_code_3gpp = -1;
+static int hf_ctlv_aid_pix_app_code_3gpp2 = -1;
+static int hf_ctlv_aid_pix_app_code = -1;
+static int hf_ctlv_aid_pix_country_code = -1;
+static int hf_ctlv_aid_pix_app_prov_code = -1;
+static int hf_ctlv_aid_pix_app_prov_field = -1;
 static int hf_ctlv_bearer = -1;
 static int hf_ctlv_bearer_descr = -1;
 static int hf_ctlv_bearer_csd_data_rate = -1;
@@ -113,9 +126,13 @@ static int hf_ctlv_other_address_ipv4 = -1;
 static int hf_ctlv_other_address_ipv6 = -1;
 static int hf_ctlv_access_tech = -1;
 static int hf_ctlv_utran_eutran_meas_qual = -1;
+static int hf_ctlv_upd_attach_type = -1;
 static int hf_ctlv_loci_lac = -1;
 static int hf_ctlv_loci_cell_id = -1;
 static int hf_ctlv_loci_ext_cell_id = -1;
+static int hf_ctlv_iari = -1;
+static int hf_ctlv_impu = -1;
+static int hf_ctlv_ims_status_code = -1;
 
 static int ett_cat = -1;
 static int ett_elem = -1;
@@ -183,7 +200,7 @@ static const value_string comp_tlv_tag_vals[] = {
 	{ 0x2b, "Immediate response" },
 	{ 0x2c, "DTMF string" },
 	{ 0x2d, "Language" },
-	{ 0x2e, "GSM/3G Timing Advance" },
+	{ 0x2e, "GSM Timing Advance" },
 	{ 0x2f, "AID" },
 	{ 0x30, "Browser Identity" },
 	{ 0x31, "URL" },
@@ -240,17 +257,20 @@ static const value_string comp_tlv_tag_vals[] = {
 	{ 0x73, "3GPP Routing Area Information" },
 	{ 0x74, "3GPP Update/Attach Type" },
 	{ 0x75, "3GPP Rejection Cause Code" },
-	{ 0x76, "3GPP Geographical Location Parameters" },
-	{ 0x77, "3GPP GAD Shapes" },
-	{ 0x78, "3GPP NMEA sentence" },
+	{ 0x76, "3GPP Geographical Location Parameters / IARI" },
+	{ 0x77, "3GPP GAD Shapes / IMPU list" },
+	{ 0x78, "3GPP NMEA sentence / IMS Status-Code" },
 	{ 0x79, "3GPP PLMN list" },
 	{ 0x7a, "Broadcast Network Information" },
 	{ 0x7b, "ACTIVATE descriptor" },
 	{ 0x7c, "3GPP EPS PDN connection activation parameters" },
 	{ 0x7d, "3GPP Tracking Area Identification" },
 	{ 0x7e, "3GPP CSG ID list" },
+	{ 0xaa, "IP address list" },
+	{ 0xbb, "Surrounding macrocells" },
 	{ 0, NULL }
 };
+static value_string_ext comp_tlv_tag_vals_ext = VALUE_STRING_EXT_INIT(comp_tlv_tag_vals);
 
 /* TS 102 223 Chapter 8.6 */
 static const value_string cmd_qual_refresh_vals[] = {
@@ -265,10 +285,12 @@ static const value_string cmd_qual_refresh_vals[] = {
 	{ 0x08, "Steering of Roaming for I-WLAN" },
 	{ 0, NULL }
 };
+
 static const true_false_string cmd_qual_send_short_msg_value = {
 	"SMS packing by the terminal required",
 	"Packing not required"
 };
+
 static const value_string cmd_qual_loci_vals[] = {
 	{ 0x00,	"Location Information (MCC, MNC, LAC/TAC, Cell Identity and Extended Cell Identity)" },
 	{ 0x01,	"IMEI of the terminal" },
@@ -288,14 +310,19 @@ static const value_string cmd_qual_loci_vals[] = {
 	{ 0x0f, "Location Information for multiple access technologies" },
 	{ 0x10, "Network Measurement results for multiple access technologies" },
 	{ 0x11, "CSG ID list and corresponding HNB name" },
+	{ 0x12, "H(e)NB IP address" },
+	{ 0x13, "H(e)NB surrounding macrocells" },
 	{ 0, NULL }
 };
+static value_string_ext cmd_qual_loci_vals_ext = VALUE_STRING_EXT_INIT(cmd_qual_loci_vals);
+
 static const value_string cmd_qual_timer_mgmt_vals[] = {
-	{ 0x00,	"Start" },
-	{ 0x01,	"Deactivate" },
+	{ 0x00, "Start" },
+	{ 0x01, "Deactivate" },
 	{ 0x02, "Get current value" },
 	{ 0, NULL }
 };
+
 static const true_false_string cmd_qual_send_data_value = {
 	"Send data immediately",
 	"Store data in Tx buffer"
@@ -326,6 +353,7 @@ static const value_string dev_id_vals[] = {
 	{ 0x83, "Network" },
 	{ 0, NULL }
 };
+static value_string_ext dev_id_vals_ext = VALUE_STRING_EXT_INIT(dev_id_vals);
 
 /* TS 102 223 Chapter 9.4 */
 static const value_string cmd_type_vals[] = {
@@ -346,7 +374,7 @@ static const value_string cmd_type_vals[] = {
 	{ 0x22, "GET INKEY" },
 	{ 0X23, "GET INPUT" },
 	{ 0x24, "SELECT ITEM" },
-	{ 0X25, "SET UP MENU" },
+	{ 0x25, "SET UP MENU" },
 	{ 0x26, "PROVIDE LOCAL INFORMATION" },
 	{ 0x27, "TIMER MANAGEMENT" },
 	{ 0x28, "SET UP IDLE MODE TEXT" },
@@ -374,6 +402,7 @@ static const value_string cmd_type_vals[] = {
 	{ 0x81, "End of the proactive session" },
 	{ 0, NULL }
 };
+static value_string_ext cmd_type_vals_ext = VALUE_STRING_EXT_INIT(cmd_type_vals);
 
 /* TS 102 223 Chapter 8.8 */
 static const value_string time_unit_vals[] = {
@@ -424,6 +453,8 @@ static const value_string result_vals[] = {
 	{ 0x3d, "MMS error" },
 	{ 0, NULL }
 };
+static value_string_ext result_vals_ext = VALUE_STRING_EXT_INIT(result_vals);
+
 static const value_string result_term_vals[] = {
 	{ 0x00, "No specific cause can be given" },
 	{ 0x01, "Screen is busy" },
@@ -438,6 +469,8 @@ static const value_string result_term_vals[] = {
 	{ 0x0a, "No NAA active" },
 	{ 0, NULL }
 };
+static value_string_ext result_term_vals_ext = VALUE_STRING_EXT_INIT(result_term_vals);
+
 static const value_string result_launch_browser_vals[] = {
 	{ 0x00, "No specific cause can be given" },
 	{ 0x01, "Bearer unavailable" },
@@ -445,6 +478,7 @@ static const value_string result_launch_browser_vals[] = {
 	{ 0x03, "Terminal unable to read the provisioning data" },
 	{ 0, NULL }
 };
+
 static const value_string result_multiplecard_vals[] = {
 	{ 0x00, "No specific cause can be given" },
 	{ 0x01, "Card reader removed or not present" },
@@ -458,12 +492,15 @@ static const value_string result_multiplecard_vals[] = {
 	{ 0x09, "Specified reader not valid" },
 	{ 0, NULL }
 };
+static value_string_ext result_multiplecard_vals_ext = VALUE_STRING_EXT_INIT(result_multiplecard_vals);
+
 static const value_string result_cc_ctrl_mo_sm_ctrl_vals[] = {
 	{ 0x00, "No specific cause can be given" },
 	{ 0x01, "Action not allowed" },
 	{ 0x02, "The type of request has changed" },
 	{ 0, NULL }
 };
+
 static const value_string result_bip_vals[] = {
 	{ 0x00, "No specific cause can be given" },
 	{ 0x01, "No channel available" },
@@ -480,6 +517,8 @@ static const value_string result_bip_vals[] = {
 	{ 0x12, "Application launch failed" },
 	{ 0, NULL }
 };
+static value_string_ext result_bip_vals_ext = VALUE_STRING_EXT_INIT(result_bip_vals);
+
 static const value_string result_frames_cmd_vals[] = {
 	{ 0x00, "No specific cause can be given" },
 	{ 0x01, "Frame identifier is not valid" },
@@ -536,6 +575,7 @@ static const value_string tone_vals[] = {
 	{ 0x47, "Melody 8" },
 	{ 0, NULL }
 };
+static value_string_ext tone_vals_ext = VALUE_STRING_EXT_INIT(tone_vals);
 
 /* TS 102 223 - Chapter 8.25 */
 static const value_string event_list_vals[] = {
@@ -556,14 +596,19 @@ static const value_string event_list_vals[] = {
 	{ 0x0e, "Network Search Mode Change" },
 	{ 0x0f, "Browsing status" },
 	{ 0x10, "Frames Informations Change" },
-	{ 0x11, "3GPP I-WLAN Access Status" },
-	{ 0x12, "3GPP Network Rejection" },
+	{ 0x11, "I-WLAN Access Status" },
+	{ 0x12, "Network Rejection" },
 	{ 0x13, "HCI connectivity event" },
 	{ 0x14, "Access Technology Change (multiple access technologies)" },
-	{ 0x15, "3GPP CSG cell selection" },
+	{ 0x15, "CSG cell selection" },
 	{ 0x16, "Contactless state request" },
+	{ 0x17, "IMS Registration" },
+	{ 0x18, "Incoming IMS data" },
+	{ 0x19, "Profile Container" },
+	{ 0x1a, "Void" },
 	{ 0, NULL }
 };
+static value_string_ext event_list_vals_ext = VALUE_STRING_EXT_INIT(event_list_vals);
 
 /* TS 102 223 - Chapter 8.27 */
 static const value_string loc_status_vals[] = {
@@ -573,12 +618,19 @@ static const value_string loc_status_vals[] = {
 	{ 0, NULL }
 };
 
+/* 31.111 - Chapter 8.46 */
+static const value_string me_status_vals[] = {
+	{ 0x00, "ME is in the idle state" },
+	{ 0x01, "ME is not in idle state" },
+	{ 0, NULL }
+};
+
 /* TS 102 223 - Chapter 8.49 + TS 11.14 Chapter 12.49 */
 static const value_string bearer_vals[] = {
 	{ 0x00, "SMS" },
 	{ 0x01, "CSD" },
 	{ 0x02, "USSD" },
-	{ 0x03, "GPRS / packet switched" },
+	{ 0x03, "GPRS/UTRAN packet service/E-UTRAN" },
 	{ 0, NULL }
 };
 
@@ -598,6 +650,7 @@ static const value_string bearer_descr_vals[] = {
 	{ 0x10, "USB" },
 	{ 0, NULL }
 };
+static value_string_ext bearer_descr_vals_ext = VALUE_STRING_EXT_INIT(bearer_descr_vals);
 
 /* 3GPP 31.111 - Chapter 8.52 */
 static const value_string csd_data_rate_vals[] = {
@@ -647,6 +700,8 @@ static const value_string csd_data_rate_vals[] = {
 	{ 134, "64000 bps (multimedia)" },
 	{   0, NULL }
 };
+static value_string_ext csd_data_rate_vals_ext = VALUE_STRING_EXT_INIT(csd_data_rate_vals);
+
 static const value_string csd_bearer_serv_vals[] = {
 	{ 0, "Data circuit asynchronous (UDI or 3.1 kHz modem)" },
 	{ 1, "Data circuit synchronous (UDI or 3.1 kHz modem)" },
@@ -745,23 +800,145 @@ static const value_string utran_eutran_meas_qual_vals[] = {
 	{ 0, NULL }
 };
 
-static void
-dissect_cat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+/* 3GPP 31.111 - Chapter 8.92 */
+static const value_string upd_attach_type_vals[] = {
+	{ 0x00, "\"Normal Location Updating\" in the case of a Location Updating Request message" },
+	{ 0x01, "\"Periodic Updating\" in the case of a Location Updating Request message" },
+	{ 0x02, "\"IMSI Attach\" in the case of a Location Updating Request message" },
+	{ 0x03, "\"GPRS Attach\" in the case of a GPRS Attach Request message" },
+	{ 0x04, "\"Combined GPRS/IMSI Attach\" in the case of a GPRS Attach Request message" },
+	{ 0x05, "\"RA Updating\" in the case of a Routing Area Update Request message" },
+	{ 0x06, "\"Combined RA/LA Updating\" in the case of a Routing Area Update Request message" },
+	{ 0x07, "\"Combined RA/LA Updating with IMSI Attach\" in the case of a Routing Area Update Request message" },
+	{ 0x08, "\"Periodic Updating\" in the case of a Routing Area Update Request message" },
+	{ 0x09, "\"EPS Attach\" in the case of an EMM ATTACH REQUEST message" },
+	{ 0x0A, "\"Combined EPS/IMSI Attach\" in the case of an EMM ATTACH REQUEST message" },
+	{ 0x0B, "\"TA updating\" in the case of an EMM TRACKING AREA UPDATE REQUEST message" },
+	{ 0x0C, "\"Combined TA/LA updating\" in the case of an EMM TRACKING AREA UPDATE REQUEST message" },
+	{ 0x0D, "\"Combined TA/LA updating with IMSI attach\" in the case of an EMM TRACKING AREA UPDATE REQUEST message" },
+	{ 0x0E, "\"Periodic updating\" in the case of an EMM TRACKING AREA UPDATE REQUEST message" },
+	{ 0, NULL }
+};
+static value_string_ext upd_attach_type_vals_ext = VALUE_STRING_EXT_INIT(upd_attach_type_vals);
+
+/* 3GPP 31.111 - Chapter 8.112 */
+static const string_string ims_status_code[] = {
+	{ "100", "Trying" },
+	{ "180", "Ringing" },
+	{ "181", "Call Is Being Forwarded" },
+	{ "182", "Queued" },
+	{ "183", "Session Progress" },
+	{ "200", "OK" },
+	{ "300", "Multiple Choices" },
+	{ "301", "Moved Permanently" },
+	{ "302", "Moved Temporarily" },
+	{ "305", "Use Proxy" },
+	{ "380", "Alternative Service" },
+	{ "400", "Bad Request" },
+	{ "401", "Unauthorized" },
+	{ "402", "Payment Required" },
+	{ "403", "Forbidden" },
+	{ "404", "Not Found" },
+	{ "405", "Method Not Allowed" },
+	{ "406", "Not Acceptable" },
+	{ "407", "Proxy Authentication Required" },
+	{ "408", "Request Timeout" },
+	{ "410", "Gone" },
+	{ "413", "Request Entity Too Large" },
+	{ "414", "Request-URI Too Long" },
+	{ "415", "Unsupported Media Type" },
+	{ "416", "Unsupported URI Scheme" },
+	{ "420", "Bad Extension" },
+	{ "421", "Extension Required" },
+	{ "423", "Interval Too Brief" },
+	{ "480", "Temporarily Unavailable" },
+	{ "481", "Call/Transaction Does Not Exist" },
+	{ "482", "Loop Detected" },
+	{ "483", "Too Many Hops" },
+	{ "484", "Address Incomplete" },
+	{ "485", "Ambiguous" },
+	{ "486", "Busy Here" },
+	{ "487", "Request Terminated" },
+	{ "488", "Not Acceptable Here" },
+	{ "491", "Request Pending" },
+	{ "493", "Undecipherable" },
+	{ "500", "Server Internal Error" },
+	{ "501", "Not Implemented" },
+	{ "502", "Bad Gateway" },
+	{ "503", "Service Unavailable" },
+	{ "504", "Server Time-out" },
+	{ "505", "Version Not Supported" },
+	{ "513", "Message Too Large" },
+	{ "600", "Busy Everywhere" },
+	{ "603", "Decline" },
+	{ "604", "Does Not Exist Anywhere" },
+	{ "606", "Not Acceptable" },
+	{ 0, NULL }
+};
+
+#define AID_RFID_ETSI  G_GINT64_CONSTANT(0xA000000009)
+#define AID_RFID_3GPP  G_GINT64_CONSTANT(0xA000000087)
+#define AID_RFID_3GPP2 G_GINT64_CONSTANT(0xA000000343)
+#define AID_RFID_OMA   G_GINT64_CONSTANT(0xA000000412)
+#define AID_RFID_WIMAX G_GINT64_CONSTANT(0xA000000424)
+
+static const val64_string aid_rid_vals[] = {
+	{ AID_RFID_ETSI, "ETSI"},
+	{ AID_RFID_3GPP, "3GPP"},
+	{ AID_RFID_3GPP2, "3GPP2"},
+	{ AID_RFID_OMA, "OMA"},
+	{ AID_RFID_WIMAX, "WiMAX Forum"},
+	{ 0, NULL}
+};
+
+static const value_string aid_pix_app_code_etsi_vals[] = {
+	{ 0x0001, "GSM"},
+	{ 0x0002, "GSM SIM toolkit"},
+	{ 0x0003, "GSM SIM API for Java Card"},
+	{ 0x0004, "TETRA"},
+	{ 0x0005, "UICC API for Java Card"},
+	{ 0x0101, "DVB CBMS KMS"},
+	{ 0x0201, "M2MSM"},
+	{ 0, NULL}
+};
+
+static const value_string aid_pix_app_code_3gpp_vals[] = {
+	{ 0x1001, "3GPP UICC"},
+	{ 0x1002, "3GPP USIM"},
+	{ 0x1003, "3GPP USIM toolkit"},
+	{ 0x1004, "3GPP ISIM"},
+	{ 0x1005, "3GPP (U)SIM API for Java Card"},
+	{ 0x1006, "3GPP ISIM API for Java Card"},
+	{ 0x1007, "3GPP Contact Manager API for Java Card"},
+	{ 0x1008, "3GPP USIM-INI"},
+	{ 0x1009, "3GPP USIM-RN"},
+	{ 0, NULL}
+};
+
+static const value_string aid_pix_app_code_3gpp2_vals[] = {
+	{ 0x1002, "3GPP2 CSIM"},
+	{ 0, NULL}
+};
+
+static int
+dissect_cat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 	proto_item *cat_ti;
 	proto_tree *cat_tree, *elem_tree;
 	unsigned int pos = 0;
 	tvbuff_t *new_tvb;
+	gboolean ims_event = FALSE;
+	guint length = tvb_length(tvb);
+	gsm_sms_data_t sms_data;
 
 	cat_ti = proto_tree_add_item(tree, proto_cat, tvb, 0, -1, ENC_NA);
 	cat_tree = proto_item_add_subtree(cat_ti, ett_cat);
-	while (pos < tvb_length(tvb)) {
+	while (pos < length) {
 		proto_item *ti;
 		guint8 g8;
 		guint16 tag;
-		guint32 len;
-		void *ptr = NULL;
-		unsigned int i;
+		guint32 len, i;
+		guint8 *ptr = NULL;
 
 		tag = tvb_get_guint8(tvb, pos++) & 0x7f;
 		if (tag == 0x7f) {
@@ -788,12 +965,12 @@ dissect_cat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 #if 1
 		ti = proto_tree_add_bytes_format(cat_tree, hf_cat_tlv, tvb, pos,
 					    len, ptr, "%s: %s",
-					    val_to_str(tag, comp_tlv_tag_vals, "%02x"),
-					    tvb_bytes_to_str(tvb, pos, len));
+					    val_to_str_ext(tag, &comp_tlv_tag_vals_ext, "%02x"),
+					    (const guint8 *)tvb_bytes_to_ep_str(tvb, pos, len));
 #else
 		ti = proto_tree_add_bytes_format(cat_tree, hf_cat_tlv, tvb, pos,
 					    len, ptr, "%s:   ",
-					    val_to_str(tag, comp_tlv_tag_vals, "%02x"));
+					    val_to_str_ext(tag, &comp_tlv_tag_vals_ext, "%02x"));
 #endif
 		elem_tree = proto_item_add_subtree(ti, ett_elem);
 
@@ -806,19 +983,24 @@ dissect_cat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			/* append command type to INFO column */
 			g8 = tvb_get_guint8(tvb, pos+1);
 			col_append_fstr(pinfo->cinfo, COL_INFO, "%s ",
-					val_to_str(g8, cmd_type_vals, "%02x "));
+					val_to_str_ext(g8, &cmd_type_vals_ext, "%02x "));
 			switch (g8) {
 			case 0x01:
 				proto_tree_add_item(elem_tree, hf_ctlv_cmd_qual_refresh, tvb, pos+2, 1, ENC_NA);
 				break;
 			case 0x13:
 				proto_tree_add_item(elem_tree, hf_ctlv_cmd_qual_send_short_msg, tvb, pos+2, 1, ENC_NA);
+				sms_data.stk_packing_required = tvb_get_guint8(tvb, pos+2) & 0x01 ? TRUE : FALSE;
 				break;
 			case 0x26:
 				proto_tree_add_item(elem_tree, hf_ctlv_cmd_qual_loci, tvb, pos+2, 1, ENC_NA);
 				break;
 			case 0x27:
 				proto_tree_add_item(elem_tree, hf_ctlv_cmd_qual_timer_mgmt, tvb, pos+2, 1, ENC_NA);
+				break;
+			case 0x40:
+				proto_tree_add_item(elem_tree, hf_ctlv_cmd_qual, tvb, pos+2, 1, ENC_NA);
+				ims_event = TRUE;
 				break;
 			case 0x43:
 				proto_tree_add_item(elem_tree, hf_ctlv_cmd_qual_send_data, tvb, pos+2, 1, ENC_NA);
@@ -840,10 +1022,10 @@ dissect_cat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			switch (g8) {
 			case 0x20:
 				proto_tree_add_item(elem_tree, hf_ctlv_result_term, tvb, pos+1, 1, ENC_NA);
-				break; 
+				break;
 			case 0x26:
 				proto_tree_add_item(elem_tree, hf_ctlv_result_launch_browser, tvb, pos+1, 1, ENC_NA);
-				break; 
+				break;
 			case 0x38:
 				proto_tree_add_item(elem_tree, hf_ctlv_result_multiplecard, tvb, pos+1, 1, ENC_NA);
 				break;
@@ -868,10 +1050,23 @@ dissect_cat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			break;
 		case 0x05:	/* alpha identifier */
 			break;
+		case 0x06:	/* address */
+			de_cld_party_bcd_num(tvb, elem_tree, pinfo, pos, len, NULL, 0);
+			break;
 		case 0x0b:	/* sms tpdu */
 			new_tvb = tvb_new_subset(tvb, pos, len, len);
 			if (new_tvb) {
-				dissector_try_uint(sms_dissector_table, 0, new_tvb, pinfo, elem_tree);
+				int p2p_dir_save = pinfo->p2p_dir;
+				if (data) {
+					if (GPOINTER_TO_INT(data) == 0xd0) {
+						/* Proactive command */
+						pinfo->p2p_dir = P2P_DIR_RECV;
+					} else {
+						pinfo->p2p_dir = P2P_DIR_SENT;
+					}
+				}
+				call_dissector_only(gsm_sms_handle, new_tvb, pinfo, elem_tree, &sms_data);
+				pinfo->p2p_dir = p2p_dir_save;
 			}
 			break;
 		case 0x0d:	/* text string */
@@ -892,35 +1087,14 @@ dissect_cat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			}
 			switch (g8) {
 			case 0x00: /* 7bit */
-				{
-					int out_len;
-					unsigned char msgbuf[300];
-
-					out_len = gsm_sms_char_7bit_unpack(0, len-1, sizeof(msgbuf), tvb_get_ptr(tvb, pos+1, len-1), msgbuf);
-					msgbuf[out_len] = '\0';
-					proto_tree_add_unicode_string(elem_tree, hf_ctlv_text_string, tvb, pos+1,
-						len-1, gsm_sms_chars_to_utf8(msgbuf, out_len));
-				}
+				proto_tree_add_item(elem_tree, hf_ctlv_text_string, tvb, pos+1, len-1, ENC_3GPP_TS_23_038_7BITS|ENC_NA);
 				break;
 			case 0x04: /* 8bit */
+				/* XXX - ASCII, or some extended ASCII? */
 				proto_tree_add_item(elem_tree, hf_ctlv_text_string, tvb, pos+1, len-1, ENC_ASCII|ENC_NA);
 				break;
 			case 0x08: /* UCS2 */
-				{
-					GIConv cd;
-					GError *l_conv_error = NULL;
-					gchar *utf8_text;
-
-					if ((cd = g_iconv_open("UTF-8","UCS-2BE")) != (GIConv)-1) {
-						utf8_text = g_convert_with_iconv(tvb_get_ptr(tvb, pos+1, len-1), len-1, cd, NULL, NULL, &l_conv_error);
-						if(!l_conv_error) {
-							proto_tree_add_unicode_string(elem_tree, hf_ctlv_text_string, tvb,
-									pos+1, len-1, utf8_text);
-						} else {
-							proto_tree_add_text(elem_tree, tvb, pos+1, len-1, "Failed to decode UCS2");
-						}
-					}
-				}
+				proto_tree_add_item(elem_tree, hf_ctlv_text_string, tvb, pos+1, len-1, ENC_UCS_2|ENC_BIG_ENDIAN);
 				break;
 			default:
 				break;
@@ -947,8 +1121,15 @@ dissect_cat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			de_mid(tvb, elem_tree, pinfo, pos, len, NULL, 0);
 			break;
 		case 0x19:	/* event list */
-			for (i = 0; i < len; i++)
-				proto_tree_add_item(elem_tree, hf_ctlv_event, tvb, pos+i, 1, ENC_NA);
+			for (i = 0; i < len; i++) {
+				guint8 event = tvb_get_guint8(tvb, pos+i);
+				if ((event == 0x17) || (event == 0x18)) {
+					ims_event = TRUE;
+				}
+				proto_tree_add_uint(elem_tree, hf_ctlv_event, tvb, pos+i, 1, event);
+				col_append_fstr(pinfo->cinfo, COL_INFO, "%s ",
+						val_to_str_ext(event, &event_list_vals_ext, "%02x "));
+			}
 			break;
 		case 0x1b:	/* location status */
 			for (i = 0; i < len; i++)
@@ -990,8 +1171,39 @@ dissect_cat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				}
 			}
 			break;
+		case 0x28:	/* AT Command */
+			proto_tree_add_item(elem_tree, hf_ctlv_at_cmd, tvb, pos, len, ENC_ASCII|ENC_NA);
+			break;
+		case 0x29:	/* AT Response */
+			proto_tree_add_item(elem_tree, hf_ctlv_at_rsp, tvb, pos, len, ENC_ASCII|ENC_NA);
+			break;
 		case 0x2d:	/* language */
-				proto_tree_add_item(elem_tree, hf_ctlv_language, tvb, pos, len, ENC_ASCII|ENC_NA);
+			proto_tree_add_item(elem_tree, hf_ctlv_language, tvb, pos, len, ENC_ASCII|ENC_NA);
+			break;
+		case 0x2e:	/* Timing Advance */
+			proto_tree_add_item(elem_tree, hf_ctlv_me_status, tvb, pos, 1, ENC_NA);
+			proto_tree_add_item(elem_tree, hf_ctlv_timing_adv, tvb, pos+1, 1, ENC_NA);
+			break;
+		case 0x2f:	/* AID */
+			{
+				guint64 rid = tvb_get_ntoh40(tvb, pos);
+
+				proto_tree_add_uint64(elem_tree, hf_ctlv_aid_rid, tvb, pos, 5, rid);
+				if (rid == AID_RFID_ETSI) {
+					proto_tree_add_item(elem_tree, hf_ctlv_aid_pix_app_code_etsi, tvb, pos+5, 2, ENC_BIG_ENDIAN);
+				} else if (rid == AID_RFID_3GPP) {
+					proto_tree_add_item(elem_tree, hf_ctlv_aid_pix_app_code_3gpp, tvb, pos+5, 2, ENC_BIG_ENDIAN);
+				} else if (rid == AID_RFID_3GPP2) {
+					proto_tree_add_item(elem_tree, hf_ctlv_aid_pix_app_code_3gpp2, tvb, pos+5, 2, ENC_BIG_ENDIAN);
+				} else {
+					proto_tree_add_item(elem_tree, hf_ctlv_aid_pix_app_code, tvb, pos+5, 2, ENC_BIG_ENDIAN);
+				}
+				proto_tree_add_item(elem_tree, hf_ctlv_aid_pix_country_code, tvb, pos+7, 2, ENC_BIG_ENDIAN);
+				proto_tree_add_item(elem_tree, hf_ctlv_aid_pix_app_prov_code, tvb, pos+9, 3, ENC_BIG_ENDIAN);
+				if (len > 12) {
+					proto_tree_add_item(elem_tree, hf_ctlv_aid_pix_app_prov_field, tvb, pos+12, len-12, ENC_NA);
+				}
+			}
 			break;
 		case 0x32:	/* bearer */
 			for (i = 0; i < len; i++)
@@ -1075,15 +1287,56 @@ dissect_cat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		case 0x69:	/* UTRAN EUTRAN measurement qualifier */
 			proto_tree_add_item(elem_tree, hf_ctlv_utran_eutran_meas_qual, tvb, pos, 1, ENC_NA);
 			break;
+		case 0x73:	/* Routing Area Information */
+			de_gmm_rai(tvb, elem_tree, pinfo, pos, len, NULL, 0);
+			break;
+		case 0x74:	/* Update/Attach Type */
+			proto_tree_add_item(elem_tree, hf_ctlv_upd_attach_type, tvb, pos, 1, ENC_NA);
+			break;
+		case 0x76:	/* Geographical Location Parameters / IARI */
+			if (ims_event) {
+				proto_tree_add_item(elem_tree, hf_ctlv_iari, tvb, pos, len, ENC_UTF_8 | ENC_NA);
+			}
+			break;
+		case 0x77:	/* GAD Shapes / IMPU list */
+			if (ims_event) {
+				i = 0;
+				while (i < len) {
+					if (tvb_get_guint8(tvb, pos+i) == 0x80) {
+						g8 = tvb_get_guint8(tvb, pos+i+1);
+						proto_tree_add_item(elem_tree, hf_ctlv_impu, tvb, pos+i+2, g8, ENC_UTF_8 | ENC_NA);
+						i += 2+g8;
+					} else {
+						break;
+					}
+				}
+			}
+			break;
+		case 0x78:	/* NMEA sentence / IMS Status-Code */
+			if (ims_event) {
+				guint8 *status_code = tvb_get_string(wmem_packet_scope(), tvb, pos, len);
+				proto_tree_add_string_format_value(elem_tree, hf_ctlv_ims_status_code, tvb, pos, len,
+					status_code, "%s (%s)", status_code, str_to_str(status_code, ims_status_code, "Unknown"));
+			}
+			break;
+		case 0x79:	/* PLMN list */
+			for (i = 0; i < len; i+=3) {
+				dissect_e212_mcc_mnc(tvb, pinfo, elem_tree, pos+3*i, TRUE);
+			}
+			break;
+		case 0x7c:	/* EPS PDN connection activation parameters */
+			nas_esm_pdn_con_req(tvb, elem_tree, pinfo, pos, len);
+			break;
+		case 0x7d:	/* Tracking Area Identification */
+			de_emm_trac_area_id(tvb, elem_tree, pinfo, pos, 5, NULL, 0);
+			break;
+		default:
+			break;
 		}
-
 		pos += len;
 	}
+	return length;
 }
-
-
-void
-proto_reg_handoff_card_app_toolkit(void);
 
 void
 proto_register_card_app_toolkit(void)
@@ -1096,12 +1349,12 @@ proto_register_card_app_toolkit(void)
 		},
 		{ &hf_ctlv_devid_src,
 			{ "Source Device ID", "etsi_cat.comp_tlv.src_dev",
-			  FT_UINT8, BASE_HEX, VALS(dev_id_vals), 0,
+			  FT_UINT8, BASE_HEX | BASE_EXT_STRING, &dev_id_vals_ext, 0,
 			  NULL, HFILL },
 		},
 		{ &hf_ctlv_devid_dst,
 			{ "Destination Device ID", "etsi_cat.comp_tlv.dst_dev",
-			  FT_UINT8, BASE_HEX, VALS(dev_id_vals), 0,
+			  FT_UINT8, BASE_HEX | BASE_EXT_STRING, &dev_id_vals_ext, 0,
 			  NULL, HFILL },
 		},
 		{ &hf_ctlv_cmd_nr,
@@ -1111,7 +1364,7 @@ proto_register_card_app_toolkit(void)
 		},
 		{ &hf_ctlv_cmd_type,
 			{ "Command Type", "etsi_cat.comp_tlv.cmd_type",
-			  FT_UINT8, BASE_HEX, VALS(cmd_type_vals), 0,
+			  FT_UINT8, BASE_HEX | BASE_EXT_STRING, &cmd_type_vals_ext, 0,
 			  NULL, HFILL },
 		},
 		{ &hf_ctlv_cmd_qual_refresh,
@@ -1126,7 +1379,7 @@ proto_register_card_app_toolkit(void)
 		},
 		{ &hf_ctlv_cmd_qual_loci,
 			{ "Command Qualifier", "etsi_cat.comp_tlv.cmd_qual.loci",
-			  FT_UINT8, BASE_HEX, VALS(cmd_qual_loci_vals), 0,
+			  FT_UINT8, BASE_HEX | BASE_EXT_STRING, &cmd_qual_loci_vals_ext, 0,
 			  NULL, HFILL },
 		},
 		{ &hf_ctlv_cmd_qual_timer_mgmt,
@@ -1156,12 +1409,12 @@ proto_register_card_app_toolkit(void)
 		},
 		{ &hf_ctlv_result_gen,
 			{ "Result", "etsi_cat.comp_tlv.result",
-			  FT_UINT8, BASE_HEX, VALS(result_vals), 0,
+			  FT_UINT8, BASE_HEX | BASE_EXT_STRING, &result_vals_ext, 0,
 			  NULL, HFILL },
 		},
 		{ &hf_ctlv_result_term,
 			{ "Additional information", "etsi_cat.comp_tlv.result.term",
-			  FT_UINT8, BASE_HEX, VALS(result_term_vals), 0,
+			  FT_UINT8, BASE_HEX | BASE_EXT_STRING, &result_term_vals_ext, 0,
 			  NULL, HFILL },
 		},
 		{ &hf_ctlv_result_launch_browser,
@@ -1171,7 +1424,7 @@ proto_register_card_app_toolkit(void)
 		},
 		{ &hf_ctlv_result_multiplecard,
 			{ "Additional information", "etsi_cat.comp_tlv.result.multiplecard",
-			  FT_UINT8, BASE_HEX, VALS(result_multiplecard_vals), 0,
+			  FT_UINT8, BASE_HEX | BASE_EXT_STRING, &result_multiplecard_vals_ext, 0,
 			  NULL, HFILL },
 		},
 		{ &hf_ctlv_result_cc_ctrl_mo_sm_ctrl,
@@ -1181,7 +1434,7 @@ proto_register_card_app_toolkit(void)
 		},
 		{ &hf_ctlv_result_bip,
 			{ "Additional information", "etsi_cat.comp_tlv.result.bip",
-			  FT_UINT8, BASE_HEX, VALS(result_bip_vals), 0,
+			  FT_UINT8, BASE_HEX | BASE_EXT_STRING, &result_bip_vals_ext, 0,
 			  NULL, HFILL },
 		},
 		{ &hf_ctlv_result_frames_cmd,
@@ -1196,17 +1449,17 @@ proto_register_card_app_toolkit(void)
 		},
 		{ &hf_ctlv_text_string,
 			{ "Text String", "etsi_cat.comp_tlv.text",
-			  FT_STRING, BASE_NONE, NULL, 0,
+			  FT_STRING, STR_UNICODE, NULL, 0,
 			  NULL, HFILL },
 		},
 		{ &hf_ctlv_event,
 			{ "Event", "etsi_cat.comp_tlv.event",
-			  FT_UINT8, BASE_HEX, VALS(event_list_vals), 0,
+			  FT_UINT8, BASE_HEX | BASE_EXT_STRING, &event_list_vals_ext, 0,
 			  NULL, HFILL },
 		},
 		{ &hf_ctlv_tone,
 			{ "Tone", "etsi_cat.comp_tlv.tone",
-			  FT_UINT8, BASE_HEX, VALS(tone_vals), 0,
+			  FT_UINT8, BASE_HEX | BASE_EXT_STRING, &tone_vals_ext, 0,
 			  NULL, HFILL },
 		},
 		{ &hf_ctlv_loc_status,
@@ -1264,9 +1517,69 @@ proto_register_card_app_toolkit(void)
 			  FT_UINT8, BASE_HEX, NULL, 0,
 			  NULL, HFILL },
 		},
+		{ &hf_ctlv_at_cmd,
+			{ "AT Command", "etsi_cat.comp_tlv.at_cmd",
+			  FT_STRING, BASE_NONE, NULL, 0,
+			  NULL, HFILL },
+		},
+		{ &hf_ctlv_at_rsp,
+			{ "AT Response", "etsi_cat.comp_tlv.at_rsp",
+			  FT_STRING, BASE_NONE, NULL, 0,
+			  NULL, HFILL },
+		},
 		{ &hf_ctlv_language,
 			{ "Language", "etsi_cat.comp_tlv.language",
 			  FT_STRING, BASE_NONE, NULL, 0,
+			  NULL, HFILL },
+		},
+		{ &hf_ctlv_me_status,
+			{ "ME Status", "etsi_cat.comp_tlv.me_status",
+			  FT_UINT8, BASE_DEC, VALS(me_status_vals), 0,
+			  NULL, HFILL },
+		},
+		{ &hf_ctlv_timing_adv,
+			{ "Timing Advance", "etsi_cat.comp_tlv.timing_adv",
+			  FT_UINT8, BASE_DEC, NULL, 0,
+			  NULL, HFILL },
+		},
+		{ &hf_ctlv_aid_rid,
+			{ "RID", "etsi_cat.comp_tlv.aid.rid",
+			  FT_UINT64, BASE_HEX|BASE_VAL64_STRING, VALS64(aid_rid_vals), 0,
+			  NULL, HFILL },
+		},
+		{ &hf_ctlv_aid_pix_app_code_etsi,
+			{ "PIX Application Code", "etsi_cat.comp_tlv.aid.pix.app_code",
+			  FT_UINT16, BASE_HEX, VALS(aid_pix_app_code_etsi_vals), 0,
+			  NULL, HFILL },
+		},
+		{ &hf_ctlv_aid_pix_app_code_3gpp,
+			{ "PIX Application Code", "etsi_cat.comp_tlv.aid.pix.app_code",
+			  FT_UINT16, BASE_HEX, VALS(aid_pix_app_code_3gpp_vals), 0,
+			  NULL, HFILL },
+		},
+		{ &hf_ctlv_aid_pix_app_code_3gpp2,
+			{ "PIX Application Code", "etsi_cat.comp_tlv.aid.pix.app_code",
+			  FT_UINT16, BASE_HEX, VALS(aid_pix_app_code_3gpp2_vals), 0,
+			  NULL, HFILL },
+		},
+		{ &hf_ctlv_aid_pix_app_code,
+			{ "PIX Application Code", "etsi_cat.comp_tlv.aid.pix.app_code",
+			  FT_UINT16, BASE_HEX, NULL, 0,
+			  NULL, HFILL },
+		},
+		{ &hf_ctlv_aid_pix_country_code,
+			{ "PIX Country Code", "etsi_cat.comp_tlv.aid.pix.country_code",
+			  FT_UINT16, BASE_HEX, NULL, 0,
+			  NULL, HFILL },
+		},
+		{ &hf_ctlv_aid_pix_app_prov_code,
+			{ "PIX Application Provider Code", "etsi_cat.comp_tlv.aid.pix.app_prov_code",
+			  FT_UINT24, BASE_HEX, NULL, 0,
+			  NULL, HFILL },
+		},
+		{ &hf_ctlv_aid_pix_app_prov_field,
+			{ "PIX Application Provider Field", "etsi_cat.comp_tlv.aid.pix.app_prov_field",
+			  FT_BYTES, BASE_NONE, NULL, 0,
 			  NULL, HFILL },
 		},
 		{ &hf_ctlv_bearer,
@@ -1276,12 +1589,12 @@ proto_register_card_app_toolkit(void)
 		},
 		{ &hf_ctlv_bearer_descr,
 			{ "Bearer Description", "etsi_cat.comp_tlv.bearer.descr",
-			  FT_UINT8, BASE_HEX, VALS(bearer_descr_vals), 0,
+			  FT_UINT8, BASE_HEX | BASE_EXT_STRING, &bearer_descr_vals_ext, 0,
 			  NULL, HFILL },
 		},
 		{ &hf_ctlv_bearer_csd_data_rate,
 			{ "Data Rate", "etsi_cat.comp_tlv.bearer.csd.data_rate",
-			  FT_UINT8, BASE_DEC, VALS(csd_data_rate_vals), 0,
+			  FT_UINT8, BASE_DEC | BASE_EXT_STRING, &csd_data_rate_vals_ext, 0,
 			  NULL, HFILL },
 		},
 		{ &hf_ctlv_bearer_csd_bearer_serv,
@@ -1434,6 +1747,11 @@ proto_register_card_app_toolkit(void)
 			  FT_UINT8, BASE_HEX, VALS(utran_eutran_meas_qual_vals), 0,
 			  NULL, HFILL },
 		},
+		{ &hf_ctlv_upd_attach_type,
+			{ "UTRAN/E-UTRAN Measurement Qualifier", "etsi_cat.comp_tlv.upd_attach_type",
+			  FT_UINT8, BASE_HEX | BASE_EXT_STRING, &upd_attach_type_vals_ext, 0,
+			  NULL, HFILL },
+		},
 		{ &hf_ctlv_loci_lac,
 			{ "Location Area Code / Tracking Area Code", "etsi_cat.comp_tlv.loci.lac",
 			  FT_UINT16, BASE_HEX, NULL, 0,
@@ -1449,6 +1767,21 @@ proto_register_card_app_toolkit(void)
 			  FT_UINT16, BASE_HEX, NULL, 0,
 			  NULL, HFILL },
 		},
+		{ &hf_ctlv_iari,
+			{ "IARI", "etsi_cat.comp_tlv.iari",
+			  FT_STRING, STR_UNICODE, NULL, 0,
+			  NULL, HFILL },
+		},
+		{ &hf_ctlv_impu,
+			{ "IMPU", "etsi_cat.comp_tlv.impu",
+			  FT_STRING, STR_UNICODE, NULL, 0,
+			  NULL, HFILL },
+		},
+		{ &hf_ctlv_ims_status_code,
+			{ "IMS Status-Code", "etsi_cat.comp_tlv.ims_status_code",
+			  FT_STRING, BASE_NONE, NULL, 0,
+			  NULL, HFILL },
+		}
 	};
 	static gint *ett[] = {
 		&ett_cat,
@@ -1462,7 +1795,7 @@ proto_register_card_app_toolkit(void)
 
 	proto_register_subtree_array(ett, array_length(ett));
 
-	register_dissector("etsi_cat", dissect_cat, proto_cat);
+	new_register_dissector("etsi_cat", dissect_cat, proto_cat);
 }
 
 /* This function is called once at startup and every time the user hits
@@ -1470,7 +1803,19 @@ proto_register_card_app_toolkit(void)
 void
 proto_reg_handoff_card_app_toolkit(void)
 {
-	sms_dissector_table =
-		register_dissector_table("etsi_cat.sms_tpdu", "3GPP SMS TPDU",
-		FT_UINT8, BASE_DEC);
+	gsm_sms_handle = find_dissector("gsm_sms");
 }
+
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

@@ -1,7 +1,5 @@
 /* packet-sysex.c
  *
- * $Id$
- *
  * MIDI SysEx dissector
  * Tomasz Mon 2012
  *
@@ -25,11 +23,14 @@
 
 #include <glib.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 #include <epan/packet.h>
 #include <epan/reassemble.h>
 #include <epan/tfs.h>
+
+void proto_register_sysex(void);
+void proto_reg_handoff_sysex(void);
 
 /* protocols and header fields */
 static int proto_sysex = -1;
@@ -93,10 +94,13 @@ static int hf_digitech_ack_request_proc_id = -1;
 static int hf_digitech_nack_request_proc_id = -1;
 
 static int hf_digitech_checksum = -1;
-static int hf_digitech_checksum_bad = -1;
-
 
 static gint ett_sysex = -1;
+
+static expert_field ei_sysex_message_start_byte = EI_INIT;
+static expert_field ei_digitech_checksum_bad = EI_INIT;
+static expert_field ei_sysex_message_end_byte = EI_INIT;
+static expert_field ei_sysex_undecoded = EI_INIT;
 
 #define SYSEX_MANUFACTURER_DOD 0x000010
 
@@ -243,6 +247,8 @@ static const value_string digitech_procedures[] = {
     {DIGITECH_PROCEDURE_NACK, "NACK"},
     {0, NULL}
 };
+static value_string_ext digitech_procedures_ext =
+    VALUE_STRING_EXT_INIT(digitech_procedures);
 
 static const value_string digitech_os_modes[] = {
     {0, "Normal"},
@@ -309,6 +315,8 @@ static const value_string digitech_parameter_ids_gnx3k_whammy[] = {
     {2818, "Whammy/IPS Talker Mic Level"},
     {0, NULL}
 };
+static value_string_ext digitech_parameter_ids_gnx3k_whammy_ext =
+    VALUE_STRING_EXT_INIT(digitech_parameter_ids_gnx3k_whammy);
 
 static const value_string digitech_parameter_ids_distortion[] = {
     {2433, "Distortion On/Off"},
@@ -387,6 +395,8 @@ static const value_string digitech_parameter_ids_distortion[] = {
     {2572, "Distortion Amp Driver Level"},
     {0, NULL}
 };
+static value_string_ext digitech_parameter_ids_distortion_ext =
+    VALUE_STRING_EXT_INIT(digitech_parameter_ids_distortion);
 
 static const value_string digitech_parameter_ids_amp_channel[] = {
     {260, "Amp Channel Amp Channel"},
@@ -413,6 +423,8 @@ static const value_string digitech_parameter_ids_amp[] = {
     {2509, "Amplifier Treble"},
     {0, NULL}
 };
+static value_string_ext digitech_parameter_ids_amp_ext =
+    VALUE_STRING_EXT_INIT(digitech_parameter_ids_amp);
 
 static const value_string digitech_parameter_ids_amp_cabinet[] = {
     {2561, "Channel 1 Tuning"},
@@ -568,6 +580,8 @@ static const value_string digitech_parameter_ids_chorusfx[] = {
     {3013, "Chorus/FX Sample/Hold Intensity"},
     {0, NULL}
 };
+static value_string_ext digitech_parameter_ids_chorusfx_ext =
+    VALUE_STRING_EXT_INIT(digitech_parameter_ids_chorusfx);
 
 static const value_string digitech_parameter_ids_delay[] = {
     {1857, "Delay On/Off"},
@@ -599,6 +613,8 @@ static const value_string digitech_parameter_ids_delay[] = {
     {1905, "Delay 2-tap Ratio"},
     {0, NULL}
 };
+static value_string_ext digitech_parameter_ids_delay_ext =
+    VALUE_STRING_EXT_INIT(digitech_parameter_ids_delay);
 
 static const value_string digitech_parameter_ids_reverb[] = {
     {1921, "Reverb On/Off"},
@@ -689,36 +705,38 @@ static const value_string digitech_parameter_ids_amp_loop[] = {
 #define DIGITECH_POSITION_WAH_PEDAL 132
 
 static const value_string digitech_parameter_positions[] = {
-    {DIGITECH_POSITION_GLOBAL, "Global"},
-    {DIGITECH_POSITION_PICKUP, "Pickup"},
-    {DIGITECH_POSITION_WAH, "Wah"},
-    {DIGITECH_POSITION_COMPRESSOR, "Compressor"},
-    {DIGITECH_POSITION_GNX3K_WHAMMY, "GNX3K Whammy"},
-    {DIGITECH_POSITION_DISTORTION, "Distortion"},
-    {DIGITECH_POSITION_AMP_CHANNEL, "Amp Channel"},
-    {DIGITECH_POSITION_AMP, "Amp"},
-    {DIGITECH_POSITION_AMP_CABINET, "Amp Cabinet"},
-    {DIGITECH_POSITION_AMP_B, "Amp B"},
-    {DIGITECH_POSITION_AMP_CABINET_B, "Amp Cabinet B"},
-    {DIGITECH_POSITION_NOISEGATE, "Noisegate"},
-    {DIGITECH_POSITION_VOLUME_PRE_FX, "Volume Pre Fx"},
-    {DIGITECH_POSITION_CHORUS_FX, "Chorus/FX"},
-    {DIGITECH_POSITION_DELAY, "Delay"},
-    {DIGITECH_POSITION_REVERB, "Reverb"},
-    {DIGITECH_POSITION_VOLUME_POST_FX, "Volume Post Fx"},
-    {DIGITECH_POSITION_PRESET, "Preset"},
-    {DIGITECH_POSITION_EXPRESSION, "Expression"},
-    {DIGITECH_POSITION_WAH_MIN_MAX, "Wah Min-Max"},
+    {DIGITECH_POSITION_GLOBAL,          "Global"},
+    {DIGITECH_POSITION_PICKUP,          "Pickup"},
+    {DIGITECH_POSITION_WAH,             "Wah"},
+    {DIGITECH_POSITION_COMPRESSOR,      "Compressor"},
+    {DIGITECH_POSITION_GNX3K_WHAMMY,    "GNX3K Whammy"},
+    {DIGITECH_POSITION_DISTORTION,      "Distortion"},
+    {DIGITECH_POSITION_AMP_CHANNEL,     "Amp Channel"},
+    {DIGITECH_POSITION_AMP,             "Amp"},
+    {DIGITECH_POSITION_AMP_CABINET,     "Amp Cabinet"},
+    {DIGITECH_POSITION_AMP_B,           "Amp B"},
+    {DIGITECH_POSITION_AMP_CABINET_B,   "Amp Cabinet B"},
+    {DIGITECH_POSITION_NOISEGATE,       "Noisegate"},
+    {DIGITECH_POSITION_VOLUME_PRE_FX,   "Volume Pre Fx"},
+    {DIGITECH_POSITION_CHORUS_FX,       "Chorus/FX"},
+    {DIGITECH_POSITION_DELAY,           "Delay"},
+    {DIGITECH_POSITION_REVERB,          "Reverb"},
+    {DIGITECH_POSITION_VOLUME_POST_FX,  "Volume Post Fx"},
+    {DIGITECH_POSITION_PRESET,          "Preset"},
+    {DIGITECH_POSITION_EXPRESSION,      "Expression"},
+    {DIGITECH_POSITION_WAH_MIN_MAX,     "Wah Min-Max"},
     {DIGITECH_POSITION_V_SWITCH_ASSIGN, "V-Switch Assign"},
-    {DIGITECH_POSITION_LFO_1, "LFO 1"},
-    {DIGITECH_POSITION_LFO_2, "LFO 2"},
-    {DIGITECH_POSITION_EQUALIZER, "Equalizer"},
-    {DIGITECH_POSITION_EQUALIZER_B, "Equalizer B"},
-    {DIGITECH_POSITION_LIBRARY, "Library"},
-    {DIGITECH_POSITION_AMP_LOOP, "Amp Loop"},
-    {DIGITECH_POSITION_WAH_PEDAL, "Wah Pedal"},
+    {DIGITECH_POSITION_LFO_1,           "LFO 1"},
+    {DIGITECH_POSITION_LFO_2,           "LFO 2"},
+    {DIGITECH_POSITION_EQUALIZER,       "Equalizer"},
+    {DIGITECH_POSITION_EQUALIZER_B,     "Equalizer B"},
+    {DIGITECH_POSITION_LIBRARY,         "Library"},
+    {DIGITECH_POSITION_AMP_LOOP,        "Amp Loop"},
+    {DIGITECH_POSITION_WAH_PEDAL,       "Wah Pedal"},
     {0, NULL}
 };
+static value_string_ext digitech_parameter_positions_ext =
+    VALUE_STRING_EXT_INIT(digitech_parameter_positions);
 
 static tvbuff_t *
 unpack_digitech_message(tvbuff_t *tvb, gint offset)
@@ -951,7 +969,7 @@ dissect_digitech_procedure(guint8 procedure, const gint offset,
 
     if (conv_data == NULL)
     {
-        conv_data = se_new(digitech_conv_data_t);
+        conv_data = wmem_new(wmem_file_scope(), digitech_conv_data_t);
         conv_data->protocol_version = 1; /* Default to version 1 */
     }
 
@@ -1023,7 +1041,7 @@ dissect_digitech_procedure(guint8 procedure, const gint offset,
 
             while ((count > 0) && (str_size = tvb_strsize(data_tvb, data_offset)))
             {
-                tmp_string = tvb_get_ephemeral_string(data_tvb, data_offset, str_size - 1);
+                tmp_string = tvb_get_string(wmem_packet_scope(), data_tvb, data_offset, str_size - 1);
                 proto_tree_add_string(tree, hf_digitech_preset_name, data_tvb, data_offset, str_size, tmp_string);
                 data_offset += (gint)str_size;
                 count--;
@@ -1047,7 +1065,7 @@ dissect_digitech_procedure(guint8 procedure, const gint offset,
 
             /* Preset name (NULL-terminated) */
             str_size = tvb_strsize(data_tvb, data_offset);
-            tmp_string = tvb_get_ephemeral_string(data_tvb, data_offset, str_size - 1);
+            tmp_string = tvb_get_string(wmem_packet_scope(), data_tvb, data_offset, str_size - 1);
             proto_tree_add_string(tree, hf_digitech_preset_name, data_tvb, data_offset, str_size, tmp_string);
             data_offset += (gint)str_size;
 
@@ -1086,9 +1104,8 @@ dissect_digitech_procedure(guint8 procedure, const gint offset,
 
     if (data_offset < data_len)
     {
-        expert_add_undecoded_item(data_tvb, pinfo, tree,
-                                  data_offset, data_len - data_offset,
-                                  PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_sysex_undecoded,
+                                  data_tvb, data_offset, data_len - data_offset);
     }
 }
 
@@ -1122,8 +1139,7 @@ dissect_sysex_command(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree
         item = proto_tree_add_item(tree, hf_sysex_message_start, tvb, offset, 1, ENC_BIG_ENDIAN);
         if (sysex_helper != 0xF0)
         {
-            expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN,
-                                   "SYSEX Error: Wrong start byte");
+            expert_add_info(pinfo, item, &ei_sysex_message_start_byte);
         }
 
         offset++;
@@ -1151,7 +1167,6 @@ dissect_sysex_command(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree
         {
             case SYSEX_MANUFACTURER_DOD:
             {
-                guint8 checksum;
                 guint8 digitech_helper;
                 const guint8 *data_ptr;
                 int len;
@@ -1180,25 +1195,15 @@ dissect_sysex_command(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree
                     digitech_helper ^= *data_ptr++;
                 }
 
-                checksum = tvb_get_guint8(tvb, offset);
+                item = proto_tree_add_item(tree, hf_digitech_checksum, tvb, offset, 1, ENC_BIG_ENDIAN);
                 if (digitech_helper == 0)
                 {
-                    proto_tree_add_uint_format(tree,
-                                               hf_digitech_checksum, tvb, offset, 1, checksum,
-                                               "Checksum: 0x%02x (correct)", checksum);
-
+                    proto_item_append_text(item, " (correct)");
                 }
                 else
                 {
-                    item = proto_tree_add_uint_format(tree,
-                                                      hf_digitech_checksum, tvb, offset, 1, checksum,
-                                                      "Checksum: 0x%02x (NOT correct)", checksum);
-                    expert_add_info_format(pinfo, item, PI_CHECKSUM, PI_ERROR,
-                                           "Bad checksum");
-                    item = proto_tree_add_boolean(tree,
-                                                  hf_digitech_checksum_bad, tvb, offset, 1, TRUE);
-                    PROTO_ITEM_SET_HIDDEN(item);
-                    PROTO_ITEM_SET_GENERATED(item);
+                    proto_item_append_text(item, " (NOT correct)");
+                    expert_add_info(pinfo, item, &ei_digitech_checksum_bad);
                 }
                 offset++;
                 break;
@@ -1209,9 +1214,8 @@ dissect_sysex_command(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree
 
         if (offset < data_len - 1)
         {
-            expert_add_undecoded_item(tvb, pinfo, tree,
-                                      offset, data_len - offset - 1,
-                                      PI_WARN);
+            proto_tree_add_expert(tree, pinfo, &ei_sysex_undecoded,
+                                      tvb, offset, data_len - offset - 1);
         }
 
         /* Check end byte (EOX - 0xF7) */
@@ -1219,8 +1223,7 @@ dissect_sysex_command(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree
         item = proto_tree_add_item(tree, hf_sysex_message_eox, tvb, data_len - 1, 1, ENC_BIG_ENDIAN);
         if (sysex_helper != 0xF7)
         {
-            expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN,
-                                   "SYSEX Error: Wrong end byte");
+            expert_add_info(pinfo, item, &ei_sysex_message_end_byte);
         }
     }
 }
@@ -1256,8 +1259,8 @@ proto_register_sysex(void)
             { "Product ID", "sysex.digitech.product_id", FT_UINT8, BASE_HEX,
               VALS(digitech_rp_product_id), 0, NULL, HFILL }},
         { &hf_digitech_procedure_id,
-            { "Procedure ID", "sysex.digitech.procedure_id", FT_UINT8, BASE_HEX,
-              VALS(digitech_procedures), 0, NULL, HFILL }},
+            { "Procedure ID", "sysex.digitech.procedure_id", FT_UINT8, BASE_HEX | BASE_EXT_STRING,
+              &digitech_procedures_ext, 0, NULL, HFILL }},
 
         { &hf_digitech_desired_device_id,
             { "Desired Device ID", "sysex.digitech.desired_device_id", FT_UINT8, BASE_HEX,
@@ -1315,17 +1318,17 @@ proto_register_sysex(void)
             { "Parameter ID", "sysex.digitech.parameter_id", FT_UINT16, BASE_DEC,
               VALS(digitech_parameter_ids_compressor), 0, NULL, HFILL }},
         { &hf_digitech_parameter_id_gnx3k_whammy,
-            { "Parameter ID", "sysex.digitech.parameter_id", FT_UINT16, BASE_DEC,
-              VALS(digitech_parameter_ids_gnx3k_whammy), 0, NULL, HFILL }},
+            { "Parameter ID", "sysex.digitech.parameter_id", FT_UINT16, BASE_DEC | BASE_EXT_STRING,
+              &digitech_parameter_ids_gnx3k_whammy_ext, 0, NULL, HFILL }},
         { &hf_digitech_parameter_id_distortion,
-            { "Parameter ID", "sysex.digitech.parameter_id", FT_UINT16, BASE_DEC,
-              VALS(digitech_parameter_ids_distortion), 0, NULL, HFILL }},
+            { "Parameter ID", "sysex.digitech.parameter_id", FT_UINT16, BASE_DEC | BASE_EXT_STRING,
+              &digitech_parameter_ids_distortion_ext, 0, NULL, HFILL }},
         { &hf_digitech_parameter_id_amp_channel,
             { "Parameter ID", "sysex.digitech.parameter_id", FT_UINT16, BASE_DEC,
               VALS(digitech_parameter_ids_amp_channel), 0, NULL, HFILL }},
         { &hf_digitech_parameter_id_amp,
-            { "Parameter ID", "sysex.digitech.parameter_id", FT_UINT16, BASE_DEC,
-              VALS(digitech_parameter_ids_amp), 0, NULL, HFILL }},
+            { "Parameter ID", "sysex.digitech.parameter_id", FT_UINT16, BASE_DEC | BASE_EXT_STRING,
+              &digitech_parameter_ids_amp_ext, 0, NULL, HFILL }},
         { &hf_digitech_parameter_id_amp_cabinet,
             { "Parameter ID", "sysex.digitech.parameter_id", FT_UINT16, BASE_DEC,
               VALS(digitech_parameter_ids_amp_cabinet), 0, NULL, HFILL }},
@@ -1342,11 +1345,11 @@ proto_register_sysex(void)
             { "Parameter ID", "sysex.digitech.parameter_id", FT_UINT16, BASE_DEC,
               VALS(digitech_parameter_ids_volume_pre_fx), 0, NULL, HFILL }},
         { &hf_digitech_parameter_id_chorusfx,
-            { "Parameter ID", "sysex.digitech.parameter_id", FT_UINT16, BASE_DEC,
-              VALS(digitech_parameter_ids_chorusfx), 0, NULL, HFILL }},
+            { "Parameter ID", "sysex.digitech.parameter_id", FT_UINT16, BASE_DEC | BASE_EXT_STRING,
+              &digitech_parameter_ids_chorusfx_ext, 0, NULL, HFILL }},
         { &hf_digitech_parameter_id_delay,
-            { "Parameter ID", "sysex.digitech.parameter_id", FT_UINT16, BASE_DEC,
-              VALS(digitech_parameter_ids_delay), 0, NULL, HFILL }},
+            { "Parameter ID", "sysex.digitech.parameter_id", FT_UINT16, BASE_DEC | BASE_EXT_STRING,
+              &digitech_parameter_ids_delay_ext, 0, NULL, HFILL }},
         { &hf_digitech_parameter_id_reverb,
             { "Parameter ID", "sysex.digitech.parameter_id", FT_UINT16, BASE_DEC,
               VALS(digitech_parameter_ids_reverb), 0, NULL, HFILL }},
@@ -1371,8 +1374,8 @@ proto_register_sysex(void)
 
 
         { &hf_digitech_parameter_position,
-            { "Parameter position", "sysex.digitech.parameter_position", FT_UINT8, BASE_DEC,
-              VALS(digitech_parameter_positions), 0, NULL, HFILL }},
+            { "Parameter position", "sysex.digitech.parameter_position", FT_UINT8, BASE_DEC | BASE_EXT_STRING,
+              &digitech_parameter_positions_ext, 0, NULL, HFILL }},
         { &hf_digitech_parameter_data,
             { "Parameter data", "sysex.digitech.parameter_data", FT_UINT8, BASE_DEC,
               NULL, 0, NULL, HFILL }},
@@ -1387,27 +1390,35 @@ proto_register_sysex(void)
               NULL, 0, NULL, HFILL }},
 
         { &hf_digitech_ack_request_proc_id,
-            { "Requesting Procedure ID", "sysex.digitech.ack.procedure_id", FT_UINT8, BASE_HEX,
-              VALS(digitech_procedures), 0, "Procedure ID of the request being ACKed", HFILL }},
+            { "Requesting Procedure ID", "sysex.digitech.ack.procedure_id", FT_UINT8, BASE_HEX | BASE_EXT_STRING,
+              &digitech_procedures_ext, 0, "Procedure ID of the request being ACKed", HFILL }},
         { &hf_digitech_nack_request_proc_id,
-            { "Requesting Procedure ID", "sysex.digitech.ack.procedure_id", FT_UINT8, BASE_HEX,
-              VALS(digitech_procedures), 0, "Procedure ID of the request being NACKed", HFILL }},
+            { "Requesting Procedure ID", "sysex.digitech.ack.procedure_id", FT_UINT8, BASE_HEX | BASE_EXT_STRING,
+              &digitech_procedures_ext, 0, "Procedure ID of the request being NACKed", HFILL }},
 
         { &hf_digitech_checksum,
             { "Checksum", "sysex.digitech.checksum", FT_UINT8, BASE_HEX,
               NULL, 0, NULL, HFILL }},
-        { &hf_digitech_checksum_bad,
-            { "Bad Checksum", "sysex.digitech.checksum_bad", FT_BOOLEAN, BASE_NONE,
-              NULL, 0, "A bad checksum in command", HFILL }},
     };
 
     static gint *sysex_subtrees[] = {
         &ett_sysex
     };
 
+    static ei_register_info ei[] = {
+        { &ei_sysex_message_start_byte, { "sysex.message_start_byte", PI_PROTOCOL, PI_WARN, "SYSEX Error: Wrong start byte", EXPFILL }},
+        { &ei_digitech_checksum_bad, { "sysex.digitech.checksum_bad", PI_CHECKSUM, PI_WARN, "ARP packet storm detected", EXPFILL }},
+        { &ei_sysex_message_end_byte, { "sysex.message_end_byte", PI_PROTOCOL, PI_WARN, "SYSEX Error: Wrong end byte", EXPFILL }},
+        { &ei_sysex_undecoded, { "sysex.undecoded", PI_UNDECODED, PI_WARN, "Not dissected yet (report to wireshark.org)", EXPFILL }},
+    };
+
+    expert_module_t* expert_sysex;
+
     proto_sysex = proto_register_protocol("MIDI System Exclusive", "SYSEX", "sysex");
     proto_register_field_array(proto_sysex, hf, array_length(hf));
     proto_register_subtree_array(sysex_subtrees, array_length(sysex_subtrees));
+    expert_sysex = expert_register_protocol(proto_sysex);
+    expert_register_field_array(expert_sysex, ei, array_length(ei));
 
     register_dissector("sysex", dissect_sysex_command, proto_sysex);
 }

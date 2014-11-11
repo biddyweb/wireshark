@@ -5,8 +5,6 @@
  * This information is based off the released idl files from opengroup.
  * ftp://ftp.opengroup.org/pub/dce122/dce/src/file.tgz  file/fsint/rep_proc.idl
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,8 @@
 #include <epan/packet.h>
 #include "packet-dcerpc.h"
 
+void proto_register_rep_proc (void);
+void proto_reg_handoff_rep_proc (void);
 
 static int proto_rep_proc = -1;
 static int hf_rep_proc_opnum = -1;
@@ -46,16 +46,16 @@ static guint16  ver_rep_proc = 4;
 
 
 static dcerpc_sub_dissector rep_proc_dissectors[] = {
-	{ 0, "CheckReplicationConfig", NULL, NULL },
+	{ 0, "CheckReplicationConfig",    NULL, NULL },
 	{ 1, "AllCheckReplicationConfig", NULL, NULL },
-	{ 2, "KeepFilesAlive", NULL , NULL},
-	{ 3, "GetVolChangedFiles", NULL, NULL },
-	{ 4, "GetRepStatus", NULL, NULL},
-	{ 5, "GetRepServerStatus", NULL, NULL},
-	{ 6, "UpdateSelf", NULL, NULL},
-	{ 7, "Probe", NULL, NULL},
-	{ 8, "GetOneRepStatus", NULL, NULL },
-	{ 9, "GetServerInterfaces", NULL, NULL},
+	{ 2, "KeepFilesAlive",            NULL , NULL},
+	{ 3, "GetVolChangedFiles",        NULL, NULL },
+	{ 4, "GetRepStatus",              NULL, NULL},
+	{ 5, "GetRepServerStatus",        NULL, NULL},
+	{ 6, "UpdateSelf",                NULL, NULL},
+	{ 7, "Probe",                     NULL, NULL},
+	{ 8, "GetOneRepStatus",           NULL, NULL },
+	{ 9, "GetServerInterfaces",       NULL, NULL},
 	{ 0, NULL, NULL, NULL }
 };
 

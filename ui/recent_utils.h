@@ -2,8 +2,6 @@
  * Routines called to write stuff to the recent file; their implementations
  * are GUI-dependent, but the API's aren't
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,12 +36,6 @@ extern void add_menu_recent_capture_file(const gchar *cf_name);
  * @param rf recent file
  */
 extern void menu_recent_file_write_all(FILE *rf);
-
-/** Add a capture filter coming from the user's recent file to the cfilter combo box.
- *
- * @param dftext the filter string
- */
-extern gboolean cfilter_combo_add_recent(const gchar *s);
 
 /** Write all non-empty capture filters (until maximum count)
  *  of the combo box GList to the user's recent file.

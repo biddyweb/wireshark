@@ -11,8 +11,6 @@
  *  [5] ETSI TS 101 376-4-12 V3.2.1 - GMR-1 3G 44.060
  *  [6] ETSI TS 101 376-5-6 V1.3.1 - GMR-1 05.008
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -39,6 +37,9 @@
 
 #include "packet-gmr1_common.h"
 
+#include "packet-gmr1_rr.h"
+
+void proto_register_gmr1_common(void);
 
 /* GMR-1 Common proto */
 static int proto_gmr1_common = -1;
@@ -73,11 +74,14 @@ const value_string gmr1_pd_short_vals[] = {
 /* Common Information Elements                                              */
 /* ------------------------------------------------------------------------ */
 
-const value_string gmr1_ie_common_strings[] = {
-	{ 0, "Mobile Earth Station Classmark 2" },	/* [1] 11.5.1.6 */
-	{ 1, "Spare Half Octet" },			/* [1] 11.5.1.8 */
+static const value_string gmr1_ie_common_strings[] = {
+	{ GMR1_IE_COM_CM2,
+	  "Mobile Earth Station Classmark 2" },		/* [1] 11.5.1.6 */
+	{ GMR1_IE_COM_SPARE_NIBBLE,
+	  "Spare Half Octet" },				/* [1] 11.5.1.8 */
 	{ 0, NULL}
 };
+value_string_ext gmr1_ie_common_strings_ext = VALUE_STRING_EXT_INIT(gmr1_ie_common_strings);
 
 gint ett_gmr1_ie_common[NUM_GMR1_IE_COMMON];
 
@@ -240,10 +244,6 @@ elem_fcn gmr1_ie_common_func[NUM_GMR1_IE_COMMON] = {
 /* Messages and IEs parsing                                                 */
 /* ------------------------------------------------------------------------ */
 
-extern void
-gmr1_get_msg_rr_params(guint8 oct, int dcch, const gchar **msg_str,
-                       int *ett_tree, int *hf_idx, gmr1_msg_func_t *msg_func_p);
-
 void
 gmr1_get_msg_params(gmr1_pd_e pd, guint8 oct, const gchar **msg_str,
                     int *ett_tree, int *hf_idx, gmr1_msg_func_t *msg_func_p)
@@ -366,10 +366,4 @@ proto_register_gmr1_common(void)
 	proto_gmr1_common = proto_register_protocol("GEO-Mobile Radio (1) Common", "GMR-1 Common", "gmr1.common");
 
 	proto_register_field_array(proto_gmr1_common, hf, array_length(hf));
-}
-
-void
-proto_reg_handoff_gmr1_common(void)
-{
-	/* Nothing to do */
 }

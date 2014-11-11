@@ -4,8 +4,6 @@
  * By Jakob Bratkovic <j.bratkovic@iskratel.si> and
  * Miha Jemec <m.jemec@iskratel.si>
  *
- * $Id$
- *
  * based on rtp_stream.c
  * Copyright 2003, Alcatel Business Systems
  * By Lars Ruoff <lars.ruoff@gmx.net>
@@ -37,6 +35,7 @@
 #include <glib.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 #include <string.h>
 
@@ -46,7 +45,7 @@
 #include <epan/address.h>
 #include <epan/packet.h>
 #include <epan/tap.h>
-#include <epan/strutil.h>
+#include <epan/to_str.h>
 
 #include "ui/alert_box.h"
 #include "ui/simple_dialog.h"
@@ -54,6 +53,7 @@
 #include "ui/gtk/mcast_stream.h"
 #include "ui/gtk/mcast_stream_dlg.h"
 #include "ui/gtk/main.h"
+#include "ui/gtk/stock_icons.h"
 
 #ifdef HAVE_WINSOCK2_H
 #include <winsock2.h>
@@ -83,8 +83,8 @@ static mcaststream_tapinfo_t the_tapinfo_struct =
 static gint
 mcast_stream_info_cmp(gconstpointer aa, gconstpointer bb)
 {
-	const struct _mcast_stream_info* a = aa;
-	const struct _mcast_stream_info* b = bb;
+	const struct _mcast_stream_info* a = (const struct _mcast_stream_info *)aa;
+	const struct _mcast_stream_info* b = (const struct _mcast_stream_info *)bb;
 
         if (a==b)
                 return 0;
@@ -136,7 +136,7 @@ mcaststream_reset(mcaststream_tapinfo_t *tapinfo)
 static void
 mcaststream_reset_cb(void *arg)
 {
-	mcaststream_reset(arg);
+	mcaststream_reset((mcaststream_tapinfo_t *)arg);
 }
 
 /****************************************************************************/
@@ -158,7 +158,7 @@ mcaststream_draw(void *arg _U_)
 static int
 mcaststream_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, const void *arg2 _U_)
 {
-	mcaststream_tapinfo_t *tapinfo = arg;
+	mcaststream_tapinfo_t *tapinfo = (mcaststream_tapinfo_t *)arg;
         mcast_stream_info_t tmp_strinfo;
         mcast_stream_info_t *strinfo = NULL;
         GList* list;
@@ -175,8 +175,8 @@ mcaststream_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, const
 	 * address (for IPv6).
 	 */
 	if ((pinfo->dl_dst.type != AT_ETHER) ||
-	    ((g_ascii_strncasecmp("01005E", bytes_to_str(pinfo->dl_dst.data, pinfo->dl_dst.len), 6) != 0) &&
-	     (g_ascii_strncasecmp("3333", bytes_to_str(pinfo->dl_dst.data, pinfo->dl_dst.len), 4) != 0)) )
+	    ((g_ascii_strncasecmp("01005E", bytes_to_ep_str((const guint8 *)pinfo->dl_dst.data, pinfo->dl_dst.len), 6) != 0) &&
+	     (g_ascii_strncasecmp("3333", bytes_to_ep_str((const guint8 *)pinfo->dl_dst.data, pinfo->dl_dst.len), 4) != 0)) )
 		return 0;
 
 	/* check whether we already have a stream with these parameters in the list */
@@ -193,15 +193,15 @@ mcaststream_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, const
 
 	/* not in the list? then create a new entry */
 	if (!strinfo) {
-		/*printf("nov sip %s sp %d dip %s dp %d\n", g_strdup(get_addr_name(&(pinfo->src))),
-			pinfo->srcport, g_strdup(get_addr_name(&(pinfo->dst))), pinfo->destport);*/
+		/*printf("nov sip %s sp %d dip %s dp %d\n", g_strdup(ep_address_to_display(&(pinfo->src))),
+			pinfo->srcport, g_strdup(ep_address_to_display(&(pinfo->dst))), pinfo->destport);*/
 		tmp_strinfo.npackets = 0;
 		tmp_strinfo.apackets = 0;
 		tmp_strinfo.first_frame_num = pinfo->fd->num;
 		tmp_strinfo.start_sec = (guint32) pinfo->fd->abs_ts.secs;
 		tmp_strinfo.start_usec = pinfo->fd->abs_ts.nsecs/1000;
-		tmp_strinfo.start_rel_sec = (guint32) pinfo->fd->rel_ts.secs;
-		tmp_strinfo.start_rel_usec = pinfo->fd->rel_ts.nsecs/1000;
+		tmp_strinfo.start_rel_sec = (guint32) pinfo->rel_ts.secs;
+		tmp_strinfo.start_rel_usec = pinfo->rel_ts.nsecs/1000;
 		tmp_strinfo.vlan_id = 0;
 
 		/* reset Mcast stats */
@@ -223,18 +223,18 @@ mcaststream_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, const
 		tmp_strinfo.element.buffstatus=0;
 		tmp_strinfo.element.maxbw=0;
 
-		strinfo = g_malloc(sizeof(mcast_stream_info_t));
+		strinfo = (mcast_stream_info_t *)g_malloc(sizeof(mcast_stream_info_t));
 		*strinfo = tmp_strinfo;  /* memberwise copy of struct */
 		tapinfo->strinfo_list = g_list_append(tapinfo->strinfo_list, strinfo);
 		strinfo->element.buff = (struct timeval *)g_malloc(buffsize * sizeof(struct timeval));
 
 		/* set time with the first packet */
 		if (tapinfo->npackets == 0) {
-			tapinfo->allstreams = g_malloc(sizeof(mcast_stream_info_t));
+			tapinfo->allstreams = (mcast_stream_info_t *)g_malloc(sizeof(mcast_stream_info_t));
 			tapinfo->allstreams->element.buff =
 					(struct timeval *)g_malloc(buffsize * sizeof(struct timeval));
-			tapinfo->allstreams->start_rel_sec = (guint32) pinfo->fd->rel_ts.secs;
-			tapinfo->allstreams->start_rel_usec = pinfo->fd->rel_ts.nsecs/1000;
+			tapinfo->allstreams->start_rel_sec = (guint32) pinfo->rel_ts.secs;
+			tapinfo->allstreams->start_rel_usec = pinfo->rel_ts.nsecs/1000;
 			tapinfo->allstreams->total_bytes = 0;
 			tapinfo->allstreams->element.first=0;
 			tapinfo->allstreams->element.last=0;
@@ -252,8 +252,8 @@ mcaststream_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, const
 	}
 
 	/* time between first and last packet in the group */
-	strinfo->stop_rel_sec = (guint32) pinfo->fd->rel_ts.secs;
-	strinfo->stop_rel_usec = pinfo->fd->rel_ts.nsecs/1000;
+	strinfo->stop_rel_sec = (guint32) pinfo->rel_ts.secs;
+	strinfo->stop_rel_usec = pinfo->rel_ts.nsecs/1000;
 	deltatime = ((float)((strinfo->stop_rel_sec * 1000000 + strinfo->stop_rel_usec)
 					- (strinfo->start_rel_sec*1000000 + strinfo->start_rel_usec)))/1000000;
 
@@ -267,8 +267,8 @@ mcaststream_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, const
 	strinfo->apackets = (guint32) (strinfo->npackets / deltatime);
 
 	/* time between first and last packet in any group */
-	tapinfo->allstreams->stop_rel_sec = (guint32) pinfo->fd->rel_ts.secs;
-	tapinfo->allstreams->stop_rel_usec = pinfo->fd->rel_ts.nsecs/1000;
+	tapinfo->allstreams->stop_rel_sec = (guint32) pinfo->rel_ts.secs;
+	tapinfo->allstreams->stop_rel_usec = pinfo->rel_ts.nsecs/1000;
 	deltatime = ((float)((tapinfo->allstreams->stop_rel_sec * 1000000 + tapinfo->allstreams->stop_rel_usec)
 		- (tapinfo->allstreams->start_rel_sec*1000000 + tapinfo->allstreams->start_rel_usec)))/1000000;
 
@@ -390,7 +390,7 @@ buffusagecalc(mcast_stream_info_t *strinfo, packet_info *pinfo, double emptyspee
 	}
 
 	sec = buffer[cur].tv_sec - buffer[prev].tv_sec;
-	usec = buffer[cur].tv_usec - buffer[prev].tv_usec;
+	usec = (gint32)buffer[cur].tv_usec - (gint32)buffer[prev].tv_usec;
 	timeelapsed = (double)usec/1000000 + (double)sec;
 
 	/* bytes added to buffer */
@@ -433,8 +433,8 @@ slidingwindow(mcast_stream_info_t *strinfo, packet_info *pinfo)
 	}
 
 	/* burst count */
-	buffer[strinfo->element.last].tv_sec = (guint32) pinfo->fd->rel_ts.secs;
-	buffer[strinfo->element.last].tv_usec = pinfo->fd->rel_ts.nsecs/1000;
+	buffer[strinfo->element.last].tv_sec = (guint32) pinfo->rel_ts.secs;
+	buffer[strinfo->element.last].tv_usec = pinfo->rel_ts.nsecs/1000;
 	while(comparetimes((struct timeval *)&(buffer[strinfo->element.first]),
 			   (struct timeval *)&(buffer[strinfo->element.last]), mcast_stream_burstint)){
 		strinfo->element.first++;

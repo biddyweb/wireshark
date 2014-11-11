@@ -2,8 +2,6 @@
  * Routines for packet dissection of Ericsson HDLC as used in A-bis over IP
  * Copyright 2010-2012 by Harald Welte <laforge@gnumonks.org>
  *
- * $Id$
- *
  * This code is based on pure educational guesses while looking at protocol
  * traces, as there is no publicly available protocol description by Ericsson.
  * Even the name is a guess, since it looks quite a bit like HDLC and is used
@@ -35,6 +33,9 @@
 #include <epan/packet.h>
 #include <epan/ipproto.h>
 #include <epan/xdlc.h>
+
+void proto_register_ehdlc(void);
+void proto_reg_handoff_ehdlc(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_ehdlc = -1;

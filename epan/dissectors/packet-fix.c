@@ -2,8 +2,6 @@
  * Routines for Financial Information eXchange (FIX) Protocol dissection
  * Copyright 2000, PC Drew <drewpc@ibsncentral.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -40,6 +38,10 @@
 #include <epan/conversation.h>
 
 #include "packet-tcp.h"
+#include "packet-ssl.h"
+
+void proto_register_fix(void);
+void proto_reg_handoff_fix(void);
 
 typedef struct _fix_parameter {
     int field_len;
@@ -51,7 +53,6 @@ typedef struct _fix_parameter {
 
 /* Initialize the protocol and registered fields */
 static int proto_fix = -1;
-static dissector_handle_t fix_handle;
 
 /* desegmentation of fix */
 static gboolean fix_desegment = TRUE;
@@ -62,11 +63,15 @@ static gint ett_unknow = -1;
 static gint ett_badfield = -1;
 static gint ett_checksum = -1;
 
+static expert_field ei_fix_checksum_bad = EI_INIT;
+
 static int hf_fix_data = -1; /* continuation data */
 static int hf_fix_checksum_good = -1;
 static int hf_fix_checksum_bad = -1;
 static int hf_fix_field_value = -1;
 static int hf_fix_field_tag = -1;
+
+static dissector_handle_t fix_handle;
 
 static range_t *global_fix_tcp_range = NULL;
 static range_t *fix_tcp_range = NULL;
@@ -114,7 +119,7 @@ static int fix_next_header(tvbuff_t *tvb, int offset)
 {
     /* try to resync to the next start */
     guint         min_len = tvb_length_remaining(tvb, offset);
-    const guint8 *data    = tvb_get_ephemeral_string(tvb, offset, min_len);
+    const guint8 *data    = tvb_get_string(wmem_packet_scope(), tvb, offset, min_len);
     const guint8 *start   = data;
 
     while ((start = strstr(start, "\0018"))) {
@@ -188,7 +193,7 @@ static int fix_header_len(tvbuff_t *tvb, int offset)
         return fix_next_header(tvb, offset);
     }
 
-    value = tvb_get_ephemeral_string(tvb, tag->value_offset, tag->value_len);
+    value = tvb_get_string(wmem_packet_scope(), tvb, tag->value_offset, tag->value_len);
     /* Fix version, msg type, length and checksum aren't in body length.
      * If the packet is big enough find the checksum
     */
@@ -214,8 +219,8 @@ static int fix_header_len(tvbuff_t *tvb, int offset)
 }
 
 /* ---------------------------------------------- */
-static void
-dissect_fix_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_fix_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
     /* Set up structures needed to add the protocol subtree and manage it */
     proto_item    *ti;
@@ -227,6 +232,7 @@ dissect_fix_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     char          *value;
     char          *tag_str;
     fix_parameter *tag;
+    const char *msg_type;
 
     /* Make entries in Protocol column and Info column on summary display */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "FIX");
@@ -239,7 +245,7 @@ dissect_fix_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         ti = proto_tree_add_item(tree, proto_fix, tvb, 0, -1, ENC_NA);
         fix_tree = proto_item_add_subtree(ti, ett_fix);
         proto_tree_add_item(fix_tree, hf_fix_data, tvb, 0, -1, ENC_NA);
-        return;
+        return tvb_length(tvb);
     }
 
     pdu_len = tvb_reported_length(tvb);
@@ -249,29 +255,25 @@ dissect_fix_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* begin string */
     ctrla_offset = tvb_find_guint8(tvb, offset, -1, 0x01);
     if (ctrla_offset == -1) {
-        return;
+        return tvb_length(tvb);
     }
     offset = ctrla_offset + 1;
 
     /* msg length */
     ctrla_offset = tvb_find_guint8(tvb, offset, -1, 0x01);
     if (ctrla_offset == -1) {
-        return;
+        return tvb_length(tvb);
     }
     offset = ctrla_offset + 1;
 
     /* msg type */
     if (!(tag = fix_param(tvb, offset)) || tag->value_len < 1) {
-        return;
+        return tvb_length(tvb);
     }
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        const char *msg_type;
-
-        value = tvb_get_ephemeral_string(tvb, tag->value_offset, tag->value_len);
-        msg_type = str_to_str(value, messages_val, "FIX Message (%s)");
-        col_add_str(pinfo->cinfo, COL_INFO, msg_type);
-    }
+    value = tvb_get_string(wmem_packet_scope(), tvb, tag->value_offset, tag->value_len);
+    msg_type = str_to_str(value, messages_val, "FIX Message (%s)");
+    col_add_str(pinfo->cinfo, COL_INFO, msg_type);
 
     /* In the interest of speed, if "tree" is NULL, don't do any work not
      * necessary to generate protocol tree items.
@@ -286,7 +288,7 @@ dissect_fix_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             continue;
         }
 
-        tag_str = tvb_get_ephemeral_string(tvb, field_offset, tag->tag_len);
+        tag_str = tvb_get_string(wmem_packet_scope(), tvb, field_offset, tag->tag_len);
         tag_value = atoi(tag_str);
         if (tag->value_len < 1) {
             proto_tree *field_tree;
@@ -310,22 +312,22 @@ dissect_fix_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             found = 1;
         }
 
-        value = tvb_get_ephemeral_string(tvb, tag->value_offset, tag->value_len);
+        value = tvb_get_string(wmem_packet_scope(), tvb, tag->value_offset, tag->value_len);
         if (found) {
             if (fix_fields[i].table) {
                 if (tree) {
                     switch (fix_fields[i].type) {
                     case 1: /* strings */
                         proto_tree_add_string_format_value(fix_tree, fix_fields[i].hf_id, tvb, field_offset, tag->field_len, value,
-                            "%s (%s)", value, str_to_str(value, fix_fields[i].table, "unknown %s"));
+                            "%s (%s)", value, str_to_str(value, (const string_string *)fix_fields[i].table, "unknown %s"));
                         break;
                     case 2: /* char */
                         proto_tree_add_string_format_value(fix_tree, fix_fields[i].hf_id, tvb, field_offset, tag->field_len, value,
-                            "%s (%s)", value, val_to_str(*value, fix_fields[i].table, "unknown %d"));
+                            "%s (%s)", value, val_to_str(*value, (const value_string *)fix_fields[i].table, "unknown %d"));
                         break;
                     default:
                         proto_tree_add_string_format_value(fix_tree, fix_fields[i].hf_id, tvb, field_offset, tag->field_len, value,
-                            "%s (%s)", value, val_to_str(atoi(value), fix_fields[i].table, "unknown %d"));
+                            "%s (%s)", value, val_to_str(atoi(value), (const value_string *)fix_fields[i].table, "unknown %d"));
                         break;
                     }
                 }
@@ -339,12 +341,12 @@ dissect_fix_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 {
                     proto_tree *checksum_tree;
                     guint8 sum = 0;
-                    const guint8 *data = tvb_get_ptr(tvb, 0, field_offset);
+                    const guint8 *sum_data = tvb_get_ptr(tvb, 0, field_offset);
                     gboolean sum_ok;
                     int j;
 
-                    for (j = 0; j < field_offset; j++, data++) {
-                         sum += *data;
+                    for (j = 0; j < field_offset; j++, sum_data++) {
+                         sum += *sum_data;
                     }
                     sum_ok = (atoi(value) == sum);
                     if (sum_ok) {
@@ -361,7 +363,7 @@ dissect_fix_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     item = proto_tree_add_boolean(checksum_tree, hf_fix_checksum_bad, tvb, field_offset, tag->field_len, !sum_ok);
                     PROTO_ITEM_SET_GENERATED(item);
                     if (!sum_ok)
-                        expert_add_info_format(pinfo, item, PI_CHECKSUM, PI_ERROR, "Bad checksum");
+                        expert_add_info(pinfo, item, &ei_fix_checksum_bad);
                 }
                 break;
               default:
@@ -384,7 +386,7 @@ dissect_fix_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
         tag_str = NULL;
     }
-    return;
+    return tvb_length(tvb);
 }
 
 static guint
@@ -408,23 +410,24 @@ get_fix_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 
 #define FIX_MIN_LEN 24
 
-static void
-dissect_fix_pdus(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_fix_pdus(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
     tcp_dissect_pdus(tvb, pinfo, tree, fix_desegment, FIX_MIN_LEN,
-                     get_fix_pdu_len, dissect_fix_packet);
+                     get_fix_pdu_len, dissect_fix_packet, data);
 
+    return tvb_length(tvb);
 }
 
-static void
-dissect_fix(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_fix(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
-    dissect_fix_pdus(tvb, pinfo, tree);
+    return dissect_fix_pdus(tvb, pinfo, tree, data);
 }
 
 /* Code to actually dissect the packets */
 static gboolean
-dissect_fix_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_fix_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
     conversation_t *conv;
 
@@ -437,25 +440,17 @@ dissect_fix_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
     conv = find_or_create_conversation(pinfo);
     conversation_set_dissector(conv, fix_handle);
 
-    dissect_fix_pdus(tvb, pinfo, tree);
+    dissect_fix_pdus(tvb, pinfo, tree, data);
     return TRUE;
 }
 
 /* Register the protocol with Wireshark */
-static void range_delete_fix_tcp_callback(guint32 port) {
-    dissector_delete_uint("tcp.port", port, fix_handle);
-}
-
-static void range_add_fix_tcp_callback(guint32 port) {
-    dissector_add_uint("tcp.port", port, fix_handle);
-}
-
 static void fix_prefs(void)
 {
-    range_foreach(fix_tcp_range, range_delete_fix_tcp_callback);
+	dissector_delete_uint_range("tcp.port", fix_tcp_range, fix_handle);
     g_free(fix_tcp_range);
     fix_tcp_range = range_copy(global_fix_tcp_range);
-    range_foreach(fix_tcp_range, range_add_fix_tcp_callback);
+	dissector_add_uint_range("tcp.port", fix_tcp_range, fix_handle);
 }
 
 /* this format is require because a script is used to build the C function
@@ -496,7 +491,12 @@ proto_register_fix(void)
         &ett_checksum,
     };
 
+    static ei_register_info ei[] = {
+        { &ei_fix_checksum_bad, { "fix.checksum_bad.expert", PI_CHECKSUM, PI_ERROR, "Bad checksum", EXPFILL }},
+    };
+
     module_t *fix_module;
+    expert_module_t* expert_fix;
 
     /* register re-init routine */
     register_init_routine(&dissect_fix_init);
@@ -505,9 +505,14 @@ proto_register_fix(void)
     proto_fix = proto_register_protocol("Financial Information eXchange Protocol",
                                         "FIX", "fix");
 
+    /* Allow dissector to find be found by name. */
+    fix_handle = new_register_dissector("fix", dissect_fix, proto_fix);
+
     proto_register_field_array(proto_fix, hf, array_length(hf));
     proto_register_field_array(proto_fix, hf_FIX, array_length(hf_FIX));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_fix = expert_register_protocol(proto_fix);
+    expert_register_field_array(expert_fix, ei, array_length(ei));
 
     fix_module = prefs_register_protocol(proto_fix, fix_prefs);
     prefs_register_bool_preference(fix_module, "desegment",
@@ -529,7 +534,6 @@ proto_reg_handoff_fix(void)
     /* Let the tcp dissector know that we're interested in traffic      */
     heur_dissector_add("tcp", dissect_fix_heur, proto_fix);
     /* Register a fix handle to "tcp.port" to be able to do 'decode-as' */
-    fix_handle = create_dissector_handle(dissect_fix, proto_fix);
     dissector_add_handle("tcp.port", fix_handle);
 }
 

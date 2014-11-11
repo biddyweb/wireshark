@@ -1,8 +1,6 @@
 /* font_utils.h
  * Declarations of utilities to use for font manipulation
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -24,12 +22,12 @@
 
 
 /** @file
- * Utilities for font manipulation. 
+ * Utilities for font manipulation.
  *
  * There are two different fonts used:
  * - the application font for menu's, dialog's and such
  * - the user font for the packet panes
- * 
+ *
  * The user font is also available in regular (m_r_font) and bold (m_b_font) versions.
  */
 
@@ -46,7 +44,7 @@ typedef enum {
 	FA_FONT_NOT_AVAILABLE   /**< the chosen font isn't available */
 } fa_ret_t;
 
-/** Applies a new user font, corresponding to the preferences font name and recent zoom level. 
+/** Applies a new user font, corresponding to the preferences font name and recent zoom level.
  *  Will also redraw the screen.
  *
  * @return if the new font could be set or not

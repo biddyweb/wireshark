@@ -1,8 +1,6 @@
 # Makefile.am
 # Automake file for Wireshark Memory Manager
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -33,6 +31,11 @@ AM_CPPFLAGS = \
 
 noinst_LTLIBRARIES = libwmem.la
 
+noinst_PROGRAMS = wmem_test
+wmem_test_LDADD = \
+	libwmem.la \
+	$(GLIB_LIBS)
+
 CLEANFILES = \
 	libwmem.a	\
 	libwmem.la	\
@@ -49,10 +52,12 @@ libwmem_la_SOURCES =	\
 
 EXTRA_DIST = \
 	Makefile.common	\
-	Makefile.nmake
+	Makefile.nmake \
+	wmem_test.c
 
 checkapi:
-	$(PERL) ../../tools/checkAPIs.pl -g termoutput -build \
+	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -g termoutput -build \
+	-sourcedir=$(srcdir) \
 	$(LIBWMEM_SRC)
 
 #

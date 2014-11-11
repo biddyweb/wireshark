@@ -2,8 +2,6 @@
  * Routines for B.A.T.M.A.N. Advanced dissection
  * Copyright 2008-2010  Sven Eckelmann <sven@narfation.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,7 @@
 #include <epan/tap.h>
 #include <epan/addr_resolv.h>
 #include <epan/reassemble.h>
+#include <epan/wmem/wmem.h>
 
 /* Start content from packet-batadv.h */
 #define ETH_P_BATMAN  0x4305
@@ -519,6 +518,7 @@ static const fragment_items msg_frag_items = {
 
 
 /* forward declaration */
+void proto_register_batadv(void);
 void proto_reg_handoff_batadv(void);
 
 static dissector_handle_t batman_handle;
@@ -580,8 +580,7 @@ static int batadv_tap = -1;
 static int batadv_follow_tap = -1;
 
 /* segmented messages */
-static GHashTable *msg_fragment_table = NULL;
-static GHashTable *msg_reassembled_table = NULL;
+static reassembly_table msg_reassembly_table;
 
 static unsigned int batadv_ethertype = ETH_P_BATMAN;
 
@@ -723,7 +722,7 @@ static int dissect_batadv_batman_v5(tvbuff_t *tvb, int offset, packet_info *pinf
 
 	tvbuff_t *next_tvb;
 
-	batman_packeth = ep_alloc(sizeof(struct batman_packet_v5));
+	batman_packeth = (struct batman_packet_v5 *)wmem_alloc(wmem_packet_scope(), sizeof(struct batman_packet_v5));
 
 	type = tvb_get_guint8(tvb, offset+0);
 	batman_packeth->version = tvb_get_guint8(tvb, offset+1);
@@ -833,7 +832,7 @@ static int dissect_batadv_batman_v7(tvbuff_t *tvb, int offset, packet_info *pinf
 
 	tvbuff_t *next_tvb;
 
-	batman_packeth = ep_alloc(sizeof(struct batman_packet_v7));
+	batman_packeth = (struct batman_packet_v7 *)wmem_alloc(wmem_packet_scope(), sizeof(struct batman_packet_v7));
 
 	type = tvb_get_guint8(tvb, offset+0);
 	batman_packeth->version = tvb_get_guint8(tvb, offset+1);
@@ -934,7 +933,7 @@ static int dissect_batadv_batman_v9(tvbuff_t *tvb, int offset, packet_info *pinf
 
 	tvbuff_t *next_tvb;
 
-	batman_packeth = ep_alloc(sizeof(struct batman_packet_v9));
+	batman_packeth = (struct batman_packet_v9 *)wmem_alloc(wmem_packet_scope(), sizeof(struct batman_packet_v9));
 
 	type = tvb_get_guint8(tvb, offset+0);
 	batman_packeth->version = tvb_get_guint8(tvb, offset+1);
@@ -1044,7 +1043,7 @@ static int dissect_batadv_batman_v10(tvbuff_t *tvb, int offset, packet_info *pin
 
 	tvbuff_t *next_tvb;
 
-	batman_packeth = ep_alloc(sizeof(struct batman_packet_v10));
+	batman_packeth = (struct batman_packet_v10 *)wmem_alloc(wmem_packet_scope(), sizeof(struct batman_packet_v10));
 
 	type = tvb_get_guint8(tvb, offset+0);
 	batman_packeth->version = tvb_get_guint8(tvb, offset+1);
@@ -1154,7 +1153,7 @@ static int dissect_batadv_batman_v11(tvbuff_t *tvb, int offset, packet_info *pin
 
 	tvbuff_t *next_tvb;
 
-	batman_packeth = ep_alloc(sizeof(struct batman_packet_v11));
+	batman_packeth = (struct batman_packet_v11 *)wmem_alloc(wmem_packet_scope(), sizeof(struct batman_packet_v11));
 
 	type = tvb_get_guint8(tvb, offset+0);
 	batman_packeth->version = tvb_get_guint8(tvb, offset+1);
@@ -1257,7 +1256,7 @@ static int dissect_batadv_batman_v14(tvbuff_t *tvb, int offset, packet_info *pin
 	tvbuff_t *next_tvb;
 	gint length_remaining;
 
-	batman_packeth = ep_alloc(sizeof(struct batman_packet_v14));
+	batman_packeth = (struct batman_packet_v14 *)wmem_alloc(wmem_packet_scope(), sizeof(struct batman_packet_v14));
 
 	type = tvb_get_guint8(tvb, offset+0);
 	batman_packeth->version = tvb_get_guint8(tvb, offset+1);
@@ -1433,7 +1432,7 @@ static void dissect_batadv_bcast_v6(tvbuff_t *tvb, packet_info *pinfo, proto_tre
 	int offset = 0;
 	proto_tree *batadv_bcast_tree = NULL;
 
-	bcast_packeth = ep_alloc(sizeof(struct bcast_packet_v6));
+	bcast_packeth = (struct bcast_packet_v6 *)wmem_alloc(wmem_packet_scope(), sizeof(struct bcast_packet_v6));
 
 	bcast_packeth->version = tvb_get_guint8(tvb, 1);
 	orig_addr = tvb_get_ptr(tvb, 2, 6);
@@ -1497,7 +1496,7 @@ static void dissect_batadv_bcast_v10(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 	int offset = 0;
 	proto_tree *batadv_bcast_tree = NULL;
 
-	bcast_packeth = ep_alloc(sizeof(struct bcast_packet_v10));
+	bcast_packeth = (struct bcast_packet_v10 *)wmem_alloc(wmem_packet_scope(), sizeof(struct bcast_packet_v10));
 
 	bcast_packeth->version = tvb_get_guint8(tvb, 1);
 	orig_addr = tvb_get_ptr(tvb, 2, 6);
@@ -1566,7 +1565,7 @@ static void dissect_batadv_bcast_v14(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 	int offset = 0;
 	proto_tree *batadv_bcast_tree = NULL;
 
-	bcast_packeth = ep_alloc(sizeof(struct bcast_packet_v14));
+	bcast_packeth = (struct bcast_packet_v14 *)wmem_alloc(wmem_packet_scope(), sizeof(struct bcast_packet_v14));
 
 	bcast_packeth->version = tvb_get_guint8(tvb, 1);
 	bcast_packeth->ttl = tvb_get_guint8(tvb, 2);
@@ -1670,7 +1669,7 @@ static void dissect_batadv_icmp_v6(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 	int offset = 0;
 	proto_tree *batadv_icmp_tree = NULL;
 
-	icmp_packeth = ep_alloc(sizeof(struct icmp_packet_v6));
+	icmp_packeth = (struct icmp_packet_v6 *)wmem_alloc(wmem_packet_scope(), sizeof(struct icmp_packet_v6));
 
 	icmp_packeth->version = tvb_get_guint8(tvb, 1);
 	icmp_packeth->msg_type = tvb_get_guint8(tvb, 2);
@@ -1779,7 +1778,7 @@ static void dissect_batadv_icmp_v7(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 	gint length_remaining;
 	int offset = 0;
 
-	icmp_packeth = ep_alloc(sizeof(struct icmp_packet_v7));
+	icmp_packeth = (struct icmp_packet_v7 *)wmem_alloc(wmem_packet_scope(), sizeof(struct icmp_packet_v7));
 
 	icmp_packeth->version = tvb_get_guint8(tvb, 1);
 	icmp_packeth->msg_type = tvb_get_guint8(tvb, 2);
@@ -1867,7 +1866,7 @@ static void dissect_batadv_icmp_v14(tvbuff_t *tvb, packet_info *pinfo, proto_tre
 	gint length_remaining;
 	int offset = 0;
 
-	icmp_packeth = ep_alloc(sizeof(struct icmp_packet_v14));
+	icmp_packeth = (struct icmp_packet_v14 *)wmem_alloc(wmem_packet_scope(), sizeof(struct icmp_packet_v14));
 
 	icmp_packeth->version = tvb_get_guint8(tvb, 1);
 	icmp_packeth->ttl = tvb_get_guint8(tvb, 2);
@@ -1987,7 +1986,7 @@ static void dissect_batadv_unicast_v6(tvbuff_t *tvb, packet_info *pinfo, proto_t
 	int offset = 0;
 	proto_tree *batadv_unicast_tree = NULL;
 
-	unicast_packeth = ep_alloc(sizeof(struct unicast_packet_v6));
+	unicast_packeth = (struct unicast_packet_v6 *)wmem_alloc(wmem_packet_scope(), sizeof(struct unicast_packet_v6));
 
 	unicast_packeth->version = tvb_get_guint8(tvb, 1);
 	dest_addr = tvb_get_ptr(tvb, 2, 6);
@@ -2052,7 +2051,7 @@ static void dissect_batadv_unicast_v14(tvbuff_t *tvb, packet_info *pinfo, proto_
 	int offset = 0;
 	proto_tree *batadv_unicast_tree = NULL;
 
-	unicast_packeth = ep_alloc(sizeof(struct unicast_packet_v14));
+	unicast_packeth = (struct unicast_packet_v14 *)wmem_alloc(wmem_packet_scope(), sizeof(struct unicast_packet_v14));
 
 	unicast_packeth->version = tvb_get_guint8(tvb, 1);
 	unicast_packeth->ttl = tvb_get_guint8(tvb, 2);
@@ -2140,7 +2139,7 @@ static void dissect_batadv_unicast_4addr_v14(tvbuff_t *tvb, packet_info *pinfo, 
 	int offset = 0;
 	proto_tree *batadv_unicast_4addr_tree = NULL;
 
-	unicast_4addr_packeth = ep_alloc(sizeof(struct unicast_4addr_packet_v14));
+	unicast_4addr_packeth = (struct unicast_4addr_packet_v14 *)wmem_alloc(wmem_packet_scope(), sizeof(struct unicast_4addr_packet_v14));
 
 	unicast_4addr_packeth->version = tvb_get_guint8(tvb, 1);
 	unicast_4addr_packeth->ttl = tvb_get_guint8(tvb, 2);
@@ -2239,8 +2238,8 @@ static void dissect_batadv_unicast_frag_v12(tvbuff_t *tvb, packet_info *pinfo, p
 	proto_item *tf;
 	struct unicast_frag_packet_v12 *unicast_frag_packeth;
 	const guint8  *dest_addr, *orig_addr;
-	gboolean save_fragmented = FALSE;
-	fragment_data *frag_msg = NULL;
+	gboolean save_fragmented;
+	fragment_head *frag_msg = NULL;
 	proto_tree *batadv_unicast_frag_tree = NULL, *flag_tree;
 
 	tvbuff_t *new_tvb;
@@ -2248,7 +2247,7 @@ static void dissect_batadv_unicast_frag_v12(tvbuff_t *tvb, packet_info *pinfo, p
 	int head = 0;
 	gint length_remaining;
 
-	unicast_frag_packeth = ep_alloc(sizeof(struct unicast_frag_packet_v12));
+	unicast_frag_packeth = (struct unicast_frag_packet_v12 *)wmem_alloc(wmem_packet_scope(), sizeof(struct unicast_frag_packet_v12));
 
 	unicast_frag_packeth->version = tvb_get_guint8(tvb, 1);
 	dest_addr = tvb_get_ptr(tvb, 2, 6);
@@ -2319,10 +2318,9 @@ static void dissect_batadv_unicast_frag_v12(tvbuff_t *tvb, packet_info *pinfo, p
 	length_remaining = tvb_length_remaining(tvb, offset);
 	if (length_remaining < 0)
 		length_remaining = 0;
-	frag_msg = fragment_add_seq_check(tvb, offset, pinfo,
-		unicast_frag_packeth->seqno + head,
-		msg_fragment_table,
-		msg_reassembled_table,
+	frag_msg = fragment_add_seq_check(&msg_reassembly_table,
+		tvb, offset,
+		pinfo, unicast_frag_packeth->seqno + head, NULL,
 		1 - head,
 		length_remaining,
 		head);
@@ -2346,8 +2344,8 @@ static void dissect_batadv_unicast_frag_v14(tvbuff_t *tvb, packet_info *pinfo, p
 	proto_item *tf;
 	struct unicast_frag_packet_v14 *unicast_frag_packeth;
 	const guint8  *dest_addr, *orig_addr;
-	gboolean save_fragmented = FALSE;
-	fragment_data *frag_msg = NULL;
+	gboolean save_fragmented;
+	fragment_head *frag_msg = NULL;
 	proto_tree *batadv_unicast_frag_tree = NULL, *flag_tree;
 
 	tvbuff_t *new_tvb;
@@ -2355,7 +2353,7 @@ static void dissect_batadv_unicast_frag_v14(tvbuff_t *tvb, packet_info *pinfo, p
 	int head = 0;
 	gint length_remaining;
 
-	unicast_frag_packeth = ep_alloc(sizeof(struct unicast_frag_packet_v14));
+	unicast_frag_packeth = (struct unicast_frag_packet_v14 *)wmem_alloc(wmem_packet_scope(), sizeof(struct unicast_frag_packet_v14));
 
 	unicast_frag_packeth->version = tvb_get_guint8(tvb, 1);
 	unicast_frag_packeth->ttl = tvb_get_guint8(tvb, 2);
@@ -2434,10 +2432,9 @@ static void dissect_batadv_unicast_frag_v14(tvbuff_t *tvb, packet_info *pinfo, p
 	length_remaining = tvb_length_remaining(tvb, offset);
 	if (length_remaining < 0)
 		length_remaining = 0;
-	frag_msg = fragment_add_seq_check(tvb, offset, pinfo,
-		unicast_frag_packeth->seqno + head,
-		msg_fragment_table,
-		msg_reassembled_table,
+	frag_msg = fragment_add_seq_check(&msg_reassembly_table,
+		tvb, offset,
+		pinfo, unicast_frag_packeth->seqno + head, NULL,
 		1 - head,
 		length_remaining,
 		head);
@@ -2498,7 +2495,7 @@ static void dissect_batadv_vis_v6(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
 	gint length_remaining;
 	int offset = 0, i;
 
-	vis_packeth = ep_alloc(sizeof(struct vis_packet_v6));
+	vis_packeth = (struct vis_packet_v6 *)wmem_alloc(wmem_packet_scope(), sizeof(struct vis_packet_v6));
 
 	vis_packeth->version = tvb_get_guint8(tvb, 1);
 	vis_packeth->vis_type = tvb_get_guint8(tvb, 2);
@@ -2626,7 +2623,7 @@ static void dissect_batadv_vis_v10(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 	gint length_remaining;
 	int offset = 0, i;
 
-	vis_packeth = ep_alloc(sizeof(struct vis_packet_v10));
+	vis_packeth = (struct vis_packet_v10 *)wmem_alloc(wmem_packet_scope(), sizeof(struct vis_packet_v10));
 
 	vis_packeth->version = tvb_get_guint8(tvb, 1);
 	vis_packeth->vis_type = tvb_get_guint8(tvb, 2);
@@ -2730,7 +2727,7 @@ static void dissect_batadv_vis_v14(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 	gint length_remaining;
 	int offset = 0, i;
 
-	vis_packeth = ep_alloc(sizeof(struct vis_packet_v14));
+	vis_packeth = (struct vis_packet_v14 *)wmem_alloc(wmem_packet_scope(), sizeof(struct vis_packet_v14));
 
 	vis_packeth->version = tvb_get_guint8(tvb, 1);
 	vis_packeth->ttl = tvb_get_guint8(tvb, 2);
@@ -2909,7 +2906,7 @@ static void dissect_batadv_tt_query_v14(tvbuff_t *tvb, packet_info *pinfo _U_, p
 	int offset = 0, i;
 	int tt_type;
 
-	tt_query_packeth = ep_alloc(sizeof(struct tt_query_packet_v14));
+	tt_query_packeth = (struct tt_query_packet_v14 *)wmem_alloc(wmem_packet_scope(), sizeof(struct tt_query_packet_v14));
 
 	tt_query_packeth->version = tvb_get_guint8(tvb, 1);
 	tt_query_packeth->ttl = tvb_get_guint8(tvb, 2);
@@ -3085,7 +3082,7 @@ static void dissect_batadv_roam_adv_v14(tvbuff_t *tvb, packet_info *pinfo, proto
 	gint length_remaining;
 	int offset = 0;
 
-	roam_adv_packeth = ep_alloc(sizeof(struct roam_adv_packet_v14));
+	roam_adv_packeth = (struct roam_adv_packet_v14 *)wmem_alloc(wmem_packet_scope(), sizeof(struct roam_adv_packet_v14));
 
 	roam_adv_packeth->version = tvb_get_guint8(tvb, 1);
 	roam_adv_packeth->ttl = tvb_get_guint8(tvb, 2);
@@ -3158,8 +3155,8 @@ static void dissect_batadv_roam_adv_v14(tvbuff_t *tvb, packet_info *pinfo, proto
 
 static void batadv_init_routine(void)
 {
-        fragment_table_init(&msg_fragment_table);
-        reassembled_table_init(&msg_reassembled_table);
+        reassembly_table_init(&msg_reassembly_table,
+                              &addresses_reassembly_table_functions);
 }
 
 void proto_register_batadv(void)
@@ -3369,7 +3366,7 @@ void proto_register_batadv(void)
 		},
 		{ &hf_batadv_unicast_4addr_subtype,
 		  { "Subtype", "batadv.unicast_4addr.subtype",
-		    FT_UINT8, BASE_DEC, VALS (&unicast_4addr_typenames), 0x0,
+		    FT_UINT8, BASE_DEC, VALS (unicast_4addr_typenames), 0x0,
 		    NULL, HFILL }
 		},
 		{ &hf_batadv_unicast_frag_version,
@@ -3494,7 +3491,7 @@ void proto_register_batadv(void)
 		},
 		{ &hf_batadv_tt_query_flags_type,
 		  { "Query Type", "batadv.tt_query.flags.type",
-		    FT_UINT8, BASE_HEX, VALS (&tt_query_type_v14), TT_TYPE_MASK,
+		    FT_UINT8, BASE_HEX, VALS (tt_query_type_v14), TT_TYPE_MASK,
 		    NULL, HFILL }
 		},
 		{ &hf_batadv_tt_query_flags_full_table,

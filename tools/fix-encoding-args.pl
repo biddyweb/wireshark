@@ -19,8 +19,6 @@
 #   - ptvcursor_add_with_subtree   !! ToDo: encoding arg not last arg
 #
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -76,7 +74,7 @@ my $searchReplaceEncNAHRef =
 
 my @types_NA  =
   (
-   [ qw (FT_NONE FT_BYTES FT_ETHER FT_IPv6 FT_IPXNET FT_OID)],
+   [ qw (FT_NONE FT_BYTES FT_ETHER FT_IPv6 FT_IPXNET FT_OID FT_REL_OID)],
    $searchReplaceEncNAHRef
   );
 
@@ -179,6 +177,7 @@ my @types_ALL =
            FT_PCRE
            FT_GUID
            FT_OID
+	   FT_REL_OID
            FT_EUI64
       )],
    {# valid encoding args

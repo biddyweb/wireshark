@@ -3,8 +3,6 @@
  *
  * Copyright 2000, Paul Ionescu	<paul@acorp.ro>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -45,6 +43,9 @@
 #define X25_MBIT_MOD8			0x10
 #define X25_MBIT_MOD128			0x01
 
+void proto_register_xot(void);
+void proto_reg_handoff_xot(void);
+
 static const value_string vals_x25_type[] = {
    { XOT_PVC_SETUP, "PVC Setup" },
    { 0,   NULL}
@@ -73,8 +74,6 @@ static const value_string xot_pvc_status_vals[] = {
    { 0,   NULL}
 };
 
-static dissector_handle_t x25_handle;
-
 static gint proto_xot = -1;
 static gint ett_xot = -1;
 static gint hf_xot_version = -1;
@@ -96,6 +95,10 @@ static gint hf_xot_pvc_send_inc_pkt_size = -1;
 static gint hf_xot_pvc_send_out_pkt_size = -1;
 static gint hf_xot_pvc_init_itf_name = -1;
 static gint hf_xot_pvc_resp_itf_name = -1;
+
+static dissector_handle_t xot_handle;
+
+static dissector_handle_t x25_handle;
 
 /* desegmentation of X.25 over multiple TCP */
 static gboolean xot_desegment = TRUE;
@@ -156,7 +159,7 @@ static guint get_xot_pdu_len_mult(packet_info *pinfo _U_, tvbuff_t *tvb, int off
 
       /* If this is the first packet and it is not data, no sequence needed */
       if (offset == offset_before && !PACKET_IS_DATA(pkt_type)) {
-          return offset_next-offset_before; 
+          return offset_next-offset_before;
       }
 
       /* Check for data, there can be X25 control packets in the X25 data */
@@ -182,7 +185,7 @@ static guint get_xot_pdu_len_mult(packet_info *pinfo _U_, tvbuff_t *tvb, int off
   return offset_next - offset_before;
 }
 
-static void dissect_xot_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int dissect_xot_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
   int offset = 0;
   guint16 version;
@@ -198,10 +201,9 @@ static void dissect_xot_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      col_set_str(pinfo->cinfo, COL_PROTOCOL, "XOT");
      version = tvb_get_ntohs(tvb, offset + 0);
      plen = tvb_get_ntohs(tvb, offset + 2);
-     if (check_col(pinfo->cinfo, COL_INFO))
-        col_add_fstr(pinfo->cinfo, COL_INFO, "XOT Version = %u, size = %u",
-                     version, plen);
-     if (check_col(pinfo->cinfo, COL_INFO) && offset == 0 &&
+     col_add_fstr(pinfo->cinfo, COL_INFO, "XOT Version = %u, size = %u",
+                    version, plen);
+     if (offset == 0 &&
          tvb_length_remaining(tvb, offset) > XOT_HEADER_LENGTH + plen )
         col_append_fstr(pinfo->cinfo, COL_INFO, " TotX25: %d",
                         tvb_length_remaining(tvb, offset));
@@ -270,9 +272,11 @@ static void dissect_xot_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
            call_dissector(x25_handle, next_tvb, pinfo, tree);
         }
      }
+
+     return tvb_length(tvb);
 }
 
-static void dissect_xot_mult(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int dissect_xot_mult(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
    int offset = 0;
    int len = get_xot_pdu_len_mult(pinfo, tvb, offset);
@@ -294,11 +298,12 @@ static void dissect_xot_mult(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
       next_tvb = tvb_new_subset(tvb, offset,plen, plen);
                                 /*MIN(plen,tvb_length_remaining(tvb, offset)),plen*/
 
-      dissect_xot_pdu(next_tvb, pinfo, tree);
+      dissect_xot_pdu(next_tvb, pinfo, tree, data);
       offset += plen;
    }
+   return tvb_length(tvb);
 }
-static int dissect_xot_tcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+static int dissect_xot_tcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
    int tvb_len = tvb_length(tvb);
    int len = 0;
@@ -310,15 +315,15 @@ static int dissect_xot_tcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
    if (!x25_desegment || !xot_desegment){
       tcp_dissect_pdus(tvb, pinfo, tree, xot_desegment,
                        XOT_HEADER_LENGTH,
-                       get_xot_pdu_len, 
-                       dissect_xot_pdu);
+                       get_xot_pdu_len,
+                       dissect_xot_pdu, data);
       len=get_xot_pdu_len(pinfo, tvb, 0);
    } else {
       /* Use length version that "peeks" into X25, possibly several XOT packets */
       tcp_dissect_pdus(tvb, pinfo, tree, xot_desegment,
                        XOT_HEADER_LENGTH,
-                       get_xot_pdu_len_mult, 
-                       dissect_xot_mult);
+                       get_xot_pdu_len_mult,
+                       dissect_xot_mult, data);
       len=get_xot_pdu_len_mult(pinfo, tvb, 0);
    }
    /*As tcp_dissect_pdus will not report the success/failure, we have to compute
@@ -423,7 +428,7 @@ proto_register_xot(void)
 	proto_xot = proto_register_protocol("X.25 over TCP", "XOT", "xot");
 	proto_register_field_array(proto_xot, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
-	new_register_dissector("xot", dissect_xot_tcp_heur, proto_xot);
+	xot_handle = new_register_dissector("xot", dissect_xot_tcp_heur, proto_xot);
 	xot_module = prefs_register_protocol(proto_xot, NULL);
 
 	prefs_register_bool_preference(xot_module, "desegment",
@@ -443,9 +448,6 @@ proto_register_xot(void)
 void
 proto_reg_handoff_xot(void)
 {
-  dissector_handle_t xot_handle;
-
-  xot_handle = find_dissector("xot");
   dissector_add_uint("tcp.port", TCP_PORT_XOT, xot_handle);
 
   x25_handle = find_dissector("x.25");

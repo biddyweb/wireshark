@@ -2,8 +2,6 @@
  * Routines for X.511 (X.500 Directory Asbtract Service) and X.519 DAP  packet dissection
  * Graeme Lunt 2005
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -51,6 +49,9 @@
 #define PNAME  "X.519 Directory Access Protocol"
 #define PSNAME "DAP"
 #define PFNAME "dap"
+
+void proto_register_dap(void);
+void proto_reg_handoff_dap(void);
 
 static guint global_dap_tcp_port = 102;
 static dissector_handle_t tpkt_handle;

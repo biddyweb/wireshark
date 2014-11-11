@@ -2,8 +2,6 @@
  * Routines for kismet packet dissection
  * Copyright 2006, Krzysztof Burghardt <krzysztof@burghardt.pl>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,7 @@
 #include <string.h>
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <epan/strutil.h>
 #include <epan/prefs.h>
 
@@ -112,20 +111,18 @@ dissect_kismet(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree, void * da
 		is_continuation = response_is_continuation (line);
 	}
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		/*
-		 * Put the first line from the buffer into the summary
-		 * if it's a kismet request or reply (but leave out the
-		 * line terminator).
-		 * Otherwise, just call it a continuation.
-		 */
-		if (is_continuation)
-			col_set_str(pinfo->cinfo, COL_INFO, "Continuation");
-		else
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%s: %s",
+	/*
+	 * Put the first line from the buffer into the summary
+	 * if it's a kismet request or reply (but leave out the
+	 * line terminator).
+	 * Otherwise, just call it a continuation.
+	 */
+	if (is_continuation)
+		col_set_str(pinfo->cinfo, COL_INFO, "Continuation");
+	else
+		col_add_fstr(pinfo->cinfo, COL_INFO, "%s: %s",
 				is_request ? "Request" : "Response",
 				format_text(line, linelen));
-	}
 
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_kismet, tvb, offset, -1, ENC_NA);
@@ -167,7 +164,7 @@ dissect_kismet(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree, void * da
 			tokenlen = get_token_len(line, line + linelen, &next_token);
 			if (tokenlen != 0) {
 				guint8 *reqresp;
-				reqresp = tvb_get_ephemeral_string(tvb, offset, tokenlen);
+				reqresp = tvb_get_string(wmem_packet_scope(), tvb, offset, tokenlen);
 				if (is_request) {
 					/*
 					 * No request dissection
@@ -247,14 +244,14 @@ dissect_kismet(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree, void * da
 						/*
 						 * Format ascii representaion of time
 						 */
-						ptr = abs_time_secs_to_str(t, ABSOLUTE_TIME_LOCAL, TRUE);
+						ptr = abs_time_secs_to_ep_str(t, ABSOLUTE_TIME_LOCAL, TRUE);
 						proto_tree_add_text(reqresp_tree, tvb, offset,
 							tokenlen, "Time: %s", ptr);
 					}
 				}
 
-				offset += (gint) (next_token - line);
-				linelen -= (int) (next_token - line);
+				/*offset += (gint) (next_token - line);
+				linelen -= (int) (next_token - line);*/
 				line = next_token;
 			}
 		}

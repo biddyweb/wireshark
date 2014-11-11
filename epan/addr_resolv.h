@@ -1,8 +1,6 @@
 /* addr_resolv.h
  * Definitions for network object lookup
  *
- * $Id$
- *
  * Laurent Deniel <laurent.deniel@free.fr>
  *
  * Wireshark - Network traffic analyzer
@@ -36,6 +34,9 @@
 
 #include <epan/address.h>
 #include <epan/tvbuff.h>
+#include <epan/ipv6-utils.h>
+#include <epan/to_str.h>
+#include <wiretap/wtap.h>
 #include "ws_symbol_export.h"
 
 #ifdef __cplusplus
@@ -55,6 +56,44 @@ typedef struct _e_addr_resolve {
   gboolean load_hosts_file_from_profile_only;
 } e_addr_resolve;
 
+
+typedef struct hashether {
+  guint             status;  /* (See above) */
+  guint8            addr[6];
+  char              hexaddr[6*3];
+  char              resolved_name[MAXNAMELEN];
+} hashether_t;
+
+typedef struct serv_port {
+  gchar            *udp_name;
+  gchar            *tcp_name;
+  gchar            *sctp_name;
+  gchar            *dccp_name;
+} serv_port_t;
+
+/*
+ *
+ */
+#define DUMMY_ADDRESS_ENTRY      1<<0
+#define TRIED_RESOLVE_ADDRESS    1<<1
+#define RESOLVED_ADDRESS_USED    1<<2
+
+#define DUMMY_AND_RESOLVE_FLGS   3
+#define USED_AND_RESOLVED_MASK   (1+4)
+typedef struct hashipv4 {
+    guint             addr;
+    guint8            flags;          /* B0 dummy_entry, B1 resolve, B2 If the address is used in the trace */
+    gchar             ip[16];
+    gchar             name[MAXNAMELEN];
+} hashipv4_t;
+
+
+typedef struct hashipv6 {
+    struct e_in6_addr addr;
+    guint8            flags;          /* B0 dummy_entry, B1 resolve, B2 If the address is used in the trace */
+    gchar             ip6[MAX_IP6_STR_LEN]; /* XX */
+    gchar             name[MAXNAMELEN];
+} hashipv6_t;
 /*
  * Flag controlling what names to resolve.
  */
@@ -70,30 +109,30 @@ extern gchar *g_pipxnets_path;
 /* Functions in addr_resolv.c */
 
 /*
- * get_udp_port() returns the port name corresponding to that UDP port,
+ * ep_udp_port_to_display() returns the port name corresponding to that UDP port,
  * or the port number as a string if not found.
  */
-WS_DLL_PUBLIC gchar *get_udp_port(guint port);
+WS_DLL_PUBLIC gchar *ep_udp_port_to_display(guint port);
 
 /*
- * get_tcp_port() returns the port name corresponding to that TCP port,
+ * ep_tcp_port_to_display() returns the port name corresponding to that TCP port,
  * or the port number as a string if not found.
  */
-WS_DLL_PUBLIC gchar *get_tcp_port(guint port);
+WS_DLL_PUBLIC gchar *ep_tcp_port_to_display(guint port);
 
 /*
- * get_dccp_port() returns the port name corresponding to that DCCP port,
+ * ep_dccp_port_to_display() returns the port name corresponding to that DCCP port,
  * or the port number as a string if not found.
  */
-extern gchar *get_dccp_port(guint port);
+extern gchar *ep_dccp_port_to_display(guint port);
 
 /*
- * get_sctp_port() returns the port name corresponding to that SCTP port,
+ * ep_sctp_port_to_display() returns the port name corresponding to that SCTP port,
  * or the port number as a string if not found.
  */
-WS_DLL_PUBLIC gchar *get_sctp_port(guint port);
+WS_DLL_PUBLIC gchar *ep_sctp_port_to_display(guint port);
 
-/* get_addr_name takes as input an "address", as defined in address.h */
+/* ep_address_to_display takes as input an "address", as defined in address.h */
 /* it returns a string that contains: */
 /*  - if the address is of a type that can be translated into a name, and the user */
 /*    has activated name resolution, the translated name */
@@ -103,16 +142,16 @@ WS_DLL_PUBLIC gchar *get_sctp_port(guint port);
 /*    address 10.10.10.10 */
 
 WS_DLL_PUBLIC
-const gchar *get_addr_name(const address *addr);
-const gchar *se_get_addr_name(const address *addr);
+const gchar *ep_address_to_display(const address *addr);
 
-/* get_addr_name_buf solves an address in the same way as get_addr_name above */
+/* get_addr_name_buf solves an address in the same way as ep_address_to_display above */
 /* The difference is that get_addr_name_buf takes as input a buffer, into which it puts */
 /* the result which is always NUL ('\0') terminated. The buffer should be large enough to */
 /* contain size characters including the terminator */
 
 void get_addr_name_buf(const address *addr, gchar *buf, gsize size);
 
+const gchar *get_addr_name(const address *addr);
 
 /*
  * Asynchronous host name lookup initialization, processing, and cleanup
@@ -122,9 +161,6 @@ void get_addr_name_buf(const address *addr, gchar *buf, gsize size);
 struct pref_module;
 extern void addr_resolve_pref_init(struct pref_module *nameres);
 
-/* host_name_lookup_init fires up an ADNS socket if we're using ADNS */
-extern void host_name_lookup_init(void);
-
 /** If we're using c-ares or ADNS, process outstanding host name lookups.
  *  This is called from a GLIB timeout in Wireshark and before processing
  *  each packet in TShark.
@@ -133,9 +169,6 @@ extern void host_name_lookup_init(void);
  * call. This can be used to trigger a display update, e.g. in Wireshark.
  */
 WS_DLL_PUBLIC gboolean host_name_lookup_process(void);
-
-/* host_name_lookup_cleanup cleans up an ADNS socket if we're using ADNS */
-extern void host_name_lookup_cleanup(void);
 
 /* get_hostname returns the host name or "%d.%d.%d.%d" if not found */
 WS_DLL_PUBLIC const gchar *get_hostname(const guint addr);
@@ -190,12 +223,12 @@ WS_DLL_PUBLIC const gchar *tvb_get_manuf_name(tvbuff_t *tvb, gint offset);
  */
 WS_DLL_PUBLIC const gchar *tvb_get_manuf_name_if_known(tvbuff_t *tvb, gint offset);
 
-/* get_eui64_name returns "<vendor>_%02x:%02x:%02x:%02x:%02x:%02x" if the vendor code is known
+/* ep_eui64_to_display returns "<vendor>_%02x:%02x:%02x:%02x:%02x:%02x" if the vendor code is known
    "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x" */
-extern const gchar *get_eui64_name(const guint64 addr);
+extern const gchar *ep_eui64_to_display(const guint64 addr);
 
-/* get_eui64_name_if_known returns "<vendor>_%02x:%02x:%02x:%02x:%02x:%02x" if the vendor code is known else NULL */
-extern const gchar *get_eui64_name_if_known(const guint64 addr);
+/* ep_eui64_to_display_if_known returns "<vendor>_%02x:%02x:%02x:%02x:%02x:%02x" if the vendor code is known else NULL */
+extern const gchar *ep_eui64_to_display_if_known(const guint64 addr);
 
 
 /* get_ipxnet_name returns the logical name if found in an ipxnets file,
@@ -221,7 +254,7 @@ WS_DLL_PUBLIC void add_ipv6_name(const struct e_in6_addr *addr, const gchar *nam
  * The file can be added before host_name_lookup_init() is called and
  * will be re-read each time host_name_lookup_init() is called.
  *
- * @param hostspath Absolute path to the hosts file.
+ * @param hosts_file Absolute path to the hosts file.
  *
  * @return TRUE if the hosts file can be read.
  */
@@ -230,33 +263,14 @@ WS_DLL_PUBLIC gboolean add_hosts_file (const char *hosts_file);
 /* adds a hostname in the hash table */
 WS_DLL_PUBLIC gboolean add_ip_name_from_string (const char *addr, const char *name);
 
-/** Get a list of host name to address mappings we know about.
+
+/** Get lists of host name to address mappings we know about.
  *
- * Each list element is an addrinfo struct with the following fields defined:
- *   - ai_family: 0, AF_INET or AF_INET6
- *   - ai_addrlen: Length of ai_addr
- *   - ai_canonname: Host name or NULL
- *   - ai_addr: Pointer to a struct sockaddr or NULL (see below)
- *   - ai_next: Next element or NULL
- * All other fields are zero-filled.
+ * The struct contains two g_lists one with hashipv4_t entries and one with hashipv6_t entries.
  *
- * If ai_family is 0, this is a dummy entry which should only appear at the beginning of the list.
- *
- * If ai_family is AF_INET, ai_addr points to a struct sockaddr_in with the following fields defined:
- *   - sin_family: AF_INET
- *   - sin_addr: Host IPv4 address
- * All other fields are zero-filled.
- *
- * If ai_family is AF_INET6, ai_addr points to a struct sockaddr_in6 with the following fields defined:
- *   - sin6_family: AF_INET6
- *   - sin6_addr: Host IPv6 address
- * All other fields are zero-filled.
- *
- * The list and its elements MUST NOT be modified or freed.
- *
- * @return The first element in our list of known addresses. May be NULL.
+ * @return a struct with lists of known addresses(IPv4 and IPv6). May be NULL.
  */
-WS_DLL_PUBLIC struct addrinfo *get_addrinfo_list(void);
+WS_DLL_PUBLIC addrinfo_lists_t *get_addrinfo_list(void);
 
 /* add ethernet address / name corresponding to IP address  */
 extern void add_ether_byip(const guint ip, const guint8 *eth);
@@ -296,6 +310,56 @@ gboolean get_host_ipaddr6(const char *host, struct e_in6_addr *addrp);
  */
 WS_DLL_PUBLIC
 const char* host_ip_af(const char *host);
+
+WS_DLL_PUBLIC
+GHashTable *get_manuf_hashtable(void);
+
+WS_DLL_PUBLIC
+GHashTable *get_wka_hashtable(void);
+
+WS_DLL_PUBLIC
+GHashTable *get_eth_hashtable(void);
+
+WS_DLL_PUBLIC
+GHashTable *get_serv_port_hashtable(void);
+
+WS_DLL_PUBLIC
+GHashTable *get_ipxnet_hash_table(void);
+
+WS_DLL_PUBLIC
+GHashTable *get_ipv4_hash_table(void);
+
+WS_DLL_PUBLIC
+GHashTable *get_ipv6_hash_table(void);
+
+/*
+ * private functions (should only be called by epan directly)
+ */
+
+WS_DLL_LOCAL
+void name_resolver_init(void);
+
+/* (Re)Initialize hostname resolution subsystem */
+WS_DLL_LOCAL
+void host_name_lookup_init(void);
+
+/* Clean up only hostname resolutions (so they don't "leak" from one
+ * file to the next).
+ */
+WS_DLL_LOCAL
+void host_name_lookup_cleanup(void);
+
+WS_DLL_LOCAL
+void addr_resolv_init(void);
+
+WS_DLL_LOCAL
+void addr_resolv_cleanup(void);
+
+WS_DLL_PUBLIC
+void manually_resolve_cleanup(void);
+
+gboolean str_to_ip(const char *str, void *dst);
+gboolean str_to_ip6(const char *str, void *dst);
 
 #ifdef __cplusplus
 }

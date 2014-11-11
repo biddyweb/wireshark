@@ -1,8 +1,6 @@
 /* conversations_usb.c 2007 Jon Smirl
  * modified from conversations_eth.c   2003 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,10 +35,12 @@
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/conversations_table.h"
 
+void register_tap_listener_usb_conversation(void);
+
 static int
 usb_conversation_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip _U_)
 {
-	add_conversation_table_data((conversations_table *)pct, &pinfo->src, &pinfo->dst, 0, 0, 1, pinfo->fd->pkt_len, &pinfo->fd->rel_ts, SAT_NONE, PT_NONE);
+	add_conversation_table_data((conversations_table *)pct, &pinfo->src, &pinfo->dst, 0, 0, 1, pinfo->fd->pkt_len, &pinfo->rel_ts, SAT_NONE, PT_NONE);
 
 	return 1;
 }

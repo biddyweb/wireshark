@@ -6,8 +6,6 @@
  *
  * Laurent Deniel <laurent.deniel@free.fr>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,6 +32,9 @@
 
 #define ECHO_PORT  7
 
+void proto_register_echo(void);
+void proto_reg_handoff_echo(void);
+
 static int proto_echo = -1;
 
 static int hf_echo_data = -1;
@@ -54,10 +55,8 @@ static void dissect_echo(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "ECHO");
 
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_set_str(pinfo->cinfo, COL_INFO,
+  col_set_str(pinfo->cinfo, COL_INFO,
                 (request) ? "Request" : "Response");
-  }
 
   if (tree) {
     proto_tree *echo_tree;

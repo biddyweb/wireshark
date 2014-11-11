@@ -45,9 +45,7 @@
  *   Mobile radio interface Layer 3 specification;
  *   Core network protocols;
  *   Stage 3
- *   (3GPP TS 24.008 version 11.5.0 Release 11)
- *
- * $Id$
+ *   (3GPP TS 24.008 version 11.7.0 Release 11)
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -77,6 +75,7 @@
 #include <epan/prefs.h>
 #include <epan/tap.h>
 #include <epan/asn1.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-bssap.h"
 #include "packet-sccp.h"
@@ -86,6 +85,10 @@
 #include "packet-e212.h"
 #include "packet-ppp.h"
 #include "ipproto.h"
+#include "packet-gsm_map.h"
+
+void proto_register_gsm_a_gm(void);
+void proto_reg_handoff_gsm_a_gm(void);
 
 /* PROTOTYPES/FORWARDS */
 
@@ -149,77 +152,77 @@ const value_string gsm_a_dtap_msg_sm_strings[] = {
 	{ 0, NULL }
 };
 
-const value_string gsm_gm_elem_strings[] = {
+static const value_string gsm_gm_elem_strings[] = {
 	/* GPRS Mobility Management Information Elements 10.5.5 */
-	{ 0x00,	"Additional Update Type" },
-	{ 0x01,	"Attach Result" },
-	{ 0x02,	"Attach Type" },
-	{ 0x03,	"Cipher Algorithm" },
-	{ 0x04,	"TMSI Status" },
-	{ 0x05,	"Detach Type" },
-	{ 0x06,	"DRX Parameter" },
-	{ 0x07,	"Force to Standby" },
-	{ 0x08, "Force to Standby" },
-	{ 0x09,	"P-TMSI Signature" },
-	{ 0x0a,	"P-TMSI Signature 2" },
-	{ 0x0b,	"Identity Type 2" },
-	{ 0x0c,	"IMEISV Request" },
-	{ 0x0d,	"Receive N-PDU Numbers List" },
-	{ 0x0e,	"MS Network Capability" },
-	{ 0x0f,	"MS Radio Access Capability" },
-	{ 0x10,	"GMM Cause" },
-	{ 0x11,	"Routing Area Identification" },
-	{ 0x12,	"Routing Area Identification 2" },
-	{ 0x13,	"Update Result" },
-	{ 0x14, "Update Type" },
-	{ 0x15,	"A&C Reference Number" },
-	{ 0x16, "A&C Reference Number" },
-	{ 0x17,	"Service Type" },
-	{ 0x18,	"Cell Notification" },
-	{ 0x19, "PS LCS Capability" },
-	{ 0x1a,	"Network Feature Support" },
-	{ 0x1b,	"Additional Network Feature Support" },
-	{ 0x1c, "Inter RAT information container" },
-	{ 0x1d, "Requested MS information" },
-	{ 0x1e, "UE network capability" },
-	{ 0x1f, "E-UTRAN inter RAT information container" },
-	{ 0x20, "Voice domain preference and UE's usage setting" },
-	{ 0x21, "P-TMSI type" },
-	{ 0x22, "Location Area Identification 2" },
-	{ 0x23, "Network resource identifier container" },
+	{ DE_ADD_UPD_TYPE,	"Additional Update Type" },
+	{ DE_ATTACH_RES,	"Attach Result" },
+	{ DE_ATTACH_TYPE,	"Attach Type" },
+	{ DE_CIPH_ALG,	"Cipher Algorithm" },
+	{ DE_TMSI_STAT,	"TMSI Status" },
+	{ DE_DETACH_TYPE,	"Detach Type" },
+	{ DE_DRX_PARAM,	"DRX Parameter" },
+	{ DE_FORCE_TO_STAND,	"Force to Standby" },
+	{ DE_FORCE_TO_STAND_H, "Force to Standby" },
+	{ DE_P_TMSI_SIG,	"P-TMSI Signature" },
+	{ DE_P_TMSI_SIG_2,	"P-TMSI Signature 2" },
+	{ DE_ID_TYPE_2,	"Identity Type 2" },
+	{ DE_IMEISV_REQ,	"IMEISV Request" },
+	{ DE_REC_N_PDU_NUM_LIST,	"Receive N-PDU Numbers List" },
+	{ DE_MS_NET_CAP,	"MS Network Capability" },
+	{ DE_MS_RAD_ACC_CAP,	"MS Radio Access Capability" },
+	{ DE_GMM_CAUSE,	"GMM Cause" },
+	{ DE_RAI,	"Routing Area Identification" },
+	{ DE_RAI_2,	"Routing Area Identification 2" },
+	{ DE_UPD_RES,	"Update Result" },
+	{ DE_UPD_TYPE, "Update Type" },
+	{ DE_AC_REF_NUM,	"A&C Reference Number" },
+	{ DE_AC_REF_NUM_H, "A&C Reference Number" },
+	{ DE_SRVC_TYPE,	"Service Type" },
+	{ DE_CELL_NOT,	"Cell Notification" },
+	{ DE_PS_LCS_CAP, "PS LCS Capability" },
+	{ DE_NET_FEAT_SUP,	"Network Feature Support" },
+	{ DE_ADD_NET_FEAT_SUP,	"Additional Network Feature Support" },
+	{ DE_RAT_INFO_CONTAINER, "Inter RAT information container" },
+	{ DE_REQ_MS_INFO, "Requested MS information" },
+	{ DE_UE_NETWORK_CAP, "UE network capability" },
+	{ DE_EUTRAN_IRAT_INFO_CONTAINER, "E-UTRAN inter RAT information container" },
+	{ DE_VOICE_DOMAIN_PREF, "Voice domain preference and UE's usage setting" },
+	{ DE_PTMSI_TYPE, "P-TMSI type" },
+	{ DE_LAI_2, "Location Area Identification 2" },
+	{ DE_NET_RES_ID_CONT, "Network resource identifier container" },
 	/* Session Management Information Elements 10.5.6 */
-	{ 0x24,	"Access Point Name" },
-	{ 0x25,	"Network Service Access Point Identifier" },
-	{ 0x26,	"Protocol Configuration Options" },
-	{ 0x27,	"Packet Data Protocol Address" },
-	{ 0x28,	"Quality Of Service" },
-	{ 0x29,	"SM Cause" },
-	{ 0x2a, "SM Cause 2" },
-	{ 0x2b,	"Linked TI" },
-	{ 0x2c,	"LLC Service Access Point Identifier" },
-	{ 0x2d,	"Tear Down Indicator" },
-	{ 0x2e,	"Packet Flow Identifier" },
-	{ 0x2f,	"Traffic Flow Template" },
-	{ 0x30, "Temporary Mobile Group Identity (TMGI)" },
-	{ 0x31, "MBMS bearer capabilities" },
-	{ 0x32, "MBMS protocol configuration options" },
-	{ 0x33, "Enhanced network service access point identifier" },
-	{ 0x34, "Request type" },
-	{ 0x35, "Notification indicator" },
-	{ 0x36, "Connectivity type" },
+	{ DE_ACC_POINT_NAME,	"Access Point Name" },
+	{ DE_NET_SAPI,	"Network Service Access Point Identifier" },
+	{ DE_PRO_CONF_OPT,	"Protocol Configuration Options" },
+	{ DE_PD_PRO_ADDR,	"Packet Data Protocol Address" },
+	{ DE_QOS,	"Quality Of Service" },
+	{ DE_SM_CAUSE,	"SM Cause" },
+	{ DE_SM_CAUSE_2, "SM Cause 2" },
+	{ DE_LINKED_TI,	"Linked TI" },
+	{ DE_LLC_SAPI,	"LLC Service Access Point Identifier" },
+	{ DE_TEAR_DOWN_IND,	"Tear Down Indicator" },
+	{ DE_PACKET_FLOW_ID,	"Packet Flow Identifier" },
+	{ DE_TRAFFIC_FLOW_TEMPLATE,	"Traffic Flow Template" },
+	{ DE_TMGI, "Temporary Mobile Group Identity (TMGI)" },
+	{ DE_MBMS_BEARER_CAP, "MBMS bearer capabilities" },
+	{ DE_MBMS_PROT_CONF_OPT, "MBMS protocol configuration options" },
+	{ DE_ENH_NSAPI, "Enhanced network service access point identifier" },
+	{ DE_REQ_TYPE, "Request type" },
+	{ DE_SM_NOTIF_IND, "Notification indicator" },
+	{ DE_SM_CONNECTIVITY_TYPE, "Connectivity type" },
 	/* GPRS Common Information Elements 10.5.7 */
-	{ 0x37,	"PDP Context Status" },
-	{ 0x38,	"Radio Priority" },
-	{ 0x39,	"GPRS Timer" },
-	{ 0x3a,	"GPRS Timer 2" },
-	{ 0x3b,	"GPRS Timer 3" },
-	{ 0x3c, "Radio Priority 2"},
-	{ 0x3d,	"MBMS context status"},
-	{ 0x3e,	"Uplink data status"},
-	{ 0x3f,	"Device properties"},
-	{ 0x40, "Spare Nibble"},
+	{ DE_PDP_CONTEXT_STAT,	"PDP Context Status" },
+	{ DE_RAD_PRIO,	"Radio Priority" },
+	{ DE_GPRS_TIMER,	"GPRS Timer" },
+	{ DE_GPRS_TIMER_2,	"GPRS Timer 2" },
+	{ DE_GPRS_TIMER_3,	"GPRS Timer 3" },
+	{ DE_RAD_PRIO_2, "Radio Priority 2"},
+	{ DE_MBMS_CTX_STATUS,	"MBMS context status"},
+	{ DE_UPLINK_DATA_STATUS,	"Uplink data status"},
+	{ DE_DEVICE_PROPERTIES,	"Device properties"},
 	{ 0, NULL }
 };
+value_string_ext gsm_gm_elem_strings_ext = VALUE_STRING_EXT_INIT(gsm_gm_elem_strings);
 
 #define	DTAP_GMM_IEI_MASK	0xff
 #define	DTAP_SM_IEI_MASK	0xff
@@ -239,9 +242,10 @@ static int hf_gsm_a_sm_qos_ber = -1;
 static int hf_gsm_a_sm_qos_sdu_err_rat = -1;
 static int hf_gsm_a_sm_qos_traff_hdl_pri = -1;
 
+static int hf_gsm_a_gmm_split_pg_cycle_code = -1;
 static int hf_gsm_a_gmm_split_on_ccch = -1;
 static int hf_gsm_a_gmm_non_drx_timer = -1;
-static int hf_gsm_a_gmm_cn_spec_drs_cycle_len_coef = -1;
+static int hf_gsm_a_gmm_cn_spec_drx_cycle_len_coef = -1;
 
 static int hf_gsm_a_gmm_ptmsi_sig =-1;
 static int hf_gsm_a_gmm_ptmsi_sig2 =-1;
@@ -280,10 +284,12 @@ static int hf_gsm_a_gm_imeisv_req = -1;
 static int hf_gsm_a_gm_ac_ref_nr = -1;
 static int hf_gsm_a_gm_force_to_standby = -1;
 static int hf_gsm_a_gm_serv_type = -1;
-static int hf_gsm_a_gm_ciph_key_seq_num = -1;
 static int hf_gsm_a_gm_for = -1;
 static int hf_gsm_a_gm_type_of_attach = -1;
 static int hf_gsm_a_gm_tmsi_flag = -1;
+static int hf_gsm_a_gm_power_off = -1;
+static int hf_gsm_a_gm_type_of_detach_mo = -1;
+static int hf_gsm_a_gm_type_of_detach_mt = -1;
 static int hf_gsm_a_gm_update_type = -1;
 static int hf_gsm_a_gm_gprs_timer_unit = -1;
 static int hf_gsm_a_gm_gprs_timer_value = -1;
@@ -413,6 +419,7 @@ static int hf_gsm_a_gm_rac_fast_down_freq_switch_cap = -1;
 static int hf_gsm_a_gm_rac_tighter_cap = -1;
 static int hf_gsm_a_gm_rac_fanr_cap = -1;
 static int hf_gsm_a_gm_rac_ipa_cap = -1;
+static int hf_gsm_a_gm_rac_geran_nw_sharing_support = -1;
 static int hf_gsm_a_sm_ti_flag = -1;
 static int hf_gsm_a_sm_ext = -1;
 
@@ -442,19 +449,6 @@ static int hf_gsm_a_gmm_net_cap_nf = -1;
 static int hf_gsm_a_gmm_net_geran_net_sharing = -1;
 
 /* Initialize the subtree pointers */
-static gint ett_tc_component = -1;
-static gint ett_tc_invoke_id = -1;
-static gint ett_tc_linked_id = -1;
-static gint ett_tc_opr_code = -1;
-static gint ett_tc_err_code = -1;
-static gint ett_tc_prob_code = -1;
-static gint ett_tc_sequence = -1;
-
-static gint ett_gmm_drx = -1;
-static gint ett_gmm_detach_type = -1;
-static gint ett_gmm_attach_type = -1;
-static gint ett_gmm_context_stat = -1;
-static gint ett_gmm_update_type = -1;
 static gint ett_gmm_radio_cap = -1;
 static gint ett_gmm_network_cap = -1;
 static gint ett_gsm_a_gm_msrac_multislot_capability = -1;
@@ -463,6 +457,8 @@ static gint ett_gmm_gprs_timer = -1;
 
 static gint ett_sm_tft = -1;
 static gint ett_sm_pco = -1;
+
+static expert_field ei_gsm_a_gm_extraneous_data = EI_INIT;
 
 static dissector_handle_t data_handle;
 static dissector_handle_t rrc_irat_ho_info_handle;
@@ -530,19 +526,8 @@ static const value_string gsm_a_gm_type_of_attach_vals[] = {
 static guint16
 de_gmm_attach_type(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_)
 {
-	proto_item *tf;
-	proto_tree *tf_tree;
-
-	proto_tree_add_bits_item(tree, hf_gsm_a_gm_ciph_key_seq_num, tvb, offset << 3, 4, ENC_BIG_ENDIAN);
-
-	tf = proto_tree_add_text(tree,
-		tvb, offset, 1,
-		"Attach Type");
-
-	tf_tree = proto_item_add_subtree(tf, ett_gmm_attach_type);
-
-	proto_tree_add_item(tf_tree, hf_gsm_a_gm_for, tvb, offset, 1, ENC_BIG_ENDIAN);
-	proto_tree_add_item(tf_tree, hf_gsm_a_gm_type_of_attach, tvb, offset, 1, ENC_BIG_ENDIAN);
+	proto_tree_add_item(tree, hf_gsm_a_gm_for, tvb, offset, 1, ENC_BIG_ENDIAN);
+	proto_tree_add_item(tree, hf_gsm_a_gm_type_of_attach, tvb, offset, 1, ENC_BIG_ENDIAN);
 
 	/* no length check possible */
 	return (1);
@@ -594,51 +579,39 @@ de_gmm_tmsi_stat(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint3
 /*
  * [7] 10.5.5.5
  */
+const true_false_string gsm_a_gm_power_off_value = {
+	"power switched off",
+	"normal detach"
+};
+
+const value_string gsm_a_gm_type_of_detach_mo_vals[] = {
+	{ 0x01, "GPRS detach" },
+	{ 0x02, "IMSI detach" },
+	{ 0x03, "Combined GPRS/IMSI detach" },
+	{ 0, NULL }
+};
+
+const value_string gsm_a_gm_type_of_detach_mt_vals[] = {
+	{ 0x01, "re-attach required" },
+	{ 0x02, "re-attach not required" },
+	{ 0x03, "IMSI detach (after VLR failure)" },
+	{ 0, NULL }
+};
+
 static guint16
 de_gmm_detach_type(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_)
 {
-	guint8       oct;
-	guint32	     curr_offset;
-	const gchar *str;
-	const gchar *str_power;
-	proto_item  *tf;
-	proto_tree  *tf_tree;
+	guint32 curr_offset;
 
 	curr_offset = offset;
 
-	oct = tvb_get_guint8(tvb, curr_offset);
-
-	switch (oct&7)
-	{
-		case 1:  str = "GPRS detach/re-attach required";                            break;
-		case 2:  str = "IMSI detach/re-attach not required";                        break;
-		case 3:  str = "Combined GPRS/IMSI detach/IMSI detach (after VLR failure)"; break;
-		default: str = "Combined GPRS/IMSI detach/re-attach not required";
+	if (pinfo->p2p_dir == P2P_DIR_RECV) {
+		proto_tree_add_item(tree, hf_gsm_a_gm_power_off, tvb, offset, 1, ENC_BIG_ENDIAN);
+		proto_tree_add_item(tree, hf_gsm_a_gm_type_of_detach_mo, tvb, offset, 1, ENC_BIG_ENDIAN);
+	} else {
+		proto_tree_add_bits_item(tree, hf_gsm_a_spare_bits, tvb, (offset << 3) + 4, 1, ENC_BIG_ENDIAN);
+		proto_tree_add_item(tree, hf_gsm_a_gm_type_of_detach_mt, tvb, offset, 1, ENC_BIG_ENDIAN);
 	}
-
-	switch (oct&8)
-	{
-		case 8:  str_power = "power switched off"; break;
-		default: str_power = "normal detach";      break;
-	}
-
-	tf = proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"Detach Type");
-
-	tf_tree = proto_item_add_subtree(tf, ett_gmm_detach_type);
-
-	proto_tree_add_text(tf_tree,
-		tvb, curr_offset, 1,
-		"Type: %s (%u)",
-		str,
-		oct&7);
-
-	proto_tree_add_text(tf_tree,
-		tvb, curr_offset, 1,
-		"Power: %s (%u)",
-		str_power,
-		(oct>>3)&1);
 
 	curr_offset++;
 
@@ -649,8 +622,114 @@ de_gmm_detach_type(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guin
 
 /*
  * [7] 10.5.5.6
- *
- * SPLIT on CCCH, octet 3 (bit 4)
+ */
+
+/* SPLIT PG CYCLE CODE, octet 2 */
+static const value_string gsm_a_gmm_split_pg_cycle_code_strings[] = {
+	{  0, "704 (equivalent to no DRX)" },
+	{  1, "1" },
+	{  2, "2" },
+	{  3, "3" },
+	{  4, "4" },
+	{  5, "5" },
+	{  6, "6" },
+	{  7, "7" },
+	{  8, "8" },
+	{  9, "9" },
+	{ 10, "10" },
+	{ 11, "11" },
+	{ 12, "12" },
+	{ 13, "13" },
+	{ 14, "14" },
+	{ 15, "15" },
+	{ 16, "16" },
+	{ 17, "17" },
+	{ 18, "18" },
+	{ 19, "19" },
+	{ 20, "20" },
+	{ 21, "21" },
+	{ 22, "22" },
+	{ 23, "23" },
+	{ 24, "24" },
+	{ 25, "25" },
+	{ 26, "26" },
+	{ 27, "27" },
+	{ 28, "28" },
+	{ 29, "29" },
+	{ 30, "30" },
+	{ 31, "31" },
+	{ 32, "32" },
+	{ 33, "33" },
+	{ 34, "34" },
+	{ 35, "35" },
+	{ 36, "36" },
+	{ 37, "37" },
+	{ 38, "38" },
+	{ 39, "39" },
+	{ 40, "40" },
+	{ 41, "41" },
+	{ 42, "42" },
+	{ 43, "43" },
+	{ 44, "44" },
+	{ 45, "45" },
+	{ 46, "46" },
+	{ 47, "47" },
+	{ 48, "48" },
+	{ 49, "49" },
+	{ 50, "50" },
+	{ 51, "51" },
+	{ 52, "52" },
+	{ 53, "53" },
+	{ 54, "54" },
+	{ 55, "55" },
+	{ 56, "56" },
+	{ 57, "57" },
+	{ 58, "58" },
+	{ 59, "59" },
+	{ 60, "60" },
+	{ 61, "61" },
+	{ 62, "62" },
+	{ 63, "63" },
+	{ 64, "64" },
+	{ 65, "71" },
+	{ 66, "72" },
+	{ 67, "74" },
+	{ 68, "75" },
+	{ 69, "77" },
+	{ 70, "79" },
+	{ 71, "80" },
+	{ 72, "83" },
+	{ 73, "86" },
+	{ 74, "88" },
+	{ 75, "90" },
+	{ 76, "92" },
+	{ 77, "96" },
+	{ 78, "101" },
+	{ 79, "103" },
+	{ 80, "107" },
+	{ 81, "112" },
+	{ 82, "116" },
+	{ 83, "118" },
+	{ 84, "128" },
+	{ 85, "141" },
+	{ 86, "144" },
+	{ 87, "150" },
+	{ 88, "160" },
+	{ 89, "171" },
+	{ 90, "176" },
+	{ 91, "192" },
+	{ 92, "214" },
+	{ 93, "224" },
+	{ 94, "235" },
+	{ 95, "256" },
+	{ 96, "288" },
+	{ 97, "320" },
+	{ 98, "352" },
+	{ 0, NULL }
+};
+static value_string_ext gsm_a_gmm_split_pg_cycle_code_strings_ext = VALUE_STRING_EXT_INIT(gsm_a_gmm_split_pg_cycle_code_strings);
+
+/* SPLIT on CCCH, octet 3 (bit 4)
  * 0 Split pg cycle on CCCH is not supported by the mobile station
  * 1 Split pg cycle on CCCH is supported by the mobile station
  */
@@ -691,7 +770,7 @@ static const value_string gsm_a_gmm_non_drx_timer_strings[] = {
  * NOTE: For Iu mode and S1 mode, this field (octet 3 bits 8 to 5) is used, but was spare in earlier
  * versions of this protocol.
  */
-static const range_string gsm_a_gmm_cn_spec_drs_cycle_len_coef_strings[] = {
+static const range_string gsm_a_gmm_cn_spec_drx_cycle_len_coef_strings[] = {
 	{ 0x00,	0x05, "CN Specific DRX cycle length coefficient / value not specified by the MS" },
 	{ 0x06,	0x06, "CN Specific DRX cycle length coefficient 6 and T = 32" },
 	{ 0x07,	0x07, "CN Specific DRX cycle length coefficient 7 and T = 64" },
@@ -703,72 +782,15 @@ static const range_string gsm_a_gmm_cn_spec_drs_cycle_len_coef_strings[] = {
 guint16
 de_gmm_drx_param(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_)
 {
-	guint8       oct;
-	guint32	     curr_offset;
-	const gchar *str;
-	proto_item  *tf;
-	proto_tree  *tf_tree;
+	guint32 curr_offset;
 
 	curr_offset = offset;
 
-	tf = proto_tree_add_text(tree,
-		tvb, curr_offset, 2,
-		"DRX Parameter");
-
-	tf_tree = proto_item_add_subtree(tf, ett_gmm_drx);
-
-	oct = tvb_get_guint8(tvb, curr_offset);
-
-	switch (oct)
-	{
-		case 0:  str = "704"; break;
-		case 65: str = "71";  break;
-		case 66: str = "72";  break;
-		case 67: str = "74";  break;
-		case 68: str = "75";  break;
-		case 69: str = "77";  break;
-		case 70: str = "79";  break;
-		case 71: str = "80";  break;
-		case 72: str = "83";  break;
-		case 73: str = "86";  break;
-		case 74: str = "88";  break;
-		case 75: str = "90";  break;
-		case 76: str = "92";  break;
-		case 77: str = "96";  break;
-		case 78: str = "101"; break;
-		case 79: str = "103"; break;
-		case 80: str = "107"; break;
-		case 81: str = "112"; break;
-		case 82: str = "116"; break;
-		case 83: str = "118"; break;
-		case 84: str = "128"; break;
-		case 85: str = "141"; break;
-		case 86: str = "144"; break;
-		case 87: str = "150"; break;
-		case 88: str = "160"; break;
-		case 89: str = "171"; break;
-		case 90: str = "176"; break;
-		case 91: str = "192"; break;
-		case 92: str = "214"; break;
-		case 93: str = "224"; break;
-		case 94: str = "235"; break;
-		case 95: str = "256"; break;
-		case 96: str = "288"; break;
-		case 97: str = "320"; break;
-		case 98: str = "352"; break;
-		default: str = "Reserved, interpreted as 1";
-	}
-
-	proto_tree_add_text(tf_tree,
-		tvb, curr_offset, 1,
-		"Split PG Cycle Code: %s (%u)",
-		str,
-		oct);
-
+	proto_tree_add_item(tree, hf_gsm_a_gmm_split_pg_cycle_code, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
 	curr_offset++;
-	proto_tree_add_item(tf_tree, hf_gsm_a_gmm_cn_spec_drs_cycle_len_coef, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-	proto_tree_add_item(tf_tree, hf_gsm_a_gmm_split_on_ccch, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
-	proto_tree_add_item(tf_tree, hf_gsm_a_gmm_non_drx_timer, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
+	proto_tree_add_item(tree, hf_gsm_a_gmm_cn_spec_drx_cycle_len_coef, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
+	proto_tree_add_item(tree, hf_gsm_a_gmm_split_on_ccch, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
+	proto_tree_add_item(tree, hf_gsm_a_gmm_non_drx_timer, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
 
 	curr_offset++;
 
@@ -854,7 +876,7 @@ de_gmm_ptmsi_sig2(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 o
 	proto_item_append_text(curr_item, "%s", add_string ? add_string : "");
 	curr_offset += 3;
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (curr_offset - offset);
 }
@@ -952,7 +974,7 @@ de_gmm_rec_npdu_lst(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32
 
 	} while (curr_len > 1);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (curr_offset - offset);
 }
@@ -1125,7 +1147,7 @@ de_gmm_ms_net_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 o
 	proto_tree_add_item(tree, hf_gsm_a_gmm_net_geran_net_sharing, tvb, curr_offset, 1, ENC_BIG_ENDIAN);
 
 	curr_offset++;
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (curr_offset - offset);
 }
@@ -1151,13 +1173,13 @@ de_gmm_ms_net_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 o
 		curr_len--; \
 		curr_offset++; \
 		if (bits_in_oct != 0) \
-			add_ocetets = 1; \
+			add_octets = 1; \
 		else \
-			add_ocetets = 0; \
+			add_octets = 0; \
 		bits_in_oct += 8; \
 	} \
 	else \
-		add_ocetets = 0;
+		add_octets = 0;
 
 /* Access Technology Type */
 
@@ -1345,7 +1367,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 	guchar       bits_in_oct;
 	guchar       bits_needed;
 	guint        bits_length;
-	guint        add_ocetets;	/* octets which are covered by one element -1 */
+	guint        add_octets;	/* octets which are covered by one element -1 */
 	guint        curr_bits_length;
 	guchar       acc_type;
 	guint        value;
@@ -1457,7 +1479,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 				}
 
 				proto_tree_add_text(tf_tree,
-					tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+					tvb, curr_offset-1-add_octets, 1+add_octets,
 					"Presence: %s (%u)", str, oct>>(32-bits_needed));
 				bit_offset++;
 				curr_bits_length  -= bits_needed;
@@ -1554,7 +1576,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 
 				/* decode_bits_in_field(gint bit_offset, gint no_of_bits, guint64 value)*/
 				proto_tree_add_text(tf_tree,
-					tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+					tvb, curr_offset-1-add_octets, 1+add_octets,
 					"%s RF Power Capability, GMSK Power Class: %s (%u)", decode_bits_in_field(bit_offset, 3, value), str, value);
 				bit_offset	  += 3;
 				curr_bits_length  -= bits_needed;
@@ -1579,7 +1601,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 				}
 
 				proto_tree_add_text(tf_tree,
-					tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+					tvb, curr_offset-1-add_octets, 1+add_octets,
 					"8PSK Power Class: %s (%u)", str, value);
 				bit_offset	  += 2;
 				curr_bits_length  -= bits_needed;
@@ -1634,7 +1656,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 			str = "Not specified??";
 
 		proto_tree_add_text(tf_tree,
-			tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+			tvb, curr_offset-1-add_octets, 1+add_octets,
 			"%s RF Power Capability, GMSK Power Class: %s (%u)", decode_bits_in_field(bit_offset, 3, value), str, value);
 
 		bit_offset	  += 3;
@@ -1652,7 +1674,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 		if ((oct>>(32-bits_needed)) == 0)
 		{
 			proto_tree_add_text(tf_tree,
-				tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+				tvb, curr_offset-1-add_octets, 1+add_octets,
 				"A5 Bits: Same values apply for parameters as in the immediately preceding Access capabilities field within this IE (%u)",
 				oct>>(32-bits_needed));
 			bit_offset++;
@@ -1665,7 +1687,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 			int i;
 
 			proto_tree_add_text(tf_tree,
-				tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+				tvb, curr_offset-1-add_octets, 1+add_octets,
 				"A5 Bits: A5 bits follow (%u)", oct>>(32-bits_needed));
 
 			bit_offset++;
@@ -1690,7 +1712,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 				}
 
 				proto_tree_add_text(tf_tree,
-					tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+					tvb, curr_offset-1-add_octets, 1+add_octets,
 					"A5/%d: %s (%u)", i, str, oct>>(32-bits_needed));
 				bit_offset++;
 				curr_bits_length  -= bits_needed;
@@ -1776,7 +1798,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 			if ((oct>>(32-bits_needed)) == 0)
 			{
 				proto_tree_add_text(mc_tree,
-					tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+					tvb, curr_offset-1-add_octets, 1+add_octets,
 					"HSCSD multislot class: Bits are not available (%u)", oct>>(32-bits_needed));
 				bit_offset++;
 				curr_bits_length  -= bits_needed;
@@ -1813,7 +1835,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 			if ((oct>>(32-bits_needed)) == 0)
 			{
 				proto_tree_add_text(mc_tree,
-					tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+					tvb, curr_offset-1-add_octets, 1+add_octets,
 					"GPRS multislot class: Bits are not available (%u)", oct>>(32-bits_needed));
 				bit_offset++;
 				curr_bits_length  -= bits_needed;
@@ -1862,7 +1884,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 			if ((oct>>(32-bits_needed)) == 0)
 			{
 				proto_tree_add_text(mc_tree,
-					tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+					tvb, curr_offset-1-add_octets, 1+add_octets,
 					"SMS/SM values: Bits are not available (%u)", oct>>(32-bits_needed));
 				bit_offset++;
 				curr_bits_length  -= bits_needed;
@@ -1913,7 +1935,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 			if ((oct>>(32-bits_needed)) == 0)
 			{
 				proto_tree_add_text(mc_tree,
-					tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+					tvb, curr_offset-1-add_octets, 1+add_octets,
 					"ECSD multislot class: Bits are not available (%u)", oct>>(32-bits_needed));
 				bit_offset++;
 				curr_bits_length  -= bits_needed;
@@ -1950,7 +1972,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 			if ((oct>>(32-bits_needed)) == 0)
 			{
 				proto_tree_add_text(mc_tree,
-					tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+					tvb, curr_offset-1-add_octets, 1+add_octets,
 					"EGPRS multislot class: Bits are not available (%u)", oct>>(32-bits_needed));
 				curr_bits_length  -= bits_needed;
 				oct		 <<= bits_needed;
@@ -1999,7 +2021,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 			if ((oct>>(32-bits_needed)) == 0)
 			{
 				proto_tree_add_text(mc_tree,
-					tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+					tvb, curr_offset-1-add_octets, 1+add_octets,
 					"DTM GPRS Multi Slot Class: Bits are not available (%u)", oct>>(32-bits_needed));
 				bit_offset++;
 				curr_bits_length  -= bits_needed;
@@ -2076,6 +2098,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 		 */
 		bits_needed = 1;
 		GET_DATA;
+		value = oct>>(32-bits_needed);
 
 		proto_tree_add_bits_item(tf_tree, hf_gsm_a_gm_rac_8psk_pow_cap_pres, tvb, bit_offset, 1, ENC_BIG_ENDIAN);
 		bit_offset++;
@@ -2084,7 +2107,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 		bits_in_oct	  -= bits_needed;
 
 		/* analyse bits */
-		if ((oct>>(32-bits_needed)) == 1)
+		if (value == 1)
 		{
 			/*
 			 * 8PSK Power Capability
@@ -2103,7 +2126,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 			}
 
 			proto_tree_add_text(tf_tree,
-				tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+				tvb, curr_offset-1-add_octets, 1+add_octets,
 				"8PSK Power Capability: %s (%u)", str, oct>>(32-bits_needed));
 			bit_offset	  += 2;
 			curr_bits_length  -= bits_needed;
@@ -2206,7 +2229,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 		if ((oct>>(32-bits_needed)) == 0)
 		{
 			proto_tree_add_text(tf_tree,
-				tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+				tvb, curr_offset-1-add_octets, 1+add_octets,
 				"Extended DTM (E)GPRS Multi Slot Class: Bits are not available (%u)", oct>>(32-bits_needed));
 			curr_bits_length  -= bits_needed;
 			oct		 <<= bits_needed;
@@ -2249,7 +2272,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 			}
 
 			proto_tree_add_text(tf_tree,
-				tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+				tvb, curr_offset-1-add_octets, 1+add_octets,
 				"Extended DTM GPRS Multi Slot Class: %s (%u)", str, oct>>(32-bits_needed));
 			bit_offset	  += 2;
 			curr_bits_length  -= bits_needed;
@@ -2287,7 +2310,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 				}
 
 				proto_tree_add_text(tf_tree,
-					tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+					tvb, curr_offset-1-add_octets, 1+add_octets,
 					"Extended DTM EGPRS Multi Slot Class: %s (%u)", str, oct>>(32-bits_needed));
 				bit_offset	  += 2;
 				curr_bits_length  -= bits_needed;
@@ -2318,7 +2341,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 		if ((oct>>(32-bits_needed)) == 0)
 		{
 			proto_tree_add_text(tf_tree,
-				tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+				tvb, curr_offset-1-add_octets, 1+add_octets,
 				"High Multislot Capability: Bits are not available (%u)", oct>>(32-bits_needed));
 			bit_offset++;
 			curr_bits_length  -= bits_needed;
@@ -2340,7 +2363,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 
 			/* analyse bits */
 			proto_tree_add_text(tf_tree,
-			tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+			tvb, curr_offset-1-add_octets, 1+add_octets,
 					    "High Multislot Capability: 0x%02x (%u)"
 					    " - This field effect all other multislot fields."
 					    " To understand the value please read TS 24.008 5.6.0"
@@ -2414,7 +2437,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 		}
 
 		proto_tree_add_text(tf_tree,
-			tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+			tvb, curr_offset-1-add_octets, 1+add_octets,
 			"GMSK Multislot Power Profile: %s (%u)", str, oct>>(32-bits_needed));
 		bit_offset	  += 2;
 		curr_bits_length  -= bits_needed;
@@ -2437,7 +2460,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 			default:   str = "This should not happen";
 		}
 
-		proto_tree_add_text(tf_tree, tvb, curr_offset-1-add_ocetets, 1+add_ocetets,
+		proto_tree_add_text(tf_tree, tvb, curr_offset-1-add_octets, 1+add_octets,
 				    "8-PSK Multislot Power Profile: %s (%u)", str, oct>>(32-bits_needed));
 		bit_offset	  += 2;
 		curr_bits_length  -= bits_needed;
@@ -2910,6 +2933,17 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 		bits_in_oct -= bits_needed;
 
 		 /*
+		 * GERAN Network Sharing support
+		 */
+		bits_needed = 1;
+		GET_DATA;
+		proto_tree_add_bits_item(tf_tree, hf_gsm_a_gm_rac_geran_nw_sharing_support, tvb, bit_offset, 1, ENC_BIG_ENDIAN);
+		bit_offset += bits_needed;
+		curr_bits_length -= bits_needed;
+		oct <<= bits_needed;
+		bits_in_oct -= bits_needed;
+
+		 /*
 		 * we are too long ... so jump over it
 		 */
 		while (curr_bits_length > 0)
@@ -2929,7 +2963,7 @@ de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 
 	curr_offset += curr_len;
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (curr_offset - offset);
 }
@@ -3124,19 +3158,8 @@ static const value_string gsm_a_gm_update_type_vals[] = {
 static guint16
 de_gmm_update_type(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_)
 {
-        proto_item *tf;
-	proto_tree *tf_tree;
-
-	proto_tree_add_bits_item(tree, hf_gsm_a_gm_ciph_key_seq_num, tvb, offset << 3, 4, ENC_BIG_ENDIAN);
-
-	tf = proto_tree_add_text(tree,
-		tvb, offset, 1,
-		"Update Type");
-
-	tf_tree = proto_item_add_subtree(tf, ett_gmm_update_type);
-
-	proto_tree_add_item(tf_tree, hf_gsm_a_gm_for, tvb, offset, 1, ENC_BIG_ENDIAN);
-	proto_tree_add_item(tf_tree, hf_gsm_a_gm_update_type, tvb, offset, 1, ENC_BIG_ENDIAN);
+	proto_tree_add_item(tree, hf_gsm_a_gm_for, tvb, offset, 1, ENC_BIG_ENDIAN);
+	proto_tree_add_item(tree, hf_gsm_a_gm_update_type, tvb, offset, 1, ENC_BIG_ENDIAN);
 
 	/* no length check possible */
 	return (1);
@@ -3189,10 +3212,7 @@ de_gmm_service_type(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, gui
 	proto_tree_add_bits_item(tree, hf_gsm_a_spare_bits, tvb, bit_offset, 1, ENC_BIG_ENDIAN);
 	bit_offset  +=  1;
 	proto_tree_add_bits_item(tree, hf_gsm_a_gm_serv_type, tvb, bit_offset, 3, ENC_BIG_ENDIAN);
-	bit_offset  +=  3;
-	proto_tree_add_bits_item(tree, hf_gsm_a_spare_bits, tvb, bit_offset, 1, ENC_BIG_ENDIAN);
-	bit_offset  +=  1;
-	proto_tree_add_bits_item(tree, hf_gsm_a_gm_ciph_key_seq_num, tvb, bit_offset, 3, ENC_BIG_ENDIAN);
+	/*bit_offset  +=  3;*/
 
 	/* no length check possible */
 	return (1);
@@ -3252,7 +3272,7 @@ de_gmm_ps_lcs_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 o
 
 	curr_offset++;
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (curr_offset - offset);
 }
@@ -3474,16 +3494,8 @@ de_gc_context_stat(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 
 	guint8      oct;
 	guint16     pdp_nr;
 	guint32     curr_offset;
-	proto_item *tf;
-	proto_tree *tf_tree;
 
 	curr_offset = offset;
-
-	tf = proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"PDP Context Status");
-
-	tf_tree = proto_item_add_subtree(tf, ett_gmm_context_stat);
 
 	oct = tvb_get_guint8(tvb, curr_offset);
 
@@ -3494,7 +3506,7 @@ de_gc_context_stat(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 
 			curr_offset++;
 			oct = tvb_get_guint8(tvb, curr_offset);
 		}
-		proto_tree_add_text(tf_tree,
+		proto_tree_add_text(tree,
 			tvb, curr_offset, 1,
 			"NSAPI %d: %s (%u)", pdp_nr,
 			pdp_str[oct&1],
@@ -3504,7 +3516,7 @@ de_gc_context_stat(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 
 
 	curr_offset++;
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (curr_offset - offset);
 }
@@ -3740,16 +3752,8 @@ de_gc_mbms_context_stat(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_,
 	guint32     curr_offset;
 	guint       i;
 	guint8      oct, j;
-	proto_item *tf;
-	proto_tree *tf_tree;
 
 	curr_offset = offset;
-
-	tf = proto_tree_add_text(tree,
-		tvb, curr_offset, 1,
-		"MBMS Context Status");
-
-	tf_tree = proto_item_add_subtree(tf, ett_gmm_context_stat);
 
 	for (i=0; i<len; i++)
 	{
@@ -3757,7 +3761,7 @@ de_gc_mbms_context_stat(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_,
 
 		for (j=0; j<8; j++)
 		{
-			proto_tree_add_text(tf_tree,
+			proto_tree_add_text(tree,
 				tvb, curr_offset, 1,
 				"NSAPI %d: %s (%u)", 128+i*8+j,
 				pdp_str[oct&1],
@@ -3858,7 +3862,7 @@ de_sm_apn(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 	curr_offset = offset;
 
 	/* init buffer and copy it */
-	memset(str, 0, MAX_APN_LENGTH);
+	memset(str, 0, MAX_APN_LENGTH+1);
 	tvb_memcpy(tvb, str, offset, len<MAX_APN_LENGTH?len:MAX_APN_LENGTH);
 
 	curr_len = 0;
@@ -3873,7 +3877,7 @@ de_sm_apn(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 	proto_tree_add_string(tree, hf_gsm_a_gm_apn, tvb, curr_offset, len, str+1);
 	curr_offset +=  len;
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (curr_offset - offset);
 }
@@ -4004,11 +4008,11 @@ de_sm_pco(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 		 */
 
 		prot = tvb_get_ntohs(tvb, curr_offset);
-		pco_item = proto_tree_add_uint_format(tree, hf_gsm_a_gm_pco_pid, tvb, curr_offset, 2, (guint32)prot,
-				"Protocol or Container ID: %s (0x%04x)",
+		pco_item = proto_tree_add_uint_format_value(tree, hf_gsm_a_gm_pco_pid, tvb, curr_offset, 2, (guint32)prot,
+				"%s (0x%04x)",
 				link_dir ?
-					rval_to_str((guint32)prot, gsm_a_sm_pco_net2ms_prot_vals, val_to_str_ext_const(prot, &ppp_vals_ext, "Unknown")) :
-					rval_to_str((guint32)prot, gsm_a_sm_pco_ms2net_prot_vals, val_to_str_ext_const(prot, &ppp_vals_ext, "Unknown")),
+					rval_to_str_const((guint32)prot, gsm_a_sm_pco_net2ms_prot_vals, val_to_str_ext_const(prot, &ppp_vals_ext, "Unknown")) :
+					rval_to_str_const((guint32)prot, gsm_a_sm_pco_ms2net_prot_vals, val_to_str_ext_const(prot, &ppp_vals_ext, "Unknown")),
 				(guint32)prot);
 		pco_tree = proto_item_add_subtree(pco_item, ett_sm_pco);
 
@@ -4052,7 +4056,7 @@ de_sm_pco(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 			case 0x0008:
 				if ((link_dir == P2P_DIR_DL) && (e_len > 0)) {
 					tvb_get_ipv6(tvb, curr_offset, &ipv6_addrx);
-					proto_tree_add_text(pco_tree, tvb, curr_offset, 16,	"IPv6: %s", ip6_to_str(&ipv6_addrx));
+					proto_tree_add_text(pco_tree, tvb, curr_offset, 16, "IPv6: %s", ip6_to_str(&ipv6_addrx));
 					oct = tvb_get_guint8(tvb, curr_offset+16);
 					proto_tree_add_text(pco_tree, tvb, curr_offset+16, 1, "Prefix length: %u", oct);
 				}
@@ -4062,8 +4066,14 @@ de_sm_pco(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 			case 0x000D:
 				if ((link_dir == P2P_DIR_DL) && (e_len > 0)) {
 					ipv4_addrx = tvb_get_ipv4(tvb, curr_offset);
-					proto_tree_add_text(pco_tree, tvb, curr_offset, 4,	"IPv4: %s",
+					proto_tree_add_text(pco_tree, tvb, curr_offset, 4, "IPv4: %s",
 										ip_to_str((guint8 *)&ipv4_addrx));
+				}
+				break;
+			case 0x000E:
+				if ((link_dir == P2P_DIR_DL) && (e_len > 0)) {
+					l3_tvb = tvb_new_subset_length(tvb, curr_offset, e_len);
+					dissect_gsm_map_msisdn(l3_tvb, pinfo, pco_tree);
 				}
 				break;
 			case 0x0010:
@@ -4112,7 +4122,7 @@ de_sm_pco(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 	}
 	curr_offset += curr_len;
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (curr_offset - offset);
 }
@@ -4211,7 +4221,7 @@ de_sm_pdp_addr(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offs
 			curr_offset += 4;
 	}
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (curr_offset - offset);
 }
@@ -4474,7 +4484,7 @@ de_sm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 	{
 		case 0x00: str = "Subscribed maximum bit rate for uplink/reserved"; break;
 		case 0xff: str = "0 kbps"; break;
-		default:   str = ep_strdup_printf("%u kbps", qos_calc_bitrate(oct));
+		default:   str = wmem_strdup_printf(wmem_packet_scope(), "%u kbps", qos_calc_bitrate(oct));
 	}
 
 	proto_tree_add_uint_format_value(tree, hf_gsm_a_sm_qos_max_bitrate_upl, tvb,
@@ -4490,7 +4500,7 @@ de_sm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 	{
 		case 0x00: str = "Subscribed maximum bit rate for downlink/reserved"; break;
 		case 0xff: str = "0 kbps"; break;
-		default:   str = ep_strdup_printf("%u kbps", qos_calc_bitrate(oct));
+		default:   str = wmem_strdup_printf(wmem_packet_scope(), "%u kbps", qos_calc_bitrate(oct));
 	}
 
 	proto_tree_add_uint_format_value(tree, hf_gsm_a_sm_qos_max_bitrate_downl, tvb,
@@ -4521,7 +4531,7 @@ de_sm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 				temp32 = (tmp_oct - 0x10) * 50 + 200;
 			else
 				temp32 = (tmp_oct - 0x20) * 100 + 1000;
-			str = ep_strdup_printf("%u ms", temp32);
+			str = wmem_strdup_printf(wmem_packet_scope(), "%u ms", temp32);
 	}
 
 	proto_tree_add_uint_format_value(tree, hf_gsm_a_sm_qos_trans_delay, tvb,
@@ -4539,7 +4549,7 @@ de_sm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 	{
 		case 0x00: str = "Subscribed guaranteed bit rate for uplink/reserved"; break;
 		case 0xff: str = "0 kbps"; break;
-		default:   str = ep_strdup_printf("%u kbps", qos_calc_bitrate(oct));
+		default:   str = wmem_strdup_printf(wmem_packet_scope(), "%u kbps", qos_calc_bitrate(oct));
 	}
 
 	proto_tree_add_uint_format_value(tree, hf_gsm_a_sm_qos_guar_bitrate_upl, tvb,
@@ -4555,7 +4565,7 @@ de_sm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 	{
 		case 0x00: str = "Subscribed guaranteed bit rate for downlink/reserved"; break;
 		case 0xff: str = "0 kbps"; break;
-		default:   str = ep_strdup_printf("%u kbps", qos_calc_bitrate(oct));
+		default:   str = wmem_strdup_printf(wmem_packet_scope(), "%u kbps", qos_calc_bitrate(oct));
 	}
 
 	proto_tree_add_uint_format_value(tree, hf_gsm_a_sm_qos_guar_bitrate_downl, tvb,
@@ -4590,9 +4600,9 @@ de_sm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 	{
 		temp32 = qos_calc_ext_bitrate(oct);
 		if (temp32 % 1000 == 0)
-			str = ep_strdup_printf("%u Mbps", temp32 / 1000);
+			str = wmem_strdup_printf(wmem_packet_scope(), "%u Mbps", temp32 / 1000);
 		else
-			str = ep_strdup_printf("%u kbps", temp32);
+			str = wmem_strdup_printf(wmem_packet_scope(), "%u kbps", temp32);
 	}
 	proto_tree_add_uint_format_value(tree, hf_gsm_a_sm_qos_max_bitrate_downl_ext, tvb,
 		curr_offset, 1, oct, "%s (%u)", str, oct);
@@ -4609,9 +4619,9 @@ de_sm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 	{
 		temp32 = qos_calc_ext_bitrate(oct);
 		if (temp32 % 1000 == 0)
-			str = ep_strdup_printf("%u Mbps", temp32 / 1000);
+			str = wmem_strdup_printf(wmem_packet_scope(), "%u Mbps", temp32 / 1000);
 		else
-			str = ep_strdup_printf("%u kbps", temp32);
+			str = wmem_strdup_printf(wmem_packet_scope(), "%u kbps", temp32);
 	}
 	proto_tree_add_uint_format_value(tree, hf_gsm_a_sm_qos_guar_bitrate_downl_ext, tvb,
 		curr_offset, 1, oct, "%s (%u)", str, oct);
@@ -4628,9 +4638,9 @@ de_sm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 	{
 		temp32 = qos_calc_ext_bitrate(oct);
 		if (temp32 % 1000 == 0)
-			str = ep_strdup_printf("%u Mbps", temp32 / 1000);
+			str = wmem_strdup_printf(wmem_packet_scope(), "%u Mbps", temp32 / 1000);
 		else
-			str = ep_strdup_printf("%u kbps", temp32);
+			str = wmem_strdup_printf(wmem_packet_scope(), "%u kbps", temp32);
 	}
 	proto_tree_add_uint_format_value(tree, hf_gsm_a_sm_qos_max_bitrate_upl_ext, tvb,
 		curr_offset, 1, oct, "%s (%u)", str, oct);
@@ -4647,9 +4657,9 @@ de_sm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 	{
 		temp32 = qos_calc_ext_bitrate(oct);
 		if (temp32 % 1000 == 0)
-			str = ep_strdup_printf("%u Mbps", temp32 / 1000);
+			str = wmem_strdup_printf(wmem_packet_scope(), "%u Mbps", temp32 / 1000);
 		else
-			str = ep_strdup_printf("%u kbps", temp32);
+			str = wmem_strdup_printf(wmem_packet_scope(), "%u kbps", temp32);
 	}
 	proto_tree_add_uint_format_value(tree, hf_gsm_a_sm_qos_guar_bitrate_upl_ext, tvb,
 		curr_offset, 1, oct, "%s (%u)", str, oct);
@@ -4665,7 +4675,7 @@ de_sm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 	else
 	{
 		temp32 = qos_calc_ext2_bitrate(oct);
-		str = ep_strdup_printf("%u Mbps", temp32);
+		str = wmem_strdup_printf(wmem_packet_scope(), "%u Mbps", temp32);
 	}
 	proto_tree_add_uint_format_value(tree, hf_gsm_a_sm_qos_max_bitrate_downl_ext2, tvb,
 		curr_offset, 1, oct, "%s (%u)", str, oct);
@@ -4681,7 +4691,7 @@ de_sm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 	else
 	{
 		temp32 = qos_calc_ext2_bitrate(oct);
-		str = ep_strdup_printf("%u Mbps", temp32);
+		str = wmem_strdup_printf(wmem_packet_scope(), "%u Mbps", temp32);
 	}
 	proto_tree_add_uint_format_value(tree, hf_gsm_a_sm_qos_guar_bitrate_downl_ext2, tvb,
 		curr_offset, 1, oct, "%s (%u)", str, oct);
@@ -4697,7 +4707,7 @@ de_sm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 	else
 	{
 		temp32 = qos_calc_ext2_bitrate(oct);
-		str = ep_strdup_printf("%u Mbps", temp32);
+		str = wmem_strdup_printf(wmem_packet_scope(), "%u Mbps", temp32);
 	}
 	proto_tree_add_uint_format_value(tree, hf_gsm_a_sm_qos_max_bitrate_upl_ext2, tvb,
 		curr_offset, 1, oct, "%s (%u)", str, oct);
@@ -4713,14 +4723,14 @@ de_sm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, g
 	else
 	{
 		temp32 = qos_calc_ext2_bitrate(oct);
-		str = ep_strdup_printf("%u Mbps", temp32);
+		str = wmem_strdup_printf(wmem_packet_scope(), "%u Mbps", temp32);
 	}
 	proto_tree_add_uint_format_value(tree, hf_gsm_a_sm_qos_guar_bitrate_upl_ext2, tvb,
 		curr_offset, 1, oct, "%s (%u)", str, oct);
 
 	curr_offset += 1;
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (curr_offset - offset);
 }
@@ -4867,7 +4877,7 @@ de_sm_linked_ti(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 off
 	}
 
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (curr_offset - offset);
 }
@@ -4940,7 +4950,7 @@ de_sm_pflow_id(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offs
 	if (add_string)
 		g_snprintf(add_string, string_len, " - %s", rval_to_str(value, gsm_a_sm_packet_flow_id_vals, "Unknown"));
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (curr_offset - offset);
 }
@@ -5258,7 +5268,7 @@ de_sm_tflow_temp(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 of
 			switch (param) {
 			case 0x01:
 				proto_tree_add_text(tf_tree, tvb, curr_offset, pf_length, "Authorization token value: 0x%s",
-				                    tvb_bytes_to_str(tvb, curr_offset, pf_length));
+				                    tvb_bytes_to_ep_str(tvb, curr_offset, pf_length));
 				break;
 
 			case 0x02:
@@ -5278,7 +5288,7 @@ de_sm_tflow_temp(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 of
 
 			default:
 				proto_tree_add_text(tf_tree, tvb, curr_offset, pf_length, "Parameter content: 0x%s",
-				                    tvb_bytes_to_str(tvb, curr_offset, pf_length));
+				                    tvb_bytes_to_ep_str(tvb, curr_offset, pf_length));
 				break;
 			}
 			curr_offset += pf_length;
@@ -5287,7 +5297,7 @@ de_sm_tflow_temp(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 of
 		}
 	}
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (len);
 }
@@ -5308,7 +5318,7 @@ de_sm_tmgi(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, 
 	NO_MORE_DATA_CHECK(len);
 	curr_offset = dissect_e212_mcc_mnc(tvb, pinfo, tree, curr_offset, TRUE);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (curr_offset - offset);
 }
@@ -5331,7 +5341,7 @@ de_sm_mbms_bearer_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint
 	{
 		case 0x00: str = "Subscribed maximum bit rate for downlink/reserved"; break;
 		case 0xff: str = "0 kbps"; break;
-		default:   str = ep_strdup_printf("%u kbps", qos_calc_bitrate(oct));
+		default:   str = wmem_strdup_printf(wmem_packet_scope(), "%u kbps", qos_calc_bitrate(oct));
 	}
 
 	proto_tree_add_uint_format_value(tree, hf_gsm_a_sm_qos_max_bitrate_downl, tvb,
@@ -5348,16 +5358,16 @@ de_sm_mbms_bearer_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint
 	{
 		temp32 = qos_calc_ext_bitrate(oct);
 		if (temp32 % 1000 == 0)
-			str = ep_strdup_printf("%u Mbps", temp32 / 1000);
+			str = wmem_strdup_printf(wmem_packet_scope(), "%u Mbps", temp32 / 1000);
 		else
-			str = ep_strdup_printf("%u kbps", temp32);
+			str = wmem_strdup_printf(wmem_packet_scope(), "%u kbps", temp32);
 	}
 	proto_tree_add_uint_format_value(tree, hf_gsm_a_sm_qos_max_bitrate_downl_ext, tvb,
 		curr_offset, 1, oct, "%s (%u)", str, oct);
 
 	curr_offset += 1;
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (curr_offset - offset);
 }
@@ -5374,7 +5384,7 @@ de_sm_mbms_prot_conf_opt(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gu
 	proto_tree_add_bits_item(tree, hf_gsm_a_spare_bits, tvb, (curr_offset<<3), 8, ENC_BIG_ENDIAN);
 	curr_offset++;
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(len, curr_offset - offset, pinfo, &ei_gsm_a_gm_extraneous_data);
 
 	return (curr_offset - offset);
 }
@@ -5393,7 +5403,7 @@ de_sm_enh_nsapi(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32
 	if(oct < 0x80)
 		str = "Reserved";
 	else if (oct < 0xff)
-			str = ep_strdup_printf("NSAPI %u for Multimedia Broadcast/Multicast Service (MBMS) Multicast mode", oct);
+			str = wmem_strdup_printf(wmem_packet_scope(), "NSAPI %u for Multimedia Broadcast/Multicast Service (MBMS) Multicast mode", oct);
 		else
 			str = "Reserved for use by lower layers in the p2p radio bearer allocation message for MBMS Broadcast mode";
 
@@ -5560,14 +5570,7 @@ dtap_gmm_attach_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32
 
 	ELEM_MAND_LV( GSM_A_PDU_TYPE_GM, DE_MS_NET_CAP, NULL);
 
-	/* Included in attach type
-
-	ELEM_MAND_V( GSM_A_PDU_TYPE_COMMON, DE_CIPH_KEY_SEQ_NUM, NULL);
-	curr_offset--;
-	curr_len++;
-	*/
-
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_ATTACH_TYPE, NULL);
+	ELEM_MAND_VV_SHORT(GSM_A_PDU_TYPE_GM, DE_ATTACH_TYPE, GSM_A_PDU_TYPE_COMMON, DE_CIPH_KEY_SEQ_NUM);
 
 	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_DRX_PARAM, NULL);
 
@@ -5611,7 +5614,7 @@ dtap_gmm_attach_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32
 
 	ELEM_OPT_TLV(0x10, GSM_A_PDU_TYPE_GM, DE_NET_RES_ID_CONT, " - TMSI based NRI container");
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -5629,11 +5632,7 @@ dtap_gmm_attach_acc(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32
 
 	pinfo->p2p_dir = P2P_DIR_SENT;
 
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND_H, NULL);
-	curr_len++;
-	curr_offset--;
-
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_ATTACH_RES, NULL);
+	ELEM_MAND_VV_SHORT(GSM_A_PDU_TYPE_GM, DE_ATTACH_RES, GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND_H);
 
 	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_GPRS_TIMER, NULL);
 
@@ -5675,7 +5674,7 @@ dtap_gmm_attach_acc(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32
 
 	ELEM_OPT_TLV(0x66, GSM_A_PDU_TYPE_GM, DE_ADD_NET_FEAT_SUP, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -5698,7 +5697,7 @@ dtap_gmm_attach_com(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32
 
 	ELEM_OPT_TLV( 0x2B, GSM_A_PDU_TYPE_GM, DE_EUTRAN_IRAT_INFO_CONTAINER, " - E-UTRAN inter RAT handover information");
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -5722,14 +5721,14 @@ dtap_gmm_attach_rej(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32
 
 	ELEM_OPT_TLV(0x3A, GSM_A_PDU_TYPE_GM, DE_GPRS_TIMER_2, " - T3346 value");
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
  * [7] 9.4.5
  */
 static void
-dtap_gmm_detach_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len)
+dtap_gmm_detach_req_MT(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len)
 {
 	guint32	curr_offset;
 	guint32	consumed;
@@ -5740,27 +5739,15 @@ dtap_gmm_detach_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32
 
 	pinfo->p2p_dir = P2P_DIR_SENT;
 
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND_H, NULL);
-	/* Force to standy might be wrong - To decode it correct, we need the direction */
-	curr_len++;
-	curr_offset--;
-
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_DETACH_TYPE, NULL);
+	ELEM_MAND_VV_SHORT(GSM_A_PDU_TYPE_GM, DE_DETACH_TYPE, GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND_H);
 
 	ELEM_OPT_TV( 0x25, GSM_A_PDU_TYPE_GM, DE_GMM_CAUSE, NULL);
 
-	ELEM_OPT_TLV( 0x18, GSM_A_PDU_TYPE_COMMON, DE_MID, " - P-TMSI" );
-
-	ELEM_OPT_TLV( 0x19, GSM_A_PDU_TYPE_GM, DE_P_TMSI_SIG_2, NULL);
-
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
-/*
- * [7] 9.4.6
- */
 static void
-dtap_gmm_detach_acc(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len)
+dtap_gmm_detach_req_MO(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len)
 {
 	guint32	curr_offset;
 	guint32	consumed;
@@ -5771,16 +5758,55 @@ dtap_gmm_detach_acc(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32
 
 	pinfo->p2p_dir = P2P_DIR_RECV;
 
-	if (curr_len != 0 )
-	{
-		ELEM_MAND_V( GSM_A_PDU_TYPE_COMMON, DE_SPARE_NIBBLE, NULL);
-		curr_len++;
-		curr_offset--;
+	ELEM_MAND_VV_SHORT(GSM_A_PDU_TYPE_GM, DE_DETACH_TYPE, GSM_A_PDU_TYPE_COMMON, DE_SPARE_NIBBLE);
 
-		ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND, NULL);
+	ELEM_OPT_TLV( 0x18, GSM_A_PDU_TYPE_COMMON, DE_MID, NULL);
+
+	ELEM_OPT_TLV( 0x19, GSM_A_PDU_TYPE_GM, DE_P_TMSI_SIG_2, NULL);
+
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
+}
+
+static void
+dtap_gmm_detach_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len)
+{
+	if (pinfo->link_dir == P2P_DIR_UL) {
+		dtap_gmm_detach_req_MO(tvb, tree, pinfo, offset, len);
+		return;
+	}else if (pinfo->link_dir == P2P_DIR_DL) {
+		dtap_gmm_detach_req_MT(tvb, tree, pinfo, offset, len);
+		return;
+	} else {
+		/* Unknown direction. Try heuristics based on message length. */
+		if (len > 5) {
+			dtap_gmm_detach_req_MO(tvb, tree, pinfo, offset, len);
+		} else {
+			dtap_gmm_detach_req_MT(tvb, tree, pinfo, offset, len);
+		}
+	}
+}
+
+/*
+ * [7] 9.4.6
+ */
+static void
+dtap_gmm_detach_acc(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len)
+{
+	guint32	curr_offset;
+	guint	curr_len;
+
+	curr_offset = offset;
+	curr_len    = len;
+
+	pinfo->p2p_dir = P2P_DIR_RECV;
+
+	if (curr_len == 0) {
+		return;
 	}
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	ELEM_MAND_VV_SHORT(GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND, GSM_A_PDU_TYPE_COMMON, DE_SPARE_NIBBLE);
+
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -5802,15 +5828,11 @@ dtap_gmm_ptmsi_realloc_cmd(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, 
 
 	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_RAI, NULL);
 
-	ELEM_MAND_V( GSM_A_PDU_TYPE_COMMON, DE_SPARE_NIBBLE, NULL);
-	curr_len++;
-	curr_offset--;
-
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND, NULL);
+	ELEM_MAND_VV_SHORT(GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND, GSM_A_PDU_TYPE_COMMON, DE_SPARE_NIBBLE);
 
 	ELEM_OPT_TV( 0x19, GSM_A_PDU_TYPE_GM, DE_P_TMSI_SIG, " - P-TMSI Signature" );
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -5828,7 +5850,7 @@ dtap_gmm_ptmsi_realloc_com(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, 
 
 	pinfo->p2p_dir = P2P_DIR_RECV;
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -5840,56 +5862,23 @@ dtap_gmm_auth_ciph_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guin
 	guint32	curr_offset;
 	guint32	consumed;
 	guint   curr_len;
-	guint8  oct;
 
 	curr_offset = offset;
 	curr_len    = len;
 
 	pinfo->p2p_dir = P2P_DIR_SENT;
 
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_IMEISV_REQ, NULL);
-	curr_offset--;
-	curr_len++;
+	ELEM_MAND_VV_SHORT(GSM_A_PDU_TYPE_GM, DE_CIPH_ALG, GSM_A_PDU_TYPE_GM, DE_IMEISV_REQ);
 
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_CIPH_ALG, NULL);
-
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_AC_REF_NUM_H, NULL);
-	curr_offset--;
-	curr_len++;
-
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND, NULL);
+	ELEM_MAND_VV_SHORT(GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND, GSM_A_PDU_TYPE_GM, DE_AC_REF_NUM_H);
 
 	ELEM_OPT_TV( 0x21, GSM_A_PDU_TYPE_DTAP, DE_AUTH_PARAM_RAND, NULL);
 
-#if 0
-	ELEM_OPT_TV_SHORT( 0x08, GSM_A_PDU_TYPE_COMMON, DE_CIPH_KEY_SEQ_NUM, NULL);
-#else
-	if (curr_len > 0)
-	{
-		oct = tvb_get_guint8(tvb, curr_offset);
-		if ((oct & 0xf0) == 0x80 )
-		{
-			/* The ciphering key sequence number is added here */
-			proto_tree_add_text(tree,
-				tvb, curr_offset, 1,
-				"Ciphering key sequence number: 0x%02x (%u)",
-				oct&7,
-				oct&7);
-			curr_offset++;
-			curr_len--;
-		}
-	}
-#endif
-
-	if (curr_len == 0  )
-	{
-		EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
-	return;
-	}
+	ELEM_OPT_TV_SHORT( 0x80, GSM_A_PDU_TYPE_COMMON, DE_CIPH_KEY_SEQ_NUM, NULL);
 
 	ELEM_OPT_TLV( 0x28, GSM_A_PDU_TYPE_DTAP, DE_AUTH_PARAM_AUTN, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -5907,11 +5896,7 @@ dtap_gmm_auth_ciph_resp(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 
 	pinfo->p2p_dir = P2P_DIR_RECV;
 
-	ELEM_MAND_V( GSM_A_PDU_TYPE_COMMON, DE_SPARE_NIBBLE, NULL);
-	curr_offset--;
-	curr_len++;
-
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_AC_REF_NUM, NULL);
+	ELEM_MAND_VV_SHORT(GSM_A_PDU_TYPE_GM, DE_AC_REF_NUM, GSM_A_PDU_TYPE_COMMON, DE_SPARE_NIBBLE);
 
 	ELEM_OPT_TV( 0x22, GSM_A_PDU_TYPE_DTAP, DE_AUTH_RESP_PARAM, NULL);
 
@@ -5919,7 +5904,7 @@ dtap_gmm_auth_ciph_resp(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 
 	ELEM_OPT_TLV( 0x29, GSM_A_PDU_TYPE_DTAP, DE_AUTH_RESP_PARAM_EXT, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -5936,7 +5921,7 @@ dtap_gmm_auth_ciph_rej(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guin
 
 	pinfo->p2p_dir = P2P_DIR_SENT;
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -5958,7 +5943,7 @@ dtap_gmm_auth_ciph_fail(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 
 	ELEM_OPT_TLV( 0x30, GSM_A_PDU_TYPE_DTAP, DE_AUTH_FAIL_PARAM, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -5975,21 +5960,9 @@ dtap_gmm_ident_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 
 
 	pinfo->p2p_dir = P2P_DIR_SENT;
 
-/*  If the half octet that are about to get decoded is the LAST in the octetstream, the macro will call return BEFORE we get a chance to fix the index. The end result will be that the first half-octet will be decoded but not the last. */
-#if 0
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_ID_TYPE_2, NULL);
-	curr_offset--;
-	curr_len++;
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND_H, NULL);
-#endif
+	ELEM_MAND_VV_SHORT(GSM_A_PDU_TYPE_GM, DE_ID_TYPE_2, GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND_H);
 
-	elem_v(tvb, tree, pinfo, GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND_H, curr_offset, NULL);
-	elem_v(tvb, tree, pinfo, GSM_A_PDU_TYPE_GM, DE_ID_TYPE_2, curr_offset, NULL);
-
-	curr_offset += 1;
-	curr_len    -= 1;
-
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6009,7 +5982,7 @@ dtap_gmm_ident_res(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 
 
 	ELEM_MAND_LV( GSM_A_PDU_TYPE_COMMON, DE_MID, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6027,13 +6000,7 @@ dtap_gmm_rau_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 of
 
 	pinfo->p2p_dir = P2P_DIR_RECV;
 
-	/* is included in update type
-	ELEM_MAND_V( GSM_A_PDU_TYPE_COMMON, DE_CIPH_KEY_SEQ_NUM, NULL);
-	curr_offset--;
-	curr_len++;
-	*/
-
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_UPD_TYPE, NULL);
+	ELEM_MAND_VV_SHORT(GSM_A_PDU_TYPE_GM, DE_UPD_TYPE, GSM_A_PDU_TYPE_COMMON, DE_CIPH_KEY_SEQ_NUM);
 
 	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_RAI, " - Old routing area identification");
 
@@ -6083,7 +6050,7 @@ dtap_gmm_rau_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 of
 
 	ELEM_OPT_TLV(0x10, GSM_A_PDU_TYPE_GM, DE_NET_RES_ID_CONT, " - TMSI based NRI container");
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6101,11 +6068,7 @@ dtap_gmm_rau_acc(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 of
 
 	pinfo->p2p_dir = P2P_DIR_SENT;
 
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_UPD_RES, NULL);
-	curr_offset--;
-	curr_len++;
-
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND, NULL);
+	ELEM_MAND_VV_SHORT(GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND, GSM_A_PDU_TYPE_GM, DE_UPD_RES);
 
 	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_GPRS_TIMER, " - Periodic RA update timer");
 
@@ -6147,7 +6110,7 @@ dtap_gmm_rau_acc(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 of
 
 	ELEM_OPT_TLV(0x66, GSM_A_PDU_TYPE_GM, DE_ADD_NET_FEAT_SUP, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6171,7 +6134,7 @@ dtap_gmm_rau_com(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 of
 
 	ELEM_OPT_TLV( 0x2B, GSM_A_PDU_TYPE_GM, DE_EUTRAN_IRAT_INFO_CONTAINER, " - E-UTRAN inter RAT handover information");
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6191,17 +6154,13 @@ dtap_gmm_rau_rej(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 of
 
 	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_GMM_CAUSE, NULL);
 
-	ELEM_MAND_V( GSM_A_PDU_TYPE_COMMON, DE_SPARE_NIBBLE, NULL);
-	curr_offset--;
-	curr_len++;
-
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND, NULL);
+	ELEM_MAND_VV_SHORT(GSM_A_PDU_TYPE_GM, DE_FORCE_TO_STAND, GSM_A_PDU_TYPE_COMMON, DE_SPARE_NIBBLE);
 
 	ELEM_OPT_TLV(0x2A, GSM_A_PDU_TYPE_GM, DE_GPRS_TIMER_2, " - T3302 value");
 
 	ELEM_OPT_TLV(0x3A, GSM_A_PDU_TYPE_GM, DE_GPRS_TIMER_2, " - T3346 value");
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6221,7 +6180,7 @@ dtap_gmm_status(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 off
 
 	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_GMM_CAUSE, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6251,7 +6210,7 @@ dtap_gmm_information(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint3
 
 	ELEM_OPT_TLV( 0x49, GSM_A_PDU_TYPE_DTAP, DE_DAY_SAVING_TIME, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6269,13 +6228,7 @@ dtap_gmm_service_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint3
 
 	pinfo->p2p_dir = P2P_DIR_RECV;
 
-	/* Is included in SRVC TYPE
-	ELEM_MAND_V( GSM_A_PDU_TYPE_COMMON, DE_CIPH_KEY_SEQ_NUM, NULL);
-	curr_offset--;
-	curr_len++;
-	*/
-
-	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_SRVC_TYPE, NULL);
+	ELEM_MAND_VV_SHORT(GSM_A_PDU_TYPE_COMMON, DE_CIPH_KEY_SEQ_NUM, GSM_A_PDU_TYPE_GM, DE_SRVC_TYPE);
 
 	/* P-TMSI Mobile station identity 10.5.1.4 M LV 6 */
 	ELEM_MAND_LV( GSM_A_PDU_TYPE_COMMON, DE_MID, NULL);
@@ -6289,7 +6242,7 @@ dtap_gmm_service_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint3
 
 	ELEM_OPT_TV_SHORT(0xD0, GSM_A_PDU_TYPE_GM, DE_DEVICE_PROPERTIES, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6312,7 +6265,7 @@ dtap_gmm_service_acc(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint3
 	/* MBMS context status 10.5.7.6 TLV 2 - 18 */
 	ELEM_OPT_TLV( 0x35, GSM_A_PDU_TYPE_GM, DE_MBMS_CTX_STATUS, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6334,7 +6287,7 @@ dtap_gmm_service_rej(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint3
 
 	ELEM_OPT_TLV(0x3A, GSM_A_PDU_TYPE_GM, DE_GPRS_TIMER_2, " - T3346 value");
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6371,7 +6324,7 @@ dtap_sm_act_pdp_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32
 
 	ELEM_OPT_TV_SHORT(0xC0, GSM_A_PDU_TYPE_GM, DE_DEVICE_PROPERTIES, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6415,7 +6368,7 @@ dtap_sm_act_pdp_acc(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32
 
 	ELEM_OPT_TV_SHORT(0xB0 , GSM_A_PDU_TYPE_GM, DE_SM_CONNECTIVITY_TYPE, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6442,7 +6395,7 @@ dtap_sm_act_pdp_rej(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32
 
 	ELEM_OPT_TLV(0x37, GSM_A_PDU_TYPE_GM, DE_GPRS_TIMER_3, " - T3396 value");
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6478,7 +6431,7 @@ dtap_sm_act_sec_pdp_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 
 	ELEM_OPT_TV_SHORT(0xC0, GSM_A_PDU_TYPE_GM, DE_DEVICE_PROPERTIES, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6516,7 +6469,7 @@ dtap_sm_act_sec_pdp_acc(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 
 	ELEM_OPT_TLV( 0x27, GSM_A_PDU_TYPE_GM, DE_PRO_CONF_OPT, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6543,7 +6496,7 @@ dtap_sm_act_sec_pdp_rej(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 
 	ELEM_OPT_TLV(0x37, GSM_A_PDU_TYPE_GM, DE_GPRS_TIMER_3, " - T3396 value");
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6570,7 +6523,7 @@ dtap_sm_req_pdp_act(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32
 
 	ELEM_OPT_TLV( 0x27, GSM_A_PDU_TYPE_GM, DE_PRO_CONF_OPT, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6595,7 +6548,7 @@ dtap_sm_req_pdp_act_rej(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 
 	ELEM_OPT_TLV( 0x27, GSM_A_PDU_TYPE_GM, DE_PRO_CONF_OPT, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6636,7 +6589,7 @@ dtap_sm_mod_pdp_req_net(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 
 	ELEM_OPT_TLV( 0x36, GSM_A_PDU_TYPE_GM, DE_TRAFFIC_FLOW_TEMPLATE, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6667,7 +6620,7 @@ dtap_sm_mod_pdp_req_ms(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guin
 
 	ELEM_OPT_TV_SHORT(0xC0, GSM_A_PDU_TYPE_GM, DE_DEVICE_PROPERTIES, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6690,7 +6643,7 @@ dtap_sm_mod_pdp_acc_ms(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guin
 
 	ELEM_OPT_TLV( 0x27, GSM_A_PDU_TYPE_GM, DE_PRO_CONF_OPT, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6721,7 +6674,7 @@ dtap_sm_mod_pdp_acc_net(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 
 	ELEM_OPT_TLV( 0x27, GSM_A_PDU_TYPE_GM, DE_PRO_CONF_OPT, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6749,7 +6702,7 @@ dtap_sm_mod_pdp_rej(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32
 
 	ELEM_OPT_TLV(0x37, GSM_A_PDU_TYPE_GM, DE_GPRS_TIMER_3, " - T3396 value");
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6779,7 +6732,7 @@ dtap_sm_deact_pdp_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint
 
 	ELEM_OPT_TLV(0x37, GSM_A_PDU_TYPE_GM, DE_GPRS_TIMER_3, " - T3396 value");
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6803,7 +6756,7 @@ dtap_sm_deact_pdp_acc(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint
 
 	ELEM_OPT_TLV( 0x35, GSM_A_PDU_TYPE_GM, DE_MBMS_PROT_CONF_OPT, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6835,7 +6788,7 @@ dtap_sm_req_sec_pdp_act(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gui
 	/* 27 Protocol configuration options Protocol configuration options 10.5.6.3 O TLV 3 - 253 */
 	ELEM_OPT_TLV( 0x27, GSM_A_PDU_TYPE_GM, DE_PRO_CONF_OPT, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6861,7 +6814,7 @@ dtap_sm_req_sec_pdp_act_rej(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo,
 	/* 27 Protocol configuration options Protocol configuration options 10.5.6.3 O TLV 3 - 253 */
 	ELEM_OPT_TLV( 0x27, GSM_A_PDU_TYPE_GM, DE_PRO_CONF_OPT, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6883,7 +6836,7 @@ dtap_sm_notif(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offse
 
 	ELEM_MAND_LV( GSM_A_PDU_TYPE_GM, DE_SM_NOTIF_IND, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6905,7 +6858,7 @@ dtap_sm_status(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offs
 
 	ELEM_MAND_V( GSM_A_PDU_TYPE_GM, DE_SM_CAUSE, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6944,7 +6897,7 @@ dtap_sm_act_mbms_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint3
 
 	ELEM_OPT_TV_SHORT(0xC0, GSM_A_PDU_TYPE_GM, DE_DEVICE_PROPERTIES, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6969,7 +6922,7 @@ dtap_sm_act_mbms_acc(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint3
 
 	ELEM_OPT_TLV( 0x35, GSM_A_PDU_TYPE_GM, DE_MBMS_PROT_CONF_OPT, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -6994,7 +6947,7 @@ dtap_sm_act_mbms_rej(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint3
 
 	ELEM_OPT_TLV(0x37, GSM_A_PDU_TYPE_GM, DE_GPRS_TIMER_3, " - T3396 value");
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -7021,7 +6974,7 @@ dtap_sm_req_mbms_act(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint3
 
 	ELEM_OPT_TLV( 0x35, GSM_A_PDU_TYPE_GM, DE_MBMS_PROT_CONF_OPT, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 /*
@@ -7044,7 +6997,7 @@ dtap_sm_req_mbms_rej(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint3
 
 	ELEM_OPT_TLV( 0x35, GSM_A_PDU_TYPE_GM, DE_MBMS_PROT_CONF_OPT, NULL);
 
-	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo);
+	EXTRANEOUS_DATA_CHECK_EXPERT(curr_len, 0, pinfo, &ei_gsm_a_gm_extraneous_data);
 }
 
 #define	NUM_GSM_DTAP_MSG_GMM (sizeof(gsm_a_dtap_msg_gmm_strings)/sizeof(value_string))
@@ -7116,10 +7069,12 @@ get_gmm_msg_params(guint8 oct, const gchar **msg_str, int *ett_tree, int *hf_idx
 {
 	gint idx;
 
-	*msg_str      = match_strval_idx((guint32) (oct & DTAP_GMM_IEI_MASK), gsm_a_dtap_msg_gmm_strings, &idx);
-	*ett_tree     = ett_gsm_dtap_msg_gmm[idx];
+	*msg_str      = try_val_to_str_idx((guint32) (oct & DTAP_GMM_IEI_MASK), gsm_a_dtap_msg_gmm_strings, &idx);
 	*hf_idx	      = hf_gsm_a_dtap_msg_gmm_type;
-	*dtap_msg_fcn = dtap_msg_gmm_fcn[idx];
+	if (*msg_str != NULL) {
+		*ett_tree     = ett_gsm_dtap_msg_gmm[idx];
+		*dtap_msg_fcn = dtap_msg_gmm_fcn[idx];
+	}
 
 	return;
 }
@@ -7129,10 +7084,12 @@ get_sm_msg_params(guint8 oct, const gchar **msg_str, int *ett_tree, int *hf_idx,
 {
 	gint idx;
 
-	*msg_str      = match_strval_idx((guint32) (oct & DTAP_SM_IEI_MASK), gsm_a_dtap_msg_sm_strings, &idx);
-	*ett_tree     = ett_gsm_dtap_msg_sm[idx];
+	*msg_str      = try_val_to_str_idx((guint32) (oct & DTAP_SM_IEI_MASK), gsm_a_dtap_msg_sm_strings, &idx);
 	*hf_idx	      = hf_gsm_a_dtap_msg_sm_type;
-	*dtap_msg_fcn = dtap_msg_sm_fcn[idx];
+	if (*msg_str != NULL) {
+		*ett_tree     = ett_gsm_dtap_msg_sm[idx];
+		*dtap_msg_fcn = dtap_msg_sm_fcn[idx];
+	}
 
 	return;
 }
@@ -7202,6 +7159,11 @@ proto_register_gsm_a_gm(void)
 		    FT_UINT8, BASE_DEC, VALS(gsm_a_sm_qos_traff_hdl_pri_vals), 0x03,
 		    NULL, HFILL }
 		},
+		{ &hf_gsm_a_gmm_split_pg_cycle_code,
+		  { "SPLIT PG CYCLE CODE", "gsm_a.gm.gmm.split_pg_cycle_code",
+		    FT_UINT8, BASE_DEC|BASE_EXT_STRING, &gsm_a_gmm_split_pg_cycle_code_strings_ext, 0x00,
+		    NULL, HFILL }
+		},
 		{ &hf_gsm_a_gmm_split_on_ccch,
 		  { "SPLIT on CCCH", "gsm_a.gm.gmm.split_on_ccch",
 		    FT_BOOLEAN, 8, TFS(&gsm_a_gmm_split_on_ccch_value), 0x08,
@@ -7212,9 +7174,9 @@ proto_register_gsm_a_gm(void)
 		    FT_UINT8, BASE_DEC, VALS(gsm_a_gmm_non_drx_timer_strings), 0x07,
 		    NULL, HFILL }
 		},
-		{ &hf_gsm_a_gmm_cn_spec_drs_cycle_len_coef,
-		  { "CN Specific DRX cycle length coefficient", "gsm_a.gm.gmm.cn_spec_drs_cycle_len_coef",
-		    FT_UINT8, BASE_DEC|BASE_RANGE_STRING, RVALS(gsm_a_gmm_cn_spec_drs_cycle_len_coef_strings), 0xf0,
+		{ &hf_gsm_a_gmm_cn_spec_drx_cycle_len_coef,
+		  { "CN Specific DRX cycle length coefficient", "gsm_a.gm.gmm.cn_spec_drx_cycle_len_coef",
+		    FT_UINT8, BASE_DEC|BASE_RANGE_STRING, RVALS(gsm_a_gmm_cn_spec_drx_cycle_len_coef_strings), 0xf0,
 		    NULL, HFILL }
 		},
 		{ &hf_gsm_a_sm_tft_op_code,
@@ -7387,11 +7349,6 @@ proto_register_gsm_a_gm(void)
 		    FT_UINT8, BASE_DEC|BASE_RANGE_STRING, RVALS(gsm_a_gm_force_to_standby_vals), 0x00,
 		    NULL, HFILL }
 		},
-		{ &hf_gsm_a_gm_ciph_key_seq_num,
-		  { "Ciphering key sequence number", "gsm_a.gm.gmm.ciph_key_seq_num",
-		    FT_UINT8, BASE_DEC, NULL, 0x00,
-		    NULL, HFILL }
-		},
 		{ &hf_gsm_a_gm_serv_type,
 		  { "Service type", "gsm_a.gm.gmm.serv_type",
 		    FT_UINT8, BASE_DEC, VALS(gsm_a_gm_serv_type_vals), 0x00,
@@ -7410,6 +7367,21 @@ proto_register_gsm_a_gm(void)
 		{ &hf_gsm_a_gm_tmsi_flag,
 		  { "TMSI flag", "gsm_a.gm.gmm.tmsi_flag",
 		    FT_BOOLEAN, 8, TFS(&gsm_a_gm_tmsi_flag_value), 0x01,
+		    NULL, HFILL }
+		},
+		{ &hf_gsm_a_gm_power_off,
+		  { "Power off", "gsm_a.gm.gmm.power_off",
+		    FT_BOOLEAN, 8, TFS(&gsm_a_gm_power_off_value), 0x08,
+		    NULL, HFILL }
+		},
+		{ &hf_gsm_a_gm_type_of_detach_mo,
+		  { "Type of detach", "gsm_a.gm.gmm.type_of_detach",
+		    FT_UINT8, BASE_DEC, VALS(gsm_a_gm_type_of_detach_mo_vals), 0x07,
+		    NULL, HFILL }
+		},
+		{ &hf_gsm_a_gm_type_of_detach_mt,
+		  { "Type of detach", "gsm_a.gm.gmm.type_of_detach",
+		    FT_UINT8, BASE_DEC, VALS(gsm_a_gm_type_of_detach_mt_vals), 0x07,
 		    NULL, HFILL }
 		},
 		{ &hf_gsm_a_gm_update_type,
@@ -7754,7 +7726,7 @@ proto_register_gsm_a_gm(void)
 		},
 		{ &hf_gsm_a_gmm_net_cap_ucs2,
 		  { "UCS2 support", "gsm_a.gm.gmm.net_cap.ucs2",
-		    FT_BOOLEAN, 8, TFS(&gsm_a_gmm_net_cap_smgprs_vals), 0x10,
+		    FT_BOOLEAN, 8, TFS(&gsm_a_gmm_net_cap_ucs2_vals), 0x10,
 		    NULL, HFILL }
 		},
 		{ &hf_gsm_a_gmm_net_cap_ss_scr_ind,
@@ -8177,6 +8149,11 @@ proto_register_gsm_a_gm(void)
 		    FT_BOOLEAN, BASE_NONE, TFS(&tfs_supported_not_supported), 0x0,
 		    NULL, HFILL }
 		},
+		{ &hf_gsm_a_gm_rac_geran_nw_sharing_support,
+		  { "GERAN Network Sharing support", "gsm_a.gm.gmm.rac.geran_nw_sharing_support",
+		    FT_BOOLEAN, BASE_NONE, TFS(&tfs_supported_not_supported), 0x0,
+		    NULL, HFILL }
+		},
 		{ &hf_gsm_a_sm_ti_flag,
 		  { "TI Flag", "gsm_a.gm.sm.ti_flag",
 		    FT_BOOLEAN, 8, TFS(&gsm_a_sm_ti_flag_vals), 0x80,
@@ -8189,31 +8166,25 @@ proto_register_gsm_a_gm(void)
 		},
 	};
 
+    static ei_register_info ei[] = {
+        { &ei_gsm_a_gm_extraneous_data, { "gsm_a.gm.extraneous_data", PI_PROTOCOL, PI_NOTE, "Extraneous Data, dissector bug or later version spec(report to wireshark.org)", EXPFILL }},
+    };
+
+    expert_module_t* expert_gsm_a_gm;
+
 	/* Setup protocol subtree array */
-#define	NUM_INDIVIDUAL_ELEMS	19
+#define	NUM_INDIVIDUAL_ELEMS	7
 	gint *ett[NUM_INDIVIDUAL_ELEMS +
 		  NUM_GSM_DTAP_MSG_GMM + NUM_GSM_DTAP_MSG_SM +
 		  NUM_GSM_GM_ELEM];
 
-	ett[0]  = &ett_tc_component;
-	ett[1]  = &ett_tc_invoke_id;
-	ett[2]  = &ett_tc_linked_id;
-	ett[3]  = &ett_tc_opr_code;
-	ett[4]  = &ett_tc_err_code;
-	ett[5]  = &ett_tc_prob_code;
-	ett[6]  = &ett_tc_sequence;
-	ett[7]  = &ett_gmm_drx;
-	ett[8]  = &ett_gmm_detach_type;
-	ett[9]  = &ett_gmm_attach_type;
-	ett[10] = &ett_gmm_context_stat;
-	ett[11] = &ett_gmm_update_type;
-	ett[12] = &ett_gmm_radio_cap;
-	ett[13] = &ett_gmm_rai;
-	ett[14] = &ett_sm_tft;
-	ett[15] = &ett_gmm_gprs_timer;
-	ett[16] = &ett_gmm_network_cap;
-	ett[17] = &ett_gsm_a_gm_msrac_multislot_capability;
-	ett[18] = &ett_sm_pco;
+	ett[0]  = &ett_gmm_radio_cap;
+	ett[1]  = &ett_gmm_rai;
+	ett[2]  = &ett_sm_tft;
+	ett[3]  = &ett_gmm_gprs_timer;
+	ett[4]  = &ett_gmm_network_cap;
+	ett[5]  = &ett_gsm_a_gm_msrac_multislot_capability;
+	ett[6]  = &ett_sm_pco;
 
 	last_offset = NUM_INDIVIDUAL_ELEMS;
 
@@ -8241,6 +8212,8 @@ proto_register_gsm_a_gm(void)
 	proto_register_field_array(proto_a_gm, hf, array_length(hf));
 
 	proto_register_subtree_array(ett, array_length(ett));
+    expert_gsm_a_gm = expert_register_protocol(proto_a_gm);
+    expert_register_field_array(expert_gsm_a_gm, ei, array_length(ei));
 
 	/* subdissector code */
 	gprs_sm_pco_subdissector_table = register_dissector_table("sm_pco.protocol",

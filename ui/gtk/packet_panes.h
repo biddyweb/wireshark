@@ -2,8 +2,6 @@
  * Definitions for GTK+ packet display structures and routines (packet
  * details and hex dump panes)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,6 +23,8 @@
 
 #ifndef __PACKET_PANES_H__
 #define __PACKET_PANES_H__
+
+#include <epan/addr_resolv.h>
 
 /** @file
  *  Packet tree and details panes.
@@ -85,11 +85,11 @@ extern GtkWidget *add_byte_tab(GtkWidget *byte_nb, const char *name,
  * @param tree_view the corresponding packet tree
  * @param nb_ptr the byte view notebook
  */
-extern void add_byte_views(epan_dissect_t *edt, GtkWidget *tree_view,
+extern void add_byte_views(struct epan_dissect *edt, GtkWidget *tree_view,
                            GtkWidget *nb_ptr);
 
 /** Gdk button click appeared, select the byte view from that position.
- * 
+ *
  * @param widget the byte view
  * @param event the button event clicked
  * @return TRUE if could be selected
@@ -126,7 +126,7 @@ typedef enum {
     CD_BINARY,      /* Raw binary octets */
 
     CD_TYPEMASK = 0x0000FFFF,          /* Mask for extracting type */
-    CD_FLAGSMASK = 0xFFFF0000,         /* Mask for extracting flags */
+    CD_FLAGSMASK = -65536,  /* i.e., 0xFFFF0000: Mask for extracting flags */
 
     CD_FLAGS_SELECTEDONLY = 0x00010000 /* Copy only selected bytes */
 } copy_data_type;
@@ -136,7 +136,7 @@ typedef enum {
  *
  * @param w unused
  * @param data unused
- * @param data_type copy_data_type 
+ * @param data_type copy_data_type
  *
  */
 extern void copy_hex_cb(GtkWidget * w, gpointer data, copy_data_type data_type);
@@ -152,7 +152,7 @@ extern void copy_hex_cb(GtkWidget * w, gpointer data, copy_data_type data_type);
 extern void packet_hex_print(GtkWidget *bv, const guint8 *pd, frame_data *fd,
 		 field_info *finfo, guint len);
 
-extern void packet_hex_editor_print(GtkWidget *bv, const guint8 *pd, frame_data *fd, 
+extern void packet_hex_editor_print(GtkWidget *bv, const guint8 *pd, frame_data *fd,
 		int offset, int bitoffset, guint len);
 
 /**
@@ -208,7 +208,7 @@ extern void expand_all_tree(proto_tree *protocol_tree, GtkWidget *tree_view);
 extern void collapse_all_tree(proto_tree *protocol_tree, GtkWidget *tree_view);
 
 /** Gdk button click appeared, select the byte view from that position.
- * 
+ *
  * @param widget the tree view
  * @param event the button event clicked
  * @return TRUE if could be selected

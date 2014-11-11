@@ -3,8 +3,6 @@
  *
  * Copyright 2012, Michal Labedzki for Tieto Corporation
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,12 +27,21 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/reassemble.h>
+#include <epan/wmem/wmem.h>
+#include <wiretap/wtap.h>
 
 #include "packet-usb.h"
 #include "packet-bluetooth-hci.h"
 
 static int proto_hci_usb = -1;
 static int hf_bthci_usb_data = -1;
+static int hf_bthci_usb_packet_fragment = -1;
+static int hf_bthci_usb_packet_complete = -1;
+static int hf_bthci_usb_packet_unknown_fragment = -1;
+static int hf_bthci_usb_setup_request = -1;
+static int hf_bthci_usb_setup_value = -1;
+static int hf_bthci_usb_setup_adapter_id = -1;
+static int hf_bthci_usb_setup_length = -1;
 
 static gint ett_hci_usb = -1;
 static gint ett_hci_usb_msg_fragment = -1;
@@ -51,14 +58,19 @@ static int hf_msg_fragment_count = -1;
 static int hf_msg_reassembled_in = -1;
 static int hf_msg_reassembled_length = -1;
 
-static emem_tree_t *chandle_to_bdaddr_table = NULL;
-static emem_tree_t *bdaddr_to_name_table    = NULL;
-static emem_tree_t *localhost_name          = NULL;
-static emem_tree_t *localhost_bdaddr        = NULL;
-static emem_tree_t *fragment_info_table     = NULL;
+static wmem_tree_t *chandle_to_bdaddr_table = NULL;
+static wmem_tree_t *bdaddr_to_name_table    = NULL;
+static wmem_tree_t *localhost_name          = NULL;
+static wmem_tree_t *localhost_bdaddr        = NULL;
+static wmem_tree_t *fragment_info_table     = NULL;
 
-static GHashTable *fragment_table     = NULL;
-static GHashTable *reassembled_table  = NULL;
+static reassembly_table hci_usb_reassembly_table;
+
+static dissector_handle_t hci_usb_handle;
+static dissector_handle_t bthci_cmd_handle;
+static dissector_handle_t bthci_evt_handle;
+static dissector_handle_t bthci_acl_handle;
+static dissector_handle_t bthci_sco_handle;
 
 typedef struct _fragment_info_t {
     gint remaining_length;
@@ -88,42 +100,53 @@ static const fragment_items hci_usb_msg_frag_items = {
     "Message fragments"
 };
 
+static const value_string request_vals[] = {
+    { 0x00,  "Primary Controller Function" },
+    { 0x2B,  "AMP Controller Function" },
+    { 0xE0,  "Primary Controller Function (Historical)" },
+    { 0x00, NULL }
+};
+static value_string_ext(request_vals_ext) = VALUE_STRING_EXT_INIT(request_vals);
 
-static int
-dissect_hci_usb(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+
+void proto_register_hci_usb(void);
+void proto_reg_handoff_hci_usb(void);
+
+static gint
+dissect_hci_usb(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
     proto_item     *ttree = NULL;
     proto_tree     *titem = NULL;
     proto_item     *pitem = NULL;
     gint            offset = 0;
-    usb_data_t     *usb_data;
+    usb_conv_info_t *usb_conv_info;
     tvbuff_t       *next_tvb = NULL;
-    void           *pd_save;
     hci_data_t     *hci_data;
     gint            p2p_dir_save;
     guint32         session_id;
-    fragment_data  *reassembled;
+    fragment_head  *reassembled;
 
-    if (tvb_length_remaining(tvb, offset) <= 0)
+    /* Reject the packet if data is NULL */
+    if (data == NULL)
         return 0;
+    usb_conv_info = (usb_conv_info_t *)data;
+
+    titem = proto_tree_add_item(tree, proto_hci_usb, tvb, offset, -1, ENC_NA);
+    ttree = proto_item_add_subtree(titem, ett_hci_usb);
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "HCI_USB");
 
-    col_clear(pinfo->cinfo, COL_INFO);
-
-    usb_data = (usb_data_t *) pinfo->private_data;
-
     p2p_dir_save = pinfo->p2p_dir;
-    pinfo->p2p_dir = usb_data->direction;
+    pinfo->p2p_dir = (usb_conv_info->is_request) ? P2P_DIR_SENT : P2P_DIR_RECV;
 
     switch (pinfo->p2p_dir) {
 
     case P2P_DIR_SENT:
-        col_add_str(pinfo->cinfo, COL_INFO, "Sent");
+        col_set_str(pinfo->cinfo, COL_INFO, "Sent");
         break;
 
     case P2P_DIR_RECV:
-        col_add_str(pinfo->cinfo, COL_INFO, "Rcvd");
+        col_set_str(pinfo->cinfo, COL_INFO, "Rcvd");
         break;
 
     default:
@@ -131,62 +154,82 @@ dissect_hci_usb(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data 
         break;
     }
 
-    titem = proto_tree_add_item(tree, proto_hci_usb, tvb, offset, -1, ENC_NA);
-    ttree = proto_item_add_subtree(titem, ett_hci_usb);
+    if (usb_conv_info->is_setup) {
+        proto_tree_add_item(ttree, hf_bthci_usb_setup_request, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+        offset += 1;
 
-    pd_save      = pinfo->private_data;
+        proto_tree_add_item(ttree, hf_bthci_usb_setup_value, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+        offset += 2;
 
-    session_id = usb_data->bus_id << 16 | usb_data->device_address << 8 | ((pinfo->p2p_dir == P2P_DIR_RECV) ? 1 : 0 ) << 7 | usb_data->endpoint;
+        proto_tree_add_item(ttree, hf_bthci_usb_setup_adapter_id, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+        offset += 2;
 
-    hci_data = ep_alloc(sizeof(hci_data_t));
-    hci_data->interface_id = HCI_INTERFACE_USB;
-    hci_data->adapter_id = usb_data->bus_id << 8 | usb_data->device_address;
+        proto_tree_add_item(ttree, hf_bthci_usb_setup_length, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+        offset += 2;
+    }
+
+    session_id = usb_conv_info->bus_id << 16 | usb_conv_info->device_address << 8 | ((pinfo->p2p_dir == P2P_DIR_RECV) ? 1 : 0 ) << 7 | usb_conv_info->endpoint;
+
+    hci_data = (hci_data_t *) wmem_new(wmem_packet_scope(), hci_data_t);
+    if (pinfo->phdr->presence_flags & WTAP_HAS_INTERFACE_ID)
+        hci_data->interface_id = pinfo->phdr->interface_id;
+    else
+        hci_data->interface_id = HCI_INTERFACE_DEFAULT;
+    hci_data->adapter_id = usb_conv_info->bus_id << 8 | usb_conv_info->device_address;
     hci_data->chandle_to_bdaddr_table = chandle_to_bdaddr_table;
     hci_data->bdaddr_to_name_table = bdaddr_to_name_table;
     hci_data->localhost_bdaddr = localhost_bdaddr;
     hci_data->localhost_name = localhost_name;
-    pinfo->private_data = hci_data;
+
+    pinfo->ptype = PT_BLUETOOTH;
 
     next_tvb = tvb_new_subset_remaining(tvb, offset);
-    if (!pinfo->fd->flags.visited && usb_data->endpoint <= 0x02) {
+    if (!pinfo->fd->flags.visited && usb_conv_info->endpoint <= 0x02) {
         fragment_info_t  *fragment_info;
 
-        fragment_info = se_tree_lookup32(fragment_info_table, session_id);
+        fragment_info = (fragment_info_t *) wmem_tree_lookup32(fragment_info_table, session_id);
         if (fragment_info == NULL) {
-            fragment_info = se_alloc(sizeof(fragment_info_t));
+            fragment_info = (fragment_info_t *) wmem_new(wmem_file_scope(), fragment_info_t);
             fragment_info->fragment_id = 0;
             fragment_info->remaining_length = 0;
 
-            se_tree_insert32(fragment_info_table, session_id, fragment_info);
+            wmem_tree_insert32(fragment_info_table, session_id, fragment_info);
         }
 
         if (fragment_info->fragment_id == 0) {
-            if (usb_data->endpoint == 0x00) {
+            switch(usb_conv_info->endpoint)
+            {
+            case 0:
                 fragment_info->remaining_length = tvb_get_guint8(tvb, offset + 2) + 3;
-            } else if (usb_data->endpoint == 0x01) {
+                break;
+            case 1:
                 fragment_info->remaining_length = tvb_get_guint8(tvb, offset + 1) + 2;
-            } else if (usb_data->endpoint == 0x02) {
+                break;
+            case 2:
                 fragment_info->remaining_length = tvb_get_letohs(tvb, offset + 2) + 4;
+                break;
             }
         }
 
         fragment_info->remaining_length -= tvb_ensure_length_remaining(tvb, offset);
 
-        fragment_add_seq_check(tvb, offset, pinfo, session_id, fragment_table, reassembled_table, fragment_info->fragment_id, tvb_length_remaining(tvb, offset), (fragment_info->remaining_length == 0) ? FALSE : TRUE);
+        fragment_add_seq_check(&hci_usb_reassembly_table,
+                               tvb, offset, pinfo, session_id, NULL,
+                               fragment_info->fragment_id, tvb_length_remaining(tvb, offset), (fragment_info->remaining_length == 0) ? FALSE : TRUE);
         if (fragment_info->remaining_length > 0)
             fragment_info->fragment_id += 1;
         else
             fragment_info->fragment_id = 0;
     }
 
-    reassembled = fragment_get_reassembled_id(pinfo, session_id, reassembled_table);
+    reassembled = fragment_get_reassembled_id(&hci_usb_reassembly_table, pinfo, session_id);
     if (reassembled && pinfo->fd->num < reassembled->reassembled_in) {
-        pitem = proto_tree_add_text(ttree, tvb, offset, -1, "Fragment");
+        pitem = proto_tree_add_item(ttree, hf_bthci_usb_packet_fragment, tvb, offset, -1, ENC_NA);
         PROTO_ITEM_SET_GENERATED(pitem);
 
-        col_append_fstr(pinfo->cinfo, COL_INFO, " Fragment");
+        col_append_str(pinfo->cinfo, COL_INFO, " Fragment");
     } else if (reassembled && pinfo->fd->num == reassembled->reassembled_in) {
-        pitem = proto_tree_add_text(ttree, tvb, offset, -1, "Complete");
+        pitem = proto_tree_add_item(ttree, hf_bthci_usb_packet_complete, tvb, offset, -1, ENC_NA);
         PROTO_ITEM_SET_GENERATED(pitem);
 
         if (reassembled->len > tvb_ensure_length_remaining(tvb, offset)) {
@@ -196,28 +239,32 @@ dissect_hci_usb(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data 
                     NULL, ttree);
         }
 
-        if (usb_data->endpoint == 0x00) {
-            call_dissector(find_dissector("bthci_cmd"), next_tvb, pinfo, tree);
-        } else if (usb_data->endpoint == 0x01) {
-            call_dissector(find_dissector("bthci_evt"), next_tvb, pinfo, tree);
-        } else if (usb_data->endpoint == 0x02) {
-            call_dissector(find_dissector("bthci_acl"), next_tvb, pinfo, tree);
+        switch(usb_conv_info->endpoint)
+        {
+        case 0:
+            call_dissector_with_data(bthci_cmd_handle, next_tvb, pinfo, tree, hci_data);
+            break;
+        case 1:
+            call_dissector_with_data(bthci_evt_handle, next_tvb, pinfo, tree, hci_data);
+            break;
+        case 2:
+            call_dissector_with_data(bthci_acl_handle, next_tvb, pinfo, tree, hci_data);
+            break;
         }
     } else {
-        pitem = proto_tree_add_text(ttree, tvb, offset, -1, "Unknown Fragment");
+        pitem = proto_tree_add_item(ttree, hf_bthci_usb_packet_unknown_fragment, tvb, offset, -1, ENC_NA);
         PROTO_ITEM_SET_GENERATED(pitem);
     }
 
-    if (usb_data->endpoint == 0x03) {
-        call_dissector(find_dissector("bthci_sco"), next_tvb, pinfo, tree);
-    } else if (usb_data->endpoint > 0x03) {
-        proto_tree_add_item(ttree, hf_bthci_usb_data, tvb, offset, -1, ENC_BIG_ENDIAN);
+    if (usb_conv_info->endpoint == 0x03) {
+        call_dissector_with_data(bthci_sco_handle, next_tvb, pinfo, tree, hci_data);
+    } else if (usb_conv_info->endpoint > 0x03) {
+        proto_tree_add_item(ttree, hf_bthci_usb_data, tvb, offset, -1, ENC_NA);
     }
 
     offset += tvb_length_remaining(tvb, offset);
 
     pinfo->p2p_dir = p2p_dir_save;
-    pinfo->private_data = pd_save;
 
     return offset;
 }
@@ -278,6 +325,40 @@ proto_register_hci_usb(void)
             FT_UINT32, BASE_DEC, NULL, 0x00,
             NULL, HFILL }
         },
+        { &hf_bthci_usb_packet_fragment,
+            { "Packet Fragment",                 "hci_usb.packet.fragment",
+            FT_NONE, BASE_NONE, NULL, 0x00,
+            NULL, HFILL }
+        },
+        { &hf_bthci_usb_packet_complete,
+            { "Packet Complete",                 "hci_usb.packet.complete",
+            FT_NONE, BASE_NONE, NULL, 0x00,
+            NULL, HFILL }
+        },
+        { &hf_bthci_usb_packet_unknown_fragment,
+            { "Unknown Packet Fragment",         "hci_usb.packet.unknown_fragment",
+            FT_NONE, BASE_NONE, NULL, 0x00,
+            NULL, HFILL }
+        },
+        { &hf_bthci_usb_setup_request,
+          { "bRequest",                          "hci_usb.setup.bRequest",
+            FT_UINT8, BASE_DEC | BASE_EXT_STRING, &request_vals_ext, 0x0,
+            NULL, HFILL }},
+
+        { &hf_bthci_usb_setup_value,
+          { "wValue",                            "hci_usb.setup.wValue",
+            FT_UINT16, BASE_HEX, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_bthci_usb_setup_adapter_id,
+          { "Adapter ID",                        "hci_usb.setup.adapter_id",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_bthci_usb_setup_length,
+          { "wLength",                           "hci_usb.setup.wLength",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
         { &hf_bthci_usb_data,
             { "Unknown Data",                    "hci_usb.data",
             FT_NONE, BASE_NONE, NULL, 0x00,
@@ -291,19 +372,19 @@ proto_register_hci_usb(void)
         &ett_hci_usb_msg_fragments,
     };
 
-    fragment_table_init(&fragment_table);
-    reassembled_table_init(&reassembled_table);
-    fragment_info_table = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "hci_usb fragment_info");
+    reassembly_table_init(&hci_usb_reassembly_table,
+                          &addresses_reassembly_table_functions);
+    fragment_info_table = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope());
 
-    chandle_to_bdaddr_table = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "hci_usb adapter/chandle to bdaddr");
-    bdaddr_to_name_table = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "hci_usb bdaddr to name");
-    localhost_bdaddr = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "hci_usb adaper/frame to bdaddr");
-    localhost_name = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "hci_usb adaper/frame to name");
+    chandle_to_bdaddr_table = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope()); /* adapter, chandle: bdaddr */
+    bdaddr_to_name_table = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope()); /* bdaddr: name */
+    localhost_bdaddr = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope()); /* adapter, frame: bdaddr */
+    localhost_name = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope()); /* adapter, frame: name */
 
     proto_hci_usb = proto_register_protocol("Bluetooth HCI USB Transport", "HCI_USB", "hci_usb");
     proto_register_field_array(proto_hci_usb, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
-    new_register_dissector("hci_usb", dissect_hci_usb, proto_hci_usb);
+    hci_usb_handle = new_register_dissector("hci_usb", dissect_hci_usb, proto_hci_usb);
 
     module = prefs_register_protocol(proto_hci_usb, NULL);
     prefs_register_static_text_preference(module, "bthci_usb.version",
@@ -314,9 +395,10 @@ proto_register_hci_usb(void)
 void
 proto_reg_handoff_hci_usb(void)
 {
-    dissector_handle_t hci_usb_handle;
-
-    hci_usb_handle = find_dissector("hci_usb");
+    bthci_cmd_handle = find_dissector("bthci_cmd");
+    bthci_evt_handle = find_dissector("bthci_evt");
+    bthci_acl_handle = find_dissector("bthci_acl");
+    bthci_sco_handle = find_dissector("bthci_sco");
 
     dissector_add_uint("usb.product", (0x0a5c << 16) | 0x21e8, hci_usb_handle);
     dissector_add_uint("usb.product", (0x1131 << 16) | 0x1001, hci_usb_handle);
@@ -327,6 +409,7 @@ proto_reg_handoff_hci_usb(void)
     dissector_add_uint("usb.product", (0x13d3 << 16) | 0x3375, hci_usb_handle);
 
     dissector_add_uint("usb.protocol", 0xE00101, hci_usb_handle);
+    dissector_add_uint("usb.protocol", 0xE00104, hci_usb_handle);
 
     dissector_add_handle("usb.device", hci_usb_handle);
 }

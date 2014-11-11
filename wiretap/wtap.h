@@ -1,7 +1,5 @@
 /* wtap.h
  *
- * $Id$
- *
  * Wiretap Library
  * Copyright (c) 1998 by Gilbert Ramirez <gram@alumni.rice.edu>
  *
@@ -29,6 +27,8 @@
 
 #include <glib.h>
 #include <time.h>
+#include <wsutil/buffer.h>
+#include <wsutil/nstime.h>
 #include "ws_symbol_export.h"
 
 #ifdef __cplusplus
@@ -242,78 +242,115 @@ extern "C" {
 #define WTAP_ENCAP_AX25                         149
 #define WTAP_ENCAP_SCTP                         150
 #define WTAP_ENCAP_INFINIBAND                   151
+#define WTAP_ENCAP_JUNIPER_SVCS                 152
+#define WTAP_ENCAP_USBPCAP                      153
+#define WTAP_ENCAP_RTAC_SERIAL                  154
+#define WTAP_ENCAP_BLUETOOTH_LE_LL              155
+#define WTAP_ENCAP_WIRESHARK_UPPER_PDU          156
+#define WTAP_ENCAP_STANAG_4607                  157
+#define WTAP_ENCAP_STANAG_5066_D_PDU            158
+#define WTAP_ENCAP_NETLINK                      159
+#define WTAP_ENCAP_BLUETOOTH_LINUX_MONITOR      160
+#define WTAP_ENCAP_BLUETOOTH_BREDR_BB           161
+#define WTAP_ENCAP_BLUETOOTH_LE_LL_WITH_PHDR    162
+#define WTAP_ENCAP_NSTRACE_3_0                  163
+#define WTAP_ENCAP_LOGCAT                       164
+#define WTAP_ENCAP_LOGCAT_BRIEF                 165
+#define WTAP_ENCAP_LOGCAT_PROCESS               166
+#define WTAP_ENCAP_LOGCAT_TAG                   167
+#define WTAP_ENCAP_LOGCAT_THREAD                168
+#define WTAP_ENCAP_LOGCAT_TIME                  169
+#define WTAP_ENCAP_LOGCAT_THREADTIME            170
+#define WTAP_ENCAP_LOGCAT_LONG                  171
+#define WTAP_ENCAP_PKTAP                        172
+#define WTAP_ENCAP_EPON                         173
+#define WTAP_ENCAP_IPMI_TRACE                   174
+/* After adding new item here, please also add new item to encap_table_base array */
 
 #define WTAP_NUM_ENCAP_TYPES                    wtap_get_num_encap_types()
 
-/* File types that can be read by wiretap.
+/* File types/subtypes that can be read by wiretap.
    We support writing many of these file types, too, so we
-   distinguish between different versions of them. */
-#define WTAP_FILE_UNKNOWN                        0
-#define WTAP_FILE_PCAP                           1
-#define WTAP_FILE_PCAPNG                         2
-#define WTAP_FILE_PCAP_NSEC                      3
-#define WTAP_FILE_PCAP_AIX                       4
-#define WTAP_FILE_PCAP_SS991029                  5
-#define WTAP_FILE_PCAP_NOKIA                     6
-#define WTAP_FILE_PCAP_SS990417                  7
-#define WTAP_FILE_PCAP_SS990915                  8
-#define WTAP_FILE_5VIEWS                         9
-#define WTAP_FILE_IPTRACE_1_0                   10
-#define WTAP_FILE_IPTRACE_2_0                   11
-#define WTAP_FILE_BER                           12
-#define WTAP_FILE_HCIDUMP                       13
-#define WTAP_FILE_CATAPULT_DCT2000              14
-#define WTAP_FILE_NETXRAY_OLD                   15
-#define WTAP_FILE_NETXRAY_1_0                   16
-#define WTAP_FILE_COSINE                        17
-#define WTAP_FILE_CSIDS                         18
-#define WTAP_FILE_DBS_ETHERWATCH                19
-#define WTAP_FILE_ERF                           20
-#define WTAP_FILE_EYESDN                        21
-#define WTAP_FILE_NETTL                         22
-#define WTAP_FILE_ISERIES                       23
-#define WTAP_FILE_ISERIES_UNICODE               24
-#define WTAP_FILE_I4BTRACE                      25
-#define WTAP_FILE_ASCEND                        26
-#define WTAP_FILE_NETMON_1_x                    27
-#define WTAP_FILE_NETMON_2_x                    28
-#define WTAP_FILE_NGSNIFFER_UNCOMPRESSED        29
-#define WTAP_FILE_NGSNIFFER_COMPRESSED          30
-#define WTAP_FILE_NETXRAY_1_1                   31
-#define WTAP_FILE_NETXRAY_2_00x                 32
-#define WTAP_FILE_NETWORK_INSTRUMENTS           33
-#define WTAP_FILE_LANALYZER                     34
-#define WTAP_FILE_PPPDUMP                       35
-#define WTAP_FILE_RADCOM                        36
-#define WTAP_FILE_SNOOP                         37
-#define WTAP_FILE_SHOMITI                       38
-#define WTAP_FILE_VMS                           39
-#define WTAP_FILE_K12                           40
-#define WTAP_FILE_TOSHIBA                       41
-#define WTAP_FILE_VISUAL_NETWORKS               42
-#define WTAP_FILE_PEEKCLASSIC_V56               43
-#define WTAP_FILE_PEEKCLASSIC_V7                44
-#define WTAP_FILE_PEEKTAGGED                    45
-#define WTAP_FILE_MPEG                          46
-#define WTAP_FILE_K12TEXT                       47
-#define WTAP_FILE_NETSCREEN                     48
-#define WTAP_FILE_COMMVIEW                      49
-#define WTAP_FILE_BTSNOOP                       50
-#define WTAP_FILE_TNEF                          51
-#define WTAP_FILE_DCT3TRACE                     52
-#define WTAP_FILE_PACKETLOGGER                  53
-#define WTAP_FILE_DAINTREE_SNA                  54
-#define WTAP_FILE_NETSCALER_1_0                 55
-#define WTAP_FILE_NETSCALER_2_0                 56
-#define WTAP_FILE_JPEG_JFIF                     57 /* obsoleted by WTAP_FILE_MIME */
-#define WTAP_FILE_IPFIX                         58
-#define WTAP_FILE_MIME                          59
-#define WTAP_FILE_AETHRA                        60
-#define WTAP_FILE_MPEG_2_TS                     61
-#define WTAP_FILE_VWR_80211                     62
-#define WTAP_FILE_VWR_ETH                       63
+   distinguish between different subtypes of them, as
+   different subtypes need to be written in a different
+   fashion. */
+#define WTAP_FILE_TYPE_SUBTYPE_UNKNOWN                        0
+#define WTAP_FILE_TYPE_SUBTYPE_PCAP                           1
+#define WTAP_FILE_TYPE_SUBTYPE_PCAPNG                         2
+#define WTAP_FILE_TYPE_SUBTYPE_PCAP_NSEC                      3
+#define WTAP_FILE_TYPE_SUBTYPE_PCAP_AIX                       4
+#define WTAP_FILE_TYPE_SUBTYPE_PCAP_SS991029                  5
+#define WTAP_FILE_TYPE_SUBTYPE_PCAP_NOKIA                     6
+#define WTAP_FILE_TYPE_SUBTYPE_PCAP_SS990417                  7
+#define WTAP_FILE_TYPE_SUBTYPE_PCAP_SS990915                  8
+#define WTAP_FILE_TYPE_SUBTYPE_5VIEWS                         9
+#define WTAP_FILE_TYPE_SUBTYPE_IPTRACE_1_0                   10
+#define WTAP_FILE_TYPE_SUBTYPE_IPTRACE_2_0                   11
+#define WTAP_FILE_TYPE_SUBTYPE_BER                           12
+#define WTAP_FILE_TYPE_SUBTYPE_HCIDUMP                       13
+#define WTAP_FILE_TYPE_SUBTYPE_CATAPULT_DCT2000              14
+#define WTAP_FILE_TYPE_SUBTYPE_NETXRAY_OLD                   15
+#define WTAP_FILE_TYPE_SUBTYPE_NETXRAY_1_0                   16
+#define WTAP_FILE_TYPE_SUBTYPE_COSINE                        17
+#define WTAP_FILE_TYPE_SUBTYPE_CSIDS                         18
+#define WTAP_FILE_TYPE_SUBTYPE_DBS_ETHERWATCH                19
+#define WTAP_FILE_TYPE_SUBTYPE_ERF                           20
+#define WTAP_FILE_TYPE_SUBTYPE_EYESDN                        21
+#define WTAP_FILE_TYPE_SUBTYPE_NETTL                         22
+#define WTAP_FILE_TYPE_SUBTYPE_ISERIES                       23
+#define WTAP_FILE_TYPE_SUBTYPE_ISERIES_UNICODE               24
+#define WTAP_FILE_TYPE_SUBTYPE_I4BTRACE                      25
+#define WTAP_FILE_TYPE_SUBTYPE_ASCEND                        26
+#define WTAP_FILE_TYPE_SUBTYPE_NETMON_1_x                    27
+#define WTAP_FILE_TYPE_SUBTYPE_NETMON_2_x                    28
+#define WTAP_FILE_TYPE_SUBTYPE_NGSNIFFER_UNCOMPRESSED        29
+#define WTAP_FILE_TYPE_SUBTYPE_NGSNIFFER_COMPRESSED          30
+#define WTAP_FILE_TYPE_SUBTYPE_NETXRAY_1_1                   31
+#define WTAP_FILE_TYPE_SUBTYPE_NETXRAY_2_00x                 32
+#define WTAP_FILE_TYPE_SUBTYPE_NETWORK_INSTRUMENTS           33
+#define WTAP_FILE_TYPE_SUBTYPE_LANALYZER                     34
+#define WTAP_FILE_TYPE_SUBTYPE_PPPDUMP                       35
+#define WTAP_FILE_TYPE_SUBTYPE_RADCOM                        36
+#define WTAP_FILE_TYPE_SUBTYPE_SNOOP                         37
+#define WTAP_FILE_TYPE_SUBTYPE_SHOMITI                       38
+#define WTAP_FILE_TYPE_SUBTYPE_VMS                           39
+#define WTAP_FILE_TYPE_SUBTYPE_K12                           40
+#define WTAP_FILE_TYPE_SUBTYPE_TOSHIBA                       41
+#define WTAP_FILE_TYPE_SUBTYPE_VISUAL_NETWORKS               42
+#define WTAP_FILE_TYPE_SUBTYPE_PEEKCLASSIC_V56               43
+#define WTAP_FILE_TYPE_SUBTYPE_PEEKCLASSIC_V7                44
+#define WTAP_FILE_TYPE_SUBTYPE_PEEKTAGGED                    45
+#define WTAP_FILE_TYPE_SUBTYPE_MPEG                          46
+#define WTAP_FILE_TYPE_SUBTYPE_K12TEXT                       47
+#define WTAP_FILE_TYPE_SUBTYPE_NETSCREEN                     48
+#define WTAP_FILE_TYPE_SUBTYPE_COMMVIEW                      49
+#define WTAP_FILE_TYPE_SUBTYPE_BTSNOOP                       50
+#define WTAP_FILE_TYPE_SUBTYPE_TNEF                          51
+#define WTAP_FILE_TYPE_SUBTYPE_DCT3TRACE                     52
+#define WTAP_FILE_TYPE_SUBTYPE_PACKETLOGGER                  53
+#define WTAP_FILE_TYPE_SUBTYPE_DAINTREE_SNA                  54
+#define WTAP_FILE_TYPE_SUBTYPE_NETSCALER_1_0                 55
+#define WTAP_FILE_TYPE_SUBTYPE_NETSCALER_2_0                 56
+#define WTAP_FILE_TYPE_SUBTYPE_JPEG_JFIF                     57 /* obsoleted by WTAP_FILE_TYPE_SUBTYPE_MIME */
+#define WTAP_FILE_TYPE_SUBTYPE_IPFIX                         58
+#define WTAP_FILE_TYPE_SUBTYPE_MIME                          59
+#define WTAP_FILE_TYPE_SUBTYPE_AETHRA                        60
+#define WTAP_FILE_TYPE_SUBTYPE_MPEG_2_TS                     61
+#define WTAP_FILE_TYPE_SUBTYPE_VWR_80211                     62
+#define WTAP_FILE_TYPE_SUBTYPE_VWR_ETH                       63
+#define WTAP_FILE_TYPE_SUBTYPE_CAMINS                        64
+#define WTAP_FILE_TYPE_SUBTYPE_STANAG_4607                   65
+#define WTAP_FILE_TYPE_SUBTYPE_NETSCALER_3_0                 66
+#define WTAP_FILE_TYPE_SUBTYPE_LOGCAT                        67
+#define WTAP_FILE_TYPE_SUBTYPE_LOGCAT_BRIEF                  68
+#define WTAP_FILE_TYPE_SUBTYPE_LOGCAT_PROCESS                69
+#define WTAP_FILE_TYPE_SUBTYPE_LOGCAT_TAG                    70
+#define WTAP_FILE_TYPE_SUBTYPE_LOGCAT_THREAD                 71
+#define WTAP_FILE_TYPE_SUBTYPE_LOGCAT_TIME                   72
+#define WTAP_FILE_TYPE_SUBTYPE_LOGCAT_THREADTIME             73
+#define WTAP_FILE_TYPE_SUBTYPE_LOGCAT_LONG                   74
 
-#define WTAP_NUM_FILE_TYPES                     wtap_get_num_file_types()
+#define WTAP_NUM_FILE_TYPES_SUBTYPES  wtap_get_num_file_types_subtypes()
 
 /* timestamp precision (currently only these values are supported) */
 #define WTAP_FILE_TSPREC_SEC        0
@@ -325,10 +362,10 @@ extern "C" {
 
 /*
  * Maximum packet size we'll support.
- * 65535 is the largest snapshot length that libpcap supports, so we
+ * 262144 is the largest snapshot length that libpcap supports, so we
  * use that.
  */
-#define WTAP_MAX_PACKET_SIZE    65535
+#define WTAP_MAX_PACKET_SIZE    262144
 
 /*
  * "Pseudo-headers" are used to supply to the clients of wiretap
@@ -365,6 +402,7 @@ struct nstr_phdr {
     guint8 clflags_offset;
     guint8 src_vmname_len_offset;
     guint8 dst_vmname_len_offset;
+    guint8 ns_activity_offset;
     guint8 data_offset;
 };
 
@@ -388,14 +426,18 @@ struct isdn_phdr {
 };
 
 /* Packet "pseudo-header" for ATM capture files.
-   Not all of this information is supplied by all capture types. */
+   Not all of this information is supplied by all capture types.
+   These originally came from the Network General (DOS-based)
+   ATM Sniffer file format, but we've added some additional
+   items. */
 
 /*
  * Status bits.
  */
-#define ATM_RAW_CELL    0x01    /* TRUE if the packet is a single cell */
-#define ATM_NO_HEC      0x02    /* TRUE if the cell has HEC stripped out */
-#define ATM_AAL2_NOPHDR 0x04    /* TRUE if the AAL2 PDU has no pseudo-header */
+#define ATM_RAW_CELL         0x01 /* TRUE if the packet is a single cell */
+#define ATM_NO_HEC           0x02 /* TRUE if the cell has HEC stripped out */
+#define ATM_AAL2_NOPHDR      0x04 /* TRUE if the AAL2 PDU has no pseudo-header */
+#define ATM_REASSEMBLY_ERROR 0x08 /* TRUE if this is an incompletely-reassembled PDU */
 
 /*
  * AAL types.
@@ -663,11 +705,20 @@ struct catapult_dct2000_phdr
 #define LIBPCAP_BT_PHDR_RECV    1
 
 /*
- * Header prepended by libpcap to each bluetooth hci h:4 frame.
+ * Header prepended by libpcap to each bluetooth hci h4 frame.
  * Values in network byte order
  */
 struct libpcap_bt_phdr {
     guint32 direction;     /* Bit 0 hold the frame direction. */
+};
+
+/*
+ * Header prepended by libpcap to each bluetooth monitor frame
+ * Values in network byte order
+ */
+struct libpcap_bt_monitor_phdr {
+    guint16 adapter_id;
+    guint16 opcode;
 };
 
 #define LIBPCAP_PPP_PHDR_RECV    0
@@ -784,14 +835,20 @@ struct sita_phdr {
 
 /*pseudo header for Bluetooth HCI*/
 struct bthci_phdr {
-    gboolean sent;
-    guint8   channel;
+    gboolean  sent;
+    guint32   channel;
 };
 
 #define BTHCI_CHANNEL_COMMAND  1
 #define BTHCI_CHANNEL_ACL      2
 #define BTHCI_CHANNEL_SCO      3
 #define BTHCI_CHANNEL_EVENT    4
+
+/* pseudo header for WTAP_ENCAP_BLUETOOTH_LINUX_MONITOR */
+struct btmon_phdr {
+    guint16   adapter_id;
+    guint16   opcode;
+};
 
 /* pseudo header for WTAP_ENCAP_LAYER1_EVENT */
 struct l1event_phdr {
@@ -827,6 +884,16 @@ struct gsm_um_phdr {
 #define GSM_UM_CHANNEL_AGCH     7
 #define GSM_UM_CHANNEL_PCH      8
 
+/* pseudo header for WTAP_ENCAP_LOGCAT */
+struct logcat_phdr {
+    gint version;
+};
+
+/* Pseudo-header for file-type-specific records */
+struct ft_specific_record_phdr {
+    guint record_type;    /* the type of record this is */
+};
+
 union wtap_pseudo_header {
     struct eth_phdr     eth;
     struct x25_phdr     x25;
@@ -845,22 +912,61 @@ union wtap_pseudo_header {
     struct erf_mc_phdr  erf;
     struct sita_phdr    sita;
     struct bthci_phdr   bthci;
+    struct btmon_phdr   btmon;
     struct l1event_phdr l1event;
     struct i2c_phdr     i2c;
     struct gsm_um_phdr  gsm_um;
     struct nstr_phdr    nstr;
     struct nokia_phdr   nokia;
     struct llcp_phdr    llcp;
+    struct logcat_phdr  logcat;
+    struct ft_specific_record_phdr ftsrec;
 };
 
-struct wtap_nstime {
-    time_t secs;
-    int    nsecs;
-};
+/*
+ * Record type values.
+ *
+ * This list will expand over time, so don't assume everything will
+ * forever be one of the types listed below.
+ *
+ * For file-type-specific records, the "ftsrec" field of the pseudo-header
+ * contains a file-type-specific subtype value, such as a block type for
+ * a pcap-ng file.
+ *
+ * An "event" is an indication that something happened during the capture
+ * process, such as a status transition of some sort on the network.
+ * These should, ideally, have a time stamp and, if they're relevant to
+ * a particular interface on a multi-interface capture, should also have
+ * an interface ID.  The data for the event is file-type-specific and
+ * subtype-specific.  These should be dissected and displayed just as
+ * packets are.
+ *
+ * A "report" supplies information not corresponding to an event;
+ * for example, a pcap-ng Interface Statistics Block would be a report,
+ * as it doesn't correspond to something happening on the network.
+ * They may have a time stamp, and should be dissected and displayed
+ * just as packets are.
+ *
+ * We distingiush between "events" and "reports" so that, for example,
+ * the packet display can show the delta between a packet and an event
+ * but not show the delta between a packet and a report, as the time
+ * stamp of a report may not correspond to anything interesting on
+ * the network but the time stamp of an event would.
+ *
+ * XXX - are there any file-type-specific records that *shouldn't* be
+ * dissected and displayed?  If so, they should be parsed and the
+ * information in them stored somewhere, and used somewhere, whether
+ * it's just used when saving the file in its native format or also
+ * used to parse *other* file-type-specific records.
+ */
+#define REC_TYPE_PACKET               0    /**< packet */
+#define REC_TYPE_FT_SPECIFIC_EVENT    1    /**< file-type-specific event */
+#define REC_TYPE_FT_SPECIFIC_REPORT   2    /**< file-type-specific report */
 
 struct wtap_pkthdr {
+    guint               rec_type;       /* what type of record is this? */
     guint32             presence_flags; /* what stuff do we have? */
-    struct wtap_nstime  ts;
+    nstime_t            ts;
     guint32             caplen;         /* data length in the file */
     guint32             len;            /* data length on the wire */
     int                 pkt_encap;
@@ -932,7 +1038,6 @@ typedef struct wtapng_section_s {
  *  one per interface.
  */
 typedef struct wtapng_iface_descriptions_s {
-    guint number_of_interfaces;
     GArray *interface_data;
 } wtapng_iface_descriptions_t;
 
@@ -1084,7 +1189,15 @@ typedef struct wtapng_if_stats_s {
     guint64  isb_usrdeliv;
 } wtapng_if_stats_t;
 
-struct Buffer;
+
+/** A struct with lists of resolved addresses.
+ *  Used when writing name resoultion blocks (NRB)
+ */
+typedef struct addrinfo_lists {
+    GList      *ipv4_addr_list; /**< A list of resolved hashipv4_t*/
+    GList      *ipv6_addr_list; /**< A list of resolved hashipv6_t*/
+} addrinfo_lists_t;
+
 struct wtap_dumper;
 
 typedef struct wtap wtap;
@@ -1092,7 +1205,119 @@ typedef struct wtap_dumper wtap_dumper;
 
 typedef struct wtap_reader *FILE_T;
 
-struct file_type_info {
+/* Similar to the wtap_open_routine_info for open routines, the following
+ * wtap_wslua_file_info struct is used by wslua code for Lua-based file writers.
+ *
+ * This concept is necessary because when wslua goes to invoke the
+ * registered dump/write_open routine callback in Lua, it needs the ref number representing
+ * the hooked function inside Lua.  This will be stored in the thing pointed to
+ * by the void* data here.  This 'data' pointer will be copied into the
+ * wtap_dumper struct's 'void* data' member when calling the dump_open function,
+ * which is how wslua finally retrieves it.  Unlike wtap_dumper's 'priv' member, its
+ * 'data' member is not free'd in wtap_dump_close().
+ */
+typedef struct wtap_wslua_file_info {
+    int (*wslua_can_write_encap)(int, void*);   /* a can_write_encap func for wslua uses */
+    void* wslua_data;                           /* holds the wslua data */
+} wtap_wslua_file_info_t;
+
+/*
+ * For registering extensions used for capture file formats.
+ *
+ * These items are used in dialogs for opening files, so that
+ * the user can ask to see all capture files (as identified
+ * by file extension) or particular types of capture files.
+ *
+ * Each file type has a description and a list of extensions the file
+ * might have.  Some file types aren't real file types, they're
+ * just generic types, such as "text file" or "XML file", that can
+ * be used for, among other things, captures we can read, or for
+ * extensions such as ".cap" that were unimaginatively chosen by
+ * several different sniffers for their file formats.
+ */
+struct file_extension_info {
+    /* the file type name */
+    const char *name;
+
+    /* a semicolon-separated list of file extensions used for this type */
+    const char *extensions;
+};
+
+/*
+ * For registering file types that we can open.
+ *
+ * Each file type has an open routine and an optional list of extensions
+ * the file might have.
+ *
+ * The open routine should return:
+ *
+ *	-1 on an I/O error;
+ *
+ *	1 if the file it's reading is one of the types it handles;
+ *
+ *	0 if the file it's reading isn't the type it handles.
+ *
+ * If the routine handles this type of file, it should set the "file_type"
+ * field in the "struct wtap" to the type of the file.
+ *
+ * Note that the routine does not have to free the private data pointer on
+ * error. The caller takes care of that by calling wtap_close on error.
+ * (See https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=8518)
+ *
+ * However, the caller does have to free the private data pointer when
+ * returning 0, since the next file type will be called and will likely
+ * just overwrite the pointer.
+ */
+
+/*
+ * Some file formats have defined magic numbers at fixed offsets from
+ * the beginning of the file; those routines should return 1 if and
+ * only if the file has the magic number at that offset.  (pcap-ng
+ * is a bit of a special case, as it has both the Section Header Block
+ * type field and its byte-order magic field; it checks for both.)
+ * Those file formats do not require a file name extension in order
+ * to recognize them or to avoid recognizing other file types as that
+ * type, and have no extensions specified for them.
+ */
+typedef int (*wtap_open_routine_t)(struct wtap*, int *, char **);
+
+/*
+ * Some file formats don't have defined magic numbers at fixed offsets,
+ * so a heuristic is required.  If that file format has any file name
+ * extensions used for it, a list of those extensions should be
+ * specified, so that, if the name of the file being opened has an
+ * extension, the file formats that use that extension are tried before
+ * the ones that don't, to handle the case where a file of one type
+ * might be recognized by the heuristics for a different file type.
+ */
+/*struct heuristic_open_info {
+	wtap_open_routine_t open_routine;
+	const char *extensions;
+};
+*/
+#define OPEN_INFO_MAGIC      0
+#define OPEN_INFO_HEURISTIC  1
+
+WS_DLL_PUBLIC void init_open_routines(void);
+
+struct open_info {
+    const char *name;
+    int type;
+    wtap_open_routine_t open_routine;
+    const char *extensions;
+    gchar **extensions_set; /* populated using extensions member during initialization */
+    void* wslua_data; /* should be NULL for C-code file readers */
+};
+WS_DLL_PUBLIC struct open_info *open_routines;
+
+/*
+ * Types of comments.
+ */
+#define WTAP_COMMENT_PER_SECTION	0x00000001	/* per-file/per-file-section */
+#define WTAP_COMMENT_PER_INTERFACE	0x00000002	/* per-interface */
+#define WTAP_COMMENT_PER_PACKET		0x00000004	/* per-packet */
+
+struct file_type_subtype_info {
     /* the file type name */
     /* should be NULL for all "pseudo" types that are only internally used and not read/writeable */
     const char *name;
@@ -1118,6 +1343,9 @@ struct file_type_info {
     /* should be FALSE is this file type doesn't support name resolution records */
     gboolean has_name_resolution;
 
+    /* what types of comment does this file support? */
+    guint32 supported_comment_types;
+
     /* can this type write this encapsulation format? */
     /* should be NULL is this file type doesn't have write support */
     int (*can_write_encap)(int);
@@ -1125,16 +1353,19 @@ struct file_type_info {
     /* the function to open the capture file for writing */
     /* should be NULL is this file type don't have write support */
     int (*dump_open)(wtap_dumper *, int *);
+
+    /* if can_write_encap returned WTAP_ERR_CHECK_WSLUA, then this is used instead */
+    /* this should be NULL for everyone except Lua-based file writers */
+    wtap_wslua_file_info_t *wslua_info;
 };
 
-
-typedef int (*wtap_open_routine_t)(struct wtap*, int *, char **);
-
+#define WTAP_TYPE_AUTO 0
 
 /** On failure, "wtap_open_offline()" returns NULL, and puts into the
  * "int" pointed to by its second argument:
  *
  * @param filename Name of the file to open
+ * @param type WTAP_TYPE_AUTO for automatic recognize file format or explicit choose format type
  * @param err a positive "errno" value if the capture file can't be opened;
  * a negative number, indicating the type of error, on other failures.
  * @param err_info for some errors, a string giving more details of
@@ -1143,7 +1374,7 @@ typedef int (*wtap_open_routine_t)(struct wtap*, int *, char **);
  * FALSE if not
  */
 WS_DLL_PUBLIC
-struct wtap* wtap_open_offline(const char *filename, int *err,
+struct wtap* wtap_open_offline(const char *filename, unsigned int type, int *err,
     gchar **err_info, gboolean do_random);
 
 /**
@@ -1175,8 +1406,7 @@ gboolean wtap_read(wtap *wth, int *err, gchar **err_info,
 
 WS_DLL_PUBLIC
 gboolean wtap_seek_read (wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int len,
-    int *err, gchar **err_info);
+	struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info);
 
 /*** get various information snippets about the current packet ***/
 WS_DLL_PUBLIC
@@ -1197,7 +1427,7 @@ gboolean wtap_iscompressed(wtap *wth);
 WS_DLL_PUBLIC
 guint wtap_snapshot_length(wtap *wth); /* per file */
 WS_DLL_PUBLIC
-int wtap_file_type(wtap *wth);
+int wtap_file_type_subtype(wtap *wth);
 WS_DLL_PUBLIC
 int wtap_file_encap(wtap *wth);
 WS_DLL_PUBLIC
@@ -1226,8 +1456,6 @@ void wtap_close(wtap *wth);
 /*** dump packets into a capture file ***/
 WS_DLL_PUBLIC
 gboolean wtap_dump_can_open(int filetype);
-WS_DLL_PUBLIC
-gboolean wtap_dump_can_write_encap(int filetype, int encap);
 
 /**
  * Given a GArray of WTAP_ENCAP_ types, return the per-file encapsulation
@@ -1237,15 +1465,25 @@ WS_DLL_PUBLIC
 int wtap_dump_file_encap_type(const GArray *file_encaps);
 
 /**
- * Return TRUE if a capture with a given GArray of WTAP_ENCAP_ types
- * can be written in a specified format, and FALSE if it can't.
+ * Return TRUE if we can write this capture file format out in
+ * compressed form, FALSE if not.
  */
 WS_DLL_PUBLIC
-gboolean wtap_dump_can_write_encaps(int ft, const GArray *file_encaps);
-
-WS_DLL_PUBLIC
 gboolean wtap_dump_can_compress(int filetype);
+
+/**
+ * Return TRUE if this capture file format supports storing name
+ * resolution information in it, FALSE if not.
+ */
+WS_DLL_PUBLIC
 gboolean wtap_dump_has_name_resolution(int filetype);
+
+/**
+ * Return TRUE if this capture file format supports all the comment
+ * types specified, FALSE if not.
+ */
+WS_DLL_PUBLIC
+gboolean wtap_dump_supports_comment_types(int filetype, guint32 comment_types);
 
 WS_DLL_PUBLIC
 wtap_dumper* wtap_dump_open(const char *filename, int filetype, int encap,
@@ -1274,33 +1512,43 @@ WS_DLL_PUBLIC
 void wtap_set_bytes_dumped(wtap_dumper *wdh, gint64 bytes_dumped);
 struct addrinfo;
 WS_DLL_PUBLIC
-gboolean wtap_dump_set_addrinfo_list(wtap_dumper *wdh, struct addrinfo *addrinfo_list);
+gboolean wtap_dump_set_addrinfo_list(wtap_dumper *wdh, addrinfo_lists_t *addrinfo_lists);
 WS_DLL_PUBLIC
 gboolean wtap_dump_close(wtap_dumper *, int *);
 
 /**
- * Get a GArray of WTAP_FILE_ values for file types that can be used
- * to save a file of a given type with a given GArray of WTAP_ENCAP_
- * types.
+ * Return TRUE if we can write a file out with the given GArray of file
+ * encapsulations and the given bitmask of comment types.
  */
 WS_DLL_PUBLIC
-GArray *wtap_get_savable_file_types(int file_type, const GArray *file_encaps);
+gboolean wtap_dump_can_write(const GArray *file_encaps, guint32 required_comment_types);
+
+/**
+ * Get a GArray of WTAP_FILE_TYPE_SUBTYPE_ values for file types/subtypes
+ * that can be used to save a file of a given type with a given GArray of
+ * WTAP_ENCAP_ types and the given bitmask of comment types.
+ */
+WS_DLL_PUBLIC
+GArray *wtap_get_savable_file_types_subtypes(int file_type,
+    const GArray *file_encaps, guint32 required_comment_types);
 
 /*** various string converter functions ***/
 WS_DLL_PUBLIC
-const char *wtap_file_type_string(int filetype);
+const char *wtap_file_type_subtype_string(int file_type_subtype);
 WS_DLL_PUBLIC
-const char *wtap_file_type_short_string(int filetype);
+const char *wtap_file_type_subtype_short_string(int file_type_subtype);
 WS_DLL_PUBLIC
-int wtap_short_string_to_file_type(const char *short_name);
+int wtap_short_string_to_file_type_subtype(const char *short_name);
 
 /*** various file extension functions ***/
+WS_DLL_PUBLIC
+GSList *wtap_get_all_file_extensions_list(void);
 WS_DLL_PUBLIC
 const char *wtap_default_file_extension(int filetype);
 WS_DLL_PUBLIC
 GSList *wtap_get_file_extensions_list(int filetype, gboolean include_compressed);
 WS_DLL_PUBLIC
-void wtap_free_file_extensions_list(GSList *extensions);
+void wtap_free_extensions_list(GSList *extensions);
 
 WS_DLL_PUBLIC
 const char *wtap_encap_string(int encap);
@@ -1314,15 +1562,40 @@ const char *wtap_strerror(int err);
 
 /*** get available number of file types and encapsulations ***/
 WS_DLL_PUBLIC
+int wtap_get_num_file_type_extensions(void);
+WS_DLL_PUBLIC
 int wtap_get_num_encap_types(void);
 WS_DLL_PUBLIC
-int wtap_get_num_file_types(void);
+int wtap_get_num_file_types_subtypes(void);
+
+/*** get information for file type extension ***/
+WS_DLL_PUBLIC
+const char *wtap_get_file_extension_type_name(int extension_type);
+WS_DLL_PUBLIC
+GSList *wtap_get_file_extension_type_extensions(guint extension_type);
 
 /*** dynamically register new file types and encapsulations ***/
 WS_DLL_PUBLIC
-void wtap_register_open_routine(wtap_open_routine_t, gboolean has_magic);
+void wtap_register_plugin_types(void);
 WS_DLL_PUBLIC
-int wtap_register_file_type(const struct file_type_info* fi);
+void register_all_wiretap_modules(void);
+WS_DLL_PUBLIC
+void wtap_register_file_type_extension(const struct file_extension_info *ei);
+
+WS_DLL_PUBLIC
+void wtap_register_open_info(struct open_info *oi, const gboolean first_routine);
+WS_DLL_PUBLIC
+gboolean wtap_has_open_info(const gchar *name);
+WS_DLL_PUBLIC
+void wtap_deregister_open_info(const gchar *name);
+
+WS_DLL_PUBLIC
+unsigned int open_info_name_to_type(const char *name);
+WS_DLL_PUBLIC
+int wtap_register_file_type_subtypes(const struct file_type_subtype_info* fi, const int subtype);
+WS_DLL_PUBLIC
+void wtap_deregister_file_type_subtype(const int file_type_subtype);
+
 WS_DLL_PUBLIC
 int wtap_register_encap_type(const char* name, const char* short_name);
 
@@ -1392,11 +1665,25 @@ int wtap_register_encap_type(const char* name, const char* short_name);
 #define WTAP_ERR_CANT_SEEK                    -20
     /** An attempt to seek failed, reason unknown */
 
-#define WTAP_ERR_DECOMPRESS                   -21
+#define WTAP_ERR_CANT_SEEK_COMPRESSED         -21
+    /** An attempt to seek on a compressed stream */
+
+#define WTAP_ERR_DECOMPRESS                   -22
     /** Error decompressing */
 
-#define WTAP_ERR_INTERNAL                     -22
+#define WTAP_ERR_INTERNAL                     -23
     /** "Shouldn't happen" internal errors */
+
+#define WTAP_ERR_PACKET_TOO_LARGE             -24
+    /** Packet being written is larger than we support; do not use when
+        reading, use WTAP_ERR_BAD_FILE instead */
+
+#define WTAP_ERR_CHECK_WSLUA                  -25
+    /** Not really an error: the file type being checked is from a Lua
+        plugin, so that the code will call wslua_can_write_encap() instead if it gets this */
+
+#define WTAP_ERR_REC_TYPE_UNSUPPORTED         -26
+    /** Specified record type can't be written to that file type */
 
 #ifdef __cplusplus
 }

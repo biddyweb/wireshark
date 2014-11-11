@@ -1,8 +1,6 @@
 /* capture_info_dlg.c
  * Routines for packet capture info dialog
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -72,25 +70,25 @@ typedef struct {
 
 /* Workhorse for stopping capture */
 static void
-capture_info_stop(capture_options *capture_opts)
+capture_info_stop(capture_session *cap_session)
 {
 #ifdef HAVE_AIRPCAP
   airpcap_set_toolbar_stop_capture(airpcap_if_active);
 #endif
-  capture_stop(capture_opts);
+  capture_stop(cap_session);
 }
 
 /* "delete-event" signal callback. Note different signature than "clicked" signal callback */
 static gboolean
 capture_info_delete_cb(GtkWidget *w _U_, GdkEvent *event _U_, gpointer data) {
-  capture_info_stop((capture_options *)data);
+  capture_info_stop((capture_session *)data);
   return TRUE;
 }
 
 /* "clicked" signal callback */
 static void
 capture_info_stop_clicked_cb(GtkButton *w _U_, gpointer data) {
-  capture_info_stop((capture_options *)data);
+  capture_info_stop((capture_session *)data);
 }
 
 static gboolean
@@ -110,10 +108,10 @@ capture_info_ui_update_cb(gpointer data)
 
 /* create the capture info dialog */
 /* will keep pointers to the fields in the counts parameter */
-void capture_info_ui_create(
-capture_info    *cinfo,
-capture_options *capture_opts)
+void
+capture_info_ui_create(capture_info *cinfo, capture_session *cap_session)
 {
+  capture_options  *capture_opts = cap_session->capture_opts;
   unsigned int      i;
   GtkWidget         *main_vb, *stop_bt, *counts_grid;
   GtkWidget         *counts_fr, *running_grid, *running_label, *lb, *bbox, *ci_help;
@@ -243,13 +241,13 @@ capture_options *capture_opts)
     gtk_misc_set_alignment(GTK_MISC(info->counts[i].percent_lb), 1.0f, 0.5f);
 
     ws_gtk_grid_attach_extended(GTK_GRID(counts_grid), info->counts[i].label,
-                                0, i, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+                                0, i, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     ws_gtk_grid_attach_extended(GTK_GRID(counts_grid), info->counts[i].value_lb,
-                                1, i, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+                                1, i, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     ws_gtk_grid_attach_extended(GTK_GRID(counts_grid), info->counts[i].percent_pb,
-                                2, i, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+                                2, i, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
     ws_gtk_grid_attach_extended(GTK_GRID(counts_grid), info->counts[i].percent_lb,
-                                3, i, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+                                3, i, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
 
     gtk_widget_show(info->counts[i].label);
     gtk_widget_show(info->counts[i].value_lb);
@@ -268,23 +266,23 @@ capture_options *capture_opts)
   gtk_misc_set_alignment(GTK_MISC(running_label), 0.0f, 0.0f);
   gtk_widget_show(running_label);
   ws_gtk_grid_attach_extended(GTK_GRID(running_grid), running_label,
-                              0, 0, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+                              0, 0, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
 
   info->running_time_lb = gtk_label_new("00:00:00");
   gtk_misc_set_alignment(GTK_MISC(info->running_time_lb), 0.5f, 0.0f);
   gtk_widget_show(info->running_time_lb);
   ws_gtk_grid_attach_extended(GTK_GRID(running_grid), info->running_time_lb,
-                              1, 0, 1, 1, GTK_EXPAND|GTK_FILL, 0, 5, 0);  /* effect: pads *all* the columns ?? */
+                              1, 0, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 5, 0);  /* effect: pads *all* the columns ?? */
 
   /* two dummy cols to match the 4 cols above */
   lb = gtk_label_new("");
   gtk_widget_show(lb);
   ws_gtk_grid_attach_extended(GTK_GRID(running_grid), lb,
-                              2, 0, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+                              2, 0, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
   lb = gtk_label_new("");
   gtk_widget_show(lb);
   ws_gtk_grid_attach_extended(GTK_GRID(running_grid), lb,
-                              3, 0, 1, 1, GTK_EXPAND|GTK_FILL, 0, 0, 0);
+                              3, 0, 1, 1, (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
 
   gtk_box_pack_start(GTK_BOX(main_vb), running_grid, FALSE, FALSE, 3);
   gtk_widget_show(running_grid);
@@ -297,8 +295,8 @@ capture_options *capture_opts)
 
   stop_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), WIRESHARK_STOCK_CAPTURE_STOP);
   window_set_cancel_button(info->cap_w, stop_bt, NULL);
-  g_signal_connect(stop_bt, "clicked", G_CALLBACK(capture_info_stop_clicked_cb), capture_opts);
-  g_signal_connect(info->cap_w, "delete_event", G_CALLBACK(capture_info_delete_cb), capture_opts);
+  g_signal_connect(stop_bt, "clicked", G_CALLBACK(capture_info_stop_clicked_cb), cap_session);
+  g_signal_connect(info->cap_w, "delete_event", G_CALLBACK(capture_info_delete_cb), cap_session);
 
   ci_help = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
   gtk_widget_set_tooltip_text(ci_help, "Get help about this dialog");

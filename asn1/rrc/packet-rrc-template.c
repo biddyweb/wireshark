@@ -1,10 +1,8 @@
 /* packet-rrc.c
  * Routines for Universal Mobile Telecommunications System (UMTS);
  * Radio Resource Control (RRC) protocol specification
- * (3GPP TS 25.331  packet dissection
+ * (3GPP TS 25.331  packet dissection)
  * Copyright 2006-2010, Anders Broman <anders.broman@ericsson.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -24,7 +22,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * Ref: 3GPP TS 25.331 V11.4.0 (2012-12)
+ * Ref: 3GPP TS 25.331 V11.8.0 (2013-12) + CR5591
  */
 
 /**
@@ -38,6 +36,7 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/asn1.h>
+#include <epan/wmem/wmem.h>
 #include <epan/conversation.h>
 #include <epan/expert.h>
 
@@ -82,9 +81,9 @@ enum nas_sys_info_gsm_map {
   RRC_NAS_SYS_INFO_CN_COMMON
 };
 
-static guint32 rrc_nas_sys_info_gsm_map_type = RRC_NAS_SYS_INFO_CN_COMMON;
-
 /* Forward declarations */
+void proto_register_rrc(void);
+void proto_reg_handoff_rrc(void);
 static int dissect_UE_RadioAccessCapabilityInfo_PDU(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *);
 static int dissect_SysInfoTypeSB1_PDU(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *);
 static int dissect_SysInfoTypeSB2_PDU(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *);
@@ -108,6 +107,8 @@ static int ett_rrc = -1;
 
 static gint ett_rrc_eutraFeatureGroupIndicators = -1;
 static gint ett_rrc_cn_CommonGSM_MAP_NAS_SysInfo = -1;
+
+static expert_field ei_rrc_no_hrnti = EI_INIT;
 
 /* Global variables */
 static proto_tree *top_tree;
@@ -164,19 +165,21 @@ static int get_max_counter(int com_context){
 }
 #endif
 /** Utility functions used for various comparisons/cleanups in tree **/
-gint rrc_key_cmp(gconstpointer b_ptr, gconstpointer a_ptr, gpointer ignore _U_){
+static gint rrc_key_cmp(gconstpointer b_ptr, gconstpointer a_ptr, gpointer ignore _U_){
     if( GPOINTER_TO_INT(a_ptr) > GPOINTER_TO_INT(b_ptr) ){
         return  -1;
     }
     return GPOINTER_TO_INT(a_ptr) < GPOINTER_TO_INT(b_ptr);
 }
-void rrc_free_key(gpointer key _U_){
+
+static void rrc_free_key(gpointer key _U_){
             /*Keys should be de allocated elsewhere.*/
 
-    }
-void rrc_free_value(gpointer value ){
+}
+
+static void rrc_free_value(gpointer value ){
             g_free(value);
-    }
+}
 #include "packet-rrc-fn.c"
 
 #include "packet-rrc.h"
@@ -193,7 +196,7 @@ dissect_rrc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     struct rrc_info *rrcinf;
 
     top_tree = tree;
-    rrcinf = p_get_proto_data(pinfo->fd, proto_rrc);
+    rrcinf = (struct rrc_info *)p_get_proto_data(wmem_file_scope(), pinfo, proto_rrc, 0);
 
     /* make entry in the Protocol column on summary display */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "RRC");
@@ -231,7 +234,7 @@ dissect_rrc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
 }
 
-void rrc_init(void){
+static void rrc_init(void){
     /*Cleanup*/
     if(hsdsch_muxed_flows){
         g_tree_destroy(hsdsch_muxed_flows);
@@ -288,12 +291,19 @@ void proto_register_rrc(void) {
     &ett_rrc_cn_CommonGSM_MAP_NAS_SysInfo,
   };
 
+  static ei_register_info ei[] = {
+     { &ei_rrc_no_hrnti, { "rrc.no_hrnti", PI_SEQUENCE, PI_NOTE, "Did not detect any H-RNTI", EXPFILL }},
+  };
+
+  expert_module_t* expert_rrc;
 
   /* Register protocol */
   proto_rrc = proto_register_protocol(PNAME, PSNAME, PFNAME);
   /* Register fields and subtrees */
   proto_register_field_array(proto_rrc, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_rrc = expert_register_protocol(proto_rrc);
+  expert_register_field_array(expert_rrc, ei, array_length(ei));
 
   register_dissector("rrc", dissect_rrc, proto_rrc);
 

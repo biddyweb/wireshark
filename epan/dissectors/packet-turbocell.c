@@ -2,8 +2,6 @@
  * Routines for Turbocell Header dissection
  * Copyright 2004, Colin Slater <kiltedtaco@xxxxxxxxx>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -61,6 +59,9 @@
             FT_ETHER, BASE_NONE, NULL, 0, \
             "connected stations / satellites ?", HFILL } \
         }
+
+void proto_register_turbocell(void);
+void proto_reg_handoff_turbocell(void);
 
 /* Initialize the protocol and registered fields */
 
@@ -179,9 +180,8 @@ static void dissect_turbocell(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
                 name_item = proto_tree_add_item(turbocell_tree, hf_turbocell_name, tvb, 0x14, 30, ENC_ASCII|ENC_NA);
                 network_tree = proto_item_add_subtree(name_item, ett_network);
 
-                str_name=tvb_get_ephemeral_stringz(tvb, 0x14, &str_len);
-                if (check_col (pinfo->cinfo, COL_INFO) && str_len > 0)
-                    col_append_fstr(pinfo->cinfo, COL_INFO, ", Network=\"%s\"",format_text(str_name, str_len-1));
+                str_name=tvb_get_stringz(wmem_packet_scope(), tvb, 0x14, &str_len);
+                col_append_fstr(pinfo->cinfo, COL_INFO, ", Network=\"%s\"",format_text(str_name, str_len-1));
 
                 while(tvb_get_guint8(tvb, 0x34 + 8*i)==0x00 && (tvb_length_remaining(tvb,0x34 + 8*i) > 6) && (i<32)) {
                     proto_tree_add_item(network_tree, hf_turbocell_station[i], tvb, 0x34+8*i, 6, ENC_NA);
@@ -222,8 +222,7 @@ static void dissect_turbocell(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
                     subframe_tree = proto_item_add_subtree(parent_item, ett_msdu_aggregation_subframe_tree);
                     j++;
 
-                    proto_tree_add_uint_format(subframe_tree, hf_turbocell_aggregate_msdu_len, next_tvb, msdu_offset, 2,
-                    msdu_length, "MSDU length: %u (0x%04X)", msdu_length,msdu_length);
+                    proto_tree_add_item(subframe_tree, hf_turbocell_aggregate_msdu_len, next_tvb, msdu_offset, 2, ENC_LITTLE_ENDIAN);
                     proto_tree_add_item(subframe_tree, hf_turbocell_aggregate_unknown2, next_tvb, msdu_offset+1, 1, ENC_BIG_ENDIAN);
 
                     msdu_offset += 0x02;

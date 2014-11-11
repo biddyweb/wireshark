@@ -1,8 +1,6 @@
 /*
  *  packet-h248_10.c
  *
- * $Id$
- *
  *  H.248.10
  *  Gateway control protocol: Media gateway
  *  resource congestion handling package
@@ -32,6 +30,9 @@
 #include "config.h"
 
 #include "packet-h248.h"
+
+void proto_register_h248_dot10(void);
+
 #define PNAME  "H.248.10"
 #define PSNAME "H248CHP"
 #define PFNAME "h248.chp"
@@ -71,16 +72,16 @@ static const h248_pkg_evt_t h248_CHP_mgcon_events[] = {
 	{ 0, NULL, NULL, NULL, NULL}
 };
 
-static const h248_package_t h248_pkg_CHP = {
+static h248_package_t h248_pkg_CHP = {
 	0x0029,
 	&proto_h248_CHP,
 	&ett_h248_CHP,
-	
+
 	h248_CHP_prop_vals,
 	NULL,
 	h248_CHP_events_vals,
 	NULL,
-	
+
 	NULL,
 	NULL,
 	h248_CHP_mgcon_events,
@@ -91,9 +92,9 @@ void proto_register_h248_dot10(void) {
 	static hf_register_info hf[] = {
 		/* H.248.1 E.1  Generic Package */
 		{ &hf_h248_CHP_mgcon, { "MGCon", "h248.chp.mgcon", FT_BYTES, BASE_NONE, NULL, 0, "This event occurs when the MG requires that the MGC start or finish load reduction.", HFILL }},
-		{ &hf_h248_CHP_mgcon_reduction, { "Reduction", "h248.chp.mgcon.reduction", FT_UINT32, BASE_DEC, NULL, 0, "Percentage of the load that the MGC is requested to block", HFILL }}, 
+		{ &hf_h248_CHP_mgcon_reduction, { "Reduction", "h248.chp.mgcon.reduction", FT_UINT32, BASE_DEC, NULL, 0, "Percentage of the load that the MGC is requested to block", HFILL }},
 	};
-	
+
 	static gint *ett[] = {
 		&ett_h248_CHP,
 		&ett_h248_CHP_mgcon,
@@ -104,7 +105,7 @@ void proto_register_h248_dot10(void) {
 	proto_register_field_array(proto_h248_CHP, hf, array_length(hf));
 
 	proto_register_subtree_array(ett, array_length(ett));
-	
+
 	h248_register_package(&h248_pkg_CHP,REPLACE_PKG);
 }
 

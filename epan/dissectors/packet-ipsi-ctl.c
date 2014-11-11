@@ -5,8 +5,6 @@
  *
  * Copyright 2008, Randy McEoin <rmceoin@ahbelo.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,9 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+
+void proto_register_ipsictl(void);
+void proto_reg_handoff_ipsictl(void);
 
 #define IPSICTL_PORT		5010
 #define IPSICTL_PDU_MAGIC	0x0300
@@ -111,16 +112,14 @@ static void dissect_ipsictl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
     if (remaining_length>=2)
     {
-      field1 = tvb_get_ntohs(tvb, loffset); loffset+=2;
-      remaining_length-=2;
+      field1 = tvb_get_ntohs(tvb, loffset);
       llength-=2;
     }
 
     if (tree) {
 
-      ti = proto_tree_add_uint_format(ipsictl_tree, hf_ipsictl_pdu, tvb,
-           offset, (length+4), pdu,
-           "PDU: %d", pdu);
+      ti = proto_tree_add_uint(ipsictl_tree, hf_ipsictl_pdu, tvb,
+           offset, (length+4), pdu);
 
       pdu_tree = proto_item_add_subtree(ti, ett_ipsictl_pdu);
     }
@@ -163,7 +162,7 @@ static void dissect_ipsictl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       if (tree) {
         proto_tree_add_item(pdu_tree, hf_ipsictl_data, tvb, loffset, llength, ENC_NA);
       }
-      loffset+=llength; remaining_length-=llength;
+      loffset+=llength;
     }
 
     offset=loffset;
@@ -181,15 +180,13 @@ static void dissect_ipsictl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   if (haspdus)
   {
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-      if (last_sequence==-1)
-      {
-        col_add_fstr(pinfo->cinfo, COL_INFO, "PDUS=%d, Seq=0x%04x",
-          pdu,first_sequence);
-      }else{
-        col_add_fstr(pinfo->cinfo, COL_INFO, "PDUS=%d, Seq=0x%04x-0x%04x",
-          pdu,first_sequence,last_sequence);
-      }
+    if (last_sequence==-1)
+    {
+      col_add_fstr(pinfo->cinfo, COL_INFO, "PDUS=%d, Seq=0x%04x",
+        pdu,first_sequence);
+    }else{
+      col_add_fstr(pinfo->cinfo, COL_INFO, "PDUS=%d, Seq=0x%04x-0x%04x",
+        pdu,first_sequence,last_sequence);
     }
   }else{
     col_set_str(pinfo->cinfo, COL_INFO, "Initialization");
@@ -204,7 +201,7 @@ void proto_register_ipsictl(void)
   static hf_register_info hf[] = {
     { &hf_ipsictl_pdu,
       { "PDU",	"ipsictl.pdu",
-	FT_UINT16,	BASE_HEX,	NULL,	0x0,
+	FT_UINT16,	BASE_DEC,	NULL,	0x0,
       	"IPSICTL PDU", HFILL }},
     { &hf_ipsictl_magic,
       { "Magic",	"ipsictl.magic",

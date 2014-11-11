@@ -2,8 +2,6 @@
  * Routines for Intial Ranging Request Message dissection
  * Copyright 2003, Brian Wheeler <brian.wheeler[AT]arrisi.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,6 +32,8 @@ static int hf_docsis_intrngreq_down_chid = -1;
 static int hf_docsis_intrngreq_sid = -1;
 static int hf_docsis_intrngreq_up_chid = -1;
 
+void proto_register_docsis_intrngreq(void);
+void proto_reg_handoff_docsis_intrngreq(void);
 
 /* Initialize the subtree pointers */
 static gint ett_docsis_intrngreq = -1;
@@ -48,7 +48,6 @@ dissect_intrngreq (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 
   sid = tvb_get_ntohs (tvb, 0);
 
-  col_clear (pinfo->cinfo, COL_INFO);
   col_add_fstr (pinfo->cinfo, COL_INFO, "Ranging Request: SID = %u",sid);
 
   if (tree)

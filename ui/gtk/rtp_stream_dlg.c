@@ -1,8 +1,6 @@
 /* rtp_stream_dlg.c
  * RTP streams summary addition for Wireshark
  *
- * $Id$
- *
  * Copyright 2003, Alcatel Business Systems
  * By Lars Ruoff <lars.ruoff@gmx.net>
  *
@@ -35,13 +33,14 @@
 #include <epan/address.h>
 #include <epan/addr_resolv.h>
 #include <epan/strutil.h>
-#include "epan/filesystem.h"
+#include "wsutil/filesystem.h"
 
 #include "../globals.h"
 #include "../stat_menu.h"
 
 #include "ui/last_open_dir.h"
 #include "ui/simple_dialog.h"
+#include "ui/util.h"
 
 #include "ui/gtk/rtp_stream_dlg.h"
 #include "ui/gtk/gui_stat_menu.h"
@@ -49,14 +48,16 @@
 #include "ui/gtk/file_dlg.h"
 #include "ui/gtk/gui_utils.h"
 #include "ui/gtk/gtkglobals.h"
-#include "ui/gtk/rtp_stream.h"
-#include "ui/gtk/rtp_analysis.h"
+#include "ui/rtp_stream.h"
+#include "ui/rtp_analysis.h"
 #include "ui/gtk/stock_icons.h"
 #include "ui/gtk/old-gtk-compat.h"
 
 static const gchar FWD_LABEL_TEXT[] = "Select a forward stream with left mouse button, and then";
 static const gchar FWD_ONLY_LABEL_TEXT[] = "Select a forward stream with Ctrl + left mouse button";
 static const gchar REV_LABEL_TEXT[] = "Select a reverse stream with Ctrl + left mouse button";
+
+void register_tap_listener_rtp_stream_dlg(void);
 
 /****************************************************************************/
 /* pointer to the one and only dialog window */
@@ -121,8 +122,8 @@ static gboolean save_stream_ok_cb(GtkWidget *ok_bt _U_, gpointer fs)
 		/* It's a directory - set the file selection box to display it. */
 		set_last_open_dir(g_dest);
 		g_free(g_dest);
-		file_selection_set_current_folder(fs, get_last_open_dir());
-		gtk_file_chooser_set_current_name(fs, "");
+		file_selection_set_current_folder((GtkWidget *)fs, get_last_open_dir());
+		gtk_file_chooser_set_current_name((GtkFileChooser *)fs, "");
 		return FALSE;
 	}
 
@@ -188,8 +189,8 @@ rtpstream_on_unselect(GtkButton *button _U_, gpointer user_data _U_)
 /****************************************************************************/
 static gint rtp_stream_info_cmp_reverse(gconstpointer aa, gconstpointer bb)
 {
-	const struct _rtp_stream_info* a = aa;
-	const struct _rtp_stream_info* b = bb;
+	const struct _rtp_stream_info* a = (const struct _rtp_stream_info *)aa;
+	const struct _rtp_stream_info* b = (const struct _rtp_stream_info *)bb;
 
 	if (a==NULL || b==NULL)
 		return 1;
@@ -634,9 +635,9 @@ rtpstream_view_selection_func(GtkTreeSelection *selection, GtkTreeModel *model, 
 
 	if (selected_stream_fwd) {
 		g_snprintf(label_text, sizeof(label_text), "Forward: %s:%u -> %s:%u, SSRC=0x%X",
-			get_addr_name(&(selected_stream_fwd->src_addr)),
+			ep_address_to_display(&(selected_stream_fwd->src_addr)),
 			selected_stream_fwd->src_port,
-			get_addr_name(&(selected_stream_fwd->dest_addr)),
+			ep_address_to_display(&(selected_stream_fwd->dest_addr)),
 			selected_stream_fwd->dest_port,
 			selected_stream_fwd->ssrc
 		);
@@ -650,9 +651,9 @@ rtpstream_view_selection_func(GtkTreeSelection *selection, GtkTreeModel *model, 
 
 	if (selected_stream_rev) {
 		g_snprintf(label_text, sizeof(label_text), "Reverse: %s:%u -> %s:%u, SSRC=0x%X",
-			get_addr_name(&(selected_stream_rev->src_addr)),
+			ep_address_to_display(&(selected_stream_rev->src_addr)),
 			selected_stream_rev->src_port,
-			get_addr_name(&(selected_stream_rev->dest_addr)),
+			ep_address_to_display(&(selected_stream_rev->dest_addr)),
 			selected_stream_rev->dest_port,
 			selected_stream_rev->ssrc
 		);
@@ -680,14 +681,14 @@ add_to_list_store(rtp_stream_info_t* strinfo)
 	char *savelocale;
 
 	/* save the current locale */
-	savelocale = setlocale(LC_NUMERIC, NULL);
+	savelocale = g_strdup(setlocale(LC_NUMERIC, NULL));
 	/* switch to "C" locale to avoid problems with localized decimal separators
 		in g_snprintf("%f") functions */
 	setlocale(LC_NUMERIC, "C");
 
-	data[0] = g_strdup(get_addr_name(&(strinfo->src_addr)));
+	data[0] = g_strdup(ep_address_to_display(&(strinfo->src_addr)));
 	data[1] = NULL;
-	data[2] = g_strdup(get_addr_name(&(strinfo->dest_addr)));
+	data[2] = g_strdup(ep_address_to_display(&(strinfo->dest_addr)));
 	data[3] = NULL;
 	data[4] = g_strdup_printf("0x%X", strinfo->ssrc);
 	if (strinfo->info_payload_type_str != NULL) {
@@ -707,9 +708,9 @@ add_to_list_store(rtp_stream_info_t* strinfo)
 		perc = 0;
 	}
 	data[7] = g_strdup_printf("%d (%.1f%%)", lost, perc);
-	data[8] = g_strdup_printf("%.2f", strinfo->rtp_stats.max_delta);
-	data[9] = g_strdup_printf("%.2f", strinfo->rtp_stats.max_jitter);
-	data[10] = g_strdup_printf("%.2f", strinfo->rtp_stats.mean_jitter);
+	data[8] = NULL;
+	data[9] = NULL;
+	data[10] = NULL;
 	if (strinfo->problem)
 		data[11] = g_strdup("X");
 	else
@@ -717,6 +718,7 @@ add_to_list_store(rtp_stream_info_t* strinfo)
 
 	/* restore previous locale setting */
 	setlocale(LC_NUMERIC, savelocale);
+	g_free(savelocale);
 
 	/* Acquire an iterator */
 	gtk_list_store_append(list_store, &list_iter);
@@ -731,9 +733,9 @@ add_to_list_store(rtp_stream_info_t* strinfo)
 			    RTP_COL_PAYLOAD, data[5],
 			    RTP_COL_PACKETS, strinfo->npackets,
 			    RTP_COL_LOST, data[7],
-			    RTP_COL_MAX_DELTA, data[8],
-			    RTP_COL_MAX_JITTER, data[9],
-			    RTP_COL_MEAN_JITTER, data[10],
+			    RTP_COL_MAX_DELTA, strinfo->rtp_stats.max_delta,
+			    RTP_COL_MAX_JITTER, strinfo->rtp_stats.max_jitter,
+			    RTP_COL_MEAN_JITTER, strinfo->rtp_stats.mean_jitter,
 			    RTP_COL_PROBLEM, data[11],
 			    RTP_COL_DATA, strinfo,
 			    -1);
@@ -769,9 +771,9 @@ create_list_view(void)
 					G_TYPE_STRING,  /* Payload */
 					G_TYPE_UINT,    /* Packets */
 					G_TYPE_STRING,  /* Lost */
-					G_TYPE_STRING,  /* Max. delta */
-					G_TYPE_STRING,  /* Max. jitter */
-					G_TYPE_STRING,  /* Mean jitter */
+					G_TYPE_DOUBLE,  /* Max. delta */
+					G_TYPE_DOUBLE,  /* Max. jitter */
+					G_TYPE_DOUBLE,  /* Mean jitter */
 					G_TYPE_STRING,  /* Problem */
 					G_TYPE_POINTER  /* Data */
 				       );
@@ -1009,10 +1011,10 @@ rtpstream_dlg_create (void)
     gtk_container_add (GTK_CONTAINER (hbuttonbox), bt_findrev);
     gtk_widget_set_tooltip_text (bt_findrev, "Find the reverse stream matching the selected forward stream");
 /*
-    bt_goto = gtk_button_new_from_stock(GTK_STOCK_JUMP_TO);
+    bt_goto = ws_gtk_button_new_from_stock(GTK_STOCK_JUMP_TO);
     gtk_container_add (GTK_CONTAINER (hbuttonbox), bt_goto);
 */
-    bt_save = gtk_button_new_from_stock(GTK_STOCK_SAVE_AS);
+    bt_save = ws_gtk_button_new_from_stock(GTK_STOCK_SAVE_AS);
     gtk_container_add (GTK_CONTAINER (hbuttonbox), bt_save);
     gtk_widget_set_tooltip_text (bt_save, "Save stream payload in rtpdump format");
 
@@ -1020,22 +1022,22 @@ rtpstream_dlg_create (void)
     gtk_container_add (GTK_CONTAINER (hbuttonbox), bt_mark);
     gtk_widget_set_tooltip_text (bt_mark, "Mark packets of the selected stream(s)");
 
-    bt_filter = gtk_button_new_from_stock(WIRESHARK_STOCK_PREPARE_FILTER);
+    bt_filter = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_PREPARE_FILTER);
     gtk_container_add (GTK_CONTAINER (hbuttonbox), bt_filter);
     gtk_widget_set_tooltip_text (bt_filter, "Prepare a display filter of the selected stream(s)");
 
     /* XXX - maybe we want to have a "Copy as CSV" stock button here? */
     /*bt_copy = gtk_button_new_with_label ("Copy content to clipboard as CSV");*/
-    bt_copy = gtk_button_new_from_stock(GTK_STOCK_COPY);
+    bt_copy = ws_gtk_button_new_from_stock(GTK_STOCK_COPY);
     gtk_container_add (GTK_CONTAINER (hbuttonbox), bt_copy);
     gtk_widget_set_tooltip_text(bt_copy,
         "Copy all statistical values of this page to the clipboard in CSV (Comma Separated Values) format.");
 
-    bt_analyze = gtk_button_new_from_stock(WIRESHARK_STOCK_ANALYZE);
+    bt_analyze = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_ANALYZE);
     gtk_container_add (GTK_CONTAINER (hbuttonbox), bt_analyze);
     gtk_widget_set_tooltip_text (bt_analyze, "Open an analyze window of the selected stream(s)");
 
-    bt_close = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
+    bt_close = ws_gtk_button_new_from_stock(GTK_STOCK_CLOSE);
     gtk_container_add (GTK_CONTAINER (hbuttonbox), bt_close);
     gtk_widget_set_tooltip_text (bt_close, "Close this dialog");
     gtk_widget_set_can_default(bt_close, TRUE);
@@ -1135,3 +1137,15 @@ register_tap_listener_rtp_stream_dlg(void)
 {
 }
 
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 noexpandtab:
+ * :indentSize=4:tabSize=8:noTabs=false:
+ */

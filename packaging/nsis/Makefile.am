@@ -1,5 +1,3 @@
-# $Id$
-#
 MAINTAINERCLEANFILES = \
 	Makefile.in
 
@@ -14,6 +12,7 @@ EXTRA_DIST = \
 	WinPcapPage.ini \
 	Makefile.nmake \
 	Custom.nmake \
+	custom_diameter_xmls.txt \
 	custom_plugins.txt	\
 	custom_mibs.txt	\
 	custom_radius_dict.txt	\

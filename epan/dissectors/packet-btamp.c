@@ -3,8 +3,6 @@
  *
  * Copyright 2009, Kovarththanan Rajaratnam <kovarththanan.rajaratnam@gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -65,6 +63,9 @@ static gint ett_btamp_caps = -1;
 static gint ett_btamp_controller_entry = -1;
 static gint ett_btamp_controller_list = -1;
 
+static dissector_handle_t btamp_handle;
+
+
 static const value_string command_code_vals[] = {
     { 0x01, "AMP Command Reject" },
     { 0x02, "AMP Discover Request" },
@@ -111,6 +112,7 @@ static const value_string status_vals[] = {
     { 0, NULL }
 };
 
+#if 0
 static const value_string create_status_vals[] = {
     { 0x0000, "Success" },
     { 0x0001, "Invalid Controller ID" },
@@ -127,6 +129,10 @@ static const value_string disc_status_vals[] = {
     { 0x0002, "Failed - No Physical Link exists and no Physical Link creation is in progress" },
     { 0, NULL }
 };
+#endif
+
+void proto_register_btamp(void);
+void proto_reg_handoff_btamp(void);
 
 static int
 dissect_comrej(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
@@ -376,7 +382,8 @@ static int
 dissect_btamp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
     int         offset         = 0;
-    proto_tree *btamp_tree     = NULL;
+    proto_item *ti;
+    proto_tree *btamp_tree;
     guint16     length;
     proto_item *ti_command;
     proto_tree *btamp_cmd_tree;
@@ -384,31 +391,22 @@ dissect_btamp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
     guint16     cmd_length;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "AMP");
+
     switch (pinfo->p2p_dir) {
-
-    case P2P_DIR_SENT:
-        col_add_str(pinfo->cinfo, COL_INFO, "Sent ");
-        break;
-
-    case P2P_DIR_RECV:
-        col_add_str(pinfo->cinfo, COL_INFO, "Rcvd ");
-        break;
-
-    case P2P_DIR_UNKNOWN:
-        col_clear(pinfo->cinfo, COL_INFO);
-        break;
-
-    default:
-        col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
-                     pinfo->p2p_dir);
-        break;
+        case P2P_DIR_SENT:
+            col_set_str(pinfo->cinfo, COL_INFO, "Sent ");
+            break;
+        case P2P_DIR_RECV:
+            col_set_str(pinfo->cinfo, COL_INFO, "Rcvd ");
+            break;
+        default:
+            col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
+                pinfo->p2p_dir);
+            break;
     }
 
-    if (tree) {
-        proto_item *ti;
-        ti = proto_tree_add_item(tree, proto_btamp, tvb, offset, -1, ENC_NA);
-        btamp_tree = proto_item_add_subtree(ti, ett_btamp);
-    }
+    ti = proto_tree_add_item(tree, proto_btamp, tvb, offset, -1, ENC_NA);
+    btamp_tree = proto_item_add_subtree(ti, ett_btamp);
 
     length = tvb_reported_length_remaining(tvb, offset);
     ti_command = proto_tree_add_none_format(btamp_tree,
@@ -639,9 +637,9 @@ proto_register_btamp(void)
     };
 
     /* Register the protocol name and description */
-    proto_btamp = proto_register_protocol("Bluetooth AMP Packet", "AMP", "btamp");
+    proto_btamp = proto_register_protocol("Bluetooth AMP Packet", "BT AMP", "btamp");
 
-    new_register_dissector("btamp", dissect_btamp, proto_btamp);
+    btamp_handle = new_register_dissector("btamp", dissect_btamp, proto_btamp);
 
     /* Required function calls to register the header fields and subtrees used */
     proto_register_field_array(proto_btamp, hf, array_length(hf));
@@ -651,9 +649,6 @@ proto_register_btamp(void)
 void
 proto_reg_handoff_btamp(void)
 {
-    dissector_handle_t btamp_handle;
-
-    btamp_handle = find_dissector("btamp");
     dissector_add_uint("btl2cap.cid", BTL2CAP_FIXED_CID_AMP_MAN, btamp_handle);
 }
 

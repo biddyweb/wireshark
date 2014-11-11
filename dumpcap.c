@@ -1,7 +1,5 @@
 /* dumpcap.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -54,6 +52,10 @@
 #include <unistd.h>
 #endif
 
+#ifdef HAVE_GETOPT_H
+#include <getopt.h>
+#endif
+
 #ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
@@ -82,7 +84,6 @@
 
 #include "ringbuffer.h"
 #include "clopts_common.h"
-#include "console_io.h"
 #include "cmdarg_err.h"
 #include "version_info.h"
 
@@ -111,13 +112,14 @@
 #include "sync_pipe.h"
 
 #include "capture_opts.h"
+#include "capture_session.h"
 #include "capture_ifinfo.h"
 #include "capture_sync.h"
 
 #include "conditions.h"
 #include "capture_stop_conditions.h"
 
-#include "tempfile.h"
+#include "wsutil/tempfile.h"
 #include "log.h"
 #include "wsutil/file_util.h"
 
@@ -167,6 +169,32 @@ static void capture_loop_stop(void);
 /** Close a pipe, or socket if \a from_socket is TRUE */
 static void cap_pipe_close(int pipe_fd, gboolean from_socket _U_);
 
+#ifdef __linux__
+/*
+ * Enable kernel BPF JIT compiler if available.
+ * If any calls fail, just drive on - the JIT compiler might not be
+ * enabled, but filtering will still work, and it's not clear what
+ * we could do if the calls fail; should we just report the error
+ * and not continue to capture, should we report it as a warning, or
+ * what?
+ */
+static void
+enable_kernel_bpf_jit_compiler(void)
+{
+    int fd;
+    ssize_t written _U_;
+    static const char file[] = "/proc/sys/net/core/bpf_jit_enable";
+
+    fd = open(file, O_WRONLY);
+    if (fd < 0)
+        return;
+
+    written = write(fd, "1", strlen("1"));
+
+    close(fd);
+}
+#endif
+
 #if !defined (__linux__)
 #ifndef HAVE_PCAP_BREAKLOOP
 /*
@@ -215,6 +243,10 @@ static void cap_pipe_close(int pipe_fd, gboolean from_socket _U_);
 /* whatever the deal with pcap_breakloop, linux doesn't support timeouts
  * in pcap_dispatch(); on the other hand, select() works just fine there.
  * Hence we use a select for that come what may.
+ *
+ * XXX - with TPACKET_V1 and TPACKET_V2, it currently uses select()
+ * internally, and, with TPACKET_V3, once that's supported, it'll
+ * support timeouts, at least as I understand the way the code works.
  */
 #define MUST_DO_SELECT
 #endif
@@ -232,12 +264,14 @@ typedef enum {
     STATE_EXPECT_DATA,
     STATE_READ_DATA
 } cap_pipe_state_t;
-typedef enum { 
-    PIPOK, 
-    PIPEOF, 
-    PIPERR, 
-    PIPNEXIST 
+
+typedef enum {
+    PIPOK,
+    PIPEOF,
+    PIPERR,
+    PIPNEXIST
 } cap_pipe_err_t;
+
 typedef struct _pcap_options {
     guint32                      received;
     guint32                      dropped;
@@ -309,6 +343,7 @@ typedef struct _pcap_queue_element {
  */
 static const char please_report[] =
     "Please report this to the Wireshark developers.\n"
+    "http://bugs.wireshark.org/\n"
     "(This is not a crash; please do not report it as such.)";
 
 /*
@@ -374,13 +409,13 @@ static void WS_MSVC_NORETURN exit_main(int err) G_GNUC_NORETURN;
 
 static void report_new_capture_file(const char *filename);
 static void report_packet_count(unsigned int packet_count);
-static void report_packet_drops(guint32 received, guint32 pcap_drops, guint32 drops, guint32 flushed, gchar *name);
+static void report_packet_drops(guint32 received, guint32 pcap_drops, guint32 drops, guint32 flushed, guint32 ps_ifdrop, gchar *name);
 static void report_capture_error(const char *error_msg, const char *secondary_error_msg);
 static void report_cfilter_error(capture_options *capture_opts, guint i, const char *errmsg);
 
 #define MSG_MAX_LENGTH 4096
 
-/* Copied from pcapio.c libpcap_write_interface_statistics_block()*/
+/* Copied from pcapio.c pcapng_write_interface_statistics_block()*/
 static guint64
 create_timestamp(void) {
     guint64  timestamp;
@@ -415,7 +450,7 @@ create_timestamp(void) {
      * Subtract difference, in microseconds, between January 1, 1601
      * 00:00:00 UTC and January 1, 1970, 00:00:00 UTC.
      */
-    timestamp -= G_GINT64_CONSTANT(11644473600000000U);
+    timestamp -= G_GUINT64_CONSTANT(11644473600000000);
 #else
     /*
      * Current time, represented as seconds and microseconds since
@@ -443,7 +478,7 @@ print_usage(gboolean print_ver)
                 "Dumpcap " VERSION "%s\n"
                 "Capture network packets and dump them into a pcapng file.\n"
                 "See http://www.wireshark.org for more information.\n",
-                wireshark_svnversion);
+                wireshark_gitversion);
     } else {
         output = stderr;
     }
@@ -461,7 +496,7 @@ print_usage(gboolean print_ver)
     fprintf(output, "  -I                       capture in monitor mode, if available\n");
 #endif
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
-    fprintf(output, "  -B <buffer size>         size of kernel buffer in MB (def: %dMB)\n", DEFAULT_CAPTURE_BUFFER_SIZE);
+    fprintf(output, "  -B <buffer size>         size of kernel buffer in MiB (def: %dMiB)\n", DEFAULT_CAPTURE_BUFFER_SIZE);
 #endif
     fprintf(output, "  -y <link type>           link layer type (def: first appropriate)\n");
     fprintf(output, "  -D                       print list of interfaces and exit\n");
@@ -498,15 +533,25 @@ print_usage(gboolean print_ver)
     fprintf(output, "                              files:NUM - ringbuffer: replace after NUM files\n");
     fprintf(output, "  -n                       use pcapng format instead of pcap (default)\n");
     fprintf(output, "  -P                       use libpcap format instead of pcapng\n");
+    fprintf(output, "  --capture-comment <comment>\n");
+    fprintf(output, "                           add a capture comment to the output file\n");
+    fprintf(output, "                           (only for pcapng)\n");
     fprintf(output, "\n");
     fprintf(output, "Miscellaneous:\n");
     fprintf(output, "  -N <packet_limit>        maximum number of packets buffered within dumpcap\n");
-    fprintf(output, "  -C <byte_limit>          maximum number of bytes used for buffering packets within dumpcap\n");
+    fprintf(output, "  -C <byte_limit>          maximum number of bytes used for buffering packets\n");
+    fprintf(output, "                           within dumpcap\n");
     fprintf(output, "  -t                       use a separate thread per interface\n");
     fprintf(output, "  -q                       don't report packet capture counts\n");
     fprintf(output, "  -v                       print version information and exit\n");
     fprintf(output, "  -h                       display this help and exit\n");
     fprintf(output, "\n");
+#ifdef __linux__
+    fprintf(output, "WARNING: dumpcap will enable kernel BPF JIT compiler if available.\n");
+    fprintf(output, "You might want to reset it\n");
+    fprintf(output, "By doing \"echo 0 > /proc/sys/net/core/bpf_jit_enable\"\n");
+    fprintf(output, "\n");
+#endif
     fprintf(output, "Example: dumpcap -i eth0 -a duration:60 -w output.pcapng\n");
     fprintf(output, "\"Capture packets from interface eth0 until 60s passed into output.pcapng\"\n");
     fprintf(output, "\n");
@@ -523,27 +568,7 @@ show_version(GString *comp_info_str, GString *runtime_info_str)
         "%s\n"
         "%s\n"
         "See http://www.wireshark.org for more information.\n",
-        wireshark_svnversion, get_copyright_info(), comp_info_str->str, runtime_info_str->str);
-}
-
-/*
- * Print to the standard error.  This is a command-line tool, so there's
- * no need to pop up a console.
- */
-void
-vfprintf_stderr(const char *fmt, va_list ap)
-{
-    vfprintf(stderr, fmt, ap);
-}
-
-void
-fprintf_stderr(const char *fmt, ...)
-{
-    va_list ap;
-
-    va_start(ap, fmt);
-    vfprintf_stderr(fmt, ap);
-    va_end(ap);
+        wireshark_gitversion, get_copyright_info(), comp_info_str->str, runtime_info_str->str);
 }
 
 /*
@@ -740,11 +765,7 @@ open_capture_device(interface_options *interface_opts,
 
 static void
 get_capture_device_open_failure_messages(const char *open_err_str,
-                                         const char *iface
-#ifndef _WIN32
-                                                           _U_
-#endif
-                                         ,
+                                         const char *iface,
                                          char *errmsg, size_t errmsg_len,
                                          char *secondary_errmsg,
                                          size_t secondary_errmsg_len)
@@ -755,7 +776,8 @@ get_capture_device_open_failure_messages(const char *open_err_str,
 #endif
 
     g_snprintf(errmsg, (gulong) errmsg_len,
-               "The capture session could not be initiated (%s).", open_err_str);
+               "The capture session could not be initiated on interface '%s' (%s).",
+               iface, open_err_str);
 #ifdef _WIN32
     if (!has_wpcap) {
       g_snprintf(secondary_errmsg, (gulong) secondary_errmsg_len,
@@ -815,12 +837,7 @@ get_capture_device_open_failure_messages(const char *open_err_str,
 
 /* Set the data link type on a pcap. */
 static gboolean
-set_pcap_linktype(pcap_t *pcap_h, int linktype,
-#ifdef HAVE_PCAP_SET_DATALINK
-                  char *name _U_,
-#else
-                  char *name,
-#endif
+set_pcap_linktype(pcap_t *pcap_h, int linktype, char *name,
                   char *errmsg, size_t errmsg_len,
                   char *secondary_errmsg, size_t secondary_errmsg_len)
 {
@@ -839,8 +856,8 @@ set_pcap_linktype(pcap_t *pcap_h, int linktype,
     set_linktype_err_str =
         "That DLT isn't one of the DLTs supported by this device";
 #endif
-    g_snprintf(errmsg, (gulong) errmsg_len, "Unable to set data link type (%s).",
-               set_linktype_err_str);
+    g_snprintf(errmsg, (gulong) errmsg_len, "Unable to set data link type on interface '%s' (%s).",
+               name, set_linktype_err_str);
     /*
      * If the error isn't "XXX is not one of the DLTs supported by this device",
      * tell the user to tell the Wireshark developers about it.
@@ -969,7 +986,7 @@ show_filter_code(capture_options *capture_opts)
  * just call get_interface_list().
  */
 GList *
-capture_interface_list(int *err, char **err_str)
+capture_interface_list(int *err, char **err_str, void(*update_cb)(void) _U_)
 {
     return get_interface_list(err, err_str);
 }
@@ -1315,7 +1332,7 @@ print_machine_readable_interfaces(GList *if_list)
     for (if_entry = g_list_first(if_list); if_entry != NULL;
          if_entry = g_list_next(if_entry)) {
         if_info = (if_info_t *)if_entry->data;
-        printf("%d. %s", i++, if_info->name);
+        printf("%d. %s\t", i++, if_info->name);
 
         /*
          * Print the contents of the if_entry struct in a parseable format.
@@ -1324,15 +1341,17 @@ print_machine_readable_interfaces(GList *if_list)
          */
         /* XXX - Make sure our description doesn't contain a tab */
         if (if_info->vendor_description != NULL)
-            printf("\t%s\t", if_info->vendor_description);
+            printf("%s\t", if_info->vendor_description);
         else
-            printf("\t\t");
+            printf("\t");
 
         /* XXX - Make sure our friendly name doesn't contain a tab */
         if (if_info->friendly_name != NULL)
             printf("%s\t", if_info->friendly_name);
         else
             printf("\t");
+
+        printf("%i\t", if_info->type);
 
         for (addr = g_slist_nth(if_info->addrs, 0); addr != NULL;
                     addr = g_slist_next(addr)) {
@@ -1358,7 +1377,7 @@ print_machine_readable_interfaces(GList *if_list)
                 }
                 break;
             default:
-                printf("<type unknown %u>", if_addr->ifat_type);
+                printf("<type unknown %i>", if_addr->ifat_type);
             }
         }
 
@@ -1484,6 +1503,10 @@ print_statistics_loop(gboolean machine_readable)
             }
         }
 #ifdef _WIN32
+        /* If we have a dummy signal pipe check it */
+        if (!signal_pipe_check_running()) {
+            global_ld.go = FALSE;
+        }
         Sleep(1 * 1000);
 #else
         sleep(1);
@@ -1668,10 +1691,10 @@ cap_pipe_adjust_header(gboolean byte_swapped, struct pcap_hdr *hdr, struct pcapr
 {
     if (byte_swapped) {
         /* Byte-swap the record header fields. */
-        rechdr->ts_sec = BSWAP32(rechdr->ts_sec);
-        rechdr->ts_usec = BSWAP32(rechdr->ts_usec);
-        rechdr->incl_len = BSWAP32(rechdr->incl_len);
-        rechdr->orig_len = BSWAP32(rechdr->orig_len);
+        rechdr->ts_sec = GUINT32_SWAP_LE_BE(rechdr->ts_sec);
+        rechdr->ts_usec = GUINT32_SWAP_LE_BE(rechdr->ts_usec);
+        rechdr->incl_len = GUINT32_SWAP_LE_BE(rechdr->incl_len);
+        rechdr->orig_len = GUINT32_SWAP_LE_BE(rechdr->orig_len);
     }
 
     /* In file format version 2.3, the "incl_len" and "orig_len" fields were
@@ -1860,7 +1883,7 @@ cap_open_socket(char *pipename, pcap_options *pcap_opts, char *errmsg, int errms
 
   strncpy(buf, sockname, len);
   buf[len] = '\0';
-  if (!inet_pton(AF_INET, buf, &sa.sin_addr)) {
+  if (inet_pton(AF_INET, buf, &sa.sin_addr) <= 0) {
     goto fail_invalid;
   }
 
@@ -1943,7 +1966,7 @@ cap_pipe_open_live(char *pipename,
     wchar_t *err_str;
 #endif
     ssize_t  b;
-    int      fd, sel_ret;
+    int      fd = -1, sel_ret;
     size_t   bytes_read;
     guint32  magic = 0;
 
@@ -2114,14 +2137,18 @@ cap_pipe_open_live(char *pipename,
 
     pcap_opts->from_cap_pipe = TRUE;
 
-    if ((pcap_opts->from_cap_socket)
-#ifndef _WIN32
-         || 1
+#ifdef _WIN32
+    if (pcap_opts->from_cap_socket)
 #endif
-         ) {
+    {
         /* read the pcap header */
         bytes_read = 0;
         while (bytes_read < sizeof magic) {
+            if (fd == -1) {
+                g_snprintf(errmsg, errmsgl, "Invalid file descriptor");
+                goto error;
+            }
+
             sel_ret = cap_pipe_select(fd);
             if (sel_ret < 0) {
                 g_snprintf(errmsg, errmsgl,
@@ -2205,11 +2232,10 @@ cap_pipe_open_live(char *pipename,
         goto error;
     }
 
-    if ((pcap_opts->from_cap_socket)
-#ifndef _WIN32
-         || 1
+#ifdef _WIN32
+    if (pcap_opts->from_cap_socket)
 #endif
-         ) {
+    {
         /* Read the rest of the header */
         bytes_read = 0;
         while (bytes_read < sizeof(struct pcap_hdr)) {
@@ -2254,10 +2280,10 @@ cap_pipe_open_live(char *pipename,
 
     if (pcap_opts->cap_pipe_byte_swapped) {
         /* Byte-swap the header fields about which we care. */
-        hdr->version_major = BSWAP16(hdr->version_major);
-        hdr->version_minor = BSWAP16(hdr->version_minor);
-        hdr->snaplen = BSWAP32(hdr->snaplen);
-        hdr->network = BSWAP32(hdr->network);
+        hdr->version_major = GUINT16_SWAP_LE_BE(hdr->version_major);
+        hdr->version_minor = GUINT16_SWAP_LE_BE(hdr->version_minor);
+        hdr->snaplen = GUINT32_SWAP_LE_BE(hdr->snaplen);
+        hdr->network = GUINT32_SWAP_LE_BE(hdr->network);
     }
     pcap_opts->linktype = hdr->network;
 
@@ -2321,11 +2347,10 @@ cap_pipe_dispatch(loop_data *ld, pcap_options *pcap_opts, guchar *data, char *er
         /* Fall through */
 
     case STATE_READ_REC_HDR:
-        if ((pcap_opts->from_cap_socket)
-#ifndef _WIN32
-           || 1
+#ifdef _WIN32
+        if (pcap_opts->from_cap_socket)
 #endif
-           ) {
+        {
             b = cap_pipe_read(pcap_opts->cap_pipe_fd, ((char *)&pcap_opts->cap_pipe_rechdr)+pcap_opts->cap_pipe_bytes_read,
                  pcap_opts->cap_pipe_bytes_to_read - pcap_opts->cap_pipe_bytes_read, pcap_opts->from_cap_socket);
             if (b <= 0) {
@@ -2381,11 +2406,10 @@ cap_pipe_dispatch(loop_data *ld, pcap_options *pcap_opts, guchar *data, char *er
         /* Fall through */
 
     case STATE_READ_DATA:
-        if ((pcap_opts->from_cap_socket)
-#ifndef _WIN32
-           || 1
+#ifdef _WIN32
+        if (pcap_opts->from_cap_socket)
 #endif
-           ) {
+        {
             b = cap_pipe_read(pcap_opts->cap_pipe_fd,
                               data+pcap_opts->cap_pipe_bytes_read,
                               pcap_opts->cap_pipe_bytes_to_read - pcap_opts->cap_pipe_bytes_read,
@@ -2408,7 +2432,7 @@ cap_pipe_dispatch(loop_data *ld, pcap_options *pcap_opts, guchar *data, char *er
             g_get_current_time(&wait_time);
             g_time_val_add(&wait_time, PIPE_READ_TIMEOUT);
             q_status = g_async_queue_timed_pop(pcap_opts->cap_pipe_done_q, &wait_time);
-#endif
+#endif /* GLIB_CHECK_VERSION(2,31,18) */
             if (pcap_opts->cap_pipe_err == PIPEOF) {
                 result = PD_PIPE_EOF;
                 break;
@@ -2420,7 +2444,7 @@ cap_pipe_dispatch(loop_data *ld, pcap_options *pcap_opts, guchar *data, char *er
                 return 0;
             }
         }
-#endif
+#endif /* _WIN32 */
         if (pcap_opts->cap_pipe_bytes_read < pcap_opts->cap_pipe_bytes_to_read)
             return 0;
         result = PD_DATA_READ;
@@ -2628,11 +2652,11 @@ capture_loop_open_input(capture_options *capture_opts, loop_data *ld,
             if (interface_opts.buffer_size > 1 &&
                 pcap_setbuff(pcap_opts->pcap_h, interface_opts.buffer_size * 1024 * 1024) != 0) {
                 sync_secondary_msg_str = g_strdup_printf(
-                    "The capture buffer size of %dMB seems to be too high for your machine,\n"
-                    "the default of 1MB will be used.\n"
+                    "The capture buffer size of %d MiB seems to be too high for your machine,\n"
+                    "the default of %d MiB will be used.\n"
                     "\n"
                     "Nonetheless, the capture is started.\n",
-                    interface_opts.buffer_size);
+                    interface_opts.buffer_size, DEFAULT_CAPTURE_BUFFER_SIZE);
                 report_capture_error("Couldn't set the capture buffer size!",
                                      sync_secondary_msg_str);
                 g_free(sync_secondary_msg_str);
@@ -2851,9 +2875,9 @@ capture_loop_init_output(capture_options *capture_opts, loop_data *ld, char *err
             os_info_str = g_string_new("");
             get_os_version_info(os_info_str);
 
-            g_snprintf(appname, sizeof(appname), "Dumpcap " VERSION "%s", wireshark_svnversion);
-            successful = libpcap_write_session_header_block(libpcap_write_to_file, ld->pdh,
-                                NULL,                        /* Comment*/
+            g_snprintf(appname, sizeof(appname), "Dumpcap " VERSION "%s", wireshark_gitversion);
+            successful = pcapng_write_session_header_block(ld->pdh,
+                                (const char *)capture_opts->capture_comment,   /* Comment*/
                                 NULL,                        /* HW*/
                                 os_info_str->str,            /* OS*/
                                 appname,
@@ -2869,18 +2893,18 @@ capture_loop_init_output(capture_options *capture_opts, loop_data *ld, char *err
                 } else {
                     pcap_opts->snaplen = pcap_snapshot(pcap_opts->pcap_h);
                 }
-                successful = libpcap_write_interface_description_block(libpcap_write_to_file, global_ld.pdh,
-                                                                       NULL,                       /* OPT_COMMENT       1 */
-                                                                       interface_opts.name,        /* IDB_NAME          2 */
-                                                                       interface_opts.descr,       /* IDB_DESCRIPTION   3 */
-                                                                       interface_opts.cfilter,     /* IDB_FILTER       11 */
-                                                                       os_info_str->str,           /* IDB_OS           12 */
-                                                                       pcap_opts->linktype,
-                                                                       pcap_opts->snaplen,
-                                                                       &(global_ld.bytes_written),
-                                                                       0,                          /* IDB_IF_SPEED      8 */
-                                                                       pcap_opts->ts_nsec ? 9 : 6, /* IDB_TSRESOL       9 */
-                                                                       &global_ld.err);
+                successful = pcapng_write_interface_description_block(global_ld.pdh,
+                                                                      NULL,                       /* OPT_COMMENT       1 */
+                                                                      interface_opts.name,        /* IDB_NAME          2 */
+                                                                      interface_opts.descr,       /* IDB_DESCRIPTION   3 */
+                                                                      interface_opts.cfilter,     /* IDB_FILTER       11 */
+                                                                      os_info_str->str,           /* IDB_OS           12 */
+                                                                      pcap_opts->linktype,
+                                                                      pcap_opts->snaplen,
+                                                                      &(global_ld.bytes_written),
+                                                                      0,                          /* IDB_IF_SPEED      8 */
+                                                                      pcap_opts->ts_nsec ? 9 : 6, /* IDB_TSRESOL       9 */
+                                                                      &global_ld.err);
             }
 
             g_string_free(os_info_str, TRUE);
@@ -2892,7 +2916,7 @@ capture_loop_init_output(capture_options *capture_opts, loop_data *ld, char *err
             } else {
                 pcap_opts->snaplen = pcap_snapshot(pcap_opts->pcap_h);
             }
-            successful = libpcap_write_file_header(libpcap_write_to_file, ld->pdh, pcap_opts->linktype, pcap_opts->snaplen,
+            successful = libpcap_write_file_header(ld->pdh, pcap_opts->linktype, pcap_opts->snaplen,
                                                    pcap_opts->ts_nsec, &ld->bytes_written, &err);
         }
         if (!successful) {
@@ -2954,15 +2978,15 @@ capture_loop_close_output(capture_options *capture_opts, loop_data *ld, int *err
                         isb_ifrecv = G_MAXUINT64;
                         isb_ifdrop = G_MAXUINT64;
                     }
-                    libpcap_write_interface_statistics_block(libpcap_write_to_file, ld->pdh,
-                                                             i,
-                                                             &ld->bytes_written,
-                                                             "Counters provided by dumpcap",
-                                                             start_time,
-                                                             end_time,
-                                                             isb_ifrecv,
-                                                             isb_ifdrop,
-                                                             err_close);
+                    pcapng_write_interface_statistics_block(ld->pdh,
+                                                            i,
+                                                            &ld->bytes_written,
+                                                            "Counters provided by dumpcap",
+                                                            start_time,
+                                                            end_time,
+                                                            isb_ifrecv,
+                                                            isb_ifdrop,
+                                                            err_close);
                 }
             }
         }
@@ -3344,8 +3368,8 @@ do_file_switch_or_stop(capture_options *capture_opts,
                 os_info_str = g_string_new("");
                 get_os_version_info(os_info_str);
 
-                g_snprintf(appname, sizeof(appname), "Dumpcap " VERSION "%s", wireshark_svnversion);
-                successful = libpcap_write_session_header_block(libpcap_write_to_file, global_ld.pdh,
+                g_snprintf(appname, sizeof(appname), "Dumpcap " VERSION "%s", wireshark_gitversion);
+                successful = pcapng_write_session_header_block(global_ld.pdh,
                                 NULL,                        /* Comment */
                                 NULL,                        /* HW */
                                 os_info_str->str,            /* OS */
@@ -3357,25 +3381,25 @@ do_file_switch_or_stop(capture_options *capture_opts,
                 for (i = 0; successful && (i < capture_opts->ifaces->len); i++) {
                     interface_opts = g_array_index(capture_opts->ifaces, interface_options, i);
                     pcap_opts = g_array_index(global_ld.pcaps, pcap_options *, i);
-                    successful = libpcap_write_interface_description_block(libpcap_write_to_file, global_ld.pdh,
-                                                                           NULL,                       /* OPT_COMMENT       1 */
-                                                                           interface_opts.name,        /* IDB_NAME          2 */
-                                                                           interface_opts.descr,       /* IDB_DESCRIPTION   3 */
-                                                                           interface_opts.cfilter,     /* IDB_FILTER       11 */
-                                                                           os_info_str->str,           /* IDB_OS           12 */
-                                                                           pcap_opts->linktype,
-                                                                           pcap_opts->snaplen,
-                                                                           &(global_ld.bytes_written),
-                                                                           0,                          /* IDB_IF_SPEED      8 */
-                                                                           pcap_opts->ts_nsec ? 9 : 6, /* IDB_TSRESOL       9 */
-                                                                           &global_ld.err);
+                    successful = pcapng_write_interface_description_block(global_ld.pdh,
+                                                                          NULL,                       /* OPT_COMMENT       1 */
+                                                                          interface_opts.name,        /* IDB_NAME          2 */
+                                                                          interface_opts.descr,       /* IDB_DESCRIPTION   3 */
+                                                                          interface_opts.cfilter,     /* IDB_FILTER       11 */
+                                                                          os_info_str->str,           /* IDB_OS           12 */
+                                                                          pcap_opts->linktype,
+                                                                          pcap_opts->snaplen,
+                                                                          &(global_ld.bytes_written),
+                                                                          0,                          /* IDB_IF_SPEED      8 */
+                                                                          pcap_opts->ts_nsec ? 9 : 6, /* IDB_TSRESOL       9 */
+                                                                          &global_ld.err);
                 }
 
                 g_string_free(os_info_str, TRUE);
 
             } else {
                 pcap_opts = g_array_index(global_ld.pcaps, pcap_options *, 0);
-                successful = libpcap_write_file_header(libpcap_write_to_file, global_ld.pdh, pcap_opts->linktype, pcap_opts->snaplen,
+                successful = libpcap_write_file_header(global_ld.pdh, pcap_opts->linktype, pcap_opts->snaplen,
                                                        pcap_opts->ts_nsec, &global_ld.bytes_written, &global_ld.err);
             }
             if (!successful) {
@@ -3546,9 +3570,13 @@ capture_loop_start(capture_options *capture_opts, gboolean *stats_known, struct 
     /* initialize capture stop (and alike) conditions */
     init_capture_stop_conditions();
     /* create stop conditions */
-    if (capture_opts->has_autostop_filesize)
+    if (capture_opts->has_autostop_filesize) {
+        if (capture_opts->autostop_filesize > (((guint32)INT_MAX + 1) / 1000)) {
+            capture_opts->autostop_filesize = ((guint32)INT_MAX + 1) / 1000;
+        }
         cnd_autostop_size =
-            cnd_new(CND_CLASS_CAPTURESIZE,(long)capture_opts->autostop_filesize * 1024);
+            cnd_new(CND_CLASS_CAPTURESIZE, (guint64)capture_opts->autostop_filesize * 1000);
+    }
     if (capture_opts->has_autostop_duration)
         cnd_autostop_duration =
             cnd_new(CND_CLASS_TIMEOUT,(gint32)capture_opts->autostop_duration);
@@ -3649,7 +3677,7 @@ capture_loop_start(capture_options *capture_opts, gboolean *stats_known, struct 
 
             /* check capture size condition */
             if (cnd_autostop_size != NULL &&
-                cnd_eval(cnd_autostop_size, (guint32)global_ld.bytes_written)) {
+                cnd_eval(cnd_autostop_size, global_ld.bytes_written)) {
                 /* Capture size limit reached, do we have another file? */
                 if (!do_file_switch_or_stop(capture_opts, cnd_autostop_files,
                                             cnd_autostop_size, cnd_file_duration))
@@ -3671,8 +3699,8 @@ capture_loop_start(capture_options *capture_opts, gboolean *stats_known, struct 
         if ((cur_time - upd_time) > DUMPCAP_UPD_TIME) { /* wrap just causes an extra update */
 #else
         gettimeofday(&cur_time, NULL);
-        if ((cur_time.tv_sec * 1000000 + cur_time.tv_usec) >
-            (upd_time.tv_sec * 1000000 + upd_time.tv_usec + DUMPCAP_UPD_TIME*1000)) {
+        if (((guint64)cur_time.tv_sec * 1000000 + cur_time.tv_usec) >
+            ((guint64)upd_time.tv_sec * 1000000 + upd_time.tv_usec + DUMPCAP_UPD_TIME*1000)) {
 #endif
 
             upd_time = cur_time;
@@ -3854,6 +3882,11 @@ capture_loop_start(capture_options *capture_opts, gboolean *stats_known, struct 
         if (pcap_opts->pcap_h != NULL) {
             g_assert(!pcap_opts->from_cap_pipe);
             /* Get the capture statistics, so we know how many packets were dropped. */
+            /*
+             * Older versions of libpcap didn't set ps_ifdrop on some
+             * platforms; initialize it to 0 to handle that.
+             */
+            stats->ps_ifdrop = 0;
             if (pcap_stats(pcap_opts->pcap_h, stats) >= 0) {
                 *stats_known = TRUE;
                 /* Let the parent process know. */
@@ -3865,7 +3898,7 @@ capture_loop_start(capture_options *capture_opts, gboolean *stats_known, struct 
                 report_capture_error(errmsg, please_report);
             }
         }
-        report_packet_drops(received, pcap_dropped, pcap_opts->dropped, pcap_opts->flushed, interface_opts.console_display_name);
+        report_packet_drops(received, pcap_dropped, pcap_opts->dropped, pcap_opts->flushed, stats->ps_ifdrop, interface_opts.console_display_name);
     }
 
     /* close the input file (pcap or capture pipe) */
@@ -3995,17 +4028,17 @@ capture_loop_write_packet_cb(u_char *pcap_opts_p, const struct pcap_pkthdr *phdr
            If this fails, set "ld->go" to FALSE, to stop the capture, and set
            "ld->err" to the error. */
         if (global_capture_opts.use_pcapng) {
-            successful = libpcap_write_enhanced_packet_block(libpcap_write_to_file, global_ld.pdh,
-                                                             NULL,
-                                                             phdr->ts.tv_sec, phdr->ts.tv_usec,
-                                                             phdr->caplen, phdr->len,
-                                                             pcap_opts->interface_id,
-                                                             ts_mul,
-                                                             pd, 0,
-                                                             &global_ld.bytes_written, &err);
+            successful = pcapng_write_enhanced_packet_block(global_ld.pdh,
+                                                            NULL,
+                                                            phdr->ts.tv_sec, (gint32)phdr->ts.tv_usec,
+                                                            phdr->caplen, phdr->len,
+                                                            pcap_opts->interface_id,
+                                                            ts_mul,
+                                                            pd, 0,
+                                                            &global_ld.bytes_written, &err);
         } else {
-            successful = libpcap_write_packet(libpcap_write_to_file, global_ld.pdh,
-                                              phdr->ts.tv_sec, phdr->ts.tv_usec,
+            successful = libpcap_write_packet(global_ld.pdh,
+                                              phdr->ts.tv_sec, (gint32)phdr->ts.tv_usec,
                                               phdr->caplen, phdr->len,
                                               pd,
                                               &global_ld.bytes_written, &err);
@@ -4015,9 +4048,11 @@ capture_loop_write_packet_cb(u_char *pcap_opts_p, const struct pcap_pkthdr *phdr
             global_ld.err = err;
             pcap_opts->dropped++;
         } else {
+#if defined(DEBUG_DUMPCAP) || defined(DEBUG_CHILD_DUMPCAP)
             g_log(LOG_DOMAIN_CAPTURE_CHILD, G_LOG_LEVEL_INFO,
                   "Wrote a packet of length %d captured on interface %u.",
                    phdr->caplen, pcap_opts->interface_id);
+#endif
             global_ld.packet_count++;
             pcap_opts->received++;
             /* if the user told us to stop after x packets, do we already have enough? */
@@ -4141,6 +4176,11 @@ main(int argc, char *argv[])
     GString          *comp_info_str;
     GString          *runtime_info_str;
     int               opt;
+    struct option     long_options[] = {
+        {(char *)"capture-comment", required_argument, NULL, LONGOPT_NUM_CAP_COMMENT },
+        {0, 0, 0, 0 }
+    };
+
     gboolean          arg_error             = FALSE;
 
 #ifdef _WIN32
@@ -4184,7 +4224,7 @@ main(int argc, char *argv[])
            "%s"
            "\n"
            "%s",
-        wireshark_svnversion, comp_info_str->str, runtime_info_str->str);
+        wireshark_gitversion, comp_info_str->str, runtime_info_str->str);
 
 #ifdef _WIN32
     arg_list_utf_16to8(argc, argv);
@@ -4390,6 +4430,10 @@ main(int argc, char *argv[])
 #endif /* SIGINFO */
 #endif  /* _WIN32 */
 
+#ifdef __linux__
+    enable_kernel_bpf_jit_compiler();
+#endif
+
     /* ----------------------------------------------------------------- */
     /* Privilege and capability handling                                 */
     /* Cases:                                                            */
@@ -4474,15 +4518,18 @@ main(int argc, char *argv[])
 
     /* Set the initial values in the capture options. This might be overwritten
        by the command line parameters. */
-    capture_opts_init(&global_capture_opts, NULL);
+    capture_opts_init(&global_capture_opts);
 
     /* We always save to a file - if no file was specified, we save to a
        temporary file. */
     global_capture_opts.saving_to_file      = TRUE;
     global_capture_opts.has_ring_num_files  = TRUE;
 
+	/* Pass on capture_child mode for capture_opts */
+	global_capture_opts.capture_child = capture_child;
+
     /* Now get our args */
-    while ((opt = getopt(argc, argv, OPTSTRING)) != -1) {
+    while ((opt = getopt_long(argc, argv, OPTSTRING, long_options, NULL)) != -1) {
         switch (opt) {
         case 'h':        /* Print help and exit */
             print_usage(TRUE);
@@ -4509,6 +4556,7 @@ main(int argc, char *argv[])
         case 's':        /* Set the snapshot (capture) length */
         case 'w':        /* Write to capture file x */
         case 'y':        /* Set the pcap data link type */
+        case  LONGOPT_NUM_CAP_COMMENT: /* add a capture comment */
 #ifdef HAVE_PCAP_REMOTE
         case 'u':        /* Use UDP for data transfer */
         case 'r':        /* Capture own RPCAP traffic too */
@@ -4645,11 +4693,20 @@ main(int argc, char *argv[])
         }
     } else {
         /* We're supposed to capture traffic; */
+
         /* Are we capturing on multiple interface? If so, use threads and pcapng. */
         if (global_capture_opts.ifaces->len > 1) {
             use_threads = TRUE;
             global_capture_opts.use_pcapng = TRUE;
         }
+
+        if (global_capture_opts.capture_comment &&
+            (!global_capture_opts.use_pcapng || global_capture_opts.multi_files_on)) {
+            /* XXX - for ringbuffer, should we apply the comment to each file? */
+            cmdarg_err("A capture comment can only be set if we capture into a single pcapng file.");
+            exit_main(1);
+        }
+
         /* Was the ring buffer option specified and, if so, does it make sense? */
         if (global_capture_opts.multi_files_on) {
             /* Ring buffer works only under certain conditions:
@@ -4680,7 +4737,7 @@ main(int argc, char *argv[])
         int    err;
         gchar *err_str;
 
-        if_list = capture_interface_list(&err, &err_str);
+        if_list = capture_interface_list(&err, &err_str,NULL);
         if (if_list == NULL) {
             switch (err) {
             case CANT_GET_INTERFACE_LIST:
@@ -4739,7 +4796,7 @@ main(int argc, char *argv[])
      * "-L", "-d", and capturing act on a particular interface, so we have to
      * have an interface; if none was specified, pick a default.
      */
-    status = capture_opts_trim_iface(&global_capture_opts, NULL);
+    status = capture_opts_default_iface_if_necessary(&global_capture_opts, NULL);
     if (status != 0) {
         /* cmdarg_err() already called .... */
         exit_main(status);
@@ -5008,7 +5065,7 @@ report_cfilter_error(capture_options *capture_opts, guint i, const char *errmsg)
              */
             interface_opts = g_array_index(capture_opts->ifaces, interface_options, i);
             cmdarg_err(
-              "Invalid capture filter \"%s\" for interface %s!\n"
+              "Invalid capture filter \"%s\" for interface '%s'!\n"
               "\n"
               "That string isn't a valid capture filter (%s).\n"
               "See the User's Guide for a description of the capture filter syntax.",
@@ -5034,7 +5091,7 @@ report_capture_error(const char *error_msg, const char *secondary_error_msg)
 }
 
 static void
-report_packet_drops(guint32 received, guint32 pcap_drops, guint32 drops, guint32 flushed, gchar *name)
+report_packet_drops(guint32 received, guint32 pcap_drops, guint32 drops, guint32 flushed, guint32 ps_ifdrop, gchar *name)
 {
     char tmp[SP_DECISIZE+1+1];
     guint32 total_drops = pcap_drops + drops + flushed;
@@ -5043,14 +5100,14 @@ report_packet_drops(guint32 received, guint32 pcap_drops, guint32 drops, guint32
 
     if (capture_child) {
         g_log(LOG_DOMAIN_CAPTURE_CHILD, G_LOG_LEVEL_DEBUG,
-            "Packets received/dropped on interface %s: %u/%u (pcap:%u/dumpcap:%u/flushed:%u)",
-            name, received, total_drops, pcap_drops, drops, flushed);
+            "Packets received/dropped on interface '%s': %u/%u (pcap:%u/dumpcap:%u/flushed:%u/ps_ifdrop:%u)",
+            name, received, total_drops, pcap_drops, drops, flushed, ps_ifdrop);
         /* XXX: Need to provide interface id, changes to consumers required. */
         pipe_write_block(2, SP_DROPS, tmp);
     } else {
         fprintf(stderr,
-            "Packets received/dropped on interface '%s': %u/%u (pcap:%u/dumpcap:%u/flushed:%u) (%.1f%%)\n",
-            name, received, total_drops, pcap_drops, drops, flushed,
+            "Packets received/dropped on interface '%s': %u/%u (pcap:%u/dumpcap:%u/flushed:%u/ps_ifdrop:%u) (%.1f%%)\n",
+            name, received, total_drops, pcap_drops, drops, flushed, ps_ifdrop,
             received ? 100.0 * received / (received + total_drops) : 0.0);
         /* stderr could be line buffered */
         fflush(stderr);
@@ -5105,6 +5162,10 @@ signal_pipe_check_running(void)
     }
 }
 #endif
+
+
+
+
 
 /*
  * Editor modelines  -  http://www.wireshark.org/tools/modelines.html

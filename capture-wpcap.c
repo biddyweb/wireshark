@@ -3,8 +3,6 @@
  * time, so that we only need one Wireshark binary and one TShark binary
  * for Windows, regardless of whether WinPcap is installed or not.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -127,7 +125,7 @@ typedef struct {
 	gboolean	optional;
 } symbol_table_t;
 
-#define SYM(x, y)	{ STRINGIFY(x) , (gpointer) &CONCAT(p_,x), y }
+#define SYM(x, y)	{ G_STRINGIFY(x) , (gpointer) &CONCAT(p_,x), y }
 
 void
 load_wpcap(void)
@@ -903,7 +901,7 @@ cant_get_if_list_error_message(const char *err_str)
 void
 get_compiled_pcap_version(GString *str)
 {
-	g_string_append(str, "with WinPcap (" STRINGIFY(PCAP_VERSION) ")");
+	g_string_append(str, "with WinPcap (" G_STRINGIFY(WINPCAP_VERSION) ")");
 }
 
 /*

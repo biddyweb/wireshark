@@ -1,7 +1,5 @@
 /* print_dialog.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -42,7 +40,7 @@ class PrintDialog;
 class PrintDialog : public QDialog
 {
     Q_OBJECT
-    
+
 public:
     explicit PrintDialog(QWidget *parent = 0, capture_file *cf = NULL);
     ~PrintDialog();

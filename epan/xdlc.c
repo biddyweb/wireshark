@@ -2,8 +2,6 @@
  * Routines for use by various SDLC-derived protocols, such as HDLC
  * and its derivatives LAPB, IEEE 802.2 LLC, etc..
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,7 @@
 #include <epan/packet.h>
 #include <epan/xdlc.h>
 #include <epan/emem.h>
+#include <wsutil/pint.h>
 
 const value_string ftype_vals[] = {
     { XDLC_I, "Information frame" },
@@ -146,7 +145,7 @@ get_xdlc_control(const guchar *pd, int offset, gboolean is_extended)
 	 * Supervisory or Information frame.
 	 */
 	if (is_extended)
-		control = pletohs(&pd[offset]);
+		control = pletoh16(&pd[offset]);
 	else
 		control = pd[offset];
 	break;
@@ -207,11 +206,11 @@ check_xdlc_control(tvbuff_t *tvb, int offset,
 		u_modifier_short_vals_resp = modifier_short_vals_resp;
 	control = tvb_get_guint8(tvb, offset);
 	if (is_response) {
-		if (match_strval(control & XDLC_U_MODIFIER_MASK,
+		if (try_val_to_str(control & XDLC_U_MODIFIER_MASK,
 		    u_modifier_short_vals_resp) == NULL)
 			return FALSE;	/* unknown modifier */
 	} else {
-		if (match_strval(control & XDLC_U_MODIFIER_MASK,
+		if (try_val_to_str(control & XDLC_U_MODIFIER_MASK,
 		    u_modifier_short_vals_cmd) == NULL)
 			return FALSE;	/* unknown modifier */
 	}
@@ -244,7 +243,7 @@ dissect_xdlc_control(tvbuff_t *tvb, int offset, packet_info *pinfo,
     const gchar *frame_type = NULL;
     const gchar *modifier;
 
-    info=ep_alloc(80);
+    info=(char *)ep_alloc(80);
     switch (tvb_get_guint8(tvb, offset) & 0x03) {
 
     case XDLC_S:
@@ -296,12 +295,11 @@ dissect_xdlc_control(tvbuff_t *tvb, int offset, packet_info *pinfo,
 		 	frame_type,
 			(control & XDLC_N_R_MASK) >> XDLC_N_R_SHIFT);
 	}
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-	    if (append_info) {
-	    	col_append_str(pinfo->cinfo, COL_INFO, ", ");
-		col_append_str(pinfo->cinfo, COL_INFO, info);
-	    } else
-		col_add_str(pinfo->cinfo, COL_INFO, info);
+	if (append_info) {
+	    col_append_str(pinfo->cinfo, COL_INFO, ", ");
+	    col_append_str(pinfo->cinfo, COL_INFO, info);
+	} else {
+	    col_add_str(pinfo->cinfo, COL_INFO, info);
 	}
 	if (xdlc_tree) {
 	    tc = proto_tree_add_uint_format(xdlc_tree, hf_xdlc_control, tvb,
@@ -355,12 +353,11 @@ dissect_xdlc_control(tvbuff_t *tvb, int offset, packet_info *pinfo,
 		    (is_response ? " F" : " P") :
 		    ""),
 		modifier);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-	    if (append_info) {
-	    	col_append_str(pinfo->cinfo, COL_INFO, ", ");
-		col_append_str(pinfo->cinfo, COL_INFO, info);
-	    } else
-		col_add_str(pinfo->cinfo, COL_INFO, info);
+	if (append_info) {
+	    col_append_str(pinfo->cinfo, COL_INFO, ", ");
+    	col_append_str(pinfo->cinfo, COL_INFO, info);
+	} else {
+	    col_add_str(pinfo->cinfo, COL_INFO, info);
 	}
 	if (xdlc_tree) {
 	    tc = proto_tree_add_uint_format(xdlc_tree, hf_xdlc_control,	tvb,
@@ -407,12 +404,11 @@ dissect_xdlc_control(tvbuff_t *tvb, int offset, packet_info *pinfo,
 			(control & XDLC_N_R_MASK) >> XDLC_N_R_SHIFT,
 			(control & XDLC_N_S_MASK) >> XDLC_N_S_SHIFT);
 	}
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-	    if (append_info) {
-	    	col_append_str(pinfo->cinfo, COL_INFO, ", ");
-		col_append_str(pinfo->cinfo, COL_INFO, info);
-	    } else
-		col_add_str(pinfo->cinfo, COL_INFO, info);
+	if (append_info) {
+	    col_append_str(pinfo->cinfo, COL_INFO, ", ");
+    	col_append_str(pinfo->cinfo, COL_INFO, info);
+	} else {
+	    col_add_str(pinfo->cinfo, COL_INFO, info);
 	}
 	if (xdlc_tree) {
 	    tc = proto_tree_add_uint_format(xdlc_tree, hf_xdlc_control, tvb,

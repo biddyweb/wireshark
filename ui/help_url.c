@@ -1,7 +1,5 @@
 /* help_url.c
  *
- * $Id$
- *
  * Some content from gtk/help_dlg.c by Laurent Deniel <laurent.deniel@free.fr>
  *
  * Wireshark - Network traffic analyzer
@@ -30,7 +28,7 @@
 #include <glib.h>
 
 #include "help_url.h"
-#include "epan/filesystem.h"
+#include "wsutil/filesystem.h"
 
 #ifdef HHC_DIR
 #include <windows.h>
@@ -179,23 +177,29 @@ topic_action_url(topic_action_e action)
     case(LOCALPAGE_MAN_WIRESHARK_FILTER):
         url = data_file_url("wireshark-filter.html");
         break;
-    case(LOCALPAGE_MAN_TSHARK):
-        url = data_file_url("tshark.html");
-        break;
-    case(LOCALPAGE_MAN_RAWSHARK):
-        url = data_file_url("rawshark.html");
+    case(LOCALPAGE_MAN_CAPINFOS):
+        url = data_file_url("capinfos.html");
         break;
     case(LOCALPAGE_MAN_DUMPCAP):
         url = data_file_url("dumpcap.html");
         break;
-    case(LOCALPAGE_MAN_MERGECAP):
-        url = data_file_url("mergecap.html");
-        break;
     case(LOCALPAGE_MAN_EDITCAP):
         url = data_file_url("editcap.html");
         break;
+    case(LOCALPAGE_MAN_MERGECAP):
+        url = data_file_url("mergecap.html");
+        break;
+    case(LOCALPAGE_MAN_RAWSHARK):
+        url = data_file_url("rawshark.html");
+        break;
+    case(LOCALPAGE_MAN_REORDERCAP):
+        url = data_file_url("reordercap.html");
+        break;
     case(LOCALPAGE_MAN_TEXT2PCAP):
         url = data_file_url("text2pcap.html");
+        break;
+    case(LOCALPAGE_MAN_TSHARK):
+        url = data_file_url("tshark.html");
         break;
 
     /* local help pages (User's Guide) */

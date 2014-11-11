@@ -1,7 +1,5 @@
 /* packet-ansi_tcap.h
  *
- * $Id$
- *
  * Copyright 2007 Anders Broman <anders.broman@ericsson.com>
  *
  * Wireshark - Network traffic analyzer
@@ -32,22 +30,22 @@
 struct ansi_tcap_private_t {
   guint32 signature;
   gboolean oid_is_present; /* Is the Application Context Version present */
-  void * objectApplicationId_oid;
+  const void * objectApplicationId_oid;
   guint32 session_id;
   void * context;
   gchar *TransactionID_str;
   struct {  /* "dynamic" data */
     gint pdu;
-      /* 
-         1 : invoke, 
-         2 : returnResult, 
+      /*
+         1 : invoke,
+         2 : returnResult,
          3 : returnError,
          4 : reject
       */
-    gint OperationCode;  
-      /* 
-         0 : national, 
-         1 : private 
+    gint OperationCode;
+      /*
+         0 : national,
+         1 : private
       */
     gint32 OperationCode_national;
     gint32 OperationCode_private;

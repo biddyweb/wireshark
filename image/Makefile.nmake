@@ -1,12 +1,10 @@
 #
-# $Id$
-#
 
 include ..\config.nmake
 
 # Nmake uses an implicit rule to build a .res from a .rc file!
 
-ALL_RC=wireshark.rc libwireshark.rc tshark.rc rawshark.rc capinfos.rc editcap.rc text2pcap.rc mergecap.rc reordercap.rc wiretap.rc dumpcap.rc libwsutil.rc wireshark.exe.manifest
+ALL_RC=wireshark.rc libwireshark.rc tshark.rc tfshark.rc rawshark.rc capinfos.rc captype.rc editcap.rc text2pcap.rc mergecap.rc reordercap.rc filetap.rc wiretap.rc dumpcap.rc libwsutil.rc wireshark.exe.manifest
 all : $(ALL_RC)
 
 wireshark.exe.manifest: wireshark.exe.manifest.in ..\config.nmake
@@ -26,12 +24,17 @@ libwireshark.rc: libwireshark.rc.in ..\config.nmake
 		-e s/@RC_VERSION@/$(RC_VERSION)/ \
 		< libwireshark.rc.in > $@
 
-tshark.rc  : tshark.rc.in ..\config.nmake
+tshark.rc  : tshark.rc.in wireshark.exe.manifest ..\config.nmake
 	sed -e s/@VERSION@/$(VERSION)/ \
 		-e s/@RC_VERSION@/$(RC_VERSION)/ \
 		< tshark.rc.in > $@
 
-rawshark.rc  : rawshark.rc.in ..\config.nmake
+tfshark.rc  : tfshark.rc.in wireshark.exe.manifest ..\config.nmake
+	sed -e s/@VERSION@/$(VERSION)/ \
+		-e s/@RC_VERSION@/$(RC_VERSION)/ \
+		< tfshark.rc.in > $@
+
+rawshark.rc  : rawshark.rc.in wireshark.exe.manifest ..\config.nmake
 	sed -e s/@VERSION@/$(VERSION)/ \
 		-e s/@RC_VERSION@/$(RC_VERSION)/ \
 		< rawshark.rc.in > $@
@@ -40,6 +43,11 @@ capinfos.rc    : capinfos.rc.in ..\config.nmake
 	sed -e s/@VERSION@/$(VERSION)/ \
 		-e s/@RC_VERSION@/$(RC_VERSION)/ \
 		< capinfos.rc.in > $@
+
+captype.rc    : captype.rc.in ..\config.nmake
+	sed -e s/@VERSION@/$(VERSION)/ \
+		-e s/@RC_VERSION@/$(RC_VERSION)/ \
+		< captype.rc.in > $@
 
 editcap.rc    : editcap.rc.in ..\config.nmake
 	sed -e s/@VERSION@/$(VERSION)/ \
@@ -61,6 +69,11 @@ text2pcap.rc  : text2pcap.rc.in ..\config.nmake
 		-e s/@RC_VERSION@/$(RC_VERSION)/ \
 		< text2pcap.rc.in > $@
 
+filetap.rc    : filetap.rc.in ..\config.nmake
+	sed -e s/@VERSION@/$(FTAP_VERSION)/ \
+		-e s/@RC_VERSION@/$(RC_FTAP_VERSION)/ \
+		< filetap.rc.in > $@
+
 wiretap.rc    : wiretap.rc.in ..\config.nmake
 	sed -e s/@VERSION@/$(WTAP_VERSION)/ \
 		-e s/@RC_VERSION@/$(RC_WTAP_VERSION)/ \
@@ -71,7 +84,7 @@ libwsutil.rc  : libwsutil.rc.in ..\config.nmake
 		-e s/@RC_VERSION@/$(RC_VERSION)/ \
 		< libwsutil.rc.in > $@
 
-dumpcap.rc   : dumpcap.rc.in ..\config.nmake
+dumpcap.rc   : dumpcap.rc.in wireshark.exe.manifest ..\config.nmake
 	sed -e s/@VERSION@/$(VERSION)/ \
 		-e s/@RC_VERSION@/$(RC_VERSION)/ \
 		< dumpcap.rc.in > $@

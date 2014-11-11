@@ -5,8 +5,6 @@
  *
  * Copyright 2009 by Thomas Dreibholz <dreibh [AT] iem.uni-due.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,8 @@
 #include <epan/packet.h>
 #include <epan/sctpppids.h>
 
+void proto_register_npmp(void);
+void proto_reg_handoff_npmp(void);
 
 static int  proto_npmp      = -1;
 static gint ett_npmp        = -1;
@@ -48,6 +48,10 @@ static gint ett_onoffarray  = -1;
    static int hf_##variable           = -1;        \
    static const int offset_##variable = offset;    \
    static const int length_##variable = length;
+
+#define INIT_FIELD_WITHOUT_LEN(variable, offset) \
+   static int hf_##variable           = -1;        \
+   static const int offset_##variable = offset;
 
 #define NETPERFMETER_ACKNOWLEDGE    0x01
 #define NETPERFMETER_ADD_FLOW       0x02
@@ -105,7 +109,7 @@ INIT_FIELD(addflow_maxmsgsize,        138,  2)
 INIT_FIELD(addflow_cmt,               140,  1)
 INIT_FIELD(addflow_ccid,              141,  1)
 INIT_FIELD(addflow_onoffevents,       142,  2)
-INIT_FIELD(addflow_onoffeventarray,   144,  4)
+INIT_FIELD_WITHOUT_LEN(addflow_onoffeventarray,   144)
 
 INIT_FIELD(removeflow_flowid,           4,  4)
 INIT_FIELD(removeflow_measurementid,    8,  8)
@@ -124,7 +128,7 @@ INIT_FIELD(data_frameid,         20,  4)
 INIT_FIELD(data_packetseqnumber, 24,  8)
 INIT_FIELD(data_byteseqnumber,   32,  8)
 INIT_FIELD(data_timestamp,       40,  8)
-INIT_FIELD(data_payload,         48,  0)
+INIT_FIELD_WITHOUT_LEN(data_payload,         48)
 
 /* INIT_FIELD(start_padding,         4,  4) */
 INIT_FIELD(start_measurementid,   8,  8)
@@ -132,7 +136,7 @@ INIT_FIELD(start_measurementid,   8,  8)
 /* INIT_FIELD(stop_padding,          4,  4) */
 INIT_FIELD(stop_measurementid,    8,  8)
 
-INIT_FIELD(results_data,          4,  0)
+INIT_FIELD_WITHOUT_LEN(results_data,          4)
 
 
 /* Setup list of Transport Layer protocol types */
@@ -379,9 +383,7 @@ dissect_npmp_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *npmp
   guint8 type;
 
   type = tvb_get_guint8(message_tvb, offset_message_type);
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(type, message_type_values, "Unknown NetPerfMeterProtocol type"));
-  }
+  col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(type, message_type_values, "Unknown NetPerfMeterProtocol type"));
 
   ADD_FIELD_UINT(npmp_tree, message_type);
   ADD_FIELD_UINT(npmp_tree, message_flags);

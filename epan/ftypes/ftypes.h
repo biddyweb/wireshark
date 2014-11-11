@@ -1,8 +1,6 @@
 /* ftypes.h
  * Definitions for field types
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -27,7 +25,6 @@
 #define __FTYPES_H__
 
 #include <glib.h>
-#include "../emem.h"
 #include "ws_symbol_export.h"
 
 #ifdef __cplusplus
@@ -56,7 +53,6 @@ enum ftenum {
 	FT_STRING,
 	FT_STRINGZ,	/* for use with proto_tree_add_item() */
 	FT_UINT_STRING,	/* for use with proto_tree_add_item() */
-	/*FT_UCS2_LE, */    /* Unicode, 2 byte, Little Endian     */
 	FT_ETHER,
 	FT_BYTES,
 	FT_UINT_BYTES,
@@ -69,13 +65,17 @@ enum ftenum {
 	FT_OID,		/* OBJECT IDENTIFIER */
 	FT_EUI64,
 	FT_AX25,
+	FT_VINES,
+	FT_REL_OID,	/* RELATIVE-OID */
+	FT_SYSTEM_ID,
+	FT_STRINGZPAD,	/* for use with proto_tree_add_item() */
 	FT_NUM_TYPES /* last item number plus one */
 };
 
 #define IS_FT_INT(ft)    ((ft)==FT_INT8||(ft)==FT_INT16||(ft)==FT_INT24||(ft)==FT_INT32||(ft)==FT_INT64)
 #define IS_FT_UINT(ft)   ((ft)==FT_UINT8||(ft)==FT_UINT16||(ft)==FT_UINT24||(ft)==FT_UINT32||(ft)==FT_UINT64||(ft)==FT_FRAMENUM)
 #define IS_FT_TIME(ft)   ((ft)==FT_ABSOLUTE_TIME||(ft)==FT_RELATIVE_TIME)
-#define IS_FT_STRING(ft) ((ft)==FT_STRING||(ft)==FT_STRINGZ)
+#define IS_FT_STRING(ft) ((ft)==FT_STRING||(ft)==FT_STRINGZ||(ft)==FT_STRINGZPAD)
 
 /* field types lengths */
 #define FT_ETHER_LEN        6
@@ -85,8 +85,11 @@ enum ftenum {
 #define FT_IPXNET_LEN       4
 #define FT_EUI64_LEN        8
 #define FT_AX25_ADDR_LEN    7
+#define FT_VINES_ADDR_LEN	6
 
 typedef enum ftenum ftenum_t;
+
+struct _ftype_t;
 typedef struct _ftype_t ftype_t;
 
 /* String representation types. */
@@ -102,6 +105,11 @@ void
 ftypes_initialize(void);
 
 /* ---------------- FTYPE ----------------- */
+
+/* given two types, are they similar - for example can two
+ * duplicate fields be registered of these two types. */
+gboolean
+ftype_similar_types(const enum ftenum ftype_a, const enum ftenum ftype_b);
 
 /* Return a string representing the name of the type */
 WS_DLL_PUBLIC
@@ -165,7 +173,7 @@ ftype_can_matches(enum ftenum ftype);
 #include <epan/guid-utils.h>
 
 #include <epan/tvbuff.h>
-#include <epan/nstime.h>
+#include <wsutil/nstime.h>
 #include <epan/dfilter/drange.h>
 
 typedef struct _fvalue_t {
@@ -193,72 +201,7 @@ typedef struct _fvalue_t {
 
 } fvalue_t;
 
-typedef void (*FvalueNewFunc)(fvalue_t*);
-typedef void (*FvalueFreeFunc)(fvalue_t*);
 typedef void (*LogFunc)(const char*,...);
-
-typedef gboolean (*FvalueFromUnparsed)(fvalue_t*, char*, gboolean, LogFunc);
-typedef gboolean (*FvalueFromString)(fvalue_t*, char*, LogFunc);
-typedef void (*FvalueToStringRepr)(fvalue_t*, ftrepr_t, char*volatile);
-typedef int (*FvalueStringReprLen)(fvalue_t*, ftrepr_t);
-
-typedef void (*FvalueSetFunc)(fvalue_t*, gpointer, gboolean);
-typedef void (*FvalueSetUnsignedIntegerFunc)(fvalue_t*, guint32);
-typedef void (*FvalueSetSignedIntegerFunc)(fvalue_t*, gint32);
-typedef void (*FvalueSetInteger64Func)(fvalue_t*, guint64);
-typedef void (*FvalueSetFloatingFunc)(fvalue_t*, gdouble);
-
-typedef gpointer (*FvalueGetFunc)(fvalue_t*);
-typedef guint32 (*FvalueGetUnsignedIntegerFunc)(fvalue_t*);
-typedef gint32  (*FvalueGetSignedIntegerFunc)(fvalue_t*);
-typedef guint64 (*FvalueGetInteger64Func)(fvalue_t*);
-typedef double (*FvalueGetFloatingFunc)(fvalue_t*);
-
-typedef gboolean (*FvalueCmp)(const fvalue_t*, const fvalue_t*);
-
-typedef guint (*FvalueLen)(fvalue_t*);
-typedef void (*FvalueSlice)(fvalue_t*, GByteArray *, guint offset, guint length);
-
-struct _ftype_t {
-	ftenum_t		ftype;
-	const char		*name;
-	const char		*pretty_name;
-	int			wire_size;
-	FvalueNewFunc		new_value;
-	FvalueFreeFunc		free_value;
-	FvalueFromUnparsed	val_from_unparsed;
-	FvalueFromString	val_from_string;
-	FvalueToStringRepr	val_to_string_repr;
-	FvalueStringReprLen	len_string_repr;
-
-	/* could be union */
-	FvalueSetFunc		set_value;
-	FvalueSetUnsignedIntegerFunc	set_value_uinteger;
-	FvalueSetSignedIntegerFunc		set_value_sinteger;
-	FvalueSetInteger64Func	set_value_integer64;
-	FvalueSetFloatingFunc	set_value_floating;
-
-	/* could be union */
-	FvalueGetFunc		get_value;
-	FvalueGetUnsignedIntegerFunc	get_value_uinteger;
-	FvalueGetSignedIntegerFunc		get_value_sinteger;
-	FvalueGetInteger64Func	get_value_integer64;
-	FvalueGetFloatingFunc	get_value_floating;
-
-	FvalueCmp		cmp_eq;
-	FvalueCmp		cmp_ne;
-	FvalueCmp		cmp_gt;
-	FvalueCmp		cmp_ge;
-	FvalueCmp		cmp_lt;
-	FvalueCmp		cmp_le;
-	FvalueCmp		cmp_bitwise_and;
-	FvalueCmp		cmp_contains;
-	FvalueCmp		cmp_matches;
-
-	FvalueLen		len;
-	FvalueSlice		slice;
-};
-
 
 fvalue_t*
 fvalue_new(ftenum_t ftype);
@@ -266,31 +209,12 @@ fvalue_new(ftenum_t ftype);
 void
 fvalue_init(fvalue_t *fv, ftenum_t ftype);
 
-/* Free all memory used by an fvalue_t. With MSVC and a
- * libwireshark.dll, we need a special declaration.
- */
-
-#define FVALUE_CLEANUP(fv)					\
-	{							\
-		register FvalueFreeFunc	free_value;		\
-		free_value = (fv)->ftype->free_value;	\
-		if (free_value) {				\
-			free_value((fv));			\
-		}						\
-	}
-
-#define FVALUE_FREE(fv)						\
-	{							\
-		FVALUE_CLEANUP(fv)				\
-		g_slice_free(fvalue_t, fv);			\
-	}
-
 WS_DLL_PUBLIC
 fvalue_t*
-fvalue_from_unparsed(ftenum_t ftype, char *s, gboolean allow_partial_value, LogFunc logfunc);
+fvalue_from_unparsed(ftenum_t ftype, const char *s, gboolean allow_partial_value, LogFunc logfunc);
 
 fvalue_t*
-fvalue_from_string(ftenum_t ftype, char *s, LogFunc logfunc);
+fvalue_from_string(ftenum_t ftype, const char *s, LogFunc logfunc);
 
 /* Returns the length of the string required to hold the
  * string representation of the the field value.
@@ -315,14 +239,29 @@ fvalue_string_repr_len(fvalue_t *fv, ftrepr_t rtype);
 WS_DLL_PUBLIC char *
 fvalue_to_string_repr(fvalue_t *fv, ftrepr_t rtype, char *buf);
 
-ftype_t*
-fvalue_ftype(fvalue_t *fv);
+WS_DLL_PUBLIC ftenum_t
+fvalue_type_ftenum(fvalue_t *fv);
 
 const char*
 fvalue_type_name(fvalue_t *fv);
 
 void
-fvalue_set(fvalue_t *fv, gpointer value, gboolean already_copied);
+fvalue_set_byte_array(fvalue_t *fv, GByteArray *value);
+
+void
+fvalue_set_bytes(fvalue_t *fv, const guint8 *value);
+
+void
+fvalue_set_guid(fvalue_t *fv, const e_guid_t *value);
+
+void
+fvalue_set_time(fvalue_t *fv, const nstime_t *value);
+
+void
+fvalue_set_string(fvalue_t *fv, const gchar *value);
+
+void
+fvalue_set_tvbuff(fvalue_t *fv, tvbuff_t *value);
 
 void
 fvalue_set_uinteger(fvalue_t *fv, guint32 value);

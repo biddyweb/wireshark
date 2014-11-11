@@ -1,8 +1,6 @@
 /* packet-ipvs-syncd.c   2001 Ronnie Sahlberg <See AUTHORS for email>
  * Routines for IGMP packet disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,9 @@
 #include <epan/packet.h>
 #include <epan/ipproto.h>
 #include <epan/in_cksum.h>
+
+void proto_register_ipvs_syncd(void);
+void proto_reg_handoff_ipvs_syncd(void);
 
 static int proto_ipvs_syncd = -1;
 static int hf_conn_count = -1;

@@ -2,8 +2,6 @@
  * Routines for parameter dialog used by gui taps
  * Copyright 2003 Lars Roland
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,7 +30,6 @@
 
 #include <epan/stat_cmd_args.h>
 
-#include "ui/simple_dialog.h"
 #include "../file.h"
 #include "../globals.h"
 #include "../stat_menu.h"
@@ -65,10 +62,62 @@ static tap_param_dlg_list_item *current_dlg = NULL;
  * We register it both as a command-line stat and a menu item stat.
  */
 void
-register_dfilter_stat(tap_param_dlg *info, const char *name _U_,
-    register_stat_group_t group _U_ )
+register_param_stat(tap_param_dlg *info, const char *name,
+    register_stat_group_t group)
 {
+    gchar *full_name;
+    const gchar *stock_id = NULL;
+
     register_stat_cmd_arg(info->init_string, info->tap_init_cb, NULL);
+
+    /*
+     * This menu item will pop up a dialog box, so append "..."
+     * to it.
+     */
+    full_name = g_strdup_printf("%s...", name);
+
+    switch (group) {
+
+    case REGISTER_ANALYZE_GROUP_UNSORTED:
+    case REGISTER_ANALYZE_GROUP_CONVERSATION_FILTER:
+    case REGISTER_STAT_GROUP_UNSORTED:
+    case REGISTER_STAT_GROUP_GENERIC:
+        break;
+
+    case REGISTER_STAT_GROUP_CONVERSATION_LIST:
+        stock_id = WIRESHARK_STOCK_CONVERSATIONS;
+        break;
+
+    case REGISTER_STAT_GROUP_ENDPOINT_LIST:
+        stock_id = WIRESHARK_STOCK_ENDPOINTS;
+        break;
+
+    case REGISTER_STAT_GROUP_RESPONSE_TIME:
+        stock_id = WIRESHARK_STOCK_TIME;
+        break;
+
+    case REGISTER_STAT_GROUP_TELEPHONY:
+    case REGISTER_STAT_GROUP_TELEPHONY_GSM:
+    case REGISTER_STAT_GROUP_TELEPHONY_LTE:
+    case REGISTER_STAT_GROUP_TELEPHONY_SCTP:
+        break;
+
+    case REGISTER_TOOLS_GROUP_UNSORTED:
+        break;
+    }
+
+    register_menu_bar_menu_items(
+        stat_group_name(group), /* GUI path to the place holder in the menu */
+        name,                   /* Action name */
+        stock_id,               /* Stock id */
+        full_name,              /* label */
+        NULL,                   /* Accelerator */
+        NULL,                   /* Tooltip */
+        tap_param_dlg_cb,       /* Callback */
+        info,                   /* Callback data */
+        TRUE,                   /* Enabled */
+        NULL,
+        NULL);
 }
 
 void tap_param_dlg_update (void)
@@ -101,6 +150,7 @@ tap_param_dlg_start_button_clicked(GtkWidget *item _U_, gpointer dialog_data)
 {
     GString *params;
     size_t i;
+    gdouble d;
     gint j;
 
     tap_param_dlg_list_item *dlg_data = (tap_param_dlg_list_item *) dialog_data;
@@ -117,6 +167,10 @@ tap_param_dlg_start_button_clicked(GtkWidget *item _U_, gpointer dialog_data)
             break;
 
         case PARAM_UINT:
+            d = gtk_spin_button_get_value(GTK_SPIN_BUTTON(dlg_data->param_items[i]));
+            g_string_append_printf(params,"%u",(guint)d);
+            break;
+
         case PARAM_STRING:
         case PARAM_FILTER:
             g_string_append(params,
@@ -157,7 +211,7 @@ tap_param_dlg_cb(GtkAction *action _U_, gpointer data)
             end_dlg_list = end_dlg_list->next;
         }
         end_dlg_list->dlg = NULL;
-        end_dlg_list->param_items = g_malloc(dlg_data->nparams * sizeof (GtkWidget *));
+        end_dlg_list->param_items = (GtkWidget **)g_malloc(dlg_data->nparams * sizeof (GtkWidget *));
         end_dlg_list->cont.win_title = dlg_data->win_title;
         end_dlg_list->cont.init_string = dlg_data->init_string;
         end_dlg_list->cont.tap_init_cb = dlg_data->tap_init_cb;
@@ -210,6 +264,19 @@ tap_param_dlg_cb(GtkAction *action _U_, gpointer data)
         switch (current_dlg->cont.params[i].type) {
 
         case PARAM_UINT:
+            /* Label */
+            label_with_colon=g_strdup_printf("%s:", current_dlg->cont.params[i].title);
+            label=gtk_label_new(label_with_colon);
+            g_free(label_with_colon);
+            gtk_box_pack_start(GTK_BOX(item_box), label, FALSE, TRUE, 0);
+            gtk_widget_show(label);
+
+            /* Spin button */
+            item=gtk_spin_button_new_with_range(0, G_MAXUINT, 1);
+            gtk_spin_button_set_numeric(GTK_SPIN_BUTTON(item), TRUE);
+
+            break;
+
         case PARAM_STRING:
             /* Label */
             label_with_colon=g_strdup_printf("%s:", current_dlg->cont.params[i].title);
@@ -241,7 +308,7 @@ tap_param_dlg_cb(GtkAction *action _U_, gpointer data)
 
         case PARAM_FILTER:
             /* Filter button */
-            filter_bt=gtk_button_new_from_stock(WIRESHARK_STOCK_DISPLAY_FILTER_ENTRY);
+            filter_bt=ws_gtk_button_new_from_stock(WIRESHARK_STOCK_DISPLAY_FILTER_ENTRY);
             g_signal_connect(filter_bt, "clicked", G_CALLBACK(display_filter_construct_cb), &(current_dlg->args));
             gtk_box_pack_start(GTK_BOX(item_box), filter_bt, FALSE, TRUE, 0);
             gtk_widget_show(filter_bt);
@@ -281,11 +348,11 @@ tap_param_dlg_cb(GtkAction *action _U_, gpointer data)
     gtk_box_pack_start(GTK_BOX(dlg_box), bbox, FALSE, FALSE, 0);
     gtk_widget_show(bbox);
 
-    start_button = g_object_get_data(G_OBJECT(bbox), WIRESHARK_STOCK_CREATE_STAT);
+    start_button = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), WIRESHARK_STOCK_CREATE_STAT);
     g_signal_connect(start_button, "clicked",
                      G_CALLBACK(tap_param_dlg_start_button_clicked), current_dlg);
 
-    cancel_button = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
+    cancel_button = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
     window_set_cancel_button(current_dlg->dlg, cancel_button, window_cancel_button_cb);
 
     /* Catch the "activate" signal on all the text entries, so that
@@ -296,10 +363,10 @@ tap_param_dlg_cb(GtkAction *action _U_, gpointer data)
     for(i=0;i<current_dlg->cont.nparams;i++){
         switch (current_dlg->cont.params[i].type) {
 
+        case PARAM_UINT:
         case PARAM_ENUM:
             break;
 
-        case PARAM_UINT:
         case PARAM_STRING:
         case PARAM_FILTER:
             dlg_set_activate(current_dlg->param_items[i], start_button);

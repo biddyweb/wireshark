@@ -3,8 +3,6 @@
  * Copyright 2008-2009, Stephen Fisher (see AUTHORS file)
  * Co-authors Anders Broman, Kovarththanan Rajaratnam and Stig Bjorlykke.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,13 +25,14 @@
 
 #include "config.h"
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-#include <stdio.h>
 #include <gtk/gtk.h>
 #include <glib.h>
 
-#include <epan/column_info.h>
+#include <epan/column-info.h>
 #include <epan/prefs.h>
 #include <epan/packet.h>
 #include <epan/epan_dissect.h>
@@ -42,11 +41,11 @@
 #include <epan/emem.h>
 
 #include "ui/main_statusbar.h"
+#include "ui/packet_list_utils.h"
 #include "ui/preference_utils.h"
 #include "ui/progress_dlg.h"
 #include "ui/recent.h"
 #include "ui/recent_utils.h"
-#include "ui/simple_dialog.h"
 #include "ui/ui_util.h"
 
 #include "gui_utils.h"
@@ -144,7 +143,7 @@ packet_list_recreate(void)
 }
 
 guint
-packet_list_append(column_info *cinfo _U_, frame_data *fdata, packet_info *pinfo _U_)
+packet_list_append(column_info *cinfo _U_, frame_data *fdata)
 {
 	/* fdata should be filled with the stuff we need
 	 * strings are built at display time.
@@ -159,77 +158,6 @@ packet_list_append(column_info *cinfo _U_, frame_data *fdata, packet_info *pinfo
 	return visible_pos;
 }
 
-static gboolean
-right_justify_column (gint col)
-{
-	header_field_info *hfi;
-	gboolean right_justify = FALSE;
-
-	switch (cfile.cinfo.col_fmt[col]) {
-
-	case COL_NUMBER:
-	case COL_PACKET_LENGTH:
-	case COL_CUMULATIVE_BYTES:
-	case COL_DCE_CALL:
-	case COL_DSCP_VALUE:
-	case COL_UNRES_DST_PORT:
-	case COL_UNRES_SRC_PORT:
-	case COL_DEF_DST_PORT:
-	case COL_DEF_SRC_PORT:
-	case COL_DELTA_TIME:
-	case COL_DELTA_TIME_DIS:
-		right_justify = TRUE;
-		break;
-
-	case COL_CUSTOM:
-		hfi = proto_registrar_get_byname(cfile.cinfo.col_custom_field[col]);
-		/* Check if this is a valid field and we have no strings lookup table */
-		if ((hfi != NULL) && ((hfi->strings == NULL) || !get_column_resolved(col))) {
-			/* Check for bool, framenum and decimal/octal integer types */
-			if ((hfi->type == FT_BOOLEAN) || (hfi->type == FT_FRAMENUM) ||
-				(((hfi->display == BASE_DEC) || (hfi->display == BASE_OCT)) &&
-				 (IS_FT_INT(hfi->type) || IS_FT_UINT(hfi->type)))) {
-				right_justify = TRUE;
-			}
-		}
-		break;
-
-	default:
-		break;
-	}
-
-	return right_justify;
-}
-
-static gboolean
-resolve_column (gint col)
-{
-	header_field_info *hfi;
-	gboolean resolve = FALSE;
-
-	switch (cfile.cinfo.col_fmt[col]) {
-
-	case COL_CUSTOM:
-		hfi = proto_registrar_get_byname(cfile.cinfo.col_custom_field[col]);
-		/* Check if this is a valid field */
-		if (hfi != NULL) {
-			/* Check if we have an OID or a strings table with integer values */
-		  	if ((hfi->type == FT_OID) ||
-			    ((hfi->strings != NULL) &&
-			     ((hfi->type == FT_BOOLEAN) || (hfi->type == FT_FRAMENUM) ||
-			      IS_FT_INT(hfi->type) || IS_FT_UINT(hfi->type)))) {
-				resolve = TRUE;
-			}
-		}
-		break;
-
-	default:
-		break;
-	}
-
-	return resolve;
-}
-
 static void
 col_title_change_ok (GtkWidget *w, gpointer parent_w)
 {
@@ -239,7 +167,7 @@ col_title_change_ok (GtkWidget *w, gpointer parent_w)
 	gchar        *escaped_title;
 	gboolean      recreate = FALSE;
 
-	col = g_object_get_data (G_OBJECT(w), COL_EDIT_COLUMN);
+	col = (GtkTreeViewColumn *)g_object_get_data (G_OBJECT(w), COL_EDIT_COLUMN);
 	col_id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(col), E_MPACKET_LIST_COL_KEY));
 
 	title = gtk_entry_get_text(GTK_ENTRY(g_object_get_data (G_OBJECT(w), COL_EDIT_TITLE_TE)));
@@ -302,10 +230,10 @@ col_details_format_changed_cb(GtkWidget *w, gpointer data _U_)
 	GtkWidget *field_lb, *field_te, *occurrence_lb, *occurrence_te;
 	gint       cur_fmt;
 
-	field_lb = g_object_get_data (G_OBJECT(w), COL_EDIT_FIELD_LB);
-	field_te = g_object_get_data (G_OBJECT(w), COL_EDIT_FIELD_TE);
-	occurrence_lb = g_object_get_data (G_OBJECT(w), COL_EDIT_OCCURRENCE_LB);
-	occurrence_te = g_object_get_data (G_OBJECT(w), COL_EDIT_OCCURRENCE_TE);
+	field_lb = (GtkWidget *)g_object_get_data (G_OBJECT(w), COL_EDIT_FIELD_LB);
+	field_te = (GtkWidget *)g_object_get_data (G_OBJECT(w), COL_EDIT_FIELD_TE);
+	occurrence_lb = (GtkWidget *)g_object_get_data (G_OBJECT(w), COL_EDIT_OCCURRENCE_LB);
+	occurrence_te = (GtkWidget *)g_object_get_data (G_OBJECT(w), COL_EDIT_OCCURRENCE_TE);
 
 	cur_fmt = gtk_combo_box_get_active(GTK_COMBO_BOX(w));
 
@@ -407,7 +335,7 @@ col_details_edit_dlg (gint col_id, GtkTreeViewColumn *col)
 	bbox = dlg_button_row_new(GTK_STOCK_CANCEL,GTK_STOCK_OK, NULL);
 	gtk_box_pack_end(GTK_BOX(main_vb), bbox, FALSE, FALSE, 0);
 
-	ok_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+	ok_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
 	g_object_set_data (G_OBJECT(ok_bt), COL_EDIT_COLUMN, col);
 	g_object_set_data (G_OBJECT(ok_bt), COL_EDIT_FORMAT_CMB, format_cmb);
 	g_object_set_data (G_OBJECT(ok_bt), COL_EDIT_TITLE_TE, title_te);
@@ -431,7 +359,7 @@ col_details_edit_dlg (gint col_id, GtkTreeViewColumn *col)
 	dlg_set_activate(field_te, ok_bt);
 	dlg_set_activate(occurrence_te, ok_bt);
 
-	cancel_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
+	cancel_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
 	g_signal_connect(cancel_bt, "clicked", G_CALLBACK(col_title_change_cancel), win);
 	window_set_cancel_button(win, cancel_bt, NULL);
 
@@ -528,7 +456,7 @@ static void
 packet_list_xalign_column (gint col_id, GtkTreeViewColumn *col, gchar xalign)
 {
 	GList *renderers = gtk_cell_layout_get_cells (GTK_CELL_LAYOUT(col));
-	gboolean right_justify = right_justify_column(col_id);
+	gboolean right_justify = right_justify_column(col_id, &cfile);
 	gdouble value = get_xalign_value (xalign, right_justify);
 	GList *entry;
 	GtkCellRenderer *renderer;
@@ -675,12 +603,12 @@ static gboolean
 packet_list_column_button_pressed_cb (GtkWidget *widget, GdkEvent *event, gpointer data)
 {
 	GtkWidget *col = (GtkWidget *) data;
-	GtkWidget *menu = g_object_get_data(G_OBJECT(popup_menu_object), PM_PACKET_LIST_COL_KEY);
+	GtkWidget *menu = (GtkWidget *)g_object_get_data(G_OBJECT(popup_menu_object), PM_PACKET_LIST_COL_KEY);
 	gint       col_id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(col), E_MPACKET_LIST_COL_KEY));
-	gboolean   right_justify = right_justify_column (col_id);
+	gboolean   right_justify = right_justify_column (col_id, &cfile);
 
 	menus_set_column_align_default (right_justify);
-	menus_set_column_resolved (get_column_resolved (col_id), resolve_column (col_id));
+	menus_set_column_resolved (get_column_resolved (col_id), resolve_column (col_id, &cfile));
 	g_object_set_data(G_OBJECT(packetlist->view), E_MPACKET_LIST_COLUMN_KEY, col);
 	return popup_menu_handler (widget, event, menu);
 }
@@ -702,7 +630,7 @@ column_dnd_changed_cb(GtkTreeView *tree_view, gpointer data _U_)
 
 	list = columns = gtk_tree_view_get_columns(tree_view);
 	while (columns) {
-		column = columns->data;
+		column = (GtkTreeViewColumn *)columns->data;
 		old_col_id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(column), E_MPACKET_LIST_COL_KEY));
 
 		clp = g_list_nth (prefs.col_list, old_col_id);
@@ -766,13 +694,14 @@ create_view_and_model(void)
 		renderer = gtk_cell_renderer_text_new();
 		col = gtk_tree_view_column_new();
 		gtk_tree_view_column_pack_start(col, renderer, TRUE);
-		value = get_xalign_value(recent_get_column_xalign(i), right_justify_column(i));
+		value = get_xalign_value(recent_get_column_xalign(i), right_justify_column(i, &cfile));
 		g_object_set(G_OBJECT(renderer),
 			     "xalign", value,
 			     NULL);
 		g_object_set(renderer,
 			     "ypad", 0,
 			     NULL);
+		gtk_tree_view_column_add_attribute(col, renderer, "text", i);
 		gtk_tree_view_column_set_cell_data_func(col, renderer,
 							show_cell_data_func,
 							GINT_TO_POINTER(i),
@@ -1253,7 +1182,7 @@ static void
 packet_list_double_click_cb(GtkTreeView *treeview, GtkTreePath *path _U_,
 				GtkTreeViewColumn *col _U_, gpointer userdata _U_)
 {
-	new_packet_window(GTK_WIDGET(treeview), FALSE);
+	new_packet_window(GTK_WIDGET(treeview), FALSE, FALSE);
 }
 
 gboolean
@@ -1316,23 +1245,13 @@ packet_list_get_row_data(gint row)
 
 static void
 show_cell_data_func(GtkTreeViewColumn *col _U_, GtkCellRenderer *renderer,
-			GtkTreeModel *model, GtkTreeIter *iter, gpointer data)
+			GtkTreeModel *model, GtkTreeIter *iter, gpointer data _U_)
 {
-	guint col_num = GPOINTER_TO_INT(data);
-	frame_data *fdata;
-	gchar *cell_text;
+	frame_data *fdata = packet_list_get_record(model, iter);
 
 	gboolean color_on;
 	GdkColor fg_gdk;
 	GdkColor bg_gdk;
-
-	gtk_tree_model_get(model, iter,
-			col_num, &cell_text,
-			/* The last column is reserved for frame_data */
-			gtk_tree_model_get_n_columns(model)-1, &fdata,
-			-1);
-
-	g_assert(cell_text);
 
 	if (fdata->flags.ignored) {
 		color_t_to_gdkcolor(&fg_gdk, &prefs.gui_ignored_fg);
@@ -1343,7 +1262,7 @@ show_cell_data_func(GtkTreeViewColumn *col _U_, GtkCellRenderer *renderer,
 		color_t_to_gdkcolor(&bg_gdk, &prefs.gui_marked_bg);
 		color_on = TRUE;
 	} else if (fdata->color_filter) {
-		const color_filter_t *color_filter = fdata->color_filter;
+		const color_filter_t *color_filter = (const color_filter_t *)fdata->color_filter;
 
 		color_t_to_gdkcolor(&fg_gdk, &color_filter->fg_color);
 		color_t_to_gdkcolor(&bg_gdk, &color_filter->bg_color);
@@ -1353,7 +1272,6 @@ show_cell_data_func(GtkTreeViewColumn *col _U_, GtkCellRenderer *renderer,
 
 	if (color_on) {
 		g_object_set(renderer,
-			 "text", cell_text,
 			 "foreground-gdk", &fg_gdk,
 			 "foreground-set", TRUE,
 			 "background-gdk", &bg_gdk,
@@ -1361,12 +1279,10 @@ show_cell_data_func(GtkTreeViewColumn *col _U_, GtkCellRenderer *renderer,
 			 NULL);
 	} else {
 		g_object_set(renderer,
-			 "text", cell_text,
 			 "foreground-set", FALSE,
 			 "background-set", FALSE,
 			 NULL);
 	}
-	g_free(cell_text);
 }
 
 void
@@ -1642,7 +1558,7 @@ packet_list_copy_summary_cb(gpointer data _U_, copy_summary_type copy_type)
 	g_string_free(text,TRUE);
 }
 
-const gchar *
+gchar *
 packet_list_get_packet_comment(void)
 {
 	GtkTreeModel *model;
@@ -1657,7 +1573,7 @@ packet_list_get_packet_comment(void)
 
 	fdata = packet_list_get_record(model, &iter);
 
-	return fdata->opt_comment;
+	return cf_get_comment(&cfile, fdata);
 }
 
 void
@@ -1668,15 +1584,19 @@ packet_list_return_all_comments(GtkTextBuffer *buffer)
 	gchar *buf_str;
 
 	for (framenum = 1; framenum <= cfile.count ; framenum++) {
+		char *pkt_comment;
+
 		fdata = frame_data_sequence_find(cfile.frames, framenum);
-		if (fdata->opt_comment) {
-			buf_str = g_strdup_printf("Frame %u: %s \n\n",framenum, fdata->opt_comment);
+		pkt_comment = cf_get_comment(&cfile, fdata);
+		if (pkt_comment) {
+			buf_str = g_strdup_printf("Frame %u: %s \n\n",framenum, pkt_comment);
 			gtk_text_buffer_insert_at_cursor (buffer, buf_str, -1);
 			g_free(buf_str);
+			g_free(pkt_comment);
 		}
 		if (gtk_text_buffer_get_char_count(buffer) > MAX_COMMENTS_TO_FETCH) {
 			buf_str = g_strdup_printf("[ Comment text exceeds %s. Stopping. ]",
-						  format_size(MAX_COMMENTS_TO_FETCH, format_size_unit_bytes|format_size_prefix_si));
+						  format_size(MAX_COMMENTS_TO_FETCH, (format_size_flags_e)(format_size_unit_bytes|format_size_prefix_si)));
 			gtk_text_buffer_insert_at_cursor (buffer, buf_str, -1);
 			return;
 		}
@@ -1699,22 +1619,15 @@ packet_list_update_packet_comment(gchar *new_packet_comment)
 
 	fdata = packet_list_get_record(model, &iter);
 
-	/* Check if the comment has changed */
-	if (fdata->opt_comment) {
-		if (strcmp(fdata->opt_comment, new_packet_comment) == 0) {
-			g_free(new_packet_comment);
-			return;
-		}
-	}
-
 	/* Check if we are clearing the comment */
 	if(strlen(new_packet_comment) == 0) {
 		g_free(new_packet_comment);
 		new_packet_comment = NULL;
 	}
 
-	/* The comment has changed, let's update it */
-	cf_update_packet_comment(&cfile, fdata, new_packet_comment);
+	cf_set_user_packet_comment(&cfile, fdata, new_packet_comment);
+
+	g_free(new_packet_comment);
 
 	/* Update the main window, as we now have unsaved changes. */
 	main_update_for_unsaved_changes(&cfile);
@@ -1790,6 +1703,8 @@ query_packet_list_tooltip_cb(GtkWidget *widget, gint x, gint y, gboolean keyboar
 		return result;
 
 	if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(tree_view), x, y, NULL, &column, NULL, NULL)) {
+		char *pkt_comment;
+
 		num_cols = g_list_length(prefs.col_list);
 
 		for (col = 0; col < num_cols; col++) {
@@ -1798,8 +1713,10 @@ query_packet_list_tooltip_cb(GtkWidget *widget, gint x, gint y, gboolean keyboar
 		}
 
 		fdata = packet_list_get_record(model, &iter);
-		if (fdata->opt_comment != NULL) {
-			gtk_tooltip_set_markup (tooltip, fdata->opt_comment);
+		pkt_comment = cf_get_comment(&cfile, fdata);
+
+		if (pkt_comment != NULL) {
+			gtk_tooltip_set_markup(tooltip, pkt_comment);
 			renderer_list = gtk_cell_layout_get_cells(GTK_CELL_LAYOUT(column));
 			/* get the first renderer */
 			if (g_list_first(renderer_list)) {
@@ -1807,6 +1724,7 @@ query_packet_list_tooltip_cb(GtkWidget *widget, gint x, gint y, gboolean keyboar
 				gtk_tree_view_set_tooltip_cell (tree_view, tooltip, path, column, renderer);
 			}
 			g_list_free(renderer_list);
+			g_free(pkt_comment);
 			result = TRUE;
 		}
 	}

@@ -2,8 +2,6 @@
  * Routines for X.509 Information Framework packet dissection
  *  Ronnie Sahlberg 2004
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,7 @@
 #include <epan/packet.h>
 #include <epan/oids.h>
 #include <epan/asn1.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-ber.h"
 #include "packet-dap.h"
@@ -41,6 +40,9 @@
 #define PSNAME "X509IF"
 #define PFNAME "x509if"
 
+void proto_register_x509if(void);
+void proto_reg_handoff_x509if(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_x509if = -1;
 static int hf_x509if_object_identifier_id = -1;
@@ -50,7 +52,6 @@ static int hf_x509if_any_string = -1;
 /* Initialize the subtree pointers */
 #include "packet-x509if-ett.c"
 
-static const char *object_identifier_id = NULL;
 static proto_tree *top_of_dn = NULL;
 static proto_tree *top_of_rdn = NULL;
 
@@ -73,7 +74,6 @@ static char *last_ava = NULL;
 static void
 x509if_frame_end(void)
 {
-  object_identifier_id = NULL;
   top_of_dn = NULL;
   top_of_rdn = NULL;
 
@@ -109,7 +109,7 @@ gboolean x509if_register_fmt(int hf_index, const gchar *fmt)
 
     return TRUE;
 
-  } else 
+  } else
     return FALSE; /* couldn't register it */
 
 }
@@ -124,13 +124,13 @@ void proto_register_x509if(void) {
 
   /* List of fields */
   static hf_register_info hf[] = {
-    { &hf_x509if_object_identifier_id, 
+    { &hf_x509if_object_identifier_id,
       { "Id", "x509if.id", FT_OID, BASE_NONE, NULL, 0,
 	"Object identifier Id", HFILL }},
-    { &hf_x509if_any_string, 
+    { &hf_x509if_any_string,
       { "AnyString", "x509if.any.String", FT_BYTES, BASE_NONE,
 	    NULL, 0, "This is any String", HFILL }},
-			 
+
 #include "packet-x509if-hfarr.c"
   };
 

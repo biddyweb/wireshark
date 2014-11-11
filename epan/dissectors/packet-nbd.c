@@ -3,8 +3,6 @@
  *
  * Ronnie sahlberg 2006
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,8 +29,11 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include "packet-tcp.h"
+
+void proto_register_nbd(void);
+void proto_reg_handoff_nbd(void);
 
 static gint proto_nbd = -1;
 static int hf_nbd_magic = -1;
@@ -59,8 +60,8 @@ typedef struct _nbd_transaction_t {
 	guint8 type;
 } nbd_transaction_t;
 typedef struct _nbd_conv_info_t {
-        emem_tree_t *unacked_pdus;    /* indexed by handle, whichs wraps quite frequently  */
-        emem_tree_t *acked_pdus;    /* indexed by packet# and handle */
+        wmem_tree_t *unacked_pdus;    /* indexed by handle, whichs wraps quite frequently  */
+        wmem_tree_t *acked_pdus;    /* indexed by packet# and handle */
 } nbd_conv_info_t;
 
 
@@ -88,7 +89,7 @@ get_nbd_tcp_pdu_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 	conversation_t *conversation;
 	nbd_conv_info_t *nbd_info;
 	nbd_transaction_t *nbd_trans=NULL;
-	emem_tree_key_t hkey[3];
+	wmem_tree_key_t hkey[3];
 	guint32 handle[2];
 
 	magic=tvb_get_ntohl(tvb, offset);
@@ -117,7 +118,7 @@ get_nbd_tcp_pdu_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 		/*
 		 * Do we have a state structure for this conv
 		 */
-		nbd_info = conversation_get_proto_data(conversation, proto_nbd);
+		nbd_info = (nbd_conv_info_t *)conversation_get_proto_data(conversation, proto_nbd);
 		if (!nbd_info) {
 			/* No, so just return the rest of the current packet */
 			return tvb_length(tvb);
@@ -131,7 +132,7 @@ get_nbd_tcp_pdu_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 			hkey[0].length=2;
 			hkey[0].key=handle;
 			hkey[1].length=0;
-			nbd_trans=se_tree_lookup32_array(nbd_info->unacked_pdus, hkey);
+			nbd_trans=(nbd_transaction_t *)wmem_tree_lookup32_array(nbd_info->unacked_pdus, hkey);
 			if(!nbd_trans){
 				/* No, so just return the rest of the current packet */
 				return tvb_length(tvb);
@@ -148,7 +149,7 @@ get_nbd_tcp_pdu_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 			hkey[1].length=2;
 			hkey[1].key=handle;
 			hkey[2].length=0;
-			nbd_trans=se_tree_lookup32_array(nbd_info->acked_pdus, hkey);
+			nbd_trans=(nbd_transaction_t *)wmem_tree_lookup32_array(nbd_info->acked_pdus, hkey);
 			if(!nbd_trans){
 				/* No, so just return the rest of the current packet */
 				return tvb_length(tvb);
@@ -170,8 +171,8 @@ get_nbd_tcp_pdu_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 	return 0;
 }
 
-static void
-dissect_nbd_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_nbd_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data _U_)
 {
 	guint32 magic, error, packet;
 	guint32 handle[2];
@@ -182,7 +183,7 @@ dissect_nbd_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	conversation_t *conversation;
 	nbd_conv_info_t *nbd_info;
 	nbd_transaction_t *nbd_trans=NULL;
-	emem_tree_key_t hkey[3];
+	wmem_tree_key_t hkey[3];
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "NBD");
 
@@ -205,7 +206,7 @@ dissect_nbd_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		handle[1]=tvb_get_ntohl(tvb, offset+8);
 		break;
 	default:
-		return;
+		return 4;
 	}
 
 	conversation = find_or_create_conversation(pinfo);
@@ -213,21 +214,21 @@ dissect_nbd_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	/*
 	 * Do we already have a state structure for this conv
 	 */
-	nbd_info = conversation_get_proto_data(conversation, proto_nbd);
+	nbd_info = (nbd_conv_info_t *)conversation_get_proto_data(conversation, proto_nbd);
 	if (!nbd_info) {
 		/* No.  Attach that information to the conversation, and add
 		 * it to the list of information structures.
 		 */
-		nbd_info = se_alloc(sizeof(nbd_conv_info_t));
-		nbd_info->unacked_pdus=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "nbd_unacked_pdus");
-		nbd_info->acked_pdus=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "nbd_acked_pdus");
+		nbd_info = wmem_new(wmem_file_scope(), nbd_conv_info_t);
+		nbd_info->unacked_pdus = wmem_tree_new(wmem_file_scope());
+		nbd_info->acked_pdus   = wmem_tree_new(wmem_file_scope());
 
 		conversation_add_proto_data(conversation, proto_nbd, nbd_info);
 	}
 	if(!pinfo->fd->flags.visited){
 		if(magic==NBD_REQUEST_MAGIC){
 			/* This is a request */
-			nbd_trans=se_alloc(sizeof(nbd_transaction_t));
+			nbd_trans=wmem_new(wmem_file_scope(), nbd_transaction_t);
 			nbd_trans->req_frame=pinfo->fd->num;
 			nbd_trans->rep_frame=0;
 			nbd_trans->req_time=pinfo->fd->abs_ts;
@@ -238,13 +239,13 @@ dissect_nbd_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			hkey[0].key=handle;
 			hkey[1].length=0;
 
-			se_tree_insert32_array(nbd_info->unacked_pdus, hkey, (void *)nbd_trans);
+			wmem_tree_insert32_array(nbd_info->unacked_pdus, hkey, (void *)nbd_trans);
 		} else if(magic==NBD_RESPONSE_MAGIC){
 			hkey[0].length=2;
 			hkey[0].key=handle;
 			hkey[1].length=0;
 
-			nbd_trans=se_tree_lookup32_array(nbd_info->unacked_pdus, hkey);
+			nbd_trans=(nbd_transaction_t *)wmem_tree_lookup32_array(nbd_info->unacked_pdus, hkey);
 			if(nbd_trans){
 				nbd_trans->rep_frame=pinfo->fd->num;
 
@@ -253,13 +254,13 @@ dissect_nbd_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 				hkey[1].length=2;
 				hkey[1].key=handle;
 				hkey[2].length=0;
-				se_tree_insert32_array(nbd_info->acked_pdus, hkey, (void *)nbd_trans);
+				wmem_tree_insert32_array(nbd_info->acked_pdus, hkey, (void *)nbd_trans);
 				hkey[0].length=1;
 				hkey[0].key=&nbd_trans->req_frame;
 				hkey[1].length=2;
 				hkey[1].key=handle;
 				hkey[2].length=0;
-				se_tree_insert32_array(nbd_info->acked_pdus, hkey, (void *)nbd_trans);
+				wmem_tree_insert32_array(nbd_info->acked_pdus, hkey, (void *)nbd_trans);
 			}
 		}
 	} else {
@@ -270,7 +271,7 @@ dissect_nbd_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		hkey[1].key=handle;
 		hkey[2].length=0;
 
-		nbd_trans=se_tree_lookup32_array(nbd_info->acked_pdus, hkey);
+		nbd_trans=(nbd_transaction_t *)wmem_tree_lookup32_array(nbd_info->acked_pdus, hkey);
 	}
 	/* The bloody handles are reused !!! eventhough they are 64 bits.
 	 * So we must verify we got the "correct" one
@@ -284,7 +285,7 @@ dissect_nbd_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 
 	if(!nbd_trans){
 		/* create a "fake" nbd_trans structure */
-		nbd_trans=ep_alloc(sizeof(nbd_transaction_t));
+		nbd_trans=wmem_new(wmem_packet_scope(), nbd_transaction_t);
 		nbd_trans->req_frame=0;
 		nbd_trans->rep_frame=0;
 		nbd_trans->req_time=pinfo->fd->abs_ts;
@@ -332,18 +333,16 @@ dissect_nbd_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		proto_tree_add_item(tree, hf_nbd_len, tvb, offset, 4, ENC_BIG_ENDIAN);
 		offset+=4;
 
-		if(check_col(pinfo->cinfo, COL_INFO)){
-			switch(nbd_trans->type){
-			case NBD_CMD_WRITE:
-				col_add_fstr(pinfo->cinfo, COL_INFO, "Write Request  Offset:0x%" G_GINT64_MODIFIER "x Length:%d", from, nbd_trans->datalen);
-				break;
-			case NBD_CMD_READ:
-				col_add_fstr(pinfo->cinfo, COL_INFO, "Read Request  Offset:0x%" G_GINT64_MODIFIER "x Length:%d", from, nbd_trans->datalen);
-				break;
-			case NBD_CMD_DISC:
-				col_set_str(pinfo->cinfo, COL_INFO, "Disconnect Request");
-				break;
-			}
+		switch(nbd_trans->type){
+		case NBD_CMD_WRITE:
+			col_add_fstr(pinfo->cinfo, COL_INFO, "Write Request  Offset:0x%" G_GINT64_MODIFIER "x Length:%d", from, nbd_trans->datalen);
+			break;
+		case NBD_CMD_READ:
+			col_add_fstr(pinfo->cinfo, COL_INFO, "Read Request  Offset:0x%" G_GINT64_MODIFIER "x Length:%d", from, nbd_trans->datalen);
+			break;
+		case NBD_CMD_DISC:
+			col_set_str(pinfo->cinfo, COL_INFO, "Disconnect Request");
+			break;
 		}
 
 		if(nbd_trans->type==NBD_CMD_WRITE){
@@ -361,9 +360,7 @@ dissect_nbd_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		proto_tree_add_item(tree, hf_nbd_handle, tvb, offset, 8, ENC_BIG_ENDIAN);
 		offset+=8;
 
-		if(check_col(pinfo->cinfo, COL_INFO)){
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%s Response  Error:%d", (nbd_trans->type==NBD_CMD_WRITE)?"Write":"Read", error);
-		}
+		col_add_fstr(pinfo->cinfo, COL_INFO, "%s Response  Error:%d", (nbd_trans->type==NBD_CMD_WRITE)?"Write":"Read", error);
 
 		if(nbd_trans->type==NBD_CMD_READ){
 			proto_tree_add_item(tree, hf_nbd_data, tvb, offset, nbd_trans->datalen, ENC_NA);
@@ -371,11 +368,11 @@ dissect_nbd_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		break;
 	}
 
-	return;
+	return tvb_length(tvb);
 }
 
 static gboolean
-dissect_nbd_tcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_nbd_tcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 	guint32 magic, type;
 
@@ -403,14 +400,14 @@ dissect_nbd_tcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
 			return FALSE;
 		}
 
-		tcp_dissect_pdus(tvb, pinfo, tree, nbd_desegment, 28, get_nbd_tcp_pdu_len, dissect_nbd_tcp_pdu);
+		tcp_dissect_pdus(tvb, pinfo, tree, nbd_desegment, 28, get_nbd_tcp_pdu_len, dissect_nbd_tcp_pdu, data);
 		return TRUE;
 	case NBD_RESPONSE_MAGIC:
 		/* responses are 16 bytes or more */
 		if(tvb_length(tvb)<16){
 			return FALSE;
 		}
-		tcp_dissect_pdus(tvb, pinfo, tree, nbd_desegment, 16, get_nbd_tcp_pdu_len, dissect_nbd_tcp_pdu);
+		tcp_dissect_pdus(tvb, pinfo, tree, nbd_desegment, 16, get_nbd_tcp_pdu_len, dissect_nbd_tcp_pdu, data);
 		return TRUE;
 	default:
 		break;

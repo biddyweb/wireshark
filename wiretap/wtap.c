@@ -1,7 +1,5 @@
 /* wtap.c
  *
- * $Id$
- *
  * Wiretap Library
  * Copyright (c) 1998 by Gilbert Ramirez <gram@alumni.rice.edu>
  *
@@ -41,7 +39,76 @@
 
 #include "file_wrappers.h"
 #include <wsutil/file_util.h>
-#include "buffer.h"
+#include <wsutil/buffer.h>
+
+#ifdef HAVE_PLUGINS
+
+#include <wsutil/plugins.h>
+
+/*
+ * List of wiretap plugins.
+ */
+typedef struct {
+	void (*register_wtap_module)(void);  /* routine to call to register a wiretap module */
+} wtap_plugin;
+
+static GSList *wtap_plugins = NULL;
+
+/*
+ * Callback for each plugin found.
+ */
+static gboolean
+check_for_wtap_plugin(GModule *handle)
+{
+	gpointer gp;
+	void (*register_wtap_module)(void);
+	wtap_plugin *plugin;
+
+	/*
+	 * Do we have a register_wtap_module routine?
+	 */
+	if (!g_module_symbol(handle, "register_wtap_module", &gp)) {
+		/* No, so this isn't a wiretap module plugin. */
+		return FALSE;
+	}
+
+	/*
+	 * Yes - this plugin includes one or more wiretap modules.
+	 */
+	register_wtap_module = (void (*)(void))gp;
+
+	/*
+	 * Add this one to the list of wiretap module plugins.
+	 */
+	plugin = (wtap_plugin *)g_malloc(sizeof (wtap_plugin));
+	plugin->register_wtap_module = register_wtap_module;
+	wtap_plugins = g_slist_append(wtap_plugins, plugin);
+	return TRUE;
+}
+
+void
+wtap_register_plugin_types(void)
+{
+	add_plugin_type("libwiretap", check_for_wtap_plugin);
+}
+
+static void
+register_wtap_module_plugin(gpointer data, gpointer user_data _U_)
+{
+	wtap_plugin *plugin = (wtap_plugin *)data;
+
+	(plugin->register_wtap_module)();
+}
+
+/*
+ * For all wiretap module plugins, call their register routines.
+ */
+void
+register_all_wiretap_modules(void)
+{
+	g_slist_foreach(wtap_plugins, register_wtap_module_plugin, NULL);
+}
+#endif /* HAVE_PLUGINS */
 
 /*
  * Return the size of the file, as reported by the OS.
@@ -71,9 +138,9 @@ wtap_fstat(wtap *wth, ws_statb64 *statb, int *err)
 }
 
 int
-wtap_file_type(wtap *wth)
+wtap_file_type_subtype(wtap *wth)
 {
-	return wth->file_type;
+	return wth->file_type_subtype;
 }
 
 gboolean
@@ -134,7 +201,6 @@ wtap_file_get_idb_info(wtap *wth)
 
 	idb_info = g_new(wtapng_iface_descriptions_t,1);
 
-	idb_info->number_of_interfaces	= wth->number_of_interfaces;
 	idb_info->interface_data	= wth->interface_data;
 
 	return idb_info;
@@ -546,7 +612,7 @@ static struct encap_type_info encap_table_base[] = {
 	/* WTAP_ENCAP_DVBCI */
 	{ "DVB-CI (Common Interface)", "dvbci"},
 
- 	/* WTAP_ENCAP_MUX27010 */
+	/* WTAP_ENCAP_MUX27010 */
 	{ "MUX27010", "mux27010"},
 
 	/* WTAP_ENCAP_MIME */
@@ -578,7 +644,7 @@ static struct encap_type_info encap_table_base[] = {
 
 	/* WTAP_ENCAP_BACNET_MS_TP_WITH_PHDR */
 	{ "BACnet MS/TP with Directional Info", "bacnet-ms-tp-with-direction" },
- 
+
  	/* WTAP_ENCAP_IXVERIWAVE */
  	{ "IxVeriWave header and stats block", "ixveriwave" },
 
@@ -599,12 +665,86 @@ static struct encap_type_info encap_table_base[] = {
 
 	/* WTAP_ENCAP_SCTP */
 	{ "SCTP", "sctp" },
+
+	/* WTAP_ENCAP_INFINIBAND */
+	{ "InfiniBand", "infiniband" },
+
+	/* WTAP_ENCAP_JUNIPER_SVCS */
+	{ "Juniper Services", "juniper-svcs" },
+
+	/* WTAP_ENCAP_USBPCAP */
+	{ "USB packets with USBPcap header", "usb-usbpcap" },
+
+	/* WTAP_ENCAP_RTAC_SERIAL */
+	{ "RTAC serial-line", "rtac-serial" },
+
+	/* WTAP_ENCAP_BLUETOOTH_LE_LL */
+	{ "Bluetooth Low Energy Link Layer", "bluetooth-le-ll" },
+
+	/* WTAP_ENCAP_WIRESHARK_UPPER_PDU */
+	{ "Wireshark Upper PDU export", "wireshark-upper-pdu" },
+
+	/* WTAP_ENCAP_STANAG_4607 */
+	{ "STANAG 4607", "s4607" },
+
+	/* WTAP_ENCAP_STANAG_5066_D_PDU */
+	{ "STANAG 5066 Data Transfer Sublayer PDUs(D_PDU)", "s5066-dpdu"},
+
+	/* WTAP_ENCAP_NETLINK */
+	{ "Linux Netlink", "netlink" },
+
+	/* WTAP_ENCAP_BLUETOOTH_LINUX_MONITOR */
+	{ "Bluetooth Linux Monitor", "bluetooth-linux-monitor" },
+
+	/* WTAP_ENCAP_BLUETOOTH_BREDR_BB */
+	{ "Bluetooth BR/EDR Baseband RF", "bluetooth-bredr-bb-rf" },
+
+	/* WTAP_ENCAP_BLUETOOTH_LE_LL_WITH_PHDR */
+	{ "Bluetooth Low Energy Link Layer RF", "bluetooth-le-ll-rf" },
+
+	/* WTAP_ENCAP_NSTRACE_3_0 */
+	{ "NetScaler Encapsulation 3.0 of Ethernet", "nstrace30" },
+
+	/* WTAP_ENCAP_LOGCAT */
+	{ "Android Logcat Binary format", "logcat" },
+
+	/* WTAP_ENCAP_LOGCAT_BRIEF */
+	{ "Android Logcat Brief text format", "logcat_brief" },
+
+	/* WTAP_ENCAP_LOGCAT_PROCESS */
+	{ "Android Logcat Process text format", "logcat_process" },
+
+	/* WTAP_ENCAP_LOGCAT_TAG */
+	{ "Android Logcat Tag text format", "logcat_tag" },
+
+	/* WTAP_ENCAP_LOGCAT_THREAD */
+	{ "Android Logcat Thread text format", "logcat_thread" },
+
+	/* WTAP_ENCAP_LOGCAT_TIME */
+	{ "Android Logcat Time text format", "logcat_time" },
+
+	/* WTAP_ENCAP_LOGCAT_THREADTIME */
+	{ "Android Logcat Threadtime text format", "logcat_threadtime" },
+
+	/* WTAP_ENCAP_LOGCAT_LONG */
+	{ "Android Logcat Long text format", "logcat_long" },
+
+	/* WTAP_ENCAP_PKTAP */
+	{ "Apple PKTAP", "pktap" },
+
+	/* WTAP_ENCAP_EPON */
+	{ "Ethernet Passive Optical Network", "epon" },
+
+	/* WTAP_ENCAP_IPMI_TRACE */
+	{ "IPMI Trace Data Collection", "ipmi-trace" },
 };
 
 WS_DLL_LOCAL
 gint wtap_num_encap_types = sizeof(encap_table_base) / sizeof(struct encap_type_info);
 static GArray* encap_table_arr = NULL;
-static const struct encap_type_info* encap_table = NULL;
+
+#define encap_table_entry(encap)	\
+	g_array_index(encap_table_arr, struct encap_type_info, encap)
 
 static void wtap_init_encap_types(void) {
 
@@ -613,8 +753,6 @@ static void wtap_init_encap_types(void) {
 	encap_table_arr = g_array_new(FALSE,TRUE,sizeof(struct encap_type_info));
 
 	g_array_append_vals(encap_table_arr,encap_table_base,wtap_num_encap_types);
-
-	encap_table = (void*)encap_table_arr->data;
 }
 
 int wtap_get_num_encap_types(void) {
@@ -632,8 +770,6 @@ int wtap_register_encap_type(const char* name, const char* short_name) {
 
 	g_array_append_val(encap_table_arr,e);
 
-	encap_table = (void*)encap_table_arr->data;
-
 	return wtap_num_encap_types++;
 }
 
@@ -647,7 +783,7 @@ wtap_encap_string(int encap)
 	else if (encap == WTAP_ENCAP_PER_PACKET)
 		return "Per packet";
 	else
-		return encap_table[encap].name;
+		return encap_table_entry(encap).name;
 }
 
 /* Name to use in, say, a command-line flag specifying the type. */
@@ -659,7 +795,7 @@ wtap_encap_short_string(int encap)
 	else if (encap == WTAP_ENCAP_PER_PACKET)
 		return "per-packet";
 	else
-		return encap_table[encap].short_name;
+		return encap_table_entry(encap).short_name;
 }
 
 /* Translate a short name to a capture file type. */
@@ -669,8 +805,8 @@ wtap_short_string_to_encap(const char *short_name)
 	int encap;
 
 	for (encap = 0; encap < WTAP_NUM_ENCAP_TYPES; encap++) {
-		if (encap_table[encap].short_name != NULL &&
-		    strcmp(short_name, encap_table[encap].short_name) == 0)
+		if (encap_table_entry(encap).short_name != NULL &&
+		    strcmp(short_name, encap_table_entry(encap).short_name) == 0)
 			return encap;
 	}
 	return -1;	/* no such encapsulation type */
@@ -689,7 +825,7 @@ static const char *wtap_errlist[] = {
 	NULL,
 	NULL,
 	"Less data was read than was expected",
-	"The file appears to be damaged or corrupt.",
+	"The file appears to be damaged or corrupt",
 	"Less data was written than was requested",
 	"Uncompression error: data oddly truncated",
 	"Uncompression error: data would overflow buffer",
@@ -697,8 +833,12 @@ static const char *wtap_errlist[] = {
 	"The standard input cannot be opened for random access",
 	"That file format doesn't support compression",
 	NULL,
+	NULL,
 	"Uncompression error",
-	"Internal error"
+	"Internal error",
+	"The packet being written is too large for that format",
+	NULL,
+	"That record type cannot be written in that format"
 };
 #define	WTAP_ERRLIST_SIZE	(sizeof wtap_errlist / sizeof wtap_errlist[0])
 
@@ -771,7 +911,7 @@ wtap_fdclose(wtap *wth)
 void
 wtap_close(wtap *wth)
 {
-	gint i, j;
+	guint i, j;
 	wtapng_if_descr_t *wtapng_if_descr;
 	wtapng_if_stats_t *if_stats;
 
@@ -790,7 +930,7 @@ wtap_close(wtap *wth)
 		g_ptr_array_foreach(wth->fast_seek, g_fast_seek_item_free, NULL);
 		g_ptr_array_free(wth->fast_seek, TRUE);
 	}
-	for(i = 0; i < (gint)wth->number_of_interfaces; i++) {
+	for(i = 0; i < wth->interface_data->len; i++) {
 		wtapng_if_descr = &g_array_index(wth->interface_data, wtapng_if_descr_t, i);
 		if(wtapng_if_descr->opt_comment != NULL){
 			g_free(wtapng_if_descr->opt_comment);
@@ -810,19 +950,17 @@ wtap_close(wtap *wth)
 		if(wtapng_if_descr->if_os != NULL){
 			g_free(wtapng_if_descr->if_os);
 		}
-		for(j = 0; j < (gint)wtapng_if_descr->num_stat_entries; j++) {
+		for(j = 0; j < wtapng_if_descr->num_stat_entries; j++) {
 			if_stats = &g_array_index(wtapng_if_descr->interface_statistics, wtapng_if_stats_t, j);
 			if(if_stats->opt_comment != NULL){
 				g_free(if_stats->opt_comment);
 			}
 		}
 		if(wtapng_if_descr->num_stat_entries != 0){
-			 g_array_free(wtapng_if_descr->interface_statistics, TRUE);
+			g_array_free(wtapng_if_descr->interface_statistics, TRUE);
 		}
 	}
-	if(wth->number_of_interfaces != 0){
-		 g_array_free(wth->interface_data, TRUE);
-	}
+	g_array_free(wth->interface_data, TRUE);
 	g_free(wth);
 }
 
@@ -889,6 +1027,34 @@ wtap_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 }
 
 /*
+ * Read packet data into a Buffer, growing the buffer as necessary.
+ *
+ * This returns an error on a short read, even if the short read hit
+ * the EOF immediately.  (The assumption is that each packet has a
+ * header followed by raw packet data, and that we've already read the
+ * header, so if we get an EOF trying to read the packet data, the file
+ * has been cut short, even if the read didn't read any data at all.)
+ */
+gboolean
+wtap_read_packet_bytes(FILE_T fh, Buffer *buf, guint length, int *err,
+    gchar **err_info)
+{
+	int	bytes_read;
+
+	buffer_assure_space(buf, length);
+	errno = WTAP_ERR_CANT_READ;
+	bytes_read = file_read(buffer_start_ptr(buf), length, fh);
+
+	if (bytes_read < 0 || (guint)bytes_read != length) {
+		*err = file_error(fh, err_info);
+		if (*err == 0)
+			*err = WTAP_ERR_SHORT_READ;
+		return FALSE;
+	}
+	return TRUE;
+}
+
+/*
  * Return an approximation of the amount of data we've read sequentially
  * from the file so far.  (gint64, in case that's 64 bits.)
  */
@@ -912,20 +1078,25 @@ wtap_buf_ptr(wtap *wth)
 
 gboolean
 wtap_seek_read(wtap *wth, gint64 seek_off,
-	struct wtap_pkthdr *phdr, guint8 *pd, int len,
-	int *err, gchar **err_info)
+	struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info)
 {
-	phdr->presence_flags = 0;
-	phdr->pkt_encap = wth->file_encap;
-	phdr->len = phdr->caplen = len;
-
-	if (!wth->subtype_seek_read(wth, seek_off, phdr, pd, len, err, err_info))
+	if (!wth->subtype_seek_read(wth, seek_off, phdr, buf, err, err_info))
 		return FALSE;
 
+	/*
+	 * It makes no sense for the captured data length to be bigger
+	 * than the actual data length.
+	 */
 	if (phdr->caplen > phdr->len)
 		phdr->caplen = phdr->len;
-			
-	/* g_assert(phdr->pkt_encap != WTAP_ENCAP_PER_PACKET); */
+
+	/*
+	 * Make sure that it's not WTAP_ENCAP_PER_PACKET, as that
+	 * probably means the file has that encapsulation type
+	 * but the read routine didn't set this packet's
+	 * encapsulation type.
+	 */
+	g_assert(phdr->pkt_encap != WTAP_ENCAP_PER_PACKET);
 
 	return TRUE;
 }

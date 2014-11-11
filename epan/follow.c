@@ -1,7 +1,5 @@
 /* follow.c
  *
- * $Id$
- *
  * Copyright 1998 Mike Hall <mlh@io.com>
  *
  * Wireshark - Network traffic analyzer
@@ -35,7 +33,8 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-#include <epan/ipproto.h>
+#include <epan/to_str.h>
+#include <epan/emem.h>
 #include <epan/dissectors/packet-tcp.h>
 #include "follow.h"
 #include <epan/conversation.h>
@@ -50,13 +49,13 @@ typedef struct _tcp_frag {
   struct _tcp_frag   *next;
 } tcp_frag;
 
-WS_DLL_PUBLIC_NOEXTERN
+WS_DLL_PUBLIC_DEF
 FILE* data_out_file = NULL;
 
 gboolean empty_tcp_stream;
 gboolean incomplete_tcp_stream;
 
-static guint32 tcp_stream_to_follow;
+static guint32 tcp_stream_to_follow = 0;
 static guint8  ip_address[2][MAX_IPADDR_LEN];
 static guint   port[2];
 static guint   bytes_written[2];
@@ -68,31 +67,52 @@ static void write_packet_data( int, tcp_stream_chunk *, const char * );
 void
 follow_stats(follow_stats_t* stats)
 {
-	int i;
+  int i;
 
-	for (i = 0; i < 2 ; i++) {
-		memcpy(stats->ip_address[i], ip_address[i], MAX_IPADDR_LEN);
-		stats->port[i] = port[i];
-		stats->bytes_written[i] = bytes_written[i];
-		stats->is_ipv6 = is_ipv6;
-	}
+  for (i = 0; i < 2 ; i++) {
+    memcpy(stats->ip_address[i], ip_address[i], MAX_IPADDR_LEN);
+    stats->port[i] = port[i];
+    stats->bytes_written[i] = bytes_written[i];
+    stats->is_ipv6 = is_ipv6;
+  }
 }
 
-/* this will build libpcap filter text that will only
+/* This will build a display filter text that will only
    pass the packets related to the stream. There is a
    chance that two streams could intersect, but not a
    very good one */
-char*
-build_follow_filter( packet_info *pi ) {
+gchar*
+build_follow_conv_filter( packet_info *pi ) {
   char* buf;
   int len;
   conversation_t *conv=NULL;
   struct tcp_analysis *tcpd;
+  wmem_list_frame_t* protos;
+  int proto_id;
+  const char* proto_name;
+  gboolean is_tcp = FALSE, is_udp = FALSE;
+
+  protos = wmem_list_head(pi->layers);
+
+  /* walk the list of a available protocols in the packet to
+      figure out if any of them affect context sensitivity */
+  while (protos != NULL)
+  {
+    proto_id = GPOINTER_TO_INT(wmem_list_frame_data(protos));
+    proto_name = proto_get_protocol_filter_name(proto_id);
+
+    if (!strcmp(proto_name, "tcp")) {
+        is_tcp = TRUE;
+    } else if (!strcmp(proto_name, "udp")) {
+        is_udp = TRUE;
+    }
+
+    protos = wmem_list_frame_next(protos);
+  }
 
   if( ((pi->net_src.type == AT_IPv4 && pi->net_dst.type == AT_IPv4) ||
        (pi->net_src.type == AT_IPv6 && pi->net_dst.type == AT_IPv6))
-	&& pi->ipproto == IP_PROTO_TCP 
-        && (conv=find_conversation(pi->fd->num, &pi->src, &pi->dst, pi->ptype,
+       && is_tcp && (conv=find_conversation(pi->fd->num, &pi->src, &pi->dst, pi->ptype,
               pi->srcport, pi->destport, 0)) != NULL ) {
     /* TCP over IPv4 */
     tcpd=get_tcp_conversation_data(conv, pi);
@@ -111,24 +131,24 @@ build_follow_filter( packet_info *pi ) {
     }
   }
   else if( pi->net_src.type == AT_IPv4 && pi->net_dst.type == AT_IPv4
-	   && pi->ipproto == IP_PROTO_UDP ) {
+          && is_udp ) {
   /* UDP over IPv4 */
     buf = g_strdup_printf(
-	     "(ip.addr eq %s and ip.addr eq %s) and (udp.port eq %d and udp.port eq %d)",
-	     ip_to_str( pi->net_src.data),
-	     ip_to_str( pi->net_dst.data),
-	     pi->srcport, pi->destport );
+            "(ip.addr eq %s and ip.addr eq %s) and (udp.port eq %d and udp.port eq %d)",
+            ip_to_str((const guint8 *)pi->net_src.data),
+            ip_to_str((const guint8 *)pi->net_dst.data),
+            pi->srcport, pi->destport );
     len = 4;
     is_ipv6 = FALSE;
   }
   else if( pi->net_src.type == AT_IPv6 && pi->net_dst.type == AT_IPv6
-	&& pi->ipproto == IP_PROTO_UDP ) {
+       && is_udp ) {
     /* UDP over IPv6 */
     buf = g_strdup_printf(
-	     "(ipv6.addr eq %s and ipv6.addr eq %s) and (udp.port eq %d and udp.port eq %d)",
-	     ip6_to_str((const struct e_in6_addr *)pi->net_src.data),
-	     ip6_to_str((const struct e_in6_addr *)pi->net_dst.data),
-	     pi->srcport, pi->destport );
+            "(ipv6.addr eq %s and ipv6.addr eq %s) and (udp.port eq %d and udp.port eq %d)",
+            ip6_to_str((const struct e_in6_addr *)pi->net_src.data),
+            ip6_to_str((const struct e_in6_addr *)pi->net_dst.data),
+            pi->srcport, pi->destport );
     len = 16;
     is_ipv6 = TRUE;
   }
@@ -145,6 +165,15 @@ build_follow_filter( packet_info *pi ) {
 static gboolean         find_tcp_addr;
 static address          tcp_addr[2];
 static gboolean         find_tcp_index;
+
+gchar*
+build_follow_index_filter(void) {
+  gchar *buf;
+
+  find_tcp_addr = TRUE;
+  buf = g_strdup_printf("tcp.stream eq %d", tcp_stream_to_follow);
+  return buf;
+}
 
 /* select a tcp stream to follow via it's address/port pairs */
 gboolean
@@ -198,6 +227,11 @@ follow_tcp_index(guint32 indx)
   return TRUE;
 }
 
+guint32
+get_follow_tcp_index(void) {
+  return tcp_stream_to_follow;
+}
+
 /* here we are going to try and reconstruct the data portion of a TCP
    session. We will try and handle duplicates, TCP fragments, and out
    of order packets in a smart way. */
@@ -209,9 +243,9 @@ static guint src_port[2] = { 0, 0 };
 
 void
 reassemble_tcp( guint32 tcp_stream, guint32 sequence, guint32 acknowledgement,
-                guint32 length, const char* data, guint32 data_length, 
-                int synflag, address *net_src, address *net_dst, 
-                guint srcport, guint dstport) {
+                guint32 length, const char* data, guint32 data_length,
+                int synflag, address *net_src, address *net_dst,
+                guint srcport, guint dstport, guint32 packet_num) {
   guint8 srcx[MAX_IPADDR_LEN], dstx[MAX_IPADDR_LEN];
   int src_index, j, first = 0, len;
   guint32 newseq;
@@ -258,6 +292,11 @@ reassemble_tcp( guint32 tcp_stream, guint32 sequence, guint32 acknowledgement,
     port[0] = srcport;
     memcpy(ip_address[1], net_dst->data, net_dst->len);
     port[1] = dstport;
+    if (net_src->type == AT_IPv6 && net_dst->type == AT_IPv6) {
+      is_ipv6 = TRUE;
+    } else {
+      is_ipv6 = FALSE;
+    }
   }
 
   /* Check to see if we have seen this source IP and port before.
@@ -273,11 +312,11 @@ reassemble_tcp( guint32 tcp_stream, guint32 sequence, guint32 acknowledgement,
     /* assign it to a src_index and get going */
     for( j=0; j<2; j++ ) {
       if( src_port[j] == 0 ) {
-	memcpy(src_addr[j], srcx, len);
-	src_port[j] = srcport;
-	src_index = j;
-	first = 1;
-	break;
+        memcpy(src_addr[j], srcx, len);
+        src_port[j] = srcport;
+        src_index = j;
+        first = 1;
+        break;
       }
     }
   }
@@ -292,7 +331,7 @@ reassemble_tcp( guint32 tcp_stream, guint32 sequence, guint32 acknowledgement,
 
   /* Before adding data for this flow to the data_out_file, check whether
    * this frame acks fragments that were already seen. This happens when
-   * frames are not in the capture file, but were actually seen by the 
+   * frames are not in the capture file, but were actually seen by the
    * receiving host (Fixes bug 592).
    */
   if( frags[1-src_index] ) {
@@ -305,8 +344,9 @@ reassemble_tcp( guint32 tcp_stream, guint32 sequence, guint32 acknowledgement,
 
   /* Initialize our stream chunk.  This data gets written to disk. */
   memcpy(sc.src_addr, srcx, len);
-  sc.src_port = srcport;
-  sc.dlen     = data_length;
+  sc.src_port   = srcport;
+  sc.dlen       = data_length;
+  sc.packet_num = packet_num;
 
   /* now that we have filed away the srcs, lets get the sequence number stuff
      figured out */
@@ -322,26 +362,26 @@ reassemble_tcp( guint32 tcp_stream, guint32 sequence, guint32 acknowledgement,
   }
   /* if we are here, we have already seen this src, let's
      try and figure out if this packet is in the right place */
-  if( sequence < seq[src_index] ) {
+  if( LT_SEQ(sequence, seq[src_index]) ) {
     /* this sequence number seems dated, but
        check the end to make sure it has no more
        info than we have already seen */
     newseq = sequence + length;
-    if( newseq > seq[src_index] ) {
+    if( GT_SEQ(newseq, seq[src_index]) ) {
       guint32 new_len;
 
       /* this one has more than we have seen. let's get the
-	 payload that we have not seen. */
+         payload that we have not seen. */
 
       new_len = seq[src_index] - sequence;
 
       if ( data_length <= new_len ) {
-	data = NULL;
-	data_length = 0;
-	incomplete_tcp_stream = TRUE;
+        data = NULL;
+        data_length = 0;
+        incomplete_tcp_stream = TRUE;
       } else {
-	data += new_len;
-	data_length -= new_len;
+        data += new_len;
+        data_length -= new_len;
       }
       sc.dlen = data_length;
       sequence = seq[src_index];
@@ -350,7 +390,7 @@ reassemble_tcp( guint32 tcp_stream, guint32 sequence, guint32 acknowledgement,
       /* this will now appear to be right on time :) */
     }
   }
-  if ( sequence == seq[src_index] ) {
+  if ( EQ_SEQ(sequence, seq[src_index]) ) {
     /* right on time */
     seq[src_index] += length;
     if( synflag ) seq[src_index]++;
@@ -363,7 +403,7 @@ reassemble_tcp( guint32 tcp_stream, guint32 sequence, guint32 acknowledgement,
   }
   else {
     /* out of order packet */
-    if(data_length > 0 && ((glong)(sequence - seq[src_index]) > 0) ) {
+    if(data_length > 0 && GT_SEQ(sequence, seq[src_index]) ) {
       tmp_frag = (tcp_frag *)g_malloc( sizeof( tcp_frag ) );
       tmp_frag->data = (gchar *)g_malloc( data_length );
       tmp_frag->seq = sequence;
@@ -371,9 +411,9 @@ reassemble_tcp( guint32 tcp_stream, guint32 sequence, guint32 acknowledgement,
       tmp_frag->data_len = data_length;
       memcpy( tmp_frag->data, data, data_length );
       if( frags[src_index] ) {
-	tmp_frag->next = frags[src_index];
+        tmp_frag->next = frags[src_index];
       } else {
-	tmp_frag->next = NULL;
+        tmp_frag->next = NULL;
       }
       frags[src_index] = tmp_frag;
     }
@@ -393,21 +433,21 @@ check_fragments( int idx, tcp_stream_chunk *sc, guint32 acknowledged ) {
   if( current ) {
     lowest_seq = current->seq;
     while( current ) {
-      if( (glong)(lowest_seq - current->seq) > 0 ) {
+      if( GT_SEQ(lowest_seq, current->seq) ) {
         lowest_seq = current->seq;
       }
 
-      if( current->seq < seq[idx] ) {
+      if( LT_SEQ(current->seq, seq[idx]) ) {
         guint32 newseq;
         /* this sequence number seems dated, but
            check the end to make sure it has no more
            info than we have already seen */
         newseq = current->seq + current->len;
-        if( newseq > seq[idx] ) {
+        if( GT_SEQ(newseq, seq[idx]) ) {
           guint32 new_pos;
 
           /* this one has more than we have seen. let's get the
-             payload that we have not seen. This happens when 
+             payload that we have not seen. This happens when
              part of this frame has been retransmitted */
 
           new_pos = seq[idx] - current->seq;
@@ -418,10 +458,10 @@ check_fragments( int idx, tcp_stream_chunk *sc, guint32 acknowledged ) {
           }
 
           seq[idx] += (current->len - new_pos);
-        } 
+        }
 
         /* Remove the fragment from the list as the "new" part of it
-         * has been processed or its data has been seen already in 
+         * has been processed or its data has been seen already in
          * another packet. */
         if( prev ) {
           prev->next = current->next;
@@ -433,7 +473,7 @@ check_fragments( int idx, tcp_stream_chunk *sc, guint32 acknowledged ) {
         return 1;
       }
 
-      if( current->seq == seq[idx] ) {
+      if( EQ_SEQ(current->seq, seq[idx]) ) {
         /* this fragment fits the stream */
         if( current->data ) {
           sc->dlen = current->data_len;
@@ -452,7 +492,7 @@ check_fragments( int idx, tcp_stream_chunk *sc, guint32 acknowledged ) {
       prev = current;
       current = current->next;
     }
-    if( (glong)(acknowledged - lowest_seq) > 0 ) {
+    if( GT_SEQ(acknowledged, lowest_seq) ) {
       /* There are frames missing in the capture file that were seen
        * by the receiving host. Add dummy stream chunk with the data
        * "[xxx bytes missing in capture file]".
@@ -465,7 +505,7 @@ check_fragments( int idx, tcp_stream_chunk *sc, guint32 acknowledged ) {
       seq[idx] = lowest_seq;
       return 1;
     }
-  } 
+  }
   return 0;
 }
 
@@ -505,7 +545,7 @@ write_packet_data( int idx, tcp_stream_chunk *sc, const char *data )
 
   ret = fwrite( sc, 1, sizeof(tcp_stream_chunk), data_out_file );
   DISSECTOR_ASSERT(sizeof(tcp_stream_chunk) == ret);
-  
+
   ret = fwrite( data, 1, sc->dlen, data_out_file );
   DISSECTOR_ASSERT(sc->dlen == ret);
 

@@ -1,8 +1,7 @@
 <?xml version="1.0"?>
-<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
-"http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd" [
+<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
+"http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
 
-<!-- $Id$ -->
 
 <!--
 BIOGRAPHICAL SECTION
@@ -61,26 +60,32 @@ DOCUMENT SECTION
 -->
 
   <!ENTITY DocumentTitle "<application>Wireshark</application> User's Guide">
-  <!ENTITY DocumentSubTitle "&SvnVersion; for Wireshark &WiresharkCurrentVersion;">
+  <!ENTITY DocumentSubTitle "for Wireshark &WiresharkCurrentVersion;">
   <!ENTITY DocumentTitleAbbreviation "WSUG">
 
   <!ENTITY DocumentCopyrightHolder1 "Ulf Lamping ">
   <!ENTITY DocumentCopyrightHolder2 "Richard Sharpe ">
   <!ENTITY DocumentCopyrightHolder3 "Ed Warnicke ">
-  <!ENTITY DocumentCopyrightYear "2004-2012">
+  <!ENTITY DocumentCopyrightYear "2004-2014">
 
   <!ENTITY DocumentEdition "Third ">
   <!ENTITY DocumentVersion "V3.0.2">
   <!ENTITY DocumentPubDate "2008">
 
-  <!ENTITY % SvnVersionFile SYSTEM "svn_version.xml">
-  %SvnVersionFile;
-  <!ENTITY DocumentLegalNotice "<para>Permission is granted to copy, distribute and/or modify this document under the terms of the GNU General Public License, Version 2 or any later version published by the Free Software Foundation.</para><para>All logos and trademarks in this document are property of their respective owner.</para>">
+  <!ENTITY % GitVersionFile SYSTEM "git_version.xml">
+  %GitVersionFile;
+  <!ENTITY DocumentLegalNotice "<para>Permission is granted to copy, distribute
+    and/or modify this document under the terms of the GNU General Public
+    License, Version 2 or any later version published by the Free Software
+    Foundation.
+    </para>
+    <para>All logos and trademarks in this document are property of their
+    respective owner.</para>">
 
 <!--
 Wireshark Info
 -->
-  <!ENTITY WiresharkCurrentVersion "1.9">
+  <!ENTITY WiresharkCurrentVersion "1.12">
   <!ENTITY WiresharkWebSite "http://www.wireshark.org">
   <!ENTITY WiresharkUsersGuidePage "&WiresharkWebSite;/docs/">
   <!ENTITY WiresharkDownloadPage "&WiresharkWebSite;/download.html">
@@ -97,6 +102,7 @@ Wireshark Info
   <!ENTITY WiresharkWikiPreferencesPage "&WiresharkWikiPage;/Preferences">
   <!ENTITY WiresharkWikiPcapNgPage "&WiresharkWikiPage;/Development/PcapNg">
   <!ENTITY WiresharkQASite "http://ask.wireshark.org">
+  <!ENTITY WiresharkListsPage "&WiresharkWebSite;/lists/">
 
   <!ENTITY WiresharkDevMailList "wireshark-dev[AT]wireshark.org">
   <!ENTITY WiresharkUsersMailList "wireshark-users[AT]wireshark.org">
@@ -112,6 +118,11 @@ Tcpdump Info
 -->
   <!ENTITY TcpdumpWebsite "http://www.tcpdump.org">
   <!ENTITY TcpdumpManpage "&TcpdumpWebsite;/tcpdump_man.html">
+
+<!--
+Misc Info
+-->
+  <!ENTITY SysFsUtils "http://linux-diag.sourceforge.net/Sysfsutils.html">
 
 <!--
 Gnu info
@@ -334,7 +345,11 @@ WSLua Reference Manual
   <!ENTITY WsLuaProto SYSTEM "wsluarm_src/wslua_proto.xml">
   <!ENTITY WsLuaTree SYSTEM "wsluarm_src/wslua_tree.xml">
   <!ENTITY WsLuaTvb SYSTEM "wsluarm_src/wslua_tvb.xml">
+  <!ENTITY WsLuaFile SYSTEM "wsluarm_src/wslua_file.xml">
+  <!ENTITY WsLuaDir SYSTEM "wsluarm_src/wslua_dir.xml">
   <!ENTITY WsLuaUtility SYSTEM "wsluarm_src/wslua_util.xml">
+  <!ENTITY WsLuaInt64 SYSTEM "wsluarm_src/wslua_int64.xml">
+  <!ENTITY WsLuaStruct SYSTEM "wsluarm_src/wslua_struct.xml">
 
 ]>
 

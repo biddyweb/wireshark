@@ -5,8 +5,6 @@
  * See RFC 2625.
  * Copyright 2001, Dinesh G Dutt <ddutt@cisco.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,12 +29,17 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
+#include <epan/to_str.h>
 #include <epan/etypes.h>
 #include <epan/conversation.h>
-#include "packet-scsi.h"
+
 #include "packet-fc.h"
 #include "packet-ipfc.h"
 #include "packet-llc.h"
+
+void proto_register_ipfc(void);
+void proto_reg_handoff_ipfc(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_ipfc              = -1;

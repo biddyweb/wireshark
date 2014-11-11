@@ -20,13 +20,15 @@
  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * $Id$
  */
+
 #include "config.h"
 
 #include <glib.h>
 #include <epan/packet.h>
+
+void proto_register_udpencap(void);
+void proto_reg_handoff_udpencap(void);
 
 static int proto_udpencap = -1;
 static gint ett_udpencap = -1;

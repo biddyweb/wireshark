@@ -3,8 +3,6 @@
  *
  * Copyright 2008, Jens Steinhauser <jens.steinhauser@omicron.at>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -40,6 +38,7 @@
 #define PROTOCOL_ABBREV	    "synphasor"
 
 /* forward references */
+void proto_register_synphasor(void);
 void proto_reg_handoff_synphasor(void);
 
 /* global variables */
@@ -106,6 +105,8 @@ static int hf_data_statb05to04	    = -1;
 static int hf_data_statb03to00	    = -1;
 static int hf_command		    = -1;
 
+static dissector_handle_t synphasor_udp_handle;
+
 /* the five different frame types for this protocol */
 enum FrameType {
 	DATA = 0,
@@ -126,12 +127,14 @@ typedef enum { integer,		/* 16 bit signed integer */
 	       floating_point	/* single precision floating point */
 } data_format;
 
-typedef enum { rect, polar } phasor_notation;
+typedef enum { rect, polar } phasor_notation_e;
+
+typedef enum { V, A } unit_e;
 
 /* holds the information required to dissect a single phasor */
 typedef struct {
 	char	      name[CHNAM_LEN + 1];
-	enum { V, A } unit;
+	unit_e        unit;
 	guint32	      conv; /* conversation factor in 10^-5 scale */
 } phasor_info;
 
@@ -148,7 +151,7 @@ typedef struct {
 	data_format	format_fr;	     /* data format of FREQ and DFREQ  */
 	data_format	format_ph;	     /* data format of PHASORS	       */
 	data_format	format_an;	     /* data format of ANALOG	       */
-	phasor_notation phasor_notation;     /* format of the phasors	       */
+	phasor_notation_e phasor_notation;   /* format of the phasors	       */
 	guint		fnom;		     /* nominal line frequency	       */
 	guint		num_dg;		     /* number of digital status words */
 	GArray	       *phasors;	     /* array of phasor_infos	       */
@@ -444,26 +447,6 @@ static void synphasor_init(void)
 
 }
 
-/* the main dissection routine */
-static void dissect_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
-
-/* called for synchrophasors over UDP */
-static void dissect_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
-{
-	dissect_common(tvb, pinfo, tree);
-}
-
-/* callback for 'tcp_dissect_pdus()' to give it the length of the frame */
-static guint get_pdu_length(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
-{
-	return tvb_get_ntohs(tvb, offset + 2);
-}
-
-static void dissect_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
-{
-	tcp_dissect_pdus(tvb, pinfo, tree, TRUE, 4, get_pdu_length, dissect_common);
-}
-
 /* Checks the CRC of a synchrophasor frame, 'tvb' has to include the whole
  * frame, including CRC, the calculated CRC is returned in '*computedcrc'.
  */
@@ -493,7 +476,7 @@ static gint dissect_header(tvbuff_t *, proto_tree *);
 /* Dissects the header (common to all types of frames) and then calls
  * one of the subdissectors (declared above) for the rest of the frame.
  */
-static void dissect_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int dissect_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	guint8	frame_type;
 	guint16 crc;
@@ -503,18 +486,14 @@ static void dissect_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	if (tvbsize < 17		    /* 17 bytes = header frame with only a
 					       NULL character, useless but valid */
 	 || tvb_get_guint8(tvb, 0) != 0xAA) /* every synchrophasor frame starts with 0xAA */
-		return;
+		return 0;
 
 	/* write the protocol name to the info column */
-	if (check_col(pinfo->cinfo, COL_PROTOCOL))
-		col_set_str(pinfo->cinfo, COL_PROTOCOL, PROTOCOL_SHORT_NAME);
+	col_set_str(pinfo->cinfo, COL_PROTOCOL, PROTOCOL_SHORT_NAME);
 
 	frame_type = tvb_get_guint8(tvb, 1) >> 4;
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_clear(pinfo->cinfo, COL_INFO); /* clear out stuff in the info column */
-		col_add_fstr(pinfo->cinfo, COL_INFO, "%s", val_to_str_const(frame_type, typenames, "invalid packet type"));
-	}
+	col_add_fstr(pinfo->cinfo, COL_INFO, "%s", val_to_str_const(frame_type, typenames, "invalid packet type"));
 
 	/* CFG-2 and DATA frames need special treatment during the first run:
 	 * For CFG-2 frames, a 'config_frame' struct is created to hold the
@@ -551,9 +530,9 @@ static void dissect_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 									 0);
 
 			if (conversation) {
-				config_frame *conf = conversation_get_proto_data(conversation, proto_synphasor);
+				config_frame *conf = (config_frame *)conversation_get_proto_data(conversation, proto_synphasor);
 				/* no problem if 'conf' is NULL, the DATA frame dissector checks this again */
-				p_add_proto_data(pinfo->fd, proto_synphasor, conf);
+			p_add_proto_data(wmem_file_scope(), pinfo, proto_synphasor, 0, conf);
 			}
 		}
 	} /* if (!visited) */
@@ -592,18 +571,17 @@ static void dissect_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			/* call subdissector */
 			switch (frame_type) {
 				case DATA:
-					offset += dissect_data_frame(sub_tvb, sub_item, pinfo);
+					dissect_data_frame(sub_tvb, sub_item, pinfo);
 					break;
 				case HEADER: /* no further dissection is done/needed */
 					proto_item_append_text(sub_item, "Header Frame");
-					offset += tvb_length(sub_tvb);
 					break;
 				case CFG1:
 				case CFG2:
-					offset += dissect_config_frame(sub_tvb, sub_item);
+					dissect_config_frame(sub_tvb, sub_item);
 					break;
 				case CMD:
-					offset += dissect_command_frame(sub_tvb, sub_item, pinfo);
+					dissect_command_frame(sub_tvb, sub_item, pinfo);
 					break;
 
 				default:
@@ -612,9 +590,31 @@ static void dissect_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			proto_item_append_text(temp_item, " 0x%04x [correct]", crc);
 		}
 
-		offset += 2; /* CRC */
+		/*offset += 2;*/ /* CRC */
 	} /* if (tree) */
+
+    return tvb_length(tvb);
 } /* dissect_synphasor() */
+
+/* called for synchrophasors over UDP */
+static int dissect_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
+{
+	return dissect_common(tvb, pinfo, tree, data);
+}
+
+/* callback for 'tcp_dissect_pdus()' to give it the length of the frame */
+static guint get_pdu_length(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
+{
+	return tvb_get_ntohs(tvb, offset + 2);
+}
+
+static int dissect_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
+{
+	tcp_dissect_pdus(tvb, pinfo, tree, TRUE, 4, get_pdu_length, dissect_common, data);
+
+	return tvb_length(tvb);
+}
+
 
 /* Dissects the common header of frames.
  *
@@ -666,7 +666,8 @@ static gint dissect_header(tvbuff_t *tvb, proto_tree *tree)
 		proto_tree_add_item(temp_tree, hf_timeqal_timequalindic, tvb, offset, 1, ENC_BIG_ENDIAN);
 	offset += 1;
 
-	proto_tree_add_item(tree, hf_fracsec,  tvb, offset, 3, ENC_BIG_ENDIAN); offset += 3;
+	proto_tree_add_item(tree, hf_fracsec,  tvb, offset, 3, ENC_BIG_ENDIAN);
+	/*offset += 3;*/
 
 	return framesize;
 }
@@ -707,7 +708,7 @@ static int dissect_config_frame(tvbuff_t *tvb, proto_item *config_item)
 		gint oldoffset = offset; /* to calculate the length of the whole PMU block later */
 
 		/* STN with new tree to add the rest of the PMU block */
-		str = tvb_get_ephemeral_string(tvb, offset, CHNAM_LEN);
+		str = tvb_get_string(wmem_packet_scope(), tvb, offset, CHNAM_LEN);
 		station_item = proto_tree_add_text(config_tree, tvb, offset, CHNAM_LEN, "Station #%i: \"%s\"", j + 1, str);
 		station_tree = proto_item_add_subtree(station_item, ett_conf_station);
 		offset += CHNAM_LEN;
@@ -792,7 +793,7 @@ static int dissect_data_frame(tvbuff_t	  *tvb,
 	/* search for configuration information to dissect the frame */
 	{
 		gboolean config_found = FALSE;
-		conf = p_get_proto_data(pinfo->fd, proto_synphasor);
+		conf = (config_frame *)p_get_proto_data(wmem_file_scope(), pinfo, proto_synphasor, 0);
 
 		if (conf) {
 			/* check if the size of the current frame is the
@@ -857,17 +858,17 @@ static int dissect_command_frame(tvbuff_t    *tvb,
 {
 	proto_tree *command_tree  = NULL;
 	guint	    tvbsize	  = tvb_length(tvb);
+	const char *s;
 
 	proto_item_set_text(command_item, "Command data");
 	command_tree = proto_item_add_subtree(command_item, ett_command);
 
 	/* CMD */
 	proto_tree_add_item(command_tree, hf_command, tvb, 0, 2, ENC_BIG_ENDIAN);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		const char *s = val_to_str_const(tvb_get_ntohs(tvb, 0), command_names, "invalid command");
-		col_append_str(pinfo->cinfo, COL_INFO, ", ");
-		col_append_str(pinfo->cinfo, COL_INFO, s);
-	}
+
+	s = val_to_str_const(tvb_get_ntohs(tvb, 0), command_names, "invalid command");
+	col_append_str(pinfo->cinfo, COL_INFO, ", ");
+	col_append_str(pinfo->cinfo, COL_INFO, s);
 
 	if (tvbsize > 2) {
 		if (tvb_get_ntohs(tvb, 0) == 0x0008) {
@@ -891,7 +892,7 @@ static int dissect_command_frame(tvbuff_t    *tvb,
 static int dissect_single_phasor(tvbuff_t *tvb, int offset,
 					double* mag, double* phase, /* returns the resulting values here */
 					data_format	format,	    /* information needed to... */
-					phasor_notation notation)   /*	 ...dissect the phasor	*/
+					phasor_notation_e notation)   /*	 ...dissect the phasor	*/
 {
 	if (floating_point == format) {
 		if (polar == notation) {
@@ -1126,7 +1127,7 @@ static gint dissect_ANUNIT(tvbuff_t *tvb, proto_tree *tree, gint offset, gint cn
 		temp_item = proto_tree_add_text(temp_tree, tvb, offset, 4,
 						"Factor for analog value #%i: %s",
 						i + 1,
-						match_strrval((tmp >> 24) & 0x000000FF, conf_anconvnames));
+						try_rval_to_str((tmp >> 24) & 0x000000FF, conf_anconvnames));
 
 			tmp &= 0x00FFFFFF;
 		if (	tmp &  0x00800000) /* sign bit set */
@@ -1186,7 +1187,7 @@ static gint dissect_CHNAM(tvbuff_t *tvb, proto_tree *tree, gint offset, gint cnt
 	/* dissect the 'cnt' channel names */
 	for (i = 0; i < cnt; i++) {
 		char *str;
-		str = tvb_get_ephemeral_string(tvb, offset, CHNAM_LEN);
+		str = tvb_get_string(wmem_packet_scope(), tvb, offset, CHNAM_LEN);
 		proto_tree_add_text(temp_tree, tvb, offset, CHNAM_LEN,
 				    "%s #%i: \"%s\"", prefix, i+1, str);
 		offset += CHNAM_LEN;
@@ -1349,6 +1350,9 @@ void proto_register_synphasor(void)
 						  PROTOCOL_SHORT_NAME,
 						  PROTOCOL_ABBREV);
 
+	/* Registering protocol to be called by another dissector */
+	synphasor_udp_handle = new_register_dissector("synphasor", dissect_udp, proto_synphasor);
+
 	proto_register_field_array(proto_synphasor, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
 
@@ -1373,14 +1377,12 @@ void proto_register_synphasor(void)
 void proto_reg_handoff_synphasor(void)
 {
 	static gboolean		  initialized = FALSE;
-	static dissector_handle_t synphasor_udp_handle;
 	static dissector_handle_t synphasor_tcp_handle;
 	static guint		  current_udp_port;
 	static guint		  current_tcp_port;
 
 	if (!initialized) {
-		synphasor_udp_handle = create_dissector_handle(dissect_udp, proto_synphasor);
-		synphasor_tcp_handle = create_dissector_handle(dissect_tcp, proto_synphasor);
+		synphasor_tcp_handle = new_create_dissector_handle(dissect_tcp, proto_synphasor);
 
 		initialized = TRUE;
 	}

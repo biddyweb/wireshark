@@ -2,8 +2,6 @@
  * Routines for Network Service Over IP dissection
  * Copyright 2000, Susanne Edlund <susanne.edlund@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,14 +28,16 @@
 #include <epan/packet.h>
 
 #include <prefs.h>
+#include <epan/to_str.h>
+
+void proto_register_nsip(void);
+void proto_reg_handoff_nsip(void);
 
 #define NSIP_DEBUG 0
 #define NSIP_SEP ", " /* Separator string */
 
 static range_t *global_nsip_udp_port_range;
 #define DEFAULT_NSIP_PORT_RANGE "2157,19999"
-
-void proto_reg_handoff_nsip(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_nsip = -1;
@@ -134,6 +134,7 @@ static const value_string tab_nsip_pdu_types[] = {
 #define NSIP_IE_RESET_FLAG         0x0a
 #define NSIP_IE_IP_ADDRESS         0x0b
 
+#if NSIP_DEBUG
 static const value_string tab_nsip_ieis[] = {
   { NSIP_IE_CAUSE,               "Cause" },
   { NSIP_IE_NS_VCI,              "NS-VCI" },
@@ -149,6 +150,7 @@ static const value_string tab_nsip_ieis[] = {
   { NSIP_IE_IP_ADDRESS,          "IP Address" },
   { 0,                            NULL },
 };
+#endif
 
 /* Cause values, v 5.3.0, table 10.3.2.1, p 47 */
 #define NSIP_CAUSE_TRANSIT_NETWORK_FAILURE      0x00
@@ -228,6 +230,8 @@ static const value_string ip_address_type_vals[] = {
 static dissector_handle_t bssgp_handle;
 static dissector_handle_t nsip_handle;
 
+static gboolean nsip_is_recursive = FALSE;
+
 typedef struct {
   guint8        iei;
   guint8        presence_req;
@@ -299,22 +303,17 @@ static void
 decode_iei_cause(nsip_ie_t *ie, build_info_t *bi, int ie_start_offset) {
   guint8 cause;
 
-  if (bi->nsip_tree) {
-    cause = tvb_get_guint8(bi->tvb, bi->offset);
-    proto_tree_add_uint_format(bi->nsip_tree, hf_nsip_cause,
-                               bi->tvb, ie_start_offset, ie->total_length,
-                               cause,
-                               "Cause: %s (%#02x)",
-                               val_to_str_const(cause, tab_nsip_cause_values,
-                                                "Unknown"), cause);
-    if (check_col(bi->pinfo->cinfo, COL_INFO)) {
-        col_append_sep_fstr(bi->pinfo->cinfo, COL_INFO, NSIP_SEP,
-            "Cause: %s",
+  cause = tvb_get_guint8(bi->tvb, bi->offset);
+  proto_tree_add_uint(bi->nsip_tree, hf_nsip_cause,
+      bi->tvb, ie_start_offset, ie->total_length,
+      cause);
+  col_append_sep_fstr(bi->pinfo->cinfo, COL_INFO, NSIP_SEP,
+      "Cause: %s",
+      val_to_str(cause, tab_nsip_cause_values, "Unknown (0x%02x)"));
+
+  proto_item_append_text(bi->ti, ", Cause: %s",
             val_to_str(cause, tab_nsip_cause_values, "Unknown (0x%02x)"));
-    }
-    proto_item_append_text(bi->ti, ", Cause: %s",
-            val_to_str(cause, tab_nsip_cause_values, "Unknown (0x%02x)"));
-  }
+
   bi->offset += ie->value_length;
 }
 
@@ -322,19 +321,15 @@ static void
 decode_iei_ns_vci(nsip_ie_t *ie, build_info_t *bi, int ie_start_offset) {
   guint16 ns_vci;
 
-  if (bi->nsip_tree) {
-    ns_vci = tvb_get_ntohs(bi->tvb, bi->offset);
+  ns_vci = tvb_get_ntohs(bi->tvb, bi->offset);
 
-    proto_tree_add_uint_format(bi->nsip_tree, hf_nsip_ns_vci,
-                               bi->tvb, ie_start_offset, ie->total_length,
-                               ns_vci,
-                               "NS VCI: %#04x", ns_vci);
-    if (check_col(bi->pinfo->cinfo, COL_INFO)) {
-        col_append_sep_fstr(bi->pinfo->cinfo, COL_INFO, NSIP_SEP,
-            "NS VCI: %#04x", ns_vci);
-    }
-    proto_item_append_text(bi->ti, ", NS VCI: %#04x", ns_vci);
-  }
+  proto_tree_add_uint(bi->nsip_tree, hf_nsip_ns_vci,
+      bi->tvb, ie_start_offset, ie->total_length,
+      ns_vci);
+  col_append_sep_fstr(bi->pinfo->cinfo, COL_INFO, NSIP_SEP,
+      "NS VCI: %#04x", ns_vci);
+  proto_item_append_text(bi->ti, ", NS VCI: %#04x", ns_vci);
+
   bi->offset += ie->value_length;
 }
 
@@ -342,34 +337,31 @@ static void
 decode_iei_ns_pdu(nsip_ie_t *ie, build_info_t *bi, int ie_start_offset) {
   tvbuff_t * next_tvb;
 
-  if (bi->nsip_tree) {
-    proto_tree_add_text(bi->nsip_tree, bi->tvb, ie_start_offset,
-                        ie->total_length,
-                        "NS PDU (%u bytes)", ie->value_length);
-  }
+  proto_tree_add_text(bi->nsip_tree, bi->tvb, ie_start_offset,
+                      ie->total_length,
+                      "NS PDU (%u bytes)", ie->value_length);
   next_tvb = tvb_new_subset(bi->tvb, bi->offset, ie->value_length, -1);
   if (nsip_handle) {
+    gboolean was_recursive;
+    was_recursive = nsip_is_recursive;
+    nsip_is_recursive = TRUE;
     call_dissector(nsip_handle, next_tvb, bi->pinfo, bi->nsip_tree);
+    nsip_is_recursive = was_recursive;
   }
-  else {
-    bi->offset += ie->value_length;
-  }
+  bi->offset += ie->value_length;
 }
 
 static void
 decode_iei_nsei(nsip_ie_t *ie, build_info_t *bi, int ie_start_offset) {
   guint16 nsei = tvb_get_ntohs(bi->tvb, bi->offset);
 
-  if (bi->nsip_tree) {
-    proto_tree_add_uint(bi->nsip_tree, hf_nsip_nsei, bi->tvb,
-                        ie_start_offset, ie->total_length, nsei);
-  }
+  proto_tree_add_uint(bi->nsip_tree, hf_nsip_nsei, bi->tvb,
+                      ie_start_offset, ie->total_length, nsei);
   bi->offset += ie->value_length;
 
-  if (check_col(bi->pinfo->cinfo, COL_INFO)) {
-    col_append_sep_fstr(bi->pinfo->cinfo, COL_INFO, NSIP_SEP,
+  col_append_sep_fstr(bi->pinfo->cinfo, COL_INFO, NSIP_SEP,
                         "NSEI %u", nsei);
-  }
+
   proto_item_append_text(bi->ti, ", NSEI %u", nsei);
 }
 
@@ -377,16 +369,12 @@ static void
 decode_iei_bvci(nsip_ie_t *ie, build_info_t *bi, int ie_start_offset) {
   guint16 bvci = tvb_get_ntohs(bi->tvb, bi->offset);
 
-  if (bi->nsip_tree) {
-    proto_tree_add_uint(bi->nsip_tree, hf_nsip_bvci, bi->tvb,
-                        ie_start_offset, ie->total_length, bvci);
-  }
+  proto_tree_add_uint(bi->nsip_tree, hf_nsip_bvci, bi->tvb,
+                      ie_start_offset, ie->total_length, bvci);
   bi->offset += ie->value_length;
 
-  if (check_col(bi->pinfo->cinfo, COL_INFO)) {
-    col_append_sep_fstr(bi->pinfo->cinfo, COL_INFO, NSIP_SEP,
+  col_append_sep_fstr(bi->pinfo->cinfo, COL_INFO, NSIP_SEP,
                         "BVCI %u", bvci);
-  }
   proto_item_append_text(bi->ti, ", BVCI %u", bvci);
 }
 
@@ -431,9 +419,8 @@ decode_ip_element(nsip_ip_element_info_t *element, build_info_t *bi, proto_tree 
   if (bi->nsip_tree) {
     /* UDP port value */
     udp_port = tvb_get_ntohs(bi->tvb, bi->offset);
-    proto_tree_add_uint_format(field_tree, hf_nsip_ip_element_udp_port,
-                               bi->tvb, bi->offset, 2, udp_port,
-                               "UDP Port: %u", udp_port);
+    proto_tree_add_item(field_tree, hf_nsip_ip_element_udp_port,
+                               bi->tvb, bi->offset, 2, ENC_BIG_ENDIAN);
     proto_item_append_text(tf, ", UDP Port: %u", udp_port);
   }
   bi->offset += 2;
@@ -480,10 +467,9 @@ decode_iei_max_num_ns_vc(nsip_ie_t *ie, build_info_t *bi, int ie_start_offset) {
  if (bi->nsip_tree) {
    num_ns_vc = tvb_get_ntohs(bi->tvb, bi->offset);
 
-   proto_tree_add_uint_format(bi->nsip_tree, hf_nsip_max_num_ns_vc,
+   proto_tree_add_uint(bi->nsip_tree, hf_nsip_max_num_ns_vc,
                               bi->tvb, ie_start_offset, ie->total_length,
-                              num_ns_vc,
-                              "Maximum Number of NS-VCs: %u", num_ns_vc);
+                              num_ns_vc);
  }
  bi->offset += 2;
 }
@@ -495,10 +481,9 @@ decode_iei_num_ip4_endpoints(nsip_ie_t *ie, build_info_t *bi, int ie_start_offse
   if (bi->nsip_tree) {
     num_endpoints = tvb_get_ntohs(bi->tvb, bi->offset);
 
-    proto_tree_add_uint_format(bi->nsip_tree, hf_nsip_num_ip4_endpoints,
+    proto_tree_add_uint(bi->nsip_tree, hf_nsip_num_ip4_endpoints,
                                bi->tvb, ie_start_offset, ie->total_length,
-                               num_endpoints,
-                               "Number of IP4 Endpoints: %u", num_endpoints);
+                               num_endpoints);
   }
   bi->offset += 2;
 }
@@ -510,10 +495,9 @@ decode_iei_num_ip6_endpoints(nsip_ie_t *ie, build_info_t *bi, int ie_start_offse
   if (bi->nsip_tree) {
     num_endpoints = tvb_get_ntohs(bi->tvb, bi->offset);
 
-    proto_tree_add_uint_format(bi->nsip_tree, hf_nsip_num_ip6_endpoints,
+    proto_tree_add_uint(bi->nsip_tree, hf_nsip_num_ip6_endpoints,
                                bi->tvb, ie_start_offset, ie->total_length,
-                               num_endpoints,
-                               "Number of IP6 Endpoints: %u", num_endpoints);
+                               num_endpoints);
   }
   bi->offset += 2;
 }
@@ -536,10 +520,8 @@ decode_iei_reset_flag(nsip_ie_t *ie, build_info_t *bi, int ie_start_offset) {
                            bi->offset, 1,
                            flag & NSIP_MASK_RESET_FLAG);
      if (flag & NSIP_MASK_RESET_FLAG) {
-         if (check_col(bi->pinfo->cinfo, COL_INFO)) {
-           col_append_sep_fstr(bi->pinfo->cinfo, COL_INFO, NSIP_SEP,
+         col_append_sep_fstr(bi->pinfo->cinfo, COL_INFO, NSIP_SEP,
                    "Reset");
-         }
          proto_item_append_text(bi->ti, ", Reset");
      }
      proto_tree_add_uint(field_tree, hf_nsip_reset_flag_spare,
@@ -562,20 +544,16 @@ decode_iei_ip_address(nsip_ie_t *ie, build_info_t *bi, int ie_start_offset) {
   case NSIP_IP_ADDRESS_TYPE_IPV4:
     ie->total_length = 2 + ipv4_element.address_length;
     ip4_addr = tvb_get_ipv4(bi->tvb, bi->offset+1);
-    if (bi->nsip_tree) {
-      proto_tree_add_ipv4(bi->nsip_tree, hf_nsip_ip_address_ipv4,
-                          bi->tvb, ie_start_offset, ie->total_length,
-                          ip4_addr);
-    }
+    proto_tree_add_ipv4(bi->nsip_tree, hf_nsip_ip_address_ipv4,
+        bi->tvb, ie_start_offset, ie->total_length,
+        ip4_addr);
     break;
   case NSIP_IP_ADDRESS_TYPE_IPV6:
     ie->total_length = 2 + ipv6_element.address_length;
     tvb_get_ipv6(bi->tvb, bi->offset+1, &ip6_addr);
-    if (bi->nsip_tree) {
-      proto_tree_add_ipv6(bi->nsip_tree, hf_nsip_ip_address_ipv4,
-                          bi->tvb, ie_start_offset, ie->total_length,
-                          (guint8 *)&ip6_addr);
-    }
+    proto_tree_add_ipv6(bi->nsip_tree, hf_nsip_ip_address_ipv4,
+        bi->tvb, ie_start_offset, ie->total_length,
+        (guint8 *)&ip6_addr);
     break;
   default:
     return; /* error */
@@ -586,16 +564,12 @@ decode_iei_ip_address(nsip_ie_t *ie, build_info_t *bi, int ie_start_offset) {
 static void
 decode_iei_transaction_id(nsip_ie_t *ie, build_info_t *bi, int ie_start_offset) {
   guint8 id;
-  if (bi->nsip_tree) {
-    id = tvb_get_guint8(bi->tvb, bi->offset);
-    proto_tree_add_uint(bi->nsip_tree, hf_nsip_transaction_id,
-                        bi->tvb, ie_start_offset, ie->total_length, id);
-    if (check_col(bi->pinfo->cinfo, COL_INFO)) {
-      col_append_sep_fstr(bi->pinfo->cinfo, COL_INFO, NSIP_SEP,
-              "Transaction Id: %d", id);
-    }
-  }
- bi->offset += 1;
+  id = tvb_get_guint8(bi->tvb, bi->offset);
+  proto_tree_add_uint(bi->nsip_tree, hf_nsip_transaction_id,
+                      bi->tvb, ie_start_offset, ie->total_length, id);
+  col_append_sep_fstr(bi->pinfo->cinfo, COL_INFO, NSIP_SEP,
+            "Transaction Id: %d", id);
+  bi->offset += 1;
 }
 
 static void
@@ -651,16 +625,14 @@ decode_iei_control_bits(nsip_ie_t *ie, build_info_t *bi, int ie_start_offset) {
   }
   bi->offset++;
 
-  if (check_col(bi->pinfo->cinfo, COL_INFO)) {
-    if (control_bits & NSIP_MASK_CONTROL_BITS_R) {
-      col_append_sep_str(bi->pinfo->cinfo, COL_INFO, NSIP_SEP, "Req CF");
-      proto_item_append_text(bi->ti, ", Request Change Flow");
-    }
+  if (control_bits & NSIP_MASK_CONTROL_BITS_R) {
+    col_append_sep_str(bi->pinfo->cinfo, COL_INFO, NSIP_SEP, "Req CF");
+    proto_item_append_text(bi->ti, ", Request Change Flow");
+  }
 
-    if (control_bits & NSIP_MASK_CONTROL_BITS_C) {
-      col_append_sep_str(bi->pinfo->cinfo, COL_INFO, NSIP_SEP, "Conf CF");
-      proto_item_append_text(bi->ti, ", Confirm Change Flow");
-    }
+  if (control_bits & NSIP_MASK_CONTROL_BITS_C) {
+    col_append_sep_str(bi->pinfo->cinfo, COL_INFO, NSIP_SEP, "Conf CF");
+    proto_item_append_text(bi->ti, ", Confirm Change Flow");
   }
 }
 
@@ -995,9 +967,10 @@ dissect_nsip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
   pinfo->current_proto = "GPRS-NS";
 
-  col_set_str(pinfo->cinfo, COL_PROTOCOL, "GPRS-NS");
-
-  col_clear(pinfo->cinfo, COL_INFO);
+  if (!nsip_is_recursive) {
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, "GPRS-NS");
+    col_clear(pinfo->cinfo, COL_INFO);
+  }
 
   pdu_type = tvb_get_guint8(tvb, 0);
   bi.offset++;
@@ -1006,18 +979,19 @@ dissect_nsip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
     bi.ti = proto_tree_add_item(tree, proto_nsip, tvb, 0, -1,
                              ENC_NA);
     nsip_tree = proto_item_add_subtree(bi.ti, ett_nsip);
-    proto_tree_add_uint_format(nsip_tree, hf_nsip_pdu_type, tvb, 0, 1,
-                               pdu_type,
-                               "PDU type: %s (%#02x)",
-                               val_to_str_const(pdu_type, tab_nsip_pdu_types,
-                                                "Unknown"), pdu_type);
+    proto_tree_add_item(nsip_tree, hf_nsip_pdu_type, tvb, 0, 1, ENC_NA);
     proto_item_append_text(bi.ti, ", PDU type: %s",
                                val_to_str_const(pdu_type, tab_nsip_pdu_types, "Unknown"));
     bi.nsip_tree = nsip_tree;
   }
 
-  col_add_str(pinfo->cinfo, COL_INFO,
-              val_to_str_const(pdu_type, tab_nsip_pdu_types, "Unknown PDU type"));
+  if (!nsip_is_recursive) {
+    col_set_str(pinfo->cinfo, COL_INFO,
+                val_to_str_const(pdu_type, tab_nsip_pdu_types, "Unknown PDU type"));
+  } else {
+    col_append_sep_fstr(pinfo->cinfo, COL_INFO, NSIP_SEP, "%s",
+                val_to_str_const(pdu_type, tab_nsip_pdu_types, "Unknown PDU type"));
+  }
   decode_pdu(pdu_type, &bi);
 }
 
@@ -1032,7 +1006,7 @@ proto_register_nsip(void)
     },
     { &hf_nsip_ns_vci,
       { "NS-VCI", "nsip.ns_vci",
-        FT_UINT16, BASE_DEC, NULL, 0x0,
+        FT_UINT16, BASE_HEX, NULL, 0x0,
         "Network Service Virtual Link Identifier", HFILL }
     },
     { &hf_nsip_pdu_type,
@@ -1201,18 +1175,6 @@ proto_register_nsip(void)
                                   &global_nsip_udp_port_range, MAX_UDP_PORT);
 }
 
-static void
-range_delete_callback(guint32 port)
-{
-    dissector_delete_uint("udp.port", port, nsip_handle);
-}
-
-static void
-range_add_callback(guint32 port)
-{
-    dissector_add_uint("udp.port", port, nsip_handle);
-}
-
 void
 proto_reg_handoff_nsip(void) {
   static gboolean nsip_prefs_initialized = FALSE;
@@ -1223,12 +1185,25 @@ proto_reg_handoff_nsip(void) {
     bssgp_handle = find_dissector("bssgp");
     nsip_prefs_initialized = TRUE;
   } else {
-    range_foreach(nsip_udp_port_range, range_delete_callback);
+    dissector_delete_uint_range("udp.port", nsip_udp_port_range, nsip_handle);
     g_free(nsip_udp_port_range);
   }
 
   nsip_udp_port_range = range_copy(global_nsip_udp_port_range);
 
-  range_foreach(nsip_udp_port_range, range_add_callback);
+  dissector_add_uint_range("udp.port", nsip_udp_port_range, nsip_handle);
 
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 2
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=2 tabstop=8 expandtab:
+ * :indentSize=2:tabSize=8:noTabs=true:
+ */

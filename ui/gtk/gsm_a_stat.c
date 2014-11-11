@@ -5,8 +5,6 @@
  *
  * MUCH code modified from service_response_time_table.c.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,8 @@
  */
 
 #include "config.h"
+
+#include <stdlib.h>
 #include <string.h>
 
 #include <gtk/gtk.h>
@@ -52,6 +52,8 @@
 #include "ui/gtk/gui_utils.h"
 
 #include "ui/gtk/old-gtk-compat.h"
+
+void register_tap_listener_gtkgsm_a_stat(void);
 
 enum
 {
@@ -188,7 +190,7 @@ static void
 gsm_a_stat_reset(
     void        *tapdata)
 {
-    gsm_a_stat_t    *stat_p = tapdata;
+    gsm_a_stat_t    *stat_p = (gsm_a_stat_t *)tapdata;
 
     memset(stat_p, 0, sizeof(gsm_a_stat_t));
 }
@@ -201,8 +203,8 @@ gsm_a_stat_packet(
     epan_dissect_t  *edt _U_,
     const void      *data)
 {
-    gsm_a_stat_t    *stat_p = tapdata;
-    const gsm_a_tap_rec_t   *data_p = data;
+    gsm_a_stat_t    *stat_p = (gsm_a_stat_t *)tapdata;
+    const gsm_a_tap_rec_t   *data_p = (const gsm_a_tap_rec_t *)data;
 
     switch (data_p->pdu_type)
     {
@@ -304,7 +306,7 @@ static void
 gsm_a_stat_draw(
     void        *tapdata)
 {
-    gsm_a_stat_t    *stat_p = tapdata;
+    gsm_a_stat_t    *stat_p = (gsm_a_stat_t *)tapdata;
 
     if (!tapdata) return;
 
@@ -418,7 +420,7 @@ gsm_a_stat_gtk_win_create(
     bbox = dlg_button_row_new(GTK_STOCK_CLOSE, NULL);
     gtk_box_pack_start(GTK_BOX(vbox), bbox, FALSE, FALSE, 0);
 
-    bt_close = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+    bt_close = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
     window_set_cancel_button(dlg_p->win, bt_close, window_cancel_button_cb);
 
     g_signal_connect(dlg_p->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);

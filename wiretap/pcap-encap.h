@@ -1,8 +1,6 @@
 /* pcap-encap.h
  * Declarations for routines to handle libpcap/pcap-NG linktype values
  *
- * $Id: pcap-common.h 28863 2009-06-27 16:08:18Z tuexen $
- *
  * Wiretap Library
  * Copyright (c) 1998 by Gilbert Ramirez <gram@alumni.rice.edu>
  *

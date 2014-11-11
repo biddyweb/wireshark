@@ -2,8 +2,6 @@
  * File read and write routines for Visual Networks cap files.
  * Copyright (c) 2001, Tom Nisbet  tnisbet@visualnetworks.com
  *
- * $Id$
- *
  * Wiretap Library
  * Copyright (c) 1998 by Gilbert Ramirez <gram@alumni.rice.edu>
  *
@@ -27,7 +25,7 @@
 #include <string.h>
 #include "wtap-int.h"
 #include "file_wrappers.h"
-#include "buffer.h"
+#include <wsutil/buffer.h>
 #include "visual.h"
 
 /*
@@ -39,11 +37,11 @@
  * The first packet index is (4 * num_pkts) octets from the end of the file
  * and the last index is in the last four octets of the file.
  *
- * All integer and time values are stored in little-endian format, except for 
+ * All integer and time values are stored in little-endian format, except for
  *  the ATM Packet Header, which is stored in network byte order.
  *
- * [ File Header ] 
- * 
+ * [ File Header ]
+ *
  *
  * [ Packet Header 1 ] [(opt) ATM Packet Header] [ Data ]
  * ...
@@ -106,7 +104,7 @@ struct visual_pkt_hdr
 /* This structure is used to extract information */
 struct visual_atm_hdr
 {
-   guint16 vpi;           /* 4 bits of zeros; 12 bits of ATM VPI */ 
+   guint16 vpi;           /* 4 bits of zeros; 12 bits of ATM VPI */
    guint16 vci;           /* ATM VCI */
    guint8  info;          /* 4 bits version; 3 bits unused-zero; 1 bit direction */
    guint8  category;      /* indicates type of traffic. 4 bits of status + 4 bits of type */
@@ -163,10 +161,9 @@ struct visual_write_info
 static gboolean visual_read(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset);
 static gboolean visual_seek_read(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int packet_size,
-    int *err, gchar **err_info);
-static void visual_set_pseudo_header(int encap, struct visual_pkt_hdr *vpkt_hdr,
-    struct visual_atm_hdr *vatm_hdr, union wtap_pseudo_header *pseudo_header);
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info);
+static gboolean visual_read_packet(wtap *wth, FILE_T fh,
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info);
 static gboolean visual_dump(wtap_dumper *wdh, const struct wtap_pkthdr *phdr,
     const guint8 *pd, int *err);
 static gboolean visual_dump_close(wtap_dumper *wdh, int *err);
@@ -209,7 +206,7 @@ int visual_open(wtap *wth, int *err, gchar **err_info)
     }
 
     /* Verify the file version is known */
-    vfile_hdr.file_version = pletohs(&vfile_hdr.file_version);
+    vfile_hdr.file_version = pletoh16(&vfile_hdr.file_version);
     if (vfile_hdr.file_version != 1)
     {
         *err = WTAP_ERR_UNSUPPORTED;
@@ -225,7 +222,7 @@ int visual_open(wtap *wth, int *err, gchar **err_info)
        the first packet is read.
 
        XXX - should we use WTAP_ENCAP_PER_PACKET for that? */
-    switch (pletohs(&vfile_hdr.media_type))
+    switch (pletoh16(&vfile_hdr.media_type))
     {
     case  6:	/* ethernet-csmacd */
         encap = WTAP_ENCAP_ETHERNET;
@@ -260,9 +257,9 @@ int visual_open(wtap *wth, int *err, gchar **err_info)
     }
 
     /* Fill in the wiretap struct with data from the file header */
-    wth->file_type = WTAP_FILE_VISUAL_NETWORKS;
+    wth->file_type_subtype = WTAP_FILE_TYPE_SUBTYPE_VISUAL_NETWORKS;
     wth->file_encap = encap;
-    wth->snapshot_length = pletohs(&vfile_hdr.max_length);
+    wth->snapshot_length = pletoh16(&vfile_hdr.max_length);
 
     /* Set up the pointers to the handlers for this file type */
     wth->subtype_read = visual_read;
@@ -272,8 +269,8 @@ int visual_open(wtap *wth, int *err, gchar **err_info)
     /* Add Visual-specific information to the wiretap struct for later use. */
     visual = (struct visual_read_info *)g_malloc(sizeof(struct visual_read_info));
     wth->priv = (void *)visual;
-    visual->num_pkts = pletohl(&vfile_hdr.num_pkts);
-    visual->start_time = ((double) pletohl(&vfile_hdr.start_time)) * 1000000;
+    visual->num_pkts = pletoh32(&vfile_hdr.num_pkts);
+    visual->start_time = ((double) pletoh32(&vfile_hdr.start_time)) * 1000000;
     visual->current_pkt = 1;
 
     return 1;
@@ -288,15 +285,6 @@ static gboolean visual_read(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset)
 {
     struct visual_read_info *visual = (struct visual_read_info *)wth->priv;
-    guint32 packet_size = 0;
-    int bytes_read;
-    struct visual_pkt_hdr vpkt_hdr;
-    struct visual_atm_hdr vatm_hdr;
-    int phdr_size = sizeof(vpkt_hdr);
-    int ahdr_size = sizeof(vatm_hdr);
-    time_t  secs;
-    guint32 usecs;
-    double  t;
 
     /* Check for the end of the packet data.  Note that a check for file EOF
        will not work because there are index values stored after the last
@@ -308,12 +296,50 @@ static gboolean visual_read(wtap *wth, int *err, gchar **err_info,
     }
     visual->current_pkt++;
 
+    *data_offset = file_tell(wth->fh);
+
+    return visual_read_packet(wth, wth->fh, &wth->phdr, wth->frame_buffer,
+            err, err_info);
+}
+
+/* Read packet header and data for random access. */
+static gboolean visual_seek_read(wtap *wth, gint64 seek_off,
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info)
+{
+    /* Seek to the packet header */
+    if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
+        return FALSE;
+
+    /* Read the packet. */
+    if (!visual_read_packet(wth, wth->random_fh, phdr, buf, err, err_info)) {
+        if (*err == 0)
+            *err = WTAP_ERR_SHORT_READ;
+        return FALSE;
+    }
+    return TRUE;
+}
+
+static gboolean
+visual_read_packet(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr,
+        Buffer *buf, int *err, gchar **err_info)
+{
+    struct visual_read_info *visual = (struct visual_read_info *)wth->priv;
+    struct visual_pkt_hdr vpkt_hdr;
+    int bytes_read;
+    guint32 packet_size;
+    struct visual_atm_hdr vatm_hdr;
+    double  t;
+    time_t  secs;
+    guint32 usecs;
+    guint32 packet_status;
+    guint8 *pd;
+
     /* Read the packet header. */
     errno = WTAP_ERR_CANT_READ;
-    bytes_read = file_read(&vpkt_hdr, phdr_size, wth->fh);
-    if (bytes_read != phdr_size)
+    bytes_read = file_read(&vpkt_hdr, (unsigned int)sizeof vpkt_hdr, fh);
+    if (bytes_read < 0 || (size_t)bytes_read != sizeof vpkt_hdr)
     {
-        *err = file_error(wth->fh, err_info);
+        *err = file_error(fh, err_info);
         if (*err == 0 && bytes_read != 0)
         {
             *err = WTAP_ERR_SHORT_READ;
@@ -322,31 +348,199 @@ static gboolean visual_read(wtap *wth, int *err, gchar **err_info,
     }
 
     /* Get the included length of data. This includes extra headers + payload */
-    packet_size = pletohs(&vpkt_hdr.incl_len);
+    packet_size = pletoh16(&vpkt_hdr.incl_len);
 
-    /* Check for additional ATM packet header */
-    if (wth->file_encap == WTAP_ENCAP_ATM_PDUS)
+    phdr->rec_type = REC_TYPE_PACKET;
+    phdr->presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
+
+    /* Set the packet time and length. */
+    t = visual->start_time;
+    t += ((double)pletoh32(&vpkt_hdr.ts_delta))*1000;
+    secs = (time_t)(t/1000000);
+    usecs = (guint32)(t - secs*1000000);
+    phdr->ts.secs = secs;
+    phdr->ts.nsecs = usecs * 1000;
+
+    phdr->len = pletoh16(&vpkt_hdr.orig_len);
+
+    packet_status = pletoh32(&vpkt_hdr.status);
+
+    /* Do encapsulation-specific processing.
+
+       Most Visual capture types include the FCS in the original length
+       value, but don't include the FCS as part of the payload or captured
+       length.  This is different from the model used in most other capture
+       file formats, including pcap and pcap-ng in cases where the FCS isn't
+       captured (which are the typical cases), and causes the RTP audio
+       payload save to fail since then captured len != orig len.
+
+       We adjust the original length to remove the FCS bytes we counted based
+       on the file encapsualtion type.  The only downside to this fix is
+       throughput calculations will be slightly lower as it won't include
+       the FCS bytes.  However, as noted, that problem also exists with
+       other capture formats.
+
+       We also set status flags.  The only status currently supported for
+       all encapsulations is direction.  This either goes in the p2p or the
+       X.25 pseudo header.  It would probably be better to move this up
+       into the phdr. */
+    switch (wth->file_encap)
     {
-       /* Read the atm packet header. */
-       errno = WTAP_ERR_CANT_READ;
-       bytes_read = file_read(&vatm_hdr, ahdr_size, wth->fh);
-       if (bytes_read != ahdr_size)
-       {
-           *err = file_error(wth->fh, err_info);
-           if (*err == 0 && bytes_read != 0)
-           {
-               *err = WTAP_ERR_SHORT_READ;
-           }
-           return FALSE;
-       }
-       
-       /* Remove ATM header from length of included bytes in capture, as 
-          this header was appended by the processor doing the packet reassembly,
-          and was not transmitted across the wire */
-       packet_size -= ahdr_size;
+    case WTAP_ENCAP_ETHERNET:
+        /* Ethernet has a 4-byte FCS. */
+        if (phdr->len < 4)
+        {
+            *err = WTAP_ERR_BAD_FILE;
+            *err_info = g_strdup_printf("visual: Ethernet packet has %u-byte original packet, less than the FCS length",
+                        phdr->len);
+            return FALSE;
+        }
+        phdr->len -= 4;
+
+        /* XXX - the above implies that there's never an FCS; should this
+           set the FCS length to 0? */
+        phdr->pseudo_header.eth.fcs_len = -1;
+        break;
+
+    case WTAP_ENCAP_CHDLC_WITH_PHDR:
+        /* This has a 2-byte FCS. */
+        if (phdr->len < 2)
+        {
+            *err = WTAP_ERR_BAD_FILE;
+            *err_info = g_strdup_printf("visual: Cisco HDLC packet has %u-byte original packet, less than the FCS length",
+                        phdr->len);
+            return FALSE;
+        }
+        phdr->len -= 2;
+
+        phdr->pseudo_header.p2p.sent = (packet_status & PS_SENT) ? TRUE : FALSE;
+        break;
+
+    case WTAP_ENCAP_PPP_WITH_PHDR:
+        /* No FCS.
+           XXX - true?  Note that PPP can negotiate no FCS, a 2-byte FCS,
+           or a 4-byte FCS. */
+        phdr->pseudo_header.p2p.sent = (packet_status & PS_SENT) ? TRUE : FALSE;
+        break;
+
+    case WTAP_ENCAP_FRELAY_WITH_PHDR:
+        /* This has a 2-byte FCS. */
+        if (phdr->len < 2)
+        {
+            *err = WTAP_ERR_BAD_FILE;
+            *err_info = g_strdup_printf("visual: Frame Relay packet has %u-byte original packet, less than the FCS length",
+                        phdr->len);
+            return FALSE;
+        }
+        phdr->len -= 2;
+
+        phdr->pseudo_header.x25.flags =
+            (packet_status & PS_SENT) ? 0x00 : FROM_DCE;
+        break;
+
+    case WTAP_ENCAP_LAPB:
+        /* This has a 2-byte FCS. */
+        if (phdr->len < 2)
+        {
+            *err = WTAP_ERR_BAD_FILE;
+            *err_info = g_strdup_printf("visual: Frame Relay packet has %u-byte original packet, less than the FCS length",
+                        phdr->len);
+            return FALSE;
+        }
+        phdr->len -= 2;
+
+        phdr->pseudo_header.x25.flags =
+            (packet_status & PS_SENT) ? 0x00 : FROM_DCE;
+        break;
+
+    case WTAP_ENCAP_ATM_PDUS:
+        /* ATM original length doesn't include any FCS. Do nothing to
+           the packet length.
+
+           ATM packets have an additional packet header; read and
+           process it. */
+        errno = WTAP_ERR_CANT_READ;
+        bytes_read = file_read(&vatm_hdr, (unsigned int)sizeof vatm_hdr, fh);
+        if (bytes_read < 0 || (size_t)bytes_read != sizeof vatm_hdr)
+        {
+            *err = file_error(fh, err_info);
+            if (*err == 0)
+            {
+                *err = WTAP_ERR_SHORT_READ;
+            }
+            return FALSE;
+        }
+
+        /* Remove ATM header from length of included bytes in capture, as
+           this header was appended by the processor doing the packet
+           reassembly, and was not transmitted across the wire */
+        packet_size -= (guint32)sizeof vatm_hdr;
+
+        /* Set defaults */
+        phdr->pseudo_header.atm.type = TRAF_UNKNOWN;
+        phdr->pseudo_header.atm.subtype = TRAF_ST_UNKNOWN;
+        phdr->pseudo_header.atm.aal5t_len = 0;
+
+        /* Next two items not supported. Defaulting to zero */
+        phdr->pseudo_header.atm.aal5t_u2u = 0;
+        phdr->pseudo_header.atm.aal5t_chksum = 0;
+
+        /* Flags appear only to convey that packet is a raw cell. Set to 0 */
+        phdr->pseudo_header.atm.flags = 0;
+
+        /* Not supported. Defaulting to zero */
+        phdr->pseudo_header.atm.aal2_cid = 0;
+
+        switch(vatm_hdr.category & VN_CAT_TYPE_MASK )
+        {
+        case VN_AAL1:
+            phdr->pseudo_header.atm.aal = AAL_1;
+            break;
+
+        case VN_AAL2:
+            phdr->pseudo_header.atm.aal = AAL_2;
+            break;
+
+        case VN_AAL34:
+            phdr->pseudo_header.atm.aal = AAL_3_4;
+            break;
+
+        case VN_AAL5:
+            phdr->pseudo_header.atm.aal = AAL_5;
+            phdr->pseudo_header.atm.type = TRAF_LLCMX;
+            phdr->pseudo_header.atm.aal5t_len = pntoh32(&vatm_hdr.data_length);
+            break;
+
+        case VN_OAM:
+        /* Marking next 3 as OAM versus unknown */
+        case VN_O191:
+        case VN_IDLE:
+        case VN_RM:
+            phdr->pseudo_header.atm.aal = AAL_OAMCELL;
+            break;
+
+        case VN_UNKNOWN:
+        default:
+            phdr->pseudo_header.atm.aal = AAL_UNKNOWN;
+            break;
+        }
+        phdr->pseudo_header.atm.vpi = pntoh16(&vatm_hdr.vpi) & 0x0FFF;
+        phdr->pseudo_header.atm.vci = pntoh16(&vatm_hdr.vci);
+        phdr->pseudo_header.atm.cells = pntoh16(&vatm_hdr.cell_count);
+
+        /* Using bit value of 1 (DCE -> DTE) to indicate From Network */
+        phdr->pseudo_header.atm.channel = vatm_hdr.info & FROM_NETWORK;
+        break;
+
+    /* Not sure about token ring. Just leaving alone for now. */
+    case WTAP_ENCAP_TOKEN_RING:
+    default:
+        break;
     }
 
-    /* Read the packet data. */
+    phdr->caplen = packet_size;
+
+    /* Check for too-large packet. */
     if (packet_size > WTAP_MAX_PACKET_SIZE)
     {
         /* Probably a corrupt capture file; don't blow up trying
@@ -356,283 +550,61 @@ static gboolean visual_read(wtap *wth, int *err, gchar **err_info,
             packet_size, WTAP_MAX_PACKET_SIZE);
         return FALSE;
     }
-    buffer_assure_space(wth->frame_buffer, packet_size);
-    *data_offset = file_tell(wth->fh);
-    errno = WTAP_ERR_CANT_READ;
-    bytes_read = file_read(buffer_start_ptr(wth->frame_buffer),
-            packet_size, wth->fh);
 
-    if (bytes_read != (int) packet_size)
-    {
-        *err = file_error(wth->fh, err_info);
-        if (*err == 0)
-            *err = WTAP_ERR_SHORT_READ;
+    /* Read the packet data */
+    if (!wtap_read_packet_bytes(fh, buf, packet_size, err, err_info))
         return FALSE;
-    }
 
-    wth->phdr.presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
-
-    /* Set the packet time and length. */
-    t = visual->start_time;
-    t += ((double)pletohl(&vpkt_hdr.ts_delta))*1000;
-    secs = (time_t)(t/1000000);
-    usecs = (guint32)(t - secs*1000000);
-    wth->phdr.ts.secs = secs;
-    wth->phdr.ts.nsecs = usecs * 1000;
-    
-    /* Most visual capture types include FCS checks in the original length value, but
-    * but don't include the FCS as part of the payload or captured length. 
-    * This causes the RTP audio payload save to fail since then captured len != orig len.
-    * Adjusting the original length to remove the FCS bytes we counted based
-    * on the file encapsualtion type.
-    *
-    * Only downside to this fix is throughput calculations will be slightly lower
-    * as they won't include the FCS bytes.
-    */
-
-    wth->phdr.caplen = packet_size;
-    wth->phdr.len = pletohs(&vpkt_hdr.orig_len);
-
-    switch (wth->file_encap)
-    {
-    case WTAP_ENCAP_ETHERNET:
-       wth->phdr.len -= 4;
-       break;
-    
-    case WTAP_ENCAP_FRELAY_WITH_PHDR:
-    case WTAP_ENCAP_CHDLC_WITH_PHDR:
-    case WTAP_ENCAP_LAPB:
-       wth->phdr.len -= 2;
-       break;
-
-    /* ATM original length doesn't include any FCS. Do nothing. */
-    case WTAP_ENCAP_ATM_PDUS:
-    /* Not sure about token ring. Just leaving alone for now. */
-    case WTAP_ENCAP_TOKEN_RING:
-    default:
-       break;
-    }
-
-    if (wth->phdr.len > WTAP_MAX_PACKET_SIZE) {
-    /* Check if wth->phdr.len is sane, small values of wth.phdr.len before
-       the case loop above can cause integer underflows */ 
-        *err = WTAP_ERR_BAD_FILE;
-        *err_info = g_strdup_printf("visual: File has %u-byte original packet, bigger than maximum of %u",
-                    wth->phdr.len, WTAP_MAX_PACKET_SIZE);
-        return FALSE;
-    }
-
-    /* Sanity check */
-    if (wth->phdr.len < wth->phdr.caplen)
-    {
-       wth->phdr.len = wth->phdr.caplen;
-    }
-
-    /* Set the pseudo_header. */
-    visual_set_pseudo_header(wth->file_encap, &vpkt_hdr, &vatm_hdr, &wth->phdr.pseudo_header);
-
-    /* Fill in the encapsulation.  Visual files have a media type in the
-       file header and an encapsulation type in each packet header.  Files
-       with a media type of HDLC can be either Cisco EtherType or PPP.
-
-       The encapsulation hint values we've seen are:
-
-         2 - seen in an Ethernet capture
-         13 - seen in a PPP capture; possibly also seen in Cisco HDLC
-              captures
-         14 - seen in a PPP capture; probably seen only for PPP */
     if (wth->file_encap == WTAP_ENCAP_CHDLC_WITH_PHDR)
     {
+        /* Fill in the encapsulation.  Visual files have a media type in the
+           file header and an encapsulation type in each packet header.  Files
+           with a media type of HDLC can be either Cisco EtherType or PPP.
+
+           The encapsulation hint values we've seen are:
+
+             2 - seen in an Ethernet capture
+             13 - seen in a PPP capture; possibly also seen in Cisco HDLC
+                  captures
+             14 - seen in a PPP capture; probably seen only for PPP.
+
+           According to bug 2005, the collection probe can be configured
+           for PPP, in which case the encapsulation hint is 14, or can
+           be configured for auto-detect, in which case the encapsulation
+           hint is 13, and the encapsulation must be guessed from the
+           packet contents.  Auto-detect is the default. */
+        pd = buffer_start_ptr(buf);
+
         /* If PPP is specified in the encap hint, then use that */
         if (vpkt_hdr.encap_hint == 14)
         {
-              /* But first we need to examine the first three octets to
+            /* But first we need to examine the first three octets to
                try to determine the proper encapsulation, see RFC 2364. */
-            guint8 *buf = buffer_start_ptr(wth->frame_buffer);
-            if ((0xfe == buf[0]) && (0xfe == buf[1]) && (0x03 == buf[2]))
+            if (packet_size >= 3 &&
+                (0xfe == pd[0]) && (0xfe == pd[1]) && (0x03 == pd[2]))
             {
                 /* It is actually LLC encapsulated PPP */
-                wth->phdr.pkt_encap = WTAP_ENCAP_ATM_RFC1483;
+                phdr->pkt_encap = WTAP_ENCAP_ATM_RFC1483;
             }
             else
             {
                 /* It is actually PPP */
-                wth->phdr.pkt_encap = WTAP_ENCAP_PPP_WITH_PHDR;
+                phdr->pkt_encap = WTAP_ENCAP_PPP_WITH_PHDR;
             }
         }
         else
         {
             /* Otherwise, we need to examine the first two octets to
                try to determine the encapsulation. */
-            guint8 *buf = buffer_start_ptr(wth->frame_buffer);
-            if ((0xff == buf[0]) && (0x03 == buf[1]))
+            if (packet_size >= 2 && (0xff == pd[0]) && (0x03 == pd[1]))
             {
                 /* It is actually PPP */
-                wth->phdr.pkt_encap = WTAP_ENCAP_PPP_WITH_PHDR;
+                phdr->pkt_encap = WTAP_ENCAP_PPP_WITH_PHDR;
             }
         }
     }
-    return TRUE;
-}
-
-/* Read packet data for random access.
-   This gets the packet data and rebuilds the pseudo header so that
-   the direction flag works. */
-static gboolean visual_seek_read (wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int len,
-    int *err, gchar **err_info)
-{
-    union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
-    struct visual_pkt_hdr vpkt_hdr;
-    struct visual_atm_hdr vatm_hdr;
-    int phdr_size = sizeof(vpkt_hdr);
-    int ahdr_size = sizeof(vatm_hdr);
-    int bytes_read;
-    int header_size;
-
-    /* Get the size of the visual packet header to skip */
-    header_size = sizeof(struct visual_pkt_hdr);
-
-    /* If ATM capture, need to skip over visual ATM packet header too */
-    if (wth->file_encap == WTAP_ENCAP_ATM_PDUS)
-    {
-       header_size += (int)sizeof(struct visual_atm_hdr);
-    }
-    
-    /* Seek to the packet header */
-    if (file_seek(wth->random_fh, seek_off - header_size,
-                  SEEK_SET, err) == -1)
-        return FALSE;
-
-    /* Read the packet header to get the status flags. */
-    errno = WTAP_ERR_CANT_READ;
-    bytes_read = file_read(&vpkt_hdr, phdr_size, wth->random_fh);
-    if (bytes_read != phdr_size) {
-    	*err = file_error(wth->random_fh, err_info);
-    	if (*err == 0)
-    	    *err = WTAP_ERR_SHORT_READ;
-        return FALSE;
-    }
-    
-    /* Check for additional ATM packet header */
-    if (wth->file_encap == WTAP_ENCAP_ATM_PDUS)
-    {
-       /* Read the atm packet header */
-       errno = WTAP_ERR_CANT_READ;
-       bytes_read = file_read(&vatm_hdr, ahdr_size, wth->random_fh);
-       if (bytes_read != ahdr_size)
-       {
-           *err = file_error(wth->fh, err_info);
-           if (*err == 0 && bytes_read != 0)
-           {
-               *err = WTAP_ERR_SHORT_READ;
-           }
-           return FALSE;
-       }
-    }
-
-    /* Read the packet data. */
-    errno = WTAP_ERR_CANT_READ;
-    bytes_read = file_read(pd, len, wth->random_fh);
-    if (bytes_read != len) {
-    	if (*err == 0)
-    	    *err = WTAP_ERR_SHORT_READ;
-        return FALSE;
-    }
-
-    /* Set the pseudo_header. */
-    visual_set_pseudo_header(wth->file_encap, &vpkt_hdr, &vatm_hdr, pseudo_header);
 
     return TRUE;
-}
-
-static void visual_set_pseudo_header(int encap, struct visual_pkt_hdr *vpkt_hdr,
-    struct visual_atm_hdr *vatm_hdr, union wtap_pseudo_header *pseudo_header)
-{
-    guint32 packet_status;
-
-    /* Set status flags.  The only status currently supported for all
-       encapsulations is direction.  This either goes in the p2p or the
-       X.25 pseudo header.  It would probably be better to move this up
-       into the phdr. */
-    packet_status = pletohl(&vpkt_hdr->status);
-    switch (encap)
-    {
-    case WTAP_ENCAP_ETHERNET:
-        /* XXX - is there an FCS in the frame? */
-        pseudo_header->eth.fcs_len = -1;
-        break;
-
-    case WTAP_ENCAP_CHDLC_WITH_PHDR:
-    case WTAP_ENCAP_PPP_WITH_PHDR:
-        pseudo_header->p2p.sent = (packet_status & PS_SENT) ? TRUE : FALSE;
-        break;
-
-    case WTAP_ENCAP_FRELAY_WITH_PHDR:
-    case WTAP_ENCAP_LAPB:
-        pseudo_header->x25.flags =
-            (packet_status & PS_SENT) ? 0x00 : FROM_DCE;
-        break;
-
-    case WTAP_ENCAP_ATM_PDUS:
-       /* Set defaults */
-       pseudo_header->atm.type = TRAF_UNKNOWN;
-       pseudo_header->atm.subtype = TRAF_ST_UNKNOWN;
-       pseudo_header->atm.aal5t_len = 0;
-
-       /* Next two items not supported. Defaulting to zero */
-       pseudo_header->atm.aal5t_u2u = 0;
-       pseudo_header->atm.aal5t_chksum = 0;
-       
-       /* Flags appear only to convey that packet is a raw cell. Set to 0 */
-       pseudo_header->atm.flags = 0; 
-       
-       /* Not supported. Defaulting to zero */
-       pseudo_header->atm.aal2_cid = 0;
-
-       switch(vatm_hdr->category & VN_CAT_TYPE_MASK )
-       {
-       case VN_AAL1:
-          pseudo_header->atm.aal = AAL_1;
-          break;
-
-       case VN_AAL2:
-          pseudo_header->atm.aal = AAL_2;
-          break;
-       
-       case VN_AAL34:
-          pseudo_header->atm.aal = AAL_3_4;
-          break;
-       
-       case VN_AAL5:
-          pseudo_header->atm.aal = AAL_5;
-          pseudo_header->atm.type = TRAF_LLCMX;
-          pseudo_header->atm.aal5t_len = pntohl(&vatm_hdr->data_length);
-          break;
-       
-       case VN_OAM:
-       /* Marking next 3 as OAM versus unknown */
-       case VN_O191:
-       case VN_IDLE:
-       case VN_RM:
-          pseudo_header->atm.aal = AAL_OAMCELL;
-          break;
-
-       case VN_UNKNOWN:
-       default:
-          pseudo_header->atm.aal = AAL_UNKNOWN;
-          break;
-
-       }
-       pseudo_header->atm.vpi = pntohs(&vatm_hdr->vpi) & 0x0FFF;
-       pseudo_header->atm.vci = pntohs(&vatm_hdr->vci);
-       pseudo_header->atm.cells = pntohs(&vatm_hdr->cell_count);
-       
-       /* Using bit value of 1 (DCE -> DTE) to indicate From Network */
-       pseudo_header->atm.channel = vatm_hdr->info & FROM_NETWORK;
-       
-       break;
-    }
 }
 
 /* Check for media types that may be written in Visual file format.
@@ -684,10 +656,8 @@ gboolean visual_dump_open(wtap_dumper *wdh, int *err)
     /* All of the fields in the file header aren't known yet so
        just skip over it for now.  It will be created after all
        of the packets have been written. */
-    if (fseek(wdh->fh, CAPTUREFILE_HEADER_SIZE, SEEK_SET) == -1) {
-	*err = errno;
+    if (wtap_dump_file_seek(wdh, CAPTUREFILE_HEADER_SIZE, SEEK_SET, err) == -1)
 	return FALSE;
-    }
 
     return TRUE;
 }
@@ -704,6 +674,18 @@ static gboolean visual_dump(wtap_dumper *wdh, const struct wtap_pkthdr *phdr,
     size_t hdr_size = sizeof vpkt_hdr;
     guint delta_msec;
     guint32 packet_status;
+
+    /* We can only write packet records. */
+    if (phdr->rec_type != REC_TYPE_PACKET) {
+        *err = WTAP_ERR_REC_TYPE_UNSUPPORTED;
+        return FALSE;
+    }
+
+    /* Don't write anything we're not willing to read. */
+    if (phdr->caplen > WTAP_MAX_PACKET_SIZE) {
+        *err = WTAP_ERR_PACKET_TOO_LARGE;
+        return FALSE;
+    }
 
     /* If the visual structure was never allocated then nothing useful
        can be done. */
@@ -730,11 +712,11 @@ static gboolean visual_dump(wtap_dumper *wdh, const struct wtap_pkthdr *phdr,
     /* Calculate milliseconds since capture start. */
     delta_msec = phdr->ts.nsecs / 1000000;
     delta_msec += ( (guint32) phdr->ts.secs - visual->start_time) * 1000;
-    vpkt_hdr.ts_delta = htolel(delta_msec);
+    vpkt_hdr.ts_delta = GUINT32_TO_LE(delta_msec);
 
     /* Fill in the length fields. */
-    vpkt_hdr.orig_len = htoles(phdr->len);
-    vpkt_hdr.incl_len = htoles(phdr->caplen);
+    vpkt_hdr.orig_len = GUINT16_TO_LE(phdr->len);
+    vpkt_hdr.incl_len = GUINT16_TO_LE(phdr->caplen);
 
     /* Fill in the encapsulation hint for the file's media type. */
     switch (wdh->encap)
@@ -778,7 +760,7 @@ static gboolean visual_dump(wtap_dumper *wdh, const struct wtap_pkthdr *phdr,
             ((pseudo_header->x25.flags & FROM_DCE) ? 0x00 : PS_SENT);
         break;
     }
-    vpkt_hdr.status = htolel(packet_status);
+    vpkt_hdr.status = GUINT32_TO_LE(packet_status);
 
     /* Write the packet header. */
     if (!wtap_dump_file_write(wdh, &vpkt_hdr, hdr_size, err))
@@ -796,7 +778,7 @@ static gboolean visual_dump(wtap_dumper *wdh, const struct wtap_pkthdr *phdr,
         visual->index_table = (guint32 *)g_realloc(visual->index_table,
             visual->index_table_size * sizeof *visual->index_table);
     }
-    visual->index_table[visual->index_table_index] = htolel(visual->next_offset);
+    visual->index_table[visual->index_table_index] = GUINT32_TO_LE(visual->next_offset);
 
     /* Update the table index and offset for the next frame. */
     visual->index_table_index++;
@@ -834,7 +816,8 @@ static gboolean visual_dump_close(wtap_dumper *wdh, int *err)
     }
 
     /* Write the magic number at the start of the file. */
-    fseek(wdh->fh, 0, SEEK_SET);
+    if (wtap_dump_file_seek(wdh, 0, SEEK_SET, err) == -1)
+	return FALSE;
     magicp = visual_magic;
     magic_size = sizeof visual_magic;
     if (!wtap_dump_file_write(wdh, magicp, magic_size, err))
@@ -845,36 +828,36 @@ static gboolean visual_dump_close(wtap_dumper *wdh, int *err)
 
     /* Initialize the file header with zeroes for the reserved fields. */
     memset(&vfile_hdr, '\0', sizeof vfile_hdr);
-    vfile_hdr.num_pkts = htolel(visual->index_table_index);
-    vfile_hdr.start_time = htolel(visual->start_time);
-    vfile_hdr.max_length = htoles(65535);
-    vfile_hdr.file_flags = htoles(1);  /* indexes are present */
-    vfile_hdr.file_version = htoles(1);
+    vfile_hdr.num_pkts = GUINT32_TO_LE(visual->index_table_index);
+    vfile_hdr.start_time = GUINT32_TO_LE(visual->start_time);
+    vfile_hdr.max_length = GUINT16_TO_LE(65535);
+    vfile_hdr.file_flags = GUINT16_TO_LE(1);  /* indexes are present */
+    vfile_hdr.file_version = GUINT16_TO_LE(1);
     g_strlcpy(vfile_hdr.description, "Wireshark file", 64);
 
     /* Translate the encapsulation type */
     switch (wdh->encap)
     {
     case WTAP_ENCAP_ETHERNET:
-        vfile_hdr.media_type = htoles(6);
+        vfile_hdr.media_type = GUINT16_TO_LE(6);
         break;
 
     case WTAP_ENCAP_TOKEN_RING:
-        vfile_hdr.media_type = htoles(9);
+        vfile_hdr.media_type = GUINT16_TO_LE(9);
         break;
 
     case WTAP_ENCAP_LAPB:
-        vfile_hdr.media_type = htoles(16);
+        vfile_hdr.media_type = GUINT16_TO_LE(16);
         break;
 
     case WTAP_ENCAP_PPP:        /* PPP is differentiated from CHDLC in PktHdr */
     case WTAP_ENCAP_PPP_WITH_PHDR:
     case WTAP_ENCAP_CHDLC_WITH_PHDR:
-        vfile_hdr.media_type = htoles(22);
+        vfile_hdr.media_type = GUINT16_TO_LE(22);
         break;
 
     case WTAP_ENCAP_FRELAY_WITH_PHDR:
-        vfile_hdr.media_type = htoles(32);
+        vfile_hdr.media_type = GUINT16_TO_LE(32);
         break;
     }
 

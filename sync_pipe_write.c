@@ -1,7 +1,5 @@
 /* sync_pipe_write.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,7 +34,6 @@
 #include <glib.h>
 
 #include "sync_pipe.h"
-#include "log.h"
 
 /****************************************************************************************************************/
 /* sync_pipe handling */
@@ -62,8 +59,8 @@ pipe_write_header(int pipe_fd, char indicator, int length)
 }
 
 
-/* write a message to the recipient pipe in the standard format 
-   (3 digit message length (excluding length and indicator field), 
+/* write a message to the recipient pipe in the standard format
+   (3 digit message length (excluding length and indicator field),
    1 byte message indicator and the rest is the message).
    If msg is NULL, the message has only a length and indicator. */
 void

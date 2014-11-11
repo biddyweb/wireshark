@@ -1,5 +1,4 @@
--- 3GPP TS 36.355 V11.1.0 (2012-12)
--- $Id$
+-- 3GPP TS 36.355 V11.5.0 (2013-12)
 --
 
 LPP-PDU-Definitions {
@@ -216,7 +215,15 @@ AccessTypes ::= SEQUENCE {
 }
 
 
-ARFCN-ValueEUTRA ::= INTEGER (0.. 65535) 
+ARFCN-ValueEUTRA ::= INTEGER (0..maxEARFCN) 
+
+ARFCN-ValueEUTRA-v9a0 ::=	INTEGER (maxEARFCN-Plus1..maxEARFCN2)
+
+maxEARFCN					INTEGER ::= 65535	-- Maximum value of EUTRA carrier frequency 
+
+maxEARFCN-Plus1				INTEGER ::= 65536	-- Lowest value extended EARFCN range
+
+maxEARFCN2					INTEGER ::= 262143	-- Highest value extended EARFCN range
 
 
 ARFCN-ValueUTRA ::=	INTEGER (0..16383)
@@ -586,7 +593,9 @@ OTDOA-ReferenceCellInfo ::= SEQUENCE {
 															OPTIONAL,		-- Cond NotSameAsServ1
 	cpLength					ENUMERATED { normal, extended, ... },
 	prsInfo						PRS-Info					OPTIONAL,		-- Cond PRS
-	...	
+	...,
+	[[ earfcnRef-v9a0			ARFCN-ValueEUTRA-v9a0		OPTIONAL		-- Cond NotSameAsServ2
+	]]
 }
 
 
@@ -621,7 +630,9 @@ OTDOA-NeighbourCellInfoElement ::= SEQUENCE {
 	prs-SubframeOffset					INTEGER (0..1279)	OPTIONAL,		-- Cond InterFreq
 	expectedRSTD						INTEGER (0..16383),
 	expectedRSTD-Uncertainty			INTEGER (0..1023),
-	...
+	...,
+	[[ earfcn-v9a0					ARFCN-ValueEUTRA-v9a0	OPTIONAL		-- Cond NotSameAsRef5
+	]]
 }
 
 maxFreqLayers	INTEGER ::= 3
@@ -644,10 +655,12 @@ OTDOA-SignalMeasurementInformation ::= SEQUENCE {
 	systemFrameNumber		BIT STRING (SIZE (10)),
 	physCellIdRef			INTEGER (0..503),
 	cellGlobalIdRef			ECGI					OPTIONAL,
-	earfcnRef				ARFCN-ValueEUTRA		OPTIONAL,
+	earfcnRef				ARFCN-ValueEUTRA		OPTIONAL,		-- Cond NotSameAsRef0
 	referenceQuality		OTDOA-MeasQuality		OPTIONAL,
 	neighbourMeasurementList	NeighbourMeasurementList,
-	...
+	...,
+	[[ earfcnRef-v9a0		ARFCN-ValueEUTRA-v9a0	OPTIONAL		-- Cond NotSameAsRef1
+	]]
 }
 
 NeighbourMeasurementList ::= SEQUENCE (SIZE(1..24)) OF NeighbourMeasurementElement
@@ -655,10 +668,12 @@ NeighbourMeasurementList ::= SEQUENCE (SIZE(1..24)) OF NeighbourMeasurementEleme
 NeighbourMeasurementElement ::= SEQUENCE {
 	physCellIdNeighbor		INTEGER (0..503),
 	cellGlobalIdNeighbour	ECGI					OPTIONAL,
-	earfcnNeighbour			ARFCN-ValueEUTRA		OPTIONAL,
+	earfcnNeighbour			ARFCN-ValueEUTRA		OPTIONAL,		-- Cond NotSameAsRef2
 	rstd					INTEGER (0..12711),
 	rstd-Quality			OTDOA-MeasQuality,
-	...
+	...,
+	[[ earfcnNeighbour-v9a0	ARFCN-ValueEUTRA-v9a0	OPTIONAL		-- Cond NotSameAsRef3
+	]]
 }
 
 
@@ -679,14 +694,25 @@ OTDOA-RequestLocationInformation ::= SEQUENCE {
 OTDOA-ProvideCapabilities ::= SEQUENCE {
 	otdoa-Mode		BIT STRING { 	ue-assisted (0) } (SIZE (1..8)),
 	...,
-	supportedBandListEUTRA 		SEQUENCE (SIZE (1..maxBands)) OF SupportedBandEUTRA		OPTIONAL
+	supportedBandListEUTRA 		SEQUENCE (SIZE (1..maxBands)) OF SupportedBandEUTRA		OPTIONAL,
+	supportedBandListEUTRA-v9a0	SEQUENCE (SIZE (1..maxBands)) OF SupportedBandEUTRA-v9a0
+																						OPTIONAL,
+	interFreqRSTDmeasurement-r10	ENUMERATED { supported }							OPTIONAL
 }
 
 maxBands INTEGER ::= 64
 
 SupportedBandEUTRA ::= SEQUENCE {
-	bandEUTRA							INTEGER (1..64)
+	bandEUTRA							INTEGER (1..maxFBI)
 }
+
+SupportedBandEUTRA-v9a0 ::=		SEQUENCE {
+	bandEUTRA-v9a0						INTEGER (maxFBI-Plus1..maxFBI2)		OPTIONAL
+}
+
+maxFBI								INTEGER	::=	64	-- Maximum value of frequency band indicator
+maxFBI-Plus1						INTEGER ::= 65	-- lowest value extended FBI range
+maxFBI2								INTEGER ::= 256	-- highest value extended FBI range
 
 
 OTDOA-RequestCapabilities ::= SEQUENCE {
@@ -806,7 +832,9 @@ NetworkTime ::= SEQUENCE {
 							physCellId			INTEGER (0..503),
 							cellGlobalIdEUTRA	CellGlobalIdEUTRA-AndUTRA	OPTIONAL,	-- Need ON
 							earfcn				ARFCN-ValueEUTRA,
-							...
+							...,
+							[[ earfcn-v9a0		ARFCN-ValueEUTRA-v9a0 OPTIONAL	-- Cond EARFCN-max 
+							]]
 							},
 				uTRA		SEQUENCE {
 							mode 	CHOICE {
@@ -1445,9 +1473,9 @@ GNSS-GenericAssistDataReqElement ::= SEQUENCE {
 
 
 GNSS-ReferenceTimeReq ::= SEQUENCE {
-	gnss-TimeReqPrefList	SEQUENCE (SIZE (1..8)) OF GNSS-ID,			
-	gps-TOW-assistReq		BOOLEAN								OPTIONAL, -- Cond gps
-	notOfLeapSecReq			BOOLEAN								OPTIONAL, -- Cond glonass
+    	gnss-TimeReqPrefList	SEQUENCE (SIZE (1..8)) OF GNSS-ID,			
+    	gps-TOW-assistReq		BOOLEAN								OPTIONAL, -- Cond gps
+    	notOfLeapSecReq			BOOLEAN								OPTIONAL, -- Cond glonass
 	...
 }
 
@@ -1504,15 +1532,15 @@ SatListRelatedDataList ::= SEQUENCE (SIZE (1..64)) OF SatListRelatedDataElement
 
 SatListRelatedDataElement ::= SEQUENCE {
 	svID 				SV-ID,
-	iod 				BIT STRING (SIZE(11)),
-	clockModelID		INTEGER (1..8)			OPTIONAL,
-orbitModelID		INTEGER (1..8)			OPTIONAL,			
-	...
+    	iod 				BIT STRING (SIZE(11)),
+    	clockModelID		INTEGER (1..8)			OPTIONAL,
+     orbitModelID		INTEGER (1..8)			OPTIONAL,			
+    	...
 }
 
 ReqNavListInfo ::=	SEQUENCE { 
 	svReqList				BIT STRING (SIZE (64)),
-	clockModelID-PrefList	SEQUENCE (SIZE (1..8)) OF	INTEGER (1..8)		OPTIONAL,
+    	clockModelID-PrefList	SEQUENCE (SIZE (1..8)) OF	INTEGER (1..8)		OPTIONAL,
 	orbitModelID-PrefList	SEQUENCE (SIZE (1..8)) OF	INTEGER (1..8)		OPTIONAL,	
 	addNavparamReq			BOOLEAN				OPTIONAL,	-- Cond orbitModelID-2
 	...
@@ -1708,7 +1736,7 @@ GNSS-SupportElement ::= SEQUENCE {
 }
 
 AssistanceDataSupportList ::= SEQUENCE {
-	gnss-CommonAssistanceDataSupport	GNSS-CommonAssistanceDataSupport,
+    	gnss-CommonAssistanceDataSupport	GNSS-CommonAssistanceDataSupport,
 	gnss-GenericAssistanceDataSupport	GNSS-GenericAssistanceDataSupport,
 	...
 }
@@ -1962,7 +1990,9 @@ MeasuredResultsElement ::= SEQUENCE {
 	rsrp-Result		INTEGER (0..97)						OPTIONAL,
 	rsrq-Result		INTEGER (0..34)						OPTIONAL,
 	ue-RxTxTimeDiff	INTEGER (0..4095)					OPTIONAL,
-	...
+	...,
+	[[ arfcnEUTRA-v9a0		ARFCN-ValueEUTRA-v9a0 		OPTIONAL		-- Cond EARFCN-max 
+	]]
 }
 
 

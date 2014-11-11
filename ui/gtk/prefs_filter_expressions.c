@@ -1,8 +1,6 @@
 /* prefs_filter_expressions.c
  * Submitted by Edwin Groothuis <wireshark@mavetju.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,7 +27,7 @@
 #include <gtk/gtk.h>
 
 #include <epan/prefs.h>
-#include <epan/column_info.h>
+#include <epan/column-info.h>
 #include <epan/column.h>
 #include <epan/strutil.h>
 #include <epan/filter_expressions.h>
@@ -42,7 +40,9 @@
 #include "ui/gtk/filter_dlg.h"
 #include "ui/gtk/filter_autocomplete.h"
 #include "ui/gtk/filter_expression_save_dlg.h"
+#include "ui/gtk/prefs_filter_expressions.h"
 #include "ui/gtk/old-gtk-compat.h"
+#include "ui/gtk/stock_icons.h"
 
 static void filter_expressions_list_new_cb(GtkWidget *, gpointer);
 static void filter_expressions_list_remove_cb(GtkWidget *, gpointer);
@@ -86,18 +86,18 @@ enable_toggled(GtkCellRendererToggle *cell _U_, gchar *path_str, gpointer data)
  */
 GtkWidget *
 filter_expressions_prefs_show(void) {
-    GtkWidget         *main_vb, *bottom_hb, *column_l, *add_bt, *remove_bt;
-    GtkWidget         *list_vb, *list_lb, *list_sc;
-    GtkWidget         *add_remove_hb;
-    GtkListStore      *store;
-    GtkCellRenderer   *renderer;
-    GtkTreeViewColumn *column;
-    GtkTreeSelection  *sel;
-    GtkTreeIter        iter;
-    GtkTreeIter        first_iter;
-    gint               first_row = TRUE;
+    GtkWidget          *main_vb, *bottom_hb, *column_l, *add_bt, *remove_bt;
+    GtkWidget          *list_vb, *list_lb, *list_sc;
+    GtkWidget          *add_remove_hb;
+    GtkListStore       *store;
+    GtkCellRenderer    *renderer;
+    GtkTreeViewColumn  *column;
+    GtkTreeSelection   *sel;
+    GtkTreeIter         iter;
+    GtkTreeIter         first_iter;
+    gint                first_row = TRUE;
     struct filter_expression *fe;
-    const gchar       *column_titles[] = {"Enabled", "Label", "Filter Expression"};
+    static const gchar *column_titles[] = {"Enabled", "Label", "Filter Expression"};
 
     /* Container for each row of widgets */
     main_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 5, FALSE);
@@ -198,7 +198,7 @@ filter_expressions_prefs_show(void) {
     gtk_box_pack_start(GTK_BOX(bottom_hb), add_remove_hb, FALSE, FALSE, 0);
     gtk_widget_show(add_remove_hb);
 
-    add_bt = gtk_button_new_from_stock(GTK_STOCK_ADD);
+    add_bt = ws_gtk_button_new_from_stock(GTK_STOCK_ADD);
     g_signal_connect(add_bt, "clicked",
             G_CALLBACK(filter_expressions_list_new_cb), column_l);
     gtk_box_pack_start(GTK_BOX(add_remove_hb), add_bt, FALSE, FALSE, 0);
@@ -207,7 +207,7 @@ filter_expressions_prefs_show(void) {
     gtk_widget_show(add_bt);
 
     /* Remove button */
-    remove_bt = gtk_button_new_from_stock(GTK_STOCK_REMOVE);
+    remove_bt = ws_gtk_button_new_from_stock(GTK_STOCK_REMOVE);
     g_signal_connect(remove_bt, "clicked",
             G_CALLBACK(filter_expressions_list_remove_cb), column_l);
     gtk_box_pack_start(GTK_BOX(add_remove_hb), remove_bt, FALSE, FALSE, 0);

@@ -1,8 +1,6 @@
 %{
 /* ascend.y
  *
- * $Id$
- *
  * Wiretap Library
  * Copyright (c) 1998 by Gilbert Ramirez <gram@alumni.rice.edu>
  *
@@ -135,7 +133,7 @@ XMIT-Max7:20: (task "_brouterControlTask" at 0xb094ac20, time: 1481.51) 20 octet
 #include <string.h>
 
 #include "wtap-int.h"
-#include "buffer.h"
+#include <wsutil/buffer.h>
 #include "ascendtext.h"
 #include "ascend-int.h"
 #include "file_wrappers.h"
@@ -148,8 +146,8 @@ void yyerror(FILE_T fh _U_, const char *);
 const gchar *ascend_parse_error;
 
 static unsigned int bcur;
-static guint32 start_time, secs, usecs, caplen, wirelen;
-static ascend_pkthdr *header;
+static guint32 start_time, usecs, caplen, wirelen;
+static time_t secs;
 struct ascend_phdr *pseudo_header;
 static guint8 *pkt_data;
 static gint64 first_hexbyte;
@@ -441,21 +439,16 @@ init_parse_ascend(void)
   start_time = 0;	/* we haven't see a date/time yet */
 }
 
-/* Parse the capture file.
-   Returns:
-     PARSED_RECORD if we got a packet
-     PARSED_NONRECORD if the parser succeeded but didn't see a packet
-     PARSE_FAILED if the parser failed. */
-parse_t
-parse_ascend(FILE_T fh, guint8 *pd, struct ascend_phdr *phdr,
-		ascend_pkthdr *hdr, gint64 *start_of_data)
+/* Run the parser. */
+static int
+run_ascend_parser(FILE_T fh, struct wtap_pkthdr *phdr, guint8 *pd)
 {
   /* yydebug = 1; */
   int retval;
+
   ascend_init_lexer(fh);
+  pseudo_header = &phdr->pseudo_header.ascend;
   pkt_data = pd;
-  pseudo_header = phdr;
-  header = hdr;
 
   bcur = 0;
   first_hexbyte = 0;
@@ -479,19 +472,54 @@ parse_ascend(FILE_T fh, guint8 *pd, struct ascend_phdr *phdr,
 
   caplen = bcur;
 
+  return retval;
+}
+
+/* Parse the capture file.
+   Returns:
+     TRUE if we got a packet
+     FALSE otherwise. */
+gboolean
+check_ascend(FILE_T fh, struct wtap_pkthdr *phdr)
+{
+  guint8 buf[ASCEND_MAX_PKT_LEN];
+
+  run_ascend_parser(fh, phdr, buf);
+  
+  /* if we got at least some data, return success even if the parser
+     reported an error. This is because the debug header gives the number
+     of bytes on the wire, not actually how many bytes are in the trace.
+     We won't know where the data ends until we run into the next packet. */
+  return (caplen != 0);
+}
+
+/* Parse the capture file.
+   Returns:
+     PARSED_RECORD if we got a packet
+     PARSED_NONRECORD if the parser succeeded but didn't see a packet
+     PARSE_FAILED if the parser failed. */
+parse_t
+parse_ascend(ascend_t *ascend, FILE_T fh, struct wtap_pkthdr *phdr, Buffer *buf,
+             guint length)
+{
+  int retval;
+
+  buffer_assure_space(buf, length);
+  retval = run_ascend_parser(fh, phdr, buffer_start_ptr(buf));
+
   /* did we see any data (hex bytes)? if so, tip off ascend_seek()
      as to where to look for the next packet, if any. If we didn't,
      maybe this record was broken. Advance so we don't get into
      an infinite loop reading a broken trace. */
   if (first_hexbyte) {
-    *start_of_data = first_hexbyte;
+    ascend->next_packet_seek_start = first_hexbyte;
   } else {
     /* Sometimes, a header will be printed but the data will be omitted, or
        worse -- two headers will be printed, followed by the data for each.
        Because of this, we need to be fairly tolerant of what we accept
        here.  If we didn't find any hex bytes, skip over what we've read so
        far so we can try reading a new packet. */
-    *start_of_data = file_tell(fh);
+    ascend->next_packet_seek_start = file_tell(fh);
     retval = 0;
   }
 
@@ -500,14 +528,51 @@ parse_ascend(FILE_T fh, guint8 *pd, struct ascend_phdr *phdr,
      of bytes on the wire, not actually how many bytes are in the trace.
      We won't know where the data ends until we run into the next packet. */
   if (caplen) {
-    if (header) {
-      header->start_time = start_time;
-      header->secs = secs;
-      header->usecs = usecs;
-      header->caplen = caplen;
-      header->len = wirelen;
+    if (! ascend->adjusted) {
+      ascend->adjusted = TRUE;
+      if (start_time != 0) {
+        /*
+         * Capture file contained a date and time.
+         * We do this only if this is the very first packet we've seen -
+         * i.e., if "ascend->adjusted" is false - because
+         * if we get a date and time after the first packet, we can't
+         * go back and adjust the time stamps of the packets we've already
+         * processed, and basing the time stamps of this and following
+         * packets on the time stamp from the file text rather than the
+         * ctime of the capture file means times before this and after
+         * this can't be compared.
+         */
+        ascend->inittime = start_time;
+      }
+      if (ascend->inittime > secs)
+        ascend->inittime -= secs;
     }
+    phdr->presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
+    phdr->ts.secs = secs + ascend->inittime;
+    phdr->ts.nsecs = usecs * 1000;
+    phdr->caplen = caplen;
+    phdr->len = wirelen;
+ 
+    /*
+     * For these types, the encapsulation we use is not WTAP_ENCAP_ASCEND,
+     * so set the pseudo-headers appropriately for the type (WTAP_ENCAP_ISDN
+     * or WTAP_ENCAP_ETHERNET).
+     */
+    switch(phdr->pseudo_header.ascend.type) {
+      case ASCEND_PFX_ISDN_X:
+        phdr->pseudo_header.isdn.uton = TRUE;
+        phdr->pseudo_header.isdn.channel = 0;
+        break;
 
+      case ASCEND_PFX_ISDN_R:
+        phdr->pseudo_header.isdn.uton = FALSE;
+        phdr->pseudo_header.isdn.channel = 0;
+        break;
+
+      case ASCEND_PFX_ETHER:
+        phdr->pseudo_header.eth.fcs_len = 0;
+        break;
+    }
     return PARSED_RECORD;
   }
 

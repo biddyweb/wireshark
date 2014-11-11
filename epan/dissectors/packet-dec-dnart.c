@@ -6,8 +6,6 @@
  * Copyright 2003-2005 Fred Hoekstra, Philips Medical Systems.
  *                (fred.hoekstra@philips.com)
  *
- * $Id$
- *
  * Use was made of the following documentation:
  *
  *         DECnet DIGITAL Network Architecture
@@ -51,7 +49,7 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/etypes.h>
 #include <epan/ppptypes.h>
 
@@ -92,6 +90,9 @@ typedef enum {
 #define RT_FLAGS_INTRA_ETHER   0x20
 #define RT_FLAGS_DISCARD       0x40
 #define RT_FLAGS_PAD           0x80
+
+void proto_register_dec_rt(void);
+void proto_reg_handoff_dec_rt(void);
 
 static int proto_dec_rt = -1;
 
@@ -343,7 +344,7 @@ dnet_ntoa(const guint8 *data)
 {
     if (data[0] == 0xAA && data[1] == 0x00 && data[2] == 0x04 && data[3] == 0x00) {
         guint16 dnet_addr = data[4] | (data[5] << 8);
-        return ep_strdup_printf("%d.%d", dnet_addr >> 10, dnet_addr & 0x03FF);
+        return wmem_strdup_printf(wmem_packet_scope(), "%d.%d", dnet_addr >> 10, dnet_addr & 0x03FF);
     }
     return NULL;
 }
@@ -352,7 +353,7 @@ static void
 set_dnet_address(address *paddr_src, address *paddr_tgt)
 {
     if (paddr_tgt->type != AT_STRINGZ && paddr_src->type == AT_ETHER) {
-        char *addr = dnet_ntoa(paddr_src->data);
+        char *addr = dnet_ntoa((const guint8 *)paddr_src->data);
         if (addr != NULL)
             SET_ADDRESS(paddr_tgt, AT_STRINGZ, 1, addr);
     }
@@ -459,7 +460,7 @@ dissect_dec_rt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         offset += 3;
         ti = proto_tree_add_item(rt_tree, hf_dec_rt_dst_addr, tvb,
                 offset, 6, ENC_NA);
-        addr = dnet_ntoa(ep_tvb_memdup(tvb, offset, 6));
+        addr = dnet_ntoa((const guint8 *)tvb_memdup(wmem_packet_scope(), tvb, offset, 6));
         if (addr != NULL) {
             proto_item_append_text(ti, " (%s)", addr);
         }
@@ -470,7 +471,7 @@ dissect_dec_rt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         offset += 8;
         ti = proto_tree_add_item(rt_tree, hf_dec_rt_src_addr, tvb,
             offset, 6, ENC_NA);
-        addr = dnet_ntoa(ep_tvb_memdup(tvb, offset, 6));
+        addr = dnet_ntoa((const guint8 *)tvb_memdup(wmem_packet_scope(), tvb, offset, 6));
         if (addr != NULL) {
             proto_item_append_text(ti, " (%s)", addr);
         }
@@ -538,8 +539,7 @@ dissect_dec_rt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         proto_tree_add_item(nsp_msg_tree, hf_dec_rt_src_node, tvb, offset, 2, ENC_LITTLE_ENDIAN);
         offset += 2;
 
-        offset =
-            handle_nsp_msg(tvb,
+        handle_nsp_msg(tvb,
                            pinfo,
                            nsp_msg_tree,
                            offset,
@@ -561,7 +561,7 @@ do_initialization_msg(
     col_set_str(pinfo->cinfo, COL_INFO, "Routing control, initialization message");
     proto_tree_add_item(tree, hf_dec_rt_src_node, tvb,
         my_offset, 2, ENC_LITTLE_ENDIAN);
-    offset += 2;
+    my_offset += 2;
     proto_tree_add_item(tree, hf_dec_rt_tiinfo, tvb,
         my_offset, 2, ENC_LITTLE_ENDIAN);
     my_offset += 2;
@@ -600,7 +600,7 @@ do_verification_msg(
     col_set_str(pinfo->cinfo, COL_INFO, "Routing control, verification message");
     proto_tree_add_item(tree, hf_dec_rt_src_node, tvb,
         my_offset, 2, ENC_LITTLE_ENDIAN);
-    offset += 2;
+    my_offset += 2;
     remainder_count = tvb_get_guint8(tvb, my_offset);
     if (remainder_count != 0) {
         proto_tree_add_item(tree, hf_dec_rt_fcnval, tvb,
@@ -718,7 +718,7 @@ do_hello_msg(
     my_offset +=3;
     ti = proto_tree_add_item(tree, hf_dec_rt_id, tvb,
         my_offset, 6, ENC_NA);
-    addr = dnet_ntoa(ep_tvb_memdup(tvb, my_offset, 6));
+    addr = dnet_ntoa((const guint8 *)tvb_memdup(wmem_packet_scope(), tvb, my_offset, 6));
     if (addr != NULL) {
         proto_item_append_text(ti, " (%s)", addr);
     }
@@ -762,7 +762,7 @@ do_hello_msg(
         my_offset += 8;
         ti = proto_tree_add_item(tree, hf_dec_rt_neighbor, tvb,
                 my_offset, 6, ENC_NA);
-        addr = dnet_ntoa(ep_tvb_memdup(tvb, my_offset, 6));
+        addr = dnet_ntoa((const guint8 *)tvb_memdup(wmem_packet_scope(), tvb, my_offset, 6));
         if (addr != NULL) {
             proto_item_append_text(ti, " (%s)", addr);
         }
@@ -811,7 +811,7 @@ do_hello_msg(
 
                 ti_localb = proto_tree_add_item(list_ether, hf_dec_rt_router_id,
                     tvb, my_offset, 6, ENC_NA);
-                addr = dnet_ntoa(ep_tvb_memdup(tvb, my_offset, 6));
+                addr = dnet_ntoa((const guint8 *)tvb_memdup(wmem_packet_scope(), tvb, my_offset, 6));
                 if (addr != NULL) {
                     proto_item_append_text(ti_localb, " (%s)", addr);
                 }
@@ -1489,7 +1489,7 @@ proto_reg_handoff_dec_rt(void)
     dec_rt_handle = create_dissector_handle(dissect_dec_rt,
                                             proto_dec_rt);
     dissector_add_uint("ethertype", ETHERTYPE_DNA_RT, dec_rt_handle);
-    dissector_add_uint("chdlctype", ETHERTYPE_DNA_RT, dec_rt_handle);
+    dissector_add_uint("chdlc.protocol", ETHERTYPE_DNA_RT, dec_rt_handle);
     dissector_add_uint("ppp.protocol", PPP_DEC4, dec_rt_handle);
 /*  dissector_add_uint("ppp.protocol", PPP_DECNETCP, dec_rt_handle);*/
 }

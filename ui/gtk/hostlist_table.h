@@ -2,8 +2,6 @@
  * modified from endpoint_talkers_table   2003 Ronnie Sahlberg
  * Helper routines common to all host talkers taps.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,7 +32,7 @@
 
 /** Hostlist information */
 typedef struct _hostlist_talker_t {
-	address address;        /**< address */
+	address myaddress;      /**< address */
 	SAT_E   sat;            /**< address type */
 	guint32 port_type;      /**< port_type (e.g. PT_TCP) */
 	guint32 port;           /**< port */
@@ -44,8 +42,8 @@ typedef struct _hostlist_talker_t {
 	guint64 rx_bytes;       /**< number of received bytes */
 	guint64 tx_bytes;       /**< number of transmitted bytes */
 
-        gboolean modified;      /**< new to redraw the row */   
-        GtkTreeIter iter; 
+        gboolean modified;      /**< new to redraw the row */
+        GtkTreeIter iter;
         gboolean iter_valid;    /**< not a new row */
 
 } hostlist_talker_t;

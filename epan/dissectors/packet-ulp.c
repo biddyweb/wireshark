@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-ulp.c                                                               */
 /* ../../tools/asn2wrs.py -p ulp -c ./ulp.cnf -s ./packet-ulp-template -D . -O ../../epan/dissectors ULP.asn SUPL.asn ULP-Components.asn */
 
@@ -9,8 +9,6 @@
 /* packet-ulp.c
  * Routines for OMA UserPlane Location Protocol packet dissection
  * Copyright 2006, Anders Broman <anders.broman@ericsson.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -30,7 +28,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * ref OMA-TS-ULP-V1_0-20060127-C
+ * ref OMA-TS-ULP-V2_0_1-20121205-A
  * http://www.openmobilealliance.org
  */
 
@@ -49,6 +47,8 @@
 #define PSNAME "ULP"
 #define PFNAME "ulp"
 
+void proto_register_ulp(void);
+
 static dissector_handle_t rrlp_handle;
 static dissector_handle_t lpp_handle;
 
@@ -56,7 +56,8 @@ static dissector_handle_t lpp_handle;
  * oma-ulp         7275/tcp    OMA UserPlane Location
  * oma-ulp         7275/udp    OMA UserPlane Location
  */
-static guint gbl_ulp_port = 7275;
+static guint gbl_ulp_tcp_port = 7275;
+static guint gbl_ulp_udp_port = 7275;
 
 /* Initialize the protocol and registered fields */
 static int proto_ulp = -1;
@@ -537,6 +538,7 @@ static int hf_ulp_rsrpResult = -1;                /* RSRP_Range */
 static int hf_ulp_rsrqResult = -1;                /* RSRQ_Range */
 static int hf_ulp_tA_02 = -1;                     /* INTEGER_0_1282 */
 static int hf_ulp_measResultListEUTRA = -1;       /* MeasResultListEUTRA */
+static int hf_ulp_earfcn = -1;                    /* INTEGER_0_65535 */
 static int hf_ulp_MeasResultListEUTRA_item = -1;  /* MeasResultEUTRA */
 static int hf_ulp_cgi_Info = -1;                  /* T_cgi_Info */
 static int hf_ulp_cellGlobalId = -1;              /* CellGlobalIdEUTRA */
@@ -668,7 +670,7 @@ static int hf_ulp_GANSSSignals_signal7 = -1;
 static int hf_ulp_GANSSSignals_signal8 = -1;
 
 /*--- End of included file: packet-ulp-hf.c ---*/
-#line 62 "../../asn1/ulp/packet-ulp-template.c"
+#line 63 "../../asn1/ulp/packet-ulp-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_ulp = -1;
@@ -885,7 +887,7 @@ static gint ett_ulp_PolygonArea = -1;
 static gint ett_ulp_PolygonDescription = -1;
 
 /*--- End of included file: packet-ulp-ett.c ---*/
-#line 66 "../../asn1/ulp/packet-ulp-template.c"
+#line 67 "../../asn1/ulp/packet-ulp-template.c"
 
 /* Include constants */
 
@@ -908,7 +910,7 @@ static gint ett_ulp_PolygonDescription = -1;
 #define maxWimaxBSMeas                 32
 
 /*--- End of included file: packet-ulp-val.h ---*/
-#line 69 "../../asn1/ulp/packet-ulp-template.c"
+#line 70 "../../asn1/ulp/packet-ulp-template.c"
 
 
 
@@ -965,7 +967,7 @@ dissect_ulp_OCTET_STRING_SIZE_8(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_ulp_BIT_STRING_SIZE_34(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     34, 34, FALSE, NULL);
+                                     34, 34, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -1340,7 +1342,7 @@ dissect_ulp_SLPMode(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, pro
 static int
 dissect_ulp_MAC(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     64, 64, FALSE, NULL);
+                                     64, 64, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -1350,7 +1352,7 @@ dissect_ulp_MAC(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_t
 static int
 dissect_ulp_KeyIdentity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     128, 128, FALSE, NULL);
+                                     128, 128, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -1410,7 +1412,7 @@ dissect_ulp_SupportedWLANInfo(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 static int
 dissect_ulp_BIT_STRING_SIZE_48(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     48, 48, FALSE, NULL);
+                                     48, 48, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -1715,7 +1717,7 @@ dissect_ulp_ProtLevel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, p
 static int
 dissect_ulp_BIT_STRING_SIZE_32(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     32, 32, FALSE, NULL);
+                                     32, 32, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -1827,7 +1829,7 @@ dissect_ulp_INTEGER_0_15(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_
 static int
 dissect_ulp_BIT_STRING_SIZE_3(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     3, 3, FALSE, NULL);
+                                     3, 3, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -1853,7 +1855,7 @@ dissect_ulp_GANSSPositioningMethodTypes(tvbuff_t *tvb _U_, int offset _U_, asn1_
 static int
 dissect_ulp_GANSSSignals(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -1962,7 +1964,7 @@ dissect_ulp_PosProtocolVersion3GPP(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t
 static int
 dissect_ulp_BIT_STRING_SIZE_6(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     6, 6, FALSE, NULL);
+                                     6, 6, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -2830,7 +2832,7 @@ dissect_ulp_CdmaCellInformation(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_ulp_BIT_STRING_SIZE_128(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     128, 128, FALSE, NULL);
+                                     128, 128, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -2931,7 +2933,7 @@ dissect_ulp_PLMN_Identity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
 static int
 dissect_ulp_CellIdentity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     28, 28, FALSE, NULL);
+                                     28, 28, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -2966,7 +2968,7 @@ dissect_ulp_PhysCellId(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, 
 static int
 dissect_ulp_TrackingAreaCode(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     16, 16, FALSE, NULL);
+                                     16, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3020,6 +3022,7 @@ dissect_ulp_T_cgi_Info(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, 
 static const per_sequence_t T_measResult_sequence[] = {
   { &hf_ulp_rsrpResult      , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_ulp_RSRP_Range },
   { &hf_ulp_rsrqResult      , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_ulp_RSRQ_Range },
+  { &hf_ulp_earfcn          , ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_ulp_INTEGER_0_65535 },
   { NULL, 0, 0, NULL }
 };
 
@@ -3070,6 +3073,7 @@ static const per_sequence_t LteCellInformation_sequence[] = {
   { &hf_ulp_rsrqResult      , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_ulp_RSRQ_Range },
   { &hf_ulp_tA_02           , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_ulp_INTEGER_0_1282 },
   { &hf_ulp_measResultListEUTRA, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_ulp_MeasResultListEUTRA },
+  { &hf_ulp_earfcn          , ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_ulp_INTEGER_0_65535 },
   { NULL, 0, 0, NULL }
 };
 
@@ -3260,7 +3264,7 @@ dissect_ulp_WlanAPInformation(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 static int
 dissect_ulp_BIT_STRING_SIZE_24(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     24, 24, FALSE, NULL);
+                                     24, 24, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3487,19 +3491,6 @@ dissect_ulp_MultipleLocationIds(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 
 static int
 dissect_ulp_T_sip_uri(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 67 "../../asn1/ulp/ulp.cnf"
-  offset = dissect_per_restricted_character_string(tvb, offset, actx, tree, hf_index,
-                                                      1, 255, FALSE, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:./-_~%#@?", 72,
-                                                      NULL);
-
-
-  return offset;
-}
-
-
-
-static int
-dissect_ulp_T_ims_public_identity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 72 "../../asn1/ulp/ulp.cnf"
   offset = dissect_per_restricted_character_string(tvb, offset, actx, tree, hf_index,
                                                       1, 255, FALSE, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:./-_~%#@?", 72,
@@ -3512,8 +3503,21 @@ dissect_ulp_T_ims_public_identity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 
 
 static int
-dissect_ulp_T_uri(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+dissect_ulp_T_ims_public_identity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 77 "../../asn1/ulp/ulp.cnf"
+  offset = dissect_per_restricted_character_string(tvb, offset, actx, tree, hf_index,
+                                                      1, 255, FALSE, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:./-_~%#@?", 72,
+                                                      NULL);
+
+
+  return offset;
+}
+
+
+
+static int
+dissect_ulp_T_uri(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+#line 82 "../../asn1/ulp/ulp.cnf"
   offset = dissect_per_restricted_character_string(tvb, offset, actx, tree, hf_index,
                                                       1, 255, FALSE, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./-_~%#", 69,
                                                       NULL);
@@ -3746,7 +3750,7 @@ dissect_ulp_PositionEstimate(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx
 static int
 dissect_ulp_BIT_STRING_SIZE_9(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     9, 9, FALSE, NULL);
+                                     9, 9, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3756,7 +3760,7 @@ dissect_ulp_BIT_STRING_SIZE_9(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 static int
 dissect_ulp_BIT_STRING_SIZE_16(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     16, 16, FALSE, NULL);
+                                     16, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3781,7 +3785,7 @@ dissect_ulp_Horvel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, prot
 static int
 dissect_ulp_BIT_STRING_SIZE_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 1, FALSE, NULL);
+                                     1, 1, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3791,7 +3795,7 @@ dissect_ulp_BIT_STRING_SIZE_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 static int
 dissect_ulp_BIT_STRING_SIZE_8(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3929,7 +3933,7 @@ dissect_ulp_SUPLSTART(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, p
 static int
 dissect_ulp_BIT_STRING_SIZE_256(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     256, 256, FALSE, NULL);
+                                     256, 256, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3961,7 +3965,7 @@ dissect_ulp_SETAuthKey(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, 
 static int
 dissect_ulp_KeyIdentity4(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     128, 128, FALSE, NULL);
+                                     128, 128, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3971,7 +3975,7 @@ dissect_ulp_KeyIdentity4(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_
 static int
 dissect_ulp_SPCSETKey(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     128, 128, FALSE, NULL);
+                                     128, 128, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4138,7 +4142,7 @@ dissect_ulp_GanssRequestedCommonAssistanceDataList(tvbuff_t *tvb _U_, int offset
 static int
 dissect_ulp_DGANSS_Sig_Id_Req(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4461,7 +4465,7 @@ dissect_ulp_OCTET_STRING_SIZE_1_8192(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
 
 static int
 dissect_ulp_T_rrlpPayload(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 48 "../../asn1/ulp/ulp.cnf"
+#line 53 "../../asn1/ulp/ulp.cnf"
  tvbuff_t *rrlp_tvb;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
@@ -4469,7 +4473,7 @@ dissect_ulp_T_rrlpPayload(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
 
 
   if (rrlp_tvb && rrlp_handle) {
-	call_dissector(rrlp_handle, rrlp_tvb, actx->pinfo, tree);
+    call_dissector(rrlp_handle, rrlp_tvb, actx->pinfo, tree);
   }
 
 
@@ -4481,7 +4485,7 @@ dissect_ulp_T_rrlpPayload(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
 
 static int
 dissect_ulp_T_lPPPayload_item(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 57 "../../asn1/ulp/ulp.cnf"
+#line 62 "../../asn1/ulp/ulp.cnf"
  tvbuff_t *lpp_tvb;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
@@ -4489,7 +4493,7 @@ dissect_ulp_T_lPPPayload_item(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 
 
   if (lpp_tvb && lpp_handle) {
-	call_dissector(lpp_handle, lpp_tvb, actx->pinfo, tree);
+    call_dissector(lpp_handle, lpp_tvb, actx->pinfo, tree);
   }
 
 
@@ -5073,7 +5077,7 @@ dissect_ulp_SUPLPOS(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, pro
 static int
 dissect_ulp_Ver(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     64, 64, FALSE, NULL);
+                                     64, 64, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -5141,15 +5145,16 @@ static const value_string ulp_StatusCode_vals[] = {
   {  20, "ver2-insufficientInterval" },
   {  21, "ver2-noSUPLCoverage" },
   { 102, "ver2-sessionStopped" },
+  { 103, "ver2-appIdDenied" },
   { 0, NULL }
 };
 
-static guint32 StatusCode_value_map[20+5] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 100, 101, 18, 19, 20, 21, 102};
+static guint32 StatusCode_value_map[20+6] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 100, 101, 18, 19, 20, 21, 102, 103};
 
 static int
 dissect_ulp_StatusCode(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
-                                     20, NULL, TRUE, 5, StatusCode_value_map);
+                                     20, NULL, TRUE, 6, StatusCode_value_map);
 
   return offset;
 }
@@ -5567,7 +5572,7 @@ dissect_ulp_UMBAreaId(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, p
 static int
 dissect_ulp_BIT_STRING_SIZE_29(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     29, 29, FALSE, NULL);
+                                     29, 29, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -6218,7 +6223,7 @@ static const per_choice_t UlpMessage_choice[] = {
 
 static int
 dissect_ulp_UlpMessage(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 36 "../../asn1/ulp/ulp.cnf"
+#line 43 "../../asn1/ulp/ulp.cnf"
 
 guint32 UlpMessage;
 
@@ -6227,10 +6232,8 @@ guint32 UlpMessage;
                                  &UlpMessage);
 
 
-	if (check_col(actx->pinfo->cinfo, COL_INFO))
-	{
-	    col_append_fstr(actx->pinfo->cinfo, COL_INFO, "%s ", val_to_str(UlpMessage,ulp_UlpMessage_vals,"Unknown"));
-	}
+  col_append_fstr(actx->pinfo->cinfo, COL_INFO, "%s ", val_to_str(UlpMessage,ulp_UlpMessage_vals,"Unknown"));
+
 
 
   return offset;
@@ -6247,43 +6250,54 @@ static const per_sequence_t ULP_PDU_sequence[] = {
 
 static int
 dissect_ulp_ULP_PDU(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 29 "../../asn1/ulp/ulp.cnf"
-	proto_tree_add_item(tree, proto_ulp, tvb, 0, -1, ENC_NA);
+#line 28 "../../asn1/ulp/ulp.cnf"
+  proto_item *it;
+  proto_tree *ulp_tree;
 
-	col_set_str(actx->pinfo->cinfo, COL_PROTOCOL, PSNAME);
-	col_clear(actx->pinfo->cinfo, COL_INFO);
+  it = proto_tree_add_item(tree, proto_ulp, tvb, 0, -1, ENC_NA);
+  ulp_tree = proto_item_add_subtree(it, ett_ulp);
 
-  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+  col_set_str(actx->pinfo->cinfo, COL_PROTOCOL, PSNAME);
+  col_clear(actx->pinfo->cinfo, COL_INFO);
+
+#line 39 "../../asn1/ulp/ulp.cnf"
+  offset = dissect_per_sequence(tvb, offset, actx, ulp_tree, hf_index,
                                    ett_ulp_ULP_PDU, ULP_PDU_sequence);
+
+
 
   return offset;
 }
 
 /*--- PDUs ---*/
 
-static void dissect_ULP_PDU_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_) {
+static int dissect_ULP_PDU_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
+  int offset = 0;
   asn1_ctx_t asn1_ctx;
   asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, FALSE, pinfo);
-  dissect_ulp_ULP_PDU(tvb, 0, &asn1_ctx, tree, hf_ulp_ULP_PDU_PDU);
+  offset = dissect_ulp_ULP_PDU(tvb, offset, &asn1_ctx, tree, hf_ulp_ULP_PDU_PDU);
+  offset += 7; offset >>= 3;
+  return offset;
 }
 
 
 /*--- End of included file: packet-ulp-fn.c ---*/
-#line 72 "../../asn1/ulp/packet-ulp-template.c"
+#line 73 "../../asn1/ulp/packet-ulp-template.c"
 
 
 static guint
 get_ulp_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 {
-	/* PDU length = Message length */
-	return tvb_get_ntohs(tvb,offset);
+  /* PDU length = Message length */
+  return tvb_get_ntohs(tvb,offset);
 }
 
-static void
-dissect_ulp_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_ulp_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
-	tcp_dissect_pdus(tvb, pinfo, tree, ulp_desegment, ULP_HEADER_SIZE,
-	    get_ulp_pdu_len, dissect_ULP_PDU_PDU);
+  tcp_dissect_pdus(tvb, pinfo, tree, ulp_desegment, ULP_HEADER_SIZE,
+                   get_ulp_pdu_len, dissect_ULP_PDU_PDU, data);
+  return tvb_length(tvb);
 }
 
 void proto_reg_handoff_ulp(void);
@@ -6298,7 +6312,7 @@ void proto_register_ulp(void) {
 /*--- Included file: packet-ulp-hfarr.c ---*/
 #line 1 "../../asn1/ulp/packet-ulp-hfarr.c"
     { &hf_ulp_ULP_PDU_PDU,
-      { "ULP-PDU", "ulp.ULP_PDU",
+      { "ULP-PDU", "ulp.ULP_PDU_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_length,
@@ -6306,11 +6320,11 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_65535", HFILL }},
     { &hf_ulp_version,
-      { "version", "ulp.version",
+      { "version", "ulp.version_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_sessionID,
-      { "sessionID", "ulp.sessionID",
+      { "sessionID", "ulp.sessionID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_message,
@@ -6318,63 +6332,63 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_UlpMessage_vals), 0,
         "UlpMessage", HFILL }},
     { &hf_ulp_msSUPLINIT,
-      { "msSUPLINIT", "ulp.msSUPLINIT",
+      { "msSUPLINIT", "ulp.msSUPLINIT_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SUPLINIT", HFILL }},
     { &hf_ulp_msSUPLSTART,
-      { "msSUPLSTART", "ulp.msSUPLSTART",
+      { "msSUPLSTART", "ulp.msSUPLSTART_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SUPLSTART", HFILL }},
     { &hf_ulp_msSUPLRESPONSE,
-      { "msSUPLRESPONSE", "ulp.msSUPLRESPONSE",
+      { "msSUPLRESPONSE", "ulp.msSUPLRESPONSE_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SUPLRESPONSE", HFILL }},
     { &hf_ulp_msSUPLPOSINIT,
-      { "msSUPLPOSINIT", "ulp.msSUPLPOSINIT",
+      { "msSUPLPOSINIT", "ulp.msSUPLPOSINIT_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SUPLPOSINIT", HFILL }},
     { &hf_ulp_msSUPLPOS,
-      { "msSUPLPOS", "ulp.msSUPLPOS",
+      { "msSUPLPOS", "ulp.msSUPLPOS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SUPLPOS", HFILL }},
     { &hf_ulp_msSUPLEND,
-      { "msSUPLEND", "ulp.msSUPLEND",
+      { "msSUPLEND", "ulp.msSUPLEND_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SUPLEND", HFILL }},
     { &hf_ulp_msSUPLAUTHREQ,
-      { "msSUPLAUTHREQ", "ulp.msSUPLAUTHREQ",
+      { "msSUPLAUTHREQ", "ulp.msSUPLAUTHREQ_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SUPLAUTHREQ", HFILL }},
     { &hf_ulp_msSUPLAUTHRESP,
-      { "msSUPLAUTHRESP", "ulp.msSUPLAUTHRESP",
+      { "msSUPLAUTHRESP", "ulp.msSUPLAUTHRESP_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SUPLAUTHRESP", HFILL }},
     { &hf_ulp_msSUPLTRIGGEREDSTART,
-      { "msSUPLTRIGGEREDSTART", "ulp.msSUPLTRIGGEREDSTART",
+      { "msSUPLTRIGGEREDSTART", "ulp.msSUPLTRIGGEREDSTART_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ver2_SUPLTRIGGEREDSTART", HFILL }},
     { &hf_ulp_msSUPLTRIGGEREDRESPONSE,
-      { "msSUPLTRIGGEREDRESPONSE", "ulp.msSUPLTRIGGEREDRESPONSE",
+      { "msSUPLTRIGGEREDRESPONSE", "ulp.msSUPLTRIGGEREDRESPONSE_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ver2_SUPLTRIGGEREDRESPONSE", HFILL }},
     { &hf_ulp_msSUPLTRIGGEREDSTOP,
-      { "msSUPLTRIGGEREDSTOP", "ulp.msSUPLTRIGGEREDSTOP",
+      { "msSUPLTRIGGEREDSTOP", "ulp.msSUPLTRIGGEREDSTOP_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ver2_SUPLTRIGGEREDSTOP", HFILL }},
     { &hf_ulp_msSUPLNOTIFY,
-      { "msSUPLNOTIFY", "ulp.msSUPLNOTIFY",
+      { "msSUPLNOTIFY", "ulp.msSUPLNOTIFY_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ver2_SUPLNOTIFY", HFILL }},
     { &hf_ulp_msSUPLNOTIFYRESPONSE,
-      { "msSUPLNOTIFYRESPONSE", "ulp.msSUPLNOTIFYRESPONSE",
+      { "msSUPLNOTIFYRESPONSE", "ulp.msSUPLNOTIFYRESPONSE_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ver2_SUPLNOTIFYRESPONSE", HFILL }},
     { &hf_ulp_msSUPLSETINIT,
-      { "msSUPLSETINIT", "ulp.msSUPLSETINIT",
+      { "msSUPLSETINIT", "ulp.msSUPLSETINIT_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ver2_SUPLSETINIT", HFILL }},
     { &hf_ulp_msSUPLREPORT,
-      { "msSUPLREPORT", "ulp.msSUPLREPORT",
+      { "msSUPLREPORT", "ulp.msSUPLREPORT_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Ver2_SUPLREPORT", HFILL }},
     { &hf_ulp_posMethod,
@@ -6382,7 +6396,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_PosMethod_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_notification,
-      { "notification", "ulp.notification",
+      { "notification", "ulp.notification_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_sLPAddress,
@@ -6390,7 +6404,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_SLPAddress_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_qoP,
-      { "qoP", "ulp.qoP",
+      { "qoP", "ulp.qoP_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_sLPMode,
@@ -6406,7 +6420,7 @@ void proto_register_ulp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ver2_SUPL_INIT_extension,
-      { "ver2-SUPL-INIT-extension", "ulp.ver2_SUPL_INIT_extension",
+      { "ver2-SUPL-INIT-extension", "ulp.ver2_SUPL_INIT_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_notificationType,
@@ -6434,23 +6448,23 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_FormatIndicator_vals), 0,
         "FormatIndicator", HFILL }},
     { &hf_ulp_ver2_Notification_extension,
-      { "ver2-Notification-extension", "ulp.ver2_Notification_extension",
+      { "ver2-Notification-extension", "ulp.ver2_Notification_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_sETCapabilities,
-      { "sETCapabilities", "ulp.sETCapabilities",
+      { "sETCapabilities", "ulp.sETCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_locationId,
-      { "locationId", "ulp.locationId",
+      { "locationId", "ulp.locationId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ver2_SUPL_START_extension,
-      { "ver2-SUPL-START-extension", "ulp.ver2_SUPL_START_extension",
+      { "ver2-SUPL-START-extension", "ulp.ver2_SUPL_START_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_posTechnology,
-      { "posTechnology", "ulp.posTechnology",
+      { "posTechnology", "ulp.posTechnology_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_prefMethod,
@@ -6458,11 +6472,11 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_PrefMethod_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_posProtocol,
-      { "posProtocol", "ulp.posProtocol",
+      { "posProtocol", "ulp.posProtocol_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ver2_SETCapabilities_extension,
-      { "ver2-SETCapabilities-extension", "ulp.ver2_SETCapabilities_extension",
+      { "ver2-SETCapabilities-extension", "ulp.ver2_SETCapabilities_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_agpsSETassisted,
@@ -6494,7 +6508,7 @@ void proto_register_ulp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ulp_ver2_PosTechnology_extension,
-      { "ver2-PosTechnology-extension", "ulp.ver2_PosTechnology_extension",
+      { "ver2-PosTechnology-extension", "ulp.ver2_PosTechnology_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_tia801,
@@ -6510,7 +6524,7 @@ void proto_register_ulp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ulp_ver2_PosProtocol_extension,
-      { "ver2-PosProtocol-extension", "ulp.ver2_PosProtocol_extension",
+      { "ver2-PosProtocol-extension", "ulp.ver2_PosProtocol_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_sETAuthKey,
@@ -6522,7 +6536,7 @@ void proto_register_ulp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ver2_SUPL_RESPONSE_extension,
-      { "ver2-SUPL-RESPONSE-extension", "ulp.ver2_SUPL_RESPONSE_extension",
+      { "ver2-SUPL-RESPONSE-extension", "ulp.ver2_SUPL_RESPONSE_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_shortKey,
@@ -6534,15 +6548,15 @@ void proto_register_ulp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_256", HFILL }},
     { &hf_ulp_requestedAssistData,
-      { "requestedAssistData", "ulp.requestedAssistData",
+      { "requestedAssistData", "ulp.requestedAssistData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_position,
-      { "position", "ulp.position",
+      { "position", "ulp.position_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_sUPLPOS,
-      { "sUPLPOS", "ulp.sUPLPOS",
+      { "sUPLPOS", "ulp.sUPLPOS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ver,
@@ -6550,7 +6564,7 @@ void proto_register_ulp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ver2_SUPL_POS_INIT_extension,
-      { "ver2-SUPL-POS-INIT-extension", "ulp.ver2_SUPL_POS_INIT_extension",
+      { "ver2-SUPL-POS-INIT-extension", "ulp.ver2_SUPL_POS_INIT_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_almanacRequested,
@@ -6590,11 +6604,11 @@ void proto_register_ulp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ulp_navigationModelData,
-      { "navigationModelData", "ulp.navigationModelData",
+      { "navigationModelData", "ulp.navigationModelData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavigationModel", HFILL }},
     { &hf_ulp_ver2_RequestedAssistData_extension,
-      { "ver2-RequestedAssistData-extension", "ulp.ver2_RequestedAssistData_extension",
+      { "ver2-RequestedAssistData-extension", "ulp.ver2_RequestedAssistData_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_gpsWeek,
@@ -6618,7 +6632,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SatelliteInfo", HFILL }},
     { &hf_ulp_SatelliteInfo_item,
-      { "SatelliteInfoElement", "ulp.SatelliteInfoElement",
+      { "SatelliteInfoElement", "ulp.SatelliteInfoElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_satId,
@@ -6638,7 +6652,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_Velocity_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_ver2_SUPL_POS_extension,
-      { "ver2-SUPL-POS-extension", "ulp.ver2_SUPL_POS_extension",
+      { "ver2-SUPL-POS-extension", "ulp.ver2_SUPL_POS_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_tia801payload,
@@ -6654,7 +6668,7 @@ void proto_register_ulp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ver2_PosPayLoad_extension,
-      { "ver2-PosPayLoad-extension", "ulp.ver2_PosPayLoad_extension",
+      { "ver2-PosPayLoad-extension", "ulp.ver2_PosPayLoad_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_statusCode,
@@ -6662,7 +6676,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_StatusCode_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_ver2_SUPL_END_extension,
-      { "ver2-SUPL-END-extension", "ulp.ver2_SUPL_END_extension",
+      { "ver2-SUPL-END-extension", "ulp.ver2_SUPL_END_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_sPCSETKey,
@@ -6670,7 +6684,7 @@ void proto_register_ulp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_sPCTID,
-      { "sPCTID", "ulp.sPCTID",
+      { "sPCTID", "ulp.sPCTID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_sPCSETKeylifetime,
@@ -6686,7 +6700,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_SETId_vals), 0,
         "SETId", HFILL }},
     { &hf_ulp_applicationID,
-      { "applicationID", "ulp.applicationID",
+      { "applicationID", "ulp.applicationID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_multipleLocationIds,
@@ -6706,7 +6720,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_TriggerParams_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_reportingCap,
-      { "reportingCap", "ulp.reportingCap",
+      { "reportingCap", "ulp.reportingCap_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_causeCode,
@@ -6714,11 +6728,11 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_CauseCode_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_periodicParams,
-      { "periodicParams", "ulp.periodicParams",
+      { "periodicParams", "ulp.periodicParams_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_areaEventParams,
-      { "areaEventParams", "ulp.areaEventParams",
+      { "areaEventParams", "ulp.areaEventParams_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_numberOfFixes,
@@ -6742,7 +6756,7 @@ void proto_register_ulp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ulp_repeatedReportingParams,
-      { "repeatedReportingParams", "ulp.repeatedReportingParams",
+      { "repeatedReportingParams", "ulp.repeatedReportingParams_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_stopTime,
@@ -6758,7 +6772,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxAreaIdList_OF_AreaIdList", HFILL }},
     { &hf_ulp_areaIdLists_item,
-      { "AreaIdList", "ulp.AreaIdList",
+      { "AreaIdList", "ulp.AreaIdList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_minimumIntervalTime,
@@ -6774,15 +6788,15 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_GeographicTargetArea_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_circularArea,
-      { "circularArea", "ulp.circularArea",
+      { "circularArea", "ulp.circularArea_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ellipticalArea,
-      { "ellipticalArea", "ulp.ellipticalArea",
+      { "ellipticalArea", "ulp.ellipticalArea_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_polygonArea,
-      { "polygonArea", "ulp.polygonArea",
+      { "polygonArea", "ulp.polygonArea_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_areaIdSet,
@@ -6802,35 +6816,35 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_AreaId_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_gSMAreaId,
-      { "gSMAreaId", "ulp.gSMAreaId",
+      { "gSMAreaId", "ulp.gSMAreaId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_wCDMAAreaId,
-      { "wCDMAAreaId", "ulp.wCDMAAreaId",
+      { "wCDMAAreaId", "ulp.wCDMAAreaId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_cDMAAreaId,
-      { "cDMAAreaId", "ulp.cDMAAreaId",
+      { "cDMAAreaId", "ulp.cDMAAreaId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_hRPDAreaId,
-      { "hRPDAreaId", "ulp.hRPDAreaId",
+      { "hRPDAreaId", "ulp.hRPDAreaId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_uMBAreaId,
-      { "uMBAreaId", "ulp.uMBAreaId",
+      { "uMBAreaId", "ulp.uMBAreaId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_lTEAreaId,
-      { "lTEAreaId", "ulp.lTEAreaId",
+      { "lTEAreaId", "ulp.lTEAreaId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_wLANAreaId,
-      { "wLANAreaId", "ulp.wLANAreaId",
+      { "wLANAreaId", "ulp.wLANAreaId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_wiMAXAreaId,
-      { "wiMAXAreaId", "ulp.wiMAXAreaId",
+      { "wiMAXAreaId", "ulp.wiMAXAreaId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_refMCC,
@@ -6890,15 +6904,15 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_supportedNetworkInformation,
-      { "supportedNetworkInformation", "ulp.supportedNetworkInformation",
+      { "supportedNetworkInformation", "ulp.supportedNetworkInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_reportingMode,
-      { "reportingMode", "ulp.reportingMode",
+      { "reportingMode", "ulp.reportingMode_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_gnssPosTechnology,
-      { "gnssPosTechnology", "ulp.gnssPosTechnology",
+      { "gnssPosTechnology", "ulp.gnssPosTechnology_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_repMode,
@@ -6910,7 +6924,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_BatchRepConditions_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_batchRepType,
-      { "batchRepType", "ulp.batchRepType",
+      { "batchRepType", "ulp.batchRepType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_num_interval,
@@ -6922,7 +6936,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_2048", HFILL }},
     { &hf_ulp_endofsession,
-      { "endofsession", "ulp.endofsession",
+      { "endofsession", "ulp.endofsession_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_reportPosition,
@@ -6950,19 +6964,19 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_moreComponents,
-      { "moreComponents", "ulp.moreComponents",
+      { "moreComponents", "ulp.moreComponents_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_SessionList_item,
-      { "SessionInformation", "ulp.SessionInformation",
+      { "SessionInformation", "ulp.SessionInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ReportDataList_item,
-      { "ReportData", "ulp.ReportData",
+      { "ReportData", "ulp.ReportData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_positionData,
-      { "positionData", "ulp.positionData",
+      { "positionData", "ulp.positionData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_resultCode,
@@ -6978,7 +6992,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_GANSSsignalsInfo_item,
-      { "GANSSSignalsDescription", "ulp.GANSSSignalsDescription",
+      { "GANSSSignalsDescription", "ulp.GANSSSignalsDescription_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ganssId,
@@ -7006,11 +7020,11 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_SLPAddress_vals), 0,
         "SLPAddress", HFILL }},
     { &hf_ulp_historicReporting,
-      { "historicReporting", "ulp.historicReporting",
+      { "historicReporting", "ulp.historicReporting_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_protectionLevel,
-      { "protectionLevel", "ulp.protectionLevel",
+      { "protectionLevel", "ulp.protectionLevel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_minimumMajorVersion,
@@ -7022,11 +7036,11 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_AllowedReportingType_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_reportingCriteria,
-      { "reportingCriteria", "ulp.reportingCriteria",
+      { "reportingCriteria", "ulp.reportingCriteria_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_timeWindow,
-      { "timeWindow", "ulp.timeWindow",
+      { "timeWindow", "ulp.timeWindow_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_maxNumberofReports,
@@ -7050,7 +7064,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_ProtLevel_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_basicProtectionParams,
-      { "basicProtectionParams", "ulp.basicProtectionParams",
+      { "basicProtectionParams", "ulp.basicProtectionParams_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_keyIdentifier,
@@ -7066,51 +7080,51 @@ void proto_register_ulp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_32", HFILL }},
     { &hf_ulp_initialApproximateposition,
-      { "initialApproximateposition", "ulp.initialApproximateposition",
+      { "initialApproximateposition", "ulp.initialApproximateposition_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Position", HFILL }},
     { &hf_ulp_utran_GPSReferenceTimeResult,
-      { "utran-GPSReferenceTimeResult", "ulp.utran_GPSReferenceTimeResult",
+      { "utran-GPSReferenceTimeResult", "ulp.utran_GPSReferenceTimeResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_utran_GANSSReferenceTimeResult,
-      { "utran-GANSSReferenceTimeResult", "ulp.utran_GANSSReferenceTimeResult",
+      { "utran-GANSSReferenceTimeResult", "ulp.utran_GANSSReferenceTimeResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_utran_GPSReferenceTimeAssistance,
-      { "utran-GPSReferenceTimeAssistance", "ulp.utran_GPSReferenceTimeAssistance",
+      { "utran-GPSReferenceTimeAssistance", "ulp.utran_GPSReferenceTimeAssistance_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_utran_GANSSReferenceTimeAssistance,
-      { "utran-GANSSReferenceTimeAssistance", "ulp.utran_GANSSReferenceTimeAssistance",
+      { "utran-GANSSReferenceTimeAssistance", "ulp.utran_GANSSReferenceTimeAssistance_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_emergencyCallLocation,
-      { "emergencyCallLocation", "ulp.emergencyCallLocation",
+      { "emergencyCallLocation", "ulp.emergencyCallLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_serviceCapabilities,
-      { "serviceCapabilities", "ulp.serviceCapabilities",
+      { "serviceCapabilities", "ulp.serviceCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_supportedBearers,
-      { "supportedBearers", "ulp.supportedBearers",
+      { "supportedBearers", "ulp.supportedBearers_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_servicesSupported,
-      { "servicesSupported", "ulp.servicesSupported",
+      { "servicesSupported", "ulp.servicesSupported_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_reportingCapabilities,
-      { "reportingCapabilities", "ulp.reportingCapabilities",
+      { "reportingCapabilities", "ulp.reportingCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReportingCap", HFILL }},
     { &hf_ulp_eventTriggerCapabilities,
-      { "eventTriggerCapabilities", "ulp.eventTriggerCapabilities",
+      { "eventTriggerCapabilities", "ulp.eventTriggerCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_sessionCapabilities,
-      { "sessionCapabilities", "ulp.sessionCapabilities",
+      { "sessionCapabilities", "ulp.sessionCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_periodicTrigger,
@@ -7122,7 +7136,7 @@ void proto_register_ulp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ulp_geoAreaShapesSupported,
-      { "geoAreaShapesSupported", "ulp.geoAreaShapesSupported",
+      { "geoAreaShapesSupported", "ulp.geoAreaShapesSupported_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_maxNumGeoAreaSupported,
@@ -7194,11 +7208,11 @@ void proto_register_ulp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ulp_posProtocolVersionRRLP,
-      { "posProtocolVersionRRLP", "ulp.posProtocolVersionRRLP",
+      { "posProtocolVersionRRLP", "ulp.posProtocolVersionRRLP_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PosProtocolVersion3GPP", HFILL }},
     { &hf_ulp_posProtocolVersionRRC,
-      { "posProtocolVersionRRC", "ulp.posProtocolVersionRRC",
+      { "posProtocolVersionRRC", "ulp.posProtocolVersionRRC_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PosProtocolVersion3GPP", HFILL }},
     { &hf_ulp_posProtocolVersionTIA801,
@@ -7206,7 +7220,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "PosProtocolVersion3GPP2", HFILL }},
     { &hf_ulp_posProtocolVersionLPP,
-      { "posProtocolVersionLPP", "ulp.posProtocolVersionLPP",
+      { "posProtocolVersionLPP", "ulp.posProtocolVersionLPP_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PosProtocolVersion3GPP", HFILL }},
     { &hf_ulp_majorVersionField,
@@ -7222,7 +7236,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_255", HFILL }},
     { &hf_ulp_PosProtocolVersion3GPP2_item,
-      { "Supported3GPP2PosProtocolVersion", "ulp.Supported3GPP2PosProtocolVersion",
+      { "Supported3GPP2PosProtocolVersion", "ulp.Supported3GPP2PosProtocolVersion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_revisionNumber,
@@ -7242,7 +7256,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_GANSSPositionMethods_item,
-      { "GANSSPositionMethod", "ulp.GANSSPositionMethod",
+      { "GANSSPositionMethod", "ulp.GANSSPositionMethod_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ganssSBASid,
@@ -7250,7 +7264,7 @@ void proto_register_ulp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_3", HFILL }},
     { &hf_ulp_gANSSPositioningMethodTypes,
-      { "gANSSPositioningMethodTypes", "ulp.gANSSPositioningMethodTypes",
+      { "gANSSPositioningMethodTypes", "ulp.gANSSPositioningMethodTypes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_setAssisted,
@@ -7266,7 +7280,7 @@ void proto_register_ulp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ulp_ganssRequestedCommonAssistanceDataList,
-      { "ganssRequestedCommonAssistanceDataList", "ulp.ganssRequestedCommonAssistanceDataList",
+      { "ganssRequestedCommonAssistanceDataList", "ulp.ganssRequestedCommonAssistanceDataList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ganssRequestedGenericAssistanceDataList,
@@ -7274,11 +7288,11 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_extendedEphemeris,
-      { "extendedEphemeris", "ulp.extendedEphemeris",
+      { "extendedEphemeris", "ulp.extendedEphemeris_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_extendedEphemerisCheck,
-      { "extendedEphemerisCheck", "ulp.extendedEphemerisCheck",
+      { "extendedEphemerisCheck", "ulp.extendedEphemerisCheck_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ExtendedEphCheck", HFILL }},
     { &hf_ulp_ganssReferenceTime,
@@ -7302,7 +7316,7 @@ void proto_register_ulp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ulp_GanssRequestedGenericAssistanceDataList_item,
-      { "GanssReqGenericData", "ulp.GanssReqGenericData",
+      { "GanssReqGenericData", "ulp.GanssReqGenericData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ganssRealTimeIntegrity,
@@ -7318,7 +7332,7 @@ void proto_register_ulp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ulp_ganssNavigationModelData,
-      { "ganssNavigationModelData", "ulp.ganssNavigationModelData",
+      { "ganssNavigationModelData", "ulp.ganssNavigationModelData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ganssTimeModels,
@@ -7330,7 +7344,7 @@ void proto_register_ulp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ulp_ganssDataBits,
-      { "ganssDataBits", "ulp.ganssDataBits",
+      { "ganssDataBits", "ulp.ganssDataBits_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ganssUTCModel,
@@ -7338,7 +7352,7 @@ void proto_register_ulp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ulp_ganssAdditionalDataChoices,
-      { "ganssAdditionalDataChoices", "ulp.ganssAdditionalDataChoices",
+      { "ganssAdditionalDataChoices", "ulp.ganssAdditionalDataChoices_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ganssAuxiliaryInformation,
@@ -7346,11 +7360,11 @@ void proto_register_ulp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ulp_ganssExtendedEphemeris,
-      { "ganssExtendedEphemeris", "ulp.ganssExtendedEphemeris",
+      { "ganssExtendedEphemeris", "ulp.ganssExtendedEphemeris_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ExtendedEphemeris", HFILL }},
     { &hf_ulp_ganssExtendedEphemerisCheck,
-      { "ganssExtendedEphemerisCheck", "ulp.ganssExtendedEphemerisCheck",
+      { "ganssExtendedEphemerisCheck", "ulp.ganssExtendedEphemerisCheck_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GanssExtendedEphCheck", HFILL }},
     { &hf_ulp_ganssWeek,
@@ -7370,7 +7384,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_SatellitesListRelatedDataList_item,
-      { "SatellitesListRelatedData", "ulp.SatellitesListRelatedData",
+      { "SatellitesListRelatedData", "ulp.SatellitesListRelatedData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_iod,
@@ -7382,7 +7396,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_59", HFILL }},
     { &hf_ulp_reqDataBitAssistanceList,
-      { "reqDataBitAssistanceList", "ulp.reqDataBitAssistanceList",
+      { "reqDataBitAssistanceList", "ulp.reqDataBitAssistanceList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_gnssSignals,
@@ -7422,19 +7436,19 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_256", HFILL }},
     { &hf_ulp_beginTime,
-      { "beginTime", "ulp.beginTime",
+      { "beginTime", "ulp.beginTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPSTime", HFILL }},
     { &hf_ulp_endTime,
-      { "endTime", "ulp.endTime",
+      { "endTime", "ulp.endTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPSTime", HFILL }},
     { &hf_ulp_beginTime_01,
-      { "beginTime", "ulp.beginTime",
+      { "beginTime", "ulp.beginTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSextEphTime", HFILL }},
     { &hf_ulp_endTime_01,
-      { "endTime", "ulp.endTime",
+      { "endTime", "ulp.endTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSextEphTime", HFILL }},
     { &hf_ulp_gPSWeek,
@@ -7482,11 +7496,11 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_255", HFILL }},
     { &hf_ulp_setSessionID,
-      { "setSessionID", "ulp.setSessionID",
+      { "setSessionID", "ulp.setSessionID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_slpSessionID,
-      { "slpSessionID", "ulp.slpSessionID",
+      { "slpSessionID", "ulp.slpSessionID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_sessionId,
@@ -7550,15 +7564,15 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_Status_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_gsmCell,
-      { "gsmCell", "ulp.gsmCell",
+      { "gsmCell", "ulp.gsmCell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GsmCellInformation", HFILL }},
     { &hf_ulp_wcdmaCell,
-      { "wcdmaCell", "ulp.wcdmaCell",
+      { "wcdmaCell", "ulp.wcdmaCell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "WcdmaCellInformation", HFILL }},
     { &hf_ulp_cdmaCell,
-      { "cdmaCell", "ulp.cdmaCell",
+      { "cdmaCell", "ulp.cdmaCell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CdmaCellInformation", HFILL }},
     { &hf_ulp_ver2_CellInfo_extension,
@@ -7570,7 +7584,7 @@ void proto_register_ulp(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "UTCTime", HFILL }},
     { &hf_ulp_positionEstimate,
-      { "positionEstimate", "ulp.positionEstimate",
+      { "positionEstimate", "ulp.positionEstimate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_latitudeSign,
@@ -7586,7 +7600,7 @@ void proto_register_ulp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M8388608_8388607", HFILL }},
     { &hf_ulp_uncertainty,
-      { "uncertainty", "ulp.uncertainty",
+      { "uncertainty", "ulp.uncertainty_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_uncertaintySemiMajor,
@@ -7606,7 +7620,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_100", HFILL }},
     { &hf_ulp_altitudeInfo,
-      { "altitudeInfo", "ulp.altitudeInfo",
+      { "altitudeInfo", "ulp.altitudeInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_altitudeDirection,
@@ -7658,7 +7672,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_255", HFILL }},
     { &hf_ulp_frequencyInfo,
-      { "frequencyInfo", "ulp.frequencyInfo",
+      { "frequencyInfo", "ulp.frequencyInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_primaryScramblingCode,
@@ -7674,7 +7688,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_127", HFILL }},
     { &hf_ulp_timingAdvance,
-      { "timingAdvance", "ulp.timingAdvance",
+      { "timingAdvance", "ulp.timingAdvance_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_tA_01,
@@ -7694,11 +7708,11 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_FrequencySpecificInfo_vals), 0,
         "FrequencySpecificInfo", HFILL }},
     { &hf_ulp_fdd_fr,
-      { "fdd", "ulp.fdd",
+      { "fdd", "ulp.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "FrequencyInfoFDD", HFILL }},
     { &hf_ulp_tdd_fr,
-      { "tdd", "ulp.tdd",
+      { "tdd", "ulp.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "FrequencyInfoTDD", HFILL }},
     { &hf_ulp_uarfcn_UL,
@@ -7714,7 +7728,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "UARFCN", HFILL }},
     { &hf_ulp_NMR_item,
-      { "NMRelement", "ulp.NMRelement",
+      { "NMRelement", "ulp.NMRelement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_aRFCN,
@@ -7730,7 +7744,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_63", HFILL }},
     { &hf_ulp_MeasuredResultsList_item,
-      { "MeasuredResults", "ulp.MeasuredResults",
+      { "MeasuredResults", "ulp.MeasuredResults_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_utra_CarrierRSSI,
@@ -7742,7 +7756,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_CellMeasuredResultsList_item,
-      { "CellMeasuredResults", "ulp.CellMeasuredResults",
+      { "CellMeasuredResults", "ulp.CellMeasuredResults_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_cellIdentity,
@@ -7754,11 +7768,11 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_T_modeSpecificInfo_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_fdd,
-      { "fdd", "ulp.fdd",
+      { "fdd", "ulp.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_primaryCPICH_Info,
-      { "primaryCPICH-Info", "ulp.primaryCPICH_Info",
+      { "primaryCPICH-Info", "ulp.primaryCPICH_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_cpich_Ec_N0,
@@ -7774,7 +7788,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_tdd,
-      { "tdd", "ulp.tdd",
+      { "tdd", "ulp.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_cellParametersID,
@@ -7814,19 +7828,19 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_7", HFILL }},
     { &hf_ulp_horvel,
-      { "horvel", "ulp.horvel",
+      { "horvel", "ulp.horvel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_horandvervel,
-      { "horandvervel", "ulp.horandvervel",
+      { "horandvervel", "ulp.horandvervel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_horveluncert,
-      { "horveluncert", "ulp.horveluncert",
+      { "horveluncert", "ulp.horveluncert_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_horandveruncert,
-      { "horandveruncert", "ulp.horandveruncert",
+      { "horandveruncert", "ulp.horandveruncert_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_bearing,
@@ -7858,7 +7872,7 @@ void proto_register_ulp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_8", HFILL }},
     { &hf_ulp_MultipleLocationIds_item,
-      { "LocationIdData", "ulp.LocationIdData",
+      { "LocationIdData", "ulp.LocationIdData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_relativetimestamp,
@@ -7874,11 +7888,11 @@ void proto_register_ulp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ulp_supportedWLANInfo,
-      { "supportedWLANInfo", "ulp.supportedWLANInfo",
+      { "supportedWLANInfo", "ulp.supportedWLANInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_supportedWLANApsList,
-      { "supportedWLANApsList", "ulp.supportedWLANApsList",
+      { "supportedWLANApsList", "ulp.supportedWLANApsList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_gSM,
@@ -7890,7 +7904,7 @@ void proto_register_ulp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ulp_supportedWCDMAInfo,
-      { "supportedWCDMAInfo", "ulp.supportedWCDMAInfo",
+      { "supportedWCDMAInfo", "ulp.supportedWCDMAInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_cDMA,
@@ -7982,15 +7996,15 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxWLANApDataSize_OF_SupportedWLANApData", HFILL }},
     { &hf_ulp_supportedWLANApDataList_item,
-      { "SupportedWLANApData", "ulp.SupportedWLANApData",
+      { "SupportedWLANApData", "ulp.SupportedWLANApData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_supportedWLANapsChannel11a,
-      { "supportedWLANapsChannel11a", "ulp.supportedWLANapsChannel11a",
+      { "supportedWLANapsChannel11a", "ulp.supportedWLANapsChannel11a_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_supportedWLANapsChannel11bg,
-      { "supportedWLANapsChannel11bg", "ulp.supportedWLANapsChannel11bg",
+      { "supportedWLANapsChannel11bg", "ulp.supportedWLANapsChannel11bg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ch34,
@@ -8122,27 +8136,27 @@ void proto_register_ulp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ulp_hrpdCell,
-      { "hrpdCell", "ulp.hrpdCell",
+      { "hrpdCell", "ulp.hrpdCell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "HrpdCellInformation", HFILL }},
     { &hf_ulp_umbCell,
-      { "umbCell", "ulp.umbCell",
+      { "umbCell", "ulp.umbCell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UmbCellInformation", HFILL }},
     { &hf_ulp_lteCell,
-      { "lteCell", "ulp.lteCell",
+      { "lteCell", "ulp.lteCell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "LteCellInformation", HFILL }},
     { &hf_ulp_wlanAP,
-      { "wlanAP", "ulp.wlanAP",
+      { "wlanAP", "ulp.wlanAP_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "WlanAPInformation", HFILL }},
     { &hf_ulp_wimaxBS,
-      { "wimaxBS", "ulp.wimaxBS",
+      { "wimaxBS", "ulp.wimaxBS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "WimaxBSInformation", HFILL }},
     { &hf_ulp_cellGlobalIdEUTRA,
-      { "cellGlobalIdEUTRA", "ulp.cellGlobalIdEUTRA",
+      { "cellGlobalIdEUTRA", "ulp.cellGlobalIdEUTRA_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_physCellId,
@@ -8169,24 +8183,28 @@ void proto_register_ulp(void) {
       { "measResultListEUTRA", "ulp.measResultListEUTRA",
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
+    { &hf_ulp_earfcn,
+      { "earfcn", "ulp.earfcn",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_65535", HFILL }},
     { &hf_ulp_MeasResultListEUTRA_item,
-      { "MeasResultEUTRA", "ulp.MeasResultEUTRA",
+      { "MeasResultEUTRA", "ulp.MeasResultEUTRA_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_cgi_Info,
-      { "cgi-Info", "ulp.cgi_Info",
+      { "cgi-Info", "ulp.cgi_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_cellGlobalId,
-      { "cellGlobalId", "ulp.cellGlobalId",
+      { "cellGlobalId", "ulp.cellGlobalId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CellGlobalIdEUTRA", HFILL }},
     { &hf_ulp_measResult,
-      { "measResult", "ulp.measResult",
+      { "measResult", "ulp.measResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_plmn_Identity,
-      { "plmn-Identity", "ulp.plmn_Identity",
+      { "plmn-Identity", "ulp.plmn_Identity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_cellIdentity_01,
@@ -8234,7 +8252,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_256", HFILL }},
     { &hf_ulp_apRoundTripDelay,
-      { "apRoundTripDelay", "ulp.apRoundTripDelay",
+      { "apRoundTripDelay", "ulp.apRoundTripDelay_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RTD", HFILL }},
     { &hf_ulp_setTransmitPower,
@@ -8254,7 +8272,7 @@ void proto_register_ulp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M127_128", HFILL }},
     { &hf_ulp_apReportedLocation,
-      { "apReportedLocation", "ulp.apReportedLocation",
+      { "apReportedLocation", "ulp.apReportedLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReportedLocation", HFILL }},
     { &hf_ulp_rTDValue,
@@ -8274,7 +8292,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_LocationEncodingDescriptor_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_locationData,
-      { "locationData", "ulp.locationData",
+      { "locationData", "ulp.locationData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_locationAccuracy,
@@ -8286,11 +8304,11 @@ void proto_register_ulp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING_SIZE_1_128", HFILL }},
     { &hf_ulp_wimaxBsID,
-      { "wimaxBsID", "ulp.wimaxBsID",
+      { "wimaxBsID", "ulp.wimaxBsID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_wimaxRTD,
-      { "wimaxRTD", "ulp.wimaxRTD",
+      { "wimaxRTD", "ulp.wimaxRTD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_wimaxNMRList,
@@ -8306,7 +8324,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_1023", HFILL }},
     { &hf_ulp_WimaxNMRList_item,
-      { "WimaxNMR", "ulp.WimaxNMR",
+      { "WimaxNMR", "ulp.WimaxNMR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_relDelay,
@@ -8338,11 +8356,11 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_63", HFILL }},
     { &hf_ulp_bSLocation,
-      { "bSLocation", "ulp.bSLocation",
+      { "bSLocation", "ulp.bSLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReportedLocation", HFILL }},
     { &hf_ulp_utran_GPSReferenceTime,
-      { "utran-GPSReferenceTime", "ulp.utran_GPSReferenceTime",
+      { "utran-GPSReferenceTime", "ulp.utran_GPSReferenceTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_gpsReferenceTimeUncertainty,
@@ -8354,7 +8372,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_UTRANGPSDriftRate_vals), 0,
         NULL, HFILL }},
     { &hf_ulp_utran_GPSTimingOfCell,
-      { "utran-GPSTimingOfCell", "ulp.utran_GPSTimingOfCell",
+      { "utran-GPSTimingOfCell", "ulp.utran_GPSTimingOfCell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_ms_part,
@@ -8370,15 +8388,15 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_T_modeSpecificInfo_01_vals), 0,
         "T_modeSpecificInfo_01", HFILL }},
     { &hf_ulp_fdd_01,
-      { "fdd", "ulp.fdd",
+      { "fdd", "ulp.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_01", HFILL }},
     { &hf_ulp_referenceIdentity,
-      { "referenceIdentity", "ulp.referenceIdentity",
+      { "referenceIdentity", "ulp.referenceIdentity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PrimaryCPICH_Info", HFILL }},
     { &hf_ulp_tdd_01,
-      { "tdd", "ulp.tdd",
+      { "tdd", "ulp.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_01", HFILL }},
     { &hf_ulp_referenceIdentity_01,
@@ -8390,7 +8408,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_4095", HFILL }},
     { &hf_ulp_set_GPSTimingOfCell,
-      { "set-GPSTimingOfCell", "ulp.set_GPSTimingOfCell",
+      { "set-GPSTimingOfCell", "ulp.set_GPSTimingOfCell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_set_GPSTimingOfCell", HFILL }},
     { &hf_ulp_ms_part_01,
@@ -8402,11 +8420,11 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_T_modeSpecificInfo_02_vals), 0,
         "T_modeSpecificInfo_02", HFILL }},
     { &hf_ulp_fdd_02,
-      { "fdd", "ulp.fdd",
+      { "fdd", "ulp.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_02", HFILL }},
     { &hf_ulp_tdd_02,
-      { "tdd", "ulp.tdd",
+      { "tdd", "ulp.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_02", HFILL }},
     { &hf_ulp_ganssDay,
@@ -8418,7 +8436,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_15", HFILL }},
     { &hf_ulp_utran_GANSSReferenceTime,
-      { "utran-GANSSReferenceTime", "ulp.utran_GANSSReferenceTime",
+      { "utran-GANSSReferenceTime", "ulp.utran_GANSSReferenceTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_utranGANSSDriftRate,
@@ -8438,11 +8456,11 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_T_modeSpecificInfo_03_vals), 0,
         "T_modeSpecificInfo_03", HFILL }},
     { &hf_ulp_fdd_03,
-      { "fdd", "ulp.fdd",
+      { "fdd", "ulp.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_03", HFILL }},
     { &hf_ulp_tdd_03,
-      { "tdd", "ulp.tdd",
+      { "tdd", "ulp.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_03", HFILL }},
     { &hf_ulp_ganss_TODUncertainty,
@@ -8450,11 +8468,11 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_127", HFILL }},
     { &hf_ulp_set_GANSSReferenceTime,
-      { "set-GANSSReferenceTime", "ulp.set_GANSSReferenceTime",
+      { "set-GANSSReferenceTime", "ulp.set_GANSSReferenceTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_set_GANSSTimingOfCell,
-      { "set-GANSSTimingOfCell", "ulp.set_GANSSTimingOfCell",
+      { "set-GANSSTimingOfCell", "ulp.set_GANSSTimingOfCell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_set_GANSSTimingOfCell", HFILL }},
     { &hf_ulp_ms_part_02,
@@ -8466,11 +8484,11 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_T_modeSpecificInfo_04_vals), 0,
         "T_modeSpecificInfo_04", HFILL }},
     { &hf_ulp_fdd_04,
-      { "fdd", "ulp.fdd",
+      { "fdd", "ulp.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_fdd_04", HFILL }},
     { &hf_ulp_tdd_04,
-      { "tdd", "ulp.tdd",
+      { "tdd", "ulp.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_tdd_04", HFILL }},
     { &hf_ulp_gps,
@@ -8554,11 +8572,11 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_1440", HFILL }},
     { &hf_ulp_repMode_01,
-      { "repMode", "ulp.repMode",
+      { "repMode", "ulp.repMode_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RepMode_cap", HFILL }},
     { &hf_ulp_batchRepCap,
-      { "batchRepCap", "ulp.batchRepCap",
+      { "batchRepCap", "ulp.batchRepCap_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_realtime,
@@ -8594,7 +8612,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, VALS(ulp_T_latitudeSign_01_vals), 0,
         "T_latitudeSign_01", HFILL }},
     { &hf_ulp_coordinate,
-      { "coordinate", "ulp.coordinate",
+      { "coordinate", "ulp.coordinate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_radius,
@@ -8646,7 +8664,7 @@ void proto_register_ulp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_100000", HFILL }},
     { &hf_ulp_PolygonDescription_item,
-      { "Coordinate", "ulp.Coordinate",
+      { "Coordinate", "ulp.Coordinate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ulp_GANSSSignals_signal1,
@@ -8683,12 +8701,12 @@ void proto_register_ulp(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-ulp-hfarr.c ---*/
-#line 97 "../../asn1/ulp/packet-ulp-template.c"
+#line 99 "../../asn1/ulp/packet-ulp-template.c"
   };
 
   /* List of subtrees */
   static gint *ett[] = {
-	  &ett_ulp,
+    &ett_ulp,
 
 /*--- Included file: packet-ulp-ettarr.c ---*/
 #line 1 "../../asn1/ulp/packet-ulp-ettarr.c"
@@ -8902,7 +8920,7 @@ void proto_register_ulp(void) {
     &ett_ulp_PolygonDescription,
 
 /*--- End of included file: packet-ulp-ettarr.c ---*/
-#line 103 "../../asn1/ulp/packet-ulp-template.c"
+#line 105 "../../asn1/ulp/packet-ulp-template.c"
   };
 
   module_t *ulp_module;
@@ -8910,7 +8928,7 @@ void proto_register_ulp(void) {
 
   /* Register protocol */
   proto_ulp = proto_register_protocol(PNAME, PSNAME, PFNAME);
-  register_dissector("ulp", dissect_ulp_tcp, proto_ulp);
+  new_register_dissector("ulp", dissect_ulp_tcp, proto_ulp);
 
   /* Register fields and subtrees */
   proto_register_field_array(proto_ulp, hf, array_length(hf));
@@ -8919,17 +8937,22 @@ void proto_register_ulp(void) {
   ulp_module = prefs_register_protocol(proto_ulp,proto_reg_handoff_ulp);
 
   prefs_register_bool_preference(ulp_module, "desegment_ulp_messages",
-		"Reassemble ULP messages spanning multiple TCP segments",
-		"Whether the ULP dissector should reassemble messages spanning multiple TCP segments."
-		" To use this option, you must also enable \"Allow subdissectors to reassemble TCP streams\" in the TCP protocol settings.",
-		&ulp_desegment);
+    "Reassemble ULP messages spanning multiple TCP segments",
+    "Whether the ULP dissector should reassemble messages spanning multiple TCP segments."
+    " To use this option, you must also enable \"Allow subdissectors to reassemble TCP streams\" in the TCP protocol settings.",
+    &ulp_desegment);
 
   /* Register a configuration option for port */
   prefs_register_uint_preference(ulp_module, "tcp.port",
                                  "ULP TCP Port",
-                                 "Set the TCP port for Ulp messages(IANA registerd port is 7275)",
+                                 "Set the TCP port for ULP messages (IANA registered port is 7275)",
                                  10,
-                                 &gbl_ulp_port);
+                                 &gbl_ulp_tcp_port);
+  prefs_register_uint_preference(ulp_module, "udp.port",
+                                 "ULP UDP Port",
+                                 "Set the UDP port for ULP messages (IANA registered port is 7275)",
+                                 10,
+                                 &gbl_ulp_udp_port);
 
 }
 
@@ -8938,24 +8961,25 @@ void proto_register_ulp(void) {
 void
 proto_reg_handoff_ulp(void)
 {
-	static gboolean initialized = FALSE;
-	static dissector_handle_t ulp_handle;
-	static guint local_ulp_port;
+  static gboolean initialized = FALSE;
+  static dissector_handle_t ulp_tcp_handle, ulp_udp_handle;
+  static guint local_ulp_tcp_port, local_ulp_udp_port;
 
-	if (!initialized) {
-		ulp_handle = find_dissector("ulp");
-		dissector_add_string("media_type","application/oma-supl-ulp", ulp_handle);
-		rrlp_handle = find_dissector("rrlp");
-		lpp_handle = find_dissector("lpp");
-		initialized = TRUE;
-	} else {
-		dissector_delete_uint("tcp.port", local_ulp_port, ulp_handle);
-	}
+  if (!initialized) {
+    ulp_tcp_handle = find_dissector("ulp");
+    dissector_add_string("media_type","application/oma-supl-ulp", ulp_tcp_handle);
+    ulp_udp_handle = new_create_dissector_handle(dissect_ULP_PDU_PDU, proto_ulp);
+    rrlp_handle = find_dissector("rrlp");
+    lpp_handle = find_dissector("lpp");
+    initialized = TRUE;
+  } else {
+    dissector_delete_uint("tcp.port", local_ulp_tcp_port, ulp_tcp_handle);
+    dissector_delete_uint("udp.port", local_ulp_udp_port, ulp_udp_handle);
+  }
 
-	local_ulp_port = gbl_ulp_port;
-	dissector_add_uint("tcp.port", gbl_ulp_port, ulp_handle);
-
-	/* application/oma-supl-ulp */
-
+  local_ulp_tcp_port = gbl_ulp_tcp_port;
+  dissector_add_uint("tcp.port", gbl_ulp_tcp_port, ulp_tcp_handle);
+  local_ulp_udp_port = gbl_ulp_udp_port;
+  dissector_add_uint("udp.port", gbl_ulp_udp_port, ulp_udp_handle);
 }
 

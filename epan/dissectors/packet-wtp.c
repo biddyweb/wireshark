@@ -2,8 +2,6 @@
  *
  * Routines to dissect WTP component of WAP traffic.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,10 +35,13 @@
 
 #include <epan/packet.h>
 #include <epan/reassemble.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include "packet-wap.h"
 #include "packet-wtp.h"
 #include "packet-wsp.h"
+
+void proto_register_wtp(void);
+void proto_reg_handoff_wtp(void);
 
 static const true_false_string continue_truth = {
     "TPI Present" ,
@@ -226,12 +227,13 @@ static dissector_handle_t wsp_handle;
 /*
  * reassembly of WSP
  */
-static GHashTable *wtp_fragment_table = NULL;
+static reassembly_table wtp_reassembly_table;
 
 static void
 wtp_defragment_init(void)
 {
-    fragment_table_init(&wtp_fragment_table);
+    reassembly_table_init(&wtp_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 /*
@@ -341,7 +343,7 @@ dissect_wtp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     gint           dataLen;
 
 #define SZINFO_SIZE 256
-    szInfo=ep_alloc(SZINFO_SIZE);
+    szInfo=(char *)wmem_alloc(wmem_packet_scope(), SZINFO_SIZE);
 
     b0 = tvb_get_guint8 (tvb, offCur + 0);
     /* Discover Concatenated PDUs */
@@ -680,13 +682,13 @@ dissect_wtp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
              ) && tvb_bytes_exist(tvb, dataOffset, dataLen) )
         {
             /* Try reassembling fragments */
-            fragment_data *fd_wtp = NULL;
+            fragment_head *fd_wtp = NULL;
             guint32 reassembled_in = 0;
             gboolean save_fragmented = pinfo->fragmented;
 
             pinfo->fragmented = TRUE;
-            fd_wtp = fragment_add_seq(tvb, dataOffset, pinfo, TID,
-                    wtp_fragment_table, psn, dataLen, !fTTR);
+            fd_wtp = fragment_add_seq(&wtp_reassembly_table, tvb, dataOffset,
+                    pinfo, TID, NULL, psn, dataLen, !fTTR, 0);
             /* XXX - fragment_add_seq() yields NULL unless Wireshark knows
              * that the packet is part of a reassembled whole. This means
              * that fd_wtp will be NULL as long as Wireshark did not encounter
@@ -732,27 +734,18 @@ dissect_wtp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     call_dissector(wsp_handle, wsp_tvb, pinfo, tree);
                 } else {
                     /* Not reassembled in this packet */
-                    if (check_col(pinfo->cinfo, COL_INFO)) {
-                        col_append_fstr(pinfo->cinfo, COL_INFO,
-                                "%s (WTP payload reassembled in packet %u)",
-                                szInfo, fd_wtp->reassembled_in);
-                    }
-                    if (tree) {
-                        proto_tree_add_text(wtp_tree, tvb, dataOffset, -1,
-                                "Payload");
-                    }
+                    col_append_fstr(pinfo->cinfo, COL_INFO,
+                            "%s (WTP payload reassembled in packet %u)",
+                            szInfo, fd_wtp->reassembled_in);
+
+                    proto_tree_add_text(wtp_tree, tvb, dataOffset, -1, "Payload");
                 }
             } else {
                 /* Not reassembled yet, or not reassembled at all */
-                if (check_col(pinfo->cinfo, COL_INFO)) {
-                    col_append_fstr(pinfo->cinfo, COL_INFO,
-                            "%s (Unreassembled fragment %u)",
-                            szInfo, psn);
-                }
-                if (tree) {
-                    proto_tree_add_text(wtp_tree, tvb, dataOffset, -1,
-                            "Payload");
-                }
+                col_append_fstr(pinfo->cinfo, COL_INFO,
+                        "%s (Unreassembled fragment %u)",
+                        szInfo, psn);
+                proto_tree_add_text(wtp_tree, tvb, dataOffset, -1, "Payload");
             }
             /* Now reset fragmentation information in pinfo */
             pinfo->fragmented = save_fragmented;
@@ -767,15 +760,13 @@ dissect_wtp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         else
         {
             /* Nothing to hand to subdissector */
-            if (check_col(pinfo->cinfo, COL_INFO))
-                col_append_str(pinfo->cinfo, COL_INFO, szInfo);
+            col_append_str(pinfo->cinfo, COL_INFO, szInfo);
         }
     }
     else
     {
         /* Nothing to hand to subdissector */
-        if (check_col(pinfo->cinfo, COL_INFO))
-            col_append_str(pinfo->cinfo, COL_INFO, szInfo);
+        col_append_str(pinfo->cinfo, COL_INFO, szInfo);
     }
 }
 
@@ -1084,10 +1075,10 @@ proto_reg_handoff_wtp(void)
  *
  * Local variables:
  * c-basic-offset: 4
- * tab-width: 4
+ * tab-width: 8
  * indent-tabs-mode: nil
  * End:
  *
- * vi: set shiftwidth=4 tabstop=4 expandtab:
- * :indentSize=4:tabSize=4:noTabs=true:
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
  */

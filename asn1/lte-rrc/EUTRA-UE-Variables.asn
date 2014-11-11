@@ -1,5 +1,4 @@
--- 3GPP TS 36.331 V11.2.0 (2012-12)
--- $Id$
+-- 3GPP TS 36.331 V11.7.0 (2014-03)
 --
 EUTRA-UE-Variables DEFINITIONS AUTOMATIC TAGS ::=
 
@@ -8,7 +7,7 @@ BEGIN
 IMPORTS
 	AbsoluteTimeInfo-r10,
 	AreaConfiguration-r10,
-	AreaConfiguration-v11x0,
+	AreaConfiguration-v1130,
 	CarrierFreqGERAN,
 	CellIdentity,
 	ConnEstFailReport-r11,
@@ -40,7 +39,7 @@ IMPORTS
 FROM EUTRA-RRC-Definitions;
 
 
-VarConnEstFail-Report-r11 ::=		SEQUENCE {
+VarConnEstFailReport-r11 ::=		SEQUENCE {
 	connEstFailReport-r11				ConnEstFailReport-r11,
 	plmn-Identity-r11					PLMN-Identity
 }
@@ -54,7 +53,7 @@ VarLogMeasConfig-r10 ::=				SEQUENCE {
 
 VarLogMeasConfig-r11 ::=		SEQUENCE {
 	areaConfiguration-r10			AreaConfiguration-r10		OPTIONAL,
-	areaConfiguration-v11x0			AreaConfiguration-v11x0		OPTIONAL,
+	areaConfiguration-v1130			AreaConfiguration-v1130		OPTIONAL,
 	loggingDuration-r10				LoggingDuration-r10,
 	loggingInterval-r10				LoggingInterval-r10
 }

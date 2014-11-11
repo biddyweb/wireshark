@@ -1,7 +1,5 @@
 /* filter_expressions_preferences_frame.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,7 +30,7 @@
 #include "syntax_line_edit.h"
 #include "wireshark_application.h"
 
-#include <qt_ui_utils.h>
+#include "qt_ui_utils.h"
 
 #include <QKeyEvent>
 #include <QTreeWidgetItemIterator>
@@ -198,7 +196,6 @@ void FilterExpressionsPreferencesFrame::on_expressionTreeWidget_itemActivated(QT
     case label_col_:
     {
         cur_line_edit_ = new QLineEdit();
-        cur_column_ = column;
         saved_col_string_ = item->text(label_col_);
         connect(cur_line_edit_, SIGNAL(editingFinished()), this, SLOT(labelEditingFinished()));
         editor = cur_line_edit_;
@@ -209,7 +206,7 @@ void FilterExpressionsPreferencesFrame::on_expressionTreeWidget_itemActivated(QT
         SyntaxLineEdit *syntax_edit = new SyntaxLineEdit();
         saved_col_string_ = item->text(expression_col_);
         connect(syntax_edit, SIGNAL(textChanged(QString)),
-                this, SLOT(expressionTextChanged(QString)));
+                syntax_edit, SLOT(checkDisplayFilter(QString)));
         connect(syntax_edit, SIGNAL(editingFinished()), this, SLOT(expressionEditingFinished()));
         editor = cur_line_edit_ = syntax_edit;
         break;
@@ -259,24 +256,6 @@ void FilterExpressionsPreferencesFrame::labelEditingFinished()
     ui->expressionTreeWidget->removeItemWidget(item, label_col_);
 }
 
-void FilterExpressionsPreferencesFrame::expressionTextChanged(QString)
-{
-    SyntaxLineEdit *syntax_edit = qobject_cast<SyntaxLineEdit *>(cur_line_edit_);
-    QTreeWidgetItem *item = ui->expressionTreeWidget->currentItem();
-    if (!syntax_edit || !item) return;
-
-    dfilter_t *dfp = NULL;
-    const char *field_text = syntax_edit->text().toUtf8().constData();
-    if (strlen(field_text) < 1) {
-        syntax_edit->setSyntaxState(SyntaxLineEdit::Empty);
-    } else if (proto_check_field_name(field_text) != 0 || !dfilter_compile(field_text, &dfp)) {
-        syntax_edit->setSyntaxState(SyntaxLineEdit::Invalid);
-    } else {
-        syntax_edit->setSyntaxState(SyntaxLineEdit::Valid);
-    }
-    dfilter_free(dfp);
-}
-
 void FilterExpressionsPreferencesFrame::expressionEditingFinished()
 {
     QTreeWidgetItem *item = ui->expressionTreeWidget->currentItem();
@@ -288,7 +267,7 @@ void FilterExpressionsPreferencesFrame::expressionEditingFinished()
 
 void FilterExpressionsPreferencesFrame::on_newToolButton_clicked()
 {
-    addExpression(true, "My Filter", NULL);
+    addExpression(true, "My Filter", NULL); //TODO : Fix Translate
 }
 
 void FilterExpressionsPreferencesFrame::on_deleteToolButton_clicked()

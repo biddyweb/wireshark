@@ -1,6 +1,4 @@
 #
-# $Id$
-#
 # NSIS is a free packager/installer/uninstaller program for Win32.
 # It was originally written for the Winamp package, but various
 # freeware and non-freeware packages are using it, too.
@@ -18,15 +16,15 @@ EXE=../../tshark.exe ../../editcap.exe \
 !IFDEF GTK_DIR
 	../../wireshark.exe \
 !ENDIF
-	../../text2pcap.exe ../../mergecap.exe ../../capinfos.exe $(WIRESHARK_LIB_DIR)\WinPcap_$(PCAP_VERSION).exe
+	../../text2pcap.exe ../../mergecap.exe ../../capinfos.exe $(WIRESHARK_LIB_DIR)\WinPcap_$(WINPCAP_VERSION).exe
 DLL=../../wiretap/wiretap-$(WTAP_VERSION).dll ../../wsutil/libwsutil.dll
 DOC=../../doc/ws.css				\
-	../../doc/capinfos.html 		\
+	../../doc/capinfos.html			\
 	../../doc/dumpcap.html			\
-	../../doc/editcap.html 			\
-	../../doc/mergecap.html 		\
-	../../doc/rawshark.html 		\
-	../../doc/text2pcap.html 		\
+	../../doc/editcap.html			\
+	../../doc/mergecap.html			\
+	../../doc/rawshark.html			\
+	../../doc/text2pcap.html		\
 	../../doc/tshark.html			\
 	../../doc/wireshark-filter.html		\
 	../../doc/wireshark.html		\
@@ -45,7 +43,6 @@ HELP=$(STAGING_DIR)/help/capture_filters.txt \
 	$(STAGING_DIR)/help/toc
 
 PLUGINS= \
-	../../plugins/asn1/asn1.dll \
 	../../plugins/docsis/docsis.dll \
 	../../plugins/ethercat/ethercat.dll \
 	../../plugins/gryphon/gryphon.dll \
@@ -90,15 +87,15 @@ user-guide.chm::
 
 NSIS_FLAGS=\
 	/DPROGRAM_NAME=$(PROGRAM_NAME) \
-	/DMAKEDIR=$(MAKEDIR) \
+	/DMAKEDIR="$(MAKEDIR)" \
 	/DSTAGING_DIR=$(STAGING_DIR) \
 	/DWIRESHARK_TARGET_PLATFORM=$(WIRESHARK_TARGET_PLATFORM) \
 	/DTARGET_MACHINE=$(TARGET_MACHINE) \
 	/DMSVC_VARIANT=$(MSVC_VARIANT) \
 	/DMSC_VER_REQUIRED=$(MSC_VER_REQUIRED) \
 	/DWIRESHARK_LIB_DIR=$(WIRESHARK_LIB_DIR) \
-	/DPCAP_VERSION=$(PCAP_VERSION) \
-	/DPCAP_DISPLAY_VERSION=$(PCAP_VERSION:_=.) \
+	/DWINPCAP_VERSION=$(WINPCAP_VERSION) \
+	/DPCAP_DISPLAY_VERSION=$(WINPCAP_VERSION:_=.) \
 !IFDEF MSVCR_DLL
 	/DMSVCR_DLL="$(MSVCR_DLL)" \
 !ENDIF
@@ -126,54 +123,66 @@ NSIS_FLAGS=\
 	/DGTK_SCHEMAS_DIR=$(GTK_SCHEMAS_DIR) \
 !ENDIF
 !IFDEF NEED_CAIRO_GOBJECT_DLL
-       /DNEED_CAIRO_GOBJECT_DLL=$(NEED_CAIRO_GOBJECT_DLL) \
+	/DNEED_CAIRO_GOBJECT_DLL=$(NEED_CAIRO_GOBJECT_DLL) \
 !ENDIF
 !IFDEF NEED_CAIRO_DLL
-       /DNEED_CAIRO_DLL=$(NEED_CAIRO_DLL) \
+	/DNEED_CAIRO_DLL=$(NEED_CAIRO_DLL) \
 !ENDIF
 !IFDEF NEED_EXPAT_DLL
-       /DNEED_EXPAT_DLL=$(NEED_EXPAT_DLL) \
-       /DEXPAT_DLL=$(EXPAT_DLL) \
+	/DNEED_EXPAT_DLL=$(NEED_EXPAT_DLL) \
+	/DEXPAT_DLL=$(EXPAT_DLL) \
 !ENDIF
 !IFDEF NEED_FFI_DLL
-       /DNEED_FFI_DLL=$(NEED_FFI_DLL) \
-       /DFFI_DLL=$(FFI_DLL) \
+	/DNEED_FFI_DLL=$(NEED_FFI_DLL) \
+	/DFFI_DLL=$(FFI_DLL) \
 !ENDIF
 !IFDEF NEED_FONTCONFIG_DLL
-       /DNEED_FONTCONFIG_DLL=$(NEED_FONTCONFIG_DLL) \
-       /DFONTCONFIG_DLL=$(FONTCONFIG_DLL) \
+	/DNEED_FONTCONFIG_DLL=$(NEED_FONTCONFIG_DLL) \
+	/DFONTCONFIG_DLL=$(FONTCONFIG_DLL) \
 !ENDIF
 !IFDEF NEED_FREETYPE_DLL
-       /DNEED_FREETYPE_DLL=$(NEED_FREETYPE_DLL) \
-       /DFREETYPE_DLL=$(FREETYPE_DLL) \
+	/DNEED_FREETYPE_DLL=$(NEED_FREETYPE_DLL) \
+	/DFREETYPE_DLL=$(FREETYPE_DLL) \
+!ENDIF
+!IFDEF NEED_HARFBUZZ_DLL
+	/DNEED_HARFBUZZ_DLL=$(NEED_HARFBUZZ_DLL) \
+	/DHARFBUZZ_DLL=$(HARFBUZZ_DLL) \
 !ENDIF
 !IFDEF NEED_JASPER_DLL
-       /DNEED_JASPER_DLL=$(NEED_JASPER_DLL) \
-       /DJASPER_DLL=$(JASPER_DLL) \
+	/DNEED_JASPER_DLL=$(NEED_JASPER_DLL) \
+	/DJASPER_DLL=$(JASPER_DLL) \
 !ENDIF
 !IFDEF NEED_JPEG_DLL
-       /DNEED_JPEG_DLL=$(NEED_JPEG_DLL) \
-       /DJPEG_DLL=$(JPEG_DLL) \
+	/DNEED_JPEG_DLL=$(NEED_JPEG_DLL) \
+	/DJPEG_DLL=$(JPEG_DLL) \
 !ENDIF
 !IFDEF NEED_LZMA_DLL
-       /DNEED_LZMA_DLL=$(NEED_LZMA_DLL) \
-       /DLZMA_DLL=$(LZMA_DLL) \
+	/DNEED_LZMA_DLL=$(NEED_LZMA_DLL) \
+	/DLZMA_DLL=$(LZMA_DLL) \
 !ENDIF
 !IFDEF NEED_PIXMAN_DLL
-       /DNEED_PIXMAN_DLL=$(NEED_PIXMAN_DLL) \
-       /DPIXMAN_DLL=$(PIXMAN_DLL) \
+	/DNEED_PIXMAN_DLL=$(NEED_PIXMAN_DLL) \
+	/DPIXMAN_DLL=$(PIXMAN_DLL) \
 !ENDIF
 !IFDEF NEED_PNG_DLL
-       /DNEED_PNG_DLL=$(NEED_PNG_DLL) \
-       /DPNG_DLL=$(PNG_DLL) \
+	/DNEED_PNG_DLL=$(NEED_PNG_DLL) \
+	/DPNG_DLL=$(PNG_DLL) \
+!ENDIF
+!IFDEF NEED_SEH_DLL
+	/DNEED_SEH_DLL=$(NEED_SEH_DLL) \
+	/DSEH_DLL=$(SEH_DLL) \
+!ENDIF
+!IFDEF NEED_SJLJ_DLL
+	/DNEED_SJLJ_DLL=$(NEED_SJLJ_DLL) \
+	/DSJLJ_DLL=$(SJLJ_DLL) \
 !ENDIF
 !IFDEF NEED_TIFF_DLL
-       /DNEED_TIFF_DLL=$(NEED_TIFF_DLL) \
-       /DTIFF_DLL=$(TIFF_DLL) \
+	/DNEED_TIFF_DLL=$(NEED_TIFF_DLL) \
+	/DTIFF_DLL=$(TIFF_DLL) \
 !ENDIF
 !IFDEF NEED_XML_DLL
-       /DNEED_XML_DLL=$(NEED_XML_DLL) \
-       /DXML_DLL=$(XML_DLL) \
+	/DNEED_XML_DLL=$(NEED_XML_DLL) \
+	/DXML_DLL=$(XML_DLL) \
 !ENDIF
 !ENDIF
 	/DINTL_DLL=$(INTL_DLL) \
@@ -195,6 +204,8 @@ NSIS_FLAGS=\
 	/DKFW_PATH=$(KFW_PATH) \
 !ENDIF
 !IF "$(GNUTLS_DIR)" != ""
+	/DGPGERROR_DLL=$(GPGERROR_DLL) \
+	/DGCC_DLL=$(GCC_DLL) \
 	/DGNUTLS_DIR=$(GNUTLS_DIR) \
 !ENDIF
 !IF "$(ZLIB_DIR)" != ""
@@ -217,6 +228,12 @@ NSIS_FLAGS=\
 !ENDIF
 !IF EXIST("..\..\wireshark-qt-release\qtshark.exe")
 	/DQT_DIR="..\..\wireshark-qt-release" \
+!ENDIF
+!IF EXIST("..\..\wireshark-qt-release\Qt5Core.dll")
+	/DNEED_QT5_DLL=USE \
+!ENDIF
+!IF EXIST("..\..\wireshark-qt-release\QtCore4.dll")
+	/DNEED_QT4_DLL=USE \
 !ENDIF
 
 $(STAGING_DIR)\uninstall.exe : $(NSI)
@@ -243,12 +260,12 @@ maintainer-clean: distclean
 
 $(DOC):
 	cd ../../doc
-	$(MAKE) /$(MAKEFLAGS) -f makefile.nmake
+	$(MAKE) /$(MAKEFLAGS) -f Makefile.nmake
 	cd ../packaging/nsis
 
 $(EXE) $(DLL):
 	cd ../..
-	$(MAKE) /$(MAKEFLAGS) -f makefile.nmake
+	$(MAKE) /$(MAKEFLAGS) -f Makefile.nmake
 	cd packaging/nsis
 
 ####

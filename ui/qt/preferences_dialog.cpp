@@ -1,7 +1,5 @@
 /* preferences_dialog.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -40,6 +38,7 @@
 #include "module_preferences_scroll_area.h"
 #include "syntax_line_edit.h"
 #include "qt_ui_utils.h"
+#include "uat_dialog.h"
 
 #include <QColorDialog>
 #include <QFileDialog>
@@ -62,6 +61,62 @@ pref_t *prefFromPrefPtr(void *pref_ptr)
 {
     return pref_ptr_to_pref_[pref_ptr];
 }
+
+guint
+fill_advanced_prefs(module_t *module, gpointer root_ptr)
+{
+    QTreeWidgetItem *root_item = static_cast<QTreeWidgetItem *>(root_ptr);
+
+    if (!module || !root_item) return 1;
+
+    if (module->numprefs < 1 && !prefs_module_has_submodules(module)) return 0;
+
+    QString module_title = module->title;
+
+    QTreeWidgetItem *tl_item = new QTreeWidgetItem(root_item);
+    tl_item->setText(0, module_title);
+    tl_item->setToolTip(0, QString("<span>%1</span>").arg(module->description));
+    tl_item->setFirstColumnSpanned(true);
+
+    QList<QTreeWidgetItem *>tl_children;
+    for (GList *pref_l = module->prefs; pref_l && pref_l->data; pref_l = g_list_next(pref_l)) {
+        pref_t *pref = (pref_t *) pref_l->data;
+
+        if (pref->type == PREF_OBSOLETE || pref->type == PREF_STATIC_TEXT) continue;
+
+        const char *type_name = prefs_pref_type_name(pref);
+        if (!type_name) continue;
+
+        pref_stash(pref, NULL);
+
+        QTreeWidgetItem *item = new QTreeWidgetItem();
+        QString full_name = QString(module->name ? module->name : module->parent->name) + "." + pref->name;
+        QString type_desc = gchar_free_to_qstring(prefs_pref_type_description(pref));
+        QString default_value = gchar_free_to_qstring(prefs_pref_to_str(pref, pref_stashed));
+
+        item->setData(0, Qt::UserRole, qVariantFromValue(pref));
+        item->setText(0, full_name);
+        item->setToolTip(0, QString("<span>%1</span>").arg(pref->description));
+        item->setToolTip(1, QObject::tr("Has this preference been changed?"));
+        item->setText(2, type_name);
+        item->setToolTip(2, QString("<span>%1</span>").arg(type_desc));
+        item->setToolTip(3, QString("<span>%1</span>").arg(
+                             default_value.isEmpty() ? default_value : QObject::tr("Default value is empty")));
+        tl_children << item;
+
+        // .uat is a void * so it wins the "useful key value" prize.
+        if (pref->varp.uat) {
+            pref_ptr_to_pref_[pref->varp.uat] = pref;
+        }
+    }
+    tl_item->addChildren(tl_children);
+
+    if(prefs_module_has_submodules(module))
+        return prefs_modules_foreach_submodules(module, fill_advanced_prefs, tl_item);
+
+    return 0;
+}
+
 
 extern "C" {
 // Callbacks prefs routines
@@ -152,61 +207,6 @@ module_prefs_show(module_t *module, gpointer ti_ptr)
 }
 
 static guint
-fill_advanced_prefs(module_t *module, gpointer root_ptr)
-{
-    QTreeWidgetItem *root_item = static_cast<QTreeWidgetItem *>(root_ptr);
-
-    if (!module || !root_item) return 1;
-
-    if (module->numprefs < 1 && !prefs_module_has_submodules(module)) return 0;
-
-    QString module_title = module->title;
-
-    QTreeWidgetItem *tl_item = new QTreeWidgetItem(root_item);
-    tl_item->setText(0, module_title);
-    tl_item->setToolTip(0, QString("<span>%1</span>").arg(module->description));
-    tl_item->setFirstColumnSpanned(true);
-
-    QList<QTreeWidgetItem *>tl_children;
-    for (GList *pref_l = module->prefs; pref_l && pref_l->data; pref_l = g_list_next(pref_l)) {
-        pref_t *pref = (pref_t *) pref_l->data;
-
-        if (pref->type == PREF_OBSOLETE || pref->type == PREF_STATIC_TEXT) continue;
-
-        const char *type_name = prefs_pref_type_name(pref);
-        if (!type_name) continue;
-
-        pref_stash(pref, NULL);
-
-        QTreeWidgetItem *item = new QTreeWidgetItem();
-        QString full_name = QString(module->name ? module->name : module->parent->name) + "." + pref->name;
-        QString type_desc = gchar_free_to_qstring(prefs_pref_type_description(pref));
-        QString default_value = gchar_free_to_qstring(prefs_pref_to_str(pref, pref_stashed));
-
-        item->setData(0, Qt::UserRole, qVariantFromValue(pref));
-        item->setText(0, full_name);
-        item->setToolTip(0, QString("<span>%1</span>").arg(pref->description));
-        item->setToolTip(1, QObject::tr("Has this preference been changed?"));
-        item->setText(2, type_name);
-        item->setToolTip(2, QString("<span>%1</span>").arg(type_desc));
-        item->setToolTip(3, QString("<span>%1</span>").arg(
-                             default_value.isEmpty() ? default_value : QObject::tr("Default value is empty")));
-        tl_children << item;
-
-        // .uat is a void * so it wins the "useful key value" prize.
-        if (pref->varp.uat) {
-            pref_ptr_to_pref_[pref->varp.uat] = pref;
-        }
-    }
-    tl_item->addChildren(tl_children);
-
-    if(prefs_module_has_submodules(module))
-        return prefs_modules_foreach_submodules(module, fill_advanced_prefs, tl_item);
-
-    return 0;
-}
-
-static guint
 module_prefs_unstash(module_t *module, gpointer data)
 {
     gboolean *must_redissect_p = (gboolean *)data;
@@ -278,7 +278,6 @@ PreferencesDialog::PreferencesDialog(QWidget *parent) :
         updateItem(*(*pref_it));
         ++pref_it;
     }
-    qDebug() << "FIX: Open UAT dialogs from prefs dialog.";
     qDebug() << "FIX: Auto-size each preference pane.";
 
     pd_ui_->splitter->setStretchFactor(0, 1);
@@ -337,7 +336,7 @@ void PreferencesDialog::showEvent(QShowEvent *evt)
     int new_prefs_tree_width =  pd_ui_->prefsTree->style()->subElementRect(QStyle::SE_TreeViewDisclosureItem, &style_opt).left();
     QList<int> sizes = pd_ui_->splitter->sizes();
 
-#ifdef Q_WS_WIN
+#ifdef Q_OS_WIN
     new_prefs_tree_width *= 2;
 #endif
     pd_ui_->prefsTree->resizeColumnToContents(0);
@@ -467,7 +466,7 @@ void PreferencesDialog::updateItem(QTreeWidgetItem &item)
     bool is_changed = false;
     QFont font = item.font(0);
 
-    if (pref->type == PREF_UAT || pref->type == PREF_CUSTOM) {
+    if ((pref->type == PREF_UAT && (pref->gui == GUI_ALL || pref->gui == GUI_QT))|| pref->type == PREF_CUSTOM) {
         item.setText(1, tr("Unknown"));
     } else if (stashedPrefIsDefault(pref)) {
         item.setText(1, tr("Default"));
@@ -603,11 +602,11 @@ void PreferencesDialog::on_advancedTree_itemActivated(QTreeWidgetItem *item, int
 
             if (pref->type == PREF_FILENAME) {
                 filename = QFileDialog::getSaveFileName(this,
-                                                        QString("Wireshark: ") + pref->description,
+                                                        QString(tr("Wireshark: ")) + pref->description,
                                                         pref->stashed_val.string);
             } else {
                 filename = QFileDialog::getExistingDirectory(this,
-                                                             QString("Wireshark: ") + pref->description,
+                                                             QString(tr("Wireshark: ")) + pref->description,
                                                              pref->stashed_val.string);
             }
             if (!filename.isEmpty()) {
@@ -647,8 +646,13 @@ void PreferencesDialog::on_advancedTree_itemActivated(QTreeWidgetItem *item, int
             break;
         }
         case PREF_UAT:
-            qDebug() << "FIX open uat dialog" << item->text(column);
+        {
+            if (pref->gui == GUI_ALL || pref->gui == GUI_QT) {
+                UatDialog uat_dlg(this, pref->varp.uat);
+                uat_dlg.exec();
+            }
             break;
+        }
         default:
             break;
         }

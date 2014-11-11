@@ -2,8 +2,6 @@
   * Routines for unistim packet dissection
   * Copyright 2007 Don Newton <dnewton@cypresscom.net>
   *
-  * $Id$
-  *
   * Wireshark - Network traffic analyzer
   * By Gerald Combs <gerald@wireshark.org>
   * Copyright 1998 Gerald Combs
@@ -29,7 +27,7 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/tap.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 #include <epan/address.h>
 #include <epan/prefs.h>
@@ -46,6 +44,8 @@
 #include "broadcast.h"
 #include "uftp.h"
 #include "expansion.h"
+
+void proto_register_unistim(void);
 
 /* Don't set this to 5000 until this dissector is made a heuristic one!
    It collides (at least) with tapa.
@@ -128,6 +128,8 @@ static int hf_generic_data=-1;
 static int hf_generic_string=-1;
 
 static gint ett_unistim = -1;
+
+static expert_field ei_unistim_len = EI_INIT;
 
 static const value_string packet_names[]={
    {0,"NAK"},
@@ -223,7 +225,7 @@ dissect_unistim(tvbuff_t *tvb,packet_info *pinfo,proto_tree *tree,void *data _U_
    proto_tree_add_item(rudpm_tree,hf_unistim_seq_nu,tvb,offset,4,ENC_BIG_ENDIAN);
 
    /* Allocate new mem for queueing */
-   uinfo = (unistim_info_t *)se_alloc(sizeof(unistim_info_t));
+   uinfo = (unistim_info_t *)wmem_alloc(wmem_packet_scope(), sizeof(unistim_info_t));
 
    /* Clear tap struct */
    uinfo->rudp_type = 0;
@@ -416,7 +418,7 @@ dissect_unistim_message(proto_tree *unistim_tree,packet_info *pinfo,tvbuff_t *tv
    if (msg_len<=2)
    {
       ti=proto_tree_add_item(msg_tree,hf_unistim_len,tvb,offset,1,ENC_BIG_ENDIAN);
-      expert_add_info_format(pinfo,ti,PI_MALFORMED,PI_ERROR,"Length too short");
+      expert_add_info(pinfo,ti,&ei_unistim_len);
       return tvb_length(tvb);
    } else {
       proto_item_set_len(ti,msg_len);
@@ -504,7 +506,7 @@ dissect_unistim_message(proto_tree *unistim_tree,packet_info *pinfo,tvbuff_t *tv
          offset+=(msg_len-2);
    }
    if(msg_len){
-    /* TODO: add Expert info to indicate there is unknown data ! 
+    /* TODO: add Expert info to indicate there is unknown data !
       For the moment, this code only remove Clang Warnings about not used msg_len... */
    }
    return offset;
@@ -595,7 +597,7 @@ dissect_basic_phone(proto_tree *msg_tree,
    }
 
    if(msg_len){
-    /* TODO: add Expert info to indicate there is unknown data ! 
+    /* TODO: add Expert info to indicate there is unknown data !
       For the moment, this code only remove Clang Warnings about not used msg_len... */
    }
 
@@ -672,7 +674,7 @@ dissect_basic_switch(proto_tree *msg_tree,
    }
 
    if(msg_len){
-    /* TODO: add Expert info to indicate there is unknown data ! 
+    /* TODO: add Expert info to indicate there is unknown data !
       For the moment, this code only remove Clang Warnings about not used msg_len... */
    }
 
@@ -750,7 +752,7 @@ dissect_broadcast_switch(proto_tree *msg_tree,
    }
 
    if(msg_len){
-    /* TODO: add Expert info to indicate there is unknown data ! 
+    /* TODO: add Expert info to indicate there is unknown data !
       For the moment, this code only remove Clang Warnings about not used msg_len... */
    }
 
@@ -1067,7 +1069,7 @@ dissect_display_switch(proto_tree *msg_tree,
          }
          if(msg_len>0){
             /* I'm guessing this will work flakily at best */
-            uinfo->string_data = tvb_get_ephemeral_string(tvb,offset,msg_len);
+            uinfo->string_data = tvb_get_string(wmem_packet_scope(), tvb,offset,msg_len);
             set_ascii_item(msg_tree,tvb,offset,msg_len);
          }
 
@@ -1398,7 +1400,7 @@ dissect_display_switch(proto_tree *msg_tree,
    }
 
    if(msg_len){
-    /* TODO: add Expert info to indicate there is unknown data ! 
+    /* TODO: add Expert info to indicate there is unknown data !
       For the moment, this code only remove Clang Warnings about not used msg_len... */
    }
 
@@ -1509,7 +1511,7 @@ dissect_display_phone(proto_tree *msg_tree,
    }
 
    if(msg_len){
-    /* TODO: add Expert info to indicate there is unknown data ! 
+    /* TODO: add Expert info to indicate there is unknown data !
       For the moment, this code only remove Clang Warnings about not used msg_len... */
    }
 
@@ -1627,7 +1629,7 @@ dissect_key_indicator_switch(proto_tree *msg_tree,
    }
 
    if(msg_len){
-    /* TODO: add Expert info to indicate there is unknown data ! 
+    /* TODO: add Expert info to indicate there is unknown data !
       For the moment, this code only remove Clang Warnings about not used msg_len... */
    }
 
@@ -1721,7 +1723,7 @@ dissect_key_indicator_phone(proto_tree *msg_tree,
    }
 
    if(msg_len){
-    /* TODO: add Expert info to indicate there is unknown data ! 
+    /* TODO: add Expert info to indicate there is unknown data !
       For the moment, this code only remove Clang Warnings about not used msg_len... */
    }
 
@@ -1865,7 +1867,7 @@ dissect_network_switch(proto_tree *msg_tree,
    }
 
    if(msg_len){
-    /* TODO: add Expert info to indicate there is unknown data ! 
+    /* TODO: add Expert info to indicate there is unknown data !
       For the moment, this code only remove Clang Warnings about not used msg_len... */
    }
 
@@ -2048,7 +2050,7 @@ dissect_network_phone(proto_tree *msg_tree,
    }
 
    if(msg_len){
-    /* TODO: add Expert info to indicate there is unknown data ! 
+    /* TODO: add Expert info to indicate there is unknown data !
       For the moment, this code only remove Clang Warnings about not used msg_len... */
    }
 
@@ -2482,7 +2484,7 @@ dissect_audio_switch(proto_tree *msg_tree,packet_info *pinfo,
    }
 
    if(msg_len){
-    /* TODO: add Expert info to indicate there is unknown data ! 
+    /* TODO: add Expert info to indicate there is unknown data !
       For the moment, this code only remove Clang Warnings about not used msg_len... */
    }
 
@@ -2706,7 +2708,7 @@ dissect_audio_phone(proto_tree *msg_tree,
    }
 
    if(msg_len){
-    /* TODO: add Expert info to indicate there is unknown data ! 
+    /* TODO: add Expert info to indicate there is unknown data !
       For the moment, this code only remove Clang Warnings about not used msg_len... */
    }
 
@@ -4053,10 +4055,18 @@ proto_register_unistim(void){
          &ett_unistim
    };
 
+   static ei_register_info ei[] = {
+       { &ei_unistim_len, { "unistim.len.bad", PI_MALFORMED, PI_ERROR, "Length too short", EXPFILL }},
+   };
+
+   expert_module_t* expert_unistim;
+
    proto_unistim=proto_register_protocol("UNISTIM Protocol", "UNISTIM", "unistim");
 
    proto_register_subtree_array(ett,array_length(ett));
    proto_register_field_array(proto_unistim,hf,array_length(hf));
+   expert_unistim = expert_register_protocol(proto_unistim);
+   expert_register_field_array(expert_unistim, ei, array_length(ei));
 
    unistim_tap = register_tap("unistim");
 

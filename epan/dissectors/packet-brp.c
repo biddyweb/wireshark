@@ -1,7 +1,5 @@
 /* packet-brp.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,12 +34,15 @@
 #include <epan/prefs.h>
 
 /* Forward declaration we need below */
+void proto_register_brp(void);
 void proto_reg_handoff_brp(void);
 
 #define PROTO_TAG_BRP   "BRP"
 
 /* Wireshark ID of the BRP protocol */
 static int proto_brp = -1;
+
+static dissector_handle_t brp_handle;
 
 /*static int global_brp_port = 1958; *//* The port is registered for another protocol */
 
@@ -125,6 +126,8 @@ static gint ett_brp_flid = -1;
 static gint ett_brp_rmttl = -1;
 static gint ett_brp_fltype = -1;
 
+static expert_field ei_brp_type_unknown = EI_INIT;
+
 /* Preferences */
 static guint global_brp_port = 0;
 
@@ -141,12 +144,10 @@ dissect_brp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
     /* If there is a "tree" requested, we handle that request. */
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, PROTO_TAG_BRP);
-    if(check_col(pinfo->cinfo,COL_INFO)){
-        /* We add some snazzy bizness to the info field to quickly ascertain
-           what type of message was sent to/from the BRS/BRC. */
-        col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type - %s",
-             val_to_str(packet_type, brp_packettype_names, "Unknown (0x%02x)"));
-    }
+    /* We add some snazzy bizness to the info field to quickly ascertain
+        what type of message was sent to/from the BRS/BRC. */
+    col_add_fstr(pinfo->cinfo, COL_INFO, "Message Type - %s",
+            val_to_str(packet_type, brp_packettype_names, "Unknown (0x%02x)"));
 
     /* This call adds our tree to the main dissection tree. */
 
@@ -313,7 +314,7 @@ dissect_brp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 
         default:
             /* Invalid type */
-            expert_add_info_format(pinfo, brp_item, PI_UNDECODED, PI_WARN, "Unknown packet type");
+            expert_add_info(pinfo, brp_item, &ei_brp_type_unknown);
             break;
         }
 
@@ -325,6 +326,7 @@ return offset;
 void proto_register_brp (void)
 {
     module_t *brp_module;
+    expert_module_t* expert_brp;
 
     /* A data field is something you can search/filter on.
     *
@@ -390,9 +392,16 @@ void proto_register_brp (void)
         &ett_brp_rmttl
 
     };
+
+    static ei_register_info ei[] = {
+        { &ei_brp_type_unknown, { "brp.type.unknown", PI_UNDECODED, PI_WARN, "Unknown packet type", EXPFILL }},
+    };
+
     proto_brp = proto_register_protocol ("BRP Protocol", "BRP", "brp");
     proto_register_field_array (proto_brp, hf, array_length (hf));
     proto_register_subtree_array (ett, array_length (ett));
+    expert_brp = expert_register_protocol(proto_brp);
+    expert_register_field_array(expert_brp, ei, array_length(ei));
 
     /* Register preferences module */
     brp_module = prefs_register_protocol(proto_brp, proto_reg_handoff_brp);
@@ -403,18 +412,16 @@ void proto_register_brp (void)
                                    "Set the UDP port for BRP messages",
                                    10, &global_brp_port);
 
-    new_register_dissector("brp", dissect_brp, proto_brp);
+    brp_handle = new_register_dissector("brp", dissect_brp, proto_brp);
 }
 
 /*--- proto_reg_handoff_brp -------------------------------------------*/
 void proto_reg_handoff_brp(void)
 {
     static gboolean           initialized = FALSE;
-    static dissector_handle_t brp_handle;
     static guint              saved_brp_port;
 
     if (!initialized) {
-        brp_handle = new_create_dissector_handle(dissect_brp, proto_brp);
         dissector_add_handle("udp.port", brp_handle);
         initialized = TRUE;
     } else {

@@ -1,8 +1,6 @@
 /* packet-pcp.c
  * Routines for Performace Co-Pilot protocol dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,6 +25,9 @@
 #include <epan/packet.h>
 #include <epan/expert.h>
 #include "packet-tcp.h"
+
+void proto_register_pcp(void);
+void proto_reg_handoff_pcp(void);
 
 #define PCP_PORT 44321
 #define PCP_HEADER_LEN 12
@@ -219,6 +220,12 @@ static gint ett_pcp_text = -1;
 static gint ett_pcp_text_ident = -1;
 static gint ett_pcp_text_buflen = -1;
 static gint ett_pcp_text_buffer = -1;
+
+static expert_field ei_pcp_type_event_unimplemented = EI_INIT;
+static expert_field ei_pcp_type_nosupport_unsupported = EI_INIT;
+static expert_field ei_pcp_type_unknown_unknown_value = EI_INIT;
+static expert_field ei_pcp_unimplemented_value = EI_INIT;
+static expert_field ei_pcp_unimplemented_packet_type = EI_INIT;
 
 /* packet types */
 static const value_string packettypenames[] = {
@@ -426,8 +433,6 @@ static int dissect_pcp_message_text_req(tvbuff_t *tvb, packet_info *pinfo, proto
 static int dissect_pcp_message_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset);
 static int dissect_pcp_partial_pmid(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset);
 static int dissect_pcp_partial_when(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset);
-static void dissect_pcp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
-static void dissect_pcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 
 /* message length for dissect_tcp */
 static guint get_pcp_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
@@ -985,20 +990,16 @@ static int dissect_pcp_message_result(tvbuff_t *tvb, packet_info *pinfo, proto_t
                                 pmvalueblock_offset, pmvalueblock_value_length-4, ENC_NA);
                             break;
                         case PM_TYPE_EVENT:
-                            expert_add_info_format(pinfo, pcp_result_instance_tree, PI_UNDECODED, PI_WARN,
-                                                   "PM_TYPE_EVENT: Unimplemented Value Type");
+                            expert_add_info(pinfo, pcp_result_instance_tree, &ei_pcp_type_event_unimplemented);
                             break;
                         case PM_TYPE_NOSUPPORT:
-                            expert_add_info_format(pinfo, pcp_result_instance_tree, PI_UNDECODED, PI_WARN,
-                                                   "PM_TYPE_NOSUPPORT: Unsupported Value Type");
+                            expert_add_info(pinfo, pcp_result_instance_tree, &ei_pcp_type_nosupport_unsupported);
                             break;
                         case PM_TYPE_UNKNOWN:
-                            expert_add_info_format(pinfo, pcp_result_instance_tree, PI_UNDECODED,
-                                                   PI_WARN, "PM_TYPE_UNKNOWN: Unknown Value Type");
+                            expert_add_info(pinfo, pcp_result_instance_tree, &ei_pcp_type_unknown_unknown_value);
                             break;
                         default:
-                            expert_add_info_format(pinfo, pcp_result_instance_tree, PI_UNDECODED, PI_WARN,
-                                                   "Unimplemented Value Type");
+                            expert_add_info(pinfo, pcp_result_instance_tree, &ei_pcp_unimplemented_value);
                             break;
                 }
             }
@@ -1372,7 +1373,7 @@ static int dissect_pcp_partial_when(tvbuff_t *tvb, packet_info *pinfo _U_, proto
 }
 
 /* MAIN DISSECTING ROUTINE (after passed from dissect_tcp, all packets hit function) */
-static void dissect_pcp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int dissect_pcp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
     proto_item *root_pcp_item;
     proto_tree *pcp_tree;
@@ -1391,9 +1392,9 @@ static void dissect_pcp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
 
     /* check if we are the client requesting or the server */
     if (pinfo->srcport == PCP_PORT) {
-        col_add_str(pinfo->cinfo, COL_INFO, "Server > Client ");
+        col_set_str(pinfo->cinfo, COL_INFO, "Server > Client ");
     } else {
-        col_add_str(pinfo->cinfo, COL_INFO, "Client > Server ");
+        col_set_str(pinfo->cinfo, COL_INFO, "Client > Server ");
     }
 
     /* PCP packet length */
@@ -1479,15 +1480,17 @@ static void dissect_pcp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
             /* append the type of packet */
             col_append_str(pinfo->cinfo, COL_INFO, "[UNIMPLEMENTED TYPE]");
             /* if we got here, then we didn't get a packet type that we know of */
-            expert_add_info_format(pinfo, pcp_tree, PI_UNDECODED, PI_WARN, "Unimplemented Packet Type");
+            expert_add_info(pinfo, pcp_tree, &ei_pcp_unimplemented_packet_type);
             break;
     }
+    return tvb_length(tvb);
 }
 
-static void dissect_pcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int dissect_pcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
     /* pass all packets through TCP-reassembally */
-    tcp_dissect_pdus(tvb, pinfo, tree, TRUE, PCP_HEADER_LEN, get_pcp_message_len, dissect_pcp_message);
+    tcp_dissect_pdus(tvb, pinfo, tree, TRUE, PCP_HEADER_LEN, get_pcp_message_len, dissect_pcp_message, data);
+    return tvb_length(tvb);
 }
 
 /* setup the dissecting */
@@ -2235,6 +2238,19 @@ void proto_register_pcp(void)
         &ett_pcp_text_buffer,
     };
 
+    static ei_register_info ei[] = {
+        { &ei_pcp_type_event_unimplemented, { "pcp.pmid.type.event.unimplemented", PI_UNDECODED, PI_WARN, "PM_TYPE_EVENT: Unimplemented Value Type", EXPFILL }},
+        { &ei_pcp_type_nosupport_unsupported, { "pcp.pmid.type.nosupport.unsupported", PI_UNDECODED, PI_WARN, "PM_TYPE_NOSUPPORT: Unsupported Value Type", EXPFILL }},
+        { &ei_pcp_type_unknown_unknown_value, { "pcp.pmid.type.unknown.unknown_value", PI_UNDECODED, PI_WARN, "PM_TYPE_UNKNOWN: Unknown Value Type", EXPFILL }},
+        { &ei_pcp_unimplemented_value, { "pcp.pmid.type.unimplemented", PI_UNDECODED, PI_WARN, "Unimplemented Value Type", EXPFILL }},
+        { &ei_pcp_unimplemented_packet_type, { "pcp.type.unimplemented", PI_UNDECODED, PI_WARN, "Unimplemented Packet Type", EXPFILL }},
+    };
+
+    expert_module_t* expert_pcp;
+
+    expert_pcp = expert_register_protocol(proto_pcp);
+    expert_register_field_array(expert_pcp, ei, array_length(ei));
+
     proto_pcp = proto_register_protocol("Performance Co-Pilot", "PCP", "pcp");
 
     proto_register_field_array(proto_pcp, hf, array_length(hf));
@@ -2245,7 +2261,7 @@ void proto_reg_handoff_pcp(void)
 {
     dissector_handle_t pcp_handle;
 
-    pcp_handle = create_dissector_handle(dissect_pcp, proto_pcp);
+    pcp_handle = new_create_dissector_handle(dissect_pcp, proto_pcp);
     dissector_add_uint("tcp.port", PCP_PORT, pcp_handle);
 }
 

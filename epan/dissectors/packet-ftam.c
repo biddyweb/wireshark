@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-ftam.c                                                              */
 /* ../../tools/asn2wrs.py -b -p ftam -c ./ftam.cnf -s ./packet-ftam-template -D . -O ../../epan/dissectors ISO8571-FTAM.asn */
 
@@ -14,8 +14,6 @@
  * Yuriy Sidelnikov <YSidelnikov@hotmail.com>
  *
  * Anders Broman and Ronnie Sahlberg 2005 - 2006
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -50,6 +48,9 @@
 #define PNAME  "ISO 8571 FTAM"
 #define PSNAME "FTAM"
 #define PFNAME "ftam"
+
+void proto_register_ftam(void);
+void proto_reg_handoff_ftam(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_ftam = -1;
@@ -480,7 +481,7 @@ static int hf_ftam_Attribute_Names_read_l8gal_qualifiCatiOnS = -1;
 static int hf_ftam_Attribute_Names_read_private_use = -1;
 
 /*--- End of included file: packet-ftam-hf.c ---*/
-#line 56 "../../asn1/ftam/packet-ftam-template.c"
+#line 57 "../../asn1/ftam/packet-ftam-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_ftam = -1;
@@ -651,7 +652,7 @@ static gint ett_ftam_Attribute_Names = -1;
 static gint ett_ftam_AE_title = -1;
 
 /*--- End of included file: packet-ftam-ett.c ---*/
-#line 60 "../../asn1/ftam/packet-ftam-template.c"
+#line 61 "../../asn1/ftam/packet-ftam-template.c"
 
 
 /*--- Included file: packet-ftam-fn.c ---*/
@@ -1306,14 +1307,14 @@ static const ber_choice_t FTAM_Regime_PDU_choice[] = {
 
 static int
 dissect_ftam_FTAM_Regime_PDU(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 93 "../../asn1/ftam/ftam.cnf"
+#line 92 "../../asn1/ftam/ftam.cnf"
   gint branch_taken;
 
     offset = dissect_ber_choice(actx, tree, tvb, offset,
                                  FTAM_Regime_PDU_choice, hf_index, ett_ftam_FTAM_Regime_PDU,
                                  &branch_taken);
 
-  
+
   if( (branch_taken!=-1) && ftam_FTAM_Regime_PDU_vals[branch_taken].strptr ){
 	col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s:", ftam_FTAM_Regime_PDU_vals[branch_taken].strptr);
   }
@@ -1701,8 +1702,8 @@ dissect_ftam_Permitted_Actions_Attribute(gboolean implicit_tag _U_, tvbuff_t *tv
 
 static int
 dissect_ftam_T_parameter(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 76 "../../asn1/ftam/ftam.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 75 "../../asn1/ftam/ftam.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, NULL);
 
 
 
@@ -1905,7 +1906,7 @@ dissect_ftam_Concurrency_Access(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 static int
 dissect_ftam_AP_title(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 88 "../../asn1/ftam/ftam.cnf"
+#line 87 "../../asn1/ftam/ftam.cnf"
 	/* XXX have no idea about this one */
 
 
@@ -1916,7 +1917,7 @@ dissect_ftam_AP_title(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _
 
 static int
 dissect_ftam_AE_qualifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 90 "../../asn1/ftam/ftam.cnf"
+#line 89 "../../asn1/ftam/ftam.cnf"
 	/* XXX have no idea about this one */
 
 
@@ -2070,8 +2071,8 @@ dissect_ftam_T_extension_attribute_identifier(gboolean implicit_tag _U_, tvbuff_
 
 static int
 dissect_ftam_T_extension_attribute(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 79 "../../asn1/ftam/ftam.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 78 "../../asn1/ftam/ftam.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, NULL);
 
 
 
@@ -3133,7 +3134,7 @@ static const ber_choice_t File_PDU_choice[] = {
 
 static int
 dissect_ftam_File_PDU(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 102 "../../asn1/ftam/ftam.cnf"
+#line 101 "../../asn1/ftam/ftam.cnf"
   gint branch_taken;
 
     offset = dissect_ber_choice(actx, tree, tvb, offset,
@@ -3437,7 +3438,7 @@ static const ber_choice_t Bulk_Data_PDU_choice[] = {
 
 static int
 dissect_ftam_Bulk_Data_PDU(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 111 "../../asn1/ftam/ftam.cnf"
+#line 110 "../../asn1/ftam/ftam.cnf"
   gint branch_taken;
 
     offset = dissect_ber_choice(actx, tree, tvb, offset,
@@ -3779,8 +3780,8 @@ dissect_ftam_T_attribute_extension_attribute_identifier(gboolean implicit_tag _U
 
 static int
 dissect_ftam_T_extension_attribute_Pattern(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 85 "../../asn1/ftam/ftam.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 84 "../../asn1/ftam/ftam.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, NULL);
 
 
 
@@ -4699,7 +4700,7 @@ static const ber_choice_t FSM_PDU_choice[] = {
 
 static int
 dissect_ftam_FSM_PDU(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 120 "../../asn1/ftam/ftam.cnf"
+#line 119 "../../asn1/ftam/ftam.cnf"
   gint branch_taken;
 
     offset = dissect_ber_choice(actx, tree, tvb, offset,
@@ -4715,14 +4716,6 @@ dissect_ftam_FSM_PDU(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U
   return offset;
 }
 
-
-static const value_string ftam_PDU_vals[] = {
-  { -1/*choice*/, "fTAM-Regime-PDU" },
-  { -1/*choice*/, "file-PDU" },
-  { -1/*choice*/, "bulk-Data-PDU" },
-  { -1/*choice*/, "fSM-PDU" },
-  { 0, NULL }
-};
 
 static const ber_choice_t PDU_choice[] = {
   { -1/*choice*/, &hf_ftam_fTAM_Regime_PDU, BER_CLASS_ANY/*choice*/, -1/*choice*/, BER_FLAGS_NOOWNTAG, dissect_ftam_FTAM_Regime_PDU },
@@ -4743,7 +4736,7 @@ dissect_ftam_PDU(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, a
 
 
 /*--- End of included file: packet-ftam-fn.c ---*/
-#line 62 "../../asn1/ftam/packet-ftam-template.c"
+#line 63 "../../asn1/ftam/packet-ftam-template.c"
 
 /*
 * Dissect FTAM unstructured text
@@ -4751,7 +4744,7 @@ dissect_ftam_PDU(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, a
 static void
 dissect_ftam_unstructured_text(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *parent_tree)
 {
-	proto_tree_add_item (parent_tree, hf_ftam_unstructured_text, tvb, 0, tvb_length_remaining(tvb, 0), ENC_ASCII|ENC_NA); 
+	proto_tree_add_item (parent_tree, hf_ftam_unstructured_text, tvb, 0, tvb_length_remaining(tvb, 0), ENC_ASCII|ENC_NA);
 }
 
 /*
@@ -4760,7 +4753,7 @@ dissect_ftam_unstructured_text(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree
 static void
 dissect_ftam_unstructured_binary(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *parent_tree)
 {
-	proto_tree_add_item (parent_tree, hf_ftam_unstructured_binary, tvb, 0, tvb_length_remaining(tvb, 0), ENC_NA); 
+	proto_tree_add_item (parent_tree, hf_ftam_unstructured_binary, tvb, 0, tvb_length_remaining(tvb, 0), ENC_NA);
 }
 
 /*
@@ -4827,27 +4820,27 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, VALS(ftam_FSM_PDU_vals), 0,
         NULL, HFILL }},
     { &hf_ftam_f_initialize_request,
-      { "f-initialize-request", "ftam.f_initialize_request",
+      { "f-initialize-request", "ftam.f_initialize_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_initialize_response,
-      { "f-initialize-response", "ftam.f_initialize_response",
+      { "f-initialize-response", "ftam.f_initialize_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_terminate_request,
-      { "f-terminate-request", "ftam.f_terminate_request",
+      { "f-terminate-request", "ftam.f_terminate_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_terminate_response,
-      { "f-terminate-response", "ftam.f_terminate_response",
+      { "f-terminate-response", "ftam.f_terminate_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_u_abort_request,
-      { "f-u-abort-request", "ftam.f_u_abort_request",
+      { "f-u-abort-request", "ftam.f_u_abort_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_p_abort_request,
-      { "f-p-abort-request", "ftam.f_p_abort_request",
+      { "f-p-abort-request", "ftam.f_p_abort_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_protocol_Version,
@@ -4875,7 +4868,7 @@ void proto_register_ftam(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_shared_ASE_information,
-      { "shared-ASE-information", "ftam.shared_ASE_information",
+      { "shared-ASE-information", "ftam.shared_ASE_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_ftam_quality_of_Service,
@@ -4931,111 +4924,111 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_select_request,
-      { "f-select-request", "ftam.f_select_request",
+      { "f-select-request", "ftam.f_select_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_select_response,
-      { "f-select-response", "ftam.f_select_response",
+      { "f-select-response", "ftam.f_select_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_deselect_request,
-      { "f-deselect-request", "ftam.f_deselect_request",
+      { "f-deselect-request", "ftam.f_deselect_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_deselect_response,
-      { "f-deselect-response", "ftam.f_deselect_response",
+      { "f-deselect-response", "ftam.f_deselect_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_create_request,
-      { "f-create-request", "ftam.f_create_request",
+      { "f-create-request", "ftam.f_create_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_create_response,
-      { "f-create-response", "ftam.f_create_response",
+      { "f-create-response", "ftam.f_create_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_delete_request,
-      { "f-delete-request", "ftam.f_delete_request",
+      { "f-delete-request", "ftam.f_delete_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_delete_response,
-      { "f-delete-response", "ftam.f_delete_response",
+      { "f-delete-response", "ftam.f_delete_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_read_attrib_request,
-      { "f-read-attrib-request", "ftam.f_read_attrib_request",
+      { "f-read-attrib-request", "ftam.f_read_attrib_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_read_attrib_response,
-      { "f-read-attrib-response", "ftam.f_read_attrib_response",
+      { "f-read-attrib-response", "ftam.f_read_attrib_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_Change_attrib_reques,
-      { "f-Change-attrib-reques", "ftam.f_Change_attrib_reques",
+      { "f-Change-attrib-reques", "ftam.f_Change_attrib_reques_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "F_CHANGE_ATTRIB_request", HFILL }},
     { &hf_ftam_f_Change_attrib_respon,
-      { "f-Change-attrib-respon", "ftam.f_Change_attrib_respon",
+      { "f-Change-attrib-respon", "ftam.f_Change_attrib_respon_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "F_CHANGE_ATTRIB_response", HFILL }},
     { &hf_ftam_f_open_request,
-      { "f-open-request", "ftam.f_open_request",
+      { "f-open-request", "ftam.f_open_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_open_response,
-      { "f-open-response", "ftam.f_open_response",
+      { "f-open-response", "ftam.f_open_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_close_request,
-      { "f-close-request", "ftam.f_close_request",
+      { "f-close-request", "ftam.f_close_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_close_response,
-      { "f-close-response", "ftam.f_close_response",
+      { "f-close-response", "ftam.f_close_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_begin_group_request,
-      { "f-begin-group-request", "ftam.f_begin_group_request",
+      { "f-begin-group-request", "ftam.f_begin_group_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_begin_group_response,
-      { "f-begin-group-response", "ftam.f_begin_group_response",
+      { "f-begin-group-response", "ftam.f_begin_group_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_end_group_request,
-      { "f-end-group-request", "ftam.f_end_group_request",
+      { "f-end-group-request", "ftam.f_end_group_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_end_group_response,
-      { "f-end-group-response", "ftam.f_end_group_response",
+      { "f-end-group-response", "ftam.f_end_group_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_recover_request,
-      { "f-recover-request", "ftam.f_recover_request",
+      { "f-recover-request", "ftam.f_recover_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_recover_response,
-      { "f-recover-response", "ftam.f_recover_response",
+      { "f-recover-response", "ftam.f_recover_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_locate_request,
-      { "f-locate-request", "ftam.f_locate_request",
+      { "f-locate-request", "ftam.f_locate_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_locate_response,
-      { "f-locate-response", "ftam.f_locate_response",
+      { "f-locate-response", "ftam.f_locate_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_erase_request,
-      { "f-erase-request", "ftam.f_erase_request",
+      { "f-erase-request", "ftam.f_erase_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_erase_response,
-      { "f-erase-response", "ftam.f_erase_response",
+      { "f-erase-response", "ftam.f_erase_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_select_attributes,
-      { "attributes", "ftam.attributes",
+      { "attributes", "ftam.attributes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Select_Attributes", HFILL }},
     { &hf_ftam_requested_access,
@@ -5043,7 +5036,7 @@ void proto_register_ftam(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "Access_Request", HFILL }},
     { &hf_ftam_access_passwords,
-      { "access-passwords", "ftam.access_passwords",
+      { "access-passwords", "ftam.access_passwords_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_path_access_passwords,
@@ -5051,7 +5044,7 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_concurrency_control,
-      { "concurrency-control", "ftam.concurrency_control",
+      { "concurrency-control", "ftam.concurrency_control_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_referent_indicator,
@@ -5063,7 +5056,7 @@ void proto_register_ftam(void) {
         FT_INT32, BASE_DEC, VALS(ftam_Override_vals), 0,
         NULL, HFILL }},
     { &hf_ftam_initial_attributes,
-      { "initial-attributes", "ftam.initial_attributes",
+      { "initial-attributes", "ftam.initial_attributes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Create_Attributes", HFILL }},
     { &hf_ftam_create_password,
@@ -5079,11 +5072,11 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_read_attributes,
-      { "attributes", "ftam.attributes",
+      { "attributes", "ftam.attributes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Read_Attributes", HFILL }},
     { &hf_ftam_attributes,
-      { "attributes", "ftam.attributes",
+      { "attributes", "ftam.attributes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Change_Attributes", HFILL }},
     { &hf_ftam_processing_mode,
@@ -5095,7 +5088,7 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, VALS(ftam_T_open_contents_type_vals), 0,
         "T_open_contents_type", HFILL }},
     { &hf_ftam_unknown,
-      { "unknown", "ftam.unknown",
+      { "unknown", "ftam.unknown_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_proposed,
@@ -5199,43 +5192,43 @@ void proto_register_ftam(void) {
         FT_INT32, BASE_DEC, VALS(ftam_FADU_Lock_U_vals), 0,
         NULL, HFILL }},
     { &hf_ftam_f_read_request,
-      { "f-read-request", "ftam.f_read_request",
+      { "f-read-request", "ftam.f_read_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_write_request,
-      { "f-write-request", "ftam.f_write_request",
+      { "f-write-request", "ftam.f_write_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_data_end_request,
-      { "f-data-end-request", "ftam.f_data_end_request",
+      { "f-data-end-request", "ftam.f_data_end_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_transfer_end_request,
-      { "f-transfer-end-request", "ftam.f_transfer_end_request",
+      { "f-transfer-end-request", "ftam.f_transfer_end_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_transfer_end_response,
-      { "f-transfer-end-response", "ftam.f_transfer_end_response",
+      { "f-transfer-end-response", "ftam.f_transfer_end_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_cancel_request,
-      { "f-cancel-request", "ftam.f_cancel_request",
+      { "f-cancel-request", "ftam.f_cancel_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_cancel_response,
-      { "f-cancel-response", "ftam.f_cancel_response",
+      { "f-cancel-response", "ftam.f_cancel_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_restart_request,
-      { "f-restart-request", "ftam.f_restart_request",
+      { "f-restart-request", "ftam.f_restart_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_restart_response,
-      { "f-restart-response", "ftam.f_restart_response",
+      { "f-restart-response", "ftam.f_restart_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_read_access_context,
-      { "access-context", "ftam.access_context",
+      { "access-context", "ftam.access_context_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_transfer_number,
@@ -5339,7 +5332,7 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam__untag_item_01,
-      { "_untag item", "ftam._untag_item",
+      { "_untag item", "ftam._untag_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Charging_item", HFILL }},
     { &hf_ftam_resource_identifier,
@@ -5403,7 +5396,7 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, VALS(ftam_Access_Control_Attribute_vals), 0,
         "Access_Control_Attribute", HFILL }},
     { &hf_ftam__untag_item_02,
-      { "_untag item", "ftam._untag_item",
+      { "_untag item", "ftam._untag_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Diagnostic_item", HFILL }},
     { &hf_ftam_diagnostic_type,
@@ -5443,7 +5436,7 @@ void proto_register_ftam(void) {
         FT_INT32, BASE_DEC, VALS(ftam_T_begin_end_vals), 0,
         NULL, HFILL }},
     { &hf_ftam_single_name,
-      { "single-name", "ftam.single_name",
+      { "single-name", "ftam.single_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Node_Name", HFILL }},
     { &hf_ftam_name_list,
@@ -5451,7 +5444,7 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_Node_Name", HFILL }},
     { &hf_ftam_name_list_item,
-      { "Node-Name", "ftam.Node_Name",
+      { "Node-Name", "ftam.Node_Name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_fadu_number,
@@ -5515,7 +5508,7 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, VALS(ftam_Object_Size_Attribute_vals), 0,
         "Object_Size_Attribute", HFILL }},
     { &hf_ftam_no_value_available,
-      { "no-value-available", "ftam.no_value_available",
+      { "no-value-available", "ftam.no_value_available_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_actual_values3,
@@ -5523,11 +5516,11 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_Access_Control_Element", HFILL }},
     { &hf_ftam_actual_values3_item,
-      { "Access-Control-Element", "ftam.Access_Control_Element",
+      { "Access-Control-Element", "ftam.Access_Control_Element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_actual_values1,
-      { "actual-values", "ftam.actual_values",
+      { "actual-values", "ftam.actual_values_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_actual_values1", HFILL }},
     { &hf_ftam_insert_values,
@@ -5535,7 +5528,7 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_Access_Control_Element", HFILL }},
     { &hf_ftam_insert_values_item,
-      { "Access-Control-Element", "ftam.Access_Control_Element",
+      { "Access-Control-Element", "ftam.Access_Control_Element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_delete_values,
@@ -5543,7 +5536,7 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_Access_Control_Element", HFILL }},
     { &hf_ftam_delete_values_item,
-      { "Access-Control-Element", "ftam.Access_Control_Element",
+      { "Access-Control-Element", "ftam.Access_Control_Element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_action_list,
@@ -5551,7 +5544,7 @@ void proto_register_ftam(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "Access_Request", HFILL }},
     { &hf_ftam_concurrency_access,
-      { "concurrency-access", "ftam.concurrency_access",
+      { "concurrency-access", "ftam.concurrency_access_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_identity,
@@ -5559,7 +5552,7 @@ void proto_register_ftam(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "User_Identity", HFILL }},
     { &hf_ftam_passwords,
-      { "passwords", "ftam.passwords",
+      { "passwords", "ftam.passwords_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Access_Passwords", HFILL }},
     { &hf_ftam_location,
@@ -5603,15 +5596,15 @@ void proto_register_ftam(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "Account", HFILL }},
     { &hf_ftam_document_type,
-      { "document-type", "ftam.document_type",
+      { "document-type", "ftam.document_type_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_document_type", HFILL }},
     { &hf_ftam_parameter,
-      { "parameter", "ftam.parameter",
+      { "parameter", "ftam.parameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_constraint_set_and_abstract_Syntax,
-      { "constraint-set-and-abstract-Syntax", "ftam.constraint_set_and_abstract_Syntax",
+      { "constraint-set-and-abstract-Syntax", "ftam.constraint_set_and_abstract_Syntax_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_constraint_set_and_abstract_Syntax", HFILL }},
     { &hf_ftam_constraint_set_name,
@@ -5643,11 +5636,11 @@ void proto_register_ftam(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "GraphicString", HFILL }},
     { &hf_ftam_abstract_Syntax_not_supported,
-      { "abstract-Syntax-not-supported", "ftam.abstract_Syntax_not_supported",
+      { "abstract-Syntax-not-supported", "ftam.abstract_Syntax_not_supported_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_actual_values4,
-      { "actual-values", "ftam.actual_values",
+      { "actual-values", "ftam.actual_values_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNAL", HFILL }},
     { &hf_ftam_actual_values6,
@@ -5659,131 +5652,131 @@ void proto_register_ftam(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "GraphicString", HFILL }},
     { &hf_ftam_f_Change_prefix_request,
-      { "f-Change-prefix-request", "ftam.f_Change_prefix_request",
+      { "f-Change-prefix-request", "ftam.f_Change_prefix_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_Change_prefix_response,
-      { "f-Change-prefix-response", "ftam.f_Change_prefix_response",
+      { "f-Change-prefix-response", "ftam.f_Change_prefix_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_list_request,
-      { "f-list-request", "ftam.f_list_request",
+      { "f-list-request", "ftam.f_list_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_list_response,
-      { "f-list-response", "ftam.f_list_response",
+      { "f-list-response", "ftam.f_list_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_group_select_request,
-      { "f-group-select-request", "ftam.f_group_select_request",
+      { "f-group-select-request", "ftam.f_group_select_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_group_select_response,
-      { "f-group-select-response", "ftam.f_group_select_response",
+      { "f-group-select-response", "ftam.f_group_select_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_group_delete_request,
-      { "f-group-delete-request", "ftam.f_group_delete_request",
+      { "f-group-delete-request", "ftam.f_group_delete_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_group_delete_response,
-      { "f-group-delete-response", "ftam.f_group_delete_response",
+      { "f-group-delete-response", "ftam.f_group_delete_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_group_move_request,
-      { "f-group-move-request", "ftam.f_group_move_request",
+      { "f-group-move-request", "ftam.f_group_move_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_group_move_response,
-      { "f-group-move-response", "ftam.f_group_move_response",
+      { "f-group-move-response", "ftam.f_group_move_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_group_copy_request,
-      { "f-group-copy-request", "ftam.f_group_copy_request",
+      { "f-group-copy-request", "ftam.f_group_copy_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_group_copy_response,
-      { "f-group-copy-response", "ftam.f_group_copy_response",
+      { "f-group-copy-response", "ftam.f_group_copy_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_group_list_request,
-      { "f-group-list-request", "ftam.f_group_list_request",
+      { "f-group-list-request", "ftam.f_group_list_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_group_list_response,
-      { "f-group-list-response", "ftam.f_group_list_response",
+      { "f-group-list-response", "ftam.f_group_list_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_group_Change_attrib_request,
-      { "f-group-Change-attrib-request", "ftam.f_group_Change_attrib_request",
+      { "f-group-Change-attrib-request", "ftam.f_group_Change_attrib_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_group_Change_attrib_response,
-      { "f-group-Change-attrib-response", "ftam.f_group_Change_attrib_response",
+      { "f-group-Change-attrib-response", "ftam.f_group_Change_attrib_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_select_another_request,
-      { "f-select-another-request", "ftam.f_select_another_request",
+      { "f-select-another-request", "ftam.f_select_another_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_select_another_response,
-      { "f-select-another-response", "ftam.f_select_another_response",
+      { "f-select-another-response", "ftam.f_select_another_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_create_directory_request,
-      { "f-create-directory-request", "ftam.f_create_directory_request",
+      { "f-create-directory-request", "ftam.f_create_directory_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_create_directory_response,
-      { "f-create-directory-response", "ftam.f_create_directory_response",
+      { "f-create-directory-response", "ftam.f_create_directory_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_link_request,
-      { "f-link-request", "ftam.f_link_request",
+      { "f-link-request", "ftam.f_link_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_link_response,
-      { "f-link-response", "ftam.f_link_response",
+      { "f-link-response", "ftam.f_link_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_unlink_request,
-      { "f-unlink-request", "ftam.f_unlink_request",
+      { "f-unlink-request", "ftam.f_unlink_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_unlink_response,
-      { "f-unlink-response", "ftam.f_unlink_response",
+      { "f-unlink-response", "ftam.f_unlink_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_read_link_attrib_request,
-      { "f-read-link-attrib-request", "ftam.f_read_link_attrib_request",
+      { "f-read-link-attrib-request", "ftam.f_read_link_attrib_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_read_link_attrib_response,
-      { "f-read-link-attrib-response", "ftam.f_read_link_attrib_response",
+      { "f-read-link-attrib-response", "ftam.f_read_link_attrib_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_Change_link_attrib_request,
-      { "f-Change-link-attrib-request", "ftam.f_Change_link_attrib_request",
+      { "f-Change-link-attrib-request", "ftam.f_Change_link_attrib_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_Change_Iink_attrib_response,
-      { "f-Change-Iink-attrib-response", "ftam.f_Change_Iink_attrib_response",
+      { "f-Change-Iink-attrib-response", "ftam.f_Change_Iink_attrib_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "F_CHANGE_LINK_ATTRIB_response", HFILL }},
     { &hf_ftam_f_move_request,
-      { "f-move-request", "ftam.f_move_request",
+      { "f-move-request", "ftam.f_move_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_move_response,
-      { "f-move-response", "ftam.f_move_response",
+      { "f-move-response", "ftam.f_move_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_copy_request,
-      { "f-copy-request", "ftam.f_copy_request",
+      { "f-copy-request", "ftam.f_copy_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_f_copy_response,
-      { "f-copy-response", "ftam.f_copy_response",
+      { "f-copy-response", "ftam.f_copy_response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_reset,
@@ -5831,7 +5824,7 @@ void proto_register_ftam(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ftam_shared_ASE_infonnation,
-      { "shared-ASE-infonnation", "ftam.shared_ASE_infonnation",
+      { "shared-ASE-infonnation", "ftam.shared_ASE_infonnation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Shared_ASE_Information", HFILL }},
     { &hf_ftam_target_object,
@@ -5843,11 +5836,11 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, VALS(ftam_Pathname_Attribute_vals), 0,
         "Pathname_Attribute", HFILL }},
     { &hf_ftam_read_link_attributes,
-      { "attributes", "ftam.attributes",
+      { "attributes", "ftam.attributes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Read_Attributes", HFILL }},
     { &hf_ftam_Attribute_Extension_Names_item,
-      { "Attribute-Extension-Set-Name", "ftam.Attribute_Extension_Set_Name",
+      { "Attribute-Extension-Set-Name", "ftam.Attribute_Extension_Set_Name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_extension_set_identifier,
@@ -5863,7 +5856,7 @@ void proto_register_ftam(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_Attribute_Extensions_item,
-      { "Attribute-Extension-Set", "ftam.Attribute_Extension_Set",
+      { "Attribute-Extension-Set", "ftam.Attribute_Extension_Set_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_extension_set_attributes,
@@ -5871,7 +5864,7 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_Extension_Attribute", HFILL }},
     { &hf_ftam_extension_set_attributes_item,
-      { "Extension-Attribute", "ftam.Extension_Attribute",
+      { "Extension-Attribute", "ftam.Extension_Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_extension_attribute_identifier,
@@ -5879,11 +5872,11 @@ void proto_register_ftam(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_extension_attribute,
-      { "extension-attribute", "ftam.extension_attribute",
+      { "extension-attribute", "ftam.extension_attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam__untag_item_03,
-      { "_untag item", "ftam._untag_item",
+      { "_untag item", "ftam._untag_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_root_directory,
@@ -5903,15 +5896,15 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, VALS(ftam_AND_Set_item_vals), 0,
         NULL, HFILL }},
     { &hf_ftam_pathname_Pattern,
-      { "pathname-Pattern", "ftam.pathname_Pattern",
+      { "pathname-Pattern", "ftam.pathname_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_object_type_Pattern,
-      { "object-type-Pattern", "ftam.object_type_Pattern",
+      { "object-type-Pattern", "ftam.object_type_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Integer_Pattern", HFILL }},
     { &hf_ftam_permitted_actions_Pattern,
-      { "permitted-actions-Pattern", "ftam.permitted_actions_Pattern",
+      { "permitted-actions-Pattern", "ftam.permitted_actions_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Bitstring_Pattern", HFILL }},
     { &hf_ftam_contents_type_Pattern,
@@ -5919,67 +5912,67 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, VALS(ftam_Contents_Type_Pattern_vals), 0,
         NULL, HFILL }},
     { &hf_ftam_linked_Object_Pattern,
-      { "linked-Object-Pattern", "ftam.linked_Object_Pattern",
+      { "linked-Object-Pattern", "ftam.linked_Object_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Pathname_Pattern", HFILL }},
     { &hf_ftam_child_objects_Pattern,
-      { "child-objects-Pattern", "ftam.child_objects_Pattern",
+      { "child-objects-Pattern", "ftam.child_objects_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Pathname_Pattern", HFILL }},
     { &hf_ftam_primaty_pathname_Pattern,
-      { "primaty-pathname-Pattern", "ftam.primaty_pathname_Pattern",
+      { "primaty-pathname-Pattern", "ftam.primaty_pathname_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Pathname_Pattern", HFILL }},
     { &hf_ftam_storage_account_Pattern,
-      { "storage-account-Pattern", "ftam.storage_account_Pattern",
+      { "storage-account-Pattern", "ftam.storage_account_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "String_Pattern", HFILL }},
     { &hf_ftam_date_and_time_of_creation_Pattern,
-      { "date-and-time-of-creation-Pattern", "ftam.date_and_time_of_creation_Pattern",
+      { "date-and-time-of-creation-Pattern", "ftam.date_and_time_of_creation_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Date_and_Time_Pattern", HFILL }},
     { &hf_ftam_date_and_time_of_last_modification_Pattern,
-      { "date-and-time-of-last-modification-Pattern", "ftam.date_and_time_of_last_modification_Pattern",
+      { "date-and-time-of-last-modification-Pattern", "ftam.date_and_time_of_last_modification_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Date_and_Time_Pattern", HFILL }},
     { &hf_ftam_date_and_time_of_last_read_access_Pattern,
-      { "date-and-time-of-last-read-access-Pattern", "ftam.date_and_time_of_last_read_access_Pattern",
+      { "date-and-time-of-last-read-access-Pattern", "ftam.date_and_time_of_last_read_access_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Date_and_Time_Pattern", HFILL }},
     { &hf_ftam_date_and_time_of_last_attribute_modification_Pattern,
-      { "date-and-time-of-last-attribute-modification-Pattern", "ftam.date_and_time_of_last_attribute_modification_Pattern",
+      { "date-and-time-of-last-attribute-modification-Pattern", "ftam.date_and_time_of_last_attribute_modification_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Date_and_Time_Pattern", HFILL }},
     { &hf_ftam_identity_of_creator_Pattern,
-      { "identity-of-creator-Pattern", "ftam.identity_of_creator_Pattern",
+      { "identity-of-creator-Pattern", "ftam.identity_of_creator_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "User_Identity_Pattern", HFILL }},
     { &hf_ftam_identity_of_last_modifier_Pattern,
-      { "identity-of-last-modifier-Pattern", "ftam.identity_of_last_modifier_Pattern",
+      { "identity-of-last-modifier-Pattern", "ftam.identity_of_last_modifier_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "User_Identity_Pattern", HFILL }},
     { &hf_ftam_identity_of_last_reader_Pattern,
-      { "identity-of-last-reader-Pattern", "ftam.identity_of_last_reader_Pattern",
+      { "identity-of-last-reader-Pattern", "ftam.identity_of_last_reader_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "User_Identity_Pattern", HFILL }},
     { &hf_ftam_identity_of_last_attribute_modifier_Pattern,
-      { "identity-of-last-attribute-modifier-Pattern", "ftam.identity_of_last_attribute_modifier_Pattern",
+      { "identity-of-last-attribute-modifier-Pattern", "ftam.identity_of_last_attribute_modifier_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "User_Identity_Pattern", HFILL }},
     { &hf_ftam_object_availabiiity_Pattern,
-      { "object-availabiiity-Pattern", "ftam.object_availabiiity_Pattern",
+      { "object-availabiiity-Pattern", "ftam.object_availabiiity_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Boolean_Pattern", HFILL }},
     { &hf_ftam_object_size_Pattern,
-      { "object-size-Pattern", "ftam.object_size_Pattern",
+      { "object-size-Pattern", "ftam.object_size_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Integer_Pattern", HFILL }},
     { &hf_ftam_future_object_size_Pattern,
-      { "future-object-size-Pattern", "ftam.future_object_size_Pattern",
+      { "future-object-size-Pattern", "ftam.future_object_size_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Integer_Pattern", HFILL }},
     { &hf_ftam_legal_quailfication_Pattern,
-      { "legal-quailfication-Pattern", "ftam.legal_quailfication_Pattern",
+      { "legal-quailfication-Pattern", "ftam.legal_quailfication_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "String_Pattern", HFILL }},
     { &hf_ftam_attribute_extensions_pattern,
@@ -5999,11 +5992,11 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, VALS(ftam_T_pathname_value_item_vals), 0,
         NULL, HFILL }},
     { &hf_ftam_string_match,
-      { "string-match", "ftam.string_match",
+      { "string-match", "ftam.string_match_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "String_Pattern", HFILL }},
     { &hf_ftam_any_match,
-      { "any-match", "ftam.any_match",
+      { "any-match", "ftam.any_match_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_string_value,
@@ -6055,23 +6048,23 @@ void proto_register_ftam(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_ftam_document_type_Pattern,
-      { "document-type-Pattern", "ftam.document_type_Pattern",
+      { "document-type-Pattern", "ftam.document_type_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Object_Identifier_Pattern", HFILL }},
     { &hf_ftam_constraint_set_abstract_Syntax_Pattern,
-      { "constraint-set-abstract-Syntax-Pattern", "ftam.constraint_set_abstract_Syntax_Pattern",
+      { "constraint-set-abstract-Syntax-Pattern", "ftam.constraint_set_abstract_Syntax_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_constraint_set_abstract_Syntax_Pattern", HFILL }},
     { &hf_ftam_constraint_Set_Pattern,
-      { "constraint-Set-Pattern", "ftam.constraint_Set_Pattern",
+      { "constraint-Set-Pattern", "ftam.constraint_Set_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Object_Identifier_Pattern", HFILL }},
     { &hf_ftam_abstract_Syntax_Pattern,
-      { "abstract-Syntax-Pattern", "ftam.abstract_Syntax_Pattern",
+      { "abstract-Syntax-Pattern", "ftam.abstract_Syntax_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Object_Identifier_Pattern", HFILL }},
     { &hf_ftam_Attribute_Extensions_Pattern_item,
-      { "Attribute-Extensions-Pattern item", "ftam.Attribute_Extensions_Pattern_item",
+      { "Attribute-Extensions-Pattern item", "ftam.Attribute_Extensions_Pattern_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_extension_set_attribute_Patterns,
@@ -6079,7 +6072,7 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "T_extension_set_attribute_Patterns", HFILL }},
     { &hf_ftam_extension_set_attribute_Patterns_item,
-      { "extension-set-attribute-Patterns item", "ftam.extension_set_attribute_Patterns_item",
+      { "extension-set-attribute-Patterns item", "ftam.extension_set_attribute_Patterns_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_extension_set_attribute_Patterns_item", HFILL }},
     { &hf_ftam_attribute_extension_attribute_identifier,
@@ -6087,11 +6080,11 @@ void proto_register_ftam(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "T_attribute_extension_attribute_identifier", HFILL }},
     { &hf_ftam_extension_attribute_Pattern,
-      { "extension-attribute-Pattern", "ftam.extension_attribute_Pattern",
+      { "extension-attribute-Pattern", "ftam.extension_attribute_Pattern_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam__untag_item_04,
-      { "Read-Attributes", "ftam.Read_Attributes",
+      { "Read-Attributes", "ftam.Read_Attributes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ftam_success_Object_count,
@@ -6115,7 +6108,7 @@ void proto_register_ftam(void) {
         FT_UINT32, BASE_DEC, VALS(ftam_Password_U_vals), 0,
         NULL, HFILL }},
     { &hf_ftam__untag_item_05,
-      { "_untag item", "ftam._untag_item",
+      { "_untag item", "ftam._untag_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Path_Access_Passwords_item", HFILL }},
     { &hf_ftam_ap,
@@ -6468,7 +6461,7 @@ void proto_register_ftam(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-ftam-hfarr.c ---*/
-#line 126 "../../asn1/ftam/packet-ftam-template.c"
+#line 127 "../../asn1/ftam/packet-ftam-template.c"
   };
 
   /* List of subtrees */
@@ -6641,7 +6634,7 @@ void proto_register_ftam(void) {
     &ett_ftam_AE_title,
 
 /*--- End of included file: packet-ftam-ettarr.c ---*/
-#line 132 "../../asn1/ftam/packet-ftam-template.c"
+#line 133 "../../asn1/ftam/packet-ftam-template.c"
   };
 
   /* Register protocol */

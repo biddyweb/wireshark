@@ -2,8 +2,6 @@
  * Routines for 802.3 MAC Address Allocation Protocol defined by IEEE1722
  * Copyright 2012, Jason Damori, Biamp Systems <jdamori at biamp dot com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,7 +26,11 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <epan/etypes.h>
+
+void proto_register_maap(void);
+void proto_reg_handoff_maap(void);
 
 /* MAAP starts after common 1722 header */
 #define MAAP_START_OFFSET                   1

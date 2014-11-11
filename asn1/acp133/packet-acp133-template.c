@@ -2,8 +2,6 @@
  * Routines for ACP133 specific syntaxes in X.500 packet dissection
  * Graeme Lunt 2005
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -43,6 +41,9 @@
 #define PNAME  "ACP133 Attribute Syntaxes"
 #define PSNAME "ACP133"
 #define PFNAME "acp133"
+
+void proto_register_acp133(void);
+void proto_reg_handoff_acp133(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_acp133 = -1;
@@ -85,7 +86,7 @@ void proto_register_acp133(void) {
 /*--- proto_reg_handoff_acp133 --- */
 void proto_reg_handoff_acp133(void) {
 
-#include "packet-acp133-dis-tab.c" 
+#include "packet-acp133-dis-tab.c"
 
   /* X.402 Object Classes */
   oid_add_from_string("id-oc-mhs-distribution-list","2.6.5.1.0");

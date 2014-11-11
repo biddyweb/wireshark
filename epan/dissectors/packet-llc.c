@@ -2,8 +2,6 @@
  * Routines for IEEE 802.2 LLC layer
  * Gilbert Ramirez <gram@alumni.rice.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,7 +24,11 @@
 #include "config.h"
 
 #include <glib.h>
+
+#include <epan/to_str.h>
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
+#include <wsutil/pint.h>
 #include <epan/oui.h>
 #include <epan/xdlc.h>
 #include <epan/etypes.h>
@@ -35,7 +37,6 @@
 #include <epan/ppptypes.h>
 #include <epan/arcnet_pids.h>
 #include <epan/conversation.h>
-#include "packet-scsi.h"
 #include "packet-fc.h"
 #include "packet-ip.h"
 #include "packet-ipx.h"
@@ -45,6 +46,10 @@
 #include <epan/sna-utils.h>
 
 #include "packet-llc.h"
+
+void proto_register_basicxid(void);
+void proto_register_llc(void);
+void proto_reg_handoff_llc(void);
 
 #define UDP_PORT_LLC1   12000
 #define UDP_PORT_LLC2   12001
@@ -80,6 +85,8 @@ static int hf_llc_xid_types = -1;
 static int hf_llc_xid_wsize = -1;
 
 static gint ett_llc = -1;
+static gint ett_llc_dsap = -1;
+static gint ett_llc_ssap = -1;
 static gint ett_llc_ctrl = -1;
 static gint ett_llc_basicxid = -1;
 
@@ -205,7 +212,7 @@ http://www.cisco.com/univercd/cc/td/doc/product/software/ios113ed/113ed_cr/ibm_r
 	{ OUI_SONY_ERICSSON_5,	"Sony Ericsson Mobile Communications AB" },
 	{ OUI_SONY_ERICSSON_6,	"Sony Ericsson Mobile Communications AB" },
 	{ OUI_SONY_ERICSSON_7,	"Sony Ericsson Mobile Communications AB" },
-	{ OUI_BLUETOOTH,		"Bluetooth" },
+	{ OUI_BLUETOOTH,		"Bluetooth SIG, Inc." },
 	{ OUI_SONY_ERICSSON_8,	"Sony Ericsson Mobile Communications AB" },
 	{ OUI_IEEE_802_1QBG,	"IEEE 802.1Qbg" },
 	{ OUI_TURBOCELL,		"Karlnet (Turbocell)" },
@@ -254,6 +261,38 @@ static const value_string type_vals[] = {
 static GHashTable *oui_info_table = NULL;
 
 /*
+ * Decode the SAP value as a bitfield into a string, skipping the GI/CR bit.
+ * Ordinarily, this could be done easily by specifying a bitmask in the
+ * corresponding hf_ entry for the DSAP/SSAP value and simply using a
+ * proto_tree_add_... function to add the item into a proto tree. The
+ * problem is that the proto_tree_add_... functions always bitshift the
+ * value if a bitmask is specified. A SAP value always comprises the entire
+ * octet, however, and must not be shifted. Therefore, using a simple
+ * proto_tree_add_... function to display the topmost 7 bits of the SAP
+ * value as a bitfield produces incorrect results (while the bitfield is
+ * displayed correctly, Wireshark uses the bitshifted value to display the
+ * associated name and for filtering purposes). This function calls the
+ * Wireshark routine to decode the SAP value as a bitfield into a given
+ * string without performing any bitshift of the original value.
+ *
+ * The string passed to this function must be of ITEM_LABEL_LENGTH size.
+ * The SAP value passed to this function must be complete (not masked).
+ *
+ */
+static gchar *
+decode_sap_value_as_bitfield(gchar *buffer, guint32 sap)
+{
+	char *p;
+
+	memset (buffer, '\0', ITEM_LABEL_LENGTH);
+	p = decode_bitfield_value (buffer, sap, SAP_MASK, 8);
+	g_snprintf(p, (gulong)(ITEM_LABEL_LENGTH-strlen(buffer)-1), "SAP: %s",
+		val_to_str_const(sap, sap_vals, "Unknown"));
+
+	return buffer;
+}
+
+/*
  * Add an entry for a new OUI.
  */
 void
@@ -262,7 +301,7 @@ llc_add_oui(guint32 oui, const char *table_name, const char *table_ui_name,
 {
 	oui_info_t *new_info;
 
-	new_info = g_malloc(sizeof (oui_info_t));
+	new_info = (oui_info_t *)g_malloc(sizeof (oui_info_t));
 	new_info->table = register_dissector_table(table_name,
 	    table_ui_name, FT_UINT16, BASE_HEX);
 	new_info->field_info = hf_item;
@@ -352,7 +391,7 @@ capture_snap(const guchar *pd, int offset, int len, packet_counts *ld)
 	}
 
 	oui = pd[offset] << 16 | pd[offset+1] << 8 | pd[offset+2];
-	etype = pntohs(&pd[offset+3]);
+	etype = pntoh16(&pd[offset+3]);
 	switch (oui) {
 
 	case OUI_ENCAP_ETHER:
@@ -440,26 +479,24 @@ dissect_basicxid(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		proto_tree_add_uint(xid_tree, hf_llc_xid_types, tvb, 1,
 			1, types & TYPES_MASK);
 	}
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(pinfo->cinfo, COL_INFO,
+	col_append_fstr(pinfo->cinfo, COL_INFO,
 		    "; %s", val_to_str(types & TYPES_MASK, type_vals, "0x%02x")
 		);
-	}
+
 	wsize = tvb_get_guint8(tvb, 2);
 	if (tree) {
 		proto_tree_add_uint(xid_tree, hf_llc_xid_wsize, tvb, 2,
 			1, (wsize & 0xFE) >> 1);
 	}
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(pinfo->cinfo, COL_INFO,
+	col_append_fstr(pinfo->cinfo, COL_INFO,
 		    "; Window Size %d", (wsize & 0xFE) >> 1);
-	}
 }
 
 static void
 dissect_llc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	proto_tree	*llc_tree = NULL;
+	proto_tree	*field_tree = NULL;
 	proto_item	*ti = NULL;
 	int		is_snap;
 	guint16		control;
@@ -472,21 +509,29 @@ dissect_llc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	dsap = tvb_get_guint8(tvb, 0);
 	if (tree) {
+		proto_item *dsap_item;
+		gchar label[ITEM_LABEL_LENGTH];
+
 		ti = proto_tree_add_item(tree, proto_llc, tvb, 0, -1, ENC_NA);
 		llc_tree = proto_item_add_subtree(ti, ett_llc);
-		proto_tree_add_uint(llc_tree, hf_llc_dsap, tvb, 0,
-			1, dsap & SAP_MASK);
-		proto_tree_add_boolean(llc_tree, hf_llc_dsap_ig, tvb, 0,
-			1, dsap & DSAP_GI_BIT);
+		dsap_item = proto_tree_add_item(llc_tree, hf_llc_dsap, tvb, 0, 1, ENC_NA);
+		field_tree = proto_item_add_subtree(dsap_item, ett_llc_dsap);
+		proto_tree_add_text(field_tree, tvb, 0, 1, "%s",
+			decode_sap_value_as_bitfield(label, dsap));
+		proto_tree_add_item(field_tree, hf_llc_dsap_ig, tvb, 0, 1, ENC_NA);
 	} else
 		llc_tree = NULL;
 
 	ssap = tvb_get_guint8(tvb, 1);
 	if (tree) {
-		proto_tree_add_uint(llc_tree, hf_llc_ssap, tvb, 1,
-			1, ssap & SAP_MASK);
-		proto_tree_add_boolean(llc_tree, hf_llc_ssap_cr, tvb, 1,
-			1, ssap & SSAP_CR_BIT);
+		proto_item *ssap_item;
+		gchar label[ITEM_LABEL_LENGTH];
+
+		ssap_item = proto_tree_add_item(llc_tree, hf_llc_ssap, tvb, 1, 1, ENC_NA);
+		field_tree = proto_item_add_subtree(ssap_item, ett_llc_ssap);
+		proto_tree_add_text(field_tree, tvb, 1, 1, "%s",
+			decode_sap_value_as_bitfield(label, ssap));
+		proto_tree_add_item(field_tree, hf_llc_ssap_cr, tvb, 1, 1, ENC_NA);
 	} else
 		llc_tree = NULL;
 
@@ -515,8 +560,7 @@ dissect_llc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		    hf_llc_oui, hf_llc_type, hf_llc_pid, 2);
 	}
 	else {
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_append_fstr(pinfo->cinfo, COL_INFO,
+		col_append_fstr(pinfo->cinfo, COL_INFO,
 			    "; DSAP %s %s, SSAP %s %s",
 			    val_to_str(dsap & SAP_MASK, sap_vals, "0x%02x"),
 			    dsap & DSAP_GI_BIT ?
@@ -525,7 +569,6 @@ dissect_llc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			    ssap & SSAP_CR_BIT ?
 			      "Response" : "Command"
 			);
-		}
 
 		if (tvb_length_remaining(tvb, llc_header_len) > 0) {
 			next_tvb = tvb_new_subset_remaining(tvb, llc_header_len);
@@ -591,21 +634,17 @@ dissect_snap(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree,
 	oui =	tvb_get_ntoh24(tvb, offset);
 	etype = tvb_get_ntohs(tvb, offset+3);
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(pinfo->cinfo, COL_INFO,
+	col_append_fstr(pinfo->cinfo, COL_INFO,
 		    "; SNAP, OUI 0x%06X (%s), PID 0x%04X",
 		    oui, val_to_str_const(oui, oui_vals, "Unknown"), etype);
-	}
-	if (tree) {
-		proto_tree_add_uint(snap_tree, hf_oui, tvb, offset, 3, oui);
-	}
+
+	proto_tree_add_uint(snap_tree, hf_oui, tvb, offset, 3, oui);
 
 	switch (oui) {
 
 	case OUI_HP_2:
 		oui_info = get_snap_oui_info(oui);
 		hf = *oui_info->field_info->p_id;
-		subdissector_table = oui_info->table;
 		proto_tree_add_uint(snap_tree, hf, tvb, offset+3, 2, etype);
 		next_tvb = tvb_new_subset_remaining(tvb, offset+5);
 
@@ -782,7 +821,7 @@ oui_info_t *
 get_snap_oui_info(guint32 oui)
 {
 	if (oui_info_table != NULL) {
-		return g_hash_table_lookup(oui_info_table,
+		return (oui_info_t *)g_hash_table_lookup(oui_info_table,
 		    GUINT_TO_POINTER(oui));
 	} else
 		return NULL;
@@ -797,19 +836,19 @@ proto_register_llc(void)
 	static hf_register_info hf[] = {
 		{ &hf_llc_dsap,
 		{ "DSAP",	"llc.dsap", FT_UINT8, BASE_HEX,
-			VALS(sap_vals), 0x0, "DSAP - 7 Most Significant Bits only", HFILL }},
+			VALS(sap_vals), 0x0, "Destination Service Access Point", HFILL }},
 
 		{ &hf_llc_dsap_ig,
-		{ "IG Bit",	"llc.dsap.ig", FT_BOOLEAN, BASE_NONE,
-			TFS(&ig_bit), 0x0, "Individual/Group - Least Significant Bit only", HFILL }},
+		{ "IG Bit",	"llc.dsap.ig", FT_BOOLEAN, 8,
+			TFS(&ig_bit), DSAP_GI_BIT, "Individual/Group", HFILL }},
 
 		{ &hf_llc_ssap,
 		{ "SSAP", "llc.ssap", FT_UINT8, BASE_HEX,
-			VALS(sap_vals), 0x0, "SSAP - 7 Most Significant Bits only", HFILL }},
+			VALS(sap_vals), 0x0, "Source Service Access Point", HFILL }},
 
 		{ &hf_llc_ssap_cr,
-		{ "CR Bit", "llc.ssap.cr", FT_BOOLEAN, BASE_NONE,
-			TFS(&cr_bit), 0x0, "Command/Response - Least Significant Bit only", HFILL }},
+		{ "CR Bit", "llc.ssap.cr", FT_BOOLEAN, 8,
+			TFS(&cr_bit), SSAP_CR_BIT, "Command/Response", HFILL }},
 
 		{ &hf_llc_ctrl,
 		{ "Control", "llc.control", FT_UINT16, BASE_HEX,
@@ -878,7 +917,9 @@ proto_register_llc(void)
 	};
 	static gint *ett[] = {
 		&ett_llc,
-		&ett_llc_ctrl
+		&ett_llc_dsap,
+		&ett_llc_ssap,
+		&ett_llc_ctrl,
 	};
 
 	proto_llc = proto_register_protocol("Logical-Link Control", "LLC", "llc");
@@ -924,7 +965,7 @@ proto_register_basicxid(void)
 static void
 register_hf(gpointer key _U_, gpointer value, gpointer user_data _U_)
 {
-	oui_info_t *info = value;
+	oui_info_t *info = (oui_info_t *)value;
 
 	proto_register_field_array(proto_llc, info->field_info, 1);
 }

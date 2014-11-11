@@ -1,8 +1,6 @@
 /* packet-3com-njack.c
  * Routines for the disassembly of the 3com NetworkJack management protocol
  *
- * $Id$
- *
  * Copyright 2005 Joerg Mayer (see AUTHORS file)
  *
  * Wireshark - Network traffic analyzer
@@ -56,7 +54,6 @@ Specs:
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
 
 /* Forward declarations */
 void proto_register_njack(void);
@@ -515,7 +512,7 @@ dissect_tlvs(tvbuff_t *tvb, proto_tree *njack_tree, guint32 offset)
 }
 
 #if 0
-#include <epan/crypt/md5.h>
+#include <wsutil/md5.h>
 
 static gboolean
 verify_password(tvbuff_t *tvb, const char *password)

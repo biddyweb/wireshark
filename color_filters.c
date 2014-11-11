@@ -1,8 +1,6 @@
 /* color_filters.c
  * Routines for color filters
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,10 +28,11 @@
 #include <glib.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
 
-#include <epan/filesystem.h>
+#include <wsutil/filesystem.h>
 #include <wsutil/file_util.h>
 
 #include <epan/packet.h>
@@ -570,8 +569,10 @@ read_filters_file(FILE *f, gpointer user_data)
             dfilter_t *temp_dfilter;
 
             if (!dfilter_compile(filter_exp, &temp_dfilter)) {
-                g_warning("Could not compile color filter \"%s\" from saved filters: %s",
+                g_warning("Could not compile \"%s\" in colorfilters file.\n%s",
                           name, dfilter_error_msg);
+                prefs.unknown_colorfilters = TRUE;
+
                 skip_end_of_line = TRUE;
                 continue;
             }
@@ -628,7 +629,7 @@ read_users_filters(GSList **cfl)
     gboolean  ret;
 
     /* decide what file to open (from dfilter code) */
-    path = get_persconffile_path("colorfilters", TRUE, FALSE);
+    path = get_persconffile_path("colorfilters", TRUE);
     if ((f = ws_fopen(path, "r")) == NULL) {
         if (errno != ENOENT) {
             simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
@@ -753,7 +754,7 @@ color_filters_write(GSList *cfl)
         return FALSE;
     }
 
-    path = get_persconffile_path("colorfilters", TRUE, TRUE);
+    path = get_persconffile_path("colorfilters", TRUE);
     if ((f = ws_fopen(path, "w+")) == NULL) {
         simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
                       "Could not open\n%s\nfor writing: %s.",

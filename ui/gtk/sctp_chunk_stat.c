@@ -3,8 +3,6 @@
  * Copyright 2005 Oleg Terletsky <oleg.terletsky [AT] comverse.com>
  * Copyright 2009 Varun Notibala <nbvarun [AT] gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,7 @@
 
 #include <epan/packet_info.h>
 #include <epan/epan.h>
+#include <epan/to_str.h>
 #include <epan/value_string.h>
 #include <epan/tap.h>
 #include <epan/dissectors/packet-sctp.h>
@@ -47,9 +46,10 @@
 #include "ui/gtk/tap_param_dlg.h"
 #include "ui/gtk/gui_utils.h"
 #include "ui/gtk/main.h"
-#include "ui/gtk/sctp_stat.h"
+#include "ui/tap-sctp-analysis.h"
+#include "ui/gtk/sctp_stat_gtk.h"
 
-
+void register_tap_listener_sctpstat(void);
 static void sctpstat_init(const char *opt_arg, void *userdata);
 
 static tap_param sctp_stat_params[] = {
@@ -115,7 +115,7 @@ static sctp_ep_t* alloc_sctp_ep(struct _sctp_info *si)
 	if(!si)
 		return NULL;
 
-	if (!(ep = g_malloc(sizeof(sctp_ep_t))))
+	if (!(ep = (sctp_ep_t *)g_malloc(sizeof(sctp_ep_t))))
 		return NULL;
 
 	COPY_ADDRESS(&ep->src,&si->ip_src);
@@ -266,7 +266,7 @@ sctpstat_init(const char *opt_arg, void *userdata _U_)
 	GtkWidget *bbox;
 	GtkWidget *close_bt;
 
-	hs=g_malloc(sizeof(sctpstat_t));
+	hs=(sctpstat_t *)g_malloc(sizeof(sctpstat_t));
 	if(strncmp(opt_arg,"sctp,stat,",10) == 0){
 		hs->filter=g_strdup(opt_arg+10);
 	} else {
@@ -306,7 +306,7 @@ sctpstat_init(const char *opt_arg, void *userdata _U_)
 	bbox = dlg_button_row_new(GTK_STOCK_CLOSE, NULL);
 	gtk_box_pack_end(GTK_BOX(hs->vbox), bbox, FALSE, FALSE, 0);
 
-	close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+	close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
 	window_set_cancel_button(hs->win, close_bt, window_cancel_button_cb);
 
 	g_signal_connect(hs->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
@@ -321,12 +321,6 @@ sctpstat_init(const char *opt_arg, void *userdata _U_)
 void
 register_tap_listener_sctpstat(void)
 {
-	register_dfilter_stat(&sctp_stat_dlg, "S_CTP/Chunk Counter",
-	    REGISTER_STAT_GROUP_TELEPHONY);
+	register_param_stat(&sctp_stat_dlg, "Chunk Counter",
+	    REGISTER_STAT_GROUP_TELEPHONY_SCTP);
 }
-
-void sctp_chunk_counter_cb(GtkAction *action _U_, gpointer user_data _U_)
-{
-	tap_param_dlg_cb(action, &sctp_stat_dlg);
-}
-

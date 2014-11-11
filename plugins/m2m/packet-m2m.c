@@ -5,8 +5,6 @@
  *
  * Author: Lu Pan <lu.pan@intel.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1999 Gerald Combs
@@ -38,6 +36,8 @@
 #include <plugins/wimax/wimax_tlv.h>
 
 /* forward reference */
+void proto_reg_handoff_m2m(void);
+void proto_register_m2m(void);
 static void fch_burst_decoder(proto_tree *tree, tvbuff_t *tvb, gint offset, gint length, packet_info *pinfo);
 static void cdma_code_decoder(proto_tree *tree, tvbuff_t *tvb, gint offset, gint length, packet_info *pinfo);
 static void pdu_burst_decoder(proto_tree *tree, tvbuff_t *tvb, gint offset, gint length, packet_info *pinfo, gint burst_number, gint frag_type, gint frag_number);
@@ -45,7 +45,7 @@ static void fast_feedback_burst_decoder(proto_tree *tree, tvbuff_t *tvb, gint of
 static void harq_ack_bursts_decoder(proto_tree *tree, tvbuff_t *tvb, gint offset, gint length, packet_info *pinfo);
 static void physical_attributes_decoder(proto_tree *tree, tvbuff_t *tvb, gint offset, gint length, packet_info *pinfo);
 static void extended_tlv_decoder(packet_info *pinfo);
-void proto_tree_add_tlv(tlv_info_t *this, tvbuff_t *tvb, guint offset, packet_info *pinfo, proto_tree *tree, gint hf, guint encoding);
+void proto_tree_add_tlv(tlv_info_t *self, tvbuff_t *tvb, guint offset, packet_info *pinfo, proto_tree *tree, gint hf, guint encoding);
 
 /* Global variables */
 static dissector_handle_t wimax_cdma_code_burst_handle;
@@ -55,7 +55,7 @@ static dissector_handle_t wimax_hack_burst_handle;
 static dissector_handle_t wimax_pdu_burst_handle;
 static dissector_handle_t wimax_phy_attributes_burst_handle;
 
-static GHashTable *pdu_frag_table  = NULL;
+static reassembly_table pdu_reassembly_table;
 
 static gint proto_m2m    = -1;
 
@@ -154,11 +154,14 @@ static gint hf_m2m_value_preamble_uint16 = -1;
 static gint hf_m2m_value_harq_ack_burst_bytes = -1;
 static gint hf_m2m_phy_attributes = -1;
 
+static expert_field ei_m2m_unexpected_length = EI_INIT;
+
 /* Register M2M defrag table init routine. */
 static void
 m2m_defragment_init(void)
 {
-	fragment_table_init(&pdu_frag_table);
+	reassembly_table_init(&pdu_reassembly_table,
+	    &addresses_reassembly_table_functions);
 }
 
 
@@ -393,7 +396,7 @@ static void dissect_m2m(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				if (offset - tlv_offset == expected_len) {
 					proto_tree_add_tlv(&m2m_tlv_info, tvb, offset - tlv_offset, pinfo, tlv_tree, hf, encoding);
 				} else {
-					expert_add_info_format(pinfo, NULL, PI_MALFORMED, PI_ERROR, "Expected length %d, got %d.", expected_len, offset - tlv_offset);
+					expert_add_info_format(pinfo, NULL, &ei_m2m_unexpected_length, "Expected length %d, got %d.", expected_len, offset - tlv_offset);
 				}
 			}
 			offset += tlv_len;
@@ -432,7 +435,7 @@ static void cdma_code_decoder(proto_tree *tree, tvbuff_t *tvb, gint offset, gint
 /* Decode and display the PDU Burst */
 static void pdu_burst_decoder(proto_tree *tree, tvbuff_t *tvb, gint offset, gint length, packet_info *pinfo, gint burst_number, gint frag_type, gint frag_number)
 {
-	fragment_data *pdu_frag;
+	fragment_head *pdu_frag;
 	tvbuff_t *pdu_tvb = NULL;
 
 	/* update the info column */
@@ -453,12 +456,12 @@ static void pdu_burst_decoder(proto_tree *tree, tvbuff_t *tvb, gint offset, gint
 		pdu_tvb =  tvb_new_subset(tvb, offset, length, length);
 	}
 	else	/* fragmented PDU */
-	{	/* add the frag */
-		pdu_frag = fragment_add_seq(tvb, offset, pinfo, burst_number, pdu_frag_table, frag_number - 1, length, ((frag_type==TLV_LAST_FRAG)?0:1));
+	{	/* add the fragment */
+		pdu_frag = fragment_add_seq(&pdu_reassembly_table, tvb, offset, pinfo, burst_number, NULL, frag_number - 1, length, ((frag_type==TLV_LAST_FRAG)?0:1), 0);
 		if(pdu_frag && frag_type == TLV_LAST_FRAG)
 		{
-			/* create the new tvb for defraged frame */
-			pdu_tvb = tvb_new_child_real_data(tvb, pdu_frag->data, pdu_frag->len, pdu_frag->len);
+			/* create the new tvb for defragmented frame */
+			pdu_tvb = tvb_new_chain(tvb, pdu_frag->tvb_data);
 			/* add the defragmented data to the data source list */
 			add_new_data_source(pinfo, pdu_tvb, "Reassembled WiMax PDU Frame");
 		}
@@ -530,13 +533,13 @@ static void extended_tlv_decoder(packet_info *pinfo)
 }
 
 /* Display the raw WiMax TLV */
-void proto_tree_add_tlv(tlv_info_t *this, tvbuff_t *tvb, guint offset, packet_info *pinfo, proto_tree *tree, gint hf, guint encoding)
+void proto_tree_add_tlv(tlv_info_t *self, tvbuff_t *tvb, guint offset, packet_info *pinfo, proto_tree *tree, gint hf, guint encoding)
 {
 	guint tlv_offset;
 	gint tlv_type, tlv_len;
 
 	/* make sure the TLV information is valid */
-	if(!this->valid)
+	if(!self->valid)
 	{	/* invalid TLV info */
 		col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL, "Invalid TLV");
 		return;
@@ -546,21 +549,21 @@ void proto_tree_add_tlv(tlv_info_t *this, tvbuff_t *tvb, guint offset, packet_in
 	proto_tree_add_item(tree, hf_m2m_type, tvb, tlv_offset, 1, ENC_BIG_ENDIAN);
 	tlv_offset++;
 	/* check the TLV length type */
-	if( this->length_type )
+	if( self->length_type )
 	{	/* multiple bytes TLV length */
 		/* display the length of the TLV length with MSB */
 		proto_tree_add_item(tree, hf_m2m_len_size, tvb, tlv_offset, 1, ENC_BIG_ENDIAN);
 		tlv_offset++;
-		if(this->size_of_length)
+		if(self->size_of_length)
 			/* display the multiple byte TLV length */
-			proto_tree_add_item(tree, hf_m2m_len, tvb, tlv_offset, this->size_of_length, ENC_BIG_ENDIAN);
+			proto_tree_add_item(tree, hf_m2m_len, tvb, tlv_offset, self->size_of_length, ENC_BIG_ENDIAN);
 		else
 			return;
 	}
 	else	/* display the single byte TLV length */
 		proto_tree_add_item(tree, hf_m2m_len, tvb, tlv_offset, 1, ENC_BIG_ENDIAN);
 
-	tlv_type = get_tlv_type(this);
+	tlv_type = get_tlv_type(self);
 	/* Display Frame Number as special case for filter */
 	if ( tlv_type == TLV_FRAME_NUM )
 	{
@@ -568,8 +571,8 @@ void proto_tree_add_tlv(tlv_info_t *this, tvbuff_t *tvb, guint offset, packet_in
 	}
 
 	/* get the TLV length */
-	tlv_len = get_tlv_length(this);
-	proto_tree_add_item(tree, hf, tvb, (offset + this->value_offset), tlv_len, encoding);
+	tlv_len = get_tlv_length(self);
+	proto_tree_add_item(tree, hf, tvb, (offset + self->value_offset), tlv_len, encoding);
 }
 
 /* Register Wimax Mac to Mac Protocol */
@@ -772,7 +775,13 @@ void proto_register_m2m(void)
 			&ett_m2m_ffb,
 		};
 
-	proto_m2m = proto_register_protocol (
+	static ei_register_info ei[] = {
+		{ &ei_m2m_unexpected_length, { "m2m.unexpected_length", PI_MALFORMED, PI_ERROR, "Unexpected length", EXPFILL }},
+	};
+
+	expert_module_t* expert_m2m;
+
+    proto_m2m = proto_register_protocol (
 		"WiMax Mac to Mac Packet", /* name       */
 		"M2M  (m2m)",              /* short name */
 		"m2m"                      /* abbrev     */
@@ -781,6 +790,8 @@ void proto_register_m2m(void)
 	proto_register_field_array(proto_m2m, hf, array_length(hf));
 	proto_register_field_array(proto_m2m, hf_tlv, array_length(hf_tlv));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_m2m = expert_register_protocol(proto_m2m);
+	expert_register_field_array(expert_m2m, ei, array_length(ei));
 
 	/* Register the PDU fragment table init routine */
 	register_init_routine(m2m_defragment_init);

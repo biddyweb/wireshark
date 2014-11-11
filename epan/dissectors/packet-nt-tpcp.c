@@ -2,8 +2,6 @@
 * Routines for Transparent Proxy Cache Protocol packet disassembly
 * (c) Copyright Giles Scott <giles.scott1 [AT] btinternet.com>
 *
-* $Id$
-*
 * Wireshark - Network traffic analyzer
 * By Gerald Combs <gerald@wireshark.org>
 * Copyright 1998 Gerald Combs
@@ -30,7 +28,10 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/addr_resolv.h> /* this is for get_hostname and get_udp_port */
+#include <epan/addr_resolv.h> /* this is for get_hostname and ep_udp_port_to_display */
+
+void proto_register_tpcp(void);
+void proto_reg_handoff_tpcp(void);
 
 #define UDP_PORT_TPCP   3121
 
@@ -130,11 +131,10 @@ dissect_tpcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	tpcph.cport     = g_ntohs(tpcph.cport);
 	tpcph.signature = g_ntohl(tpcph.signature);
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_fstr(pinfo->cinfo, COL_INFO,"%s id %d CPort %s CIP %s SIP %s",
+	col_add_fstr(pinfo->cinfo, COL_INFO,"%s id %d CPort %s CIP %s SIP %s",
 		val_to_str_const(tpcph.type, type_vals, "Unknown"),
 		tpcph.id,
-		get_udp_port(tpcph.cport),
+		ep_udp_port_to_display(tpcph.cport),
 		ip_to_str((guint8 *)&tpcph.caddr),
 		ip_to_str((guint8 *)&tpcph.saddr));
 
@@ -145,10 +145,7 @@ dissect_tpcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		tpcp_tree = proto_item_add_subtree(ti, ett_tpcp);
 
 		proto_tree_add_uint(tpcp_tree, hf_tpcp_version, tvb, 0, 1, tpcph.version);
-
-		proto_tree_add_uint_format(tpcp_tree, hf_tpcp_type, tvb, 1, 1, tpcph.type,
-			"Type: %s (%d)",
-			val_to_str_const(tpcph.type, type_vals, "Unknown"), tpcph.type);
+		proto_tree_add_uint(tpcp_tree, hf_tpcp_type, tvb, 1, 1, tpcph.type);
 
 		/* flags next , i'll do that when I can work out how to do it :-(   */
 		tf = proto_tree_add_text(tpcp_tree, tvb, 2, 2, "Flags: 0x%04x",tpcph.flags);
@@ -161,8 +158,8 @@ dissect_tpcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 		proto_tree_add_uint(tpcp_tree, hf_tpcp_id, tvb, 4, 2, tpcph.id);
 
-		proto_tree_add_uint_format(tpcp_tree, hf_tpcp_cport, tvb, 6, 2, tpcph.cport,
-			"Client Source port: %s", get_udp_port(tpcph.cport));
+		proto_tree_add_uint_format_value(tpcp_tree, hf_tpcp_cport, tvb, 6, 2, tpcph.cport,
+			"%s", ep_udp_port_to_display(tpcph.cport));
 
 		proto_tree_add_ipv4(tpcp_tree, hf_tpcp_caddr, tvb, 8, 4, tpcph.caddr);
 
@@ -186,7 +183,7 @@ proto_register_tpcp(void)
 		"TPCP version", HFILL }},
 
 		{ &hf_tpcp_type,
-		{ "Type",		"tpcp.type", FT_UINT8, BASE_DEC,NULL, 0x0,
+		{ "Type",		"tpcp.type", FT_UINT8, BASE_DEC, VALS(type_vals), 0x0,
 		"PDU type", HFILL }},
 
 		{ &hf_tpcp_flags_tcp,

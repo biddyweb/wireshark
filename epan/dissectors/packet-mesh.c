@@ -3,8 +3,6 @@
  * Javier Cardona <javier@cozybit.com>
  * Copyright 2007, Marvell Semiconductors Inc.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,8 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+
+void proto_register_mesh(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_mesh = -1;

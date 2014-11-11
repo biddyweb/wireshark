@@ -1,8 +1,6 @@
 /* capture_file_dlg.c
  * Dialog boxes for handling capture files
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,26 +30,26 @@
 
 #include <gtk/gtk.h>
 
-#include <epan/filesystem.h>
+#include <wsutil/filesystem.h>
 #include <epan/addr_resolv.h>
 #include <epan/prefs.h>
 
-#include "packet-range.h"
 #include "globals.h"
 #include "color.h"
 #include "color_filters.h"
-#include "merge.h"
 
-#include "ui/util.h"
 #include <wsutil/file_util.h>
 
+#include <wiretap/merge.h>
+
+#include "ui/util.h"
 #include "ui/alert_box.h"
 #include "ui/file_dialog.h"
 #include "ui/recent.h"
-#include "ui/simple_dialog.h"
 #include "ui/ui_util.h"
 
 #include "ui/gtk/gtkglobals.h"
+#include "ui/gtk/old-gtk-compat.h"
 #include "ui/gtk/keys.h"
 #include "ui/gtk/filter_dlg.h"
 #include "ui/gtk/gui_utils.h"
@@ -59,6 +57,7 @@
 #include "ui/gtk/file_dlg.h"
 #include "ui/gtk/capture_file_dlg.h"
 #include "ui/gtk/drag_and_drop.h"
+#include "ui/gtk/export_pdu_dlg.h"
 #include "ui/gtk/main.h"
 #include "ui/gtk/color_dlg.h"
 #include "ui/gtk/packet_list.h"
@@ -80,11 +79,12 @@
 #endif
 
 static void do_file_save(capture_file *cf, gboolean dont_reopen);
-static void file_save_as_cmd(capture_file *cf, gboolean must_support_comments,
+static void file_save_as_cmd(capture_file *cf,
+                            gboolean must_support_all_comments,
                             gboolean dont_reopen);
 static void file_select_file_type_cb(GtkWidget *w, gpointer data);
 static int set_file_type_list(GtkWidget *combo_box, capture_file *cf,
-                              gboolean must_support_comments);
+                              gboolean must_support_all_comments);
 static gboolean test_file_close(capture_file *cf, gboolean from_quit,
                                 const char *before_what);
 
@@ -138,7 +138,7 @@ preview_set_filename(GtkWidget *prev, const gchar *cf_name)
     return NULL;
   }
 
-  wth = wtap_open_offline(cf_name, &err, &err_info, TRUE);
+  wth = wtap_open_offline(cf_name, WTAP_TYPE_AUTO, &err, &err_info, TRUE);
   if (wth == NULL) {
     label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_FORMAT_KEY);
     if (err == WTAP_ERR_FILE_UNKNOWN_FORMAT) {
@@ -161,7 +161,7 @@ preview_set_filename(GtkWidget *prev, const gchar *cf_name)
   gtk_label_set_text(GTK_LABEL(label), string_buff);
 
   /* type */
-  g_strlcpy(string_buff, wtap_file_type_string(wtap_file_type(wth)), PREVIEW_STR_MAX);
+  g_strlcpy(string_buff, wtap_file_type_subtype_string(wtap_file_type_subtype(wth)), PREVIEW_STR_MAX);
   label = (GtkWidget *)g_object_get_data(G_OBJECT(prev), PREVIEW_FORMAT_KEY);
   gtk_label_set_text(GTK_LABEL(label), string_buff);
 
@@ -194,7 +194,7 @@ preview_do(GtkWidget *prev, wtap *wth)
   time(&time_preview);
   while ( (wtap_read(wth, &err, &err_info, &data_offset)) ) {
     phdr = wtap_phdr(wth);
-    cur_time = wtap_nstime_to_sec(&phdr->ts);
+    cur_time = nstime_to_sec(&phdr->ts);
     if (packets == 0) {
       start_time = cur_time;
       stop_time = cur_time;
@@ -473,11 +473,14 @@ preview_new(void)
 
 /* Open a file */
 static gboolean
-gtk_open_file(GtkWidget *w, GString *file_name, GString *display_filter)
+gtk_open_file(GtkWidget *w, GString *file_name, gint *type, GString *display_filter)
 {
   GtkWidget *file_open_w;
   GtkWidget *main_hb, *main_vb, *filter_hbox, *filter_bt, *filter_te;
   GtkWidget *m_resolv_cb, *n_resolv_cb, *t_resolv_cb, *e_resolv_cb, *prev;
+  GtkWidget *format_type_co;
+  GtkCellRenderer *cell;
+  gint i;
 
   /* No Apply button, and "OK" just sets our text widget, it doesn't
      activate it (i.e., it doesn't cause us to try to open the file). */
@@ -493,6 +496,7 @@ gtk_open_file(GtkWidget *w, GString *file_name, GString *display_filter)
     return FALSE;
 
   file_open_w = file_selection_new("Wireshark: Open Capture File",
+                                   GTK_WINDOW(top_level),
                                    FILE_SELECTION_OPEN);
   /* it's annoying, that the file chooser dialog is already shown here,
      so we cannot use the correct gtk_window_set_default_size() to resize it */
@@ -540,13 +544,28 @@ gtk_open_file(GtkWidget *w, GString *file_name, GString *display_filter)
   gtk_box_pack_start(GTK_BOX(main_hb), main_vb, FALSE, FALSE, 0);
   gtk_widget_show(main_vb);
 
+  format_type_co = gtk_combo_box_text_new();
+  cell = gtk_cell_renderer_text_new();
+  gtk_cell_layout_pack_start(GTK_CELL_LAYOUT(format_type_co), cell, TRUE);
+
+  gtk_widget_set_tooltip_text(format_type_co, "Format type of capture file");
+  gtk_box_pack_start(GTK_BOX(main_vb), format_type_co, FALSE, FALSE, 0);
+
+  gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(format_type_co), (const gchar *) "Automatic");
+  for (i = 0; open_routines[i].name != NULL; i += 1) {
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(format_type_co), open_routines[i].name);
+  }
+
+  gtk_combo_box_set_active(GTK_COMBO_BOX(format_type_co), 0);
+  gtk_widget_show(format_type_co);
+
   /* Filter row */
   filter_hbox = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 1, FALSE);
   gtk_container_set_border_width(GTK_CONTAINER(filter_hbox), 0);
   gtk_box_pack_start(GTK_BOX(main_vb), filter_hbox, FALSE, FALSE, 0);
   gtk_widget_show(filter_hbox);
 
-  filter_bt = gtk_button_new_from_stock(WIRESHARK_STOCK_DISPLAY_FILTER_ENTRY);
+  filter_bt = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_DISPLAY_FILTER_ENTRY);
   g_signal_connect(filter_bt, "clicked",
                    G_CALLBACK(display_filter_construct_cb), &args);
   g_signal_connect(filter_bt, "destroy",
@@ -637,6 +656,8 @@ gtk_open_file(GtkWidget *w, GString *file_name, GString *display_filter)
   else
     gbl_resolv_flags.use_external_net_name_resolver = FALSE;
 
+  *type = gtk_combo_box_get_active((GtkComboBox *) format_type_co);
+
   /* We've crossed the Rubicon; get rid of the file selection box. */
   window_destroy(GTK_WIDGET(file_open_w));
 
@@ -664,15 +685,16 @@ file_open_cmd(capture_file *cf, GtkWidget *w _U_)
   GString   *display_filter = g_string_new("");
   dfilter_t *rfcode         = NULL;
   int        err;
+  int        type = WTAP_TYPE_AUTO;
 
   /*
    * Loop until the user either selects a file or gives up.
    */
   for (;;) {
 #ifdef USE_WIN32_FILE_DIALOGS
-    if (win32_open_file(GDK_WINDOW_HWND(gtk_widget_get_window(top_level)), file_name, display_filter)) {
+    if (win32_open_file(GDK_WINDOW_HWND(gtk_widget_get_window(top_level)), file_name, &type, display_filter)) {
 #else /* USE_WIN32_FILE_DIALOGS */
-    if (gtk_open_file(top_level, file_name, display_filter)) {
+    if (gtk_open_file(top_level, file_name, &type, display_filter)) {
 #endif /* USE_WIN32_FILE_DIALOGS */
 
       /* Only close the old file now that we know we want to open another one. */
@@ -687,8 +709,8 @@ file_open_cmd(capture_file *cf, GtkWidget *w _U_)
         continue;
       }
 
-      /* Try to open the capture file. */
-      if (cf_open(&cfile, file_name->str, FALSE, &err) != CF_OK) {
+      /* Try to open the capture file. This closes the current file if it succeeds. */
+      if (cf_open(&cfile, file_name->str, type, FALSE, &err) != CF_OK) {
         /* We couldn't open it; don't dismiss the open dialog box,
            just leave it around so that the user can, after they
            dismiss the alert box popped up for the open error,
@@ -760,7 +782,8 @@ gtk_merge_file(GtkWidget *w, GString *file_name, GString *display_filter, int *m
   /* Default to saving all packets, in the file's current format. */
 
   file_merge_w = file_selection_new("Wireshark: Merge with Capture File",
-                                   FILE_SELECTION_OPEN);
+                                    GTK_WINDOW(top_level),
+                                    FILE_SELECTION_OPEN);
   /* it's annoying, that the file chooser dialog is already shown here,
      so we cannot use the correct gtk_window_set_default_size() to resize it */
   gtk_widget_set_size_request(file_merge_w, DEF_WIDTH, DEF_HEIGHT);
@@ -813,7 +836,7 @@ gtk_merge_file(GtkWidget *w, GString *file_name, GString *display_filter, int *m
   gtk_box_pack_start(GTK_BOX(main_vb), filter_hbox, FALSE, FALSE, 0);
   gtk_widget_show(filter_hbox);
 
-  filter_bt = gtk_button_new_from_stock(WIRESHARK_STOCK_DISPLAY_FILTER_ENTRY);
+  filter_bt = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_DISPLAY_FILTER_ENTRY);
   g_signal_connect(filter_bt, "clicked",
                    G_CALLBACK(display_filter_construct_cb), &args);
   g_signal_connect(filter_bt, "destroy",
@@ -868,7 +891,7 @@ gtk_merge_file(GtkWidget *w, GString *file_name, GString *display_filter, int *m
   g_object_set_data(G_OBJECT(file_merge_w), E_DFILTER_TE_KEY,
                     g_object_get_data(G_OBJECT(w), E_DFILTER_TE_KEY));
 
-    cf_name = file_selection_run(file_merge_w);
+  cf_name = file_selection_run(file_merge_w);
   if (cf_name == NULL) {
     /* User cancelled or closed the dialog. */
     return FALSE;
@@ -967,8 +990,8 @@ file_merge_cmd(GtkWidget *w _U_)
 
       cf_close(&cfile);
 
-      /* Try to open the merged capture file. */
-      if (cf_open(&cfile, tmpname, TRUE /* temporary file */, &err) != CF_OK) {
+      /* Try to open the merged capture file. This closes the current file if it succeeds. */
+      if (cf_open(&cfile, tmpname, WTAP_TYPE_AUTO, TRUE /* temporary file */, &err) != CF_OK) {
         /* We couldn't open it; fail. */
         if (rfcode != NULL)
           dfilter_free(rfcode);
@@ -1026,12 +1049,12 @@ file_merge_cmd_cb(GtkWidget *widget, gpointer data _U_) {
   gint       response;
 
   if (prefs.gui_ask_unsaved) {
-    if (cfile.is_tempfile || cfile.unsaved_changes) {
-      /* This is a temporary capture file or has unsaved changes; ask the
-         user whether to save the capture. */
+    if (cf_has_unsaved_data(&cfile)) {
+      /* This file has unsaved data; ask the user whether to save the
+         capture. */
       if (cfile.is_tempfile) {
         msg_dialog = gtk_message_dialog_new(GTK_WINDOW(top_level),
-                                            GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,
+                                            (GtkDialogFlags)(GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT),
                                             GTK_MESSAGE_QUESTION,
                                             GTK_BUTTONS_NONE,
                                             "Do you want to save the captured packets before merging another capture file into it?");
@@ -1044,7 +1067,7 @@ file_merge_cmd_cb(GtkWidget *widget, gpointer data _U_) {
          */
         display_basename = g_filename_display_basename(cfile.filename);
         msg_dialog = gtk_message_dialog_new(GTK_WINDOW(top_level),
-                                            GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,
+                                            (GtkDialogFlags)(GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT),
                                             GTK_MESSAGE_QUESTION,
                                             GTK_BUTTONS_NONE,
                                             "Do you want to save the changes you've made "
@@ -1055,18 +1078,16 @@ file_merge_cmd_cb(GtkWidget *widget, gpointer data _U_) {
              "The changes must be saved before the files are merged.");
       }
 
-#ifndef _WIN32
       gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
                             GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
       gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
                             WIRESHARK_STOCK_SAVE, GTK_RESPONSE_ACCEPT);
-#else
-      gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
-                            WIRESHARK_STOCK_SAVE, GTK_RESPONSE_ACCEPT);
-      gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
-                            GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
-#endif
-      gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog), GTK_RESPONSE_ACCEPT);
+      gtk_dialog_set_alternative_button_order(GTK_DIALOG(msg_dialog),
+                                              GTK_RESPONSE_ACCEPT,
+                                              GTK_RESPONSE_CANCEL,
+                                              -1);
+      gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog),
+                                      GTK_RESPONSE_ACCEPT);
 
       response = gtk_dialog_run(GTK_DIALOG(msg_dialog));
       gtk_widget_destroy(msg_dialog);
@@ -1134,13 +1155,12 @@ test_file_close(capture_file *cf, gboolean from_quit, const char *before_what)
     capture_in_progress = FALSE;
 
   if (prefs.gui_ask_unsaved) {
-    if (cf->is_tempfile || capture_in_progress || cf->unsaved_changes) {
-      /* This is a temporary capture file, or there's a capture in
-         progress, or the file has unsaved changes; ask the user whether
-         to save the data. */
+    if (cf_has_unsaved_data(cf) || capture_in_progress) {
+      /* This file has unsaved data or there's a capture in progress;
+         ask the user whether to save the data. */
       if (cf->is_tempfile) {
         msg_dialog = gtk_message_dialog_new(GTK_WINDOW(top_level),
-                                            GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,
+                                            (GtkDialogFlags)(GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT),
                                             GTK_MESSAGE_QUESTION,
                                             GTK_BUTTONS_NONE,
                                             capture_in_progress ?
@@ -1157,14 +1177,14 @@ test_file_close(capture_file *cf, gboolean from_quit, const char *before_what)
         display_basename = g_filename_display_basename(cf->filename);
         if (capture_in_progress) {
           msg_dialog = gtk_message_dialog_new(GTK_WINDOW(top_level),
-                                              GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,
+                                              (GtkDialogFlags)(GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT),
                                               GTK_MESSAGE_QUESTION,
                                               GTK_BUTTONS_NONE,
                                               "Do you want to stop the capture and save the captured packets%s?",
                                               before_what);
         } else {
           msg_dialog = gtk_message_dialog_new(GTK_WINDOW(top_level),
-                                              GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,
+                                              (GtkDialogFlags)(GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT),
                                               GTK_MESSAGE_QUESTION,
                                               GTK_BUTTONS_NONE,
                                               "Do you want to save the changes you've made "
@@ -1178,7 +1198,6 @@ test_file_close(capture_file *cf, gboolean from_quit, const char *before_what)
              "Your changes will be lost if you don't save them.");
       }
 
-#ifndef _WIN32
       /* If this is from a Quit operation, use "quit and don't save"
          rather than just "don't save". */
       gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
@@ -1197,25 +1216,13 @@ test_file_close(capture_file *cf, gboolean from_quit, const char *before_what)
                                 WIRESHARK_STOCK_STOP_SAVE :
                                 WIRESHARK_STOCK_SAVE),
                             GTK_RESPONSE_ACCEPT);
-#else
-      gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
-                            (capture_in_progress ?
-                                WIRESHARK_STOCK_STOP_SAVE :
-                                WIRESHARK_STOCK_SAVE),
-                            GTK_RESPONSE_ACCEPT);
-      gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
-                            GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
-      gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
-                            (from_quit ?
-                                (capture_in_progress ?
-                                    WIRESHARK_STOCK_STOP_QUIT_DONT_SAVE :
-                                    WIRESHARK_STOCK_QUIT_DONT_SAVE) :
-                                (capture_in_progress ?
-                                    WIRESHARK_STOCK_STOP_DONT_SAVE :
-                                    WIRESHARK_STOCK_DONT_SAVE)),
-                            GTK_RESPONSE_REJECT);
-#endif
-      gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog), GTK_RESPONSE_ACCEPT);
+      gtk_dialog_set_alternative_button_order(GTK_DIALOG(msg_dialog),
+                                              GTK_RESPONSE_ACCEPT,
+                                              GTK_RESPONSE_CANCEL,
+                                              GTK_RESPONSE_REJECT,
+                                              -1);
+      gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog),
+                                      GTK_RESPONSE_ACCEPT);
 
       response = gtk_dialog_run(GTK_DIALOG(msg_dialog));
       gtk_widget_destroy(msg_dialog);
@@ -1289,31 +1296,24 @@ file_close_cmd_cb(GtkWidget *widget _U_, gpointer data _U_) {
 static check_savability_t
 check_save_with_comments(capture_file *cf)
 {
+  guint32    comment_types;
   GtkWidget *msg_dialog;
   gint       response;
 
-  /* Do we have any comments? */
-  if (!cf_has_comments(cf)) {
-    /* No.  Let the save happen; no comments to delete. */
+  /* What types of comments do we have? */
+  comment_types = cf_comment_types(cf);
+
+  /* Does the file's format support all the comments we have? */
+  if (wtap_dump_supports_comment_types(cf->cd_t, comment_types)) {
+    /* Yes.  Let the save happen; we can save all the comments, so
+       there's no need to delete them. */
     return SAVE;
   }
 
-  /* OK, we have comments.  Can we write them out in the file's format?
-
-     XXX - for now, we "know" that pcap-ng is the only format for which
-     we support comments.  We should really ask Wiretap what the
-     format in question supports (and handle different types of
-     comments, some but not all of which some file formats might
-     not support). */
-  if (cf->cd_t == WTAP_FILE_PCAPNG) {
-    /* Yes - the file is a pcap-ng file.  Let the save happen; we can
-       save the comments, so no need to delete them. */
-    return SAVE;
-  }
-
-  /* Is pcap-ng one of the formats in which we can write this file? */
-  if (wtap_dump_can_write_encaps(WTAP_FILE_PCAPNG, cf->linktypes)) {
-    /* Yes.  Ooffer the user a choice of "Save in a format that
+  /* No. Are there formats in which we can write this file that
+     supports all the comments in this file? */
+  if (wtap_dump_can_write(cf->linktypes, comment_types)) {
+    /* Yes.  Offer the user a choice of "Save in a format that
        supports comments", "Discard comments and save in the
        file's own format", or "Cancel", meaning "don't bother
        saving the file at all". */
@@ -1325,7 +1325,6 @@ check_save_with_comments(capture_file *cf)
   "doesn't support comments.  Do you want to save the capture "
   "in a format that supports comments, or discard the comments "
   "and save in the file's format?");
-#ifndef _WIN32
     gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
                            "Discard comments and save",
                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
@@ -1334,16 +1333,11 @@ check_save_with_comments(capture_file *cf)
                            "Save in another format",
                            RESPONSE_SAVE_IN_ANOTHER_FORMAT,
                            NULL);
-#else
-    gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
-                           "Save in another format",
-                           RESPONSE_SAVE_IN_ANOTHER_FORMAT,
-                           GTK_STOCK_CANCEL,
-                           GTK_RESPONSE_CANCEL,
-                           "Discard comments and save",
-                           RESPONSE_DISCARD_COMMENTS_AND_SAVE,
-                           NULL);
-#endif
+    gtk_dialog_set_alternative_button_order(GTK_DIALOG(msg_dialog),
+                                            RESPONSE_SAVE_IN_ANOTHER_FORMAT,
+                                            GTK_RESPONSE_CANCEL,
+                                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
+                                            -1);
     gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog),
                                     RESPONSE_SAVE_IN_ANOTHER_FORMAT);
   } else {
@@ -1356,21 +1350,16 @@ check_save_with_comments(capture_file *cf)
   "The capture has comments, but no file format in which it "
   "can be saved supports comments.  Do you want to discard "
   "the comments and save in the file's format?");
-#ifndef _WIN32
-    gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
-                           "Discard comments and save",
-                           RESPONSE_DISCARD_COMMENTS_AND_SAVE,
-                           GTK_STOCK_CANCEL,
-                           GTK_RESPONSE_CANCEL,
-                           NULL);
-#else
     gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
                            GTK_STOCK_CANCEL,
                            GTK_RESPONSE_CANCEL,
                            "Discard comments and save",
                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
                            NULL);
-#endif
+    gtk_dialog_set_alternative_button_order(GTK_DIALOG(msg_dialog),
+                                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
+                                            GTK_RESPONSE_CANCEL,
+                                            -1);
     gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog),
                                     GTK_RESPONSE_CANCEL);
   }
@@ -1465,11 +1454,11 @@ do_file_save(capture_file *cf, gboolean dont_reopen)
       }
 
       /* XXX - cf->filename might get freed out from under us, because
-         the code path through which cf_save_packets() goes currently
+         the code path through which cf_save_records() goes currently
          closes the current file and then opens and reloads the saved file,
          so make a copy and free it later. */
       fname = g_strdup(cf->filename);
-      status = cf_save_packets(cf, fname, cf->cd_t, cf->iscompressed,
+      status = cf_save_records(cf, fname, cf->cd_t, cf->iscompressed,
                                discard_comments, dont_reopen);
       switch (status) {
 
@@ -1511,32 +1500,38 @@ file_save_cmd_cb(GtkWidget *w _U_, gpointer data _U_) {
    Returns the default file type. */
 static int
 set_file_type_list(GtkWidget *combo_box, capture_file *cf,
-                   gboolean must_support_comments)
+                   gboolean must_support_all_comments)
 {
-  GArray *savable_file_types;
+  guint32 required_comment_types;
+  GArray *savable_file_types_subtypes;
   guint   i;
   int     ft;
   int     default_ft = -1;
 
-  savable_file_types = wtap_get_savable_file_types(cf->cd_t, cf->linktypes);
+  /* What types of comments do we have to support? */
+  if (must_support_all_comments)
+    required_comment_types = cf_comment_types(cf); /* all the ones the file has */
+  else
+    required_comment_types = 0; /* none of them */
 
-  if (savable_file_types != NULL) {
+  /* What types of file can we save this file as? */
+  savable_file_types_subtypes = wtap_get_savable_file_types_subtypes(cf->cd_t,
+                                                                     cf->linktypes,
+                                                                     required_comment_types);
+
+  if (savable_file_types_subtypes != NULL) {
     /* OK, we have at least one file type we can save this file as.
        (If we didn't, we shouldn't have gotten here in the first
        place.)  Add them all to the combo box.  */
-    for (i = 0; i < savable_file_types->len; i++) {
-      ft = g_array_index(savable_file_types, int, i);
-      if (must_support_comments) {
-        if (ft != WTAP_FILE_PCAPNG)
-          continue;
-      }
+    for (i = 0; i < savable_file_types_subtypes->len; i++) {
+      ft = g_array_index(savable_file_types_subtypes, int, i);
       if (default_ft == -1)
         default_ft = ft; /* first file type is the default */
       ws_combo_box_append_text_and_pointer(GTK_COMBO_BOX(combo_box),
-                                           wtap_file_type_string(ft),
+                                           wtap_file_type_subtype_string(ft),
                                            GINT_TO_POINTER(ft));
     }
-    g_array_free(savable_file_types, TRUE);
+    g_array_free(savable_file_types_subtypes, TRUE);
   }
 
   return default_ft;
@@ -1572,27 +1567,23 @@ file_select_file_type_cb(GtkWidget *w, gpointer parent_arg)
 static check_savability_t
 gtk_check_save_as_with_comments(GtkWidget *w, capture_file *cf, int file_type)
 {
+  guint32    comment_types;
   GtkWidget *msg_dialog;
   gint       response;
 
-  /* Do we have any comments? */
-  if (!cf_has_comments(cf)) {
-    /* No.  Let the save happen; no comments to delete. */
+  /* What types of comments do we have? */
+  comment_types = cf_comment_types(cf);
+
+  /* Does the file's format support all the comments we have? */
+  if (wtap_dump_supports_comment_types(file_type, comment_types)) {
+    /* Yes.  Let the save happen; we can save all the comments, so
+       there's no need to delete them. */
     return SAVE;
   }
 
-  /* XXX - for now, we "know" that pcap-ng is the only format for which
-     we support comments.  We should really ask Wiretap what the
-     format in question supports (and handle different types of
-     comments, some but not all of which some file formats might
-     not support). */
-  if (file_type == WTAP_FILE_PCAPNG) {
-    /* Yes - they selected pcap-ng.  Let the save happen; we can
-       save the comments, so no need to delete them. */
-    return SAVE;
-  }
-  /* No. Is pcap-ng one of the formats in which we can write this file? */
-  if (wtap_dump_can_write_encaps(WTAP_FILE_PCAPNG, cf->linktypes)) {
+  /* No. Are there formats in which we can write this file that
+     supports all the comments in this file? */
+  if (wtap_dump_can_write(cf->linktypes, comment_types)) {
     /* Yes.  Offer the user a choice of "Save in a format that
        supports comments", "Discard comments and save in the
        format you selected", or "Cancel", meaning "don't bother
@@ -1605,7 +1596,6 @@ gtk_check_save_as_with_comments(GtkWidget *w, capture_file *cf, int file_type)
   "doesn't support comments.  Do you want to save the capture "
   "in a format that supports comments, or discard the comments "
   "and save in the format you chose?");
-#ifndef _WIN32
     gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
                            "Discard comments and save",
                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
@@ -1614,16 +1604,11 @@ gtk_check_save_as_with_comments(GtkWidget *w, capture_file *cf, int file_type)
                            "Save in another format",
                            RESPONSE_SAVE_IN_ANOTHER_FORMAT,
                            NULL);
-#else
-    gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
-                           "Save in another format",
-                           RESPONSE_SAVE_IN_ANOTHER_FORMAT,
-                           GTK_STOCK_CANCEL,
-                           GTK_RESPONSE_CANCEL,
-                           "Discard comments and save",
-                           RESPONSE_DISCARD_COMMENTS_AND_SAVE,
-                           NULL);
-#endif
+    gtk_dialog_set_alternative_button_order(GTK_DIALOG(msg_dialog),
+                                            RESPONSE_SAVE_IN_ANOTHER_FORMAT,
+                                            GTK_RESPONSE_CANCEL,
+                                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
+                                            -1);
     gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog),
                                     RESPONSE_SAVE_IN_ANOTHER_FORMAT);
   } else {
@@ -1636,21 +1621,16 @@ gtk_check_save_as_with_comments(GtkWidget *w, capture_file *cf, int file_type)
   "The capture has comments, but no file format in which it "
   "can be saved supports comments.  Do you want to discard "
   "the comments and save in the format you chose?");
-#ifndef _WIN32
-    gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
-                           "Discard comments and save",
-                           RESPONSE_DISCARD_COMMENTS_AND_SAVE,
-                           GTK_STOCK_CANCEL,
-                           GTK_RESPONSE_CANCEL,
-                           NULL);
-#else
     gtk_dialog_add_buttons(GTK_DIALOG(msg_dialog),
                            GTK_STOCK_CANCEL,
                            GTK_RESPONSE_CANCEL,
                            "Discard comments and save",
                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
                            NULL);
-#endif
+    gtk_dialog_set_alternative_button_order(GTK_DIALOG(msg_dialog),
+                                            RESPONSE_DISCARD_COMMENTS_AND_SAVE,
+                                            GTK_RESPONSE_CANCEL,
+                                            -1);
     gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog),
                                     GTK_RESPONSE_CANCEL);
   }
@@ -1693,7 +1673,7 @@ gtk_check_save_as_with_comments(GtkWidget *w, capture_file *cf, int file_type)
 /* "Save as" */
 static gboolean
 gtk_save_as_file(GtkWidget *w _U_, capture_file *cf, GString *file_name, int *file_type,
-                 gboolean *compressed, gboolean must_support_comments)
+                 gboolean *compressed, gboolean must_support_all_comments)
 {
   GtkWidget *file_save_as_w;
   GtkWidget *main_vb, *ft_hb, *ft_lb, *ft_combo_box, *compressed_cb;
@@ -1708,9 +1688,8 @@ gtk_save_as_file(GtkWidget *w _U_, capture_file *cf, GString *file_name, int *fi
 
   /* build the file selection */
   file_save_as_w = file_selection_new("Wireshark: Save Capture File As",
+                                      GTK_WINDOW(top_level),
                                       FILE_SELECTION_SAVE);
-  gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(file_save_as_w),
-                                                 TRUE);
 
   /* Container for each row of widgets */
 
@@ -1731,7 +1710,7 @@ gtk_save_as_file(GtkWidget *w _U_, capture_file *cf, GString *file_name, int *fi
   ft_combo_box = ws_combo_box_new_text_and_pointer();
 
   /* Generate the list of file types we can save. */
-  default_ft = set_file_type_list(ft_combo_box, cf, must_support_comments);
+  default_ft = set_file_type_list(ft_combo_box, cf, must_support_all_comments);
   gtk_box_pack_start(GTK_BOX(ft_hb), ft_combo_box, FALSE, FALSE, 0);
   gtk_widget_show(ft_combo_box);
   g_object_set_data(G_OBJECT(file_save_as_w), E_FILE_TYPE_COMBO_BOX_KEY, ft_combo_box);
@@ -1841,7 +1820,7 @@ file_add_extension(GString *file_name, int file_type, gboolean compressed) {
  */
 
 static void
-file_save_as_cmd(capture_file *cf, gboolean must_support_comments,
+file_save_as_cmd(capture_file *cf, gboolean must_support_all_comments,
                 gboolean dont_reopen)
 {
   GString  *file_name        = g_string_new("");
@@ -1857,12 +1836,12 @@ file_save_as_cmd(capture_file *cf, gboolean must_support_comments,
   for (;;) {
 #ifdef USE_WIN32_FILE_DIALOGS
     if (win32_save_as_file(GDK_WINDOW_HWND(gtk_widget_get_window(top_level)), cf,
-                           file_name, &file_type, &compressed, must_support_comments)) {
+                           file_name, &file_type, &compressed, must_support_all_comments)) {
       /* They discarded comments, so redraw the packet details window
          to reflect any packets that no longer have comments. */
       packet_list_queue_draw();
 #else /* USE_WIN32_FILE_DIALOGS */
-    if (gtk_save_as_file(top_level, cf, file_name, &file_type, &compressed, must_support_comments)) {
+    if (gtk_save_as_file(top_level, cf, file_name, &file_type, &compressed, must_support_all_comments)) {
 #endif /* USE_WIN32_FILE_DIALOGS */
 
       /* If the file has comments, does the format the user selected
@@ -1895,8 +1874,7 @@ file_save_as_cmd(capture_file *cf, gboolean must_support_comments,
            formats that don't support comments trimmed from it,
            so run the dialog again, to let the user decide
            whether to save in one of those formats or give up. */
-        discard_comments = FALSE;
-        must_support_comments = TRUE;
+        must_support_all_comments = TRUE;
         continue;
 
       case CANCELLED:
@@ -1918,7 +1896,7 @@ file_save_as_cmd(capture_file *cf, gboolean must_support_comments,
 #endif
 
       /* Attempt to save the file */
-      status = cf_save_packets(&cfile, file_name->str, file_type, compressed,
+      status = cf_save_records(&cfile, file_name->str, file_type, compressed,
                              discard_comments, dont_reopen);
       switch (status) {
 
@@ -1972,9 +1950,8 @@ gtk_export_specified_packets_file(GtkWidget *w _U_, GString *file_name, int *fil
 
   /* build the file selection */
   file_export_specified_packets_w = file_selection_new("Wireshark: Export Specified Packets",
+                                                       GTK_WINDOW(top_level),
                                                        FILE_SELECTION_SAVE);
-  gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(file_export_specified_packets_w),
-                                                 TRUE);
 
   /* Container for each row of widgets */
 
@@ -2076,7 +2053,7 @@ file_export_specified_packets_cmd_cb(GtkWidget *w _U_, gpointer data _U_) {
   for (;;) {
 #ifdef USE_WIN32_FILE_DIALOGS
     if (win32_export_specified_packets_file(GDK_WINDOW_HWND(gtk_widget_get_window(top_level)),
-                                            file_name, &file_type, &compressed, &range)) {
+                                            &cfile, file_name, &file_type, &compressed, &range)) {
 #else /* USE_WIN32_FILE_DIALOGS */
     if (gtk_export_specified_packets_file(w, file_name, &file_type, &compressed, &range)) {
 #endif /* USE_WIN32_FILE_DIALOGS */
@@ -2158,6 +2135,75 @@ file_export_specified_packets_cmd_cb(GtkWidget *w _U_, gpointer data _U_) {
 }
 
 
+void
+file_export_pdu_ok_cb(GtkWidget *widget _U_, gpointer data)
+{
+  GtkWidget *msg_dialog;
+  gchar     *display_basename;
+  gint       response;
+
+  if (prefs.gui_ask_unsaved && cf_has_unsaved_data(&cfile)) {
+    if (cfile.is_tempfile) {
+      msg_dialog = gtk_message_dialog_new(GTK_WINDOW(top_level),
+          (GtkDialogFlags)(GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT),
+          GTK_MESSAGE_QUESTION, GTK_BUTTONS_NONE,
+          "Do you want to save the captured packets before exporting PDUs?");
+
+      gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(msg_dialog),
+          "After the export, the captured packets will no longer be accessible.");
+    }
+    else {
+      display_basename = g_filename_display_basename(cfile.filename);
+      msg_dialog = gtk_message_dialog_new(GTK_WINDOW(top_level),
+          (GtkDialogFlags)(GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT),
+          GTK_MESSAGE_QUESTION, GTK_BUTTONS_NONE,
+          "Do you want to save the changes you've made "
+          "to the capture file \"%s\" before exporting PDUs from it?",
+          display_basename);
+      g_free(display_basename);
+      gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(msg_dialog),
+          "Unsaved changes will be discarded when PDUs are exported.");
+    }
+
+    gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
+        WIRESHARK_STOCK_DONT_SAVE, GTK_RESPONSE_CLOSE);
+    gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
+        GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
+    gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
+        WIRESHARK_STOCK_SAVE, GTK_RESPONSE_ACCEPT);
+    gtk_dialog_set_alternative_button_order(GTK_DIALOG(msg_dialog),
+        GTK_RESPONSE_ACCEPT,
+        GTK_RESPONSE_CANCEL,
+        GTK_RESPONSE_CLOSE,
+        -1);
+    gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog), GTK_RESPONSE_ACCEPT);
+
+    response = gtk_dialog_run(GTK_DIALOG(msg_dialog));
+    gtk_widget_destroy(msg_dialog);
+
+    switch (response) {
+      case GTK_RESPONSE_CLOSE:
+        /* nothing to do, user chose to discard the unsaved data */
+        break;
+
+      case GTK_RESPONSE_ACCEPT:
+        /* save the file but don't close it */
+        do_file_save(&cfile, FALSE);
+        break;
+
+      case GTK_RESPONSE_CANCEL:
+      case GTK_RESPONSE_NONE:
+      case GTK_RESPONSE_DELETE_EVENT:
+      default:
+        /* don't do the export. */
+        return;
+    }
+  }
+
+  export_pdu_action(data);
+}
+
+
 /* Reload a file using the current read and display filters */
 void
 file_reload_cmd_cb(GtkWidget *w _U_, gpointer data _U_) {
@@ -2204,6 +2250,7 @@ file_color_import_cmd_cb(GtkWidget *color_filters, gpointer filter_list _U_)
      activate it (i.e., it doesn't cause us to try to open the file). */
 
   file_color_import_w = file_selection_new("Wireshark: Import Color Filters",
+                                           GTK_WINDOW(top_level),
                                            FILE_SELECTION_OPEN);
 
   /* Container for each row of widgets */
@@ -2286,7 +2333,7 @@ void
 file_color_export_cmd_cb(GtkWidget *w _U_, gpointer filter_list)
 {
 #ifdef USE_WIN32_FILE_DIALOGS
-  win32_export_color_file(GDK_WINDOW_HWND(gtk_widget_get_window(top_level)), filter_list);
+  win32_export_color_file(GDK_WINDOW_HWND(gtk_widget_get_window(top_level)), &cfile, filter_list);
 #else /* USE_WIN32_FILE_DIALOGS */
   GtkWidget *file_color_export_w;
   GtkWidget *main_vb, *cfglobal_but;
@@ -2297,9 +2344,8 @@ file_color_export_cmd_cb(GtkWidget *w _U_, gpointer filter_list)
   color_selected   = FALSE;
 
   file_color_export_w = file_selection_new("Wireshark: Export Color Filters",
+                                           GTK_WINDOW(top_level),
                                            FILE_SELECTION_SAVE);
-  gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(file_color_export_w),
-                                                 TRUE);
 
   /* Container for each row of widgets */
   main_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 3, FALSE);
@@ -2343,7 +2389,7 @@ file_color_export_cmd_cb(GtkWidget *w _U_, gpointer filter_list)
 
     /* Write out the filters (all, or only the ones that are currently
        displayed or selected) to the file with the specified name. */
-    if (!color_filters_export(cf_name, filter_list, color_selected)) {
+    if (!color_filters_export(cf_name, (GSList *)filter_list, color_selected)) {
       /* The write failed; don't dismiss the open dialog box,
          just leave it around so that the user can, after they
          dismiss the alert box popped up for the error, try again. */

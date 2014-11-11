@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-credssp.h                                                           */
 /* ../../tools/asn2wrs.py -b -C -p credssp -c ./credssp.cnf -s ./packet-credssp-template -D . -O ../../epan/dissectors CredSSP.asn */
 
@@ -9,8 +9,6 @@
 /* packet-credssp.h
  * Routines for CredSSP (Credential Security Support Provider) packet dissection
  * Graeme Lunt 2011
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -39,7 +37,7 @@
 #line 1 "../../asn1/credssp/packet-credssp-val.h"
 
 /*--- End of included file: packet-credssp-val.h ---*/
-#line 30 "../../asn1/credssp/packet-credssp-template.h"
+#line 28 "../../asn1/credssp/packet-credssp-template.h"
 
 void proto_reg_handoff_credssp(void);
 void proto_register_credssp(void);

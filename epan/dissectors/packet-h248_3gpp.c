@@ -4,8 +4,6 @@
  *
  *  (c) 2006, Luis E. Garcia Ontanon <luis@ontanon.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,9 @@
 #include "config.h"
 
 #include "packet-h248.h"
+
+void proto_register_h248_3gpp(void);
+
 #define PNAME  "H.248 3GPP"
 #define PSNAME "H2483GPP"
 #define PFNAME "h248.3gpp"
@@ -124,7 +125,7 @@ static const h248_pkg_param_t h248_package_3GUP_properties[] = {
 	{ 0x0000, NULL, NULL, NULL }
 };
 
-static const h248_package_t h248_package_3GUP = {
+static h248_package_t h248_package_3GUP = {
 	0x002f,
 	&proto_h248_package_3GUP,
 	&ett_h248_package_3GUP,
@@ -254,7 +255,7 @@ static const h248_pkg_sig_t h248_package_3GCSD_sigs[] = {
 	{ 0, NULL, NULL, NULL,NULL}
 };
 
-static const h248_package_t h248_package_3GCSD = {
+static h248_package_t h248_package_3GCSD = {
 	0x0030,
 	&hf_h248_package_3GCSD,
 	&ett_h248_package_3GCSD,
@@ -294,14 +295,14 @@ static gint ett_h248_3GTFO_codec = -1;
 
 static void dissect_3GTFO_codec_mode(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, int hfid, h248_curr_info_t* cu _U_, void* ignored _U_) {
 	tvbuff_t* sub_tvb = NULL;
-	gint8 class;
+	gint8 appclass;
 	gboolean pc;
 	gint32 tag;
 	asn1_ctx_t asn1_ctx;
 
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
-	get_ber_identifier(tvb, 0, &class, &pc, &tag);
+	get_ber_identifier(tvb, 0, &appclass, &pc, &tag);
 
 	/* XXX: is this enough to guess it? */
 	if (tag==BER_UNI_TAG_OCTETSTRING) {
@@ -319,14 +320,14 @@ static void dissect_3GTFO_codec_mode(proto_tree* tree, tvbuff_t* tvb, packet_inf
 
 static void dissect_3GTFO_codec_list(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, int hfid, h248_curr_info_t* cu _U_, void* ignored _U_) {
 	tvbuff_t* sub_tvb = NULL;
-	gint8 class;
+	gint8 appclass;
 	gboolean pc;
 	gint32 tag;
 	asn1_ctx_t asn1_ctx;
 
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
-	get_ber_identifier(tvb, 0, &class, &pc, &tag);
+	get_ber_identifier(tvb, 0, &appclass, &pc, &tag);
 
 	if (tag==BER_UNI_TAG_OCTETSTRING) {
 		dissect_ber_octet_string(FALSE, &asn1_ctx, tree, tvb, 0, hfid, &sub_tvb );
@@ -412,7 +413,7 @@ static const h248_pkg_evt_t h248_package_3GTFO_evts[] = {
 	{ 0, NULL, NULL, NULL,NULL}
 };
 
-static const h248_package_t h248_package_3GTFO = {
+static h248_package_t h248_package_3GTFO = {
 	0x0031,
 	&hf_h248_package_3GTFO,
 	&ett_h248_package_3GTFO,
@@ -457,7 +458,47 @@ static const h248_package_t h248_package_3GTFO = {
  * ASCI Group call package
  * 3GPP TS 29.232 -- 15.2.10
  */
+/*
+ * 3G Interface Type package
+ * 3GPP TS 29.232 -- 15.2.11
+ */
+static int hf_h248_package_threegint = -1;
+static int hf_h248_package_threegint_ipint = -1;
 
+static int ett_h248_package_threegint = -1;
+
+static const value_string h248_threegint_properties_vals[] = {
+	{0000,  "3G Interface Type"},
+	{0001,  "IP Interface Type"},
+	{0,  NULL}
+};
+
+static const value_string h248_threegint_ipint_vals[] = {
+	{1,  "NboIP (Nb over IP with SIP-I based Nc,)"},
+	{2,  "AoIP (A interface over IP)"},
+	{3,  "MboIP (Mb interface)"},
+	{4,  "ExtSIPI (External SIP-I based network)"},
+	{0,  NULL}
+};
+
+static const h248_pkg_param_t h248_package_threegint_properties[] = {
+	{ 0x0001, &hf_h248_package_threegint_ipint, h248_param_ber_integer, &implicit },
+	{ 0x0000, NULL, NULL, NULL }
+};
+
+static h248_package_t h248_package_threegint = {
+	0x00e3,                                    /* Package ID = threegint */
+	&hf_h248_package_threegint,                /* hf_id */
+	&ett_h248_package_threegint,
+	h248_threegint_properties_vals,
+	NULL,                                      /* signal_names */
+	NULL,                                      /* event_names */
+	NULL,                                      /* stats_names */
+	h248_package_threegint_properties,         /* h248_pkg_param_t */
+	NULL,
+	NULL,
+	NULL
+};
 
 void proto_register_h248_3gpp(void) {
 	static hf_register_info hf[] = {
@@ -565,6 +606,15 @@ void proto_register_h248_3gpp(void) {
 		{ "TFO Status", "h248.package_3GTFO.status.tfostatus",
 			FT_BOOLEAN, BASE_NONE, NULL, 0x0,
 			"reports whether TFO has been established or broken", HFILL }},
+		{ &hf_h248_package_threegint,
+		{ "3G Interface Type", "h248.package_threegint",
+			FT_BYTES, BASE_NONE, NULL, 0,
+			"This package contains a property to specify the used interface type for IP terminations", HFILL }},
+		{ &hf_h248_package_threegint_ipint,
+		{ "IP Interface Type", "h248.package_threegint.ipint",
+			FT_UINT32, BASE_DEC, VALS(h248_threegint_ipint_vals), 0,
+			NULL, HFILL }},
+
 	};
 
 	static gint *ett[] = {
@@ -590,5 +640,6 @@ void proto_register_h248_3gpp(void) {
 	h248_register_package(&h248_package_3GUP,REPLACE_PKG);
 	h248_register_package(&h248_package_3GCSD, REPLACE_PKG);
 	h248_register_package(&h248_package_3GTFO, REPLACE_PKG);
+	h248_register_package(&h248_package_threegint, REPLACE_PKG);
 }
 

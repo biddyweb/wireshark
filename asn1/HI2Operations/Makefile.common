@@ -1,6 +1,3 @@
-# $Id$
-#
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -22,7 +19,8 @@
 
 PROTOCOL_NAME=HI2Operations
 
-ASN_FILE_LIST = HI2Operations_ver11.asn \
+ASN_FILE_LIST = \
+	HI2Operations_ver11.asn \
 	UmtsHI2Operations.asn \
 	TS101909201.asn \
 	PCESP.asn \
@@ -31,7 +29,7 @@ ASN_FILE_LIST = HI2Operations_ver11.asn \
 # The packet-$(PROTOCOL_NAME)-template.h and $(PROTOCOL_NAME).asn
 # files do not exist for all protocols: Please add/remove as required.
 EXTRA_DIST = \
-	Makefile.nmake \
+	$(EXTRA_DIST_COMMON) \
 	$(ASN_FILE_LIST) \
 	packet-$(PROTOCOL_NAME)-template.c \
 	$(PROTOCOL_NAME).cnf
@@ -40,7 +38,7 @@ SRC_FILES = \
 	$(EXTRA_DIST) \
 	$(EXT_ASN_FILE_LIST)
 
-A2W_FLAGS= -b 
+A2W_FLAGS= -b
 
 EXTRA_CNF=
 

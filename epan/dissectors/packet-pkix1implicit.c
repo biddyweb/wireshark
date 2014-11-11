@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-pkix1implicit.c                                                     */
 /* ../../tools/asn2wrs.py -b -p pkix1implicit -c ./pkix1implicit.cnf -s ./packet-pkix1implicit-template -D . -O ../../epan/dissectors PKIX1IMPLICIT93.asn */
 
@@ -8,8 +8,6 @@
 #line 1 "../../asn1/pkix1implicit/packet-pkix1implicit-template.c"
 /* packet-pkix1implicit.c
  * Routines for PKIX1Implitic packet dissection
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -45,6 +43,9 @@
 #define PSNAME "PKIX1IMPLICIT"
 #define PFNAME "pkix1implicit"
 
+void proto_register_pkix1implicit(void);
+void proto_reg_handoff_pkix1implicit(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_pkix1implicit = -1;
 
@@ -67,7 +68,7 @@ static int hf_pkix1implicit_bmpString = -1;       /* BMPString */
 static int hf_pkix1implicit_utf8String = -1;      /* UTF8String */
 
 /*--- End of included file: packet-pkix1implicit-hf.c ---*/
-#line 43 "../../asn1/pkix1implicit/packet-pkix1implicit-template.c"
+#line 44 "../../asn1/pkix1implicit/packet-pkix1implicit-template.c"
 
 /* Initialize the subtree pointers */
 
@@ -81,7 +82,7 @@ static gint ett_pkix1implicit_T_noticeNumbers = -1;
 static gint ett_pkix1implicit_DisplayText = -1;
 
 /*--- End of included file: packet-pkix1implicit-ett.c ---*/
-#line 46 "../../asn1/pkix1implicit/packet-pkix1implicit-template.c"
+#line 47 "../../asn1/pkix1implicit/packet-pkix1implicit-template.c"
 
 
 int
@@ -299,7 +300,7 @@ static void dissect_UserNotice_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, pr
 
 
 /*--- End of included file: packet-pkix1implicit-fn.c ---*/
-#line 62 "../../asn1/pkix1implicit/packet-pkix1implicit-template.c"
+#line 63 "../../asn1/pkix1implicit/packet-pkix1implicit-template.c"
 
 
 /*--- proto_register_pkix1implicit ----------------------------------------------*/
@@ -311,7 +312,7 @@ void proto_register_pkix1implicit(void) {
 /*--- Included file: packet-pkix1implicit-hfarr.c ---*/
 #line 1 "../../asn1/pkix1implicit/packet-pkix1implicit-hfarr.c"
     { &hf_pkix1implicit_Dummy_PDU,
-      { "Dummy", "pkix1implicit.Dummy",
+      { "Dummy", "pkix1implicit.Dummy_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkix1implicit_AuthorityInfoAccessSyntax_PDU,
@@ -319,11 +320,11 @@ void proto_register_pkix1implicit(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_pkix1implicit_UserNotice_PDU,
-      { "UserNotice", "pkix1implicit.UserNotice",
+      { "UserNotice", "pkix1implicit.UserNotice_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkix1implicit_AuthorityInfoAccessSyntax_item,
-      { "AccessDescription", "pkix1implicit.AccessDescription",
+      { "AccessDescription", "pkix1implicit.AccessDescription_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkix1implicit_accessMethod,
@@ -335,7 +336,7 @@ void proto_register_pkix1implicit(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "GeneralName", HFILL }},
     { &hf_pkix1implicit_noticeRef,
-      { "noticeRef", "pkix1implicit.noticeRef",
+      { "noticeRef", "pkix1implicit.noticeRef_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NoticeReference", HFILL }},
     { &hf_pkix1implicit_explicitText,
@@ -372,7 +373,7 @@ void proto_register_pkix1implicit(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-pkix1implicit-hfarr.c ---*/
-#line 70 "../../asn1/pkix1implicit/packet-pkix1implicit-template.c"
+#line 71 "../../asn1/pkix1implicit/packet-pkix1implicit-template.c"
   };
 
   /* List of subtrees */
@@ -388,7 +389,7 @@ void proto_register_pkix1implicit(void) {
     &ett_pkix1implicit_DisplayText,
 
 /*--- End of included file: packet-pkix1implicit-ettarr.c ---*/
-#line 75 "../../asn1/pkix1implicit/packet-pkix1implicit-template.c"
+#line 76 "../../asn1/pkix1implicit/packet-pkix1implicit-template.c"
   };
 
   /* Register protocol */
@@ -444,6 +445,6 @@ void proto_reg_handoff_pkix1implicit(void) {
 
 
 /*--- End of included file: packet-pkix1implicit-dis-tab.c ---*/
-#line 90 "../../asn1/pkix1implicit/packet-pkix1implicit-template.c"
+#line 91 "../../asn1/pkix1implicit/packet-pkix1implicit-template.c"
 }
 

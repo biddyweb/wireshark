@@ -2,8 +2,6 @@
  * Routines to Dissect TLV's for CM-Control Messages
  * Copyright 2010, Guido Reismueller <g.reismueller[AT]avm.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,7 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 
 #define CM_CTRL_MUTE 1
 #define CM_CTRL_MUTE_TIMEOUT 2
@@ -40,6 +39,9 @@
 
 #define US_EVENT_CH_ID 1
 #define US_EVENT_MASK 2
+
+void proto_register_cmctrl_tlv(void);
+void proto_reg_handoff_cmctrl_tlv(void);
 
 static int proto_cmctrl_tlv = -1;
 static int hf_cmctrl_tlv_mute = -1;

@@ -1,7 +1,5 @@
 # CMakeLists.txt
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -25,15 +23,23 @@
 
 set(WSLUA_MODULES
 	${CMAKE_CURRENT_SOURCE_DIR}/wslua/lua_bitop.c
+	${CMAKE_CURRENT_SOURCE_DIR}/wslua/lrexlib.c
+	${CMAKE_CURRENT_SOURCE_DIR}/wslua/lrexlib_glib.c
+	${CMAKE_CURRENT_SOURCE_DIR}/wslua/lrexlib_glib_f.c
+	${CMAKE_CURRENT_SOURCE_DIR}/wslua/wslua_int64.c
 	${CMAKE_CURRENT_SOURCE_DIR}/wslua/wslua_tvb.c
 	${CMAKE_CURRENT_SOURCE_DIR}/wslua/wslua_proto.c
 	${CMAKE_CURRENT_SOURCE_DIR}/wslua/wslua_tree.c
 	${CMAKE_CURRENT_SOURCE_DIR}/wslua/wslua_pinfo.c
 	${CMAKE_CURRENT_SOURCE_DIR}/wslua/wslua_listener.c
 	${CMAKE_CURRENT_SOURCE_DIR}/wslua/wslua_gui.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/wslua/wslua_dir.c
 	${CMAKE_CURRENT_SOURCE_DIR}/wslua/wslua_util.c
 	${CMAKE_CURRENT_SOURCE_DIR}/wslua/wslua_field.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/wslua/wslua_file.c
+	${CMAKE_CURRENT_SOURCE_DIR}/wslua/wslua_struct.c
 	${CMAKE_CURRENT_SOURCE_DIR}/wslua/wslua_dumper.c
+	${CMAKE_CURRENT_SOURCE_DIR}/wslua/wslua_internals.c
 )
 
 set(WSLUA_FILES
@@ -108,6 +114,7 @@ add_custom_target(
      DEPENDS
 	init.lua
 )
+set_target_properties(wsluaauxiliary PROPERTIES FOLDER "Auxiliary")
 
 install(
     FILES

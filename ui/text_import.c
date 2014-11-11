@@ -2,8 +2,6 @@
  * State machine for text import
  * November 2010, Jaap Keuter <jaap.keuter@xs4all.nl>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -71,8 +69,8 @@
  * hexdump line is dropped (including mail forwarding '>'). The offset
  * can be any hex number of four digits or greater.
  *
- * This converter cannot read a single packet greater than 64K. Packet
- * snaplength is automatically set to 64K.
+ * This converter cannot read a single packet greater than 64KiB-1. Packet
+ * snaplength is automatically set to 64KiB-1.
  */
 
 #include "config.h"
@@ -170,6 +168,8 @@ static guint16 hdr_data_chunk_sid  = 0;
 static guint16 hdr_data_chunk_ssn  = 0;
 static guint32 hdr_data_chunk_ppid = 0;
 
+static gboolean has_direction = FALSE;
+static guint32 direction = 0;
 
 /*--- Local data -----------------------------------------------------------------*/
 
@@ -504,7 +504,7 @@ write_current_packet (void)
         /* Write DATA chunk header */
         if (hdr_data_chunk) {
             memcpy(&packet_buf[prefix_index], &HDR_DATA_CHUNK, sizeof(HDR_DATA_CHUNK));
-            prefix_index += (int)sizeof(HDR_DATA_CHUNK);
+            /*prefix_index += (int)sizeof(HDR_DATA_CHUNK);*/
         }
 
         /* Write Ethernet trailer */
@@ -520,17 +520,16 @@ write_current_packet (void)
             struct wtap_pkthdr pkthdr;
             int err;
 
+            memset(&pkthdr, 0, sizeof(struct wtap_pkthdr));
+
+            pkthdr.rec_type = REC_TYPE_PACKET;
             pkthdr.ts.secs = (guint32)ts_sec;
             pkthdr.ts.nsecs = ts_usec * 1000;
             if (ts_fmt == NULL) { ts_usec++; }  /* fake packet counter */
             pkthdr.caplen = pkthdr.len = prefix_length + curr_offset + eth_trailer_length;
             pkthdr.pkt_encap = pcap_link_type;
-            pkthdr.interface_id = 0;
-            pkthdr.presence_flags = 0;
-            pkthdr.opt_comment = NULL;
-            pkthdr.drop_count = 0;
-            pkthdr.pack_flags = 0;
-            pkthdr.presence_flags = WTAP_HAS_CAP_LEN|WTAP_HAS_INTERFACE_ID|WTAP_HAS_TS;
+            pkthdr.pack_flags |= direction;
+            pkthdr.presence_flags = WTAP_HAS_CAP_LEN|WTAP_HAS_INTERFACE_ID|WTAP_HAS_TS|WTAP_HAS_PACK_FLAGS;
 
             wtap_dump(wdh, &pkthdr, packet_buf, &err);
         }
@@ -585,6 +584,38 @@ parse_preamble (void)
     int  i;
 
     /*
+     * Null-terminate the preamble.
+     */
+    packet_preamble[packet_preamble_len] = '\0';
+
+    if (has_direction) {
+        switch (packet_preamble[0]) {
+        case 'i':
+        case 'I':
+            direction = 0x00000001;
+            packet_preamble[0] = ' ';
+            break;
+        case 'o':
+        case 'O':
+            direction = 0x00000002;
+            packet_preamble[0] = ' ';
+            break;
+        default:
+            direction = 0x00000000;
+            break;
+        }
+        i = 0;
+        while (packet_preamble[i] == ' ' ||
+               packet_preamble[i] == '\r' ||
+               packet_preamble[i] == '\t') {
+            i++;
+        }
+        packet_preamble_len -= i;
+        /* Also move the trailing '\0'. */
+        memmove(packet_preamble, packet_preamble + i, packet_preamble_len + 1);
+    }
+
+    /*
      * If no "-t" flag was specified, don't attempt to parse a packet
      * preamble to extract a time stamp.
      */
@@ -599,12 +630,7 @@ parse_preamble (void)
     timecode = timecode_default;
     ts_usec = 0;
 
-    /*
-     * Null-terminate the preamble.
-     */
-    packet_preamble[packet_preamble_len] = '\0';
-
-    /* Ensure preamble has more than two chars before atempting to parse.
+    /* Ensure preamble has more than two chars before attempting to parse.
      * This should cover line breaks etc that get counted.
      */
     if ( strlen(packet_preamble) > 2 ) {
@@ -895,6 +921,8 @@ text_import_setup(text_import_info_t *info)
                   (info->offset_type == OFFSET_OCT) ? 8 :
                   (info->offset_type == OFFSET_DEC) ? 10 :
                   16;
+
+    has_direction = info->has_direction;
 
     if (info->date_timestamp)
     {

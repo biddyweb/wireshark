@@ -5,8 +5,6 @@
  *
  * Author: Lu Pan <lu.pan@intel.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1999 Gerald Combs
@@ -34,6 +32,7 @@
 #include <epan/packet.h>
 #include "crc.h"
 #include "wimax_tlv.h"
+#include "wimax_compact_dlmap_ie_decoder.h"
 
 extern gint proto_wimax;
 
@@ -45,6 +44,8 @@ extern gint proto_wimax;
 #define CID_TYPE_RCID11      1
 #define CID_TYPE_RCID7       2
 #define CID_TYPE_RCID3       3
+
+void proto_register_wimax_compact_dlmap_ie(void);
 
 /* Global Variables */
 guint cid_type = 0;

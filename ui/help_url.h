@@ -1,7 +1,5 @@
 /* help_dlg.h
  *
- * $Id$
- *
  * Some content from gtk/help_dlg.h by Laurent Deniel <laurent.deniel@free.fr>
  *
  * Wireshark - Network traffic analyzer
@@ -55,12 +53,14 @@ typedef enum {
     /* local manual pages */
     LOCALPAGE_MAN_WIRESHARK = 100,
     LOCALPAGE_MAN_WIRESHARK_FILTER,
-    LOCALPAGE_MAN_TSHARK,
-    LOCALPAGE_MAN_RAWSHARK,
+    LOCALPAGE_MAN_CAPINFOS,
     LOCALPAGE_MAN_DUMPCAP,
-    LOCALPAGE_MAN_MERGECAP,
     LOCALPAGE_MAN_EDITCAP,
+    LOCALPAGE_MAN_MERGECAP,
+    LOCALPAGE_MAN_RAWSHARK,
+    LOCALPAGE_MAN_REORDERCAP,
     LOCALPAGE_MAN_TEXT2PCAP,
+    LOCALPAGE_MAN_TSHARK,
 
     /* help pages (textfiles or local HTML User's Guide) */
     HELP_CONTENT = 200,

@@ -2,8 +2,6 @@
  * Routines for DCC Acknowledge Message  dissection
  * Copyright 2004, Darryl Hymel <darryl.hymel[AT]arrisi.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,10 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
+
+void proto_register_docsis_dccack(void);
+void proto_reg_handoff_docsis_dccack(void);
 
 #define DCCACK_KEY_SEQ_NUM 31
 #define DCCACK_HMAC_DIGEST 27
@@ -113,10 +115,10 @@ proto_register_docsis_dccack (void)
   static hf_register_info hf[] = {
     {&hf_docsis_dccack_tran_id ,
       {
-      "Transaction ID", 
+      "Transaction ID",
       "docsis_dccack.tran_id",
       FT_UINT16, BASE_DEC, NULL, 0x0,
-      NULL, 
+      NULL,
       HFILL
       }
     },

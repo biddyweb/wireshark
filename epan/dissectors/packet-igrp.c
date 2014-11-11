@@ -6,8 +6,6 @@
  *
  *	http://www.cisco.com/en/US/tech/tk365/technologies_white_paper09186a00800c8ae1.shtml
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,7 +32,11 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <epan/ipproto.h>
+
+void proto_register_igrp(void);
+void proto_reg_handoff_igrp(void);
 
 #define IGRP_HEADER_LENGTH 12
 #define IGRP_ENTRY_LENGTH 14
@@ -65,17 +67,15 @@ static void dissect_igrp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   ver_and_opcode = tvb_get_guint8(tvb,0);
 
 
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    switch (ver_and_opcode) {
-    case 0x11:
+  switch (ver_and_opcode) {
+  case 0x11:
 	col_set_str(pinfo->cinfo, COL_INFO, "Response" );
 	break;
-    case 0x12:
-    	col_set_str(pinfo->cinfo, COL_INFO, "Request" );
-        break;
-    default:
-        col_set_str(pinfo->cinfo, COL_INFO, "Unknown version or opcode");
-    }
+  case 0x12:
+	col_set_str(pinfo->cinfo, COL_INFO, "Request" );
+	break;
+  default:
+	col_set_str(pinfo->cinfo, COL_INFO, "Unknown version or opcode");
   }
 
 
@@ -101,7 +101,7 @@ static void dissect_igrp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     /* this is a ugly hack to find the first byte of the IP source address */
     if (pinfo->net_src.type == AT_IPv4) {
-      ipsrc = pinfo->net_src.data;
+      ipsrc = (const guint8 *)pinfo->net_src.data;
       network = ipsrc[0];
     } else
       network = 0; /* XXX - shouldn't happen */

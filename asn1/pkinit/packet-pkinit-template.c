@@ -2,8 +2,6 @@
  * Routines for PKINIT packet dissection
  *  Ronnie Sahlberg 2004
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,6 +36,9 @@
 #define PNAME  "PKINIT"
 #define PSNAME "PKInit"
 #define PFNAME "pkinit"
+
+void proto_register_pkinit(void);
+void proto_reg_handoff_pkinit(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_pkinit = -1;

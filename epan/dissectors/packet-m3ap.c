@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-m3ap.c                                                              */
 /* ../../tools/asn2wrs.py -p m3ap -c ./m3ap.cnf -s ./packet-m3ap-template -D . -O ../../epan/dissectors M3AP-CommonDataTypes.asn M3AP-Constants.asn M3AP-Containers.asn M3AP-IEs.asn M3AP-PDU-Contents.asn M3AP-PDU-Descriptions.asn */
 
@@ -8,8 +8,6 @@
 #line 1 "../../asn1/m3ap/packet-m3ap-template.c"
 /* packet-m3ap.c
  * Routines for M3 Application Protocol packet dissection
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -37,7 +35,6 @@
 #include <glib.h>
 #include <epan/packet.h>
 
-#include <epan/emem.h>
 #include <epan/strutil.h>
 #include <epan/asn1.h>
 #include <epan/sctpppids.h>
@@ -51,6 +48,9 @@
 #define PNAME  "M3 Application Protocol"
 #define PSNAME "M3AP"
 #define PFNAME "m3ap"
+
+void proto_register_m3ap(void);
+void proto_reg_handoff_m3ap(void);
 
 /* M3AP uses port 36444 as recommended by IANA. */
 #define M3AP_PORT 36444
@@ -160,7 +160,6 @@ static int hf_m3ap_ProtocolIE_Container_item = -1;  /* ProtocolIE_Field */
 static int hf_m3ap_id = -1;                       /* ProtocolIE_ID */
 static int hf_m3ap_criticality = -1;              /* Criticality */
 static int hf_m3ap_ie_field_value = -1;           /* T_ie_field_value */
-static int hf_m3ap_ProtocolIE_ContainerList_item = -1;  /* ProtocolIE_Container */
 static int hf_m3ap_ProtocolExtensionContainer_item = -1;  /* ProtocolExtensionField */
 static int hf_m3ap_ext_id = -1;                   /* ProtocolIE_ID */
 static int hf_m3ap_extensionValue = -1;           /* T_extensionValue */
@@ -224,7 +223,6 @@ static int ett_m3ap = -1;
 static gint ett_m3ap_PrivateIE_ID = -1;
 static gint ett_m3ap_ProtocolIE_Container = -1;
 static gint ett_m3ap_ProtocolIE_Field = -1;
-static gint ett_m3ap_ProtocolIE_ContainerList = -1;
 static gint ett_m3ap_ProtocolExtensionContainer = -1;
 static gint ett_m3ap_ProtocolExtensionField = -1;
 static gint ett_m3ap_PrivateIE_Container = -1;
@@ -279,7 +277,7 @@ enum{
 /* Global variables */
 static guint32 ProcedureCode;
 static guint32 ProtocolIE_ID;
-static guint32 ProtocolExtensionID;
+/*static guint32 ProtocolExtensionID; */
 static int global_m3ap_port = M3AP_PORT;
 static guint32 message_type;
 
@@ -496,28 +494,6 @@ dissect_m3ap_ProtocolIE_Single_Container(tvbuff_t *tvb _U_, int offset _U_, asn1
 }
 
 
-static const per_sequence_t ProtocolIE_ContainerList_sequence_of[1] = {
-  { &hf_m3ap_ProtocolIE_ContainerList_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_m3ap_ProtocolIE_Container },
-};
-
-static int
-dissect_m3ap_ProtocolIE_ContainerList(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 91 "../../asn1/m3ap/m3ap.cnf"
-  static const asn1_par_def_t ProtocolIE_ContainerList_pars[] = {
-    { "lowerBound", ASN1_PAR_INTEGER },
-    { "upperBound", ASN1_PAR_INTEGER },
-    { NULL, 0 }
-  };
-  asn1_stack_frame_check(actx, "ProtocolIE-ContainerList", ProtocolIE_ContainerList_pars);
-
-  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
-                                                  ett_m3ap_ProtocolIE_ContainerList, ProtocolIE_ContainerList_sequence_of,
-                                                  asn1_param_get_integer(actx,"lowerBound"), asn1_param_get_integer(actx,"upperBound"), FALSE);
-
-  return offset;
-}
-
-
 
 static int
 dissect_m3ap_T_extensionValue(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
@@ -605,7 +581,7 @@ dissect_m3ap_Absolute_Time_ofMBMS_Data(tvbuff_t *tvb _U_, int offset _U_, asn1_c
   gint tvb_len;
 
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     64, 64, FALSE, &parameter_tvb);
+                                     64, 64, FALSE, &parameter_tvb, NULL);
 
 
   if (!parameter_tvb)
@@ -692,7 +668,7 @@ dissect_m3ap_AllocationAndRetentionPriority(tvbuff_t *tvb _U_, int offset _U_, a
 static int
 dissect_m3ap_BitRate(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_integer_64b(tvb, offset, actx, tree, hf_index,
-                                                            0U, G_GINT64_CONSTANT(10000000000U), NULL, FALSE);
+                                                            0U, G_GUINT64_CONSTANT(10000000000), NULL, FALSE);
 
   return offset;
 }
@@ -980,7 +956,7 @@ dissect_m3ap_IPAddress(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, 
     return offset;
 
   tvb_len = tvb_length(parameter_tvb);
-  proto_tree_add_item(tree, hf_m3ap_IPAddress, parameter_tvb, 0, tvb_len, ENC_BIG_ENDIAN);
+  proto_tree_add_item(tree, hf_m3ap_IPAddress, parameter_tvb, 0, tvb_len, ENC_NA);
 
 
   return offset;
@@ -1662,6 +1638,9 @@ dissect_m3ap_UnsuccessfulOutcome_value(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 
 
 
+
+
+
   offset = dissect_per_open_type_pdu_new(tvb, offset, actx, tree, hf_index, dissect_UnsuccessfulOutcomeValue);
 
   return offset;
@@ -2059,8 +2038,7 @@ dissect_m3ap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   proto_tree      *m3ap_tree = NULL;
 
   /* make entry in the Protocol column on summary display */
-  if (check_col(pinfo->cinfo, COL_PROTOCOL))
-    col_set_str(pinfo->cinfo, COL_PROTOCOL, PNAME);
+  col_set_str(pinfo->cinfo, COL_PROTOCOL, PNAME);
 
   /* create the m3ap protocol tree */
   if (tree) {
@@ -2094,7 +2072,7 @@ void proto_register_m3ap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_AllocationAndRetentionPriority_PDU,
-      { "AllocationAndRetentionPriority", "m3ap.AllocationAndRetentionPriority",
+      { "AllocationAndRetentionPriority", "m3ap.AllocationAndRetentionPriority_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_Cause_PDU,
@@ -2102,19 +2080,19 @@ void proto_register_m3ap(void) {
         FT_UINT32, BASE_DEC, VALS(m3ap_Cause_vals), 0,
         NULL, HFILL }},
     { &hf_m3ap_CriticalityDiagnostics_PDU,
-      { "CriticalityDiagnostics", "m3ap.CriticalityDiagnostics",
+      { "CriticalityDiagnostics", "m3ap.CriticalityDiagnostics_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_Global_MCE_ID_PDU,
-      { "Global-MCE-ID", "m3ap.Global_MCE_ID",
+      { "Global-MCE-ID", "m3ap.Global_MCE_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MBMS_E_RAB_QoS_Parameters_PDU,
-      { "MBMS-E-RAB-QoS-Parameters", "m3ap.MBMS_E_RAB_QoS_Parameters",
+      { "MBMS-E-RAB-QoS-Parameters", "m3ap.MBMS_E_RAB_QoS_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MBMS_Service_associatedLogicalM3_ConnectionItem_PDU,
-      { "MBMS-Service-associatedLogicalM3-ConnectionItem", "m3ap.MBMS_Service_associatedLogicalM3_ConnectionItem",
+      { "MBMS-Service-associatedLogicalM3-ConnectionItem", "m3ap.MBMS_Service_associatedLogicalM3_ConnectionItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MBMS_Service_Area_PDU,
@@ -2150,51 +2128,51 @@ void proto_register_m3ap(void) {
         FT_UINT32, BASE_DEC, VALS(m3ap_TimeToWait_vals), 0,
         NULL, HFILL }},
     { &hf_m3ap_TMGI_PDU,
-      { "TMGI", "m3ap.TMGI",
+      { "TMGI", "m3ap.TMGI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_TNL_Information_PDU,
-      { "TNL-Information", "m3ap.TNL_Information",
+      { "TNL-Information", "m3ap.TNL_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MBMSSessionStartRequest_PDU,
-      { "MBMSSessionStartRequest", "m3ap.MBMSSessionStartRequest",
+      { "MBMSSessionStartRequest", "m3ap.MBMSSessionStartRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MBMSSessionStartResponse_PDU,
-      { "MBMSSessionStartResponse", "m3ap.MBMSSessionStartResponse",
+      { "MBMSSessionStartResponse", "m3ap.MBMSSessionStartResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MBMSSessionStartFailure_PDU,
-      { "MBMSSessionStartFailure", "m3ap.MBMSSessionStartFailure",
+      { "MBMSSessionStartFailure", "m3ap.MBMSSessionStartFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MBMSSessionStopRequest_PDU,
-      { "MBMSSessionStopRequest", "m3ap.MBMSSessionStopRequest",
+      { "MBMSSessionStopRequest", "m3ap.MBMSSessionStopRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MBMSSessionStopResponse_PDU,
-      { "MBMSSessionStopResponse", "m3ap.MBMSSessionStopResponse",
+      { "MBMSSessionStopResponse", "m3ap.MBMSSessionStopResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MBMSSessionUpdateRequest_PDU,
-      { "MBMSSessionUpdateRequest", "m3ap.MBMSSessionUpdateRequest",
+      { "MBMSSessionUpdateRequest", "m3ap.MBMSSessionUpdateRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MBMSSessionUpdateResponse_PDU,
-      { "MBMSSessionUpdateResponse", "m3ap.MBMSSessionUpdateResponse",
+      { "MBMSSessionUpdateResponse", "m3ap.MBMSSessionUpdateResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MBMSSessionUpdateFailure_PDU,
-      { "MBMSSessionUpdateFailure", "m3ap.MBMSSessionUpdateFailure",
+      { "MBMSSessionUpdateFailure", "m3ap.MBMSSessionUpdateFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_ErrorIndication_PDU,
-      { "ErrorIndication", "m3ap.ErrorIndication",
+      { "ErrorIndication", "m3ap.ErrorIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_Reset_PDU,
-      { "Reset", "m3ap.Reset",
+      { "Reset", "m3ap.Reset_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_ResetType_PDU,
@@ -2202,7 +2180,7 @@ void proto_register_m3ap(void) {
         FT_UINT32, BASE_DEC, VALS(m3ap_ResetType_vals), 0,
         NULL, HFILL }},
     { &hf_m3ap_ResetAcknowledge_PDU,
-      { "ResetAcknowledge", "m3ap.ResetAcknowledge",
+      { "ResetAcknowledge", "m3ap.ResetAcknowledge_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MBMS_Service_associatedLogicalM3_ConnectionListResAck_PDU,
@@ -2210,11 +2188,11 @@ void proto_register_m3ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_PrivateMessage_PDU,
-      { "PrivateMessage", "m3ap.PrivateMessage",
+      { "PrivateMessage", "m3ap.PrivateMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_M3SetupRequest_PDU,
-      { "M3SetupRequest", "m3ap.M3SetupRequest",
+      { "M3SetupRequest", "m3ap.M3SetupRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MBMSServiceAreaListItem_PDU,
@@ -2222,23 +2200,23 @@ void proto_register_m3ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_M3SetupResponse_PDU,
-      { "M3SetupResponse", "m3ap.M3SetupResponse",
+      { "M3SetupResponse", "m3ap.M3SetupResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_M3SetupFailure_PDU,
-      { "M3SetupFailure", "m3ap.M3SetupFailure",
+      { "M3SetupFailure", "m3ap.M3SetupFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MCEConfigurationUpdate_PDU,
-      { "MCEConfigurationUpdate", "m3ap.MCEConfigurationUpdate",
+      { "MCEConfigurationUpdate", "m3ap.MCEConfigurationUpdate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MCEConfigurationUpdateAcknowledge_PDU,
-      { "MCEConfigurationUpdateAcknowledge", "m3ap.MCEConfigurationUpdateAcknowledge",
+      { "MCEConfigurationUpdateAcknowledge", "m3ap.MCEConfigurationUpdateAcknowledge_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MCEConfigurationUpdateFailure_PDU,
-      { "MCEConfigurationUpdateFailure", "m3ap.MCEConfigurationUpdateFailure",
+      { "MCEConfigurationUpdateFailure", "m3ap.MCEConfigurationUpdateFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_M3AP_PDU_PDU,
@@ -2254,7 +2232,7 @@ void proto_register_m3ap(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_m3ap_ProtocolIE_Container_item,
-      { "ProtocolIE-Field", "m3ap.ProtocolIE_Field",
+      { "ProtocolIE-Field", "m3ap.ProtocolIE_Field_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_id,
@@ -2266,15 +2244,11 @@ void proto_register_m3ap(void) {
         FT_UINT32, BASE_DEC, VALS(m3ap_Criticality_vals), 0,
         NULL, HFILL }},
     { &hf_m3ap_ie_field_value,
-      { "value", "m3ap.value",
+      { "value", "m3ap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_ie_field_value", HFILL }},
-    { &hf_m3ap_ProtocolIE_ContainerList_item,
-      { "ProtocolIE-Container", "m3ap.ProtocolIE_Container",
-        FT_UINT32, BASE_DEC, NULL, 0,
-        NULL, HFILL }},
     { &hf_m3ap_ProtocolExtensionContainer_item,
-      { "ProtocolExtensionField", "m3ap.ProtocolExtensionField",
+      { "ProtocolExtensionField", "m3ap.ProtocolExtensionField_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_ext_id,
@@ -2282,11 +2256,11 @@ void proto_register_m3ap(void) {
         FT_UINT32, BASE_DEC|BASE_EXT_STRING, &m3ap_ProtocolIE_ID_vals_ext, 0,
         "ProtocolIE_ID", HFILL }},
     { &hf_m3ap_extensionValue,
-      { "extensionValue", "m3ap.extensionValue",
+      { "extensionValue", "m3ap.extensionValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_PrivateIE_Container_item,
-      { "PrivateIE-Field", "m3ap.PrivateIE_Field",
+      { "PrivateIE-Field", "m3ap.PrivateIE_Field_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_private_id,
@@ -2294,7 +2268,7 @@ void proto_register_m3ap(void) {
         FT_UINT32, BASE_DEC, VALS(m3ap_PrivateIE_ID_vals), 0,
         "PrivateIE_ID", HFILL }},
     { &hf_m3ap_private_value,
-      { "value", "m3ap.value",
+      { "value", "m3ap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_private_value", HFILL }},
     { &hf_m3ap_priorityLevel,
@@ -2350,7 +2324,7 @@ void proto_register_m3ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "CriticalityDiagnostics_IE_List", HFILL }},
     { &hf_m3ap_CriticalityDiagnostics_IE_List_item,
-      { "CriticalityDiagnostics-IE-List item", "m3ap.CriticalityDiagnostics_IE_List_item",
+      { "CriticalityDiagnostics-IE-List item", "m3ap.CriticalityDiagnostics_IE_List_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_iECriticality,
@@ -2390,7 +2364,7 @@ void proto_register_m3ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_gbrQosInformation,
-      { "gbrQosInformation", "m3ap.gbrQosInformation",
+      { "gbrQosInformation", "m3ap.gbrQosInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GBR_QosInformation", HFILL }},
     { &hf_m3ap_mME_MBMS_M3AP_ID,
@@ -2434,11 +2408,11 @@ void proto_register_m3ap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "MBMS_Service_associatedLogicalM3_ConnectionListRes", HFILL }},
     { &hf_m3ap_MBMS_Service_associatedLogicalM3_ConnectionListRes_item,
-      { "ProtocolIE-Single-Container", "m3ap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "m3ap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_MBMS_Service_associatedLogicalM3_ConnectionListResAck_item,
-      { "ProtocolIE-Single-Container", "m3ap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "m3ap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_privateIEs,
@@ -2450,32 +2424,32 @@ void proto_register_m3ap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_initiatingMessage,
-      { "initiatingMessage", "m3ap.initiatingMessage",
+      { "initiatingMessage", "m3ap.initiatingMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_successfulOutcome,
-      { "successfulOutcome", "m3ap.successfulOutcome",
+      { "successfulOutcome", "m3ap.successfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_unsuccessfulOutcome,
-      { "unsuccessfulOutcome", "m3ap.unsuccessfulOutcome",
+      { "unsuccessfulOutcome", "m3ap.unsuccessfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_m3ap_initiatingMessagevalue,
-      { "value", "m3ap.value",
+      { "value", "m3ap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "InitiatingMessage_value", HFILL }},
     { &hf_m3ap_successfulOutcome_value,
-      { "value", "m3ap.value",
+      { "value", "m3ap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SuccessfulOutcome_value", HFILL }},
     { &hf_m3ap_unsuccessfulOutcome_value,
-      { "value", "m3ap.value",
+      { "value", "m3ap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UnsuccessfulOutcome_value", HFILL }},
 
 /*--- End of included file: packet-m3ap-hfarr.c ---*/
-#line 155 "../../asn1/m3ap/packet-m3ap-template.c"
+#line 154 "../../asn1/m3ap/packet-m3ap-template.c"
   };
 
   /* List of subtrees */
@@ -2487,7 +2461,6 @@ void proto_register_m3ap(void) {
     &ett_m3ap_PrivateIE_ID,
     &ett_m3ap_ProtocolIE_Container,
     &ett_m3ap_ProtocolIE_Field,
-    &ett_m3ap_ProtocolIE_ContainerList,
     &ett_m3ap_ProtocolExtensionContainer,
     &ett_m3ap_ProtocolExtensionField,
     &ett_m3ap_PrivateIE_Container,
@@ -2531,7 +2504,7 @@ void proto_register_m3ap(void) {
     &ett_m3ap_UnsuccessfulOutcome,
 
 /*--- End of included file: packet-m3ap-ettarr.c ---*/
-#line 161 "../../asn1/m3ap/packet-m3ap-template.c"
+#line 160 "../../asn1/m3ap/packet-m3ap-template.c"
   };
 
 
@@ -2546,7 +2519,7 @@ void proto_register_m3ap(void) {
   m3ap_extension_dissector_table = register_dissector_table("m3ap.extension", "M3AP-PROTOCOL-EXTENSION", FT_UINT32, BASE_DEC);
   m3ap_proc_imsg_dissector_table = register_dissector_table("m3ap.proc.imsg", "M3AP-ELEMENTARY-PROCEDURE InitiatingMessage", FT_UINT32, BASE_DEC);
   m3ap_proc_sout_dissector_table = register_dissector_table("m3ap.proc.sout", "M3AP-ELEMENTARY-PROCEDURE SuccessfulOutcome", FT_UINT32, BASE_DEC);
-  m3ap_proc_uout_dissector_table = register_dissector_table("m3ap.proc.uout", "M3AP-ELEMENTARY-PROCEDURE UnsuccessfulOutcome", FT_UINT32, BASE_DEC); 
+  m3ap_proc_uout_dissector_table = register_dissector_table("m3ap.proc.uout", "M3AP-ELEMENTARY-PROCEDURE UnsuccessfulOutcome", FT_UINT32, BASE_DEC);
 }
 
 
@@ -2606,7 +2579,7 @@ proto_reg_handoff_m3ap(void)
 
 
 /*--- End of included file: packet-m3ap-dis-tab.c ---*/
-#line 191 "../../asn1/m3ap/packet-m3ap-template.c"
+#line 190 "../../asn1/m3ap/packet-m3ap-template.c"
     dissector_add_uint("m3ap.extension", 17, new_create_dissector_handle(dissect_AllocationAndRetentionPriority_PDU, proto_m3ap));
   }
   else {

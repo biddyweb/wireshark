@@ -1,8 +1,6 @@
 /* prefs_gui.h
  * Definitions for GUI preferences window
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -54,11 +52,5 @@ extern void gui_prefs_apply(GtkWidget *widget);
  * @param widget widget from gui_prefs_show()
  */
 void gui_prefs_destroy(GtkWidget *widget);
-
-/** Build a User interface font preferences page.
- *
- * @return the new preferences page
- */
-extern GtkWidget *gui_font_prefs_show(void);
 
 #endif

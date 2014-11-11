@@ -1,8 +1,6 @@
 /* airpcap_utils.h
  * Declarations of utility routines for the "Airpcap" dialog widgets
  *
- * $Id$
- *
  * Giorgio Tino <giorgio.tino@cacetech.com>
  * Copyright (c) CACE Technologies, LLC 2006
  *
@@ -45,8 +43,6 @@
 #define AIRPCAP_DECRYPTION_TYPE_STRING_WIRESHARK "Wireshark"
 #define AIRPCAP_DECRYPTION_TYPE_STRING_AIRPCAP   "Driver"
 #define AIRPCAP_DECRYPTION_TYPE_STRING_NONE      "None"
-
-#define NO_ROW_SELECTED -1
 
 /* Key list columns */
 enum {

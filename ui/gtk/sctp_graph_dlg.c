@@ -2,8 +2,6 @@
  * Copyright 2004, Irene Ruengeler <i.ruengeler [AT] fh-muenster.de>
  * Copyright 2009, Varun Notibala <nbvarun [AT] gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -24,13 +22,15 @@
  */
 
 #include "config.h"
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <math.h>
 #include <string.h>
 
 #include <gtk/gtk.h>
 
-#include "epan/filesystem.h"
+#include "wsutil/filesystem.h"
 #include <epan/strutil.h>
 
 #include "../globals.h"
@@ -39,9 +39,11 @@
 
 #include "ui/gtk/dlg_utils.h"
 #include "ui/gtk/main.h"
-#include "ui/gtk/sctp_stat.h"
+#include "ui/tap-sctp-analysis.h"
+#include "ui/gtk/sctp_stat_gtk.h"
 #include "ui/gtk/gui_utils.h"
 #include "ui/gtk/old-gtk-compat.h"
+#include "ui/gtk/stock_icons.h"
 
 #define DEFAULT_PIXELS_PER_TICK 2
 #define MAX_PIXELS_PER_TICK     4
@@ -133,7 +135,8 @@ static guint32 max_tsn=0, min_tsn=0;
 static void sctp_graph_set_title(struct sctp_udata *u_data);
 static void create_draw_area(GtkWidget *box, struct sctp_udata *u_data);
 static GtkWidget *zoomout_bt;
-#if defined(_WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__) && (_MSC_VER < 1800)
+/* Starting VS2013, rint already defined in math.h. No need to redefine */
 static int rint (double );	/* compiler template for Windows */
 #endif
 
@@ -534,6 +537,8 @@ draw_tsn_graph(struct sctp_udata *u_data)
 	guint32 min_secs=0, diff;
 	gint xvalue, yvalue;
 	cairo_t *cr = NULL;
+	GdkRGBA black_color  =  {0.0, 0.0, 0.0, 1.0};
+	GdkRGBA pink_color  =  {1.0, 0.6, 0.8, 1.0};
 
 	if (u_data->dir == 1)
 	{
@@ -571,7 +576,7 @@ draw_tsn_graph(struct sctp_udata *u_data)
 		while (tlist)
 		{
 			type = ((struct chunk_header *)tlist->data)->type;
-			if (type == SCTP_DATA_CHUNK_ID)
+			if (type == SCTP_DATA_CHUNK_ID || type == SCTP_FORWARD_TSN_CHUNK_ID)
 				tsnumber = g_ntohl(((struct data_chunk_header *)tlist->data)->tsn);
 			if (tsnumber >= min_tsn && tsnumber <= max_tsn && tsn->secs >= min_secs)
 			{
@@ -591,6 +596,10 @@ draw_tsn_graph(struct sctp_udata *u_data)
 #else
 					cr = gdk_cairo_create (u_data->io->pixmap);
 #endif
+					if (type == SCTP_DATA_CHUNK_ID)
+						gdk_cairo_set_source_rgba (cr, &black_color);
+					else
+						gdk_cairo_set_source_rgba (cr, &pink_color);
 					cairo_arc(cr,
 					          xvalue,
 					          yvalue,
@@ -1099,7 +1108,7 @@ sctp_graph_redraw(struct sctp_udata *u_data)
 static void
 on_sack_bt(GtkWidget *widget _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 
 	u_data->io->graph_type=2;
 	sctp_graph_redraw(u_data);
@@ -1108,7 +1117,7 @@ on_sack_bt(GtkWidget *widget _U_, gpointer user_data)
 static void
 on_tsn_bt(GtkWidget *widget _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 
 	u_data->io->graph_type=1;
 	sctp_graph_redraw(u_data);
@@ -1117,7 +1126,7 @@ on_tsn_bt(GtkWidget *widget _U_, gpointer user_data)
 static void
 on_both_bt(GtkWidget *widget _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 
 	u_data->io->graph_type=0;
 	sctp_graph_redraw(u_data);
@@ -1126,7 +1135,7 @@ on_both_bt(GtkWidget *widget _U_, gpointer user_data)
 static void
 sctp_graph_close_cb(GtkWidget* widget _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 
 	gtk_grab_remove(GTK_WIDGET(u_data->io->window));
 	gtk_widget_destroy(GTK_WIDGET(u_data->io->window));
@@ -1136,7 +1145,7 @@ sctp_graph_close_cb(GtkWidget* widget _U_, gpointer user_data)
 static gboolean
 configure_event(GtkWidget *widget, GdkEventConfigure *event _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 	GtkAllocation widget_alloc;
 	cairo_t *cr;
 
@@ -1185,7 +1194,7 @@ configure_event(GtkWidget *widget, GdkEventConfigure *event _U_, gpointer user_d
 static gboolean
 draw_event(GtkWidget *widget, cairo_t *cr, gpointer user_data)
 {
-	sctp_graph_t *ios = user_data;
+	sctp_graph_t *ios = (sctp_graph_t *)user_data;
 	GtkAllocation allocation;
 
 	gtk_widget_get_allocation (widget, &allocation);
@@ -1199,7 +1208,7 @@ draw_event(GtkWidget *widget, cairo_t *cr, gpointer user_data)
 static gboolean
 expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer user_data)
 {
-	sctp_graph_t *ios = user_data;
+	sctp_graph_t *ios = (sctp_graph_t *)user_data;
 	cairo_t *cr;
 
 	g_assert(ios != NULL);
@@ -1223,12 +1232,12 @@ expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer user_data)
 static void
 on_zoomin_bt (GtkWidget *widget _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 	sctp_min_max_t *tmp_minmax;
 
 	if (u_data->io->rectangle_present==TRUE)
 	{
-		tmp_minmax = g_malloc(sizeof(sctp_min_max_t));
+		tmp_minmax = (sctp_min_max_t *)g_malloc(sizeof(sctp_min_max_t));
 
 		u_data->io->tmp_min_tsn1=u_data->io->y1_tmp+u_data->io->min_y;
 		u_data->io->tmp_max_tsn1=u_data->io->y2_tmp+1+u_data->io->min_y;
@@ -1261,7 +1270,7 @@ zoomin_bt_fcn (struct sctp_udata *u_data)
 {
 	sctp_min_max_t *tmp_minmax;
 
-	tmp_minmax = g_malloc(sizeof(sctp_min_max_t));
+	tmp_minmax = (sctp_min_max_t *)g_malloc(sizeof(sctp_min_max_t));
 
 	u_data->io->tmp_min_tsn1=u_data->io->y1_tmp+u_data->io->min_y;
 	u_data->io->tmp_max_tsn1=u_data->io->y2_tmp+1+u_data->io->min_y;
@@ -1290,7 +1299,7 @@ zoomin_bt_fcn (struct sctp_udata *u_data)
 static void
 on_zoomout_bt (GtkWidget *widget _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 	sctp_min_max_t *tmp_minmax, *mm;
 	gint l;
 
@@ -1347,7 +1356,7 @@ on_zoomout_bt (GtkWidget *widget _U_, gpointer user_data)
 static gboolean
 on_button_press_event (GtkWidget *widget _U_, GdkEventButton *event, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 	sctp_graph_t *ios;
 	cairo_t *cr;
 
@@ -1400,7 +1409,7 @@ on_button_press_event (GtkWidget *widget _U_, GdkEventButton *event, gpointer us
 static gboolean
 on_button_release_event (GtkWidget *widget _U_, GdkEventButton *event, gpointer user_data)
 {
-	struct sctp_udata *u_data = user_data;
+	struct sctp_udata *u_data = (struct sctp_udata *)user_data;
 	sctp_graph_t *ios;
 	guint32 helpx, helpy, x1_tmp, x2_tmp,  y_value, t_size=0, s_size=0, i, y_tolerance;
 	gint label_width, label_height;
@@ -1550,7 +1559,7 @@ on_button_release_event (GtkWidget *widget _U_, GdkEventButton *event, gpointer 
 			for (i=0; i<s_size; i++)
 			{
 				sack = (struct tsn_sort*)(g_ptr_array_index(sacklist, i));
-				if ((guint32)abs(sack->tsnumber - y_value)<y_tolerance)
+				if ((guint32)(sack->tsnumber - y_value)<y_tolerance)
 				{
 					s_diff = fabs((sack->secs+sack->usecs/1000000.0)- x_value);
 					if (s_diff < x_tolerance)
@@ -1562,7 +1571,7 @@ on_button_release_event (GtkWidget *widget _U_, GdkEventButton *event, gpointer 
 			for (i=0; i<t_size; i++)
 			{
 				tsn = (struct tsn_sort*)(g_ptr_array_index(tsnlist, i));
-				if ((guint32)abs(tsn->tsnumber - y_value)<y_tolerance)
+				if ((guint32)(tsn->tsnumber - y_value)<y_tolerance)
 				{
 					t_diff = fabs((tsn->secs+tsn->usecs/1000000.0)- x_value);
 					if (sack_found && s_diff < t_diff)
@@ -1714,7 +1723,7 @@ init_sctp_graph_window(struct sctp_udata *u_data)
 	gtk_widget_set_tooltip_text(zoomout_bt, "Zoom out one step");
 	gtk_widget_set_sensitive(zoomout_bt, FALSE);
 
-	bt_close = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
+	bt_close = ws_gtk_button_new_from_stock(GTK_STOCK_CLOSE);
 	gtk_box_pack_start(GTK_BOX(hbox), bt_close, FALSE, FALSE, 0);
 	gtk_widget_show(bt_close);
 	g_signal_connect(bt_close, "clicked", G_CALLBACK(sctp_graph_close_cb), u_data);
@@ -1750,7 +1759,7 @@ gtk_sctpgraph_init(struct sctp_udata *u_data)
 	sctp_graph_t *io;
 	sctp_min_max_t* tmp_minmax;
 
-	io=g_malloc(sizeof(sctp_graph_t));
+	io=(sctp_graph_t *)g_malloc(sizeof(sctp_graph_t));
 	io->needs_redraw=TRUE;
 	io->x_interval=1000;
 	io->window=NULL;
@@ -1774,7 +1783,7 @@ gtk_sctpgraph_init(struct sctp_udata *u_data)
 	u_data->io->tmp_max_tsn2=u_data->assoc->max_tsn2;
 	u_data->io->tmp=FALSE;
 
-	tmp_minmax = g_malloc(sizeof(sctp_min_max_t));
+	tmp_minmax = (sctp_min_max_t *)g_malloc(sizeof(sctp_min_max_t));
 	tmp_minmax->tmp_min_secs = u_data->assoc->min_secs;
 	tmp_minmax->tmp_min_usecs=u_data->assoc->min_usecs;
 	tmp_minmax->tmp_max_secs=u_data->assoc->max_secs;
@@ -1795,7 +1804,7 @@ gtk_sctpgraph_init(struct sctp_udata *u_data)
 static void
 quit(GObject *object _U_, gpointer user_data)
 {
-	struct sctp_udata *u_data=user_data;
+	struct sctp_udata *u_data=(struct sctp_udata *)user_data;
 
 	decrease_childcount(u_data->parent);
 	remove_child(u_data, u_data->parent);
@@ -1836,7 +1845,7 @@ create_graph(guint16 dir, struct sctp_analyse* userdata)
 {
 	struct sctp_udata *u_data;
 
-	u_data=g_malloc(sizeof(struct sctp_udata));
+	u_data=(struct sctp_udata *)g_malloc(sizeof(struct sctp_udata));
 	u_data->assoc=userdata->assoc;
 	u_data->io=NULL;
 	u_data->dir = dir;
@@ -1851,7 +1860,8 @@ create_graph(guint16 dir, struct sctp_analyse* userdata)
 	}
 }
 
-#if defined(_WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__) && (_MSC_VER < 1800)
+/* Starting VS2013, rint already defined in math.h. No need to redefine */
 /* replacement of Unix rint() for Windows */
 static int
 rint (double x)

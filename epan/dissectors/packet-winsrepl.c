@@ -5,8 +5,6 @@
  *
  * Copyright 2005 Stefan Metzmacher <metze@samba.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,15 +29,20 @@
 #include <time.h>
 #include <glib.h>
 #include <ctype.h>
+
 #include <epan/packet.h>
-#include <epan/strutil.h>
+#include <epan/exceptions.h>
 #include <epan/prefs.h>
 #include <epan/tap.h>
+#include <epan/to_str.h>
 
 #include "packet-windows-common.h"
 #include "packet-netbios.h"
 
 #include "packet-tcp.h"
+
+void proto_register_winsrepl(void);
+void proto_reg_handoff_winsrepl(void);
 
 static gboolean winsrepl_reassemble = TRUE;
 
@@ -566,7 +569,7 @@ dissect_winsrepl_replication(tvbuff_t *winsrepl_tvb, packet_info *pinfo,
 	}
 
 	/* REPLIICATION_CMD */
-	command = tvb_get_ntohl(winsrepl_tvb, winsrepl_offset);
+	command = (enum wrepl_replication_cmd)tvb_get_ntohl(winsrepl_tvb, winsrepl_offset);
 	proto_tree_add_uint(repl_tree, hf_winsrepl_replication_command, winsrepl_tvb, winsrepl_offset, 4, command);
 	winsrepl_offset += 4;
 
@@ -632,21 +635,19 @@ dissect_winsrepl_replication(tvbuff_t *winsrepl_tvb, packet_info *pinfo,
 	return winsrepl_offset;
 }
 
-static void
-dissect_winsrepl_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_winsrepl_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data _U_)
 {
 	int offset = 0;
-	proto_item *winsrepl_item = NULL;
-	proto_tree *winsrepl_tree = NULL;
+	proto_item *winsrepl_item;
+	proto_tree *winsrepl_tree;
 	enum wrepl_mess_type mess_type;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "WINS-Replication");
 	col_clear(pinfo->cinfo, COL_INFO);
 
-	if (parent_tree) {
-		winsrepl_item = proto_tree_add_item(parent_tree, proto_winsrepl, tvb, offset, -1, ENC_NA);
-		winsrepl_tree = proto_item_add_subtree(winsrepl_item, ett_winsrepl);
-	}
+	winsrepl_item = proto_tree_add_item(parent_tree, proto_winsrepl, tvb, offset, -1, ENC_NA);
+	winsrepl_tree = proto_item_add_subtree(winsrepl_item, ett_winsrepl);
 
 	/* SIZE */
 	proto_tree_add_item(winsrepl_tree, hf_winsrepl_size, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -661,7 +662,7 @@ dissect_winsrepl_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	offset += 4;
 
 	/* MESSAGE_TYPE */
-	mess_type = tvb_get_ntohl(tvb, offset);
+	mess_type = (enum wrepl_mess_type)tvb_get_ntohl(tvb, offset);
 	proto_tree_add_uint(winsrepl_tree, hf_winsrepl_mess_type, tvb, offset, 4, mess_type);
 	offset += 4;
 
@@ -690,7 +691,7 @@ dissect_winsrepl_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			break;
 	}
 
-	return;
+	return tvb_length(tvb);
 }
 
 static guint
@@ -702,10 +703,11 @@ get_winsrepl_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
     return pdu_len+4;
 }
 
-static void
-dissect_winsrepl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_winsrepl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data)
 {
-	tcp_dissect_pdus(tvb, pinfo, parent_tree, winsrepl_reassemble, 4, get_winsrepl_pdu_len, dissect_winsrepl_pdu);
+	tcp_dissect_pdus(tvb, pinfo, parent_tree, winsrepl_reassemble, 4, get_winsrepl_pdu_len, dissect_winsrepl_pdu, data);
+	return tvb_length(tvb);
 }
 
 void
@@ -887,6 +889,6 @@ proto_reg_handoff_winsrepl(void)
 {
 	dissector_handle_t winsrepl_handle;
 
-	winsrepl_handle = create_dissector_handle(dissect_winsrepl, proto_winsrepl);
+	winsrepl_handle = new_create_dissector_handle(dissect_winsrepl, proto_winsrepl);
 	dissector_add_uint("tcp.port", glb_winsrepl_tcp_port, winsrepl_handle);
 }

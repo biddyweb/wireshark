@@ -2,8 +2,6 @@
  * Routines for UMTS Node B Application Part(NBAP) packet dissection
  * Copyright 2005, 2009 Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,7 @@
 #include <epan/packet.h>
 #include <epan/sctpppids.h>
 #include <epan/asn1.h>
+#include <epan/wmem/wmem.h>
 #include <epan/conversation.h>
 #include <epan/expert.h>
 #include <epan/prefs.h>
@@ -72,8 +71,11 @@
 #define nbap_debug4(str,p1,p2,p3,p4)
 #endif
 
+void proto_register_nbap(void);
+void proto_reg_handoff_nbap(void);
+
 /* Global variables */
-dissector_handle_t fp_handle;
+static dissector_handle_t fp_handle;
 static guint32	transportLayerAddress_ipv4;
 static guint16	BindingID_port;
 static guint32	com_context_id;
@@ -97,6 +99,10 @@ static int ett_nbap_ib_sg_data = -1;
 
 #include "packet-nbap-ett.c"
 
+static expert_field ei_nbap_no_find_comm_context_id = EI_INIT;
+static expert_field ei_nbap_no_find_port_info = EI_INIT;
+static expert_field ei_nbap_no_set_comm_context_id = EI_INIT;
+static expert_field ei_nbap_hsdsch_entity_not_specified = EI_INIT;
 
 extern int proto_fp;
 
@@ -125,7 +131,7 @@ typedef struct
 
 }nbap_dch_channel_info_t;
 
-nbap_dch_channel_info_t nbap_dch_chnl_info[maxNrOfDCHs];
+nbap_dch_channel_info_t nbap_dch_chnl_info[256];
 
 /* Struct to collect E-DCH data in a packet
  * As the address data comes before the ddi entries
@@ -311,7 +317,7 @@ static int dissect_SuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, pro
 static int dissect_UnsuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *);
 
 /*Easy way to add hsdhsch binds for corner cases*/
-static void add_hsdsch_bind(packet_info * pinfo, proto_tree * tree);
+static void add_hsdsch_bind(packet_info * pinfo);
 
 #include "packet-nbap-fn.c"
 
@@ -328,21 +334,21 @@ static int dissect_ProtocolExtensionFieldExtensionValue(tvbuff_t *tvb, packet_in
 static int dissect_InitiatingMessageValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
   if (!ProcedureID) return 0;
-  return (dissector_try_string(nbap_proc_imsg_dissector_table, ProcedureID, tvb, pinfo, tree)) ? tvb_length(tvb) : 0;
+  return (dissector_try_string(nbap_proc_imsg_dissector_table, ProcedureID, tvb, pinfo, tree, NULL)) ? tvb_length(tvb) : 0;
 }
 
 static int dissect_SuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
   if (!ProcedureID) return 0;
-  return (dissector_try_string(nbap_proc_sout_dissector_table, ProcedureID, tvb, pinfo, tree)) ? tvb_length(tvb) : 0;
+  return (dissector_try_string(nbap_proc_sout_dissector_table, ProcedureID, tvb, pinfo, tree, NULL)) ? tvb_length(tvb) : 0;
 }
 
 static int dissect_UnsuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
   if (!ProcedureID) return 0;
-  return (dissector_try_string(nbap_proc_uout_dissector_table, ProcedureID, tvb, pinfo, tree)) ? tvb_length(tvb) : 0;
+  return (dissector_try_string(nbap_proc_uout_dissector_table, ProcedureID, tvb, pinfo, tree, NULL)) ? tvb_length(tvb) : 0;
 }
-static void add_hsdsch_bind(packet_info *pinfo, proto_tree * tree){
+static void add_hsdsch_bind(packet_info *pinfo){
 	address 	null_addr;
 	conversation_t *conversation = NULL;
 	umts_fp_conversation_info_t *umts_fp_conversation_info;
@@ -371,7 +377,7 @@ static void add_hsdsch_bind(packet_info *pinfo, proto_tree * tree){
 				conversation_set_dissector(conversation, fp_handle);
 
 				if(pinfo->link_dir==P2P_DIR_DL){
-					umts_fp_conversation_info = se_new0(umts_fp_conversation_info_t);
+					umts_fp_conversation_info = wmem_new0(wmem_file_scope(), umts_fp_conversation_info_t);
 					/* Fill in the HSDSCH relevant data */
 
 					umts_fp_conversation_info->iface_type        = IuB_Interface;
@@ -392,9 +398,9 @@ static void add_hsdsch_bind(packet_info *pinfo, proto_tree * tree){
 					/*XXX: Is this craziness, what is physical_layer? */
 					if(nbap_hsdsch_channel_info[i].entity == entity_not_specified ){
 						/*Error*/
-						expert_add_info_format(pinfo, tree, PI_MALFORMED,PI_ERROR, "HSDSCH Entity not specified!");
+						expert_add_info(pinfo, NULL, &ei_nbap_hsdsch_entity_not_specified);
 					}else{
-						umts_fp_conversation_info->hsdsch_entity = nbap_hsdsch_channel_info[i].entity;
+						umts_fp_conversation_info->hsdsch_entity = (enum fp_hsdsch_entity)nbap_hsdsch_channel_info[i].entity;
 					}
 					umts_fp_conversation_info->rlc_mode = nbap_hsdsch_channel_info[i].rlc_mode;
 					set_umts_fp_conv_data(conversation, umts_fp_conversation_info);
@@ -421,9 +427,9 @@ static void nbap_init(void){
 	if(com_context_map){
 		g_tree_destroy(com_context_map);
 	}
-/*	if(edch_flow_port_map){
+	if(edch_flow_port_map){
 		g_tree_destroy(edch_flow_port_map);
-	}*/
+	}
 	/*Initialize*/
 	com_context_map = g_tree_new_full(nbap_key_cmp,
                        NULL,      /* data pointer, optional */
@@ -494,11 +500,22 @@ void proto_register_nbap(void)
 	#include "packet-nbap-ettarr.c"
 	};
 
+	static ei_register_info ei[] = {
+		{ &ei_nbap_no_set_comm_context_id, { "nbap.no_set_comm_context_id", PI_MALFORMED, PI_WARN, "Couldn't not set Communication Context-ID, fragments over reconfigured channels might fail", EXPFILL }},
+		{ &ei_nbap_no_find_comm_context_id, { "nbap.no_find_comm_context_id", PI_MALFORMED, PI_WARN, "Couldn't not find Communication Context-ID, unable to reconfigure this E-DCH flow.", EXPFILL }},
+		{ &ei_nbap_no_find_port_info, { "nbap.no_find_port_info", PI_MALFORMED, PI_WARN, "Couldn't not find port information for reconfigured E-DCH flow, unable to reconfigure", EXPFILL }},
+		{ &ei_nbap_hsdsch_entity_not_specified, { "nbap.hsdsch_entity_not_specified", PI_MALFORMED,PI_ERROR, "HSDSCH Entity not specified!", EXPFILL }},
+	};
+
+	expert_module_t* expert_nbap;
+
 	/* Register protocol */
 	proto_nbap = proto_register_protocol(PNAME, PSNAME, PFNAME);
 	/* Register fields and subtrees */
 	proto_register_field_array(proto_nbap, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_nbap = expert_register_protocol(proto_nbap);
+	expert_register_field_array(expert_nbap, ei, array_length(ei));
 
 	/* Register dissector */
 	register_dissector("nbap", dissect_nbap, proto_nbap);

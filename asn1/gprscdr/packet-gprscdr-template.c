@@ -1,8 +1,6 @@
 /* packet-gprscdr-template.c
  * Copyright 2011 , Anders Broman <anders.broman [AT] ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,6 +35,8 @@
 #define PNAME  "GPRS CDR"
 #define PSNAME "GPRSCDR"
 #define PFNAME "gprscdr"
+
+void proto_register_gprscdr(void);
 
 /* Define the GPRS CDR proto */
 static int proto_gprscdr = -1;

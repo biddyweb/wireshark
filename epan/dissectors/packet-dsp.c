@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-dsp.c                                                               */
 /* ../../tools/asn2wrs.py -b -p dsp -c ./dsp.cnf -s ./packet-dsp-template -D . -O ../../epan/dissectors dsp.asn */
 
@@ -9,8 +9,6 @@
 /* packet-dsp.c
  * Routines for X.518 (X.500 Distributed Operations)  packet dissection
  * Graeme Lunt 2005
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -55,6 +53,9 @@
 #define PSNAME "DSP"
 #define PFNAME "dsp"
 
+void proto_register_dsp(void);
+void proto_reg_handoff_dsp(void);
+
 static guint global_dsp_tcp_port = 102;
 static dissector_handle_t tpkt_handle;
 static void prefs_register_dsp(void); /* forward declaration for use in preferences registration */
@@ -62,8 +63,6 @@ static void prefs_register_dsp(void); /* forward declaration for use in preferen
 
 /* Initialize the protocol and registered fields */
 static int proto_dsp = -1;
-
-static struct SESSION_DATA_STRUCTURE* session = NULL;
 
 
 /*--- Included file: packet-dsp-hf.c ---*/
@@ -207,7 +206,7 @@ static int hf_dsp_signed = -1;                    /* BOOLEAN */
 static int hf_dsp_other = -1;                     /* EXTERNAL */
 
 /*--- End of included file: packet-dsp-hf.c ---*/
-#line 61 "../../asn1/dsp/packet-dsp-template.c"
+#line 60 "../../asn1/dsp/packet-dsp-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_dsp = -1;
@@ -287,7 +286,7 @@ static gint ett_dsp_AuthenticationLevel = -1;
 static gint ett_dsp_T_basicLevels = -1;
 
 /*--- End of included file: packet-dsp-ett.c ---*/
-#line 65 "../../asn1/dsp/packet-dsp-template.c"
+#line 64 "../../asn1/dsp/packet-dsp-template.c"
 
 
 /*--- Included file: packet-dsp-fn.c ---*/
@@ -644,12 +643,6 @@ dissect_dsp_T_signedChainedReadArgument(gboolean implicit_tag _U_, tvbuff_t *tvb
 }
 
 
-static const value_string dsp_ChainedReadArgument_vals[] = {
-  {   0, "unsignedChainedReadArgument" },
-  {   1, "signedChainedReadArgument" },
-  { 0, NULL }
-};
-
 static const ber_choice_t ChainedReadArgument_choice[] = {
   {   0, &hf_dsp_unsignedChainedReadArgument, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedReadArgumentData },
   {   1, &hf_dsp_signedChainedReadArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dsp_T_signedChainedReadArgument },
@@ -837,12 +830,6 @@ dissect_dsp_T_signedChainedReadResult(gboolean implicit_tag _U_, tvbuff_t *tvb _
 }
 
 
-static const value_string dsp_ChainedReadResult_vals[] = {
-  {   0, "unsignedChainedReadResult" },
-  {   1, "signedChainedReadResult" },
-  { 0, NULL }
-};
-
 static const ber_choice_t ChainedReadResult_choice[] = {
   {   0, &hf_dsp_unsignedChainedReadResult, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedReadResultData },
   {   1, &hf_dsp_signedChainedReadResult, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dsp_T_signedChainedReadResult },
@@ -890,12 +877,6 @@ dissect_dsp_T_signedChainedCompareArgument(gboolean implicit_tag _U_, tvbuff_t *
 }
 
 
-static const value_string dsp_ChainedCompareArgument_vals[] = {
-  {   0, "unsignedChainedCompareArgument" },
-  {   1, "signedChainedCompareArgument" },
-  { 0, NULL }
-};
-
 static const ber_choice_t ChainedCompareArgument_choice[] = {
   {   0, &hf_dsp_unsignedChainedCompareArgument, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedCompareArgumentData },
   {   1, &hf_dsp_signedChainedCompareArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dsp_T_signedChainedCompareArgument },
@@ -942,12 +923,6 @@ dissect_dsp_T_signedChainedCompareResult(gboolean implicit_tag _U_, tvbuff_t *tv
   return offset;
 }
 
-
-static const value_string dsp_ChainedCompareResult_vals[] = {
-  {   0, "unsignedChainedCompareResult" },
-  {   1, "signedChainedCompareResult" },
-  { 0, NULL }
-};
 
 static const ber_choice_t ChainedCompareResult_choice[] = {
   {   0, &hf_dsp_unsignedChainedCompareResult, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedCompareResultData },
@@ -1014,12 +989,6 @@ dissect_dsp_T_signedChainedListArgument(gboolean implicit_tag _U_, tvbuff_t *tvb
 }
 
 
-static const value_string dsp_ChainedListArgument_vals[] = {
-  {   0, "unsignedChainedListArgument" },
-  {   1, "signedChainedListArgument" },
-  { 0, NULL }
-};
-
 static const ber_choice_t ChainedListArgument_choice[] = {
   {   0, &hf_dsp_unsignedChainedListArgument, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedListArgumentData },
   {   1, &hf_dsp_signedChainedListArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dsp_T_signedChainedListArgument },
@@ -1066,12 +1035,6 @@ dissect_dsp_T_signedChainedListResult(gboolean implicit_tag _U_, tvbuff_t *tvb _
   return offset;
 }
 
-
-static const value_string dsp_ChainedListResult_vals[] = {
-  {   0, "unsignedChainedListResult" },
-  {   1, "signedChainedListResult" },
-  { 0, NULL }
-};
 
 static const ber_choice_t ChainedListResult_choice[] = {
   {   0, &hf_dsp_unsignedChainedListResult, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedListResultData },
@@ -1120,12 +1083,6 @@ dissect_dsp_T_signedChainedSearchArgument(gboolean implicit_tag _U_, tvbuff_t *t
 }
 
 
-static const value_string dsp_ChainedSearchArgument_vals[] = {
-  {   0, "unsignedChainedSearchArgument" },
-  {   1, "signedChainedSearchArgument" },
-  { 0, NULL }
-};
-
 static const ber_choice_t ChainedSearchArgument_choice[] = {
   {   0, &hf_dsp_unsignedChainedSearchArgument, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedSearchArgumentData },
   {   1, &hf_dsp_signedChainedSearchArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dsp_T_signedChainedSearchArgument },
@@ -1172,12 +1129,6 @@ dissect_dsp_T_signedChainedSearchResult(gboolean implicit_tag _U_, tvbuff_t *tvb
   return offset;
 }
 
-
-static const value_string dsp_ChainedSearchResult_vals[] = {
-  {   0, "unsignedChainedSearchResult" },
-  {   1, "signedChainedSearchResult" },
-  { 0, NULL }
-};
 
 static const ber_choice_t ChainedSearchResult_choice[] = {
   {   0, &hf_dsp_unsignedChainedSearchResult, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedSearchResultData },
@@ -1226,12 +1177,6 @@ dissect_dsp_T_signedChainedAddEntryArgument(gboolean implicit_tag _U_, tvbuff_t 
 }
 
 
-static const value_string dsp_ChainedAddEntryArgument_vals[] = {
-  {   0, "unsignedChainedAddEntryArgument" },
-  {   1, "signedChainedAddEntryArgument" },
-  { 0, NULL }
-};
-
 static const ber_choice_t ChainedAddEntryArgument_choice[] = {
   {   0, &hf_dsp_unsignedChainedAddEntryArgument, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedAddEntryArgumentData },
   {   1, &hf_dsp_signedChainedAddEntryArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dsp_T_signedChainedAddEntryArgument },
@@ -1278,12 +1223,6 @@ dissect_dsp_T_signedChainedAddEntryResult(gboolean implicit_tag _U_, tvbuff_t *t
   return offset;
 }
 
-
-static const value_string dsp_ChainedAddEntryResult_vals[] = {
-  {   0, "unsignedChainedAddEntryResult" },
-  {   1, "signedChainedAddEntryResult" },
-  { 0, NULL }
-};
 
 static const ber_choice_t ChainedAddEntryResult_choice[] = {
   {   0, &hf_dsp_unsignedChainedAddEntryResult, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedAddEntryResultData },
@@ -1332,12 +1271,6 @@ dissect_dsp_T_signedChainedRemoveEntryArgument(gboolean implicit_tag _U_, tvbuff
 }
 
 
-static const value_string dsp_ChainedRemoveEntryArgument_vals[] = {
-  {   0, "unsignedChainedRemoveEntryArgument" },
-  {   1, "signedChainedRemoveEntryArgument" },
-  { 0, NULL }
-};
-
 static const ber_choice_t ChainedRemoveEntryArgument_choice[] = {
   {   0, &hf_dsp_unsignedChainedRemoveEntryArgument, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedRemoveEntryArgumentData },
   {   1, &hf_dsp_signedChainedRemoveEntryArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dsp_T_signedChainedRemoveEntryArgument },
@@ -1384,12 +1317,6 @@ dissect_dsp_T_signedChainedRemoveEntryResult(gboolean implicit_tag _U_, tvbuff_t
   return offset;
 }
 
-
-static const value_string dsp_ChainedRemoveEntryResult_vals[] = {
-  {   0, "unsignedChainedRemoveEntryResult" },
-  {   1, "signedChainedRemoveEntryResult" },
-  { 0, NULL }
-};
 
 static const ber_choice_t ChainedRemoveEntryResult_choice[] = {
   {   0, &hf_dsp_unsignedChainedRemoveEntryResult, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedRemoveEntryResultData },
@@ -1438,12 +1365,6 @@ dissect_dsp_T_signedChainedModifyEntryArgument(gboolean implicit_tag _U_, tvbuff
 }
 
 
-static const value_string dsp_ChainedModifyEntryArgument_vals[] = {
-  {   0, "unsignedChainedModifyEntryArgument" },
-  {   1, "signedChainedModifyEntryArgument" },
-  { 0, NULL }
-};
-
 static const ber_choice_t ChainedModifyEntryArgument_choice[] = {
   {   0, &hf_dsp_unsignedChainedModifyEntryArgument, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedModifyEntryArgumentData },
   {   1, &hf_dsp_signedChainedModifyEntryArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dsp_T_signedChainedModifyEntryArgument },
@@ -1490,12 +1411,6 @@ dissect_dsp_T_signedChainedModifyEntryResult(gboolean implicit_tag _U_, tvbuff_t
   return offset;
 }
 
-
-static const value_string dsp_ChainedModifyEntryResult_vals[] = {
-  {   0, "unsignedChainedModifyEntryResult" },
-  {   1, "signedChainedModifyEntryResult" },
-  { 0, NULL }
-};
 
 static const ber_choice_t ChainedModifyEntryResult_choice[] = {
   {   0, &hf_dsp_unsignedChainedModifyEntryResult, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedModifyEntryResultData },
@@ -1544,12 +1459,6 @@ dissect_dsp_T_signedChainedModifyDNArgument(gboolean implicit_tag _U_, tvbuff_t 
 }
 
 
-static const value_string dsp_ChainedModifyDNArgument_vals[] = {
-  {   0, "unsignedChainedModifyDNArgument" },
-  {   1, "signedChainedModifyDNArgument" },
-  { 0, NULL }
-};
-
 static const ber_choice_t ChainedModifyDNArgument_choice[] = {
   {   0, &hf_dsp_unsignedChainedModifyDNArgument, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedModifyDNArgumentData },
   {   1, &hf_dsp_signedChainedModifyDNArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dsp_T_signedChainedModifyDNArgument },
@@ -1596,12 +1505,6 @@ dissect_dsp_T_signedChainedModifyDNResult(gboolean implicit_tag _U_, tvbuff_t *t
   return offset;
 }
 
-
-static const value_string dsp_ChainedModifyDNResult_vals[] = {
-  {   0, "unsignedChainedModifyDNResult" },
-  {   1, "signedChainedModifyDNResult" },
-  { 0, NULL }
-};
 
 static const ber_choice_t ChainedModifyDNResult_choice[] = {
   {   0, &hf_dsp_unsignedChainedModifyDNResult, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_ChainedModifyDNResultData },
@@ -1703,12 +1606,6 @@ dissect_dsp_T_signedDSAReferral(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 }
 
 
-static const value_string dsp_DSAReferral_vals[] = {
-  {   0, "unsignedDSAReferral" },
-  {   1, "signedDSAReferral" },
-  { 0, NULL }
-};
-
 static const ber_choice_t DSAReferral_choice[] = {
   {   0, &hf_dsp_unsignedDSAReferral, BER_CLASS_UNI, BER_UNI_TAG_SET, BER_FLAGS_NOOWNTAG, dissect_dsp_DSAReferralData },
   {   1, &hf_dsp_signedDSAReferral, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_dsp_T_signedDSAReferral },
@@ -1785,41 +1682,37 @@ static void dissect_DitBridgeKnowledge_PDU(tvbuff_t *tvb _U_, packet_info *pinfo
 
 
 /*--- End of included file: packet-dsp-fn.c ---*/
-#line 67 "../../asn1/dsp/packet-dsp-template.c"
+#line 66 "../../asn1/dsp/packet-dsp-template.c"
 
 /*
 * Dissect X518 PDUs inside a ROS PDUs
 */
-static void
-dissect_dsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_dsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data)
 {
 	int offset = 0;
 	int old_offset;
-	proto_item *item=NULL;
-	proto_tree *tree=NULL;
+	proto_item *item;
+	proto_tree *tree;
+	struct SESSION_DATA_STRUCTURE* session;
 	int (*dsp_dissector)(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset, asn1_ctx_t *actx, proto_tree *tree, int hf_index _U_) = NULL;
 	const char *dsp_op_name;
 	asn1_ctx_t asn1_ctx;
 
+	/* do we have operation information from the ROS dissector? */
+	if (data == NULL)
+		return 0;
+	session  = (struct SESSION_DATA_STRUCTURE*)data;
+
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
-	/* do we have operation information from the ROS dissector?  */
-	if( !pinfo->private_data ){
-		if(parent_tree){
-			proto_tree_add_text(parent_tree, tvb, offset, -1,
-				"Internal error: can't get operation information from ROS dissector.");
-		}
-		return  ;
-	} else {
-		session  = ( (struct SESSION_DATA_STRUCTURE*)(pinfo->private_data) );
-	}
+	item = proto_tree_add_item(parent_tree, proto_dsp, tvb, 0, -1, ENC_NA);
+	tree = proto_item_add_subtree(item, ett_dsp);
 
-	if(parent_tree){
-		item = proto_tree_add_item(parent_tree, proto_dsp, tvb, 0, -1, ENC_NA);
-		tree = proto_item_add_subtree(item, ett_dsp);
-	}
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "DAP");
   	col_clear(pinfo->cinfo, COL_INFO);
+
+	asn1_ctx.private_data = session;
 
 	switch(session->ros_op & ROS_OP_MASK) {
 	case (ROS_OP_BIND | ROS_OP_ARGUMENT):	/*  BindInvoke */
@@ -1966,7 +1859,7 @@ dissect_dsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	  break;
 	default:
 	  proto_tree_add_text(tree, tvb, offset, -1,"Unsupported DSP PDU");
-	  return;
+	  return tvb_length(tvb);
 	}
 
 	if(dsp_dissector) {
@@ -1981,6 +1874,8 @@ dissect_dsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	    }
 	  }
 	}
+
+	return tvb_length(tvb);
 }
 
 
@@ -1994,7 +1889,7 @@ void proto_register_dsp(void) {
 /*--- Included file: packet-dsp-hfarr.c ---*/
 #line 1 "../../asn1/dsp/packet-dsp-hfarr.c"
     { &hf_dsp_AccessPoint_PDU,
-      { "AccessPoint", "dsp.AccessPoint",
+      { "AccessPoint", "dsp.AccessPoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_MasterAndShadowAccessPoints_PDU,
@@ -2002,11 +1897,11 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_DitBridgeKnowledge_PDU,
-      { "DitBridgeKnowledge", "dsp.DitBridgeKnowledge",
+      { "DitBridgeKnowledge", "dsp.DitBridgeKnowledge_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedArgument,
-      { "chainedArgument", "dsp.chainedArgument",
+      { "chainedArgument", "dsp.chainedArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainingArguments", HFILL }},
     { &hf_dsp_readArgument,
@@ -2014,19 +1909,19 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(dap_ReadArgument_vals), 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedReadArgument,
-      { "unsignedChainedReadArgument", "dsp.unsignedChainedReadArgument",
+      { "unsignedChainedReadArgument", "dsp.unsignedChainedReadArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedReadArgumentData", HFILL }},
     { &hf_dsp_signedChainedReadArgument,
-      { "signedChainedReadArgument", "dsp.signedChainedReadArgument",
+      { "signedChainedReadArgument", "dsp.signedChainedReadArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedReadArgument,
-      { "chainedReadArgument", "dsp.chainedReadArgument",
+      { "chainedReadArgument", "dsp.chainedReadArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedReadArgumentData", HFILL }},
     { &hf_dsp_algorithmIdentifier,
-      { "algorithmIdentifier", "dsp.algorithmIdentifier",
+      { "algorithmIdentifier", "dsp.algorithmIdentifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_encrypted,
@@ -2034,7 +1929,7 @@ void proto_register_dsp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING", HFILL }},
     { &hf_dsp_chainedResults,
-      { "chainedResults", "dsp.chainedResults",
+      { "chainedResults", "dsp.chainedResults_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainingResults", HFILL }},
     { &hf_dsp_readResult,
@@ -2042,15 +1937,15 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(dap_ReadResult_vals), 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedReadResult,
-      { "unsignedChainedReadResult", "dsp.unsignedChainedReadResult",
+      { "unsignedChainedReadResult", "dsp.unsignedChainedReadResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedReadResultData", HFILL }},
     { &hf_dsp_signedChainedReadResult,
-      { "signedChainedReadResult", "dsp.signedChainedReadResult",
+      { "signedChainedReadResult", "dsp.signedChainedReadResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedReadResult,
-      { "chainedReadResult", "dsp.chainedReadResult",
+      { "chainedReadResult", "dsp.chainedReadResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedReadResultData", HFILL }},
     { &hf_dsp_compareArgument,
@@ -2058,15 +1953,15 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(dap_CompareArgument_vals), 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedCompareArgument,
-      { "unsignedChainedCompareArgument", "dsp.unsignedChainedCompareArgument",
+      { "unsignedChainedCompareArgument", "dsp.unsignedChainedCompareArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedCompareArgumentData", HFILL }},
     { &hf_dsp_signedChainedCompareArgument,
-      { "signedChainedCompareArgument", "dsp.signedChainedCompareArgument",
+      { "signedChainedCompareArgument", "dsp.signedChainedCompareArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedCompareArgument,
-      { "chainedCompareArgument", "dsp.chainedCompareArgument",
+      { "chainedCompareArgument", "dsp.chainedCompareArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedCompareArgumentData", HFILL }},
     { &hf_dsp_compareResult,
@@ -2074,15 +1969,15 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(dap_CompareResult_vals), 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedCompareResult,
-      { "unsignedChainedCompareResult", "dsp.unsignedChainedCompareResult",
+      { "unsignedChainedCompareResult", "dsp.unsignedChainedCompareResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedCompareResultData", HFILL }},
     { &hf_dsp_signedChainedCompareResult,
-      { "signedChainedCompareResult", "dsp.signedChainedCompareResult",
+      { "signedChainedCompareResult", "dsp.signedChainedCompareResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedCompareResult,
-      { "chainedCompareResult", "dsp.chainedCompareResult",
+      { "chainedCompareResult", "dsp.chainedCompareResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedCompareResultData", HFILL }},
     { &hf_dsp_listArgument,
@@ -2090,15 +1985,15 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(dap_ListArgument_vals), 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedListArgument,
-      { "unsignedChainedListArgument", "dsp.unsignedChainedListArgument",
+      { "unsignedChainedListArgument", "dsp.unsignedChainedListArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedListArgumentData", HFILL }},
     { &hf_dsp_signedChainedListArgument,
-      { "signedChainedListArgument", "dsp.signedChainedListArgument",
+      { "signedChainedListArgument", "dsp.signedChainedListArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedListArgument,
-      { "chainedListArgument", "dsp.chainedListArgument",
+      { "chainedListArgument", "dsp.chainedListArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedListArgumentData", HFILL }},
     { &hf_dsp_listResult,
@@ -2106,15 +2001,15 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(dap_ListResult_vals), 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedListResult,
-      { "unsignedChainedListResult", "dsp.unsignedChainedListResult",
+      { "unsignedChainedListResult", "dsp.unsignedChainedListResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedListResultData", HFILL }},
     { &hf_dsp_signedChainedListResult,
-      { "signedChainedListResult", "dsp.signedChainedListResult",
+      { "signedChainedListResult", "dsp.signedChainedListResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedListResult,
-      { "chainedListResult", "dsp.chainedListResult",
+      { "chainedListResult", "dsp.chainedListResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedListResultData", HFILL }},
     { &hf_dsp_searchArgument,
@@ -2122,15 +2017,15 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(dap_SearchArgument_vals), 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedSearchArgument,
-      { "unsignedChainedSearchArgument", "dsp.unsignedChainedSearchArgument",
+      { "unsignedChainedSearchArgument", "dsp.unsignedChainedSearchArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedSearchArgumentData", HFILL }},
     { &hf_dsp_signedChainedSearchArgument,
-      { "signedChainedSearchArgument", "dsp.signedChainedSearchArgument",
+      { "signedChainedSearchArgument", "dsp.signedChainedSearchArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedSearchArgument,
-      { "chainedSearchArgument", "dsp.chainedSearchArgument",
+      { "chainedSearchArgument", "dsp.chainedSearchArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedSearchArgumentData", HFILL }},
     { &hf_dsp_searchResult,
@@ -2138,15 +2033,15 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(dap_SearchResult_vals), 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedSearchResult,
-      { "unsignedChainedSearchResult", "dsp.unsignedChainedSearchResult",
+      { "unsignedChainedSearchResult", "dsp.unsignedChainedSearchResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedSearchResultData", HFILL }},
     { &hf_dsp_signedChainedSearchResult,
-      { "signedChainedSearchResult", "dsp.signedChainedSearchResult",
+      { "signedChainedSearchResult", "dsp.signedChainedSearchResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedSearchResult,
-      { "chainedSearchResult", "dsp.chainedSearchResult",
+      { "chainedSearchResult", "dsp.chainedSearchResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedSearchResultData", HFILL }},
     { &hf_dsp_addEntryArgument,
@@ -2154,15 +2049,15 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(dap_AddEntryArgument_vals), 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedAddEntryArgument,
-      { "unsignedChainedAddEntryArgument", "dsp.unsignedChainedAddEntryArgument",
+      { "unsignedChainedAddEntryArgument", "dsp.unsignedChainedAddEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedAddEntryArgumentData", HFILL }},
     { &hf_dsp_signedChainedAddEntryArgument,
-      { "signedChainedAddEntryArgument", "dsp.signedChainedAddEntryArgument",
+      { "signedChainedAddEntryArgument", "dsp.signedChainedAddEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedAddEntryArgument,
-      { "chainedAddEntryArgument", "dsp.chainedAddEntryArgument",
+      { "chainedAddEntryArgument", "dsp.chainedAddEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedAddEntryArgumentData", HFILL }},
     { &hf_dsp_addEntryResult,
@@ -2170,15 +2065,15 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(dap_AddEntryResult_vals), 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedAddEntryResult,
-      { "unsignedChainedAddEntryResult", "dsp.unsignedChainedAddEntryResult",
+      { "unsignedChainedAddEntryResult", "dsp.unsignedChainedAddEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedAddEntryResultData", HFILL }},
     { &hf_dsp_signedChainedAddEntryResult,
-      { "signedChainedAddEntryResult", "dsp.signedChainedAddEntryResult",
+      { "signedChainedAddEntryResult", "dsp.signedChainedAddEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedAddEntryResult,
-      { "chainedAddEntryResult", "dsp.chainedAddEntryResult",
+      { "chainedAddEntryResult", "dsp.chainedAddEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedAddEntryResultData", HFILL }},
     { &hf_dsp_removeEntryArgument,
@@ -2186,15 +2081,15 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(dap_RemoveEntryArgument_vals), 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedRemoveEntryArgument,
-      { "unsignedChainedRemoveEntryArgument", "dsp.unsignedChainedRemoveEntryArgument",
+      { "unsignedChainedRemoveEntryArgument", "dsp.unsignedChainedRemoveEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedRemoveEntryArgumentData", HFILL }},
     { &hf_dsp_signedChainedRemoveEntryArgument,
-      { "signedChainedRemoveEntryArgument", "dsp.signedChainedRemoveEntryArgument",
+      { "signedChainedRemoveEntryArgument", "dsp.signedChainedRemoveEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedRemoveEntryArgument,
-      { "chainedRemoveEntryArgument", "dsp.chainedRemoveEntryArgument",
+      { "chainedRemoveEntryArgument", "dsp.chainedRemoveEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedRemoveEntryArgumentData", HFILL }},
     { &hf_dsp_removeEntryResult,
@@ -2202,15 +2097,15 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(dap_RemoveEntryResult_vals), 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedRemoveEntryResult,
-      { "unsignedChainedRemoveEntryResult", "dsp.unsignedChainedRemoveEntryResult",
+      { "unsignedChainedRemoveEntryResult", "dsp.unsignedChainedRemoveEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedRemoveEntryResultData", HFILL }},
     { &hf_dsp_signedChainedRemoveEntryResult,
-      { "signedChainedRemoveEntryResult", "dsp.signedChainedRemoveEntryResult",
+      { "signedChainedRemoveEntryResult", "dsp.signedChainedRemoveEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedRemoveEntryResult,
-      { "chainedRemoveEntryResult", "dsp.chainedRemoveEntryResult",
+      { "chainedRemoveEntryResult", "dsp.chainedRemoveEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedRemoveEntryResultData", HFILL }},
     { &hf_dsp_modifyEntryArgument,
@@ -2218,15 +2113,15 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(dap_ModifyEntryArgument_vals), 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedModifyEntryArgument,
-      { "unsignedChainedModifyEntryArgument", "dsp.unsignedChainedModifyEntryArgument",
+      { "unsignedChainedModifyEntryArgument", "dsp.unsignedChainedModifyEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedModifyEntryArgumentData", HFILL }},
     { &hf_dsp_signedChainedModifyEntryArgument,
-      { "signedChainedModifyEntryArgument", "dsp.signedChainedModifyEntryArgument",
+      { "signedChainedModifyEntryArgument", "dsp.signedChainedModifyEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedModifyEntryArgument,
-      { "chainedModifyEntryArgument", "dsp.chainedModifyEntryArgument",
+      { "chainedModifyEntryArgument", "dsp.chainedModifyEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedModifyEntryArgumentData", HFILL }},
     { &hf_dsp_modifyEntryResult,
@@ -2234,31 +2129,31 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(dap_ModifyEntryResult_vals), 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedModifyEntryResult,
-      { "unsignedChainedModifyEntryResult", "dsp.unsignedChainedModifyEntryResult",
+      { "unsignedChainedModifyEntryResult", "dsp.unsignedChainedModifyEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedModifyEntryResultData", HFILL }},
     { &hf_dsp_signedChainedModifyEntryResult,
-      { "signedChainedModifyEntryResult", "dsp.signedChainedModifyEntryResult",
+      { "signedChainedModifyEntryResult", "dsp.signedChainedModifyEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedModifyEntryResult,
-      { "chainedModifyEntryResult", "dsp.chainedModifyEntryResult",
+      { "chainedModifyEntryResult", "dsp.chainedModifyEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedModifyEntryResultData", HFILL }},
     { &hf_dsp_modifyDNArgument,
-      { "modifyDNArgument", "dsp.modifyDNArgument",
+      { "modifyDNArgument", "dsp.modifyDNArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedModifyDNArgument,
-      { "unsignedChainedModifyDNArgument", "dsp.unsignedChainedModifyDNArgument",
+      { "unsignedChainedModifyDNArgument", "dsp.unsignedChainedModifyDNArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedModifyDNArgumentData", HFILL }},
     { &hf_dsp_signedChainedModifyDNArgument,
-      { "signedChainedModifyDNArgument", "dsp.signedChainedModifyDNArgument",
+      { "signedChainedModifyDNArgument", "dsp.signedChainedModifyDNArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedModifyDNArgument,
-      { "chainedModifyDNArgument", "dsp.chainedModifyDNArgument",
+      { "chainedModifyDNArgument", "dsp.chainedModifyDNArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedModifyDNArgumentData", HFILL }},
     { &hf_dsp_modifyDNResult,
@@ -2266,19 +2161,19 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(dap_ModifyDNResult_vals), 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedChainedModifyDNResult,
-      { "unsignedChainedModifyDNResult", "dsp.unsignedChainedModifyDNResult",
+      { "unsignedChainedModifyDNResult", "dsp.unsignedChainedModifyDNResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedModifyDNResultData", HFILL }},
     { &hf_dsp_signedChainedModifyDNResult,
-      { "signedChainedModifyDNResult", "dsp.signedChainedModifyDNResult",
+      { "signedChainedModifyDNResult", "dsp.signedChainedModifyDNResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedModifyDNResult,
-      { "chainedModifyDNResult", "dsp.chainedModifyDNResult",
+      { "chainedModifyDNResult", "dsp.chainedModifyDNResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChainedModifyDNResultData", HFILL }},
     { &hf_dsp_reference,
-      { "reference", "dsp.reference",
+      { "reference", "dsp.reference_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ContinuationReference", HFILL }},
     { &hf_dsp_contextPrefix,
@@ -2286,7 +2181,7 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "DistinguishedName", HFILL }},
     { &hf_dsp_securityParameters,
-      { "securityParameters", "dsp.securityParameters",
+      { "securityParameters", "dsp.securityParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_performer,
@@ -2302,19 +2197,19 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_Attribute", HFILL }},
     { &hf_dsp_notification_item,
-      { "Attribute", "dsp.Attribute",
+      { "Attribute", "dsp.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_unsignedDSAReferral,
-      { "unsignedDSAReferral", "dsp.unsignedDSAReferral",
+      { "unsignedDSAReferral", "dsp.unsignedDSAReferral_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DSAReferralData", HFILL }},
     { &hf_dsp_signedDSAReferral,
-      { "signedDSAReferral", "dsp.signedDSAReferral",
+      { "signedDSAReferral", "dsp.signedDSAReferral_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_dsaReferral,
-      { "dsaReferral", "dsp.dsaReferral",
+      { "dsaReferral", "dsp.dsaReferral_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DSAReferralData", HFILL }},
     { &hf_dsp_originator,
@@ -2326,7 +2221,7 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "DistinguishedName", HFILL }},
     { &hf_dsp_operationProgress,
-      { "operationProgress", "dsp.operationProgress",
+      { "operationProgress", "dsp.operationProgress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_traceInformation,
@@ -2382,11 +2277,11 @@ void proto_register_dsp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_dsp_searchRuleId,
-      { "searchRuleId", "dsp.searchRuleId",
+      { "searchRuleId", "dsp.searchRuleId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_chainedRelaxation,
-      { "chainedRelaxation", "dsp.chainedRelaxation",
+      { "chainedRelaxation", "dsp.chainedRelaxation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MRMapping", HFILL }},
     { &hf_dsp_relatedEntry,
@@ -2422,7 +2317,7 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_CrossReference", HFILL }},
     { &hf_dsp_crossReferences_item,
-      { "CrossReference", "dsp.CrossReference",
+      { "CrossReference", "dsp.CrossReference_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_alreadySearched,
@@ -2430,7 +2325,7 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Exclusions", HFILL }},
     { &hf_dsp_accessPoint,
-      { "accessPoint", "dsp.accessPoint",
+      { "accessPoint", "dsp.accessPoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AccessPointInformation", HFILL }},
     { &hf_dsp_nameResolutionPhase,
@@ -2442,7 +2337,7 @@ void proto_register_dsp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_dsp_TraceInformation_item,
-      { "TraceItem", "dsp.TraceItem",
+      { "TraceItem", "dsp.TraceItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_dsa,
@@ -2458,7 +2353,7 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, VALS(x509if_Name_vals), 0,
         "Name", HFILL }},
     { &hf_dsp_address,
-      { "address", "dsp.address",
+      { "address", "dsp.address_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PresentationAddress", HFILL }},
     { &hf_dsp_protocolInformation,
@@ -2466,7 +2361,7 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_ProtocolInformation", HFILL }},
     { &hf_dsp_protocolInformation_item,
-      { "ProtocolInformation", "dsp.ProtocolInformation",
+      { "ProtocolInformation", "dsp.ProtocolInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_labeledURI,
@@ -2482,7 +2377,7 @@ void proto_register_dsp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_dsp_MasterAndShadowAccessPoints_item,
-      { "MasterOrShadowAccessPoint", "dsp.MasterOrShadowAccessPoint",
+      { "MasterOrShadowAccessPoint", "dsp.MasterOrShadowAccessPoint_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_category,
@@ -2514,7 +2409,7 @@ void proto_register_dsp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_AccessPointInformation", HFILL }},
     { &hf_dsp_accessPoints_item,
-      { "AccessPointInformation", "dsp.AccessPointInformation",
+      { "AccessPointInformation", "dsp.AccessPointInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_returnToDUA,
@@ -2522,7 +2417,7 @@ void proto_register_dsp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_dsp_basicLevels,
-      { "basicLevels", "dsp.basicLevels",
+      { "basicLevels", "dsp.basicLevels_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dsp_level,
@@ -2538,12 +2433,12 @@ void proto_register_dsp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_dsp_other,
-      { "other", "dsp.other",
+      { "other", "dsp.other_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNAL", HFILL }},
 
 /*--- End of included file: packet-dsp-hfarr.c ---*/
-#line 272 "../../asn1/dsp/packet-dsp-template.c"
+#line 269 "../../asn1/dsp/packet-dsp-template.c"
   };
 
   /* List of subtrees */
@@ -2625,14 +2520,14 @@ void proto_register_dsp(void) {
     &ett_dsp_T_basicLevels,
 
 /*--- End of included file: packet-dsp-ettarr.c ---*/
-#line 278 "../../asn1/dsp/packet-dsp-template.c"
+#line 275 "../../asn1/dsp/packet-dsp-template.c"
   };
   module_t *dsp_module;
 
   /* Register protocol */
   proto_dsp = proto_register_protocol(PNAME, PSNAME, PFNAME);
 
-  register_dissector("dsp", dissect_dsp, proto_dsp);
+  new_register_dissector("dsp", dissect_dsp, proto_dsp);
 
   /* Register fields and subtrees */
   proto_register_field_array(proto_dsp, hf, array_length(hf));
@@ -2666,7 +2561,7 @@ void proto_reg_handoff_dsp(void) {
 
 
 /*--- End of included file: packet-dsp-dis-tab.c ---*/
-#line 308 "../../asn1/dsp/packet-dsp-template.c"
+#line 305 "../../asn1/dsp/packet-dsp-template.c"
 
   /* APPLICATION CONTEXT */
 

@@ -1,8 +1,6 @@
 /* file_dlg.h
  * Declarations of utilities to use when constructing file selection dialogs
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -24,7 +22,7 @@
 
 /** @defgroup filesel_dialog_group File Selection Dialogs
  *
- * Dialogs are specially created windows and are related to their parent windows (usually the main window). 
+ * Dialogs are specially created windows and are related to their parent windows (usually the main window).
  * See: @ref howto_window_page for details.
  *
  * File selection dialogs are created using file_selection_new().
@@ -39,7 +37,7 @@
  * - "Save Data As CSV" save_csv_as_cb()
  * - "Save Payload As ..." on_save_bt_clicked()
  * - "Save selected stream in rtpdump" rtpstream_on_save()
- * 
+ *
  */
 
 /** @file
@@ -57,17 +55,19 @@ typedef enum {
 	FILE_SELECTION_READ_BROWSE,     /**< browse for a file to read */
 	FILE_SELECTION_SAVE,            /**< save/export a file */
 	FILE_SELECTION_WRITE_BROWSE,    /**< browse for a file to write to */
-	FILE_SELECTION_CREATE_FOLDER    /**< browse for a dir. to save in */  
+	FILE_SELECTION_CREATE_FOLDER    /**< browse for a dir. to save in */
 } file_selection_action_t;
 
-/** Create a file selection dialog box window that belongs to Wireshark's
- *  main window. See window_new() for usage.
+/** Create a file selection dialog box window that belongs to a top-level
+ *  window. See window_new() for usage.
  *
  * @param title the title for the new file selection dialog
+ * @param parent the top-level window
  * @param action the desired action
  * @return the newly created file selection dialog
  */
-extern GtkWidget *file_selection_new(const gchar *title, file_selection_action_t action);
+extern GtkWidget *file_selection_new(const gchar *title, GtkWindow *parent,
+                                     file_selection_action_t action);
 
 /** Set the current folder for a file selection dialog.
  *
@@ -79,14 +79,14 @@ extern gboolean file_selection_set_current_folder(GtkWidget *fs, const gchar *fi
 
 /** Set the current file for a file selection dialog.
  *
- * @param fs the file selection dialog from file_selection_new()
+ * @param chooser the file selection dialog from file_selection_new()
  * @param filename the folder to set
  * @return TRUE if the folder could be changed successfully
  */
 #define file_selection_set_current_file(chooser, filename) \
 	gtk_file_chooser_set_filename(chooser, filename)
 
-/** Set the "extra" widget for a file selection dialog. This is needed to support 
+/** Set the "extra" widget for a file selection dialog. This is needed to support
  *  user-supplied options.
  *
  * @param fs the file selection dialog from file_selection_new()
@@ -129,12 +129,5 @@ extern gboolean file_target_unwritable_ui(GtkWidget *chooser_w, char *cf_name);
  */
 extern void
 file_selection_browse(GtkWidget *file_bt, GtkWidget *file_te, const char *title, file_selection_action_t action);
-
-/** Set the latest opened directory.
- *  Will already be done when using file_selection_new().
- *
- * @param dirname the dirname
- */
-extern void set_last_open_dir(const char *dirname);
 
 #endif

@@ -2,8 +2,6 @@
  * Routines for Agent Extensibility (AgentX) Protocol disassembly
  * RFC 2257
  *
- * $Id$
- *
  * Copyright (c) 2005 by Oleg Terletsky <oleg.terletsky@comverse.com>
  *
  * Wireshark - Network traffic analyzer
@@ -29,6 +27,7 @@
 
 #include <epan/packet.h>
 #include <epan/prefs.h>
+#include <epan/to_str.h>
 
 #include <epan/dissectors/packet-tcp.h>
 
@@ -479,7 +478,7 @@ dissect_response_pdu(tvbuff_t *tvb, proto_tree *tree, int offset, int len, guint
 
 	NORLEL(flags, r_uptime, tvb, offset);
 	proto_tree_add_uint_format(subtree, hf_resp_uptime, tvb, offset, 4, r_uptime,
-			"sysUptime: %s", time_msecs_to_str(r_uptime));
+			"sysUptime: %s", time_msecs_to_ep_str(r_uptime));
 	proto_tree_add_item(subtree, hf_resp_error,  tvb, offset + 4, 2, encoding);
 	proto_tree_add_item(subtree, hf_resp_index,  tvb, offset + 6, 2, encoding);
 	offset += 8;
@@ -824,8 +823,8 @@ get_agentx_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 	return plen + 20;
 }
 
-static void
-dissect_agentx_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_agentx_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	int offset = 0;
 	proto_tree* agentx_tree, *pdu_hdr_tree, *flags_tree;
@@ -857,7 +856,7 @@ dissect_agentx_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 
 	if(!tree)
-		return;
+		return 0;
 
 	/*t_item = proto_tree_add_item(tree, proto_agentx, tvb, 0, -1, ENC_NA);*/
 	t_item = proto_tree_add_protocol_format(tree, proto_agentx, tvb, 0, -1,
@@ -954,13 +953,16 @@ dissect_agentx_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		dissect_response_pdu(tvb, agentx_tree, offset, payload_len, flags);
 		break;
 	}
+
+    return tvb_length(tvb);
 }
 
-static void
-dissect_agentx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_agentx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
 	tcp_dissect_pdus(tvb, pinfo, tree, TRUE, 20, get_agentx_pdu_len,
-			 dissect_agentx_pdu);
+			 dissect_agentx_pdu, data);
+	return tvb_length(tvb);
 }
 
 static const true_false_string tfs_agentx_include	= { "Yes",			"No"	};
@@ -1180,7 +1182,7 @@ proto_reg_handoff_agentx(void)
 	static guint agentx_tcp_port;
 
 	if(!agentx_prefs_initialized) {
-		agentx_handle = create_dissector_handle(dissect_agentx, proto_agentx);
+		agentx_handle = new_create_dissector_handle(dissect_agentx, proto_agentx);
 		agentx_prefs_initialized = TRUE;
 	}
 	else {

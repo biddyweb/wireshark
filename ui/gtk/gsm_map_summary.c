@@ -6,8 +6,6 @@
  *
  * Modified from summary_dlg.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -54,6 +52,7 @@
 
 #define SUM_STR_MAX 1024
 
+void register_tap_listener_gtkgsm_map_summary(void);
 
 static void
 add_string_to_box(gchar *str, GtkWidget *box)
@@ -80,6 +79,10 @@ void gsm_map_stat_gtk_sum_cb(GtkAction *action _U_, gpointer user_data _U_)
   int		i;
   int		tot_invokes, tot_rr;
   double	tot_invokes_size, tot_rr_size;
+
+  if (cfile.state == FILE_CLOSED) {
+    return;
+  }
 
   /* initialize the tally */
   summary_fill_in(&cfile, &summary);
@@ -114,7 +117,7 @@ void gsm_map_stat_gtk_sum_cb(GtkAction *action _U_, gpointer user_data _U_)
   add_string_to_box(string_buff, file_box);
 
   /* format */
-  g_snprintf(string_buff, SUM_STR_MAX, "Format: %s", wtap_file_type_string(summary.file_type));
+  g_snprintf(string_buff, SUM_STR_MAX, "Format: %s", wtap_file_type_subtype_string(summary.file_type));
   add_string_to_box(string_buff, file_box);
 
   if (summary.has_snap) {
@@ -340,7 +343,7 @@ void gsm_map_stat_gtk_sum_cb(GtkAction *action _U_, gpointer user_data _U_)
   gtk_box_pack_start(GTK_BOX(main_vb), bbox, TRUE, TRUE, 0);
   gtk_widget_show(bbox);
 
-  close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+  close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
   window_set_cancel_button(sum_open_w, close_bt, window_cancel_button_cb);
 
   g_signal_connect(sum_open_w, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);

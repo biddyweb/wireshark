@@ -2,8 +2,6 @@
  * Routines for Online Certificate Status Protocol (RFC2560) packet dissection
  *  Ronnie Sahlberg 2004
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -40,6 +38,9 @@
 #define PNAME  "Online Certificate Status Protocol"
 #define PSNAME "OCSP"
 #define PFNAME "ocsp"
+
+void proto_register_ocsp(void);
+void proto_reg_handoff_ocsp(void);
 
 /* Initialize the protocol and registered fields */
 int proto_ocsp = -1;

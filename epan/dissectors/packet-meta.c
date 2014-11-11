@@ -1,7 +1,5 @@
 /* Routines for 'Metadata' disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,11 +24,17 @@
 #include <string.h>
 
 #include <glib.h>
+
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-sscop.h"
 #include "packet-gsm_a_common.h"
+
+void proto_register_meta(void);
+void proto_reg_handoff_meta(void);
 
 /* schemas */
 #define META_SCHEMA_PCAP        1
@@ -89,7 +93,6 @@ enum meta_direction {
 
 static int proto_meta = -1;
 extern int proto_sscop;
-extern int proto_malformed;
 
 /* fields */
 static int hf_meta_schema = -1;
@@ -130,6 +133,9 @@ static gint ett_meta_item = -1;
 static gint ett_meta_cell = -1;
 static gint ett_meta_imsi = -1;
 static gint ett_meta_imei = -1;
+
+static expert_field ei_meta_malformed = EI_INIT;
+static expert_field ei_meta_invalid_header = EI_INIT;
 
 /* default handle */
 static dissector_handle_t data_handle;
@@ -353,7 +359,7 @@ static guint16 evaluate_meta_item_dxt(proto_tree *meta_tree, tvbuff_t *tvb, pack
             break;
         case META_ID_IMSI:
             imsi     = tvb_get_letoh64(tvb, offs);
-            imsi_str = tvb_bcd_dig_to_ep_str(tvb, offs, 8, NULL, FALSE);
+            imsi_str = tvb_bcd_dig_to_wmem_packet_str(tvb, offs, 8, NULL, FALSE);
             imsi_item = proto_tree_add_string(meta_tree, hf_meta_item_imsi_digits, tvb,
                 offs, 8, imsi_str);
             imsi_tree = proto_item_add_subtree(imsi_item, ett_meta_imsi);
@@ -362,7 +368,7 @@ static guint16 evaluate_meta_item_dxt(proto_tree *meta_tree, tvbuff_t *tvb, pack
             break;
         case META_ID_IMEI:
             imei     = tvb_get_letoh64(tvb, offs);
-            imei_str = tvb_bcd_dig_to_ep_str(tvb, offs, 8, NULL, FALSE);
+            imei_str = tvb_bcd_dig_to_wmem_packet_str(tvb, offs, 8, NULL, FALSE);
             imei_item = proto_tree_add_string(meta_tree, hf_meta_item_imei_digits, tvb,
                 offs, 8, imei_str);
             imei_tree = proto_item_add_subtree(imei_item, ett_meta_imei);
@@ -400,10 +406,10 @@ static guint16 evaluate_meta_item_dxt(proto_tree *meta_tree, tvbuff_t *tvb, pack
             break;
         case META_ID_AAL5PROTO:
             aal5proto    = tvb_get_guint8(tvb, offs);
-            p_sscop_info = (sscop_payload_info *)p_get_proto_data(pinfo->fd, proto_sscop);
+            p_sscop_info = (sscop_payload_info *)p_get_proto_data(wmem_file_scope(), pinfo, proto_sscop, 0);
             if (!p_sscop_info) {
-                p_sscop_info = se_new0(sscop_payload_info);
-                p_add_proto_data(pinfo->fd, proto_sscop, p_sscop_info);
+                p_sscop_info = wmem_new0(wmem_file_scope(), sscop_payload_info);
+                p_add_proto_data(wmem_file_scope(), pinfo, proto_sscop, 0, p_sscop_info);
             }
             switch (aal5proto) {
                 case META_AAL5PROTO_MTP3:
@@ -426,7 +432,7 @@ static guint16 evaluate_meta_item_dxt(proto_tree *meta_tree, tvbuff_t *tvb, pack
                 /* TODO: check for additional protos on Iu 802 LLC/SNAP ... */
                 default:
                     /* TODO: add warning */
-                    p_remove_proto_data(pinfo->fd, proto_sscop);
+                    p_remove_proto_data(wmem_file_scope(), pinfo, proto_sscop, 0);
             }
             proto_tree_add_uint(meta_tree, hf_meta_item_aal5proto, tvb,
                 offs, 1, aal5proto);
@@ -496,11 +502,8 @@ static gint32 evaluate_meta_items(guint16 schema, tvbuff_t *tvb, packet_info *pi
                 item_len = skip_item(meta_tree, tvb, pinfo, offs + total_len);
         }
         if (item_len < 4) { /* 4 is the minimum length of an item: id + type + length field */
-            proto_item *malformed;
-            malformed = proto_tree_add_protocol_format(meta_tree,
-                proto_malformed, tvb, offs, -1, "[Malformed Packet: %s]", pinfo->current_proto);
-            expert_add_info_format(pinfo, malformed, PI_MALFORMED, PI_ERROR,
-                "Malformed Packet (wrong item encoding)");
+            expert_add_info_format(pinfo, meta_tree, &ei_meta_malformed,
+                "Malformed Packet %s (wrong item encoding)", pinfo->current_proto);
             return -1;
         }
         total_len += item_len;
@@ -543,8 +546,7 @@ dissect_meta(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
 
     if (hdrlen != item_len) {
-        expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, "Invalid Header Length");
-        proto_tree_add_text(tree, tvb, hdrlen+4, -1, "[Malformed Packet]");
+        expert_add_info(pinfo, ti, &ei_meta_invalid_header);
         return;
     }
 
@@ -775,11 +777,20 @@ proto_register_meta(void)
         &ett_meta_imei
     };
 
+    static ei_register_info ei[] = {
+        { &ei_meta_malformed, { "meta.malformed", PI_MALFORMED, PI_ERROR, "Malformed data", EXPFILL }},
+        { &ei_meta_invalid_header, { "meta.invalid_header_length", PI_MALFORMED, PI_ERROR, "Invalid Header Length", EXPFILL }},
+    };
+
+    expert_module_t* expert_meta;
+
     proto_meta = proto_register_protocol("Metadata", "META", "meta");
     register_dissector("meta", dissect_meta, proto_meta);
 
     proto_register_field_array(proto_meta, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_meta = expert_register_protocol(proto_meta);
+    expert_register_field_array(expert_meta, ei, array_length(ei));
 
     meta_dissector_table = register_dissector_table("meta.proto",
             "META protocol", FT_UINT16, BASE_DEC);

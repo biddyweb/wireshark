@@ -1,8 +1,6 @@
 /* iax2_analysis.c
  * IAX2 analysis addition for Wireshark
  *
- * $Id$
- *
  * based on rtp_analysis.c
  * Copyright 2003, Alcatel Business Systems
  * By Lars Ruoff <lars.ruoff@gmx.net>
@@ -51,9 +49,13 @@
 
 #include <gtk/gtk.h>
 
+#include <wsutil/file_util.h>
+#include <wsutil/g711.h>
+#include <wsutil/tempfile.h>
+#include <wsutil/pint.h>
+
 #include <epan/epan_dissect.h>
-#include <epan/filesystem.h>
-#include <epan/pint.h>
+#include <wsutil/filesystem.h>
 #include <epan/tap.h>
 #include <epan/tap-voip.h>
 #include <epan/dissectors/packet-iax2.h>
@@ -62,18 +64,14 @@
 #include <epan/stat_cmd_args.h>
 #include <epan/strutil.h>
 
-#include "ui/util.h"
-#include "../g711.h"
 #include "../stat_menu.h"
-#include "../tempfile.h"
 
+#include "ui/util.h"
 #include "ui/alert_box.h"
 #include "ui/last_open_dir.h"
 #include "ui/progress_dlg.h"
 #include "ui/simple_dialog.h"
 #include "ui/utf8_entities.h"
-
-#include <wsutil/file_util.h>
 
 #include "ui/gtk/gtkglobals.h"
 #include "ui/gtk/dlg_utils.h"
@@ -81,13 +79,17 @@
 #include "ui/gtk/gui_utils.h"
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/main.h"
-#include "ui/gtk/rtp_analysis.h"
+#include "ui/rtp_analysis.h"
 #include "ui/gtk/iax2_analysis.h"
-#include "ui/gtk/rtp_stream.h"
+#include "ui/rtp_stream.h"
 #include "ui/gtk/rtp_stream_dlg.h"
-
 #include "ui/gtk/old-gtk-compat.h"
 #include "ui/gtk/gui_utils.h"
+#include "ui/gtk/stock_icons.h"
+
+#include "frame_tvbuff.h"
+
+void register_tap_listener_iax2_analysis(void);
 
 enum
 {
@@ -288,7 +290,7 @@ static void dialog_graph_reset(user_data_t* user_data);
 static void
 iax2_reset(void *user_data_arg)
 {
-	user_data_t *user_data = user_data_arg;
+	user_data_t *user_data = (user_data_t *)user_data_arg;
 	user_data->forward.statinfo.first_packet = TRUE;
 	user_data->reversed.statinfo.first_packet = TRUE;
 	user_data->forward.statinfo.max_delta = 0;
@@ -384,7 +386,7 @@ iax2_packet_add_graph(dialog_graph_graph_t *dgg, tap_iax2_stat_t *statinfo, pack
 	if (dgg->ud->dlg.dialog_graph.start_time == -1) { /* it is the first */
 		dgg->ud->dlg.dialog_graph.start_time = statinfo->start_time;
 	}
-	rtp_time = nstime_to_msec(&pinfo->fd->rel_ts) - dgg->ud->dlg.dialog_graph.start_time;
+	rtp_time = nstime_to_msec(&pinfo->rel_ts) - dgg->ud->dlg.dialog_graph.start_time;
 	if (rtp_time < 0) {
 		return FALSE;
 	}
@@ -446,8 +448,8 @@ static void iax2_packet_save_payload(tap_iax2_save_info_t *saveinfo,
 static gboolean
 iax2_packet(void *user_data_arg, packet_info *pinfo, epan_dissect_t *edt _U_, const void *iax2info_arg)
 {
-	user_data_t *user_data = user_data_arg;
-	const struct _iax2_info_t *iax2info = iax2info_arg;
+	user_data_t *user_data = (user_data_t *)user_data_arg;
+	const struct _iax2_info_t *iax2info = (const struct _iax2_info_t *)iax2info_arg;
 
 	/* we ignore packets that are not displayed */
 	if (pinfo->fd->flags.passed_dfilter == 0)
@@ -520,7 +522,7 @@ int iax2_packet_analyse(tap_iax2_stat_t *statinfo,
 	}
 
 	/* store the current time and calculate the current jitter */
-	current_time = nstime_to_sec(&pinfo->fd->rel_ts);
+	current_time = nstime_to_sec(&pinfo->rel_ts);
 	current_diff = fabs (current_time - statinfo->time - (((double)iax2info->timestamp - (double)statinfo->timestamp)/1000));
 	current_jitter = statinfo->jitter + ( current_diff - statinfo->jitter)/16;
 	statinfo->delta = current_time - (statinfo->time);
@@ -754,7 +756,7 @@ iax2_packet_save_payload(tap_iax2_save_info_t *saveinfo,
 static void
 on_iax2_window_destroy(GtkWidget *win _U_, gpointer data)
 {
-	user_data_t *user_data = data;
+	user_data_t *user_data = (user_data_t *)data;
 
 	/* remove tap listener */
 	remove_tap_listener(user_data);
@@ -799,7 +801,7 @@ on_notebook_switch_page(GtkNotebook *notebook _U_,
 				    gint page_num,
 				    gpointer data)
 {
-	user_data_t *user_data = data;
+	user_data_t *user_data = (user_data_t *)data;
 
 	user_data->dlg.selected_list =
 		(page_num == 0) ? user_data->dlg.list_fwd : user_data->dlg.list_rev ;
@@ -812,7 +814,7 @@ static void
 on_list_select_row(GtkTreeSelection *selection,
 				gpointer data)
 {
-	user_data_t *user_data = data;
+	user_data_t *user_data = (user_data_t *)data;
 
 	user_data->dlg.selected_list_sel = selection;
 }
@@ -828,13 +830,13 @@ dialog_graph_set_title(user_data_t* user_data)
 		return;
 	}
 	title = g_strdup_printf("IAX2 Graph Analysis Forward: %s:%u to %s:%u   Reverse: %s:%u to %s:%u",
-				get_addr_name(&(user_data->ip_src_fwd)),
+				ep_address_to_display(&(user_data->ip_src_fwd)),
 				user_data->port_src_fwd,
-				get_addr_name(&(user_data->ip_dst_fwd)),
+				ep_address_to_display(&(user_data->ip_dst_fwd)),
 				user_data->port_dst_fwd,
-				get_addr_name(&(user_data->ip_src_rev)),
+				ep_address_to_display(&(user_data->ip_src_rev)),
 				user_data->port_src_rev,
-				get_addr_name(&(user_data->ip_dst_rev)),
+				ep_address_to_display(&(user_data->ip_dst_rev)),
 				user_data->port_dst_rev);
 
 	gtk_window_set_title(GTK_WINDOW(user_data->dlg.dialog_graph.window), title);
@@ -870,9 +872,9 @@ dialog_graph_reset(user_data_t* user_data)
 				   sizeof (user_data->dlg.dialog_graph.graph[0].title),
 				   "%s: %s:%u to %s:%u",
 			graph_descr[i],
-			get_addr_name(&(user_data->ip_src_fwd)),
+			ep_address_to_display(&(user_data->ip_src_fwd)),
 			user_data->port_src_fwd,
-			get_addr_name(&(user_data->ip_dst_fwd)),
+			ep_address_to_display(&(user_data->ip_dst_fwd)),
 			user_data->port_dst_fwd);
 		/* it is reverse */
 		} else {
@@ -880,9 +882,9 @@ dialog_graph_reset(user_data_t* user_data)
 				   sizeof(user_data->dlg.dialog_graph.graph[0].title),
 				   "%s: %s:%u to %s:%u",
 			graph_descr[i],
-			get_addr_name(&(user_data->ip_src_rev)),
+			ep_address_to_display(&(user_data->ip_src_rev)),
 			user_data->port_src_rev,
-			get_addr_name(&(user_data->ip_dst_rev)),
+			ep_address_to_display(&(user_data->ip_dst_rev)),
 			user_data->port_dst_rev);
 		}
 	}
@@ -952,7 +954,7 @@ dialog_graph_draw(user_data_t* user_data)
 	 * so we know how large arrays we need to malloc()
 	 */
 	num_time_intervals = user_data->dlg.dialog_graph.num_items;
-	/* if there isnt anything to do, just return */
+	/* if there isn't anything to do, just return */
 	if (num_time_intervals == 0) {
 		return;
 	}
@@ -1443,7 +1445,7 @@ dialog_graph_redraw(user_data_t* user_data)
 static void
 draw_area_destroy_cb(GtkWidget *widget _U_, gpointer data)
 {
-	user_data_t *user_data = data;
+	user_data_t *user_data = (user_data_t *)data;
 
 	user_data->dlg.dialog_graph.window = NULL;
 }
@@ -1453,7 +1455,7 @@ draw_area_destroy_cb(GtkWidget *widget _U_, gpointer data)
 static
 gboolean draw_area_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
 {
-	user_data_t   *user_data = data;
+	user_data_t   *user_data = (user_data_t *)data;
 	GtkAllocation  allocation;
 
 	gtk_widget_get_allocation (widget, &allocation);
@@ -1468,7 +1470,7 @@ gboolean draw_area_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
 static gboolean
 draw_area_expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer data)
 {
-	user_data_t *user_data = data;
+	user_data_t *user_data = (user_data_t *)data;
 	cairo_t	    *cr	       = gdk_cairo_create (gtk_widget_get_window(widget));
 
 #if GTK_CHECK_VERSION(2,22,0)
@@ -1488,7 +1490,7 @@ draw_area_expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer data)
 static gboolean
 draw_area_configure_event(GtkWidget *widget, GdkEventConfigure *event _U_, gpointer data)
 {
-	user_data_t   *user_data = data;
+	user_data_t   *user_data = (user_data_t *)data;
 	GtkAllocation  widget_alloc;
 	cairo_t	      *cr;
 
@@ -1535,7 +1537,7 @@ draw_area_configure_event(GtkWidget *widget, GdkEventConfigure *event _U_, gpoin
 static void
 scrollbar_changed(GtkWidget *widget _U_, gpointer data)
 {
-	user_data_t *user_data = data;
+	user_data_t *user_data = (user_data_t *)data;
 	guint32	     mi;
 
 	mi = (guint32) (gtk_adjustment_get_value(user_data->dlg.dialog_graph.scrollbar_adjustment)
@@ -1597,7 +1599,7 @@ disable_graph(dialog_graph_graph_t *dgg)
 static void
 filter_box_display_button_cb(GtkWidget *widget _U_, gpointer data)
 {
-	dialog_graph_graph_t *dgg = data;
+	dialog_graph_graph_t *dgg = (dialog_graph_graph_t *)data;
 
 	/* this graph is not active, just update display and redraw */
 	if (!gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(dgg->display_button))) {
@@ -1637,12 +1639,12 @@ create_filter_box(dialog_graph_graph_t *dgg, GtkWidget *box, int num)
 	gtk_widget_show(label);
 	gtk_box_pack_start(GTK_BOX(hbox), label, FALSE, FALSE, 0);
 #if GTK_CHECK_VERSION(3,0,0)
-	gtk_widget_override_color(label, GTK_STATE_FLAG_NORMAL, &dgg->rgba_color);
+	gtk_widget_override_color(label, (GtkStateFlags)GTK_STATE_FLAG_NORMAL, &dgg->rgba_color);
 	/* XXX gtk_widget_override_color() takes flags not state */
-	gtk_widget_override_color(label, GTK_STATE_ACTIVE, &dgg->rgba_color);
-	gtk_widget_override_color(label, GTK_STATE_PRELIGHT, &dgg->rgba_color);
-	gtk_widget_override_color(label, GTK_STATE_SELECTED, &dgg->rgba_color);
-	gtk_widget_override_color(label, GTK_STATE_INSENSITIVE, &dgg->rgba_color);
+	gtk_widget_override_color(label, (GtkStateFlags)GTK_STATE_ACTIVE, &dgg->rgba_color);
+	gtk_widget_override_color(label, (GtkStateFlags)GTK_STATE_PRELIGHT, &dgg->rgba_color);
+	gtk_widget_override_color(label, (GtkStateFlags)GTK_STATE_SELECTED, &dgg->rgba_color);
+	gtk_widget_override_color(label, (GtkStateFlags)GTK_STATE_INSENSITIVE, &dgg->rgba_color);
 #else
 	gtk_widget_modify_fg(label, GTK_STATE_NORMAL, &dgg->color);
 	gtk_widget_modify_fg(label, GTK_STATE_ACTIVE, &dgg->color);
@@ -1688,7 +1690,7 @@ static void
 yscale_select(GtkWidget *item, gpointer data)
 {
 	int	     i;
-	user_data_t *user_data = data;
+	user_data_t *user_data = (user_data_t *)data;
 
 	i = gtk_combo_box_get_active (GTK_COMBO_BOX(item));
 
@@ -1701,7 +1703,7 @@ static void
 pixels_per_tick_select(GtkWidget *item, gpointer data)
 {
 	int	     i;
-	user_data_t *user_data = data;
+	user_data_t *user_data = (user_data_t *)data;
 
 	i = gtk_combo_box_get_active (GTK_COMBO_BOX(item));
 
@@ -1713,7 +1715,7 @@ pixels_per_tick_select(GtkWidget *item, gpointer data)
 static void
 tick_interval_select(GtkWidget *item, gpointer data)
 {
-	user_data_t *user_data = data;
+	user_data_t *user_data = (user_data_t *)data;
 	int	     i;
 
 	i = gtk_combo_box_get_active (GTK_COMBO_BOX(item));
@@ -1891,7 +1893,7 @@ dialog_graph_init_window(user_data_t* user_data)
 	gtk_box_pack_start(GTK_BOX(vbox), hbox, FALSE, FALSE, 0);
 	gtk_widget_show(hbox);
 
-	bt_close = g_object_get_data(G_OBJECT(hbox), GTK_STOCK_CLOSE);
+	bt_close = (GtkWidget *)g_object_get_data(G_OBJECT(hbox), GTK_STOCK_CLOSE);
 	window_set_cancel_button(user_data->dlg.dialog_graph.window, bt_close, window_cancel_button_cb);
 
 	g_signal_connect(user_data->dlg.dialog_graph.window, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
@@ -1906,7 +1908,7 @@ dialog_graph_init_window(user_data_t* user_data)
 static void
 on_graph_bt_clicked(GtkWidget *bt _U_, gpointer data)
 {
-	user_data_t *user_data = data;
+	user_data_t *user_data = (user_data_t *)data;
 
 	if (user_data->dlg.dialog_graph.window != NULL) {
 		/* There's already a graph window; reactivate it. */
@@ -1922,7 +1924,7 @@ on_graph_bt_clicked(GtkWidget *bt _U_, gpointer data)
 static void
 on_goto_bt_clicked(GtkWidget *bt _U_, gpointer data)
 {
-	user_data_t	 *user_data = data;
+	user_data_t	 *user_data = (user_data_t *)data;
 	GtkTreeIter	  iter;
 	GtkTreeModel	 *model;
 	GtkTreeSelection *selection;
@@ -1947,7 +1949,7 @@ static void draw_stat(user_data_t *user_data);
 static void
 on_refresh_bt_clicked(GtkWidget *bt _U_, gpointer data)
 {
-	user_data_t *user_data = data;
+	user_data_t *user_data = (user_data_t *)data;
 	GString	    *error_string;
 
 	/* remove tap listener */
@@ -1974,7 +1976,7 @@ on_refresh_bt_clicked(GtkWidget *bt _U_, gpointer data)
 static void
 on_next_bt_clicked(GtkWidget *bt _U_, gpointer data)
 {
-	user_data_t	 *user_data = data;
+	user_data_t	 *user_data = (user_data_t *)data;
 	GtkTreeIter	  iter;
 	GtkTreeModel	 *model;
 	gchar		 *text;
@@ -2047,8 +2049,8 @@ save_csv_as_ok_cb(GtkWidget *w _U_, gpointer fc /*user_data_t *user_data*/)
 		/* It's a directory - set the file selection box to display it. */
 		set_last_open_dir(g_dest);
 		g_free(g_dest);
-		file_selection_set_current_folder(fc, get_last_open_dir());
-		gtk_file_chooser_set_current_name(fc, "");
+		file_selection_set_current_folder((GtkWidget *)fc, get_last_open_dir());
+		gtk_file_chooser_set_current_name((GtkFileChooser *)fc, "");
 		return FALSE; /* run the dialog again */
 	}
 	rev  = (GtkWidget*)g_object_get_data(G_OBJECT(fc), "reversed_rb");
@@ -2217,7 +2219,7 @@ save_csv_as_ok_cb(GtkWidget *w _U_, gpointer fc /*user_data_t *user_data*/)
 
 static void save_csv_as_destroy_cb(GtkWidget *win _U_, gpointer data)
 {
-	user_data_t *user_data = data;
+	user_data_t *user_data = (user_data_t *)data;
 
 	user_data->dlg.save_csv_as_w = NULL;
 }
@@ -2226,7 +2228,7 @@ static void save_csv_as_destroy_cb(GtkWidget *win _U_, gpointer data)
 static void
 save_csv_as_cb(GtkWidget *bt _U_, gpointer data)
 {
-	user_data_t *user_data = data;
+	user_data_t *user_data = (user_data_t *)data;
 	GtkWidget   *vertb;
 	GtkWidget   *grid1;
 	GtkWidget   *label_format;
@@ -2250,7 +2252,6 @@ save_csv_as_cb(GtkWidget *bt _U_, gpointer data)
 					    GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
 					    NULL);
 	gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(user_data->dlg.save_csv_as_w), TRUE);
-	gtk_window_set_transient_for(GTK_WINDOW(user_data->dlg.save_csv_as_w),GTK_WINDOW(user_data->dlg.window));
 
 	/* Build our "extra widget" to be added to the file chooser widget */
 	/* Container for each row of widgets */
@@ -2336,7 +2337,7 @@ save_csv_as_cb(GtkWidget *bt _U_, gpointer data)
 /****************************************************************************/
 static void save_voice_as_destroy_cb(GtkWidget *win _U_, gpointer data)
 {
-	user_data_t *user_data = data;
+	user_data_t *user_data = (user_data_t *)data;
 
 	/* Note that we no longer have a Save voice info dialog box. */
 	user_data->dlg.save_voice_as_w = NULL;
@@ -2384,7 +2385,7 @@ static gboolean copy_file(gchar *dest, gint channels, gint format, user_data_t *
 		/* First we write the .au header. XXX Hope this is endian independent */
 		/* the magic word 0x2e736e64 == .snd */
 		/* XXX: Should we be checking for write errors below ? */
-		phtonl(pd, 0x2e736e64);
+		phton32(pd, 0x2e736e64);
 		fwritten = ws_write(to_fd, pd, 4);
 		if ((fwritten < 4) || (fread_cnt == (size_t)-1)) {
 			ws_close(forw_fd);
@@ -2394,7 +2395,7 @@ static gboolean copy_file(gchar *dest, gint channels, gint format, user_data_t *
 			return FALSE;
 		}
 		/* header offset == 24 bytes */
-		phtonl(pd, 24);
+		phton32(pd, 24);
 		fwritten = ws_write(to_fd, pd, 4);
 		if ((fwritten < 4) || (fread_cnt == (size_t)-1)) {
 			ws_close(forw_fd);
@@ -2404,7 +2405,7 @@ static gboolean copy_file(gchar *dest, gint channels, gint format, user_data_t *
 			return FALSE;
 		}
 		/* total length, it is permited to set this to 0xffffffff */
-		phtonl(pd, -1);
+		phton32(pd, -1);
 		fwritten = ws_write(to_fd, pd, 4);
 		if ((fwritten < 4) || (fread_cnt == (size_t)-1)) {
 			ws_close(forw_fd);
@@ -2414,7 +2415,7 @@ static gboolean copy_file(gchar *dest, gint channels, gint format, user_data_t *
 			return FALSE;
 		}
 		/* encoding format == 16-bit linear PCM */
-		phtonl(pd, 3);
+		phton32(pd, 3);
 		fwritten = ws_write(to_fd, pd, 4);
 		if ((fwritten < 4) || (fread_cnt == (size_t)-1)) {
 			ws_close(forw_fd);
@@ -2424,7 +2425,7 @@ static gboolean copy_file(gchar *dest, gint channels, gint format, user_data_t *
 			return FALSE;
 		}
 		/* sample rate == 8000 Hz */
-		phtonl(pd, 8000);
+		phton32(pd, 8000);
 		fwritten = ws_write(to_fd, pd, 4);
 		if ((fwritten < 4) || (fread_cnt == (size_t)-1)) {
 			ws_close(forw_fd);
@@ -2434,7 +2435,7 @@ static gboolean copy_file(gchar *dest, gint channels, gint format, user_data_t *
 			return FALSE;
 		}
 		/* channels == 1 */
-		phtonl(pd, 1);
+		phton32(pd, 1);
 		fwritten = ws_write(to_fd, pd, 4);
 		if ((fwritten < 4) || (fread_cnt == (size_t)-1)) {
 			ws_close(forw_fd);
@@ -2461,11 +2462,11 @@ static gboolean copy_file(gchar *dest, gint channels, gint format, user_data_t *
 
 					if (user_data->forward.statinfo.pt == AST_FORMAT_ULAW) {
 						sample = ulaw2linear(*f_pd);
-						phtons(pd, sample);
+						phton16(pd, sample);
 					}
 					else if (user_data->forward.statinfo.pt == AST_FORMAT_ALAW) {
 						sample = alaw2linear(*f_pd);
-						phtons(pd, sample);
+						phton16(pd, sample);
 					}
 					else{
 						ws_close(forw_fd);
@@ -2502,11 +2503,11 @@ static gboolean copy_file(gchar *dest, gint channels, gint format, user_data_t *
 
 					if (user_data->reversed.statinfo.pt == AST_FORMAT_ULAW) {
 						sample = ulaw2linear(*r_pd);
-						phtons(pd, sample);
+						phton16(pd, sample);
 					}
 					else if (user_data->reversed.statinfo.pt == AST_FORMAT_ALAW) {
 						sample = alaw2linear(*r_pd);
-						phtons(pd, sample);
+						phton16(pd, sample);
 					}
 					else{
 						ws_close(forw_fd);
@@ -2587,12 +2588,12 @@ static gboolean copy_file(gchar *dest, gint channels, gint format, user_data_t *
 					if ((user_data->forward.statinfo.pt == AST_FORMAT_ULAW)
 					    && (user_data->reversed.statinfo.pt == AST_FORMAT_ULAW)) {
 						sample = (ulaw2linear(*r_pd) + ulaw2linear(*f_pd)) / 2;
-						phtons(pd, sample);
+						phton16(pd, sample);
 					}
 					else if ((user_data->forward.statinfo.pt == AST_FORMAT_ALAW)
 						&& (user_data->reversed.statinfo.pt == AST_FORMAT_ALAW)) {
 						sample = (alaw2linear(*r_pd) + alaw2linear(*f_pd)) / 2;
-						phtons(pd, sample);
+						phton16(pd, sample);
 					}
 					else
 					{
@@ -2695,8 +2696,8 @@ static gboolean save_voice_as_ok_cb(GtkWidget *w _U_, gpointer fc)
 	if (test_for_directory(g_dest) == EISDIR) {
 		/* It's a directory - set the file selection box to display it. */
 		set_last_open_dir(g_dest);
-		file_selection_set_current_folder(fc, get_last_open_dir());
-		gtk_file_chooser_set_current_name(fc, "");
+		file_selection_set_current_folder((GtkWidget *)fc, get_last_open_dir());
+		gtk_file_chooser_set_current_name((GtkFileChooser *)fc, "");
 		g_free(g_dest);
 		return FALSE; /* run the dialog again */
 	}
@@ -2868,7 +2869,7 @@ static gboolean save_voice_as_ok_cb(GtkWidget *w _U_, gpointer fc)
 /* XXX support for different formats is currently commented out */
 static void save_voice_as_cb(GtkWidget *bt _U_, gpointer data)
 {
-	user_data_t *user_data = data;
+	user_data_t *user_data = (user_data_t *)data;
 	GtkWidget *vertb;
 	GtkWidget *grid1;
 	GtkWidget *label_format;
@@ -2900,7 +2901,6 @@ static void save_voice_as_cb(GtkWidget *bt _U_, gpointer data)
 					    GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
 					    NULL);
 	gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(user_data->dlg.save_voice_as_w), TRUE);
-	gtk_window_set_transient_for(GTK_WINDOW(user_data->dlg.save_voice_as_w),GTK_WINDOW(user_data->dlg.window));
 
 	/* Container for each row of widgets */
 	vertb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 0, FALSE);
@@ -3131,7 +3131,7 @@ iax2_float_data_func (GtkTreeViewColumn *column _U_,
 	gtk_tree_model_get(model, iter, float_col, &float_val, -1);
 
 	/* save the current locale */
-	savelocale = setlocale(LC_NUMERIC, NULL);
+	savelocale = g_strdup(setlocale(LC_NUMERIC, NULL));
 	/* switch to "C" locale to avoid problems with localized decimal separators
 	 * in g_snprintf("%f") functions
 	 */
@@ -3140,6 +3140,7 @@ iax2_float_data_func (GtkTreeViewColumn *column _U_,
 	g_snprintf(buf, sizeof(buf), "%.2f", float_val);
 	/* restore previous locale setting */
 	setlocale(LC_NUMERIC, savelocale);
+	g_free(savelocale);
 
 	g_object_set(renderer, "text", buf, NULL);
 }
@@ -3333,16 +3334,16 @@ create_iax2_dialog(user_data_t* user_data)
 	gtk_widget_show(main_vb);
 
 	/* Notebooks... */
-	g_strlcpy(str_ip_src, get_addr_name(&(user_data->ip_src_fwd)), 16);
-	g_strlcpy(str_ip_dst, get_addr_name(&(user_data->ip_dst_fwd)), 16);
+	g_strlcpy(str_ip_src, ep_address_to_display(&(user_data->ip_src_fwd)), 16);
+	g_strlcpy(str_ip_dst, ep_address_to_display(&(user_data->ip_dst_fwd)), 16);
 
 	g_snprintf(label_forward, sizeof(label_forward),
 		"Analysing stream from  %s port %u  to  %s port %u  ",
 		str_ip_src, user_data->port_src_fwd, str_ip_dst, user_data->port_dst_fwd);
 
 
-	g_strlcpy(str_ip_src, get_addr_name(&(user_data->ip_src_rev)), 16);
-	g_strlcpy(str_ip_dst, get_addr_name(&(user_data->ip_dst_rev)), 16);
+	g_strlcpy(str_ip_src, ep_address_to_display(&(user_data->ip_src_rev)), 16);
+	g_strlcpy(str_ip_dst, ep_address_to_display(&(user_data->ip_dst_rev)), 16);
 
 	g_snprintf(label_reverse, sizeof(label_reverse),
 		"Analysing stream from  %s port %u  to  %s port %u  ",
@@ -3435,12 +3436,12 @@ create_iax2_dialog(user_data_t* user_data)
 	gtk_widget_show(csv_bt);
 	g_signal_connect(csv_bt, "clicked", G_CALLBACK(save_csv_as_cb), user_data);
 
-	refresh_bt = gtk_button_new_from_stock(GTK_STOCK_REFRESH);
+	refresh_bt = ws_gtk_button_new_from_stock(GTK_STOCK_REFRESH);
 	gtk_container_add(GTK_CONTAINER(box4), refresh_bt);
 	gtk_widget_show(refresh_bt);
 	g_signal_connect(refresh_bt, "clicked", G_CALLBACK(on_refresh_bt_clicked), user_data);
 
-	goto_bt = gtk_button_new_from_stock(GTK_STOCK_JUMP_TO);
+	goto_bt = ws_gtk_button_new_from_stock(GTK_STOCK_JUMP_TO);
 	gtk_container_add(GTK_CONTAINER(box4), goto_bt);
 	gtk_widget_show(goto_bt);
 	g_signal_connect(goto_bt, "clicked", G_CALLBACK(on_goto_bt_clicked), user_data);
@@ -3455,7 +3456,7 @@ create_iax2_dialog(user_data_t* user_data)
 	gtk_widget_show(next_bt);
 	g_signal_connect(next_bt, "clicked", G_CALLBACK(on_next_bt_clicked), user_data);
 
-	close_bt = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
+	close_bt = ws_gtk_button_new_from_stock(GTK_STOCK_CLOSE);
 	gtk_container_add(GTK_CONTAINER(box4), close_bt);
 	gtk_widget_set_can_default(close_bt, TRUE);
 	gtk_widget_show(close_bt);
@@ -3590,7 +3591,7 @@ iax2_analysis(
 	char *tempname;
 
 	/* init */
-	user_data = g_malloc(sizeof(user_data_t));
+	user_data = (user_data_t *)g_malloc(sizeof(user_data_t));
 
 	COPY_ADDRESS(&(user_data->ip_src_fwd), ip_src_fwd);
 	user_data->port_src_fwd = port_src_fwd;
@@ -3688,7 +3689,6 @@ void iax2_analysis_cb(GtkAction *action _U_, gpointer user_data _U_)
 	gchar	      filter_text[256];
 	dfilter_t    *sfcode;
 	capture_file *cf;
-	gboolean      frame_matched;
 	frame_data   *fdata;
 	GList	     *strinfo_list;
 	GList	     *filtered_list = NULL;
@@ -3710,16 +3710,16 @@ void iax2_analysis_cb(GtkAction *action _U_, gpointer user_data _U_)
 	if (fdata == NULL)
 		return; /* if we exit here it's an error */
 
-	/* dissect the current frame */
-	if (!cf_read_frame(cf, fdata))
-		return;	/* error reading the frame */
-	epan_dissect_init(&edt, TRUE, FALSE);
+	/* dissect the current record */
+	if (!cf_read_record(cf, fdata))
+		return;	/* error reading the record */
+	epan_dissect_init(&edt, cf->epan, TRUE, FALSE);
 	epan_dissect_prime_dfilter(&edt, sfcode);
-	epan_dissect_run(&edt, &cf->phdr, cf->pd, fdata, NULL);
+	epan_dissect_run(&edt, cf->cd_t, &cf->phdr,
+	    frame_tvbuff_new_buffer(fdata, &cf->buf), fdata, NULL);
 
-	/* if it is not an iax2 frame, show an error dialog */
-	frame_matched = dfilter_apply_edt(sfcode, &edt);
-	if (frame_matched != 1) {
+	/* if it is not an iax2 packet, show an error dialog */
+	if (!dfilter_apply_edt(sfcode, &edt)) {
 		epan_dissect_cleanup(&edt);
 		simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
 		    "Please select an IAX2 packet.");
@@ -3742,14 +3742,14 @@ void iax2_analysis_cb(GtkAction *action _U_, gpointer user_data _U_)
 	}
 
 	/* ok, it is a IAX2 frame, so let's get the ip and port values */
-	COPY_ADDRESS(&(ip_src_fwd), &(edt.pi.src))
-	COPY_ADDRESS(&(ip_dst_fwd), &(edt.pi.dst))
+	COPY_ADDRESS(&(ip_src_fwd), &(edt.pi.src));
+	COPY_ADDRESS(&(ip_dst_fwd), &(edt.pi.dst));
 	port_src_fwd = edt.pi.srcport;
 	port_dst_fwd = edt.pi.destport;
 
 	/* assume the inverse ip/port combination for the reverse direction */
-	COPY_ADDRESS(&(ip_src_rev), &(edt.pi.dst))
-	COPY_ADDRESS(&(ip_dst_rev), &(edt.pi.src))
+	COPY_ADDRESS(&(ip_src_rev), &(edt.pi.dst));
+	COPY_ADDRESS(&(ip_dst_rev), &(edt.pi.src));
 	port_src_rev = edt.pi.destport;
 	port_dst_rev = edt.pi.srcport;
 

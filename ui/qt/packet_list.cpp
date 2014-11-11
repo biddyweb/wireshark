@@ -1,7 +1,5 @@
 /* packet_list.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,13 +26,14 @@
 #include <epan/epan.h>
 #include <epan/epan_dissect.h>
 
-#include <epan/column_info.h>
+#include <epan/column-info.h>
 #include <epan/column.h>
 #include <epan/packet.h>
 
 #include "packet_list.h"
 #include "proto_tree.h"
 #include "wireshark_application.h"
+#include "epan/ipproto.h"
 
 #include "qt_ui_utils.h"
 
@@ -44,6 +43,8 @@
 #include "ui/ui_util.h"
 
 #include "wsutil/str_util.h"
+
+#include "frame_tvbuff.h"
 
 #include <QTreeWidget>
 #include <QTabWidget>
@@ -60,10 +61,9 @@ static PacketList *gbl_cur_packet_list = NULL;
 const int max_comments_to_fetch_ = 20000000; // Arbitrary
 
 guint
-packet_list_append(column_info *cinfo, frame_data *fdata, packet_info *pinfo)
+packet_list_append(column_info *cinfo, frame_data *fdata)
 {
     Q_UNUSED(cinfo);
-    Q_UNUSED(pinfo);
 
     if (!gbl_cur_packet_list)
         return 0;
@@ -162,7 +162,7 @@ void
 packet_list_freeze(void)
 {
     if (gbl_cur_packet_list) {
-        gbl_cur_packet_list->setUpdatesEnabled(false);
+        gbl_cur_packet_list->freeze();
     }
 }
 
@@ -170,7 +170,7 @@ void
 packet_list_thaw(void)
 {
     if (gbl_cur_packet_list) {
-        gbl_cur_packet_list->setUpdatesEnabled(true);
+        gbl_cur_packet_list->thaw();
     }
 
     packets_bar_update();
@@ -223,6 +223,7 @@ PacketList::PacketList(QWidget *parent) :
     proto_tree_(NULL),
     byte_view_tab_(NULL),
     cap_file_(NULL),
+    decode_as_(NULL),
     ctx_column_(-1)
 {
     QMenu *submenu, *subsubmenu;
@@ -232,18 +233,36 @@ PacketList::PacketList(QWidget *parent) :
     setSortingEnabled(TRUE);
     setUniformRowHeights(TRUE);
     setAccessibleName("Packet list");
-
+    setItemDelegateForColumn(0, &related_packet_delegate_);
 
     packet_list_model_ = new PacketListModel(this, cap_file_);
     setModel(packet_list_model_);
     packet_list_model_->setColorEnabled(recent.packet_list_colorize);
 
+    // XXX We might want to reimplement setParent() and fill in the context
+    // menu there.
     ctx_menu_.addAction(window()->findChild<QAction *>("actionEditMarkPacket"));
     ctx_menu_.addAction(window()->findChild<QAction *>("actionEditIgnorePacket"));
     ctx_menu_.addAction(window()->findChild<QAction *>("actionEditSetTimeReference"));
     ctx_menu_.addAction(window()->findChild<QAction *>("actionEditTimeShift"));
     ctx_menu_.addAction(window()->findChild<QAction *>("actionEditPacketComment"));
 
+    ctx_menu_.addSeparator();
+    submenu = new QMenu(tr("Follow..."));
+    ctx_menu_.addMenu(submenu);
+    submenu->addAction(window()->findChild<QAction *>("actionAnalyzeFollowTCPStream"));
+    submenu->addAction(window()->findChild<QAction *>("actionAnalyzeFollowUDPStream"));
+    submenu->addAction(window()->findChild<QAction *>("actionAnalyzeFollowSSLStream"));
+    filter_actions_ << submenu->actions();
+    //    "     <menuitem name='FollowTCPStream' action='/Follow TCP Stream'/>\n"
+    //    "     <menuitem name='FollowUDPStream' action='/Follow UDP Stream'/>\n"
+    //    "     <menuitem name='FollowSSLStream' action='/Follow SSL Stream'/>\n"
+    submenu = new QMenu(tr("SCTP"));
+    ctx_menu_.addMenu(submenu);
+    submenu->addAction(window()->findChild<QAction *>("actionSCTPAnalyseThisAssociation"));
+    submenu->addAction(window()->findChild<QAction *>("actionSCTPShowAllAssociations"));
+    submenu->addAction(window()->findChild<QAction *>("actionSCTPFilterThisAssociation"));
+    filter_actions_ << submenu->actions();
     ctx_menu_.addSeparator();
 //    "     <menuitem name='ManuallyResolveAddress' action='/ManuallyResolveAddress'/>\n"
     ctx_menu_.addSeparator();
@@ -358,7 +377,8 @@ PacketList::PacketList(QWidget *parent) :
 //    "           <menuitem name='BinaryStream' action='/Copy/Bytes/BinaryStream'/>\n"
     ctx_menu_.addSeparator();
 //    "     <menuitem name='ProtocolPreferences' action='/ProtocolPreferences'/>\n"
-//    "     <menuitem name='DecodeAs' action='/DecodeAs'/>\n"
+    decode_as_ = window()->findChild<QAction *>("actionAnalyzeDecodeAs");
+    ctx_menu_.addAction(decode_as_);
 //    "     <menuitem name='Print' action='/Print'/>\n"
 //    "     <menuitem name='ShowPacketinNewWindow' action='/ShowPacketinNewWindow'/>\n"
 
@@ -370,6 +390,7 @@ void PacketList::setProtoTree (ProtoTree *proto_tree) {
     proto_tree_ = proto_tree;
 
     connect(proto_tree_, SIGNAL(goToFrame(int)), this, SLOT(goToPacket(int)));
+    connect(proto_tree_, SIGNAL(relatedFrame(int)), this, SLOT(addRelatedFrame(int)));
 }
 
 void PacketList::setByteViewTab (ByteViewTab *byte_view_tab) {
@@ -408,18 +429,25 @@ void PacketList::selectionChanged (const QItemSelection & selected, const QItemS
 
     if (!cap_file_) return;
 
-    if (proto_tree_) {
-        int row = selected.first().top();
-        cf_select_packet(cap_file_, row);
+    int row = selected.first().top();
+    cf_select_packet(cap_file_, row);
+    related_packet_delegate_.clear();
+    emit packetSelectionChanged();
 
-        if (!cap_file_->edt && !cap_file_->edt->tree) {
-            return;
-        }
+    if (!cap_file_->edt) return;
 
+    if (proto_tree_ && cap_file_->edt->tree) {
         proto_tree_->fillProtocolTree(cap_file_->edt->tree);
+        packet_info *pi = &cap_file_->edt->pi;
+        conversation_t *conv = find_conversation(pi->fd->num, &pi->src, &pi->dst, pi->ptype,
+                                                pi->srcport, pi->destport, 0);
+        if (conv) {
+            related_packet_delegate_.setConversationSpan(conv->setup_frame, conv->last_frame);
+        }
+        viewport()->update();
     }
 
-    if (byte_view_tab_ && cap_file_->edt) {
+    if (byte_view_tab_) {
         GSList *src_le;
         struct data_source *source;
 
@@ -437,13 +465,61 @@ void PacketList::contextMenuEvent(QContextMenuEvent *event)
 {
     bool fa_enabled = filter_actions_[0]->isEnabled();
     QAction *act;
+    gboolean is_tcp = FALSE, is_udp = FALSE;
 
-    foreach (act, filter_actions_) {
-        act->setEnabled(true);
+    /* walk the list of a available protocols in the packet to see what we have */
+    if ((cap_file_ != NULL) && (cap_file_->edt != NULL))
+    {
+        proto_get_frame_protocols(cap_file_->edt->pi.layers, NULL, &is_tcp, &is_udp, NULL, NULL);
     }
+
+    foreach (act, filter_actions_)
+    {
+        act->setEnabled(true);
+
+        // check SCTP
+        if (act->objectName().contains("SCTP"))
+        {
+            if ((cap_file_ != NULL) && (cap_file_->edt != NULL) && (cap_file_->edt->pi.ipproto == IP_PROTO_SCTP))
+            {
+                act->setEnabled(true);
+            }
+            else
+            {
+                act->setEnabled(false);
+            }
+        }
+
+        // check follow stream
+        if (act->text().contains("TCP"))
+        {
+            act->setEnabled(is_tcp);
+        }
+
+
+        if (act->text().contains("UDP"))
+        {
+            act->setEnabled(is_udp);
+        }
+
+
+        if ((cap_file_ != NULL) && act->text().contains("SSL"))
+        {
+            if (epan_dissect_packet_contains_field(cap_file_->edt, "ssl"))
+            {
+                act->setEnabled(true);
+            }
+            else
+            {
+                act->setEnabled(false);
+            }
+        }
+    }
+    decode_as_->setData(qVariantFromValue(true));
     ctx_column_ = columnAt(event->x());
     ctx_menu_.exec(event->globalPos());
     ctx_column_ = -1;
+    decode_as_->setData(QVariant());
     foreach (act, filter_actions_) {
         act->setEnabled(fa_enabled);
     }
@@ -502,10 +578,25 @@ void PacketList::updateAll() {
     if (cap_file_->edt && cap_file_->edt->tree) {
         proto_tree_->fillProtocolTree(cap_file_->edt->tree);
     }
+
+    packet_list_model_->resetColumns();
+}
+
+void PacketList::freeze()
+{
+    setUpdatesEnabled(false);
+    setModel(NULL);
+}
+
+void PacketList::thaw()
+{
+    setModel(packet_list_model_);
+    setUpdatesEnabled(true);
 }
 
 void PacketList::clear() {
     //    packet_history_clear();
+    related_packet_delegate_.clear();
     packet_list_model_->clear();
     proto_tree_->clear();
     byte_view_tab_->clear();
@@ -513,7 +604,7 @@ void PacketList::clear() {
     /* XXX is this correct in all cases?
      * Reset the sort column, use packetlist as model in case the list is frozen.
      */
-    gbl_cur_packet_list->sortByColumn(0, Qt::AscendingOrder);
+    sortByColumn(0, Qt::AscendingOrder);
 }
 
 void PacketList::writeRecent(FILE *rf) {
@@ -564,13 +655,13 @@ QString &PacketList::getFilterFromRowAndColumn()
     if (fdata != NULL) {
         epan_dissect_t edt;
 
-        if (!cf_read_frame(cap_file_, fdata))
-            return filter; /* error reading the frame */
+        if (!cf_read_record(cap_file_, fdata))
+            return filter; /* error reading the record */
         /* proto tree, visible. We need a proto tree if there's custom columns */
-        epan_dissect_init(&edt, have_custom_cols(&cap_file_->cinfo), FALSE);
+        epan_dissect_init(&edt, cap_file_->epan, have_custom_cols(&cap_file_->cinfo), FALSE);
         col_custom_prime_edt(&edt, &cap_file_->cinfo);
 
-        epan_dissect_run(&edt, &cap_file_->phdr, cap_file_->pd, fdata, &cap_file_->cinfo);
+        epan_dissect_run(&edt, cap_file_->cd_t, &cap_file_->phdr, frame_tvbuff_new_buffer(fdata, &cap_file_->buf), fdata, &cap_file_->cinfo);
         epan_dissect_fill_in_columns(&edt, TRUE, TRUE);
 
         if ((cap_file_->cinfo.col_custom_occurrence[ctx_column_]) ||
@@ -616,6 +707,7 @@ QString PacketList::packetComment()
 {
     int row = currentIndex().row();
     frame_data *fdata;
+    char *pkt_comment;
 
     if (!cap_file_ || !packet_list_model_) return NULL;
 
@@ -623,7 +715,11 @@ QString PacketList::packetComment()
 
     if (!fdata) return NULL;
 
-    return QString(fdata->opt_comment);
+    pkt_comment = cf_get_comment(cap_file_, fdata);
+
+    return QString(pkt_comment);
+
+    /* XXX, g_free(pkt_comment) */
 }
 
 void PacketList::setPacketComment(QString new_comment)
@@ -638,20 +734,12 @@ void PacketList::setPacketComment(QString new_comment)
 
     if (!fdata) return;
 
-    /* Check if the comment has changed */
-    if (fdata->opt_comment) {
-        if (strcmp(fdata->opt_comment, new_packet_comment) == 0) {
-            return;
-        }
-    }
-
     /* Check if we are clearing the comment */
     if(new_comment.isEmpty()) {
         new_packet_comment = NULL;
     }
 
-    /* The comment has changed, let's update it */
-    cf_update_packet_comment(cap_file_, fdata, g_strdup(new_packet_comment));
+    cf_set_user_packet_comment(cap_file_, fdata, new_packet_comment);
 
     updateAll();
 }
@@ -666,8 +754,12 @@ QString PacketList::allPacketComments()
 
     for (framenum = 1; framenum <= cap_file_->count ; framenum++) {
         fdata = frame_data_sequence_find(cap_file_->frames, framenum);
-        if (fdata->opt_comment) {
-            buf_str.append(QString(tr("Frame %1: %2 \n\n")).arg(framenum).arg(fdata->opt_comment));
+
+        char *pkt_comment = cf_get_comment(cap_file_, fdata);
+
+        if (pkt_comment) {
+            buf_str.append(QString(tr("Frame %1: %2 \n\n")).arg(framenum).arg(pkt_comment));
+            g_free(pkt_comment);
         }
         if (buf_str.length() > max_comments_to_fetch_) {
             buf_str.append(QString(tr("[ Comment text exceeds %1. Stopping. ]"))
@@ -702,9 +794,11 @@ void PacketList::goLastPacket(void) {
     setCurrentIndex(moveCursor(MoveEnd, Qt::NoModifier));
 }
 
+// XXX We can jump to the wrong packet if a display filter is applied
 void PacketList::goToPacket(int packet) {
-    if (packet > 0 && packet <= packet_list_model_->rowCount()) {
-        setCurrentIndex(packet_list_model_->index(packet - 1, 0));
+    int row = packet_list_model_->packetNumberToRow(packet);
+    if (row > 0) {
+        setCurrentIndex(packet_list_model_->index(row, 0));
     }
 }
 
@@ -804,6 +898,11 @@ void PacketList::unsetAllTimeReferences()
         }
     }
     updateAll();
+}
+
+void PacketList::addRelatedFrame(int related_frame)
+{
+    related_packet_delegate_.addRelatedFrame(related_frame);
 }
 
 /*

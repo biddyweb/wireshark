@@ -4,8 +4,6 @@
  * (C) 2008-2013 by Harald Welte <laforge@gnumonks.org>
  * (C) 2011 by Holger Hans Peter Freyther
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -22,9 +20,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
- * 02111-1307, USA.
- *
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 /* GSMTAP is a generic header format for GSM protocol captures,
@@ -50,6 +46,9 @@
 
 #include "packet-tetra.h"
 #include "packet-rrc.h"
+
+void proto_register_gsmtap(void);
+void proto_reg_handoff_gsmtap(void);
 
 /* ====== DO NOT MAKE UNAPPROVED MODIFICATIONS HERE ===== */
 /* The following types and definitions are imported from libosmocore,
@@ -559,9 +558,9 @@ dissect_gsmtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		gsmtap_tree = proto_item_add_subtree(ti, ett_gsmtap);
 		proto_tree_add_item(gsmtap_tree, hf_gsmtap_version,
 				    tvb, offset, 1, ENC_BIG_ENDIAN);
-		proto_tree_add_uint_format(gsmtap_tree, hf_gsmtap_hdrlen,
+		proto_tree_add_uint_format_value(gsmtap_tree, hf_gsmtap_hdrlen,
 				    tvb, offset+1, 1, hdr_len,
-				    "Header length: %u bytes", hdr_len);
+				    "%u bytes", hdr_len);
 		proto_tree_add_item(gsmtap_tree, hf_gsmtap_type,
 				    tvb, offset+2, 1, ENC_BIG_ENDIAN);
 		proto_tree_add_item(gsmtap_tree, hf_gsmtap_timeslot,

@@ -1,7 +1,5 @@
 /* print_dialog.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,9 +36,10 @@ extern "C" {
 // Page element callbacks
 
 static gboolean
-print_preamble_pd(print_stream_t *self, gchar *filename)
+print_preamble_pd(print_stream_t *self, gchar *filename, const char *version_string )
 {
     Q_UNUSED(filename);
+    Q_UNUSED(version_string);
 
     if (!self) return FALSE;
     PrintDialog *print_dlg = static_cast<PrintDialog *>(self->data);

@@ -3,8 +3,6 @@
  * Copyright 2003, Wayne Parrott <wayne_p@pacific.net.au>
  * Copied from packet-yhoo.c and updated
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,9 @@
 
 #include "packet-tcp.h"
 #include <epan/prefs.h>
+
+void proto_register_ymsg(void);
+void proto_reg_handoff_ymsg(void);
 
 static int proto_ymsg = -1;
 static int hf_ymsg_version = -1;
@@ -189,7 +190,7 @@ enum yahoo_status {
         YAHOO_STATUS_WEBLOGIN	    = 0x5a55aa55,
         YAHOO_STATUS_OFFLINE	    = 0x5a55aa56, /* don't ask */
         YAHOO_STATUS_TYPING	    = 0x16,
-        YAHOO_STATUS_DISCONNECTED   = 0xffffffff /* in ymsg 15. doesnt mean the normal sense of 'disconnected' */
+        YAHOO_STATUS_DISCONNECTED   = -1 /* in ymsg 15. doesnt mean the normal sense of 'disconnected' */
 };
 
 enum ypacket_status {
@@ -324,9 +325,6 @@ static const value_string ymsg_status_vals[] = {
 	{0, NULL}
 };
 
-static guint get_ymsg_pdu_len(packet_info *pinfo, tvbuff_t *tvb, int offset);
-static void dissect_ymsg_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
-
 /* Find the end of the current content line and return its length */
 static int get_content_item_length(tvbuff_t *tvb, int offset)
 {
@@ -340,23 +338,6 @@ static int get_content_item_length(tvbuff_t *tvb, int offset)
 		offset += 1;
 	}
 	return offset - origoffset;
-}
-
-
-static gboolean
-dissect_ymsg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
-{
-	if (tvb_length(tvb) < 4) {
-		return FALSE;
-	}
-	if (tvb_memeql(tvb, 0, "YMSG", 4) == -1) {
-		/* Not a Yahoo Messenger packet. */
-		return FALSE;
-	}
-
-	tcp_dissect_pdus(tvb, pinfo, tree, ymsg_desegment, 10, get_ymsg_pdu_len,
-			 dissect_ymsg_pdu);
-	return TRUE;
 }
 
 static guint
@@ -375,8 +356,8 @@ get_ymsg_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 	return plen + YAHOO_HEADER_SIZE;
 }
 
-static void
-dissect_ymsg_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_ymsg_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	proto_tree *ymsg_tree, *ti;
 	proto_item *content_item;
@@ -390,15 +371,13 @@ dissect_ymsg_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "YMSG");
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO,
+	col_add_fstr(pinfo->cinfo, COL_INFO,
 			"%s (status=%s)   ",
 			val_to_str(tvb_get_ntohs(tvb, offset + 10),
 				 ymsg_service_vals, "Unknown Service: %u"),
 			val_to_str(tvb_get_ntohl(tvb, offset + 12),
 				 ymsg_status_vals, "Unknown Status: %u")
 		);
-	}
 
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_ymsg, tvb, offset, -1, ENC_NA);
@@ -440,7 +419,7 @@ dissect_ymsg_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		if (content_len) {
 			/* Create content subtree */
 			content_item = proto_tree_add_item(ymsg_tree, hf_ymsg_content, tvb,
-			                                   offset, -1, ENC_ASCII|ENC_NA);
+			                                   offset, -1, ENC_NA);
 			content_tree = proto_item_add_subtree(content_item, ett_ymsg_content);
 
 			/* Each entry consists of:
@@ -490,7 +469,24 @@ dissect_ymsg_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	col_set_fence(pinfo->cinfo, COL_INFO);
 
-	return;
+	return tvb_length(tvb);
+}
+
+
+static gboolean
+dissect_ymsg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
+{
+	if (tvb_length(tvb) < 4) {
+		return FALSE;
+	}
+	if (tvb_memeql(tvb, 0, "YMSG", 4) == -1) {
+		/* Not a Yahoo Messenger packet. */
+		return FALSE;
+	}
+
+	tcp_dissect_pdus(tvb, pinfo, tree, ymsg_desegment, 10, get_ymsg_pdu_len,
+			 dissect_ymsg_pdu, data);
+	return TRUE;
 }
 
 void
@@ -517,11 +513,11 @@ proto_register_ymsg(void)
 				NULL, 0, "Connection ID", HFILL }},
 
 		{ &hf_ymsg_content, {
-				"Content", "ymsg.content", FT_STRING, BASE_NONE,
+				"Content", "ymsg.content", FT_BYTES, BASE_NONE,
 				NULL, 0, "Data portion of the packet", HFILL }},
 		{ &hf_ymsg_content_line, {
 				"Content-line", "ymsg.content-line", FT_STRING, BASE_NONE,
-				NULL, 0, "Data portion of the packet", HFILL }},
+				NULL, 0, "Content line", HFILL }},
 		{ &hf_ymsg_content_line_key, {
 				"Key", "ymsg.content-line.key", FT_STRING, BASE_NONE,
 				NULL, 0, "Content line key", HFILL }},

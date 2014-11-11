@@ -1,8 +1,6 @@
 /* version_info.c
  * Routines to report version information for stuff used by Wireshark
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -43,7 +41,7 @@
 #include "capture-pcap-util.h"
 #include <wsutil/unicode-utils.h>
 
-#include "svnversion.h"
+#include "version.h"
 
 #ifdef HAVE_WINDOWS_H
 #include <windows.h>
@@ -58,10 +56,10 @@
 # include <sys/capability.h>
 #endif
 
-#ifdef SVNVERSION
-	const char *wireshark_svnversion = " (" SVNVERSION " from " SVNPATH ")";
+#ifdef GITVERSION
+	const char *wireshark_gitversion = " (" GITVERSION " from " GITBRANCH ")";
 #else
-	const char *wireshark_svnversion = "";
+	const char *wireshark_gitversion = "";
 #endif
 
 /*
@@ -142,6 +140,8 @@ get_compiled_version_info(GString *str, void (*prepend_info)(GString *),
 	g_string_append(str, "without libz");
 #endif /* HAVE_LIBZ */
 
+#ifndef _WIN32
+	/* This is UN*X-only. */
 	/* LIBCAP */
 	g_string_append(str, ", ");
 #ifdef HAVE_LIBCAP
@@ -152,7 +152,10 @@ get_compiled_version_info(GString *str, void (*prepend_info)(GString *),
 #else /* HAVE_LIBCAP */
 	g_string_append(str, "without POSIX capabilities");
 #endif /* HAVE_LIBCAP */
+#endif /* _WIN32 */
 
+#ifdef __linux__
+	/* This is a Linux-specific library. */
 	/* LIBNL */
 	g_string_append(str, ", ");
 #if defined(HAVE_LIBNL1)
@@ -161,9 +164,10 @@ get_compiled_version_info(GString *str, void (*prepend_info)(GString *),
 	g_string_append(str, "with libnl 2");
 #elif defined(HAVE_LIBNL3)
 	g_string_append(str, "with libnl 3");
-#else
+#else /* no libnl */
 	g_string_append(str, "without libnl");
-#endif
+#endif /* libnl version */
+#endif /* __linux__ */
 
 	/* Additional application-dependent information */
 	if (append_info)
@@ -192,7 +196,8 @@ get_string_from_dictionary(CFPropertyListRef dict, CFStringRef key)
 {
 	CFStringRef cfstring;
 
-	cfstring = CFDictionaryGetValue(dict, key);
+	cfstring = (CFStringRef)CFDictionaryGetValue((CFDictionaryRef)dict,
+	    (const void *)key);
 	if (cfstring == NULL)
 		return NULL;
 	if (CFGetTypeID(cfstring) != CFStringGetTypeID()) {
@@ -263,16 +268,18 @@ get_os_x_version_info(GString *str)
 		}
 	}
 #ifdef HAVE_CFPROPERTYLISTCREATEWITHSTREAM
-	version_dict = CFPropertyListCreateWithStream(NULL,
+	version_dict = (CFDictionaryRef)CFPropertyListCreateWithStream(NULL,
 	    version_plist_stream, 0, kCFPropertyListImmutable,
 	    NULL, NULL);
 #else
-	version_dict = CFPropertyListCreateFromStream(NULL,
+	version_dict = (CFDictionaryRef)CFPropertyListCreateFromStream(NULL,
 	    version_plist_stream, 0, kCFPropertyListImmutable,
 	    NULL, NULL);
 #endif
-	if (version_dict == NULL)
+	if (version_dict == NULL) {
+		CFRelease(version_plist_stream);
 		return FALSE;
+	}
 	if (CFGetTypeID(version_dict) != CFDictionaryGetTypeID()) {
 		/* This is *supposed* to be a dictionary.  Punt. */
 		CFRelease(version_dict);
@@ -477,6 +484,9 @@ void get_os_version_info(GString *str)
 			case 2:
 				g_string_append_printf(str, is_nt_workstation ? "Windows 8" : "Windows Server 2012");
 				break;
+			case 3:
+				g_string_append_printf(str, is_nt_workstation ? "Windows 8.1" : "Windows Server 2012 R2");
+				break;
 			default:
 				g_string_append_printf(str, "Windows NT, unknown version %lu.%lu",
 						       info.dwMajorVersion, info.dwMinorVersion);
@@ -614,7 +624,7 @@ do_cpuid(int *CPUInfo, guint32 selector){
 	__cpuid(CPUInfo, selector);
 }
 #elif defined(__GNUC__)
-#if defined(__x86_64__)  
+#if defined(__x86_64__)
 static inline void
 do_cpuid(guint32 *CPUInfo, int selector)
 {
@@ -646,42 +656,46 @@ do_cpuid(guint32 *CPUInfo, int selector _U_){
  * the get_cpuid() routine will return 0 in CPUInfo[0] if cpuinfo isn't available.
  */
 
-void get_cpu_info(GString *str _U_)
+static void get_cpu_info(GString *str _U_)
 {
+#if defined(_MSC_VER)
 	int CPUInfo[4];
+#else
+	guint32 CPUInfo[4];
+#endif
 	char CPUBrandString[0x40];
-	unsigned    nExIds;
+	unsigned nExIds;
 
 	/* http://msdn.microsoft.com/en-us/library/hskdteyh(v=vs.100).aspx */
 
 	/* Calling __cpuid with 0x80000000 as the InfoType argument*/
-    /* gets the number of valid extended IDs.*/
-    do_cpuid(CPUInfo, 0x80000000);
-    nExIds = CPUInfo[0];
+	/* gets the number of valid extended IDs.*/
+	do_cpuid(CPUInfo, 0x80000000);
+	nExIds = CPUInfo[0];
 
 	if( nExIds<0x80000005)
 		return;
-    memset(CPUBrandString, 0, sizeof(CPUBrandString));
+	memset(CPUBrandString, 0, sizeof(CPUBrandString));
 
-    /* Interpret CPU brand string.*/
-    do_cpuid(CPUInfo, 0x80000002);
-    memcpy(CPUBrandString, CPUInfo, sizeof(CPUInfo));
-    do_cpuid(CPUInfo, 0x80000003);
-    memcpy(CPUBrandString + 16, CPUInfo, sizeof(CPUInfo));
-    do_cpuid(CPUInfo, 0x80000004);
-    memcpy(CPUBrandString + 32, CPUInfo, sizeof(CPUInfo));
+	/* Interpret CPU brand string.*/
+	do_cpuid(CPUInfo, 0x80000002);
+	memcpy(CPUBrandString, CPUInfo, sizeof(CPUInfo));
+	do_cpuid(CPUInfo, 0x80000003);
+	memcpy(CPUBrandString + 16, CPUInfo, sizeof(CPUInfo));
+	do_cpuid(CPUInfo, 0x80000004);
+	memcpy(CPUBrandString + 32, CPUInfo, sizeof(CPUInfo));
 
 	g_string_append_printf(str, "\n%s", CPUBrandString);
 
 }
 
-void get_mem_info(GString *str _U_)
+static void get_mem_info(GString *str _U_)
 {
 #if defined(_WIN32)
 	MEMORYSTATUSEX statex;
 
 	statex.dwLength = sizeof (statex);
-	
+
 	if(GlobalMemoryStatusEx (&statex))
 		g_string_append_printf(str, ", with ""%" G_GINT64_MODIFIER "d" "MB of physical memory.\n", statex.ullTotalPhys/(1024*1024));
 #endif
@@ -819,7 +833,7 @@ const char *
 get_copyright_info(void)
 {
 	return
-"Copyright 1998-2013 Gerald Combs <gerald@wireshark.org> and contributors.\n"
+"Copyright 1998-2014 Gerald Combs <gerald@wireshark.org> and contributors.\n"
 "This is free software; see the source for copying conditions. There is NO\n"
 "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n";
 }

@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-t125.h                                                              */
 /* ../../tools/asn2wrs.py -b -p t125 -c ./t125.cnf -s ./packet-t125-template -D . -O ../../epan/dissectors MCS-PROTOCOL.asn */
 
@@ -9,8 +9,6 @@
 /* packet-t125.h
  * Routines for t125 packet dissection
  * Copyright 2007, Ronnie Sahlberg
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -43,7 +41,7 @@
 #line 1 "../../asn1/t125/packet-t125-exp.h"
 
 /*--- End of included file: packet-t125-exp.h ---*/
-#line 34 "../../asn1/t125/packet-t125-template.h"
+#line 32 "../../asn1/t125/packet-t125-template.h"
 
 
 #endif  /* PACKET_T125_H */

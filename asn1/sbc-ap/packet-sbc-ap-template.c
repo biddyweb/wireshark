@@ -1,8 +1,6 @@
 /* packet-sbc-ap.c
  * Routines for SBc Application Part (SBc-AP) packet dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,7 +29,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <epan/emem.h>
 #include <epan/strutil.h>
 #include <epan/asn1.h>
 #include <epan/sctpppids.h>
@@ -43,6 +40,9 @@
 #define PNAME  "SBc Application Part"
 #define PSNAME "SBCAP"
 #define PFNAME "sbcap"
+
+void proto_register_sbc_ap(void);
+void proto_reg_handoff_sbc_ap(void);
 
 /* The registered port number for SBc-AP is 29168.
  * The registered payload protocol identifier for SBc-AP is 24.
@@ -130,12 +130,11 @@ static int dissect_UnsuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, p
 static void
 dissect_sbc_ap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-        proto_item      *sbc_ap_item = NULL;
-        proto_tree      *sbc_ap_tree = NULL;
+    proto_item      *sbc_ap_item = NULL;
+    proto_tree      *sbc_ap_tree = NULL;
 
-        /* make entry in the Protocol column on summary display */
-        if (check_col(pinfo->cinfo, COL_PROTOCOL))
-                col_set_str(pinfo->cinfo, COL_PROTOCOL, PNAME);
+    /* make entry in the Protocol column on summary display */
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, PNAME);
 
     /* create the sbc_ap protocol tree */
     if (tree) {
@@ -167,7 +166,7 @@ void proto_register_sbc_ap(void) {
   proto_register_field_array(proto_sbc_ap, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
 
- 
+
   /* Register dissector tables */
   sbc_ap_ies_dissector_table = register_dissector_table("sbc_ap.ies", "SBC-AP-PROTOCOL-IES", FT_UINT32, BASE_DEC);
   sbc_ap_extension_dissector_table = register_dissector_table("sbc_ap.extension", "SBC-AP-PROTOCOL-EXTENSION", FT_UINT32, BASE_DEC);

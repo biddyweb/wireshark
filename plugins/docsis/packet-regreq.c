@@ -2,8 +2,6 @@
  * Routines for Registration Request dissection
  * Copyright 2002, Anand V. Narwani <anand[AT]narwani.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,6 +25,9 @@
 
 #include <epan/packet.h>
 
+void proto_register_docsis_regreq(void);
+void proto_reg_handoff_docsis_regreq(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_docsis_regreq = -1;
 static int hf_docsis_regreq_sid = -1;
@@ -49,7 +50,6 @@ dissect_regreq (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 
   sid = tvb_get_ntohs (tvb, 0);
 
-  col_clear (pinfo->cinfo, COL_INFO);
   col_add_fstr (pinfo->cinfo, COL_INFO, "Registration Request SID = %u",
 	    sid);
 

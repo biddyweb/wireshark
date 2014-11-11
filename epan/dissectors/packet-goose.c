@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-goose.c                                                             */
 /* ../../tools/asn2wrs.py -b -p goose -c ./goose.cnf -s ./packet-goose-template -D . -O ../../epan/dissectors goose.asn */
 
@@ -9,8 +9,6 @@
 /* packet-goose.c
  * Routines for IEC 61850 GOOSE packet dissection
  * Martin Lutz 2008
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -38,7 +36,6 @@
 #include <epan/asn1.h>
 #include <epan/etypes.h>
 #include <epan/expert.h>
-#include <epan/nstime.h>
 
 #include "packet-ber.h"
 #include "packet-acse.h"
@@ -47,12 +44,17 @@
 #define PSNAME "GOOSE"
 #define PFNAME "goose"
 
+void proto_register_goose(void);
+void proto_reg_handoff_goose(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_goose = -1;
 static int hf_goose_appid = -1;
 static int hf_goose_length = -1;
 static int hf_goose_reserve1 = -1;
 static int hf_goose_reserve2 = -1;
+
+static expert_field ei_goose_mal_utctime = EI_INIT;
 
 
 /*--- Included file: packet-goose-hf.c ---*/
@@ -118,7 +120,7 @@ static int hf_goose_mMSString = -1;               /* MMSString */
 static int hf_goose_utc_time = -1;                /* UtcTime */
 
 /*--- End of included file: packet-goose-hf.c ---*/
-#line 50 "../../asn1/goose/packet-goose-template.c"
+#line 52 "../../asn1/goose/packet-goose-template.c"
 
 /* Initialize the subtree pointers */
 static int ett_goose = -1;
@@ -145,7 +147,7 @@ static gint ett_goose_SEQUENCE_OF_Data = -1;
 static gint ett_goose_Data = -1;
 
 /*--- End of included file: packet-goose-ett.c ---*/
-#line 55 "../../asn1/goose/packet-goose-template.c"
+#line 57 "../../asn1/goose/packet-goose-template.c"
 
 
 /*--- Included file: packet-goose-fn.c ---*/
@@ -472,10 +474,9 @@ dissect_goose_GSEMngtPdu(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 static int
 dissect_goose_UtcTime(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 18 "../../asn1/goose/goose.cnf"
+#line 17 "../../asn1/goose/goose.cnf"
 
 	guint32 len;
-	proto_item *cause;
 	guint32 seconds;
 	guint32	fraction;
 	guint32 nanoseconds;
@@ -486,11 +487,7 @@ dissect_goose_UtcTime(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _
 
 	if(len != 8)
 	{
-		cause = proto_tree_add_text(tree, tvb, offset, len,
-				"BER Error: malformed UTCTime encoding, "
-				"length must be 8 bytes");
-		proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-		expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "BER Error: malformed UTCTime encoding");
+		proto_tree_add_expert(tree, actx->pinfo, &ei_goose_mal_utctime, tvb, offset, len);
 		if(hf_index >= 0)
 		{
 			proto_tree_add_string(tree, hf_index, tvb, offset, len, "????");
@@ -500,12 +497,12 @@ dissect_goose_UtcTime(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _
 
 	seconds = tvb_get_ntohl(tvb, offset);
 	fraction = tvb_get_ntoh24(tvb, offset+4) * 0x100; /* Only 3 bytes are recommended */
-	nanoseconds = (guint32)( ((guint64)fraction * G_GINT64_CONSTANT(1000000000U)) / G_GINT64_CONSTANT(0x100000000U) ) ;
+	nanoseconds = (guint32)( ((guint64)fraction * G_GUINT64_CONSTANT(1000000000)) / G_GUINT64_CONSTANT(0x100000000) ) ;
 
 	ts.secs = seconds;
 	ts.nsecs = nanoseconds;
 
-	ptime = abs_time_to_str(&ts, ABSOLUTE_TIME_UTC, TRUE);
+	ptime = abs_time_to_ep_str(&ts, ABSOLUTE_TIME_UTC, TRUE);
 
 	if(hf_index >= 0)
 	{
@@ -690,12 +687,6 @@ dissect_goose_IECGoosePdu(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offs
 }
 
 
-static const value_string goose_GOOSEpdu_vals[] = {
-  {   0, "gseMngtPdu" },
-  {   1, "goosePdu" },
-  { 0, NULL }
-};
-
 static const ber_choice_t GOOSEpdu_choice[] = {
   {   0, &hf_goose_gseMngtPdu    , BER_CLASS_APP, 0, BER_FLAGS_IMPLTAG, dissect_goose_GSEMngtPdu },
   {   1, &hf_goose_goosePdu      , BER_CLASS_APP, 1, BER_FLAGS_IMPLTAG, dissect_goose_IECGoosePdu },
@@ -713,7 +704,7 @@ dissect_goose_GOOSEpdu(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset 
 
 
 /*--- End of included file: packet-goose-fn.c ---*/
-#line 57 "../../asn1/goose/packet-goose-template.c"
+#line 59 "../../asn1/goose/packet-goose-template.c"
 
 /*
 * Dissect GOOSE PDUs inside a PPDU.
@@ -785,11 +776,11 @@ void proto_register_goose(void) {
 /*--- Included file: packet-goose-hfarr.c ---*/
 #line 1 "../../asn1/goose/packet-goose-hfarr.c"
     { &hf_goose_gseMngtPdu,
-      { "gseMngtPdu", "goose.gseMngtPdu",
+      { "gseMngtPdu", "goose.gseMngtPdu_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_goose_goosePdu,
-      { "goosePdu", "goose.goosePdu",
+      { "goosePdu", "goose.goosePdu_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "IECGoosePdu", HFILL }},
     { &hf_goose_stateID,
@@ -809,39 +800,39 @@ void proto_register_goose(void) {
         FT_UINT32, BASE_DEC, VALS(goose_GSEMngtResponses_vals), 0,
         "GSEMngtResponses", HFILL }},
     { &hf_goose_getGoReference,
-      { "getGoReference", "goose.getGoReference",
+      { "getGoReference", "goose.getGoReference_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GetReferenceRequestPdu", HFILL }},
     { &hf_goose_getGOOSEElementNumber,
-      { "getGOOSEElementNumber", "goose.getGOOSEElementNumber",
+      { "getGOOSEElementNumber", "goose.getGOOSEElementNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GetElementRequestPdu", HFILL }},
     { &hf_goose_getGsReference,
-      { "getGsReference", "goose.getGsReference",
+      { "getGsReference", "goose.getGsReference_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GetReferenceRequestPdu", HFILL }},
     { &hf_goose_getGSSEDataOffset,
-      { "getGSSEDataOffset", "goose.getGSSEDataOffset",
+      { "getGSSEDataOffset", "goose.getGSSEDataOffset_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GetElementRequestPdu", HFILL }},
     { &hf_goose_gseMngtNotSupported,
-      { "gseMngtNotSupported", "goose.gseMngtNotSupported",
+      { "gseMngtNotSupported", "goose.gseMngtNotSupported_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_goose_gseMngtResponses_GetGOReference,
-      { "getGoReference", "goose.getGoReference",
+      { "getGoReference", "goose.getGoReference_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GSEMngtResponsePdu", HFILL }},
     { &hf_goose_gseMngtResponses_GetGOOSEElementNumber,
-      { "getGOOSEElementNumber", "goose.getGOOSEElementNumber",
+      { "getGOOSEElementNumber", "goose.getGOOSEElementNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GSEMngtResponsePdu", HFILL }},
     { &hf_goose_gseMngtResponses_GetGSReference,
-      { "getGsReference", "goose.getGsReference",
+      { "getGsReference", "goose.getGsReference_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GSEMngtResponsePdu", HFILL }},
     { &hf_goose_gseMngtResponses_GetGSSEDataOffset,
-      { "getGSSEDataOffset", "goose.getGSSEDataOffset",
+      { "getGSSEDataOffset", "goose.getGSSEDataOffset_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GSEMngtResponsePdu", HFILL }},
     { &hf_goose_ident,
@@ -873,7 +864,7 @@ void proto_register_goose(void) {
         FT_UINT32, BASE_DEC, VALS(goose_PositiveNegative_vals), 0,
         "PositiveNegative", HFILL }},
     { &hf_goose_responsePositive,
-      { "responsePositive", "goose.responsePositive",
+      { "responsePositive", "goose.responsePositive_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_goose_datSet,
@@ -922,11 +913,11 @@ void proto_register_goose(void) {
         "UtcTime", HFILL }},
     { &hf_goose_stNum,
       { "stNum", "goose.stNum",
-        FT_INT32, BASE_DEC, NULL, 0,
+        FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_goose_sqNum,
       { "sqNum", "goose.sqNum",
-        FT_INT32, BASE_DEC, NULL, 0,
+        FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_goose_test,
       { "test", "goose.test",
@@ -1022,7 +1013,7 @@ void proto_register_goose(void) {
         "UtcTime", HFILL }},
 
 /*--- End of included file: packet-goose-hfarr.c ---*/
-#line 125 "../../asn1/goose/packet-goose-template.c"
+#line 127 "../../asn1/goose/packet-goose-template.c"
   };
 
   /* List of subtrees */
@@ -1050,8 +1041,14 @@ void proto_register_goose(void) {
     &ett_goose_Data,
 
 /*--- End of included file: packet-goose-ettarr.c ---*/
-#line 131 "../../asn1/goose/packet-goose-template.c"
+#line 133 "../../asn1/goose/packet-goose-template.c"
   };
+
+  static ei_register_info ei[] = {
+     { &ei_goose_mal_utctime, { "goose.malformed.utctime", PI_MALFORMED, PI_WARN, "BER Error: malformed UTCTime encoding", EXPFILL }},
+  };
+
+  expert_module_t* expert_goose;
 
 	/* Register protocol */
 	proto_goose = proto_register_protocol(PNAME, PSNAME, PFNAME);
@@ -1060,7 +1057,8 @@ void proto_register_goose(void) {
 	/* Register fields and subtrees */
 	proto_register_field_array(proto_goose, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
-
+	expert_goose = expert_register_protocol(proto_goose);
+	expert_register_field_array(expert_goose, ei, array_length(ei));
 }
 
 /*--- proto_reg_handoff_goose --- */

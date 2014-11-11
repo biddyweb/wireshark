@@ -4,16 +4,24 @@
  * Copyright 2007		Andy Green <andy@warmcat.com>
  * Copyright 2009		Johannes Berg <johannes@sipsolutions.net>
  *
- * $Id$
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- * Alternatively, this software may be distributed under the terms of BSD
- * license.
+ * Alternatively, this software may be distributed under the terms of ISC
+ * license:
  *
- * See COPYING for more details.
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 #include "config.h"
@@ -21,12 +29,12 @@
 #include <stddef.h>
 #include <errno.h>
 #include <glib.h>
-#include "pint.h"
+#include <wsutil/pint.h>
 
 #define le16_to_cpu		GINT16_FROM_LE
 #define le32_to_cpu		GINT32_FROM_LE
-#define get_unaligned_le16	pletohs
-#define get_unaligned_le32	pletohl
+#define get_unaligned_le16	pletoh16
+#define get_unaligned_le32	pletoh32
 
 #include "packet-ieee80211-radiotap-iter.h"
 
@@ -120,6 +128,9 @@ int ieee80211_radiotap_iterator_init(
 	struct ieee80211_radiotap_header *radiotap_header,
 	int max_length, const struct ieee80211_radiotap_vendor_namespaces *vns)
 {
+	if (max_length < (int)sizeof(struct ieee80211_radiotap_header))
+		return -EINVAL;
+
 	/* Linux only supports version 0 radiotap format */
 	if (radiotap_header->it_version)
 		return -EINVAL;
@@ -145,8 +156,9 @@ int ieee80211_radiotap_iterator_init(
 #endif
 
 	/* find payload start allowing for extended bitmap(s) */
-
 	if (iterator->_bitmap_shifter & (1<<IEEE80211_RADIOTAP_EXT)) {
+		if (!ITERATOR_VALID(iterator, sizeof(guint32)))
+			return -EINVAL;
 		while (get_unaligned_le32(iterator->_arg) &
 					(1 << IEEE80211_RADIOTAP_EXT)) {
 			iterator->_arg += sizeof(guint32);
@@ -157,7 +169,7 @@ int ieee80211_radiotap_iterator_init(
 			 * stated radiotap header length
 			 */
 
-			if (!ITERATOR_VALID(iterator, 0))
+			if (!ITERATOR_VALID(iterator, sizeof(guint32)))
 				return -EINVAL;
 		}
 
@@ -403,3 +415,16 @@ int ieee80211_radiotap_iterator_next(
 			return 0;
 	}
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

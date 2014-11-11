@@ -8,8 +8,6 @@
  *
  * for specifications.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -149,6 +147,7 @@ static const value_string relativeto_string[] = {
     { 0x00, NULL}
 };
 
+void proto_register_ppi_vector(void);
 
 /* protocol */
 static int proto_ppi_vector = -1;
@@ -972,8 +971,7 @@ dissect_ppi_vector(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     length  = tvb_get_letohs(tvb, offset+2);
 
     /* Setup basic column info */
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_add_fstr(pinfo->cinfo, COL_INFO, "PPI_Vector Capture v%u, Length %u",
+    col_add_fstr(pinfo->cinfo, COL_INFO, "PPI_Vector Capture v%u, Length %u",
                      version, length);
 
     /* Create the basic dissection tree*/
@@ -1324,7 +1322,7 @@ proto_register_ppi_vector(void)
 
         /* V2 */
         { &hf_ppi_vector_vflags_relative_to,
-          { "RelativeTo", "ppi_vector.vflags.relative_to", FT_UINT32, BASE_HEX, VALS(&relativeto_string), PPI_VECTOR_VFLAGS_RELATIVE_TO,
+          { "RelativeTo", "ppi_vector.vflags.relative_to", FT_UINT32, BASE_HEX, VALS(relativeto_string), PPI_VECTOR_VFLAGS_RELATIVE_TO,
             "Reference frame vectors are RelativeTo:", HFILL } },
 
         /* Boolean vector chars */

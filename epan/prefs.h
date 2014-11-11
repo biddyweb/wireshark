@@ -1,8 +1,6 @@
 /* prefs.h
  * Definitions for preference handling routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,7 +33,7 @@ extern "C" {
 
 #include <epan/params.h>
 #include <epan/range.h>
-#include <epan/addr_resolv.h>
+
 #include "ws_symbol_export.h"
 
 #define PR_DEST_CMD  0
@@ -48,6 +46,13 @@ extern "C" {
 
 #define RTP_PLAYER_DEFAULT_VISIBLE 4
 #define TAP_UPDATE_DEFAULT_INTERVAL 3000
+#define	ST_DEF_BURSTRES 5
+#define ST_DEF_BURSTLEN 100
+#define ST_MAX_BURSTRES 600000	/* somewhat arbirary limit of 10 minutes */
+#define ST_MAX_BURSTBUCKETS 100	/* somewhat arbirary limit - more buckets degrade performance */
+
+struct epan_uat;
+struct _e_addr_resolve;
 
 /*
  * Convert a string listing name resolution types to a bitmask of
@@ -57,7 +62,7 @@ extern "C" {
  * return the bad character in the string on error.
  */
 WS_DLL_PUBLIC
-char string_to_name_resolve(const char *string, e_addr_resolve *name_resolve);
+char string_to_name_resolve(const char *string, struct _e_addr_resolve *name_resolve);
 
 /*
  * Modes for the starting directory in File Open dialogs.
@@ -121,7 +126,7 @@ typedef enum {
     pref_current
 } pref_source_t;
 
-/* 
+/*
  * Update channel.
  */
 typedef enum {
@@ -137,6 +142,7 @@ typedef struct _e_prefs {
   GList       *col_list;
   gint         num_cols;
   color_t      st_client_fg, st_client_bg, st_server_fg, st_server_bg;
+  color_t      gui_text_valid, gui_text_invalid, gui_text_deprecated;
   gboolean     gui_altern_colors;
   gboolean     gui_expert_composite_eyecandy;
   gboolean     filter_toolbar_show_in_statusbar;
@@ -161,7 +167,7 @@ typedef struct _e_prefs {
   guint        gui_recent_df_entries_max;
   guint        gui_recent_files_count_max;
   guint        gui_fileopen_style;
-  gchar	      *gui_fileopen_dir;
+  gchar       *gui_fileopen_dir;
   guint        gui_fileopen_preview;
   gboolean     gui_ask_unsaved;
   gboolean     gui_find_wrap;
@@ -186,6 +192,7 @@ typedef struct _e_prefs {
   gchar       *capture_devices_buffersize;
 #endif
   gchar       *capture_devices_snaplen;
+  gchar       *capture_devices_pmode;
   gboolean     capture_prom_mode;
   gboolean     capture_pcap_ng;
   gboolean     capture_real_time;
@@ -199,6 +206,21 @@ typedef struct _e_prefs {
   gboolean     gui_update_enabled;
   software_update_channel_e gui_update_channel;
   gint         gui_update_interval;
+  gchar       *saved_at_version;
+  gboolean     unknown_prefs;         /* unknown or obsolete pref(s) */
+  gboolean     unknown_colorfilters;  /* unknown or obsolete color filter(s) */
+  guint        gui_qt_language;       /* Qt Translation language selection */
+  gboolean     gui_packet_editor;     /* Enable Packet Editor */
+  gboolean     st_enable_burstinfo;
+  gboolean     st_burst_showcount;
+  gint         st_burst_resolution;
+  gint         st_burst_windowlen;
+  gboolean     st_sort_casesensitve;
+  gboolean     st_sort_rng_fixorder;
+  gboolean     st_sort_rng_nameonly;
+  gint         st_sort_defcolflag;
+  gboolean     st_sort_defdescending;
+  gboolean     st_sort_showfullname;
 } e_prefs;
 
 WS_DLL_PUBLIC e_prefs prefs;
@@ -432,12 +454,23 @@ WS_DLL_PUBLIC void prefs_register_uat_preference(module_t *module,
 										  const char *name,
 										  const char* title,
 										  const char *description,
-										  void* uat);
+										  struct epan_uat* uat);
+
+/*
+ * Register a uat 'preference' for QT only. It adds a button that opens the uat's window in the
+ * preferences tab of the module.
+ */
+WS_DLL_PUBLIC void prefs_register_uat_preference_qt(module_t *module,
+										  const char *name,
+										  const char* title,
+										  const char *description,
+										  struct epan_uat* uat);
+
 
 /*
  * Register a color preference.  Currently does not have any "GUI Dialog" support
- * so the color data needs to be managed independently.  Currently used by the 
- * "GUI preferences" to aid in reading/writing the preferences file, but the 
+ * so the color data needs to be managed independently.  Currently used by the
+ * "GUI preferences" to aid in reading/writing the preferences file, but the
  * "data" is still managed by the specific "GUI preferences" dialog.
  */
 void prefs_register_color_preference(module_t *module, const char *name,
@@ -445,8 +478,8 @@ void prefs_register_color_preference(module_t *module, const char *name,
 
 /*
  * Register a custom preference.  Currently does not have any "GUI Dialog" support
- * so data needs to be managed independently.  Currently used by the 
- * "GUI preferences" to aid in reading/writing the preferences file, but the 
+ * so data needs to be managed independently.  Currently used by the
+ * "GUI preferences" to aid in reading/writing the preferences file, but the
  * "data" is still managed by the specific "GUI preferences" dialog.
  */
 void prefs_register_custom_preference(module_t *module, const char *name,
@@ -508,8 +541,7 @@ char *prefs_pref_type_description(pref_t *pref);
 /** Fetch a string representation of the preference.
  *
  * @param pref A preference.
- * @param default_val Return the default value if TRUE or the current value
- * if FALSE.
+ * @param source Which value of the preference to return, see pref_source_t.
  *
  * @return A string representation of the preference. Must be g_free()d.
  */

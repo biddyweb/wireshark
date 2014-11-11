@@ -2,8 +2,6 @@
  * Routines for HDCP2 dissection
  * Copyright 2011-2012, Martin Kaiser <martin@kaiser.cx>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -39,12 +37,12 @@
 #include <epan/ptvcursor.h>
 #include <epan/expert.h>
 
+void proto_register_hdcp2(void);
+void proto_reg_handoff_hdcp2(void);
 
 static int proto_hdcp2 = -1;
 
 static gboolean  hdcp2_enable_dissector = FALSE;
-
-void proto_reg_handoff_hdcp2(void);
 
 static gint ett_hdcp2 = -1;
 static gint ett_hdcp2_cert = -1;
@@ -65,6 +63,9 @@ static int hf_hdcp2_r_n = -1;
 static int hf_hdcp2_l_prime = -1;
 static int hf_hdcp2_e_dkey_ks = -1;
 static int hf_hdcp2_r_iv = -1;
+
+static expert_field ei_hdcp2_reserved_0 = EI_INIT;
+
 
 #define ID_AKE_INIT              2
 #define ID_AKE_SEND_CERT         3
@@ -125,7 +126,7 @@ dissect_hdcp2(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
 {
     msg_info_t *mi;
     proto_item *pi;
-    proto_tree *hdcp_tree = NULL, *cert_tree = NULL;
+    proto_tree *hdcp_tree, *cert_tree;
     guint8 msg_id;
     gboolean repeater;
     guint16 reserved;
@@ -145,11 +146,9 @@ dissect_hdcp2(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "HDCP2");
     col_clear(pinfo->cinfo, COL_INFO);
 
-    if (tree) {
-        pi = proto_tree_add_protocol_format(tree, proto_hdcp2,
-                tvb, 0, tvb_reported_length(tvb), "HDCP2");
-        hdcp_tree = proto_item_add_subtree(pi, ett_hdcp2);
-    }
+    pi = proto_tree_add_protocol_format(tree, proto_hdcp2,
+            tvb, 0, tvb_reported_length(tvb), "HDCP2");
+    hdcp_tree = proto_item_add_subtree(pi, ett_hdcp2);
     cursor = ptvcursor_new(hdcp_tree, tvb, 0);
 
     col_append_fstr(pinfo->cinfo, COL_INFO, "%s",
@@ -166,26 +165,20 @@ dissect_hdcp2(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
             col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL, "%s",
                     repeater ? "repeater" : "no repeater");
             ptvcursor_add(cursor, hf_hdcp2_repeater, 1, ENC_BIG_ENDIAN);
-            if (hdcp_tree) {
-                cert_tree = ptvcursor_add_text_with_subtree(cursor, CERT_RX_LEN,
-                        ett_hdcp2_cert, "%s", "HDCP2 Certificate");
-            }
+            cert_tree = ptvcursor_add_text_with_subtree(cursor, CERT_RX_LEN,
+                    ett_hdcp2_cert, "%s", "HDCP2 Certificate");
             ptvcursor_add(cursor, hf_hdcp2_cert_rcv_id, RCV_ID_LEN, ENC_NA);
             ptvcursor_add(cursor, hf_hdcp2_cert_n, N_LEN, ENC_NA);
             ptvcursor_add(cursor, hf_hdcp2_cert_e, E_LEN, ENC_BIG_ENDIAN);
             reserved = tvb_get_ntohs(tvb, ptvcursor_current_offset(cursor));
-            proto_tree_add_text(cert_tree, tvb,
+            pi = proto_tree_add_text(cert_tree, tvb,
                         ptvcursor_current_offset(cursor), 2, "reserved bytes");
             if (reserved != 0) {
-                pi = proto_tree_add_text(cert_tree, tvb,
-                        ptvcursor_current_offset(cursor), 2, "invalid value");
-                expert_add_info_format(pinfo, pi, PI_PROTOCOL, PI_WARN,
-                        "reserved bytes must be set to 0x0");
+                expert_add_info(pinfo, pi, &ei_hdcp2_reserved_0);
             }
             ptvcursor_advance(cursor, 2);
             ptvcursor_add(cursor, hf_hdcp2_cert_rcv_sig, RCV_SIG_LEN, ENC_NA);
-            if (cert_tree)
-                ptvcursor_pop_subtree(cursor);
+            ptvcursor_pop_subtree(cursor);
             break;
         case ID_AKE_NO_STORED_KM:
             ptvcursor_add(cursor, hf_hdcp2_e_kpub_km, 128, ENC_NA);
@@ -284,7 +277,12 @@ proto_register_hdcp2(void)
         &ett_hdcp2_cert
     };
 
+    static ei_register_info ei[] = {
+        { &ei_hdcp2_reserved_0, { "hdcp2.reserved.not0", PI_PROTOCOL, PI_WARN, "reserved bytes must be set to 0x0", EXPFILL }},
+    };
+
     module_t *hdcp2_module;
+    expert_module_t* expert_hdcp2;
 
     msg_table = g_hash_table_new(g_direct_hash, g_direct_equal);
     for(i=0; i<array_length(msg_info); i++) {
@@ -304,6 +302,8 @@ proto_register_hdcp2(void)
 
     proto_register_field_array(proto_hdcp2, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_hdcp2 = expert_register_protocol(proto_hdcp2);
+    expert_register_field_array(expert_hdcp2, ei, array_length(ei));
 
     new_register_dissector("hdcp2", dissect_hdcp2, proto_hdcp2);
 }

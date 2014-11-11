@@ -2,8 +2,6 @@
  * Routines for FastCGI dissection
  * Copyright 2010, Tom Hughes <tom@compton.nu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,9 @@
 #include <epan/prefs.h>
 #include "packet-tcp.h"
 
+void proto_register_fcgi(void);
+void proto_reg_handoff_fcgi(void);
+
 static int proto_fcgi = -1;
 
 static guint tcp_port = 0;
@@ -50,6 +51,8 @@ static int ett_fcgi = -1;
 static int ett_fcgi_begin_request = -1;
 static int ett_fcgi_end_request = -1;
 static int ett_fcgi_params = -1;
+
+static dissector_handle_t fcgi_handle;
 
 #define FCGI_BEGIN_REQUEST       1
 #define FCGI_ABORT_REQUEST       2
@@ -95,8 +98,6 @@ static const value_string protocol_statuses[] = {
    { 0, NULL }
 };
 
-void proto_reg_handoff_fcgi(void);
-
 static void
 dissect_nv_pairs(tvbuff_t *tvb, proto_tree *fcgi_tree, gint offset, guint16 len)
 {
@@ -125,11 +126,11 @@ dissect_nv_pairs(tvbuff_t *tvb, proto_tree *fcgi_tree, gint offset, guint16 len)
          offset += 4;
       }
 
-      name = tvb_get_ephemeral_string(tvb, offset, namelen);
+      name = tvb_get_string(wmem_packet_scope(), tvb, offset, namelen);
       offset += namelen;
 
       if (valuelen > 0) {
-         value = tvb_get_ephemeral_string(tvb, offset, valuelen);
+         value = tvb_get_string(wmem_packet_scope(), tvb, offset, valuelen);
          offset += valuelen;
 
          proto_tree_add_text(fcgi_tree, tvb, start_offset, offset - start_offset, "%s = %s", name, value);
@@ -230,8 +231,8 @@ dissect_get_values_result(tvbuff_t *tvb, proto_tree *fcgi_tree, gint offset, gui
    return;
 }
 
-static void
-dissect_fcgi_record(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_fcgi_record(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
    gint offset = 0;
    guint8 type;
@@ -319,6 +320,8 @@ dissect_fcgi_record(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
          /*offset += plen;*/
       }
    }
+
+   return tvb_length(tvb);
 }
 
 static guint
@@ -327,10 +330,11 @@ get_fcgi_record_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
    return 8 + tvb_get_ntohs(tvb, offset + 4) + tvb_get_guint8(tvb, offset + 6);
 }
 
-static void
-dissect_fcgi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_fcgi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
-   tcp_dissect_pdus(tvb, pinfo, tree, TRUE, 8, get_fcgi_record_len, dissect_fcgi_record);
+   tcp_dissect_pdus(tvb, pinfo, tree, TRUE, 8, get_fcgi_record_len, dissect_fcgi_record, data);
+   return tvb_length(tvb);
 }
 
 void
@@ -396,18 +400,16 @@ proto_register_fcgi(void)
                                   10,
                                   &tcp_port);
 
-   register_dissector("fcgi", dissect_fcgi, proto_fcgi);
+   fcgi_handle = new_register_dissector("fcgi", dissect_fcgi, proto_fcgi);
 }
 
 void
 proto_reg_handoff_fcgi(void)
 {
    static gboolean initialized = FALSE;
-   static dissector_handle_t fcgi_handle;
    static guint saved_tcp_port;
 
    if (!initialized) {
-      fcgi_handle = create_dissector_handle(dissect_fcgi, proto_fcgi);
       dissector_add_handle("tcp.port", fcgi_handle);  /* for "decode as" */
       initialized = TRUE;
    } else if (saved_tcp_port != 0) {

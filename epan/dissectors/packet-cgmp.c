@@ -1,8 +1,6 @@
 /* packet-cgmp.c
  * Routines for the disassembly of the Cisco Group Management Protocol
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,6 +33,8 @@
  *
  * for some information on CGMP.
  */
+void proto_register_cgmp(void);
+void proto_reg_handoff_cgmp(void);
 
 static int proto_cgmp = -1;
 static int hf_cgmp_version = -1;

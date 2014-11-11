@@ -4,8 +4,6 @@
  *
  * Srishylam Simharajan simha@netapp.com
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/strutil.h>
+
+void proto_register_icap(void);
+void proto_reg_handoff_icap(void);
 
 typedef enum _icap_type {
 	ICAP_OPTIONS,
@@ -72,27 +73,24 @@ dissect_icap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "ICAP");
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		/*
-		 * Put the first line from the buffer into the summary
-		 * if it's an ICAP header (but leave out the
-		 * line terminator).
-		 * Otherwise, just call it a continuation.
-		 *
-		 * Note that "tvb_find_line_end()" will return a value that
-		 * is not longer than what's in the buffer, so the
-		 * "tvb_get_ptr()" call won't throw an exception.
-		 */
-		linelen = tvb_find_line_end(tvb, offset, -1, &next_offset,
-		    FALSE);
-		line = tvb_get_ptr(tvb, offset, linelen);
-		icap_type = ICAP_OTHER;	/* type not known yet */
-		if (is_icap_message(line, linelen, &icap_type))
-			col_add_str(pinfo->cinfo, COL_INFO,
-			    format_text(line, linelen));
-		else
-			col_set_str(pinfo->cinfo, COL_INFO, "Continuation");
-	}
+	/*
+	 * Put the first line from the buffer into the summary
+	 * if it's an ICAP header (but leave out the
+	 * line terminator).
+	 * Otherwise, just call it a continuation.
+	 *
+	 * Note that "tvb_find_line_end()" will return a value that
+	 * is not longer than what's in the buffer, so the
+	 * "tvb_get_ptr()" call won't throw an exception.
+	 */
+	linelen = tvb_find_line_end(tvb, offset, -1, &next_offset, FALSE);
+	line = tvb_get_ptr(tvb, offset, linelen);
+	icap_type = ICAP_OTHER;	/* type not known yet */
+	if (is_icap_message(line, linelen, &icap_type))
+		col_add_str(pinfo->cinfo, COL_INFO,
+		    format_text(line, linelen));
+	else
+		col_set_str(pinfo->cinfo, COL_INFO, "Continuation");
 
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_icap, tvb, offset, -1,
@@ -212,13 +210,7 @@ dissect_icap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		if (!is_icap)
 			break;
 is_icap_header:
-		if (tree) {
-			proto_tree_add_text(icap_tree, tvb, offset,
-				next_offset - offset, "%s",
-				tvb_format_text(tvb, offset,
-						next_offset - offset)
-				);
-		}
+		proto_tree_add_format_text(icap_tree, tvb, offset, next_offset - offset);
 		offset = next_offset;
 	}
 

@@ -2,8 +2,6 @@
  * Routines for 3GPP Radio Resource LCS Protocol (RRLP) packet dissection
  * Copyright 2006, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -22,7 +20,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * Ref 3GPP TS 44.031 version 9.2.0 Release 9
+ * Ref 3GPP TS 44.031 version 11.0.0 Release 11
  * http://www.3gpp.org
  */
 
@@ -47,6 +45,8 @@
 #pragma warning(disable:4146)
 #endif
 
+void proto_register_rrlp(void);
+void proto_reg_handoff_rrlp(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_rrlp = -1;
@@ -89,7 +89,7 @@ void proto_register_rrlp(void) {
   proto_register_field_array(proto_rrlp, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
 
- 
+
 }
 
 

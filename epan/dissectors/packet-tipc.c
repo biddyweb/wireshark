@@ -1,8 +1,6 @@
 /* packet-tipc.c
  * Routines for Transparent Inter Process Communication packet dissection
  *
- * $Id$
- *
  * Copyright 2005-2006, Anders Broman <anders.broman@ericsson.com>
  *
  * TIPCv2 protocol updates
@@ -37,10 +35,12 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/etypes.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/reassemble.h>
 
 #include "packet-tcp.h"
+
+void proto_register_tipc(void);
 
 static int proto_tipc = -1;
 
@@ -157,7 +157,8 @@ static int hf_tipcv2_transport_seq_no = -1;
 static int hf_tipcv2_redundant_link = -1;
 static int hf_tipcv2_bearer_id = -1;
 static int hf_tipcv2_conn_mgr_msg_ack = -1;
-static int hf_tipcv2_req_links = -1;
+static int hf_tipcv2_minor_pv = -1;
+static int hf_tipcv2_node_sig = -1;
 
 /* added for TIPC v1.7 */
 static int hf_tipcv2_timestamp = -1;
@@ -170,8 +171,13 @@ static int hf_tipcv2_dist_scope = -1;
 static int hf_tipcv2_name_dist_port_id_node = -1;
 static int hf_tipcv2_media_id = -1;
 
+/* added in minor PV 1 */
+static int hf_tipcv2_syn = -1;
+
+
 static gint ett_tipc_msg_fragment = -1;
 static gint ett_tipc_msg_fragments = -1;
+
 
 /* Initialize the subtree pointer */
 static gint ett_tipc = -1;
@@ -188,8 +194,11 @@ static gint     handle_v2_as = V2_AS_ALL;
 static guint tipc_alternate_tcp_port = 0;
 static gboolean tipc_tcp_desegment = TRUE;
 
-dissector_handle_t tipc_handle;
+static dissector_handle_t tipc_handle;
+
+/* IANA have assigned port 6118 port for TIPC UDP transport. */
 #define DEFAULT_TIPC_PORT_RANGE   "0"
+
 static range_t *global_tipc_udp_port_range;
 
 /* this is used to find encapsulated protocols */
@@ -551,18 +560,17 @@ static const value_string tipcv2_networkplane_strings[] = {
 };
 
 /* functions forward declarations */
-static void dissect_tipc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+static int dissect_tipc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_);
 void proto_reg_handoff_tipc(void);
 
-static GHashTable *tipc_msg_fragment_table    = NULL;
-static GHashTable *tipc_msg_reassembled_table = NULL;
+static reassembly_table tipc_msg_reassembly_table;
 
 
 static void
 tipc_defragment_init(void)
 {
-	fragment_table_init (&tipc_msg_fragment_table);
-	reassembled_table_init(&tipc_msg_reassembled_table);
+	reassembly_table_init(&tipc_msg_reassembly_table,
+	    &addresses_reassembly_table_functions);
 }
 
 
@@ -574,7 +582,7 @@ tipc_addr_to_str(guint tipc_address)
 	guint16 processor;
 	gchar *buff;
 
-	buff = ep_alloc(MAX_TIPC_ADDRESS_STR_LEN);
+	buff = (gchar *)wmem_alloc(wmem_packet_scope(), MAX_TIPC_ADDRESS_STR_LEN);
 
 	processor = tipc_address & 0x0fff;
 
@@ -818,7 +826,7 @@ w9:|          msg count            |       link tolerance          |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 */
 
-static void
+static int
 dissect_tipc_v2_internal_msg(tvbuff_t *tipc_tvb, proto_tree *tipc_tree, packet_info *pinfo, int offset, guint8 user, guint32 msg_size, guint8 orig_hdr_size)
 {
 	guint32 dword;
@@ -837,7 +845,7 @@ dissect_tipc_v2_internal_msg(tvbuff_t *tipc_tvb, proto_tree *tipc_tree, packet_i
 	gboolean save_fragmented;
 	guint32 frag_no, frag_msg_no;
 	tvbuff_t* new_tvb = NULL;
-	fragment_data *frag_msg = NULL;
+	fragment_head *frag_msg = NULL;
 
 	message_type = (tvb_get_guint8(tipc_tvb, offset) >>5) & 0x7;
 
@@ -958,7 +966,7 @@ dissect_tipc_v2_internal_msg(tvbuff_t *tipc_tvb, proto_tree *tipc_tree, packet_i
 				col_append_str(pinfo->cinfo, COL_INFO, " | ");
 				col_set_fence(pinfo->cinfo, COL_INFO);
 
-				dissect_tipc(data_tvb, pinfo, top_tree);
+				dissect_tipc(data_tvb, pinfo, top_tree, NULL);
 
 				/* the modulo is used to align the messages to 4 Bytes */
 				offset += msg_in_bundle_size + ((msg_in_bundle_size%4)?(4-(msg_in_bundle_size%4)):0);
@@ -1386,11 +1394,12 @@ dissect_tipc_v2_internal_msg(tvbuff_t *tipc_tvb, proto_tree *tipc_tree, packet_i
 				save_fragmented = pinfo->fragmented;
 				pinfo->fragmented = TRUE;
 
-				frag_msg = fragment_add_seq_check(tipc_tvb, offset, pinfo,
+				frag_msg = fragment_add_seq_check(&tipc_msg_reassembly_table,
+						tipc_tvb, offset,
+						pinfo,
 						frag_msg_no,					/* ID for fragments belonging together */
+						NULL,
 						/* TODO: make sure that fragments are on the same LINK */
-						tipc_msg_fragment_table,			/* list of message fragments */
-						tipc_msg_reassembled_table,			/* list of reassembled messages */
 						/* TIPC starts with "1" but we * need "0" */
 						(frag_no-1),					/* number of the fragment */
 						len,						/* fragment length - to the end of the data */
@@ -1408,13 +1417,12 @@ dissect_tipc_v2_internal_msg(tvbuff_t *tipc_tvb, proto_tree *tipc_tree, packet_i
 							" (Message fragment %u)", frag_no);
 				}
 				if (new_tvb) { /* take it all */
-					data_tvb = new_tvb;
 
 					/* the info column shall not be deleted by the
 					 * encapsulated messages */
 					col_append_str(pinfo->cinfo, COL_INFO, " | ");
 					col_set_fence(pinfo->cinfo, COL_INFO);
-					dissect_tipc(new_tvb, pinfo, top_tree);
+					dissect_tipc(new_tvb, pinfo, top_tree, NULL);
 				} else { /* make a new subset */
 					data_tvb = tvb_new_subset(tipc_tvb, offset, len, reported_len);
 					call_dissector(data_handle, data_tvb, pinfo, top_tree);
@@ -1438,7 +1446,7 @@ uses a special message format, with the following generic structure:
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 w0:|vers |msg usr|hdr sz |n|resrv|            packet size          |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-w1:|m typ|0| requested links       |       broadcast ack no        |
+w1:|m typ|00000|     minor_pv      |        node signature         |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 w2:|                      destination domain                       |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -1463,9 +1471,10 @@ w9:|                                                               |
 */
 			/* W1 */
 			proto_tree_add_item(tipc_tree, hf_tipcv2_neighbour_mtype, tipc_tvb, offset, 4, ENC_BIG_ENDIAN);
-			/* Requested Links (12 bits) */
-			proto_tree_add_item(tipc_tree, hf_tipcv2_req_links, tipc_tvb, offset, 4, ENC_BIG_ENDIAN);
-			proto_tree_add_item(tipc_tree, hf_tipcv2_broadcast_ack_no, tipc_tvb, offset, 4, ENC_BIG_ENDIAN);
+			/* Reserved 5 bits */
+			/* Minor pv 8 bits */
+			proto_tree_add_item(tipc_tree, hf_tipcv2_minor_pv, tipc_tvb, offset, 4, ENC_BIG_ENDIAN);
+			proto_tree_add_item(tipc_tree, hf_tipcv2_node_sig, tipc_tvb, offset, 4, ENC_BIG_ENDIAN);
 			offset = offset + 4;
 			/* W2 */
 			/* Destination Domain */
@@ -1501,6 +1510,8 @@ w9:|                                                               |
 		default:
 			break;
 	}
+
+	return offset;
 
 }
 
@@ -1547,12 +1558,13 @@ static void
 call_tipc_v2_data_subdissectors(tvbuff_t *data_tvb, packet_info *pinfo, guint32 *name_type_p, guint8 user)
 {
 	if (dissect_tipc_data) {
+		heur_dtbl_entry_t *hdtbl_entry;
 		/* dissection of TIPC data is set in preferences */
 
 		/* check for heuristic dissectors if specified in the
 		 * preferences to try them first */
 		if (try_heuristic_first) {
-			if (dissector_try_heuristic(tipc_heur_subdissector_list, data_tvb, pinfo, top_tree, NULL))
+			if (dissector_try_heuristic(tipc_heur_subdissector_list, data_tvb, pinfo, top_tree, &hdtbl_entry, NULL))
 				return;
 		}
 		/* This triggers if a dissectors if
@@ -1596,7 +1608,7 @@ call_tipc_v2_data_subdissectors(tvbuff_t *data_tvb, packet_info *pinfo, guint32 
 		/* check for heuristic dissectors if specified in the
 		 * preferences not to try them first */
 		if (!try_heuristic_first) {
-			if (dissector_try_heuristic(tipc_heur_subdissector_list, data_tvb, pinfo, top_tree, NULL))
+			if (dissector_try_heuristic(tipc_heur_subdissector_list, data_tvb, pinfo, top_tree, &hdtbl_entry, NULL))
 				return;
 		}
 	}
@@ -1639,6 +1651,8 @@ dissect_tipc_v2(tvbuff_t *tipc_tvb, proto_tree *tipc_tree, packet_info *pinfo, i
 		proto_tree_add_item(tipc_tree, hf_tipc_destdrop, tipc_tvb, offset, 4, ENC_BIG_ENDIAN);
 		/* Source Droppable: 1 bit */
 		proto_tree_add_item(tipc_tree, hf_tipcv2_srcdrop, tipc_tvb, offset, 4, ENC_BIG_ENDIAN);
+		/* SYN: 1 bit */
+		proto_tree_add_item(tipc_tree, hf_tipcv2_syn, tipc_tvb, offset, 4, ENC_BIG_ENDIAN);
 	}
 	/* Reserved: 1 bits */
 
@@ -1810,7 +1824,7 @@ dissect_tipc_int_prot_msg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tipc_tr
 	gboolean save_fragmented;
 	tvbuff_t* new_tvb = NULL;
 	tvbuff_t* next_tvb = NULL;
-	fragment_data *frag_msg = NULL;
+	fragment_head *frag_msg = NULL;
 	proto_item *item;
 
 	link_lev_seq_no = tvb_get_ntohl(tvb, 4) & 0xffff;
@@ -1902,7 +1916,7 @@ dissect_tipc_int_prot_msg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tipc_tr
 							val_to_str_const(msg_type, tipc_cng_prot_msg_type_values, "unknown"), msg_type);
 					data_tvb = tvb_new_subset_remaining(tvb, offset);
 					col_set_fence(pinfo->cinfo, COL_INFO);
-					dissect_tipc(data_tvb, pinfo, tipc_tree);
+					dissect_tipc(data_tvb, pinfo, tipc_tree, NULL);
 					break;
 				default:
 					/* INFO_MSG: Even when there are no packets in the send queue of a removed link, the other
@@ -1919,10 +1933,11 @@ dissect_tipc_int_prot_msg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tipc_tr
 			if (tipc_defragment) {
 				pinfo->fragmented = TRUE;
 
-				frag_msg = fragment_add_seq_next(tvb, offset, pinfo,
+				frag_msg = fragment_add_seq_next(&tipc_msg_reassembly_table,
+						tvb, offset,
+						pinfo,
 						link_sel,				/* ID for fragments belonging together - NEEDS IMPROVING? */
-						tipc_msg_fragment_table,		/* list of message fragments */
-						tipc_msg_reassembled_table,		/* list of reassembled messages */
+						NULL,
 						tvb_length_remaining(tvb, offset),	/* fragment length - to the end */
 						TRUE);					/* More fragments? */
 				if (msg_type == TIPC_FIRST_SEGMENT) {
@@ -1934,7 +1949,9 @@ dissect_tipc_int_prot_msg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tipc_tr
 					no_of_segments = reassembled_msg_length/(msg_size - 28);
 					if (reassembled_msg_length > (no_of_segments * (msg_size - 28)))
 						no_of_segments++;
-					fragment_set_tot_len(pinfo, link_sel, tipc_msg_fragment_table, no_of_segments-1);
+					fragment_set_tot_len(&tipc_msg_reassembly_table,
+						pinfo, link_sel, NULL,
+						no_of_segments-1);
 					item = proto_tree_add_text(tipc_tree, tvb, offset, -1, "Segmented message size %u bytes -> No segments = %i",
 							reassembled_msg_length, no_of_segments);
 					PROTO_ITEM_SET_GENERATED(item);
@@ -1961,7 +1978,7 @@ dissect_tipc_int_prot_msg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tipc_tr
 			pinfo->fragmented = save_fragmented;
 			if (new_tvb) {
 				col_set_fence(pinfo->cinfo, COL_INFO);
-				dissect_tipc(next_tvb, pinfo, tipc_tree);
+				dissect_tipc(next_tvb, pinfo, tipc_tree, NULL);
 				return;
 			}
 
@@ -1975,7 +1992,7 @@ dissect_tipc_int_prot_msg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tipc_tr
 				proto_tree_add_text(tipc_tree, tvb, offset, msg_in_bundle_size, "%u Message in Bundle", msg_no);
 				data_tvb = tvb_new_subset(tvb, offset, msg_in_bundle_size, msg_in_bundle_size);
 				col_set_fence(pinfo->cinfo, COL_INFO);
-				dissect_tipc(data_tvb, pinfo, tipc_tree);
+				dissect_tipc(data_tvb, pinfo, tipc_tree, NULL);
 				offset = offset + msg_in_bundle_size;
 			}
 			break;
@@ -1996,15 +2013,15 @@ get_tipc_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 
 /* triggers the dissection of TIPC-over-TCP */
 static int
-dissect_tipc_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *data _U_)
+dissect_tipc_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *data)
 {
 	tcp_dissect_pdus(tvb, pinfo, parent_tree, tipc_tcp_desegment, 4, get_tipc_pdu_len,
-			dissect_tipc);
+			dissect_tipc, data);
 	return tvb_length(tvb);
 }
 
-static void
-dissect_tipc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_tipc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	proto_item *ti, *tipc_data_item, *item;
 	proto_tree *tipc_tree, *tipc_data_tree;
@@ -2131,7 +2148,7 @@ dissect_tipc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	tipc_tree = proto_item_add_subtree(ti, ett_tipc);
 	if (version == TIPCv2) {
 		dissect_tipc_v2(tipc_tvb, tipc_tree, pinfo, offset, user, msg_size, hdr_size, datatype_hdr);
-		return;
+		return tvb_length(tvb);
 	}
 
 	/* Word 0-2 common for all messages */
@@ -2168,7 +2185,7 @@ dissect_tipc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		case TIPC_SEGMENTATION_MANAGER:
 		case TIPC_MSG_BUNDLER:
 			dissect_tipc_int_prot_msg(tipc_tvb, pinfo, tipc_tree, offset, user, msg_size);
-			return;
+			return tvb_length(tvb);
 		default:
 			break;
 	}
@@ -2246,7 +2263,7 @@ dissect_tipc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				tipc_data_tree = proto_item_add_subtree(tipc_data_item , ett_tipc_data);
 				data_tvb = tvb_new_subset_remaining(tipc_tvb, offset);
 				dissect_tipc_name_dist_data(data_tvb, tipc_data_tree, 0);
-				return;
+				return tvb_length(tvb);
 			} else {
 				/* Port name type / Connection level sequence number */
 				proto_tree_add_text(tipc_tree, tipc_tvb, offset, 4, "Port name type / Connection level sequence number");
@@ -2282,18 +2299,8 @@ dissect_tipc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			call_tipc_v2_data_subdissectors(next_tvb, pinfo, name_type_p, user);
 		}
 	} /*if (hdr_size <= 5) */
-}
 
-static void
-udp_range_delete_callback(guint32 port)
-{
-  dissector_delete_uint("udp.port", port, tipc_handle);
-}
-
-static void
-udp_range_add_callback(guint32 port)
-{
-  dissector_add_uint("udp.port", port, tipc_handle);
+	return tvb_length(tvb);
 }
 
 /* Register TIPC with Wireshark */
@@ -2561,6 +2568,11 @@ proto_register_tipc(void)
 				FT_UINT32, BASE_DEC, NULL, 0x00040000,
 				"Destination Droppable Bit", HFILL }
 		},
+		{ &hf_tipcv2_syn,
+			{ "Connection request (SYN)", "tipc.syn",
+				FT_UINT32, BASE_DEC, NULL, 0x00020000,
+				"Destination Droppable Bit", HFILL }
+		},
 		{ &hf_tipcv2_data_msg_type,
 			{ "Message type", "tipc.data_type",
 				FT_UINT32, BASE_DEC, VALS(tipc_data_msg_type_values), 0xe0000000,
@@ -2813,9 +2825,14 @@ proto_register_tipc(void)
 				FT_UINT32, BASE_DEC, NULL, 0xffff0000,
 				NULL, HFILL }
 		},
-		{ &hf_tipcv2_req_links,
-			{ "Requested Links", "tipcv2.req_links",
-				FT_UINT32, BASE_DEC, NULL, 0x0fff0000,
+		{ &hf_tipcv2_minor_pv,
+			{ "Minor protocol version", "tipcv2.minor_pv",
+				FT_UINT32, BASE_DEC, NULL, 0x00ff0000,
+				NULL, HFILL }
+		},
+		{ &hf_tipcv2_node_sig,
+			{ "Node signature", "tipcv2.node_sig",
+				FT_UINT32, BASE_DEC, NULL, 0x0000FFFF,
 				NULL, HFILL }
 		},
 		{ &hf_tipcv2_timestamp,
@@ -2907,7 +2924,7 @@ proto_register_tipc(void)
 	register_heur_dissector_list("tipc", &tipc_heur_subdissector_list);
 
 	/* Register by name */
-	register_dissector("tipc", dissect_tipc, proto_tipc);
+	new_register_dissector("tipc", dissect_tipc, proto_tipc);
 
 	register_init_routine(tipc_defragment_init);
 
@@ -2919,7 +2936,8 @@ proto_register_tipc(void)
 
 	prefs_register_range_preference(tipc_module, "udp.ports", "TIPC UDP ports",
 								  "UDP ports to be decoded as TIPC (default: "
-								  DEFAULT_TIPC_PORT_RANGE ")",
+								  DEFAULT_TIPC_PORT_RANGE ")"
+								  "IANA have assigned port 6118 port for TIPC UDP transport.",
 								  &global_tipc_udp_port_range, MAX_UDP_PORT);
 
 	prefs_register_bool_preference(tipc_module, "defragment",
@@ -2964,7 +2982,7 @@ proto_reg_handoff_tipc(void)
 	static range_t *tipc_udp_port_range;
 
 	if (!inited) {
-		tipc_handle = create_dissector_handle(dissect_tipc, proto_tipc);
+		tipc_handle = new_create_dissector_handle(dissect_tipc, proto_tipc);
 		tipc_tcp_handle = new_create_dissector_handle(dissect_tipc_tcp, proto_tipc);
 		ip_handle = find_dissector("ip");
 		data_handle = find_dissector("data");
@@ -2981,10 +2999,10 @@ proto_reg_handoff_tipc(void)
 				dissector_add_uint("tcp.port", tipc_alternate_tcp_port, tipc_tcp_handle);
 			tipc_alternate_tcp_port_prev = tipc_alternate_tcp_port;
 		}
-		range_foreach(tipc_udp_port_range, udp_range_delete_callback);
+		dissector_add_uint_range("udp.port", tipc_udp_port_range, tipc_handle);
 		g_free(tipc_udp_port_range);
 	}
 
 	tipc_udp_port_range = range_copy(global_tipc_udp_port_range);
-	range_foreach(tipc_udp_port_range, udp_range_add_callback);
+	dissector_add_uint_range("udp.port", tipc_udp_port_range, tipc_handle);
 }

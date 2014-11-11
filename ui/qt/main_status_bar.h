@@ -1,7 +1,5 @@
 /* main_status_bar.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -68,7 +66,7 @@ public slots:
     void pushFilterStatus(QString &message);
     void popFilterStatus();
     void pushProfileName();
-    void updateCaptureStatistics(capture_options * capture_opts);
+    void updateCaptureStatistics(capture_session * cap_session);
 
 private slots:
     void pushPacketStatus(QString &message);

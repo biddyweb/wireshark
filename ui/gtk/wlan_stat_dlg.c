@@ -1,8 +1,6 @@
 /* wlan_stat_dlg.c
  * Copyright 2008 Stig Bjorlykke <stig@bjorlykke.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -50,6 +48,8 @@
 #include "ui/gtk/main.h"
 
 #include "ui/gtk/old-gtk-compat.h"
+
+void register_tap_listener_wlanstat(void);
 
 enum {
     BSSID_COLUMN,
@@ -230,14 +230,14 @@ invalidate_detail_iters (wlanstat_t *hs)
 }
 
 static wlan_ep_t*
-alloc_wlan_ep (struct _wlan_hdr *si, packet_info *pinfo _U_)
+alloc_wlan_ep (const struct _wlan_hdr *si, const packet_info *pinfo _U_)
 {
     wlan_ep_t *ep;
 
     if (!si)
         return NULL;
 
-    ep = g_malloc (sizeof(wlan_ep_t));
+    ep = (wlan_ep_t *)g_malloc (sizeof(wlan_ep_t));
 
     SE_COPY_ADDRESS (&ep->bssid, &si->bssid);
     ep->stats.channel      = si->stats.channel;
@@ -256,14 +256,14 @@ alloc_wlan_ep (struct _wlan_hdr *si, packet_info *pinfo _U_)
 }
 
 static wlan_details_ep_t *
-alloc_wlan_details_ep (address *addr)
+alloc_wlan_details_ep (const address *addr)
 {
     wlan_details_ep_t *d_ep;
 
     if (!addr)
         return NULL;
 
-    if (!(d_ep = g_malloc (sizeof(wlan_details_ep_t))))
+    if (!(d_ep = (wlan_details_ep_t *)g_malloc (sizeof(wlan_details_ep_t))))
         return NULL;
 
     SE_COPY_ADDRESS (&d_ep->addr, addr);
@@ -282,7 +282,7 @@ alloc_wlan_details_ep (address *addr)
 }
 
 static wlan_details_ep_t *
-get_details_ep (wlan_ep_t *te, address *addr)
+get_details_ep (wlan_ep_t *te, const address *addr)
 {
     wlan_details_ep_t *tmp, *d_te = NULL;
 
@@ -311,7 +311,7 @@ get_details_ep (wlan_ep_t *te, address *addr)
 }
 
 static void
-wlanstat_packet_details (wlan_ep_t *te, guint32 type, address *addr, gboolean src)
+wlanstat_packet_details (wlan_ep_t *te, guint32 type, const address *addr, gboolean src)
 {
     wlan_details_ep_t *d_te = get_details_ep (te, addr);
 
@@ -357,17 +357,17 @@ wlanstat_packet_details (wlan_ep_t *te, guint32 type, address *addr, gboolean sr
 }
 
 static gboolean
-is_broadcast(address *addr)
+is_broadcast(const address *addr)
 {
 #if 0
     /* doesn't work if MAC resolution is disable */
-    return strcmp(get_addr_name(addr), "Broadcast") == 0;
+    return strcmp(ep_address_to_display(addr), "Broadcast") == 0;
 #endif
     return ADDRESSES_EQUAL(&broadcast, addr);
 }
 
 static gboolean
-ssid_equal(struct _wlan_stats *st1, struct _wlan_stats *st2 )
+ssid_equal(const struct _wlan_stats *st1, const struct _wlan_stats *st2 )
 {
     return (st1->ssid_len == st2->ssid_len) && (memcmp(st1->ssid, st2->ssid, st1->ssid_len) == 0);
 }
@@ -377,7 +377,7 @@ wlanstat_packet (void *phs, packet_info *pinfo, epan_dissect_t *edt _U_, const v
 {
     wlanstat_t       *hs  = (wlanstat_t *)phs;
     wlan_ep_t        *tmp, *te = NULL;
-    struct _wlan_hdr *si  = (struct _wlan_hdr *) phi;
+    const struct _wlan_hdr *si  = (const struct _wlan_hdr *) phi;
 
     if (!hs)
         return (0);
@@ -502,7 +502,7 @@ wlanstat_draw_details(wlanstat_t *hs, wlan_ep_t *wlan_ep, gboolean clear)
         }
 
         if (hs->resolve_names) {
-            g_strlcpy (addr, get_addr_name(&tmp->addr), sizeof(addr));
+            g_strlcpy (addr, ep_address_to_display(&tmp->addr), sizeof(addr));
         } else {
             g_strlcpy (addr, ep_address_to_str(&tmp->addr), sizeof(addr));
         }
@@ -569,7 +569,7 @@ wlanstat_draw(void *phs)
         f = (float)(((float)tmp->number_of_packets * 100.0) / hs->number_of_packets);
 
         if (hs->resolve_names) {
-            g_strlcpy (bssid, get_addr_name(&tmp->bssid), sizeof(bssid));
+            g_strlcpy (bssid, ep_address_to_display(&tmp->bssid), sizeof(bssid));
         } else {
             g_strlcpy (bssid, ep_address_to_str(&tmp->bssid), sizeof(bssid));
         }
@@ -757,7 +757,8 @@ wlan_select_filter_cb(GtkWidget *widget _U_, gpointer callback_data, guint callb
     GtkTreeIter       iter;
 
     sel = gtk_tree_view_get_selection (GTK_TREE_VIEW(hs->table));
-    gtk_tree_selection_get_selected (sel, &model, &iter);
+    if (!gtk_tree_selection_get_selected(sel, &model, &iter))
+        return;
     gtk_tree_model_get (model, &iter, TABLE_COLUMN, &ep, -1);
 
     value = FILTER_EXTRA(callback_action);
@@ -797,7 +798,8 @@ wlan_details_select_filter_cb(GtkWidget *widget _U_, gpointer callback_data, gui
     GtkTreeIter        iter;
 
     sel = gtk_tree_view_get_selection (GTK_TREE_VIEW(hs->details));
-    gtk_tree_selection_get_selected (sel, &model, &iter);
+    if (!gtk_tree_selection_get_selected(sel, &model, &iter))
+        return;
     gtk_tree_model_get (model, &iter, DETAILS_COLUMN, &ep, -1);
 
     str = g_strdup_printf("wlan.addr==%s", ep_address_to_str(&ep->addr));
@@ -1481,7 +1483,7 @@ wlan_create_popup_menu(wlanstat_t *hs)
 
     action_group = gtk_action_group_new ("WlanFilterPopupActionGroup");
     gtk_action_group_add_actions (action_group,                             /* the action group */
-                                  (gpointer)wlans_stat_popup_entries,       /* an array of action descriptions */
+                                  (GtkActionEntry *)wlans_stat_popup_entries,       /* an array of action descriptions */
                                   G_N_ELEMENTS(wlans_stat_popup_entries),   /* the number of entries */
                                   hs);                                      /* data to pass to the action callbacks */
 
@@ -1698,7 +1700,7 @@ wlan_details_create_popup_menu(wlanstat_t *hs)
 
     action_group = gtk_action_group_new ("WlanDetailsPopupActionGroup");
     gtk_action_group_add_actions (action_group,                                  /* the action group */
-                                  (gpointer)wlan_details_list_popup_entries,     /* an array of action descriptions */
+                                  (GtkActionEntry *)wlan_details_list_popup_entries,     /* an array of action descriptions */
                                   G_N_ELEMENTS(wlan_details_list_popup_entries), /* the number of entries */
                                   hs);                                           /* data to pass to the action callbacks */
 
@@ -1743,7 +1745,7 @@ wlanstat_dlg_create (void)
     char  title[256];
     gint  i;
 
-    hs = g_malloc (sizeof(wlanstat_t));
+    hs = (wlanstat_t *)g_malloc (sizeof(wlanstat_t));
     hs->num_entries        = 0;
     hs->ep_list            = NULL;
     hs->number_of_packets  = 0;
@@ -1929,16 +1931,16 @@ wlanstat_dlg_create (void)
 
     gtk_box_pack_end (GTK_BOX(vbox), bbox, FALSE, FALSE, 0);
 
-    close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+    close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
     window_set_cancel_button (wlanstat_dlg_w, close_bt, window_cancel_button_cb);
 
-    copy_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_COPY);
+    copy_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_COPY);
 /*  gtk_button_set_label(GTK_BUTTON(copy_bt), "Copy Overview"); */
     gtk_widget_set_tooltip_text(copy_bt,
                  "Copy all statistical values of this page to the clipboard in CSV (Comma Separated Values) format.");
     g_signal_connect(copy_bt, "clicked", G_CALLBACK(wlan_copy_as_csv), hs->table);
 
-    help_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+    help_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
     g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), (gpointer)HELP_STATS_WLAN_TRAFFIC_DIALOG);
 
     g_signal_connect (wlanstat_dlg_w, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);

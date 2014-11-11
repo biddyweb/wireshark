@@ -133,7 +133,6 @@ Call un.Disassociate
 DeleteRegKey HKCR ${WIRESHARK_ASSOC}
 DeleteRegKey HKCR "${WIRESHARK_ASSOC}\Shell\open\command"
 DeleteRegKey HKCR "${WIRESHARK_ASSOC}\DefaultIcon"
-!insertmacro UpdateIcons
 
 Delete "$INSTDIR\etc\gtk-2.0\*.*"
 Delete "$INSTDIR\etc\gtk-3.0\*.*"
@@ -183,9 +182,15 @@ Delete "$INSTDIR\radius\*.*"
 Delete "$INSTDIR\dtds\*.*"
 Delete "$SMPROGRAMS\${PROGRAM_NAME}\*.*"
 Delete "$SMPROGRAMS\${PROGRAM_NAME}.lnk"
+Delete "$SMPROGRAMS\${PROGRAM_NAME_GTK}.lnk"
+Delete "$SMPROGRAMS\${PROGRAM_NAME_QT}.lnk"
 Delete "$SMPROGRAMS\Qtshark.lnk"
 Delete "$DESKTOP\${PROGRAM_NAME}.lnk"
+Delete "$DESKTOP\${PROGRAM_NAME_GTK}.lnk"
+Delete "$DESKTOP\${PROGRAM_NAME_QT}.lnk"
 Delete "$QUICKLAUNCH\${PROGRAM_NAME}.lnk"
+Delete "$QUICKLAUNCH\${PROGRAM_NAME_GTK}.lnk"
+Delete "$QUICKLAUNCH\${PROGRAM_NAME_QT}.lnk"
 
 RMDir "$INSTDIR\etc\gtk-2.0"
 RMDir "$INSTDIR\etc\pango"
@@ -240,6 +245,12 @@ SectionIn 1 2
 RMDir /r "$INSTDIR\plugins"
 SectionEnd
 
+Section "Un.Global Profiles" un.SecProfiles
+;-------------------------------------------
+SectionIn 1 2
+RMDir /r "$INSTDIR\profiles"
+SectionEnd
+
 Section "Un.Global Settings" un.SecGlobalSettings
 ;-------------------------------------------
 SectionIn 1 2
@@ -279,6 +290,9 @@ SectionEnd
 Section "-Un.Finally"
 ;-------------------------------------------
 SectionIn 1 2
+
+!insertmacro UpdateIcons
+
 ; this test must be done after all other things uninstalled (e.g. Global Settings)
 IfFileExists "$INSTDIR" 0 NoFinalErrorMsg
     MessageBox MB_OK "Unable to remove $INSTDIR." /SD IDOK IDOK 0 ; skipped if dir doesn't exist
@@ -288,6 +302,7 @@ SectionEnd
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_BEGIN
     !insertmacro MUI_DESCRIPTION_TEXT ${un.SecUinstall} "Uninstall all ${PROGRAM_NAME} components."
     !insertmacro MUI_DESCRIPTION_TEXT ${un.SecPlugins} "Uninstall all Plugins (even from previous ${PROGRAM_NAME} versions)."
+    !insertmacro MUI_DESCRIPTION_TEXT ${un.SecProfiles} "Uninstall all global configuration profiles."
     !insertmacro MUI_DESCRIPTION_TEXT ${un.SecGlobalSettings} "Uninstall global settings like: $INSTDIR\cfilters"
     !insertmacro MUI_DESCRIPTION_TEXT ${un.SecPersonalSettings} "Uninstall personal settings like your preferences file from your profile: $PROFILE."
     !insertmacro MUI_DESCRIPTION_TEXT ${un.SecWinPcap} "Call WinPcap's uninstall program."

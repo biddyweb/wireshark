@@ -1,8 +1,6 @@
 /* packet-dvmrp.c   2001 Ronnie Sahlberg <See AUTHORS for email>
  * Routines for IGMP/DVMRP packet disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -60,6 +58,8 @@
 #include <epan/prefs.h>
 #include "packet-igmp.h"
 #include "packet-dvmrp.h"
+
+void proto_register_dvmrp(void);
 
 static int proto_dvmrp = -1;
 static int hf_version = -1;
@@ -269,7 +269,6 @@ dissect_v3_report(tvbuff_t *tvb, proto_tree *parent_tree, int offset)
 			int old_offset_b = offset;
 			m0 = 0xff;
 
-			s0 = 0;
 			s1 = 0;
 			s2 = 0;
 			s3 = 0;
@@ -334,11 +333,9 @@ dissect_dvmrp_v3(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, int
 	code = tvb_get_guint8(tvb, offset);
 	proto_tree_add_uint(parent_tree, hf_code_v3, tvb, offset, 1, code);
 	offset += 1;
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO,
+	col_add_fstr(pinfo->cinfo, COL_INFO,
 			"V%d %s",3 ,val_to_str(code, code_v3,
 				"Unknown Type:0x%02x"));
-	}
 
 	/* checksum */
 	igmp_checksum(parent_tree, tvb, hf_checksum, hf_checksum_bad, pinfo, 0);
@@ -526,18 +523,16 @@ dissect_dvmrp_v1(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, int
 	code = tvb_get_guint8(tvb, offset);
 	proto_tree_add_uint(parent_tree, hf_code_v1, tvb, offset, 1, code);
 	offset += 1;
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO,
+	col_add_fstr(pinfo->cinfo, COL_INFO,
 			"V%d %s",1 ,val_to_str(code, code_v1,
 				"Unknown Type:0x%02x"));
-	}
 
 	/* checksum */
 	igmp_checksum(parent_tree, tvb, hf_checksum, hf_checksum_bad, pinfo, 0);
 	offset += 2;
 
 	/* decode all the v1 commands */
-	while (tvb_reported_length_remaining(tvb, offset)) {
+	while (tvb_reported_length_remaining(tvb, offset) > 0) {
 		proto_tree *tree;
 		proto_item *item;
 		guint8 cmd,count;

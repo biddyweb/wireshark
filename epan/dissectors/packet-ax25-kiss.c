@@ -3,8 +3,6 @@
  * Routines for AX.25 KISS protocol dissection
  * Copyright 2010,2012 R.W. Stearn <richard@rns-stearn.demon.co.uk>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -106,7 +104,8 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <wiretap/wtap.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-ax25-kiss.h"
 #include "packet-ax25.h"
@@ -128,9 +127,8 @@
 #define KISS_CMD_MASK           0x0f
 #define KISS_PORT_MASK          0xf0
 
-/* Dissector handles - all the possibles are listed */
-static dissector_handle_t ax25_handle;
-
+void proto_register_ax25_kiss(void);
+void proto_reg_handoff_ax25_kiss(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_ax25_kiss           = -1;
@@ -146,6 +144,11 @@ static int hf_ax25_kiss_sethardware	= -1;
 
 /* Initialize the subtree pointers */
 static gint ett_ax25_kiss = -1;
+
+static dissector_handle_t kiss_handle;
+
+/* Dissector handles - all the possibles are listed */
+static dissector_handle_t ax25_handle;
 
 static const value_string kiss_frame_types[] = {
 	{ KISS_DATA_FRAME,  "Data frame" },
@@ -177,12 +180,12 @@ capture_ax25_kiss( const guchar *pd, int offset, int len, packet_counts *ld)
 	switch ( kiss_cmd & KISS_CMD_MASK )
 		{
 		case KISS_DATA_FRAME	: capture_ax25( pd, l_offset, len, ld ); break;
-		case KISS_TXDELAY	: l_offset += 1; break;
-		case KISS_PERSISTENCE	: l_offset += 1; break;
-		case KISS_SLOT_TIME	: l_offset += 1; break;
-		case KISS_TXTAIL	: l_offset += 1; break;
-		case KISS_FULLDUPLEX	: l_offset += 1; break;
-		case KISS_SETHARDWARE	: l_offset += 1; break;
+		case KISS_TXDELAY	: break;
+		case KISS_PERSISTENCE	: break;
+		case KISS_SLOT_TIME	: break;
+		case KISS_TXTAIL	: break;
+		case KISS_FULLDUPLEX	: break;
+		case KISS_SETHARDWARE	: break;
 		case KISS_RETURN	: break;
 		default			: break;
 		}
@@ -202,10 +205,9 @@ dissect_ax25_kiss( tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree )
 	int         kiss_param_len;
 	const char *frame_type_text;
 	char       *info_buffer;
-	void       *saved_private_data;
 	tvbuff_t   *next_tvb = NULL;
 
-	info_buffer    = ep_alloc( STRLEN );
+	info_buffer    = (char *)wmem_alloc( wmem_packet_scope(), STRLEN );
 	info_buffer[0] = '\0';
 
 	col_set_str( pinfo->cinfo, COL_PROTOCOL, "AX.25 KISS" );
@@ -257,7 +259,7 @@ dissect_ax25_kiss( tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree )
 		proto_tree_add_uint( kiss_tree, hf_ax25_kiss_cmd,  tvb, offset, KISS_HEADER_SIZE,
 					kiss_cmd );
 		proto_tree_add_uint( kiss_tree, hf_ax25_kiss_port, tvb, offset, KISS_HEADER_SIZE,
-					kiss_cmd );
+					kiss_port );
 		offset += KISS_HEADER_SIZE;
 
 		switch ( kiss_type  )
@@ -302,10 +304,8 @@ dissect_ax25_kiss( tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree )
 
 	if ( kiss_type == KISS_DATA_FRAME )
 		{
-		saved_private_data = pinfo->private_data;
 		next_tvb = tvb_new_subset_remaining( tvb, offset );
 		call_dissector( ax25_handle, next_tvb, pinfo, parent_tree );
-		pinfo->private_data = saved_private_data;
 		}
 }
 
@@ -365,7 +365,7 @@ proto_register_ax25_kiss(void)
 	proto_ax25_kiss = proto_register_protocol( "AX.25 KISS", "AX.25 KISS", "ax25_kiss" );
 
 	/* Register the dissector */
-	register_dissector( "ax25_kiss", dissect_ax25_kiss, proto_ax25_kiss );
+	kiss_handle = register_dissector( "ax25_kiss", dissect_ax25_kiss, proto_ax25_kiss );
 
 	/* Required function calls to register the header fields and subtrees used */
 	proto_register_field_array( proto_ax25_kiss, hf, array_length( hf ) );
@@ -375,9 +375,6 @@ proto_register_ax25_kiss(void)
 void
 proto_reg_handoff_ax25_kiss(void)
 {
-	dissector_handle_t kiss_handle;
-
-	kiss_handle = create_dissector_handle( dissect_ax25_kiss, proto_ax25_kiss );
 	dissector_add_uint( "wtap_encap", WTAP_ENCAP_AX25_KISS, kiss_handle );
 
 	/* only currently implemented for AX.25 */

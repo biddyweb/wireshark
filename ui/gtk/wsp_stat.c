@@ -1,8 +1,6 @@
 /* wsp_stat.c
  * wsp_stat   2003 Jean-Michel FAYARD
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -42,6 +40,8 @@
 #include "ui/gtk/main.h"
 
 #include "ui/gtk/old-gtk-compat.h"
+
+void register_tap_listener_gtkwspstat(void);
 
 /* Used to keep track of the statistics for a specific PDU type */
 typedef struct _wsp_pdu_t {
@@ -114,7 +114,7 @@ wsp_draw_statuscode(gchar *key _U_, wsp_status_code_t *data, gchar *unused _U_)
 static void
 wspstat_reset(void *psp)
 {
-	wspstat_t *sp = psp;
+	wspstat_t *sp = (wspstat_t *)psp;
 	guint32    i;
 
 	for(i=1; i<=sp->num_pdus; i++)
@@ -158,19 +158,19 @@ index2pdut(gint pdut)
 static int
 wspstat_packet(void *psp, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const void *pri)
 {
-	wspstat_t *sp = psp;
-	const wsp_info_value_t *value = pri;
+	wspstat_t *sp = (wspstat_t *)psp;
+	const wsp_info_value_t *value = (const wsp_info_value_t *)pri;
 	gint       idx   = pdut2index(value->pdut);
 	gboolean   retour = FALSE;
 
 	if (value->status_code != 0) {
 		wsp_status_code_t *sc;
-		sc = g_hash_table_lookup(
+		sc = (wsp_status_code_t *)g_hash_table_lookup(
 			sp->hash,
 			GINT_TO_POINTER(value->status_code));
 		if (!sc) {
 			g_warning("%s:%d What's Wrong, doc ?\n", __FILE__, __LINE__);
-			sc = g_malloc(sizeof(wsp_status_code_t));
+			sc = (wsp_status_code_t *)g_malloc(sizeof(wsp_status_code_t));
 			sc -> packets = 1;
 			sc -> name    = NULL;
 			sc -> widget  = NULL;
@@ -199,7 +199,7 @@ wspstat_packet(void *psp, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const
 static void
 wspstat_draw(void *psp)
 {
-	wspstat_t *sp = psp;
+	wspstat_t *sp = (wspstat_t *)psp;
 	guint32    i;
 	char       str[256];
 
@@ -261,10 +261,10 @@ wsp_init_table(wspstat_t *sp)
 		/* Maybe we should display the hexadecimal value ? */
 #if 0
 		g_snprintf(buffer, sizeof(buffer), "%s  (0X%x)",
-			   match_strval_ext(index2pdut(i), &wsp_vals_pdu_type_ext), index2pdut(i));
+			   try_val_to_str_ext(index2pdut(i), &wsp_vals_pdu_type_ext), index2pdut(i));
 #endif
 		add_table_entry(sp,
-				match_strval_ext(index2pdut(i), &wsp_vals_pdu_type_ext), /* or buffer, */
+				try_val_to_str_ext(index2pdut(i), &wsp_vals_pdu_type_ext), /* or buffer, */
 				x,
 				pos,
 				0
@@ -304,7 +304,7 @@ gtk_wspstat_init(const char *opt_arg, void *userdata _U_)
 		filter = NULL;
 	}
 
-	sp = g_malloc(sizeof(wspstat_t));
+	sp = (wspstat_t *)g_malloc(sizeof(wspstat_t));
 	sp->win = dlg_window_new("wsp-stat");  /* transient_for top_level */
 	gtk_window_set_destroy_with_parent(GTK_WINDOW(sp->win), TRUE);
 
@@ -312,7 +312,7 @@ gtk_wspstat_init(const char *opt_arg, void *userdata _U_)
 	wsp_vals_status_p = VALUE_STRING_EXT_VS_P(&wsp_vals_status_ext);
 	for (i=0; wsp_vals_status_p[i].strptr; i++)
 	{
-		sc  = g_malloc(sizeof(wsp_status_code_t));
+		sc  = (wsp_status_code_t *)g_malloc(sizeof(wsp_status_code_t));
 		sc->name    = wsp_vals_status_p[i].strptr;
 		sc->packets = 0;
 		sc->widget  = NULL;
@@ -323,7 +323,7 @@ gtk_wspstat_init(const char *opt_arg, void *userdata _U_)
 				sc);
 	}
 	sp->num_pdus  = 16;
-	sp->pdu_stats = g_malloc((sp->num_pdus+1) * sizeof(wsp_pdu_t));
+	sp->pdu_stats = (wsp_pdu_t *)g_malloc((sp->num_pdus+1) * sizeof(wsp_pdu_t));
 	if (filter) {
 		sp->filter = g_strdup(filter);
 		title = g_strdup_printf("Wireshark: WAP-WSP statistics with filter: %s", filter);
@@ -385,7 +385,7 @@ gtk_wspstat_init(const char *opt_arg, void *userdata _U_)
 	bbox = dlg_button_row_new(GTK_STOCK_CLOSE, NULL);
 	gtk_box_pack_start(GTK_BOX(main_vb), bbox, FALSE, FALSE, 0);
 
-	bt_close = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+	bt_close = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
 	window_set_cancel_button(sp->win, bt_close, window_cancel_button_cb);
 
 	g_signal_connect(sp->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
@@ -414,12 +414,6 @@ static tap_param_dlg wsp_stat_dlg = {
 void
 register_tap_listener_gtkwspstat(void)
 {
-	register_dfilter_stat(&wsp_stat_dlg, "_WAP-WSP",
+	register_param_stat(&wsp_stat_dlg, "_WAP-WSP",
 	    REGISTER_STAT_GROUP_TELEPHONY);
-}
-
-void
-wsp_stat_cb(GtkAction *action, gpointer user_data _U_)
-{
-	tap_param_dlg_cb(action, &wsp_stat_dlg);
 }

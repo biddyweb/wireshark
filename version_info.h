@@ -2,8 +2,6 @@
  * Declarations of outines to report version information for stuff used
  * by Wireshark
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,9 +29,9 @@ extern "C" {
 #endif /* __cplusplus */
 
 /*
- * The svn version string or ""
+ * The Git version string or ""
  */
-extern const gchar *wireshark_svnversion;
+extern const gchar *wireshark_gitversion;
 
 /*
  * Get various library compile-time versions and append them to

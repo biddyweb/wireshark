@@ -3,8 +3,6 @@
  * Copyright 2007, Collabora Ltd.
  *   @author: Sjoerd Simons <sjoerd.simons@collabora.co.uk>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,9 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+
+void proto_register_clique_rm(void);
+void proto_reg_handoff_clique_rm(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_clique_rm = -1;
@@ -273,11 +274,14 @@ dissect_clique_rm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
   guint8      version;
   guint8      type;
   int         offset = 0;
+  guint64     qword;
 
   if (tvb_length(tvb) < 12)
     return FALSE;
 
-  if (tvb_strneql(tvb, offset, "Clique", 6))
+  qword = tvb_get_ntoh48(tvb,0);
+  /* ASCII str for 'Clique' = 0x436c69717565 */
+  if(qword != G_GUINT64_CONSTANT (0x436c69717565))
     return FALSE;
   offset += 6;
 
@@ -307,8 +311,7 @@ dissect_clique_rm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
                       ENC_BIG_ENDIAN);
   offset++;
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_append_fstr(pinfo->cinfo, COL_INFO, ", sender: 0x%x",
+  col_append_fstr(pinfo->cinfo, COL_INFO, ", sender: 0x%x",
                     tvb_get_ntohl(tvb, offset));
 
   proto_tree_add_item(clique_rm_tree, hf_clique_rm_sender, tvb, offset,
@@ -316,8 +319,7 @@ dissect_clique_rm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *dat
   offset += 4;
 
   if (IS_RELIABLE(type)) {
-    if (check_col(pinfo->cinfo, COL_INFO))
-      col_append_fstr(pinfo->cinfo, COL_INFO, ", id: 0x%x",
+    col_append_fstr(pinfo->cinfo, COL_INFO, ", id: 0x%x",
                       tvb_get_ntohl(tvb, offset));
 
     dissect_reliable_packet(clique_rm_tree,   type, tvb, offset);

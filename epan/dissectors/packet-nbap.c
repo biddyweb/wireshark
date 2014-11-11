@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-nbap.c                                                              */
 /* ../../tools/asn2wrs.py -p nbap -c ./nbap.cnf -s ./packet-nbap-template -D . -O ../../epan/dissectors NBAP-CommonDataTypes.asn NBAP-Constants.asn NBAP-Containers.asn NBAP-IEs.asn NBAP-PDU-Contents.asn NBAP-PDU-Descriptions.asn */
 
@@ -9,8 +9,6 @@
 /* packet-nbap-template.c
  * Routines for UMTS Node B Application Part(NBAP) packet dissection
  * Copyright 2005, 2009 Anders Broman <anders.broman@ericsson.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -40,6 +38,7 @@
 #include <epan/packet.h>
 #include <epan/sctpppids.h>
 #include <epan/asn1.h>
+#include <epan/wmem/wmem.h>
 #include <epan/conversation.h>
 #include <epan/expert.h>
 #include <epan/prefs.h>
@@ -80,8 +79,11 @@
 #define nbap_debug4(str,p1,p2,p3,p4)
 #endif
 
+void proto_register_nbap(void);
+void proto_reg_handoff_nbap(void);
+
 /* Global variables */
-dissector_handle_t fp_handle;
+static dissector_handle_t fp_handle;
 static guint32	transportLayerAddress_ipv4;
 static guint16	BindingID_port;
 static guint32	com_context_id;
@@ -1545,7 +1547,7 @@ typedef enum _ProtocolIE_ID_enum {
 } ProtocolIE_ID_enum;
 
 /*--- End of included file: packet-nbap-val.h ---*/
-#line 83 "../../asn1/nbap/packet-nbap-template.c"
+#line 85 "../../asn1/nbap/packet-nbap-template.c"
 
 /* Initialize the protocol and registered fields */
 static int proto_nbap = -1;
@@ -4849,7 +4851,7 @@ static int hf_nbap_RACH_SubChannelNumbers_subCh1 = -1;
 static int hf_nbap_RACH_SubChannelNumbers_subCh0 = -1;
 
 /*--- End of included file: packet-nbap-hf.c ---*/
-#line 91 "../../asn1/nbap/packet-nbap-template.c"
+#line 93 "../../asn1/nbap/packet-nbap-template.c"
 
 /* Initialize the subtree pointers */
 static int ett_nbap = -1;
@@ -6488,8 +6490,12 @@ static gint ett_nbap_UnsuccessfulOutcome = -1;
 static gint ett_nbap_Outcome = -1;
 
 /*--- End of included file: packet-nbap-ett.c ---*/
-#line 99 "../../asn1/nbap/packet-nbap-template.c"
+#line 101 "../../asn1/nbap/packet-nbap-template.c"
 
+static expert_field ei_nbap_no_find_comm_context_id = EI_INIT;
+static expert_field ei_nbap_no_find_port_info = EI_INIT;
+static expert_field ei_nbap_no_set_comm_context_id = EI_INIT;
+static expert_field ei_nbap_hsdsch_entity_not_specified = EI_INIT;
 
 extern int proto_fp;
 
@@ -6518,7 +6524,7 @@ typedef struct
 
 }nbap_dch_channel_info_t;
 
-nbap_dch_channel_info_t nbap_dch_chnl_info[maxNrOfDCHs];
+nbap_dch_channel_info_t nbap_dch_chnl_info[256];
 
 /* Struct to collect E-DCH data in a packet
  * As the address data comes before the ddi entries
@@ -6704,7 +6710,7 @@ static int dissect_SuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, pro
 static int dissect_UnsuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *);
 
 /*Easy way to add hsdhsch binds for corner cases*/
-static void add_hsdsch_bind(packet_info * pinfo, proto_tree * tree);
+static void add_hsdsch_bind(packet_info * pinfo);
 
 
 /*--- Included file: packet-nbap-fn.c ---*/
@@ -6850,7 +6856,7 @@ dissect_nbap_ProcedureCode(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 255U, &ProcedureCode, FALSE);
 
-#line 93 "../../asn1/nbap/nbap.cnf"
+#line 92 "../../asn1/nbap/nbap.cnf"
      col_add_fstr(actx->pinfo->cinfo, COL_INFO, "%s ",
                  val_to_str(ProcedureCode, nbap_ProcedureCode_vals,
                             "unknown message"));
@@ -6884,7 +6890,7 @@ static const per_sequence_t ProcedureID_sequence[] = {
 
 static int
 dissect_nbap_ProcedureID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 100 "../../asn1/nbap/nbap.cnf"
+#line 99 "../../asn1/nbap/nbap.cnf"
   ProcedureCode = 0xFFFF;
   ddMode = 0xFFFF;
   ProcedureID = NULL;
@@ -6892,8 +6898,8 @@ dissect_nbap_ProcedureID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_nbap_ProcedureID, ProcedureID_sequence);
 
-#line 106 "../../asn1/nbap/nbap.cnf"
-  ProcedureID = ep_strdup_printf("%s/%s",
+#line 105 "../../asn1/nbap/nbap.cnf"
+  ProcedureID = wmem_strdup_printf(wmem_packet_scope(), "%s/%s",
                                  val_to_str(ProcedureCode, VALS(nbap_ProcedureCode_vals), "unknown(%u)"),
                                  val_to_str(ddMode, VALS(nbap_DdMode_vals), "unknown(%u)"));
     crcn_context_present = FALSE; /*Reset CRNC Com context present flag.*/
@@ -8137,7 +8143,7 @@ dissect_nbap_ProtocolIE_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, maxProtocolIEs, &ProtocolIE_ID, FALSE);
 
-#line 82 "../../asn1/nbap/nbap.cnf"
+#line 81 "../../asn1/nbap/nbap.cnf"
   if (tree) {
     proto_item_append_text(proto_item_get_parent_nth(actx->created_item, 2), ": %s", val_to_str_ext(ProtocolIE_ID, &nbap_ProtocolIE_ID_vals_ext, "unknown (%d)"));
   }
@@ -8685,7 +8691,7 @@ dissect_nbap_Additional_EDCH_RL_Specific_Information_To_Setup_List(tvbuff_t *tvb
 
 static int
 dissect_nbap_E_DCH_MACdFlow_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 697 "../../asn1/nbap/nbap.cnf"
+#line 699 "../../asn1/nbap/nbap.cnf"
 
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, maxNrOfEDCHMACdFlows_1, &e_dch_macdflow_id, FALSE);
@@ -8701,7 +8707,7 @@ dissect_nbap_E_DCH_MACdFlow_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 
 static int
 dissect_nbap_BindingID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 710 "../../asn1/nbap/nbap.cnf"
+#line 712 "../../asn1/nbap/nbap.cnf"
   tvbuff_t *parameter_tvb=NULL;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
@@ -8725,14 +8731,14 @@ dissect_nbap_BindingID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, 
 
 static int
 dissect_nbap_TransportLayerAddress(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 620 "../../asn1/nbap/nbap.cnf"
+#line 619 "../../asn1/nbap/nbap.cnf"
   tvbuff_t *parameter_tvb=NULL;
   proto_item *item;
   proto_tree *subtree, *nsap_tree;
   gint tvb_len;
 
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 160, TRUE, &parameter_tvb);
+                                     1, 160, TRUE, &parameter_tvb, NULL);
 
   if (!parameter_tvb)
     return offset;
@@ -8800,7 +8806,7 @@ dissect_nbap_Additional_EDCH_MAC_d_Flows_Specific_Info_List(tvbuff_t *tvb _U_, i
 static int
 dissect_nbap_HARQ_Process_Allocation_2ms_EDCH(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     maxNrOfEDCHHARQProcesses2msEDCH, maxNrOfEDCHHARQProcesses2msEDCH, FALSE, NULL);
+                                     maxNrOfEDCHHARQProcesses2msEDCH, maxNrOfEDCHHARQProcesses2msEDCH, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -10032,7 +10038,7 @@ dissect_nbap_AddorDeleteIndicator(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 
 static int
 dissect_nbap_CFN(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 2136 "../../asn1/nbap/nbap.cnf"
+#line 2144 "../../asn1/nbap/nbap.cnf"
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 255U, &cfn, FALSE);
 
@@ -10285,7 +10291,7 @@ dissect_nbap_AvailabilityStatus(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 
 static int
 dissect_nbap_HSDSCH_RNTI(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 2102 "../../asn1/nbap/nbap.cnf"
+#line 2109 "../../asn1/nbap/nbap.cnf"
 umts_fp_conversation_info_t *umts_fp_conversation_info = NULL;
 address     null_addr;
 conversation_t   *conversation = NULL;
@@ -10308,6 +10314,7 @@ int i;
                                nbap_hsdsch_channel_info[i].crnc_port, 0, NO_ADDR_B);
             if(conversation != NULL){
                 umts_fp_conversation_info = (umts_fp_conversation_info_t *)conversation_get_proto_data(conversation, proto_fp);
+                DISSECTOR_ASSERT(umts_fp_conversation_info != NULL);
                 umts_fp_conversation_info->hrnti = hrnti;
             }
          }
@@ -10525,11 +10532,12 @@ dissect_nbap_BundlingModeIndicator(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t
 
 static int
 dissect_nbap_CommonTransportChannelID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 693 "../../asn1/nbap/nbap.cnf"
+#line 694 "../../asn1/nbap/nbap.cnf"
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 255U, &commontransportchannelid, FALSE);
 
-nbap_dch_chnl_info[commontransportchannelid].next_dch = 0;
+if(commontransportchannelid<maxNrOfDCHs)
+  nbap_dch_chnl_info[commontransportchannelid].next_dch = 0;
 
 
 
@@ -10557,7 +10565,7 @@ dissect_nbap_BroadcastCommonTransportBearerIndication(tvbuff_t *tvb _U_, int off
 static int
 dissect_nbap_BroadcastReference(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     24, 24, FALSE, NULL);
+                                     24, 24, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -10577,7 +10585,7 @@ dissect_nbap_CCTrCH_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, 
 static int
 dissect_nbap_Cell_Capability_Container(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     128, 128, FALSE, NULL);
+                                     128, 128, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -11339,7 +11347,8 @@ dissect_nbap_CommonPhysicalChannelID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 255U, &commonphysicalchannelid, FALSE);
 
-nbap_dch_chnl_info[commonphysicalchannelid].next_dch = 0;
+if(commonphysicalchannelid<maxNrOfDCHs)
+  nbap_dch_chnl_info[commonphysicalchannelid].next_dch = 0;
 
 
 
@@ -11351,7 +11360,7 @@ nbap_dch_chnl_info[commonphysicalchannelid].next_dch = 0;
 static int
 dissect_nbap_PreambleSignatures(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     16, 16, FALSE, NULL);
+                                     16, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -11504,7 +11513,7 @@ dissect_nbap_Common_E_DCH_Resource_Combination_InfoList(tvbuff_t *tvb _U_, int o
 
 static int
 dissect_nbap_Common_MACFlow_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1961 "../../asn1/nbap/nbap.cnf"
+#line 1968 "../../asn1/nbap/nbap.cnf"
 
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, maxNrOfCommonMACFlows_1, &common_macdflow_id, FALSE);
@@ -11539,7 +11548,7 @@ dissect_nbap_TransportBearerRequestIndicator(tvbuff_t *tvb _U_, int offset _U_, 
 static int
 dissect_nbap_DsField(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -11549,7 +11558,7 @@ dissect_nbap_DsField(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, pr
 static int
 dissect_nbap_GenericTrafficCategory(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -11586,7 +11595,7 @@ static const value_string nbap_PayloadCRC_PresenceIndicator_vals[] = {
 
 static int
 dissect_nbap_PayloadCRC_PresenceIndicator(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 654 "../../asn1/nbap/nbap.cnf"
+#line 653 "../../asn1/nbap/nbap.cnf"
 guint32 payload_crc_value;
 
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
@@ -11629,7 +11638,7 @@ dissect_nbap_E_DCH_HARQ_PO_FDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_nbap_E_DCH_MACdFlow_Multiplexing_List(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     maxNrOfEDCHMACdFlows, maxNrOfEDCHMACdFlows, FALSE, NULL);
+                                     maxNrOfEDCHMACdFlows, maxNrOfEDCHMACdFlows, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -11638,7 +11647,7 @@ dissect_nbap_E_DCH_MACdFlow_Multiplexing_List(tvbuff_t *tvb _U_, int offset _U_,
 
 static int
 dissect_nbap_LogicalChannelID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1619 "../../asn1/nbap/nbap.cnf"
+#line 1621 "../../asn1/nbap/nbap.cnf"
     /* Set logical channel id for this entry*/
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             1U, 15U, &logical_channel_id, FALSE);
@@ -11657,7 +11666,7 @@ dissect_nbap_LogicalChannelID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 
 static int
 dissect_nbap_MAC_PDU_SizeExtended(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1717 "../../asn1/nbap/nbap.cnf"
+#line 1724 "../../asn1/nbap/nbap.cnf"
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             1U, 1504U, NULL, TRUE);
 
@@ -12080,7 +12089,7 @@ static const per_sequence_t CommonMACFlow_Specific_InfoItem_sequence[] = {
 
 static int
 dissect_nbap_CommonMACFlow_Specific_InfoItem(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1968 "../../asn1/nbap/nbap.cnf"
+#line 1975 "../../asn1/nbap/nbap.cnf"
     address     dst_addr;
     transportLayerAddress_ipv4 = 0;
     BindingID_port = 0;
@@ -12125,7 +12134,7 @@ dissect_nbap_CommonMACFlow_Specific_InfoList(tvbuff_t *tvb _U_, int offset _U_, 
 
 static int
 dissect_nbap_MACdPDU_Size(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1610 "../../asn1/nbap/nbap.cnf"
+#line 1612 "../../asn1/nbap/nbap.cnf"
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             1U, 5000U, &MACdPDU_Size, TRUE);
 
@@ -13345,7 +13354,7 @@ dissect_nbap_CriticalityDiagnostics(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_
 
 static int
 dissect_nbap_CRNC_CommunicationContextID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 2076 "../../asn1/nbap/nbap.cnf"
+#line 2083 "../../asn1/nbap/nbap.cnf"
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 1048575U, &com_context_id, FALSE);
 
@@ -14454,7 +14463,7 @@ dissect_nbap_SPS_Reservation_Indicator(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 static int
 dissect_nbap_LogicalChannellevel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     16, 16, FALSE, NULL);
+                                     16, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -14464,7 +14473,7 @@ dissect_nbap_LogicalChannellevel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *
 static int
 dissect_nbap_PriorityQueuelevel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -14530,7 +14539,7 @@ dissect_nbap_HS_DSCH_Semi_PersistentScheduling_Information_to_Modify_LCR(tvbuff_
 static int
 dissect_nbap_E_DCH_SPS_Indicator(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     16, 16, FALSE, NULL);
+                                     16, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -14776,10 +14785,11 @@ dissect_nbap_ToAWE(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, prot
 
 static int
 dissect_nbap_T_dCH_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 672 "../../asn1/nbap/nbap.cnf"
+#line 671 "../../asn1/nbap/nbap.cnf"
 
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 255U, &dch_id, FALSE);
+
     if(g_num_dch_in_flow>0){
         g_dchs_in_flow_list[g_num_dch_in_flow-1]=dch_id;
         nbap_dch_chnl_info[dch_id].next_dch = 0;
@@ -14797,7 +14807,7 @@ dissect_nbap_T_dCH_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, p
 
 static int
 dissect_nbap_TransportFormatSet_NrOfTransportBlocks(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1058 "../../asn1/nbap/nbap.cnf"
+#line 1060 "../../asn1/nbap/nbap.cnf"
 guint32 NrOfTransportBlocks;
 
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
@@ -14840,7 +14850,7 @@ guint32 NrOfTransportBlocks;
 
 static int
 dissect_nbap_TransportFormatSet_TransportBlockSize(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1090 "../../asn1/nbap/nbap.cnf"
+#line 1092 "../../asn1/nbap/nbap.cnf"
 guint32 TransportBlockSize;
 
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
@@ -14968,7 +14978,7 @@ static const per_sequence_t TransportFormatSet_DynamicPartList_item_sequence[] =
 
 static int
 dissect_nbap_TransportFormatSet_DynamicPartList_item(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1054 "../../asn1/nbap/nbap.cnf"
+#line 1056 "../../asn1/nbap/nbap.cnf"
     num_items++;
 
 
@@ -14986,7 +14996,7 @@ static const per_sequence_t TransportFormatSet_DynamicPartList_sequence_of[1] = 
 
 static int
 dissect_nbap_TransportFormatSet_DynamicPartList(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1051 "../../asn1/nbap/nbap.cnf"
+#line 1053 "../../asn1/nbap/nbap.cnf"
     num_items = 0;
 
 
@@ -15157,7 +15167,7 @@ dissect_nbap_TransportFormatSet(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 
 static int
 dissect_nbap_T_ul_TransportFormatSet(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1029 "../../asn1/nbap/nbap.cnf"
+#line 1031 "../../asn1/nbap/nbap.cnf"
     transportFormatSet_type = NBAP_DCH_UL;
     nbap_dch_chnl_info[dch_id].num_ul_chans = 0;
 
@@ -15171,7 +15181,7 @@ dissect_nbap_T_ul_TransportFormatSet(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
 
 static int
 dissect_nbap_T_dl_TransportFormatSet(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1033 "../../asn1/nbap/nbap.cnf"
+#line 1035 "../../asn1/nbap/nbap.cnf"
     transportFormatSet_type = NBAP_DCH_DL;
     nbap_dch_chnl_info[dch_id].num_dl_chans = 0;
 
@@ -15221,14 +15231,14 @@ static const per_sequence_t DCH_Specific_FDD_Item_sequence[] = {
 
 static int
 dissect_nbap_DCH_Specific_FDD_Item(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1023 "../../asn1/nbap/nbap.cnf"
+#line 1025 "../../asn1/nbap/nbap.cnf"
     g_num_dch_in_flow++;
 
 
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_nbap_DCH_Specific_FDD_Item, DCH_Specific_FDD_Item_sequence);
 
-#line 1026 "../../asn1/nbap/nbap.cnf"
+#line 1028 "../../asn1/nbap/nbap.cnf"
     prev_dch_id = dch_id;
 
 
@@ -15242,7 +15252,7 @@ static const per_sequence_t DCH_Specific_FDD_InformationList_sequence_of[1] = {
 
 static int
 dissect_nbap_DCH_Specific_FDD_InformationList(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1019 "../../asn1/nbap/nbap.cnf"
+#line 1021 "../../asn1/nbap/nbap.cnf"
     g_num_dch_in_flow = 0;
     prev_dch_id = 0;
 
@@ -15394,7 +15404,7 @@ dissect_nbap_INTEGER_1_512(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
 static int
 dissect_nbap_BIT_STRING_SIZE_7(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     7, 7, FALSE, NULL);
+                                     7, 7, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -15536,7 +15546,7 @@ dissect_nbap_T_dCH_ID_01(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_
 
 static int
 dissect_nbap_T_ul_TransportFormatSet_01(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1037 "../../asn1/nbap/nbap.cnf"
+#line 1039 "../../asn1/nbap/nbap.cnf"
     transportFormatSet_type = NBAP_DCH_UL;
     nbap_dch_chnl_info[dch_id].num_ul_chans = 0;
 
@@ -15550,7 +15560,7 @@ dissect_nbap_T_ul_TransportFormatSet_01(tvbuff_t *tvb _U_, int offset _U_, asn1_
 
 static int
 dissect_nbap_T_dl_TransportFormatSet_01(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1041 "../../asn1/nbap/nbap.cnf"
+#line 1043 "../../asn1/nbap/nbap.cnf"
     transportFormatSet_type = NBAP_DCH_DL;
     nbap_dch_chnl_info[dch_id].num_dl_chans = 0;
 
@@ -15606,7 +15616,7 @@ static const per_sequence_t FDD_DCHs_to_ModifyItem_sequence[] = {
 
 static int
 dissect_nbap_FDD_DCHs_to_ModifyItem(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1117 "../../asn1/nbap/nbap.cnf"
+#line 1119 "../../asn1/nbap/nbap.cnf"
 
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_nbap_FDD_DCHs_to_ModifyItem, FDD_DCHs_to_ModifyItem_sequence);
@@ -16056,7 +16066,7 @@ dissect_nbap_INTEGER_0_63(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
 static int
 dissect_nbap_BIT_STRING_SIZE_10(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     10, 10, FALSE, NULL);
+                                     10, 10, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -16184,7 +16194,7 @@ dissect_nbap_DGANSSCorrections(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_nbap_BIT_STRING_SIZE_8(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -18028,7 +18038,7 @@ dissect_nbap_E_DCH_HARQ_Combining_Capability(tvbuff_t *tvb _U_, int offset _U_, 
 
 static int
 dissect_nbap_E_DCH_DDI_Value(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1600 "../../asn1/nbap/nbap.cnf"
+#line 1602 "../../asn1/nbap/nbap.cnf"
 
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 62U, &e_dch_ddi_value, FALSE);
@@ -18162,7 +18172,7 @@ static const per_sequence_t E_DCH_LogicalChannelInformationItem_sequence[] = {
 
 static int
 dissect_nbap_E_DCH_LogicalChannelInformationItem(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1597 "../../asn1/nbap/nbap.cnf"
+#line 1599 "../../asn1/nbap/nbap.cnf"
     num_items++;
 
 
@@ -18179,7 +18189,7 @@ static const per_sequence_t E_DCH_LogicalChannelInformation_sequence_of[1] = {
 
 static int
 dissect_nbap_E_DCH_LogicalChannelInformation(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1590 "../../asn1/nbap/nbap.cnf"
+#line 1592 "../../asn1/nbap/nbap.cnf"
     num_items = 0;
 
   offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
@@ -18212,7 +18222,7 @@ static const per_sequence_t E_DCH_MACdFlow_Specific_InfoItem_sequence[] = {
 
 static int
 dissect_nbap_E_DCH_MACdFlow_Specific_InfoItem(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1352 "../../asn1/nbap/nbap.cnf"
+#line 1354 "../../asn1/nbap/nbap.cnf"
 umts_fp_conversation_info_t *p_conv_data = NULL;
 address     null_addr;
 conversation_t   *p_conv;
@@ -18234,7 +18244,7 @@ guint32 no_ddi_entries, i;
     if(!p_conv)
         return offset;
 
-    p_conv_data = conversation_get_proto_data(p_conv, proto_fp);
+    p_conv_data = (umts_fp_conversation_info_t *)conversation_get_proto_data(p_conv, proto_fp);
 
     if(!p_conv_data)
         return offset;
@@ -18395,7 +18405,7 @@ static const per_sequence_t E_DCH_LogicalChannelToModifyItem_sequence[] = {
 
 static int
 dissect_nbap_E_DCH_LogicalChannelToModifyItem(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1585 "../../asn1/nbap/nbap.cnf"
+#line 1587 "../../asn1/nbap/nbap.cnf"
 
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_nbap_E_DCH_LogicalChannelToModifyItem, E_DCH_LogicalChannelToModifyItem_sequence);
@@ -18470,7 +18480,7 @@ static const per_sequence_t E_DCH_MACdFlow_Specific_InfoItem_to_Modify_sequence[
 
 static int
 dissect_nbap_E_DCH_MACdFlow_Specific_InfoItem_to_Modify(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1493 "../../asn1/nbap/nbap.cnf"
+#line 1495 "../../asn1/nbap/nbap.cnf"
 guint32 no_ddi_entries, i;
 address     null_addr;
 nbap_edch_port_info_t *old_info;
@@ -18496,16 +18506,16 @@ num_items = 1;
         /*umts_fp_conversation_info->com_context_id = com_context_id;*/
     }else{
         nbap_com_context_id_t * cur_val;
-        if((cur_val=g_tree_lookup(com_context_map, GINT_TO_POINTER((gint)node_b_com_context_id))) != NULL){
+        if((cur_val=(nbap_com_context_id_t *)g_tree_lookup(com_context_map, GINT_TO_POINTER((gint)node_b_com_context_id))) != NULL){
             com_context_id= cur_val->crnc_context;
         }else{
-            expert_add_info_format(actx->pinfo, NULL, PI_MALFORMED, PI_WARN, "Couldn't not find Communication Context-ID, unable to reconfigure this E-DCH flow.");
+            expert_add_info(actx->pinfo, NULL, &ei_nbap_no_find_comm_context_id);
         }
     }
 
     /*This should not happen*/
-    if( (old_info = g_tree_lookup(edch_flow_port_map, GINT_TO_POINTER((gint)com_context_id))) == NULL ){
-        expert_add_info_format(actx->pinfo, NULL, PI_MALFORMED, PI_WARN, "Couldn't not find port information for reconfigured E-DCH flow, unable to reconfigure");
+    if(( old_info = (nbap_edch_port_info_t *)g_tree_lookup(edch_flow_port_map, GINT_TO_POINTER((gint)com_context_id))) == NULL ){
+        expert_add_info(actx->pinfo, NULL, &ei_nbap_no_find_port_info);
         return offset;
     }
     nbap_debug1("    Found com_context_id %u", com_context_id);
@@ -18529,7 +18539,7 @@ num_items = 1;
     if(!p_conv)
         return offset;
 
-    p_conv_data = conversation_get_proto_data(p_conv, proto_fp);
+    p_conv_data = (umts_fp_conversation_info_t *)conversation_get_proto_data(p_conv, proto_fp);
 
     if(!p_conv_data)
         return offset;
@@ -18612,7 +18622,7 @@ static const per_sequence_t E_DCH_FDD_Information_to_Modify_sequence[] = {
 
 static int
 dissect_nbap_E_DCH_FDD_Information_to_Modify(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1405 "../../asn1/nbap/nbap.cnf"
+#line 1407 "../../asn1/nbap/nbap.cnf"
 
 address     dst_addr, null_addr;
 conversation_t *conversation,*old_conversation = NULL;
@@ -18644,12 +18654,12 @@ BindingID_port = 0;
         if(old_conversation){
             nbap_debug3("Frame %u E-DCH-FDD-Information-to-Modify: found old conv on IP %s Port %u",
                 actx->pinfo->fd->num,
-                ep_address_to_str(&dst_addr),
+                address_to_str(wmem_packet_scope(), &dst_addr),
                 BindingID_port);
         }else{
             nbap_debug3("Frame %u E-DCH-FDD-Information-to-Modify: Did not find old conv on IP %s Port %u",
                 actx->pinfo->fd->num,
-                ep_address_to_str(&dst_addr),
+                address_to_str(wmem_packet_scope(), &dst_addr),
                 BindingID_port);
         }
 
@@ -18661,7 +18671,7 @@ BindingID_port = 0;
             /* Set dissector */
             conversation_set_dissector(conversation, fp_handle);
             if(actx->pinfo->link_dir==P2P_DIR_DL){
-                umts_fp_conversation_info = se_new0(umts_fp_conversation_info_t);
+                umts_fp_conversation_info = wmem_new0(wmem_file_scope(), umts_fp_conversation_info_t);
                 /*Steal the old informatoin*/
                 memcpy(umts_fp_conversation_info,conversation_get_proto_data(old_conversation, proto_fp),sizeof(umts_fp_conversation_info_t));
 
@@ -18682,10 +18692,10 @@ BindingID_port = 0;
                     umts_fp_conversation_info->com_context_id = com_context_id;
                 }else{
                     nbap_com_context_id_t * cur_val;
-                    if((cur_val=g_tree_lookup(com_context_map, GINT_TO_POINTER((gint)node_b_com_context_id))) != NULL){
+                    if((cur_val=(nbap_com_context_id_t *)g_tree_lookup(com_context_map, GINT_TO_POINTER((gint)node_b_com_context_id))) != NULL){
                         umts_fp_conversation_info->com_context_id = cur_val->crnc_context;
                     }else{
-                        expert_add_info_format(actx->pinfo, NULL, PI_MALFORMED, PI_WARN, "Couldn't not set Communication Context-ID, fragments over reconfigured channels might fail");
+                        expert_add_info(actx->pinfo, NULL, &ei_nbap_no_set_comm_context_id);
                     }
                 }
 
@@ -19375,7 +19385,7 @@ dissect_nbap_E_DCH_MACdFlows_Information_TDD(tvbuff_t *tvb _U_, int offset _U_, 
 static int
 dissect_nbap_E_DCH_TimeslotResource(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     13, 13, FALSE, NULL);
+                                     13, 13, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -19471,7 +19481,7 @@ dissect_nbap_E_DCH_Information(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_nbap_E_DCH_TimeslotResourceLCR(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     5, 5, FALSE, NULL);
+                                     5, 5, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20287,7 +20297,7 @@ dissect_nbap_FPACH_Power(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_
 static int
 dissect_nbap_BIT_STRING_SIZE_16(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     16, 16, FALSE, NULL);
+                                     16, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20297,7 +20307,7 @@ dissect_nbap_BIT_STRING_SIZE_16(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_nbap_BIT_STRING_SIZE_22(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     22, 22, FALSE, NULL);
+                                     22, 22, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20326,7 +20336,7 @@ dissect_nbap_GANSS_NAVclockModel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *
 static int
 dissect_nbap_BIT_STRING_SIZE_11(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     11, 11, FALSE, NULL);
+                                     11, 11, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20336,7 +20346,7 @@ dissect_nbap_BIT_STRING_SIZE_11(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_nbap_BIT_STRING_SIZE_5(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     5, 5, FALSE, NULL);
+                                     5, 5, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20346,7 +20356,7 @@ dissect_nbap_BIT_STRING_SIZE_5(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_nbap_BIT_STRING_SIZE_3(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     3, 3, FALSE, NULL);
+                                     3, 3, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20356,7 +20366,7 @@ dissect_nbap_BIT_STRING_SIZE_3(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_nbap_BIT_STRING_SIZE_20(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     20, 20, FALSE, NULL);
+                                     20, 20, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20366,7 +20376,7 @@ dissect_nbap_BIT_STRING_SIZE_20(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_nbap_BIT_STRING_SIZE_26(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     26, 26, FALSE, NULL);
+                                     26, 26, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20376,7 +20386,7 @@ dissect_nbap_BIT_STRING_SIZE_26(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_nbap_BIT_STRING_SIZE_13(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     13, 13, FALSE, NULL);
+                                     13, 13, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20432,7 +20442,7 @@ dissect_nbap_GANSS_GLONASSclockModel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
 static int
 dissect_nbap_BIT_STRING_SIZE_12(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     12, 12, FALSE, NULL);
+                                     12, 12, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20485,7 +20495,7 @@ dissect_nbap_GANSS_AddClockModels(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 static int
 dissect_nbap_GANSS_AddIonoModelReq(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     2, 2, FALSE, NULL);
+                                     2, 2, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20504,7 +20514,7 @@ dissect_nbap_GANSS_AddNavigationModelsReq(tvbuff_t *tvb _U_, int offset _U_, asn
 static int
 dissect_nbap_BIT_STRING_SIZE_4(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     4, 4, FALSE, NULL);
+                                     4, 4, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20514,7 +20524,7 @@ dissect_nbap_BIT_STRING_SIZE_4(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_nbap_BIT_STRING_SIZE_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 1, FALSE, NULL);
+                                     1, 1, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20524,7 +20534,7 @@ dissect_nbap_BIT_STRING_SIZE_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_nbap_BIT_STRING_SIZE_32(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     32, 32, FALSE, NULL);
+                                     32, 32, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20534,7 +20544,7 @@ dissect_nbap_BIT_STRING_SIZE_32(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_nbap_BIT_STRING_SIZE_24(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     24, 24, FALSE, NULL);
+                                     24, 24, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20544,7 +20554,7 @@ dissect_nbap_BIT_STRING_SIZE_24(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_nbap_BIT_STRING_SIZE_14(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     14, 14, FALSE, NULL);
+                                     14, 14, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20586,7 +20596,7 @@ dissect_nbap_GANSS_NavModel_NAVKeplerianSet(tvbuff_t *tvb _U_, int offset _U_, a
 static int
 dissect_nbap_BIT_STRING_SIZE_25(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     25, 25, FALSE, NULL);
+                                     25, 25, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20596,7 +20606,7 @@ dissect_nbap_BIT_STRING_SIZE_25(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_nbap_BIT_STRING_SIZE_17(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     17, 17, FALSE, NULL);
+                                     17, 17, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20606,7 +20616,7 @@ dissect_nbap_BIT_STRING_SIZE_17(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_nbap_BIT_STRING_SIZE_23(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     23, 23, FALSE, NULL);
+                                     23, 23, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20616,7 +20626,7 @@ dissect_nbap_BIT_STRING_SIZE_23(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_nbap_BIT_STRING_SIZE_33(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     33, 33, FALSE, NULL);
+                                     33, 33, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20626,7 +20636,7 @@ dissect_nbap_BIT_STRING_SIZE_33(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_nbap_BIT_STRING_SIZE_15(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     15, 15, FALSE, NULL);
+                                     15, 15, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20636,7 +20646,7 @@ dissect_nbap_BIT_STRING_SIZE_15(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_nbap_BIT_STRING_SIZE_21(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     21, 21, FALSE, NULL);
+                                     21, 21, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20679,7 +20689,7 @@ dissect_nbap_GANSS_NavModel_CNAVKeplerianSet(tvbuff_t *tvb _U_, int offset _U_, 
 static int
 dissect_nbap_BIT_STRING_SIZE_2(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     2, 2, FALSE, NULL);
+                                     2, 2, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20689,7 +20699,7 @@ dissect_nbap_BIT_STRING_SIZE_2(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_nbap_BIT_STRING_SIZE_27(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     27, 27, FALSE, NULL);
+                                     27, 27, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20726,7 +20736,7 @@ dissect_nbap_GANSS_NavModel_GLONASSecef(tvbuff_t *tvb _U_, int offset _U_, asn1_
 static int
 dissect_nbap_BIT_STRING_SIZE_30(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     30, 30, FALSE, NULL);
+                                     30, 30, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20736,7 +20746,7 @@ dissect_nbap_BIT_STRING_SIZE_30(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_nbap_BIT_STRING_SIZE_18(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     18, 18, FALSE, NULL);
+                                     18, 18, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -20895,7 +20905,7 @@ dissect_nbap_T_non_broadcastIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 static int
 dissect_nbap_BIT_STRING_SIZE_6(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     6, 6, FALSE, NULL);
+                                     6, 6, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -21274,7 +21284,7 @@ dissect_nbap_GANSS_Almanac(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
 static int
 dissect_nbap_BIT_STRING_SIZE_9(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     9, 9, FALSE, NULL);
+                                     9, 9, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -21658,7 +21668,7 @@ dissect_nbap_GANSS_AuxInfoReq(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 static int
 dissect_nbap_BIT_STRING_SIZE_28(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     28, 28, FALSE, NULL);
+                                     28, 28, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -21851,7 +21861,7 @@ dissect_nbap_INTEGER_0_59_(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
 static int
 dissect_nbap_BIT_STRING_SIZE_1_1024(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 1024, FALSE, NULL);
+                                     1, 1024, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -21994,7 +22004,7 @@ dissect_nbap_GANSS_Data_Bit_Assistance_ReqItem(tvbuff_t *tvb _U_, int offset _U_
 static int
 dissect_nbap_BIT_STRING_SIZE_31(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     31, 31, FALSE, NULL);
+                                     31, 31, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -22004,7 +22014,7 @@ dissect_nbap_BIT_STRING_SIZE_31(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_nbap_BIT_STRING_SIZE_19(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     19, 19, FALSE, NULL);
+                                     19, 19, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -22397,7 +22407,7 @@ dissect_nbap_SAT_Info_Almanac(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 static int
 dissect_nbap_BIT_STRING_SIZE_364(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     364, 364, FALSE, NULL);
+                                     364, 364, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -22533,7 +22543,7 @@ dissect_nbap_INTEGER_0_1048575(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_nbap_BIT_STRING_SIZE_87(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     87, 87, FALSE, NULL);
+                                     87, 87, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -23189,7 +23199,7 @@ static const value_string nbap_PICH_Mode_vals[] = {
 
 static int
 dissect_nbap_PICH_Mode(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 794 "../../asn1/nbap/nbap.cnf"
+#line 796 "../../asn1/nbap/nbap.cnf"
 guint32 PICH_Mode = 0;
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
                                      4, &PICH_Mode, TRUE, 0, NULL);
@@ -23304,7 +23314,7 @@ static const per_sequence_t HSDSCH_Common_System_InformationFDD_sequence[] = {
 
 static int
 dissect_nbap_HSDSCH_Common_System_InformationFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1988 "../../asn1/nbap/nbap.cnf"
+#line 1995 "../../asn1/nbap/nbap.cnf"
 /*
  * 5.1.6 High Speed Downlink Shared Channels
  * The Data Transfer procedure is used to transfer a HS-DSCH DATA FRAME (TYPE 1, TYPE 2 [FDD and 1.28Mcps
@@ -23356,7 +23366,7 @@ int i;
             /*Set NBAP configuration to lower layers*/
             if(actx->pinfo->link_dir==P2P_DIR_DL){
 
-                umts_fp_conversation_info = se_new0(umts_fp_conversation_info_t);
+                umts_fp_conversation_info = wmem_new0(wmem_file_scope(), umts_fp_conversation_info_t);
                 /*Select frame type = 3 according to paragraph 5.1.6 in 3GPP TS 25.435*/
                 umts_fp_conversation_info->channel = CHANNEL_HSDSCH_COMMON;
                 umts_fp_conversation_info->division          = Division_FDD;
@@ -23438,7 +23448,7 @@ dissect_nbap_HSDSCH_Common_System_Information_ResponseFDD(tvbuff_t *tvb _U_, int
 
 static int
 dissect_nbap_HSDSCH_MACdFlow_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 702 "../../asn1/nbap/nbap.cnf"
+#line 704 "../../asn1/nbap/nbap.cnf"
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, maxNrOfMACdFlows_1, &hsdsch_macdflow_id, FALSE);
 
@@ -23465,7 +23475,7 @@ static const per_sequence_t HSDSCH_MACdFlow_Specific_InfoItem_sequence[] = {
 
 static int
 dissect_nbap_HSDSCH_MACdFlow_Specific_InfoItem(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1695 "../../asn1/nbap/nbap.cnf"
+#line 1702 "../../asn1/nbap/nbap.cnf"
 
 
     address     dst_addr;
@@ -23568,7 +23578,7 @@ static const value_string nbap_RLC_Mode_vals[] = {
 
 static int
 dissect_nbap_RLC_Mode(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1627 "../../asn1/nbap/nbap.cnf"
+#line 1629 "../../asn1/nbap/nbap.cnf"
     guint32 rlc_mode;
 
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
@@ -23609,7 +23619,7 @@ static const per_sequence_t PriorityQueue_InfoItem_sequence[] = {
 
 static int
 dissect_nbap_PriorityQueue_InfoItem(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1686 "../../asn1/nbap/nbap.cnf"
+#line 1693 "../../asn1/nbap/nbap.cnf"
     num_items++;
 
 
@@ -23643,7 +23653,7 @@ static const per_sequence_t HSDSCH_MACdFlows_Information_sequence[] = {
 
 static int
 dissect_nbap_HSDSCH_MACdFlows_Information(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1651 "../../asn1/nbap/nbap.cnf"
+#line 1653 "../../asn1/nbap/nbap.cnf"
 
     int protocol_ie_id;
     guint32 i;
@@ -23667,7 +23677,7 @@ dissect_nbap_HSDSCH_MACdFlows_Information(tvbuff_t *tvb _U_, int offset _U_, asn
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_nbap_HSDSCH_MACdFlows_Information, HSDSCH_MACdFlows_Information_sequence);
 
-                add_hsdsch_bind(actx->pinfo,tree);
+                add_hsdsch_bind(actx->pinfo);
 
             break;
             default:
@@ -23679,6 +23689,7 @@ dissect_nbap_HSDSCH_MACdFlows_Information(tvbuff_t *tvb _U_, int offset _U_, asn
 
 
 
+
   return offset;
 }
 
@@ -23686,7 +23697,7 @@ dissect_nbap_HSDSCH_MACdFlows_Information(tvbuff_t *tvb _U_, int offset _U_, asn
 
 static int
 dissect_nbap_T_hSDSCH_Physical_Layer_Category(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1644 "../../asn1/nbap/nbap.cnf"
+#line 1646 "../../asn1/nbap/nbap.cnf"
     guint32 hsdsch_physical_layer_category;
 
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
@@ -23754,7 +23765,7 @@ static const per_sequence_t HSDSCH_FDD_Information_sequence[] = {
 
 static int
 dissect_nbap_HSDSCH_FDD_Information(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1747 "../../asn1/nbap/nbap.cnf"
+#line 1754 "../../asn1/nbap/nbap.cnf"
 /*
  * Collect the information about the HSDSCH MACdFlows set up conversation(s) and set the conversation data.
  */
@@ -23788,7 +23799,7 @@ dissect_nbap_HSDSCH_FDD_Information(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_
             nbap_debug4("Frame %u HSDSCH-MACdFlows-Information:hsdsch_macdflow_id %u Look for conv on IP %s Port %u",
                         actx->pinfo->fd->num,
                         i,
-                        ep_address_to_str (&(nbap_hsdsch_channel_info[i].crnc_address)),
+                        address_to_str (wmem_packet_scope(), &(nbap_hsdsch_channel_info[i].crnc_address)),
                         nbap_hsdsch_channel_info[i].crnc_port);
             conversation = find_conversation(actx->pinfo->fd->num, &(nbap_hsdsch_channel_info[i].crnc_address), &null_addr,
                                PT_UDP,
@@ -23806,7 +23817,7 @@ dissect_nbap_HSDSCH_FDD_Information(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_
                 conversation_set_dissector(conversation, fp_handle);
 
                 if(actx->pinfo->link_dir==P2P_DIR_DL){
-                    umts_fp_conversation_info = se_new0(umts_fp_conversation_info_t);
+                    umts_fp_conversation_info = wmem_new0(wmem_file_scope(), umts_fp_conversation_info_t);
                     /* Fill in the HSDSCH relevant data */
 
                     umts_fp_conversation_info->iface_type        = IuB_Interface;
@@ -23836,7 +23847,7 @@ dissect_nbap_HSDSCH_FDD_Information(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_
                             umts_fp_conversation_info->hsdsch_entity = hs;
                         }
                     }else{
-                        umts_fp_conversation_info->hsdsch_entity = nbap_hsdsch_channel_info[i].entity;
+                        umts_fp_conversation_info->hsdsch_entity = (enum fp_hsdsch_entity)nbap_hsdsch_channel_info[i].entity;
                     }
                     umts_fp_conversation_info->rlc_mode = nbap_hsdsch_channel_info[i].rlc_mode;
                     set_umts_fp_conv_data(conversation, umts_fp_conversation_info);
@@ -23891,7 +23902,7 @@ static const per_sequence_t HSDSCH_MACdFlow_Specific_InfoItem_to_Modify_sequence
 
 static int
 dissect_nbap_HSDSCH_MACdFlow_Specific_InfoItem_to_Modify(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1836 "../../asn1/nbap/nbap.cnf"
+#line 1843 "../../asn1/nbap/nbap.cnf"
     address     dst_addr;
     transportLayerAddress_ipv4 = 0;
     BindingID_port = 0;
@@ -23949,7 +23960,7 @@ static const per_sequence_t PriorityQueue_InfoItem_to_Add_sequence[] = {
 
 static int
 dissect_nbap_PriorityQueue_InfoItem_to_Add(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1689 "../../asn1/nbap/nbap.cnf"
+#line 1696 "../../asn1/nbap/nbap.cnf"
     num_items = 1;
 
 
@@ -24084,7 +24095,7 @@ static const per_sequence_t HSDSCH_Information_to_Modify_sequence[] = {
 
 static int
 dissect_nbap_HSDSCH_Information_to_Modify(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1856 "../../asn1/nbap/nbap.cnf"
+#line 1863 "../../asn1/nbap/nbap.cnf"
 /*
  * This is pretty much the same like if we setup a previous flow
  */
@@ -24125,7 +24136,7 @@ dissect_nbap_HSDSCH_Information_to_Modify(tvbuff_t *tvb _U_, int offset _U_, asn
         if (nbap_hsdsch_channel_info[i].crnc_port != 0){
             nbap_debug3("    hsdsch_macdflow_id %u Look for conv on IP %s Port %u",
                         i,
-                        ep_address_to_str (&(nbap_hsdsch_channel_info[i].crnc_address)),
+                        address_to_str (wmem_packet_scope(), &(nbap_hsdsch_channel_info[i].crnc_address)),
                         nbap_hsdsch_channel_info[i].crnc_port);
             conversation = find_conversation(actx->pinfo->fd->num, &(nbap_hsdsch_channel_info[i].crnc_address), &null_addr,
                                PT_UDP,
@@ -24144,7 +24155,7 @@ dissect_nbap_HSDSCH_Information_to_Modify(tvbuff_t *tvb _U_, int offset _U_, asn
                 conversation_set_dissector(conversation, fp_handle);
 
                 if(actx->pinfo->link_dir==P2P_DIR_DL){
-                    umts_fp_conversation_info = se_new0(umts_fp_conversation_info_t);
+                    umts_fp_conversation_info = wmem_new0(wmem_file_scope(), umts_fp_conversation_info_t);
                     /* Fill in the HSDSCH relevant data */
 
                     umts_fp_conversation_info->iface_type        = IuB_Interface;
@@ -24174,7 +24185,7 @@ dissect_nbap_HSDSCH_Information_to_Modify(tvbuff_t *tvb _U_, int offset _U_, asn
                             umts_fp_conversation_info->hsdsch_entity = hs;
                         }
                     }else{
-                        umts_fp_conversation_info->hsdsch_entity = nbap_hsdsch_channel_info[i].entity;
+                        umts_fp_conversation_info->hsdsch_entity = (enum fp_hsdsch_entity)nbap_hsdsch_channel_info[i].entity;
                     }
 
                     umts_fp_conversation_info->rlc_mode = nbap_hsdsch_channel_info[i].rlc_mode;
@@ -24206,7 +24217,7 @@ static const value_string nbap_HSDSCH_MACdPDUSizeFormat_vals[] = {
 
 static int
 dissect_nbap_HSDSCH_MACdPDUSizeFormat(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1724 "../../asn1/nbap/nbap.cnf"
+#line 1731 "../../asn1/nbap/nbap.cnf"
 /*
  * Removed 10 Aug. 2012, I'm not sure if this was right, it wrongfully
  * set some packets as type 2 for HSDHCH modified items.
@@ -24317,7 +24328,7 @@ static const per_sequence_t HSDSCH_MACdFlow_Specific_InformationResp_Item_sequen
 
 static int
 dissect_nbap_HSDSCH_MACdFlow_Specific_InformationResp_Item(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1692 "../../asn1/nbap/nbap.cnf"
+#line 1699 "../../asn1/nbap/nbap.cnf"
     num_items++;
 
 
@@ -24733,7 +24744,7 @@ static const per_sequence_t HSDSCH_Paging_System_InformationFDD_sequence[] = {
 
 static int
 dissect_nbap_HSDSCH_Paging_System_InformationFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 2066 "../../asn1/nbap/nbap.cnf"
+#line 2073 "../../asn1/nbap/nbap.cnf"
   /*
   g_warning("HS-DSCH Type 3 NOT Implemented!");
   */
@@ -24927,7 +24938,7 @@ static const per_sequence_t HSDSCH_MACdFlows_to_Delete_Item_sequence[] = {
 
 static int
 dissect_nbap_HSDSCH_MACdFlows_to_Delete_Item(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1683 "../../asn1/nbap/nbap.cnf"
+#line 1690 "../../asn1/nbap/nbap.cnf"
     num_items++;
 
 
@@ -24944,6 +24955,10 @@ static const per_sequence_t HSDSCH_MACdFlows_to_Delete_sequence_of[1] = {
 
 static int
 dissect_nbap_HSDSCH_MACdFlows_to_Delete(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+#line 1685 "../../asn1/nbap/nbap.cnf"
+    num_items = 0;
+
+
   offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
                                                   ett_nbap_HSDSCH_MACdFlows_to_Delete, HSDSCH_MACdFlows_to_Delete_sequence_of,
                                                   1, maxNrOfMACdFlows, FALSE);
@@ -25942,7 +25957,7 @@ dissect_nbap_HS_SICH_InformationList_for_HS_DSCH_SPS(tvbuff_t *tvb _U_, int offs
 static int
 dissect_nbap_HS_DSCH_TimeslotResourceLCR(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     5, 5, FALSE, NULL);
+                                     5, 5, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -26317,12 +26332,12 @@ dissect_nbap_IB_OC_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, p
 
 static int
 dissect_nbap_IB_SG_DATA(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 577 "../../asn1/nbap/nbap.cnf"
+#line 576 "../../asn1/nbap/nbap.cnf"
   tvbuff_t *parameter_tvb=NULL;
   proto_tree *subtree;
 
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     NO_BOUND, NO_BOUND, FALSE, &parameter_tvb);
+                                     NO_BOUND, NO_BOUND, FALSE, &parameter_tvb, NULL);
 
 
     if(!parameter_tvb)
@@ -26451,7 +26466,7 @@ static const value_string nbap_IB_Type_vals[] = {
 
 static int
 dissect_nbap_IB_Type(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 564 "../../asn1/nbap/nbap.cnf"
+#line 563 "../../asn1/nbap/nbap.cnf"
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
                                      26, &ib_type, TRUE, 15, NULL);
 
@@ -28042,7 +28057,7 @@ dissect_nbap_NI_Information(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
 
 static int
 dissect_nbap_NodeB_CommunicationContextID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 2080 "../../asn1/nbap/nbap.cnf"
+#line 2087 "../../asn1/nbap/nbap.cnf"
 /*Set up and map that maps Node-B ids to CRNC ids, since often you only have one of them present in nbap*/
 nbap_com_context_id_t *cur_val;
 
@@ -28056,7 +28071,7 @@ nbap_com_context_id_t *cur_val;
 
    /*If both are avaible we can update the map*/
 if(crcn_context_present){
-        if( (cur_val=g_tree_lookup(com_context_map, GINT_TO_POINTER((gint)node_b_com_context_id))) == NULL ){
+        if( (nbap_com_context_id_t *)g_tree_lookup(com_context_map, GINT_TO_POINTER((gint)node_b_com_context_id)) == NULL ){
 
             cur_val = g_new(nbap_com_context_id_t,1);
             cur_val->crnc_context = com_context_id;
@@ -28598,7 +28613,7 @@ dissect_nbap_RACH_SlotFormat(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx
 static int
 dissect_nbap_RACH_SubChannelNumbers(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     12, 12, FALSE, NULL);
+                                     12, 12, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -28607,7 +28622,7 @@ dissect_nbap_RACH_SubChannelNumbers(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_
 
 static int
 dissect_nbap_T_dCH_id(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1123 "../../asn1/nbap/nbap.cnf"
+#line 1125 "../../asn1/nbap/nbap.cnf"
 
   offset = dissect_nbap_DCH_ID(tvb, offset, actx, tree, hf_index);
 
@@ -28629,7 +28644,7 @@ static const per_sequence_t RL_Specific_DCH_Info_Item_sequence[] = {
 
 static int
 dissect_nbap_RL_Specific_DCH_Info_Item(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1128 "../../asn1/nbap/nbap.cnf"
+#line 1130 "../../asn1/nbap/nbap.cnf"
 address     dst_addr, null_addr;
 conversation_t *conversation = NULL;
 umts_fp_conversation_info_t *umts_fp_conversation_info;
@@ -28670,7 +28685,7 @@ dch_id = 0xFFFFFFFF;
             /* Set dissector */
             conversation_set_dissector(conversation, fp_handle);
             if(actx->pinfo->link_dir==P2P_DIR_DL){
-                umts_fp_conversation_info = se_new0(umts_fp_conversation_info_t);
+                umts_fp_conversation_info = wmem_new0(wmem_file_scope(), umts_fp_conversation_info_t);
 
                 /* Fill in the data */
                 umts_fp_conversation_info->iface_type        = IuB_Interface;
@@ -28773,7 +28788,7 @@ static const per_sequence_t RL_Specific_E_DCH_Information_Item_sequence[] = {
 
 static int
 dissect_nbap_RL_Specific_E_DCH_Information_Item(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1242 "../../asn1/nbap/nbap.cnf"
+#line 1244 "../../asn1/nbap/nbap.cnf"
 address     dst_addr, null_addr;
 conversation_t *conversation;
 umts_fp_conversation_info_t *umts_fp_conversation_info;
@@ -28814,7 +28829,7 @@ BindingID_port = 0;
             /* Set dissector */
             conversation_set_dissector(conversation, fp_handle);
             if(actx->pinfo->link_dir==P2P_DIR_DL){
-                umts_fp_conversation_info = se_new0(umts_fp_conversation_info_t);
+                umts_fp_conversation_info = wmem_new0(wmem_file_scope(), umts_fp_conversation_info_t);
                 /* Fill in the data */
                 umts_fp_conversation_info->iface_type        = IuB_Interface;
                 umts_fp_conversation_info->division          = Division_FDD;
@@ -28832,19 +28847,19 @@ BindingID_port = 0;
                     umts_fp_conversation_info->com_context_id = com_context_id;
                 }else{
                     nbap_com_context_id_t *cur_val;
-                    if((cur_val=g_tree_lookup(com_context_map, GINT_TO_POINTER((gint)node_b_com_context_id))) != NULL){
+                    if((cur_val=(nbap_com_context_id_t *)g_tree_lookup(com_context_map, GINT_TO_POINTER((gint)node_b_com_context_id))) != NULL){
                         umts_fp_conversation_info->com_context_id = cur_val->crnc_context;
                     }else{
-                        expert_add_info_format(actx->pinfo, NULL, PI_MALFORMED, PI_WARN, "Couldn't not set Communication Context-ID, fragments over reconfigured channels might fail");
+                        expert_add_info(actx->pinfo, NULL, &ei_nbap_no_set_comm_context_id);
                     }
                 }
 
 
                 /* Check if we allready have this context */
-                if( (old_info = g_tree_lookup(edch_flow_port_map, GINT_TO_POINTER((gint)com_context_id))) == NULL ){
+                if( (old_info = (nbap_edch_port_info_t *)g_tree_lookup(edch_flow_port_map, GINT_TO_POINTER((gint)com_context_id))) == NULL ){
                     nbap_edch_port_info_t * nbap_edch_port_info;
 
-                    nbap_edch_port_info = g_malloc0(sizeof(nbap_edch_port_info_t));
+                    nbap_edch_port_info = (nbap_edch_port_info_t *)g_malloc0(sizeof(nbap_edch_port_info_t));
 
                     /*Saving port/flow map based on context id for future reconfigurations*/
                     nbap_edch_port_info->crnc_port[e_dch_macdflow_id] = BindingID_port;
@@ -28857,7 +28872,7 @@ BindingID_port = 0;
                     nbap_debug4("    g_tree_insert(edch_flow_port_map) com_context_id %u e_dch_macdflow_id %u IP %s Port %u",
                         umts_fp_conversation_info->com_context_id,
                         e_dch_macdflow_id,
-                        ep_address_to_str(&dst_addr),
+                        address_to_str(wmem_packet_scope(), &dst_addr),
                         BindingID_port);
 
                     /* Set address for collection of DDI entries */
@@ -28870,7 +28885,7 @@ BindingID_port = 0;
                     nbap_debug4("    Insert in existing edch_flow_port_map com_context_id %u e_dch_macdflow_id %u IP %s Port %u",
                         umts_fp_conversation_info->com_context_id,
                         e_dch_macdflow_id,
-                        ep_address_to_str(&dst_addr),
+                        address_to_str(wmem_packet_scope(), &dst_addr),
                         BindingID_port);
 
                     /* Must be same ADDRESS */
@@ -29815,7 +29830,7 @@ static const value_string nbap_Segment_Type_vals[] = {
 
 static int
 dissect_nbap_Segment_Type(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 567 "../../asn1/nbap/nbap.cnf"
+#line 566 "../../asn1/nbap/nbap.cnf"
   offset = dissect_per_enumerated(tvb, offset, actx, tree, hf_index,
                                      7, &segment_type, TRUE, 0, NULL);
 
@@ -31711,7 +31726,7 @@ dissect_nbap_UE_TS0_CapabilityLCR(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 static int
 dissect_nbap_UE_SupportIndicatorExtension(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     32, 32, FALSE, NULL);
+                                     32, 32, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -32148,7 +32163,7 @@ static const per_sequence_t CommonTransportChannelSetupRequestFDD_sequence[] = {
 
 static int
 dissect_nbap_CommonTransportChannelSetupRequestFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 149 "../../asn1/nbap/nbap.cnf"
+#line 148 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"CommonTransportChannelSetupRequest(FDD) ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
@@ -32338,7 +32353,7 @@ static const per_sequence_t FACH_ParametersItem_CTCH_SetupRqstFDD_sequence[] = {
 
 static int
 dissect_nbap_FACH_ParametersItem_CTCH_SetupRqstFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 926 "../../asn1/nbap/nbap.cnf"
+#line 928 "../../asn1/nbap/nbap.cnf"
 address     dst_addr, null_addr;
 conversation_t *conversation;
 
@@ -32375,7 +32390,7 @@ transportFormatSet_type = NBAP_CPCH;
             /* Set dissector */
             conversation_set_dissector(conversation, fp_handle);
             if(actx->pinfo->link_dir==P2P_DIR_DL){
-                umts_fp_conversation_info = se_new0(umts_fp_conversation_info_t);
+                umts_fp_conversation_info = wmem_new0(wmem_file_scope(), umts_fp_conversation_info_t);
                 /* Fill in the data */
                 umts_fp_conversation_info->iface_type        = IuB_Interface;
                 umts_fp_conversation_info->division          = Division_FDD;
@@ -32456,7 +32471,7 @@ dissect_nbap_FACH_ParametersListIE_CTCH_SetupRqstFDD(tvbuff_t *tvb _U_, int offs
 
 static int
 dissect_nbap_T_transportFormatSet(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1045 "../../asn1/nbap/nbap.cnf"
+#line 1047 "../../asn1/nbap/nbap.cnf"
     transportFormatSet_type = NBAP_PCH;
     nbap_dch_chnl_info[commontransportchannelid].num_dl_chans = 0;
     nbap_dch_chnl_info[commontransportchannelid].num_ul_chans = 0;
@@ -32501,7 +32516,7 @@ static const per_sequence_t PCH_ParametersItem_CTCH_SetupRqstFDD_sequence[] = {
 
 static int
 dissect_nbap_PCH_ParametersItem_CTCH_SetupRqstFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 815 "../../asn1/nbap/nbap.cnf"
+#line 817 "../../asn1/nbap/nbap.cnf"
 
 address     dst_addr, null_addr;
 conversation_t *conversation;
@@ -32540,7 +32555,7 @@ num_items = 1;
             /* Set dissector */
             conversation_set_dissector(conversation, fp_handle);
             if(actx->pinfo->link_dir==P2P_DIR_DL){
-                umts_fp_conversation_info = se_new0(umts_fp_conversation_info_t);
+                umts_fp_conversation_info = wmem_new0(wmem_file_scope(), umts_fp_conversation_info_t);
                 /* Fill in the data */
                 umts_fp_conversation_info->iface_type         = IuB_Interface;
                 umts_fp_conversation_info->division           = Division_FDD;
@@ -32648,7 +32663,7 @@ static const per_sequence_t RACH_ParametersItem_CTCH_SetupRqstFDD_sequence[] = {
 
 static int
 dissect_nbap_RACH_ParametersItem_CTCH_SetupRqstFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 726 "../../asn1/nbap/nbap.cnf"
+#line 728 "../../asn1/nbap/nbap.cnf"
 address     dst_addr, null_addr;
 conversation_t *conversation;
 umts_fp_conversation_info_t *umts_fp_conversation_info;
@@ -32683,7 +32698,7 @@ transportFormatSet_type = NBAP_CPCH;
             /* Set dissector */
             conversation_set_dissector(conversation, fp_handle);
             if(actx->pinfo->link_dir==P2P_DIR_DL){
-                umts_fp_conversation_info = se_new0(umts_fp_conversation_info_t);
+                umts_fp_conversation_info = wmem_new0(wmem_file_scope(), umts_fp_conversation_info_t);
                 /* Fill in the data */
                 umts_fp_conversation_info->iface_type        = IuB_Interface;
                 umts_fp_conversation_info->division          = Division_FDD;
@@ -33427,7 +33442,7 @@ static const per_sequence_t CommonTransportChannelSetupResponse_sequence[] = {
 
 static int
 dissect_nbap_CommonTransportChannelSetupResponse(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 155 "../../asn1/nbap/nbap.cnf"
+#line 154 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"CommonTransportChannelSetupResponse ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -33462,7 +33477,7 @@ static const per_sequence_t CommonTransportChannelSetupFailure_sequence[] = {
 
 static int
 dissect_nbap_CommonTransportChannelSetupFailure(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 161 "../../asn1/nbap/nbap.cnf"
+#line 160 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"CommonTransportChannelSetupFailure ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -34182,7 +34197,7 @@ static const per_sequence_t UnblockResourceIndication_sequence[] = {
 
 static int
 dissect_nbap_UnblockResourceIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 522 "../../asn1/nbap/nbap.cnf"
+#line 521 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"UnblockResourceIndication ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -34203,7 +34218,7 @@ static const per_sequence_t AuditRequiredIndication_sequence[] = {
 
 static int
 dissect_nbap_AuditRequiredIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 426 "../../asn1/nbap/nbap.cnf"
+#line 425 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"AuditRequiredIndication ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -34224,7 +34239,7 @@ static const per_sequence_t AuditRequest_sequence[] = {
 
 static int
 dissect_nbap_AuditRequest(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 179 "../../asn1/nbap/nbap.cnf"
+#line 178 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"AuditRequest ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -34245,7 +34260,7 @@ static const per_sequence_t AuditResponse_sequence[] = {
 
 static int
 dissect_nbap_AuditResponse(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 185 "../../asn1/nbap/nbap.cnf"
+#line 184 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"AuditResponse ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -34839,7 +34854,7 @@ static const per_sequence_t AuditFailure_sequence[] = {
 
 static int
 dissect_nbap_AuditFailure(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 191 "../../asn1/nbap/nbap.cnf"
+#line 190 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"AuditFailure ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -34861,7 +34876,7 @@ static const per_sequence_t CommonMeasurementInitiationRequest_sequence[] = {
 
 static int
 dissect_nbap_CommonMeasurementInitiationRequest(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 259 "../../asn1/nbap/nbap.cnf"
+#line 258 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"CommonMeasurementInitiationRequest ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
@@ -34979,7 +34994,7 @@ static const per_sequence_t CommonMeasurementInitiationResponse_sequence[] = {
 
 static int
 dissect_nbap_CommonMeasurementInitiationResponse(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 265 "../../asn1/nbap/nbap.cnf"
+#line 264 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"CommonMeasurementInitiationResponse ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -35095,7 +35110,7 @@ static const per_sequence_t CommonMeasurementInitiationFailure_sequence[] = {
 
 static int
 dissect_nbap_CommonMeasurementInitiationFailure(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 271 "../../asn1/nbap/nbap.cnf"
+#line 270 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"CommonMeasurementInitiationFailure ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -35116,7 +35131,7 @@ static const per_sequence_t CommonMeasurementReport_sequence[] = {
 
 static int
 dissect_nbap_CommonMeasurementReport(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 432 "../../asn1/nbap/nbap.cnf"
+#line 431 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"CommonMeasurementReport ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -35232,7 +35247,7 @@ static const per_sequence_t CommonMeasurementTerminationRequest_sequence[] = {
 
 static int
 dissect_nbap_CommonMeasurementTerminationRequest(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 438 "../../asn1/nbap/nbap.cnf"
+#line 437 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"CommonMeasurementTerminationRequest ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
@@ -35253,7 +35268,7 @@ static const per_sequence_t CommonMeasurementFailureIndication_sequence[] = {
 
 static int
 dissect_nbap_CommonMeasurementFailureIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 444 "../../asn1/nbap/nbap.cnf"
+#line 443 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"CommonMeasurementFailureIndication ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -35274,7 +35289,7 @@ static const per_sequence_t CellSetupRequestFDD_sequence[] = {
 
 static int
 dissect_nbap_CellSetupRequestFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 121 "../../asn1/nbap/nbap.cnf"
+#line 120 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"CellSetupRequest(FDD) ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
@@ -35806,7 +35821,7 @@ static const per_sequence_t CellSetupResponse_sequence[] = {
 
 static int
 dissect_nbap_CellSetupResponse(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 127 "../../asn1/nbap/nbap.cnf"
+#line 126 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"CellSetupResponse ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -35827,7 +35842,7 @@ static const per_sequence_t CellSetupFailure_sequence[] = {
 
 static int
 dissect_nbap_CellSetupFailure(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 133 "../../asn1/nbap/nbap.cnf"
+#line 132 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"CellSetupFailure ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -36370,7 +36385,7 @@ static const per_sequence_t ResourceStatusIndication_sequence[] = {
 
 static int
 dissect_nbap_ResourceStatusIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 420 "../../asn1/nbap/nbap.cnf"
+#line 419 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"ResourceStatusIndication ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -37128,7 +37143,7 @@ static const per_sequence_t SystemInformationUpdateRequest_sequence[] = {
 
 static int
 dissect_nbap_SystemInformationUpdateRequest(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 238 "../../asn1/nbap/nbap.cnf"
+#line 237 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"SystemInformationUpdateRequest ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
@@ -37199,7 +37214,7 @@ static const per_sequence_t MIB_SB_SIB_InformationItem_SystemInfoUpdateRqst_sequ
 
 static int
 dissect_nbap_MIB_SB_SIB_InformationItem_SystemInfoUpdateRqst(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 570 "../../asn1/nbap/nbap.cnf"
+#line 569 "../../asn1/nbap/nbap.cnf"
 
     ib_type = 10; /* not-Used-sIB8 */
     segment_type = 0;
@@ -37267,7 +37282,7 @@ static const per_sequence_t SystemInformationUpdateResponse_sequence[] = {
 
 static int
 dissect_nbap_SystemInformationUpdateResponse(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 244 "../../asn1/nbap/nbap.cnf"
+#line 243 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"SystemInformationUpdateResponse ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -37288,7 +37303,7 @@ static const per_sequence_t SystemInformationUpdateFailure_sequence[] = {
 
 static int
 dissect_nbap_SystemInformationUpdateFailure(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 250 "../../asn1/nbap/nbap.cnf"
+#line 249 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"SystemInformationUpdateFailure ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -37310,7 +37325,7 @@ static const per_sequence_t RadioLinkSetupRequestFDD_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkSetupRequestFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 201 "../../asn1/nbap/nbap.cnf"
+#line 200 "../../asn1/nbap/nbap.cnf"
 
     g_nbap_msg_info_for_fp.ProcedureCode = ProcedureCode;
     g_nbap_msg_info_for_fp.ddMode = ddMode;
@@ -37793,7 +37808,7 @@ static const per_sequence_t RadioLinkSetupResponseFDD_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkSetupResponseFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 214 "../../asn1/nbap/nbap.cnf"
+#line 213 "../../asn1/nbap/nbap.cnf"
 
     g_nbap_msg_info_for_fp.ProcedureCode = ProcedureCode;
     g_nbap_msg_info_for_fp.ddMode = ddMode;
@@ -38019,7 +38034,7 @@ static const per_sequence_t RadioLinkSetupFailureFDD_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkSetupFailureFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 227 "../../asn1/nbap/nbap.cnf"
+#line 226 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkSetupFailure(FDD) ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -38304,7 +38319,7 @@ static const per_sequence_t RadioLinkAdditionRequestFDD_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkAdditionRequestFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 277 "../../asn1/nbap/nbap.cnf"
+#line 276 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkAdditionRequest(FDD) ");
 
 
@@ -38676,7 +38691,7 @@ static const per_sequence_t RadioLinkAdditionResponseFDD_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkAdditionResponseFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 282 "../../asn1/nbap/nbap.cnf"
+#line 281 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkAdditionResponse(FDD) ");
 
 
@@ -38952,7 +38967,7 @@ static const per_sequence_t RadioLinkAdditionFailureFDD_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkAdditionFailureFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 288 "../../asn1/nbap/nbap.cnf"
+#line 287 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkAdditionRequest(FDD) ");
 
 
@@ -39237,7 +39252,7 @@ static const per_sequence_t RadioLinkReconfigurationPrepareFDD_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkReconfigurationPrepareFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 315 "../../asn1/nbap/nbap.cnf"
+#line 314 "../../asn1/nbap/nbap.cnf"
     col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkReconfigurationPrepare(FDD) ");
     /* CRNC -> Node B */
     actx->pinfo->link_dir=P2P_DIR_DL;
@@ -40860,7 +40875,7 @@ static const per_sequence_t RadioLinkReconfigurationReady_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkReconfigurationReady(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 326 "../../asn1/nbap/nbap.cnf"
+#line 325 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkReconfigurationReady ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -40942,7 +40957,7 @@ static const per_sequence_t RadioLinkReconfigurationFailure_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkReconfigurationFailure(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 333 "../../asn1/nbap/nbap.cnf"
+#line 332 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkReconfigurationFailure ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -41051,13 +41066,13 @@ static const per_sequence_t RadioLinkReconfigurationCommit_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkReconfigurationCommit(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 450 "../../asn1/nbap/nbap.cnf"
+#line 449 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkReconfigurationCommit ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
 
 
-#line 2128 "../../asn1/nbap/nbap.cnf"
+#line 2136 "../../asn1/nbap/nbap.cnf"
 /*
  * Here we need to signal the CFN value, down to FP so
  * that lowert layers know when a reconfiguration becomes active
@@ -41081,7 +41096,7 @@ static const per_sequence_t RadioLinkReconfigurationCancel_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkReconfigurationCancel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 456 "../../asn1/nbap/nbap.cnf"
+#line 455 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkReconfigurationCancel ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
@@ -41102,7 +41117,7 @@ static const per_sequence_t RadioLinkReconfigurationRequestFDD_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkReconfigurationRequestFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 344 "../../asn1/nbap/nbap.cnf"
+#line 343 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkReconfigurationRequestFDD(FDD) ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
@@ -41559,7 +41574,7 @@ static const per_sequence_t RadioLinkReconfigurationResponse_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkReconfigurationResponse(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 350 "../../asn1/nbap/nbap.cnf"
+#line 349 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkReconfigurationResponse ");
 
 
@@ -41620,7 +41635,7 @@ static const per_sequence_t RadioLinkDeletionRequest_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkDeletionRequest(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 301 "../../asn1/nbap/nbap.cnf"
+#line 300 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkDeletionRequest ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
@@ -41671,7 +41686,7 @@ static const per_sequence_t RadioLinkDeletionResponse_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkDeletionResponse(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 308 "../../asn1/nbap/nbap.cnf"
+#line 307 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkDeletionResponse ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -41693,7 +41708,7 @@ static const per_sequence_t DL_PowerControlRequest_sequence[] = {
 
 static int
 dissect_nbap_DL_PowerControlRequest(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 504 "../../asn1/nbap/nbap.cnf"
+#line 503 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"DL-PowerControlRequest ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
@@ -41744,7 +41759,7 @@ static const per_sequence_t DL_PowerTimeslotControlRequest_sequence[] = {
 
 static int
 dissect_nbap_DL_PowerTimeslotControlRequest(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 510 "../../asn1/nbap/nbap.cnf"
+#line 509 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"DL-PowerTimeslotControlRequest ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
@@ -41765,7 +41780,7 @@ static const per_sequence_t DedicatedMeasurementInitiationRequest_sequence[] = {
 
 static int
 dissect_nbap_DedicatedMeasurementInitiationRequest(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 366 "../../asn1/nbap/nbap.cnf"
+#line 365 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"DedicatedMeasurementInitiationRequest ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
@@ -41961,7 +41976,7 @@ static const per_sequence_t DedicatedMeasurementInitiationResponse_sequence[] = 
 
 static int
 dissect_nbap_DedicatedMeasurementInitiationResponse(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 372 "../../asn1/nbap/nbap.cnf"
+#line 371 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"DedicatedMeasurementInitiationResponse ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -42266,7 +42281,7 @@ static const per_sequence_t DedicatedMeasurementInitiationFailure_sequence[] = {
 
 static int
 dissect_nbap_DedicatedMeasurementInitiationFailure(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 379 "../../asn1/nbap/nbap.cnf"
+#line 378 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"DedicatedMeasurementInitiationFailure ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -42288,7 +42303,7 @@ static const per_sequence_t DedicatedMeasurementReport_sequence[] = {
 
 static int
 dissect_nbap_DedicatedMeasurementReport(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 484 "../../asn1/nbap/nbap.cnf"
+#line 483 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"DedicatedMeasurementReport ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -42471,7 +42486,7 @@ static const per_sequence_t DedicatedMeasurementTerminationRequest_sequence[] = 
 
 static int
 dissect_nbap_DedicatedMeasurementTerminationRequest(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 491 "../../asn1/nbap/nbap.cnf"
+#line 490 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"DedicatedMeasurementTerminationRequest ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
@@ -42492,7 +42507,7 @@ static const per_sequence_t DedicatedMeasurementFailureIndication_sequence[] = {
 
 static int
 dissect_nbap_DedicatedMeasurementFailureIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 497 "../../asn1/nbap/nbap.cnf"
+#line 496 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"DedicatedMeasurementFailureIndication ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -42514,7 +42529,7 @@ static const per_sequence_t RadioLinkFailureIndication_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkFailureIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 462 "../../asn1/nbap/nbap.cnf"
+#line 461 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkFailureIndication ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -42696,7 +42711,7 @@ static const per_sequence_t RadioLinkPreemptionRequiredIndication_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkPreemptionRequiredIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 469 "../../asn1/nbap/nbap.cnf"
+#line 468 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkPreemptionRequiredIndication ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -42747,7 +42762,7 @@ static const per_sequence_t RadioLinkRestoreIndication_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkRestoreIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 476 "../../asn1/nbap/nbap.cnf"
+#line 475 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkRestoreIndication ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
@@ -42927,7 +42942,7 @@ static const per_sequence_t CompressedModeCommand_sequence[] = {
 
 static int
 dissect_nbap_CompressedModeCommand(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 516 "../../asn1/nbap/nbap.cnf"
+#line 515 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"CompressedModeCommand ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
@@ -42948,7 +42963,7 @@ static const per_sequence_t ErrorIndication_sequence[] = {
 
 static int
 dissect_nbap_ErrorIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 528 "../../asn1/nbap/nbap.cnf"
+#line 527 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"ErrorIndication ");
 
 
@@ -42968,7 +42983,7 @@ static const per_sequence_t PrivateMessage_sequence[] = {
 
 static int
 dissect_nbap_PrivateMessage(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 537 "../../asn1/nbap/nbap.cnf"
+#line 536 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"PrivateMessage ");
 
 
@@ -42987,7 +43002,7 @@ static const per_sequence_t PhysicalSharedChannelReconfigurationRequestFDD_seque
 
 static int
 dissect_nbap_PhysicalSharedChannelReconfigurationRequestFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 386 "../../asn1/nbap/nbap.cnf"
+#line 385 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"PhysicalSharedChannelReconfigurationRequest(FDD) ");
 /* CRNC -> Node B */
 actx->pinfo->link_dir=P2P_DIR_DL;
@@ -45455,7 +45470,7 @@ static const per_sequence_t PhysicalSharedChannelReconfigurationResponse_sequenc
 
 static int
 dissect_nbap_PhysicalSharedChannelReconfigurationResponse(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 392 "../../asn1/nbap/nbap.cnf"
+#line 391 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"PhysicalSharedChannelReconfigurationResponse ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -45506,7 +45521,7 @@ static const per_sequence_t PhysicalSharedChannelReconfigurationFailure_sequence
 
 static int
 dissect_nbap_PhysicalSharedChannelReconfigurationFailure(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 398 "../../asn1/nbap/nbap.cnf"
+#line 397 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"PhysicalSharedChannelReconfigurationFailure ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -46959,7 +46974,7 @@ static const per_sequence_t BearerRearrangementIndication_sequence[] = {
 
 static int
 dissect_nbap_BearerRearrangementIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 544 "../../asn1/nbap/nbap.cnf"
+#line 543 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"BearerRearrangementIndication ");
 
 
@@ -47261,7 +47276,7 @@ static const per_sequence_t RadioLinkParameterUpdateIndicationFDD_sequence[] = {
 
 static int
 dissect_nbap_RadioLinkParameterUpdateIndicationFDD(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 552 "../../asn1/nbap/nbap.cnf"
+#line 551 "../../asn1/nbap/nbap.cnf"
 col_set_str(actx->pinfo->cinfo, COL_INFO,"RadioLinkParameterUpdateIndication(FDD) ");
 /* Node B -> CRNC */
 actx->pinfo->link_dir=P2P_DIR_UL;
@@ -55153,7 +55168,7 @@ static int dissect_NULL_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tre
 
 
 /*--- End of included file: packet-nbap-fn.c ---*/
-#line 317 "../../asn1/nbap/packet-nbap-template.c"
+#line 323 "../../asn1/nbap/packet-nbap-template.c"
 
 static int dissect_ProtocolIEFieldValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
@@ -55168,21 +55183,21 @@ static int dissect_ProtocolExtensionFieldExtensionValue(tvbuff_t *tvb, packet_in
 static int dissect_InitiatingMessageValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
   if (!ProcedureID) return 0;
-  return (dissector_try_string(nbap_proc_imsg_dissector_table, ProcedureID, tvb, pinfo, tree)) ? tvb_length(tvb) : 0;
+  return (dissector_try_string(nbap_proc_imsg_dissector_table, ProcedureID, tvb, pinfo, tree, NULL)) ? tvb_length(tvb) : 0;
 }
 
 static int dissect_SuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
   if (!ProcedureID) return 0;
-  return (dissector_try_string(nbap_proc_sout_dissector_table, ProcedureID, tvb, pinfo, tree)) ? tvb_length(tvb) : 0;
+  return (dissector_try_string(nbap_proc_sout_dissector_table, ProcedureID, tvb, pinfo, tree, NULL)) ? tvb_length(tvb) : 0;
 }
 
 static int dissect_UnsuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
   if (!ProcedureID) return 0;
-  return (dissector_try_string(nbap_proc_uout_dissector_table, ProcedureID, tvb, pinfo, tree)) ? tvb_length(tvb) : 0;
+  return (dissector_try_string(nbap_proc_uout_dissector_table, ProcedureID, tvb, pinfo, tree, NULL)) ? tvb_length(tvb) : 0;
 }
-static void add_hsdsch_bind(packet_info *pinfo, proto_tree * tree){
+static void add_hsdsch_bind(packet_info *pinfo){
 	address 	null_addr;
 	conversation_t *conversation = NULL;
 	umts_fp_conversation_info_t *umts_fp_conversation_info;
@@ -55211,7 +55226,7 @@ static void add_hsdsch_bind(packet_info *pinfo, proto_tree * tree){
 				conversation_set_dissector(conversation, fp_handle);
 
 				if(pinfo->link_dir==P2P_DIR_DL){
-					umts_fp_conversation_info = se_new0(umts_fp_conversation_info_t);
+					umts_fp_conversation_info = wmem_new0(wmem_file_scope(), umts_fp_conversation_info_t);
 					/* Fill in the HSDSCH relevant data */
 
 					umts_fp_conversation_info->iface_type        = IuB_Interface;
@@ -55232,9 +55247,9 @@ static void add_hsdsch_bind(packet_info *pinfo, proto_tree * tree){
 					/*XXX: Is this craziness, what is physical_layer? */
 					if(nbap_hsdsch_channel_info[i].entity == entity_not_specified ){
 						/*Error*/
-						expert_add_info_format(pinfo, tree, PI_MALFORMED,PI_ERROR, "HSDSCH Entity not specified!");
+						expert_add_info(pinfo, NULL, &ei_nbap_hsdsch_entity_not_specified);
 					}else{
-						umts_fp_conversation_info->hsdsch_entity = nbap_hsdsch_channel_info[i].entity;
+						umts_fp_conversation_info->hsdsch_entity = (enum fp_hsdsch_entity)nbap_hsdsch_channel_info[i].entity;
 					}
 					umts_fp_conversation_info->rlc_mode = nbap_hsdsch_channel_info[i].rlc_mode;
 					set_umts_fp_conv_data(conversation, umts_fp_conversation_info);
@@ -55261,9 +55276,9 @@ static void nbap_init(void){
 	if(com_context_map){
 		g_tree_destroy(com_context_map);
 	}
-/*	if(edch_flow_port_map){
+	if(edch_flow_port_map){
 		g_tree_destroy(edch_flow_port_map);
-	}*/
+	}
 	/*Initialize*/
 	com_context_map = g_tree_new_full(nbap_key_cmp,
                        NULL,      /* data pointer, optional */
@@ -55330,7 +55345,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_Setup_Info_PDU,
-      { "Additional-EDCH-Setup-Info", "nbap.Additional_EDCH_Setup_Info",
+      { "Additional-EDCH-Setup-Info", "nbap.Additional_EDCH_Setup_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_Cell_Information_Response_List_PDU,
@@ -55354,7 +55369,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Active_Pattern_Sequence_Information_PDU,
-      { "Active-Pattern-Sequence-Information", "nbap.Active_Pattern_Sequence_Information",
+      { "Active-Pattern-Sequence-Information", "nbap.Active_Pattern_Sequence_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_AlternativeFormatReportingIndicator_PDU,
@@ -55362,7 +55377,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_AlternativeFormatReportingIndicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_Angle_Of_Arrival_Value_LCR_PDU,
-      { "Angle-Of-Arrival-Value-LCR", "nbap.Angle_Of_Arrival_Value_LCR",
+      { "Angle-Of-Arrival-Value-LCR", "nbap.Angle_Of_Arrival_Value_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_BCCH_ModificationTime_PDU,
@@ -55386,7 +55401,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_BlockingPriorityIndicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_BroadcastCommonTransportBearerIndication_PDU,
-      { "BroadcastCommonTransportBearerIndication", "nbap.BroadcastCommonTransportBearerIndication",
+      { "BroadcastCommonTransportBearerIndication", "nbap.BroadcastCommonTransportBearerIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_BroadcastReference_PDU,
@@ -55438,11 +55453,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_Common_E_DCH_HSDPCCH_Capability_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_Common_EDCH_System_InformationFDD_PDU,
-      { "Common-EDCH-System-InformationFDD", "nbap.Common_EDCH_System_InformationFDD",
+      { "Common-EDCH-System-InformationFDD", "nbap.Common_EDCH_System_InformationFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Common_EDCH_System_Information_ResponseFDD_PDU,
-      { "Common-EDCH-System-Information-ResponseFDD", "nbap.Common_EDCH_System_Information_ResponseFDD",
+      { "Common-EDCH-System-Information-ResponseFDD", "nbap.Common_EDCH_System_Information_ResponseFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_RNTI_List_PDU,
@@ -55470,19 +55485,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Common_PhysicalChannel_Status_Information_PDU,
-      { "Common-PhysicalChannel-Status-Information", "nbap.Common_PhysicalChannel_Status_Information",
+      { "Common-PhysicalChannel-Status-Information", "nbap.Common_PhysicalChannel_Status_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Common_PhysicalChannel_Status_Information768_PDU,
-      { "Common-PhysicalChannel-Status-Information768", "nbap.Common_PhysicalChannel_Status_Information768",
+      { "Common-PhysicalChannel-Status-Information768", "nbap.Common_PhysicalChannel_Status_Information768_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonTransportChannel_InformationResponse_PDU,
-      { "CommonTransportChannel-InformationResponse", "nbap.CommonTransportChannel_InformationResponse",
+      { "CommonTransportChannel-InformationResponse", "nbap.CommonTransportChannel_InformationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Common_TransportChannel_Status_Information_PDU,
-      { "Common-TransportChannel-Status-Information", "nbap.Common_TransportChannel_Status_Information",
+      { "Common-TransportChannel-Status-Information", "nbap.Common_TransportChannel_Status_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommunicationControlPortID_PDU,
@@ -55506,7 +55521,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_ContinuousPacketConnectivityDTX_DRX_Capability_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_ContinuousPacketConnectivityDTX_DRX_Information_PDU,
-      { "ContinuousPacketConnectivityDTX-DRX-Information", "nbap.ContinuousPacketConnectivityDTX_DRX_Information",
+      { "ContinuousPacketConnectivityDTX-DRX-Information", "nbap.ContinuousPacketConnectivityDTX_DRX_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ContinuousPacketConnectivityHS_SCCH_less_Capability_PDU,
@@ -55518,7 +55533,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ContinuousPacketConnectivityHS_SCCH_less_Information_Response_PDU,
-      { "ContinuousPacketConnectivityHS-SCCH-less-Information-Response", "nbap.ContinuousPacketConnectivityHS_SCCH_less_Information_Response",
+      { "ContinuousPacketConnectivityHS-SCCH-less-Information-Response", "nbap.ContinuousPacketConnectivityHS_SCCH_less_Information_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ControlGAP_PDU,
@@ -55526,15 +55541,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CPC_Information_PDU,
-      { "CPC-Information", "nbap.CPC_Information",
+      { "CPC-Information", "nbap.CPC_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ContinuousPacketConnectivityHS_SCCH_less_Deactivate_Indicator_PDU,
-      { "ContinuousPacketConnectivityHS-SCCH-less-Deactivate-Indicator", "nbap.ContinuousPacketConnectivityHS_SCCH_less_Deactivate_Indicator",
+      { "ContinuousPacketConnectivityHS-SCCH-less-Deactivate-Indicator", "nbap.ContinuousPacketConnectivityHS_SCCH_less_Deactivate_Indicator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CriticalityDiagnostics_PDU,
-      { "CriticalityDiagnostics", "nbap.CriticalityDiagnostics",
+      { "CriticalityDiagnostics", "nbap.CriticalityDiagnostics_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CRNC_CommunicationContextID_PDU,
@@ -55550,11 +55565,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Common_EDCH_System_InformationLCR_PDU,
-      { "Common-EDCH-System-InformationLCR", "nbap.Common_EDCH_System_InformationLCR",
+      { "Common-EDCH-System-InformationLCR", "nbap.Common_EDCH_System_InformationLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Common_EDCH_System_Information_ResponseLCR_PDU,
-      { "Common-EDCH-System-Information-ResponseLCR", "nbap.Common_EDCH_System_Information_ResponseLCR",
+      { "Common-EDCH-System-Information-ResponseLCR", "nbap.Common_EDCH_System_Information_ResponseLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Ul_common_E_DCH_MACflow_Specific_InfoResponseListLCR_Ext_PDU,
@@ -55566,7 +55581,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CPC_InformationLCR_PDU,
-      { "CPC-InformationLCR", "nbap.CPC_InformationLCR",
+      { "CPC-InformationLCR", "nbap.CPC_InformationLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ContinuousPacketConnectivity_DRX_CapabilityLCR_PDU,
@@ -55574,7 +55589,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_ContinuousPacketConnectivity_DRX_CapabilityLCR_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_ContinuousPacketConnectivity_DRX_InformationLCR_PDU,
-      { "ContinuousPacketConnectivity-DRX-InformationLCR", "nbap.ContinuousPacketConnectivity_DRX_InformationLCR",
+      { "ContinuousPacketConnectivity-DRX-InformationLCR", "nbap.ContinuousPacketConnectivity_DRX_InformationLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_AGCH_UE_Inactivity_Monitor_Threshold_PDU,
@@ -55582,7 +55597,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC|BASE_EXT_STRING, &nbap_E_AGCH_UE_Inactivity_Monitor_Threshold_vals_ext, 0,
         NULL, HFILL }},
     { &hf_nbap_ContinuousPacketConnectivity_DRX_Information_ResponseLCR_PDU,
-      { "ContinuousPacketConnectivity-DRX-Information-ResponseLCR", "nbap.ContinuousPacketConnectivity_DRX_Information_ResponseLCR",
+      { "ContinuousPacketConnectivity-DRX-Information-ResponseLCR", "nbap.ContinuousPacketConnectivity_DRX_Information_ResponseLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DCH_FDD_Information_PDU,
@@ -55622,11 +55637,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DelayedActivation_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_DGANSS_Corrections_Req_PDU,
-      { "DGANSS-Corrections-Req", "nbap.DGANSS_Corrections_Req",
+      { "DGANSS-Corrections-Req", "nbap.DGANSS_Corrections_Req_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DGNSS_ValidityPeriod_PDU,
-      { "DGNSS-ValidityPeriod", "nbap.DGNSS_ValidityPeriod",
+      { "DGNSS-ValidityPeriod", "nbap.DGNSS_ValidityPeriod_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DiversityMode_PDU,
@@ -55642,7 +55657,7 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_PowerBalancing_Information_PDU,
-      { "DL-PowerBalancing-Information", "nbap.DL_PowerBalancing_Information",
+      { "DL-PowerBalancing-Information", "nbap.DL_PowerBalancing_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_PowerBalancing_ActivationIndicator_PDU,
@@ -55694,7 +55709,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Dual_Band_Capability_Info_PDU,
-      { "Dual-Band-Capability-Info", "nbap.Dual_Band_Capability_Info",
+      { "Dual-Band-Capability-Info", "nbap.Dual_Band_Capability_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DwPCH_Power_PDU,
@@ -55718,11 +55733,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_E_DCH_Capability_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCHCapacityConsumptionLaw_PDU,
-      { "E-DCHCapacityConsumptionLaw", "nbap.E_DCHCapacityConsumptionLaw",
+      { "E-DCHCapacityConsumptionLaw", "nbap.E_DCHCapacityConsumptionLaw_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_TDD_CapacityConsumptionLaw_PDU,
-      { "E-DCH-TDD-CapacityConsumptionLaw", "nbap.E_DCH_TDD_CapacityConsumptionLaw",
+      { "E-DCH-TDD-CapacityConsumptionLaw", "nbap.E_DCH_TDD_CapacityConsumptionLaw_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_TTI2ms_Capability_PDU,
@@ -55738,23 +55753,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_E_DCH_HARQ_Combining_Capability_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_FDD_DL_Control_Channel_Information_PDU,
-      { "E-DCH-FDD-DL-Control-Channel-Information", "nbap.E_DCH_FDD_DL_Control_Channel_Information",
+      { "E-DCH-FDD-DL-Control-Channel-Information", "nbap.E_DCH_FDD_DL_Control_Channel_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_FDD_Information_PDU,
-      { "E-DCH-FDD-Information", "nbap.E_DCH_FDD_Information",
+      { "E-DCH-FDD-Information", "nbap.E_DCH_FDD_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_FDD_Information_Response_PDU,
-      { "E-DCH-FDD-Information-Response", "nbap.E_DCH_FDD_Information_Response",
+      { "E-DCH-FDD-Information-Response", "nbap.E_DCH_FDD_Information_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_FDD_Information_to_Modify_PDU,
-      { "E-DCH-FDD-Information-to-Modify", "nbap.E_DCH_FDD_Information_to_Modify",
+      { "E-DCH-FDD-Information-to-Modify", "nbap.E_DCH_FDD_Information_to_Modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_FDD_Update_Information_PDU,
-      { "E-DCH-FDD-Update-Information", "nbap.E_DCH_FDD_Update_Information",
+      { "E-DCH-FDD-Update-Information", "nbap.E_DCH_FDD_Update_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_DL_Control_Channel_Change_Information_PDU,
@@ -55778,7 +55793,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_E_DCH_MACdPDUSizeFormat_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_MACdFlows_Information_PDU,
-      { "E-DCH-MACdFlows-Information", "nbap.E_DCH_MACdFlows_Information",
+      { "E-DCH-MACdFlows-Information", "nbap.E_DCH_MACdFlows_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_MACdFlows_to_Delete_PDU,
@@ -55802,7 +55817,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_E_DCH_RL_Indication_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_Serving_Cell_Change_Info_Response_PDU,
-      { "E-DCH-Serving-Cell-Change-Info-Response", "nbap.E_DCH_Serving_Cell_Change_Info_Response",
+      { "E-DCH-Serving-Cell-Change-Info-Response", "nbap.E_DCH_Serving_Cell_Change_Info_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_EDCH_RACH_Report_Value_PDU,
@@ -55818,7 +55833,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Enhanced_UE_DRX_InformationLCR_PDU,
-      { "Enhanced-UE-DRX-InformationLCR", "nbap.Enhanced_UE_DRX_InformationLCR",
+      { "Enhanced-UE-DRX-InformationLCR", "nbap.Enhanced_UE_DRX_InformationLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_End_Of_Audit_Sequence_Indicator_PDU,
@@ -55834,7 +55849,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_TFCI_Boost_Information_PDU,
-      { "E-TFCI-Boost-Information", "nbap.E_TFCI_Boost_Information",
+      { "E-TFCI-Boost-Information", "nbap.E_TFCI_Boost_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCHProvidedBitRate_PDU,
@@ -55854,7 +55869,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_Information_PDU,
-      { "E-DCH-Information", "nbap.E_DCH_Information",
+      { "E-DCH-Information", "nbap.E_DCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_MACdFlow_Retransmission_Timer_PDU,
@@ -55862,11 +55877,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC|BASE_EXT_STRING, &nbap_E_DCH_MACdFlow_Retransmission_Timer_vals_ext, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_Information_Response_PDU,
-      { "E-DCH-Information-Response", "nbap.E_DCH_Information_Response",
+      { "E-DCH-Information-Response", "nbap.E_DCH_Information_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_Information_Reconfig_PDU,
-      { "E-DCH-Information-Reconfig", "nbap.E_DCH_Information_Reconfig",
+      { "E-DCH-Information-Reconfig", "nbap.E_DCH_Information_Reconfig_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Maximum_Generated_ReceivedTotalWideBandPowerInOtherCells_PDU,
@@ -55874,19 +55889,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_768_Information_PDU,
-      { "E-DCH-768-Information", "nbap.E_DCH_768_Information",
+      { "E-DCH-768-Information", "nbap.E_DCH_768_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_768_Information_Reconfig_PDU,
-      { "E-DCH-768-Information-Reconfig", "nbap.E_DCH_768_Information_Reconfig",
+      { "E-DCH-768-Information-Reconfig", "nbap.E_DCH_768_Information_Reconfig_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_LCR_Information_PDU,
-      { "E-DCH-LCR-Information", "nbap.E_DCH_LCR_Information",
+      { "E-DCH-LCR-Information", "nbap.E_DCH_LCR_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_LCR_Information_Reconfig_PDU,
-      { "E-DCH-LCR-Information-Reconfig", "nbap.E_DCH_LCR_Information_Reconfig",
+      { "E-DCH-LCR-Information-Reconfig", "nbap.E_DCH_LCR_Information_Reconfig_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DormantModeIndicator_PDU,
@@ -55910,7 +55925,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_Enhanced_UE_DRX_Capability_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_Enhanced_UE_DRX_InformationFDD_PDU,
-      { "Enhanced-UE-DRX-InformationFDD", "nbap.Enhanced_UE_DRX_InformationFDD",
+      { "Enhanced-UE-DRX-InformationFDD", "nbap.Enhanced_UE_DRX_InformationFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Extended_E_DCH_LCRTDD_PhysicalLayerCategory_PDU,
@@ -55950,11 +55965,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_Semi_PersistentScheduling_Information_LCR_PDU,
-      { "E-DCH-Semi-PersistentScheduling-Information-LCR", "nbap.E_DCH_Semi_PersistentScheduling_Information_LCR",
+      { "E-DCH-Semi-PersistentScheduling-Information-LCR", "nbap.E_DCH_Semi_PersistentScheduling_Information_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_Semi_PersistentScheduling_Information_ResponseLCR_PDU,
-      { "E-DCH-Semi-PersistentScheduling-Information-ResponseLCR", "nbap.E_DCH_Semi_PersistentScheduling_Information_ResponseLCR",
+      { "E-DCH-Semi-PersistentScheduling-Information-ResponseLCR", "nbap.E_DCH_Semi_PersistentScheduling_Information_ResponseLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Fast_Reconfiguration_Mode_PDU,
@@ -55998,11 +56013,11 @@ void proto_register_nbap(void)
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_GANSS_Additional_Ionospheric_Model_PDU,
-      { "GANSS-Additional-Ionospheric-Model", "nbap.GANSS_Additional_Ionospheric_Model",
+      { "GANSS-Additional-Ionospheric-Model", "nbap.GANSS_Additional_Ionospheric_Model_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_GANSS_Additional_Navigation_Models_PDU,
-      { "GANSS-Additional-Navigation-Models", "nbap.GANSS_Additional_Navigation_Models",
+      { "GANSS-Additional-Navigation-Models", "nbap.GANSS_Additional_Navigation_Models_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_GANSS_Additional_Time_Models_PDU,
@@ -56014,23 +56029,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_GANSS_Additional_UTC_Models_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_GANSS_ALM_ECEFsbasAlmanacSet_PDU,
-      { "GANSS-ALM-ECEFsbasAlmanacSet", "nbap.GANSS_ALM_ECEFsbasAlmanacSet",
+      { "GANSS-ALM-ECEFsbasAlmanacSet", "nbap.GANSS_ALM_ECEFsbasAlmanacSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_GANSS_ALM_GlonassAlmanacSet_PDU,
-      { "GANSS-ALM-GlonassAlmanacSet", "nbap.GANSS_ALM_GlonassAlmanacSet",
+      { "GANSS-ALM-GlonassAlmanacSet", "nbap.GANSS_ALM_GlonassAlmanacSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_GANSS_ALM_MidiAlmanacSet_PDU,
-      { "GANSS-ALM-MidiAlmanacSet", "nbap.GANSS_ALM_MidiAlmanacSet",
+      { "GANSS-ALM-MidiAlmanacSet", "nbap.GANSS_ALM_MidiAlmanacSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_GANSS_ALM_NAVKeplerianSet_PDU,
-      { "GANSS-ALM-NAVKeplerianSet", "nbap.GANSS_ALM_NAVKeplerianSet",
+      { "GANSS-ALM-NAVKeplerianSet", "nbap.GANSS_ALM_NAVKeplerianSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_GANSS_ALM_ReducedKeplerianSet_PDU,
-      { "GANSS-ALM-ReducedKeplerianSet", "nbap.GANSS_ALM_ReducedKeplerianSet",
+      { "GANSS-ALM-ReducedKeplerianSet", "nbap.GANSS_ALM_ReducedKeplerianSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_GANSS_Auxiliary_Information_PDU,
@@ -56042,11 +56057,11 @@ void proto_register_nbap(void)
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_GANSS_Common_Data_PDU,
-      { "GANSS-Common-Data", "nbap.GANSS_Common_Data",
+      { "GANSS-Common-Data", "nbap.GANSS_Common_Data_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_GANSS_Earth_Orientation_Parameters_PDU,
-      { "GANSS-Earth-Orientation-Parameters", "nbap.GANSS_Earth_Orientation_Parameters",
+      { "GANSS-Earth-Orientation-Parameters", "nbap.GANSS_Earth_Orientation_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_GANSS_EarthOrientParaReq_PDU,
@@ -56062,7 +56077,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_GANSS_Information_PDU,
-      { "GANSS-Information", "nbap.GANSS_Information",
+      { "GANSS-Information", "nbap.GANSS_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_GANSS_SBAS_ID_PDU,
@@ -56118,23 +56133,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_Common_System_InformationFDD_PDU,
-      { "HSDSCH-Common-System-InformationFDD", "nbap.HSDSCH_Common_System_InformationFDD",
+      { "HSDSCH-Common-System-InformationFDD", "nbap.HSDSCH_Common_System_InformationFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_Common_System_Information_ResponseFDD_PDU,
-      { "HSDSCH-Common-System-Information-ResponseFDD", "nbap.HSDSCH_Common_System_Information_ResponseFDD",
+      { "HSDSCH-Common-System-Information-ResponseFDD", "nbap.HSDSCH_Common_System_Information_ResponseFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_FDD_Information_PDU,
-      { "HSDSCH-FDD-Information", "nbap.HSDSCH_FDD_Information",
+      { "HSDSCH-FDD-Information", "nbap.HSDSCH_FDD_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_TDD_Information_PDU,
-      { "HSDSCH-TDD-Information", "nbap.HSDSCH_TDD_Information",
+      { "HSDSCH-TDD-Information", "nbap.HSDSCH_TDD_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_Information_to_Modify_PDU,
-      { "HSDSCH-Information-to-Modify", "nbap.HSDSCH_Information_to_Modify",
+      { "HSDSCH-Information-to-Modify", "nbap.HSDSCH_Information_to_Modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_MACdPDUSizeFormat_PDU,
@@ -56146,15 +56161,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_HSDSCH_MACdPDU_SizeCapability_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_Information_to_Modify_Unsynchronised_PDU,
-      { "HSDSCH-Information-to-Modify-Unsynchronised", "nbap.HSDSCH_Information_to_Modify_Unsynchronised",
+      { "HSDSCH-Information-to-Modify-Unsynchronised", "nbap.HSDSCH_Information_to_Modify_Unsynchronised_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_FDD_Information_Response_PDU,
-      { "HSDSCH-FDD-Information-Response", "nbap.HSDSCH_FDD_Information_Response",
+      { "HSDSCH-FDD-Information-Response", "nbap.HSDSCH_FDD_Information_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_Paging_System_InformationFDD_PDU,
-      { "HSDSCH-Paging-System-InformationFDD", "nbap.HSDSCH_Paging_System_InformationFDD",
+      { "HSDSCH-Paging-System-InformationFDD", "nbap.HSDSCH_Paging_System_InformationFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_Paging_System_Information_ResponseFDD_PDU,
@@ -56162,11 +56177,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_TDD_Information_Response_PDU,
-      { "HSDSCH-TDD-Information-Response", "nbap.HSDSCH_TDD_Information_Response",
+      { "HSDSCH-TDD-Information-Response", "nbap.HSDSCH_TDD_Information_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_MACdFlows_Information_PDU,
-      { "HSDSCH-MACdFlows-Information", "nbap.HSDSCH_MACdFlows_Information",
+      { "HSDSCH-MACdFlows-Information", "nbap.HSDSCH_MACdFlows_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_MACdFlows_to_Delete_PDU,
@@ -56178,7 +56193,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_HSDSCH_TBSizeTableIndicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_PreconfigurationInfo_PDU,
-      { "HSDSCH-PreconfigurationInfo", "nbap.HSDSCH_PreconfigurationInfo",
+      { "HSDSCH-PreconfigurationInfo", "nbap.HSDSCH_PreconfigurationInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_Preconfiguration_Information_PDU,
@@ -56186,7 +56201,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_PreconfigurationSetup_PDU,
-      { "HSDSCH-PreconfigurationSetup", "nbap.HSDSCH_PreconfigurationSetup",
+      { "HSDSCH-PreconfigurationSetup", "nbap.HSDSCH_PreconfigurationSetup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSSCCH_Specific_InformationRespListTDD768_PDU,
@@ -56194,7 +56209,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_SICH_Reception_Quality_Value_PDU,
-      { "HS-SICH-Reception-Quality-Value", "nbap.HS_SICH_Reception_Quality_Value",
+      { "HS-SICH-Reception-Quality-Value", "nbap.HS_SICH_Reception_Quality_Value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_SICH_failed_PDU,
@@ -56218,7 +56233,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_PDSCH_FDD_Code_Information_PDU,
-      { "HS-PDSCH-FDD-Code-Information", "nbap.HS_PDSCH_FDD_Code_Information",
+      { "HS-PDSCH-FDD-Code-Information", "nbap.HS_PDSCH_FDD_Code_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_SICH_ID_PDU,
@@ -56242,31 +56257,31 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_HSDSCH_Configured_Indicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_HS_DSCH_Serving_Cell_Change_Info_PDU,
-      { "HS-DSCH-Serving-Cell-Change-Info", "nbap.HS_DSCH_Serving_Cell_Change_Info",
+      { "HS-DSCH-Serving-Cell-Change-Info", "nbap.HS_DSCH_Serving_Cell_Change_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_DSCH_Serving_Cell_Change_Info_Response_PDU,
-      { "HS-DSCH-Serving-Cell-Change-Info-Response", "nbap.HS_DSCH_Serving_Cell_Change_Info_Response",
+      { "HS-DSCH-Serving-Cell-Change-Info-Response", "nbap.HS_DSCH_Serving_Cell_Change_Info_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_FDD_Update_Information_PDU,
-      { "HSDSCH-FDD-Update-Information", "nbap.HSDSCH_FDD_Update_Information",
+      { "HSDSCH-FDD-Update-Information", "nbap.HSDSCH_FDD_Update_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_TDD_Update_Information_PDU,
-      { "HSDSCH-TDD-Update-Information", "nbap.HSDSCH_TDD_Update_Information",
+      { "HSDSCH-TDD-Update-Information", "nbap.HSDSCH_TDD_Update_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_Common_System_InformationLCR_PDU,
-      { "HSDSCH-Common-System-InformationLCR", "nbap.HSDSCH_Common_System_InformationLCR",
+      { "HSDSCH-Common-System-InformationLCR", "nbap.HSDSCH_Common_System_InformationLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_Common_System_Information_ResponseLCR_PDU,
-      { "HSDSCH-Common-System-Information-ResponseLCR", "nbap.HSDSCH_Common_System_Information_ResponseLCR",
+      { "HSDSCH-Common-System-Information-ResponseLCR", "nbap.HSDSCH_Common_System_Information_ResponseLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_Paging_System_InformationLCR_PDU,
-      { "HSDSCH-Paging-System-InformationLCR", "nbap.HSDSCH_Paging_System_InformationLCR",
+      { "HSDSCH-Paging-System-InformationLCR", "nbap.HSDSCH_Paging_System_InformationLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_Paging_System_Information_ResponseLCR_PDU,
@@ -56274,7 +56289,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_DSCH_Semi_PersistentScheduling_Information_LCR_PDU,
-      { "HS-DSCH-Semi-PersistentScheduling-Information-LCR", "nbap.HS_DSCH_Semi_PersistentScheduling_Information_LCR",
+      { "HS-DSCH-Semi-PersistentScheduling-Information-LCR", "nbap.HS_DSCH_Semi_PersistentScheduling_Information_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RepetitionPeriodIndex_PDU,
@@ -56290,11 +56305,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_HS_DSCH_SPS_Operation_Indicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_HS_DSCH_Semi_PersistentScheduling_Information_ResponseLCR_PDU,
-      { "HS-DSCH-Semi-PersistentScheduling-Information-ResponseLCR", "nbap.HS_DSCH_Semi_PersistentScheduling_Information_ResponseLCR",
+      { "HS-DSCH-Semi-PersistentScheduling-Information-ResponseLCR", "nbap.HS_DSCH_Semi_PersistentScheduling_Information_ResponseLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Add_To_Non_HS_SCCH_Associated_HS_SICH_Resource_Pool_LCR_PSCH_ReconfRqst_PDU,
-      { "Add-To-Non-HS-SCCH-Associated-HS-SICH-Resource-Pool-LCR-PSCH-ReconfRqst", "nbap.Add_To_Non_HS_SCCH_Associated_HS_SICH_Resource_Pool_LCR_PSCH_ReconfRqst",
+      { "Add-To-Non-HS-SCCH-Associated-HS-SICH-Resource-Pool-LCR-PSCH-ReconfRqst", "nbap.Add_To_Non_HS_SCCH_Associated_HS_SICH_Resource_Pool_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Non_HS_SCCH_Associated_HS_SICH_InformationList_Ext_PDU,
@@ -56302,7 +56317,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Modify_Non_HS_SCCH_Associated_HS_SICH_Resource_Pool_LCR_PSCH_ReconfRqst_PDU,
-      { "Modify-Non-HS-SCCH-Associated-HS-SICH-Resource-Pool-LCR-PSCH-ReconfRqst", "nbap.Modify_Non_HS_SCCH_Associated_HS_SICH_Resource_Pool_LCR_PSCH_ReconfRqst",
+      { "Modify-Non-HS-SCCH-Associated-HS-SICH-Resource-Pool-LCR-PSCH-ReconfRqst", "nbap.Modify_Non_HS_SCCH_Associated_HS_SICH_Resource_Pool_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Modify_Non_HS_SCCH_Associated_HS_SICH_InformationList_Ext_PDU,
@@ -56322,15 +56337,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSSICH_ReferenceSignal_InformationLCR_PDU,
-      { "HSSICH-ReferenceSignal-InformationLCR", "nbap.HSSICH_ReferenceSignal_InformationLCR",
+      { "HSSICH-ReferenceSignal-InformationLCR", "nbap.HSSICH_ReferenceSignal_InformationLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSSICH_ReferenceSignal_InformationModifyLCR_PDU,
-      { "HSSICH-ReferenceSignal-InformationModifyLCR", "nbap.HSSICH_ReferenceSignal_InformationModifyLCR",
+      { "HSSICH-ReferenceSignal-InformationModifyLCR", "nbap.HSSICH_ReferenceSignal_InformationModifyLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_IMB_Parameters_PDU,
-      { "IMB-Parameters", "nbap.IMB_Parameters",
+      { "IMB-Parameters", "nbap.IMB_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_InformationReportCharacteristics_PDU,
@@ -56342,7 +56357,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_InformationType_PDU,
-      { "InformationType", "nbap.InformationType",
+      { "InformationType", "nbap.InformationType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Initial_DL_DPCH_TimingAdjustment_Allowed_PDU,
@@ -56354,7 +56369,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_InnerLoopDLPCStatus_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_IPMulticastIndication_PDU,
-      { "IPMulticastIndication", "nbap.IPMulticastIndication",
+      { "IPMulticastIndication", "nbap.IPMulticastIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_IPMulticastDataBearerIndication_PDU,
@@ -56362,7 +56377,7 @@ void proto_register_nbap(void)
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_IdleIntervalInformation_PDU,
-      { "IdleIntervalInformation", "nbap.IdleIntervalInformation",
+      { "IdleIntervalInformation", "nbap.IdleIntervalInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Local_Cell_ID_PDU,
@@ -56370,7 +56385,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_LCRTDD_Uplink_Physical_Channel_Capability_PDU,
-      { "LCRTDD-Uplink-Physical-Channel-Capability", "nbap.LCRTDD_Uplink_Physical_Channel_Capability",
+      { "LCRTDD-Uplink-Physical-Channel-Capability", "nbap.LCRTDD_Uplink_Physical_Channel_Capability_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MAC_PDU_SizeExtended_PDU,
@@ -56410,15 +56425,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MeasurementRecoveryBehavior_PDU,
-      { "MeasurementRecoveryBehavior", "nbap.MeasurementRecoveryBehavior",
+      { "MeasurementRecoveryBehavior", "nbap.MeasurementRecoveryBehavior_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MeasurementRecoveryReportingIndicator_PDU,
-      { "MeasurementRecoveryReportingIndicator", "nbap.MeasurementRecoveryReportingIndicator",
+      { "MeasurementRecoveryReportingIndicator", "nbap.MeasurementRecoveryReportingIndicator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MeasurementRecoverySupportIndicator_PDU,
-      { "MeasurementRecoverySupportIndicator", "nbap.MeasurementRecoverySupportIndicator",
+      { "MeasurementRecoverySupportIndicator", "nbap.MeasurementRecoverySupportIndicator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MessageStructure_PDU,
@@ -56430,11 +56445,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MidambleShiftLCR_PDU,
-      { "MidambleShiftLCR", "nbap.MidambleShiftLCR",
+      { "MidambleShiftLCR", "nbap.MidambleShiftLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MIMO_ActivationIndicator_PDU,
-      { "MIMO-ActivationIndicator", "nbap.MIMO_ActivationIndicator",
+      { "MIMO-ActivationIndicator", "nbap.MIMO_ActivationIndicator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MIMO_Capability_PDU,
@@ -56502,15 +56517,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Multi_Cell_Capability_Info_PDU,
-      { "Multi-Cell-Capability-Info", "nbap.Multi_Cell_Capability_Info",
+      { "Multi-Cell-Capability-Info", "nbap.Multi_Cell_Capability_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Multicell_EDCH_InformationItemIEs_PDU,
-      { "Multicell-EDCH-InformationItemIEs", "nbap.Multicell_EDCH_InformationItemIEs",
+      { "Multicell-EDCH-InformationItemIEs", "nbap.Multicell_EDCH_InformationItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Multicell_EDCH_RL_Specific_InformationItemIEs_PDU,
-      { "Multicell-EDCH-RL-Specific-InformationItemIEs", "nbap.Multicell_EDCH_RL_Specific_InformationItemIEs",
+      { "Multicell-EDCH-RL-Specific-InformationItemIEs", "nbap.Multicell_EDCH_RL_Specific_InformationItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MIMO_SFMode_For_HSPDSCHDualStream_PDU,
@@ -56530,11 +56545,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_NeighbouringTDDCellMeasurementInformationLCR_PDU,
-      { "NeighbouringTDDCellMeasurementInformationLCR", "nbap.NeighbouringTDDCellMeasurementInformationLCR",
+      { "NeighbouringTDDCellMeasurementInformationLCR", "nbap.NeighbouringTDDCellMeasurementInformationLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_NeighbouringTDDCellMeasurementInformation768_PDU,
-      { "NeighbouringTDDCellMeasurementInformation768", "nbap.NeighbouringTDDCellMeasurementInformation768",
+      { "NeighbouringTDDCellMeasurementInformation768", "nbap.NeighbouringTDDCellMeasurementInformation768_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_NonCellSpecificTxDiversity_PDU,
@@ -56582,7 +56597,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_PhysicalChannelID_for_CommonERNTI_RequestedIndicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_PLCCHinformation_PDU,
-      { "PLCCHinformation", "nbap.PLCCHinformation",
+      { "PLCCHinformation", "nbap.PLCCHinformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PowerAdjustmentType_PDU,
@@ -56622,7 +56637,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Specific_E_DCH_Info_PDU,
-      { "RL-Specific-E-DCH-Info", "nbap.RL_Specific_E_DCH_Info",
+      { "RL-Specific-E-DCH-Info", "nbap.RL_Specific_E_DCH_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Reference_ReceivedTotalWideBandPower_PDU,
@@ -56650,15 +56665,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_ReportCharacteristics_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_ReportCharacteristicsType_OnModification_PDU,
-      { "ReportCharacteristicsType-OnModification", "nbap.ReportCharacteristicsType_OnModification",
+      { "ReportCharacteristicsType-OnModification", "nbap.ReportCharacteristicsType_OnModification_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_EDCH_RACH_Report_IncrDecrThres_PDU,
-      { "EDCH-RACH-Report-IncrDecrThres", "nbap.EDCH_RACH_Report_IncrDecrThres",
+      { "EDCH-RACH-Report-IncrDecrThres", "nbap.EDCH_RACH_Report_IncrDecrThres_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_EDCH_RACH_Report_ThresholdInformation_PDU,
-      { "EDCH-RACH-Report-ThresholdInformation", "nbap.EDCH_RACH_Report_ThresholdInformation",
+      { "EDCH-RACH-Report-ThresholdInformation", "nbap.EDCH_RACH_Report_ThresholdInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_ID_PDU,
@@ -56690,7 +56705,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Received_Scheduled_EDCH_Power_Share_Value_PDU,
-      { "Received-Scheduled-EDCH-Power-Share-Value", "nbap.Received_Scheduled_EDCH_Power_Share_Value",
+      { "Received-Scheduled-EDCH-Power-Share-Value", "nbap.Received_Scheduled_EDCH_Power_Share_Value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RSEPS_Value_IncrDecrThres_PDU,
@@ -56758,11 +56773,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SFNSFNMeasurementThresholdInformation_PDU,
-      { "SFNSFNMeasurementThresholdInformation", "nbap.SFNSFNMeasurementThresholdInformation",
+      { "SFNSFNMeasurementThresholdInformation", "nbap.SFNSFNMeasurementThresholdInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SFNSFNMeasurementValueInformation_PDU,
-      { "SFNSFNMeasurementValueInformation", "nbap.SFNSFNMeasurementValueInformation",
+      { "SFNSFNMeasurementValueInformation", "nbap.SFNSFNMeasurementValueInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ShutdownTimer_PDU,
@@ -56770,7 +56785,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Single_Stream_MIMO_ActivationIndicator_PDU,
-      { "Single-Stream-MIMO-ActivationIndicator", "nbap.Single_Stream_MIMO_ActivationIndicator",
+      { "Single-Stream-MIMO-ActivationIndicator", "nbap.Single_Stream_MIMO_ActivationIndicator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Single_Stream_MIMO_Capability_PDU,
@@ -56818,7 +56833,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SynchronisationReportCharacteristics_PDU,
-      { "SynchronisationReportCharacteristics", "nbap.SynchronisationReportCharacteristics",
+      { "SynchronisationReportCharacteristics", "nbap.SynchronisationReportCharacteristics_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SyncDLCodeIdThreInfoLCR_PDU,
@@ -56958,19 +56973,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_TSN_Length_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_TUTRANGANSSMeasurementThresholdInformation_PDU,
-      { "TUTRANGANSSMeasurementThresholdInformation", "nbap.TUTRANGANSSMeasurementThresholdInformation",
+      { "TUTRANGANSSMeasurementThresholdInformation", "nbap.TUTRANGANSSMeasurementThresholdInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TUTRANGANSSMeasurementValueInformation_PDU,
-      { "TUTRANGANSSMeasurementValueInformation", "nbap.TUTRANGANSSMeasurementValueInformation",
+      { "TUTRANGANSSMeasurementValueInformation", "nbap.TUTRANGANSSMeasurementValueInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TUTRANGPSMeasurementThresholdInformation_PDU,
-      { "TUTRANGPSMeasurementThresholdInformation", "nbap.TUTRANGPSMeasurementThresholdInformation",
+      { "TUTRANGPSMeasurementThresholdInformation", "nbap.TUTRANGPSMeasurementThresholdInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TUTRANGPSMeasurementValueInformation_PDU,
-      { "TUTRANGPSMeasurementValueInformation", "nbap.TUTRANGPSMeasurementValueInformation",
+      { "TUTRANGPSMeasurementValueInformation", "nbap.TUTRANGPSMeasurementValueInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TxDiversityOnDLControlChannelsByMIMOUECapability_PDU,
@@ -56986,15 +57001,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UE_AggregateMaximumBitRate_PDU,
-      { "UE-AggregateMaximumBitRate", "nbap.UE_AggregateMaximumBitRate",
+      { "UE-AggregateMaximumBitRate", "nbap.UE_AggregateMaximumBitRate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UE_AggregateMaximumBitRate_Enforcement_Indicator_PDU,
-      { "UE-AggregateMaximumBitRate-Enforcement-Indicator", "nbap.UE_AggregateMaximumBitRate_Enforcement_Indicator",
+      { "UE-AggregateMaximumBitRate-Enforcement-Indicator", "nbap.UE_AggregateMaximumBitRate_Enforcement_Indicator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UE_Capability_Information_PDU,
-      { "UE-Capability-Information", "nbap.UE_Capability_Information",
+      { "UE-Capability-Information", "nbap.UE_Capability_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UE_TS0_CapabilityLCR_PDU,
@@ -57018,7 +57033,7 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Synchronisation_Parameters_LCR_PDU,
-      { "UL-Synchronisation-Parameters-LCR", "nbap.UL_Synchronisation_Parameters_LCR",
+      { "UL-Synchronisation-Parameters-LCR", "nbap.UL_Synchronisation_Parameters_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UPPCHPositionLCR_PDU,
@@ -57054,7 +57069,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonTransportChannelSetupRequestFDD_PDU,
-      { "CommonTransportChannelSetupRequestFDD", "nbap.CommonTransportChannelSetupRequestFDD",
+      { "CommonTransportChannelSetupRequestFDD", "nbap.CommonTransportChannelSetupRequestFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonPhysicalChannelType_CTCH_SetupRqstFDD_PDU,
@@ -57066,19 +57081,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PCH_ParametersItem_CTCH_SetupRqstFDD_PDU,
-      { "PCH-ParametersItem-CTCH-SetupRqstFDD", "nbap.PCH_ParametersItem_CTCH_SetupRqstFDD",
+      { "PCH-ParametersItem-CTCH-SetupRqstFDD", "nbap.PCH_ParametersItem_CTCH_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MICH_Parameters_CTCH_SetupRqstFDD_PDU,
-      { "MICH-Parameters-CTCH-SetupRqstFDD", "nbap.MICH_Parameters_CTCH_SetupRqstFDD",
+      { "MICH-Parameters-CTCH-SetupRqstFDD", "nbap.MICH_Parameters_CTCH_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RACH_ParametersItem_CTCH_SetupRqstFDD_PDU,
-      { "RACH-ParametersItem-CTCH-SetupRqstFDD", "nbap.RACH_ParametersItem_CTCH_SetupRqstFDD",
+      { "RACH-ParametersItem-CTCH-SetupRqstFDD", "nbap.RACH_ParametersItem_CTCH_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonTransportChannelSetupRequestTDD_PDU,
-      { "CommonTransportChannelSetupRequestTDD", "nbap.CommonTransportChannelSetupRequestTDD",
+      { "CommonTransportChannelSetupRequestTDD", "nbap.CommonTransportChannelSetupRequestTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonPhysicalChannelType_CTCH_SetupRqstTDD_PDU,
@@ -57102,23 +57117,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PCH_ParametersItem_CTCH_SetupRqstTDD_PDU,
-      { "PCH-ParametersItem-CTCH-SetupRqstTDD", "nbap.PCH_ParametersItem_CTCH_SetupRqstTDD",
+      { "PCH-ParametersItem-CTCH-SetupRqstTDD", "nbap.PCH_ParametersItem_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PICH_ParametersItem_CTCH_SetupRqstTDD_PDU,
-      { "PICH-ParametersItem-CTCH-SetupRqstTDD", "nbap.PICH_ParametersItem_CTCH_SetupRqstTDD",
+      { "PICH-ParametersItem-CTCH-SetupRqstTDD", "nbap.PICH_ParametersItem_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PICH_LCR_Parameters_CTCH_SetupRqstTDD_PDU,
-      { "PICH-LCR-Parameters-CTCH-SetupRqstTDD", "nbap.PICH_LCR_Parameters_CTCH_SetupRqstTDD",
+      { "PICH-LCR-Parameters-CTCH-SetupRqstTDD", "nbap.PICH_LCR_Parameters_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PICH_768_ParametersItem_CTCH_SetupRqstTDD_PDU,
-      { "PICH-768-ParametersItem-CTCH-SetupRqstTDD", "nbap.PICH_768_ParametersItem_CTCH_SetupRqstTDD",
+      { "PICH-768-ParametersItem-CTCH-SetupRqstTDD", "nbap.PICH_768_ParametersItem_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MICH_Parameters_CTCH_SetupRqstTDD_PDU,
-      { "MICH-Parameters-CTCH-SetupRqstTDD", "nbap.MICH_Parameters_CTCH_SetupRqstTDD",
+      { "MICH-Parameters-CTCH-SetupRqstTDD", "nbap.MICH_Parameters_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TimeSlotConfigurationList_LCR_CTCH_SetupRqstTDD_PDU,
@@ -57134,11 +57149,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PRACH_ParametersItem_CTCH_SetupRqstTDD_PDU,
-      { "PRACH-ParametersItem-CTCH-SetupRqstTDD", "nbap.PRACH_ParametersItem_CTCH_SetupRqstTDD",
+      { "PRACH-ParametersItem-CTCH-SetupRqstTDD", "nbap.PRACH_ParametersItem_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RACH_ParameterItem_CTCH_SetupRqstTDD_PDU,
-      { "RACH-ParameterItem-CTCH-SetupRqstTDD", "nbap.RACH_ParameterItem_CTCH_SetupRqstTDD",
+      { "RACH-ParameterItem-CTCH-SetupRqstTDD", "nbap.RACH_ParameterItem_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PRACH_LCR_ParametersList_CTCH_SetupRqstTDD_PDU,
@@ -57146,27 +57161,27 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PRACH_768_ParametersItem_CTCH_SetupRqstTDD_PDU,
-      { "PRACH-768-ParametersItem-CTCH-SetupRqstTDD", "nbap.PRACH_768_ParametersItem_CTCH_SetupRqstTDD",
+      { "PRACH-768-ParametersItem-CTCH-SetupRqstTDD", "nbap.PRACH_768_ParametersItem_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_FPACH_LCR_Parameters_CTCH_SetupRqstTDD_PDU,
-      { "FPACH-LCR-Parameters-CTCH-SetupRqstTDD", "nbap.FPACH_LCR_Parameters_CTCH_SetupRqstTDD",
+      { "FPACH-LCR-Parameters-CTCH-SetupRqstTDD", "nbap.FPACH_LCR_Parameters_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PLCCH_parameters_PDU,
-      { "PLCCH-parameters", "nbap.PLCCH_parameters",
+      { "PLCCH-parameters", "nbap.PLCCH_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_RUCCH_parameters_PDU,
-      { "E-RUCCH-parameters", "nbap.E_RUCCH_parameters",
+      { "E-RUCCH-parameters", "nbap.E_RUCCH_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_RUCCH_768_parameters_PDU,
-      { "E-RUCCH-768-parameters", "nbap.E_RUCCH_768_parameters",
+      { "E-RUCCH-768-parameters", "nbap.E_RUCCH_768_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonTransportChannelSetupResponse_PDU,
-      { "CommonTransportChannelSetupResponse", "nbap.CommonTransportChannelSetupResponse",
+      { "CommonTransportChannelSetupResponse", "nbap.CommonTransportChannelSetupResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_FACH_CommonTransportChannel_InformationResponse_PDU,
@@ -57174,11 +57189,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonTransportChannelSetupFailure_PDU,
-      { "CommonTransportChannelSetupFailure", "nbap.CommonTransportChannelSetupFailure",
+      { "CommonTransportChannelSetupFailure", "nbap.CommonTransportChannelSetupFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonTransportChannelReconfigurationRequestFDD_PDU,
-      { "CommonTransportChannelReconfigurationRequestFDD", "nbap.CommonTransportChannelReconfigurationRequestFDD",
+      { "CommonTransportChannelReconfigurationRequestFDD", "nbap.CommonTransportChannelReconfigurationRequestFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonPhysicalChannelType_CTCH_ReconfRqstFDD_PDU,
@@ -57190,15 +57205,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PCH_ParametersItem_CTCH_ReconfRqstFDD_PDU,
-      { "PCH-ParametersItem-CTCH-ReconfRqstFDD", "nbap.PCH_ParametersItem_CTCH_ReconfRqstFDD",
+      { "PCH-ParametersItem-CTCH-ReconfRqstFDD", "nbap.PCH_ParametersItem_CTCH_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PICH_ParametersItem_CTCH_ReconfRqstFDD_PDU,
-      { "PICH-ParametersItem-CTCH-ReconfRqstFDD", "nbap.PICH_ParametersItem_CTCH_ReconfRqstFDD",
+      { "PICH-ParametersItem-CTCH-ReconfRqstFDD", "nbap.PICH_ParametersItem_CTCH_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MICH_Parameters_CTCH_ReconfRqstFDD_PDU,
-      { "MICH-Parameters-CTCH-ReconfRqstFDD", "nbap.MICH_Parameters_CTCH_ReconfRqstFDD",
+      { "MICH-Parameters-CTCH-ReconfRqstFDD", "nbap.MICH_Parameters_CTCH_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PRACH_ParametersListIE_CTCH_ReconfRqstFDD_PDU,
@@ -57210,11 +57225,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonTransportChannelReconfigurationRequestTDD_PDU,
-      { "CommonTransportChannelReconfigurationRequestTDD", "nbap.CommonTransportChannelReconfigurationRequestTDD",
+      { "CommonTransportChannelReconfigurationRequestTDD", "nbap.CommonTransportChannelReconfigurationRequestTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Secondary_CCPCH_Parameters_CTCH_ReconfRqstTDD_PDU,
-      { "Secondary-CCPCH-Parameters-CTCH-ReconfRqstTDD", "nbap.Secondary_CCPCH_Parameters_CTCH_ReconfRqstTDD",
+      { "Secondary-CCPCH-Parameters-CTCH-ReconfRqstTDD", "nbap.Secondary_CCPCH_Parameters_CTCH_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Secondary_CCPCHListIE_CTCH_ReconfRqstTDD_PDU,
@@ -57230,7 +57245,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PICH_Parameters_CTCH_ReconfRqstTDD_PDU,
-      { "PICH-Parameters-CTCH-ReconfRqstTDD", "nbap.PICH_Parameters_CTCH_ReconfRqstTDD",
+      { "PICH-Parameters-CTCH-ReconfRqstTDD", "nbap.PICH_Parameters_CTCH_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_FACH_ParametersList_CTCH_ReconfRqstTDD_PDU,
@@ -57238,79 +57253,79 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PCH_Parameters_CTCH_ReconfRqstTDD_PDU,
-      { "PCH-Parameters-CTCH-ReconfRqstTDD", "nbap.PCH_Parameters_CTCH_ReconfRqstTDD",
+      { "PCH-Parameters-CTCH-ReconfRqstTDD", "nbap.PCH_Parameters_CTCH_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_FPACH_LCR_Parameters_CTCH_ReconfRqstTDD_PDU,
-      { "FPACH-LCR-Parameters-CTCH-ReconfRqstTDD", "nbap.FPACH_LCR_Parameters_CTCH_ReconfRqstTDD",
+      { "FPACH-LCR-Parameters-CTCH-ReconfRqstTDD", "nbap.FPACH_LCR_Parameters_CTCH_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MICH_Parameters_CTCH_ReconfRqstTDD_PDU,
-      { "MICH-Parameters-CTCH-ReconfRqstTDD", "nbap.MICH_Parameters_CTCH_ReconfRqstTDD",
+      { "MICH-Parameters-CTCH-ReconfRqstTDD", "nbap.MICH_Parameters_CTCH_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PLCCH_Parameters_CTCH_ReconfRqstTDD_PDU,
-      { "PLCCH-Parameters-CTCH-ReconfRqstTDD", "nbap.PLCCH_Parameters_CTCH_ReconfRqstTDD",
+      { "PLCCH-Parameters-CTCH-ReconfRqstTDD", "nbap.PLCCH_Parameters_CTCH_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Secondary_CCPCH_768_Parameters_CTCH_ReconfRqstTDD_PDU,
-      { "Secondary-CCPCH-768-Parameters-CTCH-ReconfRqstTDD", "nbap.Secondary_CCPCH_768_Parameters_CTCH_ReconfRqstTDD",
+      { "Secondary-CCPCH-768-Parameters-CTCH-ReconfRqstTDD", "nbap.Secondary_CCPCH_768_Parameters_CTCH_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PICH_768_Parameters_CTCH_ReconfRqstTDD_PDU,
-      { "PICH-768-Parameters-CTCH-ReconfRqstTDD", "nbap.PICH_768_Parameters_CTCH_ReconfRqstTDD",
+      { "PICH-768-Parameters-CTCH-ReconfRqstTDD", "nbap.PICH_768_Parameters_CTCH_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MICH_768_Parameters_CTCH_ReconfRqstTDD_PDU,
-      { "MICH-768-Parameters-CTCH-ReconfRqstTDD", "nbap.MICH_768_Parameters_CTCH_ReconfRqstTDD",
+      { "MICH-768-Parameters-CTCH-ReconfRqstTDD", "nbap.MICH_768_Parameters_CTCH_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UPPCH_LCR_Parameters_CTCH_ReconfRqstTDD_PDU,
-      { "UPPCH-LCR-Parameters-CTCH-ReconfRqstTDD", "nbap.UPPCH_LCR_Parameters_CTCH_ReconfRqstTDD",
+      { "UPPCH-LCR-Parameters-CTCH-ReconfRqstTDD", "nbap.UPPCH_LCR_Parameters_CTCH_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonTransportChannelReconfigurationResponse_PDU,
-      { "CommonTransportChannelReconfigurationResponse", "nbap.CommonTransportChannelReconfigurationResponse",
+      { "CommonTransportChannelReconfigurationResponse", "nbap.CommonTransportChannelReconfigurationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonTransportChannelReconfigurationFailure_PDU,
-      { "CommonTransportChannelReconfigurationFailure", "nbap.CommonTransportChannelReconfigurationFailure",
+      { "CommonTransportChannelReconfigurationFailure", "nbap.CommonTransportChannelReconfigurationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonTransportChannelDeletionRequest_PDU,
-      { "CommonTransportChannelDeletionRequest", "nbap.CommonTransportChannelDeletionRequest",
+      { "CommonTransportChannelDeletionRequest", "nbap.CommonTransportChannelDeletionRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonTransportChannelDeletionResponse_PDU,
-      { "CommonTransportChannelDeletionResponse", "nbap.CommonTransportChannelDeletionResponse",
+      { "CommonTransportChannelDeletionResponse", "nbap.CommonTransportChannelDeletionResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_BlockResourceRequest_PDU,
-      { "BlockResourceRequest", "nbap.BlockResourceRequest",
+      { "BlockResourceRequest", "nbap.BlockResourceRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_BlockResourceResponse_PDU,
-      { "BlockResourceResponse", "nbap.BlockResourceResponse",
+      { "BlockResourceResponse", "nbap.BlockResourceResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_BlockResourceFailure_PDU,
-      { "BlockResourceFailure", "nbap.BlockResourceFailure",
+      { "BlockResourceFailure", "nbap.BlockResourceFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UnblockResourceIndication_PDU,
-      { "UnblockResourceIndication", "nbap.UnblockResourceIndication",
+      { "UnblockResourceIndication", "nbap.UnblockResourceIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_AuditRequiredIndication_PDU,
-      { "AuditRequiredIndication", "nbap.AuditRequiredIndication",
+      { "AuditRequiredIndication", "nbap.AuditRequiredIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_AuditRequest_PDU,
-      { "AuditRequest", "nbap.AuditRequest",
+      { "AuditRequest", "nbap.AuditRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_AuditResponse_PDU,
-      { "AuditResponse", "nbap.AuditResponse",
+      { "AuditResponse", "nbap.AuditResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Cell_InformationList_AuditRsp_PDU,
@@ -57318,7 +57333,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Cell_InformationItem_AuditRsp_PDU,
-      { "Cell-InformationItem-AuditRsp", "nbap.Cell_InformationItem_AuditRsp",
+      { "Cell-InformationItem-AuditRsp", "nbap.Cell_InformationItem_AuditRsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_FPACH_LCR_InformationList_AuditRsp_PDU,
@@ -57326,7 +57341,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_DSCH_Resources_Information_AuditRsp_PDU,
-      { "HS-DSCH-Resources-Information-AuditRsp", "nbap.HS_DSCH_Resources_Information_AuditRsp",
+      { "HS-DSCH-Resources-Information-AuditRsp", "nbap.HS_DSCH_Resources_Information_AuditRsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_S_CCPCH_InformationListExt_AuditRsp_PDU,
@@ -57338,7 +57353,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_Resources_Information_AuditRsp_PDU,
-      { "E-DCH-Resources-Information-AuditRsp", "nbap.E_DCH_Resources_Information_AuditRsp",
+      { "E-DCH-Resources-Information-AuditRsp", "nbap.E_DCH_Resources_Information_AuditRsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PLCCH_InformationList_AuditRsp_PDU,
@@ -57366,7 +57381,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Cell_Frequency_List_InformationItem_LCR_MulFreq_AuditRsp_PDU,
-      { "Cell-Frequency-List-InformationItem-LCR-MulFreq-AuditRsp", "nbap.Cell_Frequency_List_InformationItem_LCR_MulFreq_AuditRsp",
+      { "Cell-Frequency-List-InformationItem-LCR-MulFreq-AuditRsp", "nbap.Cell_Frequency_List_InformationItem_LCR_MulFreq_AuditRsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UPPCH_LCR_InformationList_AuditRsp_PDU,
@@ -57374,7 +57389,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UPPCH_LCR_InformationItem_AuditRsp_PDU,
-      { "UPPCH-LCR-InformationItem-AuditRsp", "nbap.UPPCH_LCR_InformationItem_AuditRsp",
+      { "UPPCH-LCR-InformationItem-AuditRsp", "nbap.UPPCH_LCR_InformationItem_AuditRsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleFreq_HS_DSCH_Resources_InformationList_AuditRsp_PDU,
@@ -57390,7 +57405,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CCP_InformationItem_AuditRsp_PDU,
-      { "CCP-InformationItem-AuditRsp", "nbap.CCP_InformationItem_AuditRsp",
+      { "CCP-InformationItem-AuditRsp", "nbap.CCP_InformationItem_AuditRsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Local_Cell_InformationList_AuditRsp_PDU,
@@ -57398,7 +57413,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Local_Cell_InformationItem_AuditRsp_PDU,
-      { "Local-Cell-InformationItem-AuditRsp", "nbap.Local_Cell_InformationItem_AuditRsp",
+      { "Local-Cell-InformationItem-AuditRsp", "nbap.Local_Cell_InformationItem_AuditRsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Local_Cell_Group_InformationList_AuditRsp_PDU,
@@ -57406,7 +57421,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Local_Cell_Group_InformationItem_AuditRsp_PDU,
-      { "Local-Cell-Group-InformationItem-AuditRsp", "nbap.Local_Cell_Group_InformationItem_AuditRsp",
+      { "Local-Cell-Group-InformationItem-AuditRsp", "nbap.Local_Cell_Group_InformationItem_AuditRsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Power_Local_Cell_Group_InformationList_AuditRsp_PDU,
@@ -57414,15 +57429,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Power_Local_Cell_Group_InformationItem_AuditRsp_PDU,
-      { "Power-Local-Cell-Group-InformationItem-AuditRsp", "nbap.Power_Local_Cell_Group_InformationItem_AuditRsp",
+      { "Power-Local-Cell-Group-InformationItem-AuditRsp", "nbap.Power_Local_Cell_Group_InformationItem_AuditRsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_AuditFailure_PDU,
-      { "AuditFailure", "nbap.AuditFailure",
+      { "AuditFailure", "nbap.AuditFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonMeasurementInitiationRequest_PDU,
-      { "CommonMeasurementInitiationRequest", "nbap.CommonMeasurementInitiationRequest",
+      { "CommonMeasurementInitiationRequest", "nbap.CommonMeasurementInitiationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonMeasurementObjectType_CM_Rqst_PDU,
@@ -57430,15 +57445,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_CommonMeasurementObjectType_CM_Rqst_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_ERACH_CM_Rqst_PDU,
-      { "ERACH-CM-Rqst", "nbap.ERACH_CM_Rqst",
+      { "ERACH-CM-Rqst", "nbap.ERACH_CM_Rqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PowerLocalCellGroup_CM_Rqst_PDU,
-      { "PowerLocalCellGroup-CM-Rqst", "nbap.PowerLocalCellGroup_CM_Rqst",
+      { "PowerLocalCellGroup-CM-Rqst", "nbap.PowerLocalCellGroup_CM_Rqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonMeasurementInitiationResponse_PDU,
-      { "CommonMeasurementInitiationResponse", "nbap.CommonMeasurementInitiationResponse",
+      { "CommonMeasurementInitiationResponse", "nbap.CommonMeasurementInitiationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonMeasurementObjectType_CM_Rsp_PDU,
@@ -57446,19 +57461,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_CommonMeasurementObjectType_CM_Rsp_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_ERACH_CM_Rsp_PDU,
-      { "ERACH-CM-Rsp", "nbap.ERACH_CM_Rsp",
+      { "ERACH-CM-Rsp", "nbap.ERACH_CM_Rsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PowerLocalCellGroup_CM_Rsp_PDU,
-      { "PowerLocalCellGroup-CM-Rsp", "nbap.PowerLocalCellGroup_CM_Rsp",
+      { "PowerLocalCellGroup-CM-Rsp", "nbap.PowerLocalCellGroup_CM_Rsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonMeasurementInitiationFailure_PDU,
-      { "CommonMeasurementInitiationFailure", "nbap.CommonMeasurementInitiationFailure",
+      { "CommonMeasurementInitiationFailure", "nbap.CommonMeasurementInitiationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonMeasurementReport_PDU,
-      { "CommonMeasurementReport", "nbap.CommonMeasurementReport",
+      { "CommonMeasurementReport", "nbap.CommonMeasurementReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonMeasurementObjectType_CM_Rprt_PDU,
@@ -57466,39 +57481,39 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_CommonMeasurementObjectType_CM_Rprt_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_ERACH_CM_Rprt_PDU,
-      { "ERACH-CM-Rprt", "nbap.ERACH_CM_Rprt",
+      { "ERACH-CM-Rprt", "nbap.ERACH_CM_Rprt_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PowerLocalCellGroup_CM_Rprt_PDU,
-      { "PowerLocalCellGroup-CM-Rprt", "nbap.PowerLocalCellGroup_CM_Rprt",
+      { "PowerLocalCellGroup-CM-Rprt", "nbap.PowerLocalCellGroup_CM_Rprt_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonMeasurementTerminationRequest_PDU,
-      { "CommonMeasurementTerminationRequest", "nbap.CommonMeasurementTerminationRequest",
+      { "CommonMeasurementTerminationRequest", "nbap.CommonMeasurementTerminationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonMeasurementFailureIndication_PDU,
-      { "CommonMeasurementFailureIndication", "nbap.CommonMeasurementFailureIndication",
+      { "CommonMeasurementFailureIndication", "nbap.CommonMeasurementFailureIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSetupRequestFDD_PDU,
-      { "CellSetupRequestFDD", "nbap.CellSetupRequestFDD",
+      { "CellSetupRequestFDD", "nbap.CellSetupRequestFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Synchronisation_Configuration_Cell_SetupRqst_PDU,
-      { "Synchronisation-Configuration-Cell-SetupRqst", "nbap.Synchronisation_Configuration_Cell_SetupRqst",
+      { "Synchronisation-Configuration-Cell-SetupRqst", "nbap.Synchronisation_Configuration_Cell_SetupRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PrimarySCH_Information_Cell_SetupRqstFDD_PDU,
-      { "PrimarySCH-Information-Cell-SetupRqstFDD", "nbap.PrimarySCH_Information_Cell_SetupRqstFDD",
+      { "PrimarySCH-Information-Cell-SetupRqstFDD", "nbap.PrimarySCH_Information_Cell_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SecondarySCH_Information_Cell_SetupRqstFDD_PDU,
-      { "SecondarySCH-Information-Cell-SetupRqstFDD", "nbap.SecondarySCH_Information_Cell_SetupRqstFDD",
+      { "SecondarySCH-Information-Cell-SetupRqstFDD", "nbap.SecondarySCH_Information_Cell_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PrimaryCPICH_Information_Cell_SetupRqstFDD_PDU,
-      { "PrimaryCPICH-Information-Cell-SetupRqstFDD", "nbap.PrimaryCPICH_Information_Cell_SetupRqstFDD",
+      { "PrimaryCPICH-Information-Cell-SetupRqstFDD", "nbap.PrimaryCPICH_Information_Cell_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SecondaryCPICH_InformationList_Cell_SetupRqstFDD_PDU,
@@ -57506,19 +57521,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SecondaryCPICH_InformationItem_Cell_SetupRqstFDD_PDU,
-      { "SecondaryCPICH-InformationItem-Cell-SetupRqstFDD", "nbap.SecondaryCPICH_InformationItem_Cell_SetupRqstFDD",
+      { "SecondaryCPICH-InformationItem-Cell-SetupRqstFDD", "nbap.SecondaryCPICH_InformationItem_Cell_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PrimaryCCPCH_Information_Cell_SetupRqstFDD_PDU,
-      { "PrimaryCCPCH-Information-Cell-SetupRqstFDD", "nbap.PrimaryCCPCH_Information_Cell_SetupRqstFDD",
+      { "PrimaryCCPCH-Information-Cell-SetupRqstFDD", "nbap.PrimaryCCPCH_Information_Cell_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Limited_power_increase_information_Cell_SetupRqstFDD_PDU,
-      { "Limited-power-increase-information-Cell-SetupRqstFDD", "nbap.Limited_power_increase_information_Cell_SetupRqstFDD",
+      { "Limited-power-increase-information-Cell-SetupRqstFDD", "nbap.Limited_power_increase_information_Cell_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_IPDLParameter_Information_Cell_SetupRqstFDD_PDU,
-      { "IPDLParameter-Information-Cell-SetupRqstFDD", "nbap.IPDLParameter_Information_Cell_SetupRqstFDD",
+      { "IPDLParameter-Information-Cell-SetupRqstFDD", "nbap.IPDLParameter_Information_Cell_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellPortion_InformationList_Cell_SetupRqstFDD_PDU,
@@ -57526,15 +57541,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellPortion_InformationItem_Cell_SetupRqstFDD_PDU,
-      { "CellPortion-InformationItem-Cell-SetupRqstFDD", "nbap.CellPortion_InformationItem_Cell_SetupRqstFDD",
+      { "CellPortion-InformationItem-Cell-SetupRqstFDD", "nbap.CellPortion_InformationItem_Cell_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSetupRequestTDD_PDU,
-      { "CellSetupRequestTDD", "nbap.CellSetupRequestTDD",
+      { "CellSetupRequestTDD", "nbap.CellSetupRequestTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SCH_Information_Cell_SetupRqstTDD_PDU,
-      { "SCH-Information-Cell-SetupRqstTDD", "nbap.SCH_Information_Cell_SetupRqstTDD",
+      { "SCH-Information-Cell-SetupRqstTDD", "nbap.SCH_Information_Cell_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SyncCaseIndicatorItem_Cell_SetupRqstTDD_PSCH_PDU,
@@ -57542,7 +57557,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_SyncCaseIndicatorItem_Cell_SetupRqstTDD_PSCH_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_PCCPCH_Information_Cell_SetupRqstTDD_PDU,
-      { "PCCPCH-Information-Cell-SetupRqstTDD", "nbap.PCCPCH_Information_Cell_SetupRqstTDD",
+      { "PCCPCH-Information-Cell-SetupRqstTDD", "nbap.PCCPCH_Information_Cell_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TimeSlotConfigurationList_Cell_SetupRqstTDD_PDU,
@@ -57554,27 +57569,27 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PCCPCH_LCR_Information_Cell_SetupRqstTDD_PDU,
-      { "PCCPCH-LCR-Information-Cell-SetupRqstTDD", "nbap.PCCPCH_LCR_Information_Cell_SetupRqstTDD",
+      { "PCCPCH-LCR-Information-Cell-SetupRqstTDD", "nbap.PCCPCH_LCR_Information_Cell_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DwPCH_LCR_Information_Cell_SetupRqstTDD_PDU,
-      { "DwPCH-LCR-Information-Cell-SetupRqstTDD", "nbap.DwPCH_LCR_Information_Cell_SetupRqstTDD",
+      { "DwPCH-LCR-Information-Cell-SetupRqstTDD", "nbap.DwPCH_LCR_Information_Cell_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_IPDLParameter_Information_Cell_SetupRqstTDD_PDU,
-      { "IPDLParameter-Information-Cell-SetupRqstTDD", "nbap.IPDLParameter_Information_Cell_SetupRqstTDD",
+      { "IPDLParameter-Information-Cell-SetupRqstTDD", "nbap.IPDLParameter_Information_Cell_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_IPDLParameter_Information_LCR_Cell_SetupRqstTDD_PDU,
-      { "IPDLParameter-Information-LCR-Cell-SetupRqstTDD", "nbap.IPDLParameter_Information_LCR_Cell_SetupRqstTDD",
+      { "IPDLParameter-Information-LCR-Cell-SetupRqstTDD", "nbap.IPDLParameter_Information_LCR_Cell_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PCCPCH_768_Information_Cell_SetupRqstTDD_PDU,
-      { "PCCPCH-768-Information-Cell-SetupRqstTDD", "nbap.PCCPCH_768_Information_Cell_SetupRqstTDD",
+      { "PCCPCH-768-Information-Cell-SetupRqstTDD", "nbap.PCCPCH_768_Information_Cell_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SCH_768_Information_Cell_SetupRqstTDD_PDU,
-      { "SCH-768-Information-Cell-SetupRqstTDD", "nbap.SCH_768_Information_Cell_SetupRqstTDD",
+      { "SCH-768-Information-Cell-SetupRqstTDD", "nbap.SCH_768_Information_Cell_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Cell_Frequency_List_LCR_MulFreq_Cell_SetupRqstTDD_PDU,
@@ -57582,31 +57597,31 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSetupResponse_PDU,
-      { "CellSetupResponse", "nbap.CellSetupResponse",
+      { "CellSetupResponse", "nbap.CellSetupResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSetupFailure_PDU,
-      { "CellSetupFailure", "nbap.CellSetupFailure",
+      { "CellSetupFailure", "nbap.CellSetupFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellReconfigurationRequestFDD_PDU,
-      { "CellReconfigurationRequestFDD", "nbap.CellReconfigurationRequestFDD",
+      { "CellReconfigurationRequestFDD", "nbap.CellReconfigurationRequestFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Synchronisation_Configuration_Cell_ReconfRqst_PDU,
-      { "Synchronisation-Configuration-Cell-ReconfRqst", "nbap.Synchronisation_Configuration_Cell_ReconfRqst",
+      { "Synchronisation-Configuration-Cell-ReconfRqst", "nbap.Synchronisation_Configuration_Cell_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PrimarySCH_Information_Cell_ReconfRqstFDD_PDU,
-      { "PrimarySCH-Information-Cell-ReconfRqstFDD", "nbap.PrimarySCH_Information_Cell_ReconfRqstFDD",
+      { "PrimarySCH-Information-Cell-ReconfRqstFDD", "nbap.PrimarySCH_Information_Cell_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SecondarySCH_Information_Cell_ReconfRqstFDD_PDU,
-      { "SecondarySCH-Information-Cell-ReconfRqstFDD", "nbap.SecondarySCH_Information_Cell_ReconfRqstFDD",
+      { "SecondarySCH-Information-Cell-ReconfRqstFDD", "nbap.SecondarySCH_Information_Cell_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PrimaryCPICH_Information_Cell_ReconfRqstFDD_PDU,
-      { "PrimaryCPICH-Information-Cell-ReconfRqstFDD", "nbap.PrimaryCPICH_Information_Cell_ReconfRqstFDD",
+      { "PrimaryCPICH-Information-Cell-ReconfRqstFDD", "nbap.PrimaryCPICH_Information_Cell_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SecondaryCPICH_InformationList_Cell_ReconfRqstFDD_PDU,
@@ -57614,15 +57629,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SecondaryCPICH_InformationItem_Cell_ReconfRqstFDD_PDU,
-      { "SecondaryCPICH-InformationItem-Cell-ReconfRqstFDD", "nbap.SecondaryCPICH_InformationItem_Cell_ReconfRqstFDD",
+      { "SecondaryCPICH-InformationItem-Cell-ReconfRqstFDD", "nbap.SecondaryCPICH_InformationItem_Cell_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PrimaryCCPCH_Information_Cell_ReconfRqstFDD_PDU,
-      { "PrimaryCCPCH-Information-Cell-ReconfRqstFDD", "nbap.PrimaryCCPCH_Information_Cell_ReconfRqstFDD",
+      { "PrimaryCCPCH-Information-Cell-ReconfRqstFDD", "nbap.PrimaryCCPCH_Information_Cell_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_IPDLParameter_Information_Cell_ReconfRqstFDD_PDU,
-      { "IPDLParameter-Information-Cell-ReconfRqstFDD", "nbap.IPDLParameter_Information_Cell_ReconfRqstFDD",
+      { "IPDLParameter-Information-Cell-ReconfRqstFDD", "nbap.IPDLParameter_Information_Cell_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellPortion_InformationList_Cell_ReconfRqstFDD_PDU,
@@ -57630,19 +57645,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellPortion_InformationItem_Cell_ReconfRqstFDD_PDU,
-      { "CellPortion-InformationItem-Cell-ReconfRqstFDD", "nbap.CellPortion_InformationItem_Cell_ReconfRqstFDD",
+      { "CellPortion-InformationItem-Cell-ReconfRqstFDD", "nbap.CellPortion_InformationItem_Cell_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellReconfigurationRequestTDD_PDU,
-      { "CellReconfigurationRequestTDD", "nbap.CellReconfigurationRequestTDD",
+      { "CellReconfigurationRequestTDD", "nbap.CellReconfigurationRequestTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SCH_Information_Cell_ReconfRqstTDD_PDU,
-      { "SCH-Information-Cell-ReconfRqstTDD", "nbap.SCH_Information_Cell_ReconfRqstTDD",
+      { "SCH-Information-Cell-ReconfRqstTDD", "nbap.SCH_Information_Cell_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PCCPCH_Information_Cell_ReconfRqstTDD_PDU,
-      { "PCCPCH-Information-Cell-ReconfRqstTDD", "nbap.PCCPCH_Information_Cell_ReconfRqstTDD",
+      { "PCCPCH-Information-Cell-ReconfRqstTDD", "nbap.PCCPCH_Information_Cell_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TimeSlotConfigurationList_Cell_ReconfRqstTDD_PDU,
@@ -57654,23 +57669,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DwPCH_LCR_Information_Cell_ReconfRqstTDD_PDU,
-      { "DwPCH-LCR-Information-Cell-ReconfRqstTDD", "nbap.DwPCH_LCR_Information_Cell_ReconfRqstTDD",
+      { "DwPCH-LCR-Information-Cell-ReconfRqstTDD", "nbap.DwPCH_LCR_Information_Cell_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_IPDLParameter_Information_Cell_ReconfRqstTDD_PDU,
-      { "IPDLParameter-Information-Cell-ReconfRqstTDD", "nbap.IPDLParameter_Information_Cell_ReconfRqstTDD",
+      { "IPDLParameter-Information-Cell-ReconfRqstTDD", "nbap.IPDLParameter_Information_Cell_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_IPDLParameter_Information_LCR_Cell_ReconfRqstTDD_PDU,
-      { "IPDLParameter-Information-LCR-Cell-ReconfRqstTDD", "nbap.IPDLParameter_Information_LCR_Cell_ReconfRqstTDD",
+      { "IPDLParameter-Information-LCR-Cell-ReconfRqstTDD", "nbap.IPDLParameter_Information_LCR_Cell_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SCH_768_Information_Cell_ReconfRqstTDD_PDU,
-      { "SCH-768-Information-Cell-ReconfRqstTDD", "nbap.SCH_768_Information_Cell_ReconfRqstTDD",
+      { "SCH-768-Information-Cell-ReconfRqstTDD", "nbap.SCH_768_Information_Cell_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PCCPCH_768_Information_Cell_ReconfRqstTDD_PDU,
-      { "PCCPCH-768-Information-Cell-ReconfRqstTDD", "nbap.PCCPCH_768_Information_Cell_ReconfRqstTDD",
+      { "PCCPCH-768-Information-Cell-ReconfRqstTDD", "nbap.PCCPCH_768_Information_Cell_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UARFCN_Adjustment_PDU,
@@ -57678,23 +57693,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_UARFCN_Adjustment_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_CellReconfigurationResponse_PDU,
-      { "CellReconfigurationResponse", "nbap.CellReconfigurationResponse",
+      { "CellReconfigurationResponse", "nbap.CellReconfigurationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellReconfigurationFailure_PDU,
-      { "CellReconfigurationFailure", "nbap.CellReconfigurationFailure",
+      { "CellReconfigurationFailure", "nbap.CellReconfigurationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellDeletionRequest_PDU,
-      { "CellDeletionRequest", "nbap.CellDeletionRequest",
+      { "CellDeletionRequest", "nbap.CellDeletionRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellDeletionResponse_PDU,
-      { "CellDeletionResponse", "nbap.CellDeletionResponse",
+      { "CellDeletionResponse", "nbap.CellDeletionResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ResourceStatusIndication_PDU,
-      { "ResourceStatusIndication", "nbap.ResourceStatusIndication",
+      { "ResourceStatusIndication", "nbap.ResourceStatusIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_IndicationType_ResourceStatusInd_PDU,
@@ -57702,11 +57717,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_IndicationType_ResourceStatusInd_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_Local_Cell_InformationItem_ResourceStatusInd_PDU,
-      { "Local-Cell-InformationItem-ResourceStatusInd", "nbap.Local_Cell_InformationItem_ResourceStatusInd",
+      { "Local-Cell-InformationItem-ResourceStatusInd", "nbap.Local_Cell_InformationItem_ResourceStatusInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Local_Cell_Group_InformationItem_ResourceStatusInd_PDU,
-      { "Local-Cell-Group-InformationItem-ResourceStatusInd", "nbap.Local_Cell_Group_InformationItem_ResourceStatusInd",
+      { "Local-Cell-Group-InformationItem-ResourceStatusInd", "nbap.Local_Cell_Group_InformationItem_ResourceStatusInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Power_Local_Cell_Group_InformationList_ResourceStatusInd_PDU,
@@ -57714,23 +57729,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Power_Local_Cell_Group_InformationItem_ResourceStatusInd_PDU,
-      { "Power-Local-Cell-Group-InformationItem-ResourceStatusInd", "nbap.Power_Local_Cell_Group_InformationItem_ResourceStatusInd",
+      { "Power-Local-Cell-Group-InformationItem-ResourceStatusInd", "nbap.Power_Local_Cell_Group_InformationItem_ResourceStatusInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Local_Cell_InformationItem2_ResourceStatusInd_PDU,
-      { "Local-Cell-InformationItem2-ResourceStatusInd", "nbap.Local_Cell_InformationItem2_ResourceStatusInd",
+      { "Local-Cell-InformationItem2-ResourceStatusInd", "nbap.Local_Cell_InformationItem2_ResourceStatusInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Local_Cell_Group_InformationItem2_ResourceStatusInd_PDU,
-      { "Local-Cell-Group-InformationItem2-ResourceStatusInd", "nbap.Local_Cell_Group_InformationItem2_ResourceStatusInd",
+      { "Local-Cell-Group-InformationItem2-ResourceStatusInd", "nbap.Local_Cell_Group_InformationItem2_ResourceStatusInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CCP_InformationItem_ResourceStatusInd_PDU,
-      { "CCP-InformationItem-ResourceStatusInd", "nbap.CCP_InformationItem_ResourceStatusInd",
+      { "CCP-InformationItem-ResourceStatusInd", "nbap.CCP_InformationItem_ResourceStatusInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Cell_InformationItem_ResourceStatusInd_PDU,
-      { "Cell-InformationItem-ResourceStatusInd", "nbap.Cell_InformationItem_ResourceStatusInd",
+      { "Cell-InformationItem-ResourceStatusInd", "nbap.Cell_InformationItem_ResourceStatusInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_FPACH_LCR_InformationList_ResourceStatusInd_PDU,
@@ -57738,11 +57753,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DwPCH_LCR_Information_ResourceStatusInd_PDU,
-      { "DwPCH-LCR-Information-ResourceStatusInd", "nbap.DwPCH_LCR_Information_ResourceStatusInd",
+      { "DwPCH-LCR-Information-ResourceStatusInd", "nbap.DwPCH_LCR_Information_ResourceStatusInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_DSCH_Resources_Information_ResourceStatusInd_PDU,
-      { "HS-DSCH-Resources-Information-ResourceStatusInd", "nbap.HS_DSCH_Resources_Information_ResourceStatusInd",
+      { "HS-DSCH-Resources-Information-ResourceStatusInd", "nbap.HS_DSCH_Resources_Information_ResourceStatusInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_S_CCPCH_InformationListExt_ResourceStatusInd_PDU,
@@ -57754,7 +57769,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_Resources_Information_ResourceStatusInd_PDU,
-      { "E-DCH-Resources-Information-ResourceStatusInd", "nbap.E_DCH_Resources_Information_ResourceStatusInd",
+      { "E-DCH-Resources-Information-ResourceStatusInd", "nbap.E_DCH_Resources_Information_ResourceStatusInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PLCCH_InformationList_ResourceStatusInd_PDU,
@@ -57782,7 +57797,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Cell_Frequency_List_InformationItem_LCR_MulFreq_ResourceStatusInd_PDU,
-      { "Cell-Frequency-List-InformationItem-LCR-MulFreq-ResourceStatusInd", "nbap.Cell_Frequency_List_InformationItem_LCR_MulFreq_ResourceStatusInd",
+      { "Cell-Frequency-List-InformationItem-LCR-MulFreq-ResourceStatusInd", "nbap.Cell_Frequency_List_InformationItem_LCR_MulFreq_ResourceStatusInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UPPCH_LCR_InformationList_ResourceStatusInd_PDU,
@@ -57790,7 +57805,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UPPCH_LCR_InformationItem_ResourceStatusInd_PDU,
-      { "UPPCH-LCR-InformationItem-ResourceStatusInd", "nbap.UPPCH_LCR_InformationItem_ResourceStatusInd",
+      { "UPPCH-LCR-InformationItem-ResourceStatusInd", "nbap.UPPCH_LCR_InformationItem_ResourceStatusInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleFreq_HS_DSCH_Resources_InformationList_ResourceStatusInd_PDU,
@@ -57802,7 +57817,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Power_Local_Cell_Group_InformationItem2_ResourceStatusInd_PDU,
-      { "Power-Local-Cell-Group-InformationItem2-ResourceStatusInd", "nbap.Power_Local_Cell_Group_InformationItem2_ResourceStatusInd",
+      { "Power-Local-Cell-Group-InformationItem2-ResourceStatusInd", "nbap.Power_Local_Cell_Group_InformationItem2_ResourceStatusInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleFreq_E_DCH_Resources_InformationList_ResourceStatusInd_PDU,
@@ -57810,7 +57825,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SystemInformationUpdateRequest_PDU,
-      { "SystemInformationUpdateRequest", "nbap.SystemInformationUpdateRequest",
+      { "SystemInformationUpdateRequest", "nbap.SystemInformationUpdateRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MIB_SB_SIB_InformationList_SystemInfoUpdateRqst_PDU,
@@ -57822,15 +57837,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SystemInformationUpdateResponse_PDU,
-      { "SystemInformationUpdateResponse", "nbap.SystemInformationUpdateResponse",
+      { "SystemInformationUpdateResponse", "nbap.SystemInformationUpdateResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SystemInformationUpdateFailure_PDU,
-      { "SystemInformationUpdateFailure", "nbap.SystemInformationUpdateFailure",
+      { "SystemInformationUpdateFailure", "nbap.SystemInformationUpdateFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkSetupRequestFDD_PDU,
-      { "RadioLinkSetupRequestFDD", "nbap.RadioLinkSetupRequestFDD",
+      { "RadioLinkSetupRequestFDD", "nbap.RadioLinkSetupRequestFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_HS_Cell_Information_RL_Setup_List_PDU,
@@ -57838,11 +57853,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_Information_RL_SetupRqstFDD_PDU,
-      { "UL-DPCH-Information-RL-SetupRqstFDD", "nbap.UL_DPCH_Information_RL_SetupRqstFDD",
+      { "UL-DPCH-Information-RL-SetupRqstFDD", "nbap.UL_DPCH_Information_RL_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_Information_RL_SetupRqstFDD_PDU,
-      { "DL-DPCH-Information-RL-SetupRqstFDD", "nbap.DL_DPCH_Information_RL_SetupRqstFDD",
+      { "DL-DPCH-Information-RL-SetupRqstFDD", "nbap.DL_DPCH_Information_RL_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationList_RL_SetupRqstFDD_PDU,
@@ -57850,19 +57865,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationItem_RL_SetupRqstFDD_PDU,
-      { "RL-InformationItem-RL-SetupRqstFDD", "nbap.RL_InformationItem_RL_SetupRqstFDD",
+      { "RL-InformationItem-RL-SetupRqstFDD", "nbap.RL_InformationItem_RL_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DPCH_Information_RL_SetupRqstFDD_PDU,
-      { "E-DPCH-Information-RL-SetupRqstFDD", "nbap.E_DPCH_Information_RL_SetupRqstFDD",
+      { "E-DPCH-Information-RL-SetupRqstFDD", "nbap.E_DPCH_Information_RL_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_F_DPCH_Information_RL_SetupRqstFDD_PDU,
-      { "F-DPCH-Information-RL-SetupRqstFDD", "nbap.F_DPCH_Information_RL_SetupRqstFDD",
+      { "F-DPCH-Information-RL-SetupRqstFDD", "nbap.F_DPCH_Information_RL_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkSetupRequestTDD_PDU,
-      { "RadioLinkSetupRequestTDD", "nbap.RadioLinkSetupRequestTDD",
+      { "RadioLinkSetupRequestTDD", "nbap.RadioLinkSetupRequestTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationList_RL_SetupRqstTDD_PDU,
@@ -57870,19 +57885,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationItem_RL_SetupRqstTDD_PDU,
-      { "UL-CCTrCH-InformationItem-RL-SetupRqstTDD", "nbap.UL_CCTrCH_InformationItem_RL_SetupRqstTDD",
+      { "UL-CCTrCH-InformationItem-RL-SetupRqstTDD", "nbap.UL_CCTrCH_InformationItem_RL_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_InformationItem_RL_SetupRqstTDD_PDU,
-      { "UL-DPCH-InformationItem-RL-SetupRqstTDD", "nbap.UL_DPCH_InformationItem_RL_SetupRqstTDD",
+      { "UL-DPCH-InformationItem-RL-SetupRqstTDD", "nbap.UL_DPCH_InformationItem_RL_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_LCR_Information_RL_SetupRqstTDD_PDU,
-      { "UL-DPCH-LCR-Information-RL-SetupRqstTDD", "nbap.UL_DPCH_LCR_Information_RL_SetupRqstTDD",
+      { "UL-DPCH-LCR-Information-RL-SetupRqstTDD", "nbap.UL_DPCH_LCR_Information_RL_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_768_Information_RL_SetupRqstTDD_PDU,
-      { "UL-DPCH-768-Information-RL-SetupRqstTDD", "nbap.UL_DPCH_768_Information_RL_SetupRqstTDD",
+      { "UL-DPCH-768-Information-RL-SetupRqstTDD", "nbap.UL_DPCH_768_Information_RL_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationList_RL_SetupRqstTDD_PDU,
@@ -57890,27 +57905,27 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationItem_RL_SetupRqstTDD_PDU,
-      { "DL-CCTrCH-InformationItem-RL-SetupRqstTDD", "nbap.DL_CCTrCH_InformationItem_RL_SetupRqstTDD",
+      { "DL-CCTrCH-InformationItem-RL-SetupRqstTDD", "nbap.DL_CCTrCH_InformationItem_RL_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_InformationItem_RL_SetupRqstTDD_PDU,
-      { "DL-DPCH-InformationItem-RL-SetupRqstTDD", "nbap.DL_DPCH_InformationItem_RL_SetupRqstTDD",
+      { "DL-DPCH-InformationItem-RL-SetupRqstTDD", "nbap.DL_DPCH_InformationItem_RL_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_LCR_Information_RL_SetupRqstTDD_PDU,
-      { "DL-DPCH-LCR-Information-RL-SetupRqstTDD", "nbap.DL_DPCH_LCR_Information_RL_SetupRqstTDD",
+      { "DL-DPCH-LCR-Information-RL-SetupRqstTDD", "nbap.DL_DPCH_LCR_Information_RL_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_768_Information_RL_SetupRqstTDD_PDU,
-      { "DL-DPCH-768-Information-RL-SetupRqstTDD", "nbap.DL_DPCH_768_Information_RL_SetupRqstTDD",
+      { "DL-DPCH-768-Information-RL-SetupRqstTDD", "nbap.DL_DPCH_768_Information_RL_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Information_RL_SetupRqstTDD_PDU,
-      { "RL-Information-RL-SetupRqstTDD", "nbap.RL_Information_RL_SetupRqstTDD",
+      { "RL-Information-RL-SetupRqstTDD", "nbap.RL_Information_RL_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkSetupResponseFDD_PDU,
-      { "RadioLinkSetupResponseFDD", "nbap.RadioLinkSetupResponseFDD",
+      { "RadioLinkSetupResponseFDD", "nbap.RadioLinkSetupResponseFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_HS_Cell_Information_Response_List_PDU,
@@ -57922,23 +57937,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationResponseItem_RL_SetupRspFDD_PDU,
-      { "RL-InformationResponseItem-RL-SetupRspFDD", "nbap.RL_InformationResponseItem_RL_SetupRspFDD",
+      { "RL-InformationResponseItem-RL-SetupRspFDD", "nbap.RL_InformationResponseItem_RL_SetupRspFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkSetupResponseTDD_PDU,
-      { "RadioLinkSetupResponseTDD", "nbap.RadioLinkSetupResponseTDD",
+      { "RadioLinkSetupResponseTDD", "nbap.RadioLinkSetupResponseTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationResponse_RL_SetupRspTDD_PDU,
-      { "RL-InformationResponse-RL-SetupRspTDD", "nbap.RL_InformationResponse_RL_SetupRspTDD",
+      { "RL-InformationResponse-RL-SetupRspTDD", "nbap.RL_InformationResponse_RL_SetupRspTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationResponse_LCR_RL_SetupRspTDD_PDU,
-      { "RL-InformationResponse-LCR-RL-SetupRspTDD", "nbap.RL_InformationResponse_LCR_RL_SetupRspTDD",
+      { "RL-InformationResponse-LCR-RL-SetupRspTDD", "nbap.RL_InformationResponse_LCR_RL_SetupRspTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkSetupFailureFDD_PDU,
-      { "RadioLinkSetupFailureFDD", "nbap.RadioLinkSetupFailureFDD",
+      { "RadioLinkSetupFailureFDD", "nbap.RadioLinkSetupFailureFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CauseLevel_RL_SetupFailureFDD_PDU,
@@ -57946,15 +57961,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_CauseLevel_RL_SetupFailureFDD_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_Unsuccessful_RL_InformationRespItem_RL_SetupFailureFDD_PDU,
-      { "Unsuccessful-RL-InformationRespItem-RL-SetupFailureFDD", "nbap.Unsuccessful_RL_InformationRespItem_RL_SetupFailureFDD",
+      { "Unsuccessful-RL-InformationRespItem-RL-SetupFailureFDD", "nbap.Unsuccessful_RL_InformationRespItem_RL_SetupFailureFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Successful_RL_InformationRespItem_RL_SetupFailureFDD_PDU,
-      { "Successful-RL-InformationRespItem-RL-SetupFailureFDD", "nbap.Successful_RL_InformationRespItem_RL_SetupFailureFDD",
+      { "Successful-RL-InformationRespItem-RL-SetupFailureFDD", "nbap.Successful_RL_InformationRespItem_RL_SetupFailureFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkSetupFailureTDD_PDU,
-      { "RadioLinkSetupFailureTDD", "nbap.RadioLinkSetupFailureTDD",
+      { "RadioLinkSetupFailureTDD", "nbap.RadioLinkSetupFailureTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CauseLevel_RL_SetupFailureTDD_PDU,
@@ -57962,11 +57977,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_CauseLevel_RL_SetupFailureTDD_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_Unsuccessful_RL_InformationResp_RL_SetupFailureTDD_PDU,
-      { "Unsuccessful-RL-InformationResp-RL-SetupFailureTDD", "nbap.Unsuccessful_RL_InformationResp_RL_SetupFailureTDD",
+      { "Unsuccessful-RL-InformationResp-RL-SetupFailureTDD", "nbap.Unsuccessful_RL_InformationResp_RL_SetupFailureTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkAdditionRequestFDD_PDU,
-      { "RadioLinkAdditionRequestFDD", "nbap.RadioLinkAdditionRequestFDD",
+      { "RadioLinkAdditionRequestFDD", "nbap.RadioLinkAdditionRequestFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_HS_Cell_Information_RL_Addition_List_PDU,
@@ -57974,7 +57989,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_Cell_Information_RL_Add_Req_PDU,
-      { "Additional-EDCH-Cell-Information-RL-Add-Req", "nbap.Additional_EDCH_Cell_Information_RL_Add_Req",
+      { "Additional-EDCH-Cell-Information-RL-Add-Req", "nbap.Additional_EDCH_Cell_Information_RL_Add_Req_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationList_RL_AdditionRqstFDD_PDU,
@@ -57982,15 +57997,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationItem_RL_AdditionRqstFDD_PDU,
-      { "RL-InformationItem-RL-AdditionRqstFDD", "nbap.RL_InformationItem_RL_AdditionRqstFDD",
+      { "RL-InformationItem-RL-AdditionRqstFDD", "nbap.RL_InformationItem_RL_AdditionRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DPCH_Information_RL_AdditionReqFDD_PDU,
-      { "E-DPCH-Information-RL-AdditionReqFDD", "nbap.E_DPCH_Information_RL_AdditionReqFDD",
+      { "E-DPCH-Information-RL-AdditionReqFDD", "nbap.E_DPCH_Information_RL_AdditionReqFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkAdditionRequestTDD_PDU,
-      { "RadioLinkAdditionRequestTDD", "nbap.RadioLinkAdditionRequestTDD",
+      { "RadioLinkAdditionRequestTDD", "nbap.RadioLinkAdditionRequestTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationList_RL_AdditionRqstTDD_PDU,
@@ -57998,15 +58013,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_InformationItem_RL_AdditionRqstTDD_PDU,
-      { "UL-DPCH-InformationItem-RL-AdditionRqstTDD", "nbap.UL_DPCH_InformationItem_RL_AdditionRqstTDD",
+      { "UL-DPCH-InformationItem-RL-AdditionRqstTDD", "nbap.UL_DPCH_InformationItem_RL_AdditionRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_InformationItem_LCR_RL_AdditionRqstTDD_PDU,
-      { "UL-DPCH-InformationItem-LCR-RL-AdditionRqstTDD", "nbap.UL_DPCH_InformationItem_LCR_RL_AdditionRqstTDD",
+      { "UL-DPCH-InformationItem-LCR-RL-AdditionRqstTDD", "nbap.UL_DPCH_InformationItem_LCR_RL_AdditionRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_InformationItem_768_RL_AdditionRqstTDD_PDU,
-      { "UL-DPCH-InformationItem-768-RL-AdditionRqstTDD", "nbap.UL_DPCH_InformationItem_768_RL_AdditionRqstTDD",
+      { "UL-DPCH-InformationItem-768-RL-AdditionRqstTDD", "nbap.UL_DPCH_InformationItem_768_RL_AdditionRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationList_RL_AdditionRqstTDD_PDU,
@@ -58014,23 +58029,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_InformationItem_RL_AdditionRqstTDD_PDU,
-      { "DL-DPCH-InformationItem-RL-AdditionRqstTDD", "nbap.DL_DPCH_InformationItem_RL_AdditionRqstTDD",
+      { "DL-DPCH-InformationItem-RL-AdditionRqstTDD", "nbap.DL_DPCH_InformationItem_RL_AdditionRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_InformationItem_LCR_RL_AdditionRqstTDD_PDU,
-      { "DL-DPCH-InformationItem-LCR-RL-AdditionRqstTDD", "nbap.DL_DPCH_InformationItem_LCR_RL_AdditionRqstTDD",
+      { "DL-DPCH-InformationItem-LCR-RL-AdditionRqstTDD", "nbap.DL_DPCH_InformationItem_LCR_RL_AdditionRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_InformationItem_768_RL_AdditionRqstTDD_PDU,
-      { "DL-DPCH-InformationItem-768-RL-AdditionRqstTDD", "nbap.DL_DPCH_InformationItem_768_RL_AdditionRqstTDD",
+      { "DL-DPCH-InformationItem-768-RL-AdditionRqstTDD", "nbap.DL_DPCH_InformationItem_768_RL_AdditionRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Information_RL_AdditionRqstTDD_PDU,
-      { "RL-Information-RL-AdditionRqstTDD", "nbap.RL_Information_RL_AdditionRqstTDD",
+      { "RL-Information-RL-AdditionRqstTDD", "nbap.RL_Information_RL_AdditionRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkAdditionResponseFDD_PDU,
-      { "RadioLinkAdditionResponseFDD", "nbap.RadioLinkAdditionResponseFDD",
+      { "RadioLinkAdditionResponseFDD", "nbap.RadioLinkAdditionResponseFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_HS_Cell_Change_Information_Response_List_PDU,
@@ -58042,23 +58057,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationResponseItem_RL_AdditionRspFDD_PDU,
-      { "RL-InformationResponseItem-RL-AdditionRspFDD", "nbap.RL_InformationResponseItem_RL_AdditionRspFDD",
+      { "RL-InformationResponseItem-RL-AdditionRspFDD", "nbap.RL_InformationResponseItem_RL_AdditionRspFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkAdditionResponseTDD_PDU,
-      { "RadioLinkAdditionResponseTDD", "nbap.RadioLinkAdditionResponseTDD",
+      { "RadioLinkAdditionResponseTDD", "nbap.RadioLinkAdditionResponseTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationResponse_RL_AdditionRspTDD_PDU,
-      { "RL-InformationResponse-RL-AdditionRspTDD", "nbap.RL_InformationResponse_RL_AdditionRspTDD",
+      { "RL-InformationResponse-RL-AdditionRspTDD", "nbap.RL_InformationResponse_RL_AdditionRspTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationResponse_LCR_RL_AdditionRspTDD_PDU,
-      { "RL-InformationResponse-LCR-RL-AdditionRspTDD", "nbap.RL_InformationResponse_LCR_RL_AdditionRspTDD",
+      { "RL-InformationResponse-LCR-RL-AdditionRspTDD", "nbap.RL_InformationResponse_LCR_RL_AdditionRspTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkAdditionFailureFDD_PDU,
-      { "RadioLinkAdditionFailureFDD", "nbap.RadioLinkAdditionFailureFDD",
+      { "RadioLinkAdditionFailureFDD", "nbap.RadioLinkAdditionFailureFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CauseLevel_RL_AdditionFailureFDD_PDU,
@@ -58066,15 +58081,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_CauseLevel_RL_AdditionFailureFDD_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_Unsuccessful_RL_InformationRespItem_RL_AdditionFailureFDD_PDU,
-      { "Unsuccessful-RL-InformationRespItem-RL-AdditionFailureFDD", "nbap.Unsuccessful_RL_InformationRespItem_RL_AdditionFailureFDD",
+      { "Unsuccessful-RL-InformationRespItem-RL-AdditionFailureFDD", "nbap.Unsuccessful_RL_InformationRespItem_RL_AdditionFailureFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Successful_RL_InformationRespItem_RL_AdditionFailureFDD_PDU,
-      { "Successful-RL-InformationRespItem-RL-AdditionFailureFDD", "nbap.Successful_RL_InformationRespItem_RL_AdditionFailureFDD",
+      { "Successful-RL-InformationRespItem-RL-AdditionFailureFDD", "nbap.Successful_RL_InformationRespItem_RL_AdditionFailureFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkAdditionFailureTDD_PDU,
-      { "RadioLinkAdditionFailureTDD", "nbap.RadioLinkAdditionFailureTDD",
+      { "RadioLinkAdditionFailureTDD", "nbap.RadioLinkAdditionFailureTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CauseLevel_RL_AdditionFailureTDD_PDU,
@@ -58082,11 +58097,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_CauseLevel_RL_AdditionFailureTDD_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_Unsuccessful_RL_InformationResp_RL_AdditionFailureTDD_PDU,
-      { "Unsuccessful-RL-InformationResp-RL-AdditionFailureTDD", "nbap.Unsuccessful_RL_InformationResp_RL_AdditionFailureTDD",
+      { "Unsuccessful-RL-InformationResp-RL-AdditionFailureTDD", "nbap.Unsuccessful_RL_InformationResp_RL_AdditionFailureTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkReconfigurationPrepareFDD_PDU,
-      { "RadioLinkReconfigurationPrepareFDD", "nbap.RadioLinkReconfigurationPrepareFDD",
+      { "RadioLinkReconfigurationPrepareFDD", "nbap.RadioLinkReconfigurationPrepareFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_HS_Cell_Information_RL_Reconf_Prep_PDU,
@@ -58094,19 +58109,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_Cell_Information_RL_Reconf_Prep_PDU,
-      { "Additional-EDCH-Cell-Information-RL-Reconf-Prep", "nbap.Additional_EDCH_Cell_Information_RL_Reconf_Prep",
+      { "Additional-EDCH-Cell-Information-RL-Reconf-Prep", "nbap.Additional_EDCH_Cell_Information_RL_Reconf_Prep_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_Information_RL_ReconfPrepFDD_PDU,
-      { "UL-DPCH-Information-RL-ReconfPrepFDD", "nbap.UL_DPCH_Information_RL_ReconfPrepFDD",
+      { "UL-DPCH-Information-RL-ReconfPrepFDD", "nbap.UL_DPCH_Information_RL_ReconfPrepFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_Information_RL_ReconfPrepFDD_PDU,
-      { "DL-DPCH-Information-RL-ReconfPrepFDD", "nbap.DL_DPCH_Information_RL_ReconfPrepFDD",
+      { "DL-DPCH-Information-RL-ReconfPrepFDD", "nbap.DL_DPCH_Information_RL_ReconfPrepFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_Power_Information_RL_ReconfPrepFDD_PDU,
-      { "DL-DPCH-Power-Information-RL-ReconfPrepFDD", "nbap.DL_DPCH_Power_Information_RL_ReconfPrepFDD",
+      { "DL-DPCH-Power-Information-RL-ReconfPrepFDD", "nbap.DL_DPCH_Power_Information_RL_ReconfPrepFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DCH_DeleteList_RL_ReconfPrepFDD_PDU,
@@ -58118,19 +58133,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationItem_RL_ReconfPrepFDD_PDU,
-      { "RL-InformationItem-RL-ReconfPrepFDD", "nbap.RL_InformationItem_RL_ReconfPrepFDD",
+      { "RL-InformationItem-RL-ReconfPrepFDD", "nbap.RL_InformationItem_RL_ReconfPrepFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DPCH_Information_RL_ReconfPrepFDD_PDU,
-      { "E-DPCH-Information-RL-ReconfPrepFDD", "nbap.E_DPCH_Information_RL_ReconfPrepFDD",
+      { "E-DPCH-Information-RL-ReconfPrepFDD", "nbap.E_DPCH_Information_RL_ReconfPrepFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_F_DPCH_Information_RL_ReconfPrepFDD_PDU,
-      { "F-DPCH-Information-RL-ReconfPrepFDD", "nbap.F_DPCH_Information_RL_ReconfPrepFDD",
+      { "F-DPCH-Information-RL-ReconfPrepFDD", "nbap.F_DPCH_Information_RL_ReconfPrepFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkReconfigurationPrepareTDD_PDU,
-      { "RadioLinkReconfigurationPrepareTDD", "nbap.RadioLinkReconfigurationPrepareTDD",
+      { "RadioLinkReconfigurationPrepareTDD", "nbap.RadioLinkReconfigurationPrepareTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationAddList_RL_ReconfPrepTDD_PDU,
@@ -58138,11 +58153,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_InformationAddItem_RL_ReconfPrepTDD_PDU,
-      { "UL-DPCH-InformationAddItem-RL-ReconfPrepTDD", "nbap.UL_DPCH_InformationAddItem_RL_ReconfPrepTDD",
+      { "UL-DPCH-InformationAddItem-RL-ReconfPrepTDD", "nbap.UL_DPCH_InformationAddItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_LCR_InformationAddList_RL_ReconfPrepTDD_PDU,
-      { "UL-DPCH-LCR-InformationAddList-RL-ReconfPrepTDD", "nbap.UL_DPCH_LCR_InformationAddList_RL_ReconfPrepTDD",
+      { "UL-DPCH-LCR-InformationAddList-RL-ReconfPrepTDD", "nbap.UL_DPCH_LCR_InformationAddList_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleRL_UL_DPCH_InformationAddList_RL_ReconfPrepTDD_PDU,
@@ -58150,7 +58165,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_768_InformationAddList_RL_ReconfPrepTDD_PDU,
-      { "UL-DPCH-768-InformationAddList-RL-ReconfPrepTDD", "nbap.UL_DPCH_768_InformationAddList_RL_ReconfPrepTDD",
+      { "UL-DPCH-768-InformationAddList-RL-ReconfPrepTDD", "nbap.UL_DPCH_768_InformationAddList_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationModifyList_RL_ReconfPrepTDD_PDU,
@@ -58158,11 +58173,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_InformationModify_AddItem_RL_ReconfPrepTDD_PDU,
-      { "UL-DPCH-InformationModify-AddItem-RL-ReconfPrepTDD", "nbap.UL_DPCH_InformationModify_AddItem_RL_ReconfPrepTDD",
+      { "UL-DPCH-InformationModify-AddItem-RL-ReconfPrepTDD", "nbap.UL_DPCH_InformationModify_AddItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_InformationModify_ModifyItem_RL_ReconfPrepTDD_PDU,
-      { "UL-DPCH-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.UL_DPCH_InformationModify_ModifyItem_RL_ReconfPrepTDD",
+      { "UL-DPCH-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.UL_DPCH_InformationModify_ModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_TimeslotLCR_InformationModify_ModifyList_RL_ReconfPrepTDD_PDU,
@@ -58178,7 +58193,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_LCR_InformationModify_AddList_RL_ReconfPrepTDD_PDU,
-      { "UL-DPCH-LCR-InformationModify-AddList-RL-ReconfPrepTDD", "nbap.UL_DPCH_LCR_InformationModify_AddList_RL_ReconfPrepTDD",
+      { "UL-DPCH-LCR-InformationModify-AddList-RL-ReconfPrepTDD", "nbap.UL_DPCH_LCR_InformationModify_AddList_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleRL_UL_DPCH_InformationModifyList_RL_ReconfPrepTDD_PDU,
@@ -58186,7 +58201,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_768_InformationModify_AddList_RL_ReconfPrepTDD_PDU,
-      { "UL-DPCH-768-InformationModify-AddList-RL-ReconfPrepTDD", "nbap.UL_DPCH_768_InformationModify_AddList_RL_ReconfPrepTDD",
+      { "UL-DPCH-768-InformationModify-AddList-RL-ReconfPrepTDD", "nbap.UL_DPCH_768_InformationModify_AddList_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationDeleteList_RL_ReconfPrepTDD_PDU,
@@ -58198,11 +58213,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_InformationAddItem_RL_ReconfPrepTDD_PDU,
-      { "DL-DPCH-InformationAddItem-RL-ReconfPrepTDD", "nbap.DL_DPCH_InformationAddItem_RL_ReconfPrepTDD",
+      { "DL-DPCH-InformationAddItem-RL-ReconfPrepTDD", "nbap.DL_DPCH_InformationAddItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_LCR_InformationAddList_RL_ReconfPrepTDD_PDU,
-      { "DL-DPCH-LCR-InformationAddList-RL-ReconfPrepTDD", "nbap.DL_DPCH_LCR_InformationAddList_RL_ReconfPrepTDD",
+      { "DL-DPCH-LCR-InformationAddList-RL-ReconfPrepTDD", "nbap.DL_DPCH_LCR_InformationAddList_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleRL_DL_DPCH_InformationAddList_RL_ReconfPrepTDD_PDU,
@@ -58210,7 +58225,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_768_InformationAddList_RL_ReconfPrepTDD_PDU,
-      { "DL-DPCH-768-InformationAddList-RL-ReconfPrepTDD", "nbap.DL_DPCH_768_InformationAddList_RL_ReconfPrepTDD",
+      { "DL-DPCH-768-InformationAddList-RL-ReconfPrepTDD", "nbap.DL_DPCH_768_InformationAddList_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationModifyList_RL_ReconfPrepTDD_PDU,
@@ -58218,11 +58233,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_InformationModify_AddItem_RL_ReconfPrepTDD_PDU,
-      { "DL-DPCH-InformationModify-AddItem-RL-ReconfPrepTDD", "nbap.DL_DPCH_InformationModify_AddItem_RL_ReconfPrepTDD",
+      { "DL-DPCH-InformationModify-AddItem-RL-ReconfPrepTDD", "nbap.DL_DPCH_InformationModify_AddItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_InformationModify_ModifyItem_RL_ReconfPrepTDD_PDU,
-      { "DL-DPCH-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.DL_DPCH_InformationModify_ModifyItem_RL_ReconfPrepTDD",
+      { "DL-DPCH-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.DL_DPCH_InformationModify_ModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Timeslot_LCR_InformationModify_ModifyList_RL_ReconfPrepTDD_PDU,
@@ -58238,7 +58253,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_LCR_InformationModify_AddList_RL_ReconfPrepTDD_PDU,
-      { "DL-DPCH-LCR-InformationModify-AddList-RL-ReconfPrepTDD", "nbap.DL_DPCH_LCR_InformationModify_AddList_RL_ReconfPrepTDD",
+      { "DL-DPCH-LCR-InformationModify-AddList-RL-ReconfPrepTDD", "nbap.DL_DPCH_LCR_InformationModify_AddList_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleRL_DL_DPCH_InformationModifyList_RL_ReconfPrepTDD_PDU,
@@ -58246,7 +58261,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_768_InformationModify_AddList_RL_ReconfPrepTDD_PDU,
-      { "DL-DPCH-768-InformationModify-AddList-RL-ReconfPrepTDD", "nbap.DL_DPCH_768_InformationModify_AddList_RL_ReconfPrepTDD",
+      { "DL-DPCH-768-InformationModify-AddList-RL-ReconfPrepTDD", "nbap.DL_DPCH_768_InformationModify_AddList_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationDeleteList_RL_ReconfPrepTDD_PDU,
@@ -58278,11 +58293,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Information_RL_ReconfPrepTDD_PDU,
-      { "RL-Information-RL-ReconfPrepTDD", "nbap.RL_Information_RL_ReconfPrepTDD",
+      { "RL-Information-RL-ReconfPrepTDD", "nbap.RL_Information_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkReconfigurationReady_PDU,
-      { "RadioLinkReconfigurationReady", "nbap.RadioLinkReconfigurationReady",
+      { "RadioLinkReconfigurationReady", "nbap.RadioLinkReconfigurationReady_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationResponseList_RL_ReconfReady_PDU,
@@ -58290,11 +58305,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationResponseItem_RL_ReconfReady_PDU,
-      { "RL-InformationResponseItem-RL-ReconfReady", "nbap.RL_InformationResponseItem_RL_ReconfReady",
+      { "RL-InformationResponseItem-RL-ReconfReady", "nbap.RL_InformationResponseItem_RL_ReconfReady_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkReconfigurationFailure_PDU,
-      { "RadioLinkReconfigurationFailure", "nbap.RadioLinkReconfigurationFailure",
+      { "RadioLinkReconfigurationFailure", "nbap.RadioLinkReconfigurationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CauseLevel_RL_ReconfFailure_PDU,
@@ -58302,19 +58317,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_CauseLevel_RL_ReconfFailure_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_RL_ReconfigurationFailureItem_RL_ReconfFailure_PDU,
-      { "RL-ReconfigurationFailureItem-RL-ReconfFailure", "nbap.RL_ReconfigurationFailureItem_RL_ReconfFailure",
+      { "RL-ReconfigurationFailureItem-RL-ReconfFailure", "nbap.RL_ReconfigurationFailureItem_RL_ReconfFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkReconfigurationCommit_PDU,
-      { "RadioLinkReconfigurationCommit", "nbap.RadioLinkReconfigurationCommit",
+      { "RadioLinkReconfigurationCommit", "nbap.RadioLinkReconfigurationCommit_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkReconfigurationCancel_PDU,
-      { "RadioLinkReconfigurationCancel", "nbap.RadioLinkReconfigurationCancel",
+      { "RadioLinkReconfigurationCancel", "nbap.RadioLinkReconfigurationCancel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkReconfigurationRequestFDD_PDU,
-      { "RadioLinkReconfigurationRequestFDD", "nbap.RadioLinkReconfigurationRequestFDD",
+      { "RadioLinkReconfigurationRequestFDD", "nbap.RadioLinkReconfigurationRequestFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_HS_Cell_Information_RL_Reconf_Req_PDU,
@@ -58322,15 +58337,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_Cell_Information_RL_Reconf_Req_PDU,
-      { "Additional-EDCH-Cell-Information-RL-Reconf-Req", "nbap.Additional_EDCH_Cell_Information_RL_Reconf_Req",
+      { "Additional-EDCH-Cell-Information-RL-Reconf-Req", "nbap.Additional_EDCH_Cell_Information_RL_Reconf_Req_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_Information_RL_ReconfRqstFDD_PDU,
-      { "UL-DPCH-Information-RL-ReconfRqstFDD", "nbap.UL_DPCH_Information_RL_ReconfRqstFDD",
+      { "UL-DPCH-Information-RL-ReconfRqstFDD", "nbap.UL_DPCH_Information_RL_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_Information_RL_ReconfRqstFDD_PDU,
-      { "DL-DPCH-Information-RL-ReconfRqstFDD", "nbap.DL_DPCH_Information_RL_ReconfRqstFDD",
+      { "DL-DPCH-Information-RL-ReconfRqstFDD", "nbap.DL_DPCH_Information_RL_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DCH_DeleteList_RL_ReconfRqstFDD_PDU,
@@ -58342,15 +58357,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationItem_RL_ReconfRqstFDD_PDU,
-      { "RL-InformationItem-RL-ReconfRqstFDD", "nbap.RL_InformationItem_RL_ReconfRqstFDD",
+      { "RL-InformationItem-RL-ReconfRqstFDD", "nbap.RL_InformationItem_RL_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DPCH_Information_RL_ReconfRqstFDD_PDU,
-      { "E-DPCH-Information-RL-ReconfRqstFDD", "nbap.E_DPCH_Information_RL_ReconfRqstFDD",
+      { "E-DPCH-Information-RL-ReconfRqstFDD", "nbap.E_DPCH_Information_RL_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkReconfigurationRequestTDD_PDU,
-      { "RadioLinkReconfigurationRequestTDD", "nbap.RadioLinkReconfigurationRequestTDD",
+      { "RadioLinkReconfigurationRequestTDD", "nbap.RadioLinkReconfigurationRequestTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationModifyList_RL_ReconfRqstTDD_PDU,
@@ -58358,7 +58373,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationModifyItem_RL_ReconfRqstTDD_PDU,
-      { "UL-CCTrCH-InformationModifyItem-RL-ReconfRqstTDD", "nbap.UL_CCTrCH_InformationModifyItem_RL_ReconfRqstTDD",
+      { "UL-CCTrCH-InformationModifyItem-RL-ReconfRqstTDD", "nbap.UL_CCTrCH_InformationModifyItem_RL_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationDeleteList_RL_ReconfRqstTDD_PDU,
@@ -58366,7 +58381,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationDeleteItem_RL_ReconfRqstTDD_PDU,
-      { "UL-CCTrCH-InformationDeleteItem-RL-ReconfRqstTDD", "nbap.UL_CCTrCH_InformationDeleteItem_RL_ReconfRqstTDD",
+      { "UL-CCTrCH-InformationDeleteItem-RL-ReconfRqstTDD", "nbap.UL_CCTrCH_InformationDeleteItem_RL_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationModifyList_RL_ReconfRqstTDD_PDU,
@@ -58374,7 +58389,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationModifyItem_RL_ReconfRqstTDD_PDU,
-      { "DL-CCTrCH-InformationModifyItem-RL-ReconfRqstTDD", "nbap.DL_CCTrCH_InformationModifyItem_RL_ReconfRqstTDD",
+      { "DL-CCTrCH-InformationModifyItem-RL-ReconfRqstTDD", "nbap.DL_CCTrCH_InformationModifyItem_RL_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleRL_DL_CCTrCH_InformationModifyList_RL_ReconfRqstTDD_PDU,
@@ -58382,7 +58397,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_LCR_InformationModify_ModifyList_RL_ReconfRqstTDD_PDU,
-      { "DL-DPCH-LCR-InformationModify-ModifyList-RL-ReconfRqstTDD", "nbap.DL_DPCH_LCR_InformationModify_ModifyList_RL_ReconfRqstTDD",
+      { "DL-DPCH-LCR-InformationModify-ModifyList-RL-ReconfRqstTDD", "nbap.DL_DPCH_LCR_InformationModify_ModifyList_RL_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationDeleteList_RL_ReconfRqstTDD_PDU,
@@ -58390,7 +58405,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationDeleteItem_RL_ReconfRqstTDD_PDU,
-      { "DL-CCTrCH-InformationDeleteItem-RL-ReconfRqstTDD", "nbap.DL_CCTrCH_InformationDeleteItem_RL_ReconfRqstTDD",
+      { "DL-CCTrCH-InformationDeleteItem-RL-ReconfRqstTDD", "nbap.DL_CCTrCH_InformationDeleteItem_RL_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DCH_DeleteList_RL_ReconfRqstTDD_PDU,
@@ -58402,11 +58417,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Information_RL_ReconfRqstTDD_PDU,
-      { "RL-Information-RL-ReconfRqstTDD", "nbap.RL_Information_RL_ReconfRqstTDD",
+      { "RL-Information-RL-ReconfRqstTDD", "nbap.RL_Information_RL_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkReconfigurationResponse_PDU,
-      { "RadioLinkReconfigurationResponse", "nbap.RadioLinkReconfigurationResponse",
+      { "RadioLinkReconfigurationResponse", "nbap.RadioLinkReconfigurationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationResponseList_RL_ReconfRsp_PDU,
@@ -58414,11 +58429,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationResponseItem_RL_ReconfRsp_PDU,
-      { "RL-InformationResponseItem-RL-ReconfRsp", "nbap.RL_InformationResponseItem_RL_ReconfRsp",
+      { "RL-InformationResponseItem-RL-ReconfRsp", "nbap.RL_InformationResponseItem_RL_ReconfRsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkDeletionRequest_PDU,
-      { "RadioLinkDeletionRequest", "nbap.RadioLinkDeletionRequest",
+      { "RadioLinkDeletionRequest", "nbap.RadioLinkDeletionRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_informationList_RL_DeletionRqst_PDU,
@@ -58426,15 +58441,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_informationItem_RL_DeletionRqst_PDU,
-      { "RL-informationItem-RL-DeletionRqst", "nbap.RL_informationItem_RL_DeletionRqst",
+      { "RL-informationItem-RL-DeletionRqst", "nbap.RL_informationItem_RL_DeletionRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkDeletionResponse_PDU,
-      { "RadioLinkDeletionResponse", "nbap.RadioLinkDeletionResponse",
+      { "RadioLinkDeletionResponse", "nbap.RadioLinkDeletionResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_PowerControlRequest_PDU,
-      { "DL-PowerControlRequest", "nbap.DL_PowerControlRequest",
+      { "DL-PowerControlRequest", "nbap.DL_PowerControlRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_ReferencePowerInformationList_DL_PC_Rqst_PDU,
@@ -58442,15 +58457,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_ReferencePowerInformationItem_DL_PC_Rqst_PDU,
-      { "DL-ReferencePowerInformationItem-DL-PC-Rqst", "nbap.DL_ReferencePowerInformationItem_DL_PC_Rqst",
+      { "DL-ReferencePowerInformationItem-DL-PC-Rqst", "nbap.DL_ReferencePowerInformationItem_DL_PC_Rqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_PowerTimeslotControlRequest_PDU,
-      { "DL-PowerTimeslotControlRequest", "nbap.DL_PowerTimeslotControlRequest",
+      { "DL-PowerTimeslotControlRequest", "nbap.DL_PowerTimeslotControlRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DedicatedMeasurementInitiationRequest_PDU,
-      { "DedicatedMeasurementInitiationRequest", "nbap.DedicatedMeasurementInitiationRequest",
+      { "DedicatedMeasurementInitiationRequest", "nbap.DedicatedMeasurementInitiationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DedicatedMeasurementObjectType_DM_Rqst_PDU,
@@ -58458,7 +58473,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DedicatedMeasurementObjectType_DM_Rqst_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationItem_DM_Rqst_PDU,
-      { "RL-InformationItem-DM-Rqst", "nbap.RL_InformationItem_DM_Rqst",
+      { "RL-InformationItem-DM-Rqst", "nbap.RL_InformationItem_DM_Rqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PUSCH_Info_DM_Rqst_PDU,
@@ -58474,7 +58489,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DedicatedMeasurementInitiationResponse_PDU,
-      { "DedicatedMeasurementInitiationResponse", "nbap.DedicatedMeasurementInitiationResponse",
+      { "DedicatedMeasurementInitiationResponse", "nbap.DedicatedMeasurementInitiationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DedicatedMeasurementObjectType_DM_Rsp_PDU,
@@ -58482,7 +58497,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DedicatedMeasurementObjectType_DM_Rsp_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationItem_DM_Rsp_PDU,
-      { "RL-InformationItem-DM-Rsp", "nbap.RL_InformationItem_DM_Rsp",
+      { "RL-InformationItem-DM-Rsp", "nbap.RL_InformationItem_DM_Rsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PUSCH_Info_DM_Rsp_PDU,
@@ -58510,15 +58525,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Set_InformationItem_DM_Rsp_PDU,
-      { "RL-Set-InformationItem-DM-Rsp", "nbap.RL_Set_InformationItem_DM_Rsp",
+      { "RL-Set-InformationItem-DM-Rsp", "nbap.RL_Set_InformationItem_DM_Rsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DedicatedMeasurementInitiationFailure_PDU,
-      { "DedicatedMeasurementInitiationFailure", "nbap.DedicatedMeasurementInitiationFailure",
+      { "DedicatedMeasurementInitiationFailure", "nbap.DedicatedMeasurementInitiationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DedicatedMeasurementReport_PDU,
-      { "DedicatedMeasurementReport", "nbap.DedicatedMeasurementReport",
+      { "DedicatedMeasurementReport", "nbap.DedicatedMeasurementReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DedicatedMeasurementObjectType_DM_Rprt_PDU,
@@ -58526,7 +58541,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DedicatedMeasurementObjectType_DM_Rprt_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationItem_DM_Rprt_PDU,
-      { "RL-InformationItem-DM-Rprt", "nbap.RL_InformationItem_DM_Rprt",
+      { "RL-InformationItem-DM-Rprt", "nbap.RL_InformationItem_DM_Rprt_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PUSCH_Info_DM_Rprt_PDU,
@@ -58538,19 +58553,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Set_InformationItem_DM_Rprt_PDU,
-      { "RL-Set-InformationItem-DM-Rprt", "nbap.RL_Set_InformationItem_DM_Rprt",
+      { "RL-Set-InformationItem-DM-Rprt", "nbap.RL_Set_InformationItem_DM_Rprt_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DedicatedMeasurementTerminationRequest_PDU,
-      { "DedicatedMeasurementTerminationRequest", "nbap.DedicatedMeasurementTerminationRequest",
+      { "DedicatedMeasurementTerminationRequest", "nbap.DedicatedMeasurementTerminationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DedicatedMeasurementFailureIndication_PDU,
-      { "DedicatedMeasurementFailureIndication", "nbap.DedicatedMeasurementFailureIndication",
+      { "DedicatedMeasurementFailureIndication", "nbap.DedicatedMeasurementFailureIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkFailureIndication_PDU,
-      { "RadioLinkFailureIndication", "nbap.RadioLinkFailureIndication",
+      { "RadioLinkFailureIndication", "nbap.RadioLinkFailureIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Reporting_Object_RL_FailureInd_PDU,
@@ -58558,19 +58573,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_Reporting_Object_RL_FailureInd_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationItem_RL_FailureInd_PDU,
-      { "RL-InformationItem-RL-FailureInd", "nbap.RL_InformationItem_RL_FailureInd",
+      { "RL-InformationItem-RL-FailureInd", "nbap.RL_InformationItem_RL_FailureInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Set_InformationItem_RL_FailureInd_PDU,
-      { "RL-Set-InformationItem-RL-FailureInd", "nbap.RL_Set_InformationItem_RL_FailureInd",
+      { "RL-Set-InformationItem-RL-FailureInd", "nbap.RL_Set_InformationItem_RL_FailureInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CCTrCH_InformationItem_RL_FailureInd_PDU,
-      { "CCTrCH-InformationItem-RL-FailureInd", "nbap.CCTrCH_InformationItem_RL_FailureInd",
+      { "CCTrCH-InformationItem-RL-FailureInd", "nbap.CCTrCH_InformationItem_RL_FailureInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkPreemptionRequiredIndication_PDU,
-      { "RadioLinkPreemptionRequiredIndication", "nbap.RadioLinkPreemptionRequiredIndication",
+      { "RadioLinkPreemptionRequiredIndication", "nbap.RadioLinkPreemptionRequiredIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationList_RL_PreemptRequiredInd_PDU,
@@ -58578,11 +58593,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationItem_RL_PreemptRequiredInd_PDU,
-      { "RL-InformationItem-RL-PreemptRequiredInd", "nbap.RL_InformationItem_RL_PreemptRequiredInd",
+      { "RL-InformationItem-RL-PreemptRequiredInd", "nbap.RL_InformationItem_RL_PreemptRequiredInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkRestoreIndication_PDU,
-      { "RadioLinkRestoreIndication", "nbap.RadioLinkRestoreIndication",
+      { "RadioLinkRestoreIndication", "nbap.RadioLinkRestoreIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Reporting_Object_RL_RestoreInd_PDU,
@@ -58590,31 +58605,31 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_Reporting_Object_RL_RestoreInd_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationItem_RL_RestoreInd_PDU,
-      { "RL-InformationItem-RL-RestoreInd", "nbap.RL_InformationItem_RL_RestoreInd",
+      { "RL-InformationItem-RL-RestoreInd", "nbap.RL_InformationItem_RL_RestoreInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Set_InformationItem_RL_RestoreInd_PDU,
-      { "RL-Set-InformationItem-RL-RestoreInd", "nbap.RL_Set_InformationItem_RL_RestoreInd",
+      { "RL-Set-InformationItem-RL-RestoreInd", "nbap.RL_Set_InformationItem_RL_RestoreInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CCTrCH_InformationItem_RL_RestoreInd_PDU,
-      { "CCTrCH-InformationItem-RL-RestoreInd", "nbap.CCTrCH_InformationItem_RL_RestoreInd",
+      { "CCTrCH-InformationItem-RL-RestoreInd", "nbap.CCTrCH_InformationItem_RL_RestoreInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CompressedModeCommand_PDU,
-      { "CompressedModeCommand", "nbap.CompressedModeCommand",
+      { "CompressedModeCommand", "nbap.CompressedModeCommand_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ErrorIndication_PDU,
-      { "ErrorIndication", "nbap.ErrorIndication",
+      { "ErrorIndication", "nbap.ErrorIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PrivateMessage_PDU,
-      { "PrivateMessage", "nbap.PrivateMessage",
+      { "PrivateMessage", "nbap.PrivateMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PhysicalSharedChannelReconfigurationRequestFDD_PDU,
-      { "PhysicalSharedChannelReconfigurationRequestFDD", "nbap.PhysicalSharedChannelReconfigurationRequestFDD",
+      { "PhysicalSharedChannelReconfigurationRequestFDD", "nbap.PhysicalSharedChannelReconfigurationRequestFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDPA_And_EDCH_CellPortion_InformationList_PSCH_ReconfRqst_PDU,
@@ -58622,7 +58637,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PhysicalSharedChannelReconfigurationRequestTDD_PDU,
-      { "PhysicalSharedChannelReconfigurationRequestTDD", "nbap.PhysicalSharedChannelReconfigurationRequestTDD",
+      { "PhysicalSharedChannelReconfigurationRequestTDD", "nbap.PhysicalSharedChannelReconfigurationRequestTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PDSCHSets_AddList_PSCH_ReconfRqst_PDU,
@@ -58630,15 +58645,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PDSCH_Information_AddItem_PSCH_ReconfRqst_PDU,
-      { "PDSCH-Information-AddItem-PSCH-ReconfRqst", "nbap.PDSCH_Information_AddItem_PSCH_ReconfRqst",
+      { "PDSCH-Information-AddItem-PSCH-ReconfRqst", "nbap.PDSCH_Information_AddItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PDSCH_AddInformation_LCR_AddItem_PSCH_ReconfRqst_PDU,
-      { "PDSCH-AddInformation-LCR-AddItem-PSCH-ReconfRqst", "nbap.PDSCH_AddInformation_LCR_AddItem_PSCH_ReconfRqst",
+      { "PDSCH-AddInformation-LCR-AddItem-PSCH-ReconfRqst", "nbap.PDSCH_AddInformation_LCR_AddItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PDSCH_AddInformation_768_AddItem_PSCH_ReconfRqst_PDU,
-      { "PDSCH-AddInformation-768-AddItem-PSCH-ReconfRqst", "nbap.PDSCH_AddInformation_768_AddItem_PSCH_ReconfRqst",
+      { "PDSCH-AddInformation-768-AddItem-PSCH-ReconfRqst", "nbap.PDSCH_AddInformation_768_AddItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PDSCHSets_ModifyList_PSCH_ReconfRqst_PDU,
@@ -58646,15 +58661,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PDSCH_Information_ModifyItem_PSCH_ReconfRqst_PDU,
-      { "PDSCH-Information-ModifyItem-PSCH-ReconfRqst", "nbap.PDSCH_Information_ModifyItem_PSCH_ReconfRqst",
+      { "PDSCH-Information-ModifyItem-PSCH-ReconfRqst", "nbap.PDSCH_Information_ModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PDSCH_ModifyInformation_LCR_ModifyItem_PSCH_ReconfRqst_PDU,
-      { "PDSCH-ModifyInformation-LCR-ModifyItem-PSCH-ReconfRqst", "nbap.PDSCH_ModifyInformation_LCR_ModifyItem_PSCH_ReconfRqst",
+      { "PDSCH-ModifyInformation-LCR-ModifyItem-PSCH-ReconfRqst", "nbap.PDSCH_ModifyInformation_LCR_ModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PDSCH_ModifyInformation_768_ModifyItem_PSCH_ReconfRqst_PDU,
-      { "PDSCH-ModifyInformation-768-ModifyItem-PSCH-ReconfRqst", "nbap.PDSCH_ModifyInformation_768_ModifyItem_PSCH_ReconfRqst",
+      { "PDSCH-ModifyInformation-768-ModifyItem-PSCH-ReconfRqst", "nbap.PDSCH_ModifyInformation_768_ModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PDSCHSets_DeleteList_PSCH_ReconfRqst_PDU,
@@ -58666,15 +58681,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PUSCH_Information_AddItem_PSCH_ReconfRqst_PDU,
-      { "PUSCH-Information-AddItem-PSCH-ReconfRqst", "nbap.PUSCH_Information_AddItem_PSCH_ReconfRqst",
+      { "PUSCH-Information-AddItem-PSCH-ReconfRqst", "nbap.PUSCH_Information_AddItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PUSCH_AddInformation_LCR_AddItem_PSCH_ReconfRqst_PDU,
-      { "PUSCH-AddInformation-LCR-AddItem-PSCH-ReconfRqst", "nbap.PUSCH_AddInformation_LCR_AddItem_PSCH_ReconfRqst",
+      { "PUSCH-AddInformation-LCR-AddItem-PSCH-ReconfRqst", "nbap.PUSCH_AddInformation_LCR_AddItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PUSCH_AddInformation_768_AddItem_PSCH_ReconfRqst_PDU,
-      { "PUSCH-AddInformation-768-AddItem-PSCH-ReconfRqst", "nbap.PUSCH_AddInformation_768_AddItem_PSCH_ReconfRqst",
+      { "PUSCH-AddInformation-768-AddItem-PSCH-ReconfRqst", "nbap.PUSCH_AddInformation_768_AddItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PUSCHSets_ModifyList_PSCH_ReconfRqst_PDU,
@@ -58682,15 +58697,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PUSCH_Information_ModifyItem_PSCH_ReconfRqst_PDU,
-      { "PUSCH-Information-ModifyItem-PSCH-ReconfRqst", "nbap.PUSCH_Information_ModifyItem_PSCH_ReconfRqst",
+      { "PUSCH-Information-ModifyItem-PSCH-ReconfRqst", "nbap.PUSCH_Information_ModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PUSCH_ModifyInformation_LCR_ModifyItem_PSCH_ReconfRqst_PDU,
-      { "PUSCH-ModifyInformation-LCR-ModifyItem-PSCH-ReconfRqst", "nbap.PUSCH_ModifyInformation_LCR_ModifyItem_PSCH_ReconfRqst",
+      { "PUSCH-ModifyInformation-LCR-ModifyItem-PSCH-ReconfRqst", "nbap.PUSCH_ModifyInformation_LCR_ModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PUSCH_ModifyInformation_768_ModifyItem_PSCH_ReconfRqst_PDU,
-      { "PUSCH-ModifyInformation-768-ModifyItem-PSCH-ReconfRqst", "nbap.PUSCH_ModifyInformation_768_ModifyItem_PSCH_ReconfRqst",
+      { "PUSCH-ModifyInformation-768-ModifyItem-PSCH-ReconfRqst", "nbap.PUSCH_ModifyInformation_768_ModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PUSCHSets_DeleteList_PSCH_ReconfRqst_PDU,
@@ -58698,7 +58713,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_PDSCH_TDD_Information_PSCH_ReconfRqst_PDU,
-      { "HS-PDSCH-TDD-Information-PSCH-ReconfRqst", "nbap.HS_PDSCH_TDD_Information_PSCH_ReconfRqst",
+      { "HS-PDSCH-TDD-Information-PSCH-ReconfRqst", "nbap.HS_PDSCH_TDD_Information_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_HS_PDSCH_Timeslot_Information_768_PSCH_ReconfRqst_PDU,
@@ -58710,11 +58725,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleFreq_DL_HS_PDSCH_Timeslot_Information_LCRItem_PSCH_ReconfRqst_PDU,
-      { "MultipleFreq-DL-HS-PDSCH-Timeslot-Information-LCRItem-PSCH-ReconfRqst", "nbap.MultipleFreq_DL_HS_PDSCH_Timeslot_Information_LCRItem_PSCH_ReconfRqst",
+      { "MultipleFreq-DL-HS-PDSCH-Timeslot-Information-LCRItem-PSCH-ReconfRqst", "nbap.MultipleFreq_DL_HS_PDSCH_Timeslot_Information_LCRItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Add_To_HS_SCCH_Resource_Pool_PSCH_ReconfRqst_PDU,
-      { "Add-To-HS-SCCH-Resource-Pool-PSCH-ReconfRqst", "nbap.Add_To_HS_SCCH_Resource_Pool_PSCH_ReconfRqst",
+      { "Add-To-HS-SCCH-Resource-Pool-PSCH-ReconfRqst", "nbap.Add_To_HS_SCCH_Resource_Pool_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_SCCH_Information_768_PSCH_ReconfRqst_PDU,
@@ -58726,7 +58741,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Modify_HS_SCCH_Resource_Pool_PSCH_ReconfRqst_PDU,
-      { "Modify-HS-SCCH-Resource-Pool-PSCH-ReconfRqst", "nbap.Modify_HS_SCCH_Resource_Pool_PSCH_ReconfRqst",
+      { "Modify-HS-SCCH-Resource-Pool-PSCH-ReconfRqst", "nbap.Modify_HS_SCCH_Resource_Pool_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_SCCH_InformationModifyExt_LCR_PSCH_ReconfRqst_PDU,
@@ -58742,15 +58757,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_PUCH_Information_PSCH_ReconfRqst_PDU,
-      { "E-PUCH-Information-PSCH-ReconfRqst", "nbap.E_PUCH_Information_PSCH_ReconfRqst",
+      { "E-PUCH-Information-PSCH-ReconfRqst", "nbap.E_PUCH_Information_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Add_To_E_AGCH_Resource_Pool_PSCH_ReconfRqst_PDU,
-      { "Add-To-E-AGCH-Resource-Pool-PSCH-ReconfRqst", "nbap.Add_To_E_AGCH_Resource_Pool_PSCH_ReconfRqst",
+      { "Add-To-E-AGCH-Resource-Pool-PSCH-ReconfRqst", "nbap.Add_To_E_AGCH_Resource_Pool_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Modify_E_AGCH_Resource_Pool_PSCH_ReconfRqst_PDU,
-      { "Modify-E-AGCH-Resource-Pool-PSCH-ReconfRqst", "nbap.Modify_E_AGCH_Resource_Pool_PSCH_ReconfRqst",
+      { "Modify-E-AGCH-Resource-Pool-PSCH-ReconfRqst", "nbap.Modify_E_AGCH_Resource_Pool_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Delete_From_E_AGCH_Resource_Pool_PSCH_ReconfRqst_PDU,
@@ -58758,43 +58773,43 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_HICH_Information_PSCH_ReconfRqst_PDU,
-      { "E-HICH-Information-PSCH-ReconfRqst", "nbap.E_HICH_Information_PSCH_ReconfRqst",
+      { "E-HICH-Information-PSCH-ReconfRqst", "nbap.E_HICH_Information_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_PUCH_Information_768_PSCH_ReconfRqst_PDU,
-      { "E-PUCH-Information-768-PSCH-ReconfRqst", "nbap.E_PUCH_Information_768_PSCH_ReconfRqst",
+      { "E-PUCH-Information-768-PSCH-ReconfRqst", "nbap.E_PUCH_Information_768_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Add_To_E_AGCH_Resource_Pool_768_PSCH_ReconfRqst_PDU,
-      { "Add-To-E-AGCH-Resource-Pool-768-PSCH-ReconfRqst", "nbap.Add_To_E_AGCH_Resource_Pool_768_PSCH_ReconfRqst",
+      { "Add-To-E-AGCH-Resource-Pool-768-PSCH-ReconfRqst", "nbap.Add_To_E_AGCH_Resource_Pool_768_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Modify_E_AGCH_Resource_Pool_768_PSCH_ReconfRqst_PDU,
-      { "Modify-E-AGCH-Resource-Pool-768-PSCH-ReconfRqst", "nbap.Modify_E_AGCH_Resource_Pool_768_PSCH_ReconfRqst",
+      { "Modify-E-AGCH-Resource-Pool-768-PSCH-ReconfRqst", "nbap.Modify_E_AGCH_Resource_Pool_768_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_HICH_Information_768_PSCH_ReconfRqst_PDU,
-      { "E-HICH-Information-768-PSCH-ReconfRqst", "nbap.E_HICH_Information_768_PSCH_ReconfRqst",
+      { "E-HICH-Information-768-PSCH-ReconfRqst", "nbap.E_HICH_Information_768_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_PUCH_Information_LCR_PSCH_ReconfRqst_PDU,
-      { "E-PUCH-Information-LCR-PSCH-ReconfRqst", "nbap.E_PUCH_Information_LCR_PSCH_ReconfRqst",
+      { "E-PUCH-Information-LCR-PSCH-ReconfRqst", "nbap.E_PUCH_Information_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Add_To_E_AGCH_Resource_Pool_LCR_PSCH_ReconfRqst_PDU,
-      { "Add-To-E-AGCH-Resource-Pool-LCR-PSCH-ReconfRqst", "nbap.Add_To_E_AGCH_Resource_Pool_LCR_PSCH_ReconfRqst",
+      { "Add-To-E-AGCH-Resource-Pool-LCR-PSCH-ReconfRqst", "nbap.Add_To_E_AGCH_Resource_Pool_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Modify_E_AGCH_Resource_Pool_LCR_PSCH_ReconfRqst_PDU,
-      { "Modify-E-AGCH-Resource-Pool-LCR-PSCH-ReconfRqst", "nbap.Modify_E_AGCH_Resource_Pool_LCR_PSCH_ReconfRqst",
+      { "Modify-E-AGCH-Resource-Pool-LCR-PSCH-ReconfRqst", "nbap.Modify_E_AGCH_Resource_Pool_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Add_To_E_HICH_Resource_Pool_LCR_PSCH_ReconfRqst_PDU,
-      { "Add-To-E-HICH-Resource-Pool-LCR-PSCH-ReconfRqst", "nbap.Add_To_E_HICH_Resource_Pool_LCR_PSCH_ReconfRqst",
+      { "Add-To-E-HICH-Resource-Pool-LCR-PSCH-ReconfRqst", "nbap.Add_To_E_HICH_Resource_Pool_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Modify_E_HICH_Resource_Pool_LCR_PSCH_ReconfRqst_PDU,
-      { "Modify-E-HICH-Resource-Pool-LCR-PSCH-ReconfRqst", "nbap.Modify_E_HICH_Resource_Pool_LCR_PSCH_ReconfRqst",
+      { "Modify-E-HICH-Resource-Pool-LCR-PSCH-ReconfRqst", "nbap.Modify_E_HICH_Resource_Pool_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Delete_From_E_HICH_Resource_Pool_PSCH_ReconfRqst_PDU,
@@ -58802,7 +58817,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SYNC_UL_Partition_LCR_PDU,
-      { "SYNC-UL-Partition-LCR", "nbap.SYNC_UL_Partition_LCR",
+      { "SYNC-UL-Partition-LCR", "nbap.SYNC_UL_Partition_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Delete_From_HS_SCCH_Resource_PoolExt_PSCH_ReconfRqst_PDU,
@@ -58814,7 +58829,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleFreq_E_PUCH_Timeslot_Information_LCRItem_PSCH_ReconfRqst_PDU,
-      { "MultipleFreq-E-PUCH-Timeslot-Information-LCRItem-PSCH-ReconfRqst", "nbap.MultipleFreq_E_PUCH_Timeslot_Information_LCRItem_PSCH_ReconfRqst",
+      { "MultipleFreq-E-PUCH-Timeslot-Information-LCRItem-PSCH-ReconfRqst", "nbap.MultipleFreq_E_PUCH_Timeslot_Information_LCRItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Max_RTWP_perUARFCN_Information_LCR_PSCH_ReconfRqst_PDU,
@@ -58822,7 +58837,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PhysicalSharedChannelReconfigurationResponse_PDU,
-      { "PhysicalSharedChannelReconfigurationResponse", "nbap.PhysicalSharedChannelReconfigurationResponse",
+      { "PhysicalSharedChannelReconfigurationResponse", "nbap.PhysicalSharedChannelReconfigurationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_HICH_TimeOffset_ExtensionLCR_PDU,
@@ -58830,11 +58845,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleFreq_E_HICH_TimeOffsetLCR_PDU,
-      { "MultipleFreq-E-HICH-TimeOffsetLCR", "nbap.MultipleFreq_E_HICH_TimeOffsetLCR",
+      { "MultipleFreq-E-HICH-TimeOffsetLCR", "nbap.MultipleFreq_E_HICH_TimeOffsetLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PhysicalSharedChannelReconfigurationFailure_PDU,
-      { "PhysicalSharedChannelReconfigurationFailure", "nbap.PhysicalSharedChannelReconfigurationFailure",
+      { "PhysicalSharedChannelReconfigurationFailure", "nbap.PhysicalSharedChannelReconfigurationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CauseLevel_PSCH_ReconfFailure_PDU,
@@ -58842,11 +58857,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_CauseLevel_PSCH_ReconfFailure_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_Unsuccessful_PDSCHSetItem_PSCH_ReconfFailureTDD_PDU,
-      { "Unsuccessful-PDSCHSetItem-PSCH-ReconfFailureTDD", "nbap.Unsuccessful_PDSCHSetItem_PSCH_ReconfFailureTDD",
+      { "Unsuccessful-PDSCHSetItem-PSCH-ReconfFailureTDD", "nbap.Unsuccessful_PDSCHSetItem_PSCH_ReconfFailureTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Unsuccessful_PUSCHSetItem_PSCH_ReconfFailureTDD_PDU,
-      { "Unsuccessful-PUSCHSetItem-PSCH-ReconfFailureTDD", "nbap.Unsuccessful_PUSCHSetItem_PSCH_ReconfFailureTDD",
+      { "Unsuccessful-PUSCHSetItem-PSCH-ReconfFailureTDD", "nbap.Unsuccessful_PUSCHSetItem_PSCH_ReconfFailureTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UARFCNSpecificCauseList_PSCH_ReconfFailureTDD_PDU,
@@ -58854,7 +58869,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Unsuccessful_UARFCNItem_PSCH_ReconfFailureTDD_PDU,
-      { "Unsuccessful-UARFCNItem-PSCH-ReconfFailureTDD", "nbap.Unsuccessful_UARFCNItem_PSCH_ReconfFailureTDD",
+      { "Unsuccessful-UARFCNItem-PSCH-ReconfFailureTDD", "nbap.Unsuccessful_UARFCNItem_PSCH_ReconfFailureTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_HICH_TimeOffset_ReconfFailureTDD_PDU,
@@ -58862,11 +58877,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Common_System_Information_ResponseLCR_PDU,
-      { "Common-System-Information-ResponseLCR", "nbap.Common_System_Information_ResponseLCR",
+      { "Common-System-Information-ResponseLCR", "nbap.Common_System_Information_ResponseLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ResetRequest_PDU,
-      { "ResetRequest", "nbap.ResetRequest",
+      { "ResetRequest", "nbap.ResetRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ResetIndicator_PDU,
@@ -58874,19 +58889,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_ResetIndicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_CommunicationContextInfoItem_Reset_PDU,
-      { "CommunicationContextInfoItem-Reset", "nbap.CommunicationContextInfoItem_Reset",
+      { "CommunicationContextInfoItem-Reset", "nbap.CommunicationContextInfoItem_Reset_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommunicationControlPortInfoItem_Reset_PDU,
-      { "CommunicationControlPortInfoItem-Reset", "nbap.CommunicationControlPortInfoItem_Reset",
+      { "CommunicationControlPortInfoItem-Reset", "nbap.CommunicationControlPortInfoItem_Reset_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ResetResponse_PDU,
-      { "ResetResponse", "nbap.ResetResponse",
+      { "ResetResponse", "nbap.ResetResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_InformationExchangeInitiationRequest_PDU,
-      { "InformationExchangeInitiationRequest", "nbap.InformationExchangeInitiationRequest",
+      { "InformationExchangeInitiationRequest", "nbap.InformationExchangeInitiationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_InformationExchangeObjectType_InfEx_Rqst_PDU,
@@ -58894,7 +58909,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_InformationExchangeObjectType_InfEx_Rqst_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_InformationExchangeInitiationResponse_PDU,
-      { "InformationExchangeInitiationResponse", "nbap.InformationExchangeInitiationResponse",
+      { "InformationExchangeInitiationResponse", "nbap.InformationExchangeInitiationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_InformationExchangeObjectType_InfEx_Rsp_PDU,
@@ -58902,11 +58917,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_InformationExchangeObjectType_InfEx_Rsp_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_InformationExchangeInitiationFailure_PDU,
-      { "InformationExchangeInitiationFailure", "nbap.InformationExchangeInitiationFailure",
+      { "InformationExchangeInitiationFailure", "nbap.InformationExchangeInitiationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_InformationReport_PDU,
-      { "InformationReport", "nbap.InformationReport",
+      { "InformationReport", "nbap.InformationReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_InformationExchangeObjectType_InfEx_Rprt_PDU,
@@ -58914,15 +58929,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_InformationExchangeObjectType_InfEx_Rprt_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_InformationExchangeTerminationRequest_PDU,
-      { "InformationExchangeTerminationRequest", "nbap.InformationExchangeTerminationRequest",
+      { "InformationExchangeTerminationRequest", "nbap.InformationExchangeTerminationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_InformationExchangeFailureIndication_PDU,
-      { "InformationExchangeFailureIndication", "nbap.InformationExchangeFailureIndication",
+      { "InformationExchangeFailureIndication", "nbap.InformationExchangeFailureIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSynchronisationInitiationRequestTDD_PDU,
-      { "CellSynchronisationInitiationRequestTDD", "nbap.CellSynchronisationInitiationRequestTDD",
+      { "CellSynchronisationInitiationRequestTDD", "nbap.CellSynchronisationInitiationRequestTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TimeslotInfo_CellSyncInitiationRqstTDD_PDU,
@@ -58930,31 +58945,31 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSyncBurstTransInit_CellSyncInitiationRqstTDD_PDU,
-      { "CellSyncBurstTransInit-CellSyncInitiationRqstTDD", "nbap.CellSyncBurstTransInit_CellSyncInitiationRqstTDD",
+      { "CellSyncBurstTransInit-CellSyncInitiationRqstTDD", "nbap.CellSyncBurstTransInit_CellSyncInitiationRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSyncBurstMeasureInit_CellSyncInitiationRqstTDD_PDU,
-      { "CellSyncBurstMeasureInit-CellSyncInitiationRqstTDD", "nbap.CellSyncBurstMeasureInit_CellSyncInitiationRqstTDD",
+      { "CellSyncBurstMeasureInit-CellSyncInitiationRqstTDD", "nbap.CellSyncBurstMeasureInit_CellSyncInitiationRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SYNCDlCodeId_TransInitLCR_CellSyncInitiationRqstTDD_PDU,
-      { "SYNCDlCodeId-TransInitLCR-CellSyncInitiationRqstTDD", "nbap.SYNCDlCodeId_TransInitLCR_CellSyncInitiationRqstTDD",
+      { "SYNCDlCodeId-TransInitLCR-CellSyncInitiationRqstTDD", "nbap.SYNCDlCodeId_TransInitLCR_CellSyncInitiationRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SYNCDlCodeId_MeasureInitLCR_CellSyncInitiationRqstTDD_PDU,
-      { "SYNCDlCodeId-MeasureInitLCR-CellSyncInitiationRqstTDD", "nbap.SYNCDlCodeId_MeasureInitLCR_CellSyncInitiationRqstTDD",
+      { "SYNCDlCodeId-MeasureInitLCR-CellSyncInitiationRqstTDD", "nbap.SYNCDlCodeId_MeasureInitLCR_CellSyncInitiationRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSynchronisationInitiationResponseTDD_PDU,
-      { "CellSynchronisationInitiationResponseTDD", "nbap.CellSynchronisationInitiationResponseTDD",
+      { "CellSynchronisationInitiationResponseTDD", "nbap.CellSynchronisationInitiationResponseTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSynchronisationInitiationFailureTDD_PDU,
-      { "CellSynchronisationInitiationFailureTDD", "nbap.CellSynchronisationInitiationFailureTDD",
+      { "CellSynchronisationInitiationFailureTDD", "nbap.CellSynchronisationInitiationFailureTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSynchronisationReconfigurationRequestTDD_PDU,
-      { "CellSynchronisationReconfigurationRequestTDD", "nbap.CellSynchronisationReconfigurationRequestTDD",
+      { "CellSynchronisationReconfigurationRequestTDD", "nbap.CellSynchronisationReconfigurationRequestTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSyncBurstTransReconfInfo_CellSyncReconfRqstTDD_PDU,
@@ -58962,7 +58977,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSyncBurstMeasInfo_CellSyncReconfRqstTDD_PDU,
-      { "CellSyncBurstMeasInfo-CellSyncReconfRqstTDD", "nbap.CellSyncBurstMeasInfo_CellSyncReconfRqstTDD",
+      { "CellSyncBurstMeasInfo-CellSyncReconfRqstTDD", "nbap.CellSyncBurstMeasInfo_CellSyncReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSyncBurstMeasInfoListIE_CellSyncReconfRqstTDD_PDU,
@@ -58974,19 +58989,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SYNCDlCodeIdMeasInfoLCR_CellSyncReconfRqstTDD_PDU,
-      { "SYNCDlCodeIdMeasInfoLCR-CellSyncReconfRqstTDD", "nbap.SYNCDlCodeIdMeasInfoLCR_CellSyncReconfRqstTDD",
+      { "SYNCDlCodeIdMeasInfoLCR-CellSyncReconfRqstTDD", "nbap.SYNCDlCodeIdMeasInfoLCR_CellSyncReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSynchronisationReconfigurationResponseTDD_PDU,
-      { "CellSynchronisationReconfigurationResponseTDD", "nbap.CellSynchronisationReconfigurationResponseTDD",
+      { "CellSynchronisationReconfigurationResponseTDD", "nbap.CellSynchronisationReconfigurationResponseTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSynchronisationReconfigurationFailureTDD_PDU,
-      { "CellSynchronisationReconfigurationFailureTDD", "nbap.CellSynchronisationReconfigurationFailureTDD",
+      { "CellSynchronisationReconfigurationFailureTDD", "nbap.CellSynchronisationReconfigurationFailureTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSynchronisationAdjustmentRequestTDD_PDU,
-      { "CellSynchronisationAdjustmentRequestTDD", "nbap.CellSynchronisationAdjustmentRequestTDD",
+      { "CellSynchronisationAdjustmentRequestTDD", "nbap.CellSynchronisationAdjustmentRequestTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellAdjustmentInfo_SyncAdjustmentRqstTDD_PDU,
@@ -58994,15 +59009,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellAdjustmentInfoItem_SyncAdjustmentRqstTDD_PDU,
-      { "CellAdjustmentInfoItem-SyncAdjustmentRqstTDD", "nbap.CellAdjustmentInfoItem_SyncAdjustmentRqstTDD",
+      { "CellAdjustmentInfoItem-SyncAdjustmentRqstTDD", "nbap.CellAdjustmentInfoItem_SyncAdjustmentRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSynchronisationAdjustmentResponseTDD_PDU,
-      { "CellSynchronisationAdjustmentResponseTDD", "nbap.CellSynchronisationAdjustmentResponseTDD",
+      { "CellSynchronisationAdjustmentResponseTDD", "nbap.CellSynchronisationAdjustmentResponseTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSynchronisationAdjustmentFailureTDD_PDU,
-      { "CellSynchronisationAdjustmentFailureTDD", "nbap.CellSynchronisationAdjustmentFailureTDD",
+      { "CellSynchronisationAdjustmentFailureTDD", "nbap.CellSynchronisationAdjustmentFailureTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CauseLevel_SyncAdjustmntFailureTDD_PDU,
@@ -59010,19 +59025,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_CauseLevel_SyncAdjustmntFailureTDD_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_Unsuccessful_cell_InformationRespItem_SyncAdjustmntFailureTDD_PDU,
-      { "Unsuccessful-cell-InformationRespItem-SyncAdjustmntFailureTDD", "nbap.Unsuccessful_cell_InformationRespItem_SyncAdjustmntFailureTDD",
+      { "Unsuccessful-cell-InformationRespItem-SyncAdjustmntFailureTDD", "nbap.Unsuccessful_cell_InformationRespItem_SyncAdjustmntFailureTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSynchronisationTerminationRequestTDD_PDU,
-      { "CellSynchronisationTerminationRequestTDD", "nbap.CellSynchronisationTerminationRequestTDD",
+      { "CellSynchronisationTerminationRequestTDD", "nbap.CellSynchronisationTerminationRequestTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSynchronisationFailureIndicationTDD_PDU,
-      { "CellSynchronisationFailureIndicationTDD", "nbap.CellSynchronisationFailureIndicationTDD",
+      { "CellSynchronisationFailureIndicationTDD", "nbap.CellSynchronisationFailureIndicationTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSynchronisationReportTDD_PDU,
-      { "CellSynchronisationReportTDD", "nbap.CellSynchronisationReportTDD",
+      { "CellSynchronisationReportTDD", "nbap.CellSynchronisationReportTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSyncInfo_CellSyncReprtTDD_PDU,
@@ -59038,7 +59053,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_BearerRearrangementIndication_PDU,
-      { "BearerRearrangementIndication", "nbap.BearerRearrangementIndication",
+      { "BearerRearrangementIndication", "nbap.BearerRearrangementIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DCH_RearrangeList_Bearer_RearrangeInd_PDU,
@@ -59066,7 +59081,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkActivationCommandFDD_PDU,
-      { "RadioLinkActivationCommandFDD", "nbap.RadioLinkActivationCommandFDD",
+      { "RadioLinkActivationCommandFDD", "nbap.RadioLinkActivationCommandFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DelayedActivationInformationList_RL_ActivationCmdFDD_PDU,
@@ -59074,11 +59089,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DelayedActivationInformation_RL_ActivationCmdFDD_PDU,
-      { "DelayedActivationInformation-RL-ActivationCmdFDD", "nbap.DelayedActivationInformation_RL_ActivationCmdFDD",
+      { "DelayedActivationInformation-RL-ActivationCmdFDD", "nbap.DelayedActivationInformation_RL_ActivationCmdFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkActivationCommandTDD_PDU,
-      { "RadioLinkActivationCommandTDD", "nbap.RadioLinkActivationCommandTDD",
+      { "RadioLinkActivationCommandTDD", "nbap.RadioLinkActivationCommandTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DelayedActivationInformationList_RL_ActivationCmdTDD_PDU,
@@ -59086,11 +59101,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DelayedActivationInformation_RL_ActivationCmdTDD_PDU,
-      { "DelayedActivationInformation-RL-ActivationCmdTDD", "nbap.DelayedActivationInformation_RL_ActivationCmdTDD",
+      { "DelayedActivationInformation-RL-ActivationCmdTDD", "nbap.DelayedActivationInformation_RL_ActivationCmdTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkParameterUpdateIndicationFDD_PDU,
-      { "RadioLinkParameterUpdateIndicationFDD", "nbap.RadioLinkParameterUpdateIndicationFDD",
+      { "RadioLinkParameterUpdateIndicationFDD", "nbap.RadioLinkParameterUpdateIndicationFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_HS_Cell_Information_RL_Param_Upd_PDU,
@@ -59102,23 +59117,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RadioLinkParameterUpdateIndicationTDD_PDU,
-      { "RadioLinkParameterUpdateIndicationTDD", "nbap.RadioLinkParameterUpdateIndicationTDD",
+      { "RadioLinkParameterUpdateIndicationTDD", "nbap.RadioLinkParameterUpdateIndicationTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MBMSNotificationUpdateCommand_PDU,
-      { "MBMSNotificationUpdateCommand", "nbap.MBMSNotificationUpdateCommand",
+      { "MBMSNotificationUpdateCommand", "nbap.MBMSNotificationUpdateCommand_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UEStatusUpdateCommand_PDU,
-      { "UEStatusUpdateCommand", "nbap.UEStatusUpdateCommand",
+      { "UEStatusUpdateCommand", "nbap.UEStatusUpdateCommand_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SecondaryULFrequencyReport_PDU,
-      { "SecondaryULFrequencyReport", "nbap.SecondaryULFrequencyReport",
+      { "SecondaryULFrequencyReport", "nbap.SecondaryULFrequencyReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SecondaryULFrequencyUpdateIndication_PDU,
-      { "SecondaryULFrequencyUpdateIndication", "nbap.SecondaryULFrequencyUpdateIndication",
+      { "SecondaryULFrequencyUpdateIndication", "nbap.SecondaryULFrequencyUpdateIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_NBAP_PDU_PDU,
@@ -59126,7 +59141,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_NBAP_PDU_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_NULL_PDU,
-      { "NULL", "nbap.NULL",
+      { "NULL", "nbap.NULL_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_local,
@@ -59154,7 +59169,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_32767", HFILL }},
     { &hf_nbap_ProtocolIE_Container_item,
-      { "ProtocolIE-Field", "nbap.ProtocolIE_Field",
+      { "ProtocolIE-Field", "nbap.ProtocolIE_Field_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_id,
@@ -59166,19 +59181,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_Criticality_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_ie_field_value,
-      { "value", "nbap.value",
+      { "value", "nbap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ProtocolIE_Field_value", HFILL }},
     { &hf_nbap_ProtocolExtensionContainer_item,
-      { "ProtocolExtensionField", "nbap.ProtocolExtensionField",
+      { "ProtocolExtensionField", "nbap.ProtocolExtensionField_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_extensionValue,
-      { "extensionValue", "nbap.extensionValue",
+      { "extensionValue", "nbap.extensionValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PrivateIE_Container_item,
-      { "PrivateIE-Field", "nbap.PrivateIE_Field",
+      { "PrivateIE-Field", "nbap.PrivateIE_Field_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_id_01,
@@ -59186,11 +59201,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_PrivateIE_ID_vals), 0,
         "PrivateIE_ID", HFILL }},
     { &hf_nbap_private_value,
-      { "value", "nbap.value",
+      { "value", "nbap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PrivateIE_Field_value", HFILL }},
     { &hf_nbap_ActivationInformation_item,
-      { "ActivationInformationItem", "nbap.ActivationInformationItem",
+      { "ActivationInformationItem", "nbap.ActivationInformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uU_ActivationState,
@@ -59210,11 +59225,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_Cell_Information_Setup_item,
-      { "Additional-EDCH-FDD-Setup-Cell-Information", "nbap.Additional_EDCH_FDD_Setup_Cell_Information",
+      { "Additional-EDCH-FDD-Setup-Cell-Information", "nbap.Additional_EDCH_FDD_Setup_Cell_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_additional_EDCH_UL_DPCH_Information_Setup,
-      { "additional-EDCH-UL-DPCH-Information-Setup", "nbap.additional_EDCH_UL_DPCH_Information_Setup",
+      { "additional-EDCH-UL-DPCH-Information-Setup", "nbap.additional_EDCH_UL_DPCH_Information_Setup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_additional_EDCH_RL_Specific_Information_To_Setup,
@@ -59222,19 +59237,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Additional_EDCH_RL_Specific_Information_To_Setup_List", HFILL }},
     { &hf_nbap_additional_EDCH_FDD_Information,
-      { "additional-EDCH-FDD-Information", "nbap.additional_EDCH_FDD_Information",
+      { "additional-EDCH-FDD-Information", "nbap.additional_EDCH_FDD_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_additional_EDCH_F_DPCH_Information_Setup,
-      { "additional-EDCH-F-DPCH-Information-Setup", "nbap.additional_EDCH_F_DPCH_Information_Setup",
+      { "additional-EDCH-F-DPCH-Information-Setup", "nbap.additional_EDCH_F_DPCH_Information_Setup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Additional_EDCH_F_DPCH_Information", HFILL }},
     { &hf_nbap_multicell_EDCH_Information,
-      { "multicell-EDCH-Information", "nbap.multicell_EDCH_Information",
+      { "multicell-EDCH-Information", "nbap.multicell_EDCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ul_ScramblingCode,
-      { "ul-ScramblingCode", "nbap.ul_ScramblingCode",
+      { "ul-ScramblingCode", "nbap.ul_ScramblingCode_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ul_SIR_Target,
@@ -59254,7 +59269,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_InnerLoopDLPCStatus_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_RL_Specific_Information_To_Setup_List_item,
-      { "Additional-EDCH-RL-Specific-Information-To-Setup-ItemIEs", "nbap.Additional_EDCH_RL_Specific_Information_To_Setup_ItemIEs",
+      { "Additional-EDCH-RL-Specific-Information-To-Setup-ItemIEs", "nbap.Additional_EDCH_RL_Specific_Information_To_Setup_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_eDCH_Additional_RL_ID,
@@ -59298,11 +59313,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_multicell_EDCH_RL_Specific_Information,
-      { "multicell-EDCH-RL-Specific-Information", "nbap.multicell_EDCH_RL_Specific_Information",
+      { "multicell-EDCH-RL-Specific-Information", "nbap.multicell_EDCH_RL_Specific_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_Cell_Information_To_Add_List_item,
-      { "Additional-EDCH-Cell-Information-To-Add-ItemIEs", "nbap.Additional_EDCH_Cell_Information_To_Add_ItemIEs",
+      { "Additional-EDCH-Cell-Information-To-Add-ItemIEs", "nbap.Additional_EDCH_Cell_Information_To_Add_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_additional_EDCH_RL_Specific_Information_To_Add_ItemIEs,
@@ -59310,11 +59325,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_RL_Specific_Information_To_Add_ItemIEs_item,
-      { "EDCH-Additional-RL-Specific-Information-To-Add-List", "nbap.EDCH_Additional_RL_Specific_Information_To_Add_List",
+      { "EDCH-Additional-RL-Specific-Information-To-Add-List", "nbap.EDCH_Additional_RL_Specific_Information_To_Add_List_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_RL_Specific_Information_To_Modify_List_item,
-      { "Additional-EDCH-RL-Specific-Information-To-Modify-ItemIEs", "nbap.Additional_EDCH_RL_Specific_Information_To_Modify_ItemIEs",
+      { "Additional-EDCH-RL-Specific-Information-To-Modify-ItemIEs", "nbap.Additional_EDCH_RL_Specific_Information_To_Modify_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_additional_EDCH_MAC_d_Flows_Specific_Information,
@@ -59338,7 +59353,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "E_TFCI", HFILL }},
     { &hf_nbap_Additional_EDCH_MAC_d_Flows_Specific_Info_List_item,
-      { "Additional-EDCH-MAC-d-Flows-Specific-Info", "nbap.Additional_EDCH_MAC_d_Flows_Specific_Info",
+      { "Additional-EDCH-MAC-d-Flows-Specific-Info", "nbap.Additional_EDCH_MAC_d_Flows_Specific_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_MACdFlow_ID,
@@ -59354,7 +59369,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_Cell_Information_Response_List_item,
-      { "Additional-EDCH-FDD-Information-Response-ItemIEs", "nbap.Additional_EDCH_FDD_Information_Response_ItemIEs",
+      { "Additional-EDCH-FDD-Information-Response-ItemIEs", "nbap.Additional_EDCH_FDD_Information_Response_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_eDCH_Additional_RL_Specific_Information_Response,
@@ -59366,7 +59381,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Additional_EDCH_MAC_d_Flow_Specific_Information_Response_List", HFILL }},
     { &hf_nbap_EDCH_Additional_RL_Specific_Information_Response_List_item,
-      { "EDCH-Additional-RL-Specific-Information-Response-ItemIEs", "nbap.EDCH_Additional_RL_Specific_Information_Response_ItemIEs",
+      { "EDCH-Additional-RL-Specific-Information-Response-ItemIEs", "nbap.EDCH_Additional_RL_Specific_Information_Response_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_received_total_wide_band_power,
@@ -59386,19 +59401,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "RL_Set_ID", HFILL }},
     { &hf_nbap_e_DCH_FDD_DL_Control_Channel_Information,
-      { "e-DCH-FDD-DL-Control-Channel-Information", "nbap.e_DCH_FDD_DL_Control_Channel_Information",
+      { "e-DCH-FDD-DL-Control-Channel-Information", "nbap.e_DCH_FDD_DL_Control_Channel_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_Cell_Information_Response_RLReconf_List_item,
-      { "Additional-EDCH-FDD-Information-Response-RLReconf-Items", "nbap.Additional_EDCH_FDD_Information_Response_RLReconf_Items",
+      { "Additional-EDCH-FDD-Information-Response-RLReconf-Items", "nbap.Additional_EDCH_FDD_Information_Response_RLReconf_Items_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_additional_EDCH_FDD_Information_Response_ItemIEs,
-      { "additional-EDCH-FDD-Information-Response-ItemIEs", "nbap.additional_EDCH_FDD_Information_Response_ItemIEs",
+      { "additional-EDCH-FDD-Information-Response-ItemIEs", "nbap.additional_EDCH_FDD_Information_Response_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_additional_Modififed_EDCH_FDD_Information_Response_ItemIEs,
-      { "additional-Modififed-EDCH-FDD-Information-Response-ItemIEs", "nbap.additional_Modififed_EDCH_FDD_Information_Response_ItemIEs",
+      { "additional-Modififed-EDCH-FDD-Information-Response-ItemIEs", "nbap.additional_Modififed_EDCH_FDD_Information_Response_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_eDCH_Additional_Modified_RL_Specific_Information_Response,
@@ -59406,7 +59421,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "EDCH_Additional_Modified_RL_Specific_Information_Response_List", HFILL }},
     { &hf_nbap_EDCH_Additional_Modified_RL_Specific_Information_Response_List_item,
-      { "EDCH-Additional-Modified-RL-Specific-Information-Response-List-Items", "nbap.EDCH_Additional_Modified_RL_Specific_Information_Response_List_Items",
+      { "EDCH-Additional-Modified-RL-Specific-Information-Response-List-Items", "nbap.EDCH_Additional_Modified_RL_Specific_Information_Response_List_Items_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_PowerBalancing_UpdatedIndicator,
@@ -59414,27 +59429,27 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DL_PowerBalancing_UpdatedIndicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_MAC_d_Flow_Specific_Information_Response_List_item,
-      { "Additional-EDCH-MAC-d-Flows-Specific-Info-Response", "nbap.Additional_EDCH_MAC_d_Flows_Specific_Info_Response",
+      { "Additional-EDCH-MAC-d-Flows-Specific-Info-Response", "nbap.Additional_EDCH_MAC_d_Flows_Specific_Info_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_Cell_Information_Response_RL_Add_List_item,
-      { "Additional-EDCH-Cell-Information-Response-RL-Add-ItemIEs", "nbap.Additional_EDCH_Cell_Information_Response_RL_Add_ItemIEs",
+      { "Additional-EDCH-Cell-Information-Response-RL-Add-ItemIEs", "nbap.Additional_EDCH_Cell_Information_Response_RL_Add_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_additional_EDCH_FDD_Information_Response,
-      { "additional-EDCH-FDD-Information-Response", "nbap.additional_EDCH_FDD_Information_Response",
+      { "additional-EDCH-FDD-Information-Response", "nbap.additional_EDCH_FDD_Information_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Additional_EDCH_FDD_Information_Response_ItemIEs", HFILL }},
     { &hf_nbap_additional_EDCH_Serving_Cell_Change_Information_Response,
-      { "additional-EDCH-Serving-Cell-Change-Information-Response", "nbap.additional_EDCH_Serving_Cell_Change_Information_Response",
+      { "additional-EDCH-Serving-Cell-Change-Information-Response", "nbap.additional_EDCH_Serving_Cell_Change_Information_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "E_DCH_Serving_Cell_Change_Info_Response", HFILL }},
     { &hf_nbap_Additional_EDCH_Cell_Information_ConfigurationChange_List_item,
-      { "Additional-EDCH-ConfigurationChange-Info-ItemIEs", "nbap.Additional_EDCH_ConfigurationChange_Info_ItemIEs",
+      { "Additional-EDCH-ConfigurationChange-Info-ItemIEs", "nbap.Additional_EDCH_ConfigurationChange_Info_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_additional_EDCH_UL_DPCH_Information_Modify,
-      { "additional-EDCH-UL-DPCH-Information-Modify", "nbap.additional_EDCH_UL_DPCH_Information_Modify",
+      { "additional-EDCH-UL-DPCH-Information-Modify", "nbap.additional_EDCH_UL_DPCH_Information_Modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_additional_EDCH_RL_Specific_Information_To_Add,
@@ -59446,15 +59461,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Additional_EDCH_RL_Specific_Information_To_Modify_List", HFILL }},
     { &hf_nbap_additional_EDCH_FDD_Information_To_Modify,
-      { "additional-EDCH-FDD-Information-To-Modify", "nbap.additional_EDCH_FDD_Information_To_Modify",
+      { "additional-EDCH-FDD-Information-To-Modify", "nbap.additional_EDCH_FDD_Information_To_Modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Additional_EDCH_FDD_Information", HFILL }},
     { &hf_nbap_additional_EDCH_F_DPCH_Information_Modify,
-      { "additional-EDCH-F-DPCH-Information-Modify", "nbap.additional_EDCH_F_DPCH_Information_Modify",
+      { "additional-EDCH-F-DPCH-Information-Modify", "nbap.additional_EDCH_F_DPCH_Information_Modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Additional_EDCH_F_DPCH_Information", HFILL }},
     { &hf_nbap_Additional_EDCH_Cell_Information_Removal_List_item,
-      { "Additional-EDCH-Cell-Information-Removal-Info-ItemIEs", "nbap.Additional_EDCH_Cell_Information_Removal_Info_ItemIEs",
+      { "Additional-EDCH-Cell-Information-Removal-Info-ItemIEs", "nbap.Additional_EDCH_Cell_Information_Removal_Info_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_rL_on_Secondary_UL_Frequency,
@@ -59466,11 +59481,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Additional_EDCH_DL_Control_Channel_Change_Information_List", HFILL }},
     { &hf_nbap_Additional_EDCH_DL_Control_Channel_Change_Information_List_item,
-      { "Additional-EDCH-DL-Control-Channel-Change-Info-ItemIEs", "nbap.Additional_EDCH_DL_Control_Channel_Change_Info_ItemIEs",
+      { "Additional-EDCH-DL-Control-Channel-Change-Info-ItemIEs", "nbap.Additional_EDCH_DL_Control_Channel_Change_Info_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_AdditionalMeasurementValueList_item,
-      { "AdditionalMeasurementValue", "nbap.AdditionalMeasurementValue",
+      { "AdditionalMeasurementValue", "nbap.AdditionalMeasurementValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uARFCN,
@@ -59482,7 +59497,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_AdditionalTimeSlotListLCR_item,
-      { "AdditionalTimeSlotLCR", "nbap.AdditionalTimeSlotLCR",
+      { "AdditionalTimeSlotLCR", "nbap.AdditionalTimeSlotLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_timeslot_InitiatedListLCR,
@@ -59498,7 +59513,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Transmission_Gap_Pattern_Sequence_Status_List", HFILL }},
     { &hf_nbap_Transmission_Gap_Pattern_Sequence_Status_List_item,
-      { "Transmission-Gap-Pattern-Sequence-Status-List item", "nbap.Transmission_Gap_Pattern_Sequence_Status_List_item",
+      { "Transmission-Gap-Pattern-Sequence-Status-List item", "nbap.Transmission_Gap_Pattern_Sequence_Status_List_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tGPSID,
@@ -59546,7 +59561,7 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_Best_Cell_Portions_Value_item,
-      { "Best-Cell-Portions-Item", "nbap.Best_Cell_Portions_Item",
+      { "Best-Cell-Portions-Item", "nbap.Best_Cell_Portions_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cellPortionID,
@@ -59558,7 +59573,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SIR_Value", HFILL }},
     { &hf_nbap_Best_Cell_Portions_ValueLCR_item,
-      { "Best-Cell-Portions-ItemLCR", "nbap.Best_Cell_Portions_ItemLCR",
+      { "Best-Cell-Portions-ItemLCR", "nbap.Best_Cell_Portions_ItemLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cellPortionLCRID,
@@ -59594,7 +59609,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_CauseMisc_vals), 0,
         "CauseMisc", HFILL }},
     { &hf_nbap_Cell_ERNTI_Status_Information_item,
-      { "Cell-ERNTI-Status-Information-Item", "nbap.Cell_ERNTI_Status_Information_Item",
+      { "Cell-ERNTI-Status-Information-Item", "nbap.Cell_ERNTI_Status_Information_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_vacant_ERNTI,
@@ -59622,7 +59637,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_127_", HFILL }},
     { &hf_nbap_CommonChannelsCapacityConsumptionLaw_item,
-      { "CommonChannelsCapacityConsumptionLaw item", "nbap.CommonChannelsCapacityConsumptionLaw_item",
+      { "CommonChannelsCapacityConsumptionLaw item", "nbap.CommonChannelsCapacityConsumptionLaw_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dl_Cost,
@@ -59634,27 +59649,27 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_65535", HFILL }},
     { &hf_nbap_common_E_DCH_UL_DPCH_Information,
-      { "common-E-DCH-UL-DPCH-Information", "nbap.common_E_DCH_UL_DPCH_Information",
+      { "common-E-DCH-UL-DPCH-Information", "nbap.common_E_DCH_UL_DPCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Common_E_DCH_UL_DPCH_InfoItem", HFILL }},
     { &hf_nbap_common_E_DCH_EDPCH_Information,
-      { "common-E-DCH-EDPCH-Information", "nbap.common_E_DCH_EDPCH_Information",
+      { "common-E-DCH-EDPCH-Information", "nbap.common_E_DCH_EDPCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Common_E_DCH_EDPCH_InfoItem", HFILL }},
     { &hf_nbap_common_E_DCH_Information,
-      { "common-E-DCH-Information", "nbap.common_E_DCH_Information",
+      { "common-E-DCH-Information", "nbap.common_E_DCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Common_E_DCH_InfoItem", HFILL }},
     { &hf_nbap_common_E_DCH_HSDPCCH_Information,
-      { "common-E-DCH-HSDPCCH-Information", "nbap.common_E_DCH_HSDPCCH_Information",
+      { "common-E-DCH-HSDPCCH-Information", "nbap.common_E_DCH_HSDPCCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Common_E_DCH_HSDPCCH_InfoItem", HFILL }},
     { &hf_nbap_common_E_DCH_Preamble_Control_Information,
-      { "common-E-DCH-Preamble-Control-Information", "nbap.common_E_DCH_Preamble_Control_Information",
+      { "common-E-DCH-Preamble-Control-Information", "nbap.common_E_DCH_Preamble_Control_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Common_E_DCH_Preamble_Control_InfoItem", HFILL }},
     { &hf_nbap_common_E_DCH_FDPCH_Information,
-      { "common-E-DCH-FDPCH-Information", "nbap.common_E_DCH_FDPCH_Information",
+      { "common-E-DCH-FDPCH-Information", "nbap.common_E_DCH_FDPCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Common_E_DCH_FDPCH_InfoItem", HFILL }},
     { &hf_nbap_common_E_DCH_E_AGCH_ChannelisationCodeNumber,
@@ -59686,7 +59701,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "PunctureLimit", HFILL }},
     { &hf_nbap_e_TFCS_Information,
-      { "e-TFCS-Information", "nbap.e_TFCS_Information",
+      { "e-TFCS-Information", "nbap.e_TFCS_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_TTI,
@@ -59726,7 +59741,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_max_TB_Sizes,
-      { "max-TB-Sizes", "nbap.max_TB_Sizes",
+      { "max-TB-Sizes", "nbap.max_TB_Sizes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_common_E_DCH_ImplicitRelease_Indicator,
@@ -59746,7 +59761,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Nack_Power_Offset", HFILL }},
     { &hf_nbap_common_E_DCH_CQI_Info,
-      { "common-E-DCH-CQI-Info", "nbap.common_E_DCH_CQI_Info",
+      { "common-E-DCH-CQI-Info", "nbap.common_E_DCH_CQI_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cqiFeedback_CycleK,
@@ -59786,7 +59801,7 @@ void proto_register_nbap(void)
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_common_E_DCH_AICH_Information,
-      { "common-E-DCH-AICH-Information", "nbap.common_E_DCH_AICH_Information",
+      { "common-E-DCH-AICH-Information", "nbap.common_E_DCH_AICH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_aICH_TransmissionTiming,
@@ -59806,7 +59821,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_STTD_Indicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_Common_E_DCH_Resource_Combination_InfoList_item,
-      { "Common-E-DCH-Resource-Combination-InfoList-Item", "nbap.Common_E_DCH_Resource_Combination_InfoList_Item",
+      { "Common-E-DCH-Resource-Combination-InfoList-Item", "nbap.Common_E_DCH_Resource_Combination_InfoList_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_soffset,
@@ -59818,7 +59833,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "FDD_DL_ChannelisationCodeNumber", HFILL }},
     { &hf_nbap_ul_DPCH_ScramblingCode,
-      { "ul-DPCH-ScramblingCode", "nbap.ul_DPCH_ScramblingCode",
+      { "ul-DPCH-ScramblingCode", "nbap.ul_DPCH_ScramblingCode_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UL_ScramblingCode", HFILL }},
     { &hf_nbap_e_RGCH_E_HICH_Channelisation_Code,
@@ -59834,7 +59849,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Ul_common_E_DCH_MACflow_Specific_InfoList_item,
-      { "Ul-common-E-DCH-MACflow-Specific-InfoList-Item", "nbap.Ul_common_E_DCH_MACflow_Specific_InfoList_Item",
+      { "Ul-common-E-DCH-MACflow-Specific-InfoList-Item", "nbap.Ul_common_E_DCH_MACflow_Specific_InfoList_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ul_Common_MACFlowID,
@@ -59862,7 +59877,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Common_E_DCH_MACdFlow_Specific_InfoList", HFILL }},
     { &hf_nbap_Common_E_DCH_MACdFlow_Specific_InfoList_item,
-      { "Common-E-DCH-MACdFlow-Specific-InfoList-Item", "nbap.Common_E_DCH_MACdFlow_Specific_InfoList_Item",
+      { "Common-E-DCH-MACdFlow-Specific-InfoList-Item", "nbap.Common_E_DCH_MACdFlow_Specific_InfoList_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_common_e_DCH_MACdFlow_ID,
@@ -59886,7 +59901,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Common_E_DCH_LogicalChannel_InfoList", HFILL }},
     { &hf_nbap_Common_E_DCH_LogicalChannel_InfoList_item,
-      { "Common-E-DCH-LogicalChannel-InfoList-Item", "nbap.Common_E_DCH_LogicalChannel_InfoList_Item",
+      { "Common-E-DCH-LogicalChannel-InfoList-Item", "nbap.Common_E_DCH_LogicalChannel_InfoList_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_logicalChannelId,
@@ -59910,11 +59925,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Ul_common_E_DCH_MACflow_Specific_InfoResponseList_item,
-      { "Ul-common-E-DCH-MACflow-Specific-InfoResponseList-Item", "nbap.Ul_common_E_DCH_MACflow_Specific_InfoResponseList_Item",
+      { "Ul-common-E-DCH-MACflow-Specific-InfoResponseList-Item", "nbap.Ul_common_E_DCH_MACflow_Specific_InfoResponseList_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Common_MACFlows_to_DeleteFDD_item,
-      { "Common-MACFlows-to-DeleteFDD-Item", "nbap.Common_MACFlows_to_DeleteFDD_Item",
+      { "Common-MACFlows-to-DeleteFDD-Item", "nbap.Common_MACFlows_to_DeleteFDD_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_common_MACFlow_ID,
@@ -59922,7 +59937,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonMACFlow_Specific_InfoList_item,
-      { "CommonMACFlow-Specific-InfoItem", "nbap.CommonMACFlow_Specific_InfoItem",
+      { "CommonMACFlow-Specific-InfoItem", "nbap.CommonMACFlow_Specific_InfoItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_common_MACFlow_Id,
@@ -59938,7 +59953,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonMACFlow_Specific_InfoList_Response_item,
-      { "CommonMACFlow-Specific-InfoItem-Response", "nbap.CommonMACFlow_Specific_InfoItem_Response",
+      { "CommonMACFlow-Specific-InfoItem-Response", "nbap.CommonMACFlow_Specific_InfoItem_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_commonMACFlow_ID,
@@ -59950,11 +59965,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Common_MACFlow_PriorityQueue_Information_item,
-      { "Common-MACFlow-PriorityQueue-Item", "nbap.Common_MACFlow_PriorityQueue_Item",
+      { "Common-MACFlow-PriorityQueue-Item", "nbap.Common_MACFlow_PriorityQueue_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_priority_Queue_Information_for_Enhanced_FACH,
-      { "priority-Queue-Information-for-Enhanced-FACH", "nbap.priority_Queue_Information_for_Enhanced_FACH",
+      { "priority-Queue-Information-for-Enhanced-FACH", "nbap.priority_Queue_Information_for_Enhanced_FACH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Priority_Queue_Information_for_Enhanced_FACH_PCH", HFILL }},
     { &hf_nbap_tUTRANGPSMeasurementAccuracyClass,
@@ -59978,23 +59993,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "UL_TimeslotISCP_Value", HFILL }},
     { &hf_nbap_notUsed_1_acknowledged_PCPCH_access_preambles,
-      { "notUsed-1-acknowledged-PCPCH-access-preambles", "nbap.notUsed_1_acknowledged_PCPCH_access_preambles",
+      { "notUsed-1-acknowledged-PCPCH-access-preambles", "nbap.notUsed_1_acknowledged_PCPCH_access_preambles_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_notUsed_2_detected_PCPCH_access_preambles,
-      { "notUsed-2-detected-PCPCH-access-preambles", "nbap.notUsed_2_detected_PCPCH_access_preambles",
+      { "notUsed-2-detected-PCPCH-access-preambles", "nbap.notUsed_2_detected_PCPCH_access_preambles_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_extension_CommonMeasurementValue,
-      { "extension-CommonMeasurementValue", "nbap.extension_CommonMeasurementValue",
+      { "extension-CommonMeasurementValue", "nbap.extension_CommonMeasurementValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_measurementAvailable,
-      { "measurementAvailable", "nbap.measurementAvailable",
+      { "measurementAvailable", "nbap.measurementAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CommonMeasurementAvailable", HFILL }},
     { &hf_nbap_measurementnotAvailable,
-      { "measurementnotAvailable", "nbap.measurementnotAvailable",
+      { "measurementnotAvailable", "nbap.measurementnotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CommonMeasurementnotAvailable", HFILL }},
     { &hf_nbap_commonmeasurementValue,
@@ -60026,11 +60041,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_Enabling_Delay_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_dTX_Information,
-      { "dTX-Information", "nbap.dTX_Information",
+      { "dTX-Information", "nbap.dTX_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dRX_Information,
-      { "dRX-Information", "nbap.dRX_Information",
+      { "dRX-Information", "nbap.dRX_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dTX_Information_to_Modify,
@@ -60042,7 +60057,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DRX_Information_to_Modify_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_ContinuousPacketConnectivityHS_SCCH_less_Information_item,
-      { "ContinuousPacketConnectivityHS-SCCH-less-InformationItem", "nbap.ContinuousPacketConnectivityHS_SCCH_less_InformationItem",
+      { "ContinuousPacketConnectivityHS-SCCH-less-InformationItem", "nbap.ContinuousPacketConnectivityHS_SCCH_less_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_transport_Block_Size_Index,
@@ -60062,11 +60077,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_continuousPacketConnectivityDTX_DRX_Information,
-      { "continuousPacketConnectivityDTX-DRX-Information", "nbap.continuousPacketConnectivityDTX_DRX_Information",
+      { "continuousPacketConnectivityDTX-DRX-Information", "nbap.continuousPacketConnectivityDTX_DRX_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_continuousPacketConnectivityDTX_DRX_Information_to_Modify,
-      { "continuousPacketConnectivityDTX-DRX-Information-to-Modify", "nbap.continuousPacketConnectivityDTX_DRX_Information_to_Modify",
+      { "continuousPacketConnectivityDTX-DRX-Information-to-Modify", "nbap.continuousPacketConnectivityDTX_DRX_Information_to_Modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_continuousPacketConnectivityHS_SCCH_less_Information,
@@ -60074,7 +60089,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_procedureID,
-      { "procedureID", "nbap.procedureID",
+      { "procedureID", "nbap.procedureID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_triggeringMessage,
@@ -60094,7 +60109,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "CriticalityDiagnostics_IE_List", HFILL }},
     { &hf_nbap_CriticalityDiagnostics_IE_List_item,
-      { "CriticalityDiagnostics-IE-List item", "nbap.CriticalityDiagnostics_IE_List_item",
+      { "CriticalityDiagnostics-IE-List item", "nbap.CriticalityDiagnostics_IE_List_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_iECriticality,
@@ -60114,11 +60129,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Ul_common_E_DCH_MACflow_Specific_InfoListLCR", HFILL }},
     { &hf_nbap_common_E_PUCH_InformationLCR,
-      { "common-E-PUCH-InformationLCR", "nbap.common_E_PUCH_InformationLCR",
+      { "common-E-PUCH-InformationLCR", "nbap.common_E_PUCH_InformationLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_TFCS_Information_TDD,
-      { "e-TFCS-Information-TDD", "nbap.e_TFCS_Information_TDD",
+      { "e-TFCS-Information-TDD", "nbap.e_TFCS_Information_TDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_maximum_Number_of_Retransmissions_For_SchedulingInfo,
@@ -60158,7 +60173,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "ControlGAP", HFILL }},
     { &hf_nbap_PRXdes_base_perURAFCN_item,
-      { "PRXdes-base-Item", "nbap.PRXdes_base_Item",
+      { "PRXdes-base-Item", "nbap.PRXdes_base_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pRXdes_base,
@@ -60166,7 +60181,7 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Ul_common_E_DCH_MACflow_Specific_InfoListLCR_item,
-      { "Ul-common-E-DCH-MACflow-Specific-InfoList-ItemLCR", "nbap.Ul_common_E_DCH_MACflow_Specific_InfoList_ItemLCR",
+      { "Ul-common-E-DCH-MACflow-Specific-InfoList-ItemLCR", "nbap.Ul_common_E_DCH_MACflow_Specific_InfoList_ItemLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ul_Common_MACFlowIDLCR,
@@ -60178,7 +60193,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Common_E_DCH_MACdFlow_Specific_InfoListLCR", HFILL }},
     { &hf_nbap_Common_E_DCH_MACdFlow_Specific_InfoListLCR_item,
-      { "Common-E-DCH-MACdFlow-Specific-InfoList-ItemLCR", "nbap.Common_E_DCH_MACdFlow_Specific_InfoList_ItemLCR",
+      { "Common-E-DCH-MACdFlow-Specific-InfoList-ItemLCR", "nbap.Common_E_DCH_MACdFlow_Specific_InfoList_ItemLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_common_e_DCH_MACdFlow_ID_01,
@@ -60210,11 +60225,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Ul_common_E_DCH_MACflow_Specific_InfoResponseListLCR_item,
-      { "Ul-common-E-DCH-MACflow-Specific-InfoResponseList-ItemLCR", "nbap.Ul_common_E_DCH_MACflow_Specific_InfoResponseList_ItemLCR",
+      { "Ul-common-E-DCH-MACflow-Specific-InfoResponseList-ItemLCR", "nbap.Ul_common_E_DCH_MACflow_Specific_InfoResponseList_ItemLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Ul_common_E_DCH_MACflow_Specific_InfoResponseListLCR_Ext_item,
-      { "Ul-common-E-DCH-MACflow-Specific-InfoResponseList-ItemLCR", "nbap.Ul_common_E_DCH_MACflow_Specific_InfoResponseList_ItemLCR",
+      { "Ul-common-E-DCH-MACflow-Specific-InfoResponseList-ItemLCR", "nbap.Ul_common_E_DCH_MACflow_Specific_InfoResponseList_ItemLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ul_Common_MACFlowID_LCR,
@@ -60222,7 +60237,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Common_MACFlow_ID_LCR", HFILL }},
     { &hf_nbap_Common_E_AGCH_ListLCR_item,
-      { "Common-E-AGCH-ItemLCR", "nbap.Common_E_AGCH_ItemLCR",
+      { "Common-E-AGCH-ItemLCR", "nbap.Common_E_AGCH_ItemLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_AGCH_ID,
@@ -60230,7 +60245,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Common_E_HICH_ListLCR_item,
-      { "Common-E-HICH-ItemLCR", "nbap.Common_E_HICH_ItemLCR",
+      { "Common-E-HICH-ItemLCR", "nbap.Common_E_HICH_ItemLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_eI,
@@ -60242,7 +60257,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "E_HICH_ID_LCR", HFILL }},
     { &hf_nbap_Common_E_RNTI_Info_LCR_item,
-      { "Common-E-RNTI-Info-ItemLCR", "nbap.Common_E_RNTI_Info_ItemLCR",
+      { "Common-E-RNTI-Info-ItemLCR", "nbap.Common_E_RNTI_Info_ItemLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_starting_E_RNTI,
@@ -60258,7 +60273,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_7", HFILL }},
     { &hf_nbap_Common_MACFlows_to_DeleteLCR_item,
-      { "Common-MACFlows-to-DeleteLCR-Item", "nbap.Common_MACFlows_to_DeleteLCR_Item",
+      { "Common-MACFlows-to-DeleteLCR-Item", "nbap.Common_MACFlows_to_DeleteLCR_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_common_MACFlow_ID_LCR,
@@ -60266,7 +60281,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonMACFlow_Specific_InfoListLCR_item,
-      { "CommonMACFlow-Specific-InfoItemLCR", "nbap.CommonMACFlow_Specific_InfoItemLCR",
+      { "CommonMACFlow-Specific-InfoItemLCR", "nbap.CommonMACFlow_Specific_InfoItemLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_common_MACFlow_PriorityQueue_InformationLCR,
@@ -60274,7 +60289,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Common_MACFlow_PriorityQueue_Information", HFILL }},
     { &hf_nbap_Common_H_RNTI_InformationLCR_item,
-      { "Common-H-RNTI-InfoItemLCR", "nbap.Common_H_RNTI_InfoItemLCR",
+      { "Common-H-RNTI-InfoItemLCR", "nbap.Common_H_RNTI_InfoItemLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_common_H_RNTI,
@@ -60294,43 +60309,43 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommonMACFlow_Specific_InfoList_ResponseLCR_item,
-      { "CommonMACFlow-Specific-InfoItem-ResponseLCR", "nbap.CommonMACFlow_Specific_InfoItem_ResponseLCR",
+      { "CommonMACFlow-Specific-InfoItem-ResponseLCR", "nbap.CommonMACFlow_Specific_InfoItem_ResponseLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_continuousPacketConnectivity_DRX_InformationLCR,
-      { "continuousPacketConnectivity-DRX-InformationLCR", "nbap.continuousPacketConnectivity_DRX_InformationLCR",
+      { "continuousPacketConnectivity-DRX-InformationLCR", "nbap.continuousPacketConnectivity_DRX_InformationLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_continuousPacketConnectivity_DRX_Information_to_Modify_LCR,
-      { "continuousPacketConnectivity-DRX-Information-to-Modify-LCR", "nbap.continuousPacketConnectivity_DRX_Information_to_Modify_LCR",
+      { "continuousPacketConnectivity-DRX-Information-to-Modify-LCR", "nbap.continuousPacketConnectivity_DRX_Information_to_Modify_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_DSCH_Semi_PersistentScheduling_Information_LCR,
-      { "hS-DSCH-Semi-PersistentScheduling-Information-LCR", "nbap.hS_DSCH_Semi_PersistentScheduling_Information_LCR",
+      { "hS-DSCH-Semi-PersistentScheduling-Information-LCR", "nbap.hS_DSCH_Semi_PersistentScheduling_Information_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_DSCH_Semi_PersistentScheduling_Information_to_Modify_LCR,
-      { "hS-DSCH-Semi-PersistentScheduling-Information-to-Modify-LCR", "nbap.hS_DSCH_Semi_PersistentScheduling_Information_to_Modify_LCR",
+      { "hS-DSCH-Semi-PersistentScheduling-Information-to-Modify-LCR", "nbap.hS_DSCH_Semi_PersistentScheduling_Information_to_Modify_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_DSCH_SPS_Deactivate_Indicator_LCR,
-      { "hS-DSCH-SPS-Deactivate-Indicator-LCR", "nbap.hS_DSCH_SPS_Deactivate_Indicator_LCR",
+      { "hS-DSCH-SPS-Deactivate-Indicator-LCR", "nbap.hS_DSCH_SPS_Deactivate_Indicator_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_Semi_PersistentScheduling_Information_LCR,
-      { "e-DCH-Semi-PersistentScheduling-Information-LCR", "nbap.e_DCH_Semi_PersistentScheduling_Information_LCR",
+      { "e-DCH-Semi-PersistentScheduling-Information-LCR", "nbap.e_DCH_Semi_PersistentScheduling_Information_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_Semi_PersistentScheduling_Information_to_Modify_LCR,
-      { "e-DCH-Semi-PersistentScheduling-Information-to-Modify-LCR", "nbap.e_DCH_Semi_PersistentScheduling_Information_to_Modify_LCR",
+      { "e-DCH-Semi-PersistentScheduling-Information-to-Modify-LCR", "nbap.e_DCH_Semi_PersistentScheduling_Information_to_Modify_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_SPS_Deactivate_Indicator_LCR,
-      { "e-DCH-SPS-Deactivate-Indicator-LCR", "nbap.e_DCH_SPS_Deactivate_Indicator_LCR",
+      { "e-DCH-SPS-Deactivate-Indicator-LCR", "nbap.e_DCH_SPS_Deactivate_Indicator_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_SCCH_DRX_Information_LCR,
-      { "hS-SCCH-DRX-Information-LCR", "nbap.hS_SCCH_DRX_Information_LCR",
+      { "hS-SCCH-DRX-Information-LCR", "nbap.hS_SCCH_DRX_Information_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_AGCH_DRX_Information_LCR,
@@ -60350,11 +60365,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "UE_DRX_Offset_LCR", HFILL }},
     { &hf_nbap_sameAsHS_SCCH,
-      { "sameAsHS-SCCH", "nbap.sameAsHS_SCCH",
+      { "sameAsHS-SCCH", "nbap.sameAsHS_SCCH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_AGCH_DRX_Parameters,
-      { "e-AGCH-DRX-Parameters", "nbap.e_AGCH_DRX_Parameters",
+      { "e-AGCH-DRX-Parameters", "nbap.e_AGCH_DRX_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_AGCH_UE_DRX_Cycle_LCR,
@@ -60374,15 +60389,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DRX_Information_to_Modify_LCR_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_modify,
-      { "modify", "nbap.modify",
+      { "modify", "nbap.modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DRX_Information_to_Modify_Items_LCR", HFILL }},
     { &hf_nbap_deactivate,
-      { "deactivate", "nbap.deactivate",
+      { "deactivate", "nbap.deactivate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_SCCH_DRX_Information_ResponseLCR,
-      { "hS-SCCH-DRX-Information-ResponseLCR", "nbap.hS_SCCH_DRX_Information_ResponseLCR",
+      { "hS-SCCH-DRX-Information-ResponseLCR", "nbap.hS_SCCH_DRX_Information_ResponseLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_AGCH_DRX_Information_ResponseLCR,
@@ -60390,11 +60405,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_E_AGCH_DRX_Information_ResponseLCR_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_e_AGCH_DRX_Parameters_Response,
-      { "e-AGCH-DRX-Parameters-Response", "nbap.e_AGCH_DRX_Parameters_Response",
+      { "e-AGCH-DRX-Parameters-Response", "nbap.e_AGCH_DRX_Parameters_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DCH_FDD_Information_item,
-      { "DCH-FDD-InformationItem", "nbap.DCH_FDD_InformationItem",
+      { "DCH-FDD-InformationItem", "nbap.DCH_FDD_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ul_FP_Mode,
@@ -60414,7 +60429,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "DCH_Specific_FDD_InformationList", HFILL }},
     { &hf_nbap_DCH_Specific_FDD_InformationList_item,
-      { "DCH-Specific-FDD-Item", "nbap.DCH_Specific_FDD_Item",
+      { "DCH-Specific-FDD-Item", "nbap.DCH_Specific_FDD_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dCH_ID,
@@ -60422,15 +60437,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ul_TransportFormatSet,
-      { "ul-TransportFormatSet", "nbap.ul_TransportFormatSet",
+      { "ul-TransportFormatSet", "nbap.ul_TransportFormatSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dl_TransportFormatSet,
-      { "dl-TransportFormatSet", "nbap.dl_TransportFormatSet",
+      { "dl-TransportFormatSet", "nbap.dl_TransportFormatSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_allocationRetentionPriority,
-      { "allocationRetentionPriority", "nbap.allocationRetentionPriority",
+      { "allocationRetentionPriority", "nbap.allocationRetentionPriority_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_frameHandlingPriority,
@@ -60442,7 +60457,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_QE_Selector_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_DCH_InformationResponse_item,
-      { "DCH-InformationResponseItem", "nbap.DCH_InformationResponseItem",
+      { "DCH-InformationResponseItem", "nbap.DCH_InformationResponseItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dCH_ID_01,
@@ -60450,7 +60465,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DCH_MeasurementOccasion_Information_item,
-      { "DchMeasurementOccasionInformation-Item", "nbap.DchMeasurementOccasionInformation_Item",
+      { "DchMeasurementOccasionInformation-Item", "nbap.DchMeasurementOccasionInformation_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pattern_Sequence_Identifier,
@@ -60462,7 +60477,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_Status_Flag_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_measurement_Occasion_Pattern_Sequence_parameters,
-      { "measurement-Occasion-Pattern-Sequence-parameters", "nbap.measurement_Occasion_Pattern_Sequence_parameters",
+      { "measurement-Occasion-Pattern-Sequence-parameters", "nbap.measurement_Occasion_Pattern_Sequence_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_measurement_Occasion_Pattern_Sequence_parameters_k,
@@ -60482,7 +60497,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_7", HFILL }},
     { &hf_nbap_DCH_TDD_Information_item,
-      { "DCH-TDD-InformationItem", "nbap.DCH_TDD_InformationItem",
+      { "DCH-TDD-InformationItem", "nbap.DCH_TDD_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dCH_SpecificInformationList_01,
@@ -60490,7 +60505,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "DCH_Specific_TDD_InformationList", HFILL }},
     { &hf_nbap_DCH_Specific_TDD_InformationList_item,
-      { "DCH-Specific-TDD-Item", "nbap.DCH_Specific_TDD_Item",
+      { "DCH-Specific-TDD-Item", "nbap.DCH_Specific_TDD_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ul_CCTrCH_ID,
@@ -60502,15 +60517,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "CCTrCH_ID", HFILL }},
     { &hf_nbap_ul_TransportFormatSet_01,
-      { "ul-TransportFormatSet", "nbap.ul_TransportFormatSet",
+      { "ul-TransportFormatSet", "nbap.ul_TransportFormatSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TransportFormatSet", HFILL }},
     { &hf_nbap_dl_TransportFormatSet_01,
-      { "dl-TransportFormatSet", "nbap.dl_TransportFormatSet",
+      { "dl-TransportFormatSet", "nbap.dl_TransportFormatSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TransportFormatSet", HFILL }},
     { &hf_nbap_FDD_DCHs_to_Modify_item,
-      { "FDD-DCHs-to-ModifyItem", "nbap.FDD_DCHs_to_ModifyItem",
+      { "FDD-DCHs-to-ModifyItem", "nbap.FDD_DCHs_to_ModifyItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dCH_SpecificInformationList_02,
@@ -60518,7 +60533,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "DCH_ModifySpecificInformation_FDD", HFILL }},
     { &hf_nbap_DCH_ModifySpecificInformation_FDD_item,
-      { "DCH-ModifySpecificItem-FDD", "nbap.DCH_ModifySpecificItem_FDD",
+      { "DCH-ModifySpecificItem-FDD", "nbap.DCH_ModifySpecificItem_FDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dCH_ID_02,
@@ -60526,15 +60541,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "T_dCH_ID_01", HFILL }},
     { &hf_nbap_ul_TransportFormatSet_02,
-      { "ul-TransportFormatSet", "nbap.ul_TransportFormatSet",
+      { "ul-TransportFormatSet", "nbap.ul_TransportFormatSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_ul_TransportFormatSet_01", HFILL }},
     { &hf_nbap_dl_TransportFormatSet_02,
-      { "dl-TransportFormatSet", "nbap.dl_TransportFormatSet",
+      { "dl-TransportFormatSet", "nbap.dl_TransportFormatSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_dl_TransportFormatSet_01", HFILL }},
     { &hf_nbap_TDD_DCHs_to_Modify_item,
-      { "DCH-ModifyItem-TDD", "nbap.DCH_ModifyItem_TDD",
+      { "DCH-ModifyItem-TDD", "nbap.DCH_ModifyItem_TDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dCH_SpecificInformationList_03,
@@ -60542,11 +60557,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "DCH_ModifySpecificInformation_TDD", HFILL }},
     { &hf_nbap_DCH_ModifySpecificInformation_TDD_item,
-      { "DCH-ModifySpecificItem-TDD", "nbap.DCH_ModifySpecificItem_TDD",
+      { "DCH-ModifySpecificItem-TDD", "nbap.DCH_ModifySpecificItem_TDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DedicatedChannelsCapacityConsumptionLaw_item,
-      { "DedicatedChannelsCapacityConsumptionLaw item", "nbap.DedicatedChannelsCapacityConsumptionLaw_item",
+      { "DedicatedChannelsCapacityConsumptionLaw item", "nbap.DedicatedChannelsCapacityConsumptionLaw_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dl_Cost_1,
@@ -60590,15 +60605,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Round_Trip_Time_Value", HFILL }},
     { &hf_nbap_extension_DedicatedMeasurementValue,
-      { "extension-DedicatedMeasurementValue", "nbap.extension_DedicatedMeasurementValue",
+      { "extension-DedicatedMeasurementValue", "nbap.extension_DedicatedMeasurementValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_measurementAvailable_01,
-      { "measurementAvailable", "nbap.measurementAvailable",
+      { "measurementAvailable", "nbap.measurementAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DedicatedMeasurementAvailable", HFILL }},
     { &hf_nbap_measurementnotAvailable_01,
-      { "measurementnotAvailable", "nbap.measurementnotAvailable",
+      { "measurementnotAvailable", "nbap.measurementnotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DedicatedMeasurementnotAvailable", HFILL }},
     { &hf_nbap_dedicatedmeasurementValue,
@@ -60614,15 +60629,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_separate_indication,
-      { "separate-indication", "nbap.separate_indication",
+      { "separate-indication", "nbap.separate_indication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_activate,
-      { "activate", "nbap.activate",
+      { "activate", "nbap.activate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Activate_Info", HFILL }},
     { &hf_nbap_deactivate_01,
-      { "deactivate", "nbap.deactivate",
+      { "deactivate", "nbap.deactivate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Deactivate_Info", HFILL }},
     { &hf_nbap_activation_type,
@@ -60650,7 +60665,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "CFN", HFILL }},
     { &hf_nbap_unsynchronised,
-      { "unsynchronised", "nbap.unsynchronised",
+      { "unsynchronised", "nbap.unsynchronised_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dGANSS_ReferenceTime,
@@ -60666,7 +60681,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_8", HFILL }},
     { &hf_nbap_DGANSS_Information_item,
-      { "DGANSS-InformationItem", "nbap.DGANSS_InformationItem",
+      { "DGANSS-InformationItem", "nbap.DGANSS_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_gANSS_SignalId,
@@ -60682,7 +60697,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DGANSS_SignalInformation_item,
-      { "DGANSS-SignalInformationItem", "nbap.DGANSS_SignalInformationItem",
+      { "DGANSS-SignalInformationItem", "nbap.DGANSS_SignalInformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_satId,
@@ -60734,7 +60749,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_PRCDeviation_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Timeslot_Information_item,
-      { "DL-Timeslot-InformationItem", "nbap.DL_Timeslot_InformationItem",
+      { "DL-Timeslot-InformationItem", "nbap.DL_Timeslot_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_timeSlot,
@@ -60754,7 +60769,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "TDD_DL_Code_Information", HFILL }},
     { &hf_nbap_DL_TimeslotLCR_Information_item,
-      { "DL-TimeslotLCR-InformationItem", "nbap.DL_TimeslotLCR_InformationItem",
+      { "DL-TimeslotLCR-InformationItem", "nbap.DL_TimeslotLCR_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_timeSlotLCR,
@@ -60762,7 +60777,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_midambleShiftLCR,
-      { "midambleShiftLCR", "nbap.midambleShiftLCR",
+      { "midambleShiftLCR", "nbap.midambleShiftLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Code_LCR_Information,
@@ -60770,7 +60785,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "TDD_DL_Code_LCR_Information", HFILL }},
     { &hf_nbap_DL_Timeslot768_Information_item,
-      { "DL-Timeslot768-InformationItem", "nbap.DL_Timeslot768_InformationItem",
+      { "DL-Timeslot768-InformationItem", "nbap.DL_Timeslot768_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_midambleShiftAndBurstType768,
@@ -60806,7 +60821,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "ScaledAdjustmentRatio", HFILL }},
     { &hf_nbap_DL_ReferencePowerInformationList_item,
-      { "DL-ReferencePowerInformationItem", "nbap.DL_ReferencePowerInformationItem",
+      { "DL-ReferencePowerInformationItem", "nbap.DL_ReferencePowerInformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_rL_ID,
@@ -60818,7 +60833,7 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_DL_TimeslotISCPInfo_item,
-      { "DL-TimeslotISCPInfoItem", "nbap.DL_TimeslotISCPInfoItem",
+      { "DL-TimeslotISCPInfoItem", "nbap.DL_TimeslotISCPInfoItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_TimeslotISCP,
@@ -60826,15 +60841,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_TimeslotISCPInfoLCR_item,
-      { "DL-TimeslotISCPInfoItemLCR", "nbap.DL_TimeslotISCPInfoItemLCR",
+      { "DL-TimeslotISCPInfoItemLCR", "nbap.DL_TimeslotISCPInfoItemLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_HS_PDSCH_Timeslot_Information_LCR_PSCH_ReconfRqst_item,
-      { "DL-HS-PDSCH-Timeslot-InformationItem-LCR-PSCH-ReconfRqst", "nbap.DL_HS_PDSCH_Timeslot_InformationItem_LCR_PSCH_ReconfRqst",
+      { "DL-HS-PDSCH-Timeslot-InformationItem-LCR-PSCH-ReconfRqst", "nbap.DL_HS_PDSCH_Timeslot_InformationItem_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_midambleShiftAndBurstType_01,
-      { "midambleShiftAndBurstType", "nbap.midambleShiftAndBurstType",
+      { "midambleShiftAndBurstType", "nbap.midambleShiftAndBurstType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MidambleShiftLCR", HFILL }},
     { &hf_nbap_dl_HS_PDSCH_Codelist_LCR_PSCH_ReconfRqst,
@@ -60846,7 +60861,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "MaximumTransmissionPower", HFILL }},
     { &hf_nbap_MaxHSDSCH_HSSCCH_Power_per_CELLPORTION_item,
-      { "MaxHSDSCH-HSSCCH-Power-per-CELLPORTION-Item", "nbap.MaxHSDSCH_HSSCCH_Power_per_CELLPORTION_Item",
+      { "MaxHSDSCH-HSSCCH-Power-per-CELLPORTION-Item", "nbap.MaxHSDSCH_HSSCCH_Power_per_CELLPORTION_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_HS_PDSCH_Codelist_LCR_PSCH_ReconfRqst_item,
@@ -60870,11 +60885,11 @@ void proto_register_nbap(void)
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_modify_01,
-      { "modify", "nbap.modify",
+      { "modify", "nbap.modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DRX_Information_to_Modify_Items", HFILL }},
     { &hf_nbap_DSCH_InformationResponse_item,
-      { "DSCH-InformationResponseItem", "nbap.DSCH_InformationResponseItem",
+      { "DSCH-InformationResponseItem", "nbap.DSCH_InformationResponseItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dSCH_ID,
@@ -60882,7 +60897,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DSCH_TDD_Information_item,
-      { "DSCH-TDD-InformationItem", "nbap.DSCH_TDD_InformationItem",
+      { "DSCH-TDD-InformationItem", "nbap.DSCH_TDD_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cCTrCH_ID,
@@ -60890,7 +60905,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_transportFormatSet,
-      { "transportFormatSet", "nbap.transportFormatSet",
+      { "transportFormatSet", "nbap.transportFormatSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uE_DTX_Cycle1_2ms,
@@ -60946,7 +60961,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_UE_DPCCH_burst2_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_modify_02,
-      { "modify", "nbap.modify",
+      { "modify", "nbap.modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DTX_Information_to_Modify_Items", HFILL }},
     { &hf_nbap_e_DCH_TTI_Length_to_Modify,
@@ -60966,7 +60981,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "E_AGCH_FDD_Code_List", HFILL }},
     { &hf_nbap_remove,
-      { "remove", "nbap.remove",
+      { "remove", "nbap.remove_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_AGCH_FDD_Code_List_item,
@@ -60978,7 +60993,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_SF_allocation_item,
-      { "E-DCH-SF-allocation item", "nbap.E_DCH_SF_allocation_item",
+      { "E-DCH-SF-allocation item", "nbap.E_DCH_SF_allocation_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_AGCH_And_E_RGCH_E_HICH_FDD_Scrambling_Code,
@@ -61006,7 +61021,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_E_RGCH_Release_Indicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_MACdFlows_Information,
-      { "e-DCH-MACdFlows-Information", "nbap.e_DCH_MACdFlows_Information",
+      { "e-DCH-MACdFlows-Information", "nbap.e_DCH_MACdFlows_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_MACdFlow_Specific_InformationResp,
@@ -61026,7 +61041,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_MACdFlow_Specific_UpdateInformation_item,
-      { "E-DCH-MACdFlow-Specific-UpdateInformation-Item", "nbap.E_DCH_MACdFlow_Specific_UpdateInformation_Item",
+      { "E-DCH-MACdFlow-Specific-UpdateInformation-Item", "nbap.E_DCH_MACdFlow_Specific_UpdateInformation_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hARQ_Process_Allocation_NonSched_2ms_EDCH,
@@ -61034,7 +61049,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "HARQ_Process_Allocation_2ms_EDCH", HFILL }},
     { &hf_nbap_E_DCH_DL_Control_Channel_Change_Information_item,
-      { "E-DCH-DL-Control-Channel-Change-Information-Item", "nbap.E_DCH_DL_Control_Channel_Change_Information_Item",
+      { "E-DCH-DL-Control-Channel-Change-Information-Item", "nbap.E_DCH_DL_Control_Channel_Change_Information_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_RL_ID,
@@ -61042,19 +61057,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "RL_ID", HFILL }},
     { &hf_nbap_E_DCH_DL_Control_Channel_Grant_Information_item,
-      { "E-DCH-DL-Control-Channel-Grant-Information-Item", "nbap.E_DCH_DL_Control_Channel_Grant_Information_Item",
+      { "E-DCH-DL-Control-Channel-Grant-Information-Item", "nbap.E_DCH_DL_Control_Channel_Grant_Information_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_Non_Scheduled_Transmission_Grant,
-      { "e-DCH-Non-Scheduled-Transmission-Grant", "nbap.e_DCH_Non_Scheduled_Transmission_Grant",
+      { "e-DCH-Non-Scheduled-Transmission-Grant", "nbap.e_DCH_Non_Scheduled_Transmission_Grant_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "E_DCH_Non_Scheduled_Transmission_Grant_Items", HFILL }},
     { &hf_nbap_e_DCH_Scheduled_Transmission_Grant,
-      { "e-DCH-Scheduled-Transmission-Grant", "nbap.e_DCH_Scheduled_Transmission_Grant",
+      { "e-DCH-Scheduled-Transmission-Grant", "nbap.e_DCH_Scheduled_Transmission_Grant_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_LogicalChannelInformation_item,
-      { "E-DCH-LogicalChannelInformationItem", "nbap.E_DCH_LogicalChannelInformationItem",
+      { "E-DCH-LogicalChannelInformationItem", "nbap.E_DCH_LogicalChannelInformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_schedulingPriorityIndicator,
@@ -61078,7 +61093,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "E_DCH_MACdPDU_SizeList", HFILL }},
     { &hf_nbap_E_DCH_MACdPDU_SizeList_item,
-      { "E-DCH-MACdPDU-SizeListItem", "nbap.E_DCH_MACdPDU_SizeListItem",
+      { "E-DCH-MACdPDU-SizeListItem", "nbap.E_DCH_MACdPDU_SizeListItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_mACdPDU_Size,
@@ -61086,7 +61101,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_LogicalChannelToModify_item,
-      { "E-DCH-LogicalChannelToModifyItem", "nbap.E_DCH_LogicalChannelToModifyItem",
+      { "E-DCH-LogicalChannelToModifyItem", "nbap.E_DCH_LogicalChannelToModifyItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_mACd_PDU_Size_List_01,
@@ -61094,11 +61109,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "E_DCH_MACdPDU_SizeToModifyList", HFILL }},
     { &hf_nbap_E_DCH_MACdPDU_SizeToModifyList_item,
-      { "E-DCH-MACdPDU-SizeListItem", "nbap.E_DCH_MACdPDU_SizeListItem",
+      { "E-DCH-MACdPDU-SizeListItem", "nbap.E_DCH_MACdPDU_SizeListItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_LogicalChannelToDelete_item,
-      { "E-DCH-LogicalChannelToDeleteItem", "nbap.E_DCH_LogicalChannelToDeleteItem",
+      { "E-DCH-LogicalChannelToDeleteItem", "nbap.E_DCH_LogicalChannelToDeleteItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_MACdFlow_Specific_Info,
@@ -61106,7 +61121,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "E_DCH_MACdFlow_Specific_InfoList", HFILL }},
     { &hf_nbap_E_DCH_MACdFlow_Specific_InfoList_item,
-      { "E-DCH-MACdFlow-Specific-InfoItem", "nbap.E_DCH_MACdFlow_Specific_InfoItem",
+      { "E-DCH-MACdFlow-Specific-InfoItem", "nbap.E_DCH_MACdFlow_Specific_InfoItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_eDCH_Grant_Type_Information,
@@ -61118,11 +61133,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "E_DCH_LogicalChannelInformation", HFILL }},
     { &hf_nbap_E_DCH_MACdFlow_Specific_InformationResp_item,
-      { "E-DCH-MACdFlow-Specific-InformationResp-Item", "nbap.E_DCH_MACdFlow_Specific_InformationResp_Item",
+      { "E-DCH-MACdFlow-Specific-InformationResp-Item", "nbap.E_DCH_MACdFlow_Specific_InformationResp_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_MACdFlow_Specific_InfoList_to_Modify_item,
-      { "E-DCH-MACdFlow-Specific-InfoItem-to-Modify", "nbap.E_DCH_MACdFlow_Specific_InfoItem_to_Modify",
+      { "E-DCH-MACdFlow-Specific-InfoItem-to-Modify", "nbap.E_DCH_MACdFlow_Specific_InfoItem_to_Modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_eDCH_LogicalChannelToAdd,
@@ -61138,7 +61153,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "E_DCH_LogicalChannelToDelete", HFILL }},
     { &hf_nbap_E_DCH_MACdFlows_to_Delete_item,
-      { "E-DCH-MACdFlow-to-Delete-Item", "nbap.E_DCH_MACdFlow_to_Delete_Item",
+      { "E-DCH-MACdFlow-to-Delete-Item", "nbap.E_DCH_MACdFlow_to_Delete_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_maxBits_MACe_PDU_non_scheduled,
@@ -61154,11 +61169,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_E_DCH_serving_cell_choice_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_serving_cell_change_successful,
-      { "e-DCH-serving-cell-change-successful", "nbap.e_DCH_serving_cell_change_successful",
+      { "e-DCH-serving-cell-change-successful", "nbap.e_DCH_serving_cell_change_successful_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_serving_cell_change_unsuccessful,
-      { "e-DCH-serving-cell-change-unsuccessful", "nbap.e_DCH_serving_cell_change_unsuccessful",
+      { "e-DCH-serving-cell-change-unsuccessful", "nbap.e_DCH_serving_cell_change_unsuccessful_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_RL_InformationList_Rsp,
@@ -61166,7 +61181,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_RL_InformationList_Rsp_item,
-      { "E-DCH-RL-InformationList-Rsp-Item", "nbap.E_DCH_RL_InformationList_Rsp_Item",
+      { "E-DCH-RL-InformationList-Rsp-Item", "nbap.E_DCH_RL_InformationList_Rsp_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_rl_ID,
@@ -61174,7 +61189,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_FDD_DL_Control_Channel_Info,
-      { "e-DCH-FDD-DL-Control-Channel-Info", "nbap.e_DCH_FDD_DL_Control_Channel_Info",
+      { "e-DCH-FDD-DL-Control-Channel-Info", "nbap.e_DCH_FDD_DL_Control_Channel_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "E_DCH_FDD_DL_Control_Channel_Information", HFILL }},
     { &hf_nbap_cause,
@@ -61182,7 +61197,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_Cause_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_EDCH_RACH_Report_Value_item,
-      { "EDCH-RACH-Report-Value item", "nbap.EDCH_RACH_Report_Value_item",
+      { "EDCH-RACH-Report-Value item", "nbap.EDCH_RACH_Report_Value_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_granted_EDCH_RACH_resources,
@@ -61194,23 +61209,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Denied_EDCH_RACH_Resources_Value", HFILL }},
     { &hf_nbap_two_ms,
-      { "two-ms", "nbap.two_ms",
+      { "two-ms", "nbap.two_ms_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DTX_Cycle_2ms_Items", HFILL }},
     { &hf_nbap_ten_ms,
-      { "ten-ms", "nbap.ten_ms",
+      { "ten-ms", "nbap.ten_ms_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DTX_Cycle_10ms_Items", HFILL }},
     { &hf_nbap_two_ms_01,
-      { "two-ms", "nbap.two_ms",
+      { "two-ms", "nbap.two_ms_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DTX_Cycle_2ms_to_Modify_Items", HFILL }},
     { &hf_nbap_ten_ms_01,
-      { "ten-ms", "nbap.ten_ms",
+      { "ten-ms", "nbap.ten_ms_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DTX_Cycle_10ms_to_Modify_Items", HFILL }},
     { &hf_nbap_E_DCH_MACdFlows_to_DeleteLCR_item,
-      { "E-DCH-MACdFlow-to-Delete-ItemLCR", "nbap.E_DCH_MACdFlow_to_Delete_ItemLCR",
+      { "E-DCH-MACdFlow-to-Delete-ItemLCR", "nbap.E_DCH_MACdFlow_to_Delete_ItemLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_MACdFlow_ID_LCR,
@@ -61254,7 +61269,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCHProvidedBitRate_item,
-      { "E-DCHProvidedBitRate-Item", "nbap.E_DCHProvidedBitRate_Item",
+      { "E-DCHProvidedBitRate-Item", "nbap.E_DCHProvidedBitRate_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCHProvidedBitRateValue,
@@ -61262,7 +61277,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCHProvidedBitRateValueInformation_For_CellPortion_item,
-      { "E-DCHProvidedBitRateValueInformation-For-CellPortion-Item", "nbap.E_DCHProvidedBitRateValueInformation_For_CellPortion_Item",
+      { "E-DCHProvidedBitRateValueInformation-For-CellPortion-Item", "nbap.E_DCHProvidedBitRateValueInformation_For_CellPortion_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCHProvidedBitRateValue_01,
@@ -61270,7 +61285,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "E_DCHProvidedBitRate", HFILL }},
     { &hf_nbap_e_PUCH_Information,
-      { "e-PUCH-Information", "nbap.e_PUCH_Information",
+      { "e-PUCH-Information", "nbap.e_PUCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_MACdFlows_Information_TDD,
@@ -61278,11 +61293,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_Non_Scheduled_Grant_Info,
-      { "e-DCH-Non-Scheduled-Grant-Info", "nbap.e_DCH_Non_Scheduled_Grant_Info",
+      { "e-DCH-Non-Scheduled-Grant-Info", "nbap.e_DCH_Non_Scheduled_Grant_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_TDD_Information,
-      { "e-DCH-TDD-Information", "nbap.e_DCH_TDD_Information",
+      { "e-DCH-TDD-Information", "nbap.e_DCH_TDD_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_n_E_UCCH,
@@ -61298,11 +61313,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_QPSK_RefBetaInfo_item,
-      { "E-DCH-RefBeta-Item", "nbap.E_DCH_RefBeta_Item",
+      { "E-DCH-RefBeta-Item", "nbap.E_DCH_RefBeta_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_sixteenQAM_RefBetaInfo_item,
-      { "E-DCH-RefBeta-Item", "nbap.E_DCH_RefBeta_Item",
+      { "E-DCH-RefBeta-Item", "nbap.E_DCH_RefBeta_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_refCodeRate,
@@ -61314,7 +61329,7 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_MACdFlows_Information_TDD_item,
-      { "E-DCH-MACdFlow-InfoTDDItem", "nbap.E_DCH_MACdFlow_InfoTDDItem",
+      { "E-DCH-MACdFlow-InfoTDDItem", "nbap.E_DCH_MACdFlow_InfoTDDItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_eDCH_Grant_TypeTDD,
@@ -61362,7 +61377,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Scheduled_E_HICH_Specific_Information_ResponseLCRTDD", HFILL }},
     { &hf_nbap_Scheduled_E_HICH_Specific_Information_ResponseLCRTDD_item,
-      { "Scheduled-E-HICH-Specific-InformationItem-ResponseLCRTDD", "nbap.Scheduled_E_HICH_Specific_InformationItem_ResponseLCRTDD",
+      { "Scheduled-E-HICH-Specific-InformationItem-ResponseLCRTDD", "nbap.Scheduled_E_HICH_Specific_InformationItem_ResponseLCRTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_HICH_ID_TDD,
@@ -61370,7 +61385,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_TDD_MACdFlow_Specific_InformationResp_item,
-      { "E-DCH-TDD-MACdFlow-Specific-InformationResp-Item", "nbap.E_DCH_TDD_MACdFlow_Specific_InformationResp_Item",
+      { "E-DCH-TDD-MACdFlow-Specific-InformationResp-Item", "nbap.E_DCH_TDD_MACdFlow_Specific_InformationResp_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_MacdFlow_Id,
@@ -61378,7 +61393,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_AGCH_Specific_InformationRespListTDD_item,
-      { "E-AGCH-Specific-InformationResp-ItemTDD", "nbap.E_AGCH_Specific_InformationResp_ItemTDD",
+      { "E-AGCH-Specific-InformationResp-ItemTDD", "nbap.E_AGCH_Specific_InformationResp_ItemTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_AGCH_Id,
@@ -61394,7 +61409,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_TDD_Information_to_Modify,
-      { "e-DCH-TDD-Information-to-Modify", "nbap.e_DCH_TDD_Information_to_Modify",
+      { "e-DCH-TDD-Information-to-Modify", "nbap.e_DCH_TDD_Information_to_Modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_TDD_Information_to_Modify_List,
@@ -61402,7 +61417,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_TDD_Information_to_Modify_List_item,
-      { "E-DCH-MACdFlow-ModifyTDDItem", "nbap.E_DCH_MACdFlow_ModifyTDDItem",
+      { "E-DCH-MACdFlow-ModifyTDDItem", "nbap.E_DCH_MACdFlow_ModifyTDDItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_LogicalChannelToAdd,
@@ -61418,11 +61433,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_Non_Scheduled_Grant_Info768,
-      { "e-DCH-Non-Scheduled-Grant-Info768", "nbap.e_DCH_Non_Scheduled_Grant_Info768",
+      { "e-DCH-Non-Scheduled-Grant-Info768", "nbap.e_DCH_Non_Scheduled_Grant_Info768_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_TDD_Information768,
-      { "e-DCH-TDD-Information768", "nbap.e_DCH_TDD_Information768",
+      { "e-DCH-TDD-Information768", "nbap.e_DCH_TDD_Information768_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tdd_ChannelisationCode768,
@@ -61434,15 +61449,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_PUCH_LCR_Information,
-      { "e-PUCH-LCR-Information", "nbap.e_PUCH_LCR_Information",
+      { "e-PUCH-LCR-Information", "nbap.e_PUCH_LCR_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_Non_Scheduled_Grant_LCR_Info,
-      { "e-DCH-Non-Scheduled-Grant-LCR-Info", "nbap.e_DCH_Non_Scheduled_Grant_LCR_Info",
+      { "e-DCH-Non-Scheduled-Grant-LCR-Info", "nbap.e_DCH_Non_Scheduled_Grant_LCR_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_LCRTDD_Information,
-      { "e-DCH-LCRTDD-Information", "nbap.e_DCH_LCRTDD_Information",
+      { "e-DCH-LCRTDD-Information", "nbap.e_DCH_LCRTDD_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_timeslotResourceLCR,
@@ -61458,7 +61473,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_HICH_LCR_Information,
-      { "e-HICH-LCR-Information", "nbap.e_HICH_LCR_Information",
+      { "e-HICH-LCR-Information", "nbap.e_HICH_LCR_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_signatureSequenceGroupIndex,
@@ -61482,7 +61497,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sPS_E_DCH_releted_E_HICH_Information,
-      { "sPS-E-DCH-releted-E-HICH-Information", "nbap.sPS_E_DCH_releted_E_HICH_Information",
+      { "sPS-E-DCH-releted-E-HICH-Information", "nbap.sPS_E_DCH_releted_E_HICH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "E_HICH_LCR_Information", HFILL }},
     { &hf_nbap_timeslot_Resource_Related_Information,
@@ -61494,7 +61509,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_T_subframeNumber_01_vals), 0,
         "T_subframeNumber_01", HFILL }},
     { &hf_nbap_FDD_DL_CodeInformation_item,
-      { "FDD-DL-CodeInformationItem", "nbap.FDD_DL_CodeInformationItem",
+      { "FDD-DL-CodeInformationItem", "nbap.FDD_DL_CodeInformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dl_ScramblingCode,
@@ -61510,35 +61525,35 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_TransmissionGapPatternSequenceCodeInformation_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_navClockModel,
-      { "navClockModel", "nbap.navClockModel",
+      { "navClockModel", "nbap.navClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_NAVclockModel", HFILL }},
     { &hf_nbap_cnavClockModel,
-      { "cnavClockModel", "nbap.cnavClockModel",
+      { "cnavClockModel", "nbap.cnavClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_CNAVclockModel", HFILL }},
     { &hf_nbap_glonassClockModel,
-      { "glonassClockModel", "nbap.glonassClockModel",
+      { "glonassClockModel", "nbap.glonassClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_GLONASSclockModel", HFILL }},
     { &hf_nbap_sbasClockModel,
-      { "sbasClockModel", "nbap.sbasClockModel",
+      { "sbasClockModel", "nbap.sbasClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_SBASclockModel", HFILL }},
     { &hf_nbap_navKeplerianSet,
-      { "navKeplerianSet", "nbap.navKeplerianSet",
+      { "navKeplerianSet", "nbap.navKeplerianSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_NavModel_NAVKeplerianSet", HFILL }},
     { &hf_nbap_cnavKeplerianSet,
-      { "cnavKeplerianSet", "nbap.cnavKeplerianSet",
+      { "cnavKeplerianSet", "nbap.cnavKeplerianSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_NavModel_CNAVKeplerianSet", HFILL }},
     { &hf_nbap_glonassECEF,
-      { "glonassECEF", "nbap.glonassECEF",
+      { "glonassECEF", "nbap.glonassECEF_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_NavModel_GLONASSecef", HFILL }},
     { &hf_nbap_sbasECEF,
-      { "sbasECEF", "nbap.sbasECEF",
+      { "sbasECEF", "nbap.sbasECEF_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_NavModel_SBASecef", HFILL }},
     { &hf_nbap_dataID,
@@ -61546,11 +61561,11 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_2", HFILL }},
     { &hf_nbap_alpha_beta_parameters,
-      { "alpha-beta-parameters", "nbap.alpha_beta_parameters",
+      { "alpha-beta-parameters", "nbap.alpha_beta_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPS_Ionospheric_Model", HFILL }},
     { &hf_nbap_ganss_Transmission_Time,
-      { "ganss-Transmission-Time", "nbap.ganss_Transmission_Time",
+      { "ganss-Transmission-Time", "nbap.ganss_Transmission_Time_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_non_broadcastIndication,
@@ -61562,19 +61577,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Ganss_Sat_Info_AddNavList", HFILL }},
     { &hf_nbap_GANSS_Additional_Time_Models_item,
-      { "GANSS-Time-Model", "nbap.GANSS_Time_Model",
+      { "GANSS-Time-Model", "nbap.GANSS_Time_Model_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_utcModel1,
-      { "utcModel1", "nbap.utcModel1",
+      { "utcModel1", "nbap.utcModel1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_UTCmodelSet1", HFILL }},
     { &hf_nbap_utcModel2,
-      { "utcModel2", "nbap.utcModel2",
+      { "utcModel2", "nbap.utcModel2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_UTCmodelSet2", HFILL }},
     { &hf_nbap_utcModel3,
-      { "utcModel3", "nbap.utcModel3",
+      { "utcModel3", "nbap.utcModel3_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_UTCmodelSet3", HFILL }},
     { &hf_nbap_ganss_wk_number,
@@ -61586,11 +61601,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_GANSS_AlmanacModel_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_gANSS_keplerianParameters,
-      { "gANSS-keplerianParameters", "nbap.gANSS_keplerianParameters",
+      { "gANSS-keplerianParameters", "nbap.gANSS_keplerianParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_KeplerianParametersAlm", HFILL }},
     { &hf_nbap_extension_GANSS_AlmanacModel,
-      { "extension-GANSS-AlmanacModel", "nbap.extension_GANSS_AlmanacModel",
+      { "extension-GANSS-AlmanacModel", "nbap.extension_GANSS_AlmanacModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sat_info_SBASecefList,
@@ -61626,7 +61641,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "GANSS_AuxInfoGANSS_ID3", HFILL }},
     { &hf_nbap_GANSS_AuxInfoGANSS_ID1_item,
-      { "GANSS-AuxInfoGANSS-ID1-element", "nbap.GANSS_AuxInfoGANSS_ID1_element",
+      { "GANSS-AuxInfoGANSS-ID1-element", "nbap.GANSS_AuxInfoGANSS_ID1_element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_svID,
@@ -61638,7 +61653,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_8", HFILL }},
     { &hf_nbap_GANSS_AuxInfoGANSS_ID3_item,
-      { "GANSS-AuxInfoGANSS-ID3-element", "nbap.GANSS_AuxInfoGANSS_ID3_element",
+      { "GANSS-AuxInfoGANSS-ID3-element", "nbap.GANSS_AuxInfoGANSS_ID3_element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_channelNumber,
@@ -61646,7 +61661,7 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M7_13", HFILL }},
     { &hf_nbap_GANSS_Clock_Model_item,
-      { "GANSS-SatelliteClockModelItem", "nbap.GANSS_SatelliteClockModelItem",
+      { "GANSS-SatelliteClockModelItem", "nbap.GANSS_SatelliteClockModelItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cnavToc,
@@ -61710,11 +61725,11 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_13", HFILL }},
     { &hf_nbap_ganss_Ionospheric_Model,
-      { "ganss-Ionospheric-Model", "nbap.ganss_Ionospheric_Model",
+      { "ganss-Ionospheric-Model", "nbap.ganss_Ionospheric_Model_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ganss_Rx_Pos,
-      { "ganss-Rx-Pos", "nbap.ganss_Rx_Pos",
+      { "ganss-Rx-Pos", "nbap.ganss_Rx_Pos_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ionospheric_Model,
@@ -61730,7 +61745,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "GANSS_DataBitAssistanceList", HFILL }},
     { &hf_nbap_GANSS_DataBitAssistanceList_item,
-      { "GANSS-DataBitAssistanceItem", "nbap.GANSS_DataBitAssistanceItem",
+      { "GANSS-DataBitAssistanceItem", "nbap.GANSS_DataBitAssistanceItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dataBitAssistanceSgnList,
@@ -61738,7 +61753,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "GANSS_DataBitAssistanceSgnList", HFILL }},
     { &hf_nbap_GANSS_DataBitAssistanceSgnList_item,
-      { "GANSS-DataBitAssistanceSgnItem", "nbap.GANSS_DataBitAssistanceSgnItem",
+      { "GANSS-DataBitAssistanceSgnItem", "nbap.GANSS_DataBitAssistanceSgnItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ganss_SignalId,
@@ -61754,7 +61769,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_86399", HFILL }},
     { &hf_nbap_ganss_Data_Bit_Assistance_ReqList,
-      { "ganss-Data-Bit-Assistance-ReqList", "nbap.ganss_Data_Bit_Assistance_ReqList",
+      { "ganss-Data-Bit-Assistance-ReqList", "nbap.ganss_Data_Bit_Assistance_ReqList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ganss_DataBitInterval,
@@ -61806,7 +61821,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_19", HFILL }},
     { &hf_nbap_GANSS_GenericDataInfoReqList_item,
-      { "GANSS-GenericDataInfoReqItem", "nbap.GANSS_GenericDataInfoReqItem",
+      { "GANSS-GenericDataInfoReqItem", "nbap.GANSS_GenericDataInfoReqItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ganss_Id,
@@ -61834,31 +61849,31 @@ void proto_register_nbap(void)
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_nbap_ganss_Data_Bit_Assistance_Req,
-      { "ganss-Data-Bit-Assistance-Req", "nbap.ganss_Data_Bit_Assistance_Req",
+      { "ganss-Data-Bit-Assistance-Req", "nbap.ganss_Data_Bit_Assistance_Req_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_Data_Bit_Assistance_ReqItem", HFILL }},
     { &hf_nbap_GANSS_Generic_Data_item,
-      { "GANSS-Generic-DataItem", "nbap.GANSS_Generic_DataItem",
+      { "GANSS-Generic-DataItem", "nbap.GANSS_Generic_DataItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dganss_Correction,
-      { "dganss-Correction", "nbap.dganss_Correction",
+      { "dganss-Correction", "nbap.dganss_Correction_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DGANSSCorrections", HFILL }},
     { &hf_nbap_ganss_Navigation_Model_And_Time_Recovery_01,
-      { "ganss-Navigation-Model-And-Time-Recovery", "nbap.ganss_Navigation_Model_And_Time_Recovery",
+      { "ganss-Navigation-Model-And-Time-Recovery", "nbap.ganss_Navigation_Model_And_Time_Recovery_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ganss_Time_Model,
-      { "ganss-Time-Model", "nbap.ganss_Time_Model",
+      { "ganss-Time-Model", "nbap.ganss_Time_Model_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ganss_UTC_TIME,
-      { "ganss-UTC-TIME", "nbap.ganss_UTC_TIME",
+      { "ganss-UTC-TIME", "nbap.ganss_UTC_TIME_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_UTC_Model", HFILL }},
     { &hf_nbap_ganss_Almanac_01,
-      { "ganss-Almanac", "nbap.ganss_Almanac",
+      { "ganss-Almanac", "nbap.ganss_Almanac_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ganss_Real_Time_Integrity_01,
@@ -61866,7 +61881,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ganss_Data_Bit_Assistance,
-      { "ganss-Data-Bit-Assistance", "nbap.ganss_Data_Bit_Assistance",
+      { "ganss-Data-Bit-Assistance", "nbap.ganss_Data_Bit_Assistance_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_gloTau,
@@ -61882,7 +61897,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_5", HFILL }},
     { &hf_nbap_gANSS_CommonDataInfoReq,
-      { "gANSS-CommonDataInfoReq", "nbap.gANSS_CommonDataInfoReq",
+      { "gANSS-CommonDataInfoReq", "nbap.gANSS_CommonDataInfoReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_gANSS_GenericDataInfoReqList,
@@ -61902,7 +61917,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_12", HFILL }},
     { &hf_nbap_gANSS_IonosphereRegionalStormFlags,
-      { "gANSS-IonosphereRegionalStormFlags", "nbap.gANSS_IonosphereRegionalStormFlags",
+      { "gANSS-IonosphereRegionalStormFlags", "nbap.gANSS_IonosphereRegionalStormFlags_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_storm_flag_one,
@@ -62266,11 +62281,11 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_10", HFILL }},
     { &hf_nbap_gANSS_keplerianParameters_01,
-      { "gANSS-keplerianParameters", "nbap.gANSS_keplerianParameters",
+      { "gANSS-keplerianParameters", "nbap.gANSS_keplerianParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_KeplerianParametersOrb", HFILL }},
     { &hf_nbap_GANSS_Real_Time_Integrity_item,
-      { "GANSS-RealTimeInformationItem", "nbap.GANSS_RealTimeInformationItem",
+      { "GANSS-RealTimeInformationItem", "nbap.GANSS_RealTimeInformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_bad_ganss_satId,
@@ -62326,7 +62341,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_1_", HFILL }},
     { &hf_nbap_GANSS_SatelliteInformationKP_item,
-      { "GANSS-SatelliteInformationKPItem", "nbap.GANSS_SatelliteInformationKPItem",
+      { "GANSS-SatelliteInformationKPItem", "nbap.GANSS_SatelliteInformationKPItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ganss_e_alm,
@@ -62370,7 +62385,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_11", HFILL }},
     { &hf_nbap_Ganss_Sat_Info_AddNavList_item,
-      { "Ganss-Sat-Info-AddNavList item", "nbap.Ganss_Sat_Info_AddNavList_item",
+      { "Ganss-Sat-Info-AddNavList item", "nbap.Ganss_Sat_Info_AddNavList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_svHealth,
@@ -62390,7 +62405,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_GANSS_AddOrbitModels_vals), 0,
         "GANSS_AddOrbitModels", HFILL }},
     { &hf_nbap_GANSS_SAT_Info_Almanac_GLOkpList_item,
-      { "GANSS-SAT-Info-Almanac-GLOkp", "nbap.GANSS_SAT_Info_Almanac_GLOkp",
+      { "GANSS-SAT-Info-Almanac-GLOkp", "nbap.GANSS_SAT_Info_Almanac_GLOkp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_gloAlmNA,
@@ -62446,7 +62461,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_2", HFILL }},
     { &hf_nbap_GANSS_SAT_Info_Almanac_MIDIkpList_item,
-      { "GANSS-SAT-Info-Almanac-MIDIkp", "nbap.GANSS_SAT_Info_Almanac_MIDIkp",
+      { "GANSS-SAT-Info-Almanac-MIDIkp", "nbap.GANSS_SAT_Info_Almanac_MIDIkp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_midiAlmE,
@@ -62498,7 +62513,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_1", HFILL }},
     { &hf_nbap_GANSS_SAT_Info_Almanac_NAVkpList_item,
-      { "GANSS-SAT-Info-Almanac-NAVkp", "nbap.GANSS_SAT_Info_Almanac_NAVkp",
+      { "GANSS-SAT-Info-Almanac-NAVkp", "nbap.GANSS_SAT_Info_Almanac_NAVkp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_navAlmE,
@@ -62542,7 +62557,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_11", HFILL }},
     { &hf_nbap_GANSS_SAT_Info_Almanac_REDkpList_item,
-      { "GANSS-SAT-Info-Almanac-REDkp", "nbap.GANSS_SAT_Info_Almanac_REDkp",
+      { "GANSS-SAT-Info-Almanac-REDkp", "nbap.GANSS_SAT_Info_Almanac_REDkp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_redAlmDeltaA,
@@ -62570,7 +62585,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_1", HFILL }},
     { &hf_nbap_GANSS_SAT_Info_Almanac_SBASecefList_item,
-      { "GANSS-SAT-Info-Almanac-SBASecef", "nbap.GANSS_SAT_Info_Almanac_SBASecef",
+      { "GANSS-SAT-Info-Almanac-SBASecef", "nbap.GANSS_SAT_Info_Almanac_SBASecef_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sbasAlmDataID,
@@ -62610,7 +62625,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_11", HFILL }},
     { &hf_nbap_GANSS_Sat_Info_Nav_item,
-      { "GANSS-Sat-Info-Nav item", "nbap.GANSS_Sat_Info_Nav_item",
+      { "GANSS-Sat-Info-Nav item", "nbap.GANSS_Sat_Info_Nav_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_svHealth_01,
@@ -62742,7 +62757,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_32", HFILL }},
     { &hf_nbap_deltaUT1_01,
-      { "deltaUT1", "nbap.deltaUT1",
+      { "deltaUT1", "nbap.deltaUT1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSS_DeltaUT1", HFILL }},
     { &hf_nbap_kp,
@@ -62822,11 +62837,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_GPS_Information_Item_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_bad_satellites,
-      { "bad-satellites", "nbap.bad_satellites",
+      { "bad-satellites", "nbap.bad_satellites_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPSBadSat_Info_RealTime_Integrity", HFILL }},
     { &hf_nbap_no_bad_satellites,
-      { "no-bad-satellites", "nbap.no_bad_satellites",
+      { "no-bad-satellites", "nbap.no_bad_satellites_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sat_info,
@@ -62834,7 +62849,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SATInfo_RealTime_Integrity", HFILL }},
     { &hf_nbap_GPS_NavigationModel_and_TimeRecovery_item,
-      { "GPS-NavandRecovery-Item", "nbap.GPS_NavandRecovery_Item",
+      { "GPS-NavandRecovery-Item", "nbap.GPS_NavandRecovery_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tx_tow_nav,
@@ -62946,11 +62961,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_T_directionOfAltitude_01_vals), 0,
         "T_directionOfAltitude_01", HFILL }},
     { &hf_nbap_implicit,
-      { "implicit", "nbap.implicit",
+      { "implicit", "nbap.implicit_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "HARQ_MemoryPartitioning_Implicit", HFILL }},
     { &hf_nbap_explicit,
-      { "explicit", "nbap.explicit",
+      { "explicit", "nbap.explicit_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "HARQ_MemoryPartitioning_Explicit", HFILL }},
     { &hf_nbap_number_of_Processes,
@@ -62962,11 +62977,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HARQ_MemoryPartitioningList_item,
-      { "HARQ-MemoryPartitioningItem", "nbap.HARQ_MemoryPartitioningItem",
+      { "HARQ-MemoryPartitioningItem", "nbap.HARQ_MemoryPartitioningItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HARQ_MemoryPartitioningInfoExtForMIMO_item,
-      { "HARQ-MemoryPartitioningItem", "nbap.HARQ_MemoryPartitioningItem",
+      { "HARQ-MemoryPartitioningItem", "nbap.HARQ_MemoryPartitioningItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_process_Memory_Size,
@@ -62974,7 +62989,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_T_process_Memory_Size_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_HS_DSCHProvidedBitRate_item,
-      { "HS-DSCHProvidedBitRate-Item", "nbap.HS_DSCHProvidedBitRate_Item",
+      { "HS-DSCHProvidedBitRate-Item", "nbap.HS_DSCHProvidedBitRate_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_DSCHProvidedBitRateValue,
@@ -62982,7 +62997,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_DSCHProvidedBitRateValueInformation_For_CellPortion_item,
-      { "HS-DSCHProvidedBitRateValueInformation-For-CellPortion-Item", "nbap.HS_DSCHProvidedBitRateValueInformation_For_CellPortion_Item",
+      { "HS-DSCHProvidedBitRateValueInformation-For-CellPortion-Item", "nbap.HS_DSCHProvidedBitRateValueInformation_For_CellPortion_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_DSCHProvidedBitRateValue_01,
@@ -62990,11 +63005,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "HS_DSCHProvidedBitRate", HFILL }},
     { &hf_nbap_HS_DSCHProvidedBitRateValueInformation_For_CellPortionLCR_item,
-      { "HS-DSCHProvidedBitRateValueInformation-For-CellPortionLCR-Item", "nbap.HS_DSCHProvidedBitRateValueInformation_For_CellPortionLCR_Item",
+      { "HS-DSCHProvidedBitRateValueInformation-For-CellPortionLCR-Item", "nbap.HS_DSCHProvidedBitRateValueInformation_For_CellPortionLCR_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_DSCHRequiredPower_item,
-      { "HS-DSCHRequiredPower-Item", "nbap.HS_DSCHRequiredPower_Item",
+      { "HS-DSCHRequiredPower-Item", "nbap.HS_DSCHRequiredPower_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_DSCHRequiredPowerValue,
@@ -63006,7 +63021,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_DSCHRequiredPowerPerUEInformation_item,
-      { "HS-DSCHRequiredPowerPerUEInformation-Item", "nbap.HS_DSCHRequiredPowerPerUEInformation_Item",
+      { "HS-DSCHRequiredPowerPerUEInformation-Item", "nbap.HS_DSCHRequiredPowerPerUEInformation_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cRNC_CommunicationContextID,
@@ -63018,7 +63033,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_DSCHRequiredPowerValueInformation_For_CellPortion_item,
-      { "HS-DSCHRequiredPowerValueInformation-For-CellPortion-Item", "nbap.HS_DSCHRequiredPowerValueInformation_For_CellPortion_Item",
+      { "HS-DSCHRequiredPowerValueInformation-For-CellPortion-Item", "nbap.HS_DSCHRequiredPowerValueInformation_For_CellPortion_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_DSCHRequiredPowerValue_01,
@@ -63026,15 +63041,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "HS_DSCHRequiredPower", HFILL }},
     { &hf_nbap_HS_DSCHRequiredPowerValueInformation_For_CellPortionLCR_item,
-      { "HS-DSCHRequiredPowerValueInformation-For-CellPortionLCR-Item", "nbap.HS_DSCHRequiredPowerValueInformation_For_CellPortionLCR_Item",
+      { "HS-DSCHRequiredPowerValueInformation-For-CellPortionLCR-Item", "nbap.HS_DSCHRequiredPowerValueInformation_For_CellPortionLCR_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hsdpa_PICH_Shared_with_PCH,
-      { "hsdpa-PICH-Shared-with-PCH", "nbap.hsdpa_PICH_Shared_with_PCH",
+      { "hsdpa-PICH-Shared-with-PCH", "nbap.hsdpa_PICH_Shared_with_PCH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hsdpa_PICH_notShared_with_PCH,
-      { "hsdpa-PICH-notShared-with-PCH", "nbap.hsdpa_PICH_notShared_with_PCH",
+      { "hsdpa-PICH-notShared-with-PCH", "nbap.hsdpa_PICH_notShared_with_PCH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hsdpa_PICH_SharedPCH_ID,
@@ -63062,7 +63077,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_STTD_Indicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_hsdsch_Common_Information,
-      { "hsdsch-Common-Information", "nbap.hsdsch_Common_Information",
+      { "hsdsch-Common-Information", "nbap.hsdsch_Common_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_commonMACFlow_Specific_Information,
@@ -63102,15 +63117,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_RACH_Measurement_Result_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_bCCH_Specific_HSDSCH_RNTI_Information,
-      { "bCCH-Specific-HSDSCH-RNTI-Information", "nbap.bCCH_Specific_HSDSCH_RNTI_Information",
+      { "bCCH-Specific-HSDSCH-RNTI-Information", "nbap.bCCH_Specific_HSDSCH_RNTI_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hSDSCH_MACdFlows_Information,
-      { "hSDSCH-MACdFlows-Information", "nbap.hSDSCH_MACdFlows_Information",
+      { "hSDSCH-MACdFlows-Information", "nbap.hSDSCH_MACdFlows_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ueCapability_Info,
-      { "ueCapability-Info", "nbap.ueCapability_Info",
+      { "ueCapability-Info", "nbap.ueCapability_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UE_Capability_Information", HFILL }},
     { &hf_nbap_mAChs_Reordering_Buffer_Size_for_RLC_UM,
@@ -63142,7 +63157,7 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "TDD_AckNack_Power_Offset", HFILL }},
     { &hf_nbap_HSDSCH_MACdFlow_Specific_InfoList_to_Modify_item,
-      { "HSDSCH-MACdFlow-Specific-InfoItem-to-Modify", "nbap.HSDSCH_MACdFlow_Specific_InfoItem_to_Modify",
+      { "HSDSCH-MACdFlow-Specific-InfoItem-to-Modify", "nbap.HSDSCH_MACdFlow_Specific_InfoItem_to_Modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hsDSCH_MACdFlow_ID,
@@ -63190,15 +63205,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_HS_DSCH_Secondary_Serving_cell_change_choice_vals), 0,
         "HS_DSCH_Secondary_Serving_cell_change_choice", HFILL }},
     { &hf_nbap_hS_Secondary_Serving_cell_change_successful,
-      { "hS-Secondary-Serving-cell-change-successful", "nbap.hS_Secondary_Serving_cell_change_successful",
+      { "hS-Secondary-Serving-cell-change-successful", "nbap.hS_Secondary_Serving_cell_change_successful_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_Secondary_Serving_cell_change_unsuccessful,
-      { "hS-Secondary-Serving-cell-change-unsuccessful", "nbap.hS_Secondary_Serving_cell_change_unsuccessful",
+      { "hS-Secondary-Serving-cell-change-unsuccessful", "nbap.hS_Secondary_Serving_cell_change_unsuccessful_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_DSCH_FDD_Secondary_Serving_Information_Response,
-      { "hS-DSCH-FDD-Secondary-Serving-Information-Response", "nbap.hS_DSCH_FDD_Secondary_Serving_Information_Response",
+      { "hS-DSCH-FDD-Secondary-Serving-Information-Response", "nbap.hS_DSCH_FDD_Secondary_Serving_Information_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_paging_MACFlow_Specific_Information,
@@ -63214,7 +63229,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_Paging_System_Information_ResponseFDD_item,
-      { "HSDSCH-Paging-System-Information-ResponseList", "nbap.HSDSCH_Paging_System_Information_ResponseList",
+      { "HSDSCH-Paging-System-Information-ResponseList", "nbap.HSDSCH_Paging_System_Information_ResponseList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pagingMACFlow_ID,
@@ -63234,7 +63249,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "HSSCCH_Specific_InformationRespListTDDLCR", HFILL }},
     { &hf_nbap_HSDSCH_MACdFlow_Specific_InformationResp_item,
-      { "HSDSCH-MACdFlow-Specific-InformationResp-Item", "nbap.HSDSCH_MACdFlow_Specific_InformationResp_Item",
+      { "HSDSCH-MACdFlow-Specific-InformationResp-Item", "nbap.HSDSCH_MACdFlow_Specific_InformationResp_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hsDSCHMacdFlow_Id,
@@ -63250,15 +63265,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "PriorityQueue_InfoList", HFILL }},
     { &hf_nbap_HSDSCH_MACdFlow_Specific_InfoList_item,
-      { "HSDSCH-MACdFlow-Specific-InfoItem", "nbap.HSDSCH_MACdFlow_Specific_InfoItem",
+      { "HSDSCH-MACdFlow-Specific-InfoItem", "nbap.HSDSCH_MACdFlow_Specific_InfoItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_MACdFlows_to_Delete_item,
-      { "HSDSCH-MACdFlows-to-Delete-Item", "nbap.HSDSCH_MACdFlows_to_Delete_Item",
+      { "HSDSCH-MACdFlows-to-Delete-Item", "nbap.HSDSCH_MACdFlows_to_Delete_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_Initial_Capacity_Allocation_item,
-      { "HSDSCH-Initial-Capacity-AllocationItem", "nbap.HSDSCH_Initial_Capacity_AllocationItem",
+      { "HSDSCH-Initial-Capacity-AllocationItem", "nbap.HSDSCH_Initial_Capacity_AllocationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_maximum_MACdPDU_Size,
@@ -63282,11 +63297,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_MIMO_N_M_Ratio_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_continuousPacketConnectivityHS_SCCH_less_Information_Response,
-      { "continuousPacketConnectivityHS-SCCH-less-Information-Response", "nbap.continuousPacketConnectivityHS_SCCH_less_Information_Response",
+      { "continuousPacketConnectivityHS-SCCH-less-Information-Response", "nbap.continuousPacketConnectivityHS_SCCH_less_Information_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_Preconfiguration_Information_item,
-      { "Additional-EDCH-Preconfiguration-Information-ItemIEs", "nbap.Additional_EDCH_Preconfiguration_Information_ItemIEs",
+      { "Additional-EDCH-Preconfiguration-Information-ItemIEs", "nbap.Additional_EDCH_Preconfiguration_Information_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_mAChsResetScheme,
@@ -63310,7 +63325,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_HARQ_Preamble_Mode_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_mIMO_ActivationIndicator,
-      { "mIMO-ActivationIndicator", "nbap.mIMO_ActivationIndicator",
+      { "mIMO-ActivationIndicator", "nbap.mIMO_ActivationIndicator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hSDSCH_MACdPDUSizeFormat,
@@ -63318,11 +63333,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_HSDSCH_MACdPDUSizeFormat_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_uE_with_enhanced_HS_SCCH_support_indicator,
-      { "uE-with-enhanced-HS-SCCH-support-indicator", "nbap.uE_with_enhanced_HS_SCCH_support_indicator",
+      { "uE-with-enhanced-HS-SCCH-support-indicator", "nbap.uE_with_enhanced_HS_SCCH_support_indicator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_SCCH_PreconfiguredCodes_item,
-      { "HS-SCCH-PreconfiguredCodesItem", "nbap.HS_SCCH_PreconfiguredCodesItem",
+      { "HS-SCCH-PreconfiguredCodesItem", "nbap.HS_SCCH_PreconfiguredCodesItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_SCCH_CodeNumber,
@@ -63330,7 +63345,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSSCCH_Specific_InformationRespListFDD_item,
-      { "HSSCCH-Codes", "nbap.HSSCCH_Codes",
+      { "HSSCCH-Codes", "nbap.HSSCCH_Codes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_codeNumber,
@@ -63338,7 +63353,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_127", HFILL }},
     { &hf_nbap_HSSCCH_Specific_InformationRespListTDD_item,
-      { "HSSCCH-Specific-InformationRespItemTDD", "nbap.HSSCCH_Specific_InformationRespItemTDD",
+      { "HSSCCH-Specific-InformationRespItemTDD", "nbap.HSSCCH_Specific_InformationRespItemTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_timeslot,
@@ -63350,11 +63365,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC|BASE_EXT_STRING, &nbap_TDD_ChannelisationCode_vals_ext, 0,
         NULL, HFILL }},
     { &hf_nbap_hSSICH_Info,
-      { "hSSICH-Info", "nbap.hSSICH_Info",
+      { "hSSICH-Info", "nbap.hSSICH_Info_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSSCCH_Specific_InformationRespListTDDLCR_item,
-      { "HSSCCH-Specific-InformationRespItemTDDLCR", "nbap.HSSCCH_Specific_InformationRespItemTDDLCR",
+      { "HSSCCH-Specific-InformationRespItemTDDLCR", "nbap.HSSCCH_Specific_InformationRespItemTDDLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_timeslotLCR,
@@ -63370,11 +63385,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC|BASE_EXT_STRING, &nbap_TDD_ChannelisationCode_vals_ext, 0,
         "TDD_ChannelisationCode", HFILL }},
     { &hf_nbap_hSSICH_InfoLCR,
-      { "hSSICH-InfoLCR", "nbap.hSSICH_InfoLCR",
+      { "hSSICH-InfoLCR", "nbap.hSSICH_InfoLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSSCCH_Specific_InformationRespListTDD768_item,
-      { "HSSCCH-Specific-InformationRespItemTDD768", "nbap.HSSCCH_Specific_InformationRespItemTDD768",
+      { "HSSCCH-Specific-InformationRespItemTDD768", "nbap.HSSCCH_Specific_InformationRespItemTDD768_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tDD_ChannelisationCode768,
@@ -63382,7 +63397,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC|BASE_EXT_STRING, &nbap_TDD_ChannelisationCode768_vals_ext, 0,
         NULL, HFILL }},
     { &hf_nbap_hSSICH_Info768,
-      { "hSSICH-Info768", "nbap.hSSICH_Info768",
+      { "hSSICH-Info768", "nbap.hSSICH_Info768_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hsSICH_ID,
@@ -63422,7 +63437,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "RL_ID", HFILL }},
     { &hf_nbap_hSDSCH_FDD_Information,
-      { "hSDSCH-FDD-Information", "nbap.hSDSCH_FDD_Information",
+      { "hSDSCH-FDD-Information", "nbap.hSDSCH_FDD_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hsdsch_RNTI,
@@ -63434,23 +63449,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_HS_DSCH_serving_cell_choice_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_hS_serving_cell_change_successful,
-      { "hS-serving-cell-change-successful", "nbap.hS_serving_cell_change_successful",
+      { "hS-serving-cell-change-successful", "nbap.hS_serving_cell_change_successful_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_serving_cell_change_unsuccessful,
-      { "hS-serving-cell-change-unsuccessful", "nbap.hS_serving_cell_change_unsuccessful",
+      { "hS-serving-cell-change-unsuccessful", "nbap.hS_serving_cell_change_unsuccessful_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hSDSCH_FDD_Information_Response,
-      { "hSDSCH-FDD-Information-Response", "nbap.hSDSCH_FDD_Information_Response",
+      { "hSDSCH-FDD-Information-Response", "nbap.hSDSCH_FDD_Information_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hsdpa_PICH_notShared_with_PCHLCR,
-      { "hsdpa-PICH-notShared-with-PCHLCR", "nbap.hsdpa_PICH_notShared_with_PCHLCR",
+      { "hsdpa-PICH-notShared-with-PCHLCR", "nbap.hsdpa_PICH_notShared_with_PCHLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tdd_ChannelisationCodeLCR,
-      { "tdd-ChannelisationCodeLCR", "nbap.tdd_ChannelisationCodeLCR",
+      { "tdd-ChannelisationCodeLCR", "nbap.tdd_ChannelisationCodeLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tdd_PhysicalChannelOffset,
@@ -63466,11 +63481,11 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_second_TDD_ChannelisationCodeLCR,
-      { "second-TDD-ChannelisationCodeLCR", "nbap.second_TDD_ChannelisationCodeLCR",
+      { "second-TDD-ChannelisationCodeLCR", "nbap.second_TDD_ChannelisationCodeLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TDD_ChannelisationCodeLCR", HFILL }},
     { &hf_nbap_hsdsch_Common_InformationLCR,
-      { "hsdsch-Common-InformationLCR", "nbap.hsdsch_Common_InformationLCR",
+      { "hsdsch-Common-InformationLCR", "nbap.hsdsch_Common_InformationLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_commonMACFlow_Specific_InformationLCR,
@@ -63482,7 +63497,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sync_InformationLCR,
-      { "sync-InformationLCR", "nbap.sync_InformationLCR",
+      { "sync-InformationLCR", "nbap.sync_InformationLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hSSICH_SIRTarget,
@@ -63506,7 +63521,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Common_MACFlow_ID_LCR", HFILL }},
     { &hf_nbap_bCCH_Specific_HSDSCH_RNTI_InformationLCR,
-      { "bCCH-Specific-HSDSCH-RNTI-InformationLCR", "nbap.bCCH_Specific_HSDSCH_RNTI_InformationLCR",
+      { "bCCH-Specific-HSDSCH-RNTI-InformationLCR", "nbap.bCCH_Specific_HSDSCH_RNTI_InformationLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_paging_MACFlow_Specific_InformationLCR,
@@ -63526,7 +63541,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_3", HFILL }},
     { &hf_nbap_HSDSCH_Paging_System_Information_ResponseLCR_item,
-      { "HSDSCH-Paging-System-Information-ResponseListLCR", "nbap.HSDSCH_Paging_System_Information_ResponseListLCR",
+      { "HSDSCH-Paging-System-Information-ResponseListLCR", "nbap.HSDSCH_Paging_System_Information_ResponseListLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_HS_PDSCH_Timeslot_Information_LCR_PSCH_ReconfRqst,
@@ -63534,7 +63549,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSSCCH_Specific_InformationRespListLCR_item,
-      { "HSSCCH-Specific-InformationRespItemLCR", "nbap.HSSCCH_Specific_InformationRespItemLCR",
+      { "HSSCCH-Specific-InformationRespItemLCR", "nbap.HSSCCH_Specific_InformationRespItemLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_SCCH_ID_LCR,
@@ -63554,7 +63569,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_HS_DSCH_SPS_Operation_Indicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_Transport_Block_Size_List_LCR_item,
-      { "Transport-Block-Size-Item-LCR", "nbap.Transport_Block_Size_Item_LCR",
+      { "Transport-Block-Size-Item-LCR", "nbap.Transport_Block_Size_Item_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_transport_Block_Size_maping_Index_LCR,
@@ -63566,7 +63581,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Repetition_Period_List_LCR_item,
-      { "Repetition-Period-Item-LCR", "nbap.Repetition_Period_Item_LCR",
+      { "Repetition-Period-Item-LCR", "nbap.Repetition_Period_Item_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_repetitionPeriodIndex,
@@ -63586,7 +63601,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_initial_HS_PDSCH_SPS_Resource,
-      { "initial-HS-PDSCH-SPS-Resource", "nbap.initial_HS_PDSCH_SPS_Resource",
+      { "initial-HS-PDSCH-SPS-Resource", "nbap.initial_HS_PDSCH_SPS_Resource_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_buffer_Size_for_HS_DSCH_SPS,
@@ -63598,7 +63613,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_SICH_InformationList_for_HS_DSCH_SPS_item,
-      { "HS-SICH-InformationItem-for-HS-DSCH-SPS", "nbap.HS_SICH_InformationItem_for_HS_DSCH_SPS",
+      { "HS-SICH-InformationItem-for-HS-DSCH-SPS", "nbap.HS_SICH_InformationItem_for_HS_DSCH_SPS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_SICH_Mapping_Index,
@@ -63610,11 +63625,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_HS_SICH_Type_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_hS_SCCH_Associated_HS_SICH,
-      { "hS-SCCH-Associated-HS-SICH", "nbap.hS_SCCH_Associated_HS_SICH",
+      { "hS-SCCH-Associated-HS-SICH", "nbap.hS_SCCH_Associated_HS_SICH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_non_HS_SCCH_Associated_HS_SICH,
-      { "non-HS-SCCH-Associated-HS-SICH", "nbap.non_HS_SCCH_Associated_HS_SICH",
+      { "non-HS-SCCH-Associated-HS-SICH", "nbap.non_HS_SCCH_Associated_HS_SICH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_extended_HS_SICH_ID,
@@ -63654,11 +63669,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Non_HS_SCCH_Associated_HS_SICH_InformationList_item,
-      { "Non-HS-SCCH-Associated-HS-SICH-InformationItem", "nbap.Non_HS_SCCH_Associated_HS_SICH_InformationItem",
+      { "Non-HS-SCCH-Associated-HS-SICH-InformationItem", "nbap.Non_HS_SCCH_Associated_HS_SICH_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Non_HS_SCCH_Associated_HS_SICH_InformationList_Ext_item,
-      { "Non-HS-SCCH-Associated-HS-SICH-InformationItem", "nbap.Non_HS_SCCH_Associated_HS_SICH_InformationItem",
+      { "Non-HS-SCCH-Associated-HS-SICH-InformationItem", "nbap.Non_HS_SCCH_Associated_HS_SICH_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_modify_non_HS_SCCH_Associated_HS_SICH_InformationList,
@@ -63666,23 +63681,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Modify_Non_HS_SCCH_Associated_HS_SICH_InformationList_item,
-      { "Modify-Non-HS-SCCH-Associated-HS-SICH-InformationItem", "nbap.Modify_Non_HS_SCCH_Associated_HS_SICH_InformationItem",
+      { "Modify-Non-HS-SCCH-Associated-HS-SICH-InformationItem", "nbap.Modify_Non_HS_SCCH_Associated_HS_SICH_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Modify_Non_HS_SCCH_Associated_HS_SICH_InformationList_Ext_item,
-      { "Modify-Non-HS-SCCH-Associated-HS-SICH-InformationItem", "nbap.Modify_Non_HS_SCCH_Associated_HS_SICH_InformationItem",
+      { "Modify-Non-HS-SCCH-Associated-HS-SICH-InformationItem", "nbap.Modify_Non_HS_SCCH_Associated_HS_SICH_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Delete_From_Non_HS_SCCH_Associated_HS_SICH_Resource_Pool_LCR_PSCH_ReconfRqst_item,
-      { "Delete-From-Non-HS-SCCH-Associated-HS-SICH-Resource-Pool-LCR-PSCH-ReconfRqstItem", "nbap.Delete_From_Non_HS_SCCH_Associated_HS_SICH_Resource_Pool_LCR_PSCH_ReconfRqstItem",
+      { "Delete-From-Non-HS-SCCH-Associated-HS-SICH-Resource-Pool-LCR-PSCH-ReconfRqstItem", "nbap.Delete_From_Non_HS_SCCH_Associated_HS_SICH_Resource_Pool_LCR_PSCH_ReconfRqstItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Delete_From_Non_HS_SCCH_Associated_HS_SICH_Resource_Pool_LCR_PSCH_ReconfRqst_Ext_item,
-      { "Delete-From-Non-HS-SCCH-Associated-HS-SICH-Resource-Pool-LCR-PSCH-ReconfRqstItem", "nbap.Delete_From_Non_HS_SCCH_Associated_HS_SICH_Resource_Pool_LCR_PSCH_ReconfRqstItem",
+      { "Delete-From-Non-HS-SCCH-Associated-HS-SICH-Resource-Pool-LCR-PSCH-ReconfRqstItem", "nbap.Delete_From_Non_HS_SCCH_Associated_HS_SICH_Resource_Pool_LCR_PSCH_ReconfRqstItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MIMO_ReferenceSignal_InformationListLCR_item,
-      { "HSSICH-ReferenceSignal-InformationLCR", "nbap.HSSICH_ReferenceSignal_InformationLCR",
+      { "HSSICH-ReferenceSignal-InformationLCR", "nbap.HSSICH_ReferenceSignal_InformationLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_midambleConfigurationLCR,
@@ -63694,7 +63709,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_15", HFILL }},
     { &hf_nbap_hSSICH_ReferenceSignal_InformationLCR,
-      { "hSSICH-ReferenceSignal-InformationLCR", "nbap.hSSICH_ReferenceSignal_InformationLCR",
+      { "hSSICH-ReferenceSignal-InformationLCR", "nbap.hSSICH_ReferenceSignal_InformationLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sub_Frame_Number,
@@ -63702,7 +63717,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_onDemand,
-      { "onDemand", "nbap.onDemand",
+      { "onDemand", "nbap.onDemand_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_periodic,
@@ -63710,7 +63725,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_InformationReportCharacteristicsType_ReportPeriodicity_vals), 0,
         "InformationReportCharacteristicsType_ReportPeriodicity", HFILL }},
     { &hf_nbap_onModification,
-      { "onModification", "nbap.onModification",
+      { "onModification", "nbap.onModification_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "InformationReportCharacteristicsType_OnModification", HFILL }},
     { &hf_nbap_min,
@@ -63726,11 +63741,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_InformationThresholds_vals), 0,
         "InformationThresholds", HFILL }},
     { &hf_nbap_dgps,
-      { "dgps", "nbap.dgps",
+      { "dgps", "nbap.dgps_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DGPSThresholds", HFILL }},
     { &hf_nbap_dGANSSThreshold,
-      { "dGANSSThreshold", "nbap.dGANSSThreshold",
+      { "dGANSSThreshold", "nbap.dGANSSThreshold_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_information_Type_Item,
@@ -63754,7 +63769,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_63", HFILL }},
     { &hf_nbap_burstModeParams,
-      { "burstModeParams", "nbap.burstModeParams",
+      { "burstModeParams", "nbap.burstModeParams_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_iP_Offset,
@@ -63818,7 +63833,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_T_maxPhysChPerTimeslot_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_MACdPDU_Size_Indexlist_item,
-      { "MACdPDU-Size-IndexItem", "nbap.MACdPDU_Size_IndexItem",
+      { "MACdPDU-Size-IndexItem", "nbap.MACdPDU_Size_IndexItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sID,
@@ -63830,7 +63845,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MACdPDU_Size_Indexlist_to_Modify_item,
-      { "MACdPDU-Size-IndexItem-to-Modify", "nbap.MACdPDU_Size_IndexItem_to_Modify",
+      { "MACdPDU-Size-IndexItem-to-Modify", "nbap.MACdPDU_Size_IndexItem_to_Modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_maximum_TB_Size_cell_edge_users,
@@ -63842,7 +63857,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_5000_", HFILL }},
     { &hf_nbap_MessageStructure_item,
-      { "MessageStructure item", "nbap.MessageStructure_item",
+      { "MessageStructure item", "nbap.MessageStructure_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_repetitionNumber_01,
@@ -63850,7 +63865,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "RepetitionNumber1", HFILL }},
     { &hf_nbap_type1,
-      { "type1", "nbap.type1",
+      { "type1", "nbap.type1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_midambleConfigurationBurstType1And3,
@@ -63862,11 +63877,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_MidambleAllocationMode1_vals), 0,
         "MidambleAllocationMode1", HFILL }},
     { &hf_nbap_defaultMidamble,
-      { "defaultMidamble", "nbap.defaultMidamble",
+      { "defaultMidamble", "nbap.defaultMidamble_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_commonMidamble,
-      { "commonMidamble", "nbap.commonMidamble",
+      { "commonMidamble", "nbap.commonMidamble_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ueSpecificMidamble,
@@ -63874,7 +63889,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "MidambleShiftLong", HFILL }},
     { &hf_nbap_type2,
-      { "type2", "nbap.type2",
+      { "type2", "nbap.type2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_midambleConfigurationBurstType2,
@@ -63890,7 +63905,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "MidambleShiftShort", HFILL }},
     { &hf_nbap_type3,
-      { "type3", "nbap.type3",
+      { "type3", "nbap.type3_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_midambleAllocationMode_02,
@@ -63906,7 +63921,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "MidambleShiftLong", HFILL }},
     { &hf_nbap_type1_01,
-      { "type1", "nbap.type1",
+      { "type1", "nbap.type1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Type7681", HFILL }},
     { &hf_nbap_midambleAllocationMode_04,
@@ -63914,7 +63929,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_MidambleAllocationMode7681_vals), 0,
         "MidambleAllocationMode7681", HFILL }},
     { &hf_nbap_type2_01,
-      { "type2", "nbap.type2",
+      { "type2", "nbap.type2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Type7682", HFILL }},
     { &hf_nbap_midambleConfigurationBurstType2_768,
@@ -63930,7 +63945,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "MidambleShiftShort768", HFILL }},
     { &hf_nbap_type3_01,
-      { "type3", "nbap.type3",
+      { "type3", "nbap.type3_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Type7683", HFILL }},
     { &hf_nbap_midambleAllocationMode_06,
@@ -63942,23 +63957,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "CommonPhysicalChannelID", HFILL }},
     { &hf_nbap_normal_and_diversity_primary_CPICH,
-      { "normal-and-diversity-primary-CPICH", "nbap.normal_and_diversity_primary_CPICH",
+      { "normal-and-diversity-primary-CPICH", "nbap.normal_and_diversity_primary_CPICH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_primary_and_secondary_CPICH_01,
-      { "primary-and-secondary-CPICH", "nbap.primary_and_secondary_CPICH",
+      { "primary-and-secondary-CPICH", "nbap.primary_and_secondary_CPICH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PrimaryAndSecondaryCPICHContainer", HFILL }},
     { &hf_nbap_normal_and_diversity_primary_CPICH_01,
-      { "normal-and-diversity-primary-CPICH", "nbap.normal_and_diversity_primary_CPICH",
+      { "normal-and-diversity-primary-CPICH", "nbap.normal_and_diversity_primary_CPICH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NormalAndDiversityPrimaryCPICHContainer", HFILL }},
     { &hf_nbap_addPriorityQueue,
-      { "addPriorityQueue", "nbap.addPriorityQueue",
+      { "addPriorityQueue", "nbap.addPriorityQueue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PriorityQueue_InfoItem_to_Add", HFILL }},
     { &hf_nbap_modifyPriorityQueue,
-      { "modifyPriorityQueue", "nbap.modifyPriorityQueue",
+      { "modifyPriorityQueue", "nbap.modifyPriorityQueue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PriorityQueue_InfoItem_to_Modify", HFILL }},
     { &hf_nbap_deletePriorityQueue,
@@ -63966,7 +63981,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "PriorityQueue_Id", HFILL }},
     { &hf_nbap_qPSK,
-      { "qPSK", "nbap.qPSK",
+      { "qPSK", "nbap.qPSK_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sixteenQAM,
@@ -63974,11 +63989,11 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "MBSFN_CPICH_secondary_CCPCH_power_offset", HFILL }},
     { &hf_nbap_MultipleFreq_HARQ_MemoryPartitioning_InformationList_item,
-      { "MultipleFreq-HARQ-MemoryPartitioning-InformationItem", "nbap.MultipleFreq_HARQ_MemoryPartitioning_InformationItem",
+      { "MultipleFreq-HARQ-MemoryPartitioning-InformationItem", "nbap.MultipleFreq_HARQ_MemoryPartitioning_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleFreq_HSPDSCH_InformationList_ResponseTDDLCR_item,
-      { "MultipleFreq-HSPDSCH-InformationItem-ResponseTDDLCR", "nbap.MultipleFreq_HSPDSCH_InformationItem_ResponseTDDLCR",
+      { "MultipleFreq-HSPDSCH-InformationItem-ResponseTDDLCR", "nbap.MultipleFreq_HSPDSCH_InformationItem_ResponseTDDLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_multi_Cell_Capability,
@@ -63986,7 +64001,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_Multi_Cell_Capability_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_dL_PowerBalancing_Information,
-      { "dL-PowerBalancing-Information", "nbap.dL_PowerBalancing_Information",
+      { "dL-PowerBalancing-Information", "nbap.dL_PowerBalancing_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_minimumReducedE_DPDCH_GainFactor,
@@ -64026,7 +64041,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_DCH_DL_Control_Channel_Grant,
-      { "e-DCH-DL-Control-Channel-Grant", "nbap.e_DCH_DL_Control_Channel_Grant",
+      { "e-DCH-DL-Control-Channel-Grant", "nbap.e_DCH_DL_Control_Channel_Grant_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_NeighbouringCellMeasurementInformation_item,
@@ -64034,19 +64049,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_NeighbouringCellMeasurementInformation_item_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_neighbouringFDDCellMeasurementInformation,
-      { "neighbouringFDDCellMeasurementInformation", "nbap.neighbouringFDDCellMeasurementInformation",
+      { "neighbouringFDDCellMeasurementInformation", "nbap.neighbouringFDDCellMeasurementInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_neighbouringTDDCellMeasurementInformation,
-      { "neighbouringTDDCellMeasurementInformation", "nbap.neighbouringTDDCellMeasurementInformation",
+      { "neighbouringTDDCellMeasurementInformation", "nbap.neighbouringTDDCellMeasurementInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_extension_neighbouringCellMeasurementInformation,
-      { "extension-neighbouringCellMeasurementInformation", "nbap.extension_neighbouringCellMeasurementInformation",
+      { "extension-neighbouringCellMeasurementInformation", "nbap.extension_neighbouringCellMeasurementInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uC_Id,
-      { "uC-Id", "nbap.uC_Id",
+      { "uC-Id", "nbap.uC_Id_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_primaryScramblingCode,
@@ -64062,7 +64077,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Paging_MACFlows_to_DeleteFDD_item,
-      { "Paging-MACFlows-to-DeleteFDD-Item", "nbap.Paging_MACFlows_to_DeleteFDD_Item",
+      { "Paging-MACFlows-to-DeleteFDD-Item", "nbap.Paging_MACFlows_to_DeleteFDD_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_paging_MACFlow_ID,
@@ -64070,7 +64085,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Paging_MACFlow_Specific_Information_item,
-      { "Paging-MAC-Flow-Specific-Information-Item", "nbap.Paging_MAC_Flow_Specific_Information_Item",
+      { "Paging-MAC-Flow-Specific-Information-Item", "nbap.Paging_MAC_Flow_Specific_Information_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_paging_MACFlow_Id,
@@ -64086,11 +64101,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Paging_MACFlow_PriorityQueue_Information_item,
-      { "Paging-MACFlow-PriorityQueue-Item", "nbap.Paging_MACFlow_PriorityQueue_Item",
+      { "Paging-MACFlow-PriorityQueue-Item", "nbap.Paging_MACFlow_PriorityQueue_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_priority_Queue_Information_for_Enhanced_PCH,
-      { "priority-Queue-Information-for-Enhanced-PCH", "nbap.priority_Queue_Information_for_Enhanced_PCH",
+      { "priority-Queue-Information-for-Enhanced-PCH", "nbap.priority_Queue_Information_for_Enhanced_PCH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Priority_Queue_Information_for_Enhanced_FACH_PCH", HFILL }},
     { &hf_nbap_sequenceNumber,
@@ -64098,7 +64113,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "PLCCHsequenceNumber", HFILL }},
     { &hf_nbap_Possible_Secondary_Serving_Cell_List_item,
-      { "Possible-Secondary-Serving-Cell", "nbap.Possible_Secondary_Serving_Cell",
+      { "Possible-Secondary-Serving-Cell", "nbap.Possible_Secondary_Serving_Cell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_local_Cell_ID,
@@ -64134,7 +64149,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "MAC_PDU_SizeExtended", HFILL }},
     { &hf_nbap_PriorityQueue_InfoList_item,
-      { "PriorityQueue-InfoItem", "nbap.PriorityQueue_InfoItem",
+      { "PriorityQueue-InfoItem", "nbap.PriorityQueue_InfoItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_priorityQueueId,
@@ -64166,15 +64181,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "MACdPDU_Size_Indexlist_to_Modify", HFILL }},
     { &hf_nbap_PriorityQueue_InfoList_to_Modify_Unsynchronised_item,
-      { "PriorityQueue-InfoItem-to-Modify-Unsynchronised", "nbap.PriorityQueue_InfoItem_to_Modify_Unsynchronised",
+      { "PriorityQueue-InfoItem-to-Modify-Unsynchronised", "nbap.PriorityQueue_InfoItem_to_Modify_Unsynchronised_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_none,
-      { "none", "nbap.none",
+      { "none", "nbap.none_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_selected_MBMS_Service,
-      { "selected-MBMS-Service", "nbap.selected_MBMS_Service",
+      { "selected-MBMS-Service", "nbap.selected_MBMS_Service_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_selected_MBMS_Service_List,
@@ -64182,7 +64197,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Selected_MBMS_Service_List_item,
-      { "Selected-MBMS-Service-Item", "nbap.Selected_MBMS_Service_Item",
+      { "Selected-MBMS-Service-Item", "nbap.Selected_MBMS_Service_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_selected_MBMS_Service_TimeSlot_Information_LCR,
@@ -64190,7 +64205,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_mBMS_Service_TDM_Information,
-      { "mBMS-Service-TDM-Information", "nbap.mBMS_Service_TDM_Information",
+      { "mBMS-Service-TDM-Information", "nbap.mBMS_Service_TDM_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Selected_MBMS_Service_TimeSlot_Information_LCR_item,
@@ -64214,7 +64229,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_8", HFILL }},
     { &hf_nbap_Paging_MACFlow_Specific_InformationLCR_item,
-      { "Paging-MAC-Flow-Specific-Information-ItemLCR", "nbap.Paging_MAC_Flow_Specific_Information_ItemLCR",
+      { "Paging-MAC-Flow-Specific-Information-ItemLCR", "nbap.Paging_MAC_Flow_Specific_Information_ItemLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hSDPA_associated_PICH_InfoLCR,
@@ -64226,11 +64241,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Paging_MACFlow_PriorityQueue_Information", HFILL }},
     { &hf_nbap_Paging_MACFlows_to_DeleteLCR_item,
-      { "Paging-MACFlows-to-DeleteLCR-Item", "nbap.Paging_MACFlows_to_DeleteLCR_Item",
+      { "Paging-MACFlows-to-DeleteLCR-Item", "nbap.Paging_MACFlows_to_DeleteLCR_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Specific_DCH_Info_item,
-      { "RL-Specific-DCH-Info-Item", "nbap.RL_Specific_DCH_Info_Item",
+      { "RL-Specific-DCH-Info-Item", "nbap.RL_Specific_DCH_Info_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dCH_id,
@@ -64246,11 +64261,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Specific_E_DCH_Information_item,
-      { "RL-Specific-E-DCH-Information-Item", "nbap.RL_Specific_E_DCH_Information_Item",
+      { "RL-Specific-E-DCH-Information-Item", "nbap.RL_Specific_E_DCH_Information_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Reference_E_TFCI_Information_item,
-      { "Reference-E-TFCI-Information-Item", "nbap.Reference_E_TFCI_Information_Item",
+      { "Reference-E-TFCI-Information-Item", "nbap.Reference_E_TFCI_Information_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_reference_E_TFCI,
@@ -64266,31 +64281,31 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_ReportCharacteristicsType_ReportPeriodicity_vals), 0,
         "ReportCharacteristicsType_ReportPeriodicity", HFILL }},
     { &hf_nbap_event_a,
-      { "event-a", "nbap.event_a",
+      { "event-a", "nbap.event_a_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReportCharacteristicsType_EventA", HFILL }},
     { &hf_nbap_event_b,
-      { "event-b", "nbap.event_b",
+      { "event-b", "nbap.event_b_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReportCharacteristicsType_EventB", HFILL }},
     { &hf_nbap_event_c,
-      { "event-c", "nbap.event_c",
+      { "event-c", "nbap.event_c_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReportCharacteristicsType_EventC", HFILL }},
     { &hf_nbap_event_d,
-      { "event-d", "nbap.event_d",
+      { "event-d", "nbap.event_d_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReportCharacteristicsType_EventD", HFILL }},
     { &hf_nbap_event_e,
-      { "event-e", "nbap.event_e",
+      { "event-e", "nbap.event_e_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReportCharacteristicsType_EventE", HFILL }},
     { &hf_nbap_event_f,
-      { "event-f", "nbap.event_f",
+      { "event-f", "nbap.event_f_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReportCharacteristicsType_EventF", HFILL }},
     { &hf_nbap_extension_ReportCharacteristics,
-      { "extension-ReportCharacteristics", "nbap.extension_ReportCharacteristics",
+      { "extension-ReportCharacteristics", "nbap.extension_ReportCharacteristics_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_measurementThreshold,
@@ -64354,7 +64369,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Round_Trip_Time_IncrDecrThres", HFILL }},
     { &hf_nbap_extension_ReportCharacteristicsType_MeasurementIncreaseDecreaseThreshold,
-      { "extension-ReportCharacteristicsType-MeasurementIncreaseDecreaseThreshold", "nbap.extension_ReportCharacteristicsType_MeasurementIncreaseDecreaseThreshold",
+      { "extension-ReportCharacteristicsType-MeasurementIncreaseDecreaseThreshold", "nbap.extension_ReportCharacteristicsType_MeasurementIncreaseDecreaseThreshold_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sir_01,
@@ -64382,7 +64397,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Round_Trip_Time_Value", HFILL }},
     { &hf_nbap_extension_ReportCharacteristicsType_MeasurementThreshold,
-      { "extension-ReportCharacteristicsType-MeasurementThreshold", "nbap.extension_ReportCharacteristicsType_MeasurementThreshold",
+      { "extension-ReportCharacteristicsType-MeasurementThreshold", "nbap.extension_ReportCharacteristicsType_MeasurementThreshold_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_msec,
@@ -64398,7 +64413,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "ReportPeriodicity_Scaledmsec", HFILL }},
     { &hf_nbap_Received_total_wide_band_power_For_CellPortion_Value_item,
-      { "Received-total-wide-band-power-For-CellPortion-Value-Item", "nbap.Received_total_wide_band_power_For_CellPortion_Value_Item",
+      { "Received-total-wide-band-power-For-CellPortion-Value-Item", "nbap.Received_total_wide_band_power_For_CellPortion_Value_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_received_total_wide_band_power_value,
@@ -64406,11 +64421,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Received_total_wide_band_power_For_CellPortion_ValueLCR_item,
-      { "Received-total-wide-band-power-For-CellPortion-ValueLCR-Item", "nbap.Received_total_wide_band_power_For_CellPortion_ValueLCR_Item",
+      { "Received-total-wide-band-power-For-CellPortion-ValueLCR-Item", "nbap.Received_total_wide_band_power_For_CellPortion_ValueLCR_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Received_Scheduled_EDCH_Power_Share_For_CellPortion_Value_item,
-      { "Received-Scheduled-EDCH-Power-Share-For-CellPortion-Value-Item", "nbap.Received_Scheduled_EDCH_Power_Share_For_CellPortion_Value_Item",
+      { "Received-Scheduled-EDCH-Power-Share-For-CellPortion-Value-Item", "nbap.Received_Scheduled_EDCH_Power_Share_For_CellPortion_Value_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_received_Scheduled_power_share_value,
@@ -64418,19 +64433,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "RSEPS_Value", HFILL }},
     { &hf_nbap_informationAvailable,
-      { "informationAvailable", "nbap.informationAvailable",
+      { "informationAvailable", "nbap.informationAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_informationnotAvailable,
-      { "informationnotAvailable", "nbap.informationnotAvailable",
+      { "informationnotAvailable", "nbap.informationnotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_requesteddataValue,
-      { "requesteddataValue", "nbap.requesteddataValue",
+      { "requesteddataValue", "nbap.requesteddataValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dgps_corrections,
-      { "dgps-corrections", "nbap.dgps_corrections",
+      { "dgps-corrections", "nbap.dgps_corrections_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DGPSCorrections", HFILL }},
     { &hf_nbap_gps_navandrecovery,
@@ -64438,15 +64453,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "GPS_NavigationModel_and_TimeRecovery", HFILL }},
     { &hf_nbap_gps_ionos_model,
-      { "gps-ionos-model", "nbap.gps_ionos_model",
+      { "gps-ionos-model", "nbap.gps_ionos_model_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPS_Ionospheric_Model", HFILL }},
     { &hf_nbap_gps_utc_model,
-      { "gps-utc-model", "nbap.gps_utc_model",
+      { "gps-utc-model", "nbap.gps_utc_model_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_gps_almanac,
-      { "gps-almanac", "nbap.gps_almanac",
+      { "gps-almanac", "nbap.gps_almanac_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_gps_rt_integrity,
@@ -64454,11 +64469,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_GPS_RealTime_Integrity_vals), 0,
         "GPS_RealTime_Integrity", HFILL }},
     { &hf_nbap_gpsrxpos,
-      { "gpsrxpos", "nbap.gpsrxpos",
+      { "gpsrxpos", "nbap.gpsrxpos_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPS_RX_POS", HFILL }},
     { &hf_nbap_SAT_Info_Almanac_item,
-      { "SAT-Info-Almanac-Item", "nbap.SAT_Info_Almanac_Item",
+      { "SAT-Info-Almanac-Item", "nbap.SAT_Info_Almanac_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_data_id,
@@ -64514,11 +64529,11 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_11", HFILL }},
     { &hf_nbap_SAT_Info_Almanac_ExtList_item,
-      { "SAT-Info-Almanac-ExtItem", "nbap.SAT_Info_Almanac_ExtItem",
+      { "SAT-Info-Almanac-ExtItem", "nbap.SAT_Info_Almanac_ExtItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SAT_Info_DGPSCorrections_item,
-      { "SAT-Info-DGPSCorrections-Item", "nbap.SAT_Info_DGPSCorrections_Item",
+      { "SAT-Info-DGPSCorrections-Item", "nbap.SAT_Info_DGPSCorrections_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_iode_dgps,
@@ -64534,7 +64549,7 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SATInfo_RealTime_Integrity_item,
-      { "SAT-Info-RealTime-Integrity-Item", "nbap.SAT_Info_RealTime_Integrity_Item",
+      { "SAT-Info-RealTime-Integrity-Item", "nbap.SAT_Info_RealTime_Integrity_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_bad_sat_id,
@@ -64542,7 +64557,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SAT_ID", HFILL }},
     { &hf_nbap_SecondaryServingCells_item,
-      { "SecondaryServingCellsItem", "nbap.SecondaryServingCellsItem",
+      { "SecondaryServingCellsItem", "nbap.SecondaryServingCellsItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_secondaryC_ID,
@@ -64558,19 +64573,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "CommonPhysicalChannelID", HFILL }},
     { &hf_nbap_secondary_CPICH_shall_not_be_used,
-      { "secondary-CPICH-shall-not-be-used", "nbap.secondary_CPICH_shall_not_be_used",
+      { "secondary-CPICH-shall-not-be-used", "nbap.secondary_CPICH_shall_not_be_used_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_serving_E_DCH_RL_in_this_NodeB,
-      { "serving-E-DCH-RL-in-this-NodeB", "nbap.serving_E_DCH_RL_in_this_NodeB",
+      { "serving-E-DCH-RL-in-this-NodeB", "nbap.serving_E_DCH_RL_in_this_NodeB_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_serving_E_DCH_RL_not_in_this_NodeB,
-      { "serving-E-DCH-RL-not-in-this-NodeB", "nbap.serving_E_DCH_RL_not_in_this_NodeB",
+      { "serving-E-DCH-RL-not-in-this-NodeB", "nbap.serving_E_DCH_RL_not_in_this_NodeB_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SetsOfHS_SCCH_Codes_item,
-      { "SetsOfHS-SCCH-CodesItem", "nbap.SetsOfHS_SCCH_CodesItem",
+      { "SetsOfHS-SCCH-CodesItem", "nbap.SetsOfHS_SCCH_CodesItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_SCCH_PreconfiguredCodes,
@@ -64578,7 +64593,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_setup,
-      { "setup", "nbap.setup",
+      { "setup", "nbap.setup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Additional_EDCH_Setup_Info", HFILL }},
     { &hf_nbap_configurationChange,
@@ -64602,7 +64617,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_successfullNeighbouringCellSFNSFNObservedTimeDifferenceMeasurementInformation_item,
-      { "successfullNeighbouringCellSFNSFNObservedTimeDifferenceMeasurementInformation item", "nbap.successfullNeighbouringCellSFNSFNObservedTimeDifferenceMeasurementInformation_item",
+      { "successfullNeighbouringCellSFNSFNObservedTimeDifferenceMeasurementInformation item", "nbap.successfullNeighbouringCellSFNSFNObservedTimeDifferenceMeasurementInformation_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sFNSFNValue,
@@ -64630,7 +64645,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_unsuccessfullNeighbouringCellSFNSFNObservedTimeDifferenceMeasurementInformation_item,
-      { "unsuccessfullNeighbouringCellSFNSFNObservedTimeDifferenceMeasurementInformation item", "nbap.unsuccessfullNeighbouringCellSFNSFNObservedTimeDifferenceMeasurementInformation_item",
+      { "unsuccessfullNeighbouringCellSFNSFNObservedTimeDifferenceMeasurementInformation item", "nbap.unsuccessfullNeighbouringCellSFNSFNObservedTimeDifferenceMeasurementInformation_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sFNSFNTimeStamp_FDD,
@@ -64638,7 +64653,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SFN", HFILL }},
     { &hf_nbap_sFNSFNTimeStamp_TDD,
-      { "sFNSFNTimeStamp-TDD", "nbap.sFNSFNTimeStamp_TDD",
+      { "sFNSFNTimeStamp-TDD", "nbap.sFNSFNTimeStamp_TDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sFN,
@@ -64666,7 +64681,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SynchronisationReportCharactThreExc_item,
-      { "SynchronisationReportCharactThreInfoItem", "nbap.SynchronisationReportCharactThreInfoItem",
+      { "SynchronisationReportCharactThreInfoItem", "nbap.SynchronisationReportCharactThreInfoItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_syncFrameNumber,
@@ -64678,7 +64693,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_maxNrOfReceptsPerSyncFrame_OF_SynchronisationReportCharactCellSyncBurstInfoItem", HFILL }},
     { &hf_nbap_cellSyncBurstInformation_item,
-      { "SynchronisationReportCharactCellSyncBurstInfoItem", "nbap.SynchronisationReportCharactCellSyncBurstInfoItem",
+      { "SynchronisationReportCharactCellSyncBurstInfoItem", "nbap.SynchronisationReportCharactCellSyncBurstInfoItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cellSyncBurstCode,
@@ -64698,7 +64713,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SyncDLCodeIdThreInfoLCR_item,
-      { "SyncDLCodeIdThreInfoList", "nbap.SyncDLCodeIdThreInfoList",
+      { "SyncDLCodeIdThreInfoList", "nbap.SyncDLCodeIdThreInfoList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_syncFrameNoToReceive,
@@ -64710,7 +64725,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SyncDLCodeInfoListLCR", HFILL }},
     { &hf_nbap_SyncDLCodeInfoListLCR_item,
-      { "SyncDLCodeInfoItemLCR", "nbap.SyncDLCodeInfoItemLCR",
+      { "SyncDLCodeInfoItemLCR", "nbap.SyncDLCodeInfoItemLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_syncDLCodeId,
@@ -64730,7 +64745,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_Modulation_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_TDD_DL_Code_Information_item,
-      { "TDD-DL-Code-InformationItem", "nbap.TDD_DL_Code_InformationItem",
+      { "TDD-DL-Code-InformationItem", "nbap.TDD_DL_Code_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dPCH_ID,
@@ -64738,7 +64753,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TDD_DL_Code_LCR_Information_item,
-      { "TDD-DL-Code-LCR-InformationItem", "nbap.TDD_DL_Code_LCR_InformationItem",
+      { "TDD-DL-Code-LCR-InformationItem", "nbap.TDD_DL_Code_LCR_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tdd_DL_DPCH_TimeSlotFormat_LCR,
@@ -64746,7 +64761,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_TDD_DL_DPCH_TimeSlotFormat_LCR_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_TDD_DL_Code_768_Information_item,
-      { "TDD-DL-Code-768-InformationItem", "nbap.TDD_DL_Code_768_InformationItem",
+      { "TDD-DL-Code-768-InformationItem", "nbap.TDD_DL_Code_768_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_qPSK_01,
@@ -64766,7 +64781,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_63", HFILL }},
     { &hf_nbap_signalledGainFactors,
-      { "signalledGainFactors", "nbap.signalledGainFactors",
+      { "signalledGainFactors", "nbap.signalledGainFactors_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_gainFactor,
@@ -64774,7 +64789,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_T_gainFactor_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_fdd,
-      { "fdd", "nbap.fdd",
+      { "fdd", "nbap.fdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_betaC,
@@ -64798,11 +64813,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "RefTFCNumber", HFILL }},
     { &hf_nbap_TDD_UL_Code_Information_item,
-      { "TDD-UL-Code-InformationItem", "nbap.TDD_UL_Code_InformationItem",
+      { "TDD-UL-Code-InformationItem", "nbap.TDD_UL_Code_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TDD_UL_Code_LCR_Information_item,
-      { "TDD-UL-Code-LCR-InformationItem", "nbap.TDD_UL_Code_LCR_InformationItem",
+      { "TDD-UL-Code-LCR-InformationItem", "nbap.TDD_UL_Code_LCR_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tdd_UL_DPCH_TimeSlotFormat_LCR,
@@ -64810,7 +64825,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_TDD_UL_DPCH_TimeSlotFormat_LCR_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_TDD_UL_Code_768_Information_item,
-      { "TDD-UL-Code-768-InformationItem", "nbap.TDD_UL_Code_768_InformationItem",
+      { "TDD-UL-Code-768-InformationItem", "nbap.TDD_UL_Code_768_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_qPSK_02,
@@ -64826,11 +64841,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_TFCI_SignallingMode_TFCI_SignallingOption_vals), 0,
         "TFCI_SignallingMode_TFCI_SignallingOption", HFILL }},
     { &hf_nbap_not_Used_splitType,
-      { "not-Used-splitType", "nbap.not_Used_splitType",
+      { "not-Used-splitType", "nbap.not_Used_splitType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_not_Used_lengthOfTFCI2,
-      { "not-Used-lengthOfTFCI2", "nbap.not_Used_lengthOfTFCI2",
+      { "not-Used-lengthOfTFCI2", "nbap.not_Used_lengthOfTFCI2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TimeSlot_InitiatedListLCR_item,
@@ -64838,7 +64853,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TimeSlotMeasurementValueListLCR_item,
-      { "TimeSlotMeasurementValueLCR", "nbap.TimeSlotMeasurementValueLCR",
+      { "TimeSlotMeasurementValueLCR", "nbap.TimeSlotMeasurementValueLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_commonMeasurementValue,
@@ -64858,7 +64873,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Transmission_Gap_Pattern_Sequence_Information_item,
-      { "Transmission-Gap-Pattern-Sequence-Information item", "nbap.Transmission_Gap_Pattern_Sequence_Information_item",
+      { "Transmission-Gap-Pattern-Sequence-Information item", "nbap.Transmission_Gap_Pattern_Sequence_Information_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tGSN,
@@ -64918,7 +64933,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "DeltaSIR", HFILL }},
     { &hf_nbap_TransmittedCarrierPowerOfAllCodesNotUsedForHS_PDSCH_HS_SCCH_E_AGCH_E_RGCHOrE_HICHTransmissionCellPortionValue_item,
-      { "TransmittedCarrierPowerOfAllCodesNotUsedForHS-PDSCH-HS-SCCH-E-AGCH-E-RGCHOrE-HICHTransmissionCellPortionValue-Item", "nbap.TransmittedCarrierPowerOfAllCodesNotUsedForHS_PDSCH_HS_SCCH_E_AGCH_E_RGCHOrE_HICHTransmissionCellPortionValue_Item",
+      { "TransmittedCarrierPowerOfAllCodesNotUsedForHS-PDSCH-HS-SCCH-E-AGCH-E-RGCHOrE-HICHTransmissionCellPortionValue-Item", "nbap.TransmittedCarrierPowerOfAllCodesNotUsedForHS_PDSCH_HS_SCCH_E_AGCH_E_RGCHOrE_HICHTransmissionCellPortionValue_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_transmittedCarrierPowerOfAllCodesNotUsedForHSTransmissionValue,
@@ -64926,11 +64941,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TransmittedCarrierPowerOfAllCodesNotUsedForHS_PDSCH_HS_SCCH_E_AGCHOrE_HICHTransmissionCellPortionValue_item,
-      { "TransmittedCarrierPowerOfAllCodesNotUsedForHS-PDSCH-HS-SCCH-E-AGCHOrE-HICHTransmissionCellPortionValue-Item", "nbap.TransmittedCarrierPowerOfAllCodesNotUsedForHS_PDSCH_HS_SCCH_E_AGCHOrE_HICHTransmissionCellPortionValue_Item",
+      { "TransmittedCarrierPowerOfAllCodesNotUsedForHS-PDSCH-HS-SCCH-E-AGCHOrE-HICHTransmissionCellPortionValue-Item", "nbap.TransmittedCarrierPowerOfAllCodesNotUsedForHS_PDSCH_HS_SCCH_E_AGCHOrE_HICHTransmissionCellPortionValue_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Transmitted_Carrier_Power_For_CellPortion_Value_item,
-      { "Transmitted-Carrier-Power-For-CellPortion-Value-Item", "nbap.Transmitted_Carrier_Power_For_CellPortion_Value_Item",
+      { "Transmitted-Carrier-Power-For-CellPortion-Value-Item", "nbap.Transmitted_Carrier_Power_For_CellPortion_Value_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_transmitted_Carrier_Power_Value,
@@ -64938,7 +64953,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Transmitted_Carrier_Power_For_CellPortion_ValueLCR_item,
-      { "Transmitted-Carrier-Power-For-CellPortion-ValueLCR-Item", "nbap.Transmitted_Carrier_Power_For_CellPortion_ValueLCR_Item",
+      { "Transmitted-Carrier-Power-For-CellPortion-ValueLCR-Item", "nbap.Transmitted_Carrier_Power_For_CellPortion_ValueLCR_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tFCSvalues,
@@ -64950,11 +64965,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "TFCS_TFCSList", HFILL }},
     { &hf_nbap_not_Used_split_in_TFCI,
-      { "not-Used-split-in-TFCI", "nbap.not_Used_split_in_TFCI",
+      { "not-Used-split-in-TFCI", "nbap.not_Used_split_in_TFCI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TFCS_TFCSList_item,
-      { "TFCS-TFCSList item", "nbap.TFCS_TFCSList_item",
+      { "TFCS-TFCSList item", "nbap.TFCS_TFCSList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cTFC,
@@ -64994,7 +65009,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_maxCTFC", HFILL }},
     { &hf_nbap_Transport_Block_Size_List_item,
-      { "Transport-Block-Size-List item", "nbap.Transport_Block_Size_List_item",
+      { "Transport-Block-Size-List item", "nbap.Transport_Block_Size_List_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_transport_Block_Size_Index_for_Enhanced_PCH,
@@ -65006,11 +65021,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "TransportFormatSet_DynamicPartList", HFILL }},
     { &hf_nbap_semi_staticPart,
-      { "semi-staticPart", "nbap.semi_staticPart",
+      { "semi-staticPart", "nbap.semi_staticPart_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TransportFormatSet_Semi_staticPart", HFILL }},
     { &hf_nbap_TransportFormatSet_DynamicPartList_item,
-      { "TransportFormatSet-DynamicPartList item", "nbap.TransportFormatSet_DynamicPartList_item",
+      { "TransportFormatSet-DynamicPartList item", "nbap.TransportFormatSet_DynamicPartList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_nrOfTransportBlocks,
@@ -65030,7 +65045,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TransmissionTimeIntervalInformation_item,
-      { "TransmissionTimeIntervalInformation item", "nbap.TransmissionTimeIntervalInformation_item",
+      { "TransmissionTimeIntervalInformation item", "nbap.TransmissionTimeIntervalInformation_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_transmissionTimeInterval,
@@ -65062,11 +65077,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_TransportFormatSet_ModeSSP_vals), 0,
         "TransportFormatSet_ModeSSP", HFILL }},
     { &hf_nbap_tdd_01,
-      { "tdd", "nbap.tdd",
+      { "tdd", "nbap.tdd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TDD_TransportFormatSet_ModeDP", HFILL }},
     { &hf_nbap_notApplicable,
-      { "notApplicable", "nbap.notApplicable",
+      { "notApplicable", "nbap.notApplicable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tdd_02,
@@ -65090,7 +65105,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_256", HFILL }},
     { &hf_nbap_tUTRANGANSS,
-      { "tUTRANGANSS", "nbap.tUTRANGANSS",
+      { "tUTRANGANSS", "nbap.tUTRANGANSS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tUTRANGANSSQuality,
@@ -65122,7 +65137,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tUTRANGPS,
-      { "tUTRANGPS", "nbap.tUTRANGPS",
+      { "tUTRANGPS", "nbap.tUTRANGPS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tUTRANGPSQuality,
@@ -65154,7 +65169,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Timeslot_Information_item,
-      { "UL-Timeslot-InformationItem", "nbap.UL_Timeslot_InformationItem",
+      { "UL-Timeslot-InformationItem", "nbap.UL_Timeslot_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Code_InformationList,
@@ -65162,7 +65177,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "TDD_UL_Code_Information", HFILL }},
     { &hf_nbap_UL_TimeslotLCR_Information_item,
-      { "UL-TimeslotLCR-InformationItem", "nbap.UL_TimeslotLCR_InformationItem",
+      { "UL-TimeslotLCR-InformationItem", "nbap.UL_TimeslotLCR_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Code_InformationList_01,
@@ -65170,7 +65185,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "TDD_UL_Code_LCR_Information", HFILL }},
     { &hf_nbap_UL_Timeslot768_Information_item,
-      { "UL-Timeslot768-InformationItem", "nbap.UL_Timeslot768_InformationItem",
+      { "UL-Timeslot768-InformationItem", "nbap.UL_Timeslot768_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Code_InformationList_02,
@@ -65194,7 +65209,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_TimeSlot_ISCP_Info_item,
-      { "UL-TimeSlot-ISCP-InfoItem", "nbap.UL_TimeSlot_ISCP_InfoItem",
+      { "UL-TimeSlot-ISCP-InfoItem", "nbap.UL_TimeSlot_ISCP_InfoItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_iSCP,
@@ -65202,11 +65217,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "UL_TimeslotISCP_Value", HFILL }},
     { &hf_nbap_UL_TimeSlot_ISCP_LCR_Info_item,
-      { "UL-TimeSlot-ISCP-LCR-InfoItem", "nbap.UL_TimeSlot_ISCP_LCR_InfoItem",
+      { "UL-TimeSlot-ISCP-LCR-InfoItem", "nbap.UL_TimeSlot_ISCP_LCR_InfoItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UpPTSInterference_For_CellPortion_Value_item,
-      { "UpPTSInterference-For-CellPortion-Value-Item", "nbap.UpPTSInterference_For_CellPortion_Value_Item",
+      { "UpPTSInterference-For-CellPortion-Value-Item", "nbap.UpPTSInterference_For_CellPortion_Value_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_upPTSInterferenceValue,
@@ -65214,7 +65229,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_USCH_Information_item,
-      { "USCH-InformationItem", "nbap.USCH_InformationItem",
+      { "USCH-InformationItem", "nbap.USCH_InformationItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uSCH_ID,
@@ -65222,11 +65237,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_USCH_InformationResponse_item,
-      { "USCH-InformationResponseItem", "nbap.USCH_InformationResponseItem",
+      { "USCH-InformationResponseItem", "nbap.USCH_InformationResponseItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_TimeslotISCP_For_CellPortion_Value_item,
-      { "UL-TimeslotISCP-For-CellPortion-Value-Item", "nbap.UL_TimeslotISCP_For_CellPortion_Value_Item",
+      { "UL-TimeslotISCP-For-CellPortion-Value-Item", "nbap.UL_TimeslotISCP_For_CellPortion_Value_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_TimeslotISCP_Value,
@@ -65242,15 +65257,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "ProtocolExtensionContainer", HFILL }},
     { &hf_nbap_secondary_CCPCH_parameters,
-      { "secondary-CCPCH-parameters", "nbap.secondary_CCPCH_parameters",
+      { "secondary-CCPCH-parameters", "nbap.secondary_CCPCH_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Secondary_CCPCH_CTCH_SetupRqstFDD", HFILL }},
     { &hf_nbap_pRACH_parameters,
-      { "pRACH-parameters", "nbap.pRACH_parameters",
+      { "pRACH-parameters", "nbap.pRACH_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PRACH_CTCH_SetupRqstFDD", HFILL }},
     { &hf_nbap_notUsed_pCPCHes_parameters,
-      { "notUsed-pCPCHes-parameters", "nbap.notUsed_pCPCHes_parameters",
+      { "notUsed-pCPCHes-parameters", "nbap.notUsed_pCPCHes_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_fdd_S_CCPCH_Offset,
@@ -65258,7 +65273,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tFCS,
-      { "tFCS", "nbap.tFCS",
+      { "tFCS", "nbap.tFCS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_secondary_CCPCH_SlotFormat,
@@ -65270,15 +65285,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_MultiplexingPosition_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_powerOffsetInformation,
-      { "powerOffsetInformation", "nbap.powerOffsetInformation",
+      { "powerOffsetInformation", "nbap.powerOffsetInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PowerOffsetInformation_CTCH_SetupRqstFDD", HFILL }},
     { &hf_nbap_fACH_Parameters,
-      { "fACH-Parameters", "nbap.fACH_Parameters",
+      { "fACH-Parameters", "nbap.fACH_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "FACH_ParametersList_CTCH_SetupRqstFDD", HFILL }},
     { &hf_nbap_pCH_Parameters,
-      { "pCH-Parameters", "nbap.pCH_Parameters",
+      { "pCH-Parameters", "nbap.pCH_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PCH_Parameters_CTCH_SetupRqstFDD", HFILL }},
     { &hf_nbap_pO1_ForTFCI_Bits,
@@ -65290,7 +65305,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "PowerOffset", HFILL }},
     { &hf_nbap_FACH_ParametersListIE_CTCH_SetupRqstFDD_item,
-      { "FACH-ParametersItem-CTCH-SetupRqstFDD", "nbap.FACH_ParametersItem_CTCH_SetupRqstFDD",
+      { "FACH-ParametersItem-CTCH-SetupRqstFDD", "nbap.FACH_ParametersItem_CTCH_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_maxFACH_Power,
@@ -65298,7 +65313,7 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_transportFormatSet_01,
-      { "transportFormatSet", "nbap.transportFormatSet",
+      { "transportFormatSet", "nbap.transportFormatSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pCH_Power,
@@ -65306,7 +65321,7 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_pICH_Parameters,
-      { "pICH-Parameters", "nbap.pICH_Parameters",
+      { "pICH-Parameters", "nbap.pICH_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PICH_Parameters_CTCH_SetupRqstFDD", HFILL }},
     { &hf_nbap_pICH_Mode,
@@ -65338,15 +65353,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "PunctureLimit", HFILL }},
     { &hf_nbap_rACH_Parameters,
-      { "rACH-Parameters", "nbap.rACH_Parameters",
+      { "rACH-Parameters", "nbap.rACH_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RACH_Parameters_CTCH_SetupRqstFDD", HFILL }},
     { &hf_nbap_aICH_Parameters,
-      { "aICH-Parameters", "nbap.aICH_Parameters",
+      { "aICH-Parameters", "nbap.aICH_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AICH_Parameters_CTCH_SetupRqstFDD", HFILL }},
     { &hf_nbap_AllowedSlotFormatInformationList_CTCH_SetupRqstFDD_item,
-      { "AllowedSlotFormatInformationItem-CTCH-SetupRqstFDD", "nbap.AllowedSlotFormatInformationItem_CTCH_SetupRqstFDD",
+      { "AllowedSlotFormatInformationItem-CTCH-SetupRqstFDD", "nbap.AllowedSlotFormatInformationItem_CTCH_SetupRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_rACHSlotFormat,
@@ -65354,15 +65369,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_RACH_SlotFormat_vals), 0,
         "RACH_SlotFormat", HFILL }},
     { &hf_nbap_secondary_CCPCH_parameters_01,
-      { "secondary-CCPCH-parameters", "nbap.secondary_CCPCH_parameters",
+      { "secondary-CCPCH-parameters", "nbap.secondary_CCPCH_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Secondary_CCPCH_CTCH_SetupRqstTDD", HFILL }},
     { &hf_nbap_pRACH_parameters_01,
-      { "pRACH-parameters", "nbap.pRACH_parameters",
+      { "pRACH-parameters", "nbap.pRACH_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PRACH_CTCH_SetupRqstTDD", HFILL }},
     { &hf_nbap_extension_CommonPhysicalChannelType_CTCH_SetupRqstTDD,
-      { "extension-CommonPhysicalChannelType-CTCH-SetupRqstTDD", "nbap.extension_CommonPhysicalChannelType_CTCH_SetupRqstTDD",
+      { "extension-CommonPhysicalChannelType-CTCH-SetupRqstTDD", "nbap.extension_CommonPhysicalChannelType_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sCCPCH_CCTrCH_ID,
@@ -65378,19 +65393,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_secondaryCCPCH_parameterList,
-      { "secondaryCCPCH-parameterList", "nbap.secondaryCCPCH_parameterList",
+      { "secondaryCCPCH-parameterList", "nbap.secondaryCCPCH_parameterList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Secondary_CCPCH_parameterList_CTCH_SetupRqstTDD", HFILL }},
     { &hf_nbap_fACH_ParametersList,
-      { "fACH-ParametersList", "nbap.fACH_ParametersList",
+      { "fACH-ParametersList", "nbap.fACH_ParametersList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "FACH_ParametersList_CTCH_SetupRqstTDD", HFILL }},
     { &hf_nbap_pCH_Parameters_01,
-      { "pCH-Parameters", "nbap.pCH_Parameters",
+      { "pCH-Parameters", "nbap.pCH_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PCH_Parameters_CTCH_SetupRqstTDD", HFILL }},
     { &hf_nbap_Secondary_CCPCH_parameterListIE_CTCH_SetupRqstTDD_item,
-      { "Secondary-CCPCH-parameterItem-CTCH-SetupRqstTDD", "nbap.Secondary_CCPCH_parameterItem_CTCH_SetupRqstTDD",
+      { "Secondary-CCPCH-parameterItem-CTCH-SetupRqstTDD", "nbap.Secondary_CCPCH_parameterItem_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_midambleShiftandBurstType,
@@ -65402,7 +65417,7 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_Secondary_CCPCH_LCR_parameterList_CTCH_SetupRqstTDD_item,
-      { "Secondary-CCPCH-LCR-parameterItem-CTCH-SetupRqstTDD", "nbap.Secondary_CCPCH_LCR_parameterItem_CTCH_SetupRqstTDD",
+      { "Secondary-CCPCH-LCR-parameterItem-CTCH-SetupRqstTDD", "nbap.Secondary_CCPCH_LCR_parameterItem_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_s_CCPCH_TimeSlotFormat_LCR,
@@ -65410,7 +65425,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_TDD_DL_DPCH_TimeSlotFormat_LCR_vals), 0,
         "TDD_DL_DPCH_TimeSlotFormat_LCR", HFILL }},
     { &hf_nbap_Secondary_CCPCH_768_parameterList_CTCH_SetupRqstTDD_item,
-      { "Secondary-CCPCH-768-parameterItem-CTCH-SetupRqstTDD", "nbap.Secondary_CCPCH_768_parameterItem_CTCH_SetupRqstTDD",
+      { "Secondary-CCPCH-768-parameterItem-CTCH-SetupRqstTDD", "nbap.Secondary_CCPCH_768_parameterItem_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tFCI_Presence768,
@@ -65422,7 +65437,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_MidambleShiftAndBurstType768_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_FACH_ParametersListIE_CTCH_SetupRqstTDD_item,
-      { "FACH-ParametersItem-CTCH-SetupRqstTDD", "nbap.FACH_ParametersItem_CTCH_SetupRqstTDD",
+      { "FACH-ParametersItem-CTCH-SetupRqstTDD", "nbap.FACH_ParametersItem_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_fACH_CCTrCH_ID,
@@ -65434,7 +65449,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "CCTrCH_ID", HFILL }},
     { &hf_nbap_pICH_Parameters_01,
-      { "pICH-Parameters", "nbap.pICH_Parameters",
+      { "pICH-Parameters", "nbap.pICH_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PICH_Parameters_CTCH_SetupRqstTDD", HFILL }},
     { &hf_nbap_midambleshiftAndBurstType,
@@ -65454,15 +65469,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_MICH_TDDOption_Specific_Parameters_CTCH_SetupRqstTDD_vals), 0,
         "MICH_TDDOption_Specific_Parameters_CTCH_SetupRqstTDD", HFILL }},
     { &hf_nbap_hCR_TDD,
-      { "hCR-TDD", "nbap.hCR_TDD",
+      { "hCR-TDD", "nbap.hCR_TDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MICH_HCR_Parameters_CTCH_SetupRqstTDD", HFILL }},
     { &hf_nbap_lCR_TDD,
-      { "lCR-TDD", "nbap.lCR_TDD",
+      { "lCR-TDD", "nbap.lCR_TDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MICH_LCR_Parameters_CTCH_SetupRqstTDD", HFILL }},
     { &hf_nbap_cHipRate768_TDD,
-      { "cHipRate768-TDD", "nbap.cHipRate768_TDD",
+      { "cHipRate768-TDD", "nbap.cHipRate768_TDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MICH_768_Parameters_CTCH_SetupRqstTDD", HFILL }},
     { &hf_nbap_tSTD_Indicator,
@@ -65474,7 +65489,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_MidambleShiftAndBurstType768_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_TimeSlotConfigurationList_LCR_CTCH_SetupRqstTDD_item,
-      { "TimeSlotConfigurationItem-LCR-CTCH-SetupRqstTDD", "nbap.TimeSlotConfigurationItem_LCR_CTCH_SetupRqstTDD",
+      { "TimeSlotConfigurationItem-LCR-CTCH-SetupRqstTDD", "nbap.TimeSlotConfigurationItem_LCR_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_timeslotLCR_Parameter_ID,
@@ -65482,15 +65497,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "CellParameterID", HFILL }},
     { &hf_nbap_Secondary_CCPCH_parameterExtendedList_CTCH_SetupRqstTDD_item,
-      { "Secondary-CCPCH-parameterItem-CTCH-SetupRqstTDD", "nbap.Secondary_CCPCH_parameterItem_CTCH_SetupRqstTDD",
+      { "Secondary-CCPCH-parameterItem-CTCH-SetupRqstTDD", "nbap.Secondary_CCPCH_parameterItem_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Secondary_CCPCH_LCR_parameterExtendedList_CTCH_SetupRqstTDD_item,
-      { "Secondary-CCPCH-LCR-parameterItem-CTCH-SetupRqstTDD", "nbap.Secondary_CCPCH_LCR_parameterItem_CTCH_SetupRqstTDD",
+      { "Secondary-CCPCH-LCR-parameterItem-CTCH-SetupRqstTDD", "nbap.Secondary_CCPCH_LCR_parameterItem_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pRACH_Parameters_CTCH_SetupRqstTDD,
-      { "pRACH-Parameters-CTCH-SetupRqstTDD", "nbap.pRACH_Parameters_CTCH_SetupRqstTDD",
+      { "pRACH-Parameters-CTCH-SetupRqstTDD", "nbap.pRACH_Parameters_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_maxPRACH_MidambleShifts,
@@ -65502,15 +65517,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_PRACH_Midamble_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_rACH,
-      { "rACH", "nbap.rACH",
+      { "rACH", "nbap.rACH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RACH_Parameter_CTCH_SetupRqstTDD", HFILL }},
     { &hf_nbap_uL_TransportFormatSet,
-      { "uL-TransportFormatSet", "nbap.uL_TransportFormatSet",
+      { "uL-TransportFormatSet", "nbap.uL_TransportFormatSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TransportFormatSet", HFILL }},
     { &hf_nbap_PRACH_LCR_ParametersList_CTCH_SetupRqstTDD_item,
-      { "PRACH-LCR-ParametersItem-CTCH-SetupRqstTDD", "nbap.PRACH_LCR_ParametersItem_CTCH_SetupRqstTDD",
+      { "PRACH-LCR-ParametersItem-CTCH-SetupRqstTDD", "nbap.PRACH_LCR_ParametersItem_CTCH_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_fPACH_Power,
@@ -65530,47 +65545,47 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_PRACH_Midamble_vals), 0,
         "PRACH_Midamble", HFILL }},
     { &hf_nbap_FACH_CommonTransportChannel_InformationResponse_item,
-      { "CommonTransportChannel-InformationResponse", "nbap.CommonTransportChannel_InformationResponse",
+      { "CommonTransportChannel-InformationResponse", "nbap.CommonTransportChannel_InformationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_secondary_CCPCH_parameters_02,
-      { "secondary-CCPCH-parameters", "nbap.secondary_CCPCH_parameters",
+      { "secondary-CCPCH-parameters", "nbap.secondary_CCPCH_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Secondary_CCPCHList_CTCH_ReconfRqstFDD", HFILL }},
     { &hf_nbap_pRACH_parameters_02,
-      { "pRACH-parameters", "nbap.pRACH_parameters",
+      { "pRACH-parameters", "nbap.pRACH_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PRACHList_CTCH_ReconfRqstFDD", HFILL }},
     { &hf_nbap_notUsed_cPCH_parameters,
-      { "notUsed-cPCH-parameters", "nbap.notUsed_cPCH_parameters",
+      { "notUsed-cPCH-parameters", "nbap.notUsed_cPCH_parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_fACH_ParametersList_CTCH_ReconfRqstFDD,
-      { "fACH-ParametersList-CTCH-ReconfRqstFDD", "nbap.fACH_ParametersList_CTCH_ReconfRqstFDD",
+      { "fACH-ParametersList-CTCH-ReconfRqstFDD", "nbap.fACH_ParametersList_CTCH_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pCH_Parameters_CTCH_ReconfRqstFDD,
-      { "pCH-Parameters-CTCH-ReconfRqstFDD", "nbap.pCH_Parameters_CTCH_ReconfRqstFDD",
+      { "pCH-Parameters-CTCH-ReconfRqstFDD", "nbap.pCH_Parameters_CTCH_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pICH_Parameters_CTCH_ReconfRqstFDD,
-      { "pICH-Parameters-CTCH-ReconfRqstFDD", "nbap.pICH_Parameters_CTCH_ReconfRqstFDD",
+      { "pICH-Parameters-CTCH-ReconfRqstFDD", "nbap.pICH_Parameters_CTCH_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_FACH_ParametersListIE_CTCH_ReconfRqstFDD_item,
-      { "FACH-ParametersItem-CTCH-ReconfRqstFDD", "nbap.FACH_ParametersItem_CTCH_ReconfRqstFDD",
+      { "FACH-ParametersItem-CTCH-ReconfRqstFDD", "nbap.FACH_ParametersItem_CTCH_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pRACH_ParametersList_CTCH_ReconfRqstFDD,
-      { "pRACH-ParametersList-CTCH-ReconfRqstFDD", "nbap.pRACH_ParametersList_CTCH_ReconfRqstFDD",
+      { "pRACH-ParametersList-CTCH-ReconfRqstFDD", "nbap.pRACH_ParametersList_CTCH_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_aICH_ParametersList_CTCH_ReconfRqstFDD,
-      { "aICH-ParametersList-CTCH-ReconfRqstFDD", "nbap.aICH_ParametersList_CTCH_ReconfRqstFDD",
+      { "aICH-ParametersList-CTCH-ReconfRqstFDD", "nbap.aICH_ParametersList_CTCH_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PRACH_ParametersListIE_CTCH_ReconfRqstFDD_item,
-      { "PRACH-ParametersItem-CTCH-ReconfRqstFDD", "nbap.PRACH_ParametersItem_CTCH_ReconfRqstFDD",
+      { "PRACH-ParametersItem-CTCH-ReconfRqstFDD", "nbap.PRACH_ParametersItem_CTCH_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_allowedSlotFormatInformation_01,
@@ -65578,7 +65593,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "AllowedSlotFormatInformationList_CTCH_ReconfRqstFDD", HFILL }},
     { &hf_nbap_AllowedSlotFormatInformationList_CTCH_ReconfRqstFDD_item,
-      { "AllowedSlotFormatInformationItem-CTCH-ReconfRqstFDD", "nbap.AllowedSlotFormatInformationItem_CTCH_ReconfRqstFDD",
+      { "AllowedSlotFormatInformationItem-CTCH-ReconfRqstFDD", "nbap.AllowedSlotFormatInformationItem_CTCH_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_rACH_SlotFormat,
@@ -65586,15 +65601,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_RACH_SlotFormat_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_AICH_ParametersListIE_CTCH_ReconfRqstFDD_item,
-      { "AICH-ParametersItem-CTCH-ReconfRqstFDD", "nbap.AICH_ParametersItem_CTCH_ReconfRqstFDD",
+      { "AICH-ParametersItem-CTCH-ReconfRqstFDD", "nbap.AICH_ParametersItem_CTCH_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_secondaryCCPCHList,
-      { "secondaryCCPCHList", "nbap.secondaryCCPCHList",
+      { "secondaryCCPCHList", "nbap.secondaryCCPCHList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Secondary_CCPCHList_CTCH_ReconfRqstTDD", HFILL }},
     { &hf_nbap_Secondary_CCPCHListIE_CTCH_ReconfRqstTDD_item,
-      { "Secondary-CCPCHItem-CTCH-ReconfRqstTDD", "nbap.Secondary_CCPCHItem_CTCH_ReconfRqstTDD",
+      { "Secondary-CCPCHItem-CTCH-ReconfRqstTDD", "nbap.Secondary_CCPCHItem_CTCH_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sCCPCH_Power,
@@ -65602,15 +65617,15 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_Secondary_CCPCH_parameterExtendedList_CTCH_ReconfRqstTDD_item,
-      { "Secondary-CCPCHItem-CTCH-ReconfRqstTDD", "nbap.Secondary_CCPCHItem_CTCH_ReconfRqstTDD",
+      { "Secondary-CCPCHItem-CTCH-ReconfRqstTDD", "nbap.Secondary_CCPCHItem_CTCH_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Secondary_CCPCH_LCR_parameterExtendedList_CTCH_ReconfRqstTDD_item,
-      { "Secondary-CCPCHItem-CTCH-ReconfRqstTDD", "nbap.Secondary_CCPCHItem_CTCH_ReconfRqstTDD",
+      { "Secondary-CCPCHItem-CTCH-ReconfRqstTDD", "nbap.Secondary_CCPCHItem_CTCH_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_FACH_ParametersList_CTCH_ReconfRqstTDD_item,
-      { "FACH-ParametersItem-CTCH-ReconfRqstTDD", "nbap.FACH_ParametersItem_CTCH_ReconfRqstTDD",
+      { "FACH-ParametersItem-CTCH-ReconfRqstTDD", "nbap.FACH_ParametersItem_CTCH_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_commonPhysicalChannelId,
@@ -65626,7 +65641,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Secondary_CCPCH_768_List_CTCH_ReconfRqstTDD", HFILL }},
     { &hf_nbap_Secondary_CCPCH_768_List_CTCH_ReconfRqstTDD_item,
-      { "Secondary-CCPCH-768-Item-CTCH-ReconfRqstTDD", "nbap.Secondary_CCPCH_768_Item_CTCH_ReconfRqstTDD",
+      { "Secondary-CCPCH-768-Item-CTCH-ReconfRqstTDD", "nbap.Secondary_CCPCH_768_Item_CTCH_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uPPCHPositionLCR,
@@ -65634,7 +65649,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Cell_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_configurationGenerationID,
@@ -65642,15 +65657,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_primary_SCH_Information,
-      { "primary-SCH-Information", "nbap.primary_SCH_Information",
+      { "primary-SCH-Information", "nbap.primary_SCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "P_SCH_Information_AuditRsp", HFILL }},
     { &hf_nbap_secondary_SCH_Information,
-      { "secondary-SCH-Information", "nbap.secondary_SCH_Information",
+      { "secondary-SCH-Information", "nbap.secondary_SCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "S_SCH_Information_AuditRsp", HFILL }},
     { &hf_nbap_primary_CPICH_Information,
-      { "primary-CPICH-Information", "nbap.primary_CPICH_Information",
+      { "primary-CPICH-Information", "nbap.primary_CPICH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "P_CPICH_Information_AuditRsp", HFILL }},
     { &hf_nbap_secondary_CPICH_InformationList,
@@ -65658,11 +65673,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "S_CPICH_InformationList_AuditRsp", HFILL }},
     { &hf_nbap_primary_CCPCH_Information,
-      { "primary-CCPCH-Information", "nbap.primary_CCPCH_Information",
+      { "primary-CCPCH-Information", "nbap.primary_CCPCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "P_CCPCH_Information_AuditRsp", HFILL }},
     { &hf_nbap_bCH_Information,
-      { "bCH-Information", "nbap.bCH_Information",
+      { "bCH-Information", "nbap.bCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "BCH_Information_AuditRsp", HFILL }},
     { &hf_nbap_secondary_CCPCH_InformationList,
@@ -65670,11 +65685,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "S_CCPCH_InformationList_AuditRsp", HFILL }},
     { &hf_nbap_pCH_Information,
-      { "pCH-Information", "nbap.pCH_Information",
+      { "pCH-Information", "nbap.pCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PCH_Information_AuditRsp", HFILL }},
     { &hf_nbap_pICH_Information,
-      { "pICH-Information", "nbap.pICH_Information",
+      { "pICH-Information", "nbap.pICH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PICH_Information_AuditRsp", HFILL }},
     { &hf_nbap_fACH_InformationList,
@@ -65694,99 +65709,99 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "AICH_InformationList_AuditRsp", HFILL }},
     { &hf_nbap_notUsed_1_pCPCH_InformationList,
-      { "notUsed-1-pCPCH-InformationList", "nbap.notUsed_1_pCPCH_InformationList",
+      { "notUsed-1-pCPCH-InformationList", "nbap.notUsed_1_pCPCH_InformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_notUsed_2_cPCH_InformationList,
-      { "notUsed-2-cPCH-InformationList", "nbap.notUsed_2_cPCH_InformationList",
+      { "notUsed-2-cPCH-InformationList", "nbap.notUsed_2_cPCH_InformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_notUsed_3_aP_AICH_InformationList,
-      { "notUsed-3-aP-AICH-InformationList", "nbap.notUsed_3_aP_AICH_InformationList",
+      { "notUsed-3-aP-AICH-InformationList", "nbap.notUsed_3_aP_AICH_InformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_notUsed_4_cDCA_ICH_InformationList,
-      { "notUsed-4-cDCA-ICH-InformationList", "nbap.notUsed_4_cDCA_ICH_InformationList",
+      { "notUsed-4-cDCA-ICH-InformationList", "nbap.notUsed_4_cDCA_ICH_InformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sCH_Information,
-      { "sCH-Information", "nbap.sCH_Information",
+      { "sCH-Information", "nbap.sCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SCH_Information_AuditRsp", HFILL }},
     { &hf_nbap_S_CPICH_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_S_CCPCH_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_FACH_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PRACH_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RACH_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_AICH_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_FPACH_LCR_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_S_CCPCH_InformationListExt_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_S_CCPCH_LCR_InformationListExt_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PLCCH_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_S_CCPCH_768_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PRACH_768_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_RUCCH_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_RUCCH_768_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Cell_Frequency_List_Information_LCR_MulFreq_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UPPCH_LCR_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleFreq_HS_DSCH_Resources_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleFreq_E_DCH_Resources_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CCP_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_communicationControlPortID,
@@ -65794,7 +65809,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Local_Cell_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dl_or_global_capacityCredit,
@@ -65830,11 +65845,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Local_Cell_ID", HFILL }},
     { &hf_nbap_Local_Cell_Group_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Power_Local_Cell_Group_InformationList_AuditRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_power_Local_Cell_Group_ID,
@@ -65842,19 +65857,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Local_Cell_ID", HFILL }},
     { &hf_nbap_cell,
-      { "cell", "nbap.cell",
+      { "cell", "nbap.cell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Cell_CM_Rqst", HFILL }},
     { &hf_nbap_rACH_01,
-      { "rACH", "nbap.rACH",
+      { "rACH", "nbap.rACH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RACH_CM_Rqst", HFILL }},
     { &hf_nbap_notUsed_cPCH,
-      { "notUsed-cPCH", "nbap.notUsed_cPCH",
+      { "notUsed-cPCH", "nbap.notUsed_cPCH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_extension_CommonMeasurementObjectType_CM_Rqst,
-      { "extension-CommonMeasurementObjectType-CM-Rqst", "nbap.extension_CommonMeasurementObjectType_CM_Rqst",
+      { "extension-CommonMeasurementObjectType-CM-Rqst", "nbap.extension_CommonMeasurementObjectType_CM_Rqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_powerLocalCellGroupID,
@@ -65862,27 +65877,27 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Local_Cell_ID", HFILL }},
     { &hf_nbap_cell_01,
-      { "cell", "nbap.cell",
+      { "cell", "nbap.cell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Cell_CM_Rsp", HFILL }},
     { &hf_nbap_rACH_02,
-      { "rACH", "nbap.rACH",
+      { "rACH", "nbap.rACH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RACH_CM_Rsp", HFILL }},
     { &hf_nbap_extension_CommonMeasurementObjectType_CM_Rsp,
-      { "extension-CommonMeasurementObjectType-CM-Rsp", "nbap.extension_CommonMeasurementObjectType_CM_Rsp",
+      { "extension-CommonMeasurementObjectType-CM-Rsp", "nbap.extension_CommonMeasurementObjectType_CM_Rsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cell_02,
-      { "cell", "nbap.cell",
+      { "cell", "nbap.cell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Cell_CM_Rprt", HFILL }},
     { &hf_nbap_rACH_03,
-      { "rACH", "nbap.rACH",
+      { "rACH", "nbap.rACH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RACH_CM_Rprt", HFILL }},
     { &hf_nbap_extension_CommonMeasurementObjectType_CM_Rprt,
-      { "extension-CommonMeasurementObjectType-CM-Rprt", "nbap.extension_CommonMeasurementObjectType_CM_Rprt",
+      { "extension-CommonMeasurementObjectType-CM-Rprt", "nbap.extension_CommonMeasurementObjectType_CM_Rprt_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_commonMeasurementValueInformation,
@@ -65918,7 +65933,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_TransmitDiversityIndicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_SecondaryCPICH_InformationList_Cell_SetupRqstFDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_fDD_DL_ChannelisationCodeNumber,
@@ -65930,7 +65945,7 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_bCH_information,
-      { "bCH-information", "nbap.bCH_information",
+      { "bCH-information", "nbap.bCH_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "BCH_Information_Cell_SetupRqstFDD", HFILL }},
     { &hf_nbap_bCH_Power,
@@ -65946,7 +65961,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_iPDL_FDD_Parameters,
-      { "iPDL-FDD-Parameters", "nbap.iPDL_FDD_Parameters",
+      { "iPDL-FDD-Parameters", "nbap.iPDL_FDD_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_iPDL_Indicator,
@@ -65954,7 +65969,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_IPDL_Indicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_CellPortion_InformationList_Cell_SetupRqstFDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_associatedSecondaryCPICH,
@@ -65966,7 +65981,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "MaximumTransmissionPower", HFILL }},
     { &hf_nbap_syncCaseIndicator,
-      { "syncCaseIndicator", "nbap.syncCaseIndicator",
+      { "syncCaseIndicator", "nbap.syncCaseIndicator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SyncCaseIndicator_Cell_SetupRqstTDD_PSCH", HFILL }},
     { &hf_nbap_sCH_Power,
@@ -65974,11 +65989,11 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_case1,
-      { "case1", "nbap.case1",
+      { "case1", "nbap.case1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Case1_Cell_SetupRqstTDD", HFILL }},
     { &hf_nbap_case2,
-      { "case2", "nbap.case2",
+      { "case2", "nbap.case2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Case2_Cell_SetupRqstTDD", HFILL }},
     { &hf_nbap_sCH_TimeSlot,
@@ -65994,7 +66009,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_SCTD_Indicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_TimeSlotConfigurationList_Cell_SetupRqstTDD_item,
-      { "TimeSlotConfigurationItem-Cell-SetupRqstTDD", "nbap.TimeSlotConfigurationItem_Cell_SetupRqstTDD",
+      { "TimeSlotConfigurationItem-Cell-SetupRqstTDD", "nbap.TimeSlotConfigurationItem_Cell_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_timeSlotStatus,
@@ -66006,7 +66021,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_TimeSlotDirection_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_TimeSlotConfigurationList_LCR_Cell_SetupRqstTDD_item,
-      { "TimeSlotConfigurationItem-LCR-Cell-SetupRqstTDD", "nbap.TimeSlotConfigurationItem_LCR_Cell_SetupRqstTDD",
+      { "TimeSlotConfigurationItem-LCR-Cell-SetupRqstTDD", "nbap.TimeSlotConfigurationItem_LCR_Cell_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dwPCH_Power,
@@ -66014,15 +66029,15 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_iPDL_TDD_Parameters,
-      { "iPDL-TDD-Parameters", "nbap.iPDL_TDD_Parameters",
+      { "iPDL-TDD-Parameters", "nbap.iPDL_TDD_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_iPDL_TDD_Parameters_LCR,
-      { "iPDL-TDD-Parameters-LCR", "nbap.iPDL_TDD_Parameters_LCR",
+      { "iPDL-TDD-Parameters-LCR", "nbap.iPDL_TDD_Parameters_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Cell_Frequency_List_LCR_MulFreq_Cell_SetupRqstTDD_item,
-      { "Cell-Frequency-Item-LCR-MulFreq-Cell-SetupRqstTDD", "nbap.Cell_Frequency_Item_LCR_MulFreq_Cell_SetupRqstTDD",
+      { "Cell-Frequency-Item-LCR-MulFreq-Cell-SetupRqstTDD", "nbap.Cell_Frequency_Item_LCR_MulFreq_Cell_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_timeSlotConfigurationList_LCR_Cell_SetupRqstTDD,
@@ -66030,27 +66045,27 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SecondaryCPICH_InformationList_Cell_ReconfRqstFDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_bCH_information_01,
-      { "bCH-information", "nbap.bCH_information",
+      { "bCH-information", "nbap.bCH_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "BCH_information_Cell_ReconfRqstFDD", HFILL }},
     { &hf_nbap_CellPortion_InformationList_Cell_ReconfRqstFDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TimeSlotConfigurationList_Cell_ReconfRqstTDD_item,
-      { "TimeSlotConfigurationItem-Cell-ReconfRqstTDD", "nbap.TimeSlotConfigurationItem_Cell_ReconfRqstTDD",
+      { "TimeSlotConfigurationItem-Cell-ReconfRqstTDD", "nbap.TimeSlotConfigurationItem_Cell_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_TimeSlotConfigurationList_LCR_Cell_ReconfRqstTDD_item,
-      { "TimeSlotConfigurationItem-LCR-Cell-ReconfRqstTDD", "nbap.TimeSlotConfigurationItem_LCR_Cell_ReconfRqstTDD",
+      { "TimeSlotConfigurationItem-LCR-Cell-ReconfRqstTDD", "nbap.TimeSlotConfigurationItem_LCR_Cell_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cell_Frequency_Add_LCR_MulFreq_Cell_ReconfRqstTDD,
-      { "cell-Frequency-Add-LCR-MulFreq-Cell-ReconfRqstTDD", "nbap.cell_Frequency_Add_LCR_MulFreq_Cell_ReconfRqstTDD",
+      { "cell-Frequency-Add-LCR-MulFreq-Cell-ReconfRqstTDD", "nbap.cell_Frequency_Add_LCR_MulFreq_Cell_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cell_Frequency_ModifyList_LCR_MulFreq_Cell_ReconfRqstTDD,
@@ -66058,7 +66073,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cell_Frequency_Delete_LCR_MulFreq_Cell_ReconfRqstTDD,
-      { "cell-Frequency-Delete-LCR-MulFreq-Cell-ReconfRqstTDD", "nbap.cell_Frequency_Delete_LCR_MulFreq_Cell_ReconfRqstTDD",
+      { "cell-Frequency-Delete-LCR-MulFreq-Cell-ReconfRqstTDD", "nbap.cell_Frequency_Delete_LCR_MulFreq_Cell_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_timeSlotConfigurationList_LCR_Cell_ReconfRqstTDD,
@@ -66066,15 +66081,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Cell_Frequency_ModifyList_LCR_MulFreq_Cell_ReconfRqstTDD_item,
-      { "Cell-Frequency-ModifyItem-LCR-MulFreq-Cell-ReconfRqstTDD", "nbap.Cell_Frequency_ModifyItem_LCR_MulFreq_Cell_ReconfRqstTDD",
+      { "Cell-Frequency-ModifyItem-LCR-MulFreq-Cell-ReconfRqstTDD", "nbap.Cell_Frequency_ModifyItem_LCR_MulFreq_Cell_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_no_Failure,
-      { "no-Failure", "nbap.no_Failure",
+      { "no-Failure", "nbap.no_Failure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "No_Failure_ResourceStatusInd", HFILL }},
     { &hf_nbap_serviceImpacting,
-      { "serviceImpacting", "nbap.serviceImpacting",
+      { "serviceImpacting", "nbap.serviceImpacting_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ServiceImpacting_ResourceStatusInd", HFILL }},
     { &hf_nbap_local_Cell_InformationList,
@@ -66086,7 +66101,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Local_Cell_Group_InformationList_ResourceStatusInd", HFILL }},
     { &hf_nbap_Local_Cell_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_local_CellID,
@@ -66098,11 +66113,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_AddorDeleteIndicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_Local_Cell_Group_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Power_Local_Cell_Group_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_local_Cell_InformationList_01,
@@ -66122,7 +66137,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Cell_InformationList_ResourceStatusInd", HFILL }},
     { &hf_nbap_Local_Cell_InformationList2_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_maximum_DL_PowerCapability,
@@ -66130,27 +66145,27 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "MaximumDL_PowerCapability", HFILL }},
     { &hf_nbap_Local_Cell_Group_InformationList2_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CCP_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Cell_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_primary_SCH_Information_01,
-      { "primary-SCH-Information", "nbap.primary_SCH_Information",
+      { "primary-SCH-Information", "nbap.primary_SCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "P_SCH_Information_ResourceStatusInd", HFILL }},
     { &hf_nbap_secondary_SCH_Information_01,
-      { "secondary-SCH-Information", "nbap.secondary_SCH_Information",
+      { "secondary-SCH-Information", "nbap.secondary_SCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "S_SCH_Information_ResourceStatusInd", HFILL }},
     { &hf_nbap_primary_CPICH_Information_01,
-      { "primary-CPICH-Information", "nbap.primary_CPICH_Information",
+      { "primary-CPICH-Information", "nbap.primary_CPICH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "P_CPICH_Information_ResourceStatusInd", HFILL }},
     { &hf_nbap_secondary_CPICH_Information_01,
@@ -66158,11 +66173,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "S_CPICH_InformationList_ResourceStatusInd", HFILL }},
     { &hf_nbap_primary_CCPCH_Information_01,
-      { "primary-CCPCH-Information", "nbap.primary_CCPCH_Information",
+      { "primary-CCPCH-Information", "nbap.primary_CCPCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "P_CCPCH_Information_ResourceStatusInd", HFILL }},
     { &hf_nbap_bCH_Information_01,
-      { "bCH-Information", "nbap.bCH_Information",
+      { "bCH-Information", "nbap.bCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "BCH_Information_ResourceStatusInd", HFILL }},
     { &hf_nbap_secondary_CCPCH_InformationList_01,
@@ -66170,11 +66185,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "S_CCPCH_InformationList_ResourceStatusInd", HFILL }},
     { &hf_nbap_pCH_Information_01,
-      { "pCH-Information", "nbap.pCH_Information",
+      { "pCH-Information", "nbap.pCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PCH_Information_ResourceStatusInd", HFILL }},
     { &hf_nbap_pICH_Information_01,
-      { "pICH-Information", "nbap.pICH_Information",
+      { "pICH-Information", "nbap.pICH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PICH_Information_ResourceStatusInd", HFILL }},
     { &hf_nbap_fACH_InformationList_01,
@@ -66194,87 +66209,87 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "AICH_InformationList_ResourceStatusInd", HFILL }},
     { &hf_nbap_sCH_Information_01,
-      { "sCH-Information", "nbap.sCH_Information",
+      { "sCH-Information", "nbap.sCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SCH_Information_ResourceStatusInd", HFILL }},
     { &hf_nbap_S_CPICH_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_S_CCPCH_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_FACH_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PRACH_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RACH_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_AICH_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_FPACH_LCR_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_S_CCPCH_InformationListExt_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_S_CCPCH_LCR_InformationListExt_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PLCCH_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_S_CCPCH_768_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PRACH_768_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_RUCCH_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_RUCCH_768_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Cell_Frequency_List_Information_LCR_MulFreq_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UPPCH_LCR_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleFreq_HS_DSCH_Resources_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Power_Local_Cell_Group_InformationList2_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleFreq_E_DCH_Resources_InformationList_ResourceStatusInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MIB_SB_SIB_InformationList_SystemInfoUpdateRqst_item,
-      { "MIB-SB-SIB-InformationItem-SystemInfoUpdateRqst", "nbap.MIB_SB_SIB_InformationItem_SystemInfoUpdateRqst",
+      { "MIB-SB-SIB-InformationItem-SystemInfoUpdateRqst", "nbap.MIB_SB_SIB_InformationItem_SystemInfoUpdateRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_iB_Type,
@@ -66290,11 +66305,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DeletionIndicator_SystemInfoUpdate_vals), 0,
         "DeletionIndicator_SystemInfoUpdate", HFILL }},
     { &hf_nbap_no_Deletion,
-      { "no-Deletion", "nbap.no_Deletion",
+      { "no-Deletion", "nbap.no_Deletion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "No_Deletion_SystemInfoUpdate", HFILL }},
     { &hf_nbap_yes_Deletion,
-      { "yes-Deletion", "nbap.yes_Deletion",
+      { "yes-Deletion", "nbap.yes_Deletion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sIB_Originator,
@@ -66306,11 +66321,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_IB_SG_REP_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_segmentInformationList,
-      { "segmentInformationList", "nbap.segmentInformationList",
+      { "segmentInformationList", "nbap.segmentInformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SegmentInformationList_SystemInfoUpdate", HFILL }},
     { &hf_nbap_SegmentInformationListIE_SystemInfoUpdate_item,
-      { "SegmentInformationItem-SystemInfoUpdate", "nbap.SegmentInformationItem_SystemInfoUpdate",
+      { "SegmentInformationItem-SystemInfoUpdate", "nbap.SegmentInformationItem_SystemInfoUpdate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_iB_SG_POS,
@@ -66326,7 +66341,7 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_HS_Cell_Information_RL_Setup_List_item,
-      { "Additional-HS-Cell-Information-RL-Setup-ItemIEs", "nbap.Additional_HS_Cell_Information_RL_Setup_ItemIEs",
+      { "Additional-HS-Cell-Information-RL-Setup-ItemIEs", "nbap.Additional_HS_Cell_Information_RL_Setup_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hSPDSCH_RL_ID,
@@ -66334,7 +66349,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "RL_ID", HFILL }},
     { &hf_nbap_hS_DSCH_FDD_Secondary_Serving_Information,
-      { "hS-DSCH-FDD-Secondary-Serving-Information", "nbap.hS_DSCH_FDD_Secondary_Serving_Information",
+      { "hS-DSCH-FDD-Secondary-Serving-Information", "nbap.hS_DSCH_FDD_Secondary_Serving_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_minUL_ChannelisationCodeLength,
@@ -66354,11 +66369,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DiversityMode_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_not_Used_sSDT_CellID_Length,
-      { "not-Used-sSDT-CellID-Length", "nbap.not_Used_sSDT_CellID_Length",
+      { "not-Used-sSDT-CellID-Length", "nbap.not_Used_sSDT_CellID_Length_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_not_Used_s_FieldLength,
-      { "not-Used-s-FieldLength", "nbap.not_Used_s_FieldLength",
+      { "not-Used-s-FieldLength", "nbap.not_Used_s_FieldLength_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dl_DPCH_SlotFormat,
@@ -66366,19 +66381,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tFCI_SignallingMode,
-      { "tFCI-SignallingMode", "nbap.tFCI_SignallingMode",
+      { "tFCI-SignallingMode", "nbap.tFCI_SignallingMode_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_not_Used_pDSCH_RL_ID,
-      { "not-Used-pDSCH-RL-ID", "nbap.not_Used_pDSCH_RL_ID",
+      { "not-Used-pDSCH-RL-ID", "nbap.not_Used_pDSCH_RL_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_not_Used_pDSCH_CodeMapping,
-      { "not-Used-pDSCH-CodeMapping", "nbap.not_Used_pDSCH_CodeMapping",
+      { "not-Used-pDSCH-CodeMapping", "nbap.not_Used_pDSCH_CodeMapping_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_powerOffsetInformation_01,
-      { "powerOffsetInformation", "nbap.powerOffsetInformation",
+      { "powerOffsetInformation", "nbap.powerOffsetInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PowerOffsetInformation_RL_SetupRqstFDD", HFILL }},
     { &hf_nbap_pO2_ForTPC_Bits,
@@ -66386,7 +66401,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "PowerOffset", HFILL }},
     { &hf_nbap_RL_InformationList_RL_SetupRqstFDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_frameOffset,
@@ -66402,7 +66417,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DiversityControlField_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_not_Used_sSDT_Cell_Identity,
-      { "not-Used-sSDT-Cell-Identity", "nbap.not_Used_sSDT_Cell_Identity",
+      { "not-Used-sSDT-Cell-Identity", "nbap.not_Used_sSDT_Cell_Identity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hSDSCH_Configured_Indicator,
@@ -66410,15 +66425,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_HSDSCH_Configured_Indicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_powerOffsetInformation_02,
-      { "powerOffsetInformation", "nbap.powerOffsetInformation",
+      { "powerOffsetInformation", "nbap.powerOffsetInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PowerOffsetInformation_F_DPCH_RL_SetupRqstFDD", HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationList_RL_SetupRqstTDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_DPCH_Information,
-      { "uL-DPCH-Information", "nbap.uL_DPCH_Information",
+      { "uL-DPCH-Information", "nbap.uL_DPCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UL_DPCH_Information_RL_SetupRqstTDD", HFILL }},
     { &hf_nbap_tdd_DPCHOffset,
@@ -66438,7 +66453,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationList_RL_SetupRqstTDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_tdd_TPC_DownlinkStepSize,
@@ -66450,11 +66465,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "CCTrCH_TPCList_RL_SetupRqstTDD", HFILL }},
     { &hf_nbap_dL_DPCH_Information,
-      { "dL-DPCH-Information", "nbap.dL_DPCH_Information",
+      { "dL-DPCH-Information", "nbap.dL_DPCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DL_DPCH_Information_RL_SetupRqstTDD", HFILL }},
     { &hf_nbap_CCTrCH_TPCList_RL_SetupRqstTDD_item,
-      { "CCTrCH-TPCItem-RL-SetupRqstTDD", "nbap.CCTrCH_TPCItem_RL_SetupRqstTDD",
+      { "CCTrCH-TPCItem-RL-SetupRqstTDD", "nbap.CCTrCH_TPCItem_RL_SetupRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Timeslot_Information,
@@ -66482,11 +66497,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_HS_Cell_Information_Response_List_item,
-      { "Additional-HS-Cell-Information-Response-ItemIEs", "nbap.Additional_HS_Cell_Information_Response_ItemIEs",
+      { "Additional-HS-Cell-Information-Response-ItemIEs", "nbap.Additional_HS_Cell_Information_Response_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationResponseList_RL_SetupRspFDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_diversityIndication,
@@ -66494,7 +66509,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DiversityIndication_RL_SetupRspFDD_vals), 0,
         "DiversityIndication_RL_SetupRspFDD", HFILL }},
     { &hf_nbap_not_Used_dSCH_InformationResponseList,
-      { "not-Used-dSCH-InformationResponseList", "nbap.not_Used_dSCH_InformationResponseList",
+      { "not-Used-dSCH-InformationResponseList", "nbap.not_Used_dSCH_InformationResponseList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sSDT_SupportIndicator,
@@ -66502,11 +66517,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_SSDT_SupportIndicator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_combining,
-      { "combining", "nbap.combining",
+      { "combining", "nbap.combining_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Combining_RL_SetupRspFDD", HFILL }},
     { &hf_nbap_nonCombiningOrFirstRL,
-      { "nonCombiningOrFirstRL", "nbap.nonCombiningOrFirstRL",
+      { "nonCombiningOrFirstRL", "nbap.nonCombiningOrFirstRL_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NonCombiningOrFirstRL_RL_SetupRspFDD", HFILL }},
     { &hf_nbap_dCH_InformationResponse,
@@ -66522,15 +66537,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_UL_PhysCH_SF_Variation_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_dCH_InformationResponseList,
-      { "dCH-InformationResponseList", "nbap.dCH_InformationResponseList",
+      { "dCH-InformationResponseList", "nbap.dCH_InformationResponseList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DCH_InformationResponseList_RL_SetupRspTDD", HFILL }},
     { &hf_nbap_dSCH_InformationResponseList,
-      { "dSCH-InformationResponseList", "nbap.dSCH_InformationResponseList",
+      { "dSCH-InformationResponseList", "nbap.dSCH_InformationResponseList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DSCH_InformationResponseList_RL_SetupRspTDD", HFILL }},
     { &hf_nbap_uSCH_InformationResponseList,
-      { "uSCH-InformationResponseList", "nbap.uSCH_InformationResponseList",
+      { "uSCH-InformationResponseList", "nbap.uSCH_InformationResponseList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "USCH_InformationResponseList_RL_SetupRspTDD", HFILL }},
     { &hf_nbap_uL_TimeSlot_ISCP_LCR_Info,
@@ -66538,11 +66553,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_generalCause,
-      { "generalCause", "nbap.generalCause",
+      { "generalCause", "nbap.generalCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GeneralCauseList_RL_SetupFailureFDD", HFILL }},
     { &hf_nbap_rLSpecificCause,
-      { "rLSpecificCause", "nbap.rLSpecificCause",
+      { "rLSpecificCause", "nbap.rLSpecificCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RLSpecificCauseList_RL_SetupFailureFDD", HFILL }},
     { &hf_nbap_unsuccessful_RL_InformationRespList_RL_SetupFailureFDD,
@@ -66554,11 +66569,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Unsuccessful_RL_InformationRespList_RL_SetupFailureFDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Successful_RL_InformationRespList_RL_SetupFailureFDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_diversityIndication_01,
@@ -66566,31 +66581,31 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DiversityIndication_RL_SetupFailureFDD_vals), 0,
         "DiversityIndication_RL_SetupFailureFDD", HFILL }},
     { &hf_nbap_not_Used_tFCI2_BearerInformationResponse,
-      { "not-Used-tFCI2-BearerInformationResponse", "nbap.not_Used_tFCI2_BearerInformationResponse",
+      { "not-Used-tFCI2-BearerInformationResponse", "nbap.not_Used_tFCI2_BearerInformationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_combining_01,
-      { "combining", "nbap.combining",
+      { "combining", "nbap.combining_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Combining_RL_SetupFailureFDD", HFILL }},
     { &hf_nbap_nonCombiningOrFirstRL_01,
-      { "nonCombiningOrFirstRL", "nbap.nonCombiningOrFirstRL",
+      { "nonCombiningOrFirstRL", "nbap.nonCombiningOrFirstRL_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NonCombiningOrFirstRL_RL_SetupFailureFDD", HFILL }},
     { &hf_nbap_generalCause_01,
-      { "generalCause", "nbap.generalCause",
+      { "generalCause", "nbap.generalCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GeneralCauseList_RL_SetupFailureTDD", HFILL }},
     { &hf_nbap_rLSpecificCause_01,
-      { "rLSpecificCause", "nbap.rLSpecificCause",
+      { "rLSpecificCause", "nbap.rLSpecificCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RLSpecificCauseList_RL_SetupFailureTDD", HFILL }},
     { &hf_nbap_unsuccessful_RL_InformationRespItem_RL_SetupFailureTDD,
-      { "unsuccessful-RL-InformationRespItem-RL-SetupFailureTDD", "nbap.unsuccessful_RL_InformationRespItem_RL_SetupFailureTDD",
+      { "unsuccessful-RL-InformationRespItem-RL-SetupFailureTDD", "nbap.unsuccessful_RL_InformationRespItem_RL_SetupFailureTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_HS_Cell_Information_RL_Addition_List_item,
-      { "Additional-HS-Cell-Information-RL-Addition-ItemIEs", "nbap.Additional_HS_Cell_Information_RL_Addition_ItemIEs",
+      { "Additional-HS-Cell-Information-RL-Addition-ItemIEs", "nbap.Additional_HS_Cell_Information_RL_Addition_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_setup_Or_Addition_Of_EDCH_On_secondary_UL_Frequency,
@@ -66602,7 +66617,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "Additional_EDCH_Cell_Information_To_Add_List", HFILL }},
     { &hf_nbap_RL_InformationList_RL_AdditionRqstFDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_initialDL_TransmissionPower,
@@ -66618,23 +66633,23 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_not_Used_sSDT_CellIdentity,
-      { "not-Used-sSDT-CellIdentity", "nbap.not_Used_sSDT_CellIdentity",
+      { "not-Used-sSDT-CellIdentity", "nbap.not_Used_sSDT_CellIdentity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationList_RL_AdditionRqstTDD_item,
-      { "UL-CCTrCH-InformationItem-RL-AdditionRqstTDD", "nbap.UL_CCTrCH_InformationItem_RL_AdditionRqstTDD",
+      { "UL-CCTrCH-InformationItem-RL-AdditionRqstTDD", "nbap.UL_CCTrCH_InformationItem_RL_AdditionRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_DPCH_Information_01,
-      { "uL-DPCH-Information", "nbap.uL_DPCH_Information",
+      { "uL-DPCH-Information", "nbap.uL_DPCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UL_DPCH_InformationList_RL_AdditionRqstTDD", HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationList_RL_AdditionRqstTDD_item,
-      { "DL-CCTrCH-InformationItem-RL-AdditionRqstTDD", "nbap.DL_CCTrCH_InformationItem_RL_AdditionRqstTDD",
+      { "DL-CCTrCH-InformationItem-RL-AdditionRqstTDD", "nbap.DL_CCTrCH_InformationItem_RL_AdditionRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_DPCH_Information_01,
-      { "dL-DPCH-Information", "nbap.dL_DPCH_Information",
+      { "dL-DPCH-Information", "nbap.dL_DPCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DL_DPCH_InformationList_RL_AdditionRqstTDD", HFILL }},
     { &hf_nbap_initial_DL_Transmission_Power,
@@ -66642,15 +66657,15 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_Additional_HS_Cell_Change_Information_Response_List_item,
-      { "Additional-HS-Cell-Change-Information-Response-ItemIEs", "nbap.Additional_HS_Cell_Change_Information_Response_ItemIEs",
+      { "Additional-HS-Cell-Change-Information-Response-ItemIEs", "nbap.Additional_HS_Cell_Change_Information_Response_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_DSCH_Secondary_Serving_Cell_Change_Information_Response,
-      { "hS-DSCH-Secondary-Serving-Cell-Change-Information-Response", "nbap.hS_DSCH_Secondary_Serving_Cell_Change_Information_Response",
+      { "hS-DSCH-Secondary-Serving-Cell-Change-Information-Response", "nbap.hS_DSCH_Secondary_Serving_Cell_Change_Information_Response_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationResponseList_RL_AdditionRspFDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_diversityIndication_02,
@@ -66658,23 +66673,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DiversityIndication_RL_AdditionRspFDD_vals), 0,
         "DiversityIndication_RL_AdditionRspFDD", HFILL }},
     { &hf_nbap_combining_02,
-      { "combining", "nbap.combining",
+      { "combining", "nbap.combining_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Combining_RL_AdditionRspFDD", HFILL }},
     { &hf_nbap_non_combining,
-      { "non-combining", "nbap.non_combining",
+      { "non-combining", "nbap.non_combining_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Non_Combining_RL_AdditionRspFDD", HFILL }},
     { &hf_nbap_dCH_Information,
-      { "dCH-Information", "nbap.dCH_Information",
+      { "dCH-Information", "nbap.dCH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DCH_Information_RL_AdditionRspTDD", HFILL }},
     { &hf_nbap_dSCH_InformationResponseList_01,
-      { "dSCH-InformationResponseList", "nbap.dSCH_InformationResponseList",
+      { "dSCH-InformationResponseList", "nbap.dSCH_InformationResponseList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DSCH_InformationResponseList_RL_AdditionRspTDD", HFILL }},
     { &hf_nbap_uSCH_InformationResponseList_01,
-      { "uSCH-InformationResponseList", "nbap.uSCH_InformationResponseList",
+      { "uSCH-InformationResponseList", "nbap.uSCH_InformationResponseList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "USCH_InformationResponseList_RL_AdditionRspTDD", HFILL }},
     { &hf_nbap_diversityIndication_03,
@@ -66682,11 +66697,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DiversityIndication_RL_AdditionRspTDD_vals), 0,
         "DiversityIndication_RL_AdditionRspTDD", HFILL }},
     { &hf_nbap_combining_03,
-      { "combining", "nbap.combining",
+      { "combining", "nbap.combining_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Combining_RL_AdditionRspTDD", HFILL }},
     { &hf_nbap_non_Combining,
-      { "non-Combining", "nbap.non_Combining",
+      { "non-Combining", "nbap.non_Combining_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Non_Combining_RL_AdditionRspTDD", HFILL }},
     { &hf_nbap_uL_TimeSlot_ISCP_InfoLCR,
@@ -66694,11 +66709,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "UL_TimeSlot_ISCP_LCR_Info", HFILL }},
     { &hf_nbap_generalCause_02,
-      { "generalCause", "nbap.generalCause",
+      { "generalCause", "nbap.generalCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GeneralCauseList_RL_AdditionFailureFDD", HFILL }},
     { &hf_nbap_rLSpecificCause_02,
-      { "rLSpecificCause", "nbap.rLSpecificCause",
+      { "rLSpecificCause", "nbap.rLSpecificCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RLSpecificCauseList_RL_AdditionFailureFDD", HFILL }},
     { &hf_nbap_unsuccessful_RL_InformationRespList_RL_AdditionFailureFDD,
@@ -66710,11 +66725,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Unsuccessful_RL_InformationRespList_RL_AdditionFailureFDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Successful_RL_InformationRespList_RL_AdditionFailureFDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_diversityIndication_04,
@@ -66722,35 +66737,35 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DiversityIndication_RL_AdditionFailureFDD_vals), 0,
         "DiversityIndication_RL_AdditionFailureFDD", HFILL }},
     { &hf_nbap_combining_04,
-      { "combining", "nbap.combining",
+      { "combining", "nbap.combining_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Combining_RL_AdditionFailureFDD", HFILL }},
     { &hf_nbap_non_Combining_01,
-      { "non-Combining", "nbap.non_Combining",
+      { "non-Combining", "nbap.non_Combining_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Non_Combining_RL_AdditionFailureFDD", HFILL }},
     { &hf_nbap_generalCause_03,
-      { "generalCause", "nbap.generalCause",
+      { "generalCause", "nbap.generalCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GeneralCauseList_RL_AdditionFailureTDD", HFILL }},
     { &hf_nbap_rLSpecificCause_03,
-      { "rLSpecificCause", "nbap.rLSpecificCause",
+      { "rLSpecificCause", "nbap.rLSpecificCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RLSpecificCauseList_RL_AdditionFailureTDD", HFILL }},
     { &hf_nbap_unsuccessful_RL_InformationRespItem_RL_AdditionFailureTDD,
-      { "unsuccessful-RL-InformationRespItem-RL-AdditionFailureTDD", "nbap.unsuccessful_RL_InformationRespItem_RL_AdditionFailureTDD",
+      { "unsuccessful-RL-InformationRespItem-RL-AdditionFailureTDD", "nbap.unsuccessful_RL_InformationRespItem_RL_AdditionFailureTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_HS_Cell_Information_RL_Reconf_Prep_item,
-      { "Additional-HS-Cell-Information-RL-Reconf-Prep-ItemIEs", "nbap.Additional_HS_Cell_Information_RL_Reconf_Prep_ItemIEs",
+      { "Additional-HS-Cell-Information-RL-Reconf-Prep-ItemIEs", "nbap.Additional_HS_Cell_Information_RL_Reconf_Prep_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_DSCH_Secondary_Serving_Information_To_Modify,
-      { "hS-DSCH-Secondary-Serving-Information-To-Modify", "nbap.hS_DSCH_Secondary_Serving_Information_To_Modify",
+      { "hS-DSCH-Secondary-Serving-Information-To-Modify", "nbap.hS_DSCH_Secondary_Serving_Information_To_Modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_HS_DSCH_Secondary_Serving_Remove,
-      { "hS-HS-DSCH-Secondary-Serving-Remove", "nbap.hS_HS_DSCH_Secondary_Serving_Remove",
+      { "hS-HS-DSCH-Secondary-Serving-Remove", "nbap.hS_HS_DSCH_Secondary_Serving_Remove_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "HS_DSCH_Secondary_Serving_Remove", HFILL }},
     { &hf_nbap_setup_Or_ConfigurationChange_Or_Removal_Of_EDCH_On_secondary_UL_Frequency,
@@ -66758,19 +66773,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_Setup_Or_ConfigurationChange_Or_Removal_Of_EDCH_On_secondary_UL_Frequency_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_not_Used_sSDT_CellIDLength,
-      { "not-Used-sSDT-CellIDLength", "nbap.not_Used_sSDT_CellIDLength",
+      { "not-Used-sSDT-CellIDLength", "nbap.not_Used_sSDT_CellIDLength_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_powerOffsetInformation_03,
-      { "powerOffsetInformation", "nbap.powerOffsetInformation",
+      { "powerOffsetInformation", "nbap.powerOffsetInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PowerOffsetInformation_RL_ReconfPrepFDD", HFILL }},
     { &hf_nbap_DCH_DeleteList_RL_ReconfPrepFDD_item,
-      { "DCH-DeleteItem-RL-ReconfPrepFDD", "nbap.DCH_DeleteItem_RL_ReconfPrepFDD",
+      { "DCH-DeleteItem-RL-ReconfPrepFDD", "nbap.DCH_DeleteItem_RL_ReconfPrepFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationList_RL_ReconfPrepFDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_maxDL_Power,
@@ -66782,19 +66797,19 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_not_Used_sSDT_Indication,
-      { "not-Used-sSDT-Indication", "nbap.not_Used_sSDT_Indication",
+      { "not-Used-sSDT-Indication", "nbap.not_Used_sSDT_Indication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_powerOffsetInformation_04,
-      { "powerOffsetInformation", "nbap.powerOffsetInformation",
+      { "powerOffsetInformation", "nbap.powerOffsetInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PowerOffsetInformation_F_DPCH_RL_ReconfPrepFDD", HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationAddList_RL_ReconfPrepTDD_item,
-      { "UL-CCTrCH-InformationAddItem-RL-ReconfPrepTDD", "nbap.UL_CCTrCH_InformationAddItem_RL_ReconfPrepTDD",
+      { "UL-CCTrCH-InformationAddItem-RL-ReconfPrepTDD", "nbap.UL_CCTrCH_InformationAddItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ul_DPCH_InformationList,
-      { "ul-DPCH-InformationList", "nbap.ul_DPCH_InformationList",
+      { "ul-DPCH-InformationList", "nbap.ul_DPCH_InformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UL_DPCH_InformationAddList_RL_ReconfPrepTDD", HFILL }},
     { &hf_nbap_uL_Timeslot_InformationLCR,
@@ -66802,11 +66817,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "UL_TimeslotLCR_Information", HFILL }},
     { &hf_nbap_MultipleRL_UL_DPCH_InformationAddList_RL_ReconfPrepTDD_item,
-      { "MultipleRL-UL-DPCH-InformationAddListIE-RL-ReconfPrepTDD", "nbap.MultipleRL_UL_DPCH_InformationAddListIE_RL_ReconfPrepTDD",
+      { "MultipleRL-UL-DPCH-InformationAddListIE-RL-ReconfPrepTDD", "nbap.MultipleRL_UL_DPCH_InformationAddListIE_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ul_DPCH_InformationListLCR,
-      { "ul-DPCH-InformationListLCR", "nbap.ul_DPCH_InformationListLCR",
+      { "ul-DPCH-InformationListLCR", "nbap.ul_DPCH_InformationListLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UL_DPCH_LCR_InformationAddList_RL_ReconfPrepTDD", HFILL }},
     { &hf_nbap_ul_sir_target,
@@ -66822,19 +66837,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "UL_Timeslot768_Information", HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationModifyList_RL_ReconfPrepTDD_item,
-      { "UL-CCTrCH-InformationModifyItem-RL-ReconfPrepTDD", "nbap.UL_CCTrCH_InformationModifyItem_RL_ReconfPrepTDD",
+      { "UL-CCTrCH-InformationModifyItem-RL-ReconfPrepTDD", "nbap.UL_CCTrCH_InformationModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ul_DPCH_InformationAddList,
-      { "ul-DPCH-InformationAddList", "nbap.ul_DPCH_InformationAddList",
+      { "ul-DPCH-InformationAddList", "nbap.ul_DPCH_InformationAddList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UL_DPCH_InformationModify_AddList_RL_ReconfPrepTDD", HFILL }},
     { &hf_nbap_ul_DPCH_InformationModifyList,
-      { "ul-DPCH-InformationModifyList", "nbap.ul_DPCH_InformationModifyList",
+      { "ul-DPCH-InformationModifyList", "nbap.ul_DPCH_InformationModifyList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UL_DPCH_InformationModify_ModifyList_RL_ReconfPrepTDD", HFILL }},
     { &hf_nbap_ul_DPCH_InformationDeleteList,
-      { "ul-DPCH-InformationDeleteList", "nbap.ul_DPCH_InformationDeleteList",
+      { "ul-DPCH-InformationDeleteList", "nbap.ul_DPCH_InformationDeleteList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UL_DPCH_InformationModify_DeleteList_RL_ReconfPrepTDD", HFILL }},
     { &hf_nbap_uL_Timeslot_InformationModify_ModifyList_RL_ReconfPrepTDD,
@@ -66842,7 +66857,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Timeslot_InformationModify_ModifyList_RL_ReconfPrepTDD_item,
-      { "UL-Timeslot-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.UL_Timeslot_InformationModify_ModifyItem_RL_ReconfPrepTDD",
+      { "UL-Timeslot-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.UL_Timeslot_InformationModify_ModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Code_InformationModify_ModifyList_RL_ReconfPrepTDD,
@@ -66850,11 +66865,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Code_InformationModify_ModifyList_RL_ReconfPrepTDD_item,
-      { "UL-Code-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.UL_Code_InformationModify_ModifyItem_RL_ReconfPrepTDD",
+      { "UL-Code-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.UL_Code_InformationModify_ModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_TimeslotLCR_InformationModify_ModifyList_RL_ReconfPrepTDD_item,
-      { "UL-Timeslot-LCR-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.UL_Timeslot_LCR_InformationModify_ModifyItem_RL_ReconfPrepTDD",
+      { "UL-Timeslot-LCR-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.UL_Timeslot_LCR_InformationModify_ModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Code_InformationModify_ModifyList_RL_ReconfPrepTDDLCR,
@@ -66862,11 +66877,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Code_InformationModify_ModifyList_RL_ReconfPrepTDDLCR_item,
-      { "UL-Code-InformationModify-ModifyItem-RL-ReconfPrepTDDLCR", "nbap.UL_Code_InformationModify_ModifyItem_RL_ReconfPrepTDDLCR",
+      { "UL-Code-InformationModify-ModifyItem-RL-ReconfPrepTDDLCR", "nbap.UL_Code_InformationModify_ModifyItem_RL_ReconfPrepTDDLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Timeslot768_InformationModify_ModifyList_RL_ReconfPrepTDD_item,
-      { "UL-Timeslot-768-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.UL_Timeslot_768_InformationModify_ModifyItem_RL_ReconfPrepTDD",
+      { "UL-Timeslot-768-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.UL_Timeslot_768_InformationModify_ModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Code_InformationModify_ModifyList_RL_ReconfPrepTDD768,
@@ -66874,27 +66889,27 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Code_InformationModify_ModifyList_RL_ReconfPrepTDD768_item,
-      { "UL-Code-InformationModify-ModifyItem-RL-ReconfPrepTDD768", "nbap.UL_Code_InformationModify_ModifyItem_RL_ReconfPrepTDD768",
+      { "UL-Code-InformationModify-ModifyItem-RL-ReconfPrepTDD768", "nbap.UL_Code_InformationModify_ModifyItem_RL_ReconfPrepTDD768_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_DPCH_InformationModify_DeleteListIE_RL_ReconfPrepTDD_item,
-      { "UL-DPCH-InformationModify-DeleteItem-RL-ReconfPrepTDD", "nbap.UL_DPCH_InformationModify_DeleteItem_RL_ReconfPrepTDD",
+      { "UL-DPCH-InformationModify-DeleteItem-RL-ReconfPrepTDD", "nbap.UL_DPCH_InformationModify_DeleteItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleRL_UL_DPCH_InformationModifyList_RL_ReconfPrepTDD_item,
-      { "MultipleRL-UL-DPCH-InformationModifyListIE-RL-ReconfPrepTDD", "nbap.MultipleRL_UL_DPCH_InformationModifyListIE_RL_ReconfPrepTDD",
+      { "MultipleRL-UL-DPCH-InformationModifyListIE-RL-ReconfPrepTDD", "nbap.MultipleRL_UL_DPCH_InformationModifyListIE_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ul_DPCH_InformationAddListLCR,
-      { "ul-DPCH-InformationAddListLCR", "nbap.ul_DPCH_InformationAddListLCR",
+      { "ul-DPCH-InformationAddListLCR", "nbap.ul_DPCH_InformationAddListLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UL_DPCH_LCR_InformationModify_AddList_RL_ReconfPrepTDD", HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationDeleteList_RL_ReconfPrepTDD_item,
-      { "UL-CCTrCH-InformationDeleteItem-RL-ReconfPrepTDD", "nbap.UL_CCTrCH_InformationDeleteItem_RL_ReconfPrepTDD",
+      { "UL-CCTrCH-InformationDeleteItem-RL-ReconfPrepTDD", "nbap.UL_CCTrCH_InformationDeleteItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationAddList_RL_ReconfPrepTDD_item,
-      { "DL-CCTrCH-InformationAddItem-RL-ReconfPrepTDD", "nbap.DL_CCTrCH_InformationAddItem_RL_ReconfPrepTDD",
+      { "DL-CCTrCH-InformationAddItem-RL-ReconfPrepTDD", "nbap.DL_CCTrCH_InformationAddItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cCTrCH_TPCList_01,
@@ -66902,11 +66917,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "CCTrCH_TPCAddList_RL_ReconfPrepTDD", HFILL }},
     { &hf_nbap_dl_DPCH_InformationList,
-      { "dl-DPCH-InformationList", "nbap.dl_DPCH_InformationList",
+      { "dl-DPCH-InformationList", "nbap.dl_DPCH_InformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DL_DPCH_InformationAddList_RL_ReconfPrepTDD", HFILL }},
     { &hf_nbap_CCTrCH_TPCAddList_RL_ReconfPrepTDD_item,
-      { "CCTrCH-TPCAddItem-RL-ReconfPrepTDD", "nbap.CCTrCH_TPCAddItem_RL_ReconfPrepTDD",
+      { "CCTrCH-TPCAddItem-RL-ReconfPrepTDD", "nbap.CCTrCH_TPCAddItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Timeslot_InformationLCR,
@@ -66914,11 +66929,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "DL_TimeslotLCR_Information", HFILL }},
     { &hf_nbap_MultipleRL_DL_DPCH_InformationAddList_RL_ReconfPrepTDD_item,
-      { "MultipleRL-DL-DPCH-InformationAddListIE-RL-ReconfPrepTDD", "nbap.MultipleRL_DL_DPCH_InformationAddListIE_RL_ReconfPrepTDD",
+      { "MultipleRL-DL-DPCH-InformationAddListIE-RL-ReconfPrepTDD", "nbap.MultipleRL_DL_DPCH_InformationAddListIE_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dl_DPCH_InformationListLCR,
-      { "dl-DPCH-InformationListLCR", "nbap.dl_DPCH_InformationListLCR",
+      { "dl-DPCH-InformationListLCR", "nbap.dl_DPCH_InformationListLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DL_DPCH_LCR_InformationAddList_RL_ReconfPrepTDD", HFILL }},
     { &hf_nbap_cCTrCH_Initial_DL_Power,
@@ -66942,7 +66957,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "DL_Timeslot768_Information", HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationModifyList_RL_ReconfPrepTDD_item,
-      { "DL-CCTrCH-InformationModifyItem-RL-ReconfPrepTDD", "nbap.DL_CCTrCH_InformationModifyItem_RL_ReconfPrepTDD",
+      { "DL-CCTrCH-InformationModifyItem-RL-ReconfPrepTDD", "nbap.DL_CCTrCH_InformationModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cCTrCH_TPCList_02,
@@ -66950,19 +66965,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "CCTrCH_TPCModifyList_RL_ReconfPrepTDD", HFILL }},
     { &hf_nbap_dl_DPCH_InformationAddList,
-      { "dl-DPCH-InformationAddList", "nbap.dl_DPCH_InformationAddList",
+      { "dl-DPCH-InformationAddList", "nbap.dl_DPCH_InformationAddList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DL_DPCH_InformationModify_AddList_RL_ReconfPrepTDD", HFILL }},
     { &hf_nbap_dl_DPCH_InformationModifyList,
-      { "dl-DPCH-InformationModifyList", "nbap.dl_DPCH_InformationModifyList",
+      { "dl-DPCH-InformationModifyList", "nbap.dl_DPCH_InformationModifyList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DL_DPCH_InformationModify_ModifyList_RL_ReconfPrepTDD", HFILL }},
     { &hf_nbap_dl_DPCH_InformationDeleteList,
-      { "dl-DPCH-InformationDeleteList", "nbap.dl_DPCH_InformationDeleteList",
+      { "dl-DPCH-InformationDeleteList", "nbap.dl_DPCH_InformationDeleteList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DL_DPCH_InformationModify_DeleteList_RL_ReconfPrepTDD", HFILL }},
     { &hf_nbap_CCTrCH_TPCModifyList_RL_ReconfPrepTDD_item,
-      { "CCTrCH-TPCModifyItem-RL-ReconfPrepTDD", "nbap.CCTrCH_TPCModifyItem_RL_ReconfPrepTDD",
+      { "CCTrCH-TPCModifyItem-RL-ReconfPrepTDD", "nbap.CCTrCH_TPCModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Timeslot_InformationAddModify_ModifyList_RL_ReconfPrepTDD,
@@ -66970,7 +66985,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "DL_Timeslot_InformationModify_ModifyList_RL_ReconfPrepTDD", HFILL }},
     { &hf_nbap_DL_Timeslot_InformationModify_ModifyList_RL_ReconfPrepTDD_item,
-      { "DL-Timeslot-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.DL_Timeslot_InformationModify_ModifyItem_RL_ReconfPrepTDD",
+      { "DL-Timeslot-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.DL_Timeslot_InformationModify_ModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Code_InformationModify_ModifyList_RL_ReconfPrepTDD,
@@ -66978,11 +66993,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Code_InformationModify_ModifyList_RL_ReconfPrepTDD_item,
-      { "DL-Code-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.DL_Code_InformationModify_ModifyItem_RL_ReconfPrepTDD",
+      { "DL-Code-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.DL_Code_InformationModify_ModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Timeslot_LCR_InformationModify_ModifyList_RL_ReconfPrepTDD_item,
-      { "DL-Timeslot-LCR-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.DL_Timeslot_LCR_InformationModify_ModifyItem_RL_ReconfPrepTDD",
+      { "DL-Timeslot-LCR-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.DL_Timeslot_LCR_InformationModify_ModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Code_LCR_InformationModify_ModifyList_RL_ReconfPrepTDD,
@@ -66990,11 +67005,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Code_LCR_InformationModify_ModifyList_RL_ReconfPrepTDD_item,
-      { "DL-Code-LCR-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.DL_Code_LCR_InformationModify_ModifyItem_RL_ReconfPrepTDD",
+      { "DL-Code-LCR-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.DL_Code_LCR_InformationModify_ModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Timeslot_768_InformationModify_ModifyList_RL_ReconfPrepTDD_item,
-      { "DL-Timeslot-768-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.DL_Timeslot_768_InformationModify_ModifyItem_RL_ReconfPrepTDD",
+      { "DL-Timeslot-768-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.DL_Timeslot_768_InformationModify_ModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Code_768_InformationModify_ModifyList_RL_ReconfPrepTDD,
@@ -67002,7 +67017,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Code_768_InformationModify_ModifyList_RL_ReconfPrepTDD_item,
-      { "DL-Code-768-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.DL_Code_768_InformationModify_ModifyItem_RL_ReconfPrepTDD",
+      { "DL-Code-768-InformationModify-ModifyItem-RL-ReconfPrepTDD", "nbap.DL_Code_768_InformationModify_ModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dPCH_ID768,
@@ -67010,15 +67025,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_DPCH_InformationModify_DeleteListIE_RL_ReconfPrepTDD_item,
-      { "DL-DPCH-InformationModify-DeleteItem-RL-ReconfPrepTDD", "nbap.DL_DPCH_InformationModify_DeleteItem_RL_ReconfPrepTDD",
+      { "DL-DPCH-InformationModify-DeleteItem-RL-ReconfPrepTDD", "nbap.DL_DPCH_InformationModify_DeleteItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleRL_DL_DPCH_InformationModifyList_RL_ReconfPrepTDD_item,
-      { "MultipleRL-DL-DPCH-InformationModifyListIE-RL-ReconfPrepTDD", "nbap.MultipleRL_DL_DPCH_InformationModifyListIE_RL_ReconfPrepTDD",
+      { "MultipleRL-DL-DPCH-InformationModifyListIE-RL-ReconfPrepTDD", "nbap.MultipleRL_DL_DPCH_InformationModifyListIE_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dl_DPCH_InformationAddListLCR,
-      { "dl-DPCH-InformationAddListLCR", "nbap.dl_DPCH_InformationAddListLCR",
+      { "dl-DPCH-InformationAddListLCR", "nbap.dl_DPCH_InformationAddListLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DL_DPCH_LCR_InformationModify_AddList_RL_ReconfPrepTDD", HFILL }},
     { &hf_nbap_tDD_TPC_DownlinkStepSize_InformationModify_RL_ReconfPrepTDD,
@@ -67034,55 +67049,55 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationDeleteList_RL_ReconfPrepTDD_item,
-      { "DL-CCTrCH-InformationDeleteItem-RL-ReconfPrepTDD", "nbap.DL_CCTrCH_InformationDeleteItem_RL_ReconfPrepTDD",
+      { "DL-CCTrCH-InformationDeleteItem-RL-ReconfPrepTDD", "nbap.DL_CCTrCH_InformationDeleteItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DCH_DeleteList_RL_ReconfPrepTDD_item,
-      { "DCH-DeleteItem-RL-ReconfPrepTDD", "nbap.DCH_DeleteItem_RL_ReconfPrepTDD",
+      { "DCH-DeleteItem-RL-ReconfPrepTDD", "nbap.DCH_DeleteItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DSCH_Information_ModifyList_RL_ReconfPrepTDD_item,
-      { "DSCH-Information-ModifyItem-RL-ReconfPrepTDD", "nbap.DSCH_Information_ModifyItem_RL_ReconfPrepTDD",
+      { "DSCH-Information-ModifyItem-RL-ReconfPrepTDD", "nbap.DSCH_Information_ModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DSCH_Information_DeleteList_RL_ReconfPrepTDD_item,
-      { "DSCH-Information-DeleteItem-RL-ReconfPrepTDD", "nbap.DSCH_Information_DeleteItem_RL_ReconfPrepTDD",
+      { "DSCH-Information-DeleteItem-RL-ReconfPrepTDD", "nbap.DSCH_Information_DeleteItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_USCH_Information_ModifyList_RL_ReconfPrepTDD_item,
-      { "USCH-Information-ModifyItem-RL-ReconfPrepTDD", "nbap.USCH_Information_ModifyItem_RL_ReconfPrepTDD",
+      { "USCH-Information-ModifyItem-RL-ReconfPrepTDD", "nbap.USCH_Information_ModifyItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_USCH_Information_DeleteList_RL_ReconfPrepTDD_item,
-      { "USCH-Information-DeleteItem-RL-ReconfPrepTDD", "nbap.USCH_Information_DeleteItem_RL_ReconfPrepTDD",
+      { "USCH-Information-DeleteItem-RL-ReconfPrepTDD", "nbap.USCH_Information_DeleteItem_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleRL_Information_RL_ReconfPrepTDD_item,
-      { "RL-Information-RL-ReconfPrepTDD", "nbap.RL_Information_RL_ReconfPrepTDD",
+      { "RL-Information-RL-ReconfPrepTDD", "nbap.RL_Information_RL_ReconfPrepTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationResponseList_RL_ReconfReady_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dCH_InformationResponseList_RL_ReconfReady,
-      { "dCH-InformationResponseList-RL-ReconfReady", "nbap.dCH_InformationResponseList_RL_ReconfReady",
+      { "dCH-InformationResponseList-RL-ReconfReady", "nbap.dCH_InformationResponseList_RL_ReconfReady_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dSCH_InformationResponseList_RL_ReconfReady,
-      { "dSCH-InformationResponseList-RL-ReconfReady", "nbap.dSCH_InformationResponseList_RL_ReconfReady",
+      { "dSCH-InformationResponseList-RL-ReconfReady", "nbap.dSCH_InformationResponseList_RL_ReconfReady_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uSCH_InformationResponseList_RL_ReconfReady,
-      { "uSCH-InformationResponseList-RL-ReconfReady", "nbap.uSCH_InformationResponseList_RL_ReconfReady",
+      { "uSCH-InformationResponseList-RL-ReconfReady", "nbap.uSCH_InformationResponseList_RL_ReconfReady_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_generalCause_04,
-      { "generalCause", "nbap.generalCause",
+      { "generalCause", "nbap.generalCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GeneralCauseList_RL_ReconfFailure", HFILL }},
     { &hf_nbap_rLSpecificCause_04,
-      { "rLSpecificCause", "nbap.rLSpecificCause",
+      { "rLSpecificCause", "nbap.rLSpecificCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RLSpecificCauseList_RL_ReconfFailure", HFILL }},
     { &hf_nbap_rL_ReconfigurationFailureList_RL_ReconfFailure,
@@ -67090,55 +67105,55 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_ReconfigurationFailureList_RL_ReconfFailure_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_HS_Cell_Information_RL_Reconf_Req_item,
-      { "Additional-HS-Cell-Information-RL-Reconf-Req-ItemIEs", "nbap.Additional_HS_Cell_Information_RL_Reconf_Req_ItemIEs",
+      { "Additional-HS-Cell-Information-RL-Reconf-Req-ItemIEs", "nbap.Additional_HS_Cell_Information_RL_Reconf_Req_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_DSCH_FDD_Secondary_Serving_Information_To_Modify_Unsynchronised,
-      { "hS-DSCH-FDD-Secondary-Serving-Information-To-Modify-Unsynchronised", "nbap.hS_DSCH_FDD_Secondary_Serving_Information_To_Modify_Unsynchronised",
+      { "hS-DSCH-FDD-Secondary-Serving-Information-To-Modify-Unsynchronised", "nbap.hS_DSCH_FDD_Secondary_Serving_Information_To_Modify_Unsynchronised_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_DSCH_Secondary_Serving_Remove,
-      { "hS-DSCH-Secondary-Serving-Remove", "nbap.hS_DSCH_Secondary_Serving_Remove",
+      { "hS-DSCH-Secondary-Serving-Remove", "nbap.hS_DSCH_Secondary_Serving_Remove_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_ul_TFCS,
-      { "ul-TFCS", "nbap.ul_TFCS",
+      { "ul-TFCS", "nbap.ul_TFCS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TFCS", HFILL }},
     { &hf_nbap_dl_TFCS,
-      { "dl-TFCS", "nbap.dl_TFCS",
+      { "dl-TFCS", "nbap.dl_TFCS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TFCS", HFILL }},
     { &hf_nbap_DCH_DeleteList_RL_ReconfRqstFDD_item,
-      { "DCH-DeleteItem-RL-ReconfRqstFDD", "nbap.DCH_DeleteItem_RL_ReconfRqstFDD",
+      { "DCH-DeleteItem-RL-ReconfRqstFDD", "nbap.DCH_DeleteItem_RL_ReconfRqstFDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationList_RL_ReconfRqstFDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationModifyList_RL_ReconfRqstTDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_CCTrCH_InformationDeleteList_RL_ReconfRqstTDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationModifyList_RL_ReconfRqstTDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleRL_DL_CCTrCH_InformationModifyList_RL_ReconfRqstTDD_item,
-      { "MultipleRL-DL-CCTrCH-InformationModifyListIE-RL-ReconfRqstTDD", "nbap.MultipleRL_DL_CCTrCH_InformationModifyListIE_RL_ReconfRqstTDD",
+      { "MultipleRL-DL-CCTrCH-InformationModifyListIE-RL-ReconfRqstTDD", "nbap.MultipleRL_DL_CCTrCH_InformationModifyListIE_RL_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dl_DPCH_LCR_InformationModifyList,
-      { "dl-DPCH-LCR-InformationModifyList", "nbap.dl_DPCH_LCR_InformationModifyList",
+      { "dl-DPCH-LCR-InformationModifyList", "nbap.dl_DPCH_LCR_InformationModifyList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DL_DPCH_LCR_InformationModify_ModifyList_RL_ReconfRqstTDD", HFILL }},
     { &hf_nbap_cCTrCH_Maximum_DL_Power_InformationModify_RL_ReconfRqstTDD,
@@ -67154,7 +67169,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Timeslot_LCR_InformationModify_ModifyList_RL_ReconfRqstTDD_item,
-      { "DL-Timeslot-LCR-InformationModify-ModifyItem-RL-ReconfRqstTDD", "nbap.DL_Timeslot_LCR_InformationModify_ModifyItem_RL_ReconfRqstTDD",
+      { "DL-Timeslot-LCR-InformationModify-ModifyItem-RL-ReconfRqstTDD", "nbap.DL_Timeslot_LCR_InformationModify_ModifyItem_RL_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_maxPowerLCR,
@@ -67166,31 +67181,31 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_DL_CCTrCH_InformationDeleteList_RL_ReconfRqstTDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DCH_DeleteList_RL_ReconfRqstTDD_item,
-      { "DCH-DeleteItem-RL-ReconfRqstTDD", "nbap.DCH_DeleteItem_RL_ReconfRqstTDD",
+      { "DCH-DeleteItem-RL-ReconfRqstTDD", "nbap.DCH_DeleteItem_RL_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Multiple_RL_Information_RL_ReconfRqstTDD_item,
-      { "RL-Information-RL-ReconfRqstTDD", "nbap.RL_Information_RL_ReconfRqstTDD",
+      { "RL-Information-RL-ReconfRqstTDD", "nbap.RL_Information_RL_ReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationResponseList_RL_ReconfRsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dCH_InformationResponseList_RL_ReconfRsp,
-      { "dCH-InformationResponseList-RL-ReconfRsp", "nbap.dCH_InformationResponseList_RL_ReconfRsp",
+      { "dCH-InformationResponseList-RL-ReconfRsp", "nbap.dCH_InformationResponseList_RL_ReconfRsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_informationList_RL_DeletionRqst_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_ReferencePowerInformationList_DL_PC_Rqst_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dl_ReferencePower,
@@ -67198,19 +67213,19 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_rL,
-      { "rL", "nbap.rL",
+      { "rL", "nbap.rL_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RL_DM_Rqst", HFILL }},
     { &hf_nbap_rLS,
-      { "rLS", "nbap.rLS",
+      { "rLS", "nbap.rLS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RL_Set_DM_Rqst", HFILL }},
     { &hf_nbap_all_RL,
-      { "all-RL", "nbap.all_RL",
+      { "all-RL", "nbap.all_RL_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AllRL_DM_Rqst", HFILL }},
     { &hf_nbap_all_RLS,
-      { "all-RLS", "nbap.all_RLS",
+      { "all-RLS", "nbap.all_RLS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AllRL_Set_DM_Rqst", HFILL }},
     { &hf_nbap_rL_InformationList,
@@ -67218,7 +67233,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "RL_InformationList_DM_Rqst", HFILL }},
     { &hf_nbap_RL_InformationList_DM_Rqst_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PUSCH_Info_DM_Rqst_item,
@@ -67238,23 +67253,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Set_InformationList_DM_Rqst_item,
-      { "RL-Set-InformationItem-DM-Rqst", "nbap.RL_Set_InformationItem_DM_Rqst",
+      { "RL-Set-InformationItem-DM-Rqst", "nbap.RL_Set_InformationItem_DM_Rqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_rL_01,
-      { "rL", "nbap.rL",
+      { "rL", "nbap.rL_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RL_DM_Rsp", HFILL }},
     { &hf_nbap_rLS_01,
-      { "rLS", "nbap.rLS",
+      { "rLS", "nbap.rLS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RL_Set_DM_Rsp", HFILL }},
     { &hf_nbap_all_RL_01,
-      { "all-RL", "nbap.all_RL",
+      { "all-RL", "nbap.all_RL_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RL_DM_Rsp", HFILL }},
     { &hf_nbap_all_RLS_01,
-      { "all-RLS", "nbap.all_RLS",
+      { "all-RLS", "nbap.all_RLS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RL_Set_DM_Rsp", HFILL }},
     { &hf_nbap_rL_InformationList_DM_Rsp,
@@ -67262,7 +67277,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationList_DM_Rsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dedicatedMeasurementValue,
@@ -67274,7 +67289,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Multiple_PUSCH_InfoList_DM_Rsp_item,
-      { "Multiple-PUSCH-InfoListIE-DM-Rsp", "nbap.Multiple_PUSCH_InfoListIE_DM_Rsp",
+      { "Multiple-PUSCH-InfoListIE-DM-Rsp", "nbap.Multiple_PUSCH_InfoListIE_DM_Rsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pUSCH_ID,
@@ -67282,19 +67297,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Multiple_DedicatedMeasurementValueList_TDD_DM_Rsp_item,
-      { "Multiple-DedicatedMeasurementValueItem-TDD-DM-Rsp", "nbap.Multiple_DedicatedMeasurementValueItem_TDD_DM_Rsp",
+      { "Multiple-DedicatedMeasurementValueItem-TDD-DM-Rsp", "nbap.Multiple_DedicatedMeasurementValueItem_TDD_DM_Rsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Multiple_DedicatedMeasurementValueList_LCR_TDD_DM_Rsp_item,
-      { "Multiple-DedicatedMeasurementValueItem-LCR-TDD-DM-Rsp", "nbap.Multiple_DedicatedMeasurementValueItem_LCR_TDD_DM_Rsp",
+      { "Multiple-DedicatedMeasurementValueItem-LCR-TDD-DM-Rsp", "nbap.Multiple_DedicatedMeasurementValueItem_LCR_TDD_DM_Rsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Multiple_HSSICHMeasurementValueList_TDD_DM_Rsp_item,
-      { "Multiple-HSSICHMeasurementValueItem-TDD-DM-Rsp", "nbap.Multiple_HSSICHMeasurementValueItem_TDD_DM_Rsp",
+      { "Multiple-HSSICHMeasurementValueItem-TDD-DM-Rsp", "nbap.Multiple_HSSICHMeasurementValueItem_TDD_DM_Rsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Multiple_DedicatedMeasurementValueList_768_TDD_DM_Rsp_item,
-      { "Multiple-DedicatedMeasurementValueItem-768-TDD-DM-Rsp", "nbap.Multiple_DedicatedMeasurementValueItem_768_TDD_DM_Rsp",
+      { "Multiple-DedicatedMeasurementValueItem-768-TDD-DM-Rsp", "nbap.Multiple_DedicatedMeasurementValueItem_768_TDD_DM_Rsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_rL_Set_InformationList_DM_Rsp,
@@ -67302,23 +67317,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Set_InformationList_DM_Rsp_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_rL_02,
-      { "rL", "nbap.rL",
+      { "rL", "nbap.rL_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RL_DM_Rprt", HFILL }},
     { &hf_nbap_rLS_02,
-      { "rLS", "nbap.rLS",
+      { "rLS", "nbap.rLS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RL_Set_DM_Rprt", HFILL }},
     { &hf_nbap_all_RL_02,
-      { "all-RL", "nbap.all_RL",
+      { "all-RL", "nbap.all_RL_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RL_DM_Rprt", HFILL }},
     { &hf_nbap_all_RLS_02,
-      { "all-RLS", "nbap.all_RLS",
+      { "all-RLS", "nbap.all_RLS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RL_Set_DM_Rprt", HFILL }},
     { &hf_nbap_rL_InformationList_DM_Rprt,
@@ -67326,7 +67341,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationList_DM_Rprt_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dedicatedMeasurementValueInformation,
@@ -67338,7 +67353,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Multiple_PUSCH_InfoList_DM_Rprt_item,
-      { "Multiple-PUSCH-InfoListIE-DM-Rprt", "nbap.Multiple_PUSCH_InfoListIE_DM_Rprt",
+      { "Multiple-PUSCH-InfoListIE-DM-Rprt", "nbap.Multiple_PUSCH_InfoListIE_DM_Rprt_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_rL_Set_InformationList_DM_Rprt,
@@ -67346,19 +67361,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Set_InformationList_DM_Rprt_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_rL_03,
-      { "rL", "nbap.rL",
+      { "rL", "nbap.rL_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RL_RL_FailureInd", HFILL }},
     { &hf_nbap_rL_Set,
-      { "rL-Set", "nbap.rL_Set",
+      { "rL-Set", "nbap.rL_Set_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RL_Set_RL_FailureInd", HFILL }},
     { &hf_nbap_cCTrCH,
-      { "cCTrCH", "nbap.cCTrCH",
+      { "cCTrCH", "nbap.cCTrCH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CCTrCH_RL_FailureInd", HFILL }},
     { &hf_nbap_rL_InformationList_RL_FailureInd,
@@ -67366,7 +67381,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationList_RL_FailureInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_rL_Set_InformationList_RL_FailureInd,
@@ -67374,7 +67389,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Set_InformationList_RL_FailureInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cCTrCH_InformationList_RL_FailureInd,
@@ -67382,23 +67397,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CCTrCH_InformationList_RL_FailureInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationList_RL_PreemptRequiredInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_rL_04,
-      { "rL", "nbap.rL",
+      { "rL", "nbap.rL_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RL_RL_RestoreInd", HFILL }},
     { &hf_nbap_rL_Set_01,
-      { "rL-Set", "nbap.rL_Set",
+      { "rL-Set", "nbap.rL_Set_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RL_Set_RL_RestoreInd", HFILL }},
     { &hf_nbap_cCTrCH_01,
-      { "cCTrCH", "nbap.cCTrCH",
+      { "cCTrCH", "nbap.cCTrCH_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CCTrCH_RL_RestoreInd", HFILL }},
     { &hf_nbap_rL_InformationList_RL_RestoreInd,
@@ -67406,7 +67421,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_InformationList_RL_RestoreInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_rL_Set_InformationList_RL_RestoreInd,
@@ -67414,7 +67429,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_RL_Set_InformationList_RL_RestoreInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cCTrCH_InformationList_RL_RestoreInd,
@@ -67422,7 +67437,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CCTrCH_InformationList_RL_RestoreInd_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_privateIEs,
@@ -67430,7 +67445,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "PrivateIE_Container", HFILL }},
     { &hf_nbap_HSDPA_And_EDCH_CellPortion_InformationList_PSCH_ReconfRqst_item,
-      { "HSDPA-And-EDCH-CellPortion-InformationItem-PSCH-ReconfRqst", "nbap.HSDPA_And_EDCH_CellPortion_InformationItem_PSCH_ReconfRqst",
+      { "HSDPA-And-EDCH-CellPortion-InformationItem-PSCH-ReconfRqst", "nbap.HSDPA_And_EDCH_CellPortion_InformationItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_PDSCH_HS_SCCH_ScramblingCode_PSCH_ReconfRqst,
@@ -67438,7 +67453,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "DL_ScramblingCode", HFILL }},
     { &hf_nbap_hS_PDSCH_FDD_Code_Information_PSCH_ReconfRqst,
-      { "hS-PDSCH-FDD-Code-Information-PSCH-ReconfRqst", "nbap.hS_PDSCH_FDD_Code_Information_PSCH_ReconfRqst",
+      { "hS-PDSCH-FDD-Code-Information-PSCH-ReconfRqst", "nbap.hS_PDSCH_FDD_Code_Information_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "HS_PDSCH_FDD_Code_Information", HFILL }},
     { &hf_nbap_hS_SCCH_FDD_Code_Information_PSCH_ReconfRqst,
@@ -67458,7 +67473,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_E_RGCH_E_HICH_FDD_Code_Information_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_PDSCHSets_AddList_PSCH_ReconfRqst_item,
-      { "PDSCHSets-AddItem-PSCH-ReconfRqst", "nbap.PDSCHSets_AddItem_PSCH_ReconfRqst",
+      { "PDSCHSets-AddItem-PSCH-ReconfRqst", "nbap.PDSCHSets_AddItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pDSCHSet_ID,
@@ -67466,7 +67481,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pDSCH_InformationList,
-      { "pDSCH-InformationList", "nbap.pDSCH_InformationList",
+      { "pDSCH-InformationList", "nbap.pDSCH_InformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PDSCH_Information_AddList_PSCH_ReconfRqst", HFILL }},
     { &hf_nbap_dL_Timeslot_InformationAddList_PSCH_ReconfRqst,
@@ -67474,7 +67489,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Timeslot_InformationAddList_PSCH_ReconfRqst_item,
-      { "DL-Timeslot-InformationAddItem-PSCH-ReconfRqst", "nbap.DL_Timeslot_InformationAddItem_PSCH_ReconfRqst",
+      { "DL-Timeslot-InformationAddItem-PSCH-ReconfRqst", "nbap.DL_Timeslot_InformationAddItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Code_InformationAddList_PSCH_ReconfRqst,
@@ -67482,7 +67497,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Code_InformationAddList_PSCH_ReconfRqst_item,
-      { "DL-Code-InformationAddItem-PSCH-ReconfRqst", "nbap.DL_Code_InformationAddItem_PSCH_ReconfRqst",
+      { "DL-Code-InformationAddItem-PSCH-ReconfRqst", "nbap.DL_Code_InformationAddItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pDSCH_ID,
@@ -67494,7 +67509,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Timeslot_InformationAddList_LCR_PSCH_ReconfRqst_item,
-      { "DL-Timeslot-InformationAddItem-LCR-PSCH-ReconfRqst", "nbap.DL_Timeslot_InformationAddItem_LCR_PSCH_ReconfRqst",
+      { "DL-Timeslot-InformationAddItem-LCR-PSCH-ReconfRqst", "nbap.DL_Timeslot_InformationAddItem_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Code_InformationAddList_LCR_PSCH_ReconfRqst,
@@ -67502,7 +67517,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Code_InformationAddList_LCR_PSCH_ReconfRqst_item,
-      { "DL-Code-InformationAddItem-LCR-PSCH-ReconfRqst", "nbap.DL_Code_InformationAddItem_LCR_PSCH_ReconfRqst",
+      { "DL-Code-InformationAddItem-LCR-PSCH-ReconfRqst", "nbap.DL_Code_InformationAddItem_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Timeslot_InformationAddList_768_PSCH_ReconfRqst,
@@ -67510,7 +67525,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Timeslot_InformationAddList_768_PSCH_ReconfRqst_item,
-      { "DL-Timeslot-InformationAddItem-768-PSCH-ReconfRqst", "nbap.DL_Timeslot_InformationAddItem_768_PSCH_ReconfRqst",
+      { "DL-Timeslot-InformationAddItem-768-PSCH-ReconfRqst", "nbap.DL_Timeslot_InformationAddItem_768_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Code_InformationAddList_768_PSCH_ReconfRqst,
@@ -67518,7 +67533,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Code_InformationAddList_768_PSCH_ReconfRqst_item,
-      { "DL-Code-InformationAddItem-768-PSCH-ReconfRqst", "nbap.DL_Code_InformationAddItem_768_PSCH_ReconfRqst",
+      { "DL-Code-InformationAddItem-768-PSCH-ReconfRqst", "nbap.DL_Code_InformationAddItem_768_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pDSCH_ID768,
@@ -67526,11 +67541,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PDSCHSets_ModifyList_PSCH_ReconfRqst_item,
-      { "PDSCHSets-ModifyItem-PSCH-ReconfRqst", "nbap.PDSCHSets_ModifyItem_PSCH_ReconfRqst",
+      { "PDSCHSets-ModifyItem-PSCH-ReconfRqst", "nbap.PDSCHSets_ModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pDSCH_InformationList_01,
-      { "pDSCH-InformationList", "nbap.pDSCH_InformationList",
+      { "pDSCH-InformationList", "nbap.pDSCH_InformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PDSCH_Information_ModifyList_PSCH_ReconfRqst", HFILL }},
     { &hf_nbap_dL_Timeslot_InformationModifyList_PSCH_ReconfRqst,
@@ -67538,7 +67553,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Timeslot_InformationModifyList_PSCH_ReconfRqst_item,
-      { "DL-Timeslot-InformationModifyItem-PSCH-ReconfRqst", "nbap.DL_Timeslot_InformationModifyItem_PSCH_ReconfRqst",
+      { "DL-Timeslot-InformationModifyItem-PSCH-ReconfRqst", "nbap.DL_Timeslot_InformationModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Code_InformationModifyList_PSCH_ReconfRqst,
@@ -67546,7 +67561,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Code_InformationModifyList_PSCH_ReconfRqst_item,
-      { "DL-Code-InformationModifyItem-PSCH-ReconfRqst", "nbap.DL_Code_InformationModifyItem_PSCH_ReconfRqst",
+      { "DL-Code-InformationModifyItem-PSCH-ReconfRqst", "nbap.DL_Code_InformationModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Timeslot_LCR_InformationModifyList_PSCH_ReconfRqst,
@@ -67554,7 +67569,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Timeslot_LCR_InformationModifyList_PSCH_ReconfRqst_item,
-      { "DL-Timeslot-LCR-InformationModifyItem-PSCH-ReconfRqst", "nbap.DL_Timeslot_LCR_InformationModifyItem_PSCH_ReconfRqst",
+      { "DL-Timeslot-LCR-InformationModifyItem-PSCH-ReconfRqst", "nbap.DL_Timeslot_LCR_InformationModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Code_LCR_InformationModifyList_PSCH_ReconfRqst,
@@ -67562,7 +67577,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Code_LCR_InformationModifyList_PSCH_ReconfRqst_item,
-      { "DL-Code-LCR-InformationModifyItem-PSCH-ReconfRqst", "nbap.DL_Code_LCR_InformationModifyItem_PSCH_ReconfRqst",
+      { "DL-Code-LCR-InformationModifyItem-PSCH-ReconfRqst", "nbap.DL_Code_LCR_InformationModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Timeslot_768_InformationModifyList_PSCH_ReconfRqst,
@@ -67570,7 +67585,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Timeslot_768_InformationModifyList_PSCH_ReconfRqst_item,
-      { "DL-Timeslot-768-InformationModifyItem-PSCH-ReconfRqst", "nbap.DL_Timeslot_768_InformationModifyItem_PSCH_ReconfRqst",
+      { "DL-Timeslot-768-InformationModifyItem-PSCH-ReconfRqst", "nbap.DL_Timeslot_768_InformationModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_Code_768_InformationModifyList_PSCH_ReconfRqst,
@@ -67578,15 +67593,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_Code_768_InformationModifyList_PSCH_ReconfRqst_item,
-      { "DL-Code-768-InformationModifyItem-PSCH-ReconfRqst", "nbap.DL_Code_768_InformationModifyItem_PSCH_ReconfRqst",
+      { "DL-Code-768-InformationModifyItem-PSCH-ReconfRqst", "nbap.DL_Code_768_InformationModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PDSCHSets_DeleteList_PSCH_ReconfRqst_item,
-      { "PDSCHSets-DeleteItem-PSCH-ReconfRqst", "nbap.PDSCHSets_DeleteItem_PSCH_ReconfRqst",
+      { "PDSCHSets-DeleteItem-PSCH-ReconfRqst", "nbap.PDSCHSets_DeleteItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PUSCHSets_AddList_PSCH_ReconfRqst_item,
-      { "PUSCHSets-AddItem-PSCH-ReconfRqst", "nbap.PUSCHSets_AddItem_PSCH_ReconfRqst",
+      { "PUSCHSets-AddItem-PSCH-ReconfRqst", "nbap.PUSCHSets_AddItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pUSCHSet_ID,
@@ -67594,7 +67609,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pUSCH_InformationList,
-      { "pUSCH-InformationList", "nbap.pUSCH_InformationList",
+      { "pUSCH-InformationList", "nbap.pUSCH_InformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PUSCH_Information_AddList_PSCH_ReconfRqst", HFILL }},
     { &hf_nbap_uL_Timeslot_InformationAddList_PSCH_ReconfRqst,
@@ -67602,7 +67617,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Timeslot_InformationAddList_PSCH_ReconfRqst_item,
-      { "UL-Timeslot-InformationAddItem-PSCH-ReconfRqst", "nbap.UL_Timeslot_InformationAddItem_PSCH_ReconfRqst",
+      { "UL-Timeslot-InformationAddItem-PSCH-ReconfRqst", "nbap.UL_Timeslot_InformationAddItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Code_InformationAddList_PSCH_ReconfRqst,
@@ -67610,7 +67625,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Code_InformationAddList_PSCH_ReconfRqst_item,
-      { "UL-Code-InformationAddItem-PSCH-ReconfRqst", "nbap.UL_Code_InformationAddItem_PSCH_ReconfRqst",
+      { "UL-Code-InformationAddItem-PSCH-ReconfRqst", "nbap.UL_Code_InformationAddItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Timeslot_InformationAddList_LCR_PSCH_ReconfRqst,
@@ -67618,7 +67633,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Timeslot_InformationAddList_LCR_PSCH_ReconfRqst_item,
-      { "UL-Timeslot-InformationAddItem-LCR-PSCH-ReconfRqst", "nbap.UL_Timeslot_InformationAddItem_LCR_PSCH_ReconfRqst",
+      { "UL-Timeslot-InformationAddItem-LCR-PSCH-ReconfRqst", "nbap.UL_Timeslot_InformationAddItem_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Code_InformationAddList_LCR_PSCH_ReconfRqst,
@@ -67626,7 +67641,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Code_InformationAddList_LCR_PSCH_ReconfRqst_item,
-      { "UL-Code-InformationAddItem-LCR-PSCH-ReconfRqst", "nbap.UL_Code_InformationAddItem_LCR_PSCH_ReconfRqst",
+      { "UL-Code-InformationAddItem-LCR-PSCH-ReconfRqst", "nbap.UL_Code_InformationAddItem_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Timeslot_InformationAddList_768_PSCH_ReconfRqst,
@@ -67634,7 +67649,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Timeslot_InformationAddList_768_PSCH_ReconfRqst_item,
-      { "UL-Timeslot-InformationAddItem-768-PSCH-ReconfRqst", "nbap.UL_Timeslot_InformationAddItem_768_PSCH_ReconfRqst",
+      { "UL-Timeslot-InformationAddItem-768-PSCH-ReconfRqst", "nbap.UL_Timeslot_InformationAddItem_768_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Code_InformationAddList_768_PSCH_ReconfRqst,
@@ -67642,15 +67657,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Code_InformationAddList_768_PSCH_ReconfRqst_item,
-      { "UL-Code-InformationAddItem-768-PSCH-ReconfRqst", "nbap.UL_Code_InformationAddItem_768_PSCH_ReconfRqst",
+      { "UL-Code-InformationAddItem-768-PSCH-ReconfRqst", "nbap.UL_Code_InformationAddItem_768_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PUSCHSets_ModifyList_PSCH_ReconfRqst_item,
-      { "PUSCHSets-ModifyItem-PSCH-ReconfRqst", "nbap.PUSCHSets_ModifyItem_PSCH_ReconfRqst",
+      { "PUSCHSets-ModifyItem-PSCH-ReconfRqst", "nbap.PUSCHSets_ModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_pUSCH_InformationList_01,
-      { "pUSCH-InformationList", "nbap.pUSCH_InformationList",
+      { "pUSCH-InformationList", "nbap.pUSCH_InformationList_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PUSCH_Information_ModifyList_PSCH_ReconfRqst", HFILL }},
     { &hf_nbap_uL_Timeslot_InformationModifyList_PSCH_ReconfRqst,
@@ -67658,7 +67673,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Timeslot_InformationModifyList_PSCH_ReconfRqst_item,
-      { "UL-Timeslot-InformationModifyItem-PSCH-ReconfRqst", "nbap.UL_Timeslot_InformationModifyItem_PSCH_ReconfRqst",
+      { "UL-Timeslot-InformationModifyItem-PSCH-ReconfRqst", "nbap.UL_Timeslot_InformationModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Code_InformationModifyList_PSCH_ReconfRqst,
@@ -67666,7 +67681,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Code_InformationModifyList_PSCH_ReconfRqst_item,
-      { "UL-Code-InformationModifyItem-PSCH-ReconfRqst", "nbap.UL_Code_InformationModifyItem_PSCH_ReconfRqst",
+      { "UL-Code-InformationModifyItem-PSCH-ReconfRqst", "nbap.UL_Code_InformationModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Timeslot_InformationModifyList_LCR_PSCH_ReconfRqst,
@@ -67674,7 +67689,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "UL_Timeslot_LCR_InformationModifyList_PSCH_ReconfRqst", HFILL }},
     { &hf_nbap_UL_Timeslot_LCR_InformationModifyList_PSCH_ReconfRqst_item,
-      { "UL-Timeslot-LCR-InformationModifyItem-PSCH-ReconfRqst", "nbap.UL_Timeslot_LCR_InformationModifyItem_PSCH_ReconfRqst",
+      { "UL-Timeslot-LCR-InformationModifyItem-PSCH-ReconfRqst", "nbap.UL_Timeslot_LCR_InformationModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Code_LCR_InformationModifyList_PSCH_ReconfRqst,
@@ -67682,7 +67697,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Code_LCR_InformationModifyList_PSCH_ReconfRqst_item,
-      { "UL-Code-LCR-InformationModifyItem-PSCH-ReconfRqst", "nbap.UL_Code_LCR_InformationModifyItem_PSCH_ReconfRqst",
+      { "UL-Code-LCR-InformationModifyItem-PSCH-ReconfRqst", "nbap.UL_Code_LCR_InformationModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Timeslot_InformationModifyList_768_PSCH_ReconfRqst,
@@ -67690,7 +67705,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "UL_Timeslot_768_InformationModifyList_PSCH_ReconfRqst", HFILL }},
     { &hf_nbap_UL_Timeslot_768_InformationModifyList_PSCH_ReconfRqst_item,
-      { "UL-Timeslot-768-InformationModifyItem-PSCH-ReconfRqst", "nbap.UL_Timeslot_768_InformationModifyItem_PSCH_ReconfRqst",
+      { "UL-Timeslot-768-InformationModifyItem-PSCH-ReconfRqst", "nbap.UL_Timeslot_768_InformationModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_uL_Code_768_InformationModifyList_PSCH_ReconfRqst,
@@ -67698,11 +67713,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UL_Code_768_InformationModifyList_PSCH_ReconfRqst_item,
-      { "UL-Code-768-InformationModifyItem-PSCH-ReconfRqst", "nbap.UL_Code_768_InformationModifyItem_PSCH_ReconfRqst",
+      { "UL-Code-768-InformationModifyItem-PSCH-ReconfRqst", "nbap.UL_Code_768_InformationModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_PUSCHSets_DeleteList_PSCH_ReconfRqst_item,
-      { "PUSCHSets-DeleteItem-PSCH-ReconfRqst", "nbap.PUSCHSets_DeleteItem_PSCH_ReconfRqst",
+      { "PUSCHSets-DeleteItem-PSCH-ReconfRqst", "nbap.PUSCHSets_DeleteItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dL_HS_PDSCH_Timeslot_Information_PSCH_ReconfRqst,
@@ -67710,7 +67725,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_HS_PDSCH_Timeslot_Information_PSCH_ReconfRqst_item,
-      { "DL-HS-PDSCH-Timeslot-InformationItem-PSCH-ReconfRqst", "nbap.DL_HS_PDSCH_Timeslot_InformationItem_PSCH_ReconfRqst",
+      { "DL-HS-PDSCH-Timeslot-InformationItem-PSCH-ReconfRqst", "nbap.DL_HS_PDSCH_Timeslot_InformationItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dl_HS_PDSCH_Codelist_PSCH_ReconfRqst,
@@ -67722,7 +67737,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC|BASE_EXT_STRING, &nbap_TDD_ChannelisationCode_vals_ext, 0,
         NULL, HFILL }},
     { &hf_nbap_DL_HS_PDSCH_Timeslot_Information_768_PSCH_ReconfRqst_item,
-      { "DL-HS-PDSCH-Timeslot-InformationItem-768-PSCH-ReconfRqst", "nbap.DL_HS_PDSCH_Timeslot_InformationItem_768_PSCH_ReconfRqst",
+      { "DL-HS-PDSCH-Timeslot-InformationItem-768-PSCH-ReconfRqst", "nbap.DL_HS_PDSCH_Timeslot_InformationItem_768_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_dl_HS_PDSCH_Codelist_768_PSCH_ReconfRqst,
@@ -67734,7 +67749,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC|BASE_EXT_STRING, &nbap_TDD_ChannelisationCode768_vals_ext, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleFreq_DL_HS_PDSCH_Timeslot_Information_LCR_PSCH_ReconfRqst_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_SCCH_Information_PSCH_ReconfRqst,
@@ -67746,7 +67761,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_SCCH_Information_PSCH_ReconfRqst_item,
-      { "HS-SCCH-InformationItem-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationItem_PSCH_ReconfRqst",
+      { "HS-SCCH-InformationItem-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_SCCH_ID,
@@ -67758,27 +67773,27 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_hS_SICH_Information,
-      { "hS-SICH-Information", "nbap.hS_SICH_Information",
+      { "hS-SICH-Information", "nbap.hS_SICH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "HS_SICH_Information_PSCH_ReconfRqst", HFILL }},
     { &hf_nbap_HS_SCCH_Information_LCR_PSCH_ReconfRqst_item,
-      { "HS-SCCH-InformationItem-LCR-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationItem_LCR_PSCH_ReconfRqst",
+      { "HS-SCCH-InformationItem-LCR-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationItem_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_SICH_Information_LCR,
-      { "hS-SICH-Information-LCR", "nbap.hS_SICH_Information_LCR",
+      { "hS-SICH-Information-LCR", "nbap.hS_SICH_Information_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "HS_SICH_Information_LCR_PSCH_ReconfRqst", HFILL }},
     { &hf_nbap_HS_SCCH_Information_768_PSCH_ReconfRqst_item,
-      { "HS-SCCH-InformationItem-768-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationItem_768_PSCH_ReconfRqst",
+      { "HS-SCCH-InformationItem-768-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationItem_768_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_SICH_Information_768,
-      { "hS-SICH-Information-768", "nbap.hS_SICH_Information_768",
+      { "hS-SICH-Information-768", "nbap.hS_SICH_Information_768_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "HS_SICH_Information_768_PSCH_ReconfRqst", HFILL }},
     { &hf_nbap_HS_SCCH_InformationExt_LCR_PSCH_ReconfRqst_item,
-      { "HS-SCCH-InformationItem-LCR-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationItem_LCR_PSCH_ReconfRqst",
+      { "HS-SCCH-InformationItem-LCR-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationItem_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_SCCH_InformationModify_PSCH_ReconfRqst,
@@ -67790,35 +67805,35 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_SICH_Information_01,
-      { "hS-SICH-Information", "nbap.hS_SICH_Information",
+      { "hS-SICH-Information", "nbap.hS_SICH_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "HS_SICH_InformationModify_PSCH_ReconfRqst", HFILL }},
     { &hf_nbap_HS_SCCH_InformationModify_LCR_PSCH_ReconfRqst_item,
-      { "HS-SCCH-InformationModifyItem-LCR-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationModifyItem_LCR_PSCH_ReconfRqst",
+      { "HS-SCCH-InformationModifyItem-LCR-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationModifyItem_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_SICH_Information_LCR_01,
-      { "hS-SICH-Information-LCR", "nbap.hS_SICH_Information_LCR",
+      { "hS-SICH-Information-LCR", "nbap.hS_SICH_Information_LCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "HS_SICH_InformationModify_LCR_PSCH_ReconfRqst", HFILL }},
     { &hf_nbap_HS_SCCH_InformationModifyExt_LCR_PSCH_ReconfRqst_item,
-      { "HS-SCCH-InformationModifyItem-LCR-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationModifyItem_LCR_PSCH_ReconfRqst",
+      { "HS-SCCH-InformationModifyItem-LCR-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationModifyItem_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HS_SCCH_InformationModify_768_PSCH_ReconfRqst_item,
-      { "HS-SCCH-InformationModifyItem-768-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationModifyItem_768_PSCH_ReconfRqst",
+      { "HS-SCCH-InformationModifyItem-768-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationModifyItem_768_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_SICH_Information_768_01,
-      { "hS-SICH-Information-768", "nbap.hS_SICH_Information_768",
+      { "hS-SICH-Information-768", "nbap.hS_SICH_Information_768_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "HS_SICH_InformationModify_768_PSCH_ReconfRqst", HFILL }},
     { &hf_nbap_HS_SCCH_InformationModify_PSCH_ReconfRqst_item,
-      { "HS-SCCH-InformationModifyItem-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationModifyItem_PSCH_ReconfRqst",
+      { "HS-SCCH-InformationModifyItem-PSCH-ReconfRqst", "nbap.HS_SCCH_InformationModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Delete_From_HS_SCCH_Resource_Pool_PSCH_ReconfRqst_item,
-      { "Delete-From-HS-SCCH-Resource-PoolItem-PSCH-ReconfRqst", "nbap.Delete_From_HS_SCCH_Resource_PoolItem_PSCH_ReconfRqst",
+      { "Delete-From-HS-SCCH-Resource-PoolItem-PSCH-ReconfRqst", "nbap.Delete_From_HS_SCCH_Resource_PoolItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_lTGI_Presence,
@@ -67842,7 +67857,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_AGCH_Information_PSCH_ReconfRqst_item,
-      { "E-AGCH-InformationItem-PSCH-ReconfRqst", "nbap.E_AGCH_InformationItem_PSCH_ReconfRqst",
+      { "E-AGCH-InformationItem-PSCH-ReconfRqst", "nbap.E_AGCH_InformationItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_AGCH_MaxPower,
@@ -67854,11 +67869,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_AGCH_InformationModify_PSCH_ReconfRqst_item,
-      { "E-AGCH-InformationModifyItem-PSCH-ReconfRqst", "nbap.E_AGCH_InformationModifyItem_PSCH_ReconfRqst",
+      { "E-AGCH-InformationModifyItem-PSCH-ReconfRqst", "nbap.E_AGCH_InformationModifyItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Delete_From_E_AGCH_Resource_Pool_PSCH_ReconfRqst_item,
-      { "Delete-From-E-AGCH-Resource-PoolItem-PSCH-ReconfRqst", "nbap.Delete_From_E_AGCH_Resource_PoolItem_PSCH_ReconfRqst",
+      { "Delete-From-E-AGCH-Resource-PoolItem-PSCH-ReconfRqst", "nbap.Delete_From_E_AGCH_Resource_PoolItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_HICH_MaxPower,
@@ -67870,7 +67885,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_AGCH_Information_768_PSCH_ReconfRqst_item,
-      { "E-AGCH-InformationItem-768-PSCH-ReconfRqst", "nbap.E_AGCH_InformationItem_768_PSCH_ReconfRqst",
+      { "E-AGCH-InformationItem-768-PSCH-ReconfRqst", "nbap.E_AGCH_InformationItem_768_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_AGCH_InformationModify_768_PSCH_ReconfRqst,
@@ -67878,7 +67893,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_AGCH_InformationModify_768_PSCH_ReconfRqst_item,
-      { "E-AGCH-InformationModifyItem-768-PSCH-ReconfRqst", "nbap.E_AGCH_InformationModifyItem_768_PSCH_ReconfRqst",
+      { "E-AGCH-InformationModifyItem-768-PSCH-ReconfRqst", "nbap.E_AGCH_InformationModifyItem_768_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_PUCH_Timeslot_InfoLCR,
@@ -67886,7 +67901,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_PUCH_Timeslot_InfoLCR_item,
-      { "E-PUCH-Timeslot-Item-InfoLCR", "nbap.E_PUCH_Timeslot_Item_InfoLCR",
+      { "E-PUCH-Timeslot-Item-InfoLCR", "nbap.E_PUCH_Timeslot_Item_InfoLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_PUCH_Codelist_LCR,
@@ -67902,7 +67917,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_AGCH_Information_LCR_PSCH_ReconfRqst_item,
-      { "E-AGCH-InformationItem-LCR-PSCH-ReconfRqst", "nbap.E_AGCH_InformationItem_LCR_PSCH_ReconfRqst",
+      { "E-AGCH-InformationItem-LCR-PSCH-ReconfRqst", "nbap.E_AGCH_InformationItem_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_AGCH_InformationModify_LCR_PSCH_ReconfRqst,
@@ -67910,7 +67925,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_AGCH_InformationModify_LCR_PSCH_ReconfRqst_item,
-      { "E-AGCH-InformationModifyItem-LCR-PSCH-ReconfRqst", "nbap.E_AGCH_InformationModifyItem_LCR_PSCH_ReconfRqst",
+      { "E-AGCH-InformationModifyItem-LCR-PSCH-ReconfRqst", "nbap.E_AGCH_InformationModifyItem_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_HICH_Information_LCR_PSCH_ReconfRqst,
@@ -67918,7 +67933,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_HICH_Information_LCR_PSCH_ReconfRqst_item,
-      { "E-HICH-InformationItem-LCR-PSCH-ReconfRqst", "nbap.E_HICH_InformationItem_LCR_PSCH_ReconfRqst",
+      { "E-HICH-InformationItem-LCR-PSCH-ReconfRqst", "nbap.E_HICH_InformationItem_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_HICH_Type,
@@ -67930,11 +67945,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_HICH_InformationModify_LCR_PSCH_ReconfRqst_item,
-      { "E-HICH-InformationModifyItem-LCR-PSCH-ReconfRqst", "nbap.E_HICH_InformationModifyItem_LCR_PSCH_ReconfRqst",
+      { "E-HICH-InformationModifyItem-LCR-PSCH-ReconfRqst", "nbap.E_HICH_InformationModifyItem_LCR_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Delete_From_E_HICH_Resource_Pool_PSCH_ReconfRqst_item,
-      { "Delete-From-E-HICH-Resource-PoolItem-PSCH-ReconfRqst", "nbap.Delete_From_E_HICH_Resource_PoolItem_PSCH_ReconfRqst",
+      { "Delete-From-E-HICH-Resource-PoolItem-PSCH-ReconfRqst", "nbap.Delete_From_E_HICH_Resource_PoolItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_eRUCCH_SYNC_UL_codes_bitmap,
@@ -67942,15 +67957,15 @@ void proto_register_nbap(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_8", HFILL }},
     { &hf_nbap_Delete_From_HS_SCCH_Resource_PoolExt_PSCH_ReconfRqst_item,
-      { "Delete-From-HS-SCCH-Resource-PoolItem-PSCH-ReconfRqst", "nbap.Delete_From_HS_SCCH_Resource_PoolItem_PSCH_ReconfRqst",
+      { "Delete-From-HS-SCCH-Resource-PoolItem-PSCH-ReconfRqst", "nbap.Delete_From_HS_SCCH_Resource_PoolItem_PSCH_ReconfRqst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_MultipleFreq_E_PUCH_Timeslot_InformationList_LCR_PSCH_ReconfRqst_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Max_RTWP_perUARFCN_Information_LCR_PSCH_ReconfRqst_item,
-      { "Max-RTWP-perUARFCN-Information-LCR-PSCH-ReconfRqst-Item", "nbap.Max_RTWP_perUARFCN_Information_LCR_PSCH_ReconfRqst_Item",
+      { "Max-RTWP-perUARFCN-Information-LCR-PSCH-ReconfRqst-Item", "nbap.Max_RTWP_perUARFCN_Information_LCR_PSCH_ReconfRqst_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_maximum_Target_ReceivedTotalWideBandPower_LCR,
@@ -67958,7 +67973,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_HICH_TimeOffset_ExtensionLCR_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_e_HICH_TimeOffsetLCR,
@@ -67966,15 +67981,15 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_generalCause_05,
-      { "generalCause", "nbap.generalCause",
+      { "generalCause", "nbap.generalCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GeneralCauseList_PSCH_ReconfFailure", HFILL }},
     { &hf_nbap_setSpecificCause,
-      { "setSpecificCause", "nbap.setSpecificCause",
+      { "setSpecificCause", "nbap.setSpecificCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SetSpecificCauseList_PSCH_ReconfFailureTDD", HFILL }},
     { &hf_nbap_extension_CauseLevel_PSCH_ReconfFailure,
-      { "extension-CauseLevel-PSCH-ReconfFailure", "nbap.extension_CauseLevel_PSCH_ReconfFailure",
+      { "extension-CauseLevel-PSCH-ReconfFailure", "nbap.extension_CauseLevel_PSCH_ReconfFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_unsuccessful_PDSCHSetList_PSCH_ReconfFailureTDD,
@@ -67986,23 +68001,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Unsuccessful_PDSCHSetList_PSCH_ReconfFailureTDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Unsuccessful_PUSCHSetList_PSCH_ReconfFailureTDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_UARFCNSpecificCauseList_PSCH_ReconfFailureTDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_HICH_TimeOffset_ReconfFailureTDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hSDSCH_Common_System_Information_ResponseLCR,
-      { "hSDSCH-Common-System-Information-ResponseLCR", "nbap.hSDSCH_Common_System_Information_ResponseLCR",
+      { "hSDSCH-Common-System-Information-ResponseLCR", "nbap.hSDSCH_Common_System_Information_ResponseLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hSDSCH_Paging_System_Information_ResponseLCR,
@@ -68010,19 +68025,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_common_EDCH_System_Information_ResponseLCR,
-      { "common-EDCH-System-Information-ResponseLCR", "nbap.common_EDCH_System_Information_ResponseLCR",
+      { "common-EDCH-System-Information-ResponseLCR", "nbap.common_EDCH_System_Information_ResponseLCR_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_communicationContext,
-      { "communicationContext", "nbap.communicationContext",
+      { "communicationContext", "nbap.communicationContext_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CommunicationContextList_Reset", HFILL }},
     { &hf_nbap_communicationControlPort,
-      { "communicationControlPort", "nbap.communicationControlPort",
+      { "communicationControlPort", "nbap.communicationControlPort_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CommunicationControlPortList_Reset", HFILL }},
     { &hf_nbap_nodeB,
-      { "nodeB", "nbap.nodeB",
+      { "nodeB", "nbap.nodeB_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_communicationContextInfoList_Reset,
@@ -68030,7 +68045,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommunicationContextInfoList_Reset_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_communicationContextType_Reset,
@@ -68046,23 +68061,23 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CommunicationControlPortInfoList_Reset_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cell_03,
-      { "cell", "nbap.cell",
+      { "cell", "nbap.cell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Cell_InfEx_Rqst", HFILL }},
     { &hf_nbap_cell_04,
-      { "cell", "nbap.cell",
+      { "cell", "nbap.cell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Cell_InfEx_Rsp", HFILL }},
     { &hf_nbap_requestedDataValue,
-      { "requestedDataValue", "nbap.requestedDataValue",
+      { "requestedDataValue", "nbap.requestedDataValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cell_05,
-      { "cell", "nbap.cell",
+      { "cell", "nbap.cell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Cell_Inf_Rprt", HFILL }},
     { &hf_nbap_requestedDataValueInformation,
@@ -68094,7 +68109,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_SynchronisationReportType_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_synchronisationReportCharacteristics,
-      { "synchronisationReportCharacteristics", "nbap.synchronisationReportCharacteristics",
+      { "synchronisationReportCharacteristics", "nbap.synchronisationReportCharacteristics_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sYNCDlCodeId,
@@ -68102,7 +68117,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSyncBurstTransReconfInfo_CellSyncReconfRqstTDD_item,
-      { "CellSyncBurstTransInfoItem-CellSyncReconfRqstTDD", "nbap.CellSyncBurstTransInfoItem_CellSyncReconfRqstTDD",
+      { "CellSyncBurstTransInfoItem-CellSyncReconfRqstTDD", "nbap.CellSyncBurstTransInfoItem_CellSyncReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_syncFrameNumberToTransmit,
@@ -68114,19 +68129,19 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_cellSyncBurstMeasInfoList_CellSyncReconfRqstTDD,
-      { "cellSyncBurstMeasInfoList-CellSyncReconfRqstTDD", "nbap.cellSyncBurstMeasInfoList_CellSyncReconfRqstTDD",
+      { "cellSyncBurstMeasInfoList-CellSyncReconfRqstTDD", "nbap.cellSyncBurstMeasInfoList_CellSyncReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_synchronisationReportType_01,
-      { "synchronisationReportType", "nbap.synchronisationReportType",
+      { "synchronisationReportType", "nbap.synchronisationReportType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SynchronisationReportTypeIE", HFILL }},
     { &hf_nbap_synchronisationReportCharacteristics_01,
-      { "synchronisationReportCharacteristics", "nbap.synchronisationReportCharacteristics",
+      { "synchronisationReportCharacteristics", "nbap.synchronisationReportCharacteristics_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SynchronisationReportCharacteristicsIE", HFILL }},
     { &hf_nbap_CellSyncBurstMeasInfoListIE_CellSyncReconfRqstTDD_item,
-      { "CellSyncBurstMeasInfoItem-CellSyncReconfRqstTDD", "nbap.CellSyncBurstMeasInfoItem_CellSyncReconfRqstTDD",
+      { "CellSyncBurstMeasInfoItem-CellSyncReconfRqstTDD", "nbap.CellSyncBurstMeasInfoItem_CellSyncReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_syncFrameNrToReceive,
@@ -68138,11 +68153,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "CellSyncBurstInfoList_CellSyncReconfRqstTDD", HFILL }},
     { &hf_nbap_CellSyncBurstInfoList_CellSyncReconfRqstTDD_item,
-      { "CellSyncBurstInfoItem-CellSyncReconfRqstTDD", "nbap.CellSyncBurstInfoItem_CellSyncReconfRqstTDD",
+      { "CellSyncBurstInfoItem-CellSyncReconfRqstTDD", "nbap.CellSyncBurstInfoItem_CellSyncReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SYNCDlCodeIdTransReconfInfoLCR_CellSyncReconfRqstTDD_item,
-      { "SYNCDlCodeIdTransReconfItemLCR-CellSyncReconfRqstTDD", "nbap.SYNCDlCodeIdTransReconfItemLCR_CellSyncReconfRqstTDD",
+      { "SYNCDlCodeIdTransReconfItemLCR-CellSyncReconfRqstTDD", "nbap.SYNCDlCodeIdTransReconfItemLCR_CellSyncReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_syncFrameNumberforTransmit,
@@ -68154,7 +68169,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SYNCDlCodeIdMeasInfoList_CellSyncReconfRqstTDD", HFILL }},
     { &hf_nbap_SYNCDlCodeIdMeasInfoList_CellSyncReconfRqstTDD_item,
-      { "SYNCDlCodeIdMeasInfoItem-CellSyncReconfRqstTDD", "nbap.SYNCDlCodeIdMeasInfoItem_CellSyncReconfRqstTDD",
+      { "SYNCDlCodeIdMeasInfoItem-CellSyncReconfRqstTDD", "nbap.SYNCDlCodeIdMeasInfoItem_CellSyncReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_sYNCDlCodeIdInfoLCR,
@@ -68162,7 +68177,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SYNCDlCodeIdInfoListLCR_CellSyncReconfRqstTDD", HFILL }},
     { &hf_nbap_SYNCDlCodeIdInfoListLCR_CellSyncReconfRqstTDD_item,
-      { "SYNCDlCodeIdInfoItemLCR-CellSyncReconfRqstTDD", "nbap.SYNCDlCodeIdInfoItemLCR_CellSyncReconfRqstTDD",
+      { "SYNCDlCodeIdInfoItemLCR-CellSyncReconfRqstTDD", "nbap.SYNCDlCodeIdInfoItemLCR_CellSyncReconfRqstTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_propagationDelayCompensation,
@@ -68170,7 +68185,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_TimingAdjustmentValueLCR_vals), 0,
         "TimingAdjustmentValueLCR", HFILL }},
     { &hf_nbap_CellAdjustmentInfo_SyncAdjustmentRqstTDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_frameAdjustmentValue,
@@ -68186,11 +68201,11 @@ void proto_register_nbap(void)
         FT_INT32, BASE_DEC, NULL, 0,
         "DL_Power", HFILL }},
     { &hf_nbap_generalCause_06,
-      { "generalCause", "nbap.generalCause",
+      { "generalCause", "nbap.generalCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GeneralCauseList_SyncAdjustmntFailureTDD", HFILL }},
     { &hf_nbap_cellSpecificCause,
-      { "cellSpecificCause", "nbap.cellSpecificCause",
+      { "cellSpecificCause", "nbap.cellSpecificCause_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CellSpecificCauseList_SyncAdjustmntFailureTDD", HFILL }},
     { &hf_nbap_unsuccessful_cell_InformationRespList_SyncAdjustmntFailureTDD,
@@ -68198,31 +68213,31 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Unsuccessful_cell_InformationRespList_SyncAdjustmntFailureTDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_CellSyncInfo_CellSyncReprtTDD_item,
-      { "CellSyncInfoItemIE-CellSyncReprtTDD", "nbap.CellSyncInfoItemIE_CellSyncReprtTDD",
+      { "CellSyncInfoItemIE-CellSyncReprtTDD", "nbap.CellSyncInfoItemIE_CellSyncReprtTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_c_ID_CellSyncReprtTDD,
-      { "c-ID-CellSyncReprtTDD", "nbap.c_ID_CellSyncReprtTDD",
+      { "c-ID-CellSyncReprtTDD", "nbap.c_ID_CellSyncReprtTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "C_ID_IE_CellSyncReprtTDD", HFILL }},
     { &hf_nbap_syncReportType_CellSyncReprtTDD,
-      { "syncReportType-CellSyncReprtTDD", "nbap.syncReportType_CellSyncReprtTDD",
+      { "syncReportType-CellSyncReprtTDD", "nbap.syncReportType_CellSyncReprtTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SyncReportTypeIE_CellSyncReprtTDD", HFILL }},
     { &hf_nbap_intStdPhSyncInfo_CellSyncReprtTDD,
-      { "intStdPhSyncInfo-CellSyncReprtTDD", "nbap.intStdPhSyncInfo_CellSyncReprtTDD",
+      { "intStdPhSyncInfo-CellSyncReprtTDD", "nbap.intStdPhSyncInfo_CellSyncReprtTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "IntStdPhCellSyncInfo_CellSyncReprtTDD", HFILL }},
     { &hf_nbap_lateEntrantCell,
-      { "lateEntrantCell", "nbap.lateEntrantCell",
+      { "lateEntrantCell", "nbap.lateEntrantCell_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_frequencyAcquisition,
-      { "frequencyAcquisition", "nbap.frequencyAcquisition",
+      { "frequencyAcquisition", "nbap.frequencyAcquisition_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cellSyncBurstMeasuredInfo,
@@ -68230,7 +68245,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "CellSyncBurstMeasInfoList_CellSyncReprtTDD", HFILL }},
     { &hf_nbap_CellSyncBurstMeasInfoList_CellSyncReprtTDD_item,
-      { "CellSyncBurstMeasInfoItem-CellSyncReprtTDD", "nbap.CellSyncBurstMeasInfoItem_CellSyncReprtTDD",
+      { "CellSyncBurstMeasInfoItem-CellSyncReprtTDD", "nbap.CellSyncBurstMeasInfoItem_CellSyncReprtTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cellSyncBurstInfo_CellSyncReprtTDD,
@@ -68242,11 +68257,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_CellSyncBurstInfo_CellSyncReprtTDD_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_cellSyncBurstAvailable,
-      { "cellSyncBurstAvailable", "nbap.cellSyncBurstAvailable",
+      { "cellSyncBurstAvailable", "nbap.cellSyncBurstAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CellSyncBurstAvailable_CellSyncReprtTDD", HFILL }},
     { &hf_nbap_cellSyncBurstNotAvailable,
-      { "cellSyncBurstNotAvailable", "nbap.cellSyncBurstNotAvailable",
+      { "cellSyncBurstNotAvailable", "nbap.cellSyncBurstNotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_cellSyncBurstSIR,
@@ -68254,7 +68269,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_SyncDLCodeIdsMeasInfoList_CellSyncReprtTDD_item,
-      { "SyncDLCodeIdsMeasInfoItem-CellSyncReprtTDD", "nbap.SyncDLCodeIdsMeasInfoItem_CellSyncReprtTDD",
+      { "SyncDLCodeIdsMeasInfoItem-CellSyncReprtTDD", "nbap.SyncDLCodeIdsMeasInfoItem_CellSyncReprtTDD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_syncDLCodeIdInfo_CellSyncReprtTDD,
@@ -68266,11 +68281,11 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_SyncDLCodeIdItem_CellSyncReprtTDD_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_syncDLCodeIdAvailable,
-      { "syncDLCodeIdAvailable", "nbap.syncDLCodeIdAvailable",
+      { "syncDLCodeIdAvailable", "nbap.syncDLCodeIdAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SyncDLCodeIdAvailable_CellSyncReprtTDD", HFILL }},
     { &hf_nbap_syncDLCodeIDNotAvailable,
-      { "syncDLCodeIDNotAvailable", "nbap.syncDLCodeIDNotAvailable",
+      { "syncDLCodeIDNotAvailable", "nbap.syncDLCodeIDNotAvailable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_syncDLCodeIdTiming,
@@ -68282,27 +68297,27 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "CellSyncBurstSIR", HFILL }},
     { &hf_nbap_DCH_RearrangeList_Bearer_RearrangeInd_item,
-      { "DCH-RearrangeItem-Bearer-RearrangeInd", "nbap.DCH_RearrangeItem_Bearer_RearrangeInd",
+      { "DCH-RearrangeItem-Bearer-RearrangeInd", "nbap.DCH_RearrangeItem_Bearer_RearrangeInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_DSCH_RearrangeList_Bearer_RearrangeInd_item,
-      { "DSCH-RearrangeItem-Bearer-RearrangeInd", "nbap.DSCH_RearrangeItem_Bearer_RearrangeInd",
+      { "DSCH-RearrangeItem-Bearer-RearrangeInd", "nbap.DSCH_RearrangeItem_Bearer_RearrangeInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_USCH_RearrangeList_Bearer_RearrangeInd_item,
-      { "USCH-RearrangeItem-Bearer-RearrangeInd", "nbap.USCH_RearrangeItem_Bearer_RearrangeInd",
+      { "USCH-RearrangeItem-Bearer-RearrangeInd", "nbap.USCH_RearrangeItem_Bearer_RearrangeInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_HSDSCH_RearrangeList_Bearer_RearrangeInd_item,
-      { "HSDSCH-RearrangeItem-Bearer-RearrangeInd", "nbap.HSDSCH_RearrangeItem_Bearer_RearrangeInd",
+      { "HSDSCH-RearrangeItem-Bearer-RearrangeInd", "nbap.HSDSCH_RearrangeItem_Bearer_RearrangeInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_E_DCH_RearrangeList_Bearer_RearrangeInd_item,
-      { "E-DCH-RearrangeItem-Bearer-RearrangeInd", "nbap.E_DCH_RearrangeItem_Bearer_RearrangeInd",
+      { "E-DCH-RearrangeItem-Bearer-RearrangeInd", "nbap.E_DCH_RearrangeItem_Bearer_RearrangeInd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_Cell_Information_Bearer_Rearrangement_List_item,
-      { "Additional-EDCH-Cell-Information-Bearer-Rearrangement-ItemIEs", "nbap.Additional_EDCH_Cell_Information_Bearer_Rearrangement_ItemIEs",
+      { "Additional-EDCH-Cell-Information-Bearer-Rearrangement-ItemIEs", "nbap.Additional_EDCH_Cell_Information_Bearer_Rearrangement_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_transport_Bearer_Rearrangement_Indicator_for_Additional_EDCH_Separate_Mode,
@@ -68310,7 +68325,7 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_Transport_Bearer_Rearrangement_Indicator_for_Additional_EDCH_Separate_Mode_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_DelayedActivationInformationList_RL_ActivationCmdFDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_delayed_activation_update,
@@ -68318,39 +68333,39 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_DelayedActivationUpdate_vals), 0,
         "DelayedActivationUpdate", HFILL }},
     { &hf_nbap_DelayedActivationInformationList_RL_ActivationCmdTDD_item,
-      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container",
+      { "ProtocolIE-Single-Container", "nbap.ProtocolIE_Single_Container_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_HS_Cell_Information_RL_Param_Upd_item,
-      { "Additional-HS-Cell-Information-RL-Param-Upd-ItemIEs", "nbap.Additional_HS_Cell_Information_RL_Param_Upd_ItemIEs",
+      { "Additional-HS-Cell-Information-RL-Param-Upd-ItemIEs", "nbap.Additional_HS_Cell_Information_RL_Param_Upd_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_hS_DSCH_FDD_Secondary_Serving_Update_Information,
-      { "hS-DSCH-FDD-Secondary-Serving-Update-Information", "nbap.hS_DSCH_FDD_Secondary_Serving_Update_Information",
+      { "hS-DSCH-FDD-Secondary-Serving-Update-Information", "nbap.hS_DSCH_FDD_Secondary_Serving_Update_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_Additional_EDCH_Cell_Information_RL_Param_Upd_item,
-      { "Additional-EDCH-Cell-Information-RL-Param-Upd-ItemIEs", "nbap.Additional_EDCH_Cell_Information_RL_Param_Upd_ItemIEs",
+      { "Additional-EDCH-Cell-Information-RL-Param-Upd-ItemIEs", "nbap.Additional_EDCH_Cell_Information_RL_Param_Upd_ItemIEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_additional_EDCH_FDD_Update_Information,
-      { "additional-EDCH-FDD-Update-Information", "nbap.additional_EDCH_FDD_Update_Information",
+      { "additional-EDCH-FDD-Update-Information", "nbap.additional_EDCH_FDD_Update_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_initiatingMessage,
-      { "initiatingMessage", "nbap.initiatingMessage",
+      { "initiatingMessage", "nbap.initiatingMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_succesfulOutcome,
-      { "succesfulOutcome", "nbap.succesfulOutcome",
+      { "succesfulOutcome", "nbap.succesfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SuccessfulOutcome", HFILL }},
     { &hf_nbap_unsuccesfulOutcome,
-      { "unsuccesfulOutcome", "nbap.unsuccesfulOutcome",
+      { "unsuccesfulOutcome", "nbap.unsuccesfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UnsuccessfulOutcome", HFILL }},
     { &hf_nbap_outcome,
-      { "outcome", "nbap.outcome",
+      { "outcome", "nbap.outcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_nbap_messageDiscriminator,
@@ -68358,19 +68373,19 @@ void proto_register_nbap(void)
         FT_UINT32, BASE_DEC, VALS(nbap_MessageDiscriminator_vals), 0,
         NULL, HFILL }},
     { &hf_nbap_initiatingMessagevalue,
-      { "value", "nbap.value",
+      { "value", "nbap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "InitiatingMessage_value", HFILL }},
     { &hf_nbap_successfulOutcome_value,
-      { "value", "nbap.value",
+      { "value", "nbap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SuccessfulOutcome_value", HFILL }},
     { &hf_nbap_unsuccessfulOutcome_value,
-      { "value", "nbap.value",
+      { "value", "nbap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UnsuccessfulOutcome_value", HFILL }},
     { &hf_nbap_outcome_value,
-      { "value", "nbap.value",
+      { "value", "nbap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Outcome_value", HFILL }},
     { &hf_nbap_PreambleSignatures_signature15,
@@ -68487,7 +68502,7 @@ void proto_register_nbap(void)
         NULL, HFILL }},
 
 /*--- End of included file: packet-nbap-hfarr.c ---*/
-#line 486 "../../asn1/nbap/packet-nbap-template.c"
+#line 492 "../../asn1/nbap/packet-nbap-template.c"
 	};
 
 	/* List of subtrees */
@@ -70127,14 +70142,25 @@ void proto_register_nbap(void)
     &ett_nbap_Outcome,
 
 /*--- End of included file: packet-nbap-ettarr.c ---*/
-#line 495 "../../asn1/nbap/packet-nbap-template.c"
+#line 501 "../../asn1/nbap/packet-nbap-template.c"
 	};
+
+	static ei_register_info ei[] = {
+		{ &ei_nbap_no_set_comm_context_id, { "nbap.no_set_comm_context_id", PI_MALFORMED, PI_WARN, "Couldn't not set Communication Context-ID, fragments over reconfigured channels might fail", EXPFILL }},
+		{ &ei_nbap_no_find_comm_context_id, { "nbap.no_find_comm_context_id", PI_MALFORMED, PI_WARN, "Couldn't not find Communication Context-ID, unable to reconfigure this E-DCH flow.", EXPFILL }},
+		{ &ei_nbap_no_find_port_info, { "nbap.no_find_port_info", PI_MALFORMED, PI_WARN, "Couldn't not find port information for reconfigured E-DCH flow, unable to reconfigure", EXPFILL }},
+		{ &ei_nbap_hsdsch_entity_not_specified, { "nbap.hsdsch_entity_not_specified", PI_MALFORMED,PI_ERROR, "HSDSCH Entity not specified!", EXPFILL }},
+	};
+
+	expert_module_t* expert_nbap;
 
 	/* Register protocol */
 	proto_nbap = proto_register_protocol(PNAME, PSNAME, PFNAME);
 	/* Register fields and subtrees */
 	proto_register_field_array(proto_nbap, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_nbap = expert_register_protocol(proto_nbap);
+	expert_register_field_array(expert_nbap, ei, array_length(ei));
 
 	/* Register dissector */
 	register_dissector("nbap", dissect_nbap, proto_nbap);
@@ -71270,7 +71296,7 @@ proto_reg_handoff_nbap(void)
 
 
 /*--- End of included file: packet-nbap-dis-tab.c ---*/
-#line 541 "../../asn1/nbap/packet-nbap-template.c"
+#line 558 "../../asn1/nbap/packet-nbap-template.c"
 }
 
 

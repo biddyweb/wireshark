@@ -2,8 +2,6 @@
  * Routines for Ranging Request Message dissection
  * Copyright 2002, Anand V. Narwani <anand[AT]narwani.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,6 +25,8 @@
 
 #include <epan/packet.h>
 
+void proto_register_docsis_rngreq(void);
+void proto_reg_handoff_docsis_rngreq(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_docsis_rngreq = -1;
@@ -48,7 +48,6 @@ dissect_rngreq (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 
   sid = tvb_get_ntohs (tvb, 0);
 
-  col_clear (pinfo->cinfo, COL_INFO);
   if (sid > 0)
 	col_add_fstr (pinfo->cinfo, COL_INFO, "Ranging Request: SID = %u",
 		      sid);

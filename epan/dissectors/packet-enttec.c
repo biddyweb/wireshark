@@ -1,8 +1,6 @@
 /* packet-enttec.c
  * Routines for ENTTEC packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2003,2004 by Erwin Rol <erwin@erwinrol.com>
  *
  * Wireshark - Network traffic analyzer
@@ -33,7 +31,7 @@
 #include <epan/packet.h>
 #include <epan/addr_resolv.h>
 #include <epan/prefs.h>
-#include <epan/strutil.h>
+#include <epan/wmem/wmem.h>
 
 /*
  * See
@@ -75,6 +73,7 @@ static const value_string enttec_data_type_vals[] = {
 	{ 0,				NULL }
 };
 
+void proto_register_enttec(void);
 void proto_reg_handoff_enttec(void);
 
 /* Define the enttec proto */
@@ -180,19 +179,19 @@ dissect_enttec_ack(tvbuff_t *tvb _U_, guint offset, proto_tree *tree _U_)
 static gint
 dissect_enttec_dmx_data(tvbuff_t *tvb, guint offset, proto_tree *tree)
 {
-	const char* chan_format[] = {
+	static const char* chan_format[] = {
 		"%2u ",
 		"%02x ",
 		"%3u "
 	};
-	const char* string_format[] = {
+	static const char* string_format[] = {
 		"%03x: %s",
 		"%3u: %s"
 	};
 
-	guint8 *dmx_data = ep_alloc(512 * sizeof(guint8));
-	guint16 *dmx_data_offset = ep_alloc(513 * sizeof(guint16)); /* 1 extra for last offset */
-	emem_strbuf_t *dmx_epstr;
+	guint8 *dmx_data = (guint8 *)wmem_alloc(wmem_packet_scope(), 512 * sizeof(guint8));
+	guint16 *dmx_data_offset = (guint16 *)wmem_alloc(wmem_packet_scope(), 513 * sizeof(guint16)); /* 1 extra for last offset */
+	wmem_strbuf_t *dmx_epstr;
 
 	proto_tree *hi,*si;
 	proto_item *item;
@@ -276,22 +275,22 @@ dissect_enttec_dmx_data(tvbuff_t *tvb, guint offset, proto_tree *tree)
 		si = proto_item_add_subtree(hi, ett_enttec);
 
 		row_count = (ui/global_disp_col_count) + ((ui%global_disp_col_count) == 0 ? 0 : 1);
-		dmx_epstr = ep_strbuf_new_label(NULL);
+		dmx_epstr = wmem_strbuf_new_label(wmem_packet_scope());
 		for (r=0; r < row_count;r++) {
 			for (c=0;(c < global_disp_col_count) && (((r*global_disp_col_count)+c) < ui);c++) {
 				if ((global_disp_col_count > 1) && (c % (global_disp_col_count/2)) == 0) {
-					ep_strbuf_append_c(dmx_epstr, ' ');
+					wmem_strbuf_append_c(dmx_epstr, ' ');
 				}
 				v = dmx_data[(r*global_disp_col_count)+c];
 				if (global_disp_chan_val_type == 0) {
 					v = (v * 100) / 255;
 					if (v == 100) {
-						ep_strbuf_append(dmx_epstr, "FL ");
+						wmem_strbuf_append(dmx_epstr, "FL ");
 					} else {
-						ep_strbuf_append_printf(dmx_epstr, chan_format[global_disp_chan_val_type], v);
+						wmem_strbuf_append_printf(dmx_epstr, chan_format[global_disp_chan_val_type], v);
 					}
 				} else {
-					ep_strbuf_append_printf(dmx_epstr, chan_format[global_disp_chan_val_type], v);
+					wmem_strbuf_append_printf(dmx_epstr, chan_format[global_disp_chan_val_type], v);
 				}
 			}
 
@@ -301,8 +300,9 @@ dissect_enttec_dmx_data(tvbuff_t *tvb, guint offset, proto_tree *tree)
 			proto_tree_add_none_format(si,hf_enttec_dmx_data_dmx_data, tvb,
 						offset+start_offset,
 						end_offset-start_offset,
-						string_format[global_disp_chan_nr_type], (r*global_disp_col_count)+1, dmx_epstr->str);
-			ep_strbuf_truncate(dmx_epstr, 0);
+						string_format[global_disp_chan_nr_type], (r*global_disp_col_count)+1,
+						wmem_strbuf_get_str(dmx_epstr));
+			wmem_strbuf_truncate(dmx_epstr, 0);
 		}
 
 		item = proto_tree_add_item(si, hf_enttec_dmx_data_data_filter, tvb,
@@ -352,10 +352,8 @@ dissect_enttec(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 	head = tvb_get_ntohl(tvb, offset);
 
 	/* Clear out stuff in the info column */
-	if (check_col(pinfo->cinfo,COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
+	col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
 				val_to_str(head, enttec_head_vals, "Unknown (0x%08x)"));
-	}
 
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_enttec, tvb, offset, -1, ENC_NA);

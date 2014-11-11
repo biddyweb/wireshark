@@ -2,8 +2,6 @@
 * Routines for megaco packet disassembly
 * RFC 3015
 *
-* $Id$
-*
 * Christian Falckenberg, 2002/10/17
 * Copyright (c) 2002 by Christian Falckenberg
 *                       <christian.falckenberg@nortelnetworks.com>
@@ -48,7 +46,8 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/exceptions.h>
+#include <epan/wmem/wmem.h>
 #include <epan/addr_resolv.h>
 #include <epan/prefs.h>
 #include <epan/strutil.h>
@@ -62,6 +61,9 @@
 
 #include <epan/gcp.h>
 #include <epan/tap.h>
+
+void proto_register_megaco(void);
+void proto_reg_handoff_megaco(void);
 
 #define PORT_MEGACO_TXT 2944
 #define PORT_MEGACO_BIN 2945
@@ -139,6 +141,11 @@ static int ett_megaco_requestedsignal           = -1;
 static int ett_megaco_h245                      = -1;
 
 static gcp_hf_ett_t megaco_ctx_ids = {{-1,-1,-1,-1,-1,-1},{-1,-1,-1,-1}};
+
+static expert_field ei_megaco_errored_command = EI_INIT;
+static expert_field ei_megaco_error_descriptor_transaction_list = EI_INIT;
+static expert_field ei_megaco_parse_error = EI_INIT;
+static expert_field ei_megaco_audit_descriptor = EI_INIT;
 
 static dissector_handle_t megaco_text_handle;
 
@@ -346,7 +353,6 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     megaco_tree                 = NULL;
     ti                          = NULL;
     tvb_offset                  = 0;
-    tvb_next_offset             = 0;
     RBRKT_counter               = 0;
     LBRKT_counter               = 0;
 
@@ -416,7 +422,7 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     tvb_previous_offset = tvb_find_guint8(tvb, 0,
         tvb_len, '/');
     if (tvb_previous_offset == -1) {
-        proto_tree_add_text(megaco_tree, tvb, 0, -1,
+        expert_add_info_format(pinfo, ti, &ei_megaco_parse_error,
             "Sorry, no \"/\" in the MEGACO header, I can't parse this packet");
         return;
     }
@@ -440,7 +446,7 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     tvb_current_offset = megaco_tvb_skip_wsp(tvb, tvb_previous_offset);
 
     if (tvb_previous_offset == tvb_current_offset) {
-        proto_tree_add_text(megaco_tree, tvb, 0, -1,
+        expert_add_info_format(pinfo, ti, &ei_megaco_parse_error,
             "[ Parse error: missing SEP in MEGACO header ]");
         return;
     }
@@ -459,7 +465,7 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     tvb_current_offset = tvb_pbrk_guint8(tvb, tvb_current_offset, -1, " \t\r\n", &needle);
     if (tvb_current_offset == -1) {
-        proto_tree_add_text(megaco_tree, tvb, 0, -1,
+        expert_add_info_format(pinfo, ti, &ei_megaco_parse_error,
             "[ Parse error: no body in MEGACO message (missing SEP after mId) ]");
         return;
     }
@@ -475,17 +481,16 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     /* Add the first line to the tree */
     tokenlen = tvb_next_offset - line_start_offset - 1;
-    ti = proto_tree_add_text(megaco_tree, tvb, line_start_offset, tokenlen,
-            "%s",tvb_format_text(tvb,line_start_offset,tokenlen));
+    ti = proto_tree_add_format_text(megaco_tree, tvb, line_start_offset, tokenlen);
     message_tree = proto_item_add_subtree(ti, ett_megaco_message);
     if (tree){
         if(global_megaco_dissect_tree){
-            proto_tree_add_item(message_tree, hf_megaco_version,tvb, ver_offset, ver_length, ENC_ASCII|ENC_NA);
-            proto_tree_add_item(message_tree, hf_megaco_mId,tvb, mId_offset, mId_length, ENC_ASCII|ENC_NA);
+            proto_tree_add_item(message_tree, hf_megaco_version,tvb, ver_offset, ver_length, ENC_UTF_8|ENC_NA);
+            proto_tree_add_item(message_tree, hf_megaco_mId,tvb, mId_offset, mId_length, ENC_UTF_8|ENC_NA);
         }else{
-            hidden_item = proto_tree_add_item(message_tree, hf_megaco_version,tvb, ver_offset, ver_length, ENC_ASCII|ENC_NA);
+            hidden_item = proto_tree_add_item(message_tree, hf_megaco_version,tvb, ver_offset, ver_length, ENC_UTF_8|ENC_NA);
             PROTO_ITEM_SET_HIDDEN(hidden_item);
-            hidden_item = proto_tree_add_item(message_tree, hf_megaco_mId,tvb, mId_offset, mId_length, ENC_ASCII|ENC_NA);
+            hidden_item = proto_tree_add_item(message_tree, hf_megaco_mId,tvb, mId_offset, mId_length, ENC_UTF_8|ENC_NA);
             PROTO_ITEM_SET_HIDDEN(hidden_item);
         }
     }
@@ -541,8 +546,7 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
             tvb_current_offset = megaco_tvb_find_token(tvb, tvb_offset, tvb_len); /*tvb_find_guint8(tvb, tvb_offset+1, tvb_len, '}');*/
 
-            ti = proto_tree_add_text(megaco_tree, tvb, tvb_previous_offset, tvb_current_offset-tvb_previous_offset,
-                    "%s",tvb_format_text(tvb, tvb_previous_offset, tvb_current_offset-tvb_previous_offset));
+            ti = proto_tree_add_format_text(megaco_tree, tvb, tvb_previous_offset, tvb_current_offset-tvb_previous_offset);
             message_body_tree = proto_item_add_subtree(ti, ett_megaco_message_body);
 
             if (tree) {
@@ -580,8 +584,7 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             if (!first) {
               col_append_str(pinfo->cinfo, COL_INFO, " ");
             }
-            if (check_col(pinfo->cinfo, COL_INFO) )
-                col_append_fstr(pinfo->cinfo, COL_INFO, "%s TransactionResponseAck",
+            col_append_fstr(pinfo->cinfo, COL_INFO, "%s TransactionResponseAck",
                 tvb_format_text(tvb,tvb_previous_offset,len));
 
             if(tree)
@@ -614,8 +617,7 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             if (!first) {
               col_append_str(pinfo->cinfo, COL_INFO, " ");
             }
-            if (check_col(pinfo->cinfo, COL_INFO) )
-                col_append_fstr(pinfo->cinfo, COL_INFO, "%s Pending",
+            col_append_fstr(pinfo->cinfo, COL_INFO, "%s Pending",
                 tvb_format_text(tvb,tvb_offset,len));
 
             if(tree)
@@ -642,8 +644,7 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             tvb_current_offset  = megaco_tvb_skip_wsp_return(tvb, tvb_LBRKT-1);
             len = tvb_current_offset - tvb_offset;
 
-            if (check_col(pinfo->cinfo, COL_INFO) )
-                col_add_fstr(pinfo->cinfo, COL_INFO, "%s Reply  ",
+            col_add_fstr(pinfo->cinfo, COL_INFO, "%s Reply  ",
                   tvb_format_text(tvb,tvb_offset,len));
             trx_id = (guint)strtoul(tvb_format_text(tvb,tvb_offset,len),NULL,10);
 
@@ -679,8 +680,7 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             if (!first) {
               col_append_str(pinfo->cinfo, COL_INFO, " ");
             }
-            if (check_col(pinfo->cinfo, COL_INFO) )
-                col_append_fstr(pinfo->cinfo, COL_INFO, "%s Request",
+            col_append_fstr(pinfo->cinfo, COL_INFO, "%s Request",
                   tvb_format_text(tvb,tvb_offset,len));
             trx_id = (guint)strtoul(tvb_format_text(tvb,tvb_offset,len),NULL,10);
             if(tree)
@@ -692,9 +692,8 @@ dissect_megaco_text(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             break;
         default :
             ti = proto_tree_add_item(tree,proto_megaco,tvb, 0, -1, ENC_NA);
-            megaco_tree = proto_item_add_subtree(ti, ett_megaco);
-            proto_tree_add_text(megaco_tree, tvb, 0, -1,
-            "Sorry, can't understand errorDescriptor / transactionList = %s, can't parse it pos %u",
+            expert_add_info_format(pinfo, ti, &ei_megaco_error_descriptor_transaction_list,
+                    "Sorry, can't understand errorDescriptor / transactionList = %s, can't parse it pos %u",
                         tvb_format_text(tvb,tvb_previous_offset,2),tvb_previous_offset);
             return;
         } /* end switch */
@@ -720,15 +719,14 @@ nextcontext:
 
 
         tvb_next_offset = tvb_find_guint8(tvb, tvb_previous_offset, tvb_transaction_end_offset, '{');
-        ti = proto_tree_add_text(megaco_tree, tvb, tvb_previous_offset, tvb_next_offset-tvb_previous_offset+1,
-                "%s", tvb_format_text(tvb, tvb_previous_offset, tvb_next_offset-tvb_previous_offset+1));
+        ti = proto_tree_add_format_text(megaco_tree, tvb, tvb_previous_offset, tvb_next_offset-tvb_previous_offset+1);
         megaco_context_tree = proto_item_add_subtree(ti, ett_megaco_context);
 
         tvb_previous_offset = tvb_find_guint8(tvb, tvb_current_offset,
             tvb_transaction_end_offset, '=')+1;
         tvb_previous_offset = megaco_tvb_skip_wsp(tvb, tvb_previous_offset);
         if (tvb_current_offset >= tvb_next_offset) {
-            proto_tree_add_text(megaco_tree, tvb, 0, 0, "[ Parse error: Invalid offset ]");
+            expert_add_info_format(pinfo, ti, &ei_megaco_parse_error, "Parse error: Invalid offset");
             return;
         }
         tvb_current_offset = tvb_next_offset;
@@ -769,8 +767,7 @@ nextcontext:
                 tokenlen));
             ctx_id = (guint)strtoul(tvb_format_text(tvb, tvb_previous_offset, tokenlen),NULL,10);
 
-            if (check_col(pinfo->cinfo, COL_INFO) )
-                col_append_fstr(pinfo->cinfo, COL_INFO, " |=%s",tvb_format_text(tvb, tvb_previous_offset,tokenlen));
+            col_append_fstr(pinfo->cinfo, COL_INFO, " |=%s",tvb_format_text(tvb, tvb_previous_offset,tokenlen));
         }
 
         ctx = gcp_ctx(msg,trx,ctx_id,keep_persistent_data);
@@ -878,12 +875,11 @@ nextcontext:
                     goto nextcontext;
                 }
 
-                sub_ti = proto_tree_add_text(megaco_tree, tvb, tvb_command_start_offset, len+1,
-                        "%s", tvb_format_text(tvb, tvb_command_start_offset, len+1));
+                sub_ti = proto_tree_add_format_text(megaco_tree, tvb, tvb_command_start_offset, len+1);
                 megaco_tree_command_line = proto_item_add_subtree(sub_ti, ett_megaco_command_line);
                 /* creation of the megaco_tree_command_line additionally Command and Transaction ID will be printed in this line */
                 /* Changed to use the lines above. this code is saved if there is complaints
-                sub_ti = proto_tree_add_item(megaco_tree,hf_megaco_command_line,tvb,tvb_command_start_offset,tokenlen, ENC_ASCII|ENC_NA);
+                sub_ti = proto_tree_add_item(megaco_tree,hf_megaco_command_line,tvb,tvb_command_start_offset,tokenlen, ENC_UTF_8|ENC_NA);
                 megaco_tree_command_line = proto_item_add_subtree(sub_ti, ett_megaco_command_line);
                 */
 
@@ -903,13 +899,13 @@ nextcontext:
                     if ( tempchar == 'P' || tempchar == 'O'){
                         gint tvb_topology_end_offset = tvb_find_guint8(tvb, tvb_command_start_offset, tvb_transaction_end_offset, '}');
                         if ( tvb_topology_end_offset == -1 ){
-                            proto_tree_add_text(megaco_tree, tvb, 0, 0, "[ Parse error: Missing \"}\" ]");
+                            expert_add_info_format(pinfo, sub_ti, &ei_megaco_parse_error, "Parse error: Missing \"}\"");
                             return;
                         }
 
                         tvb_command_start_offset = tvb_find_guint8(tvb, tvb_command_start_offset, tvb_transaction_end_offset, '{');
                         if ( tvb_command_start_offset == -1 ){
-                            proto_tree_add_text(megaco_tree, tvb, 0, 0, "[ Parse error: Missing \"{\" ]");
+                            expert_add_info_format(pinfo, sub_ti, &ei_megaco_parse_error, "Parse error: Missing \"{\"");
                             return;
                         }
                         dissect_megaco_topologydescriptor(tvb, megaco_tree_command_line, tvb_topology_end_offset-1, tvb_command_start_offset+1);
@@ -925,7 +921,7 @@ nextcontext:
                         } else {
                             /* Try to find the first char of the command */
                             tvb_command_start_offset =  megaco_tvb_skip_wsp(tvb, tvb_command_start_offset + 1);
-                            tvb_next_offset = tvb_find_guint8(tvb, tvb_command_start_offset, tvb_transaction_end_offset, '{');
+                            /*tvb_next_offset = tvb_find_guint8(tvb, tvb_command_start_offset, tvb_transaction_end_offset, '{');*/
                             continue;
                         }
 
@@ -955,7 +951,7 @@ nextcontext:
                 tvb_offset  = tvb_find_guint8(tvb, tvb_command_start_offset,
                     tvb_transaction_end_offset, '=');
                 if (tvb_offset == -1 ) {
-                    proto_tree_add_text(megaco_tree, tvb, 0, 0, "[ Parse error: Missing \"=\" ]");
+                    expert_add_info_format(pinfo, sub_ti, &ei_megaco_parse_error, "Parse error: Missing \"=\"");
                     return;
                 }
                 tvb_offset = megaco_tvb_skip_wsp_return(tvb, tvb_offset -1);
@@ -1219,8 +1215,7 @@ nextcontext:
                             tvb_command_start_offset, tokenlen,
                             tvb_format_text(tvb, tvb_command_start_offset,
                             tokenlen));
-                            if (check_col(pinfo->cinfo, COL_INFO) )
-                                col_append_fstr(pinfo->cinfo, COL_INFO, " %s",command);
+                            col_append_fstr(pinfo->cinfo, COL_INFO, " %s",command);
                     }
 
                     if (cmd_type == GCP_CMD_NONE && trx_type == GCP_TRX_REPLY) {
@@ -1235,13 +1230,13 @@ nextcontext:
                     tvb_offset  = tvb_find_guint8(tvb, tvb_command_start_offset,
                         tvb_transaction_end_offset, '=');
                     if (tvb_offset == -1 ) {
-                        proto_tree_add_text(megaco_tree, tvb, 0, 0, "[ Parse error: Missing \"=\" ]");
+                        expert_add_info_format(pinfo, sub_ti, &ei_megaco_parse_error, "Parse error: Missing \"=\"");
                         return;
                     }
                     tvb_offset = megaco_tvb_skip_wsp(tvb, tvb_offset+1);
                     tokenlen = tvb_next_offset - tvb_offset;
                     if (tokenlen+1 <= 0) {
-                        proto_tree_add_text(megaco_tree, tvb, 0, 0, "[ Parse error: Invalid token length (%d) ]", tokenlen+1);
+                        expert_add_info_format(pinfo, sub_ti, &ei_megaco_parse_error, "Parse error: Invalid token length (%d)", tokenlen+1);
                         return;
                     }
 
@@ -1249,7 +1244,7 @@ nextcontext:
                     if ( (tempchar >= 'a')&& (tempchar <= 'z'))
                         tempchar = tempchar - 0x20;
 
-                    term = ep_new0(gcp_term_t);
+                    term = wmem_new0(wmem_packet_scope(), gcp_term_t);
                     wild_term = GCP_WILDCARD_NONE;
                     term->type = GCP_TERM_TYPE_UNKNOWN;
 
@@ -1257,7 +1252,7 @@ nextcontext:
 
                     case 'E':
                         if ((tokenlen+1 > (int) sizeof(TermID))) {
-                            proto_tree_add_text(megaco_tree, tvb, 0, 0, "[ Parse error: Invalid TermID length (%d) ]", tokenlen+1);
+                            expert_add_info_format(pinfo, sub_ti, &ei_megaco_parse_error, "Parse error: Invalid TermID length (%d)", tokenlen+1);
                             return;
                         }
                         tvb_get_nstringz0(tvb,tvb_offset,tokenlen+1,TermID);
@@ -1313,8 +1308,7 @@ nextcontext:
 
                         gcp_cmd_add_term(msg, trx, cmd, term, wild_term, keep_persistent_data);
 
-                            if (check_col(pinfo->cinfo, COL_INFO) )
-                                col_append_fstr(pinfo->cinfo, COL_INFO, "=%s",tvb_format_text(tvb, tvb_offset,tokenlen));
+                        col_append_fstr(pinfo->cinfo, COL_INFO, "=%s",tvb_format_text(tvb, tvb_offset,tokenlen));
                         break;
                     }
 
@@ -1361,7 +1355,7 @@ nextcontext:
 
         if (keep_persistent_data) {
             gcp_msg_to_str(msg,keep_persistent_data);
-            gcp_analyze_msg(megaco_tree, tvb, msg, &megaco_ctx_ids );
+            gcp_analyze_msg(megaco_tree, pinfo, tvb, msg, &megaco_ctx_ids, &ei_megaco_errored_command);
         }
 
         tvb_next_offset = tvb_transaction_end_offset;
@@ -1455,7 +1449,7 @@ dissect_megaco_descriptors(tvbuff_t *tvb, proto_tree *megaco_tree_command_line, 
 
         }
         if (tvb_current_offset <= tvb_previous_offset) {
-            proto_tree_add_text(megaco_tree_command_line, tvb, 0, 0, "[ Parse error: Invalid offset ]");
+            expert_add_info_format(pinfo, megaco_tree_command_line, &ei_megaco_parse_error, "Parse error: Invalid offset");
             return;
         }
 
@@ -1506,8 +1500,7 @@ dissect_megaco_descriptors(tvbuff_t *tvb, proto_tree *megaco_tree_command_line, 
             /*TODO: Move this to the top when all branches fixed !!!*/
             temp_offset = tvb_find_guint8(tvb, tvb_previous_offset,tvb_descriptors_end_offset, '{');
             tokenlen =  temp_offset - tvb_previous_offset+1;
-            proto_tree_add_text(megaco_tree_command_line, tvb, tvb_previous_offset, tokenlen,
-                "%s", tvb_format_text(tvb, tvb_previous_offset, tokenlen));
+            proto_tree_add_format_text(megaco_tree_command_line, tvb, tvb_previous_offset, tokenlen);
 
             tvb_previous_offset = megaco_tvb_skip_wsp(tvb, temp_offset +1);
             dissect_megaco_mediadescriptor(tvb, megaco_tree_command_line, pinfo, tvb_RBRKT, tvb_previous_offset);
@@ -1682,8 +1675,8 @@ dissect_megaco_mediadescriptor(tvbuff_t *tvb, proto_tree *megaco_tree_command_li
         tvb_RBRKT = tvb_next_offset;
 
         tokenlen = tvb_LBRKT - tvb_current_offset +1;
-        megaco_mediadescriptor_ti = proto_tree_add_text(megaco_tree_command_line,tvb,tvb_current_offset,
-                tokenlen,"%s",tvb_format_text(tvb, tvb_current_offset,tokenlen));
+        megaco_mediadescriptor_ti = proto_tree_add_format_text(megaco_tree_command_line,tvb,tvb_current_offset,
+                tokenlen);
 
         switch ( mediaParm ){
         case MEGACO_LOCAL_TOKEN:
@@ -1730,13 +1723,11 @@ dissect_megaco_mediadescriptor(tvbuff_t *tvb, proto_tree *megaco_tree_command_li
         if (tvb_next_offset > tvb_last_RBRKT) tvb_next_offset = tvb_last_RBRKT;
         if ( tvb_next_offset != -1 ){
             tokenlen = tvb_next_offset - tvb_RBRKT+1;
-            proto_tree_add_text(megaco_tree_command_line, tvb, tvb_RBRKT, tokenlen,
-                "%s", tvb_format_text(tvb, tvb_RBRKT, tokenlen));
+            proto_tree_add_format_text(megaco_tree_command_line, tvb, tvb_RBRKT, tokenlen);
             tvb_previous_offset = tvb_next_offset+1;
         }else{
             /* Add the trailing '}'*/
-            proto_tree_add_text(megaco_tree_command_line, tvb, tvb_RBRKT, 1,
-                "%s", tvb_format_text(tvb, tvb_RBRKT, 1));
+            proto_tree_add_format_text(megaco_tree_command_line, tvb, tvb_RBRKT, 1);
             tvb_previous_offset = tvb_last_RBRKT;
         }
 
@@ -1760,7 +1751,7 @@ dissect_megaco_h245(tvbuff_t *tvb, packet_info *pinfo, proto_tree *megaco_tree, 
     if(len<20480){
         int i;
         tvbuff_t *h245_tvb;
-        guint8 *buf = (guint8 *)g_malloc(10240);
+        guint8 *buf = (guint8 *)wmem_alloc(pinfo->pool, 10240);
 
         /* first, skip to where the encoded pdu starts, this is
            the first hex digit after the '=' char.
@@ -1820,7 +1811,6 @@ dissect_megaco_h245(tvbuff_t *tvb, packet_info *pinfo, proto_tree *megaco_tree, 
             return;
         }
         h245_tvb = tvb_new_child_real_data(tvb, buf,i,i);
-        tvb_set_free_cb(h245_tvb, g_free);
         add_new_data_source(pinfo, h245_tvb, "H.245 over MEGACO");
         /* should go through a handle, however,  the two h245 entry
            points are different, one is over tpkt and the other is raw
@@ -1839,7 +1829,7 @@ dissect_megaco_h324_h223caprn(tvbuff_t *tvb, packet_info *pinfo, proto_tree *meg
     if(len<20480){
         int i;
         tvbuff_t *h245_tvb;
-        guint8 *buf = (guint8 *)g_malloc(10240);
+        guint8 *buf = (guint8 *)wmem_alloc(pinfo->pool, 10240);
 
         /* first, skip to where the encoded pdu starts, this is
            the first hex digit after the '=' char.
@@ -1900,7 +1890,6 @@ dissect_megaco_h324_h223caprn(tvbuff_t *tvb, packet_info *pinfo, proto_tree *meg
         }
         h245_tvb = tvb_new_child_real_data(tvb, buf,i,i);
         add_new_data_source(pinfo, h245_tvb, "H.245 over MEGACO");
-        tvb_set_free_cb(h245_tvb, g_free);
         /* should go through a handle, however,  the two h245 entry
            points are different, one is over tpkt and the other is raw
         */
@@ -1926,11 +1915,10 @@ dissect_megaco_eventsdescriptor(tvbuff_t *tvb, packet_info *pinfo, proto_tree *m
 
     tokenlen =  (tvb_RBRKT+1) - tvb_previous_offset;
 
-    megaco_eventsdescriptor_ti = proto_tree_add_text(megaco_tree_command_line, tvb, tvb_previous_offset, tokenlen,
-        "%s", tvb_format_text(tvb, tvb_previous_offset, tokenlen));
+    megaco_eventsdescriptor_ti = proto_tree_add_format_text(megaco_tree_command_line, tvb, tvb_previous_offset, tokenlen);
 
     /*
-    megaco_eventsdescriptor_ti = proto_tree_add_item(megaco_tree_command_line,hf_megaco_events_descriptor,tvb,tvb_previous_offset,tokenlen, ENC_ASCII|ENC_NA);
+    megaco_eventsdescriptor_ti = proto_tree_add_item(megaco_tree_command_line,hf_megaco_events_descriptor,tvb,tvb_previous_offset,tokenlen, ENC_UTF_8|ENC_NA);
     */
     megaco_eventsdescriptor_tree = proto_item_add_subtree(megaco_eventsdescriptor_ti, ett_megaco_eventsdescriptor);
 
@@ -2009,7 +1997,7 @@ dissect_megaco_eventsdescriptor(tvbuff_t *tvb, packet_info *pinfo, proto_tree *m
                 tokenlen = tvb_RBRKT+1 - tvb_previous_offset;
             }
 
-            megaco_requestedevent_ti = proto_tree_add_item(megaco_eventsdescriptor_tree,hf_megaco_pkgdname,tvb,tvb_previous_offset,tokenlen, ENC_ASCII|ENC_NA);
+            megaco_requestedevent_ti = proto_tree_add_item(megaco_eventsdescriptor_tree,hf_megaco_pkgdname,tvb,tvb_previous_offset,tokenlen, ENC_UTF_8|ENC_NA);
             megaco_requestedevent_tree = proto_item_add_subtree(megaco_requestedevent_ti, ett_megaco_requestedevent);
 
             if ( tvb_help_offset < tvb_RBRKT && tvb_help_offset != -1 ){
@@ -2092,18 +2080,16 @@ dissect_megaco_signaldescriptor(tvbuff_t *tvb, packet_info *pinfo, proto_tree *m
     tvb_LBRKT = tvb_find_guint8(tvb, tvb_previous_offset, tvb_signals_end_offset, '{');
     tokenlen =  (tvb_LBRKT+1) - tvb_signals_start_offset;
 
-    proto_tree_add_text(megaco_tree_command_line, tvb, tvb_signals_start_offset, tokenlen,
-        "%s", tvb_format_text(tvb, tvb_signals_start_offset, tokenlen));
+    proto_tree_add_format_text(megaco_tree_command_line, tvb, tvb_signals_start_offset, tokenlen);
 
     /*
-    megaco_signalsdescriptor_ti = proto_tree_add_item(megaco_tree_command_line,hf_megaco_signal_descriptor,tvb,tvb_previous_offset,tokenlen, ENC_ASCII|ENC_NA);
+    megaco_signalsdescriptor_ti = proto_tree_add_item(megaco_tree_command_line,hf_megaco_signal_descriptor,tvb,tvb_previous_offset,tokenlen, ENC_UTF_8|ENC_NA);
     megaco_signalsdescriptor_tree = proto_item_add_subtree(megaco_signalsdescriptor_ti, ett_megaco_signalsdescriptor);
     */
 
     tvb_current_offset = tvb_LBRKT;
     tvb_next_offset = megaco_tvb_skip_wsp(tvb, tvb_current_offset+1);
-    if (check_col(pinfo->cinfo, COL_INFO) )
-        col_append_fstr(pinfo->cinfo, COL_INFO, " (Signal:%s)",tvb_format_text(tvb, tvb_current_offset,tokenlen-tvb_current_offset+tvb_previous_offset));
+    col_append_fstr(pinfo->cinfo, COL_INFO, " (Signal:%s)",tvb_format_text(tvb, tvb_current_offset,tokenlen-tvb_current_offset+tvb_previous_offset));
 
 
     if ( tvb_current_offset < tvb_signals_end_offset && tvb_current_offset != -1 && tvb_next_offset != tvb_signals_end_offset){
@@ -2168,11 +2154,10 @@ dissect_megaco_signaldescriptor(tvbuff_t *tvb, packet_info *pinfo, proto_tree *m
                 tokenlen = pkg_tokenlen = tvb_RBRKT+1 - tvb_previous_offset;
             }
 
-            megaco_requestedsignal_ti = proto_tree_add_text(megaco_tree_command_line, tvb, tvb_previous_offset, tokenlen,
-                "%s", tvb_format_text(tvb, tvb_previous_offset, tokenlen));
+            megaco_requestedsignal_ti = proto_tree_add_format_text(megaco_tree_command_line, tvb, tvb_previous_offset, tokenlen);
             megaco_requestedsignal_tree = proto_item_add_subtree(megaco_requestedsignal_ti, ett_megaco_requestedsignal);
 
-            proto_tree_add_item(megaco_requestedsignal_tree,hf_megaco_pkgdname,tvb,tvb_previous_offset,pkg_tokenlen, ENC_ASCII|ENC_NA);
+            proto_tree_add_item(megaco_requestedsignal_tree,hf_megaco_pkgdname,tvb,tvb_previous_offset,pkg_tokenlen, ENC_UTF_8|ENC_NA);
 
             if ( tvb_help_offset < tvb_RBRKT && tvb_help_offset != -1 ){
                 gchar *msg;
@@ -2190,8 +2175,7 @@ dissect_megaco_signaldescriptor(tvbuff_t *tvb, packet_info *pinfo, proto_tree *m
                         "%s", msg);
                 }
                 /* Print the trailing '}' */
-                proto_tree_add_text(megaco_tree_command_line, tvb, tvb_RBRKT, 1,
-                    "%s", tvb_format_text(tvb, tvb_RBRKT, 1));
+                proto_tree_add_format_text(megaco_tree_command_line, tvb, tvb_RBRKT, 1);
             }
 
             tvb_current_offset  = tvb_find_guint8(tvb, tvb_RBRKT,
@@ -2206,14 +2190,12 @@ dissect_megaco_signaldescriptor(tvbuff_t *tvb, packet_info *pinfo, proto_tree *m
             tvb_LBRKT = tvb_previous_offset;
             tvb_RBRKT = tvb_previous_offset;
             /* Print the trailing '}' */
-            proto_tree_add_text(megaco_tree_command_line, tvb, tvb_signals_end_offset, 1,
-                "%s", tvb_format_text(tvb, tvb_signals_end_offset, 1));
+            proto_tree_add_format_text(megaco_tree_command_line, tvb, tvb_signals_end_offset, 1);
 
         } while ( tvb_current_offset < tvb_signals_end_offset );
     }else{
         /* signals{}*/
-        proto_tree_add_text(megaco_tree_command_line, tvb, tvb_signals_end_offset, 1,
-                "%s", tvb_format_text(tvb, tvb_signals_end_offset, 1));
+        proto_tree_add_format_text(megaco_tree_command_line, tvb, tvb_signals_end_offset, 1);
     }
 
 
@@ -2235,7 +2217,7 @@ dissect_megaco_auditdescriptor(tvbuff_t *tvb, proto_tree *megaco_tree, packet_in
     tvb_next  = tvb_find_guint8(tvb, tvb_offset, tvb_stop, '{');           /* find opening LBRKT - is this already checked by caller?*/
     if( tvb_next == -1 )                                                   /* complain and give up if not there */
     {
-        proto_tree_add_text(megaco_tree, tvb, tvb_offset, tvb_stop+1-tvb_offset, "Badly constructed audit descriptor (no { )");
+        expert_add_info(pinfo, megaco_tree, &ei_megaco_audit_descriptor);
         return;
     }
     tokenlen = (tvb_stop + 1) - tvb_offset;
@@ -2369,9 +2351,7 @@ dissect_megaco_servicechangedescriptor(tvbuff_t *tvb, proto_tree *megaco_tree,  
         return;
         */
     tokenlen = (tvb_LBRKT + 1) - tvb_previous_offset;
-    proto_tree_add_text(megaco_tree, tvb, tvb_previous_offset, tokenlen,
-                "%s", tvb_format_text(tvb, tvb_previous_offset, tokenlen));
-
+    proto_tree_add_format_text(megaco_tree, tvb, tvb_previous_offset, tokenlen);
 
     /* Start dissecting serviceChangeParm */
     tvb_previous_offset = tvb_LBRKT + 1;
@@ -2400,8 +2380,7 @@ dissect_megaco_servicechangedescriptor(tvbuff_t *tvb, proto_tree *megaco_tree,  
             /* ReasonToken  EQUAL VALUE
              * VALUE                = quotedString / 1*(SafeChar)
              */
-            item = proto_tree_add_text(megaco_tree, tvb, tvb_previous_offset, tokenlen,
-                "%s", tvb_format_text(tvb, tvb_previous_offset, tokenlen));
+            item = proto_tree_add_format_text(megaco_tree, tvb, tvb_previous_offset, tokenlen);
 
             /* As the reason code ( if a digit ) can be in quoted string or 'just' digit
              * look for a nine and hope for the best.
@@ -2427,8 +2406,7 @@ dissect_megaco_servicechangedescriptor(tvbuff_t *tvb, proto_tree *megaco_tree,  
          * extension            = extensionParameter parmValue
          * extensionParameter   = "X"  ("-" / "+") 1*6(ALPHA / DIGIT)
          */
-            proto_tree_add_text(megaco_tree, tvb, tvb_previous_offset, tokenlen,
-                "%s", tvb_format_text(tvb, tvb_previous_offset, tokenlen));
+            proto_tree_add_format_text(megaco_tree, tvb, tvb_previous_offset, tokenlen);
             break;
         }
 
@@ -2447,7 +2425,7 @@ dissect_megaco_servicechangedescriptor(tvbuff_t *tvb, proto_tree *megaco_tree,  
                             tvb_format_text(tvb, tvb_previous_offset,
                             tokenlen));
     */
-    proto_tree_add_text(megaco_tree, tvb, tvb_RBRKT, 1,"%s", tvb_format_text(tvb, tvb_RBRKT, 1));
+    proto_tree_add_format_text(megaco_tree, tvb, tvb_RBRKT, 1);
 
 }
 static void
@@ -2496,12 +2474,11 @@ dissect_megaco_observedeventsdescriptor(tvbuff_t *tvb, packet_info *pinfo, proto
     tokenlen =  (tvb_next_offset+1) - tvb_previous_offset;
 
     /*
-    megaco_observedeventsdescriptor_ti = proto_tree_add_item(megaco_tree_command_line,hf_megaco_observedevents_descriptor,tvb,tvb_previous_offset,tokenlen, ENC_ASCII|ENC_NA);
+    megaco_observedeventsdescriptor_ti = proto_tree_add_item(megaco_tree_command_line,hf_megaco_observedevents_descriptor,tvb,tvb_previous_offset,tokenlen, ENC_UTF_8|ENC_NA);
     megaco_observedeventsdescriptor_tree = proto_item_add_subtree(megaco_observedeventsdescriptor_ti, ett_megaco_observedeventsdescriptor);
     */
 
-    megaco_observedeventsdescriptor_ti = proto_tree_add_text(megaco_tree_command_line, tvb, tvb_previous_offset, tokenlen,
-        "%s", tvb_format_text(tvb, tvb_previous_offset, tokenlen));
+    megaco_observedeventsdescriptor_ti = proto_tree_add_format_text(megaco_tree_command_line, tvb, tvb_previous_offset, tokenlen);
     megaco_observedeventsdescriptor_tree = proto_item_add_subtree(megaco_observedeventsdescriptor_ti, ett_megaco_observedeventsdescriptor);
 
     tvb_current_offset = tvb_find_guint8(tvb, tvb_previous_offset, tvb_RBRKT, '=');
@@ -2581,12 +2558,11 @@ dissect_megaco_observedeventsdescriptor(tvbuff_t *tvb, packet_info *pinfo, proto
                 tokenlen = pkg_tokenlen = tvb_RBRKT+1 - tvb_previous_offset;
             }
 
-            megaco_observedevent_ti = proto_tree_add_text(megaco_tree_command_line, tvb, tvb_previous_offset, tokenlen,
-                "%s", tvb_format_text(tvb, tvb_previous_offset, tokenlen));
+            megaco_observedevent_ti = proto_tree_add_format_text(megaco_tree_command_line, tvb, tvb_previous_offset, tokenlen);
 
             megaco_observedevent_tree = proto_item_add_subtree(megaco_observedevent_ti, ett_megaco_observedevent);
 
-            proto_tree_add_item(megaco_observedevent_tree,hf_megaco_pkgdname,tvb,tvb_previous_offset,pkg_tokenlen, ENC_ASCII|ENC_NA);
+            proto_tree_add_item(megaco_observedevent_tree,hf_megaco_pkgdname,tvb,tvb_previous_offset,pkg_tokenlen, ENC_UTF_8|ENC_NA);
 
             if ( tvb_help_offset < tvb_RBRKT && tvb_help_offset != -1 ){
 
@@ -2629,7 +2605,7 @@ dissect_megaco_observedeventsdescriptor(tvbuff_t *tvb, packet_info *pinfo, proto
                 tvb_current_offset = tvb_observedevents_end_offset;
             }
             if (tvb_current_offset < tvb_previous_offset) {
-                proto_tree_add_text(megaco_observedevent_tree, tvb, 0, 0, "[ Parse error: Invalid offset ]");
+                expert_add_info_format(pinfo, megaco_observedevent_ti, &ei_megaco_parse_error, "Parse error: Invalid offset");
                 return;
             }
 
@@ -2638,8 +2614,7 @@ dissect_megaco_observedeventsdescriptor(tvbuff_t *tvb, packet_info *pinfo, proto
             tvb_LBRKT = tvb_previous_offset;
             tvb_RBRKT = tvb_previous_offset;
             /* Print the trailing '}' */
-            proto_tree_add_text(megaco_tree_command_line, tvb, tvb_observedevents_end_offset, 1,
-                "%s", tvb_format_text(tvb, tvb_observedevents_end_offset, 1));
+            proto_tree_add_format_text(megaco_tree_command_line, tvb, tvb_observedevents_end_offset, 1);
 
         } while ( tvb_current_offset < tvb_observedevents_end_offset );
     }
@@ -2667,7 +2642,7 @@ dissect_megaco_Packagesdescriptor(tvbuff_t *tvb, proto_tree *megaco_tree_command
 
     tokenlen =  (tvb_RBRKT+1) - tvb_previous_offset;
 
-    megaco_packagesdescriptor_ti = proto_tree_add_item(megaco_tree_command_line,hf_megaco_packages_descriptor,tvb,tvb_previous_offset,tokenlen, ENC_ASCII|ENC_NA);
+    megaco_packagesdescriptor_ti = proto_tree_add_item(megaco_tree_command_line,hf_megaco_packages_descriptor,tvb,tvb_previous_offset,tokenlen, ENC_UTF_8|ENC_NA);
     megaco_packagesdescriptor_tree = proto_item_add_subtree(megaco_packagesdescriptor_ti, ett_megaco_packagesdescriptor);
 
 
@@ -2733,10 +2708,7 @@ dissect_megaco_Packagesdescriptor(tvbuff_t *tvb, proto_tree *megaco_tree_command
 
             tokenlen = tvb_RBRKT+1 - tvb_previous_offset;
 
-            proto_tree_add_text(megaco_packagesdescriptor_tree, tvb, tvb_previous_offset, tokenlen,
-                "%s", tvb_format_text(tvb,tvb_previous_offset,
-                tokenlen));
-
+            proto_tree_add_format_text(megaco_packagesdescriptor_tree, tvb, tvb_previous_offset, tokenlen);
 
             tvb_current_offset      = tvb_find_guint8(tvb, tvb_RBRKT,
                 tvb_packages_end_offset, ',');
@@ -2895,11 +2867,10 @@ dissect_megaco_TerminationStatedescriptor(tvbuff_t *tvb, proto_tree *megaco_medi
 
     tokenlen = tvb_next_offset - tvb_current_offset;
     /*
-    megaco_TerminationState_ti = proto_tree_add_item(megaco_mediadescriptor_tree,hf_megaco_TerminationState_descriptor,tvb,tvb_current_offset,tokenlen, ENC_ASCII|ENC_NA);
+    megaco_TerminationState_ti = proto_tree_add_item(megaco_mediadescriptor_tree,hf_megaco_TerminationState_descriptor,tvb,tvb_current_offset,tokenlen, ENC_UTF_8|ENC_NA);
     megaco_TerminationState_tree = proto_item_add_subtree(megaco_TerminationState_ti, ett_megaco_TerminationState);
     */
-    megaco_TerminationState_ti = proto_tree_add_text(megaco_mediadescriptor_tree, tvb, tvb_current_offset, tokenlen,
-                                    "%s", tvb_format_text(tvb, tvb_current_offset, tokenlen));
+    megaco_TerminationState_ti = proto_tree_add_format_text(megaco_mediadescriptor_tree, tvb, tvb_current_offset, tokenlen);
     megaco_TerminationState_tree = proto_item_add_subtree(megaco_TerminationState_ti, ett_megaco_TerminationState);
 
     while ( tvb_offset < tvb_next_offset && tvb_offset != -1 ){
@@ -2965,8 +2936,7 @@ dissect_megaco_TerminationStatedescriptor(tvbuff_t *tvb, proto_tree *megaco_medi
 
             tokenlen = tvb_offset - tvb_current_offset;
 
-            proto_tree_add_text(megaco_TerminationState_tree, tvb, tvb_current_offset, tokenlen,
-                "%s", tvb_format_text(tvb,tvb_current_offset,tokenlen));
+            proto_tree_add_format_text(megaco_TerminationState_tree, tvb, tvb_current_offset, tokenlen);
             break;
         }
 
@@ -2975,9 +2945,7 @@ dissect_megaco_TerminationStatedescriptor(tvbuff_t *tvb, proto_tree *megaco_medi
         tvb_offset = tvb_find_guint8(tvb, tvb_current_offset , tvb_next_offset, '=');
 
     }
-    proto_tree_add_text(megaco_mediadescriptor_tree, tvb, tvb_next_offset, 1,
-            "%s", tvb_format_text(tvb, tvb_next_offset, 1));
-
+    proto_tree_add_format_text(megaco_mediadescriptor_tree, tvb, tvb_next_offset, 1);
 }
 
 static void
@@ -2992,10 +2960,9 @@ dissect_megaco_Localdescriptor(tvbuff_t *tvb, proto_tree *megaco_mediadescriptor
 
 
     /*
-    megaco_localdescriptor_ti = proto_tree_add_item(megaco_mediadescriptor_tree,hf_megaco_Local_descriptor,tvb,tvb_current_offset,tokenlen, ENC_ASCII|ENC_NA);
+    megaco_localdescriptor_ti = proto_tree_add_item(megaco_mediadescriptor_tree,hf_megaco_Local_descriptor,tvb,tvb_current_offset,tokenlen, ENC_UTF_8|ENC_NA);
     */
-    megaco_localdescriptor_ti = proto_tree_add_text(megaco_mediadescriptor_tree, tvb, tvb_current_offset, tokenlen,
-        "%s", tvb_format_text(tvb, tvb_current_offset, tokenlen));
+    megaco_localdescriptor_ti = proto_tree_add_format_text(megaco_mediadescriptor_tree, tvb, tvb_current_offset, tokenlen);
     megaco_localdescriptor_tree = proto_item_add_subtree(megaco_localdescriptor_ti, ett_megaco_Localdescriptor);
 
     tokenlen = tvb_next_offset - tvb_current_offset;
@@ -3089,7 +3056,7 @@ dissect_megaco_LocalControldescriptor(tvbuff_t *tvb, proto_tree *megaco_mediades
     /*
     tokenlen = tvb_next_offset - tvb_current_offset;
 
-    megaco_LocalControl_ti = proto_tree_add_item(megaco_mediadescriptor_tree,hf_megaco_LocalControl_descriptor,tvb,tvb_current_offset,tokenlen, ENC_ASCII|ENC_NA);
+    megaco_LocalControl_ti = proto_tree_add_item(megaco_mediadescriptor_tree,hf_megaco_LocalControl_descriptor,tvb,tvb_current_offset,tokenlen, ENC_UTF_8|ENC_NA);
     megaco_LocalControl_tree = proto_item_add_subtree(megaco_LocalControl_ti, ett_megaco_LocalControldescriptor);
     */
     while ( tvb_offset < tvb_next_offset && tvb_offset != -1 ){
@@ -3115,9 +3082,7 @@ dissect_megaco_LocalControldescriptor(tvbuff_t *tvb, proto_tree *megaco_mediades
         }
         token_name_len = tvb_offset - tvb_current_offset;
         /* Debug Code
-        proto_tree_add_text(megaco_LocalControl_tree, tvb, tvb_current_offset, token_name_len,
-                "%s", tvb_format_text(tvb,tvb_current_offset,token_name_len));
-
+        proto_tree_add_format_text(megaco_LocalControl_tree, tvb, tvb_current_offset, token_name_len);
          */
         token_index = find_megaco_localParam_names(tvb, tvb_current_offset, token_name_len);
         /* Find start of parameter value */
@@ -3136,9 +3101,7 @@ dissect_megaco_LocalControldescriptor(tvbuff_t *tvb, proto_tree *megaco_mediades
 
         tokenlen = megaco_tvb_skip_wsp_return(tvb,tvb_offset-1) - tvb_current_offset;
         /* Debug Code
-        proto_tree_add_text(megaco_LocalControl_tree, tvb, tvb_current_offset, tokenlen,
-                "%s", tvb_format_text(tvb,tvb_current_offset,tokenlen));
-
+        proto_tree_add_format_text(megaco_LocalControl_tree, tvb, tvb_current_offset, tokenlen);
          */
         switch ( token_index ){
 
@@ -3147,8 +3110,7 @@ dissect_megaco_LocalControldescriptor(tvbuff_t *tvb, proto_tree *megaco_mediades
                 tvb_current_offset, tokenlen,
                 tvb_format_text(tvb, tvb_current_offset,
                 tokenlen));
-            if (check_col(pinfo->cinfo, COL_INFO) )
-                col_append_fstr(pinfo->cinfo, COL_INFO, " (Mode:%s)",tvb_format_text(tvb, tvb_current_offset,tokenlen));
+            col_append_fstr(pinfo->cinfo, COL_INFO, " (Mode:%s)",tvb_format_text(tvb, tvb_current_offset,tokenlen));
             tvb_current_offset = megaco_tvb_skip_wsp(tvb, tvb_offset +1);
             break;
 
@@ -3228,49 +3190,37 @@ dissect_megaco_LocalControldescriptor(tvbuff_t *tvb, proto_tree *megaco_mediades
 
         case MEGACO_GM_SAF:
             tokenlen = tvb_offset - tvb_help_offset;
-            item = proto_tree_add_text(megaco_mediadescriptor_tree, tvb, tvb_help_offset, tokenlen,
-                "%s", tvb_format_text(tvb,tvb_help_offset,
-                tokenlen));
+            item = proto_tree_add_format_text(megaco_mediadescriptor_tree, tvb, tvb_help_offset, tokenlen);
             proto_item_append_text(item," [Remote Source Address Filtering]");
             tvb_current_offset = megaco_tvb_skip_wsp(tvb, tvb_offset +1);
             break;
         case MEGACO_GM_SAM:
             tokenlen = tvb_offset - tvb_help_offset;
-            item = proto_tree_add_text(megaco_mediadescriptor_tree, tvb, tvb_help_offset, tokenlen,
-                "%s", tvb_format_text(tvb,tvb_help_offset,
-                tokenlen));
+            item = proto_tree_add_format_text(megaco_mediadescriptor_tree, tvb, tvb_help_offset, tokenlen);
             proto_item_append_text(item," [Remote Source Address Mask]");
             tvb_current_offset = megaco_tvb_skip_wsp(tvb, tvb_offset +1);
             break;
         case MEGACO_GM_SPF:
             tokenlen = tvb_offset - tvb_help_offset;
-            item = proto_tree_add_text(megaco_mediadescriptor_tree, tvb, tvb_help_offset, tokenlen,
-                "%s", tvb_format_text(tvb,tvb_help_offset,
-                tokenlen));
+            item = proto_tree_add_format_text(megaco_mediadescriptor_tree, tvb, tvb_help_offset, tokenlen);
             proto_item_append_text(item," [Remote Source Port Filtering]");
             tvb_current_offset = megaco_tvb_skip_wsp(tvb, tvb_offset +1);
             break;
         case MEGACO_GM_SPR:
             tokenlen = tvb_offset - tvb_help_offset;
-            item = proto_tree_add_text(megaco_mediadescriptor_tree, tvb, tvb_help_offset, tokenlen,
-                "%s", tvb_format_text(tvb,tvb_help_offset,
-                tokenlen));
+            item = proto_tree_add_format_text(megaco_mediadescriptor_tree, tvb, tvb_help_offset, tokenlen);
             proto_item_append_text(item," [Remote Source Port Range]");
             tvb_current_offset = megaco_tvb_skip_wsp(tvb, tvb_offset +1);
             break;
         case MEGACO_GM_ESAS:
             tokenlen = tvb_offset - tvb_help_offset;
-            item = proto_tree_add_text(megaco_mediadescriptor_tree, tvb, tvb_help_offset, tokenlen,
-                "%s", tvb_format_text(tvb,tvb_help_offset,
-                tokenlen));
+            item = proto_tree_add_format_text(megaco_mediadescriptor_tree, tvb, tvb_help_offset, tokenlen);
             proto_item_append_text(item," [Explicit Source Address Setting]");
             tvb_current_offset = megaco_tvb_skip_wsp(tvb, tvb_offset +1);
             break;
         default:
             tokenlen = tvb_offset - tvb_help_offset;
-            proto_tree_add_text(megaco_mediadescriptor_tree, tvb, tvb_help_offset, tokenlen,
-                "%s", tvb_format_text(tvb,tvb_help_offset,
-                tokenlen));
+            proto_tree_add_format_text(megaco_mediadescriptor_tree, tvb, tvb_help_offset, tokenlen);
             tvb_current_offset = megaco_tvb_skip_wsp(tvb, tvb_offset +1);
 
             break;
@@ -3294,7 +3244,7 @@ static void tvb_raw_text_add(tvbuff_t *tvb, proto_tree *tree){
                             "%s", tvb_format_text_wsp(tvb,tvb_linebegin,
                                                       linelen));
         tvb_linebegin = tvb_lineend;
-    } while ( tvb_lineend < tvb_len );
+    } while ( tvb_lineend < tvb_len && linelen > 0);
 }
 
 /*
@@ -3362,8 +3312,6 @@ static gint megaco_tvb_find_token(tvbuff_t* tvb, gint offset, gint maxlength){
         return pos;
     }
 }
-
-void proto_reg_handoff_megaco(void);
 
 void
 proto_register_megaco(void)
@@ -3543,7 +3491,15 @@ proto_register_megaco(void)
         GCP_ETT_ARR_ELEMS(megaco_ctx_ids),
     };
 
+    static ei_register_info ei[] = {
+        { &ei_megaco_errored_command, { "megaco.errored_command", PI_RESPONSE_CODE, PI_WARN, "Errored Command", EXPFILL }},
+        { &ei_megaco_parse_error, { "megaco.parse_error", PI_MALFORMED, PI_ERROR, "Parse error", EXPFILL }},
+        { &ei_megaco_error_descriptor_transaction_list, { "megaco.error_descriptor_transaction_list.invalid", PI_MALFORMED, PI_ERROR, "Sorry, can't understand errorDescriptor / transactionList", EXPFILL }},
+        { &ei_megaco_audit_descriptor, { "megaco.audit.malformed", PI_MALFORMED, PI_ERROR, "Badly constructed audit descriptor (no { )", EXPFILL }},
+    };
+
     module_t *megaco_module;
+    expert_module_t* expert_megaco;
 
     proto_megaco = proto_register_protocol("MEGACO",
                                            "MEGACO", "megaco");
@@ -3552,6 +3508,8 @@ proto_register_megaco(void)
 
     proto_register_field_array(proto_megaco, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_megaco = expert_register_protocol(proto_megaco);
+    expert_register_field_array(expert_megaco, ei, array_length(ei));
 
     /* Register our configuration options, particularly our ports */
 

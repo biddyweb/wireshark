@@ -4,8 +4,6 @@
  * This information is based off the released idl files from opengroup.
  * ftp://ftp.opengroup.org/pub/dce122/dce/src/time.tar.gz time/service/dtsprovider.idl
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,9 @@
 #include <epan/packet.h>
 #include "packet-dcerpc.h"
 #include "packet-dcerpc-dce122.h"
+
+void proto_register_dtsprovider (void);
+void proto_reg_handoff_dtsprovider (void);
 
 static int proto_dtsprovider = -1;
 static int hf_dtsprovider_opnum = -1;

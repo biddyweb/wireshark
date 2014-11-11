@@ -2,8 +2,6 @@
  * Routines for IrCOMM dissection
  * Copyright 2003 Jan Kiszka <jan.kiszka@web.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -117,6 +115,8 @@
 #define IRCOMM_RI               0x40  /* Ring indicator is high */
 #define IRCOMM_CD               0x80  /* Carrier detect is high */
 #define IRCOMM_DCE_DELTA_ANY    0x0f
+
+void proto_reg_handoff_ircomm(void);
 
 /* Initialize the subtree pointers */
 static gint ett_ircomm = -1;

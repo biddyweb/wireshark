@@ -1,8 +1,6 @@
 /* packet-clip.c
  * Routines for clip packet disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  *
@@ -28,9 +26,15 @@
 #include "config.h"
 
 #include <glib.h>
+
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
+
 #include "packet-clip.h"
 #include "packet-ip.h"
+
+void proto_register_clip(void);
+void proto_reg_handoff_clip(void);
 
 static gint ett_clip = -1;
 

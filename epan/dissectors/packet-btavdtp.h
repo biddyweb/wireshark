@@ -3,8 +3,6 @@
  *
  * Copyright 2012, Michal Labedzki for Tieto Corporation
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,9 +25,17 @@
 #ifndef __PACKET_BTAVDTP_H__
 #define __PACKET_BTAVDTP_H__
 
-typedef struct _btavdtp_data_t {
+#define BTAVDTP_CONTENT_PROTECTION_TYPE_SCMS_T  0x02
+
+typedef struct _bta2dp_codec_info_t {
     dissector_handle_t  codec_dissector;
-} btavdtp_data_t;
+    gint                content_protection_type;
+} bta2dp_codec_info_t;
+
+typedef struct _btvdp_codec_info_t {
+    dissector_handle_t  codec_dissector;
+    gint                content_protection_type;
+} btvdp_codec_info_t;
 
 #endif
 

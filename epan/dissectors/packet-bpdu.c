@@ -1,8 +1,6 @@
 /* packet-bpdu.c
  * Routines for BPDU (Spanning Tree Protocol) disassembly
  *
- * $Id$
- *
  * Copyright 1999 Christophe Tronche <ch.tronche@computer.org>
  *
  * Wireshark - Network traffic analyzer
@@ -34,6 +32,7 @@
 #include <epan/etypes.h>
 #include <epan/addr_resolv.h>
 #include <epan/prefs.h>
+#include <epan/expert.h>
 
 /* Offsets of fields within a BPDU */
 
@@ -59,6 +58,8 @@
 #define BPDU_CIST_BRIDGE_IDENTIFIER		93
 #define BPDU_CIST_REMAINING_HOPS		101
 #define BPDU_MSTI				102
+
+#define BPDU_PVST_TLV				36
 
 #define MSTI_FLAGS				0
 #define MSTI_REGIONAL_ROOT			1
@@ -99,6 +100,9 @@
 #define BPDU_FLAGS_PORT_ROLE_SHIFT	2
 #define BPDU_FLAGS_PROPOSAL		0x02
 #define BPDU_FLAGS_TC			0x01
+
+void proto_register_bpdu(void);
+void proto_reg_handoff_bpdu(void);
 
 static int proto_bpdu = -1;
 static int hf_bpdu_proto_id = -1;
@@ -153,6 +157,11 @@ static int hf_bpdu_flags_agree_valid = -1;
 static int hf_bpdu_flags_restricted_role = -1;
 static int hf_bpdu_spt_agreement_digest = -1;
 
+static int hf_bpdu_pvst_tlvtype = -1;
+static int hf_bpdu_pvst_tlvlength = -1;
+static int hf_bpdu_pvst_tlvvalue = -1;
+static int hf_bpdu_pvst_tlv_origvlan = -1;
+
 static gint ett_bpdu = -1;
 static gint ett_bpdu_flags = -1;
 static gint ett_root_id = -1;
@@ -163,17 +172,30 @@ static gint ett_cist_bridge_id = -1;
 static gint ett_spt = -1;
 static gint ett_aux_mcid = -1;
 static gint ett_agreement = -1;
+static gint ett_bpdu_pvst_tlv = -1;
+
+static expert_field ei_pvst_tlv_length_invalid = EI_INIT;
+static expert_field ei_pvst_tlv_origvlan_missing = EI_INIT;
+static expert_field ei_pvst_tlv_truncated = EI_INIT;
+static expert_field ei_pvst_tlv_unknown = EI_INIT;
 
 static gboolean bpdu_use_system_id_extensions = TRUE;
 
 static dissector_handle_t gvrp_handle;
 static dissector_handle_t gmrp_handle;
-static dissector_handle_t data_handle;
 
 static const value_string protocol_id_vals[] = {
   { 0, "Spanning Tree Protocol" },
   { 0, NULL }
 };
+
+#define BPDU_PVST_TLV_ORIGVLAN	0		/* Originating VLAN TLV in Cisco (R)PVST+ BPDUs */
+
+static const value_string bpdu_pvst_tlv_vals[] = {
+  { BPDU_PVST_TLV_ORIGVLAN, 		"Originating VLAN" },
+  { 0,					NULL }
+};
+
 
 #define BPDU_TYPE_CONF			0x00	/* STP Configuration BPDU */
 #define BPDU_TYPE_RST			0x02	/* RST BPDU (or MST) */
@@ -220,7 +242,77 @@ static const char cont_sep[] = ", ";
   }
 
 static void
-dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean is_bpdu_pvst);
+
+static void
+dissect_bpdu_cisco(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+{
+  dissect_bpdu(tvb, pinfo, tree, TRUE);
+}
+
+static void
+dissect_bpdu_generic(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+{
+  dissect_bpdu(tvb, pinfo, tree, FALSE);
+}
+
+static void
+dissect_bpdu_pvst_tlv(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb) {
+  gboolean pvst_tlv_origvlan_present = FALSE;
+  guint16 tlv_type, tlv_length;
+  int offset = BPDU_PVST_TLV;
+  proto_item * ti = NULL;
+  proto_item * tlv_length_item = NULL;
+  proto_tree * tlv_tree = NULL;
+
+  if (tvb_reported_length_remaining(tvb, offset) < 4) /* TLV Type and Length fields occupy 4 bytes in total */
+    expert_add_info(pinfo, tree, &ei_pvst_tlv_truncated);
+
+  while (tvb_reported_length_remaining(tvb, offset) >= 4) { /* TLV Type and Length fields occupy 4 bytes in total */
+    tlv_type = tvb_get_ntohs(tvb, offset);
+    tlv_length = tvb_get_ntohs(tvb, offset + 2);
+
+    ti = proto_tree_add_text(tree, tvb, offset, 4 + tlv_length, "%s",
+                        val_to_str(tlv_type, bpdu_pvst_tlv_vals, "Unknown TLV type: 0x%04x"));
+
+    tlv_tree = proto_item_add_subtree(ti, ett_bpdu_pvst_tlv);
+    proto_tree_add_item(tlv_tree, hf_bpdu_pvst_tlvtype, tvb, offset, 2, ENC_BIG_ENDIAN);
+    tlv_length_item = proto_tree_add_item(tlv_tree, hf_bpdu_pvst_tlvlength,
+                        tvb, offset + 2, 2, ENC_BIG_ENDIAN);
+
+    if (tvb_reported_length_remaining(tvb, offset + 4) < tlv_length) {
+      expert_add_info(pinfo, tlv_length_item, &ei_pvst_tlv_truncated);
+      break;
+    }
+
+    offset += 4;
+
+    switch (tlv_type) {
+      case BPDU_PVST_TLV_ORIGVLAN:
+        if (tlv_length == 2) { /* Originating VLAN ID must be 2 bytes long */
+          proto_item_append_text(ti, " (PVID): %u", tvb_get_ntohs(tvb, offset));
+          proto_tree_add_item(tlv_tree, hf_bpdu_pvst_tlv_origvlan, tvb, offset, tlv_length, ENC_BIG_ENDIAN);
+          pvst_tlv_origvlan_present = TRUE;
+        }
+        else
+          expert_add_info(pinfo, tlv_length_item, &ei_pvst_tlv_length_invalid);
+        break;
+
+      default:
+        proto_tree_add_item(tlv_tree, hf_bpdu_pvst_tlvvalue, tvb, offset, tlv_length, ENC_NA);
+        expert_add_info(pinfo, tlv_tree, &ei_pvst_tlv_unknown);
+        break;
+    }
+
+    offset += tlv_length;
+  }
+
+  if (pvst_tlv_origvlan_present == FALSE) /* If a (R)PVST+ BPDU lacks the Originating VLAN TLV, it is malformed */
+    expert_add_info(pinfo, tree, &ei_pvst_tlv_origvlan_missing);
+}
+
+static void
+dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean is_bpdu_pvst)
 {
   guint16 protocol_identifier;
   guint8  protocol_version_identifier;
@@ -289,7 +381,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   if (pinfo->dl_dst.type == AT_ETHER) {
     const guint8 *dstaddr;
 
-    dstaddr = pinfo->dl_dst.data;
+    dstaddr = (const guint8 *)pinfo->dl_dst.data;
     if(dstaddr[0] == 0x01 && dstaddr[1] == 0x80 &&
        dstaddr[2] == 0xC2 && dstaddr[3] == 0x00 &&
        dstaddr[4] == 0x00 && ((dstaddr[5] == 0x0D) || ((dstaddr[5] & 0xF0) == 0x20))) {
@@ -516,7 +608,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                           BPDU_ROOT_IDENTIFIER , 2,
                           root_identifier_system_id_extension);
       proto_tree_add_item(root_id_tree, hf_bpdu_root_mac, tvb,
-                          BPDU_ROOT_IDENTIFIER + 2, 6, ENC_BIG_ENDIAN);
+                          BPDU_ROOT_IDENTIFIER + 2, 6, ENC_NA);
 
     } else {
       root_id_item = proto_tree_add_text(bpdu_tree, tvb,
@@ -529,7 +621,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                           BPDU_ROOT_IDENTIFIER , 2,
                           root_identifier_bridge_priority);
       proto_tree_add_item(root_id_tree, hf_bpdu_root_mac, tvb,
-                          BPDU_ROOT_IDENTIFIER + 2, 6, ENC_BIG_ENDIAN);
+                          BPDU_ROOT_IDENTIFIER + 2, 6, ENC_NA);
     }
     /* end of Identifier formatting */
 
@@ -554,7 +646,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                           BPDU_BRIDGE_IDENTIFIER , 2,
                           bridge_identifier_system_id_extension);
       proto_tree_add_item(bridge_id_tree, hf_bpdu_bridge_mac, tvb,
-                          BPDU_BRIDGE_IDENTIFIER + 2, 6, ENC_BIG_ENDIAN);
+                          BPDU_BRIDGE_IDENTIFIER + 2, 6, ENC_NA);
     } else {
       bridge_id_item = proto_tree_add_text(bpdu_tree, tvb,
                                            BPDU_BRIDGE_IDENTIFIER, 8,
@@ -566,7 +658,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                           BPDU_BRIDGE_IDENTIFIER , 2,
                           bridge_identifier_bridge_priority);
       proto_tree_add_item(bridge_id_tree, hf_bpdu_bridge_mac, tvb,
-                          BPDU_BRIDGE_IDENTIFIER + 2, 6, ENC_BIG_ENDIAN);
+                          BPDU_BRIDGE_IDENTIFIER + 2, 6, ENC_NA);
     }
     /* end of Identifier formatting */
 
@@ -586,6 +678,9 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                           BPDU_FORWARD_DELAY, 2, forward_delay);
 
     if (bpdu_type == BPDU_TYPE_CONF) {
+      if (is_bpdu_pvst)
+        dissect_bpdu_pvst_tlv(pinfo, bpdu_tree, tvb);
+
       /* Nothing more in this BPDU */
       set_actual_length(tvb, CONF_BPDU_SIZE);
       return;
@@ -708,7 +803,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                               BPDU_CIST_BRIDGE_IDENTIFIER , 2,
                               cist_bridge_identifier_system_id_extension);
           proto_tree_add_item(cist_bridge_id_tree, hf_bpdu_cist_bridge_mac, tvb,
-                              BPDU_CIST_BRIDGE_IDENTIFIER + 2, 6, ENC_BIG_ENDIAN);
+                              BPDU_CIST_BRIDGE_IDENTIFIER + 2, 6, ENC_NA);
 
         } else {
           cist_bridge_id_item = proto_tree_add_text(mstp_tree, tvb,
@@ -721,7 +816,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                               BPDU_CIST_BRIDGE_IDENTIFIER , 2,
                               cist_bridge_identifier_bridge_priority);
           proto_tree_add_item(cist_bridge_id_tree, hf_bpdu_cist_bridge_mac, tvb,
-                              BPDU_CIST_BRIDGE_IDENTIFIER + 2, 6, ENC_BIG_ENDIAN);
+                              BPDU_CIST_BRIDGE_IDENTIFIER + 2, 6, ENC_NA);
         }
         /* end of Identifier formatting */
 
@@ -752,7 +847,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                               ALT_BPDU_CIST_BRIDGE_IDENTIFIER , 2,
                               cist_bridge_identifier_system_id_extension);
           proto_tree_add_item(cist_bridge_id_tree, hf_bpdu_cist_bridge_mac, tvb,
-                              ALT_BPDU_CIST_BRIDGE_IDENTIFIER + 2, 6, ENC_BIG_ENDIAN);
+                              ALT_BPDU_CIST_BRIDGE_IDENTIFIER + 2, 6, ENC_NA);
         } else {
           cist_bridge_id_item = proto_tree_add_text(mstp_tree, tvb,
                                                     ALT_BPDU_CIST_BRIDGE_IDENTIFIER, 8,
@@ -764,7 +859,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                               ALT_BPDU_CIST_BRIDGE_IDENTIFIER , 2,
                               cist_bridge_identifier_bridge_priority);
           proto_tree_add_item(cist_bridge_id_tree, hf_bpdu_cist_bridge_mac, tvb,
-                              ALT_BPDU_CIST_BRIDGE_IDENTIFIER + 2, 6, ENC_BIG_ENDIAN);
+                              ALT_BPDU_CIST_BRIDGE_IDENTIFIER + 2, 6, ENC_NA);
         }
         /* end of Identifier formatting */
 
@@ -788,7 +883,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
           msti_regional_root_priority = (msti_regional_root_mstid &0xf0) << 8;
           msti_regional_root_mstid = ((msti_regional_root_mstid & 0x0f) << 8) +
                                      tvb_get_guint8(tvb,  offset+ MSTI_REGIONAL_ROOT+1);
-          msti_regional_root_mac_str = tvb_ether_to_str(tvb, MSTI_REGIONAL_ROOT + 2);
+          msti_regional_root_mac_str = tvb_ether_to_str(tvb, offset + MSTI_REGIONAL_ROOT + 2);
 
           msti_item = proto_tree_add_text(mstp_tree, tvb, offset, 16,
                                           "MSTID %d, Regional Root Identifier %d / %s",
@@ -838,7 +933,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
           /* pri, MSTID, Regional root */
           hidden_item = proto_tree_add_item(msti_tree, hf_bpdu_msti_regional_root_mac, tvb,
-                                            offset + MSTI_REGIONAL_ROOT + 2, 6, ENC_BIG_ENDIAN);
+                                            offset + MSTI_REGIONAL_ROOT + 2, 6, ENC_NA);
 
           PROTO_ITEM_SET_HIDDEN(hidden_item);
           proto_tree_add_text(msti_tree, tvb, offset + MSTI_REGIONAL_ROOT, 8,
@@ -926,7 +1021,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
           /* pri, MSTID, Regional root */
           hidden_item = proto_tree_add_item(msti_tree, hf_bpdu_msti_regional_root_mac, tvb,
-                                            offset + ALT_MSTI_REGIONAL_ROOT + 2, 6, ENC_BIG_ENDIAN);
+                                            offset + ALT_MSTI_REGIONAL_ROOT + 2, 6, ENC_NA);
 
           PROTO_ITEM_SET_HIDDEN(hidden_item);
           proto_tree_add_text(msti_tree, tvb, offset + ALT_MSTI_REGIONAL_ROOT, 8,
@@ -1045,7 +1140,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                               "Agreement Digest Format Id: %d",
                               (spt_agree_data & 0xf0) >> 4);
           proto_tree_add_text(agreement_tree, tvb, spt_offset, 1,
-                              "Agreement Digest Format Capabilites: %d",
+                              "Agreement Digest Format Capabilities: %d",
                               (spt_agree_data & 0x0f));
           spt_offset += 1;
 
@@ -1055,7 +1150,7 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                               "Agreement Digest Convention Id: %d",
                               (spt_agree_data & 0xf0) >> 4);
           proto_tree_add_text(agreement_tree, tvb, spt_offset, 1,
-                              "Agreement Digest Convention Capabilites: %d",
+                              "Agreement Digest Convention Capabilities: %d",
                               (spt_agree_data & 0x0f));
           spt_offset += 1;
 
@@ -1067,13 +1162,16 @@ dissect_bpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
           proto_tree_add_item(agreement_tree, hf_bpdu_spt_agreement_digest,
                               tvb, spt_offset, 20, ENC_NA);
-          spt_offset += 20;
+          /*spt_offset += 20;*/
 
           if (protocol_version_identifier == 4) {
             set_actual_length(tvb, (bpdu_version_4_length + version_4_length + 2));
           }
         }
       }
+    } else { /* It is RSTP BPDU and may still be Rapid PVST+ */
+      if (is_bpdu_pvst)
+        dissect_bpdu_pvst_tlv(pinfo, bpdu_tree, tvb);
     }
   }
 }
@@ -1178,6 +1276,22 @@ proto_register_bpdu(void)
     { &hf_bpdu_version_1_length,
       { "Version 1 Length",		"stp.version_1_length",
 	FT_UINT8,	BASE_DEC,	NULL,	0x0,
+      	NULL, HFILL }},
+    { &hf_bpdu_pvst_tlvtype,
+      { "Type",				"stp.pvst.tlvtype",
+	FT_UINT16,	BASE_HEX,	VALS(bpdu_pvst_tlv_vals),	0x0,
+      	NULL, HFILL }},
+    { &hf_bpdu_pvst_tlvlength,
+      { "Length",			"stp.pvst.tlvlen",
+	FT_UINT16,	BASE_DEC,	NULL,	0x0,
+      	NULL, HFILL }},
+    { &hf_bpdu_pvst_tlv_origvlan,
+      { "Originating VLAN",		"stp.pvst.origvlan",
+	FT_UINT16,	BASE_DEC,	NULL,	0x0,
+      	NULL, HFILL }},
+    { &hf_bpdu_pvst_tlvvalue,
+      { "Value",	"stp.pvst.tlvval",
+	FT_BYTES,	BASE_NONE,	NULL,	0x0,
       	NULL, HFILL }},
     { &hf_bpdu_version_3_length,
       { "Version 3 Length",		"mstp.version_3_length",
@@ -1298,15 +1412,40 @@ proto_register_bpdu(void)
     &ett_cist_bridge_id,
     &ett_spt,
     &ett_aux_mcid,
-    &ett_agreement
+    &ett_agreement,
+    &ett_bpdu_pvst_tlv
   };
+
+  static ei_register_info ei[] = {
+  { &ei_pvst_tlv_length_invalid,
+    { "stp.pvst.tlvlen.invalid", PI_MALFORMED, PI_ERROR,
+      "Indicated length is not valid for this record type", EXPFILL }},
+
+  { &ei_pvst_tlv_origvlan_missing,
+    { "stp.pvst.origvlan.missing", PI_MALFORMED, PI_ERROR,
+      "Originating (PVID) VLAN TLV is missing or corrupt", EXPFILL }},
+
+  { &ei_pvst_tlv_truncated,
+    { "stp.pvst.tlv.truncated", PI_MALFORMED, PI_ERROR,
+      "TLV record is truncated prematurely", EXPFILL }},
+
+  { &ei_pvst_tlv_unknown,
+    { "stp.pvst.tlv.unknown", PI_UNDECODED, PI_COMMENT,
+      "TLV type is unknown", EXPFILL }}
+  };
+
   module_t *bpdu_module;
+  expert_module_t *expert_bpdu;
 
   proto_bpdu = proto_register_protocol("Spanning Tree Protocol", "STP", "stp");
   proto_register_field_array(proto_bpdu, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
 
-  register_dissector("bpdu", dissect_bpdu, proto_bpdu);
+  register_dissector("bpdu", dissect_bpdu_generic, proto_bpdu);
+  register_dissector("bpdu_cisco", dissect_bpdu_cisco, proto_bpdu);
+
+  expert_bpdu = expert_register_protocol(proto_bpdu);
+  expert_register_field_array(expert_bpdu, ei, array_length(ei));
 
   bpdu_module = prefs_register_protocol(proto_bpdu, NULL);
   prefs_register_bool_preference(bpdu_module, "use_system_id_extension",
@@ -1329,12 +1468,13 @@ proto_reg_handoff_bpdu(void)
    * Get handle for the GMRP dissector.
    */
   gmrp_handle = find_dissector("gmrp");
-  data_handle = find_dissector("data");
 
   bpdu_handle = find_dissector("bpdu");
   dissector_add_uint("llc.dsap", SAP_BPDU, bpdu_handle);
-  dissector_add_uint("chdlctype", CHDLCTYPE_BPDU, bpdu_handle);
-  dissector_add_uint("llc.cisco_pid", 0x010b, bpdu_handle);
-  dissector_add_uint("llc.cisco_pid", 0x010c, bpdu_handle);
+  dissector_add_uint("chdlc.protocol", CHDLCTYPE_BPDU, bpdu_handle);
   dissector_add_uint("ethertype", ETHERTYPE_STP, bpdu_handle);
+  dissector_add_uint("llc.cisco_pid", 0x010c, bpdu_handle); /* Cisco's VLAN-bridge STP is just plain STP */
+
+  bpdu_handle = find_dissector("bpdu_cisco");
+  dissector_add_uint("llc.cisco_pid", 0x010b, bpdu_handle); /* Handle Cisco's (R)PVST+ TLV extensions */
 }

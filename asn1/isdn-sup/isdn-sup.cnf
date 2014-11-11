@@ -2,8 +2,6 @@
 # isdn_sup conformation file
 # 2013  Anders Broman
 
-# $Id$
-
 #.OPT
 BER
 GROUP_BY_PROT
@@ -22,7 +20,6 @@ Advice-of-Charge-Operations					 isdn-sup
 
 OPERATION.&ArgumentType
 OPERATION.&ResultType
-ERROR.&ParameterType
 
 #.END
 
@@ -33,16 +30,40 @@ NumberScreened
 #.END
 
 #.TYPE_RENAME
-#.END                           
+AOCDChargingUnitInfo/specificChargingUnits    AOCDSpecificChargingUnits
+AOCDCurrencyInfo/specificCurrency    AOCDSpecificCurrency
+AOCEChargingUnitInfo/cc    AOCEChargingUnitCc
+AOCEChargingUnitInfo/cc/specificChargingUnits    AOCECcSpecificChargingUnits
+AOCECurrencyInfo/cc  AOCECurrencyCc
+AOCECurrencyInfo/cc/specificCurrency    AOCECcSpecificCurrency
+AOCSCurrencyInfo/chargingtype/specificCurrency    AOCSChargingTypeSpecificCurrency
+RecordedUnits/cc    RecoredUnitsCc
+#.END
 
 #.FIELD_RENAME
-#.END                                
+AOCDChargingUnitInfo/specificChargingUnits    aocdspecificchargingunits
+AOCDCurrencyInfo/specificCurrency aocdspecificCurrency
+AOCEChargingUnitInfo/cc aocechargingunitcc
+AOCEChargingUnitInfo/cc/specificChargingUnits    aoceccspecificchargingunits
+AOCECurrencyInfo/cc  aocecurrencycc
+AOCECurrencyInfo/cc/specificCurrency aoceccspecificCurrency
+AOCSCurrencyInfo/chargingtype/specificCurrency aocschargingtypespecificCurrency
+PresentedAddressScreened/presentationAllowedAddress  presentationallowedaddressscreened
+PresentedAddressScreened/presentationRestrictedAddress  presentationrestrictedaddressscreened
+PresentedNumberScreened/presentationAllowedNumber  presentationallowednumberscreened
+PresentedNumberScreened/presentationRestrictedNumber  presentationrestrictednumberscreened
+RecordedUnits/cc    recoredunitscc
+#.END
 
-#.TABLE10_BODY OPERATION
+#.TABLE10_BODY OPERATION.#&operationCode.local
   { %(&operationCode)3s, "%(_name)s" },
 #.END
 
-#.TABLE11_BODY OPERATION
+#.TABLE11_BODY OPERATION.&operationCode.local
+  /* %(_name)-24s */ { %(&operationCode)3s, %(_argument_pdu)s, %(_result_pdu)s },
+#.END
+
+#.TABLE31_BODY OPERATION.&operationCode.global
   /* %(_name)-24s */ { %(&operationCode)3s, %(_argument_pdu)s, %(_result_pdu)s },
 #.END
 

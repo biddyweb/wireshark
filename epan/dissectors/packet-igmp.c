@@ -4,8 +4,6 @@
  * 2007 Thomas Morin
  * <See AUTHORS for emails>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -114,6 +112,7 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <epan/ipproto.h>
 #include <epan/in_cksum.h>
 #include "packet-igmp.h"
@@ -123,6 +122,9 @@
 #include "packet-msnip.h"
 #include "packet-igap.h"
 #include "packet-rgmp.h"
+
+void proto_register_igmp(void);
+void proto_reg_handoff_igmp(void);
 
 static int proto_igmp = -1;
 static int hf_type = -1;
@@ -409,8 +411,8 @@ dissect_v3_max_resp(tvbuff_t *tvb, proto_tree *parent_tree, int offset)
 		tsecs = bits;
 	}
 
-	item = proto_tree_add_uint_format(parent_tree, hf_max_resp, tvb,
-			offset, 1, tsecs, "Max Response Time: %.1f sec (0x%02x)",tsecs*0.1,bits);
+	item = proto_tree_add_uint_format_value(parent_tree, hf_max_resp, tvb,
+			offset, 1, tsecs, "%.1f sec (0x%02x)",tsecs*0.1,bits);
 
 	if (bits&0x80) {
 		tree = proto_item_add_subtree(item, ett_max_resp);
@@ -551,10 +553,9 @@ dissect_v3_group_record(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tr
 
 	/* source addresses */
 	while(num--){
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_append_fstr(pinfo->cinfo, COL_INFO, "%s%s",
+		col_append_fstr(pinfo->cinfo, COL_INFO, "%s%s",
 				tvb_ip_to_str(tvb, offset), (num?", ":"}"));
-		}
+
 		proto_tree_add_item(tree, hf_saddr, tvb, offset, 4, ENC_BIG_ENDIAN);
 		offset += 4;
 	}
@@ -590,7 +591,7 @@ dissect_igmp_v3_report(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int 
 	/* number of group records */
 	num = tvb_get_ntohs(tvb, offset);
 	if (!num)
-		col_append_fstr(pinfo->cinfo, COL_INFO, " - General query");
+		col_append_str(pinfo->cinfo, COL_INFO, " - General query");
 
 	proto_tree_add_uint(tree, hf_num_grp_recs, tvb, offset, 2, num);
 	offset += 2;
@@ -622,7 +623,7 @@ dissect_igmp_v3_query(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int t
 
 	maddr = tvb_get_ipv4(tvb, offset);
 	if (! maddr) {
-		col_append_fstr(pinfo->cinfo, COL_INFO, ", general");
+		col_append_str(pinfo->cinfo, COL_INFO, ", general");
 	} else {
 		col_append_fstr(pinfo->cinfo, COL_INFO, ", specific for group %s",
 			ip_to_str((guint8*)&maddr));
@@ -644,8 +645,7 @@ dissect_igmp_v3_query(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int t
 	offset += 2;
 
 	while(num--){
-		if (check_col(pinfo->cinfo, COL_INFO))
-			col_append_fstr(pinfo->cinfo, COL_INFO, "%s%s", tvb_ip_to_str(tvb, offset), (num?", ":"}"));
+		col_append_fstr(pinfo->cinfo, COL_INFO, "%s%s", tvb_ip_to_str(tvb, offset), (num?", ":"}"));
 		proto_tree_add_item(tree, hf_saddr, tvb, offset, 4, ENC_BIG_ENDIAN);
 		offset += 4;
 	}
@@ -664,8 +664,8 @@ dissect_igmp_v2(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int type, i
 
 	/* max resp time */
 	tsecs = tvb_get_guint8(tvb, offset);
-	proto_tree_add_uint_format(tree, hf_max_resp, tvb,
-		offset, 1, tsecs, "Max Response Time: %.1f sec (0x%02x)", tsecs*0.1,tsecs);
+	proto_tree_add_uint_format_value(tree, hf_max_resp, tvb,
+		offset, 1, tsecs, "%.1f sec (0x%02x)", tsecs*0.1,tsecs);
 	offset += 1;
 
 	/* checksum */
@@ -677,7 +677,7 @@ dissect_igmp_v2(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int type, i
 
 	maddr = tvb_get_ipv4(tvb, offset);
 	if (! maddr) {
-		col_append_fstr(pinfo->cinfo, COL_INFO, ", general");
+		col_append_str(pinfo->cinfo, COL_INFO, ", general");
 	} else {
 		if (type == IGMP_V2_LEAVE_GROUP) {
 			col_append_fstr(pinfo->cinfo, COL_INFO,
@@ -784,8 +784,8 @@ dissect_igmp_mtrace(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int typ
 	if (blocks)
 		col_append_str(pinfo->cinfo, COL_INFO, blocks);
 
-	proto_tree_add_uint_format(tree, hf_type, tvb, offset, 1, type,
-		"Type: %s (0x%02x)", typestr, type);
+	proto_tree_add_uint_format_value(tree, hf_type, tvb, offset, 1, type,
+		"%s (0x%02x)", typestr, type);
 	offset += 1;
 
 	/* maximum number of hops that the requester wants to trace */
@@ -911,7 +911,7 @@ dissect_igmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 
 	switch (type) {
 	case IGMP_V1_HOST_MEMBERSHIP_QUERY:	/* 0x11 v1/v2/v3 */
-		if ( (pinfo->iplen-pinfo->iphdrlen)>=12 ) {
+		if ( tvb_reported_length(tvb)>=12 ) {
 			/* version 3 */
 			offset = dissect_igmp_v3_query(tvb, pinfo, tree, type, offset);
 		} else {
@@ -969,7 +969,7 @@ dissect_igmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		break;
 
 	case IGMP_TYPE_0x25:
-		if ( (pinfo->iplen-pinfo->iphdrlen)>=8 ) {
+		if ( tvb_reported_length(tvb)>=8 ) {
 			/* if len of igmp packet>=8 we assume it is MSNIP */
 			offset = dissect_msnip(tvb, pinfo, parent_tree, offset);
 		} else {

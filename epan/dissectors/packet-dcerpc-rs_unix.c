@@ -5,8 +5,6 @@
  * This information is based off the released idl files from opengroup.
  * ftp://ftp.opengroup.org/pub/dce122/dce/src/security.tar.gz security/idl/rs_unix.idl
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,8 @@
 #include <epan/packet.h>
 #include "packet-dcerpc.h"
 
+void proto_register_rs_unix (void);
+void proto_reg_handoff_rs_unix (void);
 
 static int proto_rs_unix = -1;
 static int hf_rs_unix_opnum = -1;

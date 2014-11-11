@@ -3,8 +3,6 @@
  * Copyright 2010, Alexis La Goutte <alexis.lagoutte at gmail dot com>
  * BSON dissection added 2011, Thomas Buchanan <tom at thomasbuchanan dot com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,9 +34,13 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/prefs.h>
 #include <epan/expert.h>
 #include "packet-tcp.h"
+
+void proto_register_mongo(void);
+void proto_reg_handoff_mongo(void);
 
 /* This is not IANA assigned nor registered */
 #define TCP_PORT_MONGO 27017
@@ -124,6 +126,7 @@ static const value_string element_type_vals[] = {
 #define BSON_ELEMENT_BINARY_TYPE_MD5      4
 #define BSON_ELEMENT_BINARY_TYPE_USER   128 /* 0x80 */
 
+#if 0
 static const value_string binary_type_vals[] = {
   { BSON_ELEMENT_BINARY_TYPE_GENERIC,  "Generic" },
   { BSON_ELEMENT_BINARY_TYPE_FUNCTION, "Function" },
@@ -133,9 +136,7 @@ static const value_string binary_type_vals[] = {
   { BSON_ELEMENT_BINARY_TYPE_USER,     "User" },
   { 0, NULL }
 };
-
-void proto_reg_handoff_mongo(void);
-
+#endif
 
 static int proto_mongo = -1;
 static int hf_mongo_message_length = -1;
@@ -215,6 +216,10 @@ static gint ett_mongo_code = -1;
 static gint ett_mongo_fcn = -1;
 static gint ett_mongo_flags = -1;
 
+static expert_field ei_mongo_document_recursion_exceeded = EI_INIT;
+static expert_field ei_mongo_document_length_bad = EI_INIT;
+static expert_field ei_mongo_unknown = EI_INIT;
+
 static int
 dissect_fullcollectionname(tvbuff_t *tvb, guint offset, proto_tree *tree)
 {
@@ -222,8 +227,8 @@ dissect_fullcollectionname(tvbuff_t *tvb, guint offset, proto_tree *tree)
   proto_item *ti;
   proto_tree *fcn_tree;
 
-  ti = proto_tree_add_item(tree, hf_mongo_fullcollectionname, tvb, offset, -1, ENC_ASCII|ENC_NA);
   fcn_length = tvb_strsize(tvb, offset);
+  ti = proto_tree_add_item(tree, hf_mongo_fullcollectionname, tvb, offset, fcn_length, ENC_ASCII|ENC_NA);
 
   /* If this doesn't find anything, we'll just throw an exception below */
   dbn_length = tvb_find_guint8(tvb, offset, fcn_length, '.') - offset;
@@ -257,17 +262,17 @@ dissect_bson_document(tvbuff_t *tvb, packet_info *pinfo, guint offset, proto_tre
   proto_tree_add_item(doc_tree, hf_mongo_document_length, tvb, offset, 4, ENC_LITTLE_ENDIAN);
 
   if (nest_level > BSON_MAX_NESTING) {
-      expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, "BSON document recursion exceeds %u", BSON_MAX_NESTING);
+      expert_add_info_format(pinfo, ti, &ei_mongo_document_recursion_exceeded, "BSON document recursion exceeds %u", BSON_MAX_NESTING);
       THROW(ReportedBoundsError);
   }
 
   if (document_length < 5) {
-      expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, "BSON document length too short: %u", document_length);
+      expert_add_info_format(pinfo, ti, &ei_mongo_document_length_bad, "BSON document length too short: %u", document_length);
       THROW(ReportedBoundsError);
   }
 
   if (document_length > BSON_MAX_DOC_SIZE) {
-      expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_ERROR, "BSON document length too long: %u", document_length);
+      expert_add_info_format(pinfo, ti, &ei_mongo_document_length_bad, "BSON document length too long: %u", document_length);
       THROW(ReportedBoundsError);
   }
 
@@ -286,13 +291,13 @@ dissect_bson_document(tvbuff_t *tvb, packet_info *pinfo, guint offset, proto_tre
 
   do {
     /* Read document elements */
-    guint8 e_type = -1;  /* Element type */
+    guint8 e_type;  /* Element type */
     gint str_len = -1;   /* String length */
     gint e_len = -1;     /* Element length */
     gint doc_len = -1;   /* Document length */
 
     e_type = tvb_get_guint8(tvb, offset);
-    tvb_get_ephemeral_stringz(tvb, offset+1, &str_len);
+    tvb_get_stringz(wmem_packet_scope(), tvb, offset+1, &str_len);
 
     element = proto_tree_add_item(elements_tree, hf_mongo_element_name, tvb, offset+1, str_len-1, ENC_UTF_8|ENC_NA);
     element_sub_tree = proto_item_add_subtree(element, ett_mongo_element);
@@ -346,11 +351,11 @@ dissect_bson_document(tvbuff_t *tvb, packet_info *pinfo, guint offset, proto_tre
         break;
       case BSON_ELEMENT_TYPE_REGEX:
         /* regex pattern */
-        tvb_get_ephemeral_stringz(tvb, offset, &str_len);
+        tvb_get_stringz(wmem_packet_scope(), tvb, offset, &str_len);
         proto_tree_add_item(element_sub_tree, hf_mongo_element_value_regex_pattern, tvb, offset, str_len, ENC_UTF_8|ENC_NA);
         offset += str_len;
         /* regex options */
-        tvb_get_ephemeral_stringz(tvb, offset, &str_len);
+        tvb_get_stringz(wmem_packet_scope(), tvb, offset, &str_len);
         proto_tree_add_item(element_sub_tree, hf_mongo_element_value_regex_options, tvb, offset, str_len, ENC_UTF_8|ENC_NA);
         offset += str_len;
         break;
@@ -431,11 +436,8 @@ dissect_mongo_reply(tvbuff_t *tvb, packet_info *pinfo, guint offset, proto_tree 
 static int
 dissect_mongo_msg(tvbuff_t *tvb, guint offset, proto_tree *tree)
 {
-
-  proto_item *ti;
-
-  ti = proto_tree_add_item(tree, hf_mongo_message, tvb, offset, -1, ENC_ASCII|ENC_NA);
-  offset += proto_item_get_len(ti);
+  proto_tree_add_item(tree, hf_mongo_message, tvb, offset, -1, ENC_ASCII|ENC_NA);
+  offset += tvb_strsize(tvb, offset);
 
   return offset;
 }
@@ -572,17 +574,14 @@ dissect_mongo_kill_cursors(tvbuff_t *tvb, guint offset, proto_tree *tree)
   }
   return offset;
 }
-static void
-dissect_mongo_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_mongo_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
+    proto_item *ti;
+    proto_tree *mongo_tree;
+    guint offset = 0, opcode;
 
-  proto_item *ti;
-  proto_tree *mongo_tree;
-  guint offset = 0, opcode;
-
-  col_set_str(pinfo->cinfo, COL_PROTOCOL, "MONGO");
-
-  if (tree) {
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, "MONGO");
 
     ti = proto_tree_add_item(tree, proto_mongo, tvb, 0, -1, ENC_NA);
 
@@ -644,10 +643,10 @@ dissect_mongo_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     if(offset < tvb_reported_length(tvb))
     {
       ti = proto_tree_add_item(mongo_tree, hf_mongo_unknown, tvb, offset, -1, ENC_NA);
-      expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN, "Unknown Data (not interpreted)");
+      expert_add_info(pinfo, ti, &ei_mongo_unknown);
     }
-  }
 
+    return tvb_length(tvb);
 }
 static guint
 get_mongo_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
@@ -662,16 +661,18 @@ get_mongo_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
   return plen;
 }
 
-static void
-dissect_mongo(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_mongo(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
-  tcp_dissect_pdus(tvb, pinfo, tree, 1, 4, get_mongo_pdu_len, dissect_mongo_pdu);
+  tcp_dissect_pdus(tvb, pinfo, tree, 1, 4, get_mongo_pdu_len, dissect_mongo_pdu, data);
+  return tvb_length(tvb);
 }
 
 void
 proto_register_mongo(void)
 {
   module_t *mongo_module;
+  expert_module_t* expert_mongo;
 
   static hf_register_info hf[] = {
     { &hf_mongo_message_length,
@@ -1021,10 +1022,18 @@ proto_register_mongo(void)
     &ett_mongo_flags
   };
 
+  static ei_register_info ei[] = {
+     { &ei_mongo_document_recursion_exceeded, { "mongo.document.recursion_exceeded", PI_MALFORMED, PI_ERROR, "BSON document recursion exceeds", EXPFILL }},
+     { &ei_mongo_document_length_bad, { "mongo.document.length.bad",  PI_MALFORMED, PI_ERROR, "BSON document length bad", EXPFILL }},
+     { &ei_mongo_unknown, { "mongo.unknown.expert", PI_UNDECODED, PI_WARN, "Unknown Data (not interpreted)", EXPFILL }},
+  };
+
   proto_mongo = proto_register_protocol("Mongo Wire Protocol", "MONGO", "mongo");
 
   proto_register_field_array(proto_mongo, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_mongo = expert_register_protocol(proto_mongo);
+  expert_register_field_array(expert_mongo, ei, array_length(ei));
 
   mongo_module = prefs_register_protocol(proto_mongo,
       proto_reg_handoff_mongo);
@@ -1044,7 +1053,7 @@ proto_reg_handoff_mongo(void)
 
   if (!initialized) {
 
-    mongo_handle = create_dissector_handle(dissect_mongo, proto_mongo);
+    mongo_handle = new_create_dissector_handle(dissect_mongo, proto_mongo);
     initialized = TRUE;
   } else {
     dissector_delete_uint("tcp.port", currentPort, mongo_handle);

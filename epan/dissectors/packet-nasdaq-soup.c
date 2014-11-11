@@ -2,8 +2,6 @@
  * Routines for NASDAQ SOUP 2.0 Protocol dissection
  * Copyright 2007,2008 Didier Gautheron <dgautheron@magic.fr>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,9 @@
 #include <epan/prefs.h>
 
 #include "packet-tcp.h"
+
+void proto_register_nasdaq_soup(void);
+void proto_reg_handoff_nasdaq_soup(void);
 
 static const value_string message_types_val[] = {
       { 'S', "Sequenced Data" },
@@ -157,10 +158,8 @@ dissect_nasdaq_soup(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     int  linelen;
     gint next_offset;
     int  offset = 0;
-    gint col_info;
     gint counter = 0;
 
-    col_info = check_col(pinfo->cinfo, COL_INFO);
     while (tvb_offset_exists(tvb, offset)) {
       /* there's only a \n no \r */
       linelen = tvb_find_line_end(tvb, offset, -1, &next_offset, nasdaq_soup_desegment && pinfo->can_desegment);
@@ -180,41 +179,30 @@ dissect_nasdaq_soup(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       nasdaq_soup_type = tvb_get_guint8(tvb, offset);
       if (counter == 0) {
         col_set_str(pinfo->cinfo, COL_PROTOCOL, "Nasdaq-SOUP");
-        if (col_info)
-            col_clear(pinfo->cinfo, COL_INFO);
+        col_clear(pinfo->cinfo, COL_INFO);
       }
-      if (col_info ) {
-        if (counter) {
-          col_append_str(pinfo->cinfo, COL_INFO, "; ");
-          col_set_fence(pinfo->cinfo, COL_INFO);
-        }
-        col_append_str(pinfo->cinfo, COL_INFO, val_to_str(nasdaq_soup_type, message_types_val, "Unknown packet type (0x%02x)"));
+      if (counter) {
+        col_append_str(pinfo->cinfo, COL_INFO, "; ");
+        col_set_fence(pinfo->cinfo, COL_INFO);
       }
+      col_append_str(pinfo->cinfo, COL_INFO, val_to_str(nasdaq_soup_type, message_types_val, "Unknown packet type (0x%02x)"));
+
       counter++;
-      if (tree) {
-          ti = proto_tree_add_item(tree, proto_nasdaq_soup, tvb, offset, linelen +1, ENC_NA);
-          nasdaq_soup_tree = proto_item_add_subtree(ti, ett_nasdaq_soup);
-      }
+      ti = proto_tree_add_item(tree, proto_nasdaq_soup, tvb, offset, linelen +1, ENC_NA);
+      nasdaq_soup_tree = proto_item_add_subtree(ti, ett_nasdaq_soup);
+
       dissect_nasdaq_soup_packet(tvb, pinfo, tree, nasdaq_soup_tree, offset, linelen);
       offset = next_offset;
     }
 }
 
 /* Register the protocol with Wireshark */
-static void range_delete_nasdaq_soup_tcp_callback(guint32 port) {
-    dissector_delete_uint("tcp.port", port, nasdaq_soup_handle);
-}
-
-static void range_add_nasdaq_soup_tcp_callback(guint32 port) {
-    dissector_add_uint("tcp.port", port, nasdaq_soup_handle);
-}
-
 static void nasdaq_soup_prefs(void)
 {
-    range_foreach(nasdaq_soup_tcp_range, range_delete_nasdaq_soup_tcp_callback);
+    dissector_delete_uint_range("tcp.port", nasdaq_soup_tcp_range, nasdaq_soup_handle);
     g_free(nasdaq_soup_tcp_range);
     nasdaq_soup_tcp_range = range_copy(global_nasdaq_soup_tcp_range);
-    range_foreach(nasdaq_soup_tcp_range, range_add_nasdaq_soup_tcp_callback);
+    dissector_add_uint_range("tcp.port", nasdaq_soup_tcp_range, nasdaq_soup_handle);
 }
 
 void

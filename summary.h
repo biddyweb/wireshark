@@ -1,8 +1,6 @@
 /* summary.h
  * Definitions for capture file summary data
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,10 @@
 #ifdef HAVE_LIBPCAP
 #include "capture.h"
 #endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 typedef struct iface_options_tag {
     char    *name;
@@ -90,5 +92,9 @@ summary_fill_in(capture_file *cf, summary_tally *st);
 extern void
 summary_fill_in_capture(capture_file *cf, capture_options *capture_opts, summary_tally *st);
 #endif
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* summary.h */

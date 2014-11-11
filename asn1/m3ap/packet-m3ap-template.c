@@ -1,8 +1,6 @@
 /* packet-m3ap.c
  * Routines for M3 Application Protocol packet dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,7 +27,6 @@
 #include <glib.h>
 #include <epan/packet.h>
 
-#include <epan/emem.h>
 #include <epan/strutil.h>
 #include <epan/asn1.h>
 #include <epan/sctpppids.h>
@@ -43,6 +40,9 @@
 #define PNAME  "M3 Application Protocol"
 #define PSNAME "M3AP"
 #define PFNAME "m3ap"
+
+void proto_register_m3ap(void);
+void proto_reg_handoff_m3ap(void);
 
 /* M3AP uses port 36444 as recommended by IANA. */
 #define M3AP_PORT 36444
@@ -72,7 +72,7 @@ enum{
 /* Global variables */
 static guint32 ProcedureCode;
 static guint32 ProtocolIE_ID;
-static guint32 ProtocolExtensionID;
+/*static guint32 ProtocolExtensionID; */
 static int global_m3ap_port = M3AP_PORT;
 static guint32 message_type;
 
@@ -124,8 +124,7 @@ dissect_m3ap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   proto_tree      *m3ap_tree = NULL;
 
   /* make entry in the Protocol column on summary display */
-  if (check_col(pinfo->cinfo, COL_PROTOCOL))
-    col_set_str(pinfo->cinfo, COL_PROTOCOL, PNAME);
+  col_set_str(pinfo->cinfo, COL_PROTOCOL, PNAME);
 
   /* create the m3ap protocol tree */
   if (tree) {
@@ -172,7 +171,7 @@ void proto_register_m3ap(void) {
   m3ap_extension_dissector_table = register_dissector_table("m3ap.extension", "M3AP-PROTOCOL-EXTENSION", FT_UINT32, BASE_DEC);
   m3ap_proc_imsg_dissector_table = register_dissector_table("m3ap.proc.imsg", "M3AP-ELEMENTARY-PROCEDURE InitiatingMessage", FT_UINT32, BASE_DEC);
   m3ap_proc_sout_dissector_table = register_dissector_table("m3ap.proc.sout", "M3AP-ELEMENTARY-PROCEDURE SuccessfulOutcome", FT_UINT32, BASE_DEC);
-  m3ap_proc_uout_dissector_table = register_dissector_table("m3ap.proc.uout", "M3AP-ELEMENTARY-PROCEDURE UnsuccessfulOutcome", FT_UINT32, BASE_DEC); 
+  m3ap_proc_uout_dissector_table = register_dissector_table("m3ap.proc.uout", "M3AP-ELEMENTARY-PROCEDURE UnsuccessfulOutcome", FT_UINT32, BASE_DEC);
 }
 
 

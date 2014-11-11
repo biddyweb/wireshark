@@ -5,8 +5,6 @@
 --
 -- 9.3.4	Information Element Definitions
 --
--- $Id$
---
 
 -- **************************************************************
 --
@@ -448,7 +446,7 @@ CauseTransmissionNetwork ::= INTEGER {
 
 Cell-Access-Mode::= ENUMERATED {
 	hybrid,
-	... 
+	...
 }
 
 CellBased::= SEQUENCE {
@@ -598,8 +596,8 @@ CSG-Id		::= BIT STRING (SIZE (27))
 CSG-Id-List ::= SEQUENCE (SIZE (1..maxNrOfCSGs)) OF
 	CSG-Id
 
-CSG-Membership-Status ::= ENUMERATED { 
-	member, 
+CSG-Membership-Status ::= ENUMERATED {
+	member,
 	non-member,
 	...
 }
@@ -1076,7 +1074,7 @@ LAI-ExtIEs RANAP-PROTOCOL-EXTENSION ::= {
 LastKnownServiceArea	::= SEQUENCE {
 	sAI			SAI,
 	ageOfSAI	INTEGER (0..32767),
-	iE-Extensions	ProtocolExtensionContainer { {LastKnownServiceArea-ExtIEs} } OPTIONAL,	
+	iE-Extensions	ProtocolExtensionContainer { {LastKnownServiceArea-ExtIEs} } OPTIONAL,
 	...
 }
 
@@ -1115,8 +1113,8 @@ LoadValue	::= INTEGER (0..100)
 LocationRelatedDataRequestType	::= SEQUENCE {
 	requestedLocationRelatedDataType			RequestedLocationRelatedDataType,
 	requestedGPSAssistanceData					RequestedGPSAssistanceData	OPTIONAL,
-	-- This IE shall be present if the Requested Location Related Data Type IE is set to ‘Dedicated Assistance Data for Assisted GPS’ or
-	-- `Dedicated Assistance Data for Assisted GPS and GANSS’
+	-- This IE shall be present if the Requested Location Related Data Type IE is set to 'Dedicated Assistance Data for Assisted GPS' or
+	-- `Dedicated Assistance Data for Assisted GPS and GANSS'
 	...
 }
 
@@ -1180,7 +1178,7 @@ M2Report	::= CHOICE {
 	...
 }
 
-Management-Based-MDT-Allowed ::= ENUMERATED { 
+Management-Based-MDT-Allowed ::= ENUMERATED {
 	allowed, ... }
 
 MaxBitrate				::= INTEGER (1..16000000)
@@ -1280,7 +1278,7 @@ MDT-Report-Parameters	::=	SEQUENCE {
 
 MeasurementQuantity		::= ENUMERATED {
 		cpichEcNo,
-		cpichRSCP,	
+		cpichRSCP,
 		pathloss,
 		...
 }
@@ -2183,7 +2181,7 @@ TargetCellId				::= INTEGER (0..268435455)
 TargetID ::= CHOICE {
 	targetRNC-ID			TargetRNC-ID,
 	cGI				CGI,
-	
+
 	...,
 	targeteNB-ID	TargetENB-ID
 }

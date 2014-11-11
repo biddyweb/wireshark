@@ -4,8 +4,6 @@
  *
  * Copyright 2007, Fulko Hew, SITA INC Canada, Inc.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,7 +33,10 @@
 
 #include <epan/packet.h>
 #include <wiretap/wtap.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
+
+void proto_register_sita(void);
+void proto_reg_handoff_sita(void);
 
 static dissector_table_t    sita_dissector_table;
 static dissector_handle_t   data_handle;
@@ -75,27 +76,27 @@ static int                  hf_dcd              = -1;
 #define IOP                 "Local"
 #define REMOTE              "Remote"
 
-static gchar *
+static const gchar *
 format_flags_string(guchar value, const gchar *array[])
 {
     int         i;
     guint       bpos;
-    emem_strbuf_t   *buf;
+    wmem_strbuf_t   *buf;
     const char  *sep = "";
 
-    buf = ep_strbuf_sized_new(MAX_FLAGS_LEN, MAX_FLAGS_LEN);
+    buf = wmem_strbuf_sized_new(wmem_packet_scope(), MAX_FLAGS_LEN, MAX_FLAGS_LEN);
     for (i = 0; i < 8; i++) {
         bpos = 1 << i;
         if (value & bpos) {
             if (array[i][0]) {
                 /* there is a string to emit... */
-                ep_strbuf_append_printf(buf, "%s%s", sep,
+                wmem_strbuf_append_printf(buf, "%s%s", sep,
                     array[i]);
                 sep = ", ";
             }
         }
     }
-    return buf->str;
+    return wmem_strbuf_get_str(buf);
 }
 
 static void
@@ -103,18 +104,20 @@ dissect_sita(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
     proto_item  *ti;
     guchar      flags, signals, errors1, errors2, proto;
-    gchar       *errors1_string, *errors2_string, *signals_string, *flags_string;
+    const gchar *errors1_string, *errors2_string, *signals_string, *flags_string;
     proto_tree  *sita_tree          = NULL;
     proto_tree  *sita_flags_tree    = NULL;
     proto_tree  *sita_errors1_tree  = NULL;
     proto_tree  *sita_errors2_tree  = NULL;
     proto_tree  *sita_signals_tree  = NULL;
-    const gchar *rx_errors1_str[]   = {"Framing",       "Parity",   "Collision",    "Long-frame",   "Short-frame",  "",         "",     ""              };
-    const gchar *rx_errors2_str[]   = {"Non-Aligned",   "Abort",    "CD-lost",      "DPLL",         "Overrun",      "Length",   "CRC",  "Break"         };
-    /*const gchar   *tx_errors1_str[]   = {"",              "",         "",             "",             "",             "",         "",     ""              }; */
-    const gchar *tx_errors2_str[]   = {"Underrun",      "CTS-lost", "UART",         "ReTx-limit",   "",             "",         "",     ""              };
-    const gchar *signals_str[]      = {"DSR",           "DTR",      "CTS",          "RTS",          "DCD",          "",         "",     ""              };
-    const gchar *flags_str[]        = {"",              "",         "",             "",             "",             "",         "",     "No-buffers"    };
+    static const gchar *rx_errors1_str[]   = {"Framing",       "Parity",   "Collision",    "Long-frame",   "Short-frame",  "",         "",     ""              };
+    static const gchar *rx_errors2_str[]   = {"Non-Aligned",   "Abort",    "CD-lost",      "DPLL",         "Overrun",      "Length",   "CRC",  "Break"         };
+#if 0
+    static const gchar   *tx_errors1_str[]   = {"",              "",         "",             "",             "",             "",         "",     ""              };
+#endif
+    static const gchar *tx_errors2_str[]   = {"Underrun",      "CTS-lost", "UART",         "ReTx-limit",   "",             "",         "",     ""              };
+    static const gchar *signals_str[]      = {"DSR",           "DTR",      "CTS",          "RTS",          "DCD",          "",         "",     ""              };
+    static const gchar *flags_str[]        = {"",              "",         "",             "",             "",             "",         "",     "No-buffers"    };
 
     col_clear(pinfo->cinfo, COL_PROTOCOL);      /* erase the protocol */
     col_clear(pinfo->cinfo, COL_INFO);          /* and info columns so that the next decoder can fill them in */
@@ -125,16 +128,13 @@ dissect_sita(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     errors2 = pinfo->pseudo_header->sita.sita_errors2;
     proto   = pinfo->pseudo_header->sita.sita_proto;
 
-    if (check_col(pinfo->cinfo, COL_DEF_SRC)) {
-        if ((flags & SITA_FRAME_DIR) == SITA_FRAME_DIR_TXED) {
-            col_set_str(pinfo->cinfo, COL_DEF_SRC, IOP);  /* set the source (direction) column accordingly */
-        } else {
-            col_set_str(pinfo->cinfo, COL_DEF_SRC, REMOTE);
-        }
+    if ((flags & SITA_FRAME_DIR) == SITA_FRAME_DIR_TXED) {
+        col_set_str(pinfo->cinfo, COL_DEF_SRC, IOP);  /* set the source (direction) column accordingly */
+    } else {
+        col_set_str(pinfo->cinfo, COL_DEF_SRC, REMOTE);
     }
 
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_set_str(pinfo->cinfo, COL_INFO, "");
+    col_set_str(pinfo->cinfo, COL_INFO, "");
 
     if (tree) {
         ti = proto_tree_add_protocol_format(tree, proto_sita, tvb, 0, 0, "Link Layer");
@@ -195,10 +195,10 @@ dissect_sita(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     /* try to find and run an applicable dissector */
     if (!dissector_try_uint(sita_dissector_table, pinfo->pseudo_header->sita.sita_proto, tvb, pinfo, tree)) {
-        if (check_col(pinfo->cinfo, COL_PROTOCOL))              /* if one can't be found... tell them we don't */
-            col_set_str(pinfo->cinfo, COL_PROTOCOL, "UNKNOWN"); /* know how to decode this protocol */
-        if (check_col(pinfo->cinfo, COL_INFO))                  /* and give them the details then */
-            col_add_fstr(pinfo->cinfo, COL_INFO, "IOP protocol number: %u", pinfo->pseudo_header->sita.sita_proto);
+        /* if one can't be found... tell them we don't know how to decode this protocol
+           and give them the details then */
+        col_set_str(pinfo->cinfo, COL_PROTOCOL, "UNKNOWN");
+        col_add_fstr(pinfo->cinfo, COL_INFO, "IOP protocol number: %u", pinfo->pseudo_header->sita.sita_proto);
         call_dissector(data_handle, tvb, pinfo, tree);          /* call the generic (hex display) decoder instead */
     }
 }

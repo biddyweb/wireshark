@@ -3,8 +3,6 @@
  *
  * Copyright 2011, Mariusz Okroj <okrojmariusz[]gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,7 +29,7 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 
 #include <epan/dissectors/packet-xml.h>
 
@@ -76,12 +74,12 @@ xmpp_iq_bind(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t
     proto_tree *bind_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
-        {"resource", hf_xmpp_iq_bind_resource, FALSE, TRUE, NULL, NULL},
-        {"jid", hf_xmpp_iq_bind_jid, FALSE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
+        {"resource", &hf_xmpp_iq_bind_resource, FALSE, TRUE, NULL, NULL},
+        {"jid", &hf_xmpp_iq_bind_jid, FALSE, TRUE, NULL, NULL}
     };
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "BIND ");
+    col_append_str(pinfo->cinfo, COL_INFO, "BIND ");
 
     bind_item = proto_tree_add_item(tree, hf_xmpp_iq_bind, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     bind_tree = proto_item_add_subtree(bind_item, ett_xmpp_iq_bind);
@@ -101,13 +99,13 @@ xmpp_session(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t
     proto_tree *session_tree;
 
     xmpp_attr_info attrs_info [] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL}
     };
 
     session_item = proto_tree_add_item(tree, hf_xmpp_iq_session, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     session_tree = proto_item_add_subtree(session_item, ett_xmpp_iq_session);
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "SESSION ");
+    col_append_str(pinfo->cinfo, COL_INFO, "SESSION ");
 
     xmpp_display_attrs(session_tree, element, pinfo, tvb, attrs_info, array_length(attrs_info));
     xmpp_display_elems(session_tree, element, pinfo, tvb, NULL, 0);
@@ -120,13 +118,13 @@ xmpp_vcard(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t *
     proto_tree *vcard_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
-        {"value", -1, FALSE, FALSE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
+        {"value", NULL, FALSE, FALSE, NULL, NULL}
     };
 
     xmpp_element_t *cdata;
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "VCARD ");
+    col_append_str(pinfo->cinfo, COL_INFO, "VCARD ");
 
     vcard_item = proto_tree_add_item(tree, hf_xmpp_vcard, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     vcard_tree = proto_item_add_subtree(vcard_item, ett_xmpp_vcard);
@@ -151,8 +149,8 @@ xmpp_vcard_x_update(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, xmpp_el
     proto_tree *x_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
-        {"photo", -1, FALSE, FALSE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
+        {"photo", NULL, FALSE, FALSE, NULL, NULL}
     };
 
     xmpp_element_t *photo;
@@ -178,13 +176,13 @@ xmpp_disco_items_query(proto_tree *tree, tvbuff_t *tvb, packet_info* pinfo, xmpp
     proto_tree *query_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
-        {"node", hf_xmpp_query_node, FALSE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
+        {"node", &hf_xmpp_query_node, FALSE, TRUE, NULL, NULL}
     };
 
     xmpp_element_t *item;
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "QUERY(disco#items) ");
+    col_append_str(pinfo->cinfo, COL_INFO, "QUERY(disco#items) ");
 
     query_item = proto_tree_add_item(tree, hf_xmpp_query, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     query_tree = proto_item_add_subtree(query_item, ett_xmpp_query);
@@ -206,9 +204,9 @@ xmpp_disco_items_item(proto_tree *tree, tvbuff_t *tvb, packet_info* pinfo, xmpp_
     proto_tree *item_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"jid", hf_xmpp_query_item_jid, TRUE, TRUE, NULL, NULL},
-        {"name", hf_xmpp_query_item_name, FALSE, TRUE, NULL, NULL},
-        {"node", hf_xmpp_query_item_node, FALSE, TRUE, NULL, NULL}
+        {"jid", &hf_xmpp_query_item_jid, TRUE, TRUE, NULL, NULL},
+        {"name", &hf_xmpp_query_item_name, FALSE, TRUE, NULL, NULL},
+        {"node", &hf_xmpp_query_item_node, FALSE, TRUE, NULL, NULL}
     };
 
     item_item = proto_tree_add_item(tree, hf_xmpp_query_item, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
@@ -226,15 +224,15 @@ xmpp_roster_query(proto_tree *tree, tvbuff_t *tvb, packet_info* pinfo, xmpp_elem
     proto_tree *query_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
-        {"ver", -1, FALSE, TRUE, NULL, NULL},
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
+        {"ver", NULL, FALSE, TRUE, NULL, NULL},
     };
 
     xmpp_elem_info elems_info[] = {
         {NAME, "item", xmpp_roster_item, MANY},
     };
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "QUERY(jabber:iq:roster) ");
+    col_append_str(pinfo->cinfo, COL_INFO, "QUERY(jabber:iq:roster) ");
 
     query_item = proto_tree_add_item(tree, hf_xmpp_query, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     query_tree = proto_item_add_subtree(query_item, ett_xmpp_query);
@@ -249,18 +247,18 @@ xmpp_roster_item(proto_tree *tree, tvbuff_t *tvb, packet_info* pinfo, xmpp_eleme
     proto_item *item_item;
     proto_tree *item_tree;
 
-    const gchar *ask_enums[] = {"subscribe"};
-    const gchar *subscription_enums[] = {"both","from","none","remove","to"};
+    static const gchar *ask_enums[] = {"subscribe"};
+    static const gchar *subscription_enums[] = {"both", "from", "none", "remove", "to"};
 
     xmpp_array_t *ask_enums_array = xmpp_ep_init_array_t(ask_enums,array_length(ask_enums));
     xmpp_array_t *subscription_array = xmpp_ep_init_array_t(subscription_enums,array_length(subscription_enums));
 
     xmpp_attr_info attrs_info[] = {
-        {"jid", hf_xmpp_query_item_jid, TRUE, TRUE, NULL, NULL},
-        {"name", hf_xmpp_query_item_name, FALSE, TRUE, NULL, NULL},
-        {"ask", hf_xmpp_query_item_ask, FALSE, TRUE, xmpp_val_enum_list, ask_enums_array},
-        {"approved", hf_xmpp_query_item_approved, FALSE, TRUE, NULL, NULL},
-        {"subscription", hf_xmpp_query_item_subscription, FALSE, TRUE, xmpp_val_enum_list, subscription_array},
+        {"jid", &hf_xmpp_query_item_jid, TRUE, TRUE, NULL, NULL},
+        {"name", &hf_xmpp_query_item_name, FALSE, TRUE, NULL, NULL},
+        {"ask", &hf_xmpp_query_item_ask, FALSE, TRUE, xmpp_val_enum_list, ask_enums_array},
+        {"approved", &hf_xmpp_query_item_approved, FALSE, TRUE, NULL, NULL},
+        {"subscription", &hf_xmpp_query_item_subscription, FALSE, TRUE, xmpp_val_enum_list, subscription_array},
     };
 
     xmpp_element_t *group;
@@ -285,13 +283,13 @@ xmpp_disco_info_query(proto_tree *tree,  tvbuff_t *tvb, packet_info *pinfo, xmpp
     proto_tree *query_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
-        {"node", hf_xmpp_query_node, FALSE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
+        {"node", &hf_xmpp_query_node, FALSE, TRUE, NULL, NULL}
     };
 
     xmpp_element_t *identity, *feature, *x_data;
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "QUERY(disco#info) ");
+    col_append_str(pinfo->cinfo, COL_INFO, "QUERY(disco#info) ");
 
     query_item = proto_tree_add_item(tree, hf_xmpp_query, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     query_tree = proto_item_add_subtree(query_item, ett_xmpp_query);
@@ -324,9 +322,9 @@ xmpp_disco_info_identity(proto_tree *tree, tvbuff_t *tvb, packet_info* pinfo, xm
     proto_tree *identity_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"category", hf_xmpp_query_identity_category, TRUE, TRUE, NULL, NULL},
-        {"name", hf_xmpp_query_identity_name, FALSE, TRUE, NULL, NULL},
-        {"type", hf_xmpp_query_identity_type, TRUE, TRUE, NULL, NULL}
+        {"category", &hf_xmpp_query_identity_category, TRUE, TRUE, NULL, NULL},
+        {"name", &hf_xmpp_query_identity_name, FALSE, TRUE, NULL, NULL},
+        {"type", &hf_xmpp_query_identity_type, TRUE, TRUE, NULL, NULL}
     };
 
     identity_item = proto_tree_add_item(tree, hf_xmpp_query_identity, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
@@ -356,19 +354,19 @@ xmpp_bytestreams_query(proto_tree *tree,  tvbuff_t *tvb, packet_info *pinfo, xmp
     proto_item *query_item;
     proto_tree *query_tree;
 
-    const gchar *mode_enums[] = {"tcp", "udp"};
+    static const gchar *mode_enums[] = {"tcp", "udp"};
     xmpp_array_t *mode_array = xmpp_ep_init_array_t(mode_enums, array_length(mode_enums));
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
-        {"sid", -1, FALSE, TRUE, NULL, NULL},
-        {"mode", -1, FALSE, TRUE, xmpp_val_enum_list, mode_array},
-        {"dstaddr", -1, FALSE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
+        {"sid", NULL, FALSE, TRUE, NULL, NULL},
+        {"mode", NULL, FALSE, TRUE, xmpp_val_enum_list, mode_array},
+        {"dstaddr", NULL, FALSE, TRUE, NULL, NULL}
     };
 
     xmpp_element_t *streamhost, *streamhost_used, *activate, *udpsuccess;
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "QUERY(bytestreams) ");
+    col_append_str(pinfo->cinfo, COL_INFO, "QUERY(bytestreams) ");
 
     query_item = proto_tree_add_item(tree, hf_xmpp_query, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     query_tree = proto_item_add_subtree(query_item, ett_xmpp_query);
@@ -406,9 +404,9 @@ xmpp_bytestreams_streamhost(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo,
     proto_tree *sh_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"jid", -1, TRUE, TRUE, NULL, NULL},
-        {"host", -1, TRUE, TRUE, NULL, NULL},
-        {"port", -1, FALSE, TRUE, NULL, NULL}
+        {"jid", NULL, TRUE, TRUE, NULL, NULL},
+        {"host", NULL, TRUE, TRUE, NULL, NULL},
+        {"port", NULL, FALSE, TRUE, NULL, NULL}
     };
 
     sh_item = proto_tree_add_item(tree, hf_xmpp_query_streamhost, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
@@ -426,7 +424,7 @@ xmpp_bytestreams_streamhost_used(proto_tree *tree, tvbuff_t *tvb, packet_info *p
     proto_tree *shu_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"jid", -1, TRUE, TRUE, NULL, NULL}
+        {"jid", NULL, TRUE, TRUE, NULL, NULL}
     };
 
     shu_item = proto_tree_add_item(tree, hf_xmpp_query_streamhost_used, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
@@ -451,7 +449,7 @@ xmpp_bytestreams_udpsuccess(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo,
     proto_tree *udps_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"dstaddr", -1, TRUE, TRUE, NULL, NULL}
+        {"dstaddr", NULL, TRUE, TRUE, NULL, NULL}
     };
 
     udps_item = proto_tree_add_item(tree, hf_xmpp_query_udpsuccess, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
@@ -472,15 +470,15 @@ xmpp_si(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, xmpp_element_t* ele
     proto_tree *si_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
-        {"id", -1, FALSE, FALSE, NULL, NULL},
-        {"mime-type", -1, FALSE, TRUE, NULL, NULL},
-        {"profile", -1, FALSE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
+        {"id", NULL, FALSE, FALSE, NULL, NULL},
+        {"mime-type", NULL, FALSE, TRUE, NULL, NULL},
+        {"profile", NULL, FALSE, TRUE, NULL, NULL}
     };
 
     xmpp_element_t *file, *feature_neg;
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "SI ");
+    col_append_str(pinfo->cinfo, COL_INFO, "SI ");
 
     si_item = proto_tree_add_item(tree, hf_xmpp_si, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     si_tree = proto_item_add_subtree(si_item, ett_xmpp_si);
@@ -508,13 +506,13 @@ xmpp_si_file(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, xmpp_element_t
     proto_item *file_item;
     proto_tree *file_tree;
 
-    xmpp_attr_info attrs_info[]  ={
-        {"xmlns", hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
-        {"name", -1, TRUE, TRUE, NULL, NULL},
-        {"size", -1, TRUE, TRUE, NULL, NULL},
-        {"date", -1, FALSE, FALSE, NULL, NULL},
-        {"hash", -1, FALSE, FALSE, NULL, NULL},
-        {"desc", -1, FALSE, FALSE, NULL, NULL}
+    xmpp_attr_info attrs_info[] = {
+        {"xmlns", &hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
+        {"name", NULL, TRUE, TRUE, NULL, NULL},
+        {"size", NULL, TRUE, TRUE, NULL, NULL},
+        {"date", NULL, FALSE, FALSE, NULL, NULL},
+        {"hash", NULL, FALSE, FALSE, NULL, NULL},
+        {"desc", NULL, FALSE, FALSE, NULL, NULL}
     };
 
     xmpp_element_t *desc, *range;
@@ -545,8 +543,8 @@ xmpp_si_file_range(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, xmpp_ele
     proto_tree *range_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"offset", -1, FALSE, TRUE, NULL, NULL},
-        {"length", -1, FALSE, TRUE, NULL, NULL}
+        {"offset", NULL, FALSE, TRUE, NULL, NULL},
+        {"length", NULL, FALSE, TRUE, NULL, NULL}
     };
 
     range_item = proto_tree_add_text(tree, tvb, element->offset, element->length, "RANGE: ");
@@ -566,7 +564,7 @@ xmpp_feature_neg(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, xmpp_eleme
     proto_tree *feature_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL}
     };
 
     xmpp_element_t *x_data;
@@ -592,13 +590,13 @@ xmpp_x_data(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, xmpp_element_t*
     proto_item *x_item;
     proto_tree *x_tree;
 
-    const gchar *type_enums[] = {"cancel", "form", "result", "submit"};
+    static const gchar *type_enums[] = {"cancel", "form", "result", "submit"};
     xmpp_array_t *type_array = xmpp_ep_init_array_t(type_enums, array_length(type_enums));
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
-        {"type", -1, TRUE, TRUE, xmpp_val_enum_list, type_array},
-        {"TITLE", -1, FALSE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
+        {"type", NULL, TRUE, TRUE, xmpp_val_enum_list, type_array},
+        {"TITLE", NULL, FALSE, TRUE, NULL, NULL}
     };
 
     xmpp_elem_info elems_info[] = {
@@ -622,17 +620,16 @@ xmpp_x_data_field(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, xmpp_elem
     proto_item *field_item;
     proto_tree *field_tree;
 
-    const gchar *type_enums[] = {"boolean", "fixed", "hidden", "jid-multi",
+    static const gchar *type_enums[] = {"boolean", "fixed", "hidden", "jid-multi",
         "jid-single", "list-multi", "list-single", "text-multi", "text-single",
         "text-private"
     };
     xmpp_array_t *type_array = xmpp_ep_init_array_t(type_enums, array_length(type_enums));
 
-    xmpp_attr_info attrs_info[] =
-    {
-        {"label", -1, FALSE, TRUE, NULL, NULL},
-        {"type", -1, FALSE, TRUE, xmpp_val_enum_list, type_array},
-        {"var", -1, FALSE, TRUE, NULL, NULL}
+    xmpp_attr_info attrs_info[] = {
+        {"label", NULL, FALSE, TRUE, NULL, NULL},
+        {"type", NULL, FALSE, TRUE, xmpp_val_enum_list, type_array},
+        {"var", NULL, FALSE, TRUE, NULL, NULL}
     };
 
     xmpp_element_t /**desc, *required,*/ *value, *option;
@@ -663,8 +660,8 @@ xmpp_x_data_field_option(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, xm
     proto_tree *option_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"label", -1, FALSE, TRUE, NULL, NULL},
-        {"value", -1, FALSE, TRUE, NULL, NULL}
+        {"label", NULL, FALSE, TRUE, NULL, NULL},
+        {"value", NULL, FALSE, TRUE, NULL, NULL}
     };
 
     xmpp_element_t *value;
@@ -690,8 +687,8 @@ xmpp_x_data_field_value(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, xmp
     proto_tree *value_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"label", -1, FALSE, TRUE, NULL, NULL},
-        {"value", -1, TRUE, TRUE, NULL, NULL}
+        {"label", NULL, FALSE, TRUE, NULL, NULL},
+        {"value", NULL, TRUE, TRUE, NULL, NULL}
     };
     xmpp_attr_t *fake_value;
 
@@ -722,17 +719,17 @@ xmpp_ibb_open(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_
     proto_item *open_item;
     proto_tree *open_tree;
 
-    const gchar *stanza_enums[] = {"iq","message"};
+    static const gchar *stanza_enums[] = {"iq", "message"};
     xmpp_array_t *stanza_array = xmpp_ep_init_array_t(stanza_enums, array_length(stanza_enums));
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
-        {"sid", -1, TRUE, TRUE, NULL, NULL},
-        {"block-size", -1, TRUE, TRUE, NULL, NULL},
-        {"stanza", -1, FALSE, TRUE, xmpp_val_enum_list, stanza_array}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
+        {"sid", NULL, TRUE, TRUE, NULL, NULL},
+        {"block-size", NULL, TRUE, TRUE, NULL, NULL},
+        {"stanza", NULL, FALSE, TRUE, xmpp_val_enum_list, stanza_array}
     };
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "IBB-OPEN ");
+    col_append_str(pinfo->cinfo, COL_INFO, "IBB-OPEN ");
 
     open_item = proto_tree_add_item(tree, hf_xmpp_ibb_open, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     open_tree = proto_item_add_subtree(open_item, ett_xmpp_ibb_open);
@@ -748,11 +745,11 @@ xmpp_ibb_close(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element
     proto_tree *close_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
-        {"sid", -1, TRUE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
+        {"sid", NULL, TRUE, TRUE, NULL, NULL}
     };
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "IBB-CLOSE ");
+    col_append_str(pinfo->cinfo, COL_INFO, "IBB-CLOSE ");
 
     close_item = proto_tree_add_item(tree, hf_xmpp_ibb_close, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     close_tree = proto_item_add_subtree(close_item, ett_xmpp_ibb_close);
@@ -768,13 +765,13 @@ xmpp_ibb_data(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_
     proto_tree *data_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
-        {"sid", -1, TRUE, TRUE, NULL, NULL},
-        {"seq", -1, TRUE, TRUE, NULL, NULL},
-        {"value", -1, FALSE, FALSE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
+        {"sid", NULL, TRUE, TRUE, NULL, NULL},
+        {"seq", NULL, TRUE, TRUE, NULL, NULL},
+        {"value", NULL, FALSE, FALSE, NULL, NULL}
     };
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "IBB-DATA ");
+    col_append_str(pinfo->cinfo, COL_INFO, "IBB-DATA ");
 
     data_item = proto_tree_add_item(tree, hf_xmpp_ibb_data, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     data_tree = proto_item_add_subtree(data_item, ett_xmpp_ibb_data);
@@ -798,10 +795,10 @@ xmpp_delay(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t *
     proto_tree *delay_tree;
 
     xmpp_attr_info attrs_info[]={
-        {"xmlns", hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
-        {"from", -1, FALSE, TRUE, NULL, NULL},
-        {"stamp", -1, TRUE, TRUE, NULL, NULL},
-        {"value", -1, FALSE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
+        {"from", NULL, FALSE, TRUE, NULL, NULL},
+        {"stamp", NULL, TRUE, TRUE, NULL, NULL},
+        {"value", NULL, FALSE, TRUE, NULL, NULL}
     };
 
     delay_item = proto_tree_add_item(tree, hf_xmpp_delay, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
@@ -826,11 +823,11 @@ xmpp_presence_caps(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_ele
     proto_tree *caps_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
-        {"ext", -1, FALSE, FALSE, NULL, NULL},
-        {"hash", -1, TRUE, TRUE, NULL, NULL},
-        {"node", -1, TRUE, TRUE, NULL, NULL},
-        {"ver", -1, TRUE, FALSE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
+        {"ext", NULL, FALSE, FALSE, NULL, NULL},
+        {"hash", NULL, TRUE, TRUE, NULL, NULL},
+        {"node", NULL, TRUE, TRUE, NULL, NULL},
+        {"ver", NULL, TRUE, FALSE, NULL, NULL}
     };
 
     caps_item = proto_tree_add_item(tree, hf_xmpp_presence_caps, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
@@ -849,18 +846,18 @@ xmpp_x_event(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t
     proto_tree *x_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
-        {"condition", hf_xmpp_x_event_condition, TRUE, TRUE, NULL, NULL},
-        {"id", -1, FALSE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
+        {"condition", &hf_xmpp_x_event_condition, TRUE, TRUE, NULL, NULL},
+        {"id", NULL, FALSE, TRUE, NULL, NULL}
     };
 
-    const gchar *cond_names[] = {"offline", "delivered", "displayed", "composing"};
+    static const gchar *cond_names[] = {"offline", "delivered", "displayed", "composing"};
 
     xmpp_attr_t *fake_cond;
 
     xmpp_element_t *cond, *id;
 
-    gchar *cond_value = ep_strdup("");
+    gchar *cond_value = wmem_strdup(wmem_packet_scope(), "");
 
     x_item =  proto_tree_add_item(tree, hf_xmpp_x_event, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     x_tree = proto_item_add_subtree(x_item, ett_xmpp_x_event);
@@ -874,9 +871,9 @@ xmpp_x_event(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t
     while((cond = xmpp_steal_element_by_names(element, cond_names, array_length(cond_names))) != NULL)
     {
         if(strcmp(cond_value,"") != 0)
-            cond_value = ep_strdup_printf("%s/%s",cond_value, cond->name);
+            cond_value = wmem_strdup_printf(wmem_packet_scope(), "%s/%s",cond_value, cond->name);
         else
-            cond_value = ep_strdup(cond->name);
+            cond_value = wmem_strdup(wmem_packet_scope(), cond->name);
     }
 
     fake_cond = xmpp_ep_init_attr_t(cond_value, element->offset, element->length);
@@ -896,8 +893,8 @@ xmpp_muc_x(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t *
     proto_tree *x_tree;
 
     xmpp_attr_info attrs_info [] ={
-        {"xmlns", hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
-        {"password", -1, FALSE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
+        {"password", NULL, FALSE, TRUE, NULL, NULL}
     };
 
     xmpp_element_t *pass, *hist;
@@ -928,10 +925,10 @@ xmpp_muc_history(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_eleme
     proto_tree *hist_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"maxchars", -1, FALSE, TRUE, NULL, NULL},
-        {"maxstanzas", -1, FALSE, TRUE, NULL, NULL},
-        {"seconds", -1, FALSE, TRUE, NULL, NULL},
-        {"since", -1, FALSE, TRUE, NULL, NULL}
+        {"maxchars", NULL, FALSE, TRUE, NULL, NULL},
+        {"maxstanzas", NULL, FALSE, TRUE, NULL, NULL},
+        {"seconds", NULL, FALSE, TRUE, NULL, NULL},
+        {"since", NULL, FALSE, TRUE, NULL, NULL}
     };
 
     hist_item = proto_tree_add_text(tree, tvb, element->offset, element->length, "HISTORY: ");
@@ -950,8 +947,8 @@ xmpp_muc_user_x(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_elemen
     proto_tree *x_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
-        {"password", -1, FALSE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, FALSE, NULL, NULL},
+        {"password", NULL, FALSE, TRUE, NULL, NULL}
     };
 
     xmpp_element_t *item, *status, *invite, *password;
@@ -992,19 +989,19 @@ xmpp_muc_user_item(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_ele
     proto_item *item_item;
     proto_tree *item_tree;
 
-    const gchar *affiliation_enums[] = {"admin", "member", "none", "outcast", "owner"};
+    static const gchar *affiliation_enums[] = {"admin", "member", "none", "outcast", "owner"};
     xmpp_array_t  *affil_array = xmpp_ep_init_array_t(affiliation_enums, array_length(affiliation_enums));
 
-    const gchar *role_enums[] = {"none", "moderator", "participant", "visitor"};
+    static const gchar *role_enums[] = {"none", "moderator", "participant", "visitor"};
     xmpp_array_t *role_array = xmpp_ep_init_array_t(role_enums, array_length(role_enums));
 
     xmpp_attr_info attrs_info [] ={
-        {"affiliation", -1, FALSE, TRUE, xmpp_val_enum_list, affil_array},
-        {"jid", -1, FALSE, TRUE, NULL, NULL},
-        {"nick", -1, FALSE, TRUE, NULL, NULL},
-        {"role", -1, FALSE, TRUE, xmpp_val_enum_list, role_array},
-        {"reason", -1, FALSE, TRUE, NULL, NULL},
-        {"actor_jid", -1, FALSE, TRUE, NULL, NULL}
+        {"affiliation", NULL, FALSE, TRUE, xmpp_val_enum_list, affil_array},
+        {"jid", NULL, FALSE, TRUE, NULL, NULL},
+        {"nick", NULL, FALSE, TRUE, NULL, NULL},
+        {"role", NULL, FALSE, TRUE, xmpp_val_enum_list, role_array},
+        {"reason", NULL, FALSE, TRUE, NULL, NULL},
+        {"actor_jid", NULL, FALSE, TRUE, NULL, NULL}
     };
 
     xmpp_element_t *reason, *actor;
@@ -1047,9 +1044,9 @@ xmpp_muc_user_invite(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_e
     proto_tree *invite_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"from", -1, FALSE, TRUE, NULL, NULL},
-        {"to", -1, FALSE, TRUE, NULL, NULL},
-        {"reason", -1, FALSE, TRUE, NULL, NULL}
+        {"from", NULL, FALSE, TRUE, NULL, NULL},
+        {"to", NULL, FALSE, TRUE, NULL, NULL},
+        {"reason", NULL, FALSE, TRUE, NULL, NULL}
     };
 
     xmpp_element_t *reason;
@@ -1076,13 +1073,13 @@ xmpp_muc_owner_query(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_e
     proto_tree *query_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL}
     };
 
     xmpp_element_t *x_data;
     /*TODO destroy*/
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "QUERY(muc#owner) ");
+    col_append_str(pinfo->cinfo, COL_INFO, "QUERY(muc#owner) ");
 
     query_item = proto_tree_add_item(tree, hf_xmpp_query, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     query_tree = proto_item_add_subtree(query_item, ett_xmpp_query);
@@ -1106,12 +1103,12 @@ xmpp_muc_admin_query(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_e
     proto_tree *query_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL}
     };
 
     xmpp_element_t *item;
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "QUERY(muc#admin) ");
+    col_append_str(pinfo->cinfo, COL_INFO, "QUERY(muc#admin) ");
 
     query_item = proto_tree_add_item(tree, hf_xmpp_query, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     query_tree = proto_item_add_subtree(query_item, ett_xmpp_query);
@@ -1135,12 +1132,12 @@ xmpp_last_query(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_elemen
     proto_tree *query_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
-        {"seconds", -1, FALSE, TRUE, NULL, NULL},
-        {"value", -1, FALSE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
+        {"seconds", NULL, FALSE, TRUE, NULL, NULL},
+        {"value", NULL, FALSE, TRUE, NULL, NULL}
     };
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "QUERY(jabber:iq:last) ");
+    col_append_str(pinfo->cinfo, COL_INFO, "QUERY(jabber:iq:last) ");
 
     query_item = proto_tree_add_item(tree, hf_xmpp_query, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     query_tree = proto_item_add_subtree(query_item, ett_xmpp_query);
@@ -1159,19 +1156,19 @@ xmpp_last_query(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_elemen
 void
 xmpp_version_query(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t *element)
 {
-      proto_item *query_item;
+    proto_item *query_item;
     proto_tree *query_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
-        {"name", -1, FALSE, TRUE, NULL, NULL},
-        {"version", -1, FALSE, TRUE, NULL, NULL},
-        {"os", -1, FALSE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
+        {"name", NULL, FALSE, TRUE, NULL, NULL},
+        {"version", NULL, FALSE, TRUE, NULL, NULL},
+        {"os", NULL, FALSE, TRUE, NULL, NULL}
     };
 
     xmpp_element_t *name, *version, *os;
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "QUERY(jabber:iq:version) ");
+    col_append_str(pinfo->cinfo, COL_INFO, "QUERY(jabber:iq:version) ");
 
     query_item = proto_tree_add_item(tree, hf_xmpp_query, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     query_tree = proto_item_add_subtree(query_item, ett_xmpp_query);
@@ -1205,10 +1202,10 @@ xmpp_ping(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t *e
     proto_tree *ping_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
     };
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "PING ");
+    col_append_str(pinfo->cinfo, COL_INFO, "PING ");
 
     ping_item = proto_tree_add_item(tree, hf_xmpp_ping, tvb, element->offset, element->length, ENC_BIG_ENDIAN);
     ping_tree = proto_item_add_subtree(ping_item, ett_xmpp_ping);
@@ -1224,7 +1221,7 @@ xmpp_hashes(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_element_t 
     proto_tree *hashes_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
     };
     xmpp_elem_info elems_info[] = {
         {NAME, "hash", xmpp_hashes_hash, MANY}
@@ -1244,8 +1241,8 @@ xmpp_hashes_hash(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_eleme
     proto_tree *hash_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"algo", -1, TRUE, TRUE, NULL, NULL},
-        {"value", -1, TRUE, TRUE, NULL, NULL}
+        {"algo", NULL, TRUE, TRUE, NULL, NULL},
+        {"value", NULL, TRUE, TRUE, NULL, NULL}
     };
 
     xmpp_attr_t *fake_cdata = xmpp_ep_init_attr_t(xmpp_elem_cdata(element), element->offset, element->length);
@@ -1266,8 +1263,8 @@ xmpp_jitsi_inputevt(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, xmpp_el
     proto_tree *inputevt_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
-        {"action", -1, FALSE, TRUE, NULL, NULL}
+        {"xmlns", &hf_xmpp_xmlns, TRUE, TRUE, NULL, NULL},
+        {"action", NULL, FALSE, TRUE, NULL, NULL}
     };
 
     xmpp_elem_info elems_info[] = {
@@ -1288,16 +1285,16 @@ xmpp_jitsi_inputevt_rmt_ctrl(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo
     proto_tree *rmt_ctrl_tree;
 
     xmpp_attr_info attrs_info[] = {
-        {"xmlns", hf_xmpp_xmlns, FALSE, FALSE, NULL, NULL},
-        {"action", -1, TRUE, TRUE, NULL, NULL},
-        {"x", -1, FALSE, TRUE, NULL, NULL},
-        {"y", -1, FALSE, TRUE, NULL, NULL},
-        {"btns", -1, FALSE, TRUE, NULL, NULL},
-        {"keycode", -1, FALSE, TRUE, NULL, NULL},
+        {"xmlns", &hf_xmpp_xmlns, FALSE, FALSE, NULL, NULL},
+        {"action", NULL, TRUE, TRUE, NULL, NULL},
+        {"x", NULL, FALSE, TRUE, NULL, NULL},
+        {"y", NULL, FALSE, TRUE, NULL, NULL},
+        {"btns", NULL, FALSE, TRUE, NULL, NULL},
+        {"keycode", NULL, FALSE, TRUE, NULL, NULL},
     };
 
     xmpp_element_t *action;
-    const gchar *action_names[] = {"mouse-move","mouse-press", "mouse-release", "key-press", "key-release"};
+    static const gchar *action_names[] = {"mouse-move", "mouse-press", "mouse-release", "key-press", "key-release"};
 
     if((action = xmpp_steal_element_by_names(element, action_names, array_length(action_names)))!=NULL)
     {

@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -45,5 +43,99 @@ void ftype_register_string(void);
 void ftype_register_time(void);
 void ftype_register_tvbuff(void);
 void ftype_register_pcre(void);
+
+typedef void (*FvalueNewFunc)(fvalue_t*);
+typedef void (*FvalueFreeFunc)(fvalue_t*);
+
+typedef gboolean (*FvalueFromUnparsed)(fvalue_t*, const char*, gboolean, LogFunc);
+typedef gboolean (*FvalueFromString)(fvalue_t*, const char*, LogFunc);
+typedef void (*FvalueToStringRepr)(fvalue_t*, ftrepr_t, char*volatile);
+typedef int (*FvalueStringReprLen)(fvalue_t*, ftrepr_t);
+
+typedef void (*FvalueSetByteArrayFunc)(fvalue_t*, GByteArray *);
+typedef void (*FvalueSetBytesFunc)(fvalue_t*, const guint8 *);
+typedef void (*FvalueSetGuidFunc)(fvalue_t*, const e_guid_t *);
+typedef void (*FvalueSetTimeFunc)(fvalue_t*, const nstime_t *);
+typedef void (*FvalueSetStringFunc)(fvalue_t*, const gchar *value);
+typedef void (*FvalueSetTvbuffFunc)(fvalue_t*, tvbuff_t *value);
+typedef void (*FvalueSetUnsignedIntegerFunc)(fvalue_t*, guint32);
+typedef void (*FvalueSetSignedIntegerFunc)(fvalue_t*, gint32);
+typedef void (*FvalueSetInteger64Func)(fvalue_t*, guint64);
+typedef void (*FvalueSetFloatingFunc)(fvalue_t*, gdouble);
+
+typedef gpointer (*FvalueGetFunc)(fvalue_t*);
+typedef guint32 (*FvalueGetUnsignedIntegerFunc)(fvalue_t*);
+typedef gint32  (*FvalueGetSignedIntegerFunc)(fvalue_t*);
+typedef guint64 (*FvalueGetInteger64Func)(fvalue_t*);
+typedef double (*FvalueGetFloatingFunc)(fvalue_t*);
+
+typedef gboolean (*FvalueCmp)(const fvalue_t*, const fvalue_t*);
+
+typedef guint (*FvalueLen)(fvalue_t*);
+typedef void (*FvalueSlice)(fvalue_t*, GByteArray *, guint offset, guint length);
+
+struct _ftype_t {
+	ftenum_t		ftype;
+	const char		*name;
+	const char		*pretty_name;
+	int			wire_size;
+	FvalueNewFunc		new_value;
+	FvalueFreeFunc		free_value;
+	FvalueFromUnparsed	val_from_unparsed;
+	FvalueFromString	val_from_string;
+	FvalueToStringRepr	val_to_string_repr;
+	FvalueStringReprLen	len_string_repr;
+
+	/* could be union */
+	FvalueSetByteArrayFunc	set_value_byte_array;
+	FvalueSetBytesFunc	set_value_bytes;
+	FvalueSetGuidFunc	set_value_guid;
+	FvalueSetTimeFunc	set_value_time;
+	FvalueSetStringFunc	set_value_string;
+	FvalueSetTvbuffFunc	set_value_tvbuff;
+	FvalueSetUnsignedIntegerFunc	set_value_uinteger;
+	FvalueSetSignedIntegerFunc		set_value_sinteger;
+	FvalueSetInteger64Func	set_value_integer64;
+	FvalueSetFloatingFunc	set_value_floating;
+
+	/* could be union */
+	FvalueGetFunc		get_value;
+	FvalueGetUnsignedIntegerFunc	get_value_uinteger;
+	FvalueGetSignedIntegerFunc		get_value_sinteger;
+	FvalueGetInteger64Func	get_value_integer64;
+	FvalueGetFloatingFunc	get_value_floating;
+
+	FvalueCmp		cmp_eq;
+	FvalueCmp		cmp_ne;
+	FvalueCmp		cmp_gt;
+	FvalueCmp		cmp_ge;
+	FvalueCmp		cmp_lt;
+	FvalueCmp		cmp_le;
+	FvalueCmp		cmp_bitwise_and;
+	FvalueCmp		cmp_contains;
+	FvalueCmp		cmp_matches;
+
+	FvalueLen		len;
+	FvalueSlice		slice;
+};
+
+/* Free all memory used by an fvalue_t. With MSVC and a
+ * libwireshark.dll, we need a special declaration.
+ */
+
+#define FVALUE_CLEANUP(fv)					\
+	{							\
+		register FvalueFreeFunc	free_value;		\
+		free_value = (fv)->ftype->free_value;	\
+		if (free_value) {				\
+			free_value((fv));			\
+		}						\
+	}
+
+#define FVALUE_FREE(fv)						\
+	{							\
+		FVALUE_CLEANUP(fv)				\
+		g_slice_free(fvalue_t, fv);			\
+	}
 
 #endif

@@ -2,8 +2,6 @@
  * Routines for Type 29 UCD - DOCSIS 2.0 only - Message dissection
  * Copyright 2003, Brian Wheeler <brian.wheeler[AT]arrisi.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,7 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 
 #define type29ucd_SYMBOL_RATE 1
 #define type29ucd_FREQUENCY 2
@@ -78,6 +77,9 @@
 #define IUC_RESERVED13 13
 #define IUC_RESERVED14 14
 #define IUC_EXPANSION 15
+
+void proto_register_docsis_type29ucd(void);
+void proto_reg_handoff_docsis_type29ucd(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_docsis_type29ucd = -1;
@@ -204,7 +206,6 @@ dissect_type29ucd (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
   upchid = tvb_get_guint8 (tvb, 0);
 
   /* if the upstream Channel ID is 0 then this is for Telephony Return) */
-  col_clear (pinfo->cinfo, COL_INFO);
   if (upchid > 0)
 	col_add_fstr (pinfo->cinfo, COL_INFO,
 		      "type29ucd Message:  Channel ID = %u (U%u)", upchid,
@@ -267,7 +268,7 @@ dissect_type29ucd (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 				   pos, length, ENC_NA);
 	      pos = pos + length;
 	      break;
-/* DOCSIS 2.0 UCD TLV definitions 
+/* DOCSIS 2.0 UCD TLV definitions
  * #define type29ucd_EXT_PREAMBLE 6
  * #define type29ucd_SCDMA_MODE_ENABLE 7
  * #define type29ucd_SCDMA_SPREADING_INTERVAL 8
@@ -404,7 +405,7 @@ dissect_type29ucd (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 		  THROW (ReportedBoundsError);
 		}
 	      pos = pos + length;
-	      break;	       
+	      break;
 /* DOCSIS 1.1 BURST DESCRIPTOR */
 	     case type29ucd_BURST_DESCR:
 	      it =

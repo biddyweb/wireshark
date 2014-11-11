@@ -2,8 +2,6 @@
  * Routines for Dynamic Service Delete Request dissection
  * Copyright 2002, Anand V. Narwani <anand[AT]narwani.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,9 @@
 #include "config.h"
 
 #include <epan/packet.h>
+
+void proto_register_docsis_dsdreq(void);
+void proto_reg_handoff_docsis_dsdreq(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_docsis_dsdreq = -1;
@@ -51,7 +52,6 @@ dissect_dsdreq (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 
   transid = tvb_get_ntohs (tvb, 0);
 
-  col_clear (pinfo->cinfo, COL_INFO);
   col_add_fstr (pinfo->cinfo, COL_INFO,
 	    "Dynamic Service Delete Request Tran-id = %u", transid);
   if (tree)

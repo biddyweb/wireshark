@@ -2,7 +2,25 @@
 #
 # Run this to generate all the initial makefiles.
 #
-# $Id$
+# Copyright 2014 The Wireshark Authors
+#
+# Wireshark - Network traffic analyzer
+# By Gerald Combs <gerald@wireshark.org>
+# Copyright 1998 Gerald Combs
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 DIE=true
 PROJECT="Wireshark"
@@ -123,7 +141,12 @@ $AUTOMAKE --add-missing --gnu $am_opt || exit 1
 echo $AUTOCONF
 $AUTOCONF || exit 1
 
-#./configure "$@" || exit 1
+if [ `uname -s` = Darwin ] ; then
+    echo
+    echo "To configure Wireshark on OS X, you will need to type:"
+    echo "export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/X11/lib/pkgconfig"
+    echo "before you can run configure."
+fi
 
 echo
 echo "Now type \"./configure [options]\" and \"make\" to compile $PROJECT."

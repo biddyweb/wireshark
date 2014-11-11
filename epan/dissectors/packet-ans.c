@@ -1,8 +1,6 @@
 /* packet-ans.c
  * Routines for Intel ANS probe dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2003 Gerald Combs
@@ -48,6 +46,7 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <etypes.h>
 
 void proto_register_ans(void);

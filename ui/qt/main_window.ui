@@ -13,6 +13,10 @@
   <property name="windowTitle">
    <string>Wireshark</string>
   </property>
+  <property name="windowIcon">
+   <iconset resource="../../image/toolbar.qrc">
+    <normaloff>:/menu/help/wsicon16.png</normaloff>:/menu/help/wsicon16.png</iconset>
+  </property>
   <property name="unifiedTitleAndToolBarOnMac">
    <bool>true</bool>
   </property>
@@ -24,7 +28,16 @@
     </sizepolicy>
    </property>
    <layout class="QGridLayout" name="gridLayout">
-    <property name="margin">
+    <property name="leftMargin">
+     <number>0</number>
+    </property>
+    <property name="topMargin">
+     <number>0</number>
+    </property>
+    <property name="rightMargin">
+     <number>0</number>
+    </property>
+    <property name="bottomMargin">
      <number>0</number>
     </property>
     <property name="spacing">
@@ -55,7 +68,7 @@
        <item>
         <widget class="QLineEdit" name="goToLineEdit">
          <property name="inputMask">
-          <string>900000000; </string>
+          <string>900000000</string>
          </property>
         </widget>
        </item>
@@ -98,7 +111,7 @@
    </property>
    <widget class="QMenu" name="menuFile">
     <property name="title">
-     <string>File</string>
+     <string>&amp;File</string>
     </property>
     <widget class="QMenu" name="menuOpenRecentCaptureFile">
      <property name="title">
@@ -136,7 +149,7 @@
     <addaction name="actionFileOpen"/>
     <addaction name="menuOpenRecentCaptureFile"/>
     <addaction name="actionFileMerge"/>
-    <addaction name="actionFileImport"/>
+    <addaction name="actionFileImportFromHexDump"/>
     <addaction name="actionFileClose"/>
     <addaction name="separator"/>
     <addaction name="actionFileSave"/>
@@ -147,6 +160,7 @@
     <addaction name="actionFileExportPackets"/>
     <addaction name="menuFileExportPacketDissections"/>
     <addaction name="actionFileExportPacketBytes"/>
+    <addaction name="actionFileExportPDU"/>
     <addaction name="actionFileExportSSLSessionKeys"/>
     <addaction name="menuFileExportObjects"/>
     <addaction name="separator"/>
@@ -154,9 +168,236 @@
     <addaction name="separator"/>
     <addaction name="actionFileQuit"/>
    </widget>
+   <widget class="QMenu" name="menuCapture">
+    <property name="title">
+     <string>&amp;Capture</string>
+    </property>
+    <addaction name="actionCaptureInterfaces"/>
+    <addaction name="actionCaptureOptions"/>
+    <addaction name="actionStartCapture"/>
+    <addaction name="actionStopCapture"/>
+    <addaction name="actionCaptureRestart"/>
+    <addaction name="actionCaptureCaptureFilters"/>
+    <addaction name="actionCaptureRefreshInterfaces"/>
+    <addaction name="separator"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>&amp;Help</string>
+    </property>
+    <widget class="QMenu" name="menuHelpManualPages">
+     <property name="title">
+      <string>Manual pages</string>
+     </property>
+     <addaction name="actionHelpMPWireshark"/>
+     <addaction name="actionHelpMPWireshark_Filter"/>
+     <addaction name="separator"/>
+     <addaction name="actionHelpMPCapinfos"/>
+     <addaction name="actionHelpMPDumpcap"/>
+     <addaction name="actionHelpMPEditcap"/>
+     <addaction name="actionHelpMPMergecap"/>
+     <addaction name="actionHelpMPRawShark"/>
+     <addaction name="actionHelpMPReordercap"/>
+     <addaction name="actionHelpMPText2cap"/>
+     <addaction name="actionHelpMPTShark"/>
+    </widget>
+    <addaction name="actionHelpContents"/>
+    <addaction name="menuHelpManualPages"/>
+    <addaction name="separator"/>
+    <addaction name="actionHelpWebsite"/>
+    <addaction name="actionHelpFAQ"/>
+    <addaction name="actionHelpAsk"/>
+    <addaction name="actionHelpDownloads"/>
+    <addaction name="separator"/>
+    <addaction name="actionHelpWiki"/>
+    <addaction name="actionHelpSampleCaptures"/>
+    <addaction name="separator"/>
+    <addaction name="actionHelpAbout"/>
+   </widget>
+   <widget class="QMenu" name="menuGo">
+    <property name="title">
+     <string>&amp;Go</string>
+    </property>
+    <addaction name="actionGoGoToPacket"/>
+    <addaction name="separator"/>
+    <addaction name="actionGoNextPacket"/>
+    <addaction name="actionGoPreviousPacket"/>
+    <addaction name="actionGoFirstPacket"/>
+    <addaction name="actionGoLastPacket"/>
+   </widget>
+   <widget class="QMenu" name="menuView">
+    <property name="title">
+     <string>&amp;View</string>
+    </property>
+    <widget class="QMenu" name="menuToolbars">
+     <property name="title">
+      <string>Toolbars</string>
+     </property>
+     <addaction name="actionViewToolbarMainToolbar"/>
+     <addaction name="actionViewToolbarDisplayFilter"/>
+    </widget>
+    <addaction name="separator"/>
+    <addaction name="actionViewExpandSubtrees"/>
+    <addaction name="actionViewExpandAll"/>
+    <addaction name="actionViewCollapseAll"/>
+    <addaction name="separator"/>
+    <addaction name="actionViewReload"/>
+    <addaction name="separator"/>
+    <addaction name="menuToolbars"/>
+   </widget>
+   <widget class="QMenu" name="menuAnalyze">
+    <property name="title">
+     <string>&amp;Analyze</string>
+    </property>
+    <widget class="QMenu" name="menuApplyAsFilter">
+     <property name="title">
+      <string>Apply as Filter</string>
+     </property>
+     <addaction name="actionAnalyzeAAFSelected"/>
+     <addaction name="actionAnalyzeAAFNotSelected"/>
+     <addaction name="actionAnalyzeAAFAndSelected"/>
+     <addaction name="actionAnalyzeAAFOrSelected"/>
+     <addaction name="actionAnalyzeAAFAndNotSelected"/>
+     <addaction name="actionAnalyzeAAFOrNotSelected"/>
+    </widget>
+    <widget class="QMenu" name="menuPrepareAFilter">
+     <property name="title">
+      <string>Prepare a Filter</string>
+     </property>
+     <addaction name="actionAnalyzePAFSelected"/>
+     <addaction name="actionAnalyzePAFNotSelected"/>
+     <addaction name="actionAnalyzePAFAndSelected"/>
+     <addaction name="actionAnalyzePAFOrSelected"/>
+     <addaction name="actionAnalyzePAFAndNotSelected"/>
+     <addaction name="actionAnalyzePAFOrNotSelected"/>
+    </widget>
+    <widget class="QMenu" name="menuSCTP">
+     <property name="title">
+      <string>SCTP</string>
+     </property>
+     <addaction name="actionSCTPAnalyseThisAssociation"/>
+     <addaction name="actionSCTPShowAllAssociations"/>
+    </widget>
+    <addaction name="actionDisplayFilters"/>
+    <addaction name="actionDisplayFilterMacros"/>
+    <addaction name="separator"/>
+    <addaction name="actionApplyAsColumn"/>
+    <addaction name="menuApplyAsFilter"/>
+    <addaction name="menuPrepareAFilter"/>
+    <addaction name="separator"/>
+    <addaction name="actionAnalyzeDecodeAs"/>
+    <addaction name="separator"/>
+    <addaction name="menuSCTP"/>
+    <addaction name="actionAnalyzeFollowTCPStream"/>
+    <addaction name="actionAnalyzeFollowUDPStream"/>
+    <addaction name="actionAnalyzeFollowSSLStream"/>
+   </widget>
+   <widget class="QMenu" name="menuStatistics">
+    <property name="enabled">
+     <bool>true</bool>
+    </property>
+    <property name="title">
+     <string>&amp;Statistics</string>
+    </property>
+    <widget class="QMenu" name="menuTcpStreamGraphs">
+     <property name="title">
+      <string>TCP Stream Graphs</string>
+     </property>
+     <addaction name="actionStatisticsTcpStreamStevens"/>
+     <addaction name="actionStatisticsTcpStreamTcptrace"/>
+     <addaction name="actionStatisticsTcpStreamThroughput"/>
+     <addaction name="actionStatisticsTcpStreamRoundTripTime"/>
+     <addaction name="actionStatisticsTcpStreamWindowScaling"/>
+    </widget>
+    <widget class="QMenu" name="menuBACnet">
+     <property name="title">
+      <string>BACnet</string>
+     </property>
+     <addaction name="actionStatisticsBACappInstanceId"/>
+     <addaction name="actionStatisticsBACappIP"/>
+     <addaction name="actionStatisticsBACappObjectId"/>
+     <addaction name="actionStatisticsBACappService"/>
+    </widget>
+    <widget class="QMenu" name="menuHTTP">
+     <property name="title">
+      <string>HTTP</string>
+     </property>
+     <addaction name="actionStatisticsHTTPPacketCounter"/>
+     <addaction name="actionStatisticsHTTPRequests"/>
+     <addaction name="actionStatisticsHTTPLoadDistribution"/>
+    </widget>
+    <widget class="QMenu" name="menu29West">
+     <property name="title">
+      <string>29West</string>
+     </property>
+     <widget class="QMenu" name="menu29WestTopics">
+      <property name="title">
+       <string>Topics</string>
+      </property>
+      <addaction name="actionStatistics29WestTopics_Advertisements_by_Topic"/>
+      <addaction name="actionStatistics29WestTopics_Advertisements_by_Source"/>
+      <addaction name="actionStatistics29WestTopics_Advertisements_by_Transport"/>
+      <addaction name="actionStatistics29WestTopics_Queries_by_Topic"/>
+      <addaction name="actionStatistics29WestTopics_Queries_by_Receiver"/>
+      <addaction name="actionStatistics29WestTopics_Wildcard_Queries_by_Pattern"/>
+      <addaction name="actionStatistics29WestTopics_Wildcard_Queries_by_Receiver"/>
+     </widget>
+     <widget class="QMenu" name="menu29WestQueues">
+      <property name="title">
+       <string>Queues</string>
+      </property>
+      <addaction name="actionStatistics29WestQueues_Advertisements_by_Queue"/>
+      <addaction name="actionStatistics29WestQueues_Advertisements_by_Source"/>
+      <addaction name="actionStatistics29WestQueues_Queries_by_Queue"/>
+      <addaction name="actionStatistics29WestQueues_Queries_by_Receiver"/>
+     </widget>
+     <widget class="QMenu" name="menu29WestUIM">
+      <property name="title">
+       <string>UIM</string>
+      </property>
+      <addaction name="actionStatistics29WestUIM_Streams"/>
+      <addaction name="actionStatistics29WestUIM_Stream_Flow_Graph"/>
+     </widget>
+     <addaction name="menu29WestTopics"/>
+     <addaction name="menu29WestQueues"/>
+     <addaction name="menu29WestUIM"/>
+     <addaction name="actionStatistics29WestLBTRM"/>
+	 <addaction name="actionStatistics29WestLBTRU"/>
+    </widget>
+    <addaction name="actionSummary"/>
+    <addaction name="actionProtocol_Hierarchy"/>
+    <addaction name="actionStatisticsPacketLen"/>
+    <addaction name="actionStatisticsIOGraph"/>
+    <addaction name="separator"/>
+    <addaction name="separator"/>
+    <addaction name="menu29West"/>
+    <addaction name="actionStatisticsANCP"/>
+    <addaction name="menuBACnet"/>
+    <addaction name="actionStatisticsCollectd"/>
+    <addaction name="actionStatisticsFlowGraph"/>
+    <addaction name="actionStatisticsHART_IP"/>
+    <addaction name="menuHTTP"/>
+    <addaction name="actionStatisticsSametime"/>
+    <addaction name="menuTcpStreamGraphs"/>
+   </widget>
+   <widget class="QMenu" name="menuTelephony">
+    <property name="title">
+     <string>Telephon&amp;y</string>
+    </property>
+    <widget class="QMenu" name="menuRTSP">
+     <property name="title">
+      <string>RTSP</string>
+     </property>
+     <addaction name="actionTelephonyRTSPPacketCounter"/>
+    </widget>
+    <addaction name="actionTelephonyISUPMessages"/>
+    <addaction name="menuRTSP"/>
+    <addaction name="actionTelephonySMPPOperations"/>
+    <addaction name="actionTelephonyUCPMessages"/>
+   </widget>
    <widget class="QMenu" name="menuEdit">
     <property name="title">
-     <string>Edit</string>
+     <string>&amp;Edit</string>
     </property>
     <widget class="QMenu" name="menuEditCopy">
      <property name="title">
@@ -195,110 +436,14 @@
     <addaction name="actionEditConfigurationProfiles"/>
     <addaction name="actionEditPreferences"/>
    </widget>
-   <widget class="QMenu" name="menuCapture">
-    <property name="title">
-     <string>Capture</string>
-    </property>
-    <addaction name="actionCaptureInterfaces"/>
-    <addaction name="actionCaptureOptions"/>
-    <addaction name="actionStartCapture"/>
-    <addaction name="actionStopCapture"/>
-    <addaction name="actionCaptureRestart"/>
-    <addaction name="actionCaptureCaptureFilters"/>
-    <addaction name="actionCaptureRefreshInterfaces"/>
-   </widget>
-   <widget class="QMenu" name="menuHelp">
-    <property name="title">
-     <string>Help</string>
-    </property>
-    <widget class="QMenu" name="menuHelpManualPages">
-     <property name="title">
-      <string>Manual pages</string>
-     </property>
-     <addaction name="actionHelpMPWireshark"/>
-     <addaction name="actionHelpMPWireshark_Filter"/>
-     <addaction name="separator"/>
-     <addaction name="actionHelpMPTShark"/>
-     <addaction name="actionHelpMPRawShark"/>
-     <addaction name="actionHelpMPDumpcap"/>
-     <addaction name="actionHelpMPMergecap"/>
-     <addaction name="actionHelpMPEditcap"/>
-     <addaction name="actionHelpMPText2cap"/>
-    </widget>
-    <addaction name="actionHelpContents"/>
-    <addaction name="menuHelpManualPages"/>
-    <addaction name="separator"/>
-    <addaction name="actionHelpWebsite"/>
-    <addaction name="actionHelpFAQ"/>
-    <addaction name="actionHelpAsk"/>
-    <addaction name="actionHelpDownloads"/>
-    <addaction name="separator"/>
-    <addaction name="actionHelpWiki"/>
-    <addaction name="actionHelpSampleCaptures"/>
-    <addaction name="separator"/>
-    <addaction name="actionHelpAbout"/>
-   </widget>
-   <widget class="QMenu" name="menuGo">
-    <property name="title">
-     <string>Go</string>
-    </property>
-    <addaction name="actionGoGoToPacket"/>
-    <addaction name="separator"/>
-    <addaction name="actionGoNextPacket"/>
-    <addaction name="actionGoPreviousPacket"/>
-    <addaction name="actionGoFirstPacket"/>
-    <addaction name="actionGoLastPacket"/>
-   </widget>
-   <widget class="QMenu" name="menuView">
-    <property name="title">
-     <string>View</string>
-    </property>
-    <addaction name="separator"/>
-    <addaction name="actionViewExpandSubtrees"/>
-    <addaction name="actionViewExpandAll"/>
-    <addaction name="actionViewCollapseAll"/>
-    <addaction name="separator"/>
-    <addaction name="actionViewReload"/>
-   </widget>
-   <widget class="QMenu" name="menuAnalyze">
-    <property name="title">
-     <string>Analyze</string>
-    </property>
-    <widget class="QMenu" name="menuApplyAsFilter">
-     <property name="title">
-      <string>Apply as Filter</string>
-     </property>
-     <addaction name="actionAnalyzeAAFSelected"/>
-     <addaction name="actionAnalyzeAAFNotSelected"/>
-     <addaction name="actionAnalyzeAAFAndSelected"/>
-     <addaction name="actionAnalyzeAAFOrSelected"/>
-     <addaction name="actionAnalyzeAAFAndNotSelected"/>
-     <addaction name="actionAnalyzeAAFOrNotSelected"/>
-    </widget>
-    <widget class="QMenu" name="menuPrepareAFilter">
-     <property name="title">
-      <string>Prepare a Filter</string>
-     </property>
-     <addaction name="actionAnalyzePAFSelected"/>
-     <addaction name="actionAnalyzePAFNotSelected"/>
-     <addaction name="actionAnalyzePAFAndSelected"/>
-     <addaction name="actionAnalyzePAFOrSelected"/>
-     <addaction name="actionAnalyzePAFAndNotSelected"/>
-     <addaction name="actionAnalyzePAFOrNotSelected"/>
-    </widget>
-    <addaction name="actionDisplayFilters"/>
-    <addaction name="actionDisplayFilterMacros"/>
-    <addaction name="separator"/>
-    <addaction name="actionApplyAsColumn"/>
-    <addaction name="menuApplyAsFilter"/>
-    <addaction name="menuPrepareAFilter"/>
-   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
    <addaction name="menuView"/>
    <addaction name="menuGo"/>
    <addaction name="menuCapture"/>
    <addaction name="menuAnalyze"/>
+   <addaction name="menuStatistics"/>
+   <addaction name="menuTelephony"/>
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QToolBar" name="mainToolBar">
@@ -307,6 +452,9 @@
      <horstretch>0</horstretch>
      <verstretch>0</verstretch>
     </sizepolicy>
+   </property>
+   <property name="windowTitle">
+    <string>Main Toolbar</string>
    </property>
    <property name="movable">
     <bool>true</bool>
@@ -338,6 +486,9 @@
   </widget>
   <widget class="MainStatusBar" name="statusBar"/>
   <widget class="QToolBar" name="displayFilterToolBar">
+   <property name="windowTitle">
+    <string>Display Filter Toolbar</string>
+   </property>
    <property name="movable">
     <bool>false</bool>
    </property>
@@ -511,7 +662,7 @@
   <action name="actionHelpWiki">
    <property name="icon">
     <iconset resource="../../image/toolbar.qrc">
-     <normaloff>:/menu/help/wiki_24.xpm</normaloff>:/menu/help/wiki_24.xpm</iconset>
+     <normaloff>:/menu/help/gnome_emblem_web_16.png</normaloff>:/menu/help/gnome_emblem_web_16.png</iconset>
    </property>
    <property name="text">
     <string>Wiki</string>
@@ -528,7 +679,7 @@
   <action name="actionHelpAbout">
    <property name="icon">
     <iconset resource="../../image/toolbar.qrc">
-     <normaloff>:/menu/help/wsicon16.xpm</normaloff>:/menu/help/wsicon16.xpm</iconset>
+     <normaloff>:/menu/help/wsicon16.png</normaloff>:/menu/help/wsicon16.png</iconset>
    </property>
    <property name="text">
     <string>&amp;About Wireshark</string>
@@ -651,9 +802,9 @@
     <string>Merge one or more files</string>
    </property>
   </action>
-  <action name="actionFileImport">
+  <action name="actionFileImportFromHexDump">
    <property name="text">
-    <string>&amp;Import...</string>
+    <string>&amp;Import from Hex Dump...</string>
    </property>
    <property name="toolTip">
     <string>Import a file</string>
@@ -748,11 +899,17 @@
    <property name="text">
     <string>&amp;Options...</string>
    </property>
+   <property name="iconText">
+    <string>Options</string>
+   </property>
    <property name="toolTip">
     <string>Capture options</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+K</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
   <action name="actionCaptureCaptureFilters">
@@ -1148,10 +1305,10 @@
     <bool>false</bool>
    </property>
    <property name="text">
-    <string>Name set in iconText to keep QMenuBar from grabbing it on OS X</string>
+    <string>Configuration Profiles...</string>
    </property>
    <property name="iconText">
-    <string>Configuration Profiles...</string>
+    <string>Configuration profiles</string>
    </property>
    <property name="toolTip">
     <string>Manage your configuration profiles</string>
@@ -1175,6 +1332,379 @@
    </property>
    <property name="menuRole">
     <enum>QAction::PreferencesRole</enum>
+   </property>
+  </action>
+  <action name="actionSummary">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Summary</string>
+   </property>
+  </action>
+  <action name="actionProtocol_Hierarchy">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Protocol Hierarchy</string>
+   </property>
+  </action>
+  <action name="actionHelpMPCapinfos">
+   <property name="text">
+    <string>Capinfos</string>
+   </property>
+  </action>
+  <action name="actionHelpMPReordercap">
+   <property name="text">
+    <string>Reordercap</string>
+   </property>
+  </action>
+  <action name="actionStatisticsTcpStreamStevens">
+   <property name="text">
+    <string>Time Sequence (Stevens)</string>
+   </property>
+   <property name="toolTip">
+    <string>TCP time sequence graph (Stevens)</string>
+   </property>
+  </action>
+  <action name="actionStatisticsTcpStreamThroughput">
+   <property name="text">
+    <string>Throughput</string>
+   </property>
+   <property name="toolTip">
+    <string>TCP througput</string>
+   </property>
+  </action>
+  <action name="actionStatisticsTcpStreamRoundTripTime">
+   <property name="text">
+    <string>Round Trip Time</string>
+   </property>
+   <property name="toolTip">
+    <string>TCP round trip time</string>
+   </property>
+  </action>
+  <action name="actionStatisticsTcpStreamWindowScaling">
+   <property name="text">
+    <string>Window Scaling</string>
+   </property>
+   <property name="toolTip">
+    <string>TCP window scaling</string>
+   </property>
+  </action>
+  <action name="actionAnalyzeFollowTCPStream">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Follow TCP Stream</string>
+   </property>
+  </action>
+  <action name="actionAnalyzeFollowUDPStream">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Follow UDP Stream</string>
+   </property>
+  </action>
+  <action name="actionAnalyzeFollowSSLStream">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Follow SSL Stream</string>
+   </property>
+  </action>
+  <action name="actionStatisticsTcpStreamTcptrace">
+   <property name="text">
+    <string>Time Sequence (tcptrace)</string>
+   </property>
+   <property name="toolTip">
+    <string>TCP time sequence graph (tcptrace)</string>
+   </property>
+  </action>
+  <action name="actionSCTPAnalyseThisAssociation">
+   <property name="text">
+    <string>Analyse this Association</string>
+   </property>
+  </action>
+  <action name="actionSCTPShowAllAssociations">
+   <property name="text">
+    <string>Show All Associations</string>
+   </property>
+  </action>
+  <action name="actionStatisticsFlowGraph">
+   <property name="text">
+    <string>Flow Graph</string>
+   </property>
+   <property name="toolTip">
+    <string>Flow sequence diagram</string>
+   </property>
+  </action>
+  <action name="actionStatisticsANCP">
+   <property name="text">
+    <string>ANCP</string>
+   </property>
+   <property name="toolTip">
+    <string>ANCP statistics</string>
+   </property>
+  </action>
+  <action name="actionStatisticsBACappInstanceId">
+   <property name="text">
+    <string>Packets sorted by Instance ID</string>
+   </property>
+   <property name="toolTip">
+    <string>BACapp statistics sorted by instance ID</string>
+   </property>
+  </action>
+  <action name="actionStatisticsBACappIP">
+   <property name="text">
+    <string>Packets sorted by IP</string>
+   </property>
+   <property name="toolTip">
+    <string>BACapp statistics sorted by IP</string>
+   </property>
+  </action>
+  <action name="actionStatisticsBACappObjectId">
+   <property name="text">
+    <string>Packets sorted by object type</string>
+   </property>
+   <property name="toolTip">
+    <string>BACapp statistics sorted by object type</string>
+   </property>
+  </action>
+  <action name="actionStatisticsBACappService">
+   <property name="text">
+    <string>Packets sorted by service</string>
+   </property>
+   <property name="toolTip">
+    <string>BACapp statistics sorted by service</string>
+   </property>
+  </action>
+  <action name="actionStatisticsCollectd">
+   <property name="text">
+    <string>Collectd</string>
+   </property>
+   <property name="toolTip">
+    <string>Collectd statistics</string>
+   </property>
+  </action>
+  <action name="actionStatisticsHART_IP">
+   <property name="text">
+    <string>HART-IP</string>
+   </property>
+   <property name="toolTip">
+    <string>HART-IP statistics</string>
+   </property>
+  </action>
+  <action name="actionStatisticsHTTPPacketCounter">
+   <property name="text">
+    <string>Packet Counter</string>
+   </property>
+   <property name="toolTip">
+    <string>HTTP packet counter</string>
+   </property>
+  </action>
+  <action name="actionStatisticsHTTPRequests">
+   <property name="text">
+    <string>Requests</string>
+   </property>
+   <property name="toolTip">
+    <string>HTTP requests</string>
+   </property>
+  </action>
+  <action name="actionStatisticsHTTPLoadDistribution">
+   <property name="text">
+    <string>Load Distribution</string>
+   </property>
+   <property name="toolTip">
+    <string>HTTP load distribution</string>
+   </property>
+  </action>
+  <action name="actionStatisticsPacketLen">
+   <property name="text">
+    <string>Packet Lengths</string>
+   </property>
+   <property name="toolTip">
+    <string>Packet length statistics</string>
+   </property>
+  </action>
+  <action name="actionStatisticsSametime">
+   <property name="text">
+    <string>Sametime</string>
+   </property>
+   <property name="toolTip">
+    <string>Sametime statistics</string>
+   </property>
+  </action>
+  <action name="actionTelephonyISUPMessages">
+   <property name="text">
+    <string>&amp;ISUP Messages</string>
+   </property>
+   <property name="toolTip">
+    <string>ISUP message statistics</string>
+   </property>
+  </action>
+  <action name="actionTelephonyRTSPPacketCounter">
+   <property name="text">
+    <string>Packet Counter</string>
+   </property>
+   <property name="toolTip">
+    <string>RTSP packet counts</string>
+   </property>
+  </action>
+  <action name="actionTelephonySMPPOperations">
+   <property name="text">
+    <string>SM&amp;PP Operations</string>
+   </property>
+   <property name="toolTip">
+    <string>SMPP operation statistics</string>
+   </property>
+  </action>
+  <action name="actionTelephonyUCPMessages">
+   <property name="text">
+    <string>&amp;UCP Messages</string>
+   </property>
+   <property name="toolTip">
+    <string>UCP message statistics</string>
+   </property>
+  </action>
+  <action name="actionAnalyzeDecodeAs">
+   <property name="text">
+    <string>Decode &amp;As...</string>
+   </property>
+   <property name="toolTip">
+    <string>Change the way packets are dissected</string>
+   </property>
+  </action>
+  <action name="action29West">
+   <property name="text">
+    <string>29West</string>
+   </property>
+  </action>
+  <action name="actionStatistics29WestTopics_Advertisements_by_Topic">
+   <property name="text">
+    <string>Advertisements by Topic</string>
+   </property>
+  </action>
+  <action name="actionStatistics29WestTopics_Advertisements_by_Source">
+   <property name="text">
+    <string>Advertisements by Source</string>
+   </property>
+  </action>
+  <action name="actionStatistics29WestTopics_Advertisements_by_Transport">
+   <property name="text">
+    <string>Advertisements by Transport</string>
+   </property>
+  </action>
+  <action name="actionStatistics29WestTopics_Queries_by_Topic">
+   <property name="text">
+    <string>Queries by Topic</string>
+   </property>
+  </action>
+  <action name="actionStatistics29WestTopics_Queries_by_Receiver">
+   <property name="text">
+    <string>Queries by Receiver</string>
+   </property>
+  </action>
+  <action name="actionStatistics29WestTopics_Wildcard_Queries_by_Pattern">
+   <property name="text">
+    <string>Wildcard Queries by Pattern</string>
+   </property>
+  </action>
+  <action name="actionStatistics29WestTopics_Wildcard_Queries_by_Receiver">
+   <property name="text">
+    <string>Wildcard Queries by Receiver</string>
+   </property>
+  </action>
+  <action name="actionStatistics29WestQueues_Advertisements_by_Queue">
+   <property name="text">
+    <string>Advertisements by Queue</string>
+   </property>
+  </action>
+  <action name="actionStatistics29WestQueues_Advertisements_by_Source">
+   <property name="text">
+    <string>Advertisements by Source</string>
+   </property>
+  </action>
+  <action name="actionStatistics29WestQueues_Queries_by_Queue">
+   <property name="text">
+    <string>Queries by Queue</string>
+   </property>
+  </action>
+  <action name="actionStatistics29WestQueues_Queries_by_Receiver">
+   <property name="text">
+    <string>Queries by Receiver</string>
+   </property>
+  </action>
+  <action name="actionStatistics29WestUIM_Streams">
+   <property name="text">
+    <string>Streams</string>
+   </property>
+  </action>
+  <action name="actionStatistics29WestUIM_Stream_Flow_Graph">
+   <property name="text">
+    <string>Stream Flow Graph</string>
+   </property>
+  </action>
+  <action name="actionStatistics29WestLBTRM">
+   <property name="text">
+    <string>LBT-RM</string>
+   </property>
+  </action>
+  <action name="actionStatistics29WestLBTRU">
+   <property name="text">
+    <string>LBT-RU</string>
+   </property>
+  </action>
+  <action name="actionSCTPFilterThisAssociation">
+   <property name="text">
+    <string>Filter this Association</string>
+   </property>
+   <property name="toolTip">
+    <string>Filter this Association</string>
+   </property>
+  </action>
+  <action name="actionFileExportPDU">
+   <property name="text">
+    <string>Export PDUs to File...</string>
+   </property>
+  </action>
+  <action name="actionStatisticsIOGraph">
+   <property name="text">
+    <string>&amp;I/O Graph</string>
+   </property>
+   <property name="toolTip">
+    <string>Create graphs based on display filter fields</string>
+   </property>
+  </action>
+  <action name="actionViewToolbarMainToolbar">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Main Toolbar</string>
+   </property>
+   <property name="toolTip">
+    <string>Show/hide the main toolbar</string>
+   </property>
+  </action>
+  <action name="actionViewToolbarDisplayFilter">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Display Filter</string>
+   </property>
+   <property name="toolTip">
+    <string>Show/hide the display filter toolbar</string>
    </property>
   </action>
  </widget>
@@ -1220,6 +1750,38 @@
     <hint type="destinationlabel">
      <x>408</x>
      <y>258</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>mainToolBar</sender>
+   <signal>visibilityChanged(bool)</signal>
+   <receiver>actionViewToolbarMainToolbar</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>479</x>
+     <y>39</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>displayFilterToolBar</sender>
+   <signal>visibilityChanged(bool)</signal>
+   <receiver>actionViewToolbarDisplayFilter</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>479</x>
+     <y>64</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
     </hint>
    </hints>
   </connection>

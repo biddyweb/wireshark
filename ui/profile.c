@@ -2,8 +2,6 @@
  * Dialog box for profiles editing
  * Stig Bjorlykke <stig@bjorlykke.org>, 2008
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,7 +28,8 @@
 
 #include <glib.h>
 
-#include <epan/filesystem.h>
+#include <epan/emem.h>
+#include <wsutil/filesystem.h>
 #include <epan/prefs.h>
 
 #include "profile.h"
@@ -297,7 +296,7 @@ copy_profile_list(void)
 
     /* copy the list entries */
     while(flp_src) {
-        profile = (flp_src)->data;
+        profile = (profile_def *)(flp_src)->data;
 
         current_profiles = add_profile_entry(current_profiles, profile->name,
                 profile->reference, profile->status,

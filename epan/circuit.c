@@ -1,8 +1,6 @@
 /* circuit.c
  * Routines for building lists of packets that are part of a "circuit"
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -115,11 +113,11 @@ circuit_new(circuit_type ctype, guint32 circuit_id, guint32 first_frame)
 	circuit_t *circuit, *old_circuit;
 	circuit_key *new_key;
 
-	new_key = se_alloc(sizeof(struct circuit_key));
+	new_key = se_new(struct circuit_key);
 	new_key->ctype = ctype;
 	new_key->circuit_id = circuit_id;
 
-	circuit = se_alloc(sizeof(circuit_t));
+	circuit = se_new(circuit_t);
 	circuit->next = NULL;
 	circuit->first_frame = first_frame;
 	circuit->last_frame = 0;	/* not known yet */
@@ -133,7 +131,7 @@ circuit_new(circuit_type ctype, guint32 circuit_id, guint32 first_frame)
 	/*
 	 * Is there already a circuit with this circuit ID?
 	 */
-	old_circuit = g_hash_table_lookup(circuit_hashtable, new_key);
+	old_circuit = (circuit_t *)g_hash_table_lookup(circuit_hashtable, new_key);
 	if (old_circuit != NULL) {
 		/*
 		 * Yes.  Find the last circuit in the list of circuits
@@ -179,7 +177,7 @@ find_circuit(circuit_type ctype, guint32 circuit_id, guint32 frame)
 	 * OK, search the list of circuits with that type and ID for
 	 * a circuit whose range of frames includes that frame number.
 	 */
-	for (circuit = g_hash_table_lookup(circuit_hashtable, &key);
+	for (circuit = (circuit_t *)g_hash_table_lookup(circuit_hashtable, &key);
 	    circuit != NULL; circuit = circuit->next) {
 		/*
 		 * The circuit includes that frame number if:
@@ -227,7 +225,7 @@ p_compare(gconstpointer a, gconstpointer b)
 void
 circuit_add_proto_data(circuit_t *conv, int proto, void *proto_data)
 {
-	circuit_proto_data *p1 = se_alloc(sizeof(circuit_proto_data));
+	circuit_proto_data *p1 = se_new(circuit_proto_data);
 
 	p1->proto = proto;
 	p1->proto_data = proto_data;
@@ -293,7 +291,7 @@ circuit_get_dissector(circuit_t *circuit)
  */
 gboolean
 try_circuit_dissector(circuit_type ctype, guint32 circuit_id, guint32 frame,
-		      tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+		      tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
 	circuit_t *circuit;
 
@@ -302,8 +300,8 @@ try_circuit_dissector(circuit_type ctype, guint32 circuit_id, guint32 frame,
 	if (circuit != NULL) {
 		if (circuit->dissector_handle == NULL)
 			return FALSE;
-		call_dissector(circuit->dissector_handle, tvb, pinfo,
-		    tree);
+		call_dissector_with_data(circuit->dissector_handle, tvb, pinfo,
+		    tree, data);
 		return TRUE;
 	}
 	return FALSE;

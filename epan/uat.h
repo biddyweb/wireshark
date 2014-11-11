@@ -1,8 +1,6 @@
 /*
  *  uat.h
  *
- *  $Id$
- *
  *  User Accessible Tables
  *  Mantain an array of user accessible data strucures
  *
@@ -27,10 +25,18 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef _UAT_H_
-#define _UAT_H_
+#ifndef __UAT_H__
+#define __UAT_H__
+
+#include <stdlib.h>
+
+#include <epan/emem.h>
 
 #include "ws_symbol_export.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /*
  * uat mantains a dynamically allocated table accessible to the user
@@ -54,7 +60,7 @@
  */
 
 /* obscure data type to handle an uat */
-typedef struct _uat_t uat_t;
+typedef struct epan_uat uat_t;
 /********************************************
  * Callbacks:
  * these instruct uat on how to deal with user info and data in records
@@ -237,8 +243,8 @@ typedef struct _uat_field_t {
  * @param size The size of the structure
  * @param filename The filename to be used (either in userdir or datadir)
  * @param from_profile TRUE if profile directory to be used
- * @param data_ptr A pointer to a null terminated array of pointers to the data
- * @param num_items_ptr
+ * @param data_ptr Although a void*, this is really a pointer to a null terminated array of pointers to the data
+ * @param num_items_ptr A pointer with number of items
  * @param flags flags indicating what this UAT affects
  * @param help A pointer to help text
  * @param copy_cb A function that copies the data in the struct
@@ -254,7 +260,7 @@ uat_t* uat_new(const char* name,
 			   size_t size,
 			   const char* filename,
 			   gboolean from_profile,
-			   void** data_ptr,
+			   void* data_ptr,
 			   guint* num_items_ptr,
 			   guint flags,
 			   const char* help,
@@ -464,6 +470,9 @@ static void basename ## _ ## field_name ## _tostr_cb(void* rec, const char** out
 #define UAT_FLD_DEC(basename,field_name,title,desc) \
 	{#field_name, title, PT_TXTMOD_STRING,{uat_fld_chk_num_dec,basename ## _ ## field_name ## _set_cb,basename ## _ ## field_name ## _tostr_cb},{0,0,0},0,desc,FLDFILL}
 
+#define UAT_FLD_NONE(basename,field_name,title,desc) \
+	{#field_name, title, PT_TXTMOD_NONE,{uat_fld_chk_num_dec,basename ## _ ## field_name ## _set_cb,basename ## _ ## field_name ## _tostr_cb},{0,0,0},0,desc,FLDFILL}
+
 
 /*
  * HEX Macros,
@@ -492,16 +501,16 @@ static void basename ## _ ## field_name ## _set_cb(void* rec, const char* buf, g
 	guint i; \
 	char* str = ep_strndup(buf,len); \
 	const char* cstr; ((rec_t*)rec)->field_name = default_val; \
-	for(i=0; ( cstr = ((value_string*)vs)[i].strptr ) ;i++) { \
+	for(i=0; ( cstr = ((const value_string*)vs)[i].strptr ) ;i++) { \
 		if (g_str_equal(cstr,str)) { \
-			((rec_t*)rec)->field_name = (default_t)((value_string*)vs)[i].value; return; } } } \
+			((rec_t*)rec)->field_name = (default_t)((const value_string*)vs)[i].value; return; } } } \
 static void basename ## _ ## field_name ## _tostr_cb(void* rec, const char** out_ptr, unsigned* out_len, const void* vs, const void* u2 _U_) {\
 	guint i; \
 	*out_ptr = ep_strdup(default_str); \
 	*out_len = (unsigned)strlen(default_str);\
-	for(i=0;((value_string*)vs)[i].strptr;i++) { \
-		if ( ((value_string*)vs)[i].value == ((rec_t*)rec)->field_name ) { \
-			*out_ptr = ep_strdup(((value_string*)vs)[i].strptr); \
+	for(i=0;((const value_string*)vs)[i].strptr;i++) { \
+		if ( ((const value_string*)vs)[i].value == ((rec_t*)rec)->field_name ) { \
+			*out_ptr = ep_strdup(((const value_string*)vs)[i].strptr); \
 			*out_len = (unsigned)strlen(*out_ptr); return; } } }
 
 #define UAT_VS_CSTRING_DEF(basename,field_name,rec_t,default_val,default_str) \
@@ -509,9 +518,9 @@ static void basename ## _ ## field_name ## _set_cb(void* rec, const char* buf, g
 	guint i; \
 	char* str = ep_strndup(buf,len); \
 	const char* cstr; ((rec_t*)rec)->field_name = default_val; \
-	for(i=0; ( cstr = ((value_string*)vs)[i].strptr ) ;i++) { \
+	for(i=0; ( cstr = ((const value_string*)vs)[i].strptr ) ;i++) { \
 		if (g_str_equal(cstr,str)) { \
-		  ((rec_t*)rec)->field_name = g_strdup(((value_string*)vs)[i].strptr); return; } } } \
+		  ((rec_t*)rec)->field_name = g_strdup(((const value_string*)vs)[i].strptr); return; } } } \
 static void basename ## _ ## field_name ## _tostr_cb(void* rec, const char** out_ptr, unsigned* out_len, const void* vs _U_, const void* u2 _U_) {\
 		if (((rec_t*)rec)->field_name ) { \
 			*out_ptr = (((rec_t*)rec)->field_name); \
@@ -571,4 +580,8 @@ static void basename ## _ ## field_name ## _tostr_cb(void* rec, const char** out
 	{#field_name, title, PT_TXTMOD_STRING,{uat_fld_chk_range,basename ## _ ## field_name ## _set_cb,basename ## _ ## field_name ## _tostr_cb},\
 	  {0,0,0},GUINT_TO_POINTER(max),desc,FLDFILL}
 
-#endif
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* __UAT_H__ */

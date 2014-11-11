@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-credssp.c                                                           */
 /* ../../tools/asn2wrs.py -b -C -p credssp -c ./credssp.cnf -s ./packet-credssp-template -D . -O ../../epan/dissectors CredSSP.asn */
 
@@ -9,8 +9,6 @@
 /* packet-credssp.c
  * Routines for CredSSP (Credential Security Support Provider) packet dissection
  * Graeme Lunt 2011
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -36,6 +34,8 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/asn1.h>
+#include <epan/tap.h>
+#include <epan/exported_pdu.h>
 
 #include "packet-ber.h"
 #include "packet-credssp.h"
@@ -48,6 +48,8 @@
 #define TS_PASSWORD_CREDS   1
 #define TS_SMARTCARD_CREDS  2
 static gint creds_type;
+
+static gint exported_pdu_tap = -1;
 
 /* Initialize the protocol and registered fields */
 static int proto_credssp = -1;
@@ -84,7 +86,7 @@ static int hf_credssp_authInfo = -1;              /* T_authInfo */
 static int hf_credssp_pubKeyAuth = -1;            /* OCTET_STRING */
 
 /*--- End of included file: packet-credssp-hf.c ---*/
-#line 54 "../../asn1/credssp/packet-credssp-template.c"
+#line 56 "../../asn1/credssp/packet-credssp-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_credssp = -1;
@@ -100,7 +102,7 @@ static gint ett_credssp_TSCredentials = -1;
 static gint ett_credssp_TSRequest = -1;
 
 /*--- End of included file: packet-credssp-ett.c ---*/
-#line 58 "../../asn1/credssp/packet-credssp-template.c"
+#line 60 "../../asn1/credssp/packet-credssp-template.c"
 
 
 /*--- Included file: packet-credssp-fn.c ---*/
@@ -109,16 +111,17 @@ static gint ett_credssp_TSRequest = -1;
 
 static int
 dissect_credssp_T_negoToken(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 46 "../../asn1/credssp/credssp.cnf"
+#line 45 "../../asn1/credssp/credssp.cnf"
 	tvbuff_t *token_tvb = NULL;
+	heur_dtbl_entry_t *hdtbl_entry;
 
 	  offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &token_tvb);
 
 
 	if(token_tvb != NULL)
-		      dissector_try_heuristic(credssp_heur_subdissector_list, 
-		      token_tvb, actx->pinfo, proto_tree_get_root(tree), NULL);
+		      dissector_try_heuristic(credssp_heur_subdissector_list,
+		      token_tvb, actx->pinfo, proto_tree_get_root(tree), &hdtbl_entry, NULL);
 
 
 
@@ -238,7 +241,7 @@ dissect_credssp_T_credType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
 
 static int
 dissect_credssp_T_credentials(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 24 "../../asn1/credssp/credssp.cnf"
+#line 23 "../../asn1/credssp/credssp.cnf"
 	tvbuff_t *creds_tvb = NULL;
 	tvbuff_t *decr_tvb = NULL;
 
@@ -246,7 +249,7 @@ dissect_credssp_T_credentials(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
                                        &creds_tvb);
 
 
-	if((decr_tvb != NULL) && 
+	if((decr_tvb != NULL) &&
 	((creds_type == TS_PASSWORD_CREDS) || (creds_type == TS_SMARTCARD_CREDS))) {
 
 		      switch(creds_type) {
@@ -284,7 +287,7 @@ dissect_credssp_TSCredentials(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
 
 static int
 dissect_credssp_T_authInfo(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 11 "../../asn1/credssp/credssp.cnf"
+#line 10 "../../asn1/credssp/credssp.cnf"
 	tvbuff_t *auth_tvb = NULL;
 	tvbuff_t *decr_tvb = NULL;
 
@@ -328,7 +331,7 @@ static void dissect_TSRequest_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, pro
 
 
 /*--- End of included file: packet-credssp-fn.c ---*/
-#line 60 "../../asn1/credssp/packet-credssp-template.c"
+#line 62 "../../asn1/credssp/packet-credssp-template.c"
 
 /*
 * Dissect CredSSP PDUs
@@ -362,22 +365,37 @@ dissect_credssp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree,
 
   asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
-  /* Look for SEQUENCE, CONTEXT 0, and INTEGER 2 */  
+  /* Look for SEQUENCE, CONTEXT 0, and INTEGER 2 */
   if(tvb_length(tvb) > 7) {
-    offset = get_ber_identifier(tvb, offset, &ber_class, &pc, &tag); 
+    offset = get_ber_identifier(tvb, offset, &ber_class, &pc, &tag);
     if((ber_class == BER_CLASS_UNI) && (tag == BER_UNI_TAG_SEQUENCE) && (pc == TRUE)) {
       offset = get_ber_length(tvb, offset, NULL, NULL);
-      offset = get_ber_identifier(tvb, offset, &ber_class, &pc, &tag); 
+      offset = get_ber_identifier(tvb, offset, &ber_class, &pc, &tag);
       if((ber_class == BER_CLASS_CON) && (tag == 0)) {
-	offset = get_ber_length(tvb, offset, NULL, NULL);
-	offset = get_ber_identifier(tvb, offset, &ber_class, &pc, &tag); 
-	if((ber_class == BER_CLASS_UNI) && (tag == BER_UNI_TAG_INTEGER)) {
-	  offset = get_ber_length(tvb, offset, &length, NULL);
-	  if((length == 1) && (tvb_get_guint8(tvb, offset) == 2)) {
-	    dissect_credssp(tvb, pinfo, parent_tree);
-	    return TRUE;
-	  }
-	}
+        offset = get_ber_length(tvb, offset, NULL, NULL);
+        offset = get_ber_identifier(tvb, offset, &ber_class, &pc, &tag);
+        if((ber_class == BER_CLASS_UNI) && (tag == BER_UNI_TAG_INTEGER)) {
+          offset = get_ber_length(tvb, offset, &length, NULL);
+          if((length == 1) && (tvb_get_guint8(tvb, offset) == 2)) {
+            if (have_tap_listener(exported_pdu_tap)) {
+              exp_pdu_data_t *exp_pdu_data;
+              guint8 tags_bit_field;
+
+              tags_bit_field = EXP_PDU_TAG_IP_SRC_BIT + EXP_PDU_TAG_IP_DST_BIT + EXP_PDU_TAG_SRC_PORT_BIT+
+                  EXP_PDU_TAG_DST_PORT_BIT + EXP_PDU_TAG_ORIG_FNO_BIT;
+
+              exp_pdu_data = load_export_pdu_tags(pinfo, "credssp", -1, &tags_bit_field, 1);
+
+              exp_pdu_data->tvb_captured_length = tvb_captured_length(tvb);
+              exp_pdu_data->tvb_reported_length = tvb_reported_length(tvb);
+              exp_pdu_data->pdu_tvb = tvb;
+
+              tap_queue_packet(exported_pdu_tap, pinfo, exp_pdu_data);
+            }
+            dissect_credssp(tvb, pinfo, parent_tree);
+            return TRUE;
+          }
+        }
       }
     }
   }
@@ -407,11 +425,11 @@ void proto_register_credssp(void) {
 /*--- Included file: packet-credssp-hfarr.c ---*/
 #line 1 "../../asn1/credssp/packet-credssp-hfarr.c"
     { &hf_credssp_TSRequest_PDU,
-      { "TSRequest", "credssp.TSRequest",
+      { "TSRequest", "credssp.TSRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_credssp_NegoData_item,
-      { "NegoData item", "credssp.NegoData_item",
+      { "NegoData item", "credssp.NegoData_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_credssp_negoToken,
@@ -455,7 +473,7 @@ void proto_register_credssp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_credssp_cspData,
-      { "cspData", "credssp.cspData",
+      { "cspData", "credssp.cspData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TSCspDataDetail", HFILL }},
     { &hf_credssp_userHint,
@@ -492,7 +510,7 @@ void proto_register_credssp(void) {
         "OCTET_STRING", HFILL }},
 
 /*--- End of included file: packet-credssp-hfarr.c ---*/
-#line 135 "../../asn1/credssp/packet-credssp-template.c"
+#line 152 "../../asn1/credssp/packet-credssp-template.c"
   };
 
   /* List of subtrees */
@@ -510,7 +528,7 @@ void proto_register_credssp(void) {
     &ett_credssp_TSRequest,
 
 /*--- End of included file: packet-credssp-ettarr.c ---*/
-#line 141 "../../asn1/credssp/packet-credssp-template.c"
+#line 158 "../../asn1/credssp/packet-credssp-template.c"
   };
 
 
@@ -532,6 +550,6 @@ void proto_register_credssp(void) {
 void proto_reg_handoff_credssp(void) {
 
   heur_dissector_add("ssl", dissect_credssp_heur, proto_credssp);
-
+  exported_pdu_tap = find_tap_id(EXPORT_PDU_TAP_NAME_LAYER_7);
 }
 

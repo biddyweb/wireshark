@@ -6,8 +6,6 @@
  * Based on GIOP Compression FTF Beta 1
  * OMG mars/2008-12-20
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,7 +32,7 @@
  * Useful visible data/structs
  */
 
-#define ZIOP_HEADER_SIZE    12 
+#define ZIOP_HEADER_SIZE    12
 
 #define ZIOP_MAGIC 	 "ZIOP"
 

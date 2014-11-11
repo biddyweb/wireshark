@@ -1,9 +1,7 @@
 /* packet-unistim.h
-  * header field declarations, value_string definitions, true_false_string 
+  * header field declarations, value_string definitions, true_false_string
   * definitions and function prototypes for main dissectors
   * Copyright 2007 Don Newton <dnewton@cypresscom.net>
-  *
-  * $Id$
   *
   * Wireshark - Network traffic analyzer
   * By Gerald Combs <gerald@wireshark.org>

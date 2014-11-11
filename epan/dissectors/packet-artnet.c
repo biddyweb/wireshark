@@ -1,8 +1,6 @@
 /* packet-artnet.c
  * Routines for Art-Net packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2003, 2011 by Erwin Rol <erwin@erwinrol.com>
  *
  * Wireshark - Network traffic analyzer
@@ -33,7 +31,7 @@
 /*
  * See
  *
- *	http://www.artisticlicence.com/art-net.pdf
+ *	http://www.artisticlicence.com/WebSiteMaster/User%20Guides/art-net.pdf
  */
 
 void proto_register_artnet(void);
@@ -2456,7 +2454,7 @@ dissect_artnet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
   }
 
   col_append_fstr(pinfo->cinfo, COL_INFO, "%s",
-                  tvb_get_ephemeral_string(tvb, offset, 8));
+                  tvb_get_string_enc(wmem_packet_scope(), tvb, offset, 8, ENC_ASCII|ENC_NA));
   if (tree) {
     proto_tree_add_item(artnet_header_tree, hf_artnet_header_id,
                         tvb, offset, 8, ENC_ASCII|ENC_NA);
@@ -3133,14 +3131,15 @@ dissect_artnet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 static gboolean
 dissect_artnet_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-  static const char artnet_packet_id[] = "Art-Net\0";
+  guint64     qword;
 
   /* check if we atleast have the 8 byte header */
-  if (tvb_length(tvb) < sizeof(artnet_packet_id))
+  if (tvb_length(tvb) < 8)
     return FALSE;
 
-  /* Check the 8 byte header */
-  if (tvb_memeql(tvb, 0, artnet_packet_id, sizeof(artnet_packet_id) - 1) != 0)
+  /* Check the 8 byte header "Art-Net\0" = 0x4172742d4e7400*/
+  qword = tvb_get_ntoh64(tvb,0);
+  if(qword != G_GUINT64_CONSTANT (0x4172742d4e7400))
     return FALSE;
 
   /* if the header matches, dissect it */
@@ -4215,7 +4214,7 @@ proto_register_artnet(void) {
         NULL, HFILL }},
 
     { &hf_artnet_directory_reply_length,
-      { "Lenght",
+      { "Length",
         "artnet.directory_reply.length",
         FT_UINT64, BASE_DEC, NULL, 0x0,
         NULL, HFILL }},

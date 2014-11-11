@@ -1,10 +1,7 @@
 /* export_object_dicom.c
- * $Id$
  * Routines for tracking & saving objects found in DICOM streams
  * See also: export_object.c / export_object.h for common code
  * Copyright 2008, David Aggeler <david_aggeler@hispeed.ch>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -41,8 +38,8 @@ gboolean
 eo_dicom_packet(void *tapdata, packet_info *pinfo, epan_dissect_t *edt _U_,
                 const void *data)
 {
-    export_object_list_t *object_list = tapdata;
-    const dicom_eo_t *eo_info = data;
+    export_object_list_t *object_list = (export_object_list_t *)tapdata;
+    const dicom_eo_t *eo_info = (const dicom_eo_t *)data;
     export_object_entry_t *entry;
 
     if (eo_info) { /* We have data waiting for us */
@@ -51,7 +48,7 @@ eo_dicom_packet(void *tapdata, packet_info *pinfo, epan_dissect_t *edt _U_,
            Still, the values will be freed when the export Object window is closed.
            Therefore, strings and buffers must be copied
         */
-        entry = g_malloc(sizeof(export_object_entry_t));
+        entry = (export_object_entry_t *)g_malloc(sizeof(export_object_entry_t));
 
         entry->pkt_num = pinfo->fd->num;
         entry->hostname = eo_info->hostname;

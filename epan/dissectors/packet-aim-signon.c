@@ -3,8 +3,6 @@
  * Copyright 2004, Jelmer Vernooij <jelmer@samba.org>
  * Copyright 2000, Ralf Hoelzer <ralf@well.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -75,7 +73,7 @@ static int dissect_aim_snac_signon_signon(tvbuff_t *tvb, packet_info *pinfo,
 {
 	guint8 buddyname_length = 0;
 	int offset = 0;
-	guchar buddyname[MAX_BUDDYNAME_LENGTH + 1];
+	guint8 *buddyname;
 
 	/* Info Type */
 	proto_tree_add_item(tree, hf_aim_infotype, tvb, offset, 2, ENC_BIG_ENDIAN);
@@ -85,7 +83,7 @@ static int dissect_aim_snac_signon_signon(tvbuff_t *tvb, packet_info *pinfo,
 	offset += 1;
 
 	/* Buddy Name */
-	buddyname_length = aim_get_buddyname( buddyname, tvb, offset, offset + 1 );
+	buddyname_length = aim_get_buddyname( &buddyname, tvb, offset );
 
 	col_append_fstr(pinfo->cinfo, COL_INFO, " Username: %s",
 			format_text(buddyname, buddyname_length));
@@ -110,7 +108,7 @@ static int dissect_aim_snac_signon_signon_reply(tvbuff_t *tvb,
 	offset += 2;
 
 	/* Challenge */
-	proto_tree_add_item(tree, hf_aim_signon_challenge, tvb, offset, challenge_length, ENC_ASCII|ENC_NA);
+	proto_tree_add_item(tree, hf_aim_signon_challenge, tvb, offset, challenge_length, ENC_UTF_8|ENC_NA);
 	offset += challenge_length;
 	return offset;
 }

@@ -2,8 +2,6 @@
  * Routines for RLM dissection
  * Copyright 2004, Duncan Sargeant <dunc-ethereal@rcpt.to>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -53,6 +51,9 @@
 
 #include <epan/packet.h>
 #include <epan/xdlc.h>
+
+void proto_register_rlm(void);
+void proto_reg_handoff_rlm(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_rlm = -1;
@@ -124,7 +125,10 @@ dissect_rlm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 			|| pinfo->destport != pinfo->srcport)
 		return FALSE;
 
-	version = tvb_get_guint8(tvb, 0);
+	if (tvb_captured_length(tvb) < 2)
+		return FALSE;
+
+	version  = tvb_get_guint8(tvb, 0);
 	rlm_type = tvb_get_guint8(tvb, 1);
 
 	/* we only know about version 2, and I've only seen 8 byte packets */
@@ -164,7 +168,7 @@ dissect_rlm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 		ti = proto_tree_add_item(tree, proto_rlm, tvb, 0, 8, ENC_NA);
 		rlm_tree = proto_item_add_subtree(ti, ett_rlm);
 		proto_tree_add_item(rlm_tree, hf_rlm_version, tvb, 0, 1, ENC_BIG_ENDIAN);
-		proto_tree_add_uint_format(rlm_tree, hf_rlm_type, tvb, 1, 1, rlm_type, "Type: %u (%s)", rlm_type, type_str);
+		proto_tree_add_uint_format_value(rlm_tree, hf_rlm_type, tvb, 1, 1, rlm_type, "%u (%s)", rlm_type, type_str);
 		proto_tree_add_item(rlm_tree, hf_rlm_unknown, tvb, 2, 2, ENC_BIG_ENDIAN);
 		proto_tree_add_item(rlm_tree, hf_rlm_tid, tvb, 4, 2, ENC_BIG_ENDIAN);
 		proto_tree_add_item(rlm_tree, hf_rlm_unknown2, tvb, 6, 2, ENC_BIG_ENDIAN);
@@ -238,3 +242,16 @@ proto_register_rlm(void)
 	proto_register_field_array(proto_rlm, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

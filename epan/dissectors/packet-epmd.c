@@ -8,8 +8,6 @@
  *
  * (c) 2007 Joost Yervante Damad <joost[AT]teluna.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald[AT]wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -39,6 +37,9 @@
 #define PNAME  "Erlang Port Mapper Daemon"
 #define PSNAME "EPMD"
 #define PFNAME "epmd"
+
+void proto_register_epmd(void);
+void proto_reg_handoff_epmd(void);
 
 static int proto_epmd = -1;
 static int hf_epmd_len = -1;
@@ -144,7 +145,7 @@ dissect_epmd_request(packet_info *pinfo, tvbuff_t *tvb, gint offset, proto_tree 
             name_length = tvb_get_ntohs(tvb, offset);
             proto_tree_add_item(tree, hf_epmd_name_len, tvb, offset, 2, ENC_BIG_ENDIAN);
             proto_tree_add_item(tree, hf_epmd_name, tvb, offset + 2, name_length, ENC_ASCII|ENC_NA);
-            name = tvb_get_ephemeral_string(tvb, offset + 2, name_length);
+            name = tvb_get_string(wmem_packet_scope(), tvb, offset + 2, name_length);
             offset += 2 + name_length;
             if (tvb_length_remaining(tvb, offset) >= 2) {
                 guint16 elen=0;
@@ -152,7 +153,7 @@ dissect_epmd_request(packet_info *pinfo, tvbuff_t *tvb, gint offset, proto_tree 
                 proto_tree_add_item(tree, hf_epmd_elen, tvb, offset, 2, ENC_BIG_ENDIAN);
                 if (elen > 0)
                     proto_tree_add_item(tree, hf_epmd_edata, tvb, offset + 2, elen, ENC_NA);
-                offset += 2 + elen;
+                /*offset += 2 + elen;*/
             }
             break;
 
@@ -160,7 +161,7 @@ dissect_epmd_request(packet_info *pinfo, tvbuff_t *tvb, gint offset, proto_tree 
         case EPMD_PORT2_REQ:
             name_length = tvb_length_remaining(tvb, offset);
             proto_tree_add_item(tree, hf_epmd_name, tvb, offset, name_length, ENC_ASCII|ENC_NA);
-            name = tvb_get_ephemeral_string(tvb, offset, name_length);
+            name = tvb_get_string(wmem_packet_scope(), tvb, offset, name_length);
             break;
 
         case EPMD_ALIVE_REQ:
@@ -168,7 +169,7 @@ dissect_epmd_request(packet_info *pinfo, tvbuff_t *tvb, gint offset, proto_tree 
             offset += 2;
             name_length = tvb_length_remaining(tvb, offset);
             proto_tree_add_item(tree, hf_epmd_name, tvb, offset, name_length, ENC_ASCII|ENC_NA);
-            name = tvb_get_ephemeral_string(tvb, offset, name_length);
+            name = tvb_get_string(wmem_packet_scope(), tvb, offset, name_length);
             break;
 
         case EPMD_NAMES_REQ:
@@ -189,7 +190,7 @@ dissect_epmd_response_names(packet_info *pinfo _U_, tvbuff_t *tvb, gint offset, 
     proto_tree_add_item(tree, hf_epmd_names, tvb, offset, -1, ENC_NA);
 }
 
-static void
+static int
 dissect_epmd_response(packet_info *pinfo, tvbuff_t *tvb, gint offset, proto_tree *tree) {
     guint8          type, result;
     guint32         port;
@@ -200,7 +201,7 @@ dissect_epmd_response(packet_info *pinfo, tvbuff_t *tvb, gint offset, proto_tree
     port = tvb_get_ntohl(tvb, offset);
     if (port == EPMD_PORT) {
         dissect_epmd_response_names(pinfo, tvb, offset, tree);
-        return;
+        return 0;
     }
 
     type = tvb_get_guint8(tvb, offset);
@@ -247,7 +248,7 @@ dissect_epmd_response(packet_info *pinfo, tvbuff_t *tvb, gint offset, proto_tree
             name_length = tvb_get_ntohs(tvb, offset);
             proto_tree_add_item(tree, hf_epmd_name_len, tvb, offset, 2, ENC_BIG_ENDIAN);
             proto_tree_add_item(tree, hf_epmd_name, tvb, offset + 2, name_length, ENC_ASCII|ENC_NA);
-            name = tvb_get_ephemeral_string(tvb, offset + 2, name_length);
+            name = tvb_get_string(wmem_packet_scope(), tvb, offset + 2, name_length);
             offset += 2 + name_length;
             if (tvb_length_remaining(tvb, offset) >= 2) {
                 guint16 elen=0;
@@ -264,6 +265,7 @@ dissect_epmd_response(packet_info *pinfo, tvbuff_t *tvb, gint offset, proto_tree
             }
             break;
     }
+    return offset;
 }
 
 static gboolean
@@ -319,7 +321,7 @@ dissect_epmd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
     ti = proto_tree_add_item(tree, proto_epmd, tvb, 0, -1, ENC_NA);
     epmd_tree = proto_item_add_subtree(ti, ett_epmd);
 
-    if (pinfo->match_port == pinfo->destport) {
+    if (pinfo->match_uint == pinfo->destport) {
         dissect_epmd_request(pinfo, tvb, 0, epmd_tree);
     } else {
         dissect_epmd_response(pinfo, tvb, 0, epmd_tree);

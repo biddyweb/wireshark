@@ -3,8 +3,6 @@
  *
  * Copyright 2012, Michal Labedzki for Tieto Corporation
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,7 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-btl2cap.h"
 #include "packet-btsdp.h"
@@ -36,7 +35,7 @@
 enum {
     TOP_DISSECT_OFF       = 0,
     TOP_DISSECT_INTERNAL  = 1,
-    TOP_DISSECT_TOP       = 2,
+    TOP_DISSECT_TOP       = 2
 };
 
 enum {
@@ -57,6 +56,7 @@ static int proto_btsap                                                     = -1;
 static int hf_btsap_header_msg_id                                          = -1;
 static int hf_btsap_header_number_of_parameters                            = -1;
 static int hf_btsap_header_reserved                                        = -1;
+static int hf_btsap_parameter                                              = -1;
 static int hf_btsap_parameter_id                                           = -1;
 static int hf_btsap_parameter_reserved                                     = -1;
 static int hf_btsap_parameter_length                                       = -1;
@@ -76,11 +76,15 @@ static int hf_btsap_parameter_card_reader_status_card_powered              = -1;
 
 static int hf_btsap_data                                                   = -1;
 
-static int top_dissect                                                     = TOP_DISSECT_INTERNAL;
-
 static gint ett_btsap                                                      = -1;
 static gint ett_btsap_parameter                                            = -1;
 
+static expert_field ei_btsap_parameter_error = EI_INIT;
+static expert_field ei_unexpected_data = EI_INIT;
+
+static gint top_dissect = TOP_DISSECT_INTERNAL;
+
+static dissector_handle_t btsap_handle;
 static dissector_handle_t gsm_sim_cmd_handle;
 static dissector_handle_t gsm_sim_resp_handle;
 static dissector_handle_t iso7816_atr_handle;
@@ -169,24 +173,28 @@ static const enum_val_t pref_top_dissect[] = {
     { NULL, NULL, 0 }
 };
 
-static unsigned int
-dissect_parameter(tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree, proto_tree *tree, unsigned int offset, guint8 *parameter, unsigned int *parameter_offset)
+void proto_register_btsap(void);
+void proto_reg_handoff_btsap(void);
+
+static gint
+dissect_parameter(tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree,
+        proto_tree *tree, gint offset, guint8 *parameter, gint *parameter_offset)
 {
-    unsigned int parameter_id;
-    unsigned int parameter_length;
-    unsigned int parameter_padding_length;
-    unsigned int padding_length;
-    unsigned int length;
+    proto_item  *parameter_item;
+    proto_item  *pitem;
+    proto_tree  *ptree;
+    tvbuff_t    *next_tvb;
+    guint        parameter_id;
+    guint        parameter_length;
+    guint        parameter_padding_length;
+    guint        padding_length;
+    guint        length;
     guint16      max_msg_size;
     guint8       connection_status;
     guint8       result_code;
     guint8       disconnection_type;
     guint8       status_change;
     guint8       transport_protocol;
-    proto_item   *parameter_item = NULL;
-    proto_item   *pitem = NULL;
-    proto_tree   *ptree = NULL;
-    tvbuff_t     *next_tvb;
 
     parameter_id = tvb_get_guint8(tvb, offset);
     parameter_length = tvb_get_ntohs(tvb, offset + 2);
@@ -194,7 +202,9 @@ dissect_parameter(tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree, proto
     if (parameter_padding_length > 0)
         parameter_padding_length = 4 - parameter_padding_length;
 
-    parameter_item = proto_tree_add_text(tree, tvb, offset, 2 + 2 + parameter_length + parameter_padding_length, "Parameter: %s: ",  val_to_str_const(parameter_id, parameter_id_vals, "Unknown ParameterID"));
+    parameter_item = proto_tree_add_none_format(tree, hf_btsap_parameter, tvb, offset,
+            2 + 2 + parameter_length + parameter_padding_length, "Parameter: %s: ",
+            val_to_str_const(parameter_id, parameter_id_vals, "Unknown ParameterID"));
     ptree = proto_item_add_subtree(parameter_item, ett_btsap_parameter);
 
     proto_tree_add_item(ptree, hf_btsap_parameter_id, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -357,14 +367,14 @@ dissect_parameter(tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree, proto
 
     if (length != parameter_length || padding_length != parameter_padding_length) {
         /* Malformed frame */
-        expert_add_info_format(pinfo, pitem, PI_PROTOCOL, PI_WARN,
+        expert_add_info_format(pinfo, pitem, &ei_btsap_parameter_error,
             "Parameter Length does not meet content length");
     }
 
     offset += parameter_length;
 
     if (parameter_padding_length > 0) {
-        pitem = proto_tree_add_item(ptree, hf_btsap_parameter_padding, tvb, offset, parameter_padding_length, ENC_BIG_ENDIAN);
+        pitem = proto_tree_add_item(ptree, hf_btsap_parameter_padding, tvb, offset, parameter_padding_length, ENC_NA);
         proto_item_append_text(pitem, " (length %d)", parameter_padding_length);
         offset += parameter_padding_length;
     }
@@ -372,53 +382,42 @@ dissect_parameter(tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree, proto
     return offset;
 }
 
-/* Code to actually dissect the packets */
-static void
-dissect_btsap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static gint
+dissect_btsap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-    proto_item   *ti;
-    proto_tree   *btsap_tree;
-    unsigned int offset = 0;
-    unsigned int msg_id;
-    unsigned int number_of_parameters;
-    unsigned int i_parameter;
-    guint8       *parameters;
-    unsigned int *parameter_offsets;
-    unsigned int parameters_check = 0;
-    unsigned int required_parameters = 0;
-    unsigned int i_next_parameter;
-    proto_item   *pitem;
+    proto_item  *ti;
+    proto_tree  *btsap_tree;
+    guint        offset = 0;
+    guint        msg_id;
+    guint        number_of_parameters;
+    guint8      *parameters;
+    gint        *parameter_offsets;
+    guint        parameters_check = 0;
+    guint        required_parameters = 0;
+    guint        i_parameter;
+    guint        i_next_parameter;
 
+    ti = proto_tree_add_item(tree, proto_btsap, tvb, offset, -1, ENC_NA);
+    btsap_tree = proto_item_add_subtree(ti, ett_btsap);
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "SAP");
-    col_clear(pinfo->cinfo, COL_INFO);
 
     switch (pinfo->p2p_dir) {
-
-    case P2P_DIR_SENT:
-        col_add_str(pinfo->cinfo, COL_INFO, "Sent ");
-        break;
-
-    case P2P_DIR_RECV:
-        col_add_str(pinfo->cinfo, COL_INFO, "Rcvd ");
-        break;
-
-    case P2P_DIR_UNKNOWN:
-        col_clear(pinfo->cinfo, COL_INFO);
-        break;
-
-    default:
-        col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
-            pinfo->p2p_dir);
-        break;
+        case P2P_DIR_SENT:
+            col_set_str(pinfo->cinfo, COL_INFO, "Sent ");
+            break;
+        case P2P_DIR_RECV:
+            col_set_str(pinfo->cinfo, COL_INFO, "Rcvd ");
+            break;
+        default:
+            col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
+                pinfo->p2p_dir);
+            break;
     }
-
-    ti = proto_tree_add_item(tree, proto_btsap, tvb, offset, -1, FALSE);
-    btsap_tree = proto_item_add_subtree(ti, ett_btsap);
 
     proto_tree_add_item(btsap_tree, hf_btsap_header_msg_id, tvb, offset, 1, ENC_BIG_ENDIAN);
     msg_id = tvb_get_guint8(tvb, offset);
-    col_append_fstr(pinfo->cinfo, COL_INFO, "%s", val_to_str_const(msg_id, msg_id_vals, "Unknown MsgID"));
+    col_append_str(pinfo->cinfo, COL_INFO, val_to_str_const(msg_id, msg_id_vals, "Unknown MsgID"));
     offset += 1;
 
     proto_tree_add_item(btsap_tree, hf_btsap_header_number_of_parameters, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -428,8 +427,8 @@ dissect_btsap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     proto_tree_add_item(btsap_tree, hf_btsap_header_reserved, tvb, offset, 2, ENC_BIG_ENDIAN);
     offset += 2;
 
-    parameters = ep_alloc(number_of_parameters * sizeof(guint8));
-    parameter_offsets = ep_alloc(number_of_parameters * sizeof(unsigned int));
+    parameters = (guint8 *) wmem_alloc(wmem_packet_scope(), number_of_parameters * sizeof(guint8));
+    parameter_offsets = (gint *) wmem_alloc0(wmem_packet_scope(), number_of_parameters * sizeof(guint));
 
     for (i_parameter = 0; i_parameter < number_of_parameters; ++i_parameter) {
         offset = dissect_parameter(tvb, pinfo, tree, btsap_tree, offset, &parameters[i_parameter], &parameter_offsets[i_parameter]);
@@ -565,31 +564,24 @@ dissect_btsap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
 
     if (parameters_check < required_parameters) {
-        static const gchar error_message[] = "There are no required parameters";
-        pitem = proto_tree_add_text(tree, tvb, offset, 0, error_message);
-        PROTO_ITEM_SET_GENERATED(pitem);
-        expert_add_info_format(pinfo, pitem, PI_PROTOCOL, PI_WARN, error_message);
+        proto_tree_add_expert_format(tree, pinfo, &ei_btsap_parameter_error,
+                                     tvb, offset, 0, "There are no required parameters");
     } else if (parameters_check > required_parameters) {
-        static const gchar error_message[] = "Invalid parameters";
-        pitem = proto_tree_add_text(tree, tvb, offset, 0, error_message);
-        PROTO_ITEM_SET_GENERATED(pitem);
-        expert_add_info_format(pinfo, pitem, PI_PROTOCOL, PI_WARN, error_message);
+        proto_tree_add_expert_format(tree, pinfo, &ei_btsap_parameter_error,
+                                     tvb, offset, 0, "Invalid parameters");
     }
     if (number_of_parameters < required_parameters) {
-        static const gchar error_message[] = "Too few parameters";
-        pitem = proto_tree_add_text(tree, tvb, offset, 0, error_message);
-        PROTO_ITEM_SET_GENERATED(pitem);
-        expert_add_info_format(pinfo, pitem, PI_PROTOCOL, PI_WARN, error_message);
+        proto_tree_add_expert_format(tree, pinfo, &ei_btsap_parameter_error,
+                                     tvb, offset, 0, "Too few parameters");
     } else if (number_of_parameters > required_parameters) {
-        static const gchar error_message[] = "Too many parameters";
-        pitem = proto_tree_add_text(tree, tvb, offset, 0, error_message);
-        PROTO_ITEM_SET_GENERATED(pitem);
-        expert_add_info_format(pinfo, pitem, PI_PROTOCOL, PI_WARN, error_message);
+        proto_tree_add_expert_format(tree, pinfo, &ei_btsap_parameter_error,
+                                     tvb, offset, 0, "Too many parameters");
     }
 
-    if (tvb_length(tvb) > offset) {
-        proto_tree_add_item(btsap_tree, hf_btsap_data, tvb, offset, -1, ENC_NA);
-    }
+    if (tvb_length(tvb) > offset)
+        proto_tree_add_expert(tree, pinfo, &ei_unexpected_data, tvb, offset, -1);
+
+    return offset;
 }
 
 
@@ -597,6 +589,7 @@ void
 proto_register_btsap(void)
 {
     module_t *module;
+    expert_module_t *expert_btsap;
 
     static hf_register_info hf[] = {
         { &hf_btsap_header_msg_id,
@@ -612,6 +605,11 @@ proto_register_btsap(void)
         { &hf_btsap_header_reserved,
             { "reserved",                        "btsap.reserved",
             FT_UINT16, BASE_HEX, NULL, 0x00,
+            NULL, HFILL }
+        },
+        { &hf_btsap_parameter,
+            { "Parameter",                    "btsap.parameter",
+            FT_NONE, BASE_NONE, NULL, 0x00,
             NULL, HFILL }
         },
         { &hf_btsap_parameter_id,
@@ -708,11 +706,18 @@ proto_register_btsap(void)
         &ett_btsap_parameter
     };
 
+    static ei_register_info ei[] = {
+        { &ei_btsap_parameter_error, { "btsap.parameter_error", PI_PROTOCOL, PI_WARN, "Parameter error", EXPFILL }},
+        { &ei_unexpected_data,       { "btsap.unexpected_data", PI_PROTOCOL, PI_WARN, "Unexpected_data", EXPFILL }},
+    };
+
     proto_btsap = proto_register_protocol("Bluetooth SAP Profile", "BT SAP", "btsap");
-    register_dissector("btsap", dissect_btsap, proto_btsap);
+    btsap_handle = new_register_dissector("btsap", dissect_btsap, proto_btsap);
 
     proto_register_field_array(proto_btsap, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_btsap = expert_register_protocol(proto_btsap);
+    expert_register_field_array(expert_btsap, ei, array_length(ei));
 
     module = prefs_register_protocol(proto_btsap, NULL);
     prefs_register_static_text_preference(module, "sap.version",
@@ -728,9 +733,6 @@ proto_register_btsap(void)
 void
 proto_reg_handoff_btsap(void)
 {
-    dissector_handle_t btsap_handle;
-
-    btsap_handle = find_dissector("btsap");
     gsm_sim_cmd_handle = find_dissector("gsm_sim.command");
     gsm_sim_resp_handle = find_dissector("gsm_sim.response");
     iso7816_atr_handle = find_dissector("iso7816.atr");

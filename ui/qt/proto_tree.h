@@ -1,7 +1,5 @@
 /* proto_tree.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -39,6 +37,7 @@ class ProtoTree : public QTreeWidget
 public:
     explicit ProtoTree(QWidget *parent = 0);
     void fillProtocolTree(proto_tree *protocol_tree);
+    void emitRelatedFrame(int related_frame);
     void clear();
 
 protected:
@@ -46,11 +45,13 @@ protected:
 
 private:
      QMenu ctx_menu_;
+     QAction *decode_as_;
 
 signals:
     void protoItemSelected(QString &);
     void protoItemSelected(field_info *);
     void goToFrame(int);
+    void relatedFrame(int);
 
 public slots:
     void updateSelectionStatus(QTreeWidgetItem*);

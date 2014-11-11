@@ -3,8 +3,6 @@
  *
  * Uwe Girlich <Uwe.Girlich@philosys.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,6 +33,8 @@
  * For a full documentation of the Time Synchronization Protocol (TSP) see:
  * http://docs.freebsd.org/44doc/smm/12.timed/paper.pdf
  */
+void proto_register_tsp(void);
+void proto_reg_handoff_tsp(void);
 
 static int proto_tsp = -1;
 static int hf_tsp_type = -1;
@@ -118,8 +118,7 @@ dissect_tsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	col_clear(pinfo->cinfo, COL_INFO);
 
 	tsp_type = tvb_get_guint8(tvb, 0);
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_str(pinfo->cinfo, COL_INFO,
+	col_add_str(pinfo->cinfo, COL_INFO,
 		    val_to_str(tsp_type, names_tsp_type, "Unknown message type (%u)"));
 
 	if (tree) {

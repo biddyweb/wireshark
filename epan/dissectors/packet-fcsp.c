@@ -3,8 +3,6 @@
  * This decoder is for FC-SP version 1.1
  * Copyright 2003, Dinesh G Dutt <ddutt@cisco.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,10 +27,12 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <epan/conversation.h>
 #include <epan/etypes.h>
-#include "packet-scsi.h"
 #include "packet-fc.h"
+
+void proto_register_fcsp(void);
 
 /* Message Codes */
 #define FC_AUTH_MSG_AUTH_REJECT        0x0A
@@ -94,8 +94,6 @@ static int hf_auth_dhchap_rsp_value = -1;
 
 /* Initialize the subtree pointers */
 static gint ett_fcsp = -1;
-
-static dissector_handle_t data_handle;
 
 static const value_string fcauth_msgcode_vals[] = {
     {FC_AUTH_MSG_AUTH_REJECT,    "AUTH_Reject"},
@@ -388,10 +386,8 @@ static void dissect_fcsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* Make entry in the Info column on summary display */
     opcode = tvb_get_guint8(tvb, 2);
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        col_add_str(pinfo->cinfo, COL_INFO,
+    col_add_str(pinfo->cinfo, COL_INFO,
                      val_to_str(opcode, fcauth_msgcode_vals, "0x%x"));
-    }
 
     if (tree) {
         ti = proto_tree_add_protocol_format(tree, proto_fcsp, tvb, 0,
@@ -613,11 +609,5 @@ proto_register_fcsp(void)
 
     proto_register_field_array(proto_fcsp, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
-}
-
-void
-proto_reg_handoff_fcsp(void)
-{
-    data_handle = find_dissector("data");
 }
 

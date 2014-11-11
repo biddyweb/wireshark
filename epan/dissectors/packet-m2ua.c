@@ -6,8 +6,6 @@
  *
  * Copyright 2002, Michael Tuexen <tuexen [AT] fh-muenster.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,6 +32,9 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/sctpppids.h>
+
+void proto_register_m2ua(void);
+void proto_reg_handoff_m2ua(void);
 
 #define SCTP_PORT_M2UA                  2904
 
@@ -240,16 +241,15 @@ dissect_common_header(tvbuff_t *common_header_tvb, packet_info *pinfo, proto_tre
   message_class  = tvb_get_guint8(common_header_tvb, MESSAGE_CLASS_OFFSET);
   message_type   = tvb_get_guint8(common_header_tvb, MESSAGE_TYPE_OFFSET);
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(message_class * 256 + message_type, message_class_type_acro_values, "reserved"));
+  col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(message_class * 256 + message_type, message_class_type_acro_values, "reserved"));
 
   if (m2ua_tree) {
     /* add the components of the common header to the protocol tree */
     proto_tree_add_item(m2ua_tree, hf_version,        common_header_tvb, VERSION_OFFSET,        VERSION_LENGTH,        ENC_BIG_ENDIAN);
     proto_tree_add_item(m2ua_tree, hf_reserved,       common_header_tvb, RESERVED_OFFSET,       RESERVED_LENGTH,       ENC_BIG_ENDIAN);
     proto_tree_add_item(m2ua_tree, hf_message_class,  common_header_tvb, MESSAGE_CLASS_OFFSET,  MESSAGE_CLASS_LENGTH,  ENC_BIG_ENDIAN);
-    proto_tree_add_uint_format(m2ua_tree, hf_message_type, common_header_tvb, MESSAGE_TYPE_OFFSET, MESSAGE_TYPE_LENGTH, message_type,
-                               "Message type: %s (%u)",
+    proto_tree_add_uint_format_value(m2ua_tree, hf_message_type, common_header_tvb, MESSAGE_TYPE_OFFSET, MESSAGE_TYPE_LENGTH, message_type,
+                               "%s (%u)",
                                val_to_str_const(message_class * 256 + message_type, message_class_type_values, "reserved"), message_type);
     proto_tree_add_item(m2ua_tree, hf_message_length, common_header_tvb, MESSAGE_LENGTH_OFFSET, MESSAGE_LENGTH_LENGTH, ENC_BIG_ENDIAN);
   }
@@ -286,7 +286,7 @@ dissect_interface_identifier_text_parameter(tvbuff_t *parameter_tvb, proto_tree 
 
   proto_tree_add_item(parameter_tree, hf_interface_id_text, parameter_tvb, TEXT_INTERFACE_ID_OFFSET, interface_id_length, ENC_ASCII|ENC_NA);
   proto_item_append_text(parameter_item, " (%.*s)", interface_id_length,
-                         tvb_get_ephemeral_string(parameter_tvb, TEXT_INTERFACE_ID_OFFSET, interface_id_length));
+                         tvb_get_string(wmem_packet_scope(), parameter_tvb, TEXT_INTERFACE_ID_OFFSET, interface_id_length));
 }
 
 #define INFO_STRING_OFFSET PARAMETER_VALUE_OFFSET
@@ -299,7 +299,7 @@ dissect_info_string_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tre
   info_string_length = tvb_get_ntohs(parameter_tvb, PARAMETER_LENGTH_OFFSET) - PARAMETER_HEADER_LENGTH;
   proto_tree_add_item(parameter_tree, hf_info_string, parameter_tvb, INFO_STRING_OFFSET, info_string_length, ENC_ASCII|ENC_NA);
   proto_item_append_text(parameter_item, " (%.*s)", info_string_length,
-                         tvb_get_ephemeral_string(parameter_tvb, INFO_STRING_OFFSET, info_string_length));
+                         tvb_get_string(wmem_packet_scope(), parameter_tvb, INFO_STRING_OFFSET, info_string_length));
 }
 
 #define DIAGNOSTIC_INFO_OFFSET PARAMETER_VALUE_OFFSET
@@ -948,10 +948,6 @@ dissect_parameter(tvbuff_t *parameter_tvb, packet_info *pinfo, proto_tree *tree,
     dissect_correlation_identifier_parameter(parameter_tvb, parameter_tree, parameter_item);
     break;
   case PROTOCOL_DATA_1_PARAMETER_TAG:
-    if (protocol_data_1_global == PROTOCOL_DATA_1_DRAFT_7)
-    {
-       tag = PROTOCOL_DATA_1_DRAFT_7;
-    }
     dissect_protocol_data_1_parameter(parameter_tvb, pinfo, tree, parameter_item);
     break;
   case PROTOCOL_DATA_2_PARAMETER_TAG:

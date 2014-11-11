@@ -2,8 +2,6 @@
  * Routines for X.519 Internet Directly Mapped Procotol (IDMP) packet dissection
  * Graeme Lunt 2010
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,7 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/prefs.h>
+#include <epan/wmem/wmem.h>
 #include <epan/reassemble.h>
 #include <epan/conversation.h>
 #include <epan/oids.h>
@@ -46,6 +45,11 @@
 #define PSNAME "IDMP"
 #define PFNAME "idmp"
 
+void proto_register_idmp(void);
+void proto_reg_handoff_idm(void);
+static void prefs_register_idmp(void); /* forward declaration for use in preferences registration */
+void register_idmp_protocol_info(const char *oid, const ros_info_t *rinfo, int proto _U_, const char *name);
+
 static gboolean           idmp_desegment       = TRUE;
 static guint              global_idmp_tcp_port = 1102; /* made up for now */
 static gboolean           idmp_reassemble      = TRUE;
@@ -57,8 +61,6 @@ static const char *protocolID       = NULL;
 static const char *saved_protocolID = NULL;
 static guint32     opcode           = -1;
 
-static void prefs_register_idmp(void); /* forward declaration for use in preferences registration */
-
 /* Initialize the protocol and registered fields */
 int proto_idmp = -1;
 
@@ -67,8 +69,7 @@ static int hf_idmp_final = -1;
 static int hf_idmp_length = -1;
 static int hf_idmp_PDU = -1;
 
-static GHashTable *idmp_segment_table     = NULL;
-static GHashTable *idmp_reassembled_table = NULL;
+static reassembly_table idmp_reassembly_table;
 
 static int hf_idmp_fragments = -1;
 static int hf_idmp_fragment = -1;
@@ -108,20 +109,18 @@ static const fragment_items idmp_frag_items = {
 };
 
 
-static int call_idmp_oid_callback(tvbuff_t *tvb, int offset, packet_info *pinfo, int op, proto_tree *tree _U_)
+static int call_idmp_oid_callback(tvbuff_t *tvb, int offset, packet_info *pinfo, int op, proto_tree *tree, struct SESSION_DATA_STRUCTURE *session)
 {
-    struct SESSION_DATA_STRUCTURE *session;
-
-    if((session = (struct SESSION_DATA_STRUCTURE*)pinfo->private_data) != NULL) {
+    if(session != NULL) {
 
         if((!saved_protocolID) && (op == (ROS_OP_BIND | ROS_OP_RESULT))) {
             /* save for subsequent operations - should be into session data */
-            saved_protocolID = se_strdup(protocolID);
+            saved_protocolID = wmem_strdup(wmem_file_scope(), protocolID);
         }
 
         /* mimic ROS! */
         session->ros_op = op;
-        offset = call_ros_oid_callback(saved_protocolID ? saved_protocolID : protocolID, tvb, offset, pinfo, top_tree);
+        offset = call_ros_oid_callback(saved_protocolID ? saved_protocolID : protocolID, tvb, offset, pinfo, tree, session);
     }
 
     return offset;
@@ -144,18 +143,17 @@ register_idmp_protocol_info(const char *oid, const ros_info_t *rinfo, int proto 
 }
 
 
-static void dissect_idmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int dissect_idmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data _U_)
 {
     int offset = 0;
 
-    proto_item                    *item    = NULL;
-    proto_tree                    *tree    = NULL;
+    proto_item                    *item;
+    proto_tree                    *tree;
     asn1_ctx_t                     asn1_ctx;
-    void                          *save_private_data;
     struct SESSION_DATA_STRUCTURE  session;
     gboolean                       idmp_final;
     guint32                        idmp_length;
-    fragment_data                 *fd_head;
+    fragment_head                 *fd_head;
     conversation_t                *conv;
     guint32                        dst_ref = 0;
 
@@ -171,10 +169,8 @@ static void dissect_idmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_t
     /* save parent_tree so subdissectors can create new top nodes */
     top_tree=parent_tree;
 
-    if(parent_tree){
-        item = proto_tree_add_item(parent_tree, proto_idmp, tvb, 0, -1, ENC_NA);
-        tree = proto_item_add_subtree(item, ett_idmp);
-    }
+    item = proto_tree_add_item(parent_tree, proto_idmp, tvb, 0, -1, ENC_NA);
+    tree = proto_item_add_subtree(item, ett_idmp);
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "IDMP");
 
@@ -186,17 +182,18 @@ static void dissect_idmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_t
     proto_tree_add_item(tree, hf_idmp_length, tvb, offset, 4, ENC_BIG_ENDIAN);
     idmp_length = tvb_get_ntohl(tvb, offset); offset += 4;
 
+    asn1_ctx.private_data = &session;
+
     if(idmp_reassemble) {
 
         pinfo->fragmented = !idmp_final;
 
-        if (check_col(pinfo->cinfo, COL_INFO))
-            col_append_fstr(pinfo->cinfo, COL_INFO, " [%sIDMP fragment, %u byte%s]",
+        col_append_fstr(pinfo->cinfo, COL_INFO, " [%sIDMP fragment, %u byte%s]",
                             idmp_final ? "Final " : "" ,
                             idmp_length, plurality(idmp_length, "", "s"));
 
-        fd_head = fragment_add_seq_next(tvb, offset, pinfo, dst_ref,
-                                        idmp_segment_table, idmp_reassembled_table,
+        fd_head = fragment_add_seq_next(&idmp_reassembly_table, tvb, offset,
+                                        pinfo, dst_ref, NULL,
                                         idmp_length, !idmp_final);
 
         if(fd_head && fd_head->next) {
@@ -219,8 +216,7 @@ static void dissect_idmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_t
     } else {
         if(!idmp_final) {
 
-            if (check_col(pinfo->cinfo, COL_INFO))
-                col_append_fstr(pinfo->cinfo, COL_INFO, " [IDMP fragment, %u byte%s, IDMP reassembly not enabled]",
+            col_append_fstr(pinfo->cinfo, COL_INFO, " [IDMP fragment, %u byte%s, IDMP reassembly not enabled]",
                                 idmp_length, plurality(idmp_length, "", "s"));
 
             proto_tree_add_text(tree, tvb, offset, (idmp_length) ? -1 : 0,
@@ -230,14 +226,11 @@ static void dissect_idmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_t
     }
     /* not reassembling - just dissect */
     if(idmp_final) {
-        save_private_data = pinfo->private_data;
-        pinfo->private_data = &session;
-
+        asn1_ctx.private_data = &session;
         dissect_idmp_IDM_PDU(FALSE, tvb, offset, &asn1_ctx, tree, hf_idmp_PDU);
-
-        pinfo->private_data = save_private_data;
     }
 
+    return tvb_length(tvb);
 }
 
 static guint get_idmp_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
@@ -249,17 +242,16 @@ static guint get_idmp_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
     return len + 6;
 }
 
-static void dissect_idmp_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int dissect_idmp_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data)
 {
-
-    tcp_dissect_pdus(tvb, pinfo, parent_tree, idmp_desegment, 0, get_idmp_pdu_len, dissect_idmp);
-
+    tcp_dissect_pdus(tvb, pinfo, parent_tree, idmp_desegment, 0, get_idmp_pdu_len, dissect_idmp, data);
+	return tvb_length(tvb);
 }
 
 static void idmp_reassemble_init (void)
 {
-    fragment_table_init (&idmp_segment_table);
-    reassembled_table_init (&idmp_reassembled_table);
+    reassembly_table_init (&idmp_reassembly_table,
+                           &addresses_reassembly_table_functions);
 
     saved_protocolID = NULL;
 }
@@ -338,7 +330,7 @@ void proto_register_idmp(void)
     proto_register_field_array(proto_idmp, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
 
-    register_dissector("idmp", dissect_idmp_tcp, proto_idmp);
+    new_register_dissector("idmp", dissect_idmp_tcp, proto_idmp);
 
     register_init_routine (&idmp_reassemble_init);
 

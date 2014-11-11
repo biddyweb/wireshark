@@ -1,8 +1,6 @@
 /* packet-kdp.c
  * Routines for KDP (Kontiki Delivery Protocol) packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2008 by Kontiki Inc.
  *                    Wade Hennessey <wade@kontiki.com>
  *
@@ -29,6 +27,9 @@
 
 #include <epan/packet.h>
 #include <glib.h>
+
+void proto_register_kdp(void);
+void proto_reg_handoff_kdp(void);
 
 #define KDP_PORT 19948
 #define BUFFER_SIZE 80
@@ -229,10 +230,9 @@ static void dissect_kdp(tvbuff_t *tvb,
   }
   /* Now that we know sequence number and optional ack number, we can
      print more detailed summary info */
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    if (version != 2) {
+  if (version != 2) {
       col_set_str(pinfo->cinfo, COL_INFO, "SDDP message");
-    } else {
+  } else {
       char ack_string[BUFFER_SIZE];
       char seq_num_string[BUFFER_SIZE];
       char src_flowid_string[BUFFER_SIZE];
@@ -262,7 +262,6 @@ static void dissect_kdp(tvbuff_t *tvb,
 		   seq_num_string,
 		   src_flowid_string,
 		   packet_errors);
-    }
   }
 }
 

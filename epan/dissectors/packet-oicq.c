@@ -2,8 +2,6 @@
  * Routines for OICQ - IM software,popular in China - packet dissection
  * (c) Copyright Secfire <secfire@gmail.com>
  *
- * $Id$
- *
  * OICQ is an IM software,which is popular in China. And,
  * OICQ has more than 10 millions users at present.
  * The Protocol showed in this file, is found by investigating OICQ's
@@ -36,6 +34,9 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+
+void proto_register_oicq(void);
+void proto_reg_handoff_oicq(void);
 
 /*
         Protocol Flag:     8bit unsigned
@@ -122,8 +123,8 @@ dissect_oicq(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 	/* heuristic: OICQ iff (([0] == STX) && ([3/4] == <valid_command>) ) */
         /*  (Supposedly each OICQ message ends with an ETX so a test for     */
         /*   same could also be part of the heuristic).                      */
-	if ( (match_strval(tvb_get_guint8(tvb, 0), oicq_flag_vals)    == NULL) ||
-	     (match_strval(tvb_get_ntohs(tvb, 3),  oicq_command_vals) == NULL) )
+	if ( (try_val_to_str(tvb_get_guint8(tvb, 0), oicq_flag_vals)    == NULL) ||
+	     (try_val_to_str(tvb_get_ntohs(tvb, 3),  oicq_command_vals) == NULL) )
 		return 0;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "OICQ");

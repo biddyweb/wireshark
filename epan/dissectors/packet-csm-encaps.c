@@ -1,8 +1,6 @@
 /* packet-csm-encaps.c
  * Routines for CSM_ENCAPS dissection
  * Copyright 2005, Angelo Bannack <angelo.bannack@siemens.com>
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2003 Gerald Combs
@@ -31,7 +29,7 @@
 
 #include <epan/packet.h>
 #include <epan/tap.h>
-
+#include <epan/wmem/wmem.h>
 #include <epan/etypes.h>
 
 
@@ -54,6 +52,8 @@
 #define CSM_ENCAPS_TYPE_QUERY_RESPONSE       0x04
 #define CSM_ENCAPS_TYPE_INDICATION_RESPONSE  0x05
 
+void proto_register_csm_encaps(void);
+void proto_reg_handoff_csm_encaps(void);
 
 static const value_string opcode_vals[] = {
     { OPCODE_NOOP,           "No Operation" },
@@ -159,11 +159,11 @@ static const gchar *
 csm_fc(guint16 fc, guint16 ct)
 {
     if (fc == 0x0000) {
-        return ep_strdup(val_to_str(ct, class_type_vals,
-                       "0x%04x"));
+        return wmem_strdup(wmem_packet_scope(),
+                           val_to_str(ct, class_type_vals, "0x%04x"));
     } else {
-        return ep_strdup(val_to_str(fc, function_code_vals,
-                       "0x%04x"));
+        return wmem_strdup(wmem_packet_scope(),
+                           val_to_str(fc, function_code_vals, "0x%04x"));
     }
 }
 
@@ -175,11 +175,11 @@ csm_to_host(guint16 fc, guint16 ct)
 {
     if (fc == 0x0000)
     {
-        return (match_strval(ct, exclusive_to_host_ct_vals) != NULL);
+        return (try_val_to_str(ct, exclusive_to_host_ct_vals) != NULL);
     }
     else
     {
-        return (match_strval(fc, exclusive_to_host_vals) != NULL);
+        return (try_val_to_str(fc, exclusive_to_host_vals) != NULL);
     }
 }
 

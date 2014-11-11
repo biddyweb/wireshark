@@ -2,9 +2,8 @@
  *
  * Defintion of SCTP specific structures used by tap listeners.
  *
- * $Id$
  * Copyright 2004 Michael Tuexen <tuexen [AT] fh-muenster.de>
-
+ *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -42,6 +41,8 @@ struct _sctp_info {
   address ip_src;
   address ip_dst;
   guint32 verification_tag;
+  guint16 assoc_index;
+  guint16 direction;
   guint32 number_of_tvbs;
   tvbuff_t *tvb[MAXIMUM_NUMBER_OF_TVBS];
 };
@@ -51,12 +52,12 @@ typedef struct _sctp_fragment {
   guint32 tsn;
   guint32 len;
   unsigned char *data;
-  struct _sctp_fragment *next;	
+  struct _sctp_fragment *next;
 } sctp_fragment;
 
 typedef struct _sctp_frag_be {
   sctp_fragment* fragment;
-  struct _sctp_frag_be *next;	
+  struct _sctp_frag_be *next;
 } sctp_frag_be;
 
 typedef struct _sctp_complete_msg {

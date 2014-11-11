@@ -1,14 +1,13 @@
 ## Makefile for building wireshark.exe with Microsoft C and nmake
 ## Use: $(MAKE) /$(MAKEFLAGS) -f makefile.nmake
 #
-# $Id$
 
 include ..\..\config.nmake
 
 CFLAGS=$(WARNINGS_ARE_ERRORS) -I..\..\ $(LOCAL_CFLAGS)
 
 .c.obj::
-   $(CC) $(CFLAGS) -Fd.\ -c $<
+	$(CC) $(CFLAGS) -Fd.\ -c $<
 
 all : lemon.exe
 

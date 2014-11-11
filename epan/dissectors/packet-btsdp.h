@@ -1,7 +1,5 @@
 /* packet-btsdp.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -23,6 +21,8 @@
 
 #ifndef __PACKET_BTSDP_H__
 #define __PACKET_BTSDP_H__
+
+#include <epan/wmem/wmem.h>
 
 /*
  * Based on value provided by Bluetooth SIG:
@@ -128,6 +128,10 @@
 #define BTSDP_GNSS_UUID                                 0x1135
 #define BTSDP_GNSS_SERVER_UUID                          0x1136
 
+#define BTSDP_3D_DISPLAY_UUID                           0x1137
+#define BTSDP_3D_GLASSES_UUID                           0x1138
+#define BTSDP_3D_SYNCHRONIZATION_UUID                   0x1139
+
 #define BTSDP_DID_SERVICE_UUID                          0x1200
 
 #define BTSDP_GENERIC_NETWORKING_SERVICE_UUID           0x1201
@@ -153,13 +157,25 @@
 #define BTSDP_LOCAL_SERVICE_FLAG_MASK                   0x0001
 #define BTSDP_SECONDARY_CHANNEL_FLAG_MASK               0x0002
 
-/* This structure is passed to other dissectors through the tap interface
+#define SDP_PSM_DEFAULT  1
+
+typedef struct _uuid_t {
+    guint16  bt_uuid;
+    guint8   size;
+    guint8   data[16];
+} uuid_t;
+
+/* This structure is passed to other dissectors
  * and contains information about the relation between service, PSM/server
  * channel, local/remote service. The btrfcomm and btl2cap dissectors
  * need this information to determine the kind of data transfered on
  * dynamically assigned server channels and PSM's, respectively.
  */
 typedef struct _btsdp_data_t {
+    guint32    interface_id;
+    guint32    adapter_id;
+    guint32    chandle;
+    guint32    frame_number;
     guint32    service;    /* service UUID, see below */
     guint32    channel;    /* rfcomm server channel or PSM */
     guint16    protocol;   /* either rfcomm or l2cap UUID */
@@ -167,7 +183,36 @@ typedef struct _btsdp_data_t {
                               peer device) and/or a secondary PSM */
 } btsdp_data_t;
 
-extern value_string_ext vs_service_classes_ext;
+
+typedef struct _service_info_t {
+    guint32  interface_id;
+    guint32  adapter_id;
+    guint32  sdp_psm;
+    guint32  direction;
+    guint32  bd_addr_oui;
+    guint32  bd_addr_id;
+    guint32  type;
+    guint32  channel;
+
+    uuid_t   uuid;
+    gint     protocol_order; /* main service protocol has 0, goep -1, additional protocol 1, 2... */
+    gint     protocol;
+
+    void    *data;        /* Used to transfer service record data to profiles */
+
+    struct _service_info_t *parent_info;
+} service_info_t;
+
+
+typedef struct _custom_uuid_t {
+    const guint8  uuid[16];
+    const guint8  size;
+    const gchar  *name;
+} custom_uuid_t;
+
+extern const custom_uuid_t custom_uuid[];
+
+extern service_info_t* btsdp_get_service_info(wmem_tree_key_t* key);
 
 #endif
 

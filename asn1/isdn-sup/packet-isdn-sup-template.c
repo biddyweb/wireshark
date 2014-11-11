@@ -3,8 +3,6 @@
  * supplementary services
  * Copyright 2013, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,6 +35,9 @@
 #define PSNAME "ISDN_SUP"
 #define PFNAME "isdn_sup"
 
+void proto_register_isdn_sup(void);
+void proto_reg_handoff_isdn_sup(void);
+
 #include "packet-isdn-sup-val.h"
 
 /* Initialize the protocol and registered fields */
@@ -56,6 +57,12 @@ typedef struct _isdn_sup_op_t {
   new_dissector_t arg_pdu;
   new_dissector_t res_pdu;
 } isdn_sup_op_t;
+
+typedef struct _isdn_global_sup_op_t {
+  const char*  oid;
+  new_dissector_t arg_pdu;
+  new_dissector_t res_pdu;
+} isdn_sup_global_op_t;
 
 
 typedef struct isdn_sup_err_t {
@@ -96,6 +103,11 @@ static const isdn_sup_op_t isdn_sup_op_tab[] = {
 };
 
 
+static const isdn_sup_global_op_t isdn_sup_global_op_tab[] = {
+
+#include "packet-isdn-sup-table31.c"
+};
+
 static const isdn_sup_err_t isdn_sup_err_tab[] = {
 #include "packet-isdn-sup-table21.c"
 };
@@ -123,8 +135,8 @@ static const isdn_sup_err_t *get_err(gint32 errcode) {
 
 /*--- dissect_isdn_sup_arg ------------------------------------------------------*/
 static int
-dissect_isdn_sup_arg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
-  int offset;
+dissect_isdn_sup_arg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data) {
+  int offset = 0;
   rose_ctx_t *rctx;
   gint32 opcode = 0;
   const gchar *p;
@@ -132,9 +144,12 @@ dissect_isdn_sup_arg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
   proto_item *ti;
   proto_tree *isdn_sup_tree;
 
-  offset = 0;
-  rctx = get_rose_ctx(pinfo->private_data);
+  /* Reject the packet if data is NULL */
+  if (data == NULL)
+    return 0;
+  rctx = get_rose_ctx(data);
   DISSECTOR_ASSERT(rctx);
+
   if (rctx->d.pdu != 1)  /* invoke */
     return offset;
   if (rctx->d.code == 0) {  /* local */
@@ -150,7 +165,7 @@ dissect_isdn_sup_arg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
   isdn_sup_tree = proto_item_add_subtree(ti, ett_isdn_sup);
 
   proto_tree_add_uint(isdn_sup_tree, hf_isdn_sup_operation, tvb, 0, 0, opcode);
-  p = match_strval(opcode, VALS(isdn_sup_str_operation));
+  p = try_val_to_str(opcode, VALS(isdn_sup_str_operation));
   if (p) {
     proto_item_append_text(ti, ": %s", p);
     proto_item_append_text(rctx->d.code_item, " - %s", p);
@@ -171,8 +186,8 @@ dissect_isdn_sup_arg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
 
 /*--- dissect_isdn_sup_res -------------------------------------------------------*/
 static int
-dissect_isdn_sup_res(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
-  gint offset;
+dissect_isdn_sup_res(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data) {
+  gint offset = 0;
   rose_ctx_t *rctx;
   gint32 opcode = 0;
   const gchar *p;
@@ -180,9 +195,12 @@ dissect_isdn_sup_res(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
   proto_item *ti;
   proto_tree *isdn_sup_tree;
 
-  offset = 0;
-  rctx = get_rose_ctx(pinfo->private_data);
+  /* Reject the packet if data is NULL */
+  if (data == NULL)
+    return 0;
+  rctx = get_rose_ctx(data);
   DISSECTOR_ASSERT(rctx);
+
   if (rctx->d.pdu != 2)  /* returnResult */
     return offset;
   if (rctx->d.code != 0)  /* local */
@@ -196,7 +214,7 @@ dissect_isdn_sup_res(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
   isdn_sup_tree = proto_item_add_subtree(ti, ett_isdn_sup);
 
   proto_tree_add_uint(isdn_sup_tree, hf_isdn_sup_operation, tvb, 0, 0, opcode);
-  p = match_strval(opcode, VALS(isdn_sup_str_operation));
+  p = try_val_to_str(opcode, VALS(isdn_sup_str_operation));
   if (p) {
     proto_item_append_text(ti, ": %s", p);
     proto_item_append_text(rctx->d.code_item, " - %s", p);
@@ -218,8 +236,8 @@ dissect_isdn_sup_res(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
 
 /*--- dissect_isdn_sup_err ------------------------------------------------------*/
 static int
-dissect_isdn_sup_err(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
-  int offset;
+dissect_isdn_sup_err(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data) {
+  int offset = 0;
   rose_ctx_t *rctx;
   gint32 errcode;
   const isdn_sup_err_t *err_ptr;
@@ -227,9 +245,12 @@ dissect_isdn_sup_err(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
   proto_item *ti;
   proto_tree *isdn_sup_tree;
 
-  offset = 0;
-  rctx = get_rose_ctx(pinfo->private_data);
+  /* Reject the packet if data is NULL */
+  if (data == NULL)
+    return 0;
+  rctx = get_rose_ctx(data);
   DISSECTOR_ASSERT(rctx);
+
   if (rctx->d.pdu != 3)  /* returnError */
     return offset;
   if (rctx->d.code != 0)  /* local */
@@ -243,7 +264,7 @@ dissect_isdn_sup_err(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
   isdn_sup_tree = proto_item_add_subtree(ti, ett_isdn_sup);
 
   proto_tree_add_uint(isdn_sup_tree, hf_isdn_sup_error, tvb, 0, 0, errcode);
-  p = match_strval(errcode, VALS(isdn_sup_str_error));
+  p = try_val_to_str(errcode, VALS(isdn_sup_str_error));
   if (p) {
     proto_item_append_text(ti, ": %s", p);
     proto_item_append_text(rctx->d.code_item, " - %s", p);
@@ -283,6 +304,13 @@ void proto_reg_handoff_isdn_sup(void) {
   for (i=0; i<(int)array_length(isdn_sup_op_tab); i++) {
     dissector_add_uint("q932.ros.etsi.local.arg", isdn_sup_op_tab[i].opcode, isdn_sup_arg_handle);
     dissector_add_uint("q932.ros.etsi.local.res", isdn_sup_op_tab[i].opcode, isdn_sup_res_handle);
+  }
+
+  for (i=0; i<(int)array_length(isdn_sup_global_op_tab); i++) {
+	  if(isdn_sup_global_op_tab->arg_pdu)
+		  dissector_add_string("q932.ros.global.arg", isdn_sup_global_op_tab[i].oid, new_create_dissector_handle(isdn_sup_global_op_tab[i].arg_pdu, proto_isdn_sup));
+	  if(isdn_sup_global_op_tab->res_pdu)
+		  dissector_add_string("q932.ros.global.res", isdn_sup_global_op_tab[i].oid, new_create_dissector_handle(isdn_sup_global_op_tab[i].res_pdu, proto_isdn_sup));
   }
 
   isdn_sup_err_handle = new_create_dissector_handle(dissect_isdn_sup_err, proto_isdn_sup);

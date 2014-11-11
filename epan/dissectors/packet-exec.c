@@ -2,8 +2,6 @@
  * Routines for exec (rexec) dissection
  * Copyright 2006, Stephen Fisher (see AUTHORS file)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,7 +29,7 @@
 
 #include <epan/packet.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/prefs.h>
 #include <wsutil/str_util.h>
 
@@ -41,6 +39,9 @@
 /* Variables for our preferences */
 static gboolean preference_info_show_username = TRUE;
 static gboolean preference_info_show_command = FALSE;
+
+void proto_register_exec(void);
+void proto_reg_handoff_exec(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_exec = -1;
@@ -114,9 +115,9 @@ dissect_exec(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	/* Retrieve information from conversation
 	 * or add it if it isn't there yet
 	 */
-	hash_info = conversation_get_proto_data(conversation, proto_exec);
+	hash_info = (exec_hash_entry_t *)conversation_get_proto_data(conversation, proto_exec);
 	if(!hash_info){
-		hash_info = se_alloc(sizeof(exec_hash_entry_t));
+		hash_info = wmem_new(wmem_file_scope(), exec_hash_entry_t);
 
 		hash_info->first_packet_number = pinfo->fd->num;
 		hash_info->second_packet_number = 0;
@@ -196,19 +197,17 @@ dissect_exec(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "EXEC");
 
-	if(check_col(pinfo->cinfo, COL_INFO)){
-		/* First, clear the info column */
-		col_clear(pinfo->cinfo, COL_INFO);
+	/* First, clear the info column */
+	col_clear(pinfo->cinfo, COL_INFO);
 
-		/*username */
-		if(hash_info->username && preference_info_show_username == TRUE){
-			col_append_fstr(pinfo->cinfo, COL_INFO, "Username:%s ", hash_info->username);
-		}
+	/*username */
+	if(hash_info->username && preference_info_show_username == TRUE){
+		col_append_fstr(pinfo->cinfo, COL_INFO, "Username:%s ", hash_info->username);
+	}
 
-		/* Command */
-		if(hash_info->command && preference_info_show_command == TRUE){
-			col_append_fstr(pinfo->cinfo, COL_INFO, "Command:%s ", hash_info->command);
-		}
+	/* Command */
+	if(hash_info->command && preference_info_show_command == TRUE){
+		col_append_fstr(pinfo->cinfo, COL_INFO, "Command:%s ", hash_info->command);
 	}
 
 	/* create display subtree for the protocol */
@@ -225,7 +224,7 @@ dissect_exec(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	if(hash_info->state == WAIT_FOR_STDERR_PORT
 	&& tvb_length_remaining(tvb, offset)){
-		field_stringz = tvb_get_ephemeral_stringz(tvb, offset, &length);
+		field_stringz = tvb_get_stringz(wmem_packet_scope(), tvb, offset, &length);
 
 		/* Check if this looks like the stderr_port field.
 		 * It is optional, so it may only be 1 character long
@@ -248,7 +247,7 @@ dissect_exec(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	if(hash_info->state == WAIT_FOR_USERNAME
 	&& tvb_length_remaining(tvb, offset)){
-		field_stringz = tvb_get_ephemeral_stringz(tvb, offset, &length);
+		field_stringz = tvb_get_stringz(wmem_packet_scope(), tvb, offset, &length);
 
 		/* Check if this looks like the username field */
 		if(length != 1 && length <= EXEC_USERNAME_LEN
@@ -259,7 +258,7 @@ dissect_exec(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			 * info column of the entire conversation
 			 */
 			if(!hash_info->username){
-				hash_info->username=se_strdup((gchar*)field_stringz);
+				hash_info->username=wmem_strdup(wmem_file_scope(), (gchar*)field_stringz);
 			}
 
 			 /* Next field we need */
@@ -276,7 +275,7 @@ dissect_exec(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	if(hash_info->state == WAIT_FOR_PASSWORD
 	&& tvb_length_remaining(tvb, offset)){
-		field_stringz = tvb_get_ephemeral_stringz(tvb, offset, &length);
+		field_stringz = tvb_get_stringz(wmem_packet_scope(), tvb, offset, &length);
 
 		/* Check if this looks like the password field */
 		if(length != 1 && length <= EXEC_PASSWORD_LEN
@@ -299,7 +298,7 @@ dissect_exec(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	if(hash_info->state == WAIT_FOR_COMMAND
 	&& tvb_length_remaining(tvb, offset)){
-		field_stringz = tvb_get_ephemeral_stringz(tvb, offset, &length);
+		field_stringz = tvb_get_stringz(wmem_packet_scope(), tvb, offset, &length);
 
 		/* Check if this looks like the command field */
 		if(length != 1 && length <= EXEC_COMMAND_LEN
@@ -310,7 +309,7 @@ dissect_exec(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			 * info column of the entire conversation
 			 */
 			if(!hash_info->command){
-				hash_info->command=se_strdup((gchar*)field_stringz);
+				hash_info->command=wmem_strdup(wmem_file_scope(), (gchar*)field_stringz);
 			}
 
 		} else {

@@ -1,7 +1,5 @@
 /* decode_as_dlg.h
  *
- * $Id$
- *
  * Routines to modify dissector tables on the fly.
  *
  * By David Hampton <dhampton@mac.com>
@@ -32,15 +30,16 @@
  */
 
 /*
- * Filename of the "decode as" entry preferences
+ * Enum used to track which radio button is currently selected in the
+ * dialog. These buttons are labeled "Decode" and "Do not decode".
  */
-#define DECODE_AS_ENTRIES_FILE_NAME "decode_as_entries"
+enum action_type {
+    /* The "Decode" button is currently selected. */
+    E_DECODE_YES,
 
-#define DECODE_AS_ENTRY "decode_as_entry"
-
-/** Init the "Decode As" module
- */
-void decode_as_init(void);
+    /* The "Do not decode" button is currently selected. */
+    E_DECODE_NO
+};
 
 /** User requested the "Decode As" dialog box by menu or toolbar.
  *
@@ -62,10 +61,5 @@ void decode_show_cb(GtkWidget *widget, gpointer data);
  * @return TRUE, if we have at least one notebook page in "Decode As"
  */
 gboolean decode_as_ok(void);
-
-/*
- * Reset the "decode as"entries and reload ones of the current profile
- */
-void load_decode_as_entries(void);
 
 #endif

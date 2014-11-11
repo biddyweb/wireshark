@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -49,7 +47,7 @@ value_get_floating(fvalue_t *fv)
 }
 
 static gboolean
-val_from_unparsed(fvalue_t *fv, char *s, gboolean allow_partial_value _U_, LogFunc logfunc)
+val_from_unparsed(fvalue_t *fv, const char *s, gboolean allow_partial_value _U_, LogFunc logfunc)
 {
 	char    *endptr = NULL;
 
@@ -93,7 +91,7 @@ float_val_repr_len(fvalue_t *fv _U_, ftrepr_t rtype _U_)
 static void
 float_val_to_repr(fvalue_t *fv, ftrepr_t rtype _U_, char *buf)
 {
-	sprintf(buf, "%." STRINGIFY(FLT_DIG) "g", fv->value.floating);
+	sprintf(buf, "%." G_STRINGIFY(FLT_DIG) "g", fv->value.floating);
 }
 
 static int
@@ -111,7 +109,7 @@ double_val_repr_len(fvalue_t *fv _U_, ftrepr_t rtype _U_)
 static void
 double_val_to_repr(fvalue_t *fv, ftrepr_t rtype _U_, char *buf)
 {
-	sprintf(buf, "%." STRINGIFY(DBL_DIG) "g", fv->value.floating);
+	sprintf(buf, "%." G_STRINGIFY(DBL_DIG) "g", fv->value.floating);
 }
 
 static gboolean
@@ -166,7 +164,12 @@ ftype_register_double(void)
 		float_val_to_repr,		/* val_to_string_repr */
 		float_val_repr_len,		/* len_string_repr */
 
-		NULL,				/* set_value */
+		NULL,				/* set_value_byte_array */
+		NULL,				/* set_value_bytes */
+		NULL,				/* set_value_guid */
+		NULL,				/* set_value_time */
+		NULL,				/* set_value_string */
+		NULL,				/* set_value_tvbuff */
 		NULL,				/* set_value_uinteger */
 		NULL,				/* set_value_snteger */
 		NULL,				/* set_value_integer64 */
@@ -204,7 +207,12 @@ ftype_register_double(void)
 		double_val_to_repr,		/* val_to_string_repr */
 		double_val_repr_len,		/* len_string_repr */
 
-		NULL,				/* set_value */
+		NULL,				/* set_value_byte_array */
+		NULL,				/* set_value_bytes */
+		NULL,				/* set_value_guid */
+		NULL,				/* set_value_time */
+		NULL,				/* set_value_string */
+		NULL,				/* set_value_tvbuff */
 		NULL,				/* set_value_uinteger */
 		NULL,				/* set_value_sinteger */
 		NULL,				/* set_value_integer64 */

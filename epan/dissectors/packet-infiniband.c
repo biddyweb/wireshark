@@ -2,8 +2,6 @@
  * Routines for Infiniband/ERF Dissection
  * Copyright 2008 Endace Technology Limited
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,13 +28,21 @@
 #include <string.h>
 
 #include <glib.h>
+
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/exceptions.h>
+#include <epan/wmem/wmem.h>
 #include <epan/conversation.h>
 #include <epan/prefs.h>
+#include <wiretap/wtap.h>
 #include <epan/etypes.h>
 #include <epan/show_exception.h>
+#include <epan/to_str.h>
+
 #include "packet-infiniband.h"
+
+void proto_register_infiniband(void);
+void proto_reg_handoff_infiniband(void);
 
 #define PROTO_TAG_INFINIBAND    "Infiniband"
 
@@ -99,10 +105,10 @@ static gint ett_perfclass = -1;
 static gint ett_eoib = -1;
 static gint ett_link = -1;
 
-/* Global ref to highest level tree should we find other protocols encapsulated in IB */
-static proto_tree *top_tree = NULL;
+/* Dissector Declaration */
+static dissector_handle_t ib_handle;
 
-/* Dissector Declarations */
+/* Subdissectors Declarations */
 static dissector_handle_t ipv6_handle;
 static dissector_handle_t data_handle;
 static dissector_handle_t eth_handle;
@@ -136,7 +142,7 @@ static void dissect_general_info(tvbuff_t *tvb, gint offset, packet_info *pinfo,
 /* Parsing Methods for specific IB headers. */
 
 static void parse_VENDOR(proto_tree *, tvbuff_t *, gint *);
-static void parse_PAYLOAD(proto_tree *, packet_info *, tvbuff_t *, gint *, gint length);
+static void parse_PAYLOAD(proto_tree *, packet_info *, struct infinibandinfo *, tvbuff_t *, gint *, gint length, proto_tree *);
 static void parse_IETH(proto_tree *, tvbuff_t *, gint *);
 static void parse_IMMDT(proto_tree *, tvbuff_t *, gint *offset);
 static void parse_ATOMICACKETH(proto_tree *, tvbuff_t *, gint *offset);
@@ -146,8 +152,8 @@ static void parse_RETH(proto_tree *, tvbuff_t *, gint *offset);
 static void parse_DETH(proto_tree *, packet_info *, tvbuff_t *, gint *offset);
 static void parse_RDETH(proto_tree *, tvbuff_t *, gint *offset);
 static void parse_IPvSix(proto_tree *, tvbuff_t *, gint *offset, packet_info *);
-static void parse_RWH(proto_tree *, tvbuff_t *, gint *offset, packet_info *);
-static gboolean parse_EoIB(proto_tree *, tvbuff_t *, gint offset, packet_info *);
+static void parse_RWH(proto_tree *, tvbuff_t *, gint *offset, packet_info *, proto_tree *);
+static gboolean parse_EoIB(proto_tree *, tvbuff_t *, gint offset, packet_info *, proto_tree *);
 
 static void parse_SUBN_LID_ROUTED(proto_tree *, packet_info *, tvbuff_t *, gint *offset);
 static void parse_SUBN_DIRECTED_ROUTE(proto_tree *, packet_info *, tvbuff_t *, gint *offset);
@@ -309,14 +315,14 @@ static const value_string CM_Attributes[] = {
 
 
 /* RMPP Types */
-#define RMPP_ILLEGAL 0
+#define RMPP_NOT_USED 0
 #define RMPP_DATA   1
 #define RMPP_ACK    2
 #define RMPP_STOP   3
 #define RMPP_ABORT  4
 
 static const value_string RMPP_Packet_Types[] = {
-    { RMPP_ILLEGAL, " Illegal RMPP Type (0)! " },
+    { RMPP_NOT_USED, " Not an RMPP Packet " },
     { RMPP_DATA,    "RMPP (DATA)" },
     { RMPP_ACK,     "RMPP (ACK)" },
     { RMPP_STOP,    "RMPP (STOP)" },
@@ -1169,81 +1175,6 @@ static const value_string Trap_Description[]= {
 #define IP_NON_IBA 1
 #define RAW        0
 
-/* OpCodeValues
-* Code Bits [7-5] Connection Type
-*           [4-0] Message Type
-
-* Reliable Connection (RC)
-* [7-5] = 000 */
-#define RC_SEND_FIRST                    0 /*0x00000000 */
-#define RC_SEND_MIDDLE                   1 /*0x00000001 */
-#define RC_SEND_LAST                     2 /*0x00000010 */
-#define RC_SEND_LAST_IMM                 3 /*0x00000011 */
-#define RC_SEND_ONLY                     4 /*0x00000100 */
-#define RC_SEND_ONLY_IMM                 5 /*0x00000101 */
-#define RC_RDMA_WRITE_FIRST              6 /*0x00000110 */
-#define RC_RDMA_WRITE_MIDDLE             7 /*0x00000111 */
-#define RC_RDMA_WRITE_LAST               8 /*0x00001000 */
-#define RC_RDMA_WRITE_LAST_IMM           9 /*0x00001001 */
-#define RC_RDMA_WRITE_ONLY              10 /*0x00001010 */
-#define RC_RDMA_WRITE_ONLY_IMM          11 /*0x00001011 */
-#define RC_RDMA_READ_REQUEST            12 /*0x00001100 */
-#define RC_RDMA_READ_RESPONSE_FIRST     13 /*0x00001101 */
-#define RC_RDMA_READ_RESPONSE_MIDDLE    14 /*0x00001110 */
-#define RC_RDMA_READ_RESPONSE_LAST      15 /*0x00001111 */
-#define RC_RDMA_READ_RESPONSE_ONLY      16 /*0x00010000 */
-#define RC_ACKNOWLEDGE                  17 /*0x00010001 */
-#define RC_ATOMIC_ACKNOWLEDGE           18 /*0x00010010 */
-#define RC_CMP_SWAP                     19 /*0x00010011 */
-#define RC_FETCH_ADD                    20 /*0x00010100 */
-#define RC_SEND_LAST_INVAL              22 /*0x00010110 */
-#define RC_SEND_ONLY_INVAL              23 /*0x00010111 */
-
-/* Reliable Datagram (RD)
-* [7-5] = 010 */
-#define RD_SEND_FIRST                   64 /*0x01000000 */
-#define RD_SEND_MIDDLE                  65 /*0x01000001 */
-#define RD_SEND_LAST                    66 /*0x01000010 */
-#define RD_SEND_LAST_IMM                67 /*0x01000011 */
-#define RD_SEND_ONLY                    68 /*0x01000100 */
-#define RD_SEND_ONLY_IMM                69 /*0x01000101 */
-#define RD_RDMA_WRITE_FIRST             70 /*0x01000110 */
-#define RD_RDMA_WRITE_MIDDLE            71 /*0x01000111 */
-#define RD_RDMA_WRITE_LAST              72 /*0x01001000 */
-#define RD_RDMA_WRITE_LAST_IMM          73 /*0x01001001 */
-#define RD_RDMA_WRITE_ONLY              74 /*0x01001010 */
-#define RD_RDMA_WRITE_ONLY_IMM          75 /*0x01001011 */
-#define RD_RDMA_READ_REQUEST            76 /*0x01001100 */
-#define RD_RDMA_READ_RESPONSE_FIRST     77 /*0x01001101 */
-#define RD_RDMA_READ_RESPONSE_MIDDLE    78 /*0x01001110 */
-#define RD_RDMA_READ_RESPONSE_LAST      79 /*0x01001111 */
-#define RD_RDMA_READ_RESPONSE_ONLY      80 /*0x01010000 */
-#define RD_ACKNOWLEDGE                  81 /*0x01010001 */
-#define RD_ATOMIC_ACKNOWLEDGE           82 /*0x01010010 */
-#define RD_CMP_SWAP                     83 /*0x01010011 */
-#define RD_FETCH_ADD                    84 /*0x01010100 */
-#define RD_RESYNC                       85 /*0x01010101 */
-
-/* Unreliable Datagram (UD)
-* [7-5] = 011 */
-#define UD_SEND_ONLY                   100 /*0x01100100 */
-#define UD_SEND_ONLY_IMM               101 /*0x01100101 */
-
-/* Unreliable Connection (UC)
-* [7-5] = 001 */
-#define UC_SEND_FIRST                   32 /*0x00100000 */
-#define UC_SEND_MIDDLE                  33 /*0x00100001 */
-#define UC_SEND_LAST                    34 /*0x00100010 */
-#define UC_SEND_LAST_IMM                35 /*0x00100011 */
-#define UC_SEND_ONLY                    36 /*0x00100100 */
-#define UC_SEND_ONLY_IMM                37 /*0x00100101 */
-#define UC_RDMA_WRITE_FIRST             38 /*0x00100110 */
-#define UC_RDMA_WRITE_MIDDLE            39 /*0x00100111 */
-#define UC_RDMA_WRITE_LAST              40 /*0x00101000 */
-#define UC_RDMA_WRITE_LAST_IMM          41 /*0x00101001 */
-#define UC_RDMA_WRITE_ONLY              42 /*0x00101010 */
-#define UC_RDMA_WRITE_ONLY_IMM          43 /*0x00101011 */
-
 static const value_string OpCodeMap[] =
 {
     { RC_SEND_FIRST,                "RC Send First " },
@@ -1497,15 +1428,6 @@ static guint32 opCode_PAYLD[] = {
 * RC_ACKNOWLEDGE
 * }; */
 
-static void *src_addr = NULL,     /* the address to be displayed in the source/destination columns */
-            *dst_addr = NULL;     /* (lid/gid number) will be stored here */
-
-#define ADDR_MAX_LEN  sizeof("IPv6 over IB Packet")      /* maximum length of src_addr and dst_addr is for IPoIB
-                                                            where we print an explanation string */
-
-static gint8 transport_type = -1;      /* reflects the transport type of the packet being parsed.
-                                          only use one of the TRANSPORT_* values for this field */
-
 /* settings to be set by the user via the preferences dialog */
 static gboolean pref_dissect_eoib = TRUE;
 static gboolean pref_identify_iba_payload = TRUE;
@@ -1523,8 +1445,7 @@ typedef struct {
 } connection_context;
 
 /* holds a table of connection contexts being negotiated by CM. the key is a obtained
-   using ADD_ADDRESS_TO_HASH(initiator address, TransactionID) [remember that the 1st
-   argument to ADD_ADDRESS_TO_HASH must be an lvalue. */
+   using add_address_to_hash64(initiator address, TransactionID) */
 static GHashTable *CM_context_table = NULL;
 
 /* heuristics sub-dissectors list for dissecting the data payload of IB packets */
@@ -1551,7 +1472,7 @@ g_int64_equal (gconstpointer v1,
 }
 #endif
 
-void table_destroy_notify(gpointer data) {
+static void table_destroy_notify(gpointer data) {
     g_free(data);
 }
 
@@ -1603,7 +1524,7 @@ dissect_infiniband_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, g
 
     /* General Variables */
     gboolean bthFollows = FALSE;    /* Tracks if we are parsing a BTH.  This is a significant decision point */
-    guint8 opCode = 0;              /* OpCode from BTH header. */
+    struct infinibandinfo info = { 0, };
     gint32 nextHeaderSequence = -1; /* defined by this dissector. #define which indicates the upcoming header sequence from OpCode */
     guint8 nxtHdr = 0;              /* Keyed off for header dissection order */
     guint16 packetLength = 0;       /* Packet Length.  We track this as tvb_length - offset.   */
@@ -1613,12 +1534,8 @@ dissect_infiniband_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, g
     struct e_in6_addr DSTgid;
     gint crc_length = 0;
 
-    /* allocate space for source/destination addresses if not allocated already. we will fill them in later */
-    if (!src_addr)
-        src_addr = se_alloc(ADDR_MAX_LEN);
-
-    if (!dst_addr)
-        dst_addr = se_alloc(ADDR_MAX_LEN);
+    void *src_addr,                 /* the address to be displayed in the source/destination columns */
+         *dst_addr;                 /* (lid/gid number) will be stored here */
 
     pinfo->srcport = pinfo->destport = 0xffffffff;  /* set the src/dest QPN to something impossible instead of the default 0,
                                                        so we don't mistake it for a MAD. (QP is only 24bit, so can't be 0xffffffff)*/
@@ -1633,28 +1550,6 @@ dissect_infiniband_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, g
     /* Clear other columns */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "InfiniBand");
     col_clear(pinfo->cinfo, COL_INFO);
-
-    /* Get the parent tree from the ERF dissector.  We don't want to nest under ERF */
-    if (tree && tree->parent)
-    {
-        /* Set the normal tree outside of ERF */
-        tree = tree->parent;
-        /* Set a global reference for nested protocols */
-        top_tree = tree;
-    }
-
-    /* The "quick-dissection" code in dissect_general_info skips lots of the recently-added code
-       for saving context etc. It is no longer viable to maintain two code branches, so we have
-       (temporarily?) disabled the second one. All dissection now goes through the full branch,
-       using a NULL tree pointer if this is not a full dissection call. Take care not to dereference
-       the tree pointer or any subtree pointers you create using it and you'll be fine. */
-    if (0 && !tree)
-    {
-        /* If no packet details are being dissected, extract some high level info for the packet view */
-        /* Assigns column values rather than full tree population */
-        dissect_general_info(tvb, offset, pinfo, starts_with_grh);
-        return;
-    }
 
     /* Top Level Packet */
     infiniband_packet = proto_tree_add_item(tree, proto_infiniband, tvb, offset, -1, ENC_NA);
@@ -1693,6 +1588,7 @@ dissect_infiniband_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, g
 
 
     /* Set destination in packet view. */
+    dst_addr = wmem_alloc(pinfo->pool, sizeof(guint16));
     *((guint16*) dst_addr) = tvb_get_ntohs(tvb, offset);
     SET_ADDRESS(&pinfo->dst, AT_IB, sizeof(guint16), dst_addr);
 
@@ -1709,6 +1605,7 @@ dissect_infiniband_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, g
     proto_tree_add_item(local_route_header_tree, hf_infiniband_source_local_id,         tvb, offset, 2, ENC_BIG_ENDIAN);
 
     /* Set Source in packet view. */
+    src_addr = wmem_alloc(pinfo->pool, sizeof(guint16));
     *((guint16*) src_addr) = tvb_get_ntohs(tvb, offset);
     SET_ADDRESS(&pinfo->src, AT_IB, sizeof(guint16), src_addr);
 
@@ -1743,6 +1640,7 @@ skip_lrh:
             tvb_get_ipv6(tvb, offset, &SRCgid);
 
             /* set source GID in packet view*/
+            src_addr = wmem_alloc(pinfo->pool, GID_SIZE);
             memcpy(src_addr, &SRCgid, GID_SIZE);
             SET_ADDRESS(&pinfo->src, AT_IB, GID_SIZE, src_addr);
 
@@ -1753,6 +1651,7 @@ skip_lrh:
             tvb_get_ipv6(tvb, offset, &DSTgid);
 
             /* set destination GID in packet view*/
+            dst_addr = wmem_alloc(pinfo->pool, GID_SIZE);
             memcpy(dst_addr, &DSTgid, GID_SIZE);
             SET_ADDRESS(&pinfo->dst, AT_IB, GID_SIZE, dst_addr);
 
@@ -1776,8 +1675,8 @@ skip_lrh:
             proto_tree_add_item(base_transport_header_tree, hf_infiniband_opcode,                       tvb, offset, 1, ENC_BIG_ENDIAN);
 
             /* Get the OpCode - this tells us what headers are following */
-            opCode = tvb_get_guint8(tvb, offset);
-            col_append_str(pinfo->cinfo, COL_INFO, val_to_str_const((guint32)opCode, OpCodeMap, "Unknown OpCode"));
+            info.opCode = tvb_get_guint8(tvb, offset);
+            col_append_str(pinfo->cinfo, COL_INFO, val_to_str_const((guint32)info.opCode, OpCodeMap, "Unknown OpCode"));
             offset += 1;
 
             proto_tree_add_item(base_transport_header_tree, hf_infiniband_solicited_event,              tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -1798,13 +1697,13 @@ skip_lrh:
             break;
         case IP_NON_IBA:
             /* Raw IPv6 Packet */
-            g_snprintf(dst_addr,  ADDR_MAX_LEN, "IPv6 over IB Packet");
-            SET_ADDRESS(&pinfo->dst,  AT_STRINGZ, (int)strlen(dst_addr)+1, dst_addr);
+            dst_addr = wmem_strdup(pinfo->pool, "IPv6 over IB Packet");
+            SET_ADDRESS(&pinfo->dst,  AT_STRINGZ, (int)strlen((char *)dst_addr)+1, dst_addr);
 
             parse_IPvSix(all_headers_tree, tvb, &offset, pinfo);
             break;
         case RAW:
-            parse_RWH(all_headers_tree, tvb, &offset, pinfo);
+            parse_RWH(all_headers_tree, tvb, &offset, pinfo, tree);
             break;
         default:
             /* Unknown Packet */
@@ -1822,8 +1721,7 @@ skip_lrh:
         * The find_next_header_sequence method could be used to automate this.
         * We need to keep track of this so we know much data to mark as payload/ICRC/VCRC values. */
 
-        transport_type = (opCode & 0xE0) >> 5;   /* save transport type for identifying EoIB payloads later... */
-        nextHeaderSequence = find_next_header_sequence((guint32) opCode);
+        nextHeaderSequence = find_next_header_sequence((guint32) info.opCode);
 
         /* find_next_header_sequence gives us the DEFINE value corresponding to the header order following */
         /* Enumerations are named intuitively, e.g. RDETH DETH PAYLOAD means there is an RDETH Header, DETH Header, and a packet payload */
@@ -1836,7 +1734,7 @@ skip_lrh:
                 packetLength -= 4; /* RDETH */
                 packetLength -= 8; /* DETH */
 
-                parse_PAYLOAD(all_headers_tree, pinfo, tvb, &offset, packetLength);
+                parse_PAYLOAD(all_headers_tree, pinfo, &info, tvb, &offset, packetLength, tree);
                 break;
             case RDETH_DETH_RETH_PAYLD:
                 parse_RDETH(all_headers_tree, tvb, &offset);
@@ -1847,7 +1745,7 @@ skip_lrh:
                 packetLength -= 8; /* DETH */
                 packetLength -= 16; /* RETH */
 
-                parse_PAYLOAD(all_headers_tree, pinfo, tvb, &offset, packetLength);
+                parse_PAYLOAD(all_headers_tree, pinfo, &info, tvb, &offset, packetLength, tree);
                 break;
             case RDETH_DETH_IMMDT_PAYLD:
                 parse_RDETH(all_headers_tree, tvb, &offset);
@@ -1858,7 +1756,7 @@ skip_lrh:
                 packetLength -= 8; /* DETH */
                 packetLength -= 4; /* IMMDT */
 
-                parse_PAYLOAD(all_headers_tree, pinfo, tvb, &offset, packetLength);
+                parse_PAYLOAD(all_headers_tree, pinfo, &info, tvb, &offset, packetLength, tree);
                 break;
             case RDETH_DETH_RETH_IMMDT_PAYLD:
                 parse_RDETH(all_headers_tree, tvb, &offset);
@@ -1871,7 +1769,7 @@ skip_lrh:
                 packetLength -= 16; /* RETH */
                 packetLength -= 4;  /* IMMDT */
 
-                parse_PAYLOAD(all_headers_tree, pinfo, tvb, &offset, packetLength);
+                parse_PAYLOAD(all_headers_tree, pinfo, &info, tvb, &offset, packetLength, tree);
                 break;
             case RDETH_DETH_RETH:
                 parse_RDETH(all_headers_tree, tvb, &offset);
@@ -1890,14 +1788,14 @@ skip_lrh:
                 packetLength -= 4; /* RDETH */
                 packetLength -= 4; /* AETH */
 
-                parse_PAYLOAD(all_headers_tree, pinfo, tvb, &offset, packetLength);
+                parse_PAYLOAD(all_headers_tree, pinfo, &info, tvb, &offset, packetLength, tree);
                 break;
             case RDETH_PAYLD:
                 parse_RDETH(all_headers_tree, tvb, &offset);
 
                 packetLength -= 4; /* RDETH */
 
-                parse_PAYLOAD(all_headers_tree, pinfo, tvb, &offset, packetLength);
+                parse_PAYLOAD(all_headers_tree, pinfo, &info, tvb, &offset, packetLength, tree);
                 break;
             case RDETH_AETH:
                 parse_AETH(all_headers_tree, tvb, &offset);
@@ -1941,25 +1839,34 @@ skip_lrh:
 
                 packetLength -= 8; /* DETH */
 
-                parse_PAYLOAD(all_headers_tree, pinfo, tvb, &offset, packetLength);
+                parse_PAYLOAD(all_headers_tree, pinfo, &info, tvb, &offset, packetLength, tree);
                 break;
             case PAYLD:
 
-                parse_PAYLOAD(all_headers_tree, pinfo, tvb, &offset, packetLength);
+                parse_PAYLOAD(all_headers_tree, pinfo, &info, tvb, &offset, packetLength, tree);
                 break;
             case IMMDT_PAYLD:
                 parse_IMMDT(all_headers_tree, tvb, &offset);
 
                 packetLength -= 4; /* IMMDT */
 
-                parse_PAYLOAD(all_headers_tree, pinfo, tvb, &offset, packetLength);
+                parse_PAYLOAD(all_headers_tree, pinfo, &info, tvb, &offset, packetLength, tree);
+                break;
+            case RETH_IMMDT_PAYLD:
+                parse_RETH(all_headers_tree, tvb, &offset);
+                parse_IMMDT(all_headers_tree, tvb, &offset);
+
+                packetLength -= 16; /* RETH */
+                packetLength -= 4; /* IMMDT */
+
+                parse_PAYLOAD(all_headers_tree, pinfo, &info, tvb, &offset, packetLength, tree);
                 break;
             case RETH_PAYLD:
                 parse_RETH(all_headers_tree, tvb, &offset);
 
                 packetLength -= 16; /* RETH */
 
-                parse_PAYLOAD(all_headers_tree, pinfo, tvb, &offset, packetLength);
+                parse_PAYLOAD(all_headers_tree, pinfo, &info, tvb, &offset, packetLength, tree);
                 break;
             case RETH:
                 parse_RETH(all_headers_tree, tvb, &offset);
@@ -1972,7 +1879,7 @@ skip_lrh:
 
                 packetLength -= 4; /* AETH */
 
-                parse_PAYLOAD(all_headers_tree, pinfo, tvb, &offset, packetLength);
+                parse_PAYLOAD(all_headers_tree, pinfo, &info, tvb, &offset, packetLength, tree);
                 break;
             case AETH:
                 parse_AETH(all_headers_tree, tvb, &offset);
@@ -1999,7 +1906,7 @@ skip_lrh:
 
                 packetLength -= 4; /* IETH */
 
-                parse_PAYLOAD(all_headers_tree, pinfo, tvb, &offset, packetLength);
+                parse_PAYLOAD(all_headers_tree, pinfo, &info, tvb, &offset, packetLength, tree);
                 break;
             case DETH_IMMDT_PAYLD:
                 parse_DETH(all_headers_tree, pinfo, tvb, &offset);
@@ -2008,7 +1915,7 @@ skip_lrh:
                 packetLength -= 8; /* DETH */
                 packetLength -= 4; /* IMMDT */
 
-                parse_PAYLOAD(all_headers_tree, pinfo, tvb, &offset, packetLength);
+                parse_PAYLOAD(all_headers_tree, pinfo, &info, tvb, &offset, packetLength, tree);
                 break;
             default:
                 parse_VENDOR(all_headers_tree, tvb, &offset);
@@ -2050,39 +1957,17 @@ dissect_infiniband_link(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     gint        offset = 0;     /* Current Offset */
     guint8      operand;        /* Link packet Operand */
 
-    /* allocate space for source/destination addresses if not allocated already. we will fill them in later */
-    if (!src_addr)
-        src_addr = se_alloc(ADDR_MAX_LEN);
-
-    if (!dst_addr)
-        dst_addr = se_alloc(ADDR_MAX_LEN);
-
     operand =  tvb_get_guint8(tvb, offset);
     operand = (operand & 0xF0) >> 4;
 
     /* Mark the Packet type as Infiniband in the wireshark UI */
     /* Clear other columns */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "InfiniBand Link");
-    col_clear(pinfo->cinfo, COL_INFO);
     col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
              val_to_str(operand, Operand_Description, "Unknown (0x%1x)"));
 
-    /* Get the parent tree from the ERF dissector.  We don't want to nest under ERF */
-    if (tree && tree->parent)
-    {
-        /* Set the normal tree outside of ERF */
-        tree = tree->parent;
-        /* Set a global reference for nested protocols */
-        top_tree = tree;
-    }
-
-    if (!tree)
-    {
-        /* If no packet details are being dissected, extract some high level info for the packet view */
-        /* Assigns column values rather than full tree population */
-        dissect_general_info(tvb, offset, pinfo, FALSE);
-        return;
-    }
+    /* Assigns column values */
+    dissect_general_info(tvb, offset, pinfo, FALSE);
 
     /* Top Level Packet */
     infiniband_link_packet = proto_tree_add_item(tree, proto_infiniband_link, tvb, offset, -1, ENC_NA);
@@ -2383,10 +2268,14 @@ parse_IETH(proto_tree * parentTree, tvbuff_t *tvb, gint *offset)
 /* Parse Payload - Packet Payload / Invariant CRC / Variant CRC
 * IN: parentTree to add the dissection to - in this code the all_headers_tree
 * IN: pinfo - packet info from wireshark
+* IN: info - infiniband info passed to subdissectors
 * IN: tvb - the data buffer from wireshark
 * IN/OUT: offset - The current and updated offset
-* IN: length - Length of Payload */
-static void parse_PAYLOAD(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *tvb, gint *offset, gint length)
+* IN: length - Length of Payload
+* IN: top_tree - parent tree of Infiniband dissector */
+static void parse_PAYLOAD(proto_tree *parentTree,
+                          packet_info *pinfo, struct infinibandinfo *info,
+                          tvbuff_t *tvb, gint *offset, gint length, proto_tree *top_tree)
 {
     gint                local_offset    = *offset;
     /* Payload - Packet Payload */
@@ -2396,6 +2285,7 @@ static void parse_PAYLOAD(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
     guint16             etype, reserved;
     const char         *saved_proto;
     volatile gboolean   dissector_found = FALSE;
+    heur_dtbl_entry_t  *hdtbl_entry;
 
     if (!tvb_bytes_exist(tvb, *offset, length)) /* previously consumed bytes + offset was all the data - none or corrupt payload */
     {
@@ -2483,9 +2373,9 @@ static void parse_PAYLOAD(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
         /* try to recognize whether or not this is a Mellanox EoIB packet by the
            transport type and the 4 first bits of the payload */
         if (pref_dissect_eoib &&
-            (transport_type == TRANSPORT_UD) &&
+            (((info->opCode & 0xE0) >> 5) == TRANSPORT_UD) &&
             (tvb_get_bits8(tvb, local_offset*8, 4) == 0xC)) {
-            dissector_found = parse_EoIB(parentTree, tvb, local_offset, pinfo);
+            dissector_found = parse_EoIB(parentTree, tvb, local_offset, pinfo, top_tree);
         }
 
         /* IBA packet data could be anything in principle, however it is common
@@ -2506,8 +2396,6 @@ static void parse_PAYLOAD(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
             reported_length = tvb_reported_length_remaining(tvb, local_offset+4);
 
             next_tvb = tvb_new_subset(tvb, local_offset+4, captured_length, reported_length);
-
-            pinfo->ethertype = etype;
 
             /* Look for sub-dissector, and call it if found.
                Catch exceptions, so that if the reported length of "next_tvb"
@@ -2577,7 +2465,7 @@ static void parse_PAYLOAD(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
 
         /* Try any heuristic dissectors that requested a chance to try and dissect IB payloads */
         if (!dissector_found) {
-            dissector_found = dissector_try_heuristic(heur_dissectors_payload, next_tvb, pinfo, parentTree, NULL);
+            dissector_found = dissector_try_heuristic(heur_dissectors_payload, next_tvb, pinfo, parentTree, &hdtbl_entry, info);
         }
 
         if (!dissector_found) {
@@ -2588,7 +2476,7 @@ static void parse_PAYLOAD(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
         }
 
 
-        /*parse_RWH(parentTree, tvb, &local_offset, pinfo);*/
+        /*parse_RWH(parentTree, tvb, &local_offset, pinfo, top_tree);*/
 
         /* Will contain ICRC and VCRC = 4+2 */
         local_offset = tvb_reported_length(tvb) - 6;
@@ -2638,8 +2526,9 @@ static void parse_IPvSix(proto_tree *parentTree, tvbuff_t *tvb, gint *offset, pa
 * IN: parentTree to add the dissection to - in this code the all_headers_tree
 * IN: tvb - the data buffer from wireshark
 * IN/OUT: The current and updated offset
-* IN: pinfo - packet info from wireshark */
-static void parse_RWH(proto_tree *ah_tree, tvbuff_t *tvb, gint *offset, packet_info *pinfo)
+* IN: pinfo - packet info from wireshark
+* IN: top_tree - parent tree of Infiniband dissector */
+static void parse_RWH(proto_tree *ah_tree, tvbuff_t *tvb, gint *offset, packet_info *pinfo, proto_tree *top_tree)
 {
     guint16   ether_type;
     tvbuff_t *next_tvb;
@@ -2693,8 +2582,9 @@ static void parse_RWH(proto_tree *ah_tree, tvbuff_t *tvb, gint *offset, packet_i
 * IN: parentTree to add the dissection to - in this code the all_headers_tree
 * IN: tvb - the data buffer from wireshark
 * IN: The current offset
-* IN: pinfo - packet info from wireshark */
-static gboolean parse_EoIB(proto_tree *tree, tvbuff_t *tvb, gint offset, packet_info *pinfo)
+* IN: pinfo - packet info from wireshark
+* IN: top_tree - parent tree of Infiniband dissector */
+static gboolean parse_EoIB(proto_tree *tree, tvbuff_t *tvb, gint offset, packet_info *pinfo, proto_tree *top_tree)
 {
     proto_item *header_item;
     proto_tree *header_subtree;
@@ -2861,8 +2751,8 @@ static void parse_SUBNADMN(proto_tree *parentTree, packet_info *pinfo, tvbuff_t 
     SUBNADMN_header_tree = proto_item_add_subtree(SUBNADMN_header_item, ett_subnadmin);
 
     proto_tree_add_item(SUBNADMN_header_tree, hf_infiniband_sm_key,             tvb, local_offset, 8, ENC_BIG_ENDIAN); local_offset += 8;
-    proto_tree_add_item(SUBNADMN_header_tree, hf_infiniband_attribute_offset,   tvb, local_offset, 2, ENC_BIG_ENDIAN); local_offset += 4;
-    proto_tree_add_item(SUBNADMN_header_tree, hf_infiniband_reserved16,         tvb, local_offset, 2, ENC_BIG_ENDIAN); local_offset += 4;
+    proto_tree_add_item(SUBNADMN_header_tree, hf_infiniband_attribute_offset,   tvb, local_offset, 2, ENC_BIG_ENDIAN); local_offset += 2;
+    proto_tree_add_item(SUBNADMN_header_tree, hf_infiniband_reserved16,         tvb, local_offset, 2, ENC_BIG_ENDIAN); local_offset += 2;
     proto_tree_add_item(SUBNADMN_header_tree, hf_infiniband_component_mask,     tvb, local_offset, 8, ENC_BIG_ENDIAN); local_offset += 8;
 
     label_SUBA_Method(SUBNADMN_header_item, &MadData, pinfo);
@@ -2969,9 +2859,10 @@ static void parse_COM_MGT(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
     proto_item *CM_header_item;
     proto_tree *CM_header_tree;
     tvbuff_t   *next_tvb;
+    heur_dtbl_entry_t *hdtbl_entry;
 
-    local_gid  = ep_alloc(GID_SIZE);
-    remote_gid = ep_alloc(GID_SIZE);
+    local_gid  = (guint8 *)wmem_alloc(wmem_packet_scope(), GID_SIZE);
+    remote_gid = (guint8 *)wmem_alloc(wmem_packet_scope(), GID_SIZE);
 
     if (!parse_MAD_Common(parentTree, tvb, offset, &MadData))
     {
@@ -2985,8 +2876,7 @@ static void parse_COM_MGT(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
     label = val_to_str_const(MadData.attributeID, CM_Attributes, "(Unknown CM Attribute)");
 
     proto_item_set_text(CM_header_item, "CM %s", label);
-    col_clear(pinfo->cinfo, COL_INFO);
-    col_append_fstr(pinfo->cinfo, COL_INFO, "CM: %s", label);
+    col_add_fstr(pinfo->cinfo, COL_INFO, "CM: %s", label);
 
     CM_header_tree = proto_item_add_subtree(CM_header_item, ett_cm);
 
@@ -3062,10 +2952,10 @@ static void parse_COM_MGT(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
                 connection_context *connection;
                 conversation_infiniband_data *proto_data;
                 conversation_t *conv;
-                guint64 *hash_key = g_malloc(sizeof(guint64));
+                guint64 *hash_key = (guint64 *)g_malloc(sizeof(guint64));
 
                 /* create a new connection context and store it in the hash table */
-                connection = g_malloc(sizeof(connection_context));
+                connection = (connection_context *)g_malloc(sizeof(connection_context));
                 memcpy(&(connection->req_gid), local_gid, GID_SIZE);
                 memcpy(&(connection->resp_gid), remote_gid, GID_SIZE);
                 connection->req_lid = local_lid;
@@ -3077,13 +2967,13 @@ static void parse_COM_MGT(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
                 /* save the context to the context hash table, for retrieval when the corresponding
                    CM REP message arrives*/
                 *hash_key = MadData.transactionID;
-                ADD_ADDRESS_TO_HASH(*hash_key, &pinfo->src);
+                *hash_key = add_address_to_hash64(*hash_key, &pinfo->src);
                 g_hash_table_replace(CM_context_table, hash_key, connection);
 
                 /* Now we create a conversation for the CM exchange. This uses both
                    sides of the conversation since CM packets also include the source
                    QPN */
-                proto_data = se_alloc(sizeof(conversation_infiniband_data));
+                proto_data = wmem_new(wmem_file_scope(), conversation_infiniband_data);
                 proto_data->service_id = connection->service_id;
 
                 conv = conversation_new(pinfo->fd->num, &pinfo->src, &pinfo->dst,
@@ -3093,7 +2983,7 @@ static void parse_COM_MGT(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
 
             /* give a chance for subdissectors to analyze the private data */
             next_tvb = tvb_new_subset(tvb, local_offset, 92, -1);
-            if (! dissector_try_heuristic(heur_dissectors_cm_private, next_tvb, pinfo, parentTree, NULL) )
+            if (! dissector_try_heuristic(heur_dissectors_cm_private, next_tvb, pinfo, parentTree, &hdtbl_entry, NULL) )
                 /* if none reported success, add this as raw "data" */
                 proto_tree_add_item(CM_header_tree, hf_cm_req_private_data, tvb, local_offset, 92, ENC_NA);
 
@@ -3130,8 +3020,8 @@ static void parse_COM_MGT(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
                 connection_context *connection;
                 guint64 hash_key;
                 hash_key = MadData.transactionID;
-                ADD_ADDRESS_TO_HASH(hash_key, &pinfo->dst);
-                connection = g_hash_table_lookup(CM_context_table, &hash_key);
+                hash_key = add_address_to_hash64(hash_key, &pinfo->dst);
+                connection = (connection_context *)g_hash_table_lookup(CM_context_table, &hash_key);
 
                 /* if an appropriate connection was not found there's something wrong, but nothing we can
                    do about it here - so just skip saving the context */
@@ -3144,7 +3034,7 @@ static void parse_COM_MGT(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
 
                     connection->resp_qp = remote_qpn;
 
-                    proto_data = se_alloc(sizeof(conversation_infiniband_data));
+                    proto_data = wmem_new(wmem_file_scope(), conversation_infiniband_data);
                     proto_data->service_id = connection->service_id;
 
                     /* RC traffic never(?) includes a field indicating the source QPN, so
@@ -3182,7 +3072,7 @@ static void parse_COM_MGT(proto_tree *parentTree, packet_info *pinfo, tvbuff_t *
 
             /* give a chance for subdissectors to get the private data */
             next_tvb = tvb_new_subset(tvb, local_offset, 196, -1);
-            if (! dissector_try_heuristic(heur_dissectors_cm_private, next_tvb, pinfo, parentTree, NULL) )
+            if (! dissector_try_heuristic(heur_dissectors_cm_private, next_tvb, pinfo, parentTree, &hdtbl_entry, NULL) )
                 /* if none reported success, add this as raw "data" */
                 proto_tree_add_item(CM_header_tree, hf_cm_rep_privatedata, tvb, local_offset, 196, ENC_NA);
 
@@ -3381,7 +3271,7 @@ static gboolean parse_RMPP(proto_tree *parentTree, tvbuff_t *tvb, gint *offset)
     proto_tree_add_item(RMPP_header_tree, hf_infiniband_rmpp_status,    tvb, local_offset, 1, ENC_BIG_ENDIAN); local_offset += 1;
     switch (RMPP_Type)
     {
-        case RMPP_ILLEGAL:
+        case RMPP_NOT_USED:
             proto_tree_add_item(RMPP_header_tree, hf_infiniband_rmpp_data1,     tvb, local_offset, 4, ENC_BIG_ENDIAN); local_offset += 4;
             proto_tree_add_item(RMPP_header_tree, hf_infiniband_rmpp_data2,     tvb, local_offset, 4, ENC_BIG_ENDIAN); local_offset += 4;
             break;
@@ -4968,6 +4858,9 @@ static void dissect_general_info(tvbuff_t *tvb, gint offset, packet_info *pinfo,
     guint8            management_class   = 0;
     MAD_Data          MadData;
 
+    void *src_addr,                 /* the address to be displayed in the source/destination columns */
+         *dst_addr;                 /* (lid/gid number) will be stored here */
+
     if (starts_with_grh) {
         /* this is a RoCE packet, skip LRH parsing */
         lnh_val = IBA_GLOBAL;
@@ -4984,12 +4877,14 @@ static void dissect_general_info(tvbuff_t *tvb, gint offset, packet_info *pinfo,
     offset += 1;
 
     /* Set destination in packet view. */
+    dst_addr = wmem_alloc(pinfo->pool, sizeof(guint16));
     *((guint16*) dst_addr) = tvb_get_ntohs(tvb, offset);
     SET_ADDRESS(&pinfo->dst, AT_IB, sizeof(guint16), dst_addr);
 
     offset += 4;
 
     /* Set Source in packet view. */
+    src_addr = wmem_alloc(pinfo->pool, sizeof(guint16));
     *((guint16*) src_addr) = tvb_get_ntohs(tvb, offset);
     SET_ADDRESS(&pinfo->src, AT_IB, sizeof(guint16), src_addr);
 
@@ -5007,6 +4902,7 @@ skip_lrh:
             tvb_get_ipv6(tvb, offset, &SRCgid);
 
             /* Set source GID in packet view. */
+            src_addr = wmem_alloc(pinfo->pool, GID_SIZE);
             memcpy(src_addr, &SRCgid, GID_SIZE);
             SET_ADDRESS(&pinfo->src, AT_IB, GID_SIZE, src_addr);
 
@@ -5015,6 +4911,7 @@ skip_lrh:
             tvb_get_ipv6(tvb, offset, &DSTgid);
 
             /* Set destination GID in packet view. */
+            dst_addr = wmem_alloc(pinfo->pool, GID_SIZE);
             memcpy(dst_addr, &DSTgid, GID_SIZE);
             SET_ADDRESS(&pinfo->dst, AT_IB, GID_SIZE, dst_addr);
 
@@ -5040,8 +4937,8 @@ skip_lrh:
             break;
         case IP_NON_IBA:
             /* Raw IPv6 Packet */
-            g_snprintf(dst_addr,  ADDR_MAX_LEN, "IPv6 over IB Packet");
-            SET_ADDRESS(&pinfo->dst,  AT_STRINGZ, (int)strlen(dst_addr)+1, dst_addr);
+            dst_addr = wmem_strdup(pinfo->pool, "IPv6 over IB Packet");
+            SET_ADDRESS(&pinfo->dst,  AT_STRINGZ, (int)strlen((char *)dst_addr)+1, dst_addr);
             break;
         case RAW:
             break;
@@ -5060,6 +4957,10 @@ skip_lrh:
             case RDETH_DETH_PAYLD:
                 offset += 4; /* RDETH */
                 offset += 8; /* DETH */
+                break;
+            case RETH_IMMDT_PAYLD:
+                offset += 16; /* RETH */
+                offset += 4; /* IMMDT */
                 break;
             case RDETH_DETH_RETH_PAYLD:
                 offset += 4; /* RDETH */
@@ -5173,11 +5074,6 @@ skip_lrh:
     }
 
     return;
-}
-
-static void proto_init_infiniband(void)
-{
-    src_addr = dst_addr = NULL;
 }
 
 /* Protocol Registration */
@@ -7450,7 +7346,7 @@ void proto_register_infiniband(void)
     };
 
     proto_infiniband = proto_register_protocol("InfiniBand", "InfiniBand", "infiniband");
-    register_dissector("infiniband", dissect_infiniband, proto_infiniband);
+    ib_handle = register_dissector("infiniband", dissect_infiniband, proto_infiniband);
 
     proto_register_field_array(proto_infiniband, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
@@ -7479,8 +7375,6 @@ void proto_register_infiniband(void)
     proto_register_field_array(proto_infiniband_link, hf_link, array_length(hf_link));
     proto_register_subtree_array(ett_link_array, array_length(ett_link_array));
 
-    register_init_routine(proto_init_infiniband);
-
     /* initialize the hash table */
     CM_context_table = g_hash_table_new_full(g_int64_hash, g_int64_equal,
                                              table_destroy_notify, table_destroy_notify);
@@ -7490,7 +7384,6 @@ void proto_register_infiniband(void)
 void proto_reg_handoff_infiniband(void)
 {
     dissector_handle_t roce_handle;
-    dissector_handle_t ib_handle;
 
     ipv6_handle               = find_dissector("ipv6");
     data_handle               = find_dissector("data");
@@ -7501,6 +7394,5 @@ void proto_reg_handoff_infiniband(void)
     roce_handle = create_dissector_handle(dissect_roce, proto_infiniband);
     dissector_add_uint("ethertype", ETHERTYPE_ROCE, roce_handle);
 
-    ib_handle = create_dissector_handle(dissect_infiniband, proto_infiniband);
     dissector_add_uint("wtap_encap", WTAP_ENCAP_INFINIBAND, ib_handle);
 }

@@ -1,7 +1,5 @@
 /* capture_preferences_frame.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,11 +33,11 @@ class CapturePreferencesFrame;
 class CapturePreferencesFrame : public QFrame
 {
     Q_OBJECT
-    
+
 public:
     explicit CapturePreferencesFrame(QWidget *parent = 0);
     ~CapturePreferencesFrame();
-    
+
 protected:
     void showEvent(QShowEvent *evt);
 

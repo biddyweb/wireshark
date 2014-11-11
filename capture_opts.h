@@ -1,8 +1,6 @@
 /* capture_opts.h
  * Capture options (all parameters needed to do the actual capture)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -42,12 +40,15 @@
 extern "C" {
 #endif /* __cplusplus */
 
-/* Current state of capture engine. XXX - differentiate states */
-typedef enum {
-    CAPTURE_STOPPED,        /**< stopped */
-    CAPTURE_PREPARING,      /**< preparing, but still no response from capture child */
-    CAPTURE_RUNNING         /**< capture child signalled ok, capture is running now */
-} capture_state;
+/* Attention:
+   for tshark, we're using a leading - in the optstring to prevent getopt()
+   from permuting the argv[] entries, in this case, unknown argv[] entries
+   will be returned as parameters to a dummy-option 1
+   in short: we must not use 1 here */
+
+/* this does not clash with tshark's -2 option which returns '2' */
+#define LONGOPT_NUM_CAP_COMMENT 2
+
 
 #ifdef HAVE_PCAP_REMOTE
 /* Type of capture source */
@@ -76,18 +77,6 @@ typedef enum {
                                  in N milliseconds */
 } capture_sampling;
 #endif
-
-typedef enum {
-    IF_WIRED,
-    IF_AIRPCAP,
-    IF_PIPE,
-    IF_STDIN,
-    IF_BLUETOOTH,
-    IF_WIRELESS,
-    IF_DIALUP,
-    IF_USB,
-    IF_VIRTUAL
-} interface_type;
 
 #ifdef HAVE_PCAP_REMOTE
 struct remote_host_info {
@@ -123,7 +112,6 @@ typedef struct interface_tag {
     gint active_dlt;
     gboolean pmode;
     gboolean has_snaplen;
-    gboolean snap_pref;
     guint snaplen;
     gboolean local;
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
@@ -157,6 +145,7 @@ typedef struct interface_options_tag {
     int snaplen;
     int linktype;
     gboolean promisc_mode;
+    interface_type if_type;
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
     int buffer_size;
 #endif
@@ -181,12 +170,30 @@ typedef struct interface_options_tag {
 /** Capture options coming from user interface */
 typedef struct capture_options_tag {
     /* general */
-    void     *cf;                   /**< handle to cfile (note: untyped handle) */
     GArray   *ifaces;               /**< array of interfaces.
                                          Currently only used by dumpcap. */
     GArray   *all_ifaces;
     guint    num_selected;
+
+    /*
+     * Options to be applied to all interfaces.
+     *
+     * Some of these can be set from the GUI, others can't; setting
+     * the link-layer header type, for example, doesn't necessarily
+     * make sense, as different interfaces may support different sets
+     * of link-layer header types.
+     *
+     * Some that can't be set from the GUI can be set from the command
+     * line, by specifying them before any interface is specified.
+     * This includes the link-layer header type, so if somebody asks
+     * for a link-layer header type that an interface on which they're
+     * capturing doesn't support, we should report an error and fail
+     * to capture.
+     *
+     * These can be overridden per-interface.
+     */
     interface_options default_options;
+
     gboolean saving_to_file;        /**< TRUE if capture is writing to a file */
     gchar    *save_file;            /**< the capture file name */
     gboolean group_read_access;     /**< TRUE is group read permission needs to be set */
@@ -197,6 +204,7 @@ typedef struct capture_options_tag {
     gboolean show_info;             /**< show the info dialog */
     gboolean quit_after_cap;        /**< Makes a "capture only mode". Implies -k */
     gboolean restart;               /**< restart after closing is done */
+    gchar    *orig_save_file;       /**< the original capture file name (saved for a restart) */
 
     /* multiple files (and ringbuffer) */
     gboolean multi_files_on;        /**< TRUE if ring buffer in use */
@@ -216,28 +224,22 @@ typedef struct capture_options_tag {
     int autostop_packets;           /**< Maximum packet count */
     gboolean has_autostop_filesize; /**< TRUE if maximum capture file size
                                          is specified */
-    gint32 autostop_filesize;       /**< Maximum capture file size */
+    guint32 autostop_filesize;      /**< Maximum capture file size */
     gboolean has_autostop_duration; /**< TRUE if maximum capture duration
                                          is specified */
     gint32 autostop_duration;       /**< Maximum capture duration */
 
+    gchar *capture_comment;         /** capture comment to write to the
+                                        output file */
+
     /* internally used (don't touch from outside) */
-    int fork_child;                 /**< If not -1, in parent, process ID of child */
-    int fork_child_status;          /**< Child exit status */
-#ifdef _WIN32
-    int signal_pipe_write_fd;       /**< the pipe to signal the child */
-#endif
-    capture_state state;            /**< current state of the capture engine */
     gboolean output_to_pipe;        /**< save_file is a pipe (named or stdout) */
-#ifndef _WIN32
-    uid_t owner;                    /**< owner of the cfile */
-    gid_t group;                    /**< group of the cfile */
-#endif
+    gboolean capture_child;         /**< hidden option: Wireshark child mode */
 } capture_options;
 
 /* initialize the capture_options with some reasonable values */
 extern void
-capture_opts_init(capture_options *capture_opts, void *cf);
+capture_opts_init(capture_options *capture_opts);
 
 /* set a command line option value */
 extern int
@@ -264,9 +266,10 @@ capture_opts_trim_snaplen(capture_options *capture_opts, int snaplen_min);
 extern void
 capture_opts_trim_ring_num_files(capture_options *capture_opts);
 
-/* trim the interface entry */
+/* pick default interface if none was specified */
 extern int
-capture_opts_trim_iface(capture_options *capture_opts, const char *capture_device);
+capture_opts_default_iface_if_necessary(capture_options *capture_opts,
+                                        const char *capture_device);
 
 extern void
 collect_ifaces(capture_options *capture_opts);

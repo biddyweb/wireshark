@@ -1,7 +1,5 @@
 /* airpcap_debug.h
  *
- * $Id$
- *
  * Copyright (c) 2006 CACE Technologies, Davis (California)
  * All rights reserved.
  *
@@ -89,7 +87,7 @@ void print_debug_line(const CHAR *function, const CHAR *msg, const INT level);
 #endif
 #endif
 
-#define DEBUG_DUMP(x,y,z) g_warning("%s: %s", x, bytes_to_str(y, (z)))
+#define DEBUG_DUMP(x,y,z) g_warning("%s: %s", x, bytes_to_ep_str(y, (z)))
 
 #else	/* !defined _DEBUG	*/
 

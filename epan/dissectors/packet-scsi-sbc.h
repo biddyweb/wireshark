@@ -5,8 +5,6 @@
  * Dinesh G Dutt (ddutt@cisco.com)
  * Ronnie sahlberg 2006
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2002 Gerald Combs
@@ -51,6 +49,7 @@
 #define SCSI_SBC_REBUILD32              0x7F
 #define SCSI_SBC_REGENERATE16           0x82
 #define SCSI_SBC_REGENERATE32           0x7F
+#define SCSI_SBC_SANITIZE               0x48
 #define SCSI_SBC_SEEK10                 0x2B
 #define SCSI_SBC_SETLIMITS10            0x33
 #define SCSI_SBC_SETLIMITS12            0xB3
@@ -96,6 +95,6 @@ void dissect_sbc_readcapacity10 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tr
 
 extern int hf_scsi_sbc_opcode;
 extern scsi_cdb_table_t scsi_sbc_table[256];
-WS_DLL_PUBLIC const value_string scsi_sbc_vals[];
+WS_DLL_PUBLIC value_string_ext scsi_sbc_vals_ext;
 
 #endif

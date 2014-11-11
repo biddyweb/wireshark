@@ -1,8 +1,6 @@
 /* gui_utils.h
  * Declarations of GTK+-specific UI utility routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -267,6 +265,7 @@ extern void set_tree_styles_all(void);
  */
 extern GtkWidget *xpm_to_widget(const char ** xpm);
 
+#if 0
 /** Convert an xpm picture into a GtkWidget showing it.
  * Beware: the given parent window must already be visible!
  *
@@ -274,13 +273,14 @@ extern GtkWidget *xpm_to_widget(const char ** xpm);
  * @param xpm the character array containing the picture
  * @return a newly created GtkWidget showing the picture
  */
-/*extern GtkWidget *xpm_to_widget_from_parent(GtkWidget *parent, const char ** xpm);*/
+extern GtkWidget *xpm_to_widget_from_parent(GtkWidget *parent, const char ** xpm);
+#endif
 
 /** Convert an pixbuf data to a GtkWidget
  *
  * @param pb_data Inline pixbuf data. This should be created with "gdk-pixbuf-csource --raw"
  */
-extern GtkWidget *pixbuf_to_widget(const char * pb_data);
+extern GtkWidget *pixbuf_to_widget(const guint8 * pb_data);
 
 /** Copy a GString to the clipboard.
  *
@@ -310,6 +310,13 @@ extern gchar *create_user_window_title(const gchar *caption);
  * @param caption caption string for the window
  */
 extern void set_window_title(GtkWidget *win, const gchar *caption);
+
+/** Collapses tree item and his expanded children
+ *
+ * @param tree_view A GtkTreeView
+ * @param path Path to the field
+ */
+extern void tree_collapse_path_all(GtkTreeView *tree_view, GtkTreePath *path);
 
 /** Renders a float with two decimals precission, called from gtk_tree_view_column_set_cell_data_func().
  * the user data must be the column number.
@@ -519,7 +526,7 @@ GdkPixbuf *gdk_pixbuf_get_from_surface (cairo_surface_t *surface,
 
 /**
  * ws_gtk_box_new:
- * @param GtkOrientation the box's orientation
+ * @param orientation the box's orientation
  * @param spacing the number of pixels to put between children
  * @param homogeneous a boolean value, TRUE to create equal allotments, FALSE for variable allotments
  */
@@ -539,6 +546,13 @@ GtkWidget * gtk_paned_new(GtkOrientation orientation);
 GtkWidget * gtk_separator_new (GtkOrientation orientation);
 void gdk_cairo_set_source_rgba(cairo_t *cr, const GdkRGBA *rgba);
 #endif /* GTK_CHECK_VERSION(3,0,0) */
+
+/** Create a new frame with no border and a bold title on appropriate platforms.
+ *
+ * @param title The title for the new frame
+ * @return The newly created window
+ */
+extern GtkWidget *frame_new(const gchar *title);
 
 
 /* GtkTable is deprecated in Gtk3 ...
@@ -595,7 +609,7 @@ typedef GtkTable GtkGrid;
     gtk_table_new(0, 0, FALSE)
 
 #define ws_gtk_grid_attach(grid, child, left, top, width, height) \
-    gtk_table_attach(grid, child, left, left+width, top, top+height, 0, 0, 0, 0)
+    gtk_table_attach(grid, child, left, left+width, top, top+height, (GtkAttachOptions)0, (GtkAttachOptions)0, 0, 0)
 
 #define ws_gtk_grid_attach_defaults(grid, child, left, top, width, height) \
     gtk_table_attach_defaults(grid, child, left, left+width, top, top+height)

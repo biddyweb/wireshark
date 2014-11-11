@@ -1,8 +1,6 @@
 /* tap-diameter-avp.c
  * Copyright 2010 Andrej Kuehnal <andrejk@freenet.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,7 +23,7 @@
 /*
  * This TAP enables extraction of most important diameter fields in text format.
  * - much more performance than -T text and -T pdml
- * - more powerfull than -T field and -z proto,colinfo
+ * - more powerful than -T field and -z proto,colinfo
  * - exacltly one text line per diameter message
  * - multiple diameter messages in one frame supported
  *   E.g. one device watchdog answer and two credit control answers
@@ -39,18 +37,19 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet_info.h"
 #include <epan/tap.h>
 #include <epan/epan_dissect.h>
 #include <epan/stat_cmd_args.h>
 #include "epan/value_string.h"
-#include "epan/nstime.h"
 #include "epan/ftypes/ftypes.h"
 #include "epan/to_str.h"
 #include "epan/dissectors/packet-diameter.h"
 
+void register_tap_listener_diameteravp(void);
 
 /* used to keep track of the statistics for an entire program interface */
 typedef struct _diameteravp_t {
@@ -102,19 +101,15 @@ diam_tree_to_csv(proto_node* node, gpointer data)
 		fprintf(stderr,"traverse end: hfi not found. node='%p'\n",(void *)node);
 		return FALSE;
 	}
-	ftype=fi->value.ftype->ftype;
+	ftype=fvalue_type_ftenum(&fi->value);
 	if (ftype!=FT_NONE&&ftype!=FT_PROTOCOL) {
 		/* convert value to string */
-		if(fi->value.ftype->val_to_string_repr)
+		val_tmp=fvalue_to_string_repr(&fi->value,FTREPR_DISPLAY,NULL);
+		if(val_tmp)
 		{
-			val_tmp=fvalue_to_string_repr(&fi->value,FTREPR_DISPLAY,NULL);
-			if(val_tmp)
-			{
-				val_str=ep_strdup(val_tmp);
-				g_free(val_tmp);
-			}
-		}
-		if(!val_str)
+			val_str=ep_strdup(val_tmp);
+			g_free(val_tmp);
+		} else
 			val_str=ep_strdup_printf("unsupported type: %s",ftype_name(ftype));
 
 		/*printf("traverse: name='%s', abbrev='%s',desc='%s', val='%s'\n",hfi->name,hfi->abbrev,ftype_name(hfi->type),val_str);*/
@@ -214,7 +209,7 @@ diameteravp_draw(void* pds)
 
 
 static void
-diameteravp_init(const char *optarg, void* userdata _U_)
+diameteravp_init(const char *opt_arg, void* userdata _U_)
 {
 	diameteravp_t *ds;
 	gchar* field=NULL;
@@ -236,7 +231,7 @@ diameteravp_init(const char *optarg, void* userdata _U_)
 	filter=g_string_new("diameter");
 
 	/* Split command line options. */
-	tokens = g_strsplit(optarg,",", 1024);
+	tokens = g_strsplit(opt_arg,",", 1024);
 	opt_count=0;
 	while (tokens[opt_count])
 		opt_count++;

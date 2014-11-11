@@ -2,8 +2,6 @@
  * Routines for WOL dissection
  * Copyright 2007, Christopher Maynard <Chris.Maynard[AT]gtech.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -62,9 +60,8 @@
 #include <epan/addr_resolv.h>
 #include <epan/etypes.h>
 
-/* IF PROTO exposes code to other dissectors, then it must be exported
-   in a header file. If not, a header file is not needed at all. */
-/* #include "packet-wol.h" */
+void proto_register_wol(void);
+void proto_reg_handoff_wol(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_wol = -1;
@@ -72,22 +69,19 @@ static int hf_wol_sync = -1;
 static int hf_wol_mac = -1;
 static int hf_wol_passwd = -1;
 
-/* Global sample preference ("controls" display of numbers) */
-/* static gboolean gPREF_HEX = FALSE; */
-
 /* Initialize the subtree pointers */
 static gint ett_wol = -1;
 static gint ett_wol_macblock = -1;
 
 /* Code to actually dissect the packets */
 static int
-dissect_wol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_wol_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
     guint         len;
     gint          offset;
-    guint8        sync[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
     guint8       *mac;
     const guint8 *passwd;
+    guint64       qword;
 
 /* Set up structures needed to add the protocol subtree and manage it */
     proto_item *ti;
@@ -114,13 +108,14 @@ dissect_wol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
      * tvb for the synchronization stream.  My feeling is that this could be
      * quite expensive and seriously hinder Wireshark performance.  For now,
      * unless we need to change it later, just compare the 1st 6 bytes. */
-    if ( tvb_memeql(tvb, 0, sync, 6) != 0 )
+    qword = tvb_get_ntoh48(tvb,0);
+    if(qword != G_GUINT64_CONSTANT(0xffffffffffff))
         return (0);
 
     /* So far so good.  Now get the next 6 bytes, which we'll assume is the
      * target's MAC address, and do 15 memory chunk comparisons, since if this
      * is a real MagicPacket, the target's MAC will be duplicated 16 times. */
-    mac = ep_tvb_memdup(tvb, 6, 6);
+    mac = (guint8 *)tvb_memdup(wmem_packet_scope(), tvb, 6, 6);
     for ( offset = 12; offset < 102; offset += 6 )
         if ( tvb_memeql(tvb, offset, mac, 6) != 0 )
             return (0);
@@ -153,10 +148,6 @@ dissect_wol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
    at the list of packets can tell what type of packet it is. See section 1.5
    for more information.
 
-   Before changing the contents of a column you should make sure the column is
-   active by calling "check_col(pinfo->cinfo, COL_*)". If it is not active
-   don't bother setting it.
-
    If you are setting the column to a constant string, use "col_set_str()",
    as it's more efficient than the other "col_set_XXX()" calls.
 
@@ -178,18 +169,15 @@ dissect_wol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 
    */
 
-    if ( check_col(pinfo->cinfo, COL_INFO) )
-    {
-        col_add_fstr(pinfo->cinfo, COL_INFO, "MagicPacket for %s (%s)",
-            get_ether_name(mac), ether_to_str(mac));
+    col_add_fstr(pinfo->cinfo, COL_INFO, "MagicPacket for %s (%s)",
+        get_ether_name(mac), ether_to_str(mac));
 
-        /* NOTE: ether-wake uses a dotted-decimal format for specifying a
-         * 4-byte password or an Ethernet mac address format for specifying
-         * a 6-byte password, so display them in that format, even if the
-         * password isn't really an IP or MAC address. */
-        if ( passwd )
-            col_append_fstr(pinfo->cinfo, COL_INFO, ", password %s", passwd);
-    }
+    /* NOTE: ether-wake uses a dotted-decimal format for specifying a
+        * 4-byte password or an Ethernet mac address format for specifying
+        * a 6-byte password, so display them in that format, even if the
+        * password isn't really an IP or MAC address. */
+    if ( passwd )
+        col_append_fstr(pinfo->cinfo, COL_INFO, ", password %s", passwd);
 
 /* A protocol dissector can be called in 2 different ways:
 
@@ -258,21 +246,29 @@ dissect_wol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
             proto_tree_add_ether(mac_tree, hf_wol_mac, tvb, offset, 6, mac);
 
         if ( len == 106 )
-            proto_tree_add_bytes_format(wol_tree, hf_wol_passwd, tvb, offset,
-                4, passwd, "Password: %s", passwd);
+            proto_tree_add_bytes_format_value(wol_tree, hf_wol_passwd, tvb, offset,
+                4, passwd, "%s", passwd);
         else if ( len == 108 )
-            proto_tree_add_bytes_format(wol_tree, hf_wol_passwd, tvb, offset,
-                6, passwd, "Password: %s", passwd);
+            proto_tree_add_bytes_format_value(wol_tree, hf_wol_passwd, tvb, offset,
+                6, passwd, "%s", passwd);
     }
 
-/* If this protocol has a sub-dissector call it here, see section 1.8 */
+    return (len);
+}
 
-/* Return the amount of data this dissector was able to dissect */
-    if ( pinfo->ethertype == ETHERTYPE_WOL )
-        return (len);
+static int
+dissect_wol(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
+{
+    return dissect_wol_pdu(tvb, pinfo, tree, data);
+}
 
-    /* Heuristic dissectors return TRUE/FALSE. */
-    return (TRUE);
+static gboolean
+dissect_wolheur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
+{
+    if (dissect_wol_pdu(tvb, pinfo, tree, data) > 0)
+        return TRUE;
+
+    return FALSE;
 }
 
 
@@ -312,7 +308,6 @@ proto_register_wol(void)
     proto_register_subtree_array(ett, array_length(ett));
 }
 
-
 /* If this dissector uses sub-dissector registration add a registration routine.
    This exact format is required because a script is used to find these
    routines and create the code that calls these routines.
@@ -339,7 +334,7 @@ proto_reg_handoff_wol(void)
      * we'll miss some, but how else to do this ... add a thousand of
      * these dissector_add_uint()'s and heur_dissector_add()'s??? */
     dissector_add_uint("ethertype", ETHERTYPE_WOL, wol_handle);
-    heur_dissector_add("udp", dissect_wol, proto_wol);
+    heur_dissector_add("udp", dissect_wolheur, proto_wol);
 }
 
 /*

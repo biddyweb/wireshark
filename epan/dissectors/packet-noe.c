@@ -2,8 +2,6 @@
  * Routines for UA/UDP (Universal Alcatel over UDP) and NOE packet dissection.
  * Copyright 2012, Alcatel-Lucent Enterprise <lars.ruoff@alcatel-lucent.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,10 @@
 #include <glib.h>
 
 #include "epan/packet.h"
+#include <epan/wmem/wmem.h>
+
+void proto_register_noe(void);
+void proto_reg_handoff_noe(void);
 
 #define OPCODE_C_context             0
 #define OPCODE_C_terminal            1
@@ -856,7 +858,7 @@ static char *decode_key_name(int unicode)
 {
     char *key_name;
 
-    key_name = ep_alloc(10);
+    key_name = (char *)wmem_alloc(wmem_packet_scope(), 10);
 
     if ((unicode <= 0x20)
         || (unicode == 0x7F)
@@ -1075,8 +1077,7 @@ static void decode_evt(proto_tree  *tree,
     proto_tree_add_item(tree, hf_noe_event, tvb, offset, 1, ENC_BIG_ENDIAN);
 
     /* add text to the frame "INFO" column */
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
+    col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
         val_to_str_ext_const(event, &val_str_event_ext, "Unknown"));
     /* update text of the main proto item */
     proto_item_append_text(tree, ", %s",
@@ -1116,13 +1117,11 @@ static void decode_evt(proto_tree  *tree,
                 pt_length  -= 1;
             }
             unicode_value = decode_utf8(utf8_value);
-            key_name      = ep_alloc(30);
+            key_name      = (char *)wmem_alloc(wmem_packet_scope(), 30);
             g_snprintf(key_name, 30, "\"%s\"", decode_key_name((int)unicode_value));
 
             /* add text to the frame "INFO" column */
-            if (check_col(pinfo->cinfo, COL_INFO))
-                col_append_fstr(pinfo->cinfo, COL_INFO, ": %s",
-                key_name);
+            col_append_fstr(pinfo->cinfo, COL_INFO, ": %s", key_name);
             /* update text of the main proto item */
             proto_item_append_text(tree, ", %s",
                 key_name);
@@ -1133,7 +1132,7 @@ static void decode_evt(proto_tree  *tree,
                 length,
                 "Key Name: %s (UTF-8 Value: %s, Unicode Value: 0x%" G_GINT64_MODIFIER "x)",
                 key_name,
-                tvb_bytes_to_str(tvb, offset, length),
+                tvb_bytes_to_ep_str(tvb, offset, length),
                 unicode_value);
             break;
         }
@@ -1207,22 +1206,21 @@ static void decode_mtd(proto_tree  *tree,
                        guint        offset,
                        guint        length)
 {
-    guint8 class = tvb_get_guint8(tvb, offset);
+    guint8 noe_class = tvb_get_guint8(tvb, offset);
 
     proto_tree_add_item(tree, hf_noe_class, tvb, offset, 1, ENC_BIG_ENDIAN);
 
     /* add text to the frame "INFO" column */
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
-        val_to_str_ext_const(class, &val_str_class_ext, "Unknown"));
+    col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
+        val_to_str_ext_const(noe_class, &val_str_class_ext, "Unknown"));
     /* update text of the main proto item */
     proto_item_append_text(tree, ", %s",
-        val_to_str_ext_const(class, &val_str_class_ext, "Unknown"));
+        val_to_str_ext_const(noe_class, &val_str_class_ext, "Unknown"));
 
     offset += 1;
     length -= 1;
 
-    if (class >= C_DYNAMIC)
+    if (noe_class >= C_DYNAMIC)
     {
         proto_tree_add_item(tree, hf_noe_objectid, tvb, offset, 2, ENC_BIG_ENDIAN);
         offset += 2;
@@ -1291,8 +1289,7 @@ static void dissect_noe(tvbuff_t    *tvb,
     server = tvb_get_guint8(tvb, offset);
 
     /* add text to the frame "INFO" column */
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_append_fstr(pinfo->cinfo, COL_INFO, " - NOE Protocol (%s)",
+    col_append_fstr(pinfo->cinfo, COL_INFO, " - NOE Protocol (%s)",
         val_to_str_const(server, servers_short_vals, "Unknown"));
 
     proto_tree_add_uint(noe_tree,
@@ -1302,7 +1299,7 @@ static void dissect_noe(tvbuff_t    *tvb,
         1,
         server);
     offset += 1;
-    length -= 1;;
+    length -= 1;
 
     /* update text of the main proto item */
     proto_item_append_text(noe_item, ", %s",
@@ -1326,8 +1323,7 @@ static void dissect_noe(tvbuff_t    *tvb,
         return;
 
     /* add text to the frame "INFO" column */
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_append_fstr(pinfo->cinfo, COL_INFO, ": %s",
+    col_append_fstr(pinfo->cinfo, COL_INFO, ": %s",
         val_to_str_const(method, methods_vals, "Unknown"));
 
     /* update text of the main proto item */

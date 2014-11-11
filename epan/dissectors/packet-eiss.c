@@ -3,8 +3,6 @@
  * Routines for ETV-AM EISS (OC-SP-ETV-AM1.0-I05)
  * Copyright 2012, Weston Schmidt <weston_schmidt@alumni.purdue.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,9 @@
 #include <epan/packet.h>
 #include <epan/expert.h>
 #include <epan/dissectors/packet-mpeg-sect.h>
+
+void proto_register_eiss(void);
+void proto_reg_handoff_eiss(void);
 
 static int proto_eiss = -1;
 static dissector_handle_t data_handle;
@@ -88,7 +89,13 @@ static gint ett_eiss = -1;
 static gint ett_eiss_platform_id = -1;
 static gint ett_eiss_desc = -1;
 
-#define EISS_SECTION_TID		0xe0
+static expert_field ei_eiss_platform_id_length = EI_INIT;
+static expert_field ei_eiss_invalid_section_length = EI_INIT;
+static expert_field ei_eiss_invalid_section_syntax_indicator = EI_INIT;
+static expert_field ei_eiss_unknown_descriptor = EI_INIT;
+static expert_field ei_eiss_section_number = EI_INIT;
+static expert_field ei_eiss_application_type = EI_INIT;
+static expert_field ei_eiss_invalid_reserved_bits = EI_INIT;
 
 #define MPEG_SECT_SYNTAX_INDICATOR_MASK	0x8000
 #define MPEG_SECT_RESERVED_MASK		0x7000
@@ -241,12 +248,7 @@ dissect_eiss_descriptors(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gu
 
 		return (3+tmp);
 	} else {
-		pi = proto_tree_add_text(tree, tvb, offset, -1,
-					"Unknown Descriptor");
-
-		PROTO_ITEM_SET_GENERATED(pi);
-		expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR,
-					"Unknown Descriptor");
+		proto_tree_add_expert(tree, pinfo, &ei_eiss_unknown_descriptor, tvb, offset, -1);
 
 		/* skip the rest of the section... for now */
 		return 1000;
@@ -284,8 +286,7 @@ dissect_eiss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		msg_error = items[PACKET_MPEG_SECT_PI__SSI];
 
 		PROTO_ITEM_SET_GENERATED(msg_error);
-		expert_add_info_format(pinfo, msg_error, PI_MALFORMED, PI_ERROR,
-					"Invalid section_syntax_indicator (should be 0)");
+		expert_add_info(pinfo, msg_error, &ei_eiss_invalid_section_syntax_indicator);
 	}
 
 	if (0 != reserved) {
@@ -293,8 +294,7 @@ dissect_eiss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		msg_error = items[PACKET_MPEG_SECT_PI__RESERVED];
 
 		PROTO_ITEM_SET_GENERATED(msg_error);
-		expert_add_info_format(pinfo, msg_error, PI_MALFORMED, PI_ERROR,
-					"Invalid reserved1 bits (should all be 0)");
+		expert_add_info_format(pinfo, msg_error, &ei_eiss_invalid_reserved_bits, "Invalid reserved1 bits (should all be 0)");
 	}
 
 	if (1021 < sect_len) {
@@ -302,16 +302,13 @@ dissect_eiss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		msg_error = items[PACKET_MPEG_SECT_PI__LENGTH];
 
 		PROTO_ITEM_SET_GENERATED(msg_error);
-		expert_add_info_format(pinfo, msg_error, PI_MALFORMED, PI_ERROR,
-					"Invalid section_length (must not exceed 1021)");
+		expert_add_info(pinfo, msg_error, &ei_eiss_invalid_section_length);
 	}
 
 	reserved2 = tvb_get_guint8(tvb, offset);
 	pi = proto_tree_add_item(eiss_tree, hf_eiss_reserved2, tvb, offset, 1, ENC_BIG_ENDIAN);
 	if (0 != reserved2) {
-		PROTO_ITEM_SET_GENERATED(pi);
-		expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR,
-					"Invalid reserved2 bits (should all be 0)");
+		expert_add_info_format(pinfo, pi, &ei_eiss_invalid_reserved_bits, "Invalid reserved2 bits (should all be 0)");
 	}
 	offset++;
 
@@ -319,9 +316,7 @@ dissect_eiss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	last_sect_num = tvb_get_guint8(tvb, offset + 1);
 	pi = proto_tree_add_item(eiss_tree, hf_eiss_section_number, tvb, offset, 1, ENC_BIG_ENDIAN);
 	if (last_sect_num < sect_num) {
-		PROTO_ITEM_SET_GENERATED(pi);
-		expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR,
-					"Invalid section_number (must be <= last_section_number)");
+		expert_add_info(pinfo, pi, &ei_eiss_section_number);
 	}
 	offset++;
 	proto_tree_add_item(eiss_tree, hf_eiss_last_section_number,     tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -334,9 +329,7 @@ dissect_eiss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	eiss_application_type = tvb_get_ntohs(tvb, offset);
 	pi = proto_tree_add_item(eiss_tree, hf_eiss_application_type,   tvb, offset, 2, ENC_BIG_ENDIAN);
 	if (8 != eiss_application_type) {
-		PROTO_ITEM_SET_GENERATED(pi);
-		expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR,
-					"Invalid application_type (must be 0x0008)");
+		expert_add_info(pinfo, pi, &ei_eiss_application_type);
 	}
 	offset += 2;
 	proto_tree_add_item(eiss_tree, hf_eiss_organisation_id,         tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -347,9 +340,7 @@ dissect_eiss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	platform_id_length = tvb_get_guint8(tvb, offset);
 	pi = proto_tree_add_item(eiss_tree, hf_eiss_platform_id_length, tvb, offset, 1, ENC_BIG_ENDIAN);
 	if (0 != platform_id_length % 15) {
-		PROTO_ITEM_SET_GENERATED(pi);
-		expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR,
-		"Invalid platform_id_length (must be a multiple of sizeof(etv_bif_platform_ids) == 15)");
+		expert_add_info(pinfo, pi, &ei_eiss_platform_id_length);
 	}
 	offset++;
 
@@ -569,10 +560,24 @@ proto_register_eiss(void)
 		&ett_eiss_desc,
 	};
 
+	static ei_register_info ei[] = {
+		{ &ei_eiss_unknown_descriptor, { "eiss.unknown_descriptor", PI_MALFORMED, PI_ERROR, "Unknown Descriptor", EXPFILL }},
+		{ &ei_eiss_invalid_section_syntax_indicator, { "eiss.invalid_section_syntax_indicator", PI_MALFORMED, PI_ERROR, "Invalid section_syntax_indicator (should be 0)", EXPFILL }},
+		{ &ei_eiss_invalid_reserved_bits, { "eiss.invalid_reserved_bits", PI_MALFORMED, PI_ERROR, "Invalid reserved bits", EXPFILL }},
+		{ &ei_eiss_invalid_section_length, { "eiss.invalid_section_length", PI_MALFORMED, PI_ERROR, "Invalid section_length (must not exceed 1021)", EXPFILL }},
+		{ &ei_eiss_section_number, { "eiss.sect_num.invalid", PI_MALFORMED, PI_ERROR, "Invalid section_number (must be <= last_section_number)", EXPFILL }},
+		{ &ei_eiss_application_type, { "eiss.app_type.invalid", PI_MALFORMED, PI_ERROR, "Invalid application_type (must be 0x0008)", EXPFILL }},
+		{ &ei_eiss_platform_id_length, { "eiss.platform_id_length.invalid", PI_MALFORMED, PI_ERROR, "Invalid platform_id_length (must be a multiple of sizeof(etv_bif_platform_ids) == 15)", EXPFILL }},
+	};
+
+	expert_module_t* expert_eiss;
+
 	proto_eiss = proto_register_protocol("ETV-AM EISS Section", "ETV-AM EISS", "eiss");
 
 	proto_register_field_array(proto_eiss, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_eiss = expert_register_protocol(proto_eiss);
+	expert_register_field_array(expert_eiss, ei, array_length(ei));
 }
 
 

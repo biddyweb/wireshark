@@ -15,8 +15,6 @@
  * Dinesh G Dutt (ddutt@cisco.com)
  * Ronnie sahlberg 2006
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2002 Gerald Combs
@@ -39,7 +37,6 @@
 #include "config.h"
 
 #include <glib.h>
-#include <epan/strutil.h>
 #include <epan/packet.h>
 #include <epan/conversation.h>
 #include <epan/tap.h>
@@ -47,6 +44,8 @@
 #include "packet-fc.h"
 #include "packet-scsi-sbc.h"
 
+void proto_register_scsi_sbc(void);
+void proto_reg_handoff_scsi_sbc(void);
 
 static int proto_scsi_sbc = -1;
 
@@ -138,6 +137,16 @@ static int hf_scsi_sbc_get_lba_status_lba= -1;
 static int hf_scsi_sbc_get_lba_status_data_length= -1;
 static int hf_scsi_sbc_get_lba_status_num_blocks= -1;
 static int hf_scsi_sbc_get_lba_status_provisioning_status= -1;
+static int hf_scsi_sbc_sanitize_flags= -1;
+static int hf_scsi_sbc_sanitize_immed= -1;
+static int hf_scsi_sbc_sanitize_ause= -1;
+static int hf_scsi_sbc_sanitize_sa= -1;
+static int hf_scsi_sbc_sanitize_overwrite_flags= -1;
+static int hf_scsi_sbc_sanitize_invert= -1;
+static int hf_scsi_sbc_sanitize_test= -1;
+static int hf_scsi_sbc_sanitize_owcount= -1;
+static int hf_scsi_sbc_sanitize_pattern_length= -1;
+static int hf_scsi_sbc_sanitize_pattern= -1;
 
 static gint ett_scsi_format_unit= -1;
 static gint ett_scsi_prefetch= -1;
@@ -158,6 +167,8 @@ static gint ett_scsi_writesame= -1;
 static gint ett_scsi_unmap= -1;
 static gint ett_scsi_unmap_block_descriptor= -1;
 static gint ett_scsi_lba_status_descriptor= -1;
+static gint ett_scsi_sanitize= -1;
+static gint ett_scsi_sanitize_overwrite= -1;
 
 
 static const true_false_string dpo_tfs = {
@@ -172,10 +183,12 @@ static const true_false_string fua_nv_tfs = {
     "Read from volatile cache is NOT permitted",
     "Read from volatile or non-volatile cache permitted"
 };
+#if 0
 static const true_false_string pmi_tfs = {
     "PMI is SET",
     "Pmi is CLEAR"
 };
+#endif
 
 static void
 dissect_sbc_formatunit (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
@@ -212,8 +225,7 @@ dissect_sbc_read6 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
         guint payload_len _U_, scsi_task_data_t *cdata _U_)
 {
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%06x, Len: %u)",
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%06x, Len: %u)",
                     tvb_get_ntoh24 (tvb, offset),
                     tvb_get_guint8 (tvb, offset+3));
     }
@@ -232,10 +244,9 @@ dissect_sbc_write6 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
         guint payload_len _U_, scsi_task_data_t *cdata _U_)
 {
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%06x, Len: %u)",
-                    tvb_get_ntoh24 (tvb, offset),
-                    tvb_get_guint8 (tvb, offset+3));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%06x, Len: %u)",
+                tvb_get_ntoh24 (tvb, offset),
+                tvb_get_guint8 (tvb, offset+3));
     }
 
     if (tree && isreq && iscdb) {
@@ -258,10 +269,9 @@ dissect_sbc_prefetch10 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
-                    tvb_get_ntohl (tvb, offset+1),
-                    tvb_get_ntohs (tvb, offset+6));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
+                tvb_get_ntohl (tvb, offset+1),
+                tvb_get_ntohs (tvb, offset+6));
     }
 
     if (tree && isreq && iscdb) {
@@ -288,10 +298,9 @@ dissect_sbc_synchronizecache10 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tre
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
-                    tvb_get_ntohl (tvb, offset+1),
-                    tvb_get_ntohs (tvb, offset+6));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
+                tvb_get_ntohl (tvb, offset+1),
+                tvb_get_ntohs (tvb, offset+6));
     }
 
     if (tree && isreq && iscdb) {
@@ -318,10 +327,9 @@ dissect_sbc_synchronizecache16 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tre
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
-                    tvb_get_ntoh64 (tvb, offset+1),
-                    tvb_get_ntohl (tvb, offset+9));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
+                tvb_get_ntoh64 (tvb, offset+1),
+                tvb_get_ntohl (tvb, offset+9));
     }
 
     if (tree && isreq && iscdb) {
@@ -347,10 +355,9 @@ dissect_sbc_prefetch16 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
-                    tvb_get_ntoh64 (tvb, offset+1),
-                    tvb_get_ntohl (tvb, offset+9));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
+                tvb_get_ntoh64 (tvb, offset+1),
+                tvb_get_ntohl (tvb, offset+9));
     }
 
     if (tree && isreq && iscdb) {
@@ -379,10 +386,9 @@ dissect_sbc_read10 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
-                    tvb_get_ntohl (tvb, offset+1),
-                    tvb_get_ntohs (tvb, offset+6));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
+                tvb_get_ntohl (tvb, offset+1),
+                tvb_get_ntohs (tvb, offset+6));
     }
 
     if (tree && isreq && iscdb) {
@@ -408,10 +414,9 @@ dissect_sbc_xdread10 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
-                    tvb_get_ntohl (tvb, offset+1),
-                    tvb_get_ntohs (tvb, offset+6));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
+                tvb_get_ntohl (tvb, offset+1),
+                tvb_get_ntohs (tvb, offset+6));
     }
 
     if (tree && isreq && iscdb) {
@@ -441,10 +446,9 @@ dissect_sbc_xdwrite10 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
-                    tvb_get_ntohl (tvb, offset+1),
-                    tvb_get_ntohs (tvb, offset+6));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
+                tvb_get_ntohl (tvb, offset+1),
+                tvb_get_ntohs (tvb, offset+6));
     }
 
     if (tree && isreq && iscdb) {
@@ -475,10 +479,9 @@ dissect_sbc_xdwriteread10 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tr
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
-                    tvb_get_ntohl (tvb, offset+1),
-                    tvb_get_ntohs (tvb, offset+6));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
+                tvb_get_ntohl (tvb, offset+1),
+                tvb_get_ntohs (tvb, offset+6));
     }
 
     if (tree && isreq && iscdb) {
@@ -507,10 +510,9 @@ dissect_sbc_xpwrite10 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
-                    tvb_get_ntohl (tvb, offset+1),
-                    tvb_get_ntohs (tvb, offset+6));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
+                tvb_get_ntohl (tvb, offset+1),
+                tvb_get_ntohs (tvb, offset+6));
     }
 
     if (tree && isreq && iscdb) {
@@ -539,10 +541,9 @@ dissect_sbc_write10 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
-                    tvb_get_ntohl (tvb, offset+1),
-                    tvb_get_ntohs (tvb, offset+6));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
+                tvb_get_ntohl (tvb, offset+1),
+                tvb_get_ntohs (tvb, offset+6));
     }
 
     if (tree && isreq && iscdb) {
@@ -570,10 +571,9 @@ dissect_sbc_read12 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
-                    tvb_get_ntohl (tvb, offset+1),
-                    tvb_get_ntohl (tvb, offset+5));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
+                tvb_get_ntohl (tvb, offset+1),
+                tvb_get_ntohl (tvb, offset+5));
     }
 
     if (tree && isreq && iscdb) {
@@ -601,10 +601,9 @@ dissect_sbc_write12 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
-                    tvb_get_ntohl (tvb, offset+1),
-                    tvb_get_ntohl (tvb, offset+5));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
+                tvb_get_ntohl (tvb, offset+1),
+                tvb_get_ntohl (tvb, offset+5));
     }
 
     if (tree && isreq && iscdb) {
@@ -632,10 +631,9 @@ dissect_sbc_read16 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
-                    tvb_get_ntoh64 (tvb, offset+1),
-                    tvb_get_ntohl (tvb, offset+9));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
+                tvb_get_ntoh64 (tvb, offset+1),
+                tvb_get_ntohl (tvb, offset+9));
     }
 
     if (tree && isreq && iscdb) {
@@ -662,10 +660,9 @@ dissect_sbc_write16 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
-                    tvb_get_ntoh64 (tvb, offset+1),
-                    tvb_get_ntohl (tvb, offset+9));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
+                tvb_get_ntoh64 (tvb, offset+1),
+                tvb_get_ntohl (tvb, offset+9));
     }
 
     if (tree && isreq && iscdb) {
@@ -693,10 +690,9 @@ dissect_sbc_orwrite (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
-                    tvb_get_ntoh64 (tvb, offset+1),
-                    tvb_get_ntohl (tvb, offset+9));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
+                tvb_get_ntoh64 (tvb, offset+1),
+                tvb_get_ntohl (tvb, offset+9));
     }
 
     if (tree && isreq && iscdb) {
@@ -724,10 +720,9 @@ dissect_sbc_comparenwrite (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tr
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
-                    tvb_get_ntoh64 (tvb, offset+1),
-                    tvb_get_ntohl (tvb, offset+9));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
+                tvb_get_ntoh64 (tvb, offset+1),
+                tvb_get_ntohl (tvb, offset+9));
     }
 
     if (tree && isreq && iscdb) {
@@ -814,10 +809,9 @@ dissect_sbc_verify10 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
-                    tvb_get_ntohl (tvb, offset+1),
-                    tvb_get_ntohs (tvb, offset+6));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
+                tvb_get_ntohl (tvb, offset+1),
+                tvb_get_ntohs (tvb, offset+6));
     }
 
     if (tree && isreq && iscdb) {
@@ -845,10 +839,9 @@ dissect_sbc_verify12 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
-                    tvb_get_ntohl (tvb, offset+1),
-                    tvb_get_ntohl (tvb, offset+5));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
+                tvb_get_ntohl (tvb, offset+1),
+                tvb_get_ntohl (tvb, offset+5));
     }
 
     if (isreq && iscdb) {
@@ -876,10 +869,9 @@ dissect_sbc_verify16 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
-                    tvb_get_ntoh64 (tvb, offset+1),
-                    tvb_get_ntohl (tvb, offset+9));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
+                tvb_get_ntoh64 (tvb, offset+1),
+                tvb_get_ntohl (tvb, offset+9));
     }
 
     if (isreq && iscdb) {
@@ -909,10 +901,9 @@ dissect_sbc_wrverify10 (tvbuff_t *tvb, packet_info *pinfo _U_,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
-                    tvb_get_ntohl (tvb, offset+1),
-                    tvb_get_ntohs (tvb, offset+6));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
+                tvb_get_ntohl (tvb, offset+1),
+                tvb_get_ntohs (tvb, offset+6));
     }
 
     if (tree && isreq && iscdb) {
@@ -940,10 +931,9 @@ dissect_sbc_wrverify12 (tvbuff_t *tvb, packet_info *pinfo _U_,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
-                    tvb_get_ntohl (tvb, offset+1),
-                    tvb_get_ntohl (tvb, offset+5));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: 0x%08x, Len: %u)",
+                tvb_get_ntohl (tvb, offset+1),
+                tvb_get_ntohl (tvb, offset+5));
     }
 
     if (tree && isreq && iscdb) {
@@ -971,10 +961,9 @@ dissect_sbc_wrverify16 (tvbuff_t *tvb, packet_info *pinfo _U_,
     };
 
     if (isreq && iscdb) {
-        if (check_col (pinfo->cinfo, COL_INFO))
-            col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
-                    tvb_get_ntoh64 (tvb, offset+1),
-                    tvb_get_ntohl (tvb, offset+9));
+        col_append_fstr (pinfo->cinfo, COL_INFO, "(LBA: %" G_GINT64_MODIFIER "u, Len: %u)",
+                tvb_get_ntoh64 (tvb, offset+1),
+                tvb_get_ntohl (tvb, offset+9));
     }
 
     if (tree && isreq && iscdb) {
@@ -993,7 +982,7 @@ dissect_sbc_readcapacity10 (tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *t
                            guint offset, gboolean isreq, gboolean iscdb,
                            guint payload_len _U_, scsi_task_data_t *cdata _U_)
 {
-    guint32 len, block_len, tot_len;
+    guint32     len, block_len, tot_len;
     const char *un;
 
     if (!tree)
@@ -1196,6 +1185,68 @@ dissect_sbc_unmap (tvbuff_t *tvb, packet_info *pinfo _U_,
     }
 }
 
+static const value_string sanitize_val[] = {
+    {0x01, "OVERWRITE"},
+    {0x02, "BLOCK ERASE"},
+    {0x03, "CRYPTO ERASE"},
+    {0x1f, "EXIT FAILURE MODE"},
+    {0, NULL},
+};
+
+static void
+dissect_sbc_sanitize (tvbuff_t *tvb, packet_info *pinfo _U_,
+                      proto_tree *tree, guint offset, gboolean isreq,
+                      gboolean iscdb,
+                      guint payload_len _U_, scsi_task_data_t *cdata _U_)
+{
+    static const int *sanitize_fields[] = {
+        &hf_scsi_sbc_sanitize_immed,
+        &hf_scsi_sbc_sanitize_ause,
+        &hf_scsi_sbc_sanitize_sa,
+        NULL
+    };
+    static const int *sanitize_overwrite_fields[] = {
+        &hf_scsi_sbc_sanitize_invert,
+        &hf_scsi_sbc_sanitize_test,
+        &hf_scsi_sbc_sanitize_owcount,
+        NULL
+    };
+
+    if (!tree)
+        return;
+
+    if (isreq && iscdb) {
+        guint8 service_action;
+
+        service_action = tvb_get_guint8 (tvb, offset) & 0x1F;
+        col_append_str(pinfo->cinfo, COL_INFO,
+                       val_to_str(service_action, sanitize_val, "Unknown (0x%02x)"));
+
+        proto_tree_add_bitmask(tree, tvb, offset, hf_scsi_sbc_sanitize_flags,
+                ett_scsi_sanitize, sanitize_fields, ENC_BIG_ENDIAN);
+
+        proto_tree_add_item (tree, hf_scsi_sbc_alloclen16, tvb, offset+6, 2,
+                             ENC_BIG_ENDIAN);
+
+        proto_tree_add_bitmask(tree, tvb, offset+8, hf_scsi_control,
+                ett_scsi_control, cdb_control_fields, ENC_BIG_ENDIAN);
+    } else if (isreq) {
+        proto_tree_add_bitmask(tree, tvb, offset,
+                               hf_scsi_sbc_sanitize_overwrite_flags,
+                               ett_scsi_sanitize_overwrite,
+                               sanitize_overwrite_fields,
+                               ENC_BIG_ENDIAN);
+
+        proto_tree_add_item (tree, hf_scsi_sbc_sanitize_pattern_length,
+                             tvb, offset+2, 2,
+                             ENC_BIG_ENDIAN);
+
+        proto_tree_add_item (tree, hf_scsi_sbc_sanitize_pattern,
+                             tvb, offset+4, -1,
+                             ENC_NA);
+    }
+}
+
 static void
 dissect_sbc_readdefectdata12 (tvbuff_t *tvb, packet_info *pinfo _U_,
                             proto_tree *tree, guint offset, gboolean isreq,
@@ -1268,9 +1319,9 @@ dissect_sbc_serviceactionin16 (tvbuff_t *tvb, packet_info *pinfo _U_,
                            gboolean iscdb,
                            guint payload_len _U_, scsi_task_data_t *cdata _U_)
 {
-    guint8 service_action;
-    guint32 block_len;
-    guint64 len, tot_len;
+    guint8      service_action;
+    guint32     block_len;
+    guint64     len, tot_len;
     const char *un;
 
     if (!tree)
@@ -1431,80 +1482,86 @@ dissect_sbc_serviceactionin16 (tvbuff_t *tvb, packet_info *pinfo _U_,
 
 
 /* SBC Commands */
-const value_string scsi_sbc_vals[] = {
-    {SCSI_SPC_EXTCOPY           , "Extended Copy"},
-    {SCSI_SPC_INQUIRY           , "Inquiry"},
-    {SCSI_SBC_FORMATUNIT        , "Format Unit"},
-    {SCSI_SBC_LOCKUNLKCACHE10   , "Lock Unlock Cache(10)"},
-    {SCSI_SBC_LOCKUNLKCACHE16   , "Lock Unlock Cache(16)"},
-    {SCSI_SPC_LOGSELECT         , "Log Select"},
-    {SCSI_SPC_LOGSENSE          , "Log Sense"},
-    {SCSI_SPC_MODESELECT6       , "Mode Select(6)"},
-    {SCSI_SPC_MODESELECT10      , "Mode Select(10)"},
-    {SCSI_SPC_MODESENSE6        , "Mode Sense(6)"},
-    {SCSI_SPC_MODESENSE10       , "Mode Sense(10)"},
-    {SCSI_SPC_PERSRESVIN        , "Persistent Reserve In"},
-    {SCSI_SPC_PERSRESVOUT       , "Persistent Reserve Out"},
-    {SCSI_SBC_PREFETCH10        , "Pre-Fetch(10)"},
-    {SCSI_SBC_PREFETCH16        , "Pre-Fetch(16)"},
-    {SCSI_SPC_PREVMEDREMOVAL    , "Prevent/Allow Medium Removal"},
-    {SCSI_SBC_READ6             , "Read(6)"},
-    {SCSI_SBC_READ10            , "Read(10)"},
-    {SCSI_SBC_READ12            , "Read(12)"},
-    {SCSI_SBC_READ16            , "Read(16)"},
-    {SCSI_SBC_READCAPACITY10    , "Read Capacity(10)"},
-    {SCSI_SPC_REPORTLUNS        , "Report LUNs"},
-    {SCSI_SPC_REQSENSE          , "Request Sense"},
-    {SCSI_SBC_SERVICEACTIONIN16 , "Service Action In(16)"},
-    {SCSI_SBC_READDEFDATA10     , "Read Defect Data(10)"},
-    {SCSI_SBC_READDEFDATA12     , "Read Defect Data(12)"},
-    {SCSI_SBC_READLONG          , "Read Long(10)"},
-    {SCSI_SBC_REASSIGNBLKS      , "Reassign Blocks"},
-    {SCSI_SBC_REBUILD16         , "Rebuild(16)"},
-    {SCSI_SBC_REBUILD32         , "Rebuild(32)"},
-    {SCSI_SBC_REGENERATE16      , "Regenerate(16)"},
-    {SCSI_SBC_REGENERATE32      , "Regenerate(32)"},
-    {SCSI_SPC_RELEASE6          , "Release(6)"}, /* obsolete in SBC2 and later */
-    {SCSI_SPC_RELEASE10         , "Release(10)"},/* obsolete in SBC2 and later */
-    {SCSI_SPC_RESERVE6          , "Reserve(6)"}, /* obsolete in SBC2 and later */
-    {SCSI_SPC_RESERVE10         , "Reserve(10)"},/* obsolete in SBC2 and later */
-    {SCSI_SBC_SEEK10            , "Seek(10)"},
-    {SCSI_SPC_SENDDIAG          , "Send Diagnostic"},
-    {SCSI_SBC_SETLIMITS10       , "Set Limits(10)"},
-    {SCSI_SBC_SETLIMITS12       , "Set Limits(12)"},
-    {SCSI_SBC_STARTSTOPUNIT     , "Start Stop Unit"},
-    {SCSI_SBC_SYNCCACHE10       , "Synchronize Cache(10)"},
-    {SCSI_SBC_SYNCCACHE16       , "Synchronize Cache(16)"},
-    {SCSI_SPC_TESTUNITRDY       , "Test Unit Ready"},
-    {SCSI_SBC_UNMAP             , "Unmap"},
-    {SCSI_SBC_VERIFY10          , "Verify(10)"},
-    {SCSI_SBC_VERIFY12          , "Verify(12)"},
-    {SCSI_SBC_VERIFY16          , "Verify(16)"},
-    {SCSI_SBC_WRITE6            , "Write(6)"},
-    {SCSI_SBC_WRITE10           , "Write(10)"},
-    {SCSI_SBC_WRITE12           , "Write(12)"},
-    {SCSI_SBC_WRITE16           , "Write(16)"},
-    {SCSI_SBC_ORWRITE           , "OrWrite(16)"},
-    {SCSI_SPC_WRITEBUFFER       , "Write Buffer"},
-    {SCSI_SBC_COMPARENWRITE     , "Compare & Write(16)"},
-    {SCSI_SBC_WRITENVERIFY10    , "Write & Verify(10)"},
-    {SCSI_SBC_WRITENVERIFY12    , "Write & Verify(12)"},
-    {SCSI_SBC_WRITENVERIFY16    , "Write & Verify(16)"},
-    {SCSI_SBC_WRITELONG         , "Write Long"},
-    {SCSI_SBC_WRITESAME10       , "Write Same(10)"},
-    {SCSI_SBC_WRITESAME16       , "Write Same(16)"},
-    {SCSI_SBC_XDREAD10          , "XdRead(10)"},
-    {SCSI_SBC_XDREAD32          , "XdRead(32)"},
-    {SCSI_SBC_XDWRITE10         , "XdWrite(10)"},
-    {SCSI_SBC_XDWRITE32         , "XdWrite(32)"},
-    {SCSI_SBC_XDWRITEREAD10     , "XdWriteRead(10)"},
-    {SCSI_SBC_XDWRITEREAD32     , "XdWriteRead(32)"},
-    {SCSI_SBC_XDWRITEEXTD16     , "XdWrite Extended(16)"},
-    {SCSI_SBC_XDWRITEEXTD32     , "XdWrite Extended(32)"},
-    {SCSI_SBC_XPWRITE10         , "XpWrite(10)"},
-    {SCSI_SBC_XPWRITE32         , "XpWrite(32)"},
+static const value_string scsi_sbc_vals[] = {
+    /* 0x00 */    {SCSI_SPC_TESTUNITRDY       , "Test Unit Ready"},
+    /* 0x03 */    {SCSI_SPC_REQSENSE          , "Request Sense"},
+    /* 0x04 */    {SCSI_SBC_FORMATUNIT        , "Format Unit"},
+    /* 0x07 */    {SCSI_SBC_REASSIGNBLKS      , "Reassign Blocks"},
+    /* 0x08 */    {SCSI_SBC_READ6             , "Read(6)"},
+    /* 0x0A */    {SCSI_SBC_WRITE6            , "Write(6)"},
+    /* 0x12 */    {SCSI_SPC_INQUIRY           , "Inquiry"},
+    /* 0x15 */    {SCSI_SPC_MODESELECT6       , "Mode Select(6)"},
+    /* 0x16 */    {SCSI_SPC_RESERVE6          , "Reserve(6)"}, /* obsolete in SBC2 and later */
+    /* 0x17 */    {SCSI_SPC_RELEASE6          , "Release(6)"}, /* obsolete in SBC2 and later */
+    /* 0x1A */    {SCSI_SPC_MODESENSE6        , "Mode Sense(6)"},
+    /* 0x1B */    {SCSI_SBC_STARTSTOPUNIT     , "Start Stop Unit"},
+    /* 0x1D */    {SCSI_SPC_SENDDIAG          , "Send Diagnostic"},
+    /* 0x1E */    {SCSI_SPC_PREVMEDREMOVAL    , "Prevent/Allow Medium Removal"},
+    /* 0x25 */    {SCSI_SBC_READCAPACITY10    , "Read Capacity(10)"},
+    /* 0x28 */    {SCSI_SBC_READ10            , "Read(10)"},
+    /* 0x2A */    {SCSI_SBC_WRITE10           , "Write(10)"},
+    /* 0x2B */    {SCSI_SBC_SEEK10            , "Seek(10)"},
+    /* 0x2E */    {SCSI_SBC_WRITENVERIFY10    , "Write & Verify(10)"},
+    /* 0x2F */    {SCSI_SBC_VERIFY10          , "Verify(10)"},
+    /* 0x33 */    {SCSI_SBC_SETLIMITS10       , "Set Limits(10)"},
+    /* 0x34 */    {SCSI_SBC_PREFETCH10        , "Pre-Fetch(10)"},
+    /* 0x35 */    {SCSI_SBC_SYNCCACHE10       , "Synchronize Cache(10)"},
+    /* 0x36 */    {SCSI_SBC_LOCKUNLKCACHE10   , "Lock Unlock Cache(10)"},
+    /* 0x37 */    {SCSI_SBC_READDEFDATA10     , "Read Defect Data(10)"},
+    /* 0x3B */    {SCSI_SPC_WRITEBUFFER       , "Write Buffer"},
+    /* 0x3E */    {SCSI_SBC_READLONG          , "Read Long(10)"},
+    /* 0x3F */    {SCSI_SBC_WRITELONG         , "Write Long"},
+    /* 0x41 */    {SCSI_SBC_WRITESAME10       , "Write Same(10)"},
+    /* 0x42 */    {SCSI_SBC_UNMAP             , "Unmap"},
+    /* 0x48 */    {SCSI_SBC_SANITIZE          , "Sanitize"},
+    /* 0x4C */    {SCSI_SPC_LOGSELECT         , "Log Select"},
+    /* 0x4D */    {SCSI_SPC_LOGSENSE          , "Log Sense"},
+    /* 0x50 */    {SCSI_SBC_XDWRITE10         , "XdWrite(10)"},
+    /* 0x51 */    {SCSI_SBC_XPWRITE10         , "XpWrite(10)"},
+    /* 0x52 */    {SCSI_SBC_XDREAD10          , "XdRead(10)"},
+    /* 0x53 */    {SCSI_SBC_XDWRITEREAD10     , "XdWriteRead(10)"},
+    /* 0x55 */    {SCSI_SPC_MODESELECT10      , "Mode Select(10)"},
+    /* 0x56 */    {SCSI_SPC_RESERVE10         , "Reserve(10)"},/* obsolete in SBC2 and later */
+    /* 0x57 */    {SCSI_SPC_RELEASE10         , "Release(10)"},/* obsolete in SBC2 and later */
+    /* 0x5A */    {SCSI_SPC_MODESENSE10       , "Mode Sense(10)"},
+    /* 0x5E */    {SCSI_SPC_PERSRESVIN        , "Persistent Reserve In"},
+    /* 0x5F */    {SCSI_SPC_PERSRESVOUT       , "Persistent Reserve Out"},
+    /* 0x7F */    {SCSI_SBC_REBUILD32         , "Rebuild(32)"},
+#if 0 /* dups which would never have been found (in the previous unsorted version of this array) */
+    /* 0x7F */    {SCSI_SBC_REGENERATE32      , "Regenerate(32)"},
+    /* 0x7F */    {SCSI_SBC_XDREAD32          , "XdRead(32)"},
+    /* 0x7F */    {SCSI_SBC_XDWRITE32         , "XdWrite(32)"},
+    /* 0x7F */    {SCSI_SBC_XDWRITEEXTD32     , "XdWrite Extended(32)"},
+    /* 0x7F */    {SCSI_SBC_XDWRITEREAD32     , "XdWriteRead(32)"},
+    /* 0x7F */    {SCSI_SBC_XPWRITE32         , "XpWrite(32)"},
+#endif
+    /* 0x80 */    {SCSI_SBC_XDWRITEEXTD16     , "XdWrite Extended(16)"},
+    /* 0x81 */    {SCSI_SBC_REBUILD16         , "Rebuild(16)"},
+    /* 0x82 */    {SCSI_SBC_REGENERATE16      , "Regenerate(16)"},
+    /* 0x83 */    {SCSI_SPC_EXTCOPY           , "Extended Copy"},
+    /* 0x84 */    {SCSI_SPC_RECVCOPY          , "Receive Copy"},
+    /* 0x88 */    {SCSI_SBC_READ16            , "Read(16)"},
+    /* 0x89 */    {SCSI_SBC_COMPARENWRITE     , "Compare & Write(16)"},
+    /* 0x8A */    {SCSI_SBC_WRITE16           , "Write(16)"},
+    /* 0x8B */    {SCSI_SBC_ORWRITE           , "OrWrite(16)"},
+    /* 0x8E */    {SCSI_SBC_WRITENVERIFY16    , "Write & Verify(16)"},
+    /* 0x8F */    {SCSI_SBC_VERIFY16          , "Verify(16)"},
+    /* 0x90 */    {SCSI_SBC_PREFETCH16        , "Pre-Fetch(16)"},
+    /* 0x91 */    {SCSI_SBC_SYNCCACHE16       , "Synchronize Cache(16)"},
+    /* 0x92 */    {SCSI_SBC_LOCKUNLKCACHE16   , "Lock Unlock Cache(16)"},
+    /* 0x93 */    {SCSI_SBC_WRITESAME16       , "Write Same(16)"},
+    /* 0x9E */    {SCSI_SBC_SERVICEACTIONIN16 , "Service Action In(16)"},
+    /* 0xA0 */    {SCSI_SPC_REPORTLUNS        , "Report LUNs"},
+    /* 0xA3 */    {SCSI_SPC_MGMT_PROTOCOL_IN  , "Mgmt Protocol In"},
+    /* 0xA8 */    {SCSI_SBC_READ12            , "Read(12)"},
+    /* 0xAA */    {SCSI_SBC_WRITE12           , "Write(12)"},
+    /* 0xAE */    {SCSI_SBC_WRITENVERIFY12    , "Write & Verify(12)"},
+    /* 0xAF */    {SCSI_SBC_VERIFY12          , "Verify(12)"},
+    /* 0xB3 */    {SCSI_SBC_SETLIMITS12       , "Set Limits(12)"},
+    /* 0xB7 */    {SCSI_SBC_READDEFDATA12     , "Read Defect Data(12)"},
     {0, NULL}
 };
+value_string_ext scsi_sbc_vals_ext = VALUE_STRING_EXT_INIT(scsi_sbc_vals);
 
 scsi_cdb_table_t scsi_sbc_table[256] = {
 /*SPC 0x00*/{dissect_spc_testunitready},
@@ -1579,7 +1636,7 @@ scsi_cdb_table_t scsi_sbc_table[256] = {
 /*SBC 0x45*/{NULL},
 /*SBC 0x46*/{NULL},
 /*SBC 0x47*/{NULL},
-/*SBC 0x48*/{NULL},
+/*SBC 0x48*/{dissect_sbc_sanitize},
 /*SBC 0x49*/{NULL},
 /*SBC 0x4a*/{NULL},
 /*SBC 0x4b*/{NULL},
@@ -1639,7 +1696,7 @@ scsi_cdb_table_t scsi_sbc_table[256] = {
 /*SBC 0x81*/{NULL},
 /*SBC 0x82*/{NULL},
 /*SPC 0x83*/{dissect_spc_extcopy},
-/*SBC 0x84*/{NULL},
+/*SBC 0x84*/{dissect_spc_recvcopy},
 /*SBC 0x85*/{NULL},
 /*SBC 0x86*/{NULL},
 /*SBC 0x87*/{NULL},
@@ -1670,7 +1727,7 @@ scsi_cdb_table_t scsi_sbc_table[256] = {
 /*SPC 0xa0*/{dissect_spc_reportluns},
 /*SBC 0xa1*/{NULL},
 /*SBC 0xa2*/{NULL},
-/*SBC 0xa3*/{NULL},
+/*SPC 0xa3*/{dissect_spc_mgmt_protocol_in},
 /*SBC 0xa4*/{NULL},
 /*SBC 0xa5*/{NULL},
 /*SBC 0xa6*/{NULL},
@@ -1771,8 +1828,8 @@ proto_register_scsi_sbc(void)
 {
     static hf_register_info hf[] = {
         { &hf_scsi_sbc_opcode,
-          {"SBC Opcode", "scsi_sbc.opcode", FT_UINT8, BASE_HEX,
-           VALS (scsi_sbc_vals), 0x0, NULL, HFILL}},
+          {"SBC Opcode", "scsi_sbc.opcode", FT_UINT8, BASE_HEX | BASE_EXT_STRING,
+           &scsi_sbc_vals_ext, 0x0, NULL, HFILL}},
         { &hf_scsi_sbc_formatunit_flags,
           {"Flags", "scsi_sbc.formatunit.flags", FT_UINT8, BASE_HEX, NULL, 0xF8,
            NULL, HFILL}},
@@ -2018,10 +2075,10 @@ proto_register_scsi_sbc(void)
           {"LOGICAL_BLOCKS_PER_PHYSICAL_BLOCK_EXPONENT", "scsi_sbc.lbppbe", FT_UINT8, BASE_DEC,
            NULL, 0x0f, NULL, HFILL}},
         { &hf_scsi_sbc_lbpme,
-          {"LBPME", "scsi_sbc.lbpme", FT_BOOLEAN, 8,
+          {"LBPME (logical block provisioning management enabled) / TPE", "scsi_sbc.lbpme", FT_BOOLEAN, 8,
            NULL, 0x80, NULL, HFILL}},
         { &hf_scsi_sbc_lbprz,
-          {"LBPRZ", "scsi_sbc.lbprz", FT_BOOLEAN, 8,
+          {"LBPRZ (logical block provisioning read zeros) / TPRZ", "scsi_sbc.lbprz", FT_BOOLEAN, 8,
            NULL, 0x40, NULL, HFILL}},
         { &hf_scsi_sbc_lalba,
           {"LOWEST_ALIGNED_LBA", "scsi_sbc.lalba", FT_UINT16, BASE_DEC,
@@ -2038,6 +2095,36 @@ proto_register_scsi_sbc(void)
     { &hf_scsi_sbc_get_lba_status_provisioning_status,
           {"Provisioning Type", "scsi_sbc.get_lba_status.provisioning_type", FT_UINT8, BASE_DEC,
            VALS(scsi_provisioning_type_val), 0x07, NULL, HFILL}},
+        { &hf_scsi_sbc_sanitize_sa,
+          {"Service Action", "scsi_sbc.sanitize.sa", FT_UINT8, BASE_HEX, VALS(sanitize_val),
+           0x1f, NULL, HFILL}},
+        { &hf_scsi_sbc_sanitize_ause,
+          {"AUSE", "scsi_sbc.sanitize.ause", FT_BOOLEAN, 8, NULL,
+           0x20, NULL, HFILL}},
+        { &hf_scsi_sbc_sanitize_immed,
+          {"IMMED", "scsi_sbc.sanitize.immed", FT_BOOLEAN, 8, NULL,
+           0x80, NULL, HFILL}},
+        { &hf_scsi_sbc_sanitize_flags,
+          {"Flags", "scsi_sbc.sanitize_flags", FT_UINT8, BASE_HEX,
+           NULL, 0, NULL, HFILL}},
+        { &hf_scsi_sbc_sanitize_overwrite_flags,
+          {"Flags", "scsi_sbc.sanitize_overwrite_flags", FT_UINT8, BASE_HEX,
+           NULL, 0, NULL, HFILL}},
+        { &hf_scsi_sbc_sanitize_invert,
+          {"INVERT", "scsi_sbc.sanitize.invert", FT_BOOLEAN, 8, NULL,
+           0x80, NULL, HFILL}},
+        { &hf_scsi_sbc_sanitize_test,
+          {"TEST", "scsi_sbc.sanitize.test", FT_UINT8, BASE_HEX, NULL,
+           0x60, NULL, HFILL}},
+        { &hf_scsi_sbc_sanitize_owcount,
+          {"Overwrite Count", "scsi_sbc.sanitize.overwrite_count", FT_UINT8, BASE_HEX, NULL,
+           0x1f, NULL, HFILL}},
+        { &hf_scsi_sbc_sanitize_pattern_length,
+          {"Initialization Pattern Length", "scsi_sbc.sanitize.pattern_length", FT_UINT16, BASE_DEC, NULL,
+           0, NULL, HFILL}},
+        { &hf_scsi_sbc_sanitize_pattern,
+          {"Initialization Pattern", "scsi_sbc.sanitize.pattern", FT_BYTES, BASE_NONE, NULL,
+           0, NULL, HFILL}},
     };
 
 
@@ -2061,7 +2148,9 @@ proto_register_scsi_sbc(void)
         &ett_scsi_writesame,
         &ett_scsi_unmap,
         &ett_scsi_unmap_block_descriptor,
-        &ett_scsi_lba_status_descriptor
+        &ett_scsi_lba_status_descriptor,
+        &ett_scsi_sanitize,
+        &ett_scsi_sanitize_overwrite
     };
 
     /* Register the protocol name and description */
@@ -2077,16 +2166,15 @@ proto_reg_handoff_scsi_sbc(void)
 {
 }
 
-
 /*
  * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
  *
  * Local variables:
  * c-basic-offset: 4
- * tab-width: 4
+ * tab-width: 8
  * indent-tabs-mode: nil
  * End:
  *
- * vi: set shiftwidth=4 tabstop=4 expandtab:
- * :indentSize=4:tabSize=4:noTabs=true:
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
  */

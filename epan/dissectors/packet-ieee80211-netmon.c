@@ -2,8 +2,6 @@
  *  packet-ieee80211-netmon.c
  *       Decode packets with a Network Monitor 802.11 radio header
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,10 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
+
+void proto_register_netmon_802_11(void);
+void proto_reg_handoff_netmon_802_11(void);
 
 /* protocol */
 static int proto_netmon_802_11 = -1;
@@ -156,7 +158,7 @@ dissect_netmon_802_11(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
       offset += 13;
     proto_tree_add_item(wlan_tree, hf_netmon_802_11_timestamp, tvb, offset, 8,
                         ENC_LITTLE_ENDIAN);
-    offset += 8;
+    /*offset += 8;*/
 
   }
 

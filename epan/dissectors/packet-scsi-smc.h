@@ -5,8 +5,6 @@
  * Dinesh G Dutt (ddutt@cisco.com)
  * Ronnie sahlberg 2006
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2002 Gerald Combs
@@ -52,6 +50,6 @@ void dissect_smc_readelementstatus (tvbuff_t *tvb, packet_info *pinfo, proto_tre
 
 extern int hf_scsi_smc_opcode;
 extern scsi_cdb_table_t scsi_smc_table[256];
-WS_DLL_PUBLIC const value_string scsi_smc_vals[];
+WS_DLL_PUBLIC value_string_ext scsi_smc_vals_ext;
 
 #endif

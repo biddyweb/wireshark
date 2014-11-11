@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-ldap.h                                                              */
 /* ../../tools/asn2wrs.py -b -p ldap -c ./ldap.cnf -s ./packet-ldap-template -D . -O ../../epan/dissectors Lightweight-Directory-Access-Protocol-V3.asn */
 
@@ -9,8 +9,6 @@
 /* packet-ldap.h
  * Routines for ros packet dissection
  * Copyright 2005, Anders Broman <anders.broman@ericsson.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>

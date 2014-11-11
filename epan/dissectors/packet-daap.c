@@ -2,8 +2,6 @@
  * Routines for Digital Audio Access Protocol dissection
  * Copyright 2004, Kelly Byrd <kbyrd@memcpy.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,6 +25,7 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/dissectors/packet-http.h>
 
 #define TCP_PORT_DAAP 3689
@@ -212,6 +211,9 @@
 #define daap_asdr ("daap.songdatereleased")
 #define daap_asdp ("daap.songdatepurchased")
 */
+
+void proto_register_daap(void);
+void proto_reg_handoff_daap(void);
 
 static dissector_handle_t png_handle;
 

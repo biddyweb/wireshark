@@ -2,8 +2,6 @@
  * Routines for PKCS#1/RFC2313 packet dissection
  *  Ronnie Sahlberg 2004
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,7 @@
 #include <epan/packet.h>
 #include <epan/oids.h>
 #include <epan/asn1.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-ber.h"
 #include "packet-pkcs1.h"
@@ -37,6 +36,9 @@
 #define PNAME  "PKCS#1"
 #define PSNAME "PKCS-1"
 #define PFNAME "pkcs-1"
+
+void proto_register_pkcs1(void);
+void proto_reg_handoff_pkcs1(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_pkcs1 = -1;

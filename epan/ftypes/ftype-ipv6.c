@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -30,18 +28,16 @@
 #include <epan/emem.h>
 
 static void
-ipv6_fvalue_set(fvalue_t *fv, gpointer value, gboolean already_copied)
+ipv6_fvalue_set(fvalue_t *fv, const guint8 *value)
 {
-	g_assert(!already_copied);
-
 	memcpy(fv->value.ipv6.addr.bytes, value, FT_IPv6_LEN);
 	fv->value.ipv6.prefix = 128;
 }
 
 static gboolean
-ipv6_from_unparsed(fvalue_t *fv, char *s, gboolean allow_partial_value _U_, LogFunc logfunc)
+ipv6_from_unparsed(fvalue_t *fv, const char *s, gboolean allow_partial_value _U_, LogFunc logfunc)
 {
-	char *has_slash, *addr_str;
+	const char *has_slash, *addr_str;
 	unsigned int nmask_bits;
 	fvalue_t *nmask_fvalue;
 
@@ -101,7 +97,7 @@ value_get(fvalue_t *fv)
 	return fv->value.ipv6.addr.bytes;
 }
 
-static const guint8 bitmasks[9] = 
+static const guint8 bitmasks[9] =
 	{ 0x00, 0x80, 0xc0, 0xe0, 0xf0, 0xf8, 0xfc, 0xfe, 0xff };
 
 static gint
@@ -227,7 +223,12 @@ ftype_register_ipv6(void)
 		ipv6_to_repr,			/* val_to_string_repr */
 		ipv6_repr_len,			/* len_string_repr */
 
-		ipv6_fvalue_set,		/* set_value */
+		NULL,				/* set_value_byte_array */
+		ipv6_fvalue_set,		/* set_value_bytes */
+		NULL,				/* set_value_guid */
+		NULL,				/* set_value_time */
+		NULL,				/* set_value_string */
+		NULL,				/* set_value_tvbuff */
 		NULL,				/* set_value_uinteger */
 		NULL,				/* set_value_sinteger */
 		NULL,				/* set_value_integer64 */

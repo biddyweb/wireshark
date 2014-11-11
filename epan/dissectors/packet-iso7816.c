@@ -2,8 +2,6 @@
  * Routines for packet dissection of generic ISO 7816 smart card messages
  * Copyright 2012-2013 by Martin Kaiser <martin@kaiser.cx>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,13 +36,17 @@
 
 #include <epan/packet.h>
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
+
+void proto_register_iso7816(void);
+void proto_reg_handoff_iso7816(void);
 
 static int proto_iso7816 = -1;
 static int proto_iso7816_atr = -1;
 
 static dissector_handle_t iso7816_atr_handle;
 
-static emem_tree_t *transactions = NULL;
+static wmem_tree_t *transactions = NULL;
 
 static int ett_iso7816 = -1;
 static int ett_iso7816_class = -1;
@@ -85,6 +87,8 @@ static int hf_iso7816_sw2 = -1;
 static int hf_iso7816_sel_file_ctrl = -1;
 static int hf_iso7816_sel_file_fci_req = -1;
 static int hf_iso7816_sel_file_occ = -1;
+
+static expert_field ie_iso7816_atr_tck_not1 = EI_INIT;
 
 #define ADDR_INTF "Interface"
 #define ADDR_CARD "Card"
@@ -198,15 +202,6 @@ static const range_string iso7816_sw1[] = {
   { 0x90, 0x90, "Normal processing" },
   { 0,0,  NULL }
 };
-
-
-static void
-iso7816_init(void)
-{
-    transactions = se_tree_create_non_persistent(
-            EMEM_TREE_TYPE_RED_BLACK, "iso7816_transactions");
-}
-
 
 static int
 dissect_iso7816_atr(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
@@ -326,8 +321,7 @@ dissect_iso7816_atr(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
     else if (tck_len>1) {
         err_it = proto_tree_add_text(proto_tr, tvb, offset, tck_len,
                 "Invalid TCK byte");
-        expert_add_info_format(pinfo, err_it, PI_PROTOCOL, PI_WARN,
-                "TCK byte must either be absent or exactly one byte");
+        expert_add_info(pinfo, err_it, &ie_iso7816_atr_tck_not1);
     }
 
     proto_item_set_len(proto_it, offset);
@@ -343,7 +337,7 @@ dissect_iso7816_class(tvbuff_t *tvb, gint offset,
     gint        ret_fct = 1;
     proto_item *class_item;
     proto_tree *class_tree;
-    guint8      class;
+    guint8      dev_class;
     proto_item *enc_item;
     guint8      channel;
     proto_item *ch_item;
@@ -352,34 +346,34 @@ dissect_iso7816_class(tvbuff_t *tvb, gint offset,
             tvb, offset, 1, ENC_BIG_ENDIAN);
     class_tree = proto_item_add_subtree(class_item, ett_iso7816_class);
 
-    class = tvb_get_guint8(tvb, offset);
+    dev_class = tvb_get_guint8(tvb, offset);
 
-    if (class>=0x10 && class<=0x7F) {
+    if (dev_class>=0x10 && dev_class<=0x7F) {
         enc_item = proto_tree_add_text(class_tree,
                 tvb, offset, 1, "reserved for future use");
     }
-    else if (class>=0xD0 && class<=0xFE) {
+    else if (dev_class>=0xD0 && dev_class<=0xFE) {
         enc_item = proto_tree_add_text(class_tree,
                 tvb, offset, 1, "proprietary structure and coding");
         ret_fct = -1;
     }
-    else if (class==0xFF) {
+    else if (dev_class==0xFF) {
         enc_item = proto_tree_add_text(class_tree,
                 tvb, offset, 1, "reserved for Protocol Type Selection");
     }
     else {
         enc_item = proto_tree_add_text(class_tree, tvb, offset, 1,
                 "structure and coding according to ISO/IEC 7816");
-        if (class>=0xA0 && class<=0xAF) {
+        if (dev_class>=0xA0 && dev_class<=0xAF) {
             proto_item_append_text(enc_item,
                     " unless specified otherwise by the application context");
         }
 
-        if (class<=0x0F || (class>=0x80 && class<=0xAF)) {
+        if (dev_class<=0x0F || (dev_class>=0x80 && dev_class<=0xAF)) {
             proto_tree_add_item(class_tree, hf_iso7816_cla_sm,
                     tvb, offset, 1, ENC_BIG_ENDIAN);
 
-            channel = class & 0x03;
+            channel = dev_class & 0x03;
             ch_item = proto_tree_add_item(class_tree, hf_iso7816_cla_channel,
                     tvb, offset, 1, ENC_BIG_ENDIAN);
             if (channel==0)
@@ -510,7 +504,7 @@ dissect_iso7816_cmd_apdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 
     if (PINFO_FD_VISITED(pinfo)) {
-        iso7816_trans = (iso7816_transaction_t *)se_tree_lookup32(
+        iso7816_trans = (iso7816_transaction_t *)wmem_tree_lookup32(
                 transactions, PINFO_FD_NUM(pinfo));
         if (iso7816_trans && iso7816_trans->cmd_frame==PINFO_FD_NUM(pinfo) &&
                 iso7816_trans->resp_frame!=0) {
@@ -522,17 +516,16 @@ dissect_iso7816_cmd_apdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
     else {
         if (transactions) {
-            iso7816_trans = (iso7816_transaction_t *)se_alloc(
-                    sizeof(iso7816_transaction_t));
+            iso7816_trans = wmem_new(wmem_file_scope(), iso7816_transaction_t);
             iso7816_trans->cmd_frame = PINFO_FD_NUM(pinfo);
             iso7816_trans->resp_frame = 0;
             iso7816_trans->cmd_ins = INS_INVALID;
 
-            se_tree_insert32(transactions,
+            wmem_tree_insert32(transactions,
                     iso7816_trans->cmd_frame, (void *)iso7816_trans);
         }
     }
- 
+
     ret = dissect_iso7816_class(tvb, offset, pinfo, tree);
     if (ret==-1) {
         /* the class byte says that the remaining APDU is not
@@ -596,7 +589,7 @@ dissect_iso7816_resp_apdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     if (transactions) {
         /* receive the largest key that is less than or equal to our frame
            number */
-        iso7816_trans = (iso7816_transaction_t *)se_tree_lookup32_le(
+        iso7816_trans = (iso7816_transaction_t *)wmem_tree_lookup32_le(
                 transactions, PINFO_FD_NUM(pinfo));
         if (iso7816_trans) {
             if (iso7816_trans->resp_frame==0) {
@@ -619,7 +612,7 @@ dissect_iso7816_resp_apdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             }
         }
     }
-           
+
     /* - 2 bytes SW1, SW2 */
     body_len = tvb_reported_length_remaining(tvb, offset) - 2;
 
@@ -830,13 +823,22 @@ proto_register_iso7816(void)
         &ett_iso7816_atr_td
     };
 
+    static ei_register_info ei[] = {
+        { &ie_iso7816_atr_tck_not1, { "iso7816.atr.tck.not1", PI_PROTOCOL, PI_WARN, "TCK byte must either be absent or exactly one byte", EXPFILL }}
+    };
+
+    expert_module_t* expert_iso7816;
+
     proto_iso7816 = proto_register_protocol(
             "ISO/IEC 7816", "ISO 7816", "iso7816");
     proto_register_field_array(proto_iso7816, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_iso7816 = expert_register_protocol(proto_iso7816);
+    expert_register_field_array(expert_iso7816, ei, array_length(ei));
 
     new_register_dissector("iso7816", dissect_iso7816, proto_iso7816);
-    register_init_routine(iso7816_init);
+
+    transactions = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope());
 
     proto_iso7816_atr = proto_register_protocol(
             "ISO/IEC 7816-3", "ISO 7816-3", "iso7816.atr");

@@ -3,8 +3,6 @@
  * Routines for Amateur Packet Radio protocol dissection
  * Copyright 2007,2008,2009,2010,2012 R.W. Stearn <richard@rns-stearn.demon.co.uk>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -49,7 +47,7 @@
 
 #include <epan/packet.h>
 #include <epan/prefs.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 
 #define AX25_ADDR_LEN		7  /* length of an AX.25 address */
 #define STRLEN	100
@@ -617,20 +615,20 @@ dissect_aprs_compressed_msg(	tvbuff_t *tvb,
 				offset += 1;
 				ch = tvb_get_guint8( tvb, offset );
 				range = exp( log( 1.08 ) * (ch - 33) );
-				info_buffer = ep_strdup_printf( "%7.2f", range );
+				info_buffer = wmem_strdup_printf( wmem_packet_scope(), "%7.2f", range );
 				proto_tree_add_string( msg_tree, *msg_items->hf_msg_rng, tvb, offset, 1, info_buffer );
 				}
 			else
 				if ( ch >= '!' && ch <= 'z' )
 					{ /* Course/Speed */
 					course = (ch - 33) * 4;
-					info_buffer = ep_strdup_printf( "%d", course );
+					info_buffer = wmem_strdup_printf( wmem_packet_scope(), "%d", course );
 					proto_tree_add_string( msg_tree, *msg_items->hf_msg_cse,
 							       tvb, offset, 1, info_buffer );
 					offset += 1;
 					ch = tvb_get_guint8( tvb, offset );
 					speed = exp( log( 1.08 ) * (ch - 33) );
-					info_buffer = ep_strdup_printf( "%7.2f", speed );
+					info_buffer = wmem_strdup_printf( wmem_packet_scope(), "%7.2f", speed );
 					proto_tree_add_string( msg_tree, *msg_items->hf_msg_spd,
 							       tvb, offset, 1, info_buffer );
 					}
@@ -705,12 +703,13 @@ dissect_mic_e(	tvbuff_t    *tvb,
 	int	    cse;
 	int	    spd;
 	guint8  ssid;
+	const guint8 *addr;
 	const mic_e_dst_code_table_s *dst_code_entry;
 
 	data_len    = tvb_length_remaining( tvb, offset );
 	new_offset  = offset + data_len;
 
-	info_buffer = (char *)ep_alloc( STRLEN );
+	info_buffer = (char *)wmem_alloc( wmem_packet_scope(), STRLEN );
 
 	msg_a = 0;
 	msg_b = 0;
@@ -724,33 +723,35 @@ dissect_mic_e(	tvbuff_t    *tvb,
 	if ( pinfo->dst.type == AT_AX25 && pinfo->dst.len == AX25_ADDR_LEN )
 		{
 		/* decode the AX.25 destination address */
-		dst_code_entry = dst_code_lookup( ((guint8 *)pinfo->dst.data)[ 0 ] );
+		addr = (const guint8 *)pinfo->dst.data;
+
+		dst_code_entry = dst_code_lookup( addr[ 0 ] );
 		latitude[ 0 ] = dst_code_entry->digit;
 		msg_a = dst_code_entry->msg & 0x1;
 
-		dst_code_entry = dst_code_lookup( ((guint8 *)pinfo->dst.data)[ 1 ] );
+		dst_code_entry = dst_code_lookup( addr[ 1 ] );
 		latitude[ 1 ] = dst_code_entry->digit;
 		msg_b = dst_code_entry->msg & 0x1;
 
-		dst_code_entry = dst_code_lookup( ((guint8 *)pinfo->dst.data)[ 2 ] );
+		dst_code_entry = dst_code_lookup( addr[ 2 ] );
 		latitude[ 2 ] = dst_code_entry->digit;
 		msg_c = dst_code_entry->msg & 0x1;
 
-		dst_code_entry = dst_code_lookup( ((guint8 *)pinfo->dst.data)[ 3 ] );
+		dst_code_entry = dst_code_lookup( addr[ 3 ] );
 		latitude[ 3 ] = dst_code_entry->digit;
 		n_s = dst_code_entry->n_s;
 
 		latitude[ 4 ] = '.';
 
-		dst_code_entry = dst_code_lookup( ((guint8 *)pinfo->dst.data)[ 4 ] );
+		dst_code_entry = dst_code_lookup( addr[ 4 ] );
 		latitude[ 5 ] = dst_code_entry->digit;
 		long_offset = dst_code_entry->long_offset;
 
-		dst_code_entry = dst_code_lookup( ((guint8 *)pinfo->dst.data)[ 5 ] );
+		dst_code_entry = dst_code_lookup( addr[ 5 ] );
 		latitude[ 6 ] = dst_code_entry->digit;
 		w_e = dst_code_entry->w_e;
 
-		ssid = (((guint8 *)pinfo->dst.data)[ 6 ] >> 1) & 0x0f;
+		ssid = (addr[ 6 ] >> 1) & 0x0f;
 		}
 
 	/* decode the mic-e info fields */
@@ -776,7 +777,7 @@ dissect_mic_e(	tvbuff_t    *tvb,
 				mic_e_msg_table[ (msg_a << 2) + (msg_b << 1) + msg_c ].std
 				);
 
-	col_add_str( pinfo->cinfo, COL_INFO, "MIC-E " );
+	col_set_str( pinfo->cinfo, COL_INFO, "MIC-E " );
 	col_append_str( pinfo->cinfo, COL_INFO, info_buffer );
 
 	if ( parent_tree )
@@ -853,13 +854,9 @@ dissect_aprs_storm(	tvbuff_t   *tvb,
 		{
 		proto_tree *tc;
 		int	    data_len;
-		char   *info_buffer;
-		static const char *storm_format = " (%*.*s)";
 
-		data_len = tvb_length_remaining( tvb, offset );
-		info_buffer = (char *)ep_alloc( STRLEN );
-		g_snprintf( info_buffer, STRLEN, storm_format, data_len, data_len, tvb_get_ptr( tvb, offset, data_len ) );
-		tc = proto_tree_add_string( parent_tree, hf_aprs_storm_idx, tvb, offset, data_len, info_buffer );
+		data_len = tvb_reported_length_remaining( tvb, offset );
+		tc = proto_tree_add_item( parent_tree, hf_aprs_storm_idx, tvb, offset, data_len, ENC_ASCII|ENC_NA );
 		storm_tree = proto_item_add_subtree( tc, ett_aprs_storm_idx );
 		}
 	proto_tree_add_item( storm_tree, *storm_items->hf_aprs_storm_dir,  tvb, offset, 3, ENC_BIG_ENDIAN );
@@ -898,18 +895,13 @@ dissect_aprs_weather(	tvbuff_t   *tvb,
 	proto_tree  *weather_tree;
 	int	     new_offset;
 	int	     data_len;
-	char	    *info_buffer;
-	static const char *weather_format = " (%*.*s)";
 	guint8	     ch;
 
 
 	data_len    = tvb_length_remaining( tvb, offset );
 	new_offset  = offset + data_len;
 
-	info_buffer = (char *)ep_alloc( STRLEN );
-	g_snprintf( info_buffer, STRLEN, weather_format, data_len, data_len, tvb_get_ptr( tvb, offset, data_len ) );
-
-	tc = proto_tree_add_string( parent_tree, hf_aprs_weather_idx, tvb, offset, data_len, info_buffer );
+	tc = proto_tree_add_item( parent_tree, hf_aprs_weather_idx, tvb, offset, data_len, ENC_ASCII|ENC_NA );
 	weather_tree = proto_item_add_subtree( tc, ett_aprs_weather_idx );
 
 	ch = tvb_get_guint8( tvb, offset );
@@ -996,8 +988,12 @@ dissect_aprs_weather(	tvbuff_t   *tvb,
 					/* optional: software type/unit: see if present */
 					lr = new_offset - offset;
 #if 0 /* fcn'al change: defer */
+					/*
+					 * XXX - ASCII or UTF-8?
+					 * See http://www.aprs.org/aprs12/utf-8.txt
+					 */
 					if ( ((lr < 3) || (lr > 5)) ||
-						( lr != strspn( tvb_get_ephemeral_string( tvb, offset, lr ), "a-zA-Z0-9-_" ) ) )
+						( lr != strspn( tvb_get_string_enc( wmem_packet_scope(), tvb, offset, lr, ENC_ASCII|ENC_NA ), "a-zA-Z0-9-_" ) ) )
 						{
 						new_offset = offset;  /* Assume rest is a comment: force exit from while */
 						break;  /* from switch */
@@ -1065,7 +1061,7 @@ aprs_latitude_compressed( proto_tree *aprs_tree, tvbuff_t *tvb, int offset )
 		char *info_buffer;
 		int   temp;
 
-		info_buffer = (char *)ep_alloc( STRLEN );
+		info_buffer = (char *)wmem_alloc( wmem_packet_scope(), STRLEN );
 
 		temp = ( tvb_get_guint8( tvb, offset + 0 ) - 33 );
 		temp = ( tvb_get_guint8( tvb, offset + 1 ) - 33 ) + ( temp * 91 );
@@ -1086,7 +1082,7 @@ aprs_longitude_compressed( proto_tree *aprs_tree, tvbuff_t *tvb, int offset )
 		char *info_buffer;
 		int   temp;
 
-		info_buffer = (char *)ep_alloc( STRLEN );
+		info_buffer = (char *)wmem_alloc( wmem_packet_scope(), STRLEN );
 
 		temp = ( tvb_get_guint8( tvb, offset + 0 ) - 33 );
 		temp = ( tvb_get_guint8( tvb, offset + 1 ) - 33 ) + ( temp * 91 );
@@ -1129,7 +1125,11 @@ aprs_item( proto_tree *aprs_tree, tvbuff_t *tvb, int offset )
 
 	data_len    = 10;
 
-	info_buffer = tvb_get_ephemeral_string( tvb, offset, data_len );
+	/*
+	 * XXX - ASCII or UTF-8?
+	 * See http://www.aprs.org/aprs12/utf-8.txt
+	 */
+	info_buffer = tvb_get_string_enc( wmem_packet_scope(), tvb, offset, data_len, ENC_ASCII|ENC_NA );
 
 	ch_ptr = strchr( info_buffer, '!' );
 	if ( ch_ptr != NULL )
@@ -1298,8 +1298,7 @@ dissect_aprs( tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *
 
 	int	       offset;
 	guint8	       dti;
-	const guint8  *bufp;
-	emem_strbuf_t *sb;
+	wmem_strbuf_t *sb;
 
 	col_set_str( pinfo->cinfo, COL_PROTOCOL, "APRS" );
 	col_clear( pinfo->cinfo, COL_INFO );
@@ -1308,10 +1307,10 @@ dissect_aprs( tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *
 
 	dti	 = tvb_get_guint8( tvb, offset );
 
-	sb = ep_strbuf_new_label(NULL);
+	sb = wmem_strbuf_new_label(wmem_packet_scope());
 
 	if (dti != '!')
-		ep_strbuf_append(sb, val_to_str_ext_const(dti, &aprs_description_ext, ""));;
+		wmem_strbuf_append(sb, val_to_str_ext_const(dti, &aprs_description_ext, ""));
 
 	switch ( dti )
 		{
@@ -1319,62 +1318,63 @@ dissect_aprs( tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *
 			/* Position or Ultimeter 2000 WX Station */
 			if ( tvb_get_guint8( tvb, offset + 1 ) == '!' )
 				{
-				ep_strbuf_append( sb, "Ultimeter 2000 WX Station");
+				wmem_strbuf_append(sb, "Ultimeter 2000 WX Station");
 				}
 			else
 				{
 				/* Position "without APRS messaging" */
-				ep_strbuf_append( sb, "Position");
-				bufp = tvb_get_ptr(tvb, offset + 1, 8 + 9 + 1 + 1);
-				ep_strbuf_append_printf(sb, " (%8.8s %9.9s %1.1s%1.1s)",
-						bufp,			/* Lat */
-						bufp + 8 + 1,		/* Long */
-						bufp + 8,		/* Symbol table id */
-						bufp + 8 + 1 + 9	/* Symbol Code */
-				);
+				wmem_strbuf_append(sb, "Position (");
+				wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1, 8));	/* Lat */
+				wmem_strbuf_append(sb, " ");
+				wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1 + 8 + 1, 9));	/* Long */
+				wmem_strbuf_append(sb, " ");
+				wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1 + 8, 1));	/* Symbol table id */
+				wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1 + 8 + 1 + 9, 1));	/* Symbol Code */
 				}
 			break;
 
 		case '=':
 			/* Position "with APRS messaging" + Ext APRS message */
-			bufp = tvb_get_ptr(tvb, offset + 1, 8 + 9 + 1 + 1);
-			ep_strbuf_append_printf(sb, " (%8.8s %9.9s %1.1s%1.1s)",
-				bufp,			/* Lat */
-				bufp + 8 + 1,		/* Long */
-				bufp + 8 ,		/* Symbol table id */
-				bufp + 8 + 1 + 9	/* Symbol Code */
-			);
+			wmem_strbuf_append(sb, " (");
+			wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1, 8));	/* Lat */
+			wmem_strbuf_append(sb, " ");
+			wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1 + 8 + 1, 9));	/* Long */
+			wmem_strbuf_append(sb, " ");
+			wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1 + 8, 1));	/* Symbol table id */
+			wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1 + 8 + 1 + 9, 1));	/* Symbol Code */
 			break;
 
 		case '/':
 			/* Position + timestamp "without APRS messaging" */
-			bufp = tvb_get_ptr(tvb, offset + 1, 7 + 8 + 9 + 1 + 1);
-			ep_strbuf_append_printf(sb, " (%7.7s %8.8s %9.9s %1.1s%1.1s)",
-				bufp,			/* Timestamp */
-				bufp + 7 + 1,	/*??*/	/* Lat */
-				bufp + 7 + 8 + 1,	/* Long */
-				bufp + 7 ,		/* Symbol table id */
-				bufp + 7 + 1 + 9	/* Symbol Code */
-			);
+			wmem_strbuf_append(sb, " (");
+			wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1, 7));	/* Timestamp */
+			wmem_strbuf_append(sb, " ");
+			wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1 + 7 + 1, 8));    /*??*/	/* Lat */
+			wmem_strbuf_append(sb, " ");
+			wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1 + 7 + 8 + 1, 9));	/* Long */
+			wmem_strbuf_append(sb, " ");
+			wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1 + 7, 1));	/* Symbol table id */
+			wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1 + 7 + 1 + 9, 1));	/* Symbol Code */
 			break;
 
 		case '@':
 			/* Position + timestamp "with APRS messaging" + Ext APRS message */
-			bufp = tvb_get_ptr(tvb, offset + 1, 7 + 8 + 9 + 1 + 1);
-			ep_strbuf_append_printf(sb, " (%7.7s %8.8s %9.9s %1.1s%1.1s)",
-				bufp,			/* Timestamp */
-				bufp + 7 + 1,	/*??*/	/* Lat */
-				bufp + 7 + 8 + 1,	/* Long */
-				bufp + 7 ,		/* Symbol table id */
-				bufp + 7 + 1 + 9	/* Symbol Code */
-			);
+			wmem_strbuf_append(sb, " (");
+			wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1, 7));	/* Timestamp */
+			wmem_strbuf_append(sb, " ");
+			wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1 + 7 + 1, 8));    /*??*/	/* Lat */
+			wmem_strbuf_append(sb, " ");
+			wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1 + 7 + 8 + 1, 9));	/* Long */
+			wmem_strbuf_append(sb, " ");
+			wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1 + 7, 1));	/* Symbol table id */
+			wmem_strbuf_append(sb, tvb_format_text(tvb, offset + 1 + 7 + 1 + 9, 1));	/* Symbol Code */
 			break;
 		}
 
-	col_add_str( pinfo->cinfo, COL_INFO, sb->str );
+	col_add_str( pinfo->cinfo, COL_INFO, wmem_strbuf_get_str(sb) );
 
 	/* create display subtree for the protocol */
-	ti = proto_tree_add_protocol_format( parent_tree , proto_aprs, tvb, 0, -1, "%s", sb->str );
+	ti = proto_tree_add_protocol_format( parent_tree , proto_aprs, tvb, 0, -1, "%s", wmem_strbuf_get_str(sb) );
 	aprs_tree = proto_item_add_subtree( ti, ett_aprs );
 
 	proto_tree_add_item( aprs_tree, hf_aprs_dti, tvb, offset, 1, ENC_ASCII|ENC_NA );

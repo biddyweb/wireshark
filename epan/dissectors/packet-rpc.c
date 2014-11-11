@@ -2,8 +2,6 @@
  * Routines for rpc dissection
  * Copyright 1999, Uwe Girlich <Uwe.Girlich@philosys.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,19 +30,19 @@
 #include <string.h>
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
+#include <wsutil/pint.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/prefs.h>
 #include <epan/reassemble.h>
 #include <epan/tap.h>
 #include <epan/strutil.h>
 #include <epan/garrayfix.h>
-#include <epan/emem.h>
 #include <epan/show_exception.h>
 
 #include "packet-rpc.h"
 #include "packet-tcp.h"
-#include <epan/dissectors/rpc_defrag.h>
 #include "packet-nfs.h"
 
 /*
@@ -68,6 +66,8 @@
  *	protocols (ab)use AUTH_RSA for their own AUTH-flavor. AUTH_RSA is
  *	therefore dissected as the inofficial AUTH_GLUSTER.
  */
+void proto_register_rpc(void);
+void proto_reg_handoff_rpc(void);
 
 /* desegmentation of RPC over TCP */
 static gboolean rpc_desegment = TRUE;
@@ -299,8 +299,12 @@ GHashTable *rpc_progs = NULL;
 /* Hash table with info on RPC procedure numbers */
 GHashTable *rpc_procs = NULL;
 
+typedef gboolean (*rec_dissector_t)(tvbuff_t *, packet_info *, proto_tree *,
+	tvbuff_t *, fragment_head *, gboolean, guint32, gboolean);
+
 static void dissect_rpc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
-static void dissect_rpc_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+static void show_rpc_fraginfo(tvbuff_t *tvb, tvbuff_t *frag_tvb, proto_tree *tree,
+    guint32 rpc_rm, fragment_head *ipfd_head, packet_info *pinfo);
 
 /***********************************/
 /* Hash array with procedure names */
@@ -343,7 +347,7 @@ rpc_init_proc_table(guint prog, guint vers, const vsff *proc_table,
 	 * program.
 	 */
 	rpc_prog_key.prog = prog;
-	rpc_prog = g_hash_table_lookup(rpc_progs, &rpc_prog_key);
+	rpc_prog = (rpc_prog_info_value *)g_hash_table_lookup(rpc_progs, &rpc_prog_key);
 	DISSECTOR_ASSERT(rpc_prog != NULL);
 	rpc_prog->procedure_hfs = g_array_set_size(rpc_prog->procedure_hfs,
 	    vers);
@@ -374,18 +378,18 @@ rpc_proc_name(guint32 prog, guint32 vers, guint32 proc)
 {
 	rpc_proc_info_key key;
 	rpc_proc_info_value *value;
-	char *procname;
+	const char *procname;
 
 	key.prog = prog;
 	key.vers = vers;
 	key.proc = proc;
 
-	if ((value = g_hash_table_lookup(rpc_procs,&key)) != NULL)
-		procname = (char *)value->name;
+	if ((value = (rpc_proc_info_value *)g_hash_table_lookup(rpc_procs,&key)) != NULL)
+		procname = value->name;
 	else {
 		/* happens only with strange program versions or
 		   non-existing dissectors */
-		procname = ep_strdup_printf("proc-%u", key.proc);
+		procname = wmem_strdup_printf(wmem_packet_scope(), "proc-%u", key.proc);
 	}
 	return procname;
 }
@@ -451,7 +455,7 @@ rpc_prog_hf(guint32 prog, guint32 vers)
 	rpc_prog_info_value     *rpc_prog;
 
 	rpc_prog_key.prog = prog;
-	if ((rpc_prog = g_hash_table_lookup(rpc_progs,&rpc_prog_key))) {
+	if ((rpc_prog = (rpc_prog_info_value *)g_hash_table_lookup(rpc_progs,&rpc_prog_key))) {
 		return g_array_index(rpc_prog->procedure_hfs, int, vers);
 	}
 	return -1;
@@ -468,7 +472,7 @@ rpc_prog_name(guint32 prog)
 	rpc_prog_info_value     *rpc_prog;
 
 	rpc_prog_key.prog = prog;
-	if ((rpc_prog = g_hash_table_lookup(rpc_progs,&rpc_prog_key)) == NULL) {
+	if ((rpc_prog = (rpc_prog_info_value *)g_hash_table_lookup(rpc_progs,&rpc_prog_key)) == NULL) {
 		progname = "Unknown";
 	}
 	else {
@@ -486,7 +490,7 @@ rpc_prog_name(guint32 prog)
  * RPC and contains the state we need to maintain for the conversation.
  */
 typedef struct _rpc_conv_info_t {
-        emem_tree_t *xids;
+        wmem_tree_t *xids;
 } rpc_conv_info_t;
 
 
@@ -495,7 +499,7 @@ typedef struct _rpc_conv_info_t {
    a global tree for all contexts should still be unlikely to have collissions
    here.
 */
-emem_tree_t *authgss_contexts = NULL;
+wmem_tree_t *authgss_contexts = NULL;
 
 unsigned int
 rpc_roundup(unsigned int a)
@@ -514,8 +518,7 @@ int
 dissect_rpc_bool(tvbuff_t *tvb, proto_tree *tree,
 		 int hfindex, int offset)
 {
-	if (tree)
-		proto_tree_add_item(tree, hfindex, tvb, offset, 4, ENC_BIG_ENDIAN);
+	proto_tree_add_item(tree, hfindex, tvb, offset, 4, ENC_BIG_ENDIAN);
 	return offset + 4;
 }
 
@@ -524,8 +527,7 @@ int
 dissect_rpc_uint32(tvbuff_t *tvb, proto_tree *tree,
 		   int hfindex, int offset)
 {
-	if (tree)
-		proto_tree_add_item(tree, hfindex, tvb, offset, 4, ENC_BIG_ENDIAN);
+	proto_tree_add_item(tree, hfindex, tvb, offset, 4, ENC_BIG_ENDIAN);
 	return offset + 4;
 }
 
@@ -538,8 +540,7 @@ dissect_rpc_uint64(tvbuff_t *tvb, proto_tree *tree,
 
 	hfinfo = proto_registrar_get_nth(hfindex);
 	DISSECTOR_ASSERT(hfinfo->type == FT_UINT64);
-	if (tree)
-		proto_tree_add_item(tree, hfindex, tvb, offset, 8, ENC_BIG_ENDIAN);
+	proto_tree_add_item(tree, hfindex, tvb, offset, 8, ENC_BIG_ENDIAN);
 
 	return offset + 8;
 }
@@ -636,14 +637,14 @@ dissect_rpc_opaque_data(tvbuff_t *tvb, int offset,
           opaque_tvb = tvb_new_subset(tvb, data_offset, string_length_copy,
                                       string_length);
 
-          return (*dissect_it)(opaque_tvb, offset, pinfo, tree);
+          return (*dissect_it)(opaque_tvb, offset, pinfo, tree, NULL);
 
         }
 
 	if (string_data) {
-		string_buffer = tvb_get_ephemeral_string(tvb, data_offset, string_length_copy);
+		string_buffer = tvb_get_string(wmem_packet_scope(), tvb, data_offset, string_length_copy);
 	} else {
-		string_buffer = tvb_memcpy(tvb, ep_alloc(string_length_copy+1), data_offset, string_length_copy);
+		string_buffer = (char *)tvb_memcpy(tvb, wmem_alloc(wmem_packet_scope(), string_length_copy+1), data_offset, string_length_copy);
 	}
 	string_buffer[string_length_copy] = '\0';
 	/* calculate a nice printable string */
@@ -654,14 +655,14 @@ dissect_rpc_opaque_data(tvbuff_t *tvb, int offset,
 
 				formatted = format_text(string_buffer, strlen(string_buffer));
 				/* copy over the data and append <TRUNCATED> */
-				string_buffer_print=ep_strdup_printf("%s%s", formatted, RPC_STRING_TRUNCATED);
+				string_buffer_print=wmem_strdup_printf(wmem_packet_scope(), "%s%s", formatted, RPC_STRING_TRUNCATED);
 			} else {
 				string_buffer_print=RPC_STRING_DATA RPC_STRING_TRUNCATED;
 			}
 		} else {
 			if (string_data) {
 				string_buffer_print =
-				    ep_strdup(format_text(string_buffer, strlen(string_buffer)));
+				    wmem_strdup(wmem_packet_scope(), format_text(string_buffer, strlen(string_buffer)));
 			} else {
 				string_buffer_print=RPC_STRING_DATA;
 			}
@@ -766,7 +767,7 @@ dissect_rpc_bytes(tvbuff_t *tvb, proto_tree *tree,
 
 int
 dissect_rpc_list(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
-	int offset, dissect_function_t *rpc_list_dissector)
+		 int offset, dissect_function_t *rpc_list_dissector, void *data)
 {
 	guint32 value_follows;
 
@@ -776,7 +777,8 @@ dissect_rpc_list(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			offset, 4, value_follows);
 		offset += 4;
 		if (value_follows == 1) {
-			offset = rpc_list_dissector(tvb, offset, pinfo, tree);
+			offset = rpc_list_dissector(tvb, offset, pinfo, tree,
+						    data);
 		}
 		else {
 			break;
@@ -814,7 +816,7 @@ dissect_rpc_array(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			hf_rpc_array_len, offset);
 
 	while (num--) {
-		offset = rpc_array_dissector(tvb, offset, pinfo, lock_tree);
+		offset = rpc_array_dissector(tvb, offset, pinfo, lock_tree, NULL);
 	}
 
 	proto_item_set_end(lock_item, tvb, offset);
@@ -876,24 +878,21 @@ dissect_rpc_authunix_cred(tvbuff_t* tvb, proto_tree* tree, int offset)
 	guint gid;
 
 	stamp = tvb_get_ntohl(tvb,offset);
-	if (tree)
-		proto_tree_add_uint(tree, hf_rpc_auth_stamp, tvb,
-			offset, 4, stamp);
+	proto_tree_add_uint(tree, hf_rpc_auth_stamp, tvb,
+			    offset, 4, stamp);
 	offset += 4;
 
 	offset = dissect_rpc_string(tvb, tree,
 			hf_rpc_auth_machinename, offset, NULL);
 
 	uid = tvb_get_ntohl(tvb,offset);
-	if (tree)
-		proto_tree_add_uint(tree, hf_rpc_auth_uid, tvb,
-			offset, 4, uid);
+	proto_tree_add_uint(tree, hf_rpc_auth_uid, tvb,
+			    offset, 4, uid);
 	offset += 4;
 
 	gid = tvb_get_ntohl(tvb,offset);
-	if (tree)
-		proto_tree_add_uint(tree, hf_rpc_auth_gid, tvb,
-			offset, 4, gid);
+	proto_tree_add_uint(tree, hf_rpc_auth_gid, tvb,
+			    offset, 4, gid);
 	offset += 4;
 
 	offset = dissect_rpc_authunix_groups(tvb, tree, offset);
@@ -918,7 +917,7 @@ dissect_rpc_authgss_context(proto_tree *tree, tvbuff_t *tvb, int offset,
 	int context_offset;
 	guint32 context_length;
 	gssauth_context_info_t *context_info;
-	emem_tree_key_t tkey[2];
+	wmem_tree_key_t tkey[2];
 	guint32 key[4] = {0,0,0,0};
 
 	context_item = proto_tree_add_text(tree, tvb, offset, -1,
@@ -948,7 +947,7 @@ dissect_rpc_authgss_context(proto_tree *tree, tvbuff_t *tvb, int offset,
 	tkey[1].length = 0;
 	tkey[1].key  = NULL;
 
-	context_info = se_tree_lookup32_array(authgss_contexts, &tkey[0]);
+	context_info = (gssauth_context_info_t *)wmem_tree_lookup32_array(authgss_contexts, &tkey[0]);
 	if(context_info == NULL) {
 		tvb_memcpy(tvb, key, context_offset, context_length);
 		tkey[0].length = 4;
@@ -956,10 +955,10 @@ dissect_rpc_authgss_context(proto_tree *tree, tvbuff_t *tvb, int offset,
 		tkey[1].length = 0;
 		tkey[1].key  = NULL;
 
-	   	context_info = se_alloc(sizeof(gssauth_context_info_t));
+	   	context_info = wmem_new(wmem_file_scope(), gssauth_context_info_t);
 		context_info->create_frame  = 0;
 		context_info->destroy_frame = 0;
-		se_tree_insert32_array(authgss_contexts, &tkey[0], context_info);
+		wmem_tree_insert32_array(authgss_contexts, &tkey[0], context_info);
 	}
 	if (is_create) {
 		context_info->create_frame = pinfo->fd->num;
@@ -995,27 +994,23 @@ dissect_rpc_authgss_cred(tvbuff_t* tvb, proto_tree* tree, int offset,
 	guint agc_svc;
 
 	agc_v = tvb_get_ntohl(tvb, offset);
-	if (tree)
-		proto_tree_add_uint(tree, hf_rpc_authgss_v,
-				    tvb, offset, 4, agc_v);
+	proto_tree_add_uint(tree, hf_rpc_authgss_v,
+			    tvb, offset, 4, agc_v);
 	offset += 4;
 
 	agc_proc = tvb_get_ntohl(tvb, offset);
-	if (tree)
-		proto_tree_add_uint(tree, hf_rpc_authgss_proc,
-				    tvb, offset, 4, agc_proc);
+	proto_tree_add_uint(tree, hf_rpc_authgss_proc,
+			    tvb, offset, 4, agc_proc);
 	offset += 4;
 
 	agc_seq = tvb_get_ntohl(tvb, offset);
-	if (tree)
-		proto_tree_add_uint(tree, hf_rpc_authgss_seq,
-				    tvb, offset, 4, agc_seq);
+	proto_tree_add_uint(tree, hf_rpc_authgss_seq,
+			    tvb, offset, 4, agc_seq);
 	offset += 4;
 
 	agc_svc = tvb_get_ntohl(tvb, offset);
-	if (tree)
-		proto_tree_add_uint(tree, hf_rpc_authgss_svc,
-				    tvb, offset, 4, agc_svc);
+	proto_tree_add_uint(tree, hf_rpc_authgss_svc,
+			    tvb, offset, 4, agc_svc);
 	offset += 4;
 
 	offset = dissect_rpc_authgss_context(tree, tvb, offset, pinfo, rpc_conv_info, FALSE, agc_proc == RPCSEC_GSS_DESTROY ? TRUE : FALSE);
@@ -1050,9 +1045,8 @@ dissect_rpc_authdes_cred(tvbuff_t* tvb, proto_tree* tree, int offset)
 	guint nickname = 0;
 
 	adc_namekind = tvb_get_ntohl(tvb, offset);
-	if (tree)
-		proto_tree_add_uint(tree, hf_rpc_authdes_namekind,
-				    tvb, offset, 4, adc_namekind);
+	proto_tree_add_uint(tree, hf_rpc_authdes_namekind,
+			    tvb, offset, 4, adc_namekind);
 	offset += 4;
 
 	switch(adc_namekind)
@@ -1082,9 +1076,8 @@ dissect_rpc_authdes_cred(tvbuff_t* tvb, proto_tree* tree, int offset)
 static int
 dissect_rpc_authgluster_cred(tvbuff_t* tvb, proto_tree* tree, int offset)
 {
-	if (tree)
-		proto_tree_add_item(tree, hf_rpc_auth_lk_owner, tvb, offset,
-								8, ENC_NA);
+	proto_tree_add_item(tree, hf_rpc_auth_lk_owner, tvb, offset,
+			    8, ENC_NA);
 	offset += 8;
 
 	offset = dissect_rpc_uint32(tvb, tree, hf_rpc_auth_pid, offset);
@@ -1108,9 +1101,8 @@ dissect_rpc_authglusterfs_v2_cred(tvbuff_t* tvb, proto_tree* tree, int offset)
 	len = tvb_get_ntohl(tvb, offset);
 	offset += 4;
 
-	if (tree)
-		proto_tree_add_item(tree, hf_rpc_auth_lk_owner, tvb, offset,
-								len, ENC_NA);
+	proto_tree_add_item(tree, hf_rpc_auth_lk_owner, tvb, offset,
+			    len, ENC_NA);
 	offset += len;
 
 	return offset;
@@ -1123,15 +1115,13 @@ dissect_rpc_authgssapi_cred(tvbuff_t* tvb, proto_tree* tree, int offset)
 	guint agc_msg;
 
 	agc_v = tvb_get_ntohl(tvb, offset);
-	if (tree)
-		proto_tree_add_uint(tree, hf_rpc_authgssapi_v,
-				    tvb, offset, 4, agc_v);
+	proto_tree_add_uint(tree, hf_rpc_authgssapi_v,
+			    tvb, offset, 4, agc_v);
 	offset += 4;
 
 	agc_msg = tvb_get_ntohl(tvb, offset);
-	if (tree)
-		proto_tree_add_boolean(tree, hf_rpc_authgssapi_msg,
-				    tvb, offset, 4, agc_msg);
+	proto_tree_add_boolean(tree, hf_rpc_authgssapi_msg,
+			       tvb, offset, 4, agc_msg);
 	offset += 4;
 
 	offset = dissect_rpc_data(tvb, tree, hf_rpc_authgssapi_handle,
@@ -1222,13 +1212,13 @@ dissect_rpc_authgss_token(tvbuff_t* tvb, proto_tree* tree, int offset,
 
 	opaque_length = tvb_get_ntohl(tvb, offset);
 	rounded_length = rpc_roundup(opaque_length);
-	if (tree) {
-		gitem = proto_tree_add_item(tree, hfindex, tvb, offset, 4+rounded_length, ENC_NA);
-		gtree = proto_item_add_subtree(gitem, ett_rpc_gss_token);
-		proto_tree_add_uint(gtree, hf_rpc_authgss_token_length,
-				    tvb, offset, 4, opaque_length);
-	}
+
+	gitem = proto_tree_add_item(tree, hfindex, tvb, offset, 4+rounded_length, ENC_NA);
+	gtree = proto_item_add_subtree(gitem, ett_rpc_gss_token);
+	proto_tree_add_uint(gtree, hf_rpc_authgss_token_length,
+			    tvb, offset, 4, opaque_length);
 	offset += 4;
+
 	if (opaque_length != 0) {
 		length = tvb_length_remaining(tvb, offset);
 		reported_length = tvb_reported_length_remaining(tvb, offset);
@@ -1337,21 +1327,18 @@ dissect_rpc_authgss_initres(tvbuff_t* tvb, proto_tree* tree, int offset,
 	offset = dissect_rpc_authgss_context(tree, tvb, offset, pinfo, rpc_conv_info, TRUE, FALSE);
 
 	major = tvb_get_ntohl(tvb,offset);
-	if (tree)
-		proto_tree_add_uint(tree, hf_rpc_authgss_major, tvb,
-				    offset, 4, major);
+	proto_tree_add_uint(tree, hf_rpc_authgss_major, tvb,
+			    offset, 4, major);
 	offset += 4;
 
 	minor = tvb_get_ntohl(tvb,offset);
-	if (tree)
-		proto_tree_add_uint(tree, hf_rpc_authgss_minor, tvb,
-				    offset, 4, minor);
+	proto_tree_add_uint(tree, hf_rpc_authgss_minor, tvb,
+			    offset, 4, minor);
 	offset += 4;
 
 	window = tvb_get_ntohl(tvb,offset);
-	if (tree)
-		proto_tree_add_uint(tree, hf_rpc_authgss_window, tvb,
-				    offset, 4, window);
+	proto_tree_add_uint(tree, hf_rpc_authgss_window, tvb,
+			    offset, 4, window);
 	offset += 4;
 
 	offset = dissect_rpc_authgss_token(tvb, tree, offset, pinfo, hf_rpc_authgss_token);
@@ -1440,7 +1427,8 @@ dissect_auth_gssapi_data(tvbuff_t *tvb, proto_tree *tree, int offset)
 
 static int
 call_dissect_function(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
-	int offset, dissect_function_t* dissect_function, const char *progname)
+	int offset, dissect_function_t* dissect_function, const char *progname,
+	rpc_call_info_value *rpc_call)
 {
 	const char *saved_proto;
 
@@ -1452,7 +1440,7 @@ call_dissect_function(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			pinfo->current_proto = progname;
 
 		/* call the dissector for the next level */
-		offset = dissect_function(tvb, offset, pinfo, tree);
+		offset = dissect_function(tvb, offset, pinfo, tree, rpc_call);
 
 		/* restore the protocol name */
 		pinfo->current_proto = saved_proto;
@@ -1466,7 +1454,7 @@ static int
 dissect_rpc_authgss_integ_data(tvbuff_t *tvb, packet_info *pinfo,
 	proto_tree *tree, int offset,
 	dissect_function_t* dissect_function,
-	const char *progname)
+	const char *progname, rpc_call_info_value *rpc_call)
 {
 	guint32 length, rounded_length, seq;
 
@@ -1477,21 +1465,19 @@ dissect_rpc_authgss_integ_data(tvbuff_t *tvb, packet_info *pinfo,
 	rounded_length = rpc_roundup(length);
 	seq = tvb_get_ntohl(tvb, offset+4);
 
-	if (tree) {
-		gitem = proto_tree_add_text(tree, tvb, offset,
-					    4+rounded_length, "GSS Data");
-		gtree = proto_item_add_subtree(gitem, ett_rpc_gss_data);
-		proto_tree_add_uint(gtree, hf_rpc_authgss_data_length,
-				    tvb, offset, 4, length);
-		proto_tree_add_uint(gtree, hf_rpc_authgss_seq,
-				    tvb, offset+4, 4, seq);
-	}
+	gitem = proto_tree_add_text(tree, tvb, offset,
+				    4+rounded_length, "GSS Data");
+	gtree = proto_item_add_subtree(gitem, ett_rpc_gss_data);
+	proto_tree_add_uint(gtree, hf_rpc_authgss_data_length,
+			    tvb, offset, 4, length);
+	proto_tree_add_uint(gtree, hf_rpc_authgss_seq,
+			    tvb, offset+4, 4, seq);
 	offset += 8;
 
 	if (dissect_function != NULL) {
 		/* offset = */
 		call_dissect_function(tvb, pinfo, gtree, offset,
-				      dissect_function, progname);
+				      dissect_function, progname, rpc_call);
 	}
 	offset += rounded_length - 4;
 	offset = dissect_rpc_authgss_token(tvb, tree, offset, pinfo, hf_rpc_authgss_checksum);
@@ -1560,7 +1546,7 @@ dissect_rpc_indir_call(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	key.prog = prog;
 	key.vers = vers;
 	key.proc = proc;
-	if ((value = g_hash_table_lookup(rpc_procs,&key)) != NULL) {
+	if ((value = (rpc_proc_info_value *)g_hash_table_lookup(rpc_procs,&key)) != NULL) {
 		dissect_function = value->dissect_call;
 
 		/* Keep track of the address whence the call came, and the
@@ -1618,13 +1604,13 @@ dissect_rpc_indir_call(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		/*
 		 * Do we already have a state structure for this conv
 		 */
-		rpc_conv_info = conversation_get_proto_data(conversation, proto_rpc);
+		rpc_conv_info = (rpc_conv_info_t *)conversation_get_proto_data(conversation, proto_rpc);
 		if (!rpc_conv_info) {
 			/* No.  Attach that information to the conversation, and add
 			 * it to the list of information structures.
 			 */
-			rpc_conv_info = se_alloc(sizeof(rpc_conv_info_t));
-			rpc_conv_info->xids=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "rpc_xids");
+			rpc_conv_info = wmem_new(wmem_file_scope(), rpc_conv_info_t);
+			rpc_conv_info->xids=wmem_tree_new(wmem_file_scope());
 
 			conversation_add_proto_data(conversation, proto_rpc, rpc_conv_info);
 		}
@@ -1640,13 +1626,13 @@ dissect_rpc_indir_call(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		   as such, the XID is at offset 0 in this tvbuff. */
 		/* look up the request */
 		xid = tvb_get_ntohl(tvb, offset);
-		rpc_call = se_tree_lookup32(rpc_conv_info->xids, xid);
+		rpc_call = (rpc_call_info_value *)wmem_tree_lookup32(rpc_conv_info->xids, xid);
 		if (rpc_call == NULL) {
 			/* We didn't find it; create a new entry.
 			   Prepare the value data.
 			   Not all of it is needed for handling indirect
 			   calls, so we set a bunch of items to 0. */
-			rpc_call = se_alloc(sizeof(rpc_call_info_value));
+			rpc_call = wmem_new(wmem_file_scope(), rpc_call_info_value);
 			rpc_call->req_num = 0;
 			rpc_call->rep_num = 0;
 			rpc_call->prog = prog;
@@ -1663,7 +1649,7 @@ dissect_rpc_indir_call(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			rpc_call->gss_svc = 0;
 			rpc_call->proc_info = value;
 			/* store it */
-			se_tree_insert32(rpc_conv_info->xids, xid, (void *)rpc_call);
+			wmem_tree_insert32(rpc_conv_info->xids, xid, (void *)rpc_call);
 		}
 	}
 	else {
@@ -1686,7 +1672,7 @@ dissect_rpc_indir_call(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
 	/* Dissect the arguments */
 	offset = call_dissect_function(tvb, pinfo, tree, offset,
-			dissect_function, NULL);
+			dissect_function, NULL, rpc_call);
 	return offset;
 }
 
@@ -1701,7 +1687,7 @@ dissect_rpc_indir_reply(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	conversation_t* conversation;
 	static address null_address = { AT_NONE, -1, 0, NULL };
 	rpc_call_info_value *rpc_call;
-	char *procname=NULL;
+	const char *procname=NULL;
 	dissect_function_t *dissect_function = NULL;
 	rpc_conv_info_t *rpc_conv_info=NULL;
 	guint32 xid;
@@ -1750,19 +1736,19 @@ dissect_rpc_indir_reply(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	/*
 	 * Do we already have a state structure for this conv
 	 */
-	rpc_conv_info = conversation_get_proto_data(conversation, proto_rpc);
+	rpc_conv_info = (rpc_conv_info_t *)conversation_get_proto_data(conversation, proto_rpc);
 	if (!rpc_conv_info) {
 		/* No.  Attach that information to the conversation, and add
 		 * it to the list of information structures.
 		 */
-		rpc_conv_info = se_alloc(sizeof(rpc_conv_info_t));
-		rpc_conv_info->xids=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "rpc_xids");
+		rpc_conv_info = wmem_new(wmem_file_scope(), rpc_conv_info_t);
+		rpc_conv_info->xids=wmem_tree_new(wmem_file_scope());
 		conversation_add_proto_data(conversation, proto_rpc, rpc_conv_info);
 	}
 
 	/* The XIDs of the call and reply must match. */
 	xid = tvb_get_ntohl(tvb, 0);
-	rpc_call = se_tree_lookup32(rpc_conv_info->xids, xid);
+	rpc_call = (rpc_call_info_value *)wmem_tree_lookup32(rpc_conv_info->xids, xid);
 	if (rpc_call == NULL) {
 		/* The XID doesn't match a call from that
 		   conversation, so it's probably not an RPC reply.
@@ -1775,17 +1761,17 @@ dissect_rpc_indir_reply(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	if (rpc_call->proc_info != NULL) {
 		dissect_function = rpc_call->proc_info->dissect_reply;
 		if (rpc_call->proc_info->name != NULL) {
-			procname = (char *)rpc_call->proc_info->name;
+			procname = rpc_call->proc_info->name;
 		}
 		else {
-			procname=ep_strdup_printf("proc-%u", rpc_call->proc);
+			procname=wmem_strdup_printf(wmem_packet_scope(), "proc-%u", rpc_call->proc);
 		}
 	}
 	else {
 #if 0
 		dissect_function = NULL;
 #endif
-		procname=ep_strdup_printf("proc-%u", rpc_call->proc);
+		procname=wmem_strdup_printf(wmem_packet_scope(), "proc-%u", rpc_call->proc);
 	}
 
 	if ( tree )
@@ -1815,17 +1801,14 @@ dissect_rpc_indir_reply(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		return offset;
 	}
 
-	if (tree) {
-		/* Put the length of the reply value into the tree. */
-		proto_tree_add_text(tree, tvb, offset, 4,
-			"Argument length: %u",
-			tvb_get_ntohl(tvb, offset));
-	}
+	/* Put the length of the reply value into the tree. */
+	proto_tree_add_text(tree, tvb, offset, 4, "Argument length: %u",
+			    tvb_get_ntohl(tvb, offset));
 	offset += 4;
 
 	/* Dissect the return value */
 	offset = call_dissect_function(tvb, pinfo, tree, offset,
-			dissect_function, NULL);
+			dissect_function, NULL, rpc_call);
 	return offset;
 }
 
@@ -1887,7 +1870,7 @@ make_fake_rpc_prog_if_needed (rpc_prog_info_key *prpc_prog_key, guint prog_ver)
 
 static gboolean
 dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
-    tvbuff_t *frag_tvb, fragment_data *ipfd_head, gboolean is_tcp,
+    tvbuff_t *frag_tvb, fragment_head *ipfd_head, gboolean is_tcp,
     guint32 rpc_rm, gboolean first_pdu)
 {
 	guint32	msg_type;
@@ -1914,7 +1897,7 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
 	const char *msg_type_name = NULL;
 	const char *progname = NULL;
-	char *procname = NULL;
+	const char *procname = NULL;
 
 	unsigned int vers_low;
 	unsigned int vers_high;
@@ -2005,7 +1988,7 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			version=tvb_get_ntohl(tvb, offset+16);
 			make_fake_rpc_prog_if_needed (&rpc_prog_key, version);
 		}
-		if( (rpc_prog = g_hash_table_lookup(rpc_progs, &rpc_prog_key)) == NULL) {
+		if( (rpc_prog = (rpc_prog_info_value *)g_hash_table_lookup(rpc_progs, &rpc_prog_key)) == NULL) {
 			/* They're not, so it's probably not an RPC call. */
 			return FALSE;
 		}
@@ -2055,20 +2038,20 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		/*
 		 * Do we already have a state structure for this conv
 		 */
-		rpc_conv_info = conversation_get_proto_data(conversation, proto_rpc);
+		rpc_conv_info = (rpc_conv_info_t *)conversation_get_proto_data(conversation, proto_rpc);
 		if (!rpc_conv_info) {
 			/* No.  Attach that information to the conversation, and add
 			 * it to the list of information structures.
 			 */
-			rpc_conv_info = se_alloc(sizeof(rpc_conv_info_t));
-			rpc_conv_info->xids=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "rpc_xids");
+			rpc_conv_info = wmem_new(wmem_file_scope(), rpc_conv_info_t);
+			rpc_conv_info->xids=wmem_tree_new(wmem_file_scope());
 
 			conversation_add_proto_data(conversation, proto_rpc, rpc_conv_info);
 		}
 
 		/* The XIDs of the call and reply must match. */
 		xid = tvb_get_ntohl(tvb, offset);
-		rpc_call = se_tree_lookup32(rpc_conv_info->xids, xid);
+		rpc_call = (rpc_call_info_value *)wmem_tree_lookup32(rpc_conv_info->xids, xid);
 		if (rpc_call == NULL) {
 			/* The XID doesn't match a call from that
 			   conversation, so it's probably not an RPC reply. */
@@ -2080,7 +2063,7 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			}
 
 			/* in parse-partials, so define a dummy conversation for this reply */
-			rpc_call = se_alloc(sizeof(rpc_call_info_value));
+			rpc_call = wmem_new(wmem_file_scope(), rpc_call_info_value);
 			rpc_call->req_num = 0;
 			rpc_call->rep_num = pinfo->fd->num;
 			rpc_call->prog = 0;
@@ -2095,7 +2078,7 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			rpc_call->req_time = pinfo->fd->abs_ts;
 
 			/* store it */
-			se_tree_insert32(rpc_conv_info->xids, xid, (void *)rpc_call);
+			wmem_tree_insert32(rpc_conv_info->xids, xid, (void *)rpc_call);
 
 			/* and fake up a matching program */
 			rpc_prog_key.prog = rpc_call->prog;
@@ -2103,7 +2086,6 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
 		/* pass rpc_info to subdissectors */
 		rpc_call->request=FALSE;
-		pinfo->private_data=rpc_call;
 		break;
 
 	default:
@@ -2143,10 +2125,8 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	}
 
 	xid      = tvb_get_ntohl(tvb, offset);
-	if (rpc_tree) {
-		proto_tree_add_uint_format(rpc_tree,hf_rpc_xid, tvb,
-			offset, 4, xid, "XID: 0x%x (%u)", xid, xid);
-	}
+	proto_tree_add_item(rpc_tree,hf_rpc_xid, tvb,
+			offset, 4, ENC_BIG_ENDIAN);
 
 	msg_type_name = val_to_str(msg_type,rpc_msg_type,"%u");
 	if (rpc_tree) {
@@ -2176,9 +2156,9 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		prog = tvb_get_ntohl(tvb, offset + 4);
 
 		if (rpc_tree) {
-			proto_tree_add_uint_format(rpc_tree,
+			proto_tree_add_uint_format_value(rpc_tree,
 				hf_rpc_program, tvb, offset+4, 4, prog,
-				"Program: %s (%u)", progname, prog);
+				"%s (%u)", progname, prog);
 		}
 
 		/* Set the protocol name to the underlying
@@ -2197,9 +2177,9 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		key.vers = vers;
 		key.proc = proc;
 
-		if ((value = g_hash_table_lookup(rpc_procs,&key)) != NULL) {
+		if ((value = (rpc_proc_info_value *)g_hash_table_lookup(rpc_procs,&key)) != NULL) {
 			dissect_function = value->dissect_call;
-			procname = (char *)value->name;
+			procname = value->name;
 		}
 		else {
 			/* happens only with strange program versions or
@@ -2207,7 +2187,7 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 #if 0
 			dissect_function = NULL;
 #endif
-			procname=ep_strdup_printf("proc-%u", proc);
+			procname=wmem_strdup_printf(wmem_packet_scope(), "proc-%u", proc);
 		}
 
 		/* Check for RPCSEC_GSS and AUTH_GSSAPI */
@@ -2245,8 +2225,7 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 					if (tvb_get_ntohl(tvb, offset+28)) {
 						flavor = FLAVOR_AUTHGSSAPI_MSG;
 						gss_proc = proc;
-						procname = (char *)
-						    val_to_str(gss_proc,
+						procname = val_to_str(gss_proc,
 						    rpc_authgssapi_proc, "Unknown (%d)");
 					} else {
 						flavor = FLAVOR_AUTHGSSAPI;
@@ -2264,9 +2243,9 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		}
 
 		if (rpc_tree) {
-			proto_tree_add_uint_format(rpc_tree,
+			proto_tree_add_uint_format_value(rpc_tree,
 				hf_rpc_procedure, tvb, offset+12, 4, proc,
-				"Procedure: %s (%u)", procname, proc);
+				"%s (%u)", procname, proc);
 		}
 
 		/* Print the program version, procedure name, and message type (call or reply). */
@@ -2333,13 +2312,13 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		/*
 		 * Do we already have a state structure for this conv
 		 */
-		rpc_conv_info = conversation_get_proto_data(conversation, proto_rpc);
+		rpc_conv_info = (rpc_conv_info_t *)conversation_get_proto_data(conversation, proto_rpc);
 		if (!rpc_conv_info) {
 			/* No.  Attach that information to the conversation, and add
 			 * it to the list of information structures.
 			 */
-			rpc_conv_info = se_alloc(sizeof(rpc_conv_info_t));
-			rpc_conv_info->xids=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "rpc_xids");
+			rpc_conv_info = wmem_new(wmem_file_scope(), rpc_conv_info_t);
+			rpc_conv_info->xids=wmem_tree_new(wmem_file_scope());
 			conversation_add_proto_data(conversation, proto_rpc, rpc_conv_info);
 		}
 
@@ -2350,7 +2329,7 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			(pinfo->ptype == PT_TCP) ? rpc_tcp_handle : rpc_handle);
 
 		/* look up the request */
-		rpc_call = se_tree_lookup32(rpc_conv_info->xids, xid);
+		rpc_call = (rpc_call_info_value *)wmem_tree_lookup32(rpc_conv_info->xids, xid);
 		if (rpc_call) {
 			/* We've seen a request with this XID, with the same
 			   source and destination, before - but was it
@@ -2375,7 +2354,7 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			   frame numbers are 1-origin, so we use 0
 			   to mean "we don't yet know in which frame
 			   the reply for this call appears". */
-			rpc_call = se_alloc(sizeof(rpc_call_info_value));
+			rpc_call = wmem_new(wmem_file_scope(), rpc_call_info_value);
 			rpc_call->req_num = pinfo->fd->num;
 			rpc_call->rep_num = 0;
 			rpc_call->prog = prog;
@@ -2390,7 +2369,7 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			rpc_call->req_time = pinfo->fd->abs_ts;
 
 			/* store it */
-			se_tree_insert32(rpc_conv_info->xids, xid, (void *)rpc_call);
+			wmem_tree_insert32(rpc_conv_info->xids, xid, (void *)rpc_call);
 		}
 
 		if(rpc_call->rep_num){
@@ -2408,7 +2387,6 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		offset = dissect_rpc_cred(tvb, rpc_tree, offset, pinfo, rpc_conv_info);
 		/* pass rpc_info to subdissectors */
 		rpc_call->request=TRUE;
-		pinfo->private_data=rpc_call;
 
 		if (gss_proc == RPCSEC_GSS_DESTROY) {
 			/* there is no verifier for GSS destroy packets */
@@ -2434,17 +2412,17 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		if (rpc_call->proc_info != NULL) {
 			dissect_function = rpc_call->proc_info->dissect_reply;
 			if (rpc_call->proc_info->name != NULL) {
-				procname = (char *)rpc_call->proc_info->name;
+				procname = rpc_call->proc_info->name;
 			}
 			else {
-				procname=ep_strdup_printf("proc-%u", proc);
+				procname=wmem_strdup_printf(wmem_packet_scope(), "proc-%u", proc);
 			}
 		}
 		else {
 #if 0
 			dissect_function = NULL;
 #endif
-			procname=ep_strdup_printf("proc-%u", proc);
+			procname=wmem_strdup_printf(wmem_packet_scope(), "proc-%u", proc);
 		}
 
 		/*
@@ -2455,11 +2433,11 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		 * AUTH_GSSAPI procname.
 		 */
 		if (flavor == FLAVOR_AUTHGSSAPI_MSG) {
-			procname = (char *)val_to_str_const(gss_proc, rpc_authgssapi_proc, "(null)");
+			procname = val_to_str_const(gss_proc, rpc_authgssapi_proc, "(null)");
 		}
 
 		rpc_prog_key.prog = prog;
-		if ((rpc_prog = g_hash_table_lookup(rpc_progs,&rpc_prog_key)) == NULL) {
+		if ((rpc_prog = (rpc_prog_info_value *)g_hash_table_lookup(rpc_progs,&rpc_prog_key)) == NULL) {
 			proto = NULL;
 			proto_id = 0;
 			ett = 0;
@@ -2491,16 +2469,16 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
 		if (rpc_tree) {
 			proto_item *tmp_item;
-			tmp_item=proto_tree_add_uint_format(rpc_tree,
+			tmp_item=proto_tree_add_uint_format_value(rpc_tree,
 				hf_rpc_program, tvb, 0, 0, prog,
-				"Program: %s (%u)", progname, prog);
+				"%s (%u)", progname, prog);
 			PROTO_ITEM_SET_GENERATED(tmp_item);
 			tmp_item=proto_tree_add_uint(rpc_tree,
 				hf_rpc_programversion, tvb, 0, 0, vers);
 			PROTO_ITEM_SET_GENERATED(tmp_item);
-			tmp_item=proto_tree_add_uint_format(rpc_tree,
+			tmp_item=proto_tree_add_uint_format_value(rpc_tree,
 				hf_rpc_procedure, tvb, 0, 0, proc,
-				"Procedure: %s (%u)", procname, proc);
+				"%s (%u)", procname, proc);
 			PROTO_ITEM_SET_GENERATED(tmp_item);
 		}
 
@@ -2735,9 +2713,9 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 				procedure_hf, tvb, 0, 0, proc);
 			PROTO_ITEM_SET_GENERATED(tmp_item);
 		} else {
-			tmp_item=proto_tree_add_uint_format(ptree,
+			tmp_item=proto_tree_add_uint_format_value(ptree,
 				hf_rpc_procedure, tvb, 0, 0, proc,
-				"Procedure: %s (%u)", procname, proc);
+				"%s (%u)", procname, proc);
 			PROTO_ITEM_SET_GENERATED(tmp_item);
 		}
 	}
@@ -2774,7 +2752,7 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		 * payload.
 		 */
 		offset = call_dissect_function(tvb, pinfo, ptree, offset,
-				dissect_function, progname);
+				dissect_function, progname, rpc_call);
 		break;
 
 	case FLAVOR_GSSAPI_NO_INFO:
@@ -2812,13 +2790,13 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 				offset = call_dissect_function(tvb,
 						pinfo, ptree, offset,
 						dissect_function,
-						progname);
+						progname, rpc_call);
 			}
 			else if (gss_svc == RPCSEC_GSS_SVC_INTEGRITY) {
 				offset = dissect_rpc_authgss_integ_data(tvb,
 						pinfo, ptree, offset,
 						dissect_function,
-						progname);
+						progname, rpc_call);
 			}
 			else if (gss_svc == RPCSEC_GSS_SVC_PRIVACY) {
 				if (pinfo->gssapi_decrypted_tvb) {
@@ -2826,7 +2804,7 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 						pinfo->gssapi_decrypted_tvb,
 						pinfo, ptree, 4,
 						dissect_function,
-						progname);
+						progname, rpc_call);
 					offset = tvb_length(pinfo->gssapi_decrypted_tvb);
 				}
 			}
@@ -2846,8 +2824,7 @@ dissect_rpc_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		 * an RPC auth level message, then process the args.
 		 */
 		col_set_str(pinfo->cinfo, COL_PROTOCOL, "RPC");
-		col_clear(pinfo->cinfo, COL_INFO);
-		col_append_fstr(pinfo->cinfo, COL_INFO,
+		col_add_fstr(pinfo->cinfo, COL_INFO,
 				"%s %s XID 0x%x",
 				val_to_str(gss_proc, rpc_authgssapi_proc, "Unknown (%d)"),
 				msg_type_name, xid);
@@ -2941,8 +2918,15 @@ dissect_rpc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 /* Defragmentation of RPC-over-TCP records */
 /* table to hold defragmented RPC records */
-static GHashTable *rpc_fragment_table = NULL;
+static reassembly_table rpc_fragment_table;
 
+/*
+ * XXX - can we eliminate this by defining our own key-handling functions
+ * for rpc_fragment_table?  (Note that those functions must look at
+ * not only the addresses of the endpoints, but the ports of the endpoints,
+ * so that they don't try to combine fragments from different TCP
+ * connections.)
+ */
 static GHashTable *rpc_reassembly_table = NULL;
 
 typedef struct _rpc_fragment_key {
@@ -3025,7 +3009,7 @@ make_frag_tree(tvbuff_t *tvb, proto_tree *tree, int proto, gint ett,
 
 void
 show_rpc_fraginfo(tvbuff_t *tvb, tvbuff_t *frag_tvb, proto_tree *tree,
-    guint32 rpc_rm, fragment_data *ipfd_head, packet_info *pinfo)
+    guint32 rpc_rm, fragment_head *ipfd_head, packet_info *pinfo)
 {
     proto_item *frag_tree_item;
 
@@ -3057,7 +3041,7 @@ show_rpc_fraginfo(tvbuff_t *tvb, tvbuff_t *frag_tvb, proto_tree *tree,
 static gboolean
 call_message_dissector(tvbuff_t *tvb, tvbuff_t *rec_tvb, packet_info *pinfo,
     proto_tree *tree, tvbuff_t *frag_tvb, rec_dissector_t dissector,
-    fragment_data *ipfd_head, guint32 rpc_rm, gboolean first_pdu)
+    fragment_head *ipfd_head, guint32 rpc_rm, gboolean first_pdu)
 {
 	const char *saved_proto;
 	volatile gboolean rpc_succeeded;
@@ -3101,12 +3085,11 @@ call_message_dissector(tvbuff_t *tvb, tvbuff_t *rec_tvb, packet_info *pinfo,
 	return rpc_succeeded;
 }
 
-int
+static int
 dissect_rpc_fragment(tvbuff_t *tvb, int offset, packet_info *pinfo,
     proto_tree *tree, rec_dissector_t dissector, gboolean is_heur,
-    int proto, int ett, gboolean defragment, gboolean first_pdu)
+    int proto, int ett, gboolean defragment, gboolean first_pdu, struct tcpinfo *tcpinfo)
 {
-	struct tcpinfo *tcpinfo;
 	guint32 seq;
 	guint32 rpc_rm;
 	volatile guint32 len;
@@ -3117,17 +3100,13 @@ dissect_rpc_fragment(tvbuff_t *tvb, int offset, packet_info *pinfo,
 	gboolean save_fragmented;
 	rpc_fragment_key old_rfk, *rfk, *new_rfk;
 	conversation_t *conversation;
-	fragment_data *ipfd_head;
+	fragment_head *ipfd_head;
 	tvbuff_t *rec_tvb;
 
-	if (pinfo == NULL || pinfo->private_data == NULL) {
+	if (pinfo == NULL || tcpinfo == NULL) {
 		return 0;
 	}
-	tcpinfo = pinfo->private_data;
 
-	if (tcpinfo == NULL) {
-		return 0;
-	}
 	seq = tcpinfo->seq + offset;
 
 	/*
@@ -3254,7 +3233,7 @@ dissect_rpc_fragment(tvbuff_t *tvb, int offset, packet_info *pinfo,
 	old_rfk.conv_id = conversation->index;
 	old_rfk.seq = seq;
         old_rfk.port = pinfo->srcport;
-	rfk = g_hash_table_lookup(rpc_reassembly_table, &old_rfk);
+	rfk = (rpc_fragment_key *)g_hash_table_lookup(rpc_reassembly_table, &old_rfk);
 
 	if (rfk == NULL) {
 		/*
@@ -3291,7 +3270,7 @@ dissect_rpc_fragment(tvbuff_t *tvb, int offset, packet_info *pinfo,
 			 * We must remember this fragment.
 			 */
 
-			rfk = se_alloc(sizeof(rpc_fragment_key));
+			rfk = wmem_new(wmem_file_scope(), rpc_fragment_key);
 			rfk->conv_id = conversation->index;
 			rfk->seq = seq;
 			rfk->port = pinfo->srcport;
@@ -3302,8 +3281,9 @@ dissect_rpc_fragment(tvbuff_t *tvb, int offset, packet_info *pinfo,
 			/*
 			 * Start defragmentation.
 			 */
-			ipfd_head = fragment_add_multiple_ok(tvb, offset + 4,
-			    pinfo, rfk->start_seq, rpc_fragment_table,
+			ipfd_head = fragment_add_multiple_ok(&rpc_fragment_table,
+			    tvb, offset + 4,
+			    pinfo, rfk->start_seq, NULL,
 			    rfk->offset, len - 4, TRUE);
 
 			/*
@@ -3313,7 +3293,7 @@ dissect_rpc_fragment(tvbuff_t *tvb, int offset, packet_info *pinfo,
 			 * set on it.
 			 */
 			if (ipfd_head == NULL) {
-				new_rfk = se_alloc(sizeof(rpc_fragment_key));
+				new_rfk = wmem_new(wmem_file_scope(), rpc_fragment_key);
 				new_rfk->conv_id = rfk->conv_id;
 				new_rfk->seq = seq + len;
 				new_rfk->port = pinfo->srcport;
@@ -3359,8 +3339,8 @@ dissect_rpc_fragment(tvbuff_t *tvb, int offset, packet_info *pinfo,
 		 * a record.  This means we must defragment it.
 		 * Add it to the defragmentation lists.
 		 */
-		ipfd_head = fragment_add_multiple_ok(tvb, offset + 4, pinfo,
-		    rfk->start_seq, rpc_fragment_table,
+		ipfd_head = fragment_add_multiple_ok(&rpc_fragment_table,
+		    tvb, offset + 4, pinfo, rfk->start_seq, NULL,
 		    rfk->offset, len - 4, !(rpc_rm & RPC_RM_LASTFRAG));
 
 		if (ipfd_head == NULL) {
@@ -3379,7 +3359,7 @@ dissect_rpc_fragment(tvbuff_t *tvb, int offset, packet_info *pinfo,
 			 * RPC fragments aren't guaranteed to be provided
 			 * in order, either.
 			 */
-			new_rfk = se_alloc(sizeof(rpc_fragment_key));
+			new_rfk = wmem_new(wmem_file_scope(), rpc_fragment_key);
 			new_rfk->conv_id = rfk->conv_id;
 			new_rfk->seq = seq + len;
                         new_rfk->port = pinfo->srcport;
@@ -3445,8 +3425,7 @@ dissect_rpc_fragment(tvbuff_t *tvb, int offset, packet_info *pinfo,
 		 * Create a new TVB structure for
 		 * defragmented data.
 		 */
-		rec_tvb = tvb_new_child_real_data(tvb, ipfd_head->data,
-		    ipfd_head->datalen, ipfd_head->datalen);
+		rec_tvb = tvb_new_chain(tvb, ipfd_head->tvb_data);
 
 		/*
 		 * Add defragmented data to the data source list.
@@ -3581,8 +3560,8 @@ find_rpc_over_tcp_reply_start(tvbuff_t *tvb, int offset)
 
 		/* got a match in zero-fill region, verify reply ID and
 		 * record mark fields */
-		ulMsgType = pntohl (pbWholeBuf + ibSearchStart - 4);
-		ulRecMark = pntohl (pbWholeBuf + ibSearchStart - ibPatternStart);
+		ulMsgType = pntoh32 (pbWholeBuf + ibSearchStart - 4);
+		ulRecMark = pntoh32 (pbWholeBuf + ibSearchStart - ibPatternStart);
 
 		if ((ulMsgType == RPC_REPLY) &&
 			 ((ulRecMark & ~0x80000000) <= (unsigned) max_rpc_tcp_pdu_size)) {
@@ -3616,12 +3595,11 @@ static int
 find_and_dissect_rpc_fragment(tvbuff_t *tvb, int offset, packet_info *pinfo,
 			      proto_tree *tree, rec_dissector_t dissector,
 			      gboolean is_heur,
-			      int proto, int ett, gboolean defragment)
+			      int proto, int ett, gboolean defragment, struct tcpinfo* tcpinfo)
 {
 
 	int   offReply;
 	int   len;
-
 
 	offReply = find_rpc_over_tcp_reply_start(tvb, offset);
 	if (offReply < 0) {
@@ -3633,7 +3611,7 @@ find_and_dissect_rpc_fragment(tvbuff_t *tvb, int offset, packet_info *pinfo,
 				   pinfo, tree,
 				   dissector, is_heur, proto, ett,
 				   defragment,
-				   TRUE /* force first-pdu state */);
+				   TRUE /* force first-pdu state */, tcpinfo);
 
 	/* misses are reported as-is */
 	if (len == 0)
@@ -3677,7 +3655,7 @@ typedef enum {
 
 static rpc_tcp_return_t
 dissect_rpc_tcp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
-    gboolean is_heur)
+    gboolean is_heur, struct tcpinfo* tcpinfo)
 {
 	int offset = 0;
 	gboolean saw_rpc = FALSE;
@@ -3690,7 +3668,7 @@ dissect_rpc_tcp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		 */
 		len = dissect_rpc_fragment(tvb, offset, pinfo, tree,
 		    dissect_rpc_message, is_heur, proto_rpc, ett_rpc,
-		    rpc_defragment, first_pdu);
+		    rpc_defragment, first_pdu, tcpinfo);
 
 		if ((len == 0) && first_pdu && rpc_find_fragment_start) {
 			/*
@@ -3699,7 +3677,7 @@ dissect_rpc_tcp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			 */
 			len = find_and_dissect_rpc_fragment(tvb, offset, pinfo, tree,
 				 dissect_rpc_message, is_heur, proto_rpc, ett_rpc,
-				 rpc_defragment);
+				 rpc_defragment, tcpinfo);
 		}
 
 		first_pdu = FALSE;
@@ -3746,9 +3724,11 @@ dissect_rpc_tcp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 }
 
 static gboolean
-dissect_rpc_tcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_rpc_tcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
-	switch (dissect_rpc_tcp_common(tvb, pinfo, tree, TRUE)) {
+	struct tcpinfo* tcpinfo = (struct tcpinfo *)data;
+
+	switch (dissect_rpc_tcp_common(tvb, pinfo, tree, TRUE, tcpinfo)) {
 
 	case IS_RPC:
 		return TRUE;
@@ -3763,11 +3743,15 @@ dissect_rpc_tcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
 	}
 }
 
-static void
-dissect_rpc_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_rpc_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
-	if (dissect_rpc_tcp_common(tvb, pinfo, tree, FALSE) == IS_NOT_RPC)
+	struct tcpinfo* tcpinfo = (struct tcpinfo *)data;
+
+	if (dissect_rpc_tcp_common(tvb, pinfo, tree, FALSE, tcpinfo) == IS_NOT_RPC)
 		dissect_rpc_continuation(tvb, pinfo, tree);
+
+	return tvb_length(tvb);
 }
 
 /* Discard any state we've saved. */
@@ -3782,7 +3766,8 @@ rpc_init_protocol(void)
 	rpc_reassembly_table = g_hash_table_new(rpc_fragment_hash,
 	    rpc_fragment_equal);
 
-	fragment_table_init(&rpc_fragment_table);
+	reassembly_table_init(&rpc_fragment_table,
+	    &addresses_ports_reassembly_table_functions);
 }
 
 /* will be called once from register.c at startup time */
@@ -3803,7 +3788,7 @@ proto_register_rpc(void)
 			"Fragment Length", "rpc.fraglen", FT_UINT32, BASE_DEC,
 			NULL, RPC_RM_FRAGLEN, NULL, HFILL }},
 		{ &hf_rpc_xid, {
-			"XID", "rpc.xid", FT_UINT32, BASE_HEX,
+			"XID", "rpc.xid", FT_UINT32, BASE_HEX_DEC,
 			NULL, 0, NULL, HFILL }},
 		{ &hf_rpc_msgtype, {
 			"Message Type", "rpc.msgtyp", FT_UINT32, BASE_DEC,
@@ -4069,7 +4054,7 @@ proto_register_rpc(void)
 		&rpc_find_fragment_start);
 
 	register_dissector("rpc", dissect_rpc, proto_rpc);
-	register_dissector("rpc-tcp", dissect_rpc_tcp, proto_rpc);
+	new_register_dissector("rpc-tcp", dissect_rpc_tcp, proto_rpc);
 	rpc_tap = register_tap("rpc");
 
 	/*
@@ -4085,6 +4070,8 @@ proto_register_rpc(void)
 	 */
 	rpc_progs = g_hash_table_new(rpc_prog_hash, rpc_prog_equal);
 	rpc_procs = g_hash_table_new(rpc_proc_hash, rpc_proc_equal);
+
+	authgss_contexts=wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope());
 }
 
 void
@@ -4108,8 +4095,6 @@ proto_reg_handoff_rpc(void)
 	gssapi_handle = find_dissector("gssapi");
 	spnego_krb5_wrap_handle = find_dissector("spnego-krb5-wrap");
 	data_handle = find_dissector("data");
-
-	authgss_contexts=se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "gss_contexts");
 }
 
 /*

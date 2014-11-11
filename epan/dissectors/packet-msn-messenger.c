@@ -2,8 +2,6 @@
  * Routines for MSN Messenger Service packet dissection
  * Copyright 2003, Chris Waters <chris@waters.co.nz>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/strutil.h>
+
+void proto_register_msnms(void);
+void proto_reg_handoff_msnms(void);
 
 /*
  * The now-expired Internet-Draft for the MSN Messenger 1.0 protocol
@@ -84,13 +85,11 @@ dissect_msnms(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	line = tvb_get_ptr(tvb, offset, linelen);
 
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		/*
-		 * Put the first line from the buffer into the summary.
-		 */
-		col_add_str(pinfo->cinfo, COL_INFO,
+	/*
+	 * Put the first line from the buffer into the summary.
+	 */
+	col_add_str(pinfo->cinfo, COL_INFO,
 			    format_text(line, linelen));
-	}
 
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_msnms, tvb, offset, -1,
@@ -105,15 +104,13 @@ dissect_msnms(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			/*
 			 * Find the end of the line.
 			 */
-			linelen = tvb_find_line_end(tvb, offset, -1,
+			tvb_find_line_end(tvb, offset, -1,
 			    &next_offset, FALSE);
 
 			/*
 			 * Put this line.
 			 */
-			proto_tree_add_text(msnms_tree, tvb, offset,
-			    next_offset - offset, "%s",
-			    tvb_format_text(tvb, offset, next_offset - offset));
+			proto_tree_add_format_text(msnms_tree, tvb, offset, next_offset - offset);
 			offset = next_offset;
 		}
 	}

@@ -5,8 +5,6 @@
  *
  *  (c) 2007, Luis E. Garcia Ontanon <luis@ontanon.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,8 @@
 #include "config.h"
 
 #include "packet-h248.h"
+
+void proto_register_h248_7(void);
 
 #define PNAME  "H.248.7"
 #define PSNAME "H248AN"
@@ -121,7 +121,7 @@ static const h248_pkg_sig_t h248_an_signals[] = {
 	{ 0, NULL, NULL, NULL, NULL}
 };
 
-static const h248_package_t h248_pkg_an = {
+static h248_package_t h248_pkg_an = {
 	0x001d,
 	&proto_h248_an,
 	&ett_h248_an,
@@ -144,21 +144,21 @@ void proto_register_h248_7(void) {
 	static hf_register_info hf[] = {
 		{ &hf_h248_an_apf, { "Fixed Announcement Play", "h248.an.apf", FT_BYTES, BASE_NONE, NULL, 0, "Initiates the play of a fixed announcement", HFILL }},
 		{ &hf_h248_an_apf_an, { "Announcement name", "h248.an.apf.an", FT_UINT32, BASE_DEC, NULL, 0, NULL, HFILL }},
-		{ &hf_h248_an_apf_noc, { "Number of cycles", "h248.an.apf.noc", FT_UINT32, BASE_HEX, NULL, 0, NULL, HFILL }}, 
+		{ &hf_h248_an_apf_noc, { "Number of cycles", "h248.an.apf.noc", FT_UINT32, BASE_HEX, NULL, 0, NULL, HFILL }},
 		{ &hf_h248_an_apf_av, { "Announcement Variant", "h248.an.apf.av", FT_STRING, BASE_NONE, NULL, 0, NULL, HFILL }},
 		{ &hf_h248_an_apf_di, {"Announcement Direction","h248.an.apf.di",FT_UINT32, BASE_HEX, VALS(h248_an_di_vals), 0, NULL, HFILL}},
 
 		{ &hf_h248_an_apv, { "Fixed Announcement Play", "h248.an.apv", FT_BYTES, BASE_NONE, NULL, 0, "Initiates the play of a fixed announcement", HFILL }},
 		{ &hf_h248_an_apv_an, { "Announcement name", "h248.an.apv.an", FT_UINT32, BASE_DEC, NULL, 0, NULL, HFILL }},
-		{ &hf_h248_an_apv_noc, { "Number of cycles", "h248.an.apv.noc", FT_UINT32, BASE_HEX, NULL, 0, NULL, HFILL }}, 
+		{ &hf_h248_an_apv_noc, { "Number of cycles", "h248.an.apv.noc", FT_UINT32, BASE_HEX, NULL, 0, NULL, HFILL }},
 		{ &hf_h248_an_apv_av, { "Announcement Variant", "h248.an.apv.av", FT_STRING, BASE_NONE, NULL, 0, NULL, HFILL }},
-		{ &hf_h248_an_apv_num, { "Number", "h248.an.apv.num", FT_UINT32, BASE_HEX, NULL, 0, NULL, HFILL }}, 
-		{ &hf_h248_an_apv_spi, { "Specific parameters interpretation", "h248.an.apv.spi", FT_UINT32, BASE_HEX, NULL, 0, NULL, HFILL }}, 
-		{ &hf_h248_an_apv_sp, { "Specific parameters", "h248.an.apv.sp", FT_STRING, BASE_NONE, NULL, 0, NULL, HFILL }}, 
+		{ &hf_h248_an_apv_num, { "Number", "h248.an.apv.num", FT_UINT32, BASE_HEX, NULL, 0, NULL, HFILL }},
+		{ &hf_h248_an_apv_spi, { "Specific parameters interpretation", "h248.an.apv.spi", FT_UINT32, BASE_HEX, NULL, 0, NULL, HFILL }},
+		{ &hf_h248_an_apv_sp, { "Specific parameters", "h248.an.apv.sp", FT_STRING, BASE_NONE, NULL, 0, NULL, HFILL }},
 		{ &hf_h248_an_apv_di, {"Announcement Direction","h248.an.apv.di",FT_UINT32, BASE_HEX, VALS(h248_an_di_vals), 0, NULL, HFILL}}
-		
+
 		};
-	
+
 	static gint *ett[] = {
 		&ett_h248_an,
 		&ett_h248_an_apf,
@@ -170,7 +170,7 @@ void proto_register_h248_7(void) {
 	proto_register_field_array(proto_h248_an, hf, array_length(hf));
 
 	proto_register_subtree_array(ett, array_length(ett));
-	
+
 	h248_register_package(&h248_pkg_an,REPLACE_PKG);
 }
 

@@ -3,8 +3,6 @@
  * By Steve Limkemann <stevelim@dgtech.com>
  * Copyright 1998 Steve Limkemann
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,6 +35,9 @@
  *
  *     http://www.dgtech.com/gryphon/sys/www/docs/html/
  */
+
+void proto_register_gryphon(void);
+void proto_reg_handoff_gryphon(void);
 
 static int proto_gryphon = -1;
 
@@ -311,7 +312,7 @@ static const value_string action_vals[] = {
     { FR_RESP_AFTER_PERIOD,
         "Send response(s) after the specified period expires following a conforming message" },
     { FR_IGNORE_DURING_PER,
-        "Send response(s) for a conforming message and ignore\nfurther messages until the specified period expires" },
+        "Send response(s) for a conforming message and ignore further messages until the specified period expires" },
     { 0,
         NULL }
 };
@@ -756,17 +757,19 @@ get_gryphon_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
     return padded_len + FRAME_HEADER_LEN;
 }
 
-static void
-dissect_gryphon_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_gryphon_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
     dissect_gryphon_message(tvb, pinfo, tree, FALSE);
+    return tvb_length(tvb);
 }
 
-static void
-dissect_gryphon(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_gryphon(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
     tcp_dissect_pdus(tvb, pinfo, tree, gryphon_desegment, FRAME_HEADER_LEN,
-                     get_gryphon_pdu_len, dissect_gryphon_pdu);
+                     get_gryphon_pdu_len, dissect_gryphon_pdu, data);
+    return tvb_length(tvb);
 }
 
 static void
@@ -816,7 +819,7 @@ dissect_gryphon_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     if (tree == NULL)
         return;
 
-    if (match_strval(frmtyp, frame_type) == NULL) {
+    if (try_val_to_str(frmtyp, frame_type) == NULL) {
         /*
          * Unknown message type.
          */
@@ -1807,7 +1810,7 @@ cmd_start(tvbuff_t *tvb, int offset, proto_tree *pt)
     msglen = tvb_reported_length_remaining(tvb, offset);
     offset = cmd_delete(tvb, offset, pt);       /* decode the name */
     if (offset < msglen + hdr_stuff) {
-        string = tvb_get_ephemeral_stringz(tvb, offset, &length);
+        string = tvb_get_stringz(wmem_packet_scope(), tvb, offset, &length);
         if (length > 1) {
             proto_tree_add_string(pt, hf_gryphon_start_arguments, tvb, offset,
                 length, string);
@@ -1974,7 +1977,7 @@ cmd_usdt(tvbuff_t *tvb, int offset, proto_tree *pt)
     proto_tree  *localTree;
     proto_item  *localItem;
 
-    const gchar *block_desc[] = {"USDT request", "USDT response", "UUDT response"};
+    static const gchar *block_desc[] = {"USDT request", "USDT response", "UUDT response"};
 
     flags = tvb_get_guint8(tvb, offset);
     proto_tree_add_item(pt, hf_gryphon_usdt_flags_register, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -2803,6 +2806,6 @@ proto_reg_handoff_gryphon(void)
 {
     dissector_handle_t gryphon_handle;
 
-    gryphon_handle = create_dissector_handle(dissect_gryphon, proto_gryphon);
+    gryphon_handle = new_create_dissector_handle(dissect_gryphon, proto_gryphon);
     dissector_add_uint("tcp.port", 7000, gryphon_handle);
 }

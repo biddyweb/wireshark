@@ -2,8 +2,6 @@
  * Routines for async NSM stat callback dissection
  * 2001 Ronnie Sahlberg <See AUTHORS for email>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,9 @@
 #include "packet-rpc.h"
 #include "packet-stat-notify.h"
 
+void proto_register_statnotify(void);
+void proto_reg_handoff_statnotify(void);
+
 static int proto_statnotify = -1;
 static int hf_statnotify_procedure_v1 = -1;
 static int hf_statnotify_name = -1;
@@ -39,7 +40,7 @@ static gint ett_statnotify = -1;
 
 
 static int
-dissect_statnotify_mon(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_statnotify_mon(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 
 	offset = dissect_rpc_string(tvb,tree,hf_statnotify_name,offset,NULL);

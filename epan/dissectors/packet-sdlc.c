@@ -1,8 +1,6 @@
 /* packet-sdlc.c
  * Routines for SDLC frame disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998
@@ -25,7 +23,9 @@
 #include "config.h"
 
 #include <glib.h>
+
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
 #include <epan/xdlc.h>
 
 /*
@@ -33,6 +33,8 @@
  *
  *	http://www.protocols.com/pbook/sna.htm
  */
+void proto_register_sdlc(void);
+void proto_reg_handoff_sdlc(void);
 
 static int proto_sdlc = -1;
 static int hf_sdlc_address = -1;

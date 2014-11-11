@@ -1,6 +1,4 @@
 #
-# $Id$
-#
 # - Find unix commands from cygwin
 # This module looks for some usual Unix commands.
 #
@@ -49,14 +47,14 @@ MACRO(pod2manhtml _sourcefile _manext)
 			${_outman}
 			${_outhtml}
 		COMMAND
-			${POD2MAN_EXECUTABLE}
+			${PERL_EXECUTABLE} ${POD2MAN_EXECUTABLE}
 			--section=${_manext}
 			--center="The Wireshark Network Analyzer"
 			--release=${CPACK_PACKAGE_VERSION}
 			${_sourcefile}.pod
 			> ${_outman}
 		COMMAND
-			${POD2HTML_EXECUTABLE}
+			${PERL_EXECUTABLE} ${POD2HTML_EXECUTABLE}
 			--title="${_basefile} - The Wireshark Network Analyzer ${CPACK_PACKAGE_VERSION}"
 			--css=${CMAKE_SOURCE_DIR}/docbook/ws.css
 			--noindex
@@ -65,7 +63,6 @@ MACRO(pod2manhtml _sourcefile _manext)
 		DEPENDS
 			${_sourcefile}.pod
 			${CMAKE_SOURCE_DIR}/docbook/ws.css
-			
 	)
 ENDMACRO(pod2manhtml)
 

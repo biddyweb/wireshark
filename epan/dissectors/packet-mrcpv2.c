@@ -2,8 +2,6 @@
  * Routines for Media Resource Control Protocol Version 2 (MRCPv2) dissection
  * Copyright 2012, Zeljko Ancimer  <zancimer[AT]gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -48,6 +46,9 @@
 #include <epan/dissectors/packet-tcp.h>
 
 #include <wsutil/str_util.h>
+
+void proto_register_mrcpv2(void);
+void proto_reg_handoff_mrcpv2(void);
 
 /* mrcp-version SP message-length */
 /*   mrcp-version = "MRCP" "/" 1*2DIGIT "." 1*2DIGIT  ==> up to 10 chars */
@@ -130,38 +131,43 @@ typedef enum {
     PERSONAL_GRAMMAR_URI =                  57,
     PHRASE_ID =                             58,
     PHRASE_NL =                             59,
-    PROSODY_PARAMETER =                     60,
-    PROXY_SYNC_ID =                         61,
-    RECOGNITION_MODE =                      62,
-    RECOGNITION_TIMEOUT =                   63,
-    RECOGNIZER_CONTEXT_BLOCK =              64,
-    RECORD_URI =                            65,
-    REPOSITORY_URI =                        66,
-    SAVE_BEST_WAVEFORM =                    67,
-    SAVE_WAVEFORM =                         68,
-    SENSITIVITY_LEVEL =                     69,
-    SET_COOKIE =                            70,
-    SPEAK_LENGTH =                          71,
-    SPEAK_RESTART =                         72,
-    SPEAKER_PROFILE =                       73,
-    SPEECH_COMPLETE_TIMEOUT =               74,
-    SPEECH_INCOMPLETE_TIMEOUT =             75,
-    SPEECH_LANGUAGE =                       76,
-    SPEECH_MARKER =                         77,
-    SPEED_VS_ACCURACY =                     78,
-    START_INPUT_TIMERS =                    79,
-    TRIM_LENGTH =                           80,
-    VENDOR_SPECIFIC_PARAMETERS =            81,
-    VER_BUFFER_UTTERANCE =                  82,
-    VERIFICATION_MODE =                     83,
-    VOICE_AGE =                             84,
-    VOICE_GENDER =                          85,
-    VOICE_NAME =                            86,
-    VOICE_VARIANT =                         87,
-    VOICEPRINT_EXISTS =                     88,
-    VOICEPRINT_IDENTIFIER =                 89,
-    WAVEFORM_URI =                          90,
-    WEIGHT =                                91
+    PROSODY_CONTOUR =                       60,
+    PROSODY_DURATION =                      61,
+    PROSODY_PITCH =                         62,
+    PROSODY_RANGE =                         63,
+    PROSODY_RATE =                          64,
+    PROSODY_VOLUME =                        65,
+    PROXY_SYNC_ID =                         66,
+    RECOGNITION_MODE =                      67,
+    RECOGNITION_TIMEOUT =                   68,
+    RECOGNIZER_CONTEXT_BLOCK =              69,
+    RECORD_URI =                            70,
+    REPOSITORY_URI =                        71,
+    SAVE_BEST_WAVEFORM =                    72,
+    SAVE_WAVEFORM =                         73,
+    SENSITIVITY_LEVEL =                     74,
+    SET_COOKIE =                            75,
+    SPEAK_LENGTH =                          76,
+    SPEAK_RESTART =                         77,
+    SPEAKER_PROFILE =                       78,
+    SPEECH_COMPLETE_TIMEOUT =               79,
+    SPEECH_INCOMPLETE_TIMEOUT =             80,
+    SPEECH_LANGUAGE =                       81,
+    SPEECH_MARKER =                         82,
+    SPEED_VS_ACCURACY =                     83,
+    START_INPUT_TIMERS =                    84,
+    TRIM_LENGTH =                           85,
+    VENDOR_SPECIFIC_PARAMETERS =            86,
+    VER_BUFFER_UTTERANCE =                  87,
+    VERIFICATION_MODE =                     88,
+    VOICE_AGE =                             89,
+    VOICE_GENDER =                          90,
+    VOICE_NAME =                            91,
+    VOICE_VARIANT =                         92,
+    VOICEPRINT_EXISTS =                     93,
+    VOICEPRINT_IDENTIFIER =                 94,
+    WAVEFORM_URI =                          95,
+    WEIGHT =                                96
 } HEADER_TYPE;
 
 static const value_string header_type_vals[] = {
@@ -224,7 +230,12 @@ static const value_string header_type_vals[] = {
     { PERSONAL_GRAMMAR_URI,                 "personal-grammar-uri" },
     { PHRASE_ID,                            "phrase-id" },
     { PHRASE_NL,                            "phrase-nl" },
-    { PROSODY_PARAMETER,                    "prosody-" },
+    { PROSODY_CONTOUR,                      "prosody-contour" },
+    { PROSODY_DURATION,                     "prosody-duration" },
+    { PROSODY_PITCH,                        "prosody-pitch" },
+    { PROSODY_RANGE,                        "prosody-range" },
+    { PROSODY_RATE,                         "prosody-rate" },
+    { PROSODY_VOLUME,                       "prosody-volume" },
     { PROXY_SYNC_ID,                        "proxy-sync-id" },
     { RECOGNITION_MODE,                     "recognition-mode" },
     { RECOGNITION_TIMEOUT,                  "recognition-timeout" },
@@ -258,9 +269,6 @@ static const value_string header_type_vals[] = {
     { WEIGHT,                               "weight" },
     { 0,    NULL }
 };
-
-/* Forward declaration we need below (if using proto_reg_handoff... as a prefs callback) */
-void proto_reg_handoff_mrcpv2(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_mrcpv2 = -1;
@@ -336,7 +344,12 @@ static int hf_mrcpv2_Num_Min_Verification_Phrases = -1;
 static int hf_mrcpv2_Personal_Grammar_URI = -1;
 static int hf_mrcpv2_Phrase_ID = -1;
 static int hf_mrcpv2_Phrase_NL = -1;
-static int hf_mrcpv2_Prosody_Parameter = -1;
+static int hf_mrcpv2_Prosody_Contour = -1;
+static int hf_mrcpv2_Prosody_Duration = -1;
+static int hf_mrcpv2_Prosody_Pitch = -1;
+static int hf_mrcpv2_Prosody_Range = -1;
+static int hf_mrcpv2_Prosody_Rate = -1;
+static int hf_mrcpv2_Prosody_Volume = -1;
 static int hf_mrcpv2_Proxy_Sync_Id = -1;
 static int hf_mrcpv2_Recognition_Mode = -1;
 static int hf_mrcpv2_Recognition_Timeout = -1;
@@ -370,7 +383,9 @@ static int hf_mrcpv2_Waveform_URI = -1;
 static int hf_mrcpv2_Weight = -1;
 
 /* Global MRCPv2 port pref */
-static guint global_mrcpv2_tcp_port = 6075;
+#define TCP_DEFAULT_RANGE "6075, 30000-30200"
+static range_t *global_mrcpv2_tcp_range = NULL;
+static range_t *mrcpv2_tcp_range = NULL;
 
 /* Initialize the subtree pointers */
 static gint ett_mrcpv2 = -1;
@@ -380,7 +395,7 @@ static gint ett_Event_Line = -1;
 static gint ett_Status_Code = -1;
 
 /* format status code description */
-static const string_string status_code_vals[] = { 
+static const string_string status_code_vals[] = {
     { "200", "Success" },
     { "201", "Success with some optional header fields ignored" },
     { "401", "Client Failure: Method not allowed" },
@@ -458,35 +473,35 @@ dissect_mrcpv2_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         sp_end = tvb_find_guint8(tvb, 0, linelen, ' ');
         if ((sp_end == -1) || (sp_end > tvb_len) || (sp_end > linelen))
             return -1;
-        field1 = tvb_get_ephemeral_string(tvb, 0, sp_end);
+        field1 = tvb_get_string(wmem_packet_scope(), tvb, 0, sp_end);
         sp_start = sp_end + 1;
 
         /* length */
         sp_end = tvb_find_guint8(tvb, sp_start, linelen - sp_start, ' ');
         if ((sp_end == -1) || (sp_end > tvb_len) || (sp_end > linelen))
             return -1;
-        field2 = tvb_get_ephemeral_string(tvb, sp_start, sp_end - sp_start);
+        field2 = tvb_get_string(wmem_packet_scope(), tvb, sp_start, sp_end - sp_start);
         sp_start = sp_end + 1;
 
         /* method, request ID or event */
         sp_end = tvb_find_guint8(tvb, sp_start, linelen - sp_start, ' ');
         if ((sp_end == -1) || (sp_end > tvb_len) || (sp_end > linelen))
             return -1;
-        field3 = tvb_get_ephemeral_string(tvb, sp_start, sp_end - sp_start);
+        field3 = tvb_get_string(wmem_packet_scope(), tvb, sp_start, sp_end - sp_start);
         sp_start = sp_end + 1;
 
         /* request ID or status code */
         sp_end = tvb_find_guint8(tvb, sp_start, linelen - sp_start, ' ');
         if (sp_end == -1)
         {
-            field4 = tvb_get_ephemeral_string(tvb, sp_start, linelen - sp_start);
+            field4 = tvb_get_string(wmem_packet_scope(), tvb, sp_start, linelen - sp_start);
             line_type = REQUEST_LINE; /* only request line has 4 parameters */
         }
         else
         {
             if ((sp_end > tvb_len) || (sp_end > linelen))
                 return -1;
-            field4 = tvb_get_ephemeral_string(tvb, sp_start, sp_end - sp_start);
+            field4 = tvb_get_string(wmem_packet_scope(), tvb, sp_start, sp_end - sp_start);
 
             if (isdigit(field3[0])) /* request ID is number, so it has to be response */
                 line_type = RESPONSE_LINE;
@@ -497,7 +512,7 @@ dissect_mrcpv2_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             sp_end = linelen;
             if ((sp_end > tvb_len) || (sp_end > linelen))
                 return -1;
-            field5 = tvb_get_ephemeral_string(tvb, sp_start, sp_end - sp_start);
+            field5 = tvb_get_string(wmem_packet_scope(), tvb, sp_start, sp_end - sp_start);
         }
 
         /* check pdu size */
@@ -509,91 +524,91 @@ dissect_mrcpv2_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         switch(line_type){
         case REQUEST_LINE:
         {
-            col_add_str(pinfo->cinfo, COL_INFO, "Request: ");
-            line_item = proto_tree_add_item(mrcpv2_tree, hf_mrcpv2_Request_Line, tvb, offset, linelen, ENC_UTF_8);
+            col_set_str(pinfo->cinfo, COL_INFO, "Request: ");
+            line_item = proto_tree_add_item(mrcpv2_tree, hf_mrcpv2_Request_Line, tvb, offset, linelen, ENC_UTF_8|ENC_NA);
             request_line_item = proto_item_add_subtree(line_item, ett_Request_Line);
             /* version */
             str_len = (gint)strlen(field1);
-            proto_tree_add_item(request_line_item, hf_mrcpv2_version, tvb, offset, str_len, ENC_UTF_8);
+            proto_tree_add_item(request_line_item, hf_mrcpv2_version, tvb, offset, str_len, ENC_UTF_8|ENC_NA);
             offset += str_len + 1; /* add SP */
             /* message length */
             str_len = (gint)strlen(field2);
-            proto_tree_add_item(request_line_item, hf_mrcpv2_message_length, tvb, offset, str_len, ENC_UTF_8);
+            proto_tree_add_item(request_line_item, hf_mrcpv2_message_length, tvb, offset, str_len, ENC_UTF_8|ENC_NA);
             offset += str_len + 1; /* add SP */
             /* method name */
             col_append_str(pinfo->cinfo, COL_INFO, field3);
             str_len = (gint)strlen(field3);
-            proto_tree_add_item(request_line_item, hf_mrcpv2_Method, tvb, offset, str_len, ENC_UTF_8);
+            proto_tree_add_item(request_line_item, hf_mrcpv2_Method, tvb, offset, str_len, ENC_UTF_8|ENC_NA);
             offset += str_len + 1; /* add SP */
             /* request ID */
             str_len = (gint)strlen(field4);
-            proto_tree_add_item(request_line_item, hf_mrcpv2_request_id, tvb, offset, str_len, ENC_UTF_8);
+            proto_tree_add_item(request_line_item, hf_mrcpv2_request_id, tvb, offset, str_len, ENC_UTF_8|ENC_NA);
             /*offset += str_len + 2;*/ /* add CRLF */
         }
         break;
         case RESPONSE_LINE:
         {
-            col_add_str(pinfo->cinfo, COL_INFO, "Response: ");
-            line_item = proto_tree_add_item(mrcpv2_tree, hf_mrcpv2_Response_Line, tvb, offset, linelen, ENC_UTF_8);
+            col_set_str(pinfo->cinfo, COL_INFO, "Response: ");
+            line_item = proto_tree_add_item(mrcpv2_tree, hf_mrcpv2_Response_Line, tvb, offset, linelen, ENC_UTF_8|ENC_NA);
             response_line_item = proto_item_add_subtree(line_item, ett_Response_Line);
             /* version */
             str_len = (gint)strlen(field1);
-            proto_tree_add_item(response_line_item, hf_mrcpv2_version, tvb, offset, str_len, ENC_UTF_8);
+            proto_tree_add_item(response_line_item, hf_mrcpv2_version, tvb, offset, str_len, ENC_UTF_8|ENC_NA);
             offset += str_len + 1; /* add SP */
             /* message length */
             str_len = (gint)strlen(field2);
-            proto_tree_add_item(response_line_item, hf_mrcpv2_message_length, tvb, offset, str_len, ENC_UTF_8);
+            proto_tree_add_item(response_line_item, hf_mrcpv2_message_length, tvb, offset, str_len, ENC_UTF_8|ENC_NA);
             offset += str_len + 1; /* add SP */
             /* request ID */
             str_len = (gint)strlen(field3);
-            proto_tree_add_item(response_line_item, hf_mrcpv2_request_id, tvb, offset, str_len, ENC_UTF_8);
+            proto_tree_add_item(response_line_item, hf_mrcpv2_request_id, tvb, offset, str_len, ENC_UTF_8|ENC_NA);
             offset += str_len + 1; /* add SP */
             /* status code */
             str_len = (gint)strlen(field4);
             status_code_item = proto_tree_add_item(response_line_item, hf_mrcpv2_status_code, tvb, offset,
-                str_len, ENC_UTF_8);
+                str_len, ENC_UTF_8|ENC_NA);
             proto_item_append_text(status_code_item, " %s", str_to_str(field4, status_code_vals, "Unknown Status Code"));
             offset += str_len + 1; /* add SP */
             /* request state */
             col_append_fstr(pinfo->cinfo, COL_INFO, "(%s) %s", field4, field5);
             str_len = (gint)strlen(field5);
-            proto_tree_add_item(response_line_item, hf_mrcpv2_request_state, tvb, offset, str_len, ENC_UTF_8);
+            proto_tree_add_item(response_line_item, hf_mrcpv2_request_state, tvb, offset, str_len, ENC_UTF_8|ENC_NA);
             /*offset += str_len + 2;*/ /* add CRLF */
         }
         break;
         case EVENT_LINE:
         {
-            col_add_str(pinfo->cinfo, COL_INFO, "Event: ");
-            line_item = proto_tree_add_item(mrcpv2_tree, hf_mrcpv2_Event_Line, tvb, offset, linelen, ENC_UTF_8);
+            col_set_str(pinfo->cinfo, COL_INFO, "Event: ");
+            line_item = proto_tree_add_item(mrcpv2_tree, hf_mrcpv2_Event_Line, tvb, offset, linelen, ENC_UTF_8|ENC_NA);
             event_line_item = proto_item_add_subtree(line_item, ett_Event_Line);
             /* version */
             str_len = (gint)strlen(field1);
-            proto_tree_add_item(event_line_item, hf_mrcpv2_version, tvb, offset, str_len, ENC_UTF_8);
+            proto_tree_add_item(event_line_item, hf_mrcpv2_version, tvb, offset, str_len, ENC_UTF_8|ENC_NA);
             offset += str_len + 1; /* add SP */
             /* message length */
             str_len = (gint)strlen(field2);
-            proto_tree_add_item(event_line_item, hf_mrcpv2_message_length, tvb, offset, str_len, ENC_UTF_8);
+            proto_tree_add_item(event_line_item, hf_mrcpv2_message_length, tvb, offset, str_len, ENC_UTF_8|ENC_NA);
             offset += str_len + 1; /* add SP */
             /* event name */
             col_append_str(pinfo->cinfo, COL_INFO, field3);
             str_len = (gint)strlen(field3);
-            proto_tree_add_item(event_line_item, hf_mrcpv2_Event, tvb, offset, str_len, ENC_UTF_8);
+            proto_tree_add_item(event_line_item, hf_mrcpv2_Event, tvb, offset, str_len, ENC_UTF_8|ENC_NA);
             offset += str_len + 1; /* add SP */
             /* request ID */
             str_len = (gint)strlen(field4);
-            proto_tree_add_item(event_line_item, hf_mrcpv2_request_id, tvb, offset, str_len, ENC_UTF_8);
+            proto_tree_add_item(event_line_item, hf_mrcpv2_request_id, tvb, offset, str_len, ENC_UTF_8|ENC_NA);
             offset += str_len + 1; /* add SP */
             /* request state */
             str_len = (gint)strlen(field5);
-            proto_tree_add_item(event_line_item, hf_mrcpv2_request_state, tvb, offset, str_len, ENC_UTF_8);
+            proto_tree_add_item(event_line_item, hf_mrcpv2_request_state, tvb, offset, str_len, ENC_UTF_8|ENC_NA);
             /*offset += str_len + 2;*/ /* add CRLF */
         }
         break;
         default:
         {
             /* mark whole packet as unknown and return */
-            col_add_str(pinfo->cinfo, COL_INFO, "UNKNOWN message");
-            proto_tree_add_item(mrcpv2_tree, hf_mrcpv2_Unknown_Message, tvb, offset, tvb_len, ENC_UTF_8);
+            col_set_str(pinfo->cinfo, COL_INFO, "UNKNOWN message");
+            proto_tree_add_item(mrcpv2_tree, hf_mrcpv2_Unknown_Message, tvb, offset, tvb_len, ENC_UTF_8|ENC_NA);
             return tvb_len;
         }
         }
@@ -623,13 +638,13 @@ dissect_mrcpv2_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             colon_offset = tvb_find_guint8(tvb, offset, linelen, ':');
             if (colon_offset == -1)
             { /* header type should end with ':' */
-                proto_tree_add_item(mrcpv2_tree, hf_mrcpv2_Unknown_Header, tvb, offset, linelen, ENC_UTF_8);
+                proto_tree_add_item(mrcpv2_tree, hf_mrcpv2_Unknown_Header, tvb, offset, linelen, ENC_UTF_8|ENC_NA);
                 continue;
             }
-            header_name = tvb_get_ephemeral_string(tvb, offset, colon_offset - offset);
+            header_name = tvb_get_string(wmem_packet_scope(), tvb, offset, colon_offset - offset);
             ascii_strdown_inplace(header_name);
             value_offset = tvb_skip_wsp(tvb, colon_offset + 1, offset + linelen - (colon_offset + 1));
-            header_value = tvb_get_ephemeral_string(tvb, value_offset, offset + linelen - value_offset);
+            header_value = tvb_get_string(wmem_packet_scope(), tvb, value_offset, offset + linelen - value_offset);
 
             /* find out header type */
             header_type = UNKNOWN;
@@ -637,7 +652,7 @@ dissect_mrcpv2_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             {
                 if (strncmp(p->strptr, header_name, strlen(p->strptr)) == 0)
                 {
-                    header_type = p->value;
+                    header_type = (HEADER_TYPE)p->value;
                     break;
                 }
             }
@@ -824,8 +839,23 @@ dissect_mrcpv2_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 case PHRASE_NL:
                     proto_tree_add_string(mrcpv2_tree, hf_mrcpv2_Phrase_NL, tvb, offset, linelen, header_value);
                     break;
-                case PROSODY_PARAMETER:
-                    proto_tree_add_string(mrcpv2_tree, hf_mrcpv2_Prosody_Parameter, tvb, offset, linelen, header_value);
+                case PROSODY_CONTOUR:
+                    proto_tree_add_string(mrcpv2_tree, hf_mrcpv2_Prosody_Contour, tvb, offset, linelen, header_value);
+                    break;
+                case PROSODY_DURATION:
+                    proto_tree_add_string(mrcpv2_tree, hf_mrcpv2_Prosody_Duration, tvb, offset, linelen, header_value);
+                    break;
+                case PROSODY_PITCH:
+                    proto_tree_add_string(mrcpv2_tree, hf_mrcpv2_Prosody_Pitch, tvb, offset, linelen, header_value);
+                    break;
+                case PROSODY_RANGE:
+                    proto_tree_add_string(mrcpv2_tree, hf_mrcpv2_Prosody_Range, tvb, offset, linelen, header_value);
+                    break;
+                case PROSODY_RATE:
+                    proto_tree_add_string(mrcpv2_tree, hf_mrcpv2_Prosody_Rate, tvb, offset, linelen, header_value);
+                    break;
+                case PROSODY_VOLUME:
+                    proto_tree_add_string(mrcpv2_tree, hf_mrcpv2_Prosody_Volume, tvb, offset, linelen, header_value);
                     break;
                 case PROXY_SYNC_ID:
                     proto_tree_add_string(mrcpv2_tree, hf_mrcpv2_Proxy_Sync_Id, tvb, offset, linelen, header_value);
@@ -921,7 +951,7 @@ dissect_mrcpv2_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     proto_tree_add_string(mrcpv2_tree, hf_mrcpv2_Weight, tvb, offset, linelen, header_value);
                     break;
                 default:
-                    proto_tree_add_item(mrcpv2_tree, hf_mrcpv2_Unknown_Header, tvb, offset, linelen, ENC_UTF_8);
+                    proto_tree_add_item(mrcpv2_tree, hf_mrcpv2_Unknown_Header, tvb, offset, linelen, ENC_UTF_8|ENC_NA);
                     break;
             }
         }
@@ -949,22 +979,22 @@ get_mrcpv2_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
     /* second string is message length */
     len_end = tvb_find_guint8(tvb, len_start, MRCPV2_MIN_PDU_LEN - len_start, ' ');
     if (len_end == -1)
-        msg_len = tvb_get_ephemeral_string(tvb, len_start, MRCPV2_MIN_PDU_LEN - len_start);
+        msg_len = tvb_get_string(wmem_packet_scope(), tvb, len_start, MRCPV2_MIN_PDU_LEN - len_start);
     else
-        msg_len = tvb_get_ephemeral_string(tvb, len_start, len_end - len_start);
+        msg_len = tvb_get_string(wmem_packet_scope(), tvb, len_start, len_end - len_start);
 
     num_msg_len = atoi(msg_len);
     return num_msg_len;
 }
 
-static void
-dissect_mrcpv2_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_mrcpv2_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
-    dissect_mrcpv2_common(tvb, pinfo, tree);
+    return dissect_mrcpv2_common(tvb, pinfo, tree);
 }
 
 static int
-dissect_mrcpv2_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_mrcpv2_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
     gint len;
     gint value_size;
@@ -984,7 +1014,7 @@ dissect_mrcpv2_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
     slash_offset = tvb_find_guint8(tvb, 0, MRCPV2_MIN_LENGTH, '/');
     if (slash_offset != 4)
         return 0;
-    version = tvb_get_ephemeral_string(tvb, 0, slash_offset);
+    version = tvb_get_string(wmem_packet_scope(), tvb, 0, slash_offset);
     if (strcmp(version, "MRCP") != 0)
         return 0;
 
@@ -995,7 +1025,7 @@ dissect_mrcpv2_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
     value_size = dot_offset - slash_offset - 1;
     if ((value_size != 1) && (value_size != 2))
         return 0;
-    major = tvb_get_ephemeral_string(tvb, slash_offset + 1, dot_offset - 1);
+    major = tvb_get_string(wmem_packet_scope(), tvb, slash_offset + 1, dot_offset - 1);
     value = atoi(major);
     if (value != 2)
         return 0;
@@ -1004,12 +1034,12 @@ dissect_mrcpv2_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
     sp_offset = tvb_find_guint8(tvb, dot_offset + 1, MRCPV2_MIN_LENGTH - dot_offset - 1, ' ');
     if (sp_offset == -1)
     {
-        minor = tvb_get_ephemeral_string(tvb, dot_offset + 1, MRCPV2_MIN_LENGTH - dot_offset - 1);
+        minor = tvb_get_string(wmem_packet_scope(), tvb, dot_offset + 1, MRCPV2_MIN_LENGTH - dot_offset - 1);
         len = MRCPV2_MIN_LENGTH;
     }
     else
     {
-        minor = tvb_get_ephemeral_string(tvb, dot_offset + 1, MRCPV2_MIN_LENGTH - sp_offset - 1);
+        minor = tvb_get_string(wmem_packet_scope(), tvb, dot_offset + 1, MRCPV2_MIN_LENGTH - sp_offset - 1);
         len = sp_offset;
     }
     value = atoi(minor);
@@ -1019,7 +1049,7 @@ dissect_mrcpv2_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
     /* if we are here, then we have MRCP v 2.0 protocol, so proceed with the dissection */
     tcp_dissect_pdus(tvb, pinfo, tree, TRUE, MRCPV2_MIN_PDU_LEN,
                     get_mrcpv2_pdu_len,
-                    dissect_mrcpv2_tcp_pdu);
+                    dissect_mrcpv2_tcp_pdu, data);
     return len;
 }
 
@@ -1317,8 +1347,28 @@ proto_register_mrcpv2(void)
             { "Phrase-NL", "mrcpv2.Phrase-NL",
             FT_STRING, BASE_NONE, NULL, 0, NULL, HFILL },
         },
-        { &hf_mrcpv2_Prosody_Parameter,
-            { "Prosody-Parameter", "mrcpv2.Prosody-Parameter",
+        { &hf_mrcpv2_Prosody_Contour,
+            { "Prosody-Contour", "mrcpv2.Prosody-Contour",
+            FT_STRING, BASE_NONE, NULL, 0, NULL, HFILL },
+        },
+        { &hf_mrcpv2_Prosody_Duration,
+            { "Prosody-Duration", "mrcpv2.Prosody-Duration",
+            FT_STRING, BASE_NONE, NULL, 0, NULL, HFILL },
+        },
+        { &hf_mrcpv2_Prosody_Pitch,
+            { "Prosody-Pitch", "mrcpv2.Prosody-Pitch",
+            FT_STRING, BASE_NONE, NULL, 0, NULL, HFILL },
+        },
+        { &hf_mrcpv2_Prosody_Range,
+            { "Prosody-Range", "mrcpv2.Prosody-Range",
+            FT_STRING, BASE_NONE, NULL, 0, NULL, HFILL },
+        },
+        { &hf_mrcpv2_Prosody_Rate,
+            { "Prosody-Rate", "mrcpv2.Prosody-Rate",
+            FT_STRING, BASE_NONE, NULL, 0, NULL, HFILL },
+        },
+        { &hf_mrcpv2_Prosody_Volume,
+            { "Prosody-Volume", "mrcpv2.Prosody-Volume",
             FT_STRING, BASE_NONE, NULL, 0, NULL, HFILL },
         },
         { &hf_mrcpv2_Proxy_Sync_Id,
@@ -1455,6 +1505,9 @@ proto_register_mrcpv2(void)
         &ett_Status_Code
     };
 
+    range_convert_str(&global_mrcpv2_tcp_range, TCP_DEFAULT_RANGE, 65535);
+    mrcpv2_tcp_range = range_empty();	
+
     proto_mrcpv2 = proto_register_protocol(
         "Media Resource Control Protocol Version 2 (MRCPv2)",
         "MRCPv2",
@@ -1465,9 +1518,10 @@ proto_register_mrcpv2(void)
 
     mrcpv2_module = prefs_register_protocol(proto_mrcpv2, proto_reg_handoff_mrcpv2);
 
-    prefs_register_uint_preference(mrcpv2_module, "tcp.port", "MRCPv2 TCP Port",
-         "MRCPv2 TCP port if other than the default",
-         10, &global_mrcpv2_tcp_port);
+    prefs_register_obsolete_preference(mrcpv2_module, "tcp.port");	
+    prefs_register_range_preference(mrcpv2_module, "tcp.port_range", "MRCPv2 TCP Port",
+         "MRCPv2 TCP Ports Range",
+         &global_mrcpv2_tcp_range, 65535);
 }
 
 void
@@ -1475,17 +1529,17 @@ proto_reg_handoff_mrcpv2(void)
 {
     static gboolean initialized = FALSE;
     static dissector_handle_t mrcpv2_handle;
-    static int TCPPort;
 
     if (!initialized) {
         mrcpv2_handle = new_create_dissector_handle(dissect_mrcpv2_tcp, proto_mrcpv2);
         initialized = TRUE;
     } else {
-        dissector_delete_uint("tcp.port", TCPPort, mrcpv2_handle);
+        dissector_delete_uint_range ("tcp.port", mrcpv2_tcp_range, mrcpv2_handle);
+        g_free (mrcpv2_tcp_range);
     }
 
-    TCPPort = global_mrcpv2_tcp_port;
-    dissector_add_uint("tcp.port", TCPPort, mrcpv2_handle);
+    mrcpv2_tcp_range = range_copy (global_mrcpv2_tcp_range);
+    dissector_add_uint_range ("tcp.port", mrcpv2_tcp_range, mrcpv2_handle);
 }
 /*
  * Editor modelines

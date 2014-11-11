@@ -3,8 +3,6 @@
 *
 * Copyright 2004, Luis E. Garcia Ontanon <luis@ontanon.org>
 *
-* $Id$
-*
 * Wireshark - Network traffic analyzer
 * By Gerald Combs <gerald@wireshark.org>
 * Copyright 1998 Gerald Combs
@@ -41,14 +39,16 @@
 #include <string.h>
 #include <errno.h>
 
+#include <wsutil/report_err.h>
+
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/strutil.h>
 #include <epan/prefs.h>
 #include <epan/proto.h>
 #include <epan/epan_dissect.h>
 #include <epan/tap.h>
-#include <epan/filesystem.h>
-#include <epan/report_err.h>
+#include <wsutil/filesystem.h>
 
 #include "mate_util.h"
 

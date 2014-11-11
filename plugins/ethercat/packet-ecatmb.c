@@ -1,8 +1,6 @@
 /* packet-ecatmb.c
  * Routines for EtherCAT packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2007 by Beckhoff Automation GmbH
  *
  * Wireshark - Network traffic analyzer
@@ -38,6 +36,9 @@
 
 #define BIT2BYTE(x) ((x+7)/8)
 #define ENDOF(p) ((p)+1) /* pointer to end of *p */
+
+void proto_register_ecat_mailbox(void);
+void proto_reg_handoff_ecat_mailbox(void);
 
 static dissector_handle_t eth_handle;
 static dissector_handle_t ams_handle;
@@ -258,32 +259,32 @@ void init_mbx_header(PETHERCAT_MBOX_HEADER pMbox, tvbuff_t *tvb, gint offset)
    pMbox->aControlUnion.Control = tvb_get_letohs(tvb, offset);
 }
 
-void init_eoe_header(PETHERCAT_EOE_HEADER pEoE, tvbuff_t *tvb, gint offset)
+static void init_eoe_header(PETHERCAT_EOE_HEADER pEoE, tvbuff_t *tvb, gint offset)
 {
    pEoE->anEoeHeaderInfoUnion.Info = tvb_get_letohs(tvb, offset); offset+=(int)sizeof(guint16);
    pEoE->anEoeHeaderDataUnion.Result = tvb_get_letohs(tvb, offset);
 }
 
-void init_foe_header(PETHERCAT_FOE_HEADER pFoE, tvbuff_t *tvb, gint offset)
+static void init_foe_header(PETHERCAT_FOE_HEADER pFoE, tvbuff_t *tvb, gint offset)
 {
    pFoE->OpMode = tvb_get_guint8(tvb, offset++);
    pFoE->Reserved1 = tvb_get_guint8(tvb, offset++);
    pFoE->aFoeHeaderDataUnion.FileLength = tvb_get_letohl(tvb, offset);
 }
 
-void init_soe_header(PETHERCAT_SOE_HEADER pSoE, tvbuff_t *tvb, gint offset)
+static void init_soe_header(PETHERCAT_SOE_HEADER pSoE, tvbuff_t *tvb, gint offset)
 {
    pSoE->anSoeHeaderControlUnion.v2.Control = tvb_get_guint8(tvb, offset++);
    pSoE->anSoeHeaderControlUnion.v2.Element = tvb_get_guint8(tvb, offset++);
    pSoE->anSoeHeaderDataUnion.FragmentsLeft = tvb_get_letohs(tvb, offset);
 }
 
-void init_coe_header(PETHERCAT_COE_HEADER pCoE, tvbuff_t *tvb, gint offset)
+static void init_coe_header(PETHERCAT_COE_HEADER pCoE, tvbuff_t *tvb, gint offset)
 {
    pCoE->header = tvb_get_letohs(tvb, offset);
 }
 
-void init_sdo_header(PETHERCAT_SDO_HEADER pSdo, tvbuff_t *tvb, gint offset)
+static void init_sdo_header(PETHERCAT_SDO_HEADER pSdo, tvbuff_t *tvb, gint offset)
 {
    pSdo->anSdoHeaderUnion.CS = tvb_get_guint8(tvb, offset++);
    pSdo->Index = tvb_get_letohs(tvb, offset);offset+=(int)sizeof(guint16);
@@ -291,7 +292,7 @@ void init_sdo_header(PETHERCAT_SDO_HEADER pSdo, tvbuff_t *tvb, gint offset)
    pSdo->Data = tvb_get_letohl(tvb, offset);
 }
 
-void init_sdo_info_header(PETHERCAT_SDO_INFO_HEADER pInfo, tvbuff_t *tvb, gint offset)
+static void init_sdo_info_header(PETHERCAT_SDO_INFO_HEADER pInfo, tvbuff_t *tvb, gint offset)
 {
    pInfo->anSdoControlUnion.Control = tvb_get_guint8(tvb, offset++);
    pInfo->Reserved = tvb_get_guint8(tvb, offset);
@@ -798,6 +799,7 @@ static void dissect_ecat_coe(tvbuff_t *tvb, gint offset, packet_info *pinfo, pro
                break;
             }
 
+            memset(&info, 0x0, sizeof(info));
             init_sdo_info_header(&info, tvb, offset);
 
             CANopenSdoInfoFormatter(&info, szText, nMax);
@@ -1301,7 +1303,6 @@ static void dissect_ecat_mailbox(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
       ETHERCAT_MBOX_HEADER hdr;
 
       init_mbx_header(&hdr, tvb, offset);
-      pinfo->private_data = &hdr;
 
       if( mailbox_length >= ETHERCAT_MBOX_HEADER_LEN + hdr.Length )
       {

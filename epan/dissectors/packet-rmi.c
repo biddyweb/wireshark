@@ -2,8 +2,6 @@
  * Routines for java rmiregistry dissection
  * Copyright 2002, Michael Stiller <ms@2scale.net>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,9 @@
 #include <epan/strutil.h>
 
 #include "packet-rmi.h"
+
+void proto_register_rmi(void);
+void proto_reg_handoff_rmi(void);
 
 static void
 dissect_ser(tvbuff_t *tvb, proto_tree *tree);
@@ -124,7 +125,6 @@ dissect_rmi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     guint epid_len;
 
     offset     = 0;
-    rmitype    = 0;
 
 /* Make entries in Protocol column and Info column on summary display */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "RMI");
@@ -133,7 +133,6 @@ dissect_rmi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     rmitype = get_rmi_type(tvb, offset, datalen);
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
 	switch(rmitype) {
 	case RMI_OUTPUTSTREAM:
 	    version = tvb_get_ntohs(tvb,4);
@@ -170,7 +169,6 @@ dissect_rmi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	    col_set_str(pinfo->cinfo, COL_INFO, "Continuation");
 	    break;
 	}
-    }
 
     if (tree) {
 	ti = proto_tree_add_item(tree, proto_rmi, tvb, 0, -1, ENC_NA);

@@ -1,8 +1,6 @@
 /* packet-x29.c
  * Routines for X.29 packet dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,8 +24,10 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-#include <epan/strutil.h>
 #include <epan/nlpid.h>
+
+void proto_register_x29(void);
+void proto_reg_handoff_x29(void);
 
 static int proto_x29 = -1;
 static int hf_msg_code = -1;
@@ -73,38 +73,39 @@ static const value_string error_type_vals[] = {
 	{ 0,    NULL },
 };
 
-static void
-dissect_x29(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_x29(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
 	int offset = 0;
-        proto_tree *x29_tree = NULL;
-        proto_item *ti;
-	gboolean *q_bit_set = pinfo->private_data;
+	proto_tree *x29_tree;
+	proto_item *ti;
+	gboolean *q_bit_set;
 	guint8 msg_code;
 	guint8 error_type;
 	guint8 type_ref;
 	gint next_offset;
 	int linelen;
 
+	/* Reject the packet if data is NULL */
+	if (data == NULL)
+		return 0;
+	q_bit_set = (gboolean *)data;
+
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "X.29");
 	col_clear(pinfo->cinfo, COL_INFO);
 
-	if (tree) {
-		ti = proto_tree_add_item(tree, proto_x29, tvb, offset, -1,
-		    ENC_NA);
-		x29_tree = proto_item_add_subtree(ti, ett_x29);
-	}
+	ti = proto_tree_add_item(tree, proto_x29, tvb, offset, -1, ENC_NA);
+	x29_tree = proto_item_add_subtree(ti, ett_x29);
 
 	if (*q_bit_set) {
 		/*
 		 * Q bit set - this is a PAD message.
 		 */
 		msg_code = tvb_get_guint8(tvb, offset);
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%s PAD message",
+		col_add_fstr(pinfo->cinfo, COL_INFO, "%s PAD message",
 			    val_to_str(msg_code, message_code_vals,
 			        "Unknown (0x%02x)"));
-		}
+
 		proto_tree_add_uint(x29_tree, hf_msg_code, tvb,
 		    offset, 1, msg_code);
 		offset++;
@@ -235,6 +236,8 @@ dissect_x29(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			}
 		}
 	}
+
+	return tvb_length(tvb);
 }
 
 void
@@ -253,12 +256,12 @@ proto_register_x29(void)
 		{ "Invalid message code", "x29.inv_msg_code", FT_UINT8, BASE_HEX,
 		  VALS(message_code_vals), 0x0, "X.29 Error PAD message invalid message code",
 		  HFILL }},
-        };
+	};
 	static gint *ett[] = {
 		&ett_x29,
 	};
 
-        proto_x29 = proto_register_protocol("X.29", "X.29", "x29");
+	proto_x29 = proto_register_protocol("X.29", "X.29", "x29");
 	proto_register_field_array(proto_x29, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
 }
@@ -268,6 +271,6 @@ proto_reg_handoff_x29(void)
 {
 	dissector_handle_t x29_handle;
 
-	x29_handle = create_dissector_handle(dissect_x29, proto_x29);
+	x29_handle = new_create_dissector_handle(dissect_x29, proto_x29);
 	dissector_add_uint("x.25.spi", NLPID_SPI_X_29, x29_handle);
 }

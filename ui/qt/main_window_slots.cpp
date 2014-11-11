@@ -1,6 +1,4 @@
-/* main_window.cpp
- *
- * $Id$
+/* main_window_slots.cpp
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -36,7 +34,7 @@
 
 #include "globals.h"
 
-#include <epan/filesystem.h>
+#include <wsutil/filesystem.h>
 #include <epan/prefs.h>
 
 #ifdef _WIN32
@@ -53,9 +51,12 @@
 #include "wsutil/file_util.h"
 
 #include "epan/column.h"
+#include <epan/epan_dissect.h>
 #include "epan/filter_expressions.h"
+#include <epan/value_string.h>
 
 #include "ui/alert_box.h"
+#include "ui/ui_util.h"
 #include "ui/capture_globals.h"
 #include "ui/help_url.h"
 #include "ui/main_statusbar.h"
@@ -67,13 +68,26 @@
 #endif
 
 #include "capture_file_dialog.h"
+#include "decode_as_dialog.h"
 #include "export_object_dialog.h"
-#include "time_shift_dialog.h"
+#include "export_pdu_dialog.h"
+#include "io_graph_dialog.h"
+#include "lbm_stream_dialog.h"
+#include "lbm_uimflow_dialog.h"
+#include "lbm_lbtrm_transport_dialog.h"
+#include "lbm_lbtru_transport_dialog.h"
 #include "packet_comment_dialog.h"
 #include "preferences_dialog.h"
 #include "print_dialog.h"
 #include "profile_dialog.h"
 #include "qt_ui_utils.h"
+#include "sctp_all_assocs_dialog.h"
+#include "sctp_assoc_analyse_dialog.h"
+#include "sctp_graph_dialog.h"
+#include "sequence_dialog.h"
+#include "stats_tree_dialog.h"
+#include "tcp_stream_dialog.h"
+#include "time_shift_dialog.h"
 #include "wireshark_application.h"
 
 #include <QClipboard>
@@ -85,9 +99,9 @@
 // Public slots
 //
 
-const char *dfe_property_ = "display filter expression";
+const char *dfe_property_ = "display filter expression"; //TODO : Fix Translate
 
-void MainWindow::openCaptureFile(QString &cf_path, QString &display_filter)
+void MainWindow::openCaptureFile(QString& cf_path, QString& display_filter, unsigned int type)
 {
     QString file_name = "";
     dfilter_t *rfcode = NULL;
@@ -120,7 +134,7 @@ void MainWindow::openCaptureFile(QString &cf_path, QString &display_filter)
                 break;
             }
 
-            if (open_dlg.open(file_name)) {
+            if (open_dlg.open(file_name, type)) {
                 if (dfilter_compile(display_filter.toUtf8().constData(), &rfcode)) {
                     cf_set_rfcode(&cfile, rfcode);
                 } else {
@@ -141,9 +155,9 @@ void MainWindow::openCaptureFile(QString &cf_path, QString &display_filter)
             }
         }
 
-        /* Try to open the capture file. */
+        /* Try to open the capture file. This closes the current file if it succeeds. */
         cfile.window = this;
-        if (cf_open(&cfile, cf_path.toUtf8().constData(), FALSE, &err) != CF_OK) {
+        if (cf_open(&cfile, cf_path.toUtf8().constData(), type, FALSE, &err) != CF_OK) {
             /* We couldn't open it; don't dismiss the open dialog box,
                just leave it around so that the user can, after they
                dismiss the alert box popped up for the open error,
@@ -176,7 +190,10 @@ void MainWindow::openCaptureFile(QString &cf_path, QString &display_filter)
     }
     // get_dirname overwrites its path. Hopefully this isn't a problem.
     wsApp->setLastOpenDir(get_dirname(cf_path.toUtf8().data()));
-    df_combo_box_->setEditText(display_filter);
+    if(display_filter != NULL)
+    {
+        df_combo_box_->setEditText(display_filter);
+    }
 
     main_ui_->statusBar->showExpert();
 }
@@ -190,8 +207,13 @@ void MainWindow::filterPackets(QString& new_filter, bool force)
     if (cf_status == CF_OK) {
         emit displayFilterSuccess(true);
         if (new_filter.length() > 0) {
-            if (df_combo_box_->findText(new_filter) < 0) {
+            int index = df_combo_box_->findText(new_filter);
+            if (index == -1) {
                 df_combo_box_->insertItem(0, new_filter);
+                df_combo_box_->setCurrentIndex(0);
+            }
+            else {
+                df_combo_box_->setCurrentIndex(index);
             }
         }
     } else {
@@ -199,12 +221,87 @@ void MainWindow::filterPackets(QString& new_filter, bool force)
     }
 }
 
+void MainWindow::layoutPanes()
+{
+    QSplitter *parents[3];
+
+    // Reparent all widgets and add them back in the proper order below.
+    // This hides each widget as well.
+    packet_list_->setParent(main_ui_->mainStack);
+    proto_tree_->setParent(main_ui_->mainStack);
+    byte_view_tab_->setParent(main_ui_->mainStack);
+    empty_pane_.setParent(main_ui_->mainStack);
+    extra_split_.setParent(main_ui_->mainStack);
+
+    switch(prefs.gui_layout_type) {
+    case(layout_type_2):
+    case(layout_type_1):
+        extra_split_.setOrientation(Qt::Horizontal);
+    case(layout_type_5):
+        master_split_.setOrientation(Qt::Vertical);
+        break;
+
+    case(layout_type_4):
+    case(layout_type_3):
+        extra_split_.setOrientation(Qt::Vertical);
+    case(layout_type_6):
+        master_split_.setOrientation(Qt::Horizontal);
+        break;
+
+    default:
+        g_assert_not_reached();
+    }
+
+    switch(prefs.gui_layout_type) {
+    case(layout_type_5):
+    case(layout_type_6):
+        parents[0] = &master_split_;
+        parents[1] = &master_split_;
+        parents[2] = &master_split_;
+        break;
+    case(layout_type_2):
+    case(layout_type_4):
+        parents[0] = &master_split_;
+        parents[1] = &extra_split_;
+        parents[2] = &extra_split_;
+        break;
+    case(layout_type_1):
+    case(layout_type_3):
+        parents[0] = &extra_split_;
+        parents[1] = &extra_split_;
+        parents[2] = &master_split_;
+        break;
+    default:
+        g_assert_not_reached();
+    }
+
+    if (parents[0] == &extra_split_) {
+        master_split_.addWidget(&extra_split_);
+    }
+
+    parents[0]->addWidget(getLayoutWidget(prefs.gui_layout_content_1));
+
+    if (parents[2] == &extra_split_) {
+        master_split_.addWidget(&extra_split_);
+    }
+
+    parents[1]->addWidget(getLayoutWidget(prefs.gui_layout_content_2));
+    parents[2]->addWidget(getLayoutWidget(prefs.gui_layout_content_3));
+
+    for (int i = 0; i < master_split_.count(); i++) {
+        master_split_.widget(i)->show();
+    }
+    for (int i = 0; i < extra_split_.count(); i++) {
+        extra_split_.widget(i)->show();
+    }
+}
+
 // Capture callbacks
 
+void MainWindow::captureCapturePrepared(capture_session *cap_session) {
 #ifdef HAVE_LIBPCAP
-void MainWindow::captureCapturePrepared(capture_options *capture_opts) {
     qDebug() << "FIX captureCapturePrepared";
-//    main_capture_set_main_window_title(capture_opts);
+    setTitlebarForCaptureInProgress();
 
 //    if(icon_list == NULL) {
 //        icon_list = icon_list_create(wsiconcap16_xpm, wsiconcap32_xpm, wsiconcap48_xpm, NULL);
@@ -218,17 +315,28 @@ void MainWindow::captureCapturePrepared(capture_options *capture_opts) {
 
 //    /* Don't set up main window for a capture file. */
 //    main_set_for_capture_file(FALSE);
-    main_ui_->mainStack->setCurrentWidget(packet_splitter_);
-    cap_file_ = (capture_file *) capture_opts->cf;
+    main_ui_->mainStack->setCurrentWidget(&master_split_);
+    cap_file_ = (capture_file *) cap_session->cf;
+#else
+    Q_UNUSED(cap_session)
+#endif // HAVE_LIBPCAP
 }
-void MainWindow::captureCaptureUpdateStarted(capture_options *capture_opts) {
-    Q_UNUSED(capture_opts);
+void MainWindow::captureCaptureUpdateStarted(capture_session *cap_session) {
+    Q_UNUSED(cap_session);
+#ifdef HAVE_LIBPCAP
+
+    /* We've done this in "prepared" above, but it will be cleared while
+       switching to the next multiple file. */
+    setTitlebarForCaptureInProgress();
 
     setForCaptureInProgress(true);
+
     setForCapturedPackets(true);
+#endif // HAVE_LIBPCAP
 }
-void MainWindow::captureCaptureUpdateFinished(capture_options *capture_opts) {
-    Q_UNUSED(capture_opts);
+void MainWindow::captureCaptureUpdateFinished(capture_session *cap_session) {
+    Q_UNUSED(cap_session);
+#ifdef HAVE_LIBPCAP
 
     /* The capture isn't stopping any more - it's stopped. */
     capture_stopping_ = false;
@@ -239,14 +347,17 @@ void MainWindow::captureCaptureUpdateFinished(capture_options *capture_opts) {
     /* Enable menu items that make sense if you're not currently running
      a capture. */
     setForCaptureInProgress(false);
-
+#endif // HAVE_LIBPCAP
 }
-void MainWindow::captureCaptureFixedStarted(capture_options *capture_opts) {
-    Q_UNUSED(capture_opts);
+void MainWindow::captureCaptureFixedStarted(capture_session *cap_session) {
+    Q_UNUSED(cap_session);
+#ifdef HAVE_LIBPCAP
     qDebug() << "captureCaptureFixedStarted";
+#endif // HAVE_LIBPCAP
 }
-void MainWindow::captureCaptureFixedFinished(capture_options *capture_opts) {
-    Q_UNUSED(capture_opts);
+void MainWindow::captureCaptureFixedFinished(capture_session *cap_session) {
+    Q_UNUSED(cap_session);
+#ifdef HAVE_LIBPCAP
     qDebug() << "captureCaptureFixedFinished";
 
     /* The capture isn't stopping any more - it's stopped. */
@@ -255,23 +366,26 @@ void MainWindow::captureCaptureFixedFinished(capture_options *capture_opts) {
     /* Enable menu items that make sense if you're not currently running
      a capture. */
     setForCaptureInProgress(false);
-
+#endif // HAVE_LIBPCAP
 }
-void MainWindow::captureCaptureStopping(capture_options *capture_opts) {
-    Q_UNUSED(capture_opts);
+void MainWindow::captureCaptureStopping(capture_session *cap_session) {
+    Q_UNUSED(cap_session);
+#ifdef HAVE_LIBPCAP
 
     capture_stopping_ = true;
     setMenusForCaptureStopping();
+#endif // HAVE_LIBPCAP
 }
-void MainWindow::captureCaptureFailed(capture_options *capture_opts) {
-    Q_UNUSED(capture_opts);
+void MainWindow::captureCaptureFailed(capture_session *cap_session) {
+    Q_UNUSED(cap_session);
+#ifdef HAVE_LIBPCAP
     qDebug() << "captureCaptureFailed";
     /* Capture isn't stopping any more. */
     capture_stopping_ = false;
 
     setForCaptureInProgress(false);
-}
 #endif // HAVE_LIBPCAP
+}
 
 
 // Callbacks from cfile.c via WiresharkApplication::captureFileCallback
@@ -295,7 +409,7 @@ void MainWindow::captureFileReadStarted(const capture_file *cf) {
     main_ui_->statusBar->popFileStatus();
     QString msg = QString(tr("Loading: %1")).arg(get_basename(cf->filename));
     main_ui_->statusBar->pushFileStatus(msg);
-    main_ui_->mainStack->setCurrentWidget(packet_splitter_);
+    main_ui_->mainStack->setCurrentWidget(&master_split_);
     WiresharkApplication::processEvents();
 }
 
@@ -309,21 +423,21 @@ void MainWindow::captureFileReadFinished(const capture_file *cf) {
 //        add_menu_recent_capture_file(cf->filename);
 
 //        /* Remember folder for next Open dialog and save it in recent */
-//	dir_path = get_dirname(g_strdup(cf->filename));
+//  dir_path = get_dirname(g_strdup(cf->filename));
 //        wsApp->setLastOpenDir(dir_path);
 //        g_free(dir_path);
 //    }
-//    set_display_filename(cf);
 
     /* Update the appropriate parts of the main window. */
     updateForUnsavedChanges();
 
-//    /* Enable menu items that make sense if you have some captured packets. */
+    /* Enable menu items that make sense if you have some captured packets. */
     setForCapturedPackets(true);
 
     main_ui_->statusBar->popFileStatus();
     QString msg = QString().sprintf("%s", get_basename(cf->filename));
     main_ui_->statusBar->pushFileStatus(msg);
+    emit setDissectedCaptureFile(cap_file_);
 }
 
 void MainWindow::captureFileClosing(const capture_file *cf) {
@@ -339,6 +453,7 @@ void MainWindow::captureFileClosing(const capture_file *cf) {
     main_ui_->searchFrame->animatedHide();
 //    gtk_widget_show(expert_info_none);
     emit setCaptureFile(NULL);
+    emit setDissectedCaptureFile(NULL);
 }
 
 void MainWindow::captureFileClosed(const capture_file *cf) {
@@ -354,6 +469,15 @@ void MainWindow::captureFileClosed(const capture_file *cf) {
     main_ui_->statusBar->popFileStatus();
     cap_file_ = NULL;
 
+    summary_dialog_.close();
+
+    if (df_combo_box_)
+    {
+        df_combo_box_->lineEdit()->setText("");
+        df_combo_box_->applyDisplayFilter();
+    }
+
+    setTitlebarForSelectedTreeRow();
     setMenusForSelectedTreeRow();
 }
 
@@ -403,6 +527,7 @@ void MainWindow::filterExpressionsChanged()
 // ui/gtk/capture_dlg.c:start_capture_confirmed
 
 void MainWindow::startCapture() {
+#ifdef HAVE_LIBPCAP
     interface_options interface_opts;
     guint i;
 
@@ -413,22 +538,31 @@ void MainWindow::startCapture() {
         return;
     }
 
+    // Ideally we should have disabled the start capture
+    // toolbar buttons and menu items. This may not be the
+    // case, e.g. with QtMacExtras.
+    if(!capture_filter_valid_) {
+        QString msg = QString("Invalid capture filter");
+        main_ui_->statusBar->pushTemporaryStatus(msg);
+        return;
+    }
+
     /* XXX - we might need to init other pref data as well... */
 //    main_auto_scroll_live_changed(auto_scroll_live);
 
     /* XXX - can this ever happen? */
-    if (global_capture_opts.state != CAPTURE_STOPPED)
+    if (global_capture_session.state != CAPTURE_STOPPED)
       return;
 
     /* close the currently loaded capture file */
-    cf_close((capture_file *) global_capture_opts.cf);
+    cf_close((capture_file *) global_capture_session.cf);
 
     /* Copy the selected interfaces to the set of interfaces to use for
        this capture. */
     collect_ifaces(&global_capture_opts);
 
     cfile.window = this;
-    if (capture_start(&global_capture_opts)) {
+    if (capture_start(&global_capture_opts, &global_capture_session, main_window_update)) {
         /* The capture succeeded, which means the capture filter syntax is
          valid; add this capture filter to the recent capture filter list. */
         for (i = 0; i < global_capture_opts.ifaces->len; i++) {
@@ -440,6 +574,7 @@ void MainWindow::startCapture() {
     } else {
         cfile.window = NULL;
     }
+#endif // HAVE_LIBPCAP
 }
 
 // Copied from ui/gtk/gui_utils.c
@@ -520,7 +655,9 @@ void MainWindow::stopCapture() {
 //    airpcap_set_toolbar_stop_capture(airpcap_if_active);
 //#endif
 
-    capture_stop(&global_capture_opts);
+#ifdef HAVE_LIBPCAP
+    capture_stop(&global_capture_session);
+#endif // HAVE_LIBPCAP
 }
 
 // XXX - Copied from ui/gtk/menus.c
@@ -596,12 +733,17 @@ void MainWindow::setMenusForSelectedPacket()
 //    gboolean    properties = FALSE;
 //    const char *abbrev     = NULL;
 //    char       *prev_abbrev;
+#if 0
+    gboolean is_ip = FALSE, is_tcp = FALSE, is_udp = FALSE, is_sctp = FALSE;
+#else
+    gboolean is_tcp = FALSE, is_sctp = FALSE;
+#endif
 
 //    /* Making the menu context-sensitive allows for easier selection of the
 //       desired item and has the added benefit, with large captures, of
 //       avoiding needless looping through huge lists for marked, ignored,
 //       or time-referenced packets. */
-//    gboolean is_ssl = packet_is_ssl(cf->edt);
+//    gboolean is_ssl = epan_dissect_packet_contains_field(cf->edt, "ssl");
 
     /* We have one or more items in the packet list */
     gboolean have_frames = FALSE;
@@ -635,6 +777,11 @@ void MainWindow::setMenusForSelectedPacket()
         have_time_ref = cap_file_->ref_time_count > 0;
         another_is_time_ref = frame_selected && have_time_ref &&
                 !(cap_file_->ref_time_count == 1 && cap_file_->current_frame->flags.ref_time);
+
+        if (cap_file_->edt)
+        {
+            proto_get_frame_protocols(cap_file_->edt->pi.layers, NULL, &is_tcp, NULL, &is_sctp, NULL);
+        }
     }
 //    if (cfile.edt && cfile.edt->tree) {
 //        GPtrArray          *ga;
@@ -650,8 +797,8 @@ void MainWindow::setMenusForSelectedPacket()
 //            hfinfo =  v->hfinfo;
 
 //            if (!g_str_has_prefix(hfinfo->abbrev, "text") &&
-//                !g_str_has_prefix(hfinfo->abbrev, "expert") &&
-//                !g_str_has_prefix(hfinfo->abbrev, "malformed")) {
+//                !g_str_has_prefix(hfinfo->abbrev, "_ws.expert") &&
+//                !g_str_has_prefix(hfinfo->abbrev, "_ws.malformed")) {
 
 //                if (hfinfo->parent == -1) {
 //                    abbrev = hfinfo->abbrev;
@@ -675,7 +822,7 @@ void MainWindow::setMenusForSelectedPacket()
 //    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/EditPacket",
 //                         frame_selected);
 //#endif /* WANT_PACKET_EDITOR */
-    main_ui_->actionEditPacketComment->setEnabled(frame_selected);
+    main_ui_->actionEditPacketComment->setEnabled(frame_selected && wtap_dump_can_write(cap_file_->linktypes, WTAP_COMMENT_PER_PACKET));
 
     main_ui_->actionEditIgnorePacket->setEnabled(frame_selected);
     main_ui_->actionEditIgnoreAllDisplayed->setEnabled(have_filtered);
@@ -707,15 +854,15 @@ void MainWindow::setMenusForSelectedPacket()
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ShowPacketinNewWindow",
 //                         frame_selected);
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ManuallyResolveAddress",
-//                         frame_selected ? ((cf->edt->pi.ethertype == ETHERTYPE_IP)||(cf->edt->pi.ethertype == ETHERTYPE_IPv6)) : FALSE);
+//                         frame_selected ? is_ip : FALSE);
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/SCTP",
-//                         frame_selected ? (cf->edt->pi.ipproto == IP_PROTO_SCTP) : FALSE);
+//                         frame_selected ? is_sctp : FALSE);
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/FollowTCPStream",
-//                         frame_selected ? (cf->edt->pi.ipproto == IP_PROTO_TCP) : FALSE);
+//                         frame_selected ? is_tcp : FALSE);
 //    set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/FollowTCPStream",
-//                         frame_selected ? (cf->edt->pi.ipproto == IP_PROTO_TCP) : FALSE);
+//                         frame_selected ? is_tcp : FALSE);
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/FollowUDPStream",
-//                         frame_selected ? (cf->edt->pi.ipproto == IP_PROTO_UDP) : FALSE);
+//                         frame_selected ? is_udp : FALSE);
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/FollowSSLStream",
 //                         frame_selected ? is_ssl : FALSE);
 //    set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/FollowSSLStream",
@@ -725,13 +872,13 @@ void MainWindow::setMenusForSelectedPacket()
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ConversationFilter/Ethernet",
 //                         frame_selected ? (cf->edt->pi.dl_src.type == AT_ETHER) : FALSE);
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ConversationFilter/IP",
-//                         frame_selected ? ((cf->edt->pi.ethertype == ETHERTYPE_IP)||(cf->edt->pi.ethertype == ETHERTYPE_IPv6)) : FALSE);
+//                         frame_selected ? is_ip : FALSE);
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ConversationFilter/TCP",
-//                         frame_selected ? (cf->edt->pi.ipproto == IP_PROTO_TCP) : FALSE);
+//                         frame_selected ? is_tcp : FALSE);
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ConversationFilter/UDP",
-//                         frame_selected ? (cf->edt->pi.ipproto == IP_PROTO_UDP) : FALSE);
+//                         frame_selected ? is_udp : FALSE);
 //    set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/FollowUDPStream",
-//                         frame_selected ? (cf->edt->pi.ipproto == IP_PROTO_UDP) : FALSE);
+//                         frame_selected ? is_udp : FALSE);
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ConversationFilter/PN-CBA",
 //                         frame_selected ? (cf->edt->pi.profinet_type != 0 && cf->edt->pi.profinet_type < 10) : FALSE);
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ColorizeConversation",
@@ -739,15 +886,13 @@ void MainWindow::setMenusForSelectedPacket()
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ColorizeConversation/Ethernet",
 //                         frame_selected ? (cf->edt->pi.dl_src.type == AT_ETHER) : FALSE);
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ColorizeConversation/IP",
-//                         frame_selected ? ((cf->edt->pi.ethertype == ETHERTYPE_IP)||(cf->edt->pi.ethertype == ETHERTYPE_IPv6)) : FALSE);
+//                         frame_selected ? is_ip : FALSE);
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ColorizeConversation/TCP",
-//                         frame_selected ? (cf->edt->pi.ipproto == IP_PROTO_TCP) : FALSE);
+//                         frame_selected ? is_tcp : FALSE);
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ColorizeConversation/UDP",
-//                         frame_selected ? (cf->edt->pi.ipproto == IP_PROTO_UDP) : FALSE);
+//                         frame_selected ? is_udp : FALSE);
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ColorizeConversation/PN-CBA",
 //                         frame_selected ? (cf->edt->pi.profinet_type != 0 && cf->edt->pi.profinet_type < 10) : FALSE);
-//    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/DecodeAs",
-//                         frame_selected && decode_as_ok());
 
 //    if (properties) {
 //        prev_abbrev = g_object_get_data(G_OBJECT(ui_manager_packet_list_menu), "menu_abbrev");
@@ -763,8 +908,6 @@ void MainWindow::setMenusForSelectedPacket()
 
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ProtocolPreferences",
 //                             properties);
-//    set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/DecodeAs",
-//                         frame_selected && decode_as_ok());
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/Copy",
 //                         frame_selected);
 //    set_menu_sensitivity(ui_manager_packet_list_menu, "/PacketListMenuPopup/ApplyAsFilter",
@@ -775,20 +918,21 @@ void MainWindow::setMenusForSelectedPacket()
 //                         frame_selected && (gbl_resolv_flags.mac_name || gbl_resolv_flags.network_name ||
 //                                            gbl_resolv_flags.transport_name || gbl_resolv_flags.concurrent_dns));
 //    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/AnalyzeMenu/FollowTCPStream",
-//                         frame_selected ? (cf->edt->pi.ipproto == IP_PROTO_TCP) : FALSE);
+//                         frame_selected ? is_tcp : FALSE);
 //    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/AnalyzeMenu/FollowUDPStream",
-//                         frame_selected ? (cf->edt->pi.ipproto == IP_PROTO_UDP) : FALSE);
+//                         frame_selected ? is_udp : FALSE);
 //    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/AnalyzeMenu/FollowSSLStream",
 //                         frame_selected ? is_ssl : FALSE);
-//    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/AnalyzeMenu/DecodeAs",
-//                         frame_selected && decode_as_ok());
 //    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/ViewMenu/NameResolution/ResolveName",
 //                         frame_selected && (gbl_resolv_flags.mac_name || gbl_resolv_flags.network_name ||
 //                                            gbl_resolv_flags.transport_name || gbl_resolv_flags.concurrent_dns));
 //    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/ToolsMenu/FirewallACLRules",
 //                         frame_selected);
-//    set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/StatisticsMenu/TCPStreamGraphMenu",
-//                         tcp_graph_selected_packet_enabled(cf->current_frame,cf->edt, NULL));
+    main_ui_->menuTcpStreamGraphs->setEnabled(is_tcp);
+    main_ui_->menuSCTP->setEnabled(is_sctp);
+    main_ui_->actionSCTPAnalyseThisAssociation->setEnabled(is_sctp);
+    main_ui_->actionSCTPShowAllAssociations->setEnabled(is_sctp);
+    main_ui_->actionSCTPFilterThisAssociation->setEnabled(is_sctp);
 
 //    while (list_entry != NULL) {
 //        dissector_filter_t *filter_entry;
@@ -940,11 +1084,21 @@ void MainWindow::setMenusForSelectedTreeRow(field_info *fi) {
 
 void MainWindow::interfaceSelectionChanged()
 {
-    if (global_capture_opts.num_selected > 0) {
+#ifdef HAVE_LIBPCAP
+    // XXX This doesn't disable the toolbar button when using
+    // QtMacExtras.
+    if (global_capture_opts.num_selected > 0 && capture_filter_valid_) {
         main_ui_->actionStartCapture->setEnabled(true);
     } else {
         main_ui_->actionStartCapture->setEnabled(false);
     }
+#endif // HAVE_LIBPCAP
+}
+
+void MainWindow::captureFilterSyntaxChanged(bool valid)
+{
+    capture_filter_valid_ = valid;
+    interfaceSelectionChanged();
 }
 
 void MainWindow::redissectPackets()
@@ -961,10 +1115,26 @@ void MainWindow::recreatePacketList()
     col_cleanup(&cfile.cinfo);
     build_column_format_array(&cfile.cinfo, prefs.num_cols, FALSE);
 
+    packet_list_->updateAll();
     packet_list_->hide();
     packet_list_->show();
 
     cfile.columns_changed = FALSE; /* Reset value */
+}
+
+void MainWindow::setFeaturesEnabled(bool enabled)
+{
+    main_ui_->menuBar->setEnabled(enabled);
+    main_ui_->mainToolBar->setEnabled(enabled);
+    main_ui_->displayFilterToolBar->setEnabled(enabled);
+    if(enabled)
+    {
+        main_ui_->statusBar->clearMessage();
+    }
+    else
+    {
+        main_ui_->statusBar->showMessage(tr("Please wait while Wireshark is initializing . . ."));
+    }
 }
 
 // On Qt4 + OS X with unifiedTitleAndToolBarOnMac set it's possible to make
@@ -1020,7 +1190,7 @@ void MainWindow::on_actionFileMerge_triggered()
     mergeCaptureFile();
 }
 
-void MainWindow::on_actionFileImport_triggered()
+void MainWindow::on_actionFileImportFromHexDump_triggered()
 {
     importCaptureFile();
 }
@@ -1132,6 +1302,22 @@ void MainWindow::on_actionFileExportPacketBytes_triggered()
         wsApp->setLastOpenDir(&file_name);
     }
 }
+void MainWindow::on_actionFileExportPDU_triggered()
+{
+    ExportPDUDialog *exportpdu_dialog = new ExportPDUDialog(this);
+
+    if (exportpdu_dialog->isMinimized() == true)
+    {
+        exportpdu_dialog->showNormal();
+    }
+    else
+    {
+        exportpdu_dialog->show();
+    }
+
+    exportpdu_dialog->raise();
+    exportpdu_dialog->activateWindow();
+}
 
 void MainWindow::on_actionFileExportSSLSessionKeys_triggered()
 {
@@ -1238,7 +1424,9 @@ void MainWindow::actionEditCopyTriggered(MainWindow::CopySelected selection_type
         break;
     case CopySelectedValue:
         if (cap_file_->edt != 0) {
-            clip.append(get_node_field_value(cap_file_->finfo_selected, cap_file_->edt));
+            gchar* field_str = get_node_field_value(cap_file_->finfo_selected, cap_file_->edt);
+            clip.append(field_str);
+            g_free(field_str);
         }
         break;
     }
@@ -1399,6 +1587,35 @@ void MainWindow::on_actionEditPreferences_triggered()
 
 // View Menu
 
+void MainWindow::on_actionViewReload_triggered()
+{
+    cf_reload(&cfile);
+}
+
+// gets called when user checks/unchecks the View->Toolbar->Main Toolbar
+void MainWindow::on_actionViewToolbarMainToolbar_triggered()
+{
+    // just checking for isChecked() was sufficient here, but I was worried about a loop
+    // so I'm checking both conditions
+    if (main_ui_->actionViewToolbarMainToolbar->isChecked() && !main_ui_->mainToolBar->isVisible()) {
+        main_ui_->mainToolBar->show();
+    } else if (!main_ui_->actionViewToolbarMainToolbar->isChecked() && main_ui_->mainToolBar->isVisible()) {
+        main_ui_->mainToolBar->hide();
+    }
+}
+
+// gets called when user checks/unchecks the View->Toolbar->Display Filter
+void MainWindow::on_actionViewToolbarDisplayFilter_triggered()
+{
+    // just checking for isChecked() was sufficient here, but I was worried about a loop
+    // so I'm checking both conditions
+    if (main_ui_->actionViewToolbarDisplayFilter->isChecked() && !main_ui_->displayFilterToolBar->isVisible()) {
+        main_ui_->displayFilterToolBar->show();
+    } else if (!main_ui_->actionViewToolbarDisplayFilter->isChecked() && main_ui_->displayFilterToolBar->isVisible()) {
+        main_ui_->displayFilterToolBar->hide();
+    }
+}
+
 // Expand / collapse slots in proto_tree
 
 // Go Menu
@@ -1546,8 +1763,344 @@ void MainWindow::on_actionAnalyzePAFOrNotSelected_triggered()
     matchSelectedFilter(MatchSelectedOrNot, false, false);
 }
 
+void MainWindow::on_actionAnalyzeDecodeAs_triggered()
+{
+    QAction *da_action = qobject_cast<QAction*>(sender());
+    bool create_new = false;
+    if (da_action && da_action->data().toBool() == true) {
+        create_new = true;
+    }
+
+    DecodeAsDialog da_dialog(this, cap_file_, create_new);
+    connect(this, SIGNAL(setCaptureFile(capture_file*)),
+            &da_dialog, SLOT(setCaptureFile(capture_file*)));
+    da_dialog.exec();
+}
+
+void MainWindow::openFollowStreamDialog(follow_type_t type) {
+    FollowStreamDialog *fsd = new FollowStreamDialog(this, type, cap_file_);
+    connect(fsd, SIGNAL(updateFilter(QString&, bool)), this, SLOT(filterPackets(QString&, bool)));
+    connect(fsd, SIGNAL(goToPacket(int)), packet_list_, SLOT(goToPacket(int)));
+
+    fsd->follow(getFilter());
+    fsd->show();
+}
+
+void MainWindow::on_actionAnalyzeFollowTCPStream_triggered()
+{
+    openFollowStreamDialog(FOLLOW_TCP);
+}
+
+void MainWindow::on_actionAnalyzeFollowUDPStream_triggered()
+{
+    openFollowStreamDialog(FOLLOW_UDP);
+}
+
+void MainWindow::on_actionAnalyzeFollowSSLStream_triggered()
+{
+    openFollowStreamDialog(FOLLOW_SSL);
+}
+
+void MainWindow::openSCTPAllAssocsDialog()
+{
+    SCTPAllAssocsDialog *sctp_dialog = new SCTPAllAssocsDialog(this, cap_file_);
+    connect(sctp_dialog, SIGNAL(filterPackets(QString&,bool)),
+            this, SLOT(filterPackets(QString&,bool)));
+    connect(this, SIGNAL(setCaptureFile(capture_file*)),
+            sctp_dialog, SLOT(setCaptureFile(capture_file*)));
+    sctp_dialog->fillTable();
+
+    if (sctp_dialog->isMinimized() == true)
+    {
+        sctp_dialog->showNormal();
+    }
+    else
+    {
+        sctp_dialog->show();
+    }
+
+    sctp_dialog->raise();
+    sctp_dialog->activateWindow();
+}
+
+void MainWindow::on_actionSCTPShowAllAssociations_triggered()
+{
+    openSCTPAllAssocsDialog();
+}
+
+void MainWindow::on_actionSCTPAnalyseThisAssociation_triggered()
+{
+    SCTPAssocAnalyseDialog *sctp_analyse = new SCTPAssocAnalyseDialog(this, NULL, cap_file_);
+    connect(sctp_analyse, SIGNAL(filterPackets(QString&,bool)),
+            this, SLOT(filterPackets(QString&,bool)));
+
+    if (sctp_analyse->isMinimized() == true)
+    {
+        sctp_analyse->showNormal();
+    }
+    else
+    {
+        sctp_analyse->show();
+    }
+
+    sctp_analyse->raise();
+    sctp_analyse->activateWindow();
+}
+
+void MainWindow::on_actionSCTPFilterThisAssociation_triggered()
+{
+    sctp_assoc_info_t* assoc = SCTPAssocAnalyseDialog::findAssocForPacket(cap_file_);
+    if (assoc) {
+        QString newFilter = QString("sctp.assoc_index==%1").arg(assoc->assoc_id);
+        assoc = NULL;
+        emit filterPackets(newFilter, false);
+    }
+}
+
 
 // Next / previous / first / last slots in packet_list
+
+// Statistics Menu
+
+void MainWindow::on_actionStatisticsFlowGraph_triggered()
+{
+    SequenceDialog *sequence_dialog = new SequenceDialog(this, cap_file_);
+    connect(sequence_dialog, SIGNAL(goToPacket(int)),
+            packet_list_, SLOT(goToPacket(int)));
+    connect(this, SIGNAL(setCaptureFile(capture_file*)),
+            sequence_dialog, SLOT(setCaptureFile(capture_file*)));
+    sequence_dialog->show();
+}
+
+void MainWindow::openTcpStreamDialog(int graph_type)
+{
+    TCPStreamDialog *stream_dialog = new TCPStreamDialog(this, cap_file_, (tcp_graph_type)graph_type);
+    connect(stream_dialog, SIGNAL(goToPacket(int)),
+            packet_list_, SLOT(goToPacket(int)));
+    connect(this, SIGNAL(setCaptureFile(capture_file*)),
+            stream_dialog, SLOT(setCaptureFile(capture_file*)));
+    stream_dialog->show();
+}
+
+void MainWindow::on_actionStatisticsTcpStreamStevens_triggered()
+{
+    openTcpStreamDialog(GRAPH_TSEQ_STEVENS);
+}
+
+void MainWindow::on_actionStatisticsTcpStreamTcptrace_triggered()
+{
+    openTcpStreamDialog(GRAPH_TSEQ_TCPTRACE);
+}
+
+void MainWindow::on_actionStatisticsTcpStreamThroughput_triggered()
+{
+    openTcpStreamDialog(GRAPH_THROUGHPUT);
+}
+
+void MainWindow::on_actionStatisticsTcpStreamRoundTripTime_triggered()
+{
+    openTcpStreamDialog(GRAPH_RTT);
+}
+
+void MainWindow::on_actionStatisticsTcpStreamWindowScaling_triggered()
+{
+    openTcpStreamDialog(GRAPH_WSCALE);
+}
+
+void MainWindow::openStatisticsTreeDialog(const gchar *abbr)
+{
+    StatsTreeDialog *st_dialog = new StatsTreeDialog(this, cap_file_, abbr);
+//    connect(st_dialog, SIGNAL(goToPacket(int)),
+//            packet_list_, SLOT(goToPacket(int)));
+    connect(this, SIGNAL(setCaptureFile(capture_file*)),
+            st_dialog, SLOT(setCaptureFile(capture_file*)));
+    st_dialog->show();
+}
+
+void MainWindow::on_actionStatistics29WestTopics_Advertisements_by_Topic_triggered()
+{
+    openStatisticsTreeDialog("lbmr_topic_ads_topic");
+}
+
+void MainWindow::on_actionStatistics29WestTopics_Advertisements_by_Source_triggered()
+{
+    openStatisticsTreeDialog("lbmr_topic_ads_source");
+}
+
+void MainWindow::on_actionStatistics29WestTopics_Advertisements_by_Transport_triggered()
+{
+    openStatisticsTreeDialog("lbmr_topic_ads_transport");
+}
+
+void MainWindow::on_actionStatistics29WestTopics_Queries_by_Topic_triggered()
+{
+    openStatisticsTreeDialog("lbmr_topic_queries_topic");
+}
+
+void MainWindow::on_actionStatistics29WestTopics_Queries_by_Receiver_triggered()
+{
+    openStatisticsTreeDialog("lbmr_topic_queries_receiver");
+}
+
+void MainWindow::on_actionStatistics29WestTopics_Wildcard_Queries_by_Pattern_triggered()
+{
+    openStatisticsTreeDialog("lbmr_topic_queries_pattern");
+}
+
+void MainWindow::on_actionStatistics29WestTopics_Wildcard_Queries_by_Receiver_triggered()
+{
+    openStatisticsTreeDialog("lbmr_topic_queries_pattern_receiver");
+}
+
+void MainWindow::on_actionStatistics29WestQueues_Advertisements_by_Queue_triggered()
+{
+    openStatisticsTreeDialog("lbmr_queue_ads_queue");
+}
+
+void MainWindow::on_actionStatistics29WestQueues_Advertisements_by_Source_triggered()
+{
+    openStatisticsTreeDialog("lbmr_queue_ads_source");
+}
+
+void MainWindow::on_actionStatistics29WestQueues_Queries_by_Queue_triggered()
+{
+    openStatisticsTreeDialog("lbmr_queue_queries_queue");
+}
+
+void MainWindow::on_actionStatistics29WestQueues_Queries_by_Receiver_triggered()
+{
+    openStatisticsTreeDialog("lbmr_queue_queries_receiver");
+}
+
+void MainWindow::on_actionStatistics29WestUIM_Streams_triggered()
+{
+    LBMStreamDialog *stream_dialog = new LBMStreamDialog(this, cap_file_);
+//    connect(stream_dialog, SIGNAL(goToPacket(int)),
+//            packet_list_, SLOT(goToPacket(int)));
+    connect(this, SIGNAL(setCaptureFile(capture_file*)),
+            stream_dialog, SLOT(setCaptureFile(capture_file*)));
+    stream_dialog->show();
+}
+
+void MainWindow::on_actionStatistics29WestUIM_Stream_Flow_Graph_triggered()
+{
+    LBMUIMFlowDialog * uimflow_dialog = new LBMUIMFlowDialog(this, cap_file_);
+    connect(uimflow_dialog, SIGNAL(goToPacket(int)),
+            packet_list_, SLOT(goToPacket(int)));
+    connect(this, SIGNAL(setCaptureFile(capture_file*)),
+            uimflow_dialog, SLOT(setCaptureFile(capture_file*)));
+    uimflow_dialog->show();
+}
+
+void MainWindow::on_actionStatistics29WestLBTRM_triggered()
+{
+    LBMLBTRMTransportDialog * lbtrm_dialog = new LBMLBTRMTransportDialog(this, cap_file_);
+    connect(lbtrm_dialog, SIGNAL(goToPacket(int)),
+            packet_list_, SLOT(goToPacket(int)));
+    connect(this, SIGNAL(setCaptureFile(capture_file*)),
+            lbtrm_dialog, SLOT(setCaptureFile(capture_file*)));
+    lbtrm_dialog->show();
+}
+void MainWindow::on_actionStatistics29WestLBTRU_triggered()
+{
+    LBMLBTRUTransportDialog * lbtru_dialog = new LBMLBTRUTransportDialog(this, cap_file_);
+    connect(lbtru_dialog, SIGNAL(goToPacket(int)),
+            packet_list_, SLOT(goToPacket(int)));
+    connect(this, SIGNAL(setCaptureFile(capture_file*)),
+            lbtru_dialog, SLOT(setCaptureFile(capture_file*)));
+    lbtru_dialog->show();
+}
+
+void MainWindow::on_actionStatisticsANCP_triggered()
+{
+    openStatisticsTreeDialog("ancp");
+}
+
+void MainWindow::on_actionStatisticsBACappInstanceId_triggered()
+{
+    openStatisticsTreeDialog("bacapp_instanceid");
+}
+
+void MainWindow::on_actionStatisticsBACappIP_triggered()
+{
+    openStatisticsTreeDialog("bacapp_ip");
+}
+
+void MainWindow::on_actionStatisticsBACappObjectId_triggered()
+{
+    openStatisticsTreeDialog("bacapp_objectid");
+}
+
+void MainWindow::on_actionStatisticsBACappService_triggered()
+{
+    openStatisticsTreeDialog("bacapp_service");
+}
+
+void MainWindow::on_actionStatisticsCollectd_triggered()
+{
+    openStatisticsTreeDialog("collectd");
+}
+
+void MainWindow::on_actionStatisticsHART_IP_triggered()
+{
+    openStatisticsTreeDialog("hart_ip");
+}
+
+void MainWindow::on_actionStatisticsHTTPPacketCounter_triggered()
+{
+    openStatisticsTreeDialog("http");
+}
+
+void MainWindow::on_actionStatisticsHTTPRequests_triggered()
+{
+    openStatisticsTreeDialog("http_req");
+}
+
+void MainWindow::on_actionStatisticsHTTPLoadDistribution_triggered()
+{
+    openStatisticsTreeDialog("http_srv");
+}
+
+void MainWindow::on_actionStatisticsPacketLen_triggered()
+{
+    openStatisticsTreeDialog("plen");
+}
+
+void MainWindow::on_actionStatisticsIOGraph_triggered()
+{
+    IOGraphDialog *iog_dialog = new IOGraphDialog(this, cap_file_);
+    connect(iog_dialog, SIGNAL(goToPacket(int)), packet_list_, SLOT(goToPacket(int)));
+    connect(this, SIGNAL(setCaptureFile(capture_file*)),
+            iog_dialog, SLOT(setCaptureFile(capture_file*)));
+    iog_dialog->show();
+}
+
+void MainWindow::on_actionStatisticsSametime_triggered()
+{
+    openStatisticsTreeDialog("sametime");
+}
+
+// Telephony Menu
+
+void MainWindow::on_actionTelephonyISUPMessages_triggered()
+{
+    openStatisticsTreeDialog("isup_msg");
+}
+
+void MainWindow::on_actionTelephonyRTSPPacketCounter_triggered()
+{
+    openStatisticsTreeDialog("rtsp");
+}
+
+void MainWindow::on_actionTelephonySMPPOperations_triggered()
+{
+    openStatisticsTreeDialog("smpp_commands");
+}
+
+void MainWindow::on_actionTelephonyUCPMessages_triggered()
+{
+    openStatisticsTreeDialog("ucp_messages");
+}
 
 // Help Menu
 void MainWindow::on_actionHelpContents_triggered() {
@@ -1559,33 +2112,41 @@ void MainWindow::on_actionHelpMPWireshark_triggered() {
 
     wsApp->helpTopicAction(LOCALPAGE_MAN_WIRESHARK);
 }
-void MainWindow::on_actionHelpMPWireshark_Filter_triggered() {
 
+void MainWindow::on_actionHelpMPWireshark_Filter_triggered() {
     wsApp->helpTopicAction(LOCALPAGE_MAN_WIRESHARK_FILTER);
 }
-void MainWindow::on_actionHelpMPTShark_triggered() {
 
-    wsApp->helpTopicAction(LOCALPAGE_MAN_TSHARK);
+void MainWindow::on_actionHelpMPCapinfos_triggered() {
+    wsApp->helpTopicAction(LOCALPAGE_MAN_CAPINFOS);
 }
-void MainWindow::on_actionHelpMPRawShark_triggered() {
 
-    wsApp->helpTopicAction(LOCALPAGE_MAN_RAWSHARK);
-}
 void MainWindow::on_actionHelpMPDumpcap_triggered() {
-
     wsApp->helpTopicAction(LOCALPAGE_MAN_DUMPCAP);
 }
-void MainWindow::on_actionHelpMPMergecap_triggered() {
 
-    wsApp->helpTopicAction(LOCALPAGE_MAN_MERGECAP);
-}
 void MainWindow::on_actionHelpMPEditcap_triggered() {
-
     wsApp->helpTopicAction(LOCALPAGE_MAN_EDITCAP);
 }
-void MainWindow::on_actionHelpMPText2cap_triggered() {
 
+void MainWindow::on_actionHelpMPMergecap_triggered() {
+    wsApp->helpTopicAction(LOCALPAGE_MAN_MERGECAP);
+}
+
+void MainWindow::on_actionHelpMPRawShark_triggered() {
+    wsApp->helpTopicAction(LOCALPAGE_MAN_RAWSHARK);
+}
+
+void MainWindow::on_actionHelpMPReordercap_triggered() {
+    wsApp->helpTopicAction(LOCALPAGE_MAN_REORDERCAP);
+}
+
+ void MainWindow::on_actionHelpMPText2cap_triggered() {
     wsApp->helpTopicAction(LOCALPAGE_MAN_TEXT2PCAP);
+}
+
+void MainWindow::on_actionHelpMPTShark_triggered() {
+    wsApp->helpTopicAction(LOCALPAGE_MAN_TSHARK);
 }
 
 void MainWindow::on_actionHelpWebsite_triggered() {
@@ -1624,6 +2185,23 @@ void MainWindow::on_actionHelpCheckForUpdates_triggered()
     software_update_check();
 }
 #endif
+
+void MainWindow::on_actionHelpAbout_triggered()
+{
+    AboutDialog *about_dialog = new AboutDialog(this);
+
+    if (about_dialog->isMinimized() == true)
+    {
+        about_dialog->showNormal();
+    }
+    else
+    {
+        about_dialog->show();
+    }
+
+    about_dialog->raise();
+    about_dialog->activateWindow();
+}
 
 void MainWindow::on_actionGoGoToPacket_triggered() {
     if (packet_list_->model()->rowCount() < 1) {
@@ -1697,8 +2275,9 @@ void MainWindow::on_actionStartCapture_triggered()
 //      return;   /* error in options dialog */
 //  }
 
-    main_ui_->mainStack->setCurrentWidget(packet_splitter_);
+    main_ui_->mainStack->setCurrentWidget(&master_split_);
 
+#ifdef HAVE_LIBPCAP
     if (global_capture_opts.num_selected == 0) {
         QString err_msg = tr("No Interface Selected");
         main_ui_->statusBar->pushTemporaryStatus(err_msg);
@@ -1708,12 +2287,69 @@ void MainWindow::on_actionStartCapture_triggered()
     /* XXX - will closing this remove a temporary file? */
     if (testCaptureFileClose(FALSE, *new QString(" before starting a new capture")))
         startCapture();
+#endif // HAVE_LIBPCAP
 }
 
 void MainWindow::on_actionStopCapture_triggered()
 {
     stopCapture();
 }
+
+void MainWindow::on_actionSummary_triggered()
+{
+    summary_dialog_.UpdateValues();
+
+    if (summary_dialog_.isMinimized() == true)
+    {
+        summary_dialog_.showNormal();
+    }
+    else
+    {
+        summary_dialog_.show();
+    }
+
+    summary_dialog_.raise();
+    summary_dialog_.activateWindow();
+}
+
+#ifdef HAVE_LIBPCAP
+void MainWindow::on_actionCaptureInterfaces_triggered()
+{
+    capture_interfaces_dialog_.SetTab(0);
+    capture_interfaces_dialog_.UpdateInterfaces();
+
+    if (capture_interfaces_dialog_.isMinimized() == true)
+    {
+        capture_interfaces_dialog_.showNormal();
+    }
+    else
+    {
+        capture_interfaces_dialog_.show();
+    }
+
+    capture_interfaces_dialog_.raise();
+    capture_interfaces_dialog_.activateWindow();
+}
+
+void MainWindow::on_actionCaptureOptions_triggered()
+{
+    capture_interfaces_dialog_.SetTab(2);
+    capture_interfaces_dialog_.UpdateInterfaces();
+
+    if (capture_interfaces_dialog_.isMinimized() == true)
+    {
+        capture_interfaces_dialog_.showNormal();
+    }
+    else
+    {
+        capture_interfaces_dialog_.show();
+    }
+
+    capture_interfaces_dialog_.raise();
+    capture_interfaces_dialog_.activateWindow();
+}
+#endif
+
 
 /*
  * Editor modelines

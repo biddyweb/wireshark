@@ -5,8 +5,6 @@
  * This information is based off the released idl files from opengroup.
  * ftp://ftp.opengroup.org/pub/dce122/dce/src/file.tar.gz file/update/update.idl
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,9 @@
 #include <epan/packet.h>
 #include "packet-dcerpc.h"
 #include "packet-dcerpc-dce122.h"
+
+void proto_register_dce_update(void);
+void proto_reg_handoff_dce_update(void);
 
 static int proto_dce_update = -1;
 static int hf_dce_update_opnum = -1;

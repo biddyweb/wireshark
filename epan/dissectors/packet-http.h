@@ -1,7 +1,5 @@
 /* packet-http.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -70,15 +68,18 @@ typedef struct _http_req_res_t {
 /** Conversation data of a HTTP connection. */
 typedef struct _http_conv_t {
 	guint    response_code;
+	guint32	 startframe;	/* First frame of proxied connection */
 	gchar   *http_host;
 	gchar   *request_method;
 	gchar   *request_uri;
+	/** the number of requests on the conversation. */
+	guint32  req_res_num;
 	guint8   upgrade;
-	guint32	startframe;	/* First frame of proxied connection */
+	/* Server address and port, known after first server response */
+	guint16 server_port;
+	address server_addr;
 	/** the tail node of req_res */
 	http_req_res_t *req_res_tail;
-	/** the number of requests on the conversation. */
-	guint32 req_res_num;
 } http_conv_t;
 
 #endif /* __PACKET_HTTP_H__ */

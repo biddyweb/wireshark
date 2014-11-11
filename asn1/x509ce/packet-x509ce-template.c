@@ -2,8 +2,6 @@
  * Routines for X.509 Certificate Extensions packet dissection
  *  Ronnie Sahlberg 2004
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -40,6 +38,9 @@
 #define PSNAME "X509CE"
 #define PFNAME "x509ce"
 
+void proto_register_x509ce(void);
+void proto_reg_handoff_x509ce(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_x509ce = -1;
 static int hf_x509ce_id_ce_invalidityDate = -1;
@@ -50,9 +51,6 @@ static int hf_x509ce_IPAddress = -1;
 
 /* Initialize the subtree pointers */
 #include "packet-x509ce-ett.c"
-
-static const char *object_identifier_id;
-
 #include "packet-x509ce-fn.c"
 
 /* CI+ (www.ci-plus.com) defines some X.509 certificate extensions
@@ -111,7 +109,7 @@ void proto_register_x509ce(void) {
       { "invalidityDate", "x509ce.id_ce_invalidityDate",
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
-    { &hf_x509ce_object_identifier_id, 
+    { &hf_x509ce_object_identifier_id,
       { "Id", "x509ce.id", FT_OID, BASE_NONE, NULL, 0,
 	"Object identifier Id", HFILL }},
     { &hf_x509ce_IPAddress,

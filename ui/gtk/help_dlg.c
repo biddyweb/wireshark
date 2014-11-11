@@ -1,7 +1,5 @@
 /* help_dlg.c
  *
- * $Id$
- *
  * Laurent Deniel <laurent.deniel@free.fr>
  *
  * Wireshark - Network traffic analyzer
@@ -30,8 +28,6 @@
 #include <gtk/gtk.h>
 
 #include <epan/prefs.h>
-
-#include "ui/simple_dialog.h"
 
 #include "ui/gtk/help_dlg.h"
 #include "ui/gtk/text_page_utils.h"

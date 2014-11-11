@@ -3,8 +3,6 @@
  *
  * Pigeon Point Systems <www.pigeonpoint.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -21,19 +19,23 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
- * 02111-1307, USA.
- *
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 #include "config.h"
 
 #include <glib.h>
+
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/prefs.h>
+#include <wiretap/wtap.h>
 
 #include "packet-i2c.h"
-#include "packet-hdcp.h"
+#include "packet-hdmi.h"
+
+void proto_register_i2c(void);
+void proto_reg_handoff_i2c(void);
 
 static int proto_i2c = -1;
 
@@ -47,7 +49,7 @@ static gint ett_i2c = -1;
 enum {
 	SUB_DATA = 0,
 	SUB_IPMB,
-	SUB_HDCP,
+	SUB_HDMI,
 
 	SUB_MAX
 };
@@ -179,7 +181,7 @@ sub_check_ipmb(packet_info *pinfo)
 static sub_checkfunc_t sub_check[SUB_MAX] = {
 	NULL, /* raw data */
 	sub_check_ipmb, /* IPMI */
-	sub_check_hdcp  /* HDCP */
+	sub_check_hdmi  /* HDMI */
 };
 
 static void
@@ -205,52 +207,44 @@ dissect_i2c(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	pinfo->ptype = PT_I2C;
 
-	if (check_col(pinfo->cinfo, COL_PROTOCOL)) {
-		if (is_event)
-			col_set_str(pinfo->cinfo, COL_PROTOCOL, "I2C Event");
-		else
-			col_add_fstr(pinfo->cinfo, COL_PROTOCOL, "I2C %s",
-					(flags & I2C_FLAG_RD) ? "Read" : "Write");
-	}
+	if (is_event)
+		col_set_str(pinfo->cinfo, COL_PROTOCOL, "I2C Event");
+	else
+		col_add_fstr(pinfo->cinfo, COL_PROTOCOL, "I2C %s",
+				(flags & I2C_FLAG_RD) ? "Read" : "Write");
 
-	if (check_col(pinfo->cinfo, COL_DEF_SRC)) {
-		col_add_fstr(pinfo->cinfo, COL_DEF_SRC, "I2C-%d", bus);
-	}
+	col_add_fstr(pinfo->cinfo, COL_DEF_SRC, "I2C-%d", bus);
 
-	if (check_col(pinfo->cinfo, COL_DEF_DST)) {
-		if (is_event)
-			col_add_fstr(pinfo->cinfo, COL_DEF_DST, "----");
-		else
-			col_add_fstr(pinfo->cinfo, COL_DEF_DST, "0x%02x", addr);
-	}
+	if (is_event)
+		col_add_fstr(pinfo->cinfo, COL_DEF_DST, "----");
+	else
+		col_add_fstr(pinfo->cinfo, COL_DEF_DST, "0x%02x", addr);
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		if (is_event)
-			col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
-					i2c_get_event_desc(flags));
-		else
-			col_add_fstr(pinfo->cinfo, COL_INFO, "I2C %s, %d bytes",
+	if (is_event)
+		col_add_fstr(pinfo->cinfo, COL_INFO, "%s",
+				i2c_get_event_desc(flags));
+	else
+		col_add_fstr(pinfo->cinfo, COL_INFO, "I2C %s, %d bytes",
 					(flags & I2C_FLAG_RD) ? "Read" : "Write", len);
-	}
 
 	if (tree) {
 		ti = proto_tree_add_protocol_format(tree, proto_i2c, tvb, 0, -1,
 					"Inter-Integrated Circuit (%s)",
 					is_event ? "Event" : "Data");
-		
+
 		i2c_tree = proto_item_add_subtree(ti, ett_i2c);
 		proto_tree_add_uint_format(i2c_tree, hf_i2c_bus, tvb, 0, 0, bus,
 				"Bus: I2C-%d", bus);
 
 		if (is_event) {
-			proto_tree_add_uint_format(i2c_tree, hf_i2c_event, tvb, 0, 0,
-					flags, "Event: %s (0x%08x)",
+			proto_tree_add_uint_format_value(i2c_tree, hf_i2c_event, tvb, 0, 0,
+					flags, "%s (0x%08x)",
 					i2c_get_event_desc(flags), flags);
 		} else {
 			proto_tree_add_uint_format_value(i2c_tree, hf_i2c_addr, tvb, 0, 1,
 					addr, "0x%02x%s", addr, addr ? "" : " (General Call)");
-			proto_tree_add_uint_format(i2c_tree, hf_i2c_flags, tvb, 0, 0,
-					flags, "Flags: 0x%08x", flags);
+			proto_tree_add_uint_format_value(i2c_tree, hf_i2c_flags, tvb, 0, 0,
+					flags, "0x%08x", flags);
 		}
 	}
 
@@ -278,7 +272,7 @@ proto_register_i2c(void)
 	static const enum_val_t sub_enum_vals[] = {
 		{ "none", "None (raw I2C)", SUB_DATA },
 		{ "ipmb", "IPMB", SUB_IPMB },
-		{ "hdcp", "HDCP", SUB_HDCP },
+		{ "hdmi", "HDMI (including HDCP)", SUB_HDMI },
 		{ NULL, NULL, 0 }
 	};
 	module_t *m;
@@ -300,7 +294,7 @@ proto_reg_handoff_i2c(void)
 
 	sub_handles[SUB_DATA] = find_dissector("data");
 	sub_handles[SUB_IPMB] = find_dissector("ipmi");
-	sub_handles[SUB_HDCP] = find_dissector("hdcp");
+	sub_handles[SUB_HDMI] = find_dissector("hdmi");
 	i2c_handle = create_dissector_handle(dissect_i2c, proto_i2c);
 	dissector_add_uint("wtap_encap", WTAP_ENCAP_I2C, i2c_handle);
 }

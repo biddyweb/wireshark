@@ -1,8 +1,6 @@
 /* conversations_ipv6.c   2009 Clif Bratcher
  * Modified from conversations_ip   2003 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,10 +36,12 @@
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/conversations_table.h"
 
+void register_tap_listener_ipv6_conversation(void);
+
 static int
 ipv6_conversation_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
 {
-    const struct ip6_hdr *ip6h = vip;
+    const struct ip6_hdr *ip6h = (const struct ip6_hdr *)vip;
     address src;
     address dst;
 
@@ -51,7 +51,7 @@ ipv6_conversation_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_,
     src.data = &ip6h->ip6_src;
     dst.data = &ip6h->ip6_dst;
 
-    add_conversation_table_data((conversations_table *)pct, &src, &dst, 0, 0, 1, pinfo->fd->pkt_len, &pinfo->fd->rel_ts, SAT_NONE, PT_NONE);
+    add_conversation_table_data((conversations_table *)pct, &src, &dst, 0, 0, 1, pinfo->fd->pkt_len, &pinfo->rel_ts, SAT_NONE, PT_NONE);
 
     return 1;
 }

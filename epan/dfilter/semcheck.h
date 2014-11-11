@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -25,7 +23,7 @@
 #define SEMCHECK_H
 
 gboolean
-dfw_semcheck(dfwork_t *dfw);
+dfw_semcheck(dfwork_t *dfw, GPtrArray *deprecated);
 
 
 #endif

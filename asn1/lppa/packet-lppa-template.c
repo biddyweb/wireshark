@@ -2,8 +2,6 @@
  * Routines for 3GPP LTE Positioning Protocol A (LLPa) packet dissection
  * Copyright 2011, Pascal Quantin <pascal.quantin@gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -22,7 +20,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * Ref 3GPP TS 36.455 version 9.4.1 Release 9
+ * Ref 3GPP TS 36.455 version 11.3.0 Release 11
  * http://www.3gpp.org
  */
 
@@ -37,6 +35,9 @@
 #define PNAME  "LTE Positioning Protocol A (LPPa)"
 #define PSNAME "LPPa"
 #define PFNAME "lppa"
+
+void proto_register_lppa(void);
+void proto_reg_handoff_lppa(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_lppa = -1;

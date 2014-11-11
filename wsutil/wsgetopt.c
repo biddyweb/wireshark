@@ -20,9 +20,9 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+   */
 
 /* This tells Alpha OSF/1 not to define a getopt prototype in <stdio.h>.
    Ditto for AIX 3.2 and <stdlib.h>.  */
@@ -1199,6 +1199,17 @@ getopt (int argc, char *const *argv, const char *optstring)
 			   (int *) 0,
 			   0, 0);
 }
+
+/* getopt_long() was copied from posix/getopt1.c
+   the rest of this file is a nearly identical copy of posix/getopt.c */
+int
+getopt_long (int argc, char *const *argv, const char *options,
+              const struct option *long_options, int *opt_index)
+{
+     return _getopt_internal (argc, argv, options, long_options,
+                              opt_index, 0, 0);
+}
+
 
 #ifdef _LIBC
 int

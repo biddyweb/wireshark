@@ -2,8 +2,6 @@
  * Wireshark Memory Manager String Buffer
  * Copyright 2012, Evan Huus <eapache@gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -23,10 +21,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include "config.h"
+
 #include <string.h>
 #include <glib.h>
-
-#include "config.h"
 
 #include "wmem_core.h"
 #include "wmem_strbuf.h"
@@ -34,8 +32,9 @@
 #define DEFAULT_MINIMUM_LEN 16
 
 /* Holds a wmem-allocated string-buffer.
- *  len is the length of the string (not counting null-terminators) and should
- *      always be the same as strlen(str).
+ *  len is the length of the string (not counting the null-terminator) and
+ *      should be the same as strlen(str) unless the string contains embedded
+ *      nulls.
  *  alloc_len is the length of the raw buffer pointed to by str, regardless of
  *      what string is actually being stored (i.e. the buffer contents)
  *  max_len is the maximum permitted alloc_len (NOT the maximum permitted len,
@@ -52,22 +51,27 @@ struct _wmem_strbuf_t {
     gsize max_len;
 };
 
+/* _ROOM accounts for the null-terminator, _RAW_ROOM does not.
+ * Some functions need one, some functions need the other. */
+#define WMEM_STRBUF_ROOM(S) ((S)->alloc_len - (S)->len - 1)
+#define WMEM_STRBUF_RAW_ROOM(S) ((S)->alloc_len - (S)->len)
+
 wmem_strbuf_t *
 wmem_strbuf_sized_new(wmem_allocator_t *allocator,
                       gsize alloc_len, gsize max_len)
 {
     wmem_strbuf_t *strbuf;
 
-    g_assert(alloc_len <= max_len);
+    g_assert((max_len == 0) || (alloc_len <= max_len));
 
-    strbuf = wmem_alloc(allocator, sizeof(wmem_strbuf_t));
+    strbuf = wmem_new(allocator, wmem_strbuf_t);
 
     strbuf->allocator = allocator;
     strbuf->len       = 0;
     strbuf->alloc_len = alloc_len ? alloc_len : DEFAULT_MINIMUM_LEN;
     strbuf->max_len   = max_len;
 
-    strbuf->str    = wmem_alloc(strbuf->allocator, strbuf->alloc_len);
+    strbuf->str    = (gchar *)wmem_alloc(strbuf->allocator, strbuf->alloc_len);
     strbuf->str[0] = '\0';
 
     return strbuf;
@@ -97,11 +101,19 @@ wmem_strbuf_new(wmem_allocator_t *allocator, const gchar *str)
     return strbuf;
 }
 
-static void
+static inline void
 wmem_strbuf_grow(wmem_strbuf_t *strbuf, const gsize to_add)
 {
     gsize  new_alloc_len, new_len;
-    
+
+    /* short-circuit for efficiency if we have room already; greatly speeds up
+     * repeated calls to wmem_strbuf_append_c and others which grow a little bit
+     * at a time.
+     */
+    if (WMEM_STRBUF_ROOM(strbuf) >= to_add) {
+        return;
+    }
+
     new_alloc_len = strbuf->alloc_len;
     new_len = strbuf->len + to_add;
 
@@ -119,7 +131,7 @@ wmem_strbuf_grow(wmem_strbuf_t *strbuf, const gsize to_add)
         return;
     }
 
-    strbuf->str = wmem_realloc(strbuf->allocator, strbuf->str, new_alloc_len);
+    strbuf->str = (gchar *)wmem_realloc(strbuf->allocator, strbuf->str, new_alloc_len);
 
     strbuf->alloc_len = new_alloc_len;
 }
@@ -127,34 +139,42 @@ wmem_strbuf_grow(wmem_strbuf_t *strbuf, const gsize to_add)
 void
 wmem_strbuf_append(wmem_strbuf_t *strbuf, const gchar *str)
 {
-    if (!strbuf || !str || str[0] == '\0') {
+    gsize append_len;
+
+    if (!str || str[0] == '\0') {
         return;
     }
 
-    wmem_strbuf_grow(strbuf, strlen(str));
+    append_len = strlen(str);
 
-    g_strlcpy(&strbuf->str[strbuf->len], str, strbuf->alloc_len);
+    wmem_strbuf_grow(strbuf, append_len);
+
+    g_strlcpy(&strbuf->str[strbuf->len], str, WMEM_STRBUF_RAW_ROOM(strbuf));
+
+    strbuf->len = MIN(strbuf->len + append_len, strbuf->alloc_len - 1);
 }
 
 static void
 wmem_strbuf_append_vprintf(wmem_strbuf_t *strbuf, const gchar *fmt, va_list ap)
 {
     va_list ap2;
-    gsize len;
+    gsize append_len;
 
     G_VA_COPY(ap2, ap);
 
-    len = g_printf_string_upper_bound(fmt, ap);
+    append_len = g_printf_string_upper_bound(fmt, ap);
 
     /* -1 because g_printf_string_upper_bound counts the null-terminator, but
      * wmem_strbuf_grow does not */
-    wmem_strbuf_grow(strbuf, len - 1);
+    wmem_strbuf_grow(strbuf, append_len - 1);
 
-    g_vsnprintf((strbuf->str + strbuf->len),
-                (gulong) (strbuf->alloc_len - strbuf->len),
-                fmt, ap2);
+    append_len = g_vsnprintf(&strbuf->str[strbuf->len],
+            (gulong) WMEM_STRBUF_RAW_ROOM(strbuf),
+            fmt, ap2);
 
     va_end(ap2);
+
+    strbuf->len = MIN(strbuf->len + append_len, strbuf->alloc_len - 1);
 }
 
 void
@@ -167,6 +187,47 @@ wmem_strbuf_append_printf(wmem_strbuf_t *strbuf, const gchar *format, ...)
     va_end(ap);
 }
 
+void
+wmem_strbuf_append_c(wmem_strbuf_t *strbuf, const gchar c)
+{
+    wmem_strbuf_grow(strbuf, 1);
+
+    /* one for the char, one for the null-terminator */
+    if (WMEM_STRBUF_ROOM(strbuf) >= 1) {
+        strbuf->str[strbuf->len] = c;
+        strbuf->len++;
+        strbuf->str[strbuf->len] = '\0';
+    }
+}
+
+void
+wmem_strbuf_append_unichar(wmem_strbuf_t *strbuf, const gunichar c)
+{
+    gchar buf[6];
+    gsize charlen;
+
+    charlen = g_unichar_to_utf8(c, buf);
+
+    wmem_strbuf_grow(strbuf, charlen);
+
+    if (WMEM_STRBUF_ROOM(strbuf) >= charlen) {
+        memcpy(&strbuf->str[strbuf->len], buf, charlen);
+        strbuf->len += charlen;
+        strbuf->str[strbuf->len] = '\0';
+    }
+}
+
+void
+wmem_strbuf_truncate(wmem_strbuf_t *strbuf, const gsize len)
+{
+    if (len >= strbuf->len) {
+        return;
+    }
+
+    strbuf->str[len] = '\0';
+    strbuf->len = len;
+}
+
 const gchar *
 wmem_strbuf_get_str(wmem_strbuf_t *strbuf)
 {
@@ -177,6 +238,22 @@ gsize
 wmem_strbuf_get_len(wmem_strbuf_t *strbuf)
 {
     return strbuf->len;
+}
+
+/* Truncates the allocated memory down to the minimal amount, frees the header
+ * structure, and returns a non-const pointer to the raw string. The
+ * wmem_strbuf_t structure cannot be used after this is called.
+ */
+char *
+wmem_strbuf_finalize(wmem_strbuf_t *strbuf)
+{
+    char *ret;
+
+    ret = (char *)wmem_realloc(strbuf->allocator, strbuf->str, strbuf->len+1);
+
+    wmem_free(strbuf->allocator, strbuf);
+
+    return ret;
 }
 
 /*

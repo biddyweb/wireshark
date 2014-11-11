@@ -1,7 +1,5 @@
 /* pppdump.c
  *
- * $Id$
- *
  * Copyright (c) 2000 by Gilbert Ramirez <gram@alumni.rice.edu>
  *
  * This program is free software; you can redistribute it and/or
@@ -21,7 +19,7 @@
 
 #include "config.h"
 #include "wtap-int.h"
-#include "buffer.h"
+#include <wsutil/buffer.h>
 #include "pppdump.h"
 #include "file_wrappers.h"
 
@@ -100,8 +98,7 @@ typedef enum {
 static gboolean pppdump_read(wtap *wth, int *err, gchar **err_info,
 	gint64 *data_offset);
 static gboolean pppdump_seek_read(wtap *wth, gint64 seek_off,
-	struct wtap_pkthdr *phdr, guint8 *pd, int len,
-	int *err, gchar **err_info);
+	struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info);
 
 /*
  * Information saved about a packet, during the initial sequential pass
@@ -288,14 +285,14 @@ pppdump_open(wtap *wth, int *err, gchar **err_info)
 
 	state = (pppdump_t *)g_malloc(sizeof(pppdump_t));
 	wth->priv = (void *)state;
-	state->timestamp = pntohl(&buffer[1]);
+	state->timestamp = pntoh32(&buffer[1]);
 	state->tenths = 0;
 
 	init_state(state);
 
 	state->offset = 5;
 	wth->file_encap = WTAP_ENCAP_PPP_WITH_PHDR;
-	wth->file_type = WTAP_FILE_PPPDUMP;
+	wth->file_type_subtype = WTAP_FILE_TYPE_SUBTYPE_PPPDUMP;
 
 	wth->snapshot_length = PPPD_BUF_SIZE; /* just guessing */
 	wth->subtype_read = pppdump_read;
@@ -317,6 +314,19 @@ pppdump_open(wtap *wth, int *err, gchar **err_info)
 	return 1;
 }
 
+/* Set part of the struct wtap_pkthdr. */
+static void
+pppdump_set_phdr(struct wtap_pkthdr *phdr, int num_bytes,
+    direction_enum direction)
+{
+	phdr->rec_type = REC_TYPE_PACKET;
+	phdr->len = num_bytes;
+	phdr->caplen = num_bytes;
+	phdr->pkt_encap	= WTAP_ENCAP_PPP_WITH_PHDR;
+
+	phdr->pseudo_header.p2p.sent = (direction == DIRECTION_SENT ? TRUE : FALSE);
+}
+
 /* Find the next packet and parse it; called from wtap_read(). */
 static gboolean
 pppdump_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
@@ -326,9 +336,6 @@ pppdump_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 	guint8		*buf;
 	pppdump_t	*state;
 	pkt_id		*pid;
-
-	buffer_assure_space(wth->frame_buffer, PPPD_BUF_SIZE);
-	buf = buffer_start_ptr(wth->frame_buffer);
 
 	state = (pppdump_t *)wth->priv;
 
@@ -343,6 +350,9 @@ pppdump_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 		pid->offset = 0;
 	} else
 		pid = NULL;	/* sequential only */
+
+	buffer_assure_space(wth->frame_buffer, PPPD_BUF_SIZE);
+	buf = buffer_start_ptr(wth->frame_buffer);
 
 	if (!collate(state, wth->fh, err, err_info, buf, &num_bytes, &direction,
 	    pid, 0)) {
@@ -360,14 +370,10 @@ pppdump_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
 	*data_offset = state->pkt_cnt;
 	state->pkt_cnt++;
 
+	pppdump_set_phdr(&wth->phdr, num_bytes, direction);
 	wth->phdr.presence_flags = WTAP_HAS_TS;
-	wth->phdr.len		= num_bytes;
-	wth->phdr.caplen	= num_bytes;
 	wth->phdr.ts.secs	= state->timestamp;
 	wth->phdr.ts.nsecs	= state->tenths * 100000000;
-	wth->phdr.pkt_encap	= WTAP_ENCAP_PPP_WITH_PHDR;
-
-	wth->phdr.pseudo_header.p2p.sent = (direction == DIRECTION_SENT ? TRUE : FALSE);
 
 	return TRUE;
 }
@@ -655,14 +661,14 @@ collate(pppdump_t* state, FILE_T fh, int *err, gchar **err_info, guint8 *pd,
 			case PPPD_RESET_TIME:
 				wtap_file_read_unknown_bytes(&time_long, sizeof(guint32), fh, err, err_info);
 				state->offset += sizeof(guint32);
-				state->timestamp = pntohl(&time_long);
+				state->timestamp = pntoh32(&time_long);
 				state->tenths = 0;
 				break;
 
 			case PPPD_TIME_STEP_LONG:
 				wtap_file_read_unknown_bytes(&time_long, sizeof(guint32), fh, err, err_info);
 				state->offset += sizeof(guint32);
-				state->tenths += pntohl(&time_long);
+				state->tenths += pntoh32(&time_long);
 
 				if (state->tenths >= 10) {
 					state->timestamp += state->tenths / 10;
@@ -714,13 +720,12 @@ static gboolean
 pppdump_seek_read(wtap *wth,
 		 gint64 seek_off,
 		 struct wtap_pkthdr *phdr,
-		 guint8 *pd,
-		 int len,
+		 Buffer *buf,
 		 int *err,
 		 gchar **err_info)
 {
-	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
 	int		num_bytes;
+	guint8		*pd;
 	direction_enum	direction;
 	pppdump_t	*state;
 	pkt_id		*pid;
@@ -741,6 +746,9 @@ pppdump_seek_read(wtap *wth,
 	init_state(state->seek_state);
 	state->seek_state->offset = pid->offset;
 
+	buffer_assure_space(buf, PPPD_BUF_SIZE);
+	pd = buffer_start_ptr(buf);
+
 	/*
 	 * We'll start reading at the first record containing data from
 	 * this packet; however, that doesn't mean "collate()" will
@@ -760,14 +768,7 @@ pppdump_seek_read(wtap *wth,
 		num_bytes_to_skip = 0;
 	} while (direction != pid->dir);
 
-	if (len != num_bytes) {
-		*err = WTAP_ERR_BAD_FILE;	/* XXX - better error? */
-		*err_info = g_strdup_printf("pppdump: requested length %d doesn't match record length %d",
-		    len, num_bytes);
-		return FALSE;
-	}
-
-	pseudo_header->p2p.sent = (pid->dir == DIRECTION_SENT ? TRUE : FALSE);
+	pppdump_set_phdr(phdr, num_bytes, pid->dir);
 
 	return TRUE;
 }

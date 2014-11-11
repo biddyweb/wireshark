@@ -17,8 +17,6 @@
  * Copyright 2004, 2005, 2006, 2007 Michael Tuexen <tuexen [AT] fh-muenster.de>
  * Copyright 2008 Thomas Dreibholz <dreibh [AT] iem.uni-due.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -43,7 +41,11 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <epan/sctpppids.h>
+
+void proto_register_asap(void);
+void proto_reg_handoff_asap(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_asap = -1;
@@ -488,7 +490,7 @@ dissect_pool_handle_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tre
   handle_length = tvb_get_ntohs(parameter_tvb, PARAMETER_LENGTH_OFFSET) - PARAMETER_HEADER_LENGTH;
   pi = proto_tree_add_item(parameter_tree, hf_pool_handle, parameter_tvb, POOL_HANDLE_OFFSET, handle_length, ENC_NA);
 
-  tmp = (gchar*)tvb_get_ephemeral_string(parameter_tvb, POOL_HANDLE_OFFSET, handle_length);
+  tmp = (gchar*)tvb_get_string_enc(wmem_packet_scope(), parameter_tvb, POOL_HANDLE_OFFSET, handle_length, ENC_ASCII|ENC_NA);
   proto_item_append_text(pi, " (%s)", tmp);
 }
 

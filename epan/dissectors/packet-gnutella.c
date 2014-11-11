@@ -2,8 +2,6 @@
  * Routines for gnutella dissection
  * Copyright 2001, B. Johannessen <bob@havoq.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,9 @@
 #include <epan/packet.h>
 #include "packet-gnutella.h"
 #include "packet-tcp.h"
+
+void proto_register_gnutella(void);
+void proto_reg_handoff_gnutella(void);
 
 /*
  * See
@@ -335,7 +336,7 @@ get_gnutella_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset) {
 	return GNUTELLA_HEADER_LENGTH + size;
 }
 
-static void dissect_gnutella_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
+static int dissect_gnutella_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_) {
 
 	proto_item *ti, *hi, *pi;
 	proto_tree *gnutella_tree = NULL;
@@ -385,8 +386,7 @@ static void dissect_gnutella_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 			break;
 	}
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL, "%s",
+	col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL, "%s",
 		    payload_descriptor_text);
 
 	if (tree) {
@@ -405,13 +405,13 @@ static void dissect_gnutella_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 			GNUTELLA_SERVENT_ID_LENGTH,
 			ENC_NA);
 
-		proto_tree_add_uint_format(gnutella_header_tree,
+		proto_tree_add_uint_format_value(gnutella_header_tree,
 			hf_gnutella_header_payload,
 			tvb,
 			GNUTELLA_HEADER_PAYLOAD_OFFSET,
 			GNUTELLA_BYTE_LENGTH,
 			payload_descriptor,
-			"Payload: %i (%s)",
+			"%i (%s)",
 			payload_descriptor,
 			payload_descriptor_text);
 
@@ -508,10 +508,11 @@ static void dissect_gnutella_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 		}
 	}
 
+	return tvb_length(tvb);
 }
 
 
-static void dissect_gnutella(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
+static int dissect_gnutella(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data) {
 
 	proto_item *ti;
 	proto_tree *gnutella_tree = NULL;
@@ -554,12 +555,13 @@ static void dissect_gnutella(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
 					-1,
 					ENC_NA);
 			}
-			return;
+			return tvb_length(tvb);
 		}
 	}
 
 	tcp_dissect_pdus(tvb, pinfo, tree, TRUE, GNUTELLA_HEADER_SIZE_OFFSET+4,
-	    get_gnutella_pdu_len, dissect_gnutella_pdu);
+	    get_gnutella_pdu_len, dissect_gnutella_pdu, data);
+	return tvb_length(tvb);
 }
 
 void proto_register_gnutella(void) {
@@ -743,7 +745,7 @@ void proto_register_gnutella(void) {
 void proto_reg_handoff_gnutella(void) {
 	dissector_handle_t gnutella_handle;
 
-	gnutella_handle = create_dissector_handle(dissect_gnutella,
+	gnutella_handle = new_create_dissector_handle(dissect_gnutella,
 			proto_gnutella);
 	dissector_add_uint("tcp.port", GNUTELLA_TCP_PORT, gnutella_handle);
 }

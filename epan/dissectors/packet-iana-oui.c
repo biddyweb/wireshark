@@ -1,8 +1,6 @@
 /* packet-iana-oui.c
  * Register an LLC dissector table for the IANA's OUI 00:00:5e
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,8 @@
 #include "packet-llc.h"
 #include <epan/oui.h>
 #include <epan/iana_snap_pid.h>
+
+void proto_register_iana_oui(void);
 
 static int hf_llc_iana_pid = -1;
 
@@ -58,5 +58,5 @@ proto_register_iana_oui(void)
 	  }
 	};
 
-	llc_add_oui(OUI_IANA, "llc.iana_pid", "IANA OUI PID", hf);
+	llc_add_oui(OUI_IANA, "llc.iana_pid", "LLC IANA OUI PID", hf);
 }

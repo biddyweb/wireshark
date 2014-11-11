@@ -1,8 +1,6 @@
 /* packet-tns.c
  * Routines for Oracle TNS packet dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,8 @@
 #include "packet-tns.h"
 
 #include <epan/prefs.h>
+
+void proto_register_tns(void);
 
 /* desegmentation of TNS over TCP */
 static gboolean tns_desegment = TRUE;
@@ -192,7 +192,7 @@ static const value_string tns_control_cmds[] = {
 
 void proto_reg_handoff_tns(void);
 static guint get_tns_pdu_len(packet_info *pinfo, tvbuff_t *tvb, int offset);
-static void dissect_tns_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+static int dissect_tns_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_);
 
 static void dissect_tns_service_options(tvbuff_t *tvb, int offset,
 	proto_tree *sopt_tree)
@@ -290,23 +290,17 @@ static void dissect_tns_data(tvbuff_t *tvb, int offset, packet_info *pinfo,
 	}
 	offset += 2;
 
-	if ( check_col(pinfo->cinfo, COL_INFO) )
+	if ( is_sns )
 	{
-		if ( is_sns )
-		{
-			col_append_str(pinfo->cinfo, COL_INFO, ", SNS");
-		}
-		else
-		{
-			col_append_str(pinfo->cinfo, COL_INFO, ", Data");
-		}
+		col_append_str(pinfo->cinfo, COL_INFO, ", SNS");
+	}
+	else
+	{
+		col_append_str(pinfo->cinfo, COL_INFO, ", Data");
 	}
 
-	if ( data_tree )
-	{
-		call_dissector(data_handle,
+	call_dissector(data_handle,
 		    tvb_new_subset_remaining(tvb, offset), pinfo, data_tree);
-	}
 
 	return;
 }
@@ -736,16 +730,13 @@ static void dissect_tns_marker(tvbuff_t *tvb, int offset, packet_info *pinfo,
 		PROTO_ITEM_SET_HIDDEN(hidden_item);
 	}
 
-	if ( check_col(pinfo->cinfo, COL_INFO) )
+	if ( is_attention )
 	{
-		if ( is_attention )
-		{
-			col_append_str(pinfo->cinfo, COL_INFO, ", Marker");
-		}
-		else
-		{
-			col_append_str(pinfo->cinfo, COL_INFO, ", Attention");
-		}
+		col_append_str(pinfo->cinfo, COL_INFO, ", Marker");
+	}
+	else
+	{
+		col_append_str(pinfo->cinfo, COL_INFO, ", Attention");
 	}
 
 	if ( marker_tree )
@@ -850,7 +841,7 @@ get_tns_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 }
 
 static int
-dissect_tns(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_tns(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 	guint8 type;
 
@@ -869,12 +860,12 @@ dissect_tns(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 	}
 
 	tcp_dissect_pdus(tvb, pinfo, tree, tns_desegment, 2,
-	    get_tns_pdu_len, dissect_tns_pdu);
+	    get_tns_pdu_len, dissect_tns_pdu, data);
 	return tvb_length(tvb);
 }
 
-static void
-dissect_tns_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_tns_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	proto_tree      *tns_tree = NULL, *ti;
 	proto_item *hidden_item;
@@ -884,11 +875,8 @@ dissect_tns_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "TNS");
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-	{
-		col_set_str(pinfo->cinfo, COL_INFO,
+	col_set_str(pinfo->cinfo, COL_INFO,
 			(pinfo->match_uint == pinfo->destport) ? "Request" : "Response");
-	}
 
 	if (tree)
 	{
@@ -931,11 +919,8 @@ dissect_tns_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	}
 	offset += 1;
 
-	if ( check_col(pinfo->cinfo, COL_INFO))
-	{
-		col_append_fstr(pinfo->cinfo, COL_INFO, ", %s (%u)",
+	col_append_fstr(pinfo->cinfo, COL_INFO, ", %s (%u)",
 			val_to_str_const(type, tns_type_vals, "Unknown"), type);
-	}
 
 	if ( tree )
 	{
@@ -986,6 +971,8 @@ dissect_tns_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			    tns_tree);
 			break;
 	}
+
+	return tvb_length(tvb);
 }
 
 void proto_register_tns(void)

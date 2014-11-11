@@ -3,8 +3,6 @@
  *   Ronnie Sahlberg 2004
  *   Stig Bjorlykke 2010
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,6 +25,10 @@
 #include "config.h"
 
 #include <glib.h>
+
+#include <wsutil/sha1.h>
+#include <wsutil/md5.h>
+
 #include <epan/packet.h>
 #include <epan/oids.h>
 #include <epan/asn1.h>
@@ -41,12 +43,12 @@
 #include "packet-x509sat.h"
 #include "packet-pkcs12.h"
 
-#include <epan/crypt/sha1.h>
-#include <epan/crypt/md5.h>
-
 #define PNAME  "Cryptographic Message Syntax"
 #define PSNAME "CMS"
 #define PFNAME "cms"
+
+void proto_register_cms(void);
+void proto_reg_handoff_cms(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_cms = -1;

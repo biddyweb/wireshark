@@ -2,8 +2,6 @@
  * Routines for IEC 61850 Sampled Vales packet dissection
  * Michael Bernhard 2008
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,7 +28,6 @@
 #include <epan/asn1.h>
 #include <epan/etypes.h>
 #include <epan/expert.h>
-#include <epan/nstime.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -71,6 +68,8 @@
 /* see UCA Implementation Guideline for IEC 61850-9-2 */
 #define Q_DERIVED				(1 << 13)
 
+void proto_register_sv(void);
+void proto_reg_handoff_sv(void);
 
 /* Data for SV tap */
 static int sv_tap = -1;
@@ -107,6 +106,8 @@ static int ett_phsmeas = -1;
 static int ett_phsmeas_q = -1;
 
 #include "packet-sv-ett.c"
+
+static expert_field ei_sv_mal_utctime = EI_INIT;
 
 #if 0
 static const value_string sv_q_validity_vals[] = {
@@ -315,6 +316,12 @@ void proto_register_sv(void) {
 #include "packet-sv-ettarr.c"
 	};
 
+	static ei_register_info ei[] = {
+		{ &ei_sv_mal_utctime, { "sv.malformed.utctime", PI_MALFORMED, PI_WARN, "BER Error: malformed UTCTime encoding", EXPFILL }},
+	};
+
+	expert_module_t* expert_sv;
+
 	/* Register protocol */
 	proto_sv = proto_register_protocol(PNAME, PSNAME, PFNAME);
 	register_dissector("sv", dissect_sv, proto_sv);
@@ -322,6 +329,8 @@ void proto_register_sv(void) {
 	/* Register fields and subtrees */
 	proto_register_field_array(proto_sv, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_sv = expert_register_protocol(proto_sv);
+	expert_register_field_array(expert_sv, ei, array_length(ei));
 
 	/* Register tap */
 	sv_tap = register_tap("sv");

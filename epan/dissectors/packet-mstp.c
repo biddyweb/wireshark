@@ -10,8 +10,6 @@
  * provided by the EIA-485 physical layer."  See section 9.3 for the
  * frame format.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,11 +34,15 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
 #include <epan/oui.h>
 #include <epan/llcsaps.h>
 #include <epan/expert.h>
 #include "packet-llc.h"
 #include "packet-mstp.h"
+
+void proto_register_mstp(void);
+void proto_reg_handoff_mstp(void);
 
 /* Probably should be a preference, but here for now */
 #define BACNET_MSTP_SUMMARY_IN_TREE
@@ -90,6 +92,10 @@ static int hf_mstp_frame_crc8 = -1;
 static int hf_mstp_frame_crc16 = -1;
 static int hf_mstp_frame_checksum_bad = -1;
 static int hf_mstp_frame_checksum_good = -1;
+
+static expert_field ei_mstp_frame_pdu_len = EI_INIT;
+static expert_field ei_mstp_frame_checksum_bad = EI_INIT;
+
 
 #if defined(BACNET_MSTP_CHECKSUM_VALIDATE)
 /* Accumulate "dataValue" into the CRC in crcValue. */
@@ -171,10 +177,9 @@ dissect_mstp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	col_set_str(pinfo->cinfo, COL_INFO, "BACnet MS/TP");
 	mstp_frame_type = tvb_get_guint8(tvb, offset);
 	mstp_frame_pdu_len = tvb_get_ntohs(tvb, offset+3);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
+	col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
 			mstp_frame_type_text(mstp_frame_type));
-	}
+
 	/* Add the items to the tree */
 	proto_tree_add_item(subtree, hf_mstp_frame_type, tvb,
 			offset, 1, ENC_LITTLE_ENDIAN);
@@ -188,8 +193,7 @@ dissect_mstp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	/* check the length - which does not include the crc16 checksum */
 	if (mstp_tvb_pdu_len > 2) {
 		if (mstp_frame_pdu_len > (mstp_tvb_pdu_len-2)) {
-			expert_add_info_format(pinfo, item, PI_MALFORMED, PI_ERROR,
-				"Length field value goes past the end of the payload");
+			expert_add_info(pinfo, item, &ei_mstp_frame_pdu_len);
 		}
 	}
 #if defined(BACNET_MSTP_CHECKSUM_VALIDATE)
@@ -201,9 +205,9 @@ dissect_mstp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	crc8 = ~crc8;
 	framecrc8 = tvb_get_guint8(tvb, offset+5);
 	if (framecrc8 == crc8) {
-		item = proto_tree_add_uint_format(subtree, hf_mstp_frame_crc8,
+		item = proto_tree_add_uint_format_value(subtree, hf_mstp_frame_crc8,
 			tvb, offset+5, 1, framecrc8,
-			"Header CRC: 0x%02x [correct]", framecrc8);
+			"0x%02x [correct]", framecrc8);
 		checksum_tree = proto_item_add_subtree(item, ett_bacnet_mstp_checksum);
 		item = proto_tree_add_boolean(checksum_tree,
 			hf_mstp_frame_checksum_good,
@@ -214,9 +218,9 @@ dissect_mstp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			tvb, offset+5, 1, FALSE);
 		PROTO_ITEM_SET_GENERATED(item);
 	} else {
-		item = proto_tree_add_uint_format(subtree, hf_mstp_frame_crc8,
+		item = proto_tree_add_uint_format_value(subtree, hf_mstp_frame_crc8,
 			tvb, offset+5, 1, framecrc8,
-			"Header CRC: 0x%02x [incorrect, should be 0x%02x]",
+			"0x%02x [incorrect, should be 0x%02x]",
 			framecrc8, crc8);
 		checksum_tree = proto_item_add_subtree(item, ett_bacnet_mstp_checksum);
 		item = proto_tree_add_boolean(checksum_tree,
@@ -227,8 +231,7 @@ dissect_mstp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			hf_mstp_frame_checksum_bad,
 			tvb, offset+5, 1, TRUE);
 		PROTO_ITEM_SET_GENERATED(item);
-		expert_add_info_format(pinfo, item, PI_CHECKSUM, PI_ERROR,
-			"Bad Checksum");
+		expert_add_info(pinfo, item, &ei_mstp_frame_checksum_bad);
 	}
 #else
 	proto_tree_add_item(subtree, hf_mstp_frame_crc8,
@@ -275,9 +278,9 @@ dissect_mstp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		/* get the actual CRC from the frame */
 		framecrc16 = tvb_get_ntohs(tvb, offset+mstp_frame_pdu_len);
 		if (framecrc16 == crc16) {
-			item = proto_tree_add_uint_format(subtree, hf_mstp_frame_crc16,
+			item = proto_tree_add_uint_format_value(subtree, hf_mstp_frame_crc16,
 				tvb, offset+mstp_frame_pdu_len, 2, framecrc16,
-				"Data CRC: 0x%04x [correct]", framecrc16);
+				"0x%04x [correct]", framecrc16);
 			checksum_tree = proto_item_add_subtree(item,
 				ett_bacnet_mstp_checksum);
 			item = proto_tree_add_boolean(checksum_tree,
@@ -289,9 +292,9 @@ dissect_mstp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 				tvb, offset+mstp_frame_pdu_len, 2, FALSE);
 			PROTO_ITEM_SET_GENERATED(item);
 		} else {
-			item = proto_tree_add_uint_format(subtree, hf_mstp_frame_crc16,
+			item = proto_tree_add_uint_format_value(subtree, hf_mstp_frame_crc16,
 				tvb, offset+mstp_frame_pdu_len, 2, framecrc16,
-				"Data CRC: 0x%04x [incorrect, should be 0x%04x]",
+				"0x%04x [incorrect, should be 0x%04x]",
 				framecrc16, crc16);
 			checksum_tree = proto_item_add_subtree(item,
 				ett_bacnet_mstp_checksum);
@@ -303,8 +306,7 @@ dissect_mstp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 				hf_mstp_frame_checksum_bad,
 				tvb, offset+mstp_frame_pdu_len, 2, TRUE);
 			PROTO_ITEM_SET_GENERATED(item);
-			expert_add_info_format(pinfo, item, PI_CHECKSUM, PI_ERROR,
-				"Bad Checksum");
+			expert_add_info(pinfo, item, &ei_mstp_frame_checksum_bad);
 		}
 #else
 		proto_tree_add_item(subtree, hf_mstp_frame_crc16,
@@ -417,11 +419,20 @@ proto_register_mstp(void)
 		&ett_bacnet_mstp_checksum
 	};
 
+	static ei_register_info ei[] = {
+		{ &ei_mstp_frame_pdu_len, { "mstp.len.bad", PI_MALFORMED, PI_ERROR, "Length field value goes past the end of the payload", EXPFILL }},
+		{ &ei_mstp_frame_checksum_bad, { "mstp.checksum_bad.expert", PI_CHECKSUM, PI_WARN, "Bad Checksum", EXPFILL }},
+	};
+
+	expert_module_t* expert_mstp;
+
 	proto_mstp = proto_register_protocol("BACnet MS/TP",
 	    "BACnet MS/TP", "mstp");
 
 	proto_register_field_array(proto_mstp, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_mstp = expert_register_protocol(proto_mstp);
+	expert_register_field_array(expert_mstp, ei, array_length(ei));
 
 	register_dissector("mstp", dissect_mstp_wtap, proto_mstp);
 

@@ -3,8 +3,6 @@
  * By Owen Kirby <osk@exegin.com>
  * Copyright 2009 Exegin Technologies Limited
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -147,9 +145,16 @@
 #define ZBEE_ZCL_CID_MULTISTATE_OUTPUT_BASIC        0x0013
 #define ZBEE_ZCL_CID_MULTISTATE_VALUE_BASIC         0x0014
 #define ZBEE_ZCL_CID_COMMISSIONING                  0x0015
+#define ZBEE_ZCL_CID_PARTITION                      0x0016
+#define ZBEE_ZCL_CID_OTA_UPGRADE                    0x0019
+#define ZBEE_ZCL_CID_POLL_CONTROL                   0x0020
+/* */
+#define ZBEE_ZCL_CID_POWER_PROFILE                  0x001a
+#define ZBEE_ZCL_CID_APPLIANCE_CONTROL              0x001b
 
 /* ZCL Cluster IDs - Closures */
 #define ZBEE_ZCL_CID_SHADE_CONFIG                   0x0100
+#define ZBEE_ZCL_CID_DOOR_LOCK                      0X0101
 
 /* ZCL Cluster IDs - HVAC */
 #define ZBEE_ZCL_CID_PUMP_CONFIG_CONTROL            0x0200
@@ -206,19 +211,45 @@
 #define ZBEE_ZCL_CID_SMART_ENERGY_TUNNELING         0x0704
 #define ZBEE_ZCL_CID_PRE_PAYMENT                    0x0705
 
+/* ZCL Cluster IDs - Home Automation */
+#define ZBEE_ZCL_CID_APPLIANCE_IDENTIFICATION       0x0b00
+#define ZBEE_ZCL_CID_METER_IDENTIFICATION           0x0b01
+#define ZBEE_ZCL_CID_APPLIANCE_EVENTS_AND_ALERT     0x0b02
+#define ZBEE_ZCL_CID_APPLIANCE_STATISTICS           0x0b03
+
+/* ZCL Test Profile #2 Clusters */
+#define ZBEE_APS_T2_CID_TCP                         0x0001
+#define ZBEE_APS_T2_CID_RESPC                       0x0002
+#define ZBEE_APS_T2_CID_RETPC                       0x0003
+#define ZBEE_APS_T2_CID_PCR                         0x0004
+#define ZBEE_APS_T2_CID_BTREQ                       0x001c
+#define ZBEE_APS_T2_CID_BTGREQ                      0x001d
+#define ZBEE_APS_T2_CID_BTRES                       0x0054
+#define ZBEE_APS_T2_CID_BTRES_S_SBT                 0x00
+#define ZBEE_APS_T2_CID_BTRES_S_TFOFA               0x01
+#define ZBEE_APS_T2_CID_BTGRES                      0x0055
+#define ZBEE_APS_T2_CID_RDREQ                       0x1000
+#define ZBEE_APS_T2_CID_RDRES                       0x1001
+#define ZBEE_APS_T2_CID_FREQ                        0xa0a8
+#define ZBEE_APS_T2_CID_FRES                        0xe000
+#define ZBEE_APS_T2_CID_FNDR                        0xe001
+#define ZBEE_APS_T2_CID_BR                          0xf000
+#define ZBEE_APS_T2_CID_BTADR                       0xf001
+#define ZBEE_APS_T2_CID_BTARXOWIDR                  0xf00a
+#define ZBEE_APS_T2_CID_BTARACR                     0xf00e
+
 /*  Structure to contain the APS frame information */
 typedef struct{
     gboolean    indirect_mode;  /* ZigBee 2004 and Earlier  */
     guint8      type;
     guint8      delivery;
-    gboolean    ack_format;       /* ZigBee 2007 and Later    */
+    gboolean    ack_format;     /* ZigBee 2007 and Later    */
     gboolean    security;
     gboolean    ack_req;
     gboolean    ext_header;     /* ZigBee 2007 and Later    */
 
     guint8      dst;
     guint16     group;          /* ZigBee 2006 and Later    */
-    guint16     cluster;
     guint16     profile;
     guint8      src;
     guint8      counter;
@@ -233,5 +264,12 @@ typedef struct{
     gboolean    dst_present;
     gboolean    src_present;
 } zbee_aps_packet;
+
+/**************************************
+ * Value Strings
+ **************************************
+ */
+
+extern const value_string zbee_aps_cid_names[];
 
 #endif /* PACKET_ZBEE_APS_H*/

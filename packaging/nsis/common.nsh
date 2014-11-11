@@ -12,6 +12,13 @@
 !define DISPLAY_NAME "${PROGRAM_NAME} ${VERSION} (${BITS}-bit)"
 Name "${DISPLAY_NAME}"
 
+!define PROGRAM_NAME_GTK "${PROGRAM_NAME}"
+!define PROGRAM_NAME_QT "${PROGRAM_NAME} 2 Preview"
+!define PROGRAM_FULL_NAME_GTK "The ${PROGRAM_NAME} Network Protocol Analyzer"
+!define PROGRAM_FULL_NAME_QT "The ${PROGRAM_NAME} Network Protocol Analyzer (Version 2 Preview)"
+!define PROGRAM_NAME_PATH_GTK "${PROGRAM_NAME}.exe"
+!define PROGRAM_NAME_PATH_QT "qtshark.exe"
+
 !define UNINSTALLER_NAME "uninstall.exe"
 
 VIAddVersionKey "ProductName" "${PROGRAM_NAME}"
@@ -60,6 +67,11 @@ UpdateIcons.quit_${UPDATEICONS_UNIQUE}:
     Pop $R2
     Pop $R1
     Pop $R0
+
+; Force the icon cache to refresh
+; http://superuser.com/questions/499078/refresh-icon-cache-without-rebooting
+IfFileExists "$SYSDIR\ie4uinit.exe" 0 +2
+Exec '"$SYSDIR\ie4uinit.exe" -ClearIconCache'
 
 !macroend
 
@@ -119,7 +131,7 @@ checkRunningSession:
 
 isRunning:
     ; You'd better go catch it.
-    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "${PROGRAM_NAME} or one is associated programs is running.$\r$\nPlease close it first." /SD IDCANCEL IDRETRY continueChecking
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "${PROGRAM_NAME} or one of its associated programs is running.$\r$\nPlease close it first." /SD IDCANCEL IDRETRY continueChecking
     Quit
 
 notRunning:

@@ -2,8 +2,6 @@
  * Definitions and routines for HIP control packet disassembly
  * Samu Varjonen <samu.varjonen@hiit.fi>
  *
- * $Id$
- *
  * Based on dissector originally created by
  *   Jeff Ahrenholz <jeffrey.m.ahrenholz@boeing.com>
  *   Thomas Henderson <thomas.r.henderson@boeing.com>
@@ -41,6 +39,9 @@
 
 #include <epan/ipproto.h>
 #include <epan/in_cksum.h>
+
+void proto_register_hip(void);
+void proto_reg_handoff_hip(void);
 
 #define HI_ALG_DSA 3
 #define HI_ALG_RSA 5
@@ -266,6 +267,7 @@ static const value_string notification_vals[] = {
         { 0, NULL }
 };
 
+#if 0
 /* RFC 5770 */
 static const value_string nat_traversal_mode_vals[] = {
         { 0, "Reserved"},
@@ -273,6 +275,7 @@ static const value_string nat_traversal_mode_vals[] = {
         { 2, "ICE-STUN-UDP"},
         { 0, NULL }
 };
+#endif
 
 /* HIPv2 draft-ietf-hip-rfc5201-bis-08 Section 5.2 */
 static const value_string cipher_vals[] = {
@@ -406,7 +409,7 @@ static gint ett_hip_locator_data = -1;
 
 /* Dissect the HIP packet */
 static void
-dissect_hip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+dissect_hip_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean udp)
 {
         proto_tree *hip_tree, *hip_tlv_tree=NULL;
         proto_item *ti, *ti_tlv;
@@ -469,8 +472,8 @@ dissect_hip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                                            hiph_shim6_fixed_bit_p);
                 proto_tree_add_uint(hip_tree, hf_hip_packet_type, tvb, offset+2, 1,
                                     hiph_packet_type);
-                proto_tree_add_uint_format(hip_tree, hf_hip_version, tvb, offset+3, 1,
-                                           hiph_version, "Version: %u, Reserved: %u",
+                proto_tree_add_uint_format_value(hip_tree, hf_hip_version, tvb, offset+3, 1,
+                                           hiph_version, "%u, Reserved: %u",
                                            hiph_version, hiph_reserved);
                 proto_tree_add_uint_format(hip_tree, hf_hip_shim6_fixed_bit_s, tvb, offset+3, 1,
                                            hiph_shim6_fixed_bit_s,
@@ -481,9 +484,9 @@ dissect_hip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 /* Checksum - this is the same algorithm from UDP, ICMPv6 */
                 if (!pinfo->fragmented) {
                         /* IPv4 or IPv6 addresses */
-                        cksum_vec[0].ptr = pinfo->src.data;
+                        cksum_vec[0].ptr = (const guint8 *)pinfo->src.data;
                         cksum_vec[0].len = pinfo->src.len;
-                        cksum_vec[1].ptr = pinfo->dst.data;
+                        cksum_vec[1].ptr = (const guint8 *)pinfo->dst.data;
                         cksum_vec[1].len = pinfo->dst.len;
 
                         /* the rest of the pseudo-header */
@@ -504,30 +507,29 @@ dissect_hip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                         cksum_vec[3].ptr = tvb_get_ptr(tvb, 0, cksum_vec[3].len);
                         computed_checksum = in_cksum(cksum_vec, 4);
                         if (computed_checksum == 0) {
-                                proto_tree_add_uint_format(hip_tree, hf_hip_checksum, tvb,
+                                proto_tree_add_uint_format_value(hip_tree, hf_hip_checksum, tvb,
                                                            offset+4, 2, checksum_h,
-                                                           "Checksum: 0x%04x (correct)",
+                                                           "0x%04x (correct)",
                                                            checksum_h);
                         } else {
-                               if (checksum_h == 0 && pinfo->ipproto == IP_PROTO_UDP) {
-                                       proto_tree_add_uint_format(hip_tree, hf_hip_checksum, tvb,
+                               if (checksum_h == 0 && udp) {
+                                       proto_tree_add_uint_format_value(hip_tree, hf_hip_checksum, tvb,
                                                                   offset+4, 2, checksum_h,
-                                                                  "Checksum: 0x%04x (correct)",
+                                                                  "0x%04x (correct)",
                                                                   checksum_h);
                                } else {
-                                       proto_tree_add_uint_format(hip_tree, hf_hip_checksum, tvb,
+                                       proto_tree_add_uint_format_value(hip_tree, hf_hip_checksum, tvb,
                                                                   offset+4, 2, checksum_h,
-                                                                  "Checksum: 0x%04x (incorrect, "
-                                                                  "should be 0x%04x)",
+                                                                  "0x%04x (incorrect, should be 0x%04x)",
                                                                   checksum_h,
                                                                   in_cksum_shouldbe(checksum_h,
                                                                   computed_checksum));
                                }
                         }
                 } else {
-                        proto_tree_add_uint_format(hip_tree, hf_hip_checksum, tvb,
+                        proto_tree_add_uint_format_value(hip_tree, hf_hip_checksum, tvb,
                                                    offset+4, 2, checksum_h,
-                                                   "Checksum: 0x%04x (unverified)",
+                                                   "0x%04x (unverified)",
                                                    checksum_h);
                 }
 
@@ -575,6 +577,12 @@ dissect_hip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 }
 
 static void
+dissect_hip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+{
+    dissect_hip_common(tvb, pinfo, tree, FALSE);
+}
+
+static void
 dissect_hip_in_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
         guint32 nullbytes;
@@ -582,7 +590,7 @@ dissect_hip_in_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         if (nullbytes == 0)
         {
                 tvbuff_t *newtvb = tvb_new_subset_remaining(tvb, 4);
-                dissect_hip(newtvb, pinfo, tree);
+                dissect_hip_common(newtvb, pinfo, tree, TRUE);
         }
 }
 
@@ -653,7 +661,7 @@ dissect_hip_tlv(tvbuff_t *tvb, int offset, proto_item *ti, int type, int tlv_len
                                 newoffset += (1 + tvb_get_guint8(tvb, newoffset + 2));
                                 tlv_len -= (1 + tvb_get_guint8(tvb, newoffset + 2));
                         }
-                        if (ti_loc) {
+                        if (locator_type <= 2) {
                                 ti_loc = proto_item_add_subtree(ti_loc, ett_hip_locator_data);
                                 /* Traffic type */
                                 proto_tree_add_item(ti_loc, hf_hip_tlv_locator_traffic_type, tvb,
@@ -670,9 +678,9 @@ dissect_hip_tlv(tvbuff_t *tvb, int offset, proto_item *ti, int type, int tlv_len
                                 newoffset++;
                                 /* Reserved includes the Preferred bit */
                                 reserved = tvb_get_guint8(tvb, newoffset);
-                                proto_tree_add_uint_format(ti_loc, hf_hip_tlv_locator_reserved, tvb,
+                                proto_tree_add_uint_format_value(ti_loc, hf_hip_tlv_locator_reserved, tvb,
                                                            newoffset, 1, reserved,
-                                                           "Reserved: 0x%x %s", reserved,
+                                                           "0x%x %s", reserved,
                                                            (reserved >> 31) ? "(Preferred)" : "");
                                 newoffset++;
                                 /* Locator lifetime */
@@ -1023,11 +1031,11 @@ dissect_hip_tlv(tvbuff_t *tvb, int offset, proto_item *ti, int type, int tlv_len
                 if (di_type == 1) {
                         /* RFC 1035 */
                         proto_tree_add_text(t, tvb, offset+16+hi_len, di_len,
-                                            "FQDN: %s", tvb_get_ephemeral_string (tvb, offset+16+hi_len, di_len));
+                                            "FQDN: %s", tvb_get_string (wmem_packet_scope(), tvb, offset+16+hi_len, di_len));
                 } else if (di_type == 2) {
                         /* RFC 4282 */
                         proto_tree_add_text(t, tvb, offset+16+hi_len, di_len,
-                                            "NAI: %s", tvb_get_ephemeral_string (tvb, offset+16+hi_len, di_len));
+                                            "NAI: %s", tvb_get_string (wmem_packet_scope(), tvb, offset+16+hi_len, di_len));
                 }
                 break;
         case PARAM_CERT: /* CERT */

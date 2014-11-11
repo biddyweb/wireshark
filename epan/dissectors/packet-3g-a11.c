@@ -11,8 +11,6 @@
  * Routines for Mobile IP dissection
  * Copyright 2000, Stefan Raab <sraab@cisco.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,6 +35,7 @@
  * http://www.3gpp2.org/public_html/specs/A.S0017-D_v2.0_090825.pdf
  * http://www.3gpp2.org/public_html/specs/A.S0017-D%20v3.0_Interoperability%20Specification%20%28IOS%29%20for%20cdma2000%20Access%20Network%20Interfaces%20-%20Part%207%20%28A10%20and%20A11%20Interfaces%29_20110701.pdf
  * http://www.3gpp2.org/Public_html/specs/A00-20110419-002Er0%20A.S0008-C%20v4.0%20HRPD%20IOS-Pub_20110513.pdf
+ * http://www.3gpp2.org/Public_html/specs/A.S0022-0_v2.0_100426.pdf
  */
 
 #include "config.h"
@@ -45,14 +44,16 @@
 
 #include <epan/packet.h>
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
 /* Include vendor id translation */
 #include <epan/sminmpec.h>
+#include <epan/to_str.h>
 
 #include "packet-radius.h"
 
 /* Forward declarations */
 void proto_register_a11(void);
-void proto_register_a11(void);
+void proto_reg_handoff_a11(void);
 
 static int registration_request_msg =0;
 
@@ -99,6 +100,10 @@ static int hf_a11_vse_qosmode = -1;
 static int hf_a11_vse_pdit = -1;
 static int hf_a11_vse_code = -1;
 static int hf_a11_vse_dormant = -1;
+static int hf_a11_vse_ehrpd_mode = -1;
+static int hf_a11_vse_ehrpd_pmk = -1;
+static int hf_a11_vse_ehrpd_handoff_info = -1;
+static int hf_a11_vse_ehrpd_tunnel_mode = -1;
 static int hf_a11_vse_ppaddr = -1;
 
 /* Additional Session Information */
@@ -130,6 +135,8 @@ static int hf_a11_sub_type = -1;
 static int hf_a11_sub_type_length = -1;
 static int hf_a11_serv_opt = -1;
 static int hf_a11_max_num_serv_opt = -1;
+static int hf_a11_bcmcs_stype = -1;
+static int hf_a11_bcmcs_entry_len = -1;
 
 /* Forward QoS Information */
 static int hf_a11_fqi_srid = -1;
@@ -210,31 +217,47 @@ static gint ett_a11_reverse_rohc = -1;
 static gint ett_a11_forward_profile = -1;
 static gint ett_a11_reverse_profile = -1;
 static gint ett_a11_aut_flow_profile_ids = -1;
+static gint ett_a11_bcmcs_entry = -1;
 
+static expert_field ei_a11_sub_type_length_not2 = EI_INIT;
 
 /* Port used for Mobile IP based Tunneling Protocol (A11) */
 #define UDP_PORT_3GA11    699
 
 typedef enum {
-    REGISTRATION_REQUEST  = 1,
-    REGISTRATION_REPLY    = 3,
-    REGISTRATION_UPDATE   = 20,
-    REGISTRATION_ACK      = 21,
-    SESSION_UPDATE        = 22,
-    SESSION_ACK           = 23,
-    CAPABILITIES_INFO     = 24,
-    CAPABILITIES_INFO_ACK = 25
+    REGISTRATION_REQUEST     = 1,
+    REGISTRATION_REPLY       = 3,
+    REGISTRATION_UPDATE      = 20,
+    REGISTRATION_ACK         = 21,
+    SESSION_UPDATE           = 22,
+    SESSION_ACK              = 23,
+    CAPABILITIES_INFO        = 24,
+    CAPABILITIES_INFO_ACK    = 25,
+    BC_SERVICE_REQUEST       = 0xb0,  /* 3GPP2 A.S0019-A v2.0 */
+    BC_SERVICE_REPLY         = 0xb1,
+    BC_REGISTRATION_REQUEST  = 0xb2,
+    BC_REGISTRATION_REPLY    = 0xb3,
+    BC_REGISTRATION_UPDATE   = 0xb4,
+    BC_REGISTRATION_ACK      = 0xb5
+
 } a11MessageTypes;
 
 static const value_string a11_types[] = {
-    {REGISTRATION_REQUEST,  "Registration Request"},
-    {REGISTRATION_REPLY,    "Registration Reply"},
-    {REGISTRATION_UPDATE,   "Registration Update"},
-    {REGISTRATION_ACK,      "Registration Ack"},
-    {SESSION_UPDATE,        "Session Update"},
-    {SESSION_ACK,           "Session Update Ack"},
-    {CAPABILITIES_INFO,     "Capabilities Info"},
-    {CAPABILITIES_INFO_ACK, "Capabilities Info Ack"},
+    {REGISTRATION_REQUEST,    "Registration Request"},
+    {REGISTRATION_REPLY,      "Registration Reply"},
+    {REGISTRATION_UPDATE,     "Registration Update"},
+    {REGISTRATION_ACK,        "Registration Ack"},
+    {SESSION_UPDATE,          "Session Update"},
+    {SESSION_ACK,             "Session Update Ack"},
+    {CAPABILITIES_INFO,       "Capabilities Info"},
+    {CAPABILITIES_INFO_ACK,   "Capabilities Info Ack"},
+    {BC_SERVICE_REQUEST,      "BC Service Request"},
+    {BC_SERVICE_REPLY,        "BC Service Response"},
+    {BC_REGISTRATION_REQUEST, "BC Registration RequestT"},
+    {BC_REGISTRATION_REPLY,   "BC Registration Reply"},
+    {BC_REGISTRATION_UPDATE,  "BC Registration Update"},
+    {BC_REGISTRATION_ACK,     "BC Registration Acknowledge"},
+
     {0, NULL},
 };
 
@@ -272,36 +295,37 @@ static const value_string a11_reply_codes[]= {
     {98, "Reg Deny (FA)(NAI) - Missing Home Agent"},
     {99, "Reg Deny (FA)(NAI) - Missing Home Address"},
 #endif
-    {128, "Reg Deny (HA)- Unspecified"},
-    {129, "Reg Deny (HA)- Administratively Prohibited"},
-    {130, "Reg Deny (HA)- Insufficient Resources"},
-    {131, "Reg Deny (HA)- PCF Failed Authentication"},
+    {128, "Registration Denied - Unspecified"},                                        /* 3GPP2 A.S0017-D v4.0 */
+    {129, "Registration Denied - Administratively Prohibited"},
+    {130, "Registration Denied - Insufficient Resources"},
+    {131, "Registration Denied - PCF Failed Authentication"},
     /* {132, "Reg Deny (HA)- FA Failed Authentication"}, */
-    {133, "Reg Deny (HA)- Identification Mismatch"},
-    {134, "Reg Deny (HA)- Poorly Formed Request"},
+    {133, "Registration Denied - Identification Mismatch"},
+    {134, "Registration Denied - Poorly Formed Request"},
     /* {135, "Reg Deny (HA)- Too Many Simultaneous Bindings"}, */
-    {136, "Reg Deny (HA)- Unknown PDSN Address"},
-    {137, "Reg Deny (HA)- Requested Reverse Tunnel Unavailable"},
-    {138, "Reg Deny (HA)- Reverse Tunnel is Mandatory and 'T' Bit Not Set"},
-    {139, "Reg Deny (HA)- Requested Encapsulation Unavailable"},
+    {136, "Registration Denied - Unknown PDSN Address"},
+    {137, "Registration Denied - Requested Reverse Tunnel Unavailable"},
+    {138, "Registration Denied - Reverse Tunnel is Mandatory and 'T' Bit Not Set"},
+    {139, "Registration Denied - service option not supported"},
     {140, "Registration Denied - no CID available"},
-    {141, "Reg Deny (HA)- unsupported Vendor ID / Application Type in CVSE"},
+    {141, "Registration Denied - unsupported Vendor ID / Application Type in CVSE"},
     {142, "Registration Denied - nonexistent A10 or IP flow"},
     {0, NULL},
 };
 
 
 static const value_string a11_ack_status[]= {
-    {0, "Update Accepted"},
-    {1, "Partial QoS updated"},
-    {128, "Update Deny - Unspecified"},
-    {131, "Update Deny - Sending Node Failed Authentication"},
-    {133, "Update Deny - Registration ID Mismatch"},
-    {134, "Update Deny - Poorly Formed Request"},
-    {193, "Update Deny - Session Parameter Not Updated"},
-    {253, "Update Denied - QoS profileID not supported"},
-    {254, "Update Denied - insufficient resources"},
-    {255, "Update Denied - handoff in progress"},
+    {0x00, "Update Accepted"},
+    {0x01, "Partial QoS updated"},
+    {0x80, "Update Denied - reason unspecified"},
+    {0x83, "Update Denied - sending node failed authentication"},
+    {0x85, "Update Denied - identification mismatch)"},
+    {0x86, "Update Denied - poorly formed registration update"},
+    {0xc9, "Update Denied - Session Parameter Not Updated"},
+    {0xca, "Update Denied - PMK not requested"},
+    {0xfd, "Update Denied - QoS profileID not supported"},
+    {0xfe, "Update Denied - insufficient resources"},
+    {0xff, "Update Denied - handoff in progress"},
     {0, NULL},
 };
 
@@ -317,7 +341,8 @@ typedef enum {
     MN_NAI_EXT       = 131,
     MF_CHALLENGE_EXT = 132, /* RFC 3012 */
     OLD_NVSE_EXT     = 133, /* RFC 3115 */
-    NVSE_EXT         = 134  /* RFC 3115 */
+    NVSE_EXT         = 134, /* RFC 3115 */
+    BCMCS_EXT        = 0xb0 /* 3GPP2 A.S0019-A v2.0 */
 } MIP_EXTS;
 
 
@@ -325,15 +350,16 @@ static const value_string a11_ext_types[]= {
     {MH_AUTH_EXT,      "Mobile-Home Authentication Extension"},
     {MF_AUTH_EXT,      "Mobile-Foreign Authentication Extension"},
     {FH_AUTH_EXT,      "Foreign-Home Authentication Extension"},
-    {MN_NAI_EXT,       "Mobile Node NAI Extension"},
     {GEN_AUTH_EXT,     "Generalized Mobile-IP Authentication Extension"},
-    {MF_CHALLENGE_EXT, "MN-FA Challenge Extension"},
+    {OLD_CVSE_EXT,     "Critical Vendor/Organization Specific Extension (OLD)"},
     {CVSE_EXT,         "Critical Vendor/Organization Specific Extension"},
     {SS_EXT,           "Session Specific Extension"},
     {RU_AUTH_EXT,      "Registration Update Authentication Extension"},
-    {OLD_CVSE_EXT,     "Critical Vendor/Organization Specific Extension (OLD)"},
+    {MN_NAI_EXT,       "Mobile Node NAI Extension"},
+    {MF_CHALLENGE_EXT, "MN-FA Challenge Extension"},
     {NVSE_EXT,         "Normal Vendor/Organization Specific Extension"},
     {OLD_NVSE_EXT,     "Normal Vendor/Organization Specific Extension (OLD)"},
+    {BCMCS_EXT,        "BCMCS Session Extension"},
     {0, NULL},
 };
 
@@ -353,8 +379,9 @@ static const value_string a11_ext_nvose_srvopt[]= {
     {0x003B, "HRPD Main Service Connection"},
     {0x003C, "Link Layer Assisted Header Removal"},
     {0x003D, "Link Layer Assisted Robust Header Compression"},
-    {0x0040, "HRPD Auxiliary Service Connection with higher layer framing for packet synchronization"},
-    {0x0043, "HRPD Auxiliary Service Connection without higher layer framing for packet synchronization"},
+    {0x0040, "HRPD Accounting Records Identifier"},                                    /* 3GPP2 A.S0009-C v4.0 */
+    {0x0043, "HRPD Packet Data IP Service where Higher Layer Protocol is IP or ROHC"}, /* 3GPP2 A.S0009-C v4.0 */
+    {0x0047, "HRPD AltPPP operation"},                                                 /* 3GPP2 A.S0009-C v4.0 */
     {0, NULL},
 };
 
@@ -376,6 +403,30 @@ static const value_string a11_ext_dormant[]= {
     {0, NULL},
 };
 
+
+static const true_false_string a11_tfs_ehrpd_mode = {
+    "eAT is operating in evolved mode",
+    "eAT is operating in legacy mode"
+};
+
+/* 3GPP2 A.S0022-0 v2.0, section 4.2.14 */
+static const true_false_string a11_tfs_ehrpd_pmk = {
+    "eAT is requesting PMK information",
+    "eAT is not requesting PMK information",
+};
+
+/* 3GPP2 A.S0022-0 v2.0, section 4.2.14 */
+static const true_false_string a11_tfs_ehrpd_handoff_info = {
+    "eAT is requesting information for E-UTRAN handoff",
+    "eAT is not requesting information for E-UTRAN handoff",
+};
+
+/* 3GPP2 A.S0022-0 v2.0, section 4.2.14 */
+static const true_false_string a11_tfs_ehrpd_tunnel_mode = {
+    "eAT is communicating via tunnel from non-eHRPD",
+    "eAT is communicating directly via eHRPD",
+};
+
 static const value_string a11_ext_app[]= {
     {0x0101, "Accounting (RADIUS)"},
     {0x0102, "Accounting (DIAMETER)"},
@@ -384,6 +435,8 @@ static const value_string a11_ext_app[]= {
     {0x0401, "Access Network Identifiers (ANID)"},
     {0x0501, "PDSN Identifiers (Anchor P-P Address)"},
     {0x0601, "Indicators (All Dormant Indicator)"},
+    {0x0602, "Indicators (eHRPD Mode)"},                                                 /* 3GPP2 A.S0022-B v1.0 */
+    {0x0603, "Indicators (eHRPD Indicators)"},                                           /* 3GPP2 A.S0009-C v4.0 */
     {0x0701, "PDSN Code (PDSN Code)"},
     {0x0801, "Session Parameter (RN-PDIT:Radio Network Packet Data Inactivity Timer)"},
     {0x0802, "Session Parameter (Always On)"},
@@ -398,12 +451,19 @@ static const value_string a11_ext_app[]= {
     {0x0D01, "QoS Information (Forward QoS Information)"},
     {0x0D02, "QoS Information (Reverse QoS Information)"},
     {0x0D03, "QoS Information (Subscriber QoS Profile)"},
+    {0x0D04, "QoS Information (Forward Flow Priority Update Information)"},
+    {0x0D05, "QoS Information (Reverse Flow Priority Update Information)"},
     {0x0DFE, "QoS Information (Forward QoS Update Information)"},
     {0x0DFF, "QoS Information (Reverse QoS Update Information)"},
     {0x0E01, "Header Compression (ROHC Configuration Parameters)"},
+    {0x0F01, "Information (Cause Code)"},
+    {0x0F04, "Information (Additional HSGW Information)"},
+    {0x1001, "HRPD Indicators (Emergency Services)"},
+    {0xB001, "System Identifiers (BSID / HRPD Subnet)"},
     {0, NULL},
 };
 
+#if 0
 static const value_string a11_airlink_types[]= {
     {1, "Session Setup (Y=1)"},
     {2, "Active Start (Y=2)"},
@@ -411,8 +471,17 @@ static const value_string a11_airlink_types[]= {
     {4, "Short Data Burst (Y=4)"},
     {0, NULL},
 };
+#endif
 
 static const true_false_string tfs_included_not_included = { "Included", "Not Included" };
+
+static const value_string a11_bcmcs_stype_vals[] = {
+    {1, "BCMCS Flow and Registration Information"},
+    {2, "Session Information"},
+    {3, "BCMCS Registration Result"},
+    {4, "Enhanced Session Information"},
+    {0, NULL},
+};
 
 #define A11_MSG_MSID_ELEM_LEN_MAX 8
 #define A11_MSG_MSID_LEN_MAX 15
@@ -457,6 +526,19 @@ static const value_string a11_rohc_profile_vals[] =
    else
    Last Byte: [F] [Digit N]
 */
+
+
+/* 3GPP2 A.S0008-C v4.0, 3GPP2 A.S0019-A v2.0 */
+static const value_string a11_ses_msid_type_vals[] =
+{
+    { 0x0000,    "No Identity Code" },
+    { 0x0001,    "MEID" },
+    { 0x0005,    "ESN" },
+    { 0x0006,    "IMSI" },
+    { 0x0008,    "BCMCS Flow ID" },
+    { 0, NULL },
+};
+
 static void
 decode_sse(proto_tree *ext_tree, tvbuff_t *tvb, int offset, guint ext_len)
 {
@@ -469,99 +551,88 @@ decode_sse(proto_tree *ext_tree, tvbuff_t *tvb, int offset, guint ext_len)
     gboolean    odd_even_ind;
 
     /* Decode Protocol Type */
-    if (ext_len < 2)
-    {
+    if (ext_len < 2) {
         proto_tree_add_text(ext_tree, tvb, offset, 0,
                     "Cannot decode Protocol Type - SSE too short");
         return;
     }
     proto_tree_add_item(ext_tree, hf_a11_ses_ptype, tvb, offset, 2, ENC_BIG_ENDIAN);
-    offset += 2;
+    offset  += 2;
     ext_len -= 2;
 
     /* Decode Session Key */
-    if (ext_len < 4)
-    {
+    if (ext_len < 4) {
         proto_tree_add_text(ext_tree, tvb, offset, 0,
                     "Cannot decode Session Key - SSE too short");
         return;
     }
     proto_tree_add_item(ext_tree, hf_a11_ses_key, tvb, offset, 4, ENC_BIG_ENDIAN);
-    offset += 4;
+    offset  += 4;
     ext_len -= 4;
 
 
     /* Decode Session Id Version */
-    if (ext_len < 2)
-    {
+    if (ext_len < 2) {
         proto_tree_add_text(ext_tree, tvb, offset, 0,
                     "Cannot decode Session Id Version - SSE too short");
         return;
     }
     proto_tree_add_item(ext_tree, hf_a11_ses_sidver, tvb, offset+1, 1, ENC_BIG_ENDIAN);
-    offset += 2;
+    offset  += 2;
     ext_len -= 2;
 
 
     /* Decode SRID */
-    if (ext_len < 2)
-    {
+    if (ext_len < 2) {
         proto_tree_add_text(ext_tree, tvb, offset, 0,
                     "Cannot decode SRID - SSE too short");
         return;
     }
     proto_tree_add_item(ext_tree, hf_a11_ses_mnsrid, tvb, offset, 2, ENC_BIG_ENDIAN);
-    offset += 2;
+    offset  += 2;
     ext_len -= 2;
 
     /* MSID Type */
-    if (ext_len < 2)
-    {
+    if (ext_len < 2) {
         proto_tree_add_text(ext_tree, tvb, offset, 0,
                     "Cannot decode MSID Type - SSE too short");
         return;
     }
     proto_tree_add_item(ext_tree, hf_a11_ses_msid_type, tvb, offset, 2, ENC_BIG_ENDIAN);
-    offset += 2;
+    offset  += 2;
     ext_len -= 2;
 
 
     /* MSID Len */
-    if (ext_len < 1)
-    {
+    if (ext_len < 1) {
         proto_tree_add_text(ext_tree, tvb, offset, 0,
                     "Cannot decode MSID Length - SSE too short");
         return;
     }
     msid_len =  tvb_get_guint8(tvb, offset);
     proto_tree_add_item(ext_tree, hf_a11_ses_msid_len, tvb, offset, 1, ENC_BIG_ENDIAN);
-    offset += 1;
+    offset  += 1;
     ext_len -= 1;
 
     /* Decode MSID */
-    if (ext_len < msid_len)
-    {
+    if (ext_len < msid_len) {
         proto_tree_add_text(ext_tree, tvb, offset, 0,
                     "Cannot decode MSID - SSE too short");
         return;
     }
 
-    msid_digits = (char *)ep_alloc(A11_MSG_MSID_LEN_MAX+2);
+    msid_digits = (char *)wmem_alloc(wmem_packet_scope(), A11_MSG_MSID_LEN_MAX+2);
     msid_start_offset = offset;
 
-    if (msid_len > A11_MSG_MSID_ELEM_LEN_MAX)
-    {
+    if (msid_len > A11_MSG_MSID_ELEM_LEN_MAX) {
         p_msid = "MSID is too long";
-    }else if (msid_len == 0)
-    {
+    } else if (msid_len == 0) {
         p_msid = "MSID is too short";
-    }else
-    {
+    } else {
         /* Decode the BCD digits */
-        for(msid_index=0; msid_index<msid_len; msid_index++)
-        {
+        for (msid_index=0; msid_index<msid_len; msid_index++) {
             guint8 msid_digit = tvb_get_guint8(tvb, offset);
-            offset += 1;
+            offset  += 1;
             ext_len -= 1;
 
             msid_digits[msid_index*2] = (msid_digit & 0x0F) + '0';
@@ -570,11 +641,9 @@ decode_sse(proto_tree *ext_tree, tvbuff_t *tvb, int offset, guint ext_len)
 
         odd_even_ind = (msid_digits[0] == '1');
 
-        if (odd_even_ind)
-        {
+        if (odd_even_ind) {
             msid_num_digits = ((msid_len-1) * 2) + 1;
-        }else
-        {
+        } else {
             msid_num_digits = (msid_len-1) * 2;
         }
 
@@ -589,6 +658,56 @@ decode_sse(proto_tree *ext_tree, tvbuff_t *tvb, int offset, guint ext_len)
     return;
 }
 
+static void
+decode_bcmcs(proto_tree* ext_tree, tvbuff_t* tvb, int offset, guint ext_len)
+{
+
+    guint8 bc_stype, entry_len;
+
+    /* Decode Protocol Type */
+    if (ext_len < 2) {
+        proto_tree_add_text(ext_tree, tvb, offset, 0,
+                            "Cannot decode Protocol Type - BCMCS too short");
+        return;
+    }
+
+    bc_stype=tvb_get_guint8(tvb, offset);
+    proto_tree_add_item(ext_tree, hf_a11_bcmcs_stype, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset  += 1;
+    ext_len -= 1;
+
+    switch (bc_stype) {
+    case 1:
+    {
+        int i = 0;
+        proto_item   *ti;
+        proto_tree   *entry_tree;
+        while (ext_len > 0) {
+            i++;
+            entry_len = tvb_get_guint8(tvb, offset);
+            if (entry_len == 0) {
+                ext_len   -= 1;
+                entry_len  = 1;
+            } else {
+                ext_len = ext_len - entry_len;
+            }
+            ti = proto_tree_add_text(ext_tree, tvb, offset, entry_len, "BCMCS Information Entry %u", i);
+            entry_tree = proto_item_add_subtree(ti, ett_a11_bcmcs_entry);
+            proto_tree_add_item(entry_tree, hf_a11_bcmcs_entry_len, tvb, offset, 1, ENC_BIG_ENDIAN);
+
+            proto_tree_add_text(ext_tree, tvb, offset, entry_len -1, "Entry Data, Not dissected yet");
+            offset = offset+entry_len;
+        }
+    }
+    break;
+    default:
+        proto_tree_add_text(ext_tree, tvb, offset, -1, "Session Data Type %u Not dissected yet",bc_stype);
+        return;
+        break;
+    }
+
+
+}
 
 /* RADIUS attributed */
 static void
@@ -627,27 +746,27 @@ dissect_3gpp2_service_option_profile(proto_tree  *tree, tvbuff_t  *tvb, packet_i
     proto_tree_add_item(tree, hf_a11_serv_opt_prof_max_serv, tvb, offset, 4, ENC_BIG_ENDIAN);
     offset+=4;
 
-    while (tvb_length_remaining(tvb,offset)>0){
+    while (tvb_length_remaining(tvb,offset) > 0) {
         sub_type_length = tvb_get_guint8(tvb,offset+1);
 
         sub_type = tvb_get_guint8(tvb,offset);
         proto_tree_add_item(tree, hf_a11_sub_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-        offset++;
+        offset += 1;
         pi = proto_tree_add_item(tree, hf_a11_sub_type_length, tvb, offset, 1, ENC_BIG_ENDIAN);
-        offset++;
+        offset += 1;
         if (sub_type_length < 2) {
-            expert_add_info_format(pinfo, pi, PI_PROTOCOL, PI_WARN, "Sub-Type Length should be at least 2");
+            expert_add_info(pinfo, pi, &ei_a11_sub_type_length_not2);
             sub_type_length = 2;
         }
-        if (sub_type==1){
+        if (sub_type == 1) {
             proto_tree_add_item(tree, hf_a11_serv_opt, tvb, offset, 1, ENC_BIG_ENDIAN);
-            offset++;
+            offset += 1;
             /* Max number of service instances of Service Option n */
             proto_tree_add_item(tree, hf_a11_max_num_serv_opt, tvb, offset, 1, ENC_BIG_ENDIAN);
-            offset++;
+            offset += 1;
         }
 
-        offset = offset+sub_type_length-2;
+        offset = offset + sub_type_length-2;
     }
 
     return "";
@@ -671,7 +790,7 @@ dissect_3gpp2_radius_aut_flow_profile_ids(proto_tree  *tree, tvbuff_t  *tvb, pac
     guint8      sub_type, sub_type_length;
     guint32     value;
 
-    while (tvb_length_remaining(tvb,offset)>0){
+    while (tvb_length_remaining(tvb,offset) > 0) {
         sub_type = tvb_get_guint8(tvb,offset);
         sub_type_length = tvb_get_guint8(tvb,offset+1);
         /* value is 2 octets */
@@ -681,16 +800,16 @@ dissect_3gpp2_radius_aut_flow_profile_ids(proto_tree  *tree, tvbuff_t  *tvb, pac
         sub_tree = proto_item_add_subtree(item, ett_a11_aut_flow_profile_ids);
 
         proto_tree_add_item(sub_tree, hf_a11_aut_flow_prof_sub_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-        offset++;
+        offset += 1;
         item = proto_tree_add_item(sub_tree, hf_a11_aut_flow_prof_sub_type_len, tvb, offset, 1, ENC_BIG_ENDIAN);
         if (sub_type_length < 2) {
-            expert_add_info_format(pinfo, item, PI_PROTOCOL, PI_WARN, "Sub-Type Length should be at least 2");
+            expert_add_info(pinfo, item, &ei_a11_sub_type_length_not2);
             sub_type_length = 2;
         }
-        offset++;
+        offset += 1;
         proto_tree_add_item(sub_tree, hf_a11_aut_flow_prof_sub_type_value, tvb, offset, 2, ENC_BIG_ENDIAN);
 
-        offset = offset+sub_type_length-2;
+        offset = offset+sub_type_length - 2;
     }
 
     return "";
@@ -702,8 +821,7 @@ dissect_ase(tvbuff_t *tvb, int offset, guint ase_len, proto_tree *ext_tree)
 {
     guint clen = 0; /* consumed length */
 
-    while (clen < ase_len)
-    {
+    while (clen < ase_len) {
         proto_tree *exts_tree;
         guint8      srid           = tvb_get_guint8(tvb, offset+1);
         guint16     service_option = tvb_get_ntohs(tvb,  offset+2);
@@ -715,77 +833,68 @@ dissect_ase(tvbuff_t *tvb, int offset, guint ase_len, proto_tree *ext_tree)
         entry_start_offset = offset;
         entry_lenght = tvb_get_guint8(tvb, offset);
 
-        if (registration_request_msg && (service_option==64 || service_option==67)){
-            if (service_option == 67){
-                ti = proto_tree_add_text(ext_tree, tvb, offset, entry_lenght+1, "GRE Key Entry (SRID: %d)", srid);
-            } else if (service_option== 64){
-                ti = proto_tree_add_text(ext_tree, tvb, offset, entry_lenght+1, "GRE Key Entry (SRID: %d)", srid);
-            } else {
-                proto_tree_add_text(ext_tree, tvb, offset, entry_lenght+1, "Unknown service option %u (SRID: %d)", service_option, srid);
-                clen+=entry_lenght+1;
-                continue;
-            }
-        }else{
+        if (registration_request_msg && ((service_option == 64) || (service_option == 67)))
+            ti = proto_tree_add_text(ext_tree, tvb, offset, entry_lenght+1, "GRE Key Entry (SRID: %d)", srid);
+        else
             ti = proto_tree_add_text(ext_tree, tvb, offset, entry_lenght, "GRE Key Entry (SRID: %d)", srid);
-        }
 
         exts_tree = proto_item_add_subtree(ti, ett_a11_ase);
 
         proto_tree_add_item(exts_tree, hf_a11_ase_len_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-        offset++;
+        offset += 1;
 
         /* SRID */
         proto_tree_add_item(exts_tree, hf_a11_ase_srid_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-        offset++;
+        offset += 1;
 
         /* Service Option */
         proto_tree_add_item(exts_tree, hf_a11_ase_servopt_type, tvb, offset, 2, ENC_BIG_ENDIAN);
-        offset+=2;
+        offset += 2;
 
         /* GRE Protocol Type*/
         proto_tree_add_item(exts_tree, hf_a11_ase_gre_proto_type, tvb, offset, 2, ENC_BIG_ENDIAN);
-        offset+=2;
+        offset += 2;
 
         /* GRE Key */
         proto_tree_add_item(exts_tree, hf_a11_ase_gre_key, tvb, offset, 4, ENC_BIG_ENDIAN);
-        offset+=4;
+        offset += 4;
 
         /* PCF IP Address */
         proto_tree_add_item(exts_tree, hf_a11_ase_pcf_addr_key, tvb, offset, 4, ENC_BIG_ENDIAN);
-        offset+=4;
+        offset += 4;
 
-        if (registration_request_msg){
-            if (service_option == 0x0043){
+        if ((entry_lenght>14)&&(registration_request_msg)) {
+            if (service_option == 0x0043) {
                 proto_item *tl;
                 proto_tree *extv_tree;
-                guint8 profile_count=tvb_get_guint8(tvb, offset+6);
-                guint8 profile_index=0;
-                guint8 reverse_profile_count;
+                guint8      profile_count = tvb_get_guint8(tvb, offset+6);
+                guint8      profile_index = 0;
+                guint8      reverse_profile_count;
 
                 proto_item *tj = proto_tree_add_text(exts_tree, tvb, offset,6+(profile_count*2)+1, "Forward ROHC Info");
 
                 proto_tree *extt_tree = proto_item_add_subtree(tj, ett_a11_forward_rohc);
 
                 proto_tree_add_item(extt_tree, hf_a11_ase_forward_rohc_info_len, tvb, offset, 1, ENC_BIG_ENDIAN);
-                offset++;
+                offset += 1;
 
                 proto_tree_add_item(extt_tree, hf_a11_ase_forward_maxcid, tvb, offset, 2, ENC_BIG_ENDIAN);
-                offset+=2;
+                offset += 2;
                 proto_tree_add_item(extt_tree, hf_a11_ase_forward_mrru, tvb, offset, 2, ENC_BIG_ENDIAN);
-                offset+=2;
+                offset += 2;
                 proto_tree_add_item(extt_tree, hf_a11_ase_forward_large_cids, tvb, offset, 1, ENC_BIG_ENDIAN);
-                offset++;
+                offset += 1;
                 profile_count=tvb_get_guint8(tvb, offset);
 
                 proto_tree_add_item(extt_tree, hf_a11_ase_forward_profile_count, tvb, offset, 1, ENC_BIG_ENDIAN);
-                offset++;
+                offset += 1;
 
 
-                for(profile_index=0; profile_index<profile_count; profile_index++){
+                for (profile_index=0; profile_index<profile_count; profile_index++) {
                     proto_item *tk = proto_tree_add_text (extt_tree, tvb, offset, (2*profile_count), "Forward Profile : %d", profile_index);
                     proto_tree *extu_tree = proto_item_add_subtree(tk, ett_a11_forward_profile);
                     proto_tree_add_item(extu_tree, hf_a11_ase_forward_profile, tvb, offset, 2, ENC_BIG_ENDIAN);
-                    offset+=2;
+                    offset += 2;
                 }/*for*/
 
 
@@ -796,36 +905,34 @@ dissect_ase(tvbuff_t *tvb, int offset, guint ase_len, proto_tree *ext_tree)
                 extv_tree = proto_item_add_subtree(tl, ett_a11_reverse_rohc);
 
                 proto_tree_add_item(extv_tree, hf_a11_ase_reverse_rohc_info_len, tvb, offset, 1, ENC_BIG_ENDIAN);
-                offset++;
+                offset += 1;
 
 
                 proto_tree_add_item(extv_tree, hf_a11_ase_reverse_maxcid, tvb, offset, 2, ENC_BIG_ENDIAN);
-                offset+=2;
+                offset += 2;
                 proto_tree_add_item(extv_tree, hf_a11_ase_reverse_mrru, tvb, offset, 2, ENC_BIG_ENDIAN);
-                offset+=2;
+                offset += 2;
                 proto_tree_add_item(extv_tree, hf_a11_ase_reverse_large_cids, tvb, offset, 1, ENC_BIG_ENDIAN);
-                offset++;
+                offset += 1;
 
                 profile_count=tvb_get_guint8(tvb, offset);
 
                 proto_tree_add_item(extv_tree, hf_a11_ase_reverse_profile_count, tvb, offset, 1, ENC_BIG_ENDIAN);
-                offset++;
+                offset += 1;
 
 
-                for(profile_index=0; profile_index<reverse_profile_count; profile_index++){
+                for (profile_index=0; profile_index<reverse_profile_count; profile_index++) {
                     proto_item *tm = proto_tree_add_text(extv_tree, tvb, offset, (2*profile_count), "Reverse Profile : %d", profile_index);
 
                     proto_tree *extw_tree = proto_item_add_subtree(tm, ett_a11_reverse_profile);
 
                     proto_tree_add_item(extw_tree, hf_a11_ase_reverse_profile, tvb, offset, 2, ENC_BIG_ENDIAN);
-                    offset+=2;
-
-
+                    offset += 2;
                 }/*for*/
             }/* Service option */
 
         }/* if */
-        clen+=entry_lenght+1;
+        clen += entry_lenght + 1;
         /* Set offset = start of next entry in case of padding */
         offset = entry_start_offset + entry_lenght+1;
 
@@ -849,11 +956,9 @@ dissect_fwd_qosinfo_flags(tvbuff_t *tvb, int offset, proto_tree *ext_tree, guint
     proto_tree_add_item(flags_tree, hf_a11_fqi_flags_ip_flow, tvb, offset, 1, ENC_BIG_ENDIAN);
     proto_tree_add_item(flags_tree, hf_a11_fqi_flags_dscp, tvb, offset, 1, ENC_BIG_ENDIAN);
 
-    if (flags & A11_FQI_DSCP_INCLUDED)
-    {
+    if (flags & A11_FQI_DSCP_INCLUDED) {
         *p_dscp_included = 1;
-    }else
-    {
+    } else {
         *p_dscp_included = 0;
     }
 }
@@ -864,8 +969,7 @@ dissect_fqi_entry_flags(tvbuff_t *tvb, int offset, proto_tree *ext_tree, guint8 
     proto_item *ti = proto_tree_add_item(ext_tree, hf_a11_fqi_entry_flag, tvb, offset, 1, ENC_BIG_ENDIAN);
     proto_tree *flags_tree = proto_item_add_subtree(ti, ett_a11_fqi_entry_flags);
 
-    if (dscp_enabled)
-    {
+    if (dscp_enabled) {
         proto_tree_add_item(flags_tree, hf_a11_fqi_entry_flag_dscp, tvb, offset, 1, ENC_BIG_ENDIAN);
     }
 
@@ -904,44 +1008,42 @@ dissect_fwd_qosinfo(tvbuff_t *tvb, int offset, proto_tree *ext_tree)
     proto_tree_add_item(ext_tree, hf_a11_fqi_flowcount, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
     clen++;
 
-    for(flow_index=0; flow_index<flow_count; flow_index++)
-    {
+    for (flow_index=0; flow_index<flow_count; flow_index++) {
         guint8 requested_qos_len = 0;
-        guint8 granted_qos_len = 0;
+        guint8 granted_qos_len   = 0;
 
         guint8 entry_len = tvb_get_guint8(tvb, offset+clen);
-        guint8 flow_id = tvb_get_guint8(tvb, offset+clen+1);
+        guint8 flow_id   = tvb_get_guint8(tvb, offset+clen+1);
 
         proto_item *ti = proto_tree_add_text
             (ext_tree, tvb, offset+clen, entry_len+1, "Forward Flow Entry (Flow Id: %d)", flow_id);
 
-        proto_tree *exts_tree = proto_item_add_subtree(ti, ett_a11_fqi_flowentry);
+        proto_tree *flow_tree = proto_item_add_subtree(ti, ett_a11_fqi_flowentry);
 
         /* Entry Length */
-        proto_tree_add_item(exts_tree, hf_a11_fqi_entrylen, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
+        proto_tree_add_item(flow_tree, hf_a11_fqi_entrylen, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
         clen++;
 
         /* Flow Id */
-        proto_tree_add_item(exts_tree, hf_a11_fqi_flowid, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
+        proto_tree_add_item(flow_tree, hf_a11_fqi_flowid, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
         clen++;
 
         /* DSCP and Flow State*/
-        dissect_fqi_entry_flags(tvb, offset+clen, exts_tree, dscp_enabled);
+        dissect_fqi_entry_flags(tvb, offset+clen, flow_tree, dscp_enabled);
         clen++;
 
 
         /* Requested QoS Length */
         requested_qos_len = tvb_get_guint8(tvb, offset+clen);
-        proto_tree_add_item(exts_tree, hf_a11_fqi_requested_qoslen, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
+        proto_tree_add_item(flow_tree, hf_a11_fqi_requested_qoslen, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
         clen++;
 
         /* Requested QoS Blob */
-        if (requested_qos_len)
-        {
+        if (requested_qos_len) {
             proto_item *ti2;
             proto_tree *exts_tree2;
 
-            proto_item *ti1 = proto_tree_add_text(ext_tree, tvb, offset+clen,requested_qos_len, "Forward Requested QoS ");
+            proto_item *ti1 = proto_tree_add_text(flow_tree, tvb, offset+clen,requested_qos_len, "Forward Requested QoS ");
             proto_tree *exts_tree1 = proto_item_add_subtree(ti1, ett_a11_fqi_requestedqos);
 
             proto_tree_add_text(exts_tree1, tvb, offset+clen, requested_qos_len, "Forward Requested QoS Sub Blob");
@@ -975,16 +1077,15 @@ dissect_fwd_qosinfo(tvbuff_t *tvb, int offset, proto_tree *ext_tree)
 
         /* Granted QoS Length */
         granted_qos_len = tvb_get_guint8(tvb, offset+clen);
-        proto_tree_add_item(exts_tree, hf_a11_fqi_granted_qoslen, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
+        proto_tree_add_item(flow_tree, hf_a11_fqi_granted_qoslen, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
         clen++;
 
         /* Granted QoS Blob */
-        if (granted_qos_len)
-        {
+        if (granted_qos_len) {
             proto_item *ti3;
             proto_tree *exts_tree3;
 
-            ti3 = proto_tree_add_text(ext_tree, tvb, offset+clen, granted_qos_len, "Forward Granted QoS ");
+            ti3 = proto_tree_add_text(flow_tree, tvb, offset+clen, granted_qos_len, "Forward Granted QoS ");
 
             exts_tree3 = proto_item_add_subtree(ti3, ett_a11_fqi_grantedqos);
 
@@ -994,7 +1095,7 @@ dissect_fwd_qosinfo(tvbuff_t *tvb, int offset, proto_tree *ext_tree)
             proto_tree_add_item(exts_tree3, hf_a11_fqi_qos_granted_attribute_setid, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
             clen++;
         }
-    }
+    } /* for (flow_index...) */
 }
 
 /* Code to dissect Reverse QoS Info */
@@ -1015,43 +1116,41 @@ dissect_rev_qosinfo(tvbuff_t *tvb, int offset, proto_tree *ext_tree)
     proto_tree_add_item(ext_tree, hf_a11_rqi_flowcount, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
     clen++;
 
-    for(flow_index=0; flow_index<flow_count; flow_index++)
-    {
+    for (flow_index=0; flow_index<flow_count; flow_index++) {
         guint8 requested_qos_len;
         guint8 granted_qos_len;
 
         guint8 entry_len = tvb_get_guint8(tvb, offset+clen);
-        guint8 flow_id = tvb_get_guint8(tvb, offset+clen+1);
+        guint8 flow_id   = tvb_get_guint8(tvb, offset+clen+1);
 
         proto_item *ti = proto_tree_add_text
             (ext_tree, tvb, offset+clen, entry_len+1, "Reverse Flow Entry (Flow Id: %d)", flow_id);
 
-        proto_tree *exts_tree = proto_item_add_subtree(ti, ett_a11_rqi_flowentry);
+        proto_tree *flow_tree = proto_item_add_subtree(ti, ett_a11_rqi_flowentry);
 
         /* Entry Length */
-        proto_tree_add_item(exts_tree, hf_a11_rqi_entrylen, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
+        proto_tree_add_item(flow_tree, hf_a11_rqi_entrylen, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
         clen++;
 
         /* Flow Id */
-        proto_tree_add_item(exts_tree, hf_a11_rqi_flowid, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
+        proto_tree_add_item(flow_tree, hf_a11_rqi_flowid, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
         clen++;
 
         /* Flags */
-        dissect_rqi_entry_flags(tvb, offset+clen, exts_tree);
+        dissect_rqi_entry_flags(tvb, offset+clen, flow_tree);
         clen++;
 
         /* Requested QoS Length */
         requested_qos_len = tvb_get_guint8(tvb, offset+clen);
-        proto_tree_add_item(exts_tree, hf_a11_rqi_requested_qoslen, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
+        proto_tree_add_item(flow_tree, hf_a11_rqi_requested_qoslen, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
         clen++;
 
         /* Requested QoS Blob */
-        if (requested_qos_len)
-        {
+        if (requested_qos_len) {
             proto_item *ti1, *ti2;
             proto_tree *exts_tree1, *exts_tree2;
 
-            ti1 = proto_tree_add_text(ext_tree, tvb, offset+clen,requested_qos_len , "Reverse Requested QoS ");
+            ti1 = proto_tree_add_text(flow_tree, tvb, offset+clen,requested_qos_len , "Reverse Requested QoS ");
 
             exts_tree1 = proto_item_add_subtree(ti1, ett_a11_rqi_requestedqos);
 
@@ -1085,16 +1184,15 @@ dissect_rev_qosinfo(tvbuff_t *tvb, int offset, proto_tree *ext_tree)
 
         /* Granted QoS Length */
         granted_qos_len = tvb_get_guint8(tvb, offset+clen);
-        proto_tree_add_item(exts_tree, hf_a11_rqi_granted_qoslen, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
+        proto_tree_add_item(flow_tree, hf_a11_rqi_granted_qoslen, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
         clen++;
 
         /* Granted QoS Blob */
-        if (granted_qos_len)
-        {
+        if (granted_qos_len) {
             proto_item *ti3;
             proto_tree *exts_tree3;
 
-            ti3 = proto_tree_add_text(ext_tree, tvb, offset+clen,granted_qos_len , "Reverse Granted QoS ");
+            ti3 = proto_tree_add_text(flow_tree, tvb, offset+clen,granted_qos_len , "Reverse Granted QoS ");
             exts_tree3 = proto_item_add_subtree(ti3, ett_a11_rqi_grantedqos);
 
             proto_tree_add_text(exts_tree3, tvb, offset+clen, granted_qos_len, "Reverse Granted QoS Sub Blob");
@@ -1123,8 +1221,7 @@ dissect_subscriber_qos_profile(tvbuff_t *tvb, packet_info *pinfo, int offset, in
     exts_tree = proto_item_add_subtree(ti, ett_a11_subscriber_profile);
 
     /* Subscriber QoS profile */
-    if (qos_profile_len)
-    {
+    if (qos_profile_len) {
         proto_tree_add_item
             (exts_tree,  hf_a11_subsciber_profile, tvb, offset,
              qos_profile_len, ENC_NA);
@@ -1146,8 +1243,7 @@ dissect_fwd_qosupdate_info(tvbuff_t *tvb, int offset, proto_tree *ext_tree)
     proto_tree_add_item(ext_tree, hf_a11_fqui_flowcount, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
     clen++;
 
-    for(flow_index=0; flow_index<flow_count; flow_index++)
-    {
+    for (flow_index=0; flow_index<flow_count; flow_index++) {
         proto_tree *exts_tree;
         guint8 granted_qos_len;
 
@@ -1166,8 +1262,7 @@ dissect_fwd_qosupdate_info(tvbuff_t *tvb, int offset, proto_tree *ext_tree)
         clen++;
 
         /* Forward QoS Sub Blob */
-        if (granted_qos_len)
-        {
+        if (granted_qos_len) {
             proto_tree_add_item
                 (exts_tree, hf_a11_fqui_updated_qos, tvb, offset+clen,
                  granted_qos_len, ENC_NA);
@@ -1190,8 +1285,7 @@ dissect_rev_qosupdate_info(tvbuff_t *tvb, int offset, proto_tree *ext_tree)
     proto_tree_add_item(ext_tree, hf_a11_rqui_flowcount, tvb, offset+clen, 1, ENC_BIG_ENDIAN);
     clen++;
 
-    for(flow_index=0; flow_index<flow_count; flow_index++)
-    {
+    for (flow_index=0; flow_index<flow_count; flow_index++) {
         proto_tree *exts_tree;
         guint8      granted_qos_len;
 
@@ -1209,8 +1303,7 @@ dissect_rev_qosupdate_info(tvbuff_t *tvb, int offset, proto_tree *ext_tree)
         clen++;
 
         /* Reverse QoS Sub Blob */
-        if (granted_qos_len)
-        {
+        if (granted_qos_len) {
             proto_tree_add_item
                 (exts_tree, hf_a11_rqui_updated_qos, tvb, offset+clen,
                  granted_qos_len, ENC_NA);
@@ -1266,24 +1359,24 @@ dissect_a11_extensions( tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tre
         ext_tree = proto_item_add_subtree(ti, ett_a11_ext);
 
         proto_tree_add_uint(ext_tree, hf_a11_ext_type, tvb, offset, 1, ext_type);
-        offset++;
+        offset += 1;
 
         if (ext_type == SS_EXT) {
             proto_tree_add_uint(ext_tree, hf_a11_ext_len, tvb, offset, 1, ext_len);
-            offset++;
+            offset += 1;
         }
         else if ((ext_type == CVSE_EXT) || (ext_type == OLD_CVSE_EXT)) {
-            offset++;
+            offset += 1;
             proto_tree_add_uint(ext_tree, hf_a11_ext_len, tvb, offset, 2, ext_len);
-            offset+=2;
+            offset += 2;
         }
         else if (ext_type != GEN_AUTH_EXT) {
             /* Another nasty hack since GEN_AUTH_EXT broke everything */
             proto_tree_add_uint(ext_tree, hf_a11_ext_len, tvb, offset, 1, ext_len);
-            offset++;
+            offset += 1;
         }
 
-        switch(ext_type) {
+        switch (ext_type) {
         case SS_EXT:
             decode_sse(ext_tree, tvb, offset, ext_len);
             offset += ext_len;
@@ -1322,9 +1415,9 @@ dissect_a11_extensions( tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tre
              * in the wrong place :(
              */
             proto_tree_add_uint(ext_tree, hf_a11_ext_stype, tvb, offset, 1, ext_subtype);
-            offset++;
+            offset += 1;
             proto_tree_add_uint(ext_tree, hf_a11_ext_len, tvb, offset, 2, ext_len);
-            offset+=2;
+            offset += 2;
             /* SPI */
             if (ext_len < 4)
                 break;
@@ -1371,7 +1464,7 @@ dissect_a11_extensions( tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tre
             apptype = tvb_get_ntohs(tvb, offset);
             offset  += 2;
             ext_len -= 2;
-            switch(apptype) {
+            switch (apptype) {
             case 0x0401:
                 if (ext_len < 5)
                     break;
@@ -1391,6 +1484,20 @@ dissect_a11_extensions( tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tre
                 if (ext_len < 2)
                     break;
                 proto_tree_add_item(ext_tree, hf_a11_vse_dormant, tvb, offset, 2, ENC_BIG_ENDIAN);
+                break;
+            case 0x0602:
+                /* eHRPD Mode */
+                if (ext_len < 1)
+                    break;
+                proto_tree_add_item(ext_tree, hf_a11_vse_ehrpd_mode, tvb, offset, 1, ENC_BIG_ENDIAN);
+                break;
+            case 0x0603:
+                /* eHRPD Indicators */
+                if (ext_len < 1)
+                    break;
+                proto_tree_add_item(ext_tree, hf_a11_vse_ehrpd_pmk, tvb, offset, 1, ENC_BIG_ENDIAN);
+                proto_tree_add_item(ext_tree, hf_a11_vse_ehrpd_handoff_info, tvb, offset, 1, ENC_BIG_ENDIAN);
+                proto_tree_add_item(ext_tree, hf_a11_vse_ehrpd_tunnel_mode, tvb, offset, 1, ENC_BIG_ENDIAN);
                 break;
             case 0x0701:
                 if (ext_len < 1)
@@ -1434,6 +1541,11 @@ dissect_a11_extensions( tvbuff_t *tvb, packet_info *pinfo, int offset, proto_tre
             }
 
             break;
+        case BCMCS_EXT:
+            decode_bcmcs(ext_tree, tvb, offset, ext_len);
+            offset += ext_len;
+            ext_len = 0;
+            break;
         case MF_CHALLENGE_EXT:  /* RFC 3012 */
             /* The default dissector is good here.  The challenge is all hex anyway. */
         default:
@@ -1463,7 +1575,7 @@ dissect_a11( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
         return 0;       /* not enough data to check message type */
 
     type = tvb_get_guint8(tvb, offset);
-    if (match_strval(type, a11_types) == NULL)
+    if (try_val_to_str(type, a11_types) == NULL)
         return 0;       /* not a known message type */
 
     /* Make entries in Protocol column and Info column on summary display */
@@ -1491,7 +1603,7 @@ dissect_a11( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
             /* type */
             proto_tree_add_uint(a11_tree, hf_a11_type, tvb, offset, 1, type);
-            offset++;
+            offset += 1;
 
             /* flags */
             flags = tvb_get_guint8(tvb, offset);
@@ -1505,7 +1617,7 @@ dissect_a11( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
             proto_tree_add_boolean(flags_tree, hf_a11_g, tvb, offset, 1, flags);
             proto_tree_add_boolean(flags_tree, hf_a11_v, tvb, offset, 1, flags);
             proto_tree_add_boolean(flags_tree, hf_a11_t, tvb, offset, 1, flags);
-            offset++;
+            offset += 1;
 
             /* lifetime */
             proto_tree_add_item(a11_tree, hf_a11_life, tvb, offset, 2, ENC_BIG_ENDIAN);
@@ -1540,11 +1652,11 @@ dissect_a11( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
             /* Type */
             proto_tree_add_uint(a11_tree, hf_a11_type, tvb, offset, 1, type);
-            offset++;
+            offset += 1;
 
             /* Reply Code */
             proto_tree_add_item(a11_tree, hf_a11_code, tvb, offset, 1, ENC_BIG_ENDIAN);
-            offset++;
+            offset += 1;
 
             /* Registration Lifetime */
             proto_tree_add_item(a11_tree, hf_a11_life, tvb, offset, 2, ENC_BIG_ENDIAN);
@@ -1574,10 +1686,10 @@ dissect_a11( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
             /* Type */
             proto_tree_add_uint(a11_tree, hf_a11_type, tvb, offset, 1, type);
-            offset++;
+            offset += 1;
 
             /* Reserved */
-            offset+=3;
+            offset += 3;
 
             /* Home address */
             proto_tree_add_item(a11_tree, hf_a11_homeaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -1604,14 +1716,14 @@ dissect_a11( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
             /* Type */
             proto_tree_add_uint(a11_tree, hf_a11_type, tvb, offset, 1, type);
-            offset++;
+            offset += 1;
 
             /* Reserved */
-            offset+=2;
+            offset += 2;
 
             /* Ack Status */
             proto_tree_add_item(a11_tree, hf_a11_status, tvb, offset, 1, ENC_BIG_ENDIAN);
-            offset++;
+            offset += 1;
 
             /* Home address */
             proto_tree_add_item(a11_tree, hf_a11_homeaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -1637,10 +1749,10 @@ dissect_a11( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
             /* Type */
             proto_tree_add_uint(a11_tree, hf_a11_type, tvb, offset, 1, type);
-            offset++;
+            offset += 1;
 
             /* Reserved */
-            offset+=3;
+            offset += 3;
 
             /* Home address */
             proto_tree_add_item(a11_tree, hf_a11_homeaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -1667,14 +1779,14 @@ dissect_a11( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
             /* Type */
             proto_tree_add_uint(a11_tree, hf_a11_type, tvb, offset, 1, type);
-            offset++;
+            offset += 1;
 
             /* Reserved */
-            offset+=2;
+            offset += 2;
 
             /* Ack Status */
             proto_tree_add_item(a11_tree, hf_a11_status, tvb, offset, 1, ENC_BIG_ENDIAN);
-            offset++;
+            offset += 1;
 
             /* Home address */
             proto_tree_add_item(a11_tree, hf_a11_homeaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -1701,10 +1813,10 @@ dissect_a11( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
             /* Type */
             proto_tree_add_uint(a11_tree, hf_a11_type, tvb, offset, 1, type);
-            offset++;
+            offset += 1;
 
             /* Reserved */
-            offset+=3;
+            offset += 3;
 
             /* Home address */
             proto_tree_add_item(a11_tree, hf_a11_homeaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -1734,10 +1846,10 @@ dissect_a11( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
             /* Type */
             proto_tree_add_uint(a11_tree, hf_a11_type, tvb, offset, 1, type);
-            offset++;
+            offset += 1;
 
             /* Reserved */
-            offset+=3;
+            offset += 3;
 
             /* Home address */
             proto_tree_add_item(a11_tree, hf_a11_homeaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -1753,6 +1865,216 @@ dissect_a11( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
         } /* if tree */
         break;
+    case BC_SERVICE_REQUEST:
+        col_add_fstr(pinfo->cinfo, COL_INFO, "Service Request: PCF=%s ",
+            tvb_ip_to_str(tvb, offset + 8));
+
+        if (tree) {
+            ti = proto_tree_add_item(tree, proto_a11, tvb, offset, -1, ENC_NA);
+            a11_tree = proto_item_add_subtree(ti, ett_a11);
+
+            /* type */
+            proto_tree_add_uint(a11_tree, hf_a11_type, tvb, offset, 1, type);
+            offset += 4;
+
+            /* home address */
+            proto_tree_add_item(a11_tree, hf_a11_homeaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
+            offset += 4;
+
+            /* Care-of-Address */
+            proto_tree_add_item(a11_tree, hf_a11_coa, tvb, offset, 4, ENC_BIG_ENDIAN);
+            offset += 4;
+
+            /* Identifier - assumed to be an NTP time here */
+            proto_tree_add_item(a11_tree, hf_a11_ident, tvb, offset, 8, ENC_TIME_NTP|ENC_BIG_ENDIAN);
+            offset += 8;
+
+        } /* if tree */
+        break;
+
+    case BC_SERVICE_REPLY:
+       col_add_fstr(pinfo->cinfo, COL_INFO, "Service Response: BSN=%s ",
+            tvb_ip_to_str(tvb, offset + 8));
+
+       if (tree) {
+           ti = proto_tree_add_item(tree, proto_a11, tvb, offset, -1, ENC_NA);
+           a11_tree = proto_item_add_subtree(ti, ett_a11);
+
+           /* type */
+           proto_tree_add_uint(a11_tree, hf_a11_type, tvb, offset, 1, type);
+           offset += 3;
+
+           /* Reply Code */
+           proto_tree_add_item(a11_tree, hf_a11_code, tvb, offset, 1, ENC_BIG_ENDIAN);
+           offset += 1;
+
+           /* home address */
+           proto_tree_add_item(a11_tree, hf_a11_homeaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
+           offset += 4;
+
+           /* Home Agent */
+           proto_tree_add_item(a11_tree, hf_a11_haaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
+           offset += 4;
+
+           /* Identifier - assumed to be an NTP time here */
+           proto_tree_add_item(a11_tree, hf_a11_ident, tvb, offset, 8, ENC_TIME_NTP|ENC_BIG_ENDIAN);
+           offset += 8;
+
+       } /* if tree */
+       break;
+       case BC_REGISTRATION_REQUEST:
+           col_add_fstr(pinfo->cinfo, COL_INFO, "BC Reg Request: BSN=%s ",
+            tvb_ip_to_str(tvb, offset + 8));
+
+           if (tree) {
+               ti = proto_tree_add_item(tree, proto_a11, tvb, offset, -1, ENC_NA);
+               a11_tree = proto_item_add_subtree(ti, ett_a11);
+
+               /* type */
+               proto_tree_add_uint(a11_tree, hf_a11_type, tvb, offset, 1, type);
+               offset += 1;
+
+               /* flags */
+               flags = tvb_get_guint8(tvb, offset);
+               tf = proto_tree_add_uint(a11_tree, hf_a11_flags, tvb,
+                                        offset, 1, flags);
+               flags_tree = proto_item_add_subtree(tf, ett_a11_flags);
+               proto_tree_add_boolean(flags_tree, hf_a11_s, tvb, offset, 1, flags);
+               proto_tree_add_boolean(flags_tree, hf_a11_b, tvb, offset, 1, flags);
+               proto_tree_add_boolean(flags_tree, hf_a11_d, tvb, offset, 1, flags);
+               proto_tree_add_boolean(flags_tree, hf_a11_m, tvb, offset, 1, flags);
+               proto_tree_add_boolean(flags_tree, hf_a11_g, tvb, offset, 1, flags);
+               proto_tree_add_boolean(flags_tree, hf_a11_v, tvb, offset, 1, flags);
+               proto_tree_add_boolean(flags_tree, hf_a11_t, tvb, offset, 1, flags);
+               offset += 1;
+
+               /* lifetime */
+               proto_tree_add_item(a11_tree, hf_a11_life, tvb, offset, 2, ENC_BIG_ENDIAN);
+               offset +=2;
+
+               /* home address */
+               proto_tree_add_item(a11_tree, hf_a11_homeaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
+               offset += 4;
+
+               /* Home Agent */
+               proto_tree_add_item(a11_tree, hf_a11_haaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
+               offset += 4;
+
+               /* Care-of-Address */
+               proto_tree_add_item(a11_tree, hf_a11_coa, tvb, offset, 4, ENC_BIG_ENDIAN);
+               offset += 4;
+
+               /* Identifier - assumed to be an NTP time here */
+               proto_tree_add_item(a11_tree, hf_a11_ident, tvb, offset, 8, ENC_TIME_NTP|ENC_BIG_ENDIAN);
+
+               offset += 8;
+
+           } /* if tree */
+           break;
+
+
+    case BC_REGISTRATION_REPLY:
+        col_add_fstr(pinfo->cinfo, COL_INFO, "BC Reg Reply:   BSN=%s, Code=%u",
+            tvb_ip_to_str(tvb, offset + 8),
+            tvb_get_guint8(tvb, offset + 1));
+
+        if (tree) {
+            /* Add Subtree */
+            ti = proto_tree_add_item(tree, proto_a11, tvb, offset, -1, ENC_NA);
+            a11_tree = proto_item_add_subtree(ti, ett_a11);
+
+            /* Type */
+            proto_tree_add_uint(a11_tree, hf_a11_type, tvb, offset, 1, type);
+            offset += 1;
+
+            /* Reply Code */
+            proto_tree_add_item(a11_tree, hf_a11_code, tvb, offset, 1, ENC_BIG_ENDIAN);
+            offset += 1;
+
+            /* Registration Lifetime */
+            proto_tree_add_item(a11_tree, hf_a11_life, tvb, offset, 2, ENC_BIG_ENDIAN);
+            offset += 2;
+
+            /* Home address */
+            proto_tree_add_item(a11_tree, hf_a11_homeaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
+            offset += 4;
+
+            /* Home Agent */
+            proto_tree_add_item(a11_tree, hf_a11_haaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
+            offset += 4;
+
+            /* Identifier - assumed to be an NTP time here */
+            proto_tree_add_item(a11_tree, hf_a11_ident, tvb, offset, 8, ENC_TIME_NTP|ENC_BIG_ENDIAN);
+
+            offset += 8;
+        } /* if tree */
+
+        break;
+    case BC_REGISTRATION_UPDATE:
+        col_add_fstr(pinfo->cinfo, COL_INFO,"BC Reg Update:  BSN=%s",
+            tvb_ip_to_str(tvb, offset + 8));
+        if (tree) {
+            /* Add Subtree */
+            ti = proto_tree_add_item(tree, proto_a11, tvb, offset, -1, ENC_NA);
+            a11_tree = proto_item_add_subtree(ti, ett_a11);
+
+            /* Type */
+            proto_tree_add_uint(a11_tree, hf_a11_type, tvb, offset, 1, type);
+            offset += 1;
+
+            /* Reserved */
+            offset += 3;
+
+            /* Home address */
+            proto_tree_add_item(a11_tree, hf_a11_homeaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
+            offset += 4;
+
+            /* Home Agent */
+            proto_tree_add_item(a11_tree, hf_a11_haaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
+            offset += 4;
+
+            /* Identifier - assumed to be an NTP time here */
+            proto_tree_add_item(a11_tree, hf_a11_ident, tvb, offset, 8, ENC_TIME_NTP|ENC_BIG_ENDIAN);
+            offset += 8;
+
+        } /* if tree */
+        break;
+    case BC_REGISTRATION_ACK:
+        col_add_fstr(pinfo->cinfo, COL_INFO, "BC Reg Acknowledge:     PCF=%s Status=%u",
+            tvb_ip_to_str(tvb, offset + 8),
+            tvb_get_guint8(tvb, offset + 3));
+        if (tree) {
+            /* Add Subtree */
+            ti = proto_tree_add_item(tree, proto_a11, tvb, offset, -1, ENC_NA);
+            a11_tree = proto_item_add_subtree(ti, ett_a11);
+
+            /* Type */
+            proto_tree_add_uint(a11_tree, hf_a11_type, tvb, offset, 1, type);
+            offset += 1;
+
+            /* Reserved */
+            offset += 2;
+
+            /* Ack Status */
+            proto_tree_add_item(a11_tree, hf_a11_status, tvb, offset, 1, ENC_BIG_ENDIAN);
+            offset += 1;
+
+            /* Home address */
+            proto_tree_add_item(a11_tree, hf_a11_homeaddr, tvb, offset, 4, ENC_BIG_ENDIAN);
+            offset += 4;
+
+            /* Care-of-Address */
+            proto_tree_add_item(a11_tree, hf_a11_coa, tvb, offset, 4, ENC_BIG_ENDIAN);
+            offset += 4;
+
+            /* Identifier - assumed to be an NTP time here */
+            proto_tree_add_item(a11_tree, hf_a11_ident, tvb, offset, 8, ENC_TIME_NTP|ENC_BIG_ENDIAN);
+
+            offset += 8;
+
+        } /* if tree */
+        break;
+
     default:
         DISSECTOR_ASSERT_NOT_REACHED();
         break;
@@ -1762,7 +2084,7 @@ dissect_a11( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
         if (tvb_reported_length_remaining(tvb, offset) > 0)
             dissect_a11_extensions(tvb, pinfo, offset, a11_tree);
     }
-    return tvb_length(tvb);
+    return tvb_reported_length(tvb);
 } /* dissect_a11 */
 
 /* Register the protocol with Wireshark */
@@ -1905,7 +2227,7 @@ proto_register_a11(void)
         },
         { &hf_a11_ses_msid_type,
           { "MSID Type",                      "a11.ext.msid_type",
-            FT_UINT16, BASE_DEC, NULL, 0,
+            FT_UINT16, BASE_DEC, VALS(a11_ses_msid_type_vals), 0,
             NULL, HFILL }
         },
         { &hf_a11_ses_msid_len,
@@ -1941,6 +2263,26 @@ proto_register_a11(void)
         { &hf_a11_vse_dormant,
           { "All Dormant Indicator",           "a11.ext.dormant",
             FT_UINT16, BASE_HEX, VALS(a11_ext_dormant), 0,
+            NULL, HFILL }
+        },
+        { &hf_a11_vse_ehrpd_mode,
+          { "eHRPD Mode",           "a11.ext.ehrpd.mode",
+            FT_BOOLEAN, 8, TFS(&a11_tfs_ehrpd_mode), 0,
+            NULL, HFILL }
+        },
+        { &hf_a11_vse_ehrpd_pmk,
+          { "PMK",           "a11.ext.ehrpd.pmk",
+            FT_BOOLEAN, 8, TFS(&a11_tfs_ehrpd_pmk), 0x04,
+            NULL, HFILL }
+        },
+        { &hf_a11_vse_ehrpd_handoff_info,
+          { "E-UTRAN Handoff Info",           "a11.ext.ehrpd.handoff_info",
+            FT_BOOLEAN, 8, TFS(&a11_tfs_ehrpd_handoff_info), 0x02,
+            NULL, HFILL }
+        },
+        { &hf_a11_vse_ehrpd_tunnel_mode,
+          { "Tunnel Mode",           "a11.ext.ehrpd.tunnel_mode",
+            FT_BOOLEAN, 8, TFS(&a11_tfs_ehrpd_tunnel_mode), 0x01,
             NULL, HFILL }
         },
         { &hf_a11_vse_code,
@@ -2358,6 +2700,17 @@ proto_register_a11(void)
             FT_UINT8, BASE_DEC, NULL, 0,
             NULL, HFILL }
         },
+        { &hf_a11_bcmcs_stype,
+          { "Protocol Type",                      "a11.ext.bcmcs.ptype",
+            FT_UINT8, BASE_HEX, VALS(a11_bcmcs_stype_vals), 0,
+            NULL, HFILL }
+        },
+        { &hf_a11_bcmcs_entry_len,
+          { "Entry length",                      "a11.ext.bcmcs.entry_len",
+            FT_UINT8, BASE_DEC, NULL, 0,
+            NULL, HFILL }
+        },
+
     };
 
     /* Setup protocol subtree array */
@@ -2388,7 +2741,14 @@ proto_register_a11(void)
         &ett_a11_forward_profile,
         &ett_a11_reverse_profile,
         &ett_a11_aut_flow_profile_ids,
+        &ett_a11_bcmcs_entry,
     };
+
+    static ei_register_info ei[] = {
+        { &ei_a11_sub_type_length_not2, { "a11.sub_type_length.bad", PI_PROTOCOL, PI_WARN, "Sub-Type Length should be at least 2", EXPFILL }},
+    };
+
+    expert_module_t* expert_a11;
 
     /* Register the protocol name and description */
     proto_a11 = proto_register_protocol("3GPP2 A11", "3GPP2 A11", "a11");
@@ -2399,6 +2759,9 @@ proto_register_a11(void)
     /* Required function calls to register the header fields and subtrees used */
     proto_register_field_array(proto_a11, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+
+    expert_a11 = expert_register_protocol(proto_a11);
+    expert_register_field_array(expert_a11, ei, array_length(ei));
 }
 
 void

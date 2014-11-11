@@ -1,8 +1,6 @@
 /* packet-ap1394.c
  * Routines for Apple IP-over-IEEE 1394 packet disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,7 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <wsutil/pint.h>
 #include <epan/addr_resolv.h>
 #include <epan/strutil.h>
 
@@ -59,7 +58,7 @@ capture_ap1394(const guchar *pd, int offset, int len, packet_counts *ld)
   /* Skip destination and source addresses */
   offset += 16;
 
-  etype = pntohs(&pd[offset]);
+  etype = pntoh16(&pd[offset]);
   offset += 2;
   capture_ethertype(etype, pd, offset, len, ld);
 }
@@ -86,7 +85,7 @@ dissect_ap1394(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   if (tree) {
     ti = proto_tree_add_protocol_format(tree, proto_ap1394, tvb, 0, 18,
 		"Apple IP-over-IEEE 1394, Src: %s, Dst: %s",
-		bytes_to_str(src_addr, 8), bytes_to_str(dst_addr, 8));
+		bytes_to_ep_str(src_addr, 8), bytes_to_ep_str(dst_addr, 8));
     fh_tree = proto_item_add_subtree(ti, ett_ap1394);
     proto_tree_add_bytes(fh_tree, hf_ap1394_dst, tvb, 0, 8, dst_addr);
     proto_tree_add_bytes(fh_tree, hf_ap1394_src, tvb, 8, 8, src_addr);

@@ -1,7 +1,5 @@
 /* airpdcap_ccmp.c
  *
- * $Id$
- *
  * Copyright (c) 2002-2005 Sam Leffler, Errno Consulting
  * Copyright (c) 2006 CACE Technologies, Davis (California)
  * All rights reserved.
@@ -48,7 +46,7 @@
 
 #include "airpdcap_debug.h"
 #include <glib.h>
-#include "aes.h"
+#include <wsutil/aes.h>
 
 /****************************************************************************/
 /*	Internal definitions							*/

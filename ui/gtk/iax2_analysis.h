@@ -1,8 +1,6 @@
 /* iax2_analysis.h
  * IAX2 analysis addition for Wireshark
  *
- * $Id$
- *
  * based on rtp_analysis.c
  * Copyright 2003, Alcatel Business Systems
  * By Lars Ruoff <lars.ruoff@gmx.net>
@@ -38,7 +36,7 @@
 #include <epan/packet_info.h>
 
 /** @file
- *  ??? 
+ *  ???
  *  @todo what's this?
  */
 
@@ -60,7 +58,7 @@ typedef struct _iax2_bw_history_item {
         guint32 bytes;
 } iax2_bw_history_item;
 
-#define BUFF_BW 300 
+#define BUFF_BW 300
 
 typedef struct _tap_iax2_stat_t {
 	gboolean first_packet;     /* do not use in code that is called after rtp_packet_analyse */

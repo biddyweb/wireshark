@@ -3,8 +3,6 @@
  *
  * Guy Harris <guy@alum.mit.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,9 @@
 
 
 #include "packet-rpc.h"
+
+void proto_register_sadmind(void);
+void proto_reg_handoff_sadmind(void);
 
 static int proto_sadmind = -1;
 static int hf_sadmind_procedure_v1 = -1;

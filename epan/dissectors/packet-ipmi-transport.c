@@ -2,8 +2,6 @@
  * Sub-dissectors for IPMI messages (netFn=Transport)
  * Copyright 2007-2008, Alexey Neyman, Pigeon Point Systems <avn@pigeonpoint.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -870,7 +868,7 @@ lan_19(tvbuff_t *tvb, proto_tree *tree)
 		return;
 	}
 
-	proto_tree_add_item(tree, hf_ipmi_trn_lan19_address, tvb, 2, tvb_length(tvb) - 2, ENC_NA);
+	proto_tree_add_item(tree, hf_ipmi_trn_lan19_address, tvb, 2, -1, ENC_NA);
 }
 
 static void
@@ -958,7 +956,7 @@ lan_25(tvbuff_t *tvb, proto_tree *tree)
 					byte34, ENC_LITTLE_ENDIAN, 0);
 			break;
 		default:
-			proto_tree_add_item(tree, hf_ipmi_trn_lan25_address, tvb, 2, tvb_length(tvb) - 2, ENC_LITTLE_ENDIAN);
+			proto_tree_add_item(tree, hf_ipmi_trn_lan25_address, tvb, 2, -1, ENC_LITTLE_ENDIAN);
 			break;
 	}
 }
@@ -998,7 +996,7 @@ static struct {
 /* Set LAN Configuration Parameters
  */
 static void
-rq01(tvbuff_t *tvb, proto_tree *tree)
+rq01(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_trn_01_chan, NULL };
 	tvbuff_t *next;
@@ -1019,11 +1017,10 @@ rq01(tvbuff_t *tvb, proto_tree *tree)
 	proto_tree_add_uint_format_value(tree, hf_ipmi_trn_01_param, tvb, 1, 1,
 			pno, "%s (0x%02x)", desc, pno);
 	if (pno < array_length(lan_options)) {
-		next = tvb_new_subset(tvb, 2, tvb_length(tvb) - 2, tvb_length(tvb) - 2);
+		next = tvb_new_subset_remaining(tvb, 2);
 		lan_options[pno].intrp(next, tree);
 	} else {
-		proto_tree_add_item(tree, hf_ipmi_trn_01_param_data, tvb, 2,
-				tvb_length(tvb) - 2, ENC_NA);
+		proto_tree_add_item(tree, hf_ipmi_trn_01_param_data, tvb, 2, -1, ENC_NA);
 	}
 }
 
@@ -1038,7 +1035,7 @@ static const value_string cc01[] = {
 /* Get LAN Configuration Parameters
  */
 static void
-rq02(tvbuff_t *tvb, proto_tree *tree)
+rq02(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_trn_02_getrev, &hf_ipmi_trn_02_chan, NULL };
 	const char *desc;
@@ -1046,9 +1043,10 @@ rq02(tvbuff_t *tvb, proto_tree *tree)
 
 	pno = tvb_get_guint8(tvb, 1);
 
+	ipmi_set_data(pinfo, 0, pno);
+	ipmi_set_data(pinfo, 1, tvb_get_guint8(tvb, 0) & 0x80);
+
 	if (!tree) {
-		ipmi_setsaveddata(0, pno);
-		ipmi_setsaveddata(1, tvb_get_guint8(tvb, 0) & 0x80);
 		return;
 	}
 
@@ -1069,7 +1067,7 @@ rq02(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-rs02(tvbuff_t *tvb, proto_tree *tree)
+rs02(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_trn_02_rev_present, &hf_ipmi_trn_02_rev_compat, NULL };
 	proto_item *ti;
@@ -1080,18 +1078,18 @@ rs02(tvbuff_t *tvb, proto_tree *tree)
 	proto_tree_add_bitmask_text(tree, tvb, 0, 1, NULL, NULL,
 			ett_ipmi_trn_02_rev, byte1, ENC_LITTLE_ENDIAN, 0);
 
-	if (!ipmi_getsaveddata(0, &pno) || !ipmi_getsaveddata(1, &req)) {
+	if (!ipmi_get_data(pinfo, 0, &pno) || !ipmi_get_data(pinfo, 1, &req)) {
 		/* No request found - cannot parse further */
-		if (tvb_length(tvb) > 1) {
-			proto_tree_add_item(tree, hf_ipmi_trn_02_param_data, tvb, 1, tvb_length(tvb) - 1, ENC_NA);
+		if (tvb_captured_length(tvb) > 1) {
+			proto_tree_add_item(tree, hf_ipmi_trn_02_param_data, tvb, 1, -1, ENC_NA);
 		};
 		return;
 	}
 
-	if ((req & 0x80) && tvb_length(tvb) > 1) {
+	if ((req & 0x80) && tvb_captured_length(tvb) > 1) {
 		ti = proto_tree_add_text(tree, tvb, 0, 0, "Requested parameter revision; parameter data returned");
 		PROTO_ITEM_SET_GENERATED(ti);
-	} else if (!(req & 0x80) && tvb_length(tvb) == 1) {
+	} else if (!(req & 0x80) && tvb_captured_length(tvb) == 1) {
 		ti = proto_tree_add_text(tree, tvb, 0, 0, "Requested parameter data; only parameter version returned");
 		PROTO_ITEM_SET_GENERATED(ti);
 	}
@@ -1107,13 +1105,12 @@ rs02(tvbuff_t *tvb, proto_tree *tree)
 	ti = proto_tree_add_text(tree, tvb, 0, 0, "Parameter: %s", desc);
 	PROTO_ITEM_SET_GENERATED(ti);
 
-	if (tvb_length(tvb) > 1) {
+	if (tvb_captured_length(tvb) > 1) {
 		if (pno < array_length(lan_options)) {
-			next = tvb_new_subset(tvb, 1, tvb_length(tvb) - 1, tvb_length(tvb) - 1);
+			next = tvb_new_subset_remaining(tvb, 1);
 			lan_options[pno].intrp(next, tree);
 		} else {
-			proto_tree_add_item(tree, hf_ipmi_trn_02_param_data, tvb, 1,
-					tvb_length(tvb) - 1, ENC_NA);
+			proto_tree_add_item(tree, hf_ipmi_trn_02_param_data, tvb, 1, -1, ENC_NA);
 		}
 	}
 }
@@ -1124,7 +1121,7 @@ static const value_string cc02[] = {
 };
 
 static void
-rq03(tvbuff_t *tvb, proto_tree *tree)
+rq03(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_trn_03_chan, NULL };
 	static const int *byte2[] = { &hf_ipmi_trn_03_arp_resp, &hf_ipmi_trn_03_gratuitous_arp, NULL };
@@ -1136,7 +1133,7 @@ rq03(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-rs03(tvbuff_t *tvb, proto_tree *tree)
+rs03(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_trn_03_status_arp_resp,
 		&hf_ipmi_trn_03_status_gratuitous_arp, NULL };
@@ -1146,7 +1143,7 @@ rs03(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-rq04(tvbuff_t *tvb, proto_tree *tree)
+rq04(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_trn_04_chan, NULL };
 	static const int *byte2[] = { &hf_ipmi_trn_04_clear, NULL };
@@ -1158,7 +1155,7 @@ rq04(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-rs04(tvbuff_t *tvb, proto_tree *tree)
+rs04(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_trn_04_rx_ippkts, tvb, 0, 2, ENC_LITTLE_ENDIAN);
 	proto_tree_add_item(tree, hf_ipmi_trn_04_rx_iphdr_err, tvb, 2, 2, ENC_LITTLE_ENDIAN);
@@ -1273,7 +1270,7 @@ static void
 serial_10(tvbuff_t *tvb, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_trn_serial10_set_sel, tvb, 0, 1, ENC_LITTLE_ENDIAN);
-	proto_tree_add_item(tree, hf_ipmi_trn_serial10_init_str, tvb, 1, tvb_length(tvb) - 1, ENC_ASCII|ENC_NA);
+	proto_tree_add_item(tree, hf_ipmi_trn_serial10_init_str, tvb, 1, -1, ENC_ASCII|ENC_NA);
 }
 
 static void
@@ -1576,7 +1573,7 @@ serial_40(tvbuff_t *tvb, proto_tree *tree)
 	int slen;
 
 	proto_tree_add_item(tree, hf_ipmi_trn_serial40_acct_sel, tvb, 0, 1, ENC_LITTLE_ENDIAN);
-	slen = tvb_length(tvb) - 1;
+	slen = tvb_captured_length(tvb) - 1;
 	if (slen > 16) {
 		slen = 16;
 	}
@@ -1589,7 +1586,7 @@ serial_41(tvbuff_t *tvb, proto_tree *tree)
 	int slen;
 
 	proto_tree_add_item(tree, hf_ipmi_trn_serial41_acct_sel, tvb, 0, 1, ENC_LITTLE_ENDIAN);
-	slen = tvb_length(tvb) - 1;
+	slen = tvb_captured_length(tvb) - 1;
 	if (slen > 16) {
 		slen = 16;
 	}
@@ -1602,7 +1599,7 @@ serial_42(tvbuff_t *tvb, proto_tree *tree)
 	int slen;
 
 	proto_tree_add_item(tree, hf_ipmi_trn_serial42_acct_sel, tvb, 0, 1, ENC_LITTLE_ENDIAN);
-	slen = tvb_length(tvb) - 1;
+	slen = tvb_captured_length(tvb) - 1;
 	if (slen > 16) {
 		slen = 16;
 	}
@@ -1657,7 +1654,7 @@ serial_49(tvbuff_t *tvb, proto_tree *tree)
 	int slen;
 
 	proto_tree_add_item(tree, hf_ipmi_trn_serial49_blockno, tvb, 0, 1, ENC_LITTLE_ENDIAN);
-	slen = tvb_length(tvb) - 1;
+	slen = tvb_captured_length(tvb) - 1;
 	if (slen > 16) {
 		slen = 16;
 	}
@@ -1765,7 +1762,7 @@ static struct {
 /* Set Serial/Modem Configuration Parameters
  */
 static void
-rq10(tvbuff_t *tvb, proto_tree *tree)
+rq10(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_trn_10_chan, NULL };
 	tvbuff_t *next;
@@ -1786,11 +1783,10 @@ rq10(tvbuff_t *tvb, proto_tree *tree)
 	proto_tree_add_uint_format_value(tree, hf_ipmi_trn_10_param, tvb, 1, 1,
 			pno, "%s (0x%02x)", desc, pno);
 	if (pno < array_length(serial_options)) {
-		next = tvb_new_subset(tvb, 2, tvb_length(tvb) - 2, tvb_length(tvb) - 2);
+		next = tvb_new_subset_remaining(tvb, 2);
 		serial_options[pno].intrp(next, tree);
 	} else {
-		proto_tree_add_item(tree, hf_ipmi_trn_10_param_data, tvb, 2,
-				tvb_length(tvb) - 2, ENC_NA);
+		proto_tree_add_item(tree, hf_ipmi_trn_10_param_data, tvb, 2, -1, ENC_NA);
 	}
 }
 
@@ -1805,7 +1801,7 @@ static const value_string cc10[] = {
 /* Get LAN Configuration Parameters
  */
 static void
-rq11(tvbuff_t *tvb, proto_tree *tree)
+rq11(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_trn_11_getrev, &hf_ipmi_trn_11_chan, NULL };
 	const char *desc;
@@ -1813,9 +1809,10 @@ rq11(tvbuff_t *tvb, proto_tree *tree)
 
 	pno = tvb_get_guint8(tvb, 1);
 
+	ipmi_set_data(pinfo, 0, pno);
+	ipmi_set_data(pinfo, 1, tvb_get_guint8(tvb, 0));
+
 	if (!tree) {
-		ipmi_setsaveddata(0, pno);
-		ipmi_setsaveddata(1, tvb_get_guint8(tvb, 0));
 		return;
 	}
 
@@ -1836,7 +1833,7 @@ rq11(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-rs11(tvbuff_t *tvb, proto_tree *tree)
+rs11(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_trn_11_rev_present, &hf_ipmi_trn_11_rev_compat, NULL };
 	proto_item *ti;
@@ -1847,10 +1844,10 @@ rs11(tvbuff_t *tvb, proto_tree *tree)
 	proto_tree_add_bitmask_text(tree, tvb, 0, 1, NULL, NULL,
 			ett_ipmi_trn_11_rev, byte1, ENC_LITTLE_ENDIAN, 0);
 
-	if (!ipmi_getsaveddata(0, &pno) || !ipmi_getsaveddata(1, &req)) {
+	if (!ipmi_get_data(pinfo, 0, &pno) || !ipmi_get_data(pinfo, 1, &req)) {
 		/* No request found - cannot parse further */
-		if (tvb_length(tvb) > 1) {
-			proto_tree_add_item(tree, hf_ipmi_trn_11_param_data, tvb, 1, tvb_length(tvb) - 1, ENC_NA);
+		if (tvb_captured_length(tvb) > 1) {
+			proto_tree_add_item(tree, hf_ipmi_trn_11_param_data, tvb, 1, -1, ENC_NA);
 		};
 		return;
 	}
@@ -1863,10 +1860,10 @@ rs11(tvbuff_t *tvb, proto_tree *tree)
 		desc = "Reserved";
 	}
 
-	if ((req & 0x80) && tvb_length(tvb) > 1) {
+	if ((req & 0x80) && tvb_captured_length(tvb) > 1) {
 		ti = proto_tree_add_text(tree, tvb, 0, 0, "Requested parameter revision; parameter data returned");
 		PROTO_ITEM_SET_GENERATED(ti);
-	} else if (!(req & 0x80) && tvb_length(tvb) == 1) {
+	} else if (!(req & 0x80) && tvb_captured_length(tvb) == 1) {
 		ti = proto_tree_add_text(tree, tvb, 0, 0, "Requested parameter data; only parameter version returned");
 		PROTO_ITEM_SET_GENERATED(ti);
 	}
@@ -1874,13 +1871,12 @@ rs11(tvbuff_t *tvb, proto_tree *tree)
 	ti = proto_tree_add_text(tree, tvb, 0, 0, "Parameter: %s", desc);
 	PROTO_ITEM_SET_GENERATED(ti);
 
-	if (tvb_length(tvb) > 1) {
+	if (tvb_captured_length(tvb) > 1) {
 		if (pno < array_length(serial_options)) {
-			next = tvb_new_subset(tvb, 1, tvb_length(tvb) - 1, tvb_length(tvb) - 1);
+			next = tvb_new_subset_remaining(tvb, 1);
 			serial_options[pno].intrp(next, tree);
 		} else {
-			proto_tree_add_item(tree, hf_ipmi_trn_11_param_data, tvb, 1,
-					tvb_length(tvb) - 1, ENC_NA);
+			proto_tree_add_item(tree, hf_ipmi_trn_11_param_data, tvb, 1, -1, ENC_NA);
 		}
 	}
 }
@@ -1893,7 +1889,7 @@ static const value_string cc11[] = {
 /* Set Serial/Modem Mux
  */
 static void
-rq12(tvbuff_t *tvb, proto_tree *tree)
+rq12(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const gint *byte1[] = { &hf_ipmi_trn_12_chan, NULL };
 	static const gint *byte2[] = { &hf_ipmi_trn_12_mux_setting, NULL };
@@ -1905,7 +1901,7 @@ rq12(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-rs12(tvbuff_t *tvb, proto_tree *tree)
+rs12(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const gint *byte1[] = { &hf_ipmi_trn_12_sw_to_sys, &hf_ipmi_trn_12_sw_to_bmc,
 		&hf_ipmi_trn_12_alert, &hf_ipmi_trn_12_msg, &hf_ipmi_trn_12_req, &hf_ipmi_trn_12_mux_state, NULL };
@@ -1917,7 +1913,7 @@ rs12(tvbuff_t *tvb, proto_tree *tree)
 /* Get TAP Response Codes
  */
 static void
-rq13(tvbuff_t *tvb, proto_tree *tree)
+rq13(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const gint *byte1[] = { &hf_ipmi_trn_13_chan, NULL };
 
@@ -1926,7 +1922,7 @@ rq13(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-rs13(tvbuff_t *tvb, proto_tree *tree)
+rs13(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_trn_13_code1, tvb, 0, 3, ENC_ASCII|ENC_NA);
 	proto_tree_add_item(tree, hf_ipmi_trn_13_code2, tvb, 3, 3, ENC_ASCII|ENC_NA);
@@ -1938,7 +1934,7 @@ rs13(tvbuff_t *tvb, proto_tree *tree)
 /* Set PPP UDP Proxy Transmit Data
  */
 static void
-rq14(tvbuff_t *tvb, proto_tree *tree)
+rq14(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const gint *byte1[] = { &hf_ipmi_trn_14_chan, NULL };
 
@@ -1951,7 +1947,7 @@ rq14(tvbuff_t *tvb, proto_tree *tree)
 /* Get PPP UDP Proxy Transmit Data
  */
 static void
-rq15(tvbuff_t *tvb, proto_tree *tree)
+rq15(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const gint *byte1[] = { &hf_ipmi_trn_15_chan, NULL };
 
@@ -1961,7 +1957,7 @@ rq15(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-rs15(tvbuff_t *tvb, proto_tree *tree)
+rs15(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_trn_15_data, tvb, 0, 16, ENC_NA);
 }
@@ -1969,7 +1965,7 @@ rs15(tvbuff_t *tvb, proto_tree *tree)
 /* Send PPP UDP Proxy Packet
  */
 static void
-rq16(tvbuff_t *tvb, proto_tree *tree)
+rq16(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const gint *byte1[] = { &hf_ipmi_trn_16_chan, NULL };
 
@@ -1998,14 +1994,14 @@ tr17_fmt_blockno(gchar *s, guint32 v)
 }
 
 static void
-rq17(tvbuff_t *tvb, proto_tree *tree)
+rq17(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const gint *byte1[] = { &hf_ipmi_trn_17_chan, NULL };
 	static const gint *byte2[] = { &hf_ipmi_trn_17_clear, &hf_ipmi_trn_17_block_num, NULL };
 
+	ipmi_set_data(pinfo, 0, tvb_get_guint8(tvb, 1) & 0x7f);
 	if (!tree) {
 		/* Save block number */
-		ipmi_setsaveddata(0, tvb_get_guint8(tvb, 1) & 0x7f);
 		return;
 	}
 
@@ -2016,16 +2012,16 @@ rq17(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-rs17(tvbuff_t *tvb, proto_tree *tree)
+rs17(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	guint32 bno;
 
-	if (ipmi_getsaveddata(0, &bno) && bno == 0) {
+	if (ipmi_get_data(pinfo, 0, &bno) && bno == 0) {
 		/* Request for length */
 		proto_tree_add_item(tree, hf_ipmi_trn_17_size, tvb, 0, 2, ENC_LITTLE_ENDIAN);
 	} else {
 		proto_tree_add_item(tree, hf_ipmi_trn_17_data, tvb, 0,
-				tvb_length(tvb) < 16 ? tvb_length(tvb) : 16, ENC_NA);
+				tvb_captured_length(tvb) < 16 ? tvb_captured_length(tvb) : 16, ENC_NA);
 	}
 }
 
@@ -2037,7 +2033,7 @@ static const value_string cc17[] = {
 /* Serial/Modem Connection Active
  */
 static void
-rq18(tvbuff_t *tvb, proto_tree *tree)
+rq18(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const gint *byte1[] = { &hf_ipmi_trn_18_state, NULL };
 
@@ -2049,7 +2045,7 @@ rq18(tvbuff_t *tvb, proto_tree *tree)
 /* Callback
  */
 static void
-rq19(tvbuff_t *tvb, proto_tree *tree)
+rq19(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const gint *byte1[] = { &hf_ipmi_trn_19_chan, NULL };
 	static const gint *byte2[] = { &hf_ipmi_trn_19_dest_sel, NULL };
@@ -2089,7 +2085,7 @@ parse_callback_options(tvbuff_t *tvb, guint offs, proto_tree *tree)
 /* Set User Callback Options
  */
 static void
-rq1a(tvbuff_t *tvb, proto_tree *tree)
+rq1a(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const gint *byte1[] = { &hf_ipmi_trn_1a_user, NULL };
 	static const gint *byte2[] = { &hf_ipmi_trn_1a_chan, NULL };
@@ -2104,7 +2100,7 @@ rq1a(tvbuff_t *tvb, proto_tree *tree)
 /* Get User Callback Options
  */
 static void
-rq1b(tvbuff_t *tvb, proto_tree *tree)
+rq1b(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const gint *byte1[] = { &hf_ipmi_trn_1b_user, NULL };
 	static const gint *byte2[] = { &hf_ipmi_trn_1b_chan, NULL };
@@ -2116,7 +2112,7 @@ rq1b(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-rs1b(tvbuff_t *tvb, proto_tree *tree)
+rs1b(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	parse_callback_options(tvb, 0, tree);
 }

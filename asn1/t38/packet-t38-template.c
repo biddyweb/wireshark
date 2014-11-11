@@ -4,8 +4,6 @@
  * 2004  Alejandro Vaquero, add support Conversations for SDP
  * 2006  Alejandro Vaquero, add T30 reassemble and dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -61,8 +59,10 @@
 #include <epan/asn1.h>
 #include "packet-per.h"
 #include "packet-tpkt.h"
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/strutil.h>
+
+void proto_register_t38(void);
 
 #define PORT_T38 6004
 static guint global_t38_tcp_port = PORT_T38;
@@ -148,7 +148,7 @@ static gboolean primary_part = TRUE;
 static guint32 seq_number = 0;
 
 /* Tables for reassembly of Data fragments. */
-static GHashTable *data_fragment_table = NULL;
+static reassembly_table data_reassembly_table;
 
 static const fragment_items data_frag_items = {
 	/* Fragment subtrees */
@@ -203,8 +203,9 @@ static t38_packet_info *t38_info=NULL;
 
 static void t38_defragment_init(void)
 {
-	/* Init reassemble tables */
-	fragment_table_init(&data_fragment_table);
+	/* Init reassembly table */
+	reassembly_table_init(&data_reassembly_table,
+                              &addresses_reassembly_table_functions);
 }
 
 
@@ -223,7 +224,7 @@ void t38_add_address(packet_info *pinfo,
          * we've already done this work, so we don't need to do it
          * again.
          */
-        if (pinfo->fd->flags.visited)
+        if ((pinfo->fd->flags.visited) || (t38_udp_handle == NULL))
         {
                 return;
         }
@@ -259,7 +260,7 @@ void t38_add_address(packet_info *pinfo,
          */
         if ( ! p_conversation_data ) {
                 /* Create conversation data */
-                p_conversation_data = se_new(t38_conv);
+                p_conversation_data = wmem_new(wmem_file_scope(), t38_conv);
 
                 conversation_add_proto_data(p_conversation, proto_t38, p_conversation_data);
         }
@@ -276,7 +277,8 @@ void t38_add_address(packet_info *pinfo,
 		p_conversation_data->src_t38_info.packet_lost = 0;
 		p_conversation_data->src_t38_info.burst_lost = 0;
 		p_conversation_data->src_t38_info.time_first_t4_data = 0;
-
+		p_conversation_data->src_t38_info.additional_hdlc_data_field_counter = 0;
+		p_conversation_data->src_t38_info.seqnum_prev_data_field = -1;
 
 		p_conversation_data->dst_t38_info.reass_ID = 0;
 		p_conversation_data->dst_t38_info.reass_start_seqnum = -1;
@@ -285,25 +287,21 @@ void t38_add_address(packet_info *pinfo,
 		p_conversation_data->dst_t38_info.packet_lost = 0;
 		p_conversation_data->dst_t38_info.burst_lost = 0;
 		p_conversation_data->dst_t38_info.time_first_t4_data = 0;
+		p_conversation_data->dst_t38_info.additional_hdlc_data_field_counter = 0;
+		p_conversation_data->dst_t38_info.seqnum_prev_data_field = -1;
 }
 
 
-fragment_data *
-force_reassemble_seq(packet_info *pinfo, guint32 id,
-	     GHashTable *fragment_table)
+static fragment_head *
+force_reassemble_seq(reassembly_table *table, packet_info *pinfo, guint32 id)
 {
-	fragment_key key;
-	fragment_data *fd_head;
-	fragment_data *fd_i;
-	fragment_data *last_fd;
+	fragment_head *fd_head;
+	fragment_item *fd_i;
+	fragment_item *last_fd;
 	guint32 dfpos, size, packet_lost, burst_lost, seq_num;
+	guint8 *data;
 
-	/* create key to search hash with */
-	key.src = pinfo->src;
-	key.dst = pinfo->dst;
-	key.id  = id;
-
-	fd_head = (fragment_data *)g_hash_table_lookup(fragment_table, &key);
+	fd_head = fragment_get(table, pinfo, id, NULL);
 
 	/* have we already seen this frame ?*/
 	if (pinfo->fd->flags.visited) {
@@ -334,8 +332,8 @@ force_reassemble_seq(packet_info *pinfo, guint32 id,
 	}
 
 	/* we have received an entire packet, defragment it and
-     * free all fragments
-     */
+	 * free all fragments
+	 */
 	size=0;
 	last_fd=NULL;
 	for(fd_i=fd_head->next;fd_i;fd_i=fd_i->next) {
@@ -344,7 +342,9 @@ force_reassemble_seq(packet_info *pinfo, guint32 id,
 	  }
 	  last_fd=fd_i;
 	}
-	fd_head->data = (char *)g_malloc(size);
+
+	data = (guint8 *) g_malloc(size);
+	fd_head->tvb_data = tvb_new_real_data(data, size, size);
 	fd_head->len = size;		/* record size for caller	*/
 
 	/* add all data fragments */
@@ -353,14 +353,14 @@ force_reassemble_seq(packet_info *pinfo, guint32 id,
 	for (fd_i=fd_head->next;fd_i && fd_i->len + dfpos <= size;fd_i=fd_i->next) {
 	  if (fd_i->len) {
 	    if(!last_fd || last_fd->offset!=fd_i->offset){
-	      memcpy(fd_head->data+dfpos,fd_i->data,fd_i->len);
+	      memcpy(data+dfpos,tvb_get_ptr(fd_i->tvb_data,0,fd_i->len),fd_i->len);
 	      dfpos += fd_i->len;
 	    } else {
 	      /* duplicate/retransmission/overlap */
 	      fd_i->flags    |= FD_OVERLAP;
 	      fd_head->flags |= FD_OVERLAP;
-	      if( (last_fd->len!=fd_i->datalen)
-		  || memcmp(last_fd->data, fd_i->data, last_fd->len) ){
+	      if( (last_fd->len!=fd_i->len)
+		  || tvb_memeql(last_fd->tvb_data, 0, tvb_get_ptr(fd_i->tvb_data, 0, last_fd->len), last_fd->len) ){
 			fd_i->flags    |= FD_OVERLAPCONFLICT;
 			fd_head->flags |= FD_OVERLAPCONFLICT;
 	      }
@@ -371,9 +371,9 @@ force_reassemble_seq(packet_info *pinfo, guint32 id,
 
 	/* we have defragmented the pdu, now free all fragments*/
 	for (fd_i=fd_head->next;fd_i;fd_i=fd_i->next) {
-	  if(fd_i->data){
-	    g_free(fd_i->data);
-	    fd_i->data=NULL;
+	  if(fd_i->tvb_data){
+	    tvb_free(fd_i->tvb_data);
+	    fd_i->tvb_data=NULL;
 	  }
 	}
 
@@ -425,7 +425,7 @@ init_t38_info_conv(packet_info *pinfo)
 	p_t38_conv = NULL;
 
 	/* Use existing packet info if available */
-	 p_t38_packet_conv = (t38_conv *)p_get_proto_data(pinfo->fd, proto_t38);
+	 p_t38_packet_conv = (t38_conv *)p_get_proto_data(wmem_file_scope(), pinfo, proto_t38, 0);
 
 
 	/* find the conversation used for Reassemble and Setup Info */
@@ -447,7 +447,7 @@ init_t38_info_conv(packet_info *pinfo)
 
 		/* create the conversation if it doen't exist */
 		if (!p_t38_conv) {
-			p_t38_conv = se_new(t38_conv);
+			p_t38_conv = wmem_new(wmem_file_scope(), t38_conv);
 			p_t38_conv->setup_method[0] = '\0';
 			p_t38_conv->setup_frame_number = 0;
 
@@ -475,14 +475,14 @@ init_t38_info_conv(packet_info *pinfo)
 		}
 
 		/* copy the t38 conversation info to the packet t38 conversation */
-		p_t38_packet_conv = se_new(t38_conv);
+		p_t38_packet_conv = wmem_new(wmem_file_scope(), t38_conv);
 		g_strlcpy(p_t38_packet_conv->setup_method, p_t38_conv->setup_method, MAX_T38_SETUP_METHOD_SIZE);
 		p_t38_packet_conv->setup_frame_number = p_t38_conv->setup_frame_number;
 
 		memcpy(&(p_t38_packet_conv->src_t38_info), &(p_t38_conv->src_t38_info), sizeof(t38_conv_info));
 		memcpy(&(p_t38_packet_conv->dst_t38_info), &(p_t38_conv->dst_t38_info), sizeof(t38_conv_info));
 
-		p_add_proto_data(pinfo->fd, proto_t38, p_t38_packet_conv);
+		p_add_proto_data(wmem_file_scope(), pinfo, proto_t38, 0, p_t38_packet_conv);
 	}
 
 	if (ADDRESSES_EQUAL(&p_conv->key_ptr->addr1, &pinfo->net_src)) {

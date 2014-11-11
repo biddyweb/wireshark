@@ -2,8 +2,6 @@
  * Definitions for dialog box for profiles editing.
  * Stig Bjorlykke <stig@bjorlykke.org>, 2008
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -61,7 +59,7 @@ void init_profile_list(void);
 /** User requested the "Configuration Profiles" popup menu.
  *
  * @param name Profile name
- * @param expression Parent profile name
+ * @param parent Parent profile name
  * @param status Current status
  * @param is_global Profile is in the global configuration directory
  * @param from_global Profile is copied from the global configuration directory

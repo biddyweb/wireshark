@@ -2,8 +2,6 @@
  * Routines for X.501 (DSA Operational Attributes)  packet dissection
  * Graeme Lunt 2005
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,7 @@
 #include <epan/oids.h>
 #include <epan/asn1.h>
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-ber.h"
 #include "packet-acse.h"
@@ -50,6 +49,9 @@
 #define PSNAME "DOP"
 #define PFNAME "dop"
 
+void proto_register_dop(void);
+void proto_reg_handoff_dop(void);
+
 static guint global_dop_tcp_port = 102;
 static dissector_handle_t tpkt_handle;
 static void prefs_register_dop(void); /* forward declaration for use in preferences registration */
@@ -57,10 +59,9 @@ static void prefs_register_dop(void); /* forward declaration for use in preferen
 /* Initialize the protocol and registered fields */
 static int proto_dop = -1;
 
-static struct SESSION_DATA_STRUCTURE* session = NULL;
 static const char *binding_type = NULL; /* binding_type */
 
-static int call_dop_oid_callback(const char *base_string, tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, const char *col_info);
+static int call_dop_oid_callback(const char *base_string, tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, const char *col_info, void* data);
 
 #include "packet-dop-hf.c"
 
@@ -68,6 +69,8 @@ static int call_dop_oid_callback(const char *base_string, tvbuff_t *tvb, int off
 static gint ett_dop = -1;
 static gint ett_dop_unknown = -1;
 #include "packet-dop-ett.c"
+
+static expert_field ei_dop_unknown_binding_parameter = EI_INIT;
 
 /* Dissector table */
 static dissector_table_t dop_dissector_table;
@@ -83,15 +86,15 @@ static void append_oid(packet_info *pinfo, const char *oid)
 #include "packet-dop-fn.c"
 
 static int
-call_dop_oid_callback(const char *base_string, tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, const char *col_info)
+call_dop_oid_callback(const char *base_string, tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, const char *col_info, void* data)
 {
   char* binding_param;
 
-  binding_param = ep_strdup_printf("%s.%s", base_string, binding_type ? binding_type : "");
+  binding_param = wmem_strdup_printf(wmem_packet_scope(), "%s.%s", base_string, binding_type ? binding_type : "");
 
   col_append_fstr(pinfo->cinfo, COL_INFO, " %s", col_info);
 
-  if (dissector_try_string(dop_dissector_table, binding_param, tvb, pinfo, tree)) {
+  if (dissector_try_string(dop_dissector_table, binding_param, tvb, pinfo, tree, data)) {
      offset = tvb_reported_length (tvb);
   } else {
      proto_item *item=NULL;
@@ -102,7 +105,7 @@ call_dop_oid_callback(const char *base_string, tvbuff_t *tvb, int offset, packet
         next_tree = proto_item_add_subtree(item, ett_dop_unknown);
      }
      offset = dissect_unknown_ber(pinfo, tvb, offset, next_tree);
-     expert_add_info_format(pinfo, item, PI_UNDECODED, PI_WARN, "Unknown binding-parameter");
+     expert_add_info(pinfo, item, &ei_dop_unknown_binding_parameter);
    }
 
    return offset;
@@ -112,36 +115,32 @@ call_dop_oid_callback(const char *base_string, tvbuff_t *tvb, int offset, packet
 /*
 * Dissect DOP PDUs inside a ROS PDUs
 */
-static void
-dissect_dop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_dop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data)
 {
 	int offset = 0;
 	int old_offset;
-	proto_item *item=NULL;
-	proto_tree *tree=NULL;
+	proto_item *item;
+	proto_tree *tree;
+	struct SESSION_DATA_STRUCTURE* session;
 	int (*dop_dissector)(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset, asn1_ctx_t *actx, proto_tree *tree, int hf_index _U_) = NULL;
 	const char *dop_op_name;
 	asn1_ctx_t asn1_ctx;
 
+	/* do we have operation information from the ROS dissector? */
+	if (data == NULL)
+		return 0;
+	session = (struct SESSION_DATA_STRUCTURE*)data;
+
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
-	/* do we have operation information from the ROS dissector?  */
-	if( !pinfo->private_data ){
-		if(parent_tree){
-			proto_tree_add_text(parent_tree, tvb, offset, -1,
-				"Internal error: can't get operation information from ROS dissector.");
-		}
-		return  ;
-	} else {
-		session  = ( (struct SESSION_DATA_STRUCTURE*)(pinfo->private_data) );
-	}
+	item = proto_tree_add_item(parent_tree, proto_dop, tvb, 0, -1, ENC_NA);
+	tree = proto_item_add_subtree(item, ett_dop);
 
-	if(parent_tree){
-		item = proto_tree_add_item(parent_tree, proto_dop, tvb, 0, -1, ENC_NA);
-		tree = proto_item_add_subtree(item, ett_dop);
-	}
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "DOP");
   	col_clear(pinfo->cinfo, COL_INFO);
+
+	asn1_ctx.private_data = session;
 
 	switch(session->ros_op & ROS_OP_MASK) {
 	case (ROS_OP_BIND | ROS_OP_ARGUMENT):	/*  BindInvoke */
@@ -210,7 +209,7 @@ dissect_dop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	  break;
 	default:
 	  proto_tree_add_text(tree, tvb, offset, -1,"Unsupported DOP PDU");
-	  return;
+	  return tvb_length(tvb);
 	}
 
 	if(dop_dissector) {
@@ -225,6 +224,8 @@ dissect_dop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	    }
 	  }
 	}
+
+	return tvb_length(tvb);
 }
 
 
@@ -245,18 +246,25 @@ void proto_register_dop(void) {
 #include "packet-dop-ettarr.c"
   };
 
+  static ei_register_info ei[] = {
+     { &ei_dop_unknown_binding_parameter, { "dop.unknown_binding_parameter", PI_UNDECODED, PI_WARN, "Unknown binding-parameter", EXPFILL }},
+  };
+
+  expert_module_t* expert_dop;
   module_t *dop_module;
 
   /* Register protocol */
   proto_dop = proto_register_protocol(PNAME, PSNAME, PFNAME);
 
-  register_dissector("dop", dissect_dop, proto_dop);
+  new_register_dissector("dop", dissect_dop, proto_dop);
 
   dop_dissector_table = register_dissector_table("dop.oid", "DOP OID Dissectors", FT_STRING, BASE_NONE);
 
   /* Register fields and subtrees */
   proto_register_field_array(proto_dop, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_dop = expert_register_protocol(proto_dop);
+  expert_register_field_array(expert_dop, ei, array_length(ei));
 
   /* Register our configuration options for DOP, particularly our port */
 

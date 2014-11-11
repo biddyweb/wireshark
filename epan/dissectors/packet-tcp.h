@@ -1,7 +1,5 @@
 /* packet-tcp.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -24,11 +22,17 @@
 #ifndef __PACKET_TCP_H__
 #define __PACKET_TCP_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 #include "ws_symbol_export.h"
 
 #ifndef __CONVERSATION_H__
 #include <epan/conversation.h>
 #endif
+
+#include <epan/wmem/wmem.h>
 
 /* TCP flags */
 #define TH_FIN  0x0001
@@ -48,7 +52,7 @@
 #define LT_SEQ(x, y) ((gint32)((x) - (y)) < 0)
 #define GE_SEQ(x, y) ((gint32)((y) - (x)) <= 0)
 #define LE_SEQ(x, y) ((gint32)((x) - (y)) <= 0)
-#define EQ_SEQ(x, y) ((x) == (y))
+#define EQ_SEQ(x, y) (x) == (y)
 
 /* the tcp header structure, passed to tap listeners */
 typedef struct tcpheader {
@@ -107,10 +111,10 @@ WS_DLL_PUBLIC void
 tcp_dissect_pdus(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		 gboolean proto_desegment, guint fixed_len,
 		 guint (*get_pdu_len)(packet_info *, tvbuff_t *, int),
-		 dissector_t dissect_pdu);
+		 new_dissector_t dissect_pdu, void* dissector_data);
 
 extern struct tcp_multisegment_pdu *
-pdu_store_sequencenumber_of_next_pdu(packet_info *pinfo, guint32 seq, guint32 nxtpdu, emem_tree_t *multisegment_pdus);
+pdu_store_sequencenumber_of_next_pdu(packet_info *pinfo, guint32 seq, guint32 nxtpdu, wmem_tree_t *multisegment_pdus);
 
 typedef struct _tcp_unacked_t {
 	struct _tcp_unacked_t *next;
@@ -147,25 +151,26 @@ struct tcp_multisegment_pdu {
 };
 
 typedef struct _tcp_flow_t {
-	guint32 base_seq;		/* base seq number (used by relative sequence numbers)
-							 * or 0 if not yet known.
-							 */
+	guint32 base_seq;	/* base seq number (used by relative sequence numbers)
+				 * or 0 if not yet known.
+				 */
 	tcp_unacked_t *segments;
-	guint32 lastack;		/* last seen ack */
+	guint32 fin;		/* frame number of the final FIN */
+	guint32 lastack;	/* last seen ack */
 	nstime_t lastacktime;	/* Time of the last ack packet */
 	guint32 lastnondupack;	/* frame number of last seen non dupack */
-	guint32 dupacknum;		/* dupack number */
-	guint32 nextseq;		/* highest seen nextseq */
-	guint32 maxseqtobeacked;		/* highest seen continuous seq number (without hole in the stream) from the fwd party,
-									this is the maximum seq number that can be acked by the rev party in normal case.
-									If the rev party sends an ACK beyond this seq number it indicates TCP_A_ACK_LOST_PACKET contition */
+	guint32 dupacknum;	/* dupack number */
+	guint32 nextseq;	/* highest seen nextseq */
+	guint32 maxseqtobeacked;/* highest seen continuous seq number (without hole in the stream) from the fwd party,
+				 * this is the maximum seq number that can be acked by the rev party in normal case.
+				 * If the rev party sends an ACK beyond this seq number it indicates TCP_A_ACK_LOST_PACKET contition */
 	guint32 nextseqframe;	/* frame number for segment with highest
-							 * sequence number
-							 */
+				 * sequence number
+				 */
 	nstime_t nextseqtime;	/* Time of the nextseq packet so we can
-							 * distinguish between retransmission,
-							 * fast retransmissions and outoforder
-							 */
+				 * distinguish between retransmission,
+				 * fast retransmissions and outoforder
+				 */
 	guint32 window;		/* last seen window */
 	gint16	win_scale;	/* -1 is we dont know, -2 is window scaling is not used */
 	gint16  scps_capable;   /* flow advertised scps capabilities */
@@ -177,17 +182,19 @@ typedef struct _tcp_flow_t {
  */
 #define TCP_FLOW_REASSEMBLE_UNTIL_FIN	0x0001
 	guint16 flags;
+
+	/* see TCP_A_* in packet-tcp.c */
 	guint32 lastsegmentflags;
 
 	/* This tree is indexed by sequence number and keeps track of all
 	 * all pdus spanning multiple segments for this flow.
 	 */
-	emem_tree_t *multisegment_pdus;
+	wmem_tree_t *multisegment_pdus;
 
 	/* Process info, currently discovered via IPFIX */
 	guint32 process_uid;    /* UID of local process */
 	guint32 process_pid;    /* PID of local process */
-	gchar *username;		/* Username of the local process */
+	gchar *username;	/* Username of the local process */
 	gchar *command;         /* Local process name + path + args */
 } tcp_flow_t;
 
@@ -224,13 +231,22 @@ struct tcp_analysis {
 	/* This structure contains a tree containing all the various ta's
 	 * keyed by frame number.
 	 */
-	emem_tree_t	*acked_table;
+	wmem_tree_t	*acked_table;
 
 	/* Remember the timestamp of the first frame seen in this tcp
 	 * conversation to be able to calculate a relative time compared
 	 * to the start of this conversation
 	 */
 	nstime_t	ts_first;
+
+        /* Remember the timestamp of the most recent SYN in this conversation in
+         * order to calculate the first_rtt below. Not necessarily ts_first, if
+         * the SYN is retransmitted. */
+	nstime_t	ts_mru_syn;
+
+        /* If we have the handshake, remember the RTT between the initial SYN
+         * and ACK for use detecting out-of-order segments. */
+	nstime_t	ts_first_rtt;
 
 	/* Remember the timestamp of the frame that was last seen in this
 	 * tcp conversation to be able to calculate a delta time compared
@@ -239,7 +255,7 @@ struct tcp_analysis {
 	nstime_t	ts_prev;
 
 	/* Keep track of tcp stream numbers instead of using the conversation
-	 * index (as how it was done before). This prevents gaps in the 
+	 * index (as how it was done before). This prevents gaps in the
 	 * stream index numbering
 	 */
 	guint32         stream;
@@ -259,16 +275,16 @@ struct tcp_per_packet_data_t {
 };
 
 
-extern void dissect_tcp_payload(tvbuff_t *tvb, packet_info *pinfo, int offset,
+WS_DLL_PUBLIC void dissect_tcp_payload(tvbuff_t *tvb, packet_info *pinfo, int offset,
 				guint32 seq, guint32 nxtseq, guint32 sport,
 				guint32 dport, proto_tree *tree,
 				proto_tree *tcp_tree,
-				struct tcp_analysis *tcpd);
+				struct tcp_analysis *tcpd, struct tcpinfo *tcpinfo);
 
-extern struct tcp_analysis *get_tcp_conversation_data(conversation_t *conv,
+WS_DLL_PUBLIC struct tcp_analysis *get_tcp_conversation_data(conversation_t *conv,
                                 packet_info *pinfo);
 
-extern gboolean decode_tcp_ports(tvbuff_t *, int, packet_info *, proto_tree *, int, int, struct tcp_analysis *);
+WS_DLL_PUBLIC gboolean decode_tcp_ports(tvbuff_t *, int, packet_info *, proto_tree *, int, int, struct tcp_analysis *, struct tcpinfo *);
 
 /** Associate process information with a given flow
  *
@@ -283,5 +299,15 @@ extern gboolean decode_tcp_ports(tvbuff_t *, int, packet_info *, proto_tree *, i
  * @param command Ephemeral string containing the full or partial process name
  */
 extern void add_tcp_process_info(guint32 frame_num, address *local_addr, address *remote_addr, guint16 local_port, guint16 remote_port, guint32 uid, guint32 pid, gchar *username, gchar *command);
+
+/** Get the current number of TCP streams
+ *
+ * @return The number of TCP streams
+ */
+WS_DLL_PUBLIC guint32 get_tcp_stream_count(void);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif

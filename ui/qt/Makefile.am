@@ -1,8 +1,6 @@
 # Makefile.am
 # Automake file for the Qt interface routines for Wireshark
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -31,7 +29,12 @@ endif
 noinst_LIBRARIES = libqtui.a
 
 CLEANFILES = \
-	libqtui.a		\
+	libqtui.a \
+	wireshark-tap-register.c-tmp \
+	wireshark-tap-register-cache.pkl \
+	*.moc.cpp \
+	*.rrc.cpp \
+	ui_*.h
 	*~
 
 DISTCLEANFILES = \
@@ -41,6 +44,29 @@ MAINTAINERCLEANFILES = \
 	$(GENERATED_FILES)		\
 	$(NODIST_GENERATED_FILES)	\
 	Makefile.in
+
+#
+# Build "wireshark-tap-register.c", which contains a function
+# "register_all_tap_listeners()"
+# that calls the register routines for all wireshark tap listeners.
+#
+# We do this by grepping through sources.
+#
+# Formatting conventions:  The name of the tap_listener_register_*
+# routines must start in column zero, or must be preceded only by
+# "void " starting in column zero, and must not be inside #if.
+#
+# The first argument is the directory in which the source files live.
+# All subsequent arguments are the files to scan.
+#
+wireshark-tap-register.c: $(WIRESHARK_QT_TAP_SRC) $(top_srcdir)/tools/make-tapreg-dotc $(top_srcdir)/tools/make-tap-reg.py
+	@if test -n "$(PYTHON)"; then \
+		echo Making wireshark-tap-register.c with python ; \
+		$(PYTHON) $(top_srcdir)/tools/make-tap-reg.py $(srcdir) taps $(WIRESHARK_QT_TAP_SRC); \
+	else \
+		echo Making wireshark-tap-register.c; \
+		$(top_srcdir)/tools/make-tapreg-dotc wireshark-tap-register.c $(srcdir) $(WIRESHARK_QT_TAP_SRC); \
+	fi
 
 RUNLEX=$(top_srcdir)/tools/runlex.sh
 
@@ -62,7 +88,10 @@ libqtui_a_CFLAGS = $(AM_CLEAN_CFLAGS)
 libqtui_a_DEPENDENCIES =
 
 # Common headers
-AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/wiretap $(LIBGCRYPT_CFLAGS) $(LIBGNUTLS_CFLAGS) $(PORTAUDIO_INCLUDES)
+AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/wiretap $(LIBGCRYPT_CFLAGS) \
+	$(LIBGNUTLS_CFLAGS) $(PIE_CFLAGS)
+
+AM_CXXFLAGS = $(AM_CLEAN_CFLAGS)
 
 AM_V_MOC = $(am__v_MOC_@AM_V@)
 am__v_MOC_ = $(am__v_MOC_@AM_DEFAULT_V@)
@@ -86,6 +115,7 @@ SUFFIXES = .moc.cpp .qrc .rcc.cpp
 	$(AM_V_MOC)$(MOC) -I.. -I../.. -o $@ $<
 
 .qrc.rcc.cpp:
+	$(MKDIR_P) $(@D)
 	$(AM_V_RCC)rcc -name `basename $< .qrc` -o $@ $<
 
 ui_%.h: %.ui
@@ -95,21 +125,41 @@ ui_%.h: %.ui
 #moc_%.cpp: %.h
 #	$(MOC) $< -o $@
 
+about_dialog.cpp about_dialog.h: ui_about_dialog.h
+
+capture_interfaces_dialog.cpp capture_interfaces_dialog.h: ui_capture_interfaces_dialog.h
+
 capture_preferences_frame.cpp capture_preferences_frame.h: ui_capture_preferences_frame.h
 
 column_preferences_frame.cpp column_preferences_frame.h: ui_column_preferences_frame.h
 
+decode_as_dialog.cpp decode_as_dialog.h: ui_decode_as_dialog.h
+
 export_object_dialog.cpp export_object_dialog.h: ui_export_object_dialog.h
+
+export_pdu_dialog.cpp export_pdu_dialog.h: ui_export_pdu_dialog.h
 
 file_set_dialog.cpp file_set_dialog.h: ui_file_set_dialog.h
 
 filter_expressions_preferences_frame.cpp filter_expressions_preferences_frame.h: ui_filter_expressions_preferences_frame.h
 
+follow_stream_dialog.cpp: ui_follow_stream_dialog.h
+
 font_color_preferences_frame.cpp font_color_preferences_frame.h: ui_font_color_preferences_frame.h
 
 import_text_dialog.cpp import_text_dialog.h: ui_import_text_dialog.h
 
+io_graph_dialog.cpp io_graph_dialog.h: ui_io_graph_dialog.h
+
 layout_preferences_frame.cpp layout_preferences_frame.h: ui_layout_preferences_frame.h
+
+lbm_lbtrm_transport_dialog.cpp lbm_lbtrm_transport_dialog.h: ui_lbm_lbtrm_transport_dialog.h
+
+lbm_lbtru_transport_dialog.cpp lbm_lbtru_transport_dialog.h: ui_lbm_lbtru_transport_dialog.h
+
+lbm_stream_dialog.cpp lbm_stream_dialog.h: ui_lbm_stream_dialog.h
+
+lbm_uimflow_dialog.cpp lbm_uimflow_dialog.h: ui_lbm_uimflow_dialog.h
 
 main_welcome.cpp main_welcome.h: ui_main_welcome.h
 
@@ -133,9 +183,31 @@ profile_dialog.cpp profile_dialog.h: ui_profile_dialog.h
 
 search_frame.cpp search_frame.h: ui_search_frame.h
 
+sequence_dialog.cpp sequence_dialog.h: ui_sequence_dialog.h
+
+sctp_all_assocs_dialog.cpp sctp_all_assocs_dialog.h: ui_sctp_all_assocs_dialog.h
+
+sctp_assoc_analyse_dialog.cpp sctp_assoc_analyse_dialog.h: ui_sctp_assoc_analyse_dialog.h
+
+sctp_chunk_statistics_dialog.cpp sctp_chunk_statistics_dialog.h: ui_sctp_chunk_statistics_dialog.h
+
+sctp_graph_dialog.cpp sctp_graph_dialog.h: ui_sctp_graph_dialog.h
+
+sctp_graph_arwnd_dialog.cpp sctp_graph_arwnd_dialog.h: ui_sctp_graph_arwnd_dialog.h
+
+sctp_graph_byte_dialog.cpp sctp_graph_byte_dialog.h: ui_sctp_graph_byte_dialog.h
+
 splash_overlay.cpp splash_overlay.h: ui_splash_overlay.h
 
+stats_tree_dialog.cpp stats_tree_dialog.h: ui_stats_tree_dialog.h
+
+summary_dialog.cpp summary_dialog.h: ui_summary_dialog.h
+
+tcp_stream_dialog.cpp: ui_tcp_stream_dialog.h
+
 time_shift_dialog.cpp time_shift_dialog.h: ui_time_shift_dialog.h
+
+uat_dialog.cpp uat_dialog.h: ui_uat_dialog.h
 
 doxygen:
 if HAVE_DOXYGEN
@@ -145,13 +217,15 @@ endif		# HAVE_DOXYGEN
 checkapi: checkapi-base checkapi-todo
 
 checkapi-base:
-	$(PERL) ../tools/checkAPIs.pl -g deprecated-gtk -build \
+	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -g deprecated-gtk -build \
+	-sourcedir=$(srcdir) \
 	$(WIRESHARK_GTK_SRC) \
 	$(WIRESHARK_TAP_SRC) \
 	capture_if_details_dlg_win32.c
 
 checkapi-todo:
-	$(PERL) ../tools/checkAPIs.pl -M -g deprecated-gtk-todo -build \
+	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -M -g deprecated-gtk-todo -build \
+	-sourcedir=$(srcdir) \
 	$(WIRESHARK_GTK_SRC) \
 	$(WIRESHARK_TAP_SRC) \
 	capture_if_details_dlg_win32.c
@@ -178,7 +252,6 @@ remote_icons.h:
 	done
 
 # XXX to be created
-#	libqtui.vcproj
 #	Makefile.nmake
 EXTRA_DIST = \
 	$(GENERATOR_FILES)		\

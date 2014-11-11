@@ -2,8 +2,6 @@
  * Routines for Wellfleet HDLC packet disassembly
  * Copied from the Cisco HDLC packet disassembly routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,9 @@
 #include <epan/addr_resolv.h>
 #include "packet-chdlc.h"
 #include "packet-ip.h"
+
+void proto_register_wfleet_hdlc(void);
+void proto_reg_handoff_wfleet_hdlc(void);
 
 static int proto_wfleet_hdlc = -1;
 static int hf_wfleet_hdlc_addr = -1;

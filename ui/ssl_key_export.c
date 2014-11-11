@@ -1,7 +1,5 @@
 /* export_sslkeys.c
  *
- * $Id$
- *
  * Export SSL Session Keys dialog
  * by Sake Blok <sake@euronet.nl> (20110526)
  *
@@ -32,6 +30,7 @@
 #include <epan/dissectors/packet-ssl.h>
 #include <epan/dissectors/packet-ssl-utils.h>
 
+#include "ui/ssl_key_export.h"
 
 int
 ssl_session_key_count(void)

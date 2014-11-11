@@ -3,8 +3,6 @@
  *
  * Copyright 2011, Tyson Key <tyson.key@gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,9 @@
 #include <epan/packet.h>
 #include <ctype.h>
 
+void proto_register_at_command(void);
+void proto_reg_handoff_at_command(void);
+
 static int proto_at = -1;
 static int hf_at_command = -1;
 
@@ -48,7 +49,7 @@ static gboolean allowed_chars(tvbuff_t *tvb)
     len = tvb_length(tvb);
     for (offset = 0; offset < len; offset++) {
         val = tvb_get_guint8(tvb, offset);
-        if (!(isprint(val) || (val == 0x0a) || (val == 0x0d)))
+        if (!(g_ascii_isprint(val) || (val == 0x0a) || (val == 0x0d)))
             return (FALSE);
     }
     return (TRUE);
@@ -79,7 +80,7 @@ static void dissect_at(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     gint len;
 
     len = tvb_reported_length(tvb);
-    col_append_str(pinfo->cinfo, COL_PROTOCOL, "/AT");
+    col_append_sep_str(pinfo->cinfo, COL_PROTOCOL, "/", "AT");
     col_append_sep_fstr(pinfo->cinfo, COL_INFO, NULL, "AT Command: %s",
         tvb_format_text_wsp(tvb, 0, len));
 

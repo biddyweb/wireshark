@@ -4,8 +4,6 @@
  * Copyright 2011, Martin Renold <reld[AT]zhaw.ch>
  * Copyright 2011, Florian Reichert <refl [AT] zhaw.ch>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald[AT]wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -45,7 +43,9 @@ static const value_string prp_lan_vals[] = {
 /* Initialize the protocol and registered fields      */
 /**********************************************************/
 
+void proto_register_prp(void);
 void proto_reg_handoff_prp(void);
+
 static int proto_prp = -1;
 
 

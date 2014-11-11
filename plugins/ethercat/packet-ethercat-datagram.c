@@ -1,8 +1,6 @@
 /* packet-ethercat-datagram.c
  * Routines for ethercat packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2007 by Beckhoff Automation GmbH
  *
  * Wireshark - Network traffic analyzer
@@ -34,6 +32,9 @@
 
 #include "packet-ethercat-datagram.h"
 #include "packet-ecatmb.h"
+
+void proto_register_ecat(void);
+void proto_reg_handoff_ecat(void);
 
 static heur_dissector_list_t heur_subdissector_list;
 static dissector_handle_t ecat_mailbox_handle;
@@ -386,7 +387,7 @@ static void EcSummaryFormater(guint32 datalength, tvbuff_t *tvb, gint offset, ch
 static void EcCmdFormatter(guint8 cmd, char *szText, gint nMax)
 {
    gint idx=0;
-   const gchar *szCmd = match_strval_idx((guint32)cmd, EcCmdLong, &idx);
+   const gchar *szCmd = try_val_to_str_idx((guint32)cmd, EcCmdLong, &idx);
 
    if ( idx != -1 )
       g_snprintf(szText, nMax, "Cmd        : %d (%s)", cmd, szCmd);
@@ -451,6 +452,7 @@ static void dissect_ecat_datagram(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
    const guint datagram_length = tvb_length_remaining(tvb, offset);
    guint datagram_padding_bytes = 0;
    EcParserHDR ecHdr;
+   heur_dtbl_entry_t *hdtbl_entry;
 
    col_set_str(pinfo->cinfo, COL_PROTOCOL, "ECAT");
 
@@ -731,7 +733,7 @@ static void dissect_ecat_datagram(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
             init_dc_measure(pDC, tvb, suboffset);
 
             /* Allow sub dissectors to have a chance with this data */
-            if(!dissector_try_heuristic(heur_subdissector_list, tvb, pinfo, ecat_datagram_tree, NULL))
+            if(!dissector_try_heuristic(heur_subdissector_list, tvb, pinfo, ecat_datagram_tree, &hdtbl_entry, NULL))
             {
                /* No sub dissector did recognize this data, dissect it as data only */
                aitem = proto_tree_add_item(ecat_datagram_tree, hf_ecat_data, tvb, suboffset, ecHdr.len & 0x07ff, ENC_NA);
@@ -814,7 +816,7 @@ static void dissect_ecat_datagram(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
             if ( dataLength > 0 )
             {
                /* Allow sub dissectors to have a chance with this data */
-               if(!dissector_try_heuristic(heur_subdissector_list, tvb, pinfo, ecat_datagram_tree, NULL))
+               if(!dissector_try_heuristic(heur_subdissector_list, tvb, pinfo, ecat_datagram_tree, &hdtbl_entry, NULL))
                {
                   /* No sub dissector did recognize this data, dissect it as data only */
                   proto_tree_add_item(ecat_datagram_tree, hf_ecat_data, tvb, startOfData, dataLength, ENC_NA);
@@ -832,7 +834,7 @@ static void dissect_ecat_datagram(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
          if( tree )
          {
             /* Allow sub dissectors to have a chance with this data */
-            if(!dissector_try_heuristic(heur_subdissector_list, tvb, pinfo, ecat_datagram_tree, NULL))
+            if(!dissector_try_heuristic(heur_subdissector_list, tvb, pinfo, ecat_datagram_tree, &hdtbl_entry, NULL))
             {
                /* No sub dissector did recognize this data, dissect it as data only */
                proto_tree_add_item(ecat_datagram_tree, hf_ecat_data, tvb, suboffset, ecHdr.len & 0x07ff, ENC_NA);

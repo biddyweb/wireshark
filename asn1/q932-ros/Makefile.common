@@ -1,6 +1,3 @@
-# $Id$
-#
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -24,16 +21,16 @@ PROTOCOL_NAME=q932-ros
 
 PROTO_OPT = -p q932.ros
 
-
 EXT_ASN_FILE_LIST = \
 	../ros/Remote-Operations-Information-Objects.asn
 
-ASN_FILE_LIST = Facility-Information-Element-Components.asn
+ASN_FILE_LIST = \
+	Facility-Information-Element-Components.asn
 
 # The packet-$(PROTOCOL_NAME)-template.h and $(PROTOCOL_NAME).asn
 # files do not exist for all protocols: Please add/remove as required.
 EXTRA_DIST = \
-	Makefile.nmake \
+	$(EXTRA_DIST_COMMON) \
 	$(ASN_FILE_LIST) \
 	packet-$(PROTOCOL_NAME)-template.c \
 	$(PROTOCOL_NAME).cnf
@@ -42,7 +39,7 @@ SRC_FILES = \
 	$(EXTRA_DIST) \
 	$(EXT_ASN_FILE_LIST)
 
-A2W_FLAGS= -b 
+A2W_FLAGS= -b
 
 EXTRA_CNF = \
 	$(builddir)/../ros/ros-inv.cnf \

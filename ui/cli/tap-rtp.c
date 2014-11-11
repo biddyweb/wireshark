@@ -1,8 +1,6 @@
 /* tap-rtp.c
  * RTP TAP for tshark
  *
- * $Id$
- *
  * Copyright 2008, Ericsson AB
  * By Balint Reczey <balint.reczey@ericsson.com>
  *
@@ -36,16 +34,20 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
 #include <locale.h>
+
 #include "epan/packet_info.h"
 #include "epan/value_string.h"
 #include <epan/tap.h>
 #include <epan/rtp_pt.h>
 #include <epan/stat_cmd_args.h>
 #include <epan/addr_resolv.h>
-#include "tap-rtp-common.h"
+#include "ui/rtp_stream.h"
+#include "ui/tap-rtp-common.h"
+
+void register_tap_listener_rtp_streams(void);
 
 /* The one and only global rtpstream_tapinfo_t structure for tshark and wireshark.
  */
@@ -69,7 +71,7 @@ rtp_streams_stat_draw(void *arg _U_)
     printf("%15s %5s %15s %5s %10s %16s %5s %12s %15s %15s %15s %s\n","Src IP addr", "Port",  "Dest IP addr", "Port", "SSRC", "Payload", "Pkts", "Lost", "Max Delta(ms)", "Max Jitter(ms)", "Mean Jitter(ms)", "Problems?");
 
     /* save the current locale */
-    savelocale = setlocale(LC_NUMERIC, NULL);
+    savelocale = g_strdup(setlocale(LC_NUMERIC, NULL));
     /* switch to "C" locale to avoid problems with localized decimal separators
        in g_snprintf("%f") functions */
     setlocale(LC_NUMERIC, "C");
@@ -105,9 +107,9 @@ rtp_streams_stat_draw(void *arg _U_)
         }
 
         printf("%15s %5u %15s %5u 0x%08X %16s %5u %5d (%.1f%%) %15.2f %15.2f %15.2f %s\n",
-            get_addr_name(&(strinfo->src_addr)),
+            ep_address_to_display(&(strinfo->src_addr)),
 	    strinfo->src_port,
-	    get_addr_name(&(strinfo->dest_addr)),
+	    ep_address_to_display(&(strinfo->dest_addr)),
 	    strinfo->dest_port,
 	    strinfo->ssrc,
 	    payload_type,
@@ -127,11 +129,12 @@ rtp_streams_stat_draw(void *arg _U_)
     printf("==============================================================\n");
     /* restore previous locale setting */
     setlocale(LC_NUMERIC, savelocale);
+    g_free(savelocale);
 }
 
 
 static void
-rtp_streams_stat_init(const char *optarg _U_, void* userdata _U_)
+rtp_streams_stat_init(const char *opt_arg _U_, void* userdata _U_)
 {
     GString		*err_p;
 
@@ -155,3 +158,16 @@ register_tap_listener_rtp_streams(void)
 {
     register_stat_cmd_arg("rtp,streams", rtp_streams_stat_init,NULL);
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

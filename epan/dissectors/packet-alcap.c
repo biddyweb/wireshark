@@ -8,8 +8,6 @@
 *
 * Copyright 2005, Luis E. Garcia Ontanon <luis.ontanon [AT] gmail.com>
 *
-* $Id$
-*
 * Wireshark - Network traffic analyzer
 * By Gerald Combs <gerald@wireshark.org>
 * Copyright 1998 Gerald Combs
@@ -36,7 +34,7 @@
 #include <wsutil/str_util.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/prefs.h>
 #include "packet-alcap.h"
 #include "packet-mtp3.h"
@@ -404,15 +402,21 @@ static int hf_alcap_leg_onsea = -1;
 static int hf_alcap_leg_frame = -1;
 static int hf_alcap_leg_release_cause = -1;
 
+static expert_field ei_alcap_parameter_field_bad_length = EI_INIT;
+static expert_field ei_alcap_undecoded = EI_INIT;
+static expert_field ei_alcap_release_cause_not31 = EI_INIT;
+static expert_field ei_alcap_abnormal_release = EI_INIT;
+static expert_field ei_alcap_response = EI_INIT;
+
 static gboolean keep_persistent_info = TRUE;
 
-static emem_tree_t* legs_by_dsaid = NULL;
-static emem_tree_t* legs_by_osaid = NULL;
-static emem_tree_t* legs_by_bearer = NULL;
+static wmem_tree_t* legs_by_dsaid = NULL;
+static wmem_tree_t* legs_by_osaid = NULL;
+static wmem_tree_t* legs_by_bearer = NULL;
 
-static const gchar* dissect_fields_unknown(packet_info* pinfo _U_, tvbuff_t *tvb, proto_tree *tree, int offset, int len, alcap_message_info_t* msg_info _U_) {
+static const gchar* dissect_fields_unknown(packet_info* pinfo, tvbuff_t *tvb, proto_tree *tree, int offset, int len, alcap_message_info_t* msg_info _U_) {
     proto_item* pi = proto_tree_add_item(tree,hf_alcap_unknown,tvb,offset,len,ENC_NA);
-    proto_item_set_expert_flags(pi, PI_UNDECODED, PI_WARN);
+    expert_add_info(pinfo, pi, &ei_alcap_undecoded);
     return NULL;
 }
 
@@ -429,8 +433,7 @@ static const gchar* dissect_fields_cau(packet_info* pinfo, tvbuff_t *tvb, proto_
     proto_item* pi;
 
     if (len < 2) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -444,12 +447,12 @@ static const gchar* dissect_fields_cau(packet_info* pinfo, tvbuff_t *tvb, proto_
         pi = proto_tree_add_item(tree, hf_alcap_cau_value_itu, tvb, offset+1, 1, ENC_BIG_ENDIAN);
 
         if ( msg_info->release_cause && msg_info->release_cause != 31 )
-            expert_add_info_format(pinfo, pi, PI_RESPONSE_CODE, PI_WARN, "Abnormal Release");
+            expert_add_info(pinfo, pi, &ei_alcap_abnormal_release);
 
         ret_str = val_to_str(msg_info->release_cause, cause_values_itu, "Unknown(%u)");
     } else {
         proto_tree_add_item(tree, hf_alcap_cau_value_non_itu, tvb, offset+1 , 1, ENC_BIG_ENDIAN);
-        ret_str = ep_strdup_printf("%u", msg_info->release_cause);
+        ret_str = wmem_strdup_printf(wmem_packet_scope(), "%u", msg_info->release_cause);
     }
 
     if (!tree) return ret_str;
@@ -479,8 +482,7 @@ static const gchar* dissect_fields_cau(packet_info* pinfo, tvbuff_t *tvb, proto_
                     break;
                 default:
                     /* XXX - TODO Q.2610 */
-                    pi = proto_tree_add_text(tree,tvb,offset,diag_len,"Undecoded");
-                    proto_item_set_expert_flags(pi, PI_UNDECODED, PI_WARN);
+                    proto_tree_add_expert(tree, pinfo, &ei_alcap_undecoded, tvb, offset, diag_len);
                     break;
             }
         }
@@ -498,8 +500,7 @@ static const gchar* dissect_fields_ceid(packet_info* pinfo _U_, tvbuff_t *tvb, p
     proto_item* pi;
 
     if (len != 5) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -517,9 +518,9 @@ static const gchar* dissect_fields_ceid(packet_info* pinfo _U_, tvbuff_t *tvb, p
 
     if (msg_info->cid == 0) {
         proto_item_append_text(pi," (All CIDs in the Path)");
-        return ep_strdup_printf("Path: %u CID: 0 (Every CID)",msg_info->pathid);
+        return wmem_strdup_printf(wmem_packet_scope(), "Path: %u CID: 0 (Every CID)",msg_info->pathid);
     } else {
-        return ep_strdup_printf("Path: %u CID: %u",msg_info->pathid,msg_info->cid);
+        return wmem_strdup_printf(wmem_packet_scope(), "Path: %u CID: %u",msg_info->pathid,msg_info->cid);
     }
 }
 
@@ -533,16 +534,19 @@ static const gchar* dissect_fields_desea(packet_info* pinfo _U_, tvbuff_t *tvb, 
     e164_info_t* e164;
 
     if (len < 2) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
-    e164 = ep_new(e164_info_t);
+    e164 = wmem_new(wmem_packet_scope(), e164_info_t);
 
     e164->e164_number_type = CALLED_PARTY_NUMBER;
     e164->nature_of_address = tvb_get_guint8(tvb,offset) & 0x7f;
-    e164->E164_number_str = (gchar*)tvb_get_ephemeral_string(tvb,offset+1,len);
+    /*
+     * XXX - section 7.4.14 "E.164 address" of Q.2630.3 seems to
+     * indicate that this is BCD, not ASCII.
+     */
+    e164->E164_number_str = (gchar*)tvb_get_string_enc(wmem_packet_scope(),tvb,offset+1,len,ENC_ASCII|ENC_NA);
     e164->E164_number_length = len-1;
 
     dissect_e164_number(tvb, tree, offset-1, len, *e164);
@@ -560,16 +564,19 @@ static const gchar* dissect_fields_oesea(packet_info* pinfo _U_, tvbuff_t *tvb, 
     e164_info_t* e164;
 
     if (len < 2) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
-    e164 = ep_new(e164_info_t);
+    e164 = wmem_new(wmem_packet_scope(), e164_info_t);
 
     e164->e164_number_type = CALLING_PARTY_NUMBER;
     e164->nature_of_address = tvb_get_guint8(tvb,offset) & 0x7f;
-    e164->E164_number_str = (gchar*)tvb_get_ephemeral_string(tvb,offset+1,len);
+    /*
+     * XXX - section 7.4.14 "E.164 address" of Q.2630.3 seems to
+     * indicate that this is BCD, not ASCII.
+     */
+    e164->E164_number_str = (gchar*)tvb_get_string_enc(wmem_packet_scope(),tvb,offset+1,len,ENC_ASCII|ENC_NA);
     e164->E164_number_length = len-1;
 
     dissect_e164_number(tvb, tree, offset-1, len, *e164);
@@ -585,12 +592,11 @@ static const gchar* dissect_fields_dnsea(packet_info* pinfo _U_, tvbuff_t *tvb, 
      */
 
     if (len < 1) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
-    msg_info->dest_nsap = tvb_bytes_to_str(tvb,offset,20);
+    msg_info->dest_nsap = tvb_bytes_to_ep_str(tvb,offset,20);
 
     proto_tree_add_item(tree, hf_alcap_dnsea, tvb, offset, 20, ENC_NA);
     dissect_nsap(tvb, offset,20, tree);
@@ -606,12 +612,11 @@ static const gchar* dissect_fields_onsea(packet_info* pinfo _U_, tvbuff_t *tvb, 
      */
 
     if (len < 1) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
-    msg_info->orig_nsap = tvb_bytes_to_str(tvb,offset,20);
+    msg_info->orig_nsap = tvb_bytes_to_ep_str(tvb,offset,20);
 
     proto_tree_add_item(tree, hf_alcap_onsea, tvb, offset, 20, ENC_NA);
     dissect_nsap(tvb, offset,20, tree);
@@ -630,8 +635,7 @@ static const gchar* dissect_fields_alc(packet_info* pinfo _U_, tvbuff_t *tvb, pr
      */
 
     if (len != 12) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -658,8 +662,7 @@ static const gchar* dissect_fields_plc(packet_info* pinfo _U_, tvbuff_t *tvb, pr
      */
 
     if (len != 12) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -682,8 +685,7 @@ static const gchar* dissect_fields_osaid(packet_info* pinfo _U_, tvbuff_t *tvb, 
      * 7.4.2 Signalling Association Identifier -> Originating Signalling Association
      */
     if (len != 4) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -701,8 +703,7 @@ static const gchar* dissect_fields_sugr(packet_info* pinfo _U_, tvbuff_t *tvb, p
      * 7.4.10 Served User Generated Reference
      */
     if (len != 4) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -720,8 +721,7 @@ static const gchar* dissect_fields_suci(packet_info* pinfo _U_, tvbuff_t *tvb, p
      * 7.4.22 Served user correlation ID
      */
     if (len != 4) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -737,8 +737,7 @@ static const gchar* dissect_fields_ssia(packet_info* pinfo _U_, tvbuff_t *tvb, p
      * 7.4.5 Organizational Unique Identifier
      */
     if (len != 8) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -769,8 +768,7 @@ static const gchar* dissect_fields_ssim(packet_info* pinfo _U_, tvbuff_t *tvb, p
      * 7.4.7 Multirate Service
      */
     if (len != 3) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -788,8 +786,7 @@ static const gchar* dissect_fields_ssisa(packet_info* pinfo _U_, tvbuff_t *tvb, 
      * 7.4.8 Segmentation and Reassembly (Assured Data Transfer)
      */
     if (len != 14) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -812,8 +809,7 @@ static const gchar* dissect_fields_ssisu(packet_info* pinfo _U_, tvbuff_t *tvb, 
      * 7.4.9 Segmentation and Reassembly (Unassured Data Transfer)
      */
     if (len != 7) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -836,8 +832,7 @@ static const gchar* dissect_fields_none(packet_info* pinfo _U_, tvbuff_t *tvb, p
      *
      */
     if (len != 0) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -852,8 +847,7 @@ static const gchar* dissect_fields_ssiae(packet_info* pinfo _U_, tvbuff_t *tvb, 
      * 7.4.5 Organizational unique identifier
      */
     if (len != 8) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -888,8 +882,7 @@ static const gchar* dissect_fields_pssiae(packet_info* pinfo _U_, tvbuff_t *tvb,
      * 7.4.5 Organizational unique identifier
      */
     if (len != 8) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -923,8 +916,7 @@ static const gchar* dissect_fields_ssime(packet_info* pinfo _U_, tvbuff_t *tvb, 
      * 7.4.20 Multirate extended service
      */
     if (len != 3) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -943,8 +935,7 @@ static const gchar* dissect_fields_pssime(packet_info* pinfo _U_, tvbuff_t *tvb,
      * 7.4.20 Multirate extended service
      */
     if (len != 3) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -963,8 +954,7 @@ static const gchar* dissect_fields_acc(packet_info* pinfo _U_, tvbuff_t *tvb, pr
      * 7.4.23 AAL type 2 Node Automatic Congestion Level
      */
     if (len != 1) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -980,8 +970,7 @@ static const gchar* dissect_fields_cp(packet_info* pinfo _U_, tvbuff_t *tvb, pro
      * 7.4.24 Priority
      */
     if (len != 1) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -996,8 +985,7 @@ static const gchar* dissect_fields_pt(packet_info* pinfo _U_, tvbuff_t *tvb, pro
      * 7.4.21 AAL Type 2 Path QoS Codepoint
      */
     if (len != 1) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -1013,8 +1001,7 @@ static const gchar* dissect_fields_hc(packet_info* pinfo _U_, tvbuff_t *tvb, pro
      * 7.4.25 AAL type 2 Hop Counter
      */
     if (len != 1) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -1032,8 +1019,7 @@ static const gchar* dissect_fields_fbw(packet_info* pinfo _U_, tvbuff_t *tvb, pr
      * 7.4.28 Maximum allowed CPS packet size
      */
     if (len != 12) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -1056,8 +1042,7 @@ static const gchar* dissect_fields_pfbw(packet_info* pinfo _U_, tvbuff_t *tvb, p
      * 7.4.28 Maximum allowed CPS packet size
      */
     if (len != 12) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -1081,8 +1066,7 @@ static const gchar* dissect_fields_vbws(packet_info* pinfo _U_, tvbuff_t *tvb, p
      * 7.4.29 Source Traffic Type
      */
     if (len != 13) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -1108,8 +1092,7 @@ static const gchar* dissect_fields_pvbws(packet_info* pinfo _U_, tvbuff_t *tvb, 
      * 7.4.29 Source Traffic Type
      */
     if (len != 13) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -1138,8 +1121,7 @@ static const gchar* dissect_fields_pvbwt(packet_info* pinfo _U_, tvbuff_t *tvb, 
      */
 
     if (len != 22) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -1172,8 +1154,7 @@ static const gchar* dissect_fields_vbwt(packet_info* pinfo _U_, tvbuff_t *tvb, p
      * 7.4.28 Maximum allowed CPS packet size
      */
     if (len != 22) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -1204,8 +1185,7 @@ static const gchar* dissect_fields_sut(packet_info* pinfo _U_, tvbuff_t *tvb, pr
     guint sut_len;
 
     if (len < 2) {
-        proto_item* bad_length = proto_tree_add_text(tree, tvb, offset, len,"[Wrong length for parameter fields]");
-        proto_item_set_expert_flags(bad_length, PI_MALFORMED, PI_WARN);
+        proto_tree_add_expert(tree, pinfo, &ei_alcap_parameter_field_bad_length, tvb, offset, len);
         return NULL;
     }
 
@@ -1269,7 +1249,7 @@ static alcap_param_info_t param_infos[]  = {
 
 typedef struct _alcap_msg_type_info_t {
     const gchar* abbr;
-    int severity;
+    int severity; /* XXX - not used */
 } alcap_msg_type_info_t;
 
 static const alcap_msg_type_info_t msg_types[] = {
@@ -1290,7 +1270,7 @@ static const alcap_msg_type_info_t msg_types[] = {
     { "MOD ", PI_CHAT },
 };
 
-static void alcap_leg_tree(proto_tree* tree, tvbuff_t* tvb, const alcap_leg_info_t* leg) {
+static void alcap_leg_tree(proto_tree* tree, tvbuff_t* tvb, packet_info *pinfo, const alcap_leg_info_t* leg) {
     proto_item* pi = proto_tree_add_text(tree,tvb,0,0,"[ALCAP Leg Info]");
 
     tree = proto_item_add_subtree(pi,ett_leg);
@@ -1334,7 +1314,7 @@ static void alcap_leg_tree(proto_tree* tree, tvbuff_t* tvb, const alcap_leg_info
         pi = proto_tree_add_uint(tree,hf_alcap_leg_release_cause,tvb,0,0,leg->release_cause);
         PROTO_ITEM_SET_GENERATED(pi);
         if (leg->release_cause && leg->release_cause != 31)
-            proto_item_set_expert_flags(pi, PI_RESPONSE_CODE, PI_WARN);
+            expert_add_info(pinfo, pi, &ei_alcap_release_cause_not31);
     }
 
     if(leg->msgs) {
@@ -1356,11 +1336,11 @@ static void alcap_leg_tree(proto_tree* tree, tvbuff_t* tvb, const alcap_leg_info
 }
 
 
-extern void alcap_tree_from_bearer_key(proto_tree* tree, tvbuff_t* tvb, const  gchar* key) {
-    alcap_leg_info_t* leg = (alcap_leg_info_t*)se_tree_lookup_string(legs_by_bearer,key,0);
+extern void alcap_tree_from_bearer_key(proto_tree* tree, tvbuff_t* tvb, packet_info *pinfo, const  gchar* key) {
+    alcap_leg_info_t* leg = (alcap_leg_info_t*)wmem_tree_lookup_string(legs_by_bearer,key,0);
 
     if (leg) {
-        alcap_leg_tree(tree,tvb,leg);
+        alcap_leg_tree(tree,tvb,pinfo,leg);
     }
 }
 
@@ -1368,7 +1348,7 @@ extern void alcap_tree_from_bearer_key(proto_tree* tree, tvbuff_t* tvb, const  g
 
 static void dissect_alcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
     proto_tree *alcap_tree = NULL;
-    alcap_message_info_t* msg_info = ep_new0(alcap_message_info_t);
+    alcap_message_info_t* msg_info = wmem_new0(wmem_packet_scope(), alcap_message_info_t);
     int len = tvb_length(tvb);
     int offset;
     proto_item* pi;
@@ -1390,7 +1370,7 @@ static void dissect_alcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
     msg_type = GET_MSG_TYPE(msg_info->msg_type);
 
-    expert_add_info_format(pinfo, pi, PI_RESPONSE_CODE, msg_type->severity, " ");
+    expert_add_info(pinfo, pi, &ei_alcap_response);
 
     col_set_str(pinfo->cinfo, COL_INFO, msg_type->abbr);
 
@@ -1436,8 +1416,8 @@ static void dissect_alcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
         alcap_leg_info_t* leg = NULL;
         switch (msg_info->msg_type) {
             case 5: /* ERQ */
-                if( ! ( leg = (alcap_leg_info_t*)se_tree_lookup32(legs_by_osaid,msg_info->osaid) )) {
-                    leg = se_new(alcap_leg_info_t);
+                if( ! ( leg = (alcap_leg_info_t*)wmem_tree_lookup32(legs_by_osaid,msg_info->osaid) )) {
+                    leg = wmem_new(wmem_file_scope(), alcap_leg_info_t);
 
                     leg->dsaid = 0;
                     leg->osaid = msg_info->osaid;
@@ -1448,45 +1428,45 @@ static void dissect_alcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
                     leg->dest_nsap = NULL;
 
                     if (msg_info->orig_nsap) {
-                        gchar* key = se_strdup_printf("%s:%.8X",msg_info->orig_nsap,leg->sugr);
+                        gchar* key = wmem_strdup_printf(wmem_file_scope(), "%s:%.8X",msg_info->orig_nsap,leg->sugr);
                         ascii_strdown_inplace(key);
 
-                        leg->orig_nsap = se_strdup(msg_info->orig_nsap);
+                        leg->orig_nsap = wmem_strdup(wmem_file_scope(), msg_info->orig_nsap);
 
-                        if (!se_tree_lookup_string(legs_by_bearer,key,0)) {
-                            se_tree_insert_string(legs_by_bearer,key,leg,0);
+                        if (!wmem_tree_lookup_string(legs_by_bearer,key,0)) {
+                            wmem_tree_insert_string(legs_by_bearer,key,leg,0);
                         }
                     }
 
                     if (msg_info->dest_nsap) {
-                        gchar* key = se_strdup_printf("%s:%.8X",msg_info->dest_nsap,leg->sugr);
+                        gchar* key = wmem_strdup_printf(wmem_file_scope(), "%s:%.8X",msg_info->dest_nsap,leg->sugr);
                         ascii_strdown_inplace(key);
 
-                        leg->dest_nsap = se_strdup(msg_info->dest_nsap);
+                        leg->dest_nsap = wmem_strdup(wmem_file_scope(), msg_info->dest_nsap);
 
-                        if (!se_tree_lookup_string(legs_by_bearer,key,0)) {
-                            se_tree_insert_string(legs_by_bearer,key,leg,0);
+                        if (!wmem_tree_lookup_string(legs_by_bearer,key,0)) {
+                            wmem_tree_insert_string(legs_by_bearer,key,leg,0);
                         }
                     }
 
                     leg->msgs = NULL;
                     leg->release_cause = 0;
 
-                    se_tree_insert32(legs_by_osaid,leg->osaid,leg);
+                    wmem_tree_insert32(legs_by_osaid,leg->osaid,leg);
                 }
                 break;
             case 4: /* ECF */
-                if(( leg = (alcap_leg_info_t *)se_tree_lookup32(legs_by_osaid,msg_info->dsaid) )) {
+                if(( leg = (alcap_leg_info_t *)wmem_tree_lookup32(legs_by_osaid,msg_info->dsaid) )) {
                     leg->dsaid = msg_info->osaid;
-                    se_tree_insert32(legs_by_dsaid,leg->dsaid,leg);
+                    wmem_tree_insert32(legs_by_dsaid,leg->dsaid,leg);
                 }
                 break;
             case 6: /* RLC */
             case 12:  /* MOA */
             case 13: /* MOR */
             case 14: /* MOD */
-                if( ( leg = (alcap_leg_info_t *)se_tree_lookup32(legs_by_osaid,msg_info->dsaid) )
-                    || ( leg = (alcap_leg_info_t *)se_tree_lookup32(legs_by_dsaid,msg_info->dsaid) ) ) {
+                if( ( leg = (alcap_leg_info_t *)wmem_tree_lookup32(legs_by_osaid,msg_info->dsaid) )
+                    || ( leg = (alcap_leg_info_t *)wmem_tree_lookup32(legs_by_dsaid,msg_info->dsaid) ) ) {
 
                     if(msg_info->release_cause)
                         leg->release_cause =  msg_info->release_cause;
@@ -1494,11 +1474,11 @@ static void dissect_alcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
                 }
                 break;
             case 7: /* REL */
-                leg = (alcap_leg_info_t *)se_tree_lookup32(legs_by_osaid,msg_info->dsaid);
+                leg = (alcap_leg_info_t *)wmem_tree_lookup32(legs_by_osaid,msg_info->dsaid);
 
                 if(leg) {
                     leg->release_cause =  msg_info->release_cause;
-                } else if (( leg = (alcap_leg_info_t *)se_tree_lookup32(legs_by_dsaid,msg_info->dsaid) )) {
+                } else if (( leg = (alcap_leg_info_t *)wmem_tree_lookup32(legs_by_dsaid,msg_info->dsaid) )) {
                     leg->release_cause =  msg_info->release_cause;
                 }
                     break;
@@ -1507,7 +1487,7 @@ static void dissect_alcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
         }
 
         if (leg != NULL && ( (! leg->msgs) || leg->msgs->last->framenum < pinfo->fd->num ) ) {
-            alcap_msg_data_t* msg = se_new(alcap_msg_data_t);
+            alcap_msg_data_t* msg = wmem_new(wmem_file_scope(), alcap_msg_data_t);
             msg->msg_type = msg_info->msg_type;
             msg->framenum = pinfo->fd->num;
             msg->next = NULL;
@@ -1523,7 +1503,7 @@ static void dissect_alcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
         }
 
-        if (tree && leg) alcap_leg_tree(alcap_tree,tvb,leg);
+        if (tree && leg) alcap_leg_tree(alcap_tree,tvb,pinfo,leg);
     }
 }
 
@@ -1531,6 +1511,7 @@ void
 proto_register_alcap(void)
 {
     module_t *alcap_module;
+    expert_module_t *expert_alcap;
 
     static hf_register_info hf[] = {
     { &hf_alcap_dsaid,
@@ -2430,12 +2411,22 @@ proto_register_alcap(void)
         &param_infos[35].ett,
     };
 
+    static ei_register_info ei[] = {
+        { &ei_alcap_parameter_field_bad_length, { "alcap.parameter_field_bad_length", PI_MALFORMED, PI_WARN, "Wrong length for parameter fields", EXPFILL }},
+        { &ei_alcap_undecoded, { "alcap.undecoded", PI_UNDECODED, PI_WARN, "Undecoded", EXPFILL }},
+        { &ei_alcap_release_cause_not31, { "alcap.leg.cause.not31", PI_RESPONSE_CODE, PI_WARN, "Leg Release cause != 31", EXPFILL }},
+        { &ei_alcap_abnormal_release, { "alcap.abnormal_release", PI_RESPONSE_CODE, PI_WARN, "Abnormal Release", EXPFILL }},
+        { &ei_alcap_response, { "alcap.response", PI_RESPONSE_CODE, PI_NOTE, " ", EXPFILL }},
+    };
+
     proto_alcap = proto_register_protocol(alcap_proto_name, alcap_proto_name_short, "alcap");
 
     register_dissector("alcap", dissect_alcap, proto_alcap);
 
     proto_register_field_array(proto_alcap, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_alcap = expert_register_protocol(proto_alcap);
+    expert_register_field_array(expert_alcap, ei, array_length(ei));
 
     alcap_module = prefs_register_protocol(proto_alcap, NULL);
 
@@ -2444,9 +2435,9 @@ proto_register_alcap(void)
                                    "Whether persistent call leg information is to be kept",
                                    &keep_persistent_info);
 
-    legs_by_dsaid  = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "legs_by_dsaid");
-    legs_by_osaid  = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "legs_by_osaid");
-    legs_by_bearer = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "legs_by_bearer");
+    legs_by_dsaid  = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope());
+    legs_by_osaid  = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope());
+    legs_by_bearer = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope());
 }
 
 

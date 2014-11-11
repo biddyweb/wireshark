@@ -4,8 +4,6 @@
  * Dissector for Gigamon Header and Trailer
  * Copyright Gigamon 2010
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,9 +31,13 @@
 #include <epan/in_cksum.h>
 #include <epan/crc32-tvb.h>
 #include <wsutil/crc32.h>
+#include <wsutil/pint.h>
 #include <epan/expert.h>
 
 #include "packet-ieee8023.h"
+
+void proto_register_gmhdr(void);
+void proto_reg_handoff_gmhdr(void);
 
 #define GMHDR_FTYPE_PKTSIZE             1
 #define GMHDR_FTYPE_SRCPORT_G           2
@@ -81,8 +83,13 @@ static const value_string gmhdr_plfm_str[] = {
   { 3, "GV-MP" },
   { 4, "HD4" },
   { 5, "HD8" },
+  { 6, "GV-212" },
+  { 7, "HB1" },
+  { 8, "HC2" },
   { 0, NULL }
 };
+
+static dissector_handle_t ethertype_handle;
 
 static gboolean gmhdr_summary_in_tree = TRUE;
 static gboolean gmtrailer_summary_in_tree = TRUE;
@@ -117,7 +124,8 @@ static gint ett_gmhdr = -1;
 static gint ett_srcport = -1;
 static gint ett_gmtrailer = -1;
 
-
+static expert_field ei_gmhdr_field_length_invalid = EI_INIT;
+static expert_field ei_gmhdr_len = EI_INIT;
 
 static void
 dissect_gmtlv(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *gmhdr_tree, guint offset, guint16 length)
@@ -138,7 +146,7 @@ dissect_gmtlv(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *gmhdr_tree, gui
         guint32 tv = tvb_get_ntohl(tvb, offset) >> 8; /* Only 24-bit field */
 
         if (fl != 3) {
-          expert_add_info_format(pinfo, gmhdr_tree, PI_MALFORMED, PI_ERROR, "Field length %u invalid", fl);
+          expert_add_info_format(pinfo, gmhdr_tree, &ei_gmhdr_field_length_invalid, "Field length %u invalid", fl);
           break;
         }
         ti = proto_tree_add_item(gmhdr_tree, hf_gmhdr_srcport_g,      tvb, offset, fl, ENC_BIG_ENDIAN);
@@ -156,7 +164,7 @@ dissect_gmtlv(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *gmhdr_tree, gui
       }
       case GMHDR_FTYPE_PKTSIZE:
         if (fl != 2) {
-          expert_add_info_format(pinfo, gmhdr_tree, PI_MALFORMED, PI_ERROR, "Field length %u invalid", fl);
+          expert_add_info_format(pinfo, gmhdr_tree, &ei_gmhdr_field_length_invalid, "Field length %u invalid", fl);
           break;
         }
         proto_tree_add_item(gmhdr_tree, hf_gmhdr_pktsize, tvb, offset, fl, ENC_BIG_ENDIAN);
@@ -166,7 +174,7 @@ dissect_gmtlv(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *gmhdr_tree, gui
       case GMHDR_FTYPE_TIMESTAMP_GPS:
       case GMHDR_FTYPE_TIMESTAMP_1588:
         if (fl != 8) {
-          expert_add_info_format(pinfo, gmhdr_tree, PI_MALFORMED, PI_ERROR, "Field length %u invalid", fl);
+          expert_add_info_format(pinfo, gmhdr_tree, &ei_gmhdr_field_length_invalid, "Field length %u invalid", fl);
           break;
         }
         ti = proto_tree_add_item(gmhdr_tree, hf_gmhdr_timestamp, tvb, offset, fl, ENC_TIME_TIMESPEC|ENC_BIG_ENDIAN);
@@ -174,7 +182,7 @@ dissect_gmtlv(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *gmhdr_tree, gui
         break;
       case GMHDR_FTYPE_FCS: {
         if (fl != 4) {
-          expert_add_info_format(pinfo, gmhdr_tree, PI_MALFORMED, PI_ERROR, "Field length %u invalid", fl);
+          expert_add_info_format(pinfo, gmhdr_tree, &ei_gmhdr_field_length_invalid, "Field length %u invalid", fl);
           break;
         }
         ti = proto_tree_add_item(gmhdr_tree, hf_gmhdr_origcrc, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -183,7 +191,7 @@ dissect_gmtlv(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *gmhdr_tree, gui
       }
       case GMHDR_FTYPE_SRCPORT_H: {
         if (fl != 4) {
-          expert_add_info_format(pinfo, gmhdr_tree, PI_MALFORMED, PI_ERROR, "Field length %u invalid", fl);
+          expert_add_info_format(pinfo, gmhdr_tree, &ei_gmhdr_field_length_invalid, "Field length %u invalid", fl);
           break;
         }
         ti = proto_tree_add_item(gmhdr_tree, hf_gmhdr_srcport_h, tvb, offset, fl, ENC_BIG_ENDIAN);
@@ -253,10 +261,18 @@ dissect_gmhdr(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
 
     dissect_802_3(encap_proto, is_802_2, tvb, offset, pinfo, tree, gmhdr_tree,
-                  hf_gmhdr_len, hf_gmhdr_trailer, 0);
+                  hf_gmhdr_len, hf_gmhdr_trailer, &ei_gmhdr_len, 0);
   } else {
-    ethertype(encap_proto, tvb, offset, pinfo, tree, gmhdr_tree,
-              hf_gmhdr_etype, hf_gmhdr_trailer, 0);
+    ethertype_data_t ethertype_data;
+
+    ethertype_data.etype = encap_proto;
+    ethertype_data.offset_after_ethertype = offset;
+    ethertype_data.fh_tree = gmhdr_tree;
+    ethertype_data.etype_id = hf_gmhdr_etype;
+    ethertype_data.trailer_id = hf_gmhdr_trailer;
+    ethertype_data.fcs_len = 0;
+
+    call_dissector_with_data(ethertype_handle, tvb, pinfo, tree, &ethertype_data);
   }
 }
 
@@ -303,7 +319,7 @@ dissect_gmtimestamp_trailer(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *t
       gmtimev.nsecs = tvb_get_ntohl(tvb, offset);
 
       tm = localtime(&gmtimev.secs);
-      proto_item_append_text(ti, ", Port: %d, Timestamp: %d:%d:%d.%d", port_num, tm->tm_hour, tm->tm_min, tm->tm_sec, gmtimev.nsecs);
+      proto_item_append_text(ti, ", Port: %d, Timestamp: %d:%02d:%02d.%09d", port_num, tm->tm_hour, tm->tm_min, tm->tm_sec, gmtimev.nsecs);
     }
 
     offset = 0;
@@ -356,7 +372,7 @@ dissect_gmtrailer(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, void 
     vec.ptr = tvb_get_ptr(tvb, offset, vec.len);
 
     comp_cksum = in_cksum(&vec, 1);
-    if (pntohs(&comp_cksum) != cksum) {
+    if (pntoh16(&comp_cksum) != cksum) {
       return 0;
     }
   }
@@ -373,7 +389,7 @@ dissect_gmtrailer(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, void 
 
     dissect_gmtlv(tvb, pinfo, gmhdr_tree, offset, length);
     if (extra_trailer) {
-        proto_tree_add_item(tree, hf_gmhdr_trailer, tvb, length + 5, extra_trailer, ENC_BIG_ENDIAN);
+        proto_tree_add_item(tree, hf_gmhdr_trailer, tvb, length + 5, extra_trailer, ENC_NA);
     }
   }
   return tvblen;
@@ -456,12 +472,20 @@ proto_register_gmhdr(void)
   static gint *gmtrailer_ett[] = {
     &ett_gmtrailer,
   };
+  static ei_register_info ei[] = {
+     { &ei_gmhdr_field_length_invalid, { "gmhdr.field_length_invalid", PI_MALFORMED, PI_ERROR, "Field length invalid", EXPFILL }},
+     { &ei_gmhdr_len, { "gmhdr.len.past_end", PI_MALFORMED, PI_ERROR, "Length field value goes past the end of the payload", EXPFILL }},
+  };
+
   module_t *gmhdr_module;
   module_t *gmtrailer_module;
+  expert_module_t* expert_gmhdr;
 
   proto_gmhdr = proto_register_protocol("Gigamon Header", "GMHDR", "gmhdr");
   proto_register_field_array(proto_gmhdr, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_gmhdr = expert_register_protocol(proto_gmhdr);
+  expert_register_field_array(expert_gmhdr, ei, array_length(ei));
 
   proto_gmtrailer = proto_register_protocol("Gigamon Trailer", "GMTRAILER", "gmtrailer");
   proto_register_field_array(proto_gmtrailer, gmtrailer_hf, array_length(gmtrailer_hf));
@@ -488,6 +512,8 @@ void
 proto_reg_handoff_gmhdr(void)
 {
   dissector_handle_t gmhdr_handle;
+
+  ethertype_handle = find_dissector("ethertype");
 
   gmhdr_handle = create_dissector_handle(dissect_gmhdr, proto_gmhdr);
   dissector_add_uint("ethertype", ETHERTYPE_GIGAMON, gmhdr_handle);

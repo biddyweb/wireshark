@@ -3,8 +3,6 @@
  * used for Signaling Compression (SigComp) dissection.
  * Copyright 2004, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -41,7 +39,7 @@
 #include <string.h>
 #include <math.h>
 #include <glib.h>
-#include "strutil.h"
+#include "to_str.h"
 
 #include "packet.h"
 #include "sigcomp_state_hdlr.h"
@@ -628,14 +626,16 @@ sigcomp_init_udvm(void){
 	/*
 	 * Store static dictionaries in hash table
 	 */
-	sip_sdp_buff = g_malloc(SIP_SDP_STATE_LENGTH + 8);
+	sip_sdp_buff = (guint8 *)g_malloc(SIP_SDP_STATE_LENGTH + 8);
 
-	partial_state_str = bytes_to_str(sip_sdp_state_identifier, 6);
+	partial_state_str = bytes_to_ep_str(sip_sdp_state_identifier, 6);
 
 	/*
 	 * Debug 	g_warning("Sigcomp init: Storing partial state =%s",partial_state_str);
 	 */
 	memset(sip_sdp_buff, 0, 8);
+	sip_sdp_buff[0] = SIP_SDP_STATE_LENGTH >> 8;
+	sip_sdp_buff[1] = SIP_SDP_STATE_LENGTH & 0xff;
 	i = 0;
 	while ( i < SIP_SDP_STATE_LENGTH ){
 		sip_sdp_buff[i+8] = sip_sdp_static_dictionaty_for_sigcomp[i];
@@ -652,11 +652,13 @@ sigcomp_init_udvm(void){
 	 *  g_warning("g_hash_table_insert = 0x%x",sip_sdp_buff);
 	 */
 
-	presence_buff = g_malloc(PRESENCE_STATE_LENGTH + 8);
+	presence_buff = (guint8 *)g_malloc(PRESENCE_STATE_LENGTH + 8);
 
-	partial_state_str = bytes_to_str(presence_state_identifier, 6);
+	partial_state_str = bytes_to_ep_str(presence_state_identifier, 6);
 
-	memset(sip_sdp_buff, 0, 8);
+	memset(presence_buff, 0, 8);
+	presence_buff[0] = PRESENCE_STATE_LENGTH >> 8;
+	presence_buff[1] = PRESENCE_STATE_LENGTH & 0xff;
 	i = 0;
 	while ( i < PRESENCE_STATE_LENGTH ){
 		presence_buff[i+8] = presence_static_dictionary_for_sigcomp[i];
@@ -674,6 +676,7 @@ int udvm_state_access(tvbuff_t *tvb, proto_tree *tree,guint8 *buff,guint16 p_id_
 	int			result_code = 0;
 	guint32		n;
 	guint16		k;
+	guint16		buf_size_real;
 	guint16		byte_copy_right;
 	guint16		byte_copy_left;
 	char		partial_state[STATE_BUFFER_SIZE]; /* Size is 6 - 20 */
@@ -704,7 +707,7 @@ int udvm_state_access(tvbuff_t *tvb, proto_tree *tree,guint8 *buff,guint16 p_id_
 		partial_state[n] = buff[p_id_start + n];
 		n++;
 	}
-	partial_state_str = bytes_to_str(partial_state, p_id_length);
+	partial_state_str = bytes_to_ep_str(partial_state, p_id_length);
 	proto_tree_add_text(tree,tvb, 0, -1,"### Accessing state ###");
 	proto_tree_add_string(tree,hf_id, tvb, 0, 0, partial_state_str);
 
@@ -713,7 +716,7 @@ int udvm_state_access(tvbuff_t *tvb, proto_tree *tree,guint8 *buff,guint16 p_id_
 	 *	g_warning("g_hash_table_lookup = 0x%x",state_buff);
 	 * g_warning("State Access: partial state =%s",partial_state_str);
 	 */
-	state_buff = g_hash_table_lookup(state_buffer_table, partial_state_str);
+	state_buff = (guint8 *)g_hash_table_lookup(state_buffer_table, partial_state_str);
 	if ( state_buff == NULL ){
 		result_code = 2; /* No state match */
 		return result_code;
@@ -732,10 +735,7 @@ int udvm_state_access(tvbuff_t *tvb, proto_tree *tree,guint8 *buff,guint16 p_id_
 	 * If k = byte_copy_right then set n := byte_copy_left, else set n := k
 	 *
 	 */
-	/*
-	if ( ( state_begin + state_length ) > sip_sdp_state_length )
-		return 3;
-		*/
+
 	/*
 	 * buff					= Where "state" will be stored
 	 * p_id_start			= Partial state identifier start pos in the buffer(buff)
@@ -747,6 +747,8 @@ int udvm_state_access(tvbuff_t *tvb, proto_tree *tree,guint8 *buff,guint16 p_id_
 	 * FALSE				= Indicates that state_* is in the stored state
 	 */
 
+	buf_size_real = (state_buff[0] << 8) | state_buff[1];
+
 	/*
 	 * The value of
 	 * state_length MUST be taken from the returned item of state in the
@@ -754,9 +756,8 @@ int udvm_state_access(tvbuff_t *tvb, proto_tree *tree,guint8 *buff,guint16 p_id_
 	 *
 	 * The same is true of state_address, state_instruction.
 	 */
-	if ( *state_length == 0 ){
-		*state_length = state_buff[0] << 8;
-		*state_length = *state_length | state_buff[1];
+	if (*state_length == 0) {
+		*state_length = buf_size_real;
 	}
 	if ( *state_address == 0 ){
 		*state_address = state_buff[2] << 8;
@@ -765,6 +766,22 @@ int udvm_state_access(tvbuff_t *tvb, proto_tree *tree,guint8 *buff,guint16 p_id_
 	if ( *state_instruction == 0 ){
 		*state_instruction = state_buff[4] << 8;
 		*state_instruction = *state_instruction | state_buff[5];
+	}
+
+	/*
+	 * Decompression failure occurs if bytes are copied from beyond the end of
+	 * the state_value.
+	 */
+	if ((state_begin + *state_length) > buf_size_real) {
+		return 3;
+	}
+
+	/*
+	 * Note that decompression failure will always occur if the state_length
+	 * operand is set to 0 but the state_begin operand is non-zero.
+	 */
+	if (*state_length == 0 && state_begin != 0) {
+		return 17;
 	}
 
 	n = state_begin + 8;
@@ -818,9 +835,9 @@ void udvm_state_create(guint8 *state_buff,guint8 *state_identifier,guint16 p_id_
 		partial_state[i] = state_identifier[i];
 		i++;
 	}
-	partial_state_str = bytes_to_str(partial_state, p_id_length);
+	partial_state_str = bytes_to_ep_str(partial_state, p_id_length);
 
-	dummy_buff = g_hash_table_lookup(state_buffer_table, partial_state_str);
+	dummy_buff = (gchar *)g_hash_table_lookup(state_buffer_table, partial_state_str);
 	if ( dummy_buff == NULL ){
 		g_hash_table_insert(state_buffer_table, g_strdup(partial_state_str), state_buff);
 	}else{
@@ -847,7 +864,7 @@ void udvm_state_free(guint8 buff[],guint16 p_id_start,guint16 p_id_length){
 		partial_state[i] = buff[p_id_start + i];
 		i++;
 	}
-	partial_state_str = bytes_to_str(partial_state, p_id_length);
+	partial_state_str = bytes_to_ep_str(partial_state, p_id_length);
 	/* TODO Implement a state create counter before actually freeing states
 	 * Hmm is it a good idea to free the buffer at all?
 	 */

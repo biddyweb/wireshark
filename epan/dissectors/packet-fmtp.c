@@ -7,8 +7,6 @@
  *
  * Copyright 2011, Christophe Paletou <c.paletou@free.fr>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,9 @@
 
 #include <epan/packet.h>
 #include "packet-tcp.h"
+
+void proto_register_fmtp(void);
+void proto_reg_handoff_fmtp(void);
 
 static int proto_fmtp = -1;
 static int hf_fmtp_pdu_version = -1;
@@ -69,8 +70,8 @@ static const value_string system_message_names[] = {
     { 0, NULL }
 };
 
-static void
-dissect_fmtp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_fmtp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
     guint8      packet_type;
     guint16     packet_len;
@@ -94,15 +95,15 @@ dissect_fmtp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
         case FMTP_TYP_IDENTIFICATION:
             proto_item_append_text(ti, " (%s)",
-                tvb_get_ephemeral_string(tvb, FMTP_HEADER_LEN, packet_len-FMTP_HEADER_LEN));
+                tvb_get_string(wmem_packet_scope(), tvb, FMTP_HEADER_LEN, packet_len-FMTP_HEADER_LEN));
             col_add_fstr(pinfo->cinfo, COL_INFO, "%s (%s)",
                 val_to_str(packet_type, packet_type_names, "Unknown (0x%02x)"),
-                tvb_get_ephemeral_string(tvb, FMTP_HEADER_LEN, packet_len-FMTP_HEADER_LEN));
+                tvb_get_string(wmem_packet_scope(), tvb, FMTP_HEADER_LEN, packet_len-FMTP_HEADER_LEN));
             break;
 
         case FMTP_TYP_SYSTEM:
             proto_item_append_text(ti, " (%s)",
-                tvb_get_ephemeral_string(tvb, FMTP_HEADER_LEN, packet_len-FMTP_HEADER_LEN));
+                tvb_get_string(wmem_packet_scope(), tvb, FMTP_HEADER_LEN, packet_len-FMTP_HEADER_LEN));
             col_add_fstr(pinfo->cinfo, COL_INFO, "%s (%s)",
                 val_to_str(packet_type, packet_type_names, "Unknown (0x%02x)"),
                 val_to_str(tvb_get_ntohs(tvb, FMTP_HEADER_LEN), system_message_names, "Unknown (0x%02x)"));
@@ -123,6 +124,8 @@ dissect_fmtp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         next_tvb = tvb_new_subset_remaining(tvb, FMTP_HEADER_LEN);
         call_dissector(data_handle, next_tvb, pinfo, fmtp_tree);
     }
+
+    return tvb_length(tvb);
 }
 
 static guint
@@ -132,7 +135,7 @@ get_fmtp_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 }
 
 static gboolean
-dissect_fmtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_fmtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
     /*
      * Check that packet looks like FMTP before going further
@@ -148,7 +151,7 @@ dissect_fmtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
         return (FALSE);
 
     tcp_dissect_pdus(tvb, pinfo, tree, TRUE, FMTP_HEADER_LEN,
-                     get_fmtp_message_len, dissect_fmtp_message);
+                     get_fmtp_message_len, dissect_fmtp_message, data);
     return (TRUE);
 }
 
@@ -209,11 +212,11 @@ proto_reg_handoff_fmtp(void)
  *
  * Local variables:
  * c-basic-offset: 4
- * tab-width: 4
+ * tab-width: 8
  * indent-tabs-mode: nil
  * End:
  *
- * vi: set shiftwidth=4 tabstop=4 expandtab:
- * :indentSize=4:tabSize=4:noTabs=true:
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
  */
 

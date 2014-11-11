@@ -29,8 +29,6 @@
  * (c) Copyright 2012, Aditya Ambadkar and Diana Chris <arambadk,dvchris@ncsu.edu>
  *   -  Added preference to select BOS label as flowlabel as per RFC 6391
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -59,11 +57,15 @@
 #include <epan/prefs.h>
 #include <epan/ipproto.h>
 #include <epan/addr_resolv.h>
+#include <epan/decode_as.h>
 
 #include "packet-ppp.h"
 #include "packet-mpls.h"
 #include "packet-pw-common.h"
 #include "packet-bfd.h"
+
+void proto_register_mpls(void);
+void proto_reg_handoff_mpls(void);
 
 /* As per RFC 6428 http://tools.ietf.org/html/rfc6428, Section: 3.3 */
 #define ACH_TYPE_BFD_CC               0x0022
@@ -316,6 +318,17 @@ static value_string_ext mpls_pwac_types_ext = VALUE_STRING_EXT_INIT(mpls_pwac_ty
 
 static dissector_table_t mpls_subdissector_table;
 
+static void mpls_prompt(packet_info *pinfo, gchar* result)
+{
+    g_snprintf(result, MAX_DECODE_AS_PROMPT_LEN, "Data after label %u as",
+        GPOINTER_TO_UINT(p_get_proto_data(pinfo->pool, pinfo, proto_mpls, 0)));
+}
+
+static gpointer mpls_value(packet_info *pinfo)
+{
+    return p_get_proto_data(pinfo->pool, pinfo, proto_mpls, 0);
+}
+
 /*
  * Given a 4-byte MPLS label starting at offset "offset", in tvbuff "tvb",
  * decode it.
@@ -525,6 +538,9 @@ dissect_mpls(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "MPLS");
     col_set_str(pinfo->cinfo, COL_INFO, "MPLS Label Switched Packet");
 
+    /* Ensure structure is initialized */
+    memset(&mplsinfo, 0, sizeof(struct mplsinfo));
+
     /* Start Decoding Here. */
     while (tvb_reported_length_remaining(tvb, offset) > 0) {
 
@@ -534,12 +550,11 @@ dissect_mpls(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
          * FF: export (last shim in stack) info to subdissectors and
          * update pinfo
          */
-        mplsinfo.label = pinfo->mpls_label = label;
+        mplsinfo.label = label;
+        p_add_proto_data(pinfo->pool, pinfo, proto_mpls, 0, GUINT_TO_POINTER(label));
         mplsinfo.exp   = exp;
         mplsinfo.bos   = bos;
         mplsinfo.ttl   = ttl;
-
-        pinfo->private_data = &mplsinfo;
 
         if (tree) {
             proto_item *ti;
@@ -600,17 +615,23 @@ dissect_mpls(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     next_tvb = tvb_new_subset_remaining(tvb, offset);
 
     /* 1) explicit label-to-dissector binding ? */
-    found = dissector_try_uint(mpls_subdissector_table, label,
-                               next_tvb, pinfo, tree);
+    found = dissector_try_uint_new(mpls_subdissector_table, label,
+                               next_tvb, pinfo, tree, FALSE, &mplsinfo);
     if (found)
         return;
 
     /* 2) use the 1st nibble logic (see BCP 4928, RFC 4385 and 5586) */
     if (first_nibble == 4) {
         call_dissector(dissector_ip, next_tvb, pinfo, tree);
+        /* IP dissector may reduce the length of the tvb.
+           We need to do the same, so that ethernet trailer is detected. */
+        set_actual_length(tvb, offset+tvb_reported_length(next_tvb));
         return;
     } else if (first_nibble == 6) {
         call_dissector(dissector_ipv6, next_tvb, pinfo, tree);
+        /* IPv6 dissector may reduce the length of the tvb.
+           We need to do the same, so that ethernet trailer is detected. */
+        set_actual_length(tvb, offset+tvb_reported_length(next_tvb));
         return;
     } else if (first_nibble == 1) {
         dissect_pw_ach(next_tvb, pinfo, tree);
@@ -752,6 +773,13 @@ proto_register_mpls(void)
         &ett_mpls_pw_ach,
         &ett_mpls_pw_mcw,
     };
+
+    /* Decode As handling */
+    static build_valid_func mpls_da_build_value[1] = {mpls_value};
+    static decode_as_value_t mpls_da_values = {mpls_prompt, 1, mpls_da_build_value};
+    static decode_as_t mpls_da = {"mpls", "MPLS", "mpls.label", 1, 0, &mpls_da_values, NULL, NULL,
+                                  decode_as_default_populate_list, decode_as_default_reset, decode_as_default_change, NULL};
+
     module_t * module_mpls;
 
     /* FF: mpls subdissector table is indexed by label */
@@ -786,7 +814,9 @@ proto_register_mpls(void)
                                     "Assume bottom of stack label as Flow label",
                                     "Lowest label is used to segregate flows inside a pseudowire",
                                     &mpls_bos_flowlabel);
-    }
+
+    register_decode_as(&mpls_da);
+}
 
 void
 proto_reg_handoff_mpls(void)
@@ -796,8 +826,10 @@ proto_reg_handoff_mpls(void)
     mpls_handle = find_dissector("mpls");
     dissector_add_uint("ethertype", ETHERTYPE_MPLS, mpls_handle);
     dissector_add_uint("ethertype", ETHERTYPE_MPLS_MULTI, mpls_handle);
-    dissector_add_uint("chdlctype", ETHERTYPE_MPLS, mpls_handle);
-    dissector_add_uint("chdlctype", ETHERTYPE_MPLS_MULTI, mpls_handle);
+    dissector_add_uint("ppp.protocol", PPP_MPLS_UNI, mpls_handle);
+    dissector_add_uint("ppp.protocol", PPP_MPLS_MULTI, mpls_handle);
+    dissector_add_uint("chdlc.protocol", ETHERTYPE_MPLS, mpls_handle);
+    dissector_add_uint("chdlc.protocol", ETHERTYPE_MPLS_MULTI, mpls_handle);
     dissector_add_uint("gre.proto", ETHERTYPE_MPLS, mpls_handle);
     dissector_add_uint("gre.proto", ETHERTYPE_MPLS_MULTI, mpls_handle);
     dissector_add_uint("ip.proto", IP_PROTO_MPLS_IN_IP, mpls_handle);
@@ -821,6 +853,7 @@ proto_reg_handoff_mpls(void)
     dissector_pw_eth_heuristic      = find_dissector("pw_eth_heuristic");
     dissector_pw_fr                 = find_dissector("pw_fr");
     dissector_pw_hdlc_nocw_fr       = find_dissector("pw_hdlc_nocw_fr");
+    dissector_pw_hdlc_nocw_hdlc_ppp = find_dissector("pw_hdlc_nocw_hdlc_ppp");
     dissector_pw_eth_cw             = find_dissector("pw_eth_cw");
     dissector_pw_eth_nocw           = find_dissector("pw_eth_nocw");
     dissector_pw_satop              = find_dissector("pw_satop_mpls");

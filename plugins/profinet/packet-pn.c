@@ -1,8 +1,6 @@
 /* packet-pn.c
  * Common functions for other PROFINET protocols like IO, CBA, DCP, ...
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1999 Gerald Combs
@@ -43,7 +41,7 @@ static int hf_pn_user_bytes = -1;
 static int hf_pn_frag_bytes = -1;
 static int hf_pn_malformed = -1;
 
-
+static expert_field ei_pn_undecoded_data = EI_INIT;
 
 /* dissect an 8 bit unsigned integer */
 int
@@ -59,6 +57,26 @@ dissect_pn_uint8(tvbuff_t *tvb, gint offset, packet_info *pinfo _U_,
     if (pdata)
         *pdata = data;
     return offset + 1;
+}
+
+/* dissect a 16 bit unsigned integer; return the item through a pointer as well */
+int
+dissect_pn_uint16_ret_item(tvbuff_t *tvb, gint offset, packet_info *pinfo _U_,
+                       proto_tree *tree, int hfindex, guint16 *pdata, proto_item ** new_item)
+{
+    guint16     data;
+    proto_item *item = NULL;
+
+    data = tvb_get_ntohs (tvb, offset);
+
+    if (tree) {
+        item = proto_tree_add_uint(tree, hfindex, tvb, offset, 2, data);
+    }
+    if (pdata)
+        *pdata = data;
+    if (new_item)
+        *new_item = item;
+    return offset + 2;
 }
 
 /* dissect a 16 bit unsigned integer */
@@ -204,7 +222,7 @@ dissect_pn_undecoded(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
     item = proto_tree_add_string_format(tree, hf_pn_undecoded_data, tvb, offset, length, "data",
         "Undecoded Data: %d bytes", length);
 
-    expert_add_info_format(pinfo, item, PI_UNDECODED, PI_WARN,
+    expert_add_info_format(pinfo, item, &ei_pn_undecoded_data,
                            "Undecoded Data, %u bytes", length);
 
     return offset + length;
@@ -217,9 +235,9 @@ dissect_pn_user_data_bytes(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
 {
     if (tree) {
         if(iSelect == FRAG_DATA)
-            proto_tree_add_bytes(tree, hf_pn_frag_bytes, tvb, offset, length, tvb_get_ptr(tvb,offset, length));
+            proto_tree_add_item(tree, hf_pn_frag_bytes, tvb, offset, length, ENC_NA);
         else
-            proto_tree_add_bytes(tree, hf_pn_user_bytes, tvb, offset, length, tvb_get_ptr(tvb,offset, length));
+            proto_tree_add_item(tree, hf_pn_user_bytes, tvb, offset, length, ENC_NA);
     }
     return offset + length;
 }
@@ -321,11 +339,19 @@ init_pn (int proto)
 
     };
 
-
     /*static gint *ett[] = {
       };*/
 
+    static ei_register_info ei[] = {
+        { &ei_pn_undecoded_data, { "pn.undecoded_data", PI_UNDECODED, PI_WARN, "Undecoded Data", EXPFILL }},
+    };
+
+    expert_module_t* expert_pn;
+
+
     proto_register_field_array (proto, hf, array_length (hf));
     /*proto_register_subtree_array (ett, array_length (ett));*/
+    expert_pn = expert_register_protocol(proto);
+    expert_register_field_array(expert_pn, ei, array_length(ei));
 }
 

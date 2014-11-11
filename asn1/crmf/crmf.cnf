@@ -1,13 +1,11 @@
 # CRMF.cnf
 # CRMF conformation file
 
-# $Id$
-
 #.MODULE_IMPORT
 PKIX1Explicit88	pkix1explicit
 PKIX1Implicit88	pkix1implicit
 CryptographicMessageSyntax2004 cms
-		
+
 #.IMPORT ../cms/cms-exp.cnf
 #.INCLUDE ../pkix1explicit/pkix1explicit_exp.cnf
 #.INCLUDE ../pkix1implicit/pkix1implicit_exp.cnf
@@ -68,10 +66,10 @@ PrivateKeyInfo/version          privkey_version
 EncKeyWithID/privateKey         enckeywid_privkey
 
 #.FN_PARS AttributeTypeAndValue/type
-  FN_VARIANT = _str  HF_INDEX = hf_crmf_type_oid  VAL_PTR = &object_identifier_id
+  FN_VARIANT = _str  HF_INDEX = hf_crmf_type_oid  VAL_PTR = &actx->external.direct_reference
 
 #.FN_BODY AttributeTypeAndValue/value
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree, NULL);
 
 #.END
 

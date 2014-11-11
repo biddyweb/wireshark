@@ -1,8 +1,6 @@
 # Makefile.am
 # Automake file for MATE Wireshark plugin
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -159,4 +157,5 @@ mate_grammar.c : mate_grammar.lemon mate.h mate_util.h $(LEMON)/lemon$(EXEEXT)
 
 checkapi:
 	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -g abort -g termoutput -build \
-		$(CLEAN_SRC_FILES) $(CLEAN_HEADER_FILES)
+	-sourcedir=$(srcdir) \
+	$(CLEAN_SRC_FILES) $(CLEAN_HEADER_FILES)

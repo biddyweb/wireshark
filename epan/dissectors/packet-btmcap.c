@@ -4,8 +4,6 @@
  *
  * Copyright 2013, Michal Labedzki for Tieto Corporation
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -51,10 +49,15 @@ static int hf_btmcap_bluetooth_clock_access_resolution                     = -1;
 static int hf_btmcap_sync_lead_time                                        = -1;
 static int hf_btmcap_timestamp_native_resolution                           = -1;
 static int hf_btmcap_timestamp_native_accuracy                             = -1;
-
 static int hf_btmcap_data                                                  = -1;
 
 static gint ett_btmcap = -1;
+
+static expert_field ei_btmcap_mdl_id_ffff = EI_INIT;
+static expert_field ei_btmcap_response_parameters_bad = EI_INIT;
+static expert_field ei_btmcap_unexpected_data = EI_INIT;
+
+static dissector_handle_t btmcap_handle;
 
 static const value_string op_code_vals[] = {
     { 0x00,   "ERROR_RSP" },
@@ -91,8 +94,11 @@ static const value_string response_code_vals[] = {
     { 0, NULL }
 };
 
-static void
-dissect_btmcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+void proto_register_btmcap(void);
+void proto_reg_handoff_btmcap(void);
+
+static gint
+dissect_btmcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
     proto_item *main_item;
     proto_tree *main_tree;
@@ -105,31 +111,23 @@ dissect_btmcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     guint32     bluetooth_clock_sync_time;
     guint64     timestamp_sync_time;
 
-    col_set_str(pinfo->cinfo, COL_PROTOCOL, "MCAP");
-    col_clear(pinfo->cinfo, COL_INFO);
-
-    switch (pinfo->p2p_dir) {
-
-    case P2P_DIR_SENT:
-        col_add_str(pinfo->cinfo, COL_INFO, "Sent ");
-        break;
-
-    case P2P_DIR_RECV:
-        col_add_str(pinfo->cinfo, COL_INFO, "Rcvd ");
-        break;
-
-    case P2P_DIR_UNKNOWN:
-        col_clear(pinfo->cinfo, COL_INFO);
-        break;
-
-    default:
-        col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
-            pinfo->p2p_dir);
-        break;
-    }
-
     main_item = proto_tree_add_item(tree, proto_btmcap, tvb, offset, -1, ENC_NA);
     main_tree = proto_item_add_subtree(main_item, ett_btmcap);
+
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, "MCAP");
+
+    switch (pinfo->p2p_dir) {
+        case P2P_DIR_SENT:
+            col_set_str(pinfo->cinfo, COL_INFO, "Sent ");
+            break;
+        case P2P_DIR_RECV:
+            col_set_str(pinfo->cinfo, COL_INFO, "Rcvd ");
+            break;
+        default:
+            col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
+                pinfo->p2p_dir);
+            break;
+    }
 
     pitem = proto_tree_add_item(main_tree, hf_btmcap_op_code, tvb, offset, 1, ENC_BIG_ENDIAN);
     op_code = tvb_get_guint8(tvb, offset);
@@ -138,10 +136,10 @@ dissect_btmcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     col_append_fstr(pinfo->cinfo, COL_INFO, "%s", val_to_str(op_code, op_code_vals, "Unknown Op Code"));
     if (op_code >= 0x11 && op_code <= 0x20) {
         proto_item_append_text(pitem, " (Clock Sync)");
-        col_append_fstr(pinfo->cinfo, COL_INFO, " (Clock Sync)");
+        col_append_str(pinfo->cinfo, COL_INFO, " (Clock Sync)");
     } else {
         proto_item_append_text(pitem, " (Standard)");
-        col_append_fstr(pinfo->cinfo, COL_INFO, " (Standard)");
+        col_append_str(pinfo->cinfo, COL_INFO, " (Standard)");
     }
 
     if (op_code & 0x01) {
@@ -164,12 +162,11 @@ dissect_btmcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     col_append_fstr(pinfo->cinfo, COL_INFO, " (Dynamic Range)");
                 } else if (mdl_id == 0x0000) {
                     proto_item_append_text(pitem, " (Reserved)");
-                    col_append_fstr(pinfo->cinfo, COL_INFO, " (Reserved)");
+                    col_append_str(pinfo->cinfo, COL_INFO, " (Reserved)");
                 }
 
                 if (op_code != 0x07 && mdl_id == 0xFFFF) {
-                    expert_add_info_format(pinfo, pitem, PI_PROTOCOL, PI_WARN,
-                            " The value 0xFFFF is not a valid MDL ID for this request and shall not be used.");
+                    expert_add_info(pinfo, pitem, &ei_btmcap_mdl_id_ffff);
                     }
 
                 if (op_code == 0x01) {
@@ -184,7 +181,7 @@ dissect_btmcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                         proto_item_append_text(pitem, " (Reserved)");
                     }
 
-                    pitem = proto_tree_add_item(main_tree, hf_btmcap_configuration, tvb, offset, 1, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(main_tree, hf_btmcap_configuration, tvb, offset, 1, ENC_BIG_ENDIAN);
                     offset += 1;
                 }
                 break;
@@ -194,7 +191,7 @@ dissect_btmcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 offset += 2;
                 break;
             case 0x13: /* MD_SYNC_SET_REQ */
-                pitem = proto_tree_add_item(main_tree, hf_btmcap_timestamp_update_information, tvb, offset, 1, ENC_BIG_ENDIAN);
+                proto_tree_add_item(main_tree, hf_btmcap_timestamp_update_information, tvb, offset, 1, ENC_BIG_ENDIAN);
                 offset += 1;
 
                 pitem = proto_tree_add_item(main_tree, hf_btmcap_bluetooth_clock_sync_time, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -202,7 +199,7 @@ dissect_btmcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 if (bluetooth_clock_sync_time == 0xFFFFFFFF)
                     proto_item_append_text(pitem, " (Instant Synchronization)");
                 else
-                    proto_item_append_text(pitem, " (Baseband Half-Slot Instant)");;
+                    proto_item_append_text(pitem, " (Baseband Half-Slot Instant)");
                 offset += 4;
 
                 pitem = proto_tree_add_item(main_tree, hf_btmcap_timestamp_sync_time, tvb, offset, 8, ENC_BIG_ENDIAN);
@@ -287,22 +284,22 @@ dissect_btmcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             col_append_fstr(pinfo->cinfo, COL_INFO, " - %u", mdl_id);
             if (mdl_id == 0xFFFF) {
                 proto_item_append_text(pitem, " (Indicates all MDLs)");
-                col_append_fstr(pinfo->cinfo, COL_INFO, " (Indicates all MDLs)");
+                col_append_str(pinfo->cinfo, COL_INFO, " (Indicates all MDLs)");
             } else if (mdl_id >= 0x0001 && mdl_id <= 0xFEFF) {
                 proto_item_append_text(pitem, " (Dynamic Range)");
-                col_append_fstr(pinfo->cinfo, COL_INFO, " (Dynamic Range)");
+                col_append_str(pinfo->cinfo, COL_INFO, " (Dynamic Range)");
             } else if (mdl_id == 0x0000) {
                 proto_item_append_text(pitem, " (Reserved)");
-                col_append_fstr(pinfo->cinfo, COL_INFO, " (Reserved)");
+                col_append_str(pinfo->cinfo, COL_INFO, " (Reserved)");
             }
 
             if ((op_code == 0x03 || op_code == 0x05 || op_code == 0x07) && tvb_length_remaining(tvb, offset)) {
-                    expert_add_info_format(pinfo, pitem, PI_PROTOCOL, PI_WARN,
+                    expert_add_info_format(pinfo, pitem, &ei_btmcap_response_parameters_bad,
                             "The Response Parameters for MD_RECONNECT_MDL_RSP shall have length zero.");
             } else if (tvb_length_remaining(tvb, offset)) {
                 pitem = proto_tree_add_item(main_tree, hf_btmcap_response_parameters, tvb, offset, -1, ENC_NA);
                 if (response_code != 0x00) {
-                    expert_add_info_format(pinfo, pitem, PI_PROTOCOL, PI_WARN,
+                    expert_add_info_format(pinfo, pitem, &ei_btmcap_response_parameters_bad,
                             "When the Response Code is not Success, the Response Parameters shall have length zero.");
                 }
                 offset += tvb_length_remaining(tvb, offset);
@@ -312,9 +309,11 @@ dissect_btmcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     if (tvb_length_remaining(tvb, offset)) {
         pitem = proto_tree_add_item(main_tree, hf_btmcap_data, tvb, offset, -1, ENC_NA);
-        expert_add_info_format(pinfo, pitem, PI_PROTOCOL, PI_WARN,
-                "Unexpected data");
+        expert_add_info(pinfo, pitem, &ei_btmcap_unexpected_data);
+        offset = tvb_length(tvb);
     }
+
+    return offset;
 }
 
 
@@ -322,6 +321,7 @@ void
 proto_register_btmcap(void)
 {
     module_t *module;
+    expert_module_t *expert_btmcap;
 
     static hf_register_info hf[] = {
         { &hf_btmcap_op_code,
@@ -412,11 +412,19 @@ proto_register_btmcap(void)
         &ett_btmcap
     };
 
-    proto_btmcap = proto_register_protocol("Bluetooth MCAP Profile", "MCAP", "btmcap");
-    register_dissector("btmcap", dissect_btmcap, proto_btmcap);
+    static ei_register_info ei[] = {
+        { &ei_btmcap_mdl_id_ffff, { "btmcap.mdl_id.ffff", PI_PROTOCOL, PI_WARN, "The value 0xFFFF is not a valid MDL ID for this request and shall not be used.", EXPFILL }},
+        { &ei_btmcap_response_parameters_bad, { "btmcap.response_parameters.bad", PI_PROTOCOL, PI_WARN, "Response parameters bad", EXPFILL }},
+        { &ei_btmcap_unexpected_data, { "btmcap.unexpected_data", PI_PROTOCOL, PI_WARN, "Unexpected data", EXPFILL }},
+    };
+
+    proto_btmcap = proto_register_protocol("Bluetooth MCAP Protocol", "BT MCAP", "btmcap");
+    btmcap_handle = new_register_dissector("btmcap", dissect_btmcap, proto_btmcap);
 
     proto_register_field_array(proto_btmcap, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_btmcap = expert_register_protocol(proto_btmcap);
+    expert_register_field_array(expert_btmcap, ei, array_length(ei));
 
     module = prefs_register_protocol(proto_btmcap, NULL);
     prefs_register_static_text_preference(module, "mcap.version",
@@ -428,10 +436,6 @@ proto_register_btmcap(void)
 void
 proto_reg_handoff_btmcap(void)
 {
-    dissector_handle_t btmcap_handle;
-
-    btmcap_handle = find_dissector("btmcap");
-
     dissector_add_uint("btl2cap.service", BTSDP_MCAP_CONTROL_CHANNEL_PROTOCOL_UUID, btmcap_handle);
     dissector_add_uint("btl2cap.service", BTSDP_MCAP_DATA_CHANNEL_PROTOCOL_UUID, btmcap_handle);
 

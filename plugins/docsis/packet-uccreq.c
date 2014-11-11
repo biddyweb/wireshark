@@ -2,8 +2,6 @@
  * Routines for Upstream Channel Change Request dissection
  * Copyright 2002, Anand V. Narwani <anand[AT]narwani.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,6 +25,9 @@
 
 #include <epan/packet.h>
 
+void proto_register_docsis_uccreq(void);
+void proto_reg_handoff_docsis_uccreq(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_docsis_uccreq = -1;
 static int hf_docsis_uccreq_upchid = -1;
@@ -48,7 +49,6 @@ dissect_uccreq (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 
   chid = tvb_get_guint8 (tvb, 0);
 
-  col_clear (pinfo->cinfo, COL_INFO);
   col_add_fstr (pinfo->cinfo, COL_INFO,
 	    "Upstream Channel Change request  Channel ID = %u (U%u)",
 	    chid, (chid > 0 ? chid - 1 : chid));

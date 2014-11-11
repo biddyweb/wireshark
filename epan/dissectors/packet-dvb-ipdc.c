@@ -2,8 +2,6 @@
  * Routines for ETSI IP Datacast ESG Bootstrap parsing
  * Copyright 2009 by Holger Hans Peter Freyther <zecke@selfish.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,8 @@
 
 #include <epan/packet.h>
 
+void proto_register_dvb_ipdc(void);
+void proto_reg_handoff_dvb_ipdc(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_ipdc = -1;
@@ -41,7 +41,7 @@ static gint ett_ipdc = -1;
 
 enum {
     DVB_IPDC_SUB_FLUTE,
-    DVB_IPDC_SUB_MAX,
+    DVB_IPDC_SUB_MAX
 };
 
 static dissector_handle_t sub_handles[DVB_IPDC_SUB_MAX];

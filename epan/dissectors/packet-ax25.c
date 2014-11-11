@@ -4,8 +4,6 @@
  * AX.25 frames
  * Copyright 2005,2006,2007,2008,2009,2010,2012 R.W. Stearn <richard@rns-stearn.demon.co.uk>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -49,7 +47,9 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <wiretap/wtap.h>
+#include <epan/to_str.h>
+#include <epan/wmem/wmem.h>
 #include <epan/xdlc.h>
 #include <epan/ax25_pids.h>
 #include <epan/ipproto.h>
@@ -64,10 +64,11 @@
 #define AX25_HEADER_SIZE	15 /* length of src_addr + dst_addr + cntl */
 #define AX25_MAX_DIGIS		 8
 
+void proto_register_ax25(void);
+void proto_reg_handoff_ax25(void);
+
 /* Dissector table */
 static dissector_table_t ax25_dissector_table;
-
-static dissector_handle_t data_handle;
 
 /* Initialize the protocol and registered fields */
 static int proto_ax25		= -1;
@@ -125,6 +126,10 @@ static const value_string pid_vals[] = {
 static gint ett_ax25 = -1;
 static gint ett_ax25_ctl = -1;
 
+static dissector_handle_t ax25_handle;
+
+static dissector_handle_t data_handle;
+
 static void
 dissect_ax25( tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree )
 {
@@ -143,11 +148,10 @@ dissect_ax25( tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree )
 	guint8 pid = AX25_P_NO_L3;
 	guint8 src_ssid;
 	guint8 dst_ssid;
-	void *saved_private_data;
 	tvbuff_t *next_tvb = NULL;
 
 
-	info_buffer = ep_alloc( STRLEN );
+	info_buffer = (char *)wmem_alloc( wmem_packet_scope(), STRLEN );
 	info_buffer[0] = '\0';
 
 	col_set_str( pinfo->cinfo, COL_PROTOCOL, "AX.25" );
@@ -249,16 +253,12 @@ dissect_ax25( tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree )
 
 		proto_item_set_end(ti, tvb, offset);
 
-		saved_private_data = pinfo->private_data;
-
 		next_tvb = tvb_new_subset_remaining(tvb, offset);
 
 		if (!dissector_try_uint(ax25_dissector_table, pid, next_tvb, pinfo, parent_tree))
 			{
 			call_dissector(data_handle, next_tvb, pinfo, parent_tree);
 			}
-
-		pinfo->private_data = saved_private_data;
 		}
 	else
 		proto_item_set_end(ti, tvb, offset);
@@ -431,7 +431,7 @@ proto_register_ax25(void)
 	proto_ax25 = proto_register_protocol("Amateur Radio AX.25", "AX.25", "ax25");
 
 	/* Register the dissector */
-	register_dissector( "ax25", dissect_ax25, proto_ax25 );
+	ax25_handle = register_dissector( "ax25", dissect_ax25, proto_ax25 );
 
 	/* Required function calls to register the header fields and subtrees used */
 	proto_register_field_array( proto_ax25, hf, array_length(hf ) );
@@ -444,9 +444,6 @@ proto_register_ax25(void)
 void
 proto_reg_handoff_ax25(void)
 {
-	dissector_handle_t ax25_handle;
-
-	ax25_handle = create_dissector_handle( dissect_ax25, proto_ax25 );
 	dissector_add_uint("wtap_encap", WTAP_ENCAP_AX25, ax25_handle);
 	dissector_add_uint("ip.proto", IP_PROTO_AX25, ax25_handle);
 

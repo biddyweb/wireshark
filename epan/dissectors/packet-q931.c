@@ -2,8 +2,6 @@
  * Routines for Q.931 frame disassembly
  * Guy Harris <guy@alum.mit.edu>
  *
- * $Id$
- *
  * Modified by Andreas Sikkema for possible use with H.323
  *
  * Wireshark - Network traffic analyzer
@@ -37,7 +35,7 @@
 #include "packet-e164.h"
 #include <epan/prefs.h>
 #include <epan/reassemble.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 
 #include <epan/sctpppids.h>
 #include <epan/lapd_sapi.h>
@@ -55,10 +53,17 @@
  * http://www.andrews-arnold.co.uk/isdn/q931cause.html
  * http://www.tulatelecom.ru/staff/german/DSSHelp/MessList/InfEl/InfElList.html
  */
+
+void proto_register_q931(void);
+void proto_reg_handoff_q931(void);
+
 static void reset_q931_packet_info(q931_packet_info *pi);
 static gboolean have_valid_q931_pi=FALSE;
 static q931_packet_info *q931_pi=NULL;
 static int q931_tap = -1;
+
+static dissector_handle_t q931_handle;
+static dissector_handle_t q931_over_ip_handle;
 
 static int proto_q931 					= -1;
 static int hf_q931_discriminator			= -1;
@@ -141,9 +146,8 @@ static const fragment_items q931_frag_items = {
 	"segments"
 };
 
-/* Tables for reassembly of fragments. */
-static GHashTable *q931_fragment_table = NULL;
-static GHashTable *q931_reassembled_table = NULL;
+/* Table for reassembly of fragments. */
+static reassembly_table q931_reassembly_table;
 
 /* Preferences */
 static gboolean q931_reassembly = TRUE;
@@ -712,32 +716,32 @@ dissect_q931_protocol_discriminator(tvbuff_t *tvb, int offset, proto_tree *tree)
 	unsigned int discriminator = tvb_get_guint8(tvb, offset);
 
 	if (discriminator == NLPID_DMS) {
-		proto_tree_add_uint_format(tree, hf_q931_discriminator,
+		proto_tree_add_uint_format_value(tree, hf_q931_discriminator,
 			 tvb, offset, 1, discriminator,
-			 "Protocol discriminator: Maintenance messages");
+			 "Maintenance messages");
 	} else if (discriminator == NLPID_Q_931) {
-		proto_tree_add_uint_format(tree, hf_q931_discriminator,
+		proto_tree_add_uint_format_value(tree, hf_q931_discriminator,
 			 tvb, offset, 1, discriminator,
-			 "Protocol discriminator: Q.931");
+			 "Q.931");
 	} else if (discriminator == NLPID_Q_2931) {
-		proto_tree_add_uint_format(tree, hf_q931_discriminator,
+		proto_tree_add_uint_format_value(tree, hf_q931_discriminator,
 			 tvb, offset, 1, discriminator,
-			 "Protocol discriminator: Q.2931");
+			 "Q.2931");
 	} else if ((discriminator >= 16 && discriminator < 63)
 	    || ((discriminator >= 80) && (discriminator < 254))) {
-		proto_tree_add_uint_format(tree, hf_q931_discriminator,
+		proto_tree_add_uint_format_value(tree, hf_q931_discriminator,
 		    tvb, offset, 1, discriminator,
-		    "Protocol discriminator: Network layer or layer 3 protocol (0x%02X)",
+		    "Network layer or layer 3 protocol (0x%02X)",
 		    discriminator);
 	} else if (discriminator >= 64 && discriminator <= 79) {
-		proto_tree_add_uint_format(tree, hf_q931_discriminator,
+		proto_tree_add_uint_format_value(tree, hf_q931_discriminator,
 		    tvb, offset, 1, discriminator,
-		    "Protocol discriminator: National use (0x%02X)",
+		    "National use (0x%02X)",
 		    discriminator);
 	} else {
-		proto_tree_add_uint_format(tree, hf_q931_discriminator,
+		proto_tree_add_uint_format_value(tree, hf_q931_discriminator,
 		    tvb, offset, 1, discriminator,
-		    "Protocol discriminator: Reserved (0x%02X)",
+		    "Reserved (0x%02X)",
 		    discriminator);
 	}
 }
@@ -772,7 +776,7 @@ dissect_q931_bearer_capability_ie(tvbuff_t *tvb, int offset, int len,
 		 */
 		proto_tree_add_text(tree, tvb, offset,
 		    len, "Data: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 		proto_tree_add_boolean(tree, hf_q931_extension_ind, tvb, offset, 1, octet);
 		proto_tree_add_uint(tree, hf_q931_coding_standard, tvb, offset, 1, octet);
 		return;
@@ -1271,7 +1275,7 @@ dissect_q931_cause_ie_unsafe(tvbuff_t *tvb, int offset, int len,
 		proto_tree_add_uint(tree, hf_q931_coding_standard, tvb, offset, 1, octet);
 		proto_tree_add_text(tree, tvb, offset,
 		    len, "Data: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 		return;
 	}
 	proto_tree_add_uint(tree, hf_q931_cause_location, tvb, offset, 1, octet);
@@ -1348,7 +1352,7 @@ dissect_q931_cause_ie_unsafe(tvbuff_t *tvb, int offset, int len,
 		case Q931_REJ_USER_SPECIFIC:
 			proto_tree_add_text(tree, tvb, offset, len,
 			    "User specific diagnostic: %s",
-			    tvb_bytes_to_str(tvb, offset, len));
+			    tvb_bytes_to_ep_str(tvb, offset, len));
 			break;
 
 		case Q931_REJ_IE_MISSING:
@@ -1368,7 +1372,7 @@ dissect_q931_cause_ie_unsafe(tvbuff_t *tvb, int offset, int len,
 		default:
 			proto_tree_add_text(tree, tvb, offset, len,
 			    "Diagnostic: %s",
-			    tvb_bytes_to_str(tvb, offset, len));
+			    tvb_bytes_to_ep_str(tvb, offset, len));
 			break;
 		}
 		break;
@@ -1400,13 +1404,13 @@ dissect_q931_cause_ie_unsafe(tvbuff_t *tvb, int offset, int len,
 		if (len < 3)
 			return;
 		proto_tree_add_text(tree, tvb, offset, 3,
-		    "Timer: %.3s", tvb_get_ephemeral_string(tvb, offset, 3));
+		    "Timer: %.3s", tvb_get_string(wmem_packet_scope(), tvb, offset, 3));
 		break;
 
 	default:
 		proto_tree_add_text(tree, tvb, offset, len,
 		    "Diagnostics: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 	}
 }
 
@@ -1493,7 +1497,7 @@ dissect_q931_call_state_ie(tvbuff_t *tvb, int offset, int len,
 		 */
 		proto_tree_add_text(tree, tvb, offset,
 		    len, "Data: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 		return;
 	}
 	proto_tree_add_text(tree, tvb, offset, 1,
@@ -1595,7 +1599,7 @@ dissect_q931_channel_identification_ie(tvbuff_t *tvb, int offset, int len,
 			 */
 			proto_tree_add_text(tree, tvb, offset,
 			    len, "Data: %s",
-			    tvb_bytes_to_str(tvb, offset, len));
+			    tvb_bytes_to_ep_str(tvb, offset, len));
 			return;
 		}
 		proto_tree_add_item(tree, hf_q931_channel_map, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -1663,7 +1667,7 @@ dissect_q931_progress_indicator_ie(tvbuff_t *tvb, int offset, int len,
 		 */
 		proto_tree_add_text(tree, tvb, offset,
 		    len, "Data: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 		return;
 	}
 	proto_tree_add_text(tree, tvb, offset, 1,
@@ -1753,7 +1757,7 @@ dissect_q931_ns_facilities_ie(tvbuff_t *tvb, int offset, int len,
 	 	return;
 	proto_tree_add_text(tree, tvb, offset,
 	    len, "Network-specific facility specification: %s",
-	    tvb_bytes_to_str(tvb, offset, len));
+	    tvb_bytes_to_ep_str(tvb, offset, len));
 }
 
 /*
@@ -2240,7 +2244,7 @@ dissect_q931_number_ie(tvbuff_t *tvb, int offset, int len,
 	if ( number_plan == 1 ) {
 		if ( e164_info.e164_number_type != NONE ){
 
-			e164_info.E164_number_str = tvb_get_ephemeral_string(tvb, offset, len);
+			e164_info.E164_number_str = tvb_get_string(wmem_packet_scope(), tvb, offset, len);
 			e164_info.E164_number_length = len;
 			dissect_e164_number(tvb, tree, offset, len, e164_info);
 		}
@@ -2248,9 +2252,9 @@ dissect_q931_number_ie(tvbuff_t *tvb, int offset, int len,
 
     /* Collect q931_packet_info */
     if ( e164_info.e164_number_type == CALLING_PARTY_NUMBER && have_valid_q931_pi)
-          q931_pi->calling_number = tvb_get_ephemeral_string(tvb, offset, len);
+          q931_pi->calling_number = tvb_get_string(wmem_packet_scope(), tvb, offset, len);
     if ( e164_info.e164_number_type == CALLED_PARTY_NUMBER && have_valid_q931_pi)
-          q931_pi->called_number = tvb_get_ephemeral_string(tvb, offset, len);
+          q931_pi->called_number = tvb_get_string(wmem_packet_scope(), tvb, offset, len);
 }
 
 /*
@@ -2291,7 +2295,7 @@ dissect_q931_party_subaddr_ie(tvbuff_t *tvb, int offset, int len,
 	if (len == 0)
 		return;
 	proto_tree_add_text(tree, tvb, offset, len, "Subaddress: %s",
-	    tvb_bytes_to_str(tvb, offset, len));
+	    tvb_bytes_to_ep_str(tvb, offset, len));
 }
 
 /*
@@ -2422,7 +2426,7 @@ dissect_q931_high_layer_compat_ie(tvbuff_t *tvb, int offset, int len,
 		 */
 		proto_tree_add_text(tree, tvb, offset,
 		    len, "Data: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 		return;
 	}
 	if (len == 0)
@@ -2481,6 +2485,7 @@ dissect_q931_user_user_ie(tvbuff_t *tvb, packet_info *pinfo, int offset, int len
 {
 	guint8 octet;
 	tvbuff_t *next_tvb = NULL;
+	heur_dtbl_entry_t *hdtbl_entry;
 
 	if (len == 0)
 		return;
@@ -2499,7 +2504,7 @@ dissect_q931_user_user_ie(tvbuff_t *tvb, packet_info *pinfo, int offset, int len
 	case Q931_PROTOCOL_DISCRIMINATOR_USER:
 		next_tvb = tvb_new_subset(tvb, offset, len, len);
 		proto_tree_add_text(tree, tvb, offset, len, "User information: %d octets", len);
-		if (!dissector_try_heuristic(q931_user_heur_subdissector_list, next_tvb, pinfo, tree, NULL)) {
+		if (!dissector_try_heuristic(q931_user_heur_subdissector_list, next_tvb, pinfo, tree, &hdtbl_entry, NULL)) {
 		call_dissector_only(data_handle, next_tvb, pinfo, tree, NULL);
 		}
 		break;
@@ -2511,7 +2516,7 @@ dissect_q931_user_user_ie(tvbuff_t *tvb, packet_info *pinfo, int offset, int len
 
 	default:
 		proto_tree_add_text(tree, tvb, offset, len, "User information: %s",
-		    tvb_bytes_to_str(tvb, offset, len));
+		    tvb_bytes_to_ep_str(tvb, offset, len));
 		break;
 	}
 }
@@ -2576,10 +2581,10 @@ dissect_q931_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	guint16		info_element_len;
 	gboolean	first_frag, more_frags;
 	guint32		frag_len;
-	fragment_data *fd_head;
+	fragment_head *fd_head;
 	tvbuff_t *next_tvb = NULL;
 
-	q931_pi=ep_alloc(sizeof(q931_packet_info));
+	q931_pi=wmem_new(wmem_packet_scope(), q931_packet_info);
 
 	/* Init struct for collecting q931_packet_info */
 	reset_q931_packet_info(q931_pi);
@@ -2627,15 +2632,13 @@ dissect_q931_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	if(have_valid_q931_pi) {
 		q931_pi->message_type = message_type;
 	}
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_str(pinfo->cinfo, COL_INFO, get_message_name(prot_discr, message_type));
-	}
-	if (q931_tree != NULL){
-		if (prot_discr == NLPID_DMS)
-			proto_tree_add_item(q931_tree, hf_q931_maintenance_message_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-		else
-			proto_tree_add_item(q931_tree, hf_q931_message_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-	}
+	col_add_str(pinfo->cinfo, COL_INFO, get_message_name(prot_discr, message_type));
+
+	if (prot_discr == NLPID_DMS)
+		proto_tree_add_item(q931_tree, hf_q931_maintenance_message_type, tvb, offset, 1, ENC_BIG_ENDIAN);
+	else
+		proto_tree_add_item(q931_tree, hf_q931_message_type, tvb, offset, 1, ENC_BIG_ENDIAN);
+
 	offset += 1;
 
 	/*
@@ -2663,24 +2666,23 @@ dissect_q931_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	first_frag = (tvb_get_guint8(tvb, offset + 2) & 0x80) != 0;
 	more_frags = (tvb_get_guint8(tvb, offset + 2) & 0x7F) != 0;
 	segmented_message_type = tvb_get_guint8(tvb, offset + 3);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_append_fstr(pinfo->cinfo, COL_INFO, " of %s",
+	col_append_fstr(pinfo->cinfo, COL_INFO, " of %s",
 		    val_to_str_ext(segmented_message_type, &q931_message_type_vals_ext, "Unknown message type (0x%02X)"));
-	}
+
 	offset += 1 + 1 + info_element_len;
 	/* Reassembly */
 	frag_len = tvb_reported_length_remaining(tvb, offset);
-	if (first_frag && fragment_get(pinfo, call_ref_val,	q931_fragment_table)) {
+	if (first_frag && fragment_get(&q931_reassembly_table, pinfo, call_ref_val, NULL)) {
 		/* there are some unreassembled segments, ignore them */
-		fragment_end_seq_next(pinfo, call_ref_val, q931_fragment_table, q931_reassembled_table);
+		fragment_end_seq_next(&q931_reassembly_table, pinfo, call_ref_val, NULL);
 	}
-	fd_head = fragment_add_seq_next(tvb, offset, pinfo, call_ref_val,
-									q931_fragment_table, q931_reassembled_table,
-									frag_len, more_frags);
+	fd_head = fragment_add_seq_next(&q931_reassembly_table,
+					tvb, offset, pinfo, call_ref_val, NULL,
+					frag_len, more_frags);
 	if (fd_head) {
 		if (pinfo->fd->num == fd_head->reassembled_in) {  /* last fragment */
 			if (fd_head->next != NULL) {  /* 2 or more segments */
-				next_tvb = tvb_new_child_real_data(tvb, fd_head->data, fd_head->len, fd_head->len);
+				next_tvb = tvb_new_chain(tvb, fd_head->tvb_data);
 				add_new_data_source(pinfo, next_tvb, "Reassembled Q.931 IEs");
 				/* Show all fragments. */
                 if (tree) {
@@ -2690,10 +2692,10 @@ dissect_q931_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			} else {  /* only 1 segment */
 				next_tvb = tvb_new_subset_remaining(tvb, offset);
 			}
-			if (check_col(pinfo->cinfo, COL_INFO)) {
-				col_add_fstr(pinfo->cinfo, COL_INFO, "%s [reassembled]",
+
+			col_add_fstr(pinfo->cinfo, COL_INFO, "%s [reassembled]",
 				    val_to_str_ext(segmented_message_type, &q931_message_type_vals_ext, "Unknown message type (0x%02X)"));
-			}
+
 		} else {
 			if (tree) proto_tree_add_uint(q931_tree, hf_q931_reassembled_in, tvb, offset, frag_len, fd_head->reassembled_in);
 		}
@@ -2902,7 +2904,7 @@ dissect_q931_IEs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *root_tree,
 					proto_tree_add_text(ie_tree, tvb,
 					    offset + 4, info_element_len - 1,
 					    "User information: %s",
-					    tvb_bytes_to_str(tvb, offset + 4,
+					    tvb_bytes_to_ep_str(tvb, offset + 4,
 					      info_element_len - 1));
 				}
 			}
@@ -2939,10 +2941,9 @@ dissect_q931_IEs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *root_tree,
 
 			if (((codeset << 8) | info_element) == (CS0 | Q931_IE_SEGMENTED_MESSAGE)) {
 				dissect_q931_segmented_message_ie(tvb, offset + 2, info_element_len, ie_tree);
-				if (check_col(pinfo->cinfo, COL_INFO)) {
-					col_append_fstr(pinfo->cinfo, COL_INFO, " of %s",
+				col_append_fstr(pinfo->cinfo, COL_INFO, " of %s",
 					    val_to_str_ext(tvb_get_guint8(tvb, offset + 3), &q931_message_type_vals_ext, "Unknown message type (0x%02X)"));
-				}
+
 				if (tvb_get_guint8(tvb, offset + 2) & 0x80) {  /* the 1st segment */
 					first_segment = TRUE;
 				} else {  /* not the 1st segment */
@@ -3210,7 +3211,7 @@ dissect_q931_IEs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *root_tree,
 						proto_tree_add_text(ie_tree, tvb,
 							offset + 2, info_element_len,
 							"Data: %s",
-							tvb_bytes_to_str(tvb, offset + 2,
+							tvb_bytes_to_ep_str(tvb, offset + 2,
 							  info_element_len));
 					}
 					break;
@@ -3338,8 +3339,8 @@ dissect_q931_ie_cs7(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 static void
 q931_init(void) {
 	/* Initialize the fragment and reassembly tables */
-	fragment_table_init(&q931_fragment_table);
-	reassembled_table_init(&q931_reassembled_table);
+	reassembly_table_init(&q931_reassembly_table,
+				&addresses_reassembly_table_functions);
 }
 
 void
@@ -3568,12 +3569,11 @@ proto_register_q931(void)
 	proto_register_subtree_array(ett, array_length(ett));
 	register_init_routine(q931_init);
 
-	register_dissector("q931", dissect_q931, proto_q931);
-	register_dissector("q931.tpkt", dissect_q931_tpkt, proto_q931);
-	q931_tpkt_handle = find_dissector("q931.tpkt");
+	q931_handle = register_dissector("q931", dissect_q931, proto_q931);
+	q931_tpkt_handle = register_dissector("q931.tpkt", dissect_q931_tpkt, proto_q931);
 	q931_tpkt_pdu_handle = create_dissector_handle(dissect_q931_tpkt_pdu,
 	    proto_q931);
-	register_dissector("q931.over_ip", dissect_q931_over_ip, proto_q931);
+	q931_over_ip_handle = register_dissector("q931.over_ip", dissect_q931_over_ip, proto_q931);
 	register_dissector("q931.ie", dissect_q931_ie_cs0, proto_q931);
 	register_dissector("q931.ie.cs7", dissect_q931_ie_cs7, proto_q931);
 
@@ -3599,13 +3599,7 @@ proto_register_q931(void)
 void
 proto_reg_handoff_q931(void)
 {
-	dissector_handle_t q931_handle;
-	dissector_handle_t q931_over_ip_handle;
-
-	q931_handle = find_dissector("q931");
 	dissector_add_uint("lapd.sapi", LAPD_SAPI_Q931, q931_handle);
-
-	q931_over_ip_handle = find_dissector("q931.over_ip");
 	dissector_add_uint("sctp.ppi", H323_PAYLOAD_PROTOCOL_ID, q931_over_ip_handle);
 
 	/*

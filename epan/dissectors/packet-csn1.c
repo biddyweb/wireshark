@@ -4,8 +4,6 @@
  * with the gracious authorization of STE
  * Copyright (c) 2011 ST-Ericsson
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,7 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include "packet-csn1.h"
 
 #define pvDATA(_pv, _offset) ((void*) ((unsigned char*)_pv + _offset))
@@ -587,7 +586,7 @@ csnStreamDissector(proto_tree *tree, csnStream_t* ar, const CSN_DESCR* pDescr, t
       {
         gint16 count = pDescr->i;
         guint8 i     = 0;
-        CSN_ChoiceElement_t* pChoice = (CSN_ChoiceElement_t*) pDescr->descr.ptr;
+        const CSN_ChoiceElement_t* pChoice = (const CSN_ChoiceElement_t*) pDescr->descr.ptr;
 
         while (count > 0)
         {

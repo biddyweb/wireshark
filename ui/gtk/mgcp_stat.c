@@ -2,8 +2,6 @@
  * mgcp-statistics for Wireshark
  * Copyright 2003 Lars Roland
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,7 +33,7 @@
 #include <epan/tap.h>
 #include "epan/dissectors/packet-mgcp.h"
 
-#include "../timestats.h"
+#include "epan/timestats.h"
 #include "ui/simple_dialog.h"
 #include "../file.h"
 #include "../stat_menu.h"
@@ -47,6 +45,8 @@
 #include "ui/gtk/main.h"
 
 #include "ui/gtk/old-gtk-compat.h"
+
+void register_tap_listener_gtkmgcpstat(void);
 
 #define NUM_TIMESTATS 10
 
@@ -106,7 +106,7 @@ static int
 mgcpstat_packet(void *pms, packet_info *pinfo, epan_dissect_t *edt _U_, const void *pmi)
 {
 	mgcpstat_t *ms=(mgcpstat_t *)pms;
-	const mgcp_info_t *mi=pmi;
+	const mgcp_info_t *mi=(mgcp_info_t *)pmi;
 	nstime_t delta;
 	int ret = 0;
 
@@ -245,7 +245,7 @@ gtk_mgcpstat_init(const char *opt_arg, void *userdata _U_)
 	GtkWidget *bt_close;
 	GtkWidget *bbox;
 
-	ms=g_malloc(sizeof(mgcpstat_t));
+	ms=(mgcpstat_t *)g_malloc(sizeof(mgcpstat_t));
 
 	if(strncmp(opt_arg,"mgcp,srt,",9) == 0){
 		ms->filter=g_strdup(opt_arg+9);
@@ -282,7 +282,7 @@ gtk_mgcpstat_init(const char *opt_arg, void *userdata _U_)
 	bbox = dlg_button_row_new(GTK_STOCK_CLOSE, NULL);
 	gtk_box_pack_start(GTK_BOX(ms->vbox), bbox, FALSE, FALSE, 0);
 
-	bt_close = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+	bt_close = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
 	window_set_cancel_button(ms->win, bt_close, window_cancel_button_cb);
 
 	g_signal_connect(ms->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
@@ -311,11 +311,6 @@ static tap_param_dlg mgcp_srt_dlg = {
 void
 register_tap_listener_gtkmgcpstat(void)
 {
-	register_dfilter_stat(&mgcp_srt_dlg, "MGCP",
+	register_param_stat(&mgcp_srt_dlg, "MGCP",
 	    REGISTER_STAT_GROUP_RESPONSE_TIME);
 }
-void mgcp_srt_cb(GtkAction *action, gpointer user_data _U_)
-{
-	tap_param_dlg_cb(action, &mgcp_srt_dlg);
-}
-

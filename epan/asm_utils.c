@@ -1,8 +1,6 @@
 /* asm_utils.c
  * Functions optionally implemented in assembler
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -65,7 +63,7 @@ guint
 wrs_str_hash(gconstpointer v)
 {
   /* 31 bit hash function */
-  const signed char *p = v;
+  const signed char *p = (const signed char *)v;
   guint32 h = *p;
   if (h)
     for (p += 1; *p != '\0'; p++)

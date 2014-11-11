@@ -2,8 +2,6 @@
  * Routines for analyzing Cisco FabricPath MiM packets
  * Copyright 2011, Leonard Tracy <letracy@cisco.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,6 +32,9 @@
 #include <epan/etypes.h>
 #include <epan/addr_resolv.h>
 #include <epan/prefs.h>
+
+void proto_register_mim(void);
+void proto_reg_handoff_fabricpath(void);
 
 static int proto_fp = -1 ;
 static gint ett_mim = -1 ;
@@ -117,7 +118,6 @@ static dissector_handle_t eth_dissector ;
 
 
 static int dissect_fp( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_ );
-void proto_reg_handoff_fabricpath(void);
 
 
 static gboolean
@@ -187,7 +187,7 @@ fp_add_hmac (tvbuff_t *tvb, proto_tree *tree, int offset) {
   offset += FP_SSWID_LEN;
 
   proto_tree_add_item (tree, hf_lid, tvb, offset, FP_LID_LEN, ENC_BIG_ENDIAN);
-  offset += FP_LID_LEN;
+  /*offset += FP_LID_LEN;*/
 
 }
 /* FabricPath MiM Dissector */

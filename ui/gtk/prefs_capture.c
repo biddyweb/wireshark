@@ -1,7 +1,5 @@
-/* capture_prefs.c
+/* prefs_capture.c
  * Dialog box for capture preferences
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -37,6 +35,7 @@
 #include "ui/capture_globals.h"
 #include "ui/iface_lists.h"
 #include "ui/simple_dialog.h"
+#include "ui/ui_util.h"
 
 #include "ui/gtk/prefs_capture.h"
 #include "ui/gtk/prefs_dlg.h"
@@ -48,6 +47,7 @@
 #include "ui/gtk/old-gtk-compat.h"
 #include <epan/strutil.h>
 
+#include <wiretap/wtap.h>
 
 #define DEVICE_KEY		"device"
 #define PROM_MODE_KEY		"prom_mode"
@@ -64,6 +64,8 @@
 #define COLOPTS_CALLER_PTR_KEY	"colopts_caller_ptr"
 #define COLOPTS_DIALOG_PTR_KEY	"colopts_dialog_ptr"
 
+static GtkWidget	*capture_window;
+
 /* interface options dialog */
 static GtkWidget *cur_list, *if_dev_lb, *if_name_lb, *if_linktype_lb, *if_linktype_cb, *if_descr_te, *if_hide_cb, *if_default_if_lb;
 #ifdef HAVE_PCAP_CREATE
@@ -72,11 +74,11 @@ static GtkWidget *if_monitor_lb, *if_monitor_cb;
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
 static GtkWidget *if_buffersize_lb, *if_buffersize_cb;
 #endif
-static GtkWidget *if_snaplen_lb, *if_snaplen_cb, *if_snaplen_tg;
+static GtkWidget *if_snaplen_lb, *if_snaplen_cb, *if_snaplen_tg, *if_pmode_lb, *if_pmode_cb;
 static GtkTreeSelection *if_selection;	/* current interface row selected */
 static int num_linktypes;
 static gboolean interfaces_info_nochange;  /* TRUE to ignore Interface Options Properties */
-                                           /*  widgets "changed" callbacks.               */
+					   /*  widgets "changed" callbacks.               */
 
 static void ifopts_edit_cb(GtkWidget *w, gpointer data);
 static void ifopts_edit_ok_cb(GtkWidget *w, gpointer parent_w);
@@ -93,6 +95,7 @@ static void ifopts_edit_buffersize_changed_cb(GtkSpinButton *ed, gpointer udata)
 #endif
 static void ifopts_edit_snaplen_changed_cb(GtkSpinButton *ed, gpointer udata);
 static void ifopts_edit_hassnap_changed_cb(GtkToggleButton *tbt, gpointer udata);
+static void ifopts_edit_pmode_changed_cb(GtkToggleButton *tbt, gpointer udata);
 static void ifopts_options_add(GtkListStore *list_store, if_info_t *if_info);
 static void ifopts_options_free(gchar *text[]);
 static void ifopts_if_liststore_add(void);
@@ -106,6 +109,8 @@ static void ifopts_write_new_buffersize(void);
 static void ifopts_write_new_snaplen(void);
 static void ifopts_write_new_descr(void);
 static void ifopts_write_new_hide(void);
+static void ifopts_write_new_pmode(void);
+static void prom_mode_cb(GtkToggleButton *tbt, gpointer udata);
 
 /* Columns options dialog */
 #ifdef HAVE_PCAP_CREATE
@@ -114,7 +119,7 @@ static GtkWidget *col_monitor_cb;
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
 static GtkWidget *col_buf_cb;
 #endif
-static GtkWidget *col_interface_cb, *col_snap_cb;
+static GtkWidget *col_snap_cb;
 static GtkWidget *col_link_cb, *col_filter_cb, *col_pmode_cb;
 static void colopts_edit_destroy_cb(GtkWidget *win, gpointer data);
 static void colopts_edit_cb(GtkWidget *w, gpointer data);
@@ -123,7 +128,7 @@ static void colopts_edit_ok_cb(GtkWidget *w, gpointer parent_w);
 GtkWidget*
 capture_prefs_show(void)
 {
-	GtkWidget	*main_grid, *main_vb;
+	GtkWidget	*main_grid;
 	GtkWidget	*if_cbxe, *if_lb, *promisc_cb, *pcap_ng_cb, *sync_cb, *auto_scroll_cb, *show_info_cb;
 	GtkWidget	*ifopts_lb, *ifopts_bt, *colopts_lb, *colopts_bt;
 	GList		*if_list, *combo_list;
@@ -132,12 +137,15 @@ capture_prefs_show(void)
 	const gchar     *tooltips_text;
 
 	/* Main vertical box */
-	main_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 7, FALSE);
-	gtk_container_set_border_width(GTK_CONTAINER(main_vb), 5);
+	capture_window = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 7, FALSE);
+	gtk_container_set_border_width(GTK_CONTAINER(capture_window), 5);
 
 	/* Main grid */
 	main_grid = ws_gtk_grid_new();
-	gtk_box_pack_start(GTK_BOX(main_vb), main_grid, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(capture_window), main_grid, FALSE, FALSE, 0);
+#if GTK_CHECK_VERSION(3,0,0)
+	gtk_widget_set_vexpand(GTK_WIDGET(main_grid), FALSE); /* Ignore VEXPAND requests from children */
+#endif
 	ws_gtk_grid_set_row_spacing(GTK_GRID(main_grid), 10);
 	ws_gtk_grid_set_column_spacing(GTK_GRID(main_grid), 15);
 	gtk_widget_show(main_grid);
@@ -152,13 +160,13 @@ capture_prefs_show(void)
 	/*
 	 * XXX - what if we can't get the list?
 	 */
-	if_list = capture_interface_list(&err, NULL);
+	if_list = capture_interface_list(&err, NULL, main_window_update);
 	combo_list = build_capture_combo_list(if_list, FALSE);
 	free_interface_list(if_list);
 	if (combo_list != NULL) {
 		GList *combo_entry;
 		for (combo_entry = combo_list; combo_entry != NULL; combo_entry = g_list_next(combo_entry)) {
-				 gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT(if_cbxe), (const gchar *)combo_entry->data);
+			gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT(if_cbxe), (const gchar *)combo_entry->data);
 		}
 	}
 	if (prefs.capture_device) {
@@ -175,7 +183,7 @@ capture_prefs_show(void)
 	gtk_widget_set_tooltip_text(if_lb, tooltips_text);
 	gtk_widget_set_tooltip_text(gtk_bin_get_child(GTK_BIN(if_cbxe)), tooltips_text);
 	gtk_widget_show(if_cbxe);
-	g_object_set_data(G_OBJECT(main_vb), DEVICE_KEY, if_cbxe);
+	g_object_set_data(G_OBJECT(capture_window), DEVICE_KEY, if_cbxe);
 	row++;
 
 	/* Interface properties */
@@ -184,7 +192,7 @@ capture_prefs_show(void)
 	gtk_misc_set_alignment(GTK_MISC(ifopts_lb), 1.0f, 0.5f);
 	gtk_widget_show(ifopts_lb);
 
-	ifopts_bt = gtk_button_new_from_stock(WIRESHARK_STOCK_EDIT);
+	ifopts_bt = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_EDIT);
 	tooltips_text = "Open a dialog box to set various interface options.";
 	gtk_widget_set_tooltip_text(ifopts_lb, tooltips_text);
 	gtk_widget_set_tooltip_text(ifopts_bt, tooltips_text);
@@ -194,20 +202,21 @@ capture_prefs_show(void)
 
 	/* Promiscuous mode */
 	promisc_cb = create_preference_check_button(main_grid, row++,
-	    "Capture packets in promiscuous mode:",
-	    "You probably want to enable this. "
+	    "Capture packets in promiscuous mode on all network cards:",
+	    "To set this mode on a per interface basis, select the interface first."
 	    "Usually a network card will only capture the traffic sent to its own network address. "
 	    "If you want to capture all traffic that the network card can \"see\", mark this option. "
 	    "See the FAQ for some more details of capturing packets from a switched network. ",
 	    prefs.capture_prom_mode);
-	g_object_set_data(G_OBJECT(main_vb), PROM_MODE_KEY, promisc_cb);
+	g_signal_connect(promisc_cb, "toggled", G_CALLBACK(prom_mode_cb), NULL);
+	g_object_set_data(G_OBJECT(capture_window), PROM_MODE_KEY, promisc_cb);
 
 	/* Pcap-NG format */
 	pcap_ng_cb = create_preference_check_button(main_grid, row++,
 	    "Capture packets in pcap-ng format:",
 	    "Capture packets in the next-generation capture file format.",
 	    prefs.capture_pcap_ng);
-	g_object_set_data(G_OBJECT(main_vb), PCAP_NG_KEY, pcap_ng_cb);
+	g_object_set_data(G_OBJECT(capture_window), PCAP_NG_KEY, pcap_ng_cb);
 
 	/* Real-time capture */
 	sync_cb = create_preference_check_button(main_grid, row++,
@@ -215,21 +224,21 @@ capture_prefs_show(void)
 	    "Update the list of packets while capture is in progress. "
 	    "This can result in dropped packets on high-speed networks.",
 	    prefs.capture_real_time);
-	g_object_set_data(G_OBJECT(main_vb), CAPTURE_REAL_TIME_KEY, sync_cb);
+	g_object_set_data(G_OBJECT(capture_window), CAPTURE_REAL_TIME_KEY, sync_cb);
 
 	/* Auto-scroll real-time capture */
 	auto_scroll_cb = create_preference_check_button(main_grid, row++,
 	    "Automatic scrolling in live capture:",
 	    "Keep the packet list scrolled to the bottom while capturing.",
 	    prefs.capture_auto_scroll);
-	g_object_set_data(G_OBJECT(main_vb), AUTO_SCROLL_KEY, auto_scroll_cb);
+	g_object_set_data(G_OBJECT(capture_window), AUTO_SCROLL_KEY, auto_scroll_cb);
 
 	/* Show capture info dialog */
 	show_info_cb = create_preference_check_button(main_grid, row++,
 	    "Hide capture info dialog:",
 	    "Hide the capture info dialog while capturing. ",
 	    !prefs.capture_show_info);
-	g_object_set_data(G_OBJECT(main_vb), SHOW_INFO_KEY, show_info_cb);
+	g_object_set_data(G_OBJECT(capture_window), SHOW_INFO_KEY, show_info_cb);
 
 	/* Column properties */
 	colopts_lb = gtk_label_new("Columns:");
@@ -237,7 +246,7 @@ capture_prefs_show(void)
 	gtk_misc_set_alignment(GTK_MISC(colopts_lb), 1.0f, 0.5f);
 	gtk_widget_show(colopts_lb);
 
-	colopts_bt = gtk_button_new_from_stock(WIRESHARK_STOCK_EDIT);
+	colopts_bt = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_EDIT);
 	tooltips_text = "Open a dialog box to change the visible columns.";
 	gtk_widget_set_tooltip_text(colopts_lb, tooltips_text);
 	gtk_widget_set_tooltip_text(colopts_bt, tooltips_text);
@@ -246,9 +255,9 @@ capture_prefs_show(void)
 	row++;
 
 	/* Show 'em what we got */
-	gtk_widget_show_all(main_vb);
+	gtk_widget_show_all(capture_window);
 
-	return(main_vb);
+	return(capture_window);
 }
 
 void
@@ -262,7 +271,7 @@ capture_prefs_fetch(GtkWidget *w)
 	pcap_ng_cb = (GtkWidget *)g_object_get_data(G_OBJECT(w), PCAP_NG_KEY);
 	sync_cb    = (GtkWidget *)g_object_get_data(G_OBJECT(w), CAPTURE_REAL_TIME_KEY);
 	auto_scroll_cb = (GtkWidget *)g_object_get_data(G_OBJECT(w), AUTO_SCROLL_KEY);
-        show_info_cb = (GtkWidget *)g_object_get_data(G_OBJECT(w), SHOW_INFO_KEY);
+	show_info_cb = (GtkWidget *)g_object_get_data(G_OBJECT(w), SHOW_INFO_KEY);
 
 	if (prefs.capture_device != NULL) {
 		g_free(prefs.capture_device);
@@ -279,9 +288,9 @@ capture_prefs_fetch(GtkWidget *w)
 		if_text = NULL;
 	}
 
-    /* Ensure capture device is not NULL */
-    if (if_text == NULL)
-        if_text = g_strdup("");
+	/* Ensure capture device is not NULL */
+	if (if_text == NULL)
+		if_text = g_strdup("");
 	prefs.capture_device = if_text;
 
 	prefs.capture_prom_mode = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(promisc_cb));
@@ -340,6 +349,7 @@ enum
 #endif
 	HASSNAP_COLUMN,
 	SNAPLEN_COLUMN,
+	PMODE_COLUMN,
 	DEF_LINK_LAYER_COLUMN,
 	COMMENT_COLUMN,
 	HIDE_COLUMN,
@@ -354,7 +364,7 @@ colopts_edit_cb(GtkWidget *w, gpointer data _U_)
 	GtkWidget	*colopts_edit_dlg, *main_hb, *main_grid,
 						*ed_opts_fr, *main_vb,
 						*bbox, *ok_bt, *cancel_bt, *help_bt, *column_lb,
-						*col_interface_lb, *col_link_lb,
+						*col_link_lb,
 #ifdef HAVE_PCAP_CREATE
 						*col_monitor_lb,
 #endif
@@ -409,21 +419,6 @@ colopts_edit_cb(GtkWidget *w, gpointer data _U_)
 	gtk_widget_show(column_lb);
 	row++;
 
-	/* create "Interface" label and button */
-	col_interface_cb = gtk_check_button_new();
-	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), col_interface_cb, 0, row, 1, 1);
-	if (!prefs.capture_columns || prefs_capture_options_dialog_column_is_visible("INTERFACE"))
-		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(col_interface_cb), TRUE);
-	else
-		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(col_interface_cb), FALSE);
-	gtk_widget_show(col_interface_cb);
-
-	col_interface_lb = gtk_label_new("Interface and its addresses");
-	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), col_interface_lb, 1, row, 1, 1);
-	gtk_misc_set_alignment(GTK_MISC(col_interface_lb), 0, 0.5f);
-	gtk_widget_show(col_interface_lb);
-	row++;
-
 	/* create "Link Layer" label and button */
 	col_link_cb = gtk_check_button_new();
 	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), col_link_cb, 0, row, 1, 1);
@@ -439,7 +434,7 @@ colopts_edit_cb(GtkWidget *w, gpointer data _U_)
 	gtk_widget_show(col_link_lb);
 	row++;
 
-	/* create "Promiscous Mode" label and button */
+	/* create "Promiscuous Mode" label and button */
 	col_pmode_cb = gtk_check_button_new();
 	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), col_pmode_cb, 0, row, 1, 1);
 	if (!prefs.capture_columns || prefs_capture_options_dialog_column_is_visible("PMODE"))
@@ -448,7 +443,7 @@ colopts_edit_cb(GtkWidget *w, gpointer data _U_)
 		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(col_pmode_cb), FALSE);
 	gtk_widget_show(col_pmode_cb);
 
-	col_pmode_lb = gtk_label_new("Promiscous Mode");
+	col_pmode_lb = gtk_label_new("Promiscuous Mode");
 	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), col_pmode_lb, 1, row, 1, 1);
 	gtk_misc_set_alignment(GTK_MISC(col_pmode_lb), 0, 0.5f);
 	gtk_widget_show(col_pmode_lb);
@@ -565,8 +560,8 @@ ifopts_edit_cb(GtkWidget *w, gpointer data _U_)
 			  *if_hide_lb,
 			  *bbox, *ok_bt, *cancel_bt, *help_bt;
 
-	GtkListStore	  *list_store;
-	GtkWidget	  *list;
+	GtkListStore      *list_store;
+	GtkWidget         *list;
 	GtkTreeViewColumn *column;
 	GtkCellRenderer   *renderer;
 	GtkTreeView       *list_view;
@@ -590,7 +585,7 @@ ifopts_edit_cb(GtkWidget *w, gpointer data _U_)
 
 	/* create a new dialog */
 	ifopts_edit_dlg = dlg_conf_window_new("Wireshark: Preferences: Interface Options");
-	gtk_window_set_default_size(GTK_WINDOW(ifopts_edit_dlg), 1000, 440);
+	gtk_window_set_default_size(GTK_WINDOW(ifopts_edit_dlg), 1000, 500);
 
 	main_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 1, FALSE);
 	gtk_container_set_border_width(GTK_CONTAINER(main_vb), 5);
@@ -622,6 +617,7 @@ ifopts_edit_cb(GtkWidget *w, gpointer data _U_)
 #endif
 					G_TYPE_BOOLEAN,	/* Has snap length		*/
 					G_TYPE_INT,			/* Snap length				*/
+					G_TYPE_BOOLEAN,	/* Promiscuous mode		*/
 					G_TYPE_STRING,	/* Default link-layer		*/
 					G_TYPE_STRING,	/* Comment			*/
 					G_TYPE_BOOLEAN,	/* Hide?			*/
@@ -683,7 +679,7 @@ ifopts_edit_cb(GtkWidget *w, gpointer data _U_)
 	renderer = gtk_cell_renderer_spin_new ();
 	buffer_size_adj = (GtkAdjustment *) gtk_adjustment_new(DEFAULT_CAPTURE_BUFFER_SIZE, 1, 65535, 1.0, 10.0, 0.0);
 	g_object_set(G_OBJECT(renderer), "adjustment", buffer_size_adj, NULL);
-	column = gtk_tree_view_column_new_with_attributes ("Default buffer size", renderer,
+	column = gtk_tree_view_column_new_with_attributes ("Default buffer size (MiB)", renderer,
 							   "text", BUF_COLUMN,
 							   NULL);
 
@@ -692,7 +688,7 @@ ifopts_edit_cb(GtkWidget *w, gpointer data _U_)
 	/* Add the column to the view. */
 	gtk_tree_view_append_column (list_view, column);
 #endif
-  renderer = gtk_cell_renderer_toggle_new ();
+	renderer = gtk_cell_renderer_toggle_new ();
 	column = gtk_tree_view_column_new_with_attributes ("Has snap length mode", renderer,
 							   "active", HASSNAP_COLUMN,
 							   NULL);
@@ -704,8 +700,14 @@ ifopts_edit_cb(GtkWidget *w, gpointer data _U_)
 	column = gtk_tree_view_column_new_with_attributes ("Default snap length", renderer,
 							   "text", SNAPLEN_COLUMN,
 							   NULL);
+	gtk_tree_view_column_set_resizable(column, FALSE);
 
-	gtk_tree_view_column_set_resizable(column, TRUE);
+	renderer = gtk_cell_renderer_toggle_new ();
+	column = gtk_tree_view_column_new_with_attributes ("Default to promiscuous mode", renderer,
+							   "active", PMODE_COLUMN,
+							   NULL);
+
+	gtk_tree_view_column_set_resizable(column, FALSE);
 	gtk_tree_view_column_set_sizing(column, GTK_TREE_VIEW_COLUMN_FIXED);
 	/* Add the column to the view. */
 	gtk_tree_view_append_column (list_view, column);
@@ -828,7 +830,7 @@ ifopts_edit_cb(GtkWidget *w, gpointer data _U_)
 #endif
 
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
-	if_buffersize_lb = gtk_label_new("Default buffer size:");
+	if_buffersize_lb = gtk_label_new("Default buffer size (MiB):");
 	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), if_buffersize_lb, 0, row, 1, 1);
 	gtk_misc_set_alignment(GTK_MISC(if_buffersize_lb), 1.0f, 0.5f);
 	gtk_widget_show(if_buffersize_lb);
@@ -857,6 +859,19 @@ ifopts_edit_cb(GtkWidget *w, gpointer data _U_)
 	gtk_spin_button_set_numeric(GTK_SPIN_BUTTON (if_snaplen_cb), TRUE);
 	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), if_snaplen_cb, 1, row, 1, 1);
 	gtk_widget_show(if_snaplen_cb);
+	row++;
+
+	/* create "promiscuous mode" label and button */
+	if_pmode_lb = gtk_label_new("Promiscuous mode:");
+	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), if_pmode_lb, 0, row, 1, 1);
+	gtk_misc_set_alignment(GTK_MISC(if_pmode_lb), 1.0f, 0.5f);
+	gtk_widget_show(if_pmode_lb);
+
+	if_pmode_cb = gtk_check_button_new();
+	g_signal_connect(if_pmode_cb, "toggled", G_CALLBACK(ifopts_edit_pmode_changed_cb),
+			cur_list);
+	ws_gtk_grid_attach_defaults(GTK_GRID(main_grid), if_pmode_cb, 1, row, 1, 1);
+	gtk_widget_show(if_pmode_cb);
 	row++;
 
 	if_linktype_lb = gtk_label_new("Default link-layer header type:");
@@ -915,7 +930,7 @@ ifopts_edit_cb(GtkWidget *w, gpointer data _U_)
 
 	cancel_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
 	gtk_widget_set_tooltip_text(cancel_bt, "Cancel and exit dialog");
-        window_set_cancel_button(ifopts_edit_dlg, cancel_bt, window_cancel_button_cb);
+	window_set_cancel_button(ifopts_edit_dlg, cancel_bt, window_cancel_button_cb);
 
 	help_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
 	g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb),
@@ -925,7 +940,7 @@ ifopts_edit_cb(GtkWidget *w, gpointer data _U_)
 	gtk_widget_grab_default(ok_bt);
 
 	g_signal_connect(ifopts_edit_dlg, "delete_event", G_CALLBACK(window_delete_event_cb),
-                 NULL);
+			 NULL);
 	/* Call a handler when we're destroyed, so we can inform
 	   our caller, if any, that we've been destroyed. */
 	g_signal_connect(ifopts_edit_dlg, "destroy", G_CALLBACK(ifopts_edit_destroy_cb), NULL);
@@ -936,7 +951,7 @@ ifopts_edit_cb(GtkWidget *w, gpointer data _U_)
 	g_object_set_data(G_OBJECT(caller), IFOPTS_DIALOG_PTR_KEY, ifopts_edit_dlg);
 
 	gtk_widget_show(ifopts_edit_dlg); /* triggers ifopts_edit_ifsel_cb() with the  */
-                                          /*  "interfaces" TreeView first row selected */
+					  /*  "interfaces" TreeView first row selected */
 	window_present(ifopts_edit_dlg);
 }
 
@@ -948,9 +963,7 @@ colopts_edit_ok_cb(GtkWidget *w _U_, gpointer parent_w)
 {
 	g_list_free(prefs.capture_columns);
 	prefs.capture_columns = NULL;
-	if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(col_interface_cb))) {
-		prefs.capture_columns = g_list_append(prefs.capture_columns, g_strdup("INTERFACE"));
-	}
+	prefs.capture_columns = g_list_append(prefs.capture_columns, g_strdup("INTERFACE"));
 	if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(col_link_cb))) {
 		prefs.capture_columns = g_list_append(prefs.capture_columns, g_strdup("LINK"));
 	}
@@ -1010,10 +1023,13 @@ ifopts_edit_ok_cb(GtkWidget *w _U_, gpointer parent_w)
 
 		/* create/write new "snaplen" interfaces string */
 		ifopts_write_new_snaplen();
-}
+		/* create/write new promiscuous mode interfaces string */
+		ifopts_write_new_pmode();
+	}
 
 	/* Update everything that shows an interface list that includes
-	   local interfaces. */
+	   local interfaces, as we may have changed something that
+	   affects how those lists are displayed. */
 	refresh_local_interface_lists();
 
 	/* Now nuke this window. */
@@ -1049,18 +1065,17 @@ ifopts_edit_destroy_cb(GtkWidget *win, gpointer data _U_)
 
 	if (caller != NULL) {
 		/* Tell it we no longer exist. */
-                g_object_set_data(G_OBJECT(caller), IFOPTS_DIALOG_PTR_KEY, NULL);
+		g_object_set_data(G_OBJECT(caller), IFOPTS_DIALOG_PTR_KEY, NULL);
 	}
 }
 
 static gint
-ifopts_description_to_val (const char *if_name, gboolean monitor_mode,
-    const char *descr)
+ifopts_description_to_val (const char *if_name, gboolean monitor_mode, const char *descr)
 {
 	if_capabilities_t *caps;
 	int dlt = -1;
 
-	caps = capture_get_if_capabilities(if_name, monitor_mode, NULL);
+	caps = capture_get_if_capabilities(if_name, monitor_mode, NULL, main_window_update);
 	if (caps != NULL) {
 		if (caps->data_link_types != NULL) {
 			GList  *lt_entry;
@@ -1105,7 +1120,7 @@ ifopts_edit_ifsel_cb(GtkTreeSelection	*selection _U_,
 	gint                buffersize;
 #endif
 	gint                snaplen;
-	gboolean            hide, hide_enabled = TRUE, hassnap = FALSE;
+	gboolean            hide, hide_enabled = TRUE, hassnap = FALSE, pmode;
 	if_capabilities_t  *caps;
 	gint                selected = 0;
 
@@ -1124,6 +1139,7 @@ ifopts_edit_ifsel_cb(GtkTreeSelection	*selection _U_,
 #endif
 			   HASSNAP_COLUMN,            &hassnap,
 			   SNAPLEN_COLUMN,            &snaplen,
+			   PMODE_COLUMN,              &pmode,
 			   DEF_LINK_LAYER_COLUMN,     &linktype,
 			   COMMENT_COLUMN,            &comment,
 			   HIDE_COLUMN,               &hide,
@@ -1145,25 +1161,33 @@ ifopts_edit_ifsel_cb(GtkTreeSelection	*selection _U_,
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(if_snaplen_tg), hassnap);
 	gtk_widget_set_sensitive(GTK_WIDGET(if_snaplen_cb), hassnap);
 
+	if (prefs.capture_prom_mode) {
+		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(if_pmode_cb), TRUE);
+	} else if (capture_dev_user_pmode_find(if_name) != -1) {
+		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(if_pmode_cb), capture_dev_user_pmode_find(if_name));
+	} else {
+		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(if_pmode_cb), FALSE);
+	}
+
 	/* Ignore "changed" callbacks while we update the Properties widgets */
 	interfaces_info_nochange = TRUE;
 
 	/* display the link-layer header type from current interfaces selection */
-        /*  -- remove old linktype list (if any) from the ComboBox */
+	/*  -- remove old linktype list (if any) from the ComboBox */
 	while (num_linktypes > 0) {
 		num_linktypes--;
 		gtk_combo_box_text_remove(GTK_COMBO_BOX_TEXT(if_linktype_cb), num_linktypes);
 	}
 
-        /*
+	/*
 	 * -- set the state and sensitivity of the monitor-mode checkbox,
 	 * and build and add to the ComboBox a linktype list, corresponding
 	 * to the interface capabilities of the selected interface
 	 */
 #ifdef HAVE_PCAP_CREATE
-	caps = capture_get_if_capabilities(if_name, monitor_mode, NULL);
+	caps = capture_get_if_capabilities(if_name, monitor_mode, NULL, main_window_update);
 #else
-	caps = capture_get_if_capabilities(if_name, FALSE, NULL);
+	caps = capture_get_if_capabilities(if_name, FALSE, NULL, main_window_update);
 #endif
 	if (caps != NULL) {
 #ifdef HAVE_PCAP_CREATE
@@ -1265,7 +1289,7 @@ ifopts_edit_monitor_changed_cb(GtkToggleButton *tbt, gpointer udata)
 	interfaces_info_nochange = TRUE;
 
 	/* display the link-layer header type from current interfaces selection */
-        /*  -- remove old linktype list (if any) from the ComboBox */
+	/*  -- remove old linktype list (if any) from the ComboBox */
 	while (num_linktypes > 0) {
 		num_linktypes--;
 		gtk_combo_box_text_remove(GTK_COMBO_BOX_TEXT(if_linktype_cb), num_linktypes);
@@ -1279,13 +1303,13 @@ ifopts_edit_monitor_changed_cb(GtkToggleButton *tbt, gpointer udata)
 	gtk_list_store_set  (list_store, &list_iter,
 			     DEF_MONITOR_MODE_COLUMN, monitor_mode,
 			     -1);
-	caps = capture_get_if_capabilities(if_name, monitor_mode, NULL);
+	caps = capture_get_if_capabilities(if_name, monitor_mode, NULL, main_window_update);
 #else
 	/* no monitor-mode support */
 	caps = capture_get_if_capabilities(if_name, FALSE, NULL);
 #endif
 
-        /*
+	/*
 	 * -- set the sensitivity of the monitor-mode checkbox, and
 	 * build and add to the ComboBox a linktype list for the current
 	 * interfaces selection, based on the interface capabilities
@@ -1429,7 +1453,7 @@ ifopts_edit_snaplen_changed_cb(GtkSpinButton *sb _U_, gpointer udata _U_)
 	} else {
 		hassnap = FALSE;
 	}
-	list_store = GTK_LIST_STORE(gtk_tree_view_get_model(GTK_TREE_VIEW (udata))); 
+	list_store = GTK_LIST_STORE(gtk_tree_view_get_model(GTK_TREE_VIEW (udata)));
 	gtk_list_store_set  (list_store, &list_iter,
 				     SNAPLEN_COLUMN, snaplen,
 				     HASSNAP_COLUMN, hassnap,
@@ -1454,13 +1478,39 @@ ifopts_edit_hassnap_changed_cb(GtkToggleButton *tbt, gpointer udata)
 		return;
 	}
 	hassnap = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(tbt));
-	
-	list_store = GTK_LIST_STORE(gtk_tree_view_get_model(GTK_TREE_VIEW (udata))); 
+
+	list_store = GTK_LIST_STORE(gtk_tree_view_get_model(GTK_TREE_VIEW (udata)));
 	gtk_list_store_set  (list_store, &list_iter,
 				     HASSNAP_COLUMN, hassnap,
 				     -1);
 	gtk_widget_set_sensitive(GTK_WIDGET(if_snaplen_cb), hassnap);
 }
+
+/*
+ * Checkbutton for the promiscuous mode changed callback; update list_store for currently selected interface.
+ */
+static void
+ifopts_edit_pmode_changed_cb(GtkToggleButton *tbt, gpointer udata)
+{
+	gboolean      pmode;
+	GtkTreeModel *list_model;
+	GtkTreeIter   list_iter;
+	GtkListStore *list_store;
+
+	if (if_selection == NULL)  /* XXX: Cannot be NULL ?? */
+		return;
+
+	if (!gtk_tree_selection_get_selected (if_selection, &list_model, &list_iter)){
+		return;
+	}
+	pmode = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(tbt));
+
+	list_store = GTK_LIST_STORE(gtk_tree_view_get_model(GTK_TREE_VIEW (udata)));
+	gtk_list_store_set  (list_store, &list_iter,
+				     PMODE_COLUMN, pmode,
+				     -1);
+}
+
 
 /*
  * Comment text entry changed callback; update list_store for currently selected interface.
@@ -1554,7 +1604,7 @@ ifopts_options_add(GtkListStore *list_store, if_info_t *if_info)
 	gint buffersize;
 #endif
 	gint snaplen;
-	gboolean hide, hassnap = TRUE;
+	gboolean hide, hassnap = TRUE, pmode;
 	GtkTreeIter  iter;
 
 	/* set device name text */
@@ -1569,10 +1619,10 @@ ifopts_options_add(GtkListStore *list_store, if_info_t *if_info)
 #ifdef HAVE_PCAP_CREATE
 	/* get default monitor mode setting */
 	monitor_mode = prefs_capture_device_monitor_mode(if_info->name);
-	caps = capture_get_if_capabilities(if_info->name, monitor_mode, NULL);
+	caps = capture_get_if_capabilities(if_info->name, monitor_mode, NULL, main_window_update);
 #else
 	/* no monitor-mode support */
-	caps = capture_get_if_capabilities(if_info->name, FALSE, NULL);
+	caps = capture_get_if_capabilities(if_info->name, FALSE, NULL, main_window_update);
 #endif
 
 	/* set default link-layer header type */
@@ -1611,6 +1661,15 @@ ifopts_options_add(GtkListStore *list_store, if_info_t *if_info)
 		hassnap = FALSE;
 	}
 
+	if (prefs.capture_prom_mode) {
+		pmode = TRUE;
+	} else {
+		if ((pmode = capture_dev_user_pmode_find(if_info->name)) != -1) {
+			pmode = capture_dev_user_pmode_find(if_info->name);
+		} else {
+			pmode = FALSE;
+		}
+	}
 
 	/* if we have no link-layer */
 	if (text[2] == NULL)
@@ -1618,7 +1677,7 @@ ifopts_options_add(GtkListStore *list_store, if_info_t *if_info)
 
 	/* add interface descriptions */
 	if ((prefs.capture_devices_descr != NULL) &&
-        (*prefs.capture_devices_descr != '\0')) {
+	    (*prefs.capture_devices_descr != '\0')) {
 		/* create working copy of device descriptions */
 		pr_descr = g_strdup(prefs.capture_devices_descr);
 
@@ -1681,6 +1740,7 @@ ifopts_options_add(GtkListStore *list_store, if_info_t *if_info)
 #endif
 			     HASSNAP_COLUMN,          hassnap,
 			     SNAPLEN_COLUMN,          snaplen,
+			     PMODE_COLUMN,            pmode,
 			     DEF_LINK_LAYER_COLUMN,   text[2],
 			     COMMENT_COLUMN,          text[3],
 			     HIDE_COLUMN,             hide,
@@ -1713,7 +1773,7 @@ ifopts_if_liststore_add(void)
 	int	 err;
 	gchar	*err_str;
 
-	if_list = capture_interface_list(&err, &err_str);  /* if_list = ptr to first element of list (or NULL) */
+	if_list = capture_interface_list(&err, &err_str, main_window_update);  /* if_list = ptr to first element of list (or NULL) */
 	if (if_list == NULL) {
 		if (err != NO_INTERFACES_FOUND) {
 			simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "%s", err_str);
@@ -1867,7 +1927,7 @@ ifopts_write_new_buffersize(void)
 	gchar		*new_buffersize;
 
 	/* new preferences interfaces buffer size string */
-	new_buffersize = g_malloc0(MAX_VAL_LEN);
+	new_buffersize = (gchar *)g_malloc0(MAX_VAL_LEN);
 
 	/* get buffer size for each row (interface) */
 	model = gtk_tree_view_get_model(GTK_TREE_VIEW(cur_list));
@@ -1926,7 +1986,7 @@ ifopts_write_new_snaplen(void)
 	gchar		*new_snaplen;
 
 	/* new preferences interfaces snap length string */
-	new_snaplen = g_malloc0(MAX_VAL_LEN);
+	new_snaplen = (gchar *)g_malloc0(MAX_VAL_LEN);
 
 	/* get snap length for each row (interface) */
 	model = gtk_tree_view_get_model(GTK_TREE_VIEW(cur_list));
@@ -1962,6 +2022,74 @@ ifopts_write_new_snaplen(void)
 		/* write new snap length string to preferences */
 		g_free(prefs.capture_devices_snaplen);
 		prefs.capture_devices_snaplen = new_snaplen;
+	}
+}
+
+/*
+ * Create/write new promiscuous mode string based on current CList.
+ * Put it into the preferences value.
+ */
+static void
+ifopts_write_new_pmode(void)
+{
+	GtkListStore	*store;
+	GtkTreeIter	 iter;
+	GtkTreeModel 	*model;
+	GtkWidget *promisc_cb;
+
+	gboolean	 more_items = TRUE, first_if = TRUE;  /* flag to check if first in list */
+	gchar		*ifnm;
+	gboolean	pmode, off = FALSE;
+	gchar		*tmp_pmode;
+	gchar		*new_pmode;
+
+	/* new preferences interfaces promiscuous mode string */
+	new_pmode = (gchar *)g_malloc0(MAX_VAL_LEN);
+
+	/* get promiscuous mode for each row (interface) */
+	model = gtk_tree_view_get_model(GTK_TREE_VIEW(cur_list));
+	store = GTK_LIST_STORE(model);
+	if( gtk_tree_model_get_iter_first(GTK_TREE_MODEL(store), &iter) ) {
+
+		while (more_items) {
+			gtk_tree_model_get(GTK_TREE_MODEL(store), &iter,
+					   DEVICE_COLUMN, &ifnm,
+					   PMODE_COLUMN,    &pmode,
+					   -1);
+			if (pmode == -1){
+				more_items = gtk_tree_model_iter_next (model,&iter);
+				continue;
+			}
+
+			if (first_if != TRUE) {
+				g_strlcat (new_pmode, ",", MAX_VAL_LEN);
+			}
+			/*
+			 * create/cat interface promiscuous mode to new string
+			 * (leave space for parens, comma and terminator)
+			 */
+			if (!pmode) {
+				off = TRUE;
+			}
+			tmp_pmode = g_strdup_printf("%s(%d)", ifnm, pmode);
+			g_strlcat(new_pmode, tmp_pmode, MAX_VAL_LEN);
+			g_free(tmp_pmode);
+			g_free(ifnm);
+			/* set first-in-list flag to false */
+			first_if = FALSE;
+			more_items = gtk_tree_model_iter_next (model,&iter);
+		}
+
+		/* write new promiscuous mode string to preferences */
+		g_free(prefs.capture_devices_pmode);
+		prefs.capture_devices_pmode = new_pmode;
+		if (off) {
+			prefs.capture_prom_mode = FALSE;
+		} else {
+			prefs.capture_prom_mode = TRUE;
+		}
+		promisc_cb = (GtkWidget *)g_object_get_data(G_OBJECT(capture_window), PROM_MODE_KEY);
+		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(promisc_cb), prefs.capture_prom_mode);
 	}
 }
 
@@ -2077,4 +2205,22 @@ ifopts_write_new_hide(void)
 	}
 }
 
+static void
+prom_mode_cb(GtkToggleButton *tbt, gpointer udata _U_) {
+	prefs.capture_prom_mode = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(tbt));
+}
+
 #endif /* HAVE_LIBPCAP */
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

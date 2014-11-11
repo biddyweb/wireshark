@@ -2,8 +2,6 @@
  * Dialog box for manual address resolve
  * Copyright 2010 Stig Bjorlykke <stig@bjorlykke.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -39,6 +37,7 @@
 #include "ui/gtk/menus.h"
 #include "ui/gtk/manual_addr_resolv.h"
 #include "ui/gtk/old-gtk-compat.h"
+#include "ui/gtk/packet_win.h"
 
 GtkWidget *man_addr_resolv_dlg = NULL;
 
@@ -86,6 +85,7 @@ man_addr_resolv_ok(GtkWidget *w _U_, gpointer data _U_)
 
   if (redissect) {
     redissect_packets();
+    redissect_all_packet_windows();
   }
   window_destroy(man_addr_resolv_dlg);
   man_addr_resolv_dlg = NULL;
@@ -167,7 +167,7 @@ manual_addr_resolv_dlg(GtkWidget *w _U_, gpointer data)
   bbox = dlg_button_row_new(GTK_STOCK_OK, GTK_STOCK_CLOSE, GTK_STOCK_HELP, NULL);
   gtk_box_pack_end(GTK_BOX(vbox), bbox, FALSE, FALSE, 0);
 
-  ok_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+  ok_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
   g_signal_connect(ok_bt, "clicked", G_CALLBACK(man_addr_resolv_ok), NULL);
   gtk_widget_set_sensitive(ok_bt, FALSE);
 

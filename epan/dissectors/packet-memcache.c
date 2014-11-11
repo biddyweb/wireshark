@@ -9,8 +9,6 @@
  *
  * Copyright 2009, Rama Chitta <rama@gear6.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,21 +32,18 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/conversation.h>
 #include <epan/strutil.h>
-#include <epan/base64.h>
-#include <epan/emem.h>
-#include <epan/stats_tree.h>
-#include <epan/req_resp_hdrs.h>
 #include <epan/prefs.h>
 #include <epan/expert.h>
 
 #include "packet-tcp.h"
+
+void proto_register_memcache (void);
+void proto_reg_handoff_memcache(void);
 
 #define PNAME  "Memcache Protocol"
 #define PSNAME "MEMCACHE"
@@ -111,8 +106,6 @@
 
 static int proto_memcache = -1;
 
-void proto_reg_handoff_memcache(void);
-
 static range_t *memcache_tcp_port_range = NULL;
 static range_t *memcache_udp_port_range = NULL;
 static dissector_handle_t memcache_tcp_handle;
@@ -135,11 +128,8 @@ static int hf_extras_expiration = -1;
 static int hf_extras_delta = -1;
 static int hf_extras_initial = -1;
 static int hf_extras_unknown = -1;
-static int hf_extras_missing = -1;
 static int hf_key = -1;
-static int hf_key_missing = -1;
 static int hf_value = -1;
-static int hf_value_missing = -1;
 static int hf_uint64_response = -1;
 
 static int hf_command = -1;
@@ -157,6 +147,18 @@ static int hf_name_value = -1;
 
 static gint ett_memcache = -1;
 static gint ett_extras = -1;
+
+static expert_field ei_value_missing   = EI_INIT;
+static expert_field ei_extras_missing  = EI_INIT;
+static expert_field ei_value_length    = EI_INIT;
+static expert_field ei_key_missing     = EI_INIT;
+static expert_field ei_key_unknown     = EI_INIT;
+static expert_field ei_extras_unknown  = EI_INIT;
+static expert_field ei_value_unknown   = EI_INIT;
+static expert_field ei_status_response = EI_INIT;
+static expert_field ei_opcode_unknown  = EI_INIT;
+static expert_field ei_reserved_value  = EI_INIT;
+static expert_field ei_magic_unknown   = EI_INIT;
 
 static const value_string magic_vals[] = {
   { MAGIC_REQUEST,         "Request"            },
@@ -368,20 +370,18 @@ dissect_extras (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
   if (illegal) {
     ti = proto_tree_add_item (extras_tree, hf_extras_unknown, tvb, offset, extras_len, ENC_NA);
-    expert_add_info_format (pinfo, ti, PI_UNDECODED, PI_WARN, "%s %s shall not have Extras",
-                            val_to_str (opcode, opcode_vals, "Opcode %d"),
-                            request ? "Request" : "Response");
+    expert_add_info_format(pinfo, ti, &ei_extras_unknown, "%s %s shall not have Extras",
+                    val_to_str (opcode, opcode_vals, "Opcode %d"),
+                    request ? "Request" : "Response");
     offset += extras_len;
   } else if (missing) {
-    ti = proto_tree_add_item (tree, hf_extras_missing, tvb, offset, 0, ENC_NA);
-    expert_add_info_format (pinfo, ti, PI_UNDECODED, PI_WARN, "%s %s must have Extras",
+    proto_tree_add_expert_format(tree, pinfo, &ei_extras_missing, tvb, offset, 0, "%s %s must have Extras",
                             val_to_str (opcode, opcode_vals, "Opcode %d"),
                             request ? "Request" : "Response");
   }
 
   if ((offset - save_offset) != extras_len) {
-    expert_add_info_format (pinfo, extras_item, PI_UNDECODED, PI_WARN,
-                            "Illegal Extras length, should be %d", offset - save_offset);
+    expert_add_info_format(pinfo, extras_item, &ei_extras_unknown, "Illegal Extras length, should be %d", offset - save_offset);
   }
 }
 
@@ -396,10 +396,7 @@ dissect_key (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
   if (key_len) {
     ti = proto_tree_add_item (tree, hf_key, tvb, offset, key_len, ENC_ASCII|ENC_NA);
     offset += key_len;
-  }
 
-  /* Sanity check */
-  if (key_len) {
     if ((opcode == OP_QUIT) || (opcode == OP_QUIT_Q) || (opcode == OP_NO_OP) || (opcode == OP_VERSION)) {
       /* Request and Response must not have key */
       illegal = TRUE;
@@ -428,14 +425,12 @@ dissect_key (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
   }
 
   if (illegal) {
-    expert_add_info_format (pinfo, ti, PI_UNDECODED, PI_WARN, "%s %s shall not have Key",
-                            val_to_str (opcode, opcode_vals, "Opcode %d"),
-                            request ? "Request" : "Response");
+    expert_add_info_format(pinfo, ti, &ei_key_unknown, "%s %s shall not have Key",
+            val_to_str (opcode, opcode_vals, "Opcode %d"),
+            request ? "Request" : "Response");
   } else if (missing) {
-    ti = proto_tree_add_item (tree, hf_key_missing, tvb, offset, 0, ENC_NA);
-    expert_add_info_format (pinfo, ti, PI_UNDECODED, PI_WARN, "%s %s must have Key",
-                            val_to_str (opcode, opcode_vals, "Opcode %d"),
-                            request ? "Request" : "Response");
+    proto_tree_add_expert_format(tree, pinfo, &ei_key_missing, tvb, offset, 0, "%s Request must have Key",
+                            val_to_str (opcode, opcode_vals, "Opcode %d"));
   }
 }
 
@@ -451,7 +446,7 @@ dissect_value (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     if (!request && ((opcode == OP_INCREMENT) || (opcode == OP_DECREMENT))) {
       ti = proto_tree_add_item (tree, hf_uint64_response, tvb, offset, 8, ENC_BIG_ENDIAN);
       if (value_len != 8) {
-        expert_add_info_format (pinfo, ti, PI_UNDECODED, PI_WARN, "Illegal Value length, should be 8");
+        expert_add_info_format(pinfo, ti, &ei_value_length, "Illegal Value length, should be 8");
       }
     } else {
       ti = proto_tree_add_item (tree, hf_value, tvb, offset, value_len, ENC_ASCII|ENC_NA);
@@ -498,19 +493,18 @@ dissect_value (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
   }
 
   if (illegal) {
-    expert_add_info_format (pinfo, ti, PI_UNDECODED, PI_WARN, "%s %s shall not have Value",
-                            val_to_str (opcode, opcode_vals, "Opcode %d"),
-                            request ? "Request" : "Response");
+    expert_add_info_format(pinfo, ti, &ei_value_unknown, "%s %s shall not have Value",
+            val_to_str (opcode, opcode_vals, "Opcode %d"),
+            request ? "Request" : "Response");
   } else if (missing) {
-    ti = proto_tree_add_item (tree, hf_value_missing, tvb, offset, 0, ENC_NA);
-    expert_add_info_format (pinfo, ti, PI_UNDECODED, PI_WARN, "%s %s must have Value",
+    proto_tree_add_expert_format(tree, pinfo, &ei_value_missing, tvb, offset, 0, "%s %s must have Value",
                             val_to_str (opcode, opcode_vals, "Opcode %d"),
                             request ? "Request" : "Response");
   }
 }
 
-static void
-dissect_memcache (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_memcache (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
   proto_tree *memcache_tree;
   proto_item *memcache_item, *ti;
@@ -530,16 +524,16 @@ dissect_memcache (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   ti = proto_tree_add_item (memcache_tree, hf_magic, tvb, offset, 1, ENC_BIG_ENDIAN);
   offset += 1;
 
-  if (match_strval (magic, magic_vals) == NULL) {
-    expert_add_info_format (pinfo, ti, PI_UNDECODED, PI_WARN, "Unknown magic byte: %d", magic);
+  if (try_val_to_str (magic, magic_vals) == NULL) {
+    expert_add_info_format(pinfo, ti, &ei_magic_unknown, "Unknown magic byte: %d", magic);
   }
 
   opcode = tvb_get_guint8 (tvb, offset);
   ti = proto_tree_add_item (memcache_tree, hf_opcode, tvb, offset, 1, ENC_BIG_ENDIAN);
   offset += 1;
 
-  if (match_strval (opcode, opcode_vals) == NULL) {
-    expert_add_info_format (pinfo, ti, PI_UNDECODED, PI_WARN, "Unknown opcode: %d", opcode);
+  if (try_val_to_str (opcode, opcode_vals) == NULL) {
+    expert_add_info_format(pinfo, ti, &ei_opcode_unknown, "Unknown opcode: %d", opcode);
   }
 
   proto_item_append_text (memcache_item, ", %s %s", val_to_str (opcode, opcode_vals, "Unknown opcode (%d)"),
@@ -565,7 +559,7 @@ dissect_memcache (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     request = FALSE;
     ti = proto_tree_add_item (memcache_tree, hf_status, tvb, offset, 2, ENC_BIG_ENDIAN);
     if (status != 0) {
-      expert_add_info_format (pinfo, ti, PI_RESPONSE_CODE, PI_NOTE, "%s: %s",
+      expert_add_info_format(pinfo, ti, &ei_status_response, "%s: %s",
                               val_to_str (opcode, opcode_vals, "Unknown opcode (%d)"),
                               val_to_str (status, status_vals, "Status: %d"));
     }
@@ -573,7 +567,7 @@ dissect_memcache (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     request = TRUE;
     ti = proto_tree_add_item (memcache_tree, hf_reserved, tvb, offset, 2, ENC_BIG_ENDIAN);
     if (status != 0) {
-      expert_add_info_format (pinfo, ti, PI_UNDECODED, PI_WARN, "Reserved value: %d", status);
+      expert_add_info_format(pinfo, ti, &ei_reserved_value, "Reserved value: %d", status);
     }
   }
   offset += 2;
@@ -608,11 +602,12 @@ dissect_memcache (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     col_append_fstr (pinfo->cinfo, COL_INFO, " (%s)",
                      val_to_str (status, status_vals, "Unknown status: %d"));
   } else {
-    ti = proto_tree_add_item (memcache_tree, hf_value_missing, tvb, offset, 0, ENC_NA);
-    expert_add_info_format (pinfo, ti, PI_UNDECODED, PI_WARN, "%s with status %s (%d) must have Value",
+    proto_tree_add_expert_format(memcache_tree, pinfo, &ei_value_missing, tvb, offset, 0, "%s with status %s (%d) must have Value",
                             val_to_str (opcode, opcode_vals, "Opcode %d"),
                             val_to_str_const (status, status_vals, "Unknown"), status);
   }
+
+  return tvb_length(tvb);
 }
 
 /* Obtain the content length by peeping into the header.
@@ -653,7 +648,7 @@ get_payload_length (tvbuff_t *tvb, const int token_number, int offset,
     return FALSE;
   }
 
-  bytes_val = tvb_get_ephemeral_string (tvb, offset, tokenlen);
+  bytes_val = tvb_get_string (wmem_packet_scope(), tvb, offset, tokenlen);
   if (bytes_val) {
     if (sscanf (bytes_val, "%u", bytes) == 1) {
       *content_length_found = TRUE;
@@ -1907,36 +1902,40 @@ dissect_memcache_text (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 }
 
 /* Dissect tcp packets based on the type of protocol (text/binary) */
-static void
-dissect_memcache_tcp (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_memcache_tcp (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
   gint        offset = 0;
   guint8      magic;
 
   magic = tvb_get_guint8 (tvb, offset);
 
-  if (match_strval (magic, magic_vals) != NULL) {
+  if (try_val_to_str (magic, magic_vals) != NULL) {
     tcp_dissect_pdus (tvb, pinfo, tree, memcache_desegment_body, 12,
-                      get_memcache_pdu_len, dissect_memcache);
+                      get_memcache_pdu_len, dissect_memcache, data);
   } else {
     dissect_memcache_text (tvb, pinfo, tree);
   }
+
+  return tvb_length(tvb);
 }
 
 /* Dissect udp packets based on the type of protocol (text/binary) */
-static void
-dissect_memcache_udp (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_memcache_udp (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
   gint        offset = 0;
   guint8      magic;
 
   magic = tvb_get_guint8 (tvb, offset);
 
-  if (match_strval (magic, magic_vals) != NULL) {
-    dissect_memcache (tvb, pinfo, tree);
+  if (try_val_to_str (magic, magic_vals) != NULL) {
+    dissect_memcache (tvb, pinfo, tree, data);
   } else {
     dissect_memcache_message (tvb, 0, pinfo, tree);
   }
+
+  return tvb_length(tvb);
 }
 
 /* Registration functions; register memcache protocol,
@@ -2032,30 +2031,15 @@ proto_register_memcache (void)
         FT_BYTES, BASE_NONE, NULL, 0x0,
         "Unknown Extras", HFILL } },
 
-    { &hf_extras_missing,
-      { "Extras missing", "memcache.extras.missing",
-        FT_NONE, BASE_NONE, NULL, 0x0,
-        "Extras is mandatory for this command", HFILL } },
-
     { &hf_key,
       { "Key", "memcache.key",
         FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL } },
 
-    { &hf_key_missing,
-      { "Key missing", "memcache.key.missing",
-        FT_NONE, BASE_NONE, NULL, 0x0,
-        "Key is mandatory for this command", HFILL } },
-
     { &hf_value,
       { "Value", "memcache.value",
         FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL } },
-
-    { &hf_value_missing,
-      { "Value missing", "memcache.value.missing",
-        FT_NONE, BASE_NONE, NULL, 0x0,
-        "Value is mandatory for this command", HFILL } },
 
     { &hf_uint64_response,
       { "Response", "memcache.extras.response",
@@ -2118,14 +2102,31 @@ proto_register_memcache (void)
     &ett_extras
   };
 
-  module_t *memcache_module;
+  static ei_register_info ei[] = {
+      { &ei_extras_unknown,  { "memcache.extras.notexpected", PI_UNDECODED, PI_WARN, "shall not have Extras", EXPFILL }},
+      { &ei_extras_missing,  { "memcache.extras.missing", PI_UNDECODED, PI_WARN, "must have Extras", EXPFILL }},
+      { &ei_key_unknown,     { "memcache.key.notexpected", PI_UNDECODED, PI_WARN, "shall not have Key", EXPFILL }},
+      { &ei_key_missing,     { "memcache.key.missing", PI_UNDECODED, PI_WARN, "must have Key", EXPFILL }},
+      { &ei_value_length,    { "memcache.value.invalid", PI_UNDECODED, PI_WARN, "Illegal Value length, should be 8", EXPFILL }},
+      { &ei_value_unknown,   { "memcache.value.notexpected", PI_UNDECODED, PI_WARN, "shall not have Value", EXPFILL }},
+      { &ei_value_missing,   { "memcache.value.missing", PI_UNDECODED, PI_WARN, "must have Value", EXPFILL }},
+      { &ei_magic_unknown,   { "memcache.magic.unknown", PI_UNDECODED, PI_WARN, "Unknown magic byte", EXPFILL }},
+      { &ei_opcode_unknown,  { "memcache.opcode.unknown", PI_UNDECODED, PI_WARN, "Unknown opcode", EXPFILL }},
+      { &ei_status_response, { "memcache.status.response", PI_RESPONSE_CODE, PI_NOTE, "Error response", EXPFILL }},
+      { &ei_reserved_value,  { "memcache.reserved.expert", PI_UNDECODED, PI_WARN, "Reserved value", EXPFILL }},
+  };
+
+  module_t        *memcache_module;
+  expert_module_t *expert_memcache;
 
   proto_memcache = proto_register_protocol (PNAME, PSNAME, PFNAME);
-  register_dissector ("memcache.tcp", dissect_memcache_tcp, proto_memcache);
-  register_dissector ("memcache.udp", dissect_memcache_udp, proto_memcache);
+  memcache_tcp_handle = new_register_dissector ("memcache.tcp", dissect_memcache_tcp, proto_memcache);
+  memcache_udp_handle = new_register_dissector ("memcache.udp", dissect_memcache_udp, proto_memcache);
 
   proto_register_field_array (proto_memcache, hf, array_length (hf));
   proto_register_subtree_array (ett, array_length (ett));
+  expert_memcache = expert_register_protocol(proto_memcache);
+  expert_register_field_array(expert_memcache, ei, array_length(ei));
 
   /* Register our configuration options */
   memcache_module = prefs_register_protocol (proto_memcache, proto_reg_handoff_memcache);
@@ -2161,46 +2162,22 @@ proto_register_memcache (void)
                                   65535);
 }
 
-static void range_delete_tcp_port_callback(guint32 port) {
-  dissector_delete_uint("tcp.port", port, memcache_tcp_handle);
-}
-
-static void range_delete_udp_port_callback(guint32 port) {
-  dissector_delete_uint("udp.port", port, memcache_udp_handle);
-}
-
-static void range_add_tcp_port_callback(guint32 port) {
-  dissector_add_uint("tcp.port", port, memcache_tcp_handle);
-}
-
-static void range_add_udp_port_callback(guint32 port) {
-  dissector_add_uint("udp.port", port, memcache_udp_handle);
-}
-
-
 /* Register the tcp and udp memcache dissectors. */
 void
 proto_reg_handoff_memcache (void)
 {
-  static range_t *orig_memcache_tcp_port_range = NULL;
-  static range_t *orig_memcache_udp_port_range = NULL;
-  static gboolean initialized = FALSE;
+  static range_t  *orig_memcache_tcp_port_range = NULL;
+  static range_t  *orig_memcache_udp_port_range = NULL;
 
-  if (!initialized) {
-    memcache_tcp_handle = find_dissector("memcache.tcp");
-    memcache_udp_handle = find_dissector("memcache.udp");
-    initialized = TRUE;
-  } else {
-    range_foreach(orig_memcache_tcp_port_range, range_delete_tcp_port_callback);
-    range_foreach(orig_memcache_udp_port_range, range_delete_udp_port_callback);
-    g_free(orig_memcache_tcp_port_range);
-    g_free(orig_memcache_udp_port_range);
-  }
+  dissector_delete_uint_range("tcp.port", orig_memcache_tcp_port_range, memcache_tcp_handle);
+  dissector_delete_uint_range("udp.port", orig_memcache_udp_port_range, memcache_udp_handle);
+  g_free(orig_memcache_tcp_port_range);
+  g_free(orig_memcache_udp_port_range);
 
   orig_memcache_tcp_port_range = range_copy(memcache_tcp_port_range);
   orig_memcache_udp_port_range = range_copy(memcache_udp_port_range);
-  range_foreach(orig_memcache_tcp_port_range, range_add_tcp_port_callback);
-  range_foreach(orig_memcache_udp_port_range, range_add_udp_port_callback);
+  dissector_add_uint_range("tcp.port", orig_memcache_tcp_port_range, memcache_tcp_handle);
+  dissector_add_uint_range("udp.port", orig_memcache_udp_port_range, memcache_udp_handle);
 }
 
 /*

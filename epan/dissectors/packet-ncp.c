@@ -9,8 +9,6 @@
  * Portions Copyright (c) by James Coe 2000-2002
  * Portions Copyright (c) Novell, Inc. 2000-2003
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2000 Gerald Combs
@@ -49,7 +47,7 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/prefs.h>
 #include "packet-ipx.h"
 #include "packet-tcp.h"
@@ -57,6 +55,9 @@
 #include <epan/reassemble.h>
 #include <epan/conversation.h>
 #include <epan/tap.h>
+
+void proto_register_ncp(void);
+void proto_reg_handoff_ncp(void);
 
 int proto_ncp = -1;
 static int hf_ncp_ip_ver = -1;
@@ -106,13 +107,14 @@ gint ett_nds_segments = -1;
 gint ett_nds_segment = -1;
 static gint ett_ncp_system_flags = -1;
 
+static expert_field ei_ncp_oplock_handle = EI_INIT;
+static expert_field ei_ncp_new_server_session = EI_INIT;
+static expert_field ei_ncp_type = EI_INIT;
+
 static struct novell_tap ncp_tap;
 static struct ncp_common_header     header;
 static struct ncp_common_header    *ncp_hdr;
 
-/* Tables for reassembly of fragments. */
-GHashTable *nds_fragment_table = NULL;
-GHashTable *nds_reassembled_table = NULL;
 dissector_handle_t nds_data_handle;
 
 /* desegmentation of NCP over TCP */
@@ -144,13 +146,13 @@ struct ncp_ip_rqhdr {
 static const value_string ncp_ip_signature[] = {
     { NCPIP_RQST, "Demand Transport (Request)" },
     { NCPIP_RPLY, "Transport is NCP (Reply)" },
-    { 0, NULL },
+    { 0, NULL }
 };
 
 static const value_string burst_command[] = {
     { 0x01000000, "Burst Read" },
     { 0x02000000, "Burst Write" },
-    { 0, NULL },
+    { 0, NULL }
 };
 
 /* The information in this module comes from:
@@ -263,17 +265,17 @@ mncp_hash_insert(conversation_t *conversation, guint32 nwconnection, guint8 nwta
     /* Now remember the request, so we can find it if we later
        a reply to it. Track by conversation, connection, and task number.
        in NetWare these values determine each unique session */
-    key = se_alloc(sizeof(mncp_rhash_key));
+    key = wmem_new(wmem_file_scope(), mncp_rhash_key);
     key->conversation = conversation;
     key->nwconnection = nwconnection;
     key->nwtask = nwtask;
 
-    value = se_alloc(sizeof(mncp_rhash_value));
+    value = wmem_new(wmem_file_scope(), mncp_rhash_value);
 
     g_hash_table_insert(mncp_rhash, key, value);
 
     if (ncp_echo_conn && nwconnection != 65535) {
-        expert_add_info_format(pinfo, NULL, PI_RESPONSE_CODE, PI_CHAT, "Detected New Server Session. Connection %d, Task %d", nwconnection, nwtask);
+        expert_add_info_format(pinfo, NULL, &ei_ncp_new_server_session, "Detected New Server Session. Connection %d, Task %d", nwconnection, nwtask);
         value->session_start_packet_num = pinfo->fd->num;
     }
 
@@ -290,7 +292,7 @@ mncp_hash_lookup(conversation_t *conversation, guint32 nwconnection, guint8 nwta
     key.nwconnection = nwconnection;
     key.nwtask = nwtask;
 
-    return g_hash_table_lookup(mncp_rhash, &key);
+    return (mncp_rhash_value *)g_hash_table_lookup(mncp_rhash, &key);
 }
 
 /*
@@ -352,9 +354,9 @@ dissect_ncp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
             commhdr += 4;
         }
         /* Check to see if this is a valid offset, otherwise increment for packet signature */
-        if (match_strval(tvb_get_ntohs(tvb, commhdr), ncp_type_vals)==NULL) {
+        if (try_val_to_str(tvb_get_ntohs(tvb, commhdr), ncp_type_vals)==NULL) {
             /* Check to see if we have a valid type after packet signature length */
-            if (match_strval(tvb_get_ntohs(tvb, commhdr+8), ncp_type_vals)!=NULL) {
+            if (try_val_to_str(tvb_get_ntohs(tvb, commhdr+8), ncp_type_vals)!=NULL) {
                 proto_tree_add_item(ncp_tree, hf_ncp_ip_packetsig, tvb, commhdr, 8, ENC_NA);
                 commhdr += 8;
             }
@@ -413,15 +415,14 @@ dissect_ncp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                  * request packet, so look up the
                  * request value and check the task number
                  */
-                request_value = mncp_hash_lookup(conversation, nw_connection, header.task);
+                /*request_value = mncp_hash_lookup(conversation, nw_connection, header.task);*/
             }
         } else {
             /* Get request value data */
             request_value = mncp_hash_lookup(conversation, nw_connection, header.task);
             if (request_value) {
-                if ((request_value->session_start_packet_num == pinfo->fd->num) && ncp_echo_conn)
-                {
-                    expert_add_info_format(pinfo, NULL, PI_RESPONSE_CODE, PI_CHAT, "Detected New Server Session. Connection %d, Task %d", nw_connection, header.task);
+                if ((request_value->session_start_packet_num == pinfo->fd->num) && ncp_echo_conn) {
+                    expert_add_info_format(pinfo, NULL, &ei_ncp_new_server_session, "Detected New Server Session. Connection %d, Task %d", nw_connection, header.task);
                 }
             }
         }
@@ -453,9 +454,8 @@ dissect_ncp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
         } else {
             request_value = mncp_hash_lookup(conversation, nw_connection, header.task);
             if (request_value) {
-                if ((request_value->session_start_packet_num == pinfo->fd->num) && ncp_echo_conn)
-                {
-                    expert_add_info_format(pinfo, NULL, PI_RESPONSE_CODE, PI_CHAT, "Detected New Server Session. Connection %d, Task %d", nw_connection, header.task);
+                if ((request_value->session_start_packet_num == pinfo->fd->num) && ncp_echo_conn) {
+                    expert_add_info_format(pinfo, NULL, &ei_ncp_new_server_session, "Detected New Server Session. Connection %d, Task %d", nw_connection, header.task);
                 }
             }
         }
@@ -463,10 +463,8 @@ dissect_ncp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
     tap_queue_packet(ncp_tap.hdr, pinfo, ncp_hdr);
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        col_add_str(pinfo->cinfo, COL_INFO,
-            val_to_str(header.type, ncp_type_vals, "Unknown type (0x%04x)"));
-    }
+    col_add_str(pinfo->cinfo, COL_INFO,
+        val_to_str(header.type, ncp_type_vals, "Unknown type (0x%04x)"));
 
     /*
      * Process the packet-type-specific header.
@@ -479,9 +477,8 @@ dissect_ncp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
         proto_tree_add_item(ncp_tree, hf_ncp_task, tvb, commhdr + 4, 1, ENC_BIG_ENDIAN);
         proto_tree_add_item(ncp_tree, hf_ncp_oplock_flag, tvb, commhdr + 9, 1, tvb_get_guint8(tvb, commhdr+9));
         proto_tree_add_item(ncp_tree, hf_ncp_oplock_handle, tvb, commhdr + 10, 4, ENC_BIG_ENDIAN);
-        if ((tvb_get_guint8(tvb, commhdr+9)==0x24) && ncp_echo_file)
-        {
-            expert_add_info_format(pinfo, NULL, PI_RESPONSE_CODE, PI_CHAT, "Server requesting station to clear oplock on handle - %08x", tvb_get_ntohl(tvb, commhdr+10));
+        if ((tvb_get_guint8(tvb, commhdr+9)==0x24) && ncp_echo_file) {
+            expert_add_info_format(pinfo, NULL, &ei_ncp_oplock_handle, "Server requesting station to clear oplock on handle - %08x", tvb_get_ntohl(tvb, commhdr+10));
         }
         break;
 
@@ -646,13 +643,11 @@ dissect_ncp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
             offset += 4;
             data_len -= 4;
 
-            if (check_col(pinfo->cinfo, COL_INFO)) {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                    "%s %d bytes starting at offset %d in file 0x%08x",
-                    val_to_str(ncp_burst_command,
-                      burst_command, "Unknown (0x%08x)"),
-                     burst_len, burst_off, burst_file);
-            }
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                "%s %d bytes starting at offset %d in file 0x%08x",
+                val_to_str(ncp_burst_command,
+                    burst_command, "Unknown (0x%08x)"),
+                    burst_len, burst_off, burst_file);
             break;
         } else {
             if (tvb_get_guint8(tvb, commhdr + 2) & 0x10) {
@@ -829,8 +824,7 @@ dissect_ncp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
             val_to_str(header.type, ncp_type_vals,
                 "Unknown type (0x%04x)"));
         if (ncp_echo_err) {
-            expert_add_info_format(pinfo, expert_item, PI_UNDECODED, PI_NOTE, "%s packets not supported yet", val_to_str(header.type, ncp_type_vals,
-                "Unknown type (0x%04x)"));
+            expert_add_info_format(pinfo, expert_item, &ei_ncp_type, "%s packets not supported yet", val_to_str(header.type, ncp_type_vals, "Unknown type (0x%04x)"));
         }
         break;
     }
@@ -845,37 +839,39 @@ dissect_ncp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 static guint
 get_ncp_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 {
-  guint32 signature;
+    guint32 signature;
 
-  /*
-   * Check the NCP-over-TCP header signature, to make sure it's there.
-   * If it's not there, we cannot trust the next 4 bytes to be a
-   * packet length+"has signature" flag, so we just say the length is
-   * "what remains in the packet".
-   */
-  signature = tvb_get_ntohl(tvb, offset);
-  if (signature != NCPIP_RQST && signature != NCPIP_RPLY)
-    return tvb_length_remaining(tvb, offset);
+    /*
+     * Check the NCP-over-TCP header signature, to make sure it's there.
+     * If it's not there, we cannot trust the next 4 bytes to be a
+     * packet length+"has signature" flag, so we just say the length is
+     * "what remains in the packet".
+     */
+    signature = tvb_get_ntohl(tvb, offset);
+    if (signature != NCPIP_RQST && signature != NCPIP_RPLY)
+        return tvb_length_remaining(tvb, offset);
 
-  /*
-   * Get the length of the NCP-over-TCP packet.  Strip off the "has
-   * signature" flag.
-   */
+    /*
+     * Get the length of the NCP-over-TCP packet.  Strip off the "has
+     * signature" flag.
+     */
 
-  return tvb_get_ntohl(tvb, offset + 4) & 0x7fffffff;
+    return tvb_get_ntohl(tvb, offset + 4) & 0x7fffffff;
 }
 
-static void
-dissect_ncp_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_ncp_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
     dissect_ncp_common(tvb, pinfo, tree, TRUE);
+    return tvb_length(tvb);
 }
 
-static void
-dissect_ncp_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_ncp_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
     tcp_dissect_pdus(tvb, pinfo, tree, ncp_desegment, 8, get_ncp_pdu_len,
-                     dissect_ncp_tcp_pdu);
+                     dissect_ncp_tcp_pdu, data);
+    return tvb_length(tvb);
 }
 
 void
@@ -1042,21 +1038,28 @@ proto_register_ncp(void)
             "Packet Burst File Handle", HFILL }},
         { &hf_ncp_burst_reserved,
           { "Reserved",                         "ncp.burst_reserved",
-            FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }},
-
+            FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }}
     };
     static gint *ett[] = {
         &ett_ncp,
         &ett_ncp_system_flags,
         &ett_nds,
         &ett_nds_segments,
-        &ett_nds_segment,
+        &ett_nds_segment
+    };
+    static ei_register_info ei[] = {
+        { &ei_ncp_new_server_session, { "ncp.new_server_session", PI_RESPONSE_CODE, PI_CHAT, "Detected New Server Session", EXPFILL }},
+        { &ei_ncp_oplock_handle, { "ncp.oplock_handle.clear", PI_RESPONSE_CODE, PI_CHAT, "Server requesting station to clear oplock", EXPFILL }},
+        { &ei_ncp_type, { "ncp.type.unsupported", PI_UNDECODED, PI_NOTE, "Packet type not supported yet", EXPFILL }},
     };
     module_t *ncp_module;
+    expert_module_t* expert_ncp;
 
     proto_ncp = proto_register_protocol("NetWare Core Protocol", "NCP", "ncp");
     proto_register_field_array(proto_ncp, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_ncp = expert_register_protocol(proto_ncp);
+    expert_register_field_array(expert_ncp, ei, array_length(ei));
 
     ncp_module = prefs_register_protocol(proto_ncp, NULL);
     prefs_register_obsolete_preference(ncp_module, "initial_hash_size");
@@ -1106,7 +1109,7 @@ proto_reg_handoff_ncp(void)
     dissector_handle_t ncp_tcp_handle;
 
     ncp_handle = create_dissector_handle(dissect_ncp, proto_ncp);
-    ncp_tcp_handle = create_dissector_handle(dissect_ncp_tcp, proto_ncp);
+    ncp_tcp_handle = new_create_dissector_handle(dissect_ncp_tcp, proto_ncp);
     dissector_add_uint("tcp.port", TCP_PORT_NCP, ncp_tcp_handle);
     dissector_add_uint("udp.port", UDP_PORT_NCP, ncp_handle);
     dissector_add_uint("ipx.packet_type", IPX_PACKET_TYPE_NCP, ncp_handle);
@@ -1114,3 +1117,17 @@ proto_reg_handoff_ncp(void)
 
     data_handle = find_dissector("data");
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */
+

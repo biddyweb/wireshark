@@ -1,8 +1,6 @@
 /* packet-ieee8023.c
  * Routine for dissecting 802.3 (as opposed to D/I/X Ethernet) packets.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,10 +24,13 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/expert.h>
 #include <epan/show_exception.h>
 #include "packet-ieee8023.h"
 #include "packet-eth.h"
+
+void proto_reg_handoff_ieee802_3(void);
 
 static dissector_handle_t ipx_handle;
 static dissector_handle_t llc_handle;
@@ -38,7 +39,7 @@ static dissector_handle_t ccsds_handle;
 void
 dissect_802_3(volatile int length, gboolean is_802_2, tvbuff_t *tvb,
 	      int offset_after_length, packet_info *pinfo, proto_tree *tree,
-	      proto_tree *fh_tree, int length_id, int trailer_id,
+	      proto_tree *fh_tree, int length_id, int trailer_id, expert_field* ei_len,
 	      int fcs_len)
 {
   proto_item		*length_it;
@@ -65,8 +66,7 @@ dissect_802_3(volatile int length, gboolean is_802_2, tvbuff_t *tvb,
      the payload. */
   if (length > reported_length) {
     length = reported_length;
-    expert_add_info_format(pinfo, length_it, PI_MALFORMED, PI_ERROR,
-        "Length field value goes past the end of the payload");
+    expert_add_info(pinfo, length_it, ei_len);
   }
 
   /* Give the next dissector only 'length' number of bytes. */

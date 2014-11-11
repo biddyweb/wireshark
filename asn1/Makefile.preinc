@@ -1,8 +1,5 @@
 # To be included into the asn1 Makefiles
 #
-# $Id$
-#
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -23,3 +20,6 @@
 
 MAKE_CNF_EXPORT = $(MAKE) generate_export
 
+EXTRA_DIST_COMMON = \
+	CMakeLists.txt \
+	Makefile.nmake

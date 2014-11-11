@@ -1,8 +1,6 @@
 /* str_util.c
  * String utility routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,30 @@
 
 #include <ctype.h>
 
+int
+ws_xton(char ch)
+{
+	switch (ch) {
+		case '0': return 0;
+		case '1': return 1;
+		case '2': return 2;
+		case '3': return 3;
+		case '4': return 4;
+		case '5': return 5;
+		case '6': return 6;
+		case '7': return 7;
+		case '8': return 8;
+		case '9': return 9;
+		case 'a':  case 'A': return 10;
+		case 'b':  case 'B': return 11;
+		case 'c':  case 'C': return 12;
+		case 'd':  case 'D': return 13;
+		case 'e':  case 'E': return 14;
+		case 'f':  case 'F': return 15;
+		default: return -1;
+	}
+}
+
 /* Convert all ASCII letters to lower case, in place. */
 gchar *
 ascii_strdown_inplace(gchar *str)
@@ -36,7 +58,8 @@ ascii_strdown_inplace(gchar *str)
 	gchar *s;
 
 	for (s = str; *s; s++)
-		*s = g_ascii_tolower (*s);
+        /* What 'g_ascii_tolower (gchar c)' does, this should be slightly more efficient */
+		*s = g_ascii_isupper (*s) ? *s - 'A' + 'a' : *s;
 
         return (str);
 }
@@ -48,7 +71,8 @@ ascii_strup_inplace(gchar *str)
 	gchar *s;
 
 	for (s = str; *s; s++)
-		*s = g_ascii_toupper (*s);
+        /* What 'g_ascii_toupper (gchar c)' does, this should be slightly more efficient */
+        *s = g_ascii_islower (*s) ? *s - 'a' + 'A' : *s;
 
         return (str);
 }
@@ -61,7 +85,7 @@ isprint_string(const gchar *str)
 
 	/* Loop until we reach the end of the string (a null) */
 	for(pos = 0; str[pos] != '\0'; pos++){
-		if(!isprint(str[pos])){
+		if(!g_ascii_isprint(str[pos])){
 			/* The string contains a non-printable character */
 			return FALSE;
 		}
@@ -99,12 +123,14 @@ isdigit_string(guchar *str)
 #endif
 
 /* Given a size, return its value in a human-readable format */
-gchar *format_size(gint64 size, format_size_flags_e flags) {
+gchar *
+format_size(gint64 size, format_size_flags_e flags)
+{
 	GString *human_str = g_string_new("");
 	int power = 1000;
 	int pfx_off = 0;
 	gboolean is_small = FALSE;
-	const gchar *prefix[] = {"T", "G", "M", "k", "Ti", "Gi", "Mi", "Ki"};
+	static const gchar *prefix[] = {"T", "G", "M", "k", "Ti", "Gi", "Mi", "Ki"};
 	gchar *ret_val;
 
 	if ((flags & FORMAT_SIZE_PFX_MASK) == format_size_prefix_iec) {
@@ -147,4 +173,10 @@ gchar *format_size(gint64 size, format_size_flags_e flags) {
 	ret_val = human_str->str;
 	g_string_free(human_str, FALSE);
 	return ret_val;
+}
+
+gchar
+printable_char_or_period(gchar c)
+{
+	return g_ascii_isprint(c) ? c : '.';
 }

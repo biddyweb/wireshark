@@ -5,8 +5,6 @@
  * This information is based off the released idl files from opengroup.
  * ftp://ftp.opengroup.org/pub/dce122/dce/src/admin.tar.gz ./admin/dced/idl/llb.idl
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,6 +32,8 @@
 #include "packet-dcerpc.h"
 #include "packet-dcerpc-dce122.h"
 
+void proto_register_llb (void);
+void proto_reg_handoff_llb (void);
 
 static int proto_llb = -1;
 static int hf_llb_opnum = -1;

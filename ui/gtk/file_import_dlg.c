@@ -2,8 +2,6 @@
  * Dialog to setup for import of a text file, like text2pcap
  * November 2010, Jaap Keuter <jaap.keuter@xs4all.nl>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,8 @@
 
 #include <gtk/gtk.h>
 
+#include <stdlib.h>
+
 #include "globals.h"
 #include "wtap.h"
 #include "pcap-encap.h"
@@ -49,7 +49,7 @@
 
 #include "file.h"
 #include "wsutil/file_util.h"
-#include "tempfile.h"
+#include "wsutil/tempfile.h"
 
 #define INPUT_FRM_KEY                   "input_frame"
 
@@ -62,6 +62,8 @@
 #define INPUT_DATETIME_CB_KEY           "input_datetime_checkbox"
 #define INPUT_TIMEFMT_LBL_KEY           "input_timeformat_label"
 #define INPUT_TIMEFMT_TE_KEY            "input_timeformat_entry"
+
+#define INPUT_DIR_CB_KEY                "input_direction_indication_checkbox"
 
 #define IMPORT_FRM_KEY                  "import_frame"
 #define IMPORT_ENCAP_CO_KEY             "import_encap_combo"
@@ -105,7 +107,7 @@ file_import_dlg_destroy_cb(GtkWidget *win _U_, gpointer user_data _U_)
 static void
 browse_file_cb(GtkWidget *browse_bt, GtkWidget *filename_te)
 {
-    file_selection_browse(browse_bt, filename_te, "Wireshark: Import from Text",
+    file_selection_browse(browse_bt, filename_te, "Wireshark: Import from Hex Dump",
         FILE_SELECTION_READ_BROWSE);
 }
 
@@ -123,6 +125,12 @@ timefmt_cb_toggle(GtkWidget *widget, gpointer data _U_)
     gtk_widget_set_sensitive(timefmt_te, apply_fmt);
 }
 
+enum
+{
+    ENCAP_NAME_COLUMN,
+    ENCAP_VALUE_COLUMN
+};
+
 /*****************************************************************************/
 static void
 create_encap_list_store(void)
@@ -130,29 +138,31 @@ create_encap_list_store(void)
     GtkTreeIter  iter;
     gint         encap;
     const gchar *name;
+    GtkTreeSortable *sortable;
+    GtkSortType order = GTK_SORT_ASCENDING;
 
     encap_list_store = gtk_list_store_new(2, G_TYPE_STRING, G_TYPE_UINT);
+    sortable = GTK_TREE_SORTABLE(encap_list_store);
+    gtk_tree_sortable_set_sort_func(sortable, ENCAP_NAME_COLUMN,
+        str_ptr_sort_func, GINT_TO_POINTER(ENCAP_NAME_COLUMN), NULL);
+    gtk_tree_sortable_set_sort_column_id(sortable, ENCAP_NAME_COLUMN, order);
 
     /* Scan all Wiretap encapsulation types */
-    for (encap = 1; encap < wtap_get_num_encap_types(); encap++)
-    {
+    for (encap = 1; encap < wtap_get_num_encap_types(); encap++) {
         /* Check if we can write to a PCAP file
          *
          * Exclude wtap encapsulations that require a pseudo header,
          * because we won't setup one from the text we import and
          * wiretap doesn't allow us to write 'raw' frames
          */
-        if ((wtap_wtap_encap_to_pcap_encap(encap) > 0) && !wtap_encap_requires_phdr(encap))
-        {
+        if ((wtap_wtap_encap_to_pcap_encap(encap) > 0) && !wtap_encap_requires_phdr(encap)) {
             /* If it has got a name */
-            if ((name = wtap_encap_string(encap)))
-            {
+            if ((name = wtap_encap_string(encap))) {
                 gtk_list_store_append(encap_list_store, &iter);
                 gtk_list_store_set(encap_list_store, &iter, 0, name, 1, encap, -1);
             }
         }
     }
-
 }
 
 static GtkWidget *
@@ -180,18 +190,16 @@ encap_co_changed(GtkComboBox *widget, gpointer data)
 
     result = gtk_combo_box_get_active_iter(widget, &iter);
 
-    if (result)
-    {
+    if (result) {
         guint encap;
         GtkTreeModel *model = gtk_combo_box_get_model(widget);
-        gtk_tree_model_get(model, &iter, 1, &encap, -1);
+        gtk_tree_model_get(model, &iter, ENCAP_VALUE_COLUMN, &encap, -1);
 
         if (encap != WTAP_ENCAP_ETHERNET)
             result = FALSE;
     }
 
-    if (result)
-    {
+    if (result) {
         header_cb = GTK_WIDGET(g_object_get_data(G_OBJECT(data), IMPORT_HEADER_CB_KEY));
         g_signal_emit_by_name(G_OBJECT(header_cb), "toggled", data);
     } else {
@@ -235,8 +243,7 @@ header_eth_rb_toggle(GtkWidget *widget, gpointer data)
     GtkWidget *ppi_lbl      = GTK_WIDGET(g_object_get_data(G_OBJECT(data), IMPORT_HEADER_PPI_LBL_KEY));
     GtkWidget *ppi_te       = GTK_WIDGET(g_object_get_data(G_OBJECT(data), IMPORT_HEADER_PPI_TE_KEY));
 
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)))
-    {
+    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget))) {
         gtk_widget_set_sensitive(etype_lbl,    TRUE);
         gtk_widget_set_sensitive(etype_te,     TRUE);
         gtk_widget_set_sensitive(prot_lbl,     FALSE);
@@ -249,9 +256,7 @@ header_eth_rb_toggle(GtkWidget *widget, gpointer data)
         gtk_widget_set_sensitive(tag_te,       FALSE);
         gtk_widget_set_sensitive(ppi_lbl,      FALSE);
         gtk_widget_set_sensitive(ppi_te,       FALSE);
-    }
-    else
-    {
+    } else {
         gtk_widget_set_sensitive(etype_lbl,    FALSE);
         gtk_widget_set_sensitive(etype_te,     FALSE);
     }
@@ -273,8 +278,7 @@ header_ipv4_rb_toggle(GtkWidget *widget, gpointer data)
     GtkWidget *ppi_lbl      = GTK_WIDGET(g_object_get_data(G_OBJECT(data), IMPORT_HEADER_PPI_LBL_KEY));
     GtkWidget *ppi_te       = GTK_WIDGET(g_object_get_data(G_OBJECT(data), IMPORT_HEADER_PPI_TE_KEY));
 
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)))
-    {
+    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget))) {
         gtk_widget_set_sensitive(etype_lbl,    FALSE);
         gtk_widget_set_sensitive(etype_te,     FALSE);
         gtk_widget_set_sensitive(prot_lbl,     TRUE);
@@ -287,9 +291,7 @@ header_ipv4_rb_toggle(GtkWidget *widget, gpointer data)
         gtk_widget_set_sensitive(tag_te,       FALSE);
         gtk_widget_set_sensitive(ppi_lbl,      FALSE);
         gtk_widget_set_sensitive(ppi_te,       FALSE);
-    }
-    else
-    {
+    } else {
         gtk_widget_set_sensitive(prot_lbl,     FALSE);
         gtk_widget_set_sensitive(prot_te,      FALSE);
     }
@@ -311,8 +313,7 @@ header_udp_rb_toggle(GtkWidget *widget, gpointer data)
     GtkWidget *ppi_lbl      = GTK_WIDGET(g_object_get_data(G_OBJECT(data), IMPORT_HEADER_PPI_LBL_KEY));
     GtkWidget *ppi_te       = GTK_WIDGET(g_object_get_data(G_OBJECT(data), IMPORT_HEADER_PPI_TE_KEY));
 
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)))
-    {
+    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget))) {
         gtk_widget_set_sensitive(etype_lbl,    FALSE);
         gtk_widget_set_sensitive(etype_te,     FALSE);
         gtk_widget_set_sensitive(prot_lbl,     FALSE);
@@ -325,9 +326,7 @@ header_udp_rb_toggle(GtkWidget *widget, gpointer data)
         gtk_widget_set_sensitive(tag_te,       FALSE);
         gtk_widget_set_sensitive(ppi_lbl,      FALSE);
         gtk_widget_set_sensitive(ppi_te,       FALSE);
-    }
-    else
-    {
+    } else {
         gtk_widget_set_sensitive(src_port_lbl, FALSE);
         gtk_widget_set_sensitive(src_port_te,  FALSE);
         gtk_widget_set_sensitive(dst_port_lbl, FALSE);
@@ -351,8 +350,7 @@ header_tcp_rb_toggle(GtkWidget *widget, gpointer data)
     GtkWidget *ppi_lbl      = GTK_WIDGET(g_object_get_data(G_OBJECT(data), IMPORT_HEADER_PPI_LBL_KEY));
     GtkWidget *ppi_te       = GTK_WIDGET(g_object_get_data(G_OBJECT(data), IMPORT_HEADER_PPI_TE_KEY));
 
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)))
-    {
+    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget))) {
         gtk_widget_set_sensitive(etype_lbl,    FALSE);
         gtk_widget_set_sensitive(etype_te,     FALSE);
         gtk_widget_set_sensitive(prot_lbl,     FALSE);
@@ -365,9 +363,7 @@ header_tcp_rb_toggle(GtkWidget *widget, gpointer data)
         gtk_widget_set_sensitive(tag_te,       FALSE);
         gtk_widget_set_sensitive(ppi_lbl,      FALSE);
         gtk_widget_set_sensitive(ppi_te,       FALSE);
-    }
-    else
-    {
+    } else {
         gtk_widget_set_sensitive(src_port_lbl, FALSE);
         gtk_widget_set_sensitive(src_port_te,  FALSE);
         gtk_widget_set_sensitive(dst_port_lbl, FALSE);
@@ -391,8 +387,7 @@ header_sctp_rb_toggle(GtkWidget *widget, gpointer data)
     GtkWidget *ppi_lbl      = GTK_WIDGET(g_object_get_data(G_OBJECT(data), IMPORT_HEADER_PPI_LBL_KEY));
     GtkWidget *ppi_te       = GTK_WIDGET(g_object_get_data(G_OBJECT(data), IMPORT_HEADER_PPI_TE_KEY));
 
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)))
-    {
+    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget))) {
         gtk_widget_set_sensitive(etype_lbl,    FALSE);
         gtk_widget_set_sensitive(etype_te,     FALSE);
         gtk_widget_set_sensitive(prot_lbl,     FALSE);
@@ -405,9 +400,7 @@ header_sctp_rb_toggle(GtkWidget *widget, gpointer data)
         gtk_widget_set_sensitive(tag_te,       TRUE);
         gtk_widget_set_sensitive(ppi_lbl,      FALSE);
         gtk_widget_set_sensitive(ppi_te,       FALSE);
-    }
-    else
-    {
+    } else {
         gtk_widget_set_sensitive(src_port_lbl, FALSE);
         gtk_widget_set_sensitive(src_port_te,  FALSE);
         gtk_widget_set_sensitive(dst_port_lbl, FALSE);
@@ -433,8 +426,7 @@ header_sctp_data_rb_toggle(GtkWidget *widget, gpointer data)
     GtkWidget *ppi_lbl      = GTK_WIDGET(g_object_get_data(G_OBJECT(data), IMPORT_HEADER_PPI_LBL_KEY));
     GtkWidget *ppi_te       = GTK_WIDGET(g_object_get_data(G_OBJECT(data), IMPORT_HEADER_PPI_TE_KEY));
 
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)))
-    {
+    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget))) {
         gtk_widget_set_sensitive(etype_lbl,    FALSE);
         gtk_widget_set_sensitive(etype_te,     FALSE);
         gtk_widget_set_sensitive(prot_lbl,     FALSE);
@@ -447,9 +439,7 @@ header_sctp_data_rb_toggle(GtkWidget *widget, gpointer data)
         gtk_widget_set_sensitive(tag_te,       FALSE);
         gtk_widget_set_sensitive(ppi_lbl,      TRUE);
         gtk_widget_set_sensitive(ppi_te,       TRUE);
-    }
-    else
-    {
+    } else {
         gtk_widget_set_sensitive(src_port_lbl, FALSE);
         gtk_widget_set_sensitive(src_port_te,  FALSE);
         gtk_widget_set_sensitive(dst_port_lbl, FALSE);
@@ -483,7 +473,7 @@ file_import_open(text_import_info_t *info)
     os_info_str = g_string_new("");
     get_os_version_info(os_info_str);
 
-    g_snprintf(appname, sizeof(appname), "Wireshark " VERSION "%s", wireshark_svnversion);
+    g_snprintf(appname, sizeof(appname), "Wireshark " VERSION "%s", wireshark_gitversion);
 
     shb_hdr = g_new(wtapng_section_t,1);
     shb_hdr->section_length = -1;
@@ -503,7 +493,6 @@ file_import_open(text_import_info_t *info)
 
     /* Create fake IDB info */
     idb_inf = g_new(wtapng_iface_descriptions_t,1);
-    idb_inf->number_of_interfaces = 1;
     idb_inf->interface_data = g_array_new(FALSE, FALSE, sizeof(wtapng_if_descr_t));
 
     /* create the fake interface data */
@@ -526,10 +515,7 @@ file_import_open(text_import_info_t *info)
 
     g_array_append_val(idb_inf->interface_data, int_data);
 
-
-
-
-    info->wdh = wtap_dump_fdopen_ng(import_file_fd, WTAP_FILE_PCAPNG, info->encapsulation, info->max_frame_length, FALSE, shb_hdr, idb_inf, &err);
+    info->wdh = wtap_dump_fdopen_ng(import_file_fd, WTAP_FILE_TYPE_SUBTYPE_PCAPNG, info->encapsulation, info->max_frame_length, FALSE, shb_hdr, idb_inf, &err);
     if (info->wdh == NULL) {
         open_failure_alert_box(capfile_name, err, TRUE);
         fclose(info->import_text_file);
@@ -544,18 +530,15 @@ file_import_open(text_import_info_t *info)
 
     text_import_cleanup();
 
-    if (fclose(info->import_text_file))
-    {
+    if (fclose(info->import_text_file)) {
         read_failure_alert_box(info->import_text_filename, errno);
     }
 
-    if (!wtap_dump_close(info->wdh, &err))
-    {
+    if (!wtap_dump_close(info->wdh, &err)) {
         write_failure_alert_box(capfile_name, err);
     }
 
-    if (cf_open(&cfile, capfile_name, TRUE /* temporary file */, &err) != CF_OK)
-    {
+    if (cf_open(&cfile, capfile_name, WTAP_TYPE_AUTO, TRUE /* temporary file */, &err) != CF_OK) {
         open_failure_alert_box(capfile_name, err, FALSE);
         goto end;
     }
@@ -589,7 +572,7 @@ setup_file_import(GtkWidget *main_w)
 {
     GtkWidget *input_frm, *import_frm;
 
-    text_import_info_t *text_import_info = g_malloc0(sizeof(text_import_info_t));
+    text_import_info_t *text_import_info = (text_import_info_t *)g_malloc0(sizeof(text_import_info_t));
 
     /* Retrieve the input and import settings from the dialog */
 
@@ -605,6 +588,7 @@ setup_file_import(GtkWidget *main_w)
         GtkWidget *offset_dec_rb = GTK_WIDGET(g_object_get_data(G_OBJECT(input_frm), INPUT_OFFSET_DEC_RB_KEY));
         GtkWidget *timefmt_cb    = GTK_WIDGET(g_object_get_data(G_OBJECT(input_frm), INPUT_DATETIME_CB_KEY));
         GtkWidget *timefmt_te    = GTK_WIDGET(g_object_get_data(G_OBJECT(input_frm), INPUT_TIMEFMT_TE_KEY));
+        GtkWidget *dir_cb        = GTK_WIDGET(g_object_get_data(G_OBJECT(input_frm), INPUT_DIR_CB_KEY));
 
         text_import_info->import_text_filename = g_strdup(gtk_entry_get_text(GTK_ENTRY(filename_te)));
 
@@ -622,9 +606,10 @@ setup_file_import(GtkWidget *main_w)
             gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(offset_hex_rb)) ? OFFSET_HEX :
             gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(offset_oct_rb)) ? OFFSET_OCT :
             gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(offset_dec_rb)) ? OFFSET_DEC :
-            0;
+            OFFSET_NONE;
         text_import_info->date_timestamp = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(timefmt_cb));
         text_import_info->date_timestamp_format = g_strdup(gtk_entry_get_text(GTK_ENTRY(timefmt_te)));
+        text_import_info->has_direction = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(dir_cb));
     }
 
     /* Then the import frame controls of interest */
@@ -652,15 +637,13 @@ setup_file_import(GtkWidget *main_w)
 
         GtkTreeIter iter;
 
-        if (gtk_combo_box_get_active_iter(GTK_COMBO_BOX(encap_co), &iter))
-        {
+        if (gtk_combo_box_get_active_iter(GTK_COMBO_BOX(encap_co), &iter)) {
             GtkTreeModel *model = gtk_combo_box_get_model(GTK_COMBO_BOX(encap_co));
             gtk_tree_model_get(model, &iter, 1, &text_import_info->encapsulation, -1);
         }
 
         if ((text_import_info->encapsulation == WTAP_ENCAP_ETHERNET) &&
-            (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(header_cb))))
-        {
+            (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(header_cb)))) {
             text_import_info->dummy_header_type =
                 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(header_eth_rb))       ? HEADER_ETH :
                 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(header_ipv4_rb))      ? HEADER_IPV4 :
@@ -670,12 +653,10 @@ setup_file_import(GtkWidget *main_w)
                 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(header_sctp_data_rb)) ? HEADER_SCTP_DATA :
                 HEADER_NONE;
 
-            switch (text_import_info->dummy_header_type)
-            {
+            switch (text_import_info->dummy_header_type) {
             case HEADER_ETH:
                 text_import_info->pid = (guint) strtol(gtk_entry_get_text(GTK_ENTRY(etype_te)), NULL, 16);
-                if (text_import_info->pid > 0xffff)
-                {
+                if (text_import_info->pid > 0xffff) {
                     simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "The Ethertype (%x) is too large.",
                         text_import_info->pid);
                     g_free(text_import_info->import_text_filename);
@@ -688,8 +669,7 @@ setup_file_import(GtkWidget *main_w)
 
             case HEADER_IPV4:
                 text_import_info->protocol = (guint) strtol(gtk_entry_get_text(GTK_ENTRY(protocol_te)), NULL, 10);
-                if (text_import_info->protocol > 0xff)
-                {
+                if (text_import_info->protocol > 0xff) {
                     simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "The IPv4 protocol (%u) is too large.",
                         text_import_info->protocol);
                     g_free(text_import_info->import_text_filename);
@@ -703,8 +683,7 @@ setup_file_import(GtkWidget *main_w)
             case HEADER_UDP:
             case HEADER_TCP:
                 text_import_info->src_port = (guint) strtol(gtk_entry_get_text(GTK_ENTRY(src_port_te)), NULL, 10);
-                if (text_import_info->src_port > 0xffff)
-                {
+                if (text_import_info->src_port > 0xffff) {
                     simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "The source port (%u) is too large.",
                         text_import_info->src_port);
                     g_free(text_import_info->import_text_filename);
@@ -714,8 +693,7 @@ setup_file_import(GtkWidget *main_w)
                     return NULL;
                 }
                 text_import_info->dst_port = (guint) strtol(gtk_entry_get_text(GTK_ENTRY(dst_port_te)), NULL, 10);
-                if (text_import_info->dst_port > 0xffff)
-                {
+                if (text_import_info->dst_port > 0xffff) {
                     simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "The destination port (%u) is too large.",
                         text_import_info->dst_port);
                     g_free(text_import_info->import_text_filename);
@@ -728,8 +706,7 @@ setup_file_import(GtkWidget *main_w)
 
             case HEADER_SCTP:
                 text_import_info->src_port = (guint) strtol(gtk_entry_get_text(GTK_ENTRY(src_port_te)), NULL, 10);
-                if (text_import_info->src_port > 0xffff)
-                {
+                if (text_import_info->src_port > 0xffff) {
                     simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "The source port (%u) is too large.",
                         text_import_info->src_port);
                     g_free(text_import_info->import_text_filename);
@@ -739,8 +716,7 @@ setup_file_import(GtkWidget *main_w)
                     return NULL;
                 }
                 text_import_info->dst_port = (guint) strtol(gtk_entry_get_text(GTK_ENTRY(dst_port_te)), NULL, 10);
-                if (text_import_info->dst_port > 0xffff)
-                {
+                if (text_import_info->dst_port > 0xffff) {
                     simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "The destination port (%u) is too large.",
                         text_import_info->dst_port);
                     g_free(text_import_info->import_text_filename);
@@ -754,8 +730,7 @@ setup_file_import(GtkWidget *main_w)
 
             case HEADER_SCTP_DATA:
                 text_import_info->src_port = (guint) strtol(gtk_entry_get_text(GTK_ENTRY(src_port_te)), NULL, 10);
-                if (text_import_info->src_port > 0xffff)
-                {
+                if (text_import_info->src_port > 0xffff) {
                     simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "The source port (%u) is too large.",
                         text_import_info->src_port);
                     g_free(text_import_info->import_text_filename);
@@ -765,8 +740,7 @@ setup_file_import(GtkWidget *main_w)
                     return NULL;
                 }
                 text_import_info->dst_port = (guint) strtol(gtk_entry_get_text(GTK_ENTRY(dst_port_te)), NULL, 10);
-                if (text_import_info->dst_port > 0xffff)
-                {
+                if (text_import_info->dst_port > 0xffff) {
                     simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "The destination port (%u) is too large.",
                         text_import_info->dst_port);
                     g_free(text_import_info->import_text_filename);
@@ -788,9 +762,7 @@ setup_file_import(GtkWidget *main_w)
         text_import_info->max_frame_length = (guint)strtol(gtk_entry_get_text(GTK_ENTRY(framelen_te)), NULL, 10);
         if (text_import_info->max_frame_length == 0) {
             text_import_info->max_frame_length = IMPORT_MAX_PACKET;
-        }
-        else if (text_import_info->max_frame_length > IMPORT_MAX_PACKET)
-        {
+        } else if (text_import_info->max_frame_length > IMPORT_MAX_PACKET) {
             simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "The maximum frame length (%u) is too long.",
                 text_import_info->max_frame_length);
             g_free(text_import_info->import_text_filename);
@@ -815,9 +787,35 @@ file_import_ok_cb(GtkWidget *widget _U_, gpointer data)
        If they cancel out of it, don't open the file. */
     if (do_file_close(&cfile, FALSE, " before opening a new capture file")) {
         /* open the new file */
-        text_import_info = setup_file_import(data);
-        if (text_import_info)
+        text_import_info = setup_file_import((GtkWidget *)data);
+        if (text_import_info) {
             file_import_open(text_import_info);
+        }
+    }
+}
+
+static void
+set_default_encap(GtkWidget *encap_co, guint default_encap)
+{
+    gboolean result;
+    GtkTreeIter iter;
+    GtkTreeModel *model;
+    gboolean more_items = TRUE;
+    guint encap_value;
+
+    gtk_combo_box_set_active(GTK_COMBO_BOX(encap_co), 0);
+    result = gtk_combo_box_get_active_iter(GTK_COMBO_BOX(encap_co), &iter);
+    if (result) {
+        model = gtk_combo_box_get_model(GTK_COMBO_BOX(encap_co));
+        do {
+            gtk_tree_model_get(model, &iter, ENCAP_VALUE_COLUMN, &encap_value, -1);
+            if (encap_value == default_encap) {
+                gtk_combo_box_set_active_iter(GTK_COMBO_BOX(encap_co), &iter);
+                more_items = FALSE;
+            }
+            else
+                more_items = gtk_tree_model_iter_next(model, &iter);
+        } while (more_items);
     }
 }
 
@@ -835,6 +833,7 @@ file_import_dlg_new(void)
                *offset_lbl, *offset_rb_vb,
                *offset_hex_rb, *offset_oct_rb, *offset_dec_rb,
                *timefmt_hb, *timefmt_cb, *timefmt_lbl, *timefmt_te,
+               *dir_hb, *dir_cb,
                *import_frm, *import_vb,
                *encap_hb, *encap_lbl, *encap_co,
                *header_cb, *header_frm, *header_hb,
@@ -854,7 +853,7 @@ file_import_dlg_new(void)
 
     /* Setup the dialog */
 
-    main_w = dlg_window_new("Wireshark: Import from Text");
+    main_w = dlg_window_new("Wireshark: Import from Hex Dump");
     gtk_window_set_default_size(GTK_WINDOW(main_w), 400, 300);
 
     main_vb = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 0, FALSE);
@@ -887,7 +886,7 @@ file_import_dlg_new(void)
 
     g_object_set_data(G_OBJECT(input_frm), INPUT_FILENAME_TE_KEY, filename_te);
 
-    browse_bt = gtk_button_new_from_stock(WIRESHARK_STOCK_BROWSE);
+    browse_bt = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_BROWSE);
     gtk_widget_set_tooltip_text(browse_bt, "Browse for text file to import");
     ws_gtk_grid_attach(GTK_GRID(input_grid), browse_bt, 2, 0, 1, 1);
 
@@ -938,8 +937,9 @@ file_import_dlg_new(void)
     g_object_set_data(G_OBJECT(timefmt_cb), INPUT_TIMEFMT_LBL_KEY, timefmt_lbl);
 
     timefmt_te = gtk_entry_new();
+    gtk_entry_set_text(GTK_ENTRY(timefmt_te), "%F %T.");
     gtk_widget_set_tooltip_text(timefmt_te,
-                                "The format in which to parse timestamps in the text file (eg. %H:%M:%S.)."
+                                "The format in which to parse timestamps in the text file (eg. %F %T.)."
                                 " Format specifiers are based on strptime(3)");
     gtk_box_pack_start(GTK_BOX(timefmt_hb), timefmt_te, FALSE, FALSE, 0);
 
@@ -948,6 +948,18 @@ file_import_dlg_new(void)
 
     g_signal_connect(timefmt_cb, "toggled", G_CALLBACK(timefmt_cb_toggle), NULL);
     g_signal_emit_by_name(G_OBJECT(timefmt_cb), "toggled", NULL);
+
+    /* Direction indication */
+    dir_hb = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3, FALSE);
+    gtk_container_set_border_width(GTK_CONTAINER(dir_hb), 3);
+    gtk_box_pack_start(GTK_BOX(input_vb), dir_hb, FALSE, FALSE, 0);
+
+    dir_cb = gtk_check_button_new_with_label("Direction indication");
+    gtk_widget_set_tooltip_text(dir_cb, "Whether or not the file contains information indicating the direction "
+                                " (inbound or outbound) of the packet");
+    gtk_box_pack_start(GTK_BOX(dir_hb), dir_cb, FALSE, FALSE, 0);
+
+    g_object_set_data(G_OBJECT(input_frm), INPUT_DIR_CB_KEY, dir_cb);
 
     /* Setup the import frame */
 
@@ -1129,8 +1141,7 @@ file_import_dlg_new(void)
     g_signal_emit_by_name(G_OBJECT(header_cb), "toggled", header_frm);
 
     g_signal_emit_by_name(G_OBJECT(header_eth_rb), "toggled", header_frm);
-
-    gtk_combo_box_set_active(GTK_COMBO_BOX(encap_co), 0);
+    set_default_encap(encap_co, WTAP_ENCAP_ETHERNET);
     g_signal_connect(encap_co, "changed", G_CALLBACK(encap_co_changed), header_frm);
 
     /* Frame length */
@@ -1143,7 +1154,7 @@ file_import_dlg_new(void)
 
     framelen_te = gtk_entry_new();
     gtk_widget_set_tooltip_text(framelen_te,
-                                "The maximum size of the frames to write to the import capture file (max 64000)");
+                                "The maximum size of the frames to write to the import capture file (max 65535)");
     gtk_box_pack_start(GTK_BOX(framelen_hb), framelen_te, FALSE, FALSE, 0);
 
     g_object_set_data(G_OBJECT(import_frm), IMPORT_FRAME_LENGTH_TE_KEY, framelen_te);
@@ -1153,15 +1164,15 @@ file_import_dlg_new(void)
     bbox = dlg_button_row_new(GTK_STOCK_HELP, GTK_STOCK_OK, GTK_STOCK_CANCEL, NULL);
     gtk_box_pack_end(GTK_BOX(main_vb), bbox, FALSE, FALSE, 3);
 
-    help_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+    help_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
     g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), (gpointer)HELP_IMPORT_DIALOG);
     gtk_widget_set_tooltip_text(help_bt, "Show topic specific help");
 
-    close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
+    close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
     window_set_cancel_button(main_w, close_bt, window_cancel_button_cb);
     gtk_widget_set_tooltip_text(close_bt, "Close this dialog");
 
-    ok_bt =  g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+    ok_bt =  (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
     g_signal_connect(ok_bt, "clicked", G_CALLBACK(file_import_ok_cb), main_w);
     gtk_widget_grab_default(ok_bt);
     gtk_widget_set_tooltip_text(ok_bt, "Import the selected file into a temporary capture file");
@@ -1181,21 +1192,30 @@ void
 file_import_cmd_cb(GtkWidget *widget _U_)
 {
     /* Do we have an encapsulation type list? */
-    if (!encap_list_store)
-    {
+    if (!encap_list_store) {
         /* No. Create one. */
         create_encap_list_store();
     }
 
     /* Has a file import dialog already been opened? */
-    if (file_import_dlg_w)
-    {
+    if (file_import_dlg_w) {
         /* Yes. Just re-activate that dialog box. */
         reactivate_window(file_import_dlg_w);
     } else {
         /* No. Create one */
         file_import_dlg_w = file_import_dlg_new();
     }
-
-    return;
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

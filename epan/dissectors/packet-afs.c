@@ -8,8 +8,6 @@
  * Portions based on information/specs retrieved from the OpenAFS sources at
  *   www.openafs.org, Copyright IBM.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -41,8 +39,9 @@
 #include <epan/packet.h>
 #include <epan/conversation.h>
 #include <epan/addr_resolv.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/strutil.h>
+#include <epan/reassemble.h>
 
 #include "packet-rx.h"
 
@@ -160,7 +159,6 @@ struct afs_volumeinfo {
 	guint16 Part6;
 	guint16 Part7;
 };
-
 
 static int proto_afs = -1;
 static int hf_afs_fs = -1;
@@ -361,6 +359,15 @@ static int hf_afs_cb_fid_volume = -1;
 static int hf_afs_cb_fid_vnode = -1;
 static int hf_afs_cb_fid_uniqifier = -1;
 
+static int hf_afs_cm_uuid = -1;
+static int hf_afs_cm_numint = -1;
+static int hf_afs_cm_ipaddr = -1;
+static int hf_afs_cm_netmask = -1;
+static int hf_afs_cm_mtu = -1;
+static int hf_afs_cm_numcap = -1;
+static int hf_afs_cm_capabilities = -1;
+static int hf_afs_cm_cap_errortrans = -1;
+
 static int hf_afs_prot_errcode = -1;
 static int hf_afs_prot_name = -1;
 static int hf_afs_prot_id = -1;
@@ -424,6 +431,17 @@ static int hf_afs_repframe = -1;
 static int hf_afs_reqframe = -1;
 static int hf_afs_time = -1;
 
+static int hf_afs_fragments = -1;
+static int hf_afs_fragment = -1;
+static int hf_afs_fragment_overlap = -1;
+static int hf_afs_fragment_overlap_conflicts = -1;
+static int hf_afs_fragment_multiple_tails = -1;
+static int hf_afs_fragment_too_long_fragment = -1;
+static int hf_afs_fragment_error = -1;
+static int hf_afs_fragment_count = -1;
+static int hf_afs_reassembled_in = -1;
+static int hf_afs_reassembled_length = -1;
+
 static gint ett_afs = -1;
 static gint ett_afs_op = -1;
 static gint ett_afs_acl = -1;
@@ -436,6 +454,35 @@ static gint ett_afs_volsync = -1;
 static gint ett_afs_volumeinfo = -1;
 static gint ett_afs_vicestat = -1;
 static gint ett_afs_vldb_flags = -1;
+
+static gint ett_afs_fragment = -1;
+static gint ett_afs_fragments = -1;
+static gint ett_afs_cm_interfaces = -1;
+static gint ett_afs_cm_capabilities = -1;
+
+static const fragment_items afs_frag_items = {
+    /* Fragment subtrees */
+    &ett_afs_fragment,
+    &ett_afs_fragments,
+    /* Fragment fields */
+    &hf_afs_fragments,
+    &hf_afs_fragment,
+    &hf_afs_fragment_overlap,
+    &hf_afs_fragment_overlap_conflicts,
+    &hf_afs_fragment_multiple_tails,
+    &hf_afs_fragment_too_long_fragment,
+    &hf_afs_fragment_error,
+    &hf_afs_fragment_count,
+    /* Reassembled in field */
+    &hf_afs_reassembled_in,
+    /* Reassembled length field */
+    &hf_afs_reassembled_length,
+    /* Reassembled data field */
+    NULL,
+    /* Tag */
+    "RX fragments"
+};
+
 
 /*
  * Macros for helper dissection routines
@@ -531,7 +578,7 @@ static gint ett_afs_vldb_flags = -1;
 	{	guint32 i_orxs,len_orxs; \
 		i_orxs = tvb_get_ntohl(tvb, offset); \
 		len_orxs = ((i_orxs+4-1)/4)*4 + 4; \
-		proto_tree_add_item(tree, field, tvb, offset-4, len_orxs, \
+		proto_tree_add_item(tree, field, tvb, offset+4, i_orxs, \
 		ENC_ASCII|ENC_NA); \
 		offset += len_orxs; \
 	}
@@ -560,6 +607,52 @@ static gint ett_afs_vldb_flags = -1;
 		OUT_UINT(hf_afs_fs_callback_version); \
 		OUT_TIMESECS(hf_afs_fs_callback_expires); \
 		OUT_UINT(hf_afs_fs_callback_type); \
+		tree = save; \
+	}
+
+/* Output cache manager interfaces */
+#define OUT_CM_INTERFACES() \
+	{	proto_tree *save, *ti; \
+		unsigned int i; \
+		unsigned int maxint, numint; \
+		maxint = 32; \
+		numint = tvb_get_ntohl(tvb, offset); \
+		ti = proto_tree_add_text(tree, tvb, offset, 4+11*4+3*32*4, "Interfaces"); \
+		save = tree; \
+		tree = proto_item_add_subtree(ti, ett_afs_cm_interfaces); \
+		OUT_UINT(hf_afs_cm_numint); \
+		OUT_UUID(hf_afs_cm_uuid); \
+		for ( i=0; i<numint; i++ ) { \
+		    OUT_IP(hf_afs_cm_ipaddr); \
+		} \
+		offset += 4*(maxint-numint); \
+		for ( i=0; i<numint; i++ ) { \
+			OUT_IP(hf_afs_cm_netmask); \
+		} \
+		offset += 4*(maxint-numint); \
+		for ( i=0; i<numint; i++ ) { \
+			OUT_UINT(hf_afs_cm_mtu); \
+		} \
+		offset += 4*(maxint-numint); \
+		tree = save; \
+	}
+
+/* Output CM capabilities */
+#define OUT_CM_CAPABILITIES() \
+	{	proto_tree *save, *ti; \
+		unsigned int numcap; \
+		guint32 capabilities; \
+		numcap = tvb_get_ntohl(tvb, offset); \
+		ti = proto_tree_add_text(tree, tvb, offset, 4+numcap*4, "Capabilities"); \
+		save = tree; \
+		tree = proto_item_add_subtree(ti, ett_afs_cm_capabilities); \
+		OUT_UINT(hf_afs_cm_numcap); \
+		capabilities = tvb_get_ntohl(tvb, offset); \
+		ti = proto_tree_add_uint(tree, hf_afs_cm_capabilities, tvb, offset, \
+			4, capabilities); \
+		proto_tree_add_boolean(tree, hf_afs_cm_cap_errortrans, \
+			tvb,offset,4, capabilities); \
+		offset += 4; \
 		tree = save; \
 	}
 
@@ -1441,6 +1534,9 @@ struct afs_request_val {
 
 static GHashTable *afs_request_hash = NULL;
 
+/*static GHashTable *afs_fragment_table = NULL; */
+/*static GHashTable *afs_reassembled_table = NULL; */
+static reassembly_table afs_reassembly_table;
 
 /*
  * Dissector prototypes
@@ -1525,6 +1621,11 @@ afs_init_protocol(void)
 		g_hash_table_destroy(afs_request_hash);
 
 	afs_request_hash = g_hash_table_new(afs_hash, afs_equal);
+
+	/* fragment_table_init(&afs_fragment_table); */
+	/* reassembled_table_init(&afs_reassembled_table); */
+	reassembly_table_init(&afs_reassembly_table,
+			      &addresses_reassembly_table_functions);
 }
 
 
@@ -1533,10 +1634,10 @@ afs_init_protocol(void)
  * Dissection routines
  */
 
-static void
-dissect_afs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_afs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
-	struct rxinfo *rxinfo = (struct rxinfo *)pinfo->private_data;
+	struct rxinfo *rxinfo = (struct rxinfo *)data;
 	int reply = 0;
 	conversation_t *conversation;
 	struct afs_request_key request_key, *new_request_key;
@@ -1547,9 +1648,14 @@ dissect_afs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	value_string_ext *vals_ext;
 	int offset = 0;
 	nstime_t delta_ts;
+	guint8 save_fragmented;
+	int reassembled = 0;
 
 	void (*dissector)(tvbuff_t *tvb, struct rxinfo *rxinfo, proto_tree *tree, int offset, int opcode);
 
+	/* Reject the packet if data is NULL */
+	if (data == NULL)
+		return 0;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "AFS (RX)");
 	col_clear(pinfo->cinfo, COL_INFO);
@@ -1585,10 +1691,10 @@ dissect_afs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	opcode = 0;
 	if(!pinfo->fd->flags.visited){
 		if ( !request_val && !reply) {
-			new_request_key = se_new(struct afs_request_key);
+			new_request_key = wmem_new(wmem_file_scope(), struct afs_request_key);
 			*new_request_key = request_key;
 
-			request_val = se_new(struct afs_request_val);
+			request_val = wmem_new(wmem_file_scope(), struct afs_request_val);
 			request_val -> opcode = tvb_get_ntohl(tvb, offset);
 			request_val -> req_num = pinfo->fd->num;
 			request_val -> rep_num = 0;
@@ -1709,11 +1815,38 @@ dissect_afs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			);
 	}
 
-	if (tree) {
-		ti = proto_tree_add_item(tree, proto_afs, tvb, offset, -1,
-				ENC_NA);
-		afs_tree = proto_item_add_subtree(ti, ett_afs);
+	ti = proto_tree_add_item(tree, proto_afs, tvb, offset, -1,
+			ENC_NA);
+	afs_tree = proto_item_add_subtree(ti, ett_afs);
 
+	save_fragmented = pinfo->fragmented;
+	if( (! (rxinfo->flags & RX_LAST_PACKET) || rxinfo->seq > 1 )) {   /* Fragmented */
+		tvbuff_t * new_tvb = NULL;
+		fragment_head * frag_msg = NULL;
+		guint32 afs_seqid = rxinfo->callnumber ^ rxinfo->cid;
+		pinfo->fragmented = TRUE;
+
+		frag_msg = fragment_add_seq_check(&afs_reassembly_table,
+				tvb, offset, pinfo, afs_seqid, NULL,
+				rxinfo->seq-1, tvb_length_remaining(tvb, offset),
+				! ( rxinfo->flags & RX_LAST_PACKET ) );
+
+		new_tvb = process_reassembled_data( tvb, offset, pinfo, "Reassembled RX", frag_msg,
+				&afs_frag_items, NULL, afs_tree );
+
+		if (new_tvb) {
+			tvb = new_tvb;
+			reassembled = 1;
+			col_append_str(pinfo->cinfo, COL_INFO, " [AFS reassembled]");
+		} else {
+			col_set_str(pinfo->cinfo, COL_INFO, "[AFS segment of a reassembled PDU]");
+			return tvb_length(tvb);
+		}
+	}
+
+	pinfo->fragmented = save_fragmented;
+
+	if (tree) {
 		proto_tree_add_text(afs_tree, tvb, 0, 0,
 			"Service: %s%s%s %s",
 			VALID_OPCODE(opcode) ? "" : "Encrypted ",
@@ -1742,7 +1875,7 @@ dissect_afs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			/* until we do cache, can't handle replies */
 			ti = NULL;
 			if ( !reply && node != 0 ) {
-				if ( rxinfo->seq == 1 )
+				if ( rxinfo->seq == 1 || reassembled )
 				{
 					ti = proto_tree_add_uint(afs_tree,
 						node, tvb, offset, 4, opcode);
@@ -1770,7 +1903,8 @@ dissect_afs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			}
 
 			/* Process the packet according to what service it is */
-			if ( dissector ) {
+			/* Only for first packet in an rx data stream or the full reassembled stream */
+			if ( dissector && ( rxinfo->seq == 1 || reassembled ) ) {
 				(*dissector)(tvb, rxinfo, afs_op_tree, offset, opcode);
 			}
 		}
@@ -1782,6 +1916,8 @@ dissect_afs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	if ( rxinfo->flags & RX_LAST_PACKET && reply ){
 
 	}
+
+	return tvb_length(tvb);
 }
 
 
@@ -1877,13 +2013,9 @@ dissect_fs_reply(tvbuff_t *tvb, struct rxinfo *rxinfo, proto_tree *tree, int off
 		switch ( opcode )
 		{
 			case 130: /* fetch data */
-				/* only on first packet */
-				if ( rxinfo->seq == 1 )
-				{
-					OUT_FS_AFSFetchStatus("Status");
-					OUT_FS_AFSCallBack();
-					OUT_FS_AFSVolSync();
-				}
+				OUT_FS_AFSFetchStatus("Status");
+				OUT_FS_AFSCallBack();
+				OUT_FS_AFSVolSync();
 				OUT_BYTES_ALL(hf_afs_fs_data);
 				break;
 			case 131: /* fetch acl */
@@ -1976,6 +2108,11 @@ dissect_fs_reply(tvbuff_t *tvb, struct rxinfo *rxinfo, proto_tree *tree, int off
 				OUT_UINT(hf_afs_fs_cps_spare2);
 				OUT_UINT(hf_afs_fs_cps_spare3);
 				break;
+			case 65536: /* inline bulk status */
+				OUT_RXArray32(OUT_FS_AFSFetchStatus("Status"));
+				OUT_RXArray32(OUT_FS_AFSCallBack());
+				OUT_FS_AFSVolSync();
+				break;
 		}
 	}
 	else if ( rxinfo->type == RX_PACKET_TYPE_ABORT )
@@ -1987,11 +2124,7 @@ dissect_fs_reply(tvbuff_t *tvb, struct rxinfo *rxinfo, proto_tree *tree, int off
 static void
 dissect_fs_request(tvbuff_t *tvb, struct rxinfo *rxinfo, proto_tree *tree, int offset, int opcode)
 {
-	/* skip the opcode if this is the first packet in the stream */
-	if ( rxinfo->seq == 1 )
-	{
-		offset += 4;  /* skip the opcode */
-	}
+	offset += 4;  /* skip the opcode */
 
 	switch ( opcode )
 	{
@@ -2007,14 +2140,11 @@ dissect_fs_request(tvbuff_t *tvb, struct rxinfo *rxinfo, proto_tree *tree, int o
 			OUT_FS_AFSFid("Target");
 			break;
 		case 133: /* Store Data */
-			if ( rxinfo->seq == 1 )
-			{
-				OUT_FS_AFSFid("Destination");
-				OUT_FS_AFSStoreStatus("Status");
-				OUT_UINT(hf_afs_fs_offset);
-				OUT_UINT(hf_afs_fs_length);
-				OUT_UINT(hf_afs_fs_flength);
-			}
+			OUT_FS_AFSFid("Destination");
+			OUT_FS_AFSStoreStatus("Status");
+			OUT_UINT(hf_afs_fs_offset);
+			OUT_UINT(hf_afs_fs_length);
+			OUT_UINT(hf_afs_fs_flength);
 			OUT_BYTES_ALL(hf_afs_fs_data);
 			break;
 		case 134: /* Store ACL */
@@ -2528,8 +2658,11 @@ dissect_cb_reply(tvbuff_t *tvb, struct rxinfo *rxinfo, proto_tree *tree, int off
 {
 	if ( rxinfo->type == RX_PACKET_TYPE_DATA )
 	{
-		switch ( opcode )
-		{
+		switch ( opcode ) {
+			case 65538: /* get-capabilites */
+				OUT_CM_INTERFACES();
+				OUT_CM_CAPABILITIES();
+				break;
 		}
 	}
 	else if ( rxinfo->type == RX_PACKET_TYPE_ABORT )
@@ -2747,7 +2880,7 @@ dissect_vldb_reply(tvbuff_t *tvb, struct rxinfo *rxinfo, proto_tree *tree, int o
 					{
 						char *part;
 						j = tvb_get_ntohl(tvb, offset);
-						part=ep_strdup("/vicepa");
+						part=wmem_strdup(wmem_packet_scope(), "/vicepa");
 						if ( i<nservers && j<=25 )
 						{
 							part[6] = 'a' + (char) j;
@@ -2794,7 +2927,7 @@ dissect_vldb_reply(tvbuff_t *tvb, struct rxinfo *rxinfo, proto_tree *tree, int o
 					{
 						char *part;
 						j = tvb_get_ntohl(tvb, offset);
-						part=ep_strdup("/vicepa");
+						part=wmem_strdup(wmem_packet_scope(), "/vicepa");
 						if ( i<nservers && j<=25 )
 						{
 							part[6] = 'a' + (char) j;
@@ -2842,7 +2975,7 @@ dissect_vldb_reply(tvbuff_t *tvb, struct rxinfo *rxinfo, proto_tree *tree, int o
 					{
 						char *part;
 						j = tvb_get_ntohl(tvb, offset);
-						part=ep_strdup("/vicepa");
+						part=wmem_strdup(wmem_packet_scope(), "/vicepa");
 						if ( i<nservers && j<=25 )
 						{
 							part[6] = 'a' + (char) j;
@@ -3513,6 +3646,25 @@ proto_register_afs(void)
 	{ &hf_afs_cb_fid_uniqifier, { "FileID (Uniqifier)", "afs.cb.fid.uniq",
 		FT_UINT32, BASE_DEC, 0, 0, "File ID (Uniqifier)", HFILL }},
 
+/* CM Fields  */
+	{ &hf_afs_cm_uuid, { "UUID", "afs.cm.uuid",
+		FT_BYTES, BASE_NONE, 0, 0, NULL, HFILL }},
+	{ &hf_afs_cm_numint, { "Number of Interfaces", "afs.cm.numint",
+		FT_UINT32, BASE_DEC, 0, 0, NULL, HFILL }},
+	{ &hf_afs_cm_ipaddr, { "IP Address", "afs.cm.ipaddr",
+		FT_IPv4, BASE_NONE, 0, 0, NULL, HFILL }},
+	{ &hf_afs_cm_netmask, { "Netmask", "afs.cm.netmask",
+		FT_IPv4, BASE_NONE, 0, 0, NULL, HFILL }},
+	{ &hf_afs_cm_mtu, { "MTU", "afs.cm.mtu",
+		FT_UINT32, BASE_DEC, 0, 0, NULL, HFILL }},
+
+	{ &hf_afs_cm_numcap, { "Number of Capability Words", "afs.cm.numcap",
+		FT_UINT32, BASE_DEC, 0, 0, NULL, HFILL }},
+	{ &hf_afs_cm_capabilities, { "Capabilities", "afs.cm.capabilities",
+		FT_UINT32, BASE_HEX, 0, 0, NULL, HFILL }},
+	{ &hf_afs_cm_cap_errortrans, { "ERRORTRANS", "afs.cm.capabilities.errortrans",
+		FT_BOOLEAN, 32, 0, 0x0001, NULL, HFILL }},
+
 /* PROT Server Fields */
 	{ &hf_afs_prot_errcode, { "Error Code", "afs.prot.errcode",
 		FT_UINT32, BASE_DEC|BASE_EXT_STRING, &afs_errors_ext, 0, NULL, HFILL }},
@@ -3639,7 +3791,29 @@ proto_register_afs(void)
 		FT_FRAMENUM, BASE_NONE,	NULL, 0, NULL, HFILL }},
 	{ &hf_afs_time, { "Time from request", "afs.time",
 		FT_RELATIVE_TIME, BASE_NONE, NULL, 0, "Time between Request and Reply for AFS calls", HFILL }},
+
+	{&hf_afs_fragments, {"Message fragments", "afs.fragments",
+		FT_NONE, BASE_NONE, NULL, 0x00, NULL, HFILL } },
+	{&hf_afs_fragment, {"Message fragment", "afs.fragment",
+		FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL } },
+	{&hf_afs_fragment_overlap, {"Message fragment overlap", "afs.fragment.overlap",
+		FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+	{&hf_afs_fragment_overlap_conflicts, {"Message fragment overlapping with conflicting data", "afs.fragment.overlap.conflicts",
+		FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+	{&hf_afs_fragment_multiple_tails, {"Message has multiple tail fragments", "afs.fragment.multiple_tails",
+		FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+	{&hf_afs_fragment_too_long_fragment, {"Message fragment too long", "afs.fragment.too_long_fragment",
+		FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+	{&hf_afs_fragment_error, {"Message defragmentation error", "afs.fragment.error",
+		FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL } },
+	{&hf_afs_fragment_count, {"Message fragment count", "afs.fragment.count",
+		FT_UINT32, BASE_DEC, NULL, 0x00, NULL, HFILL } },
+	{&hf_afs_reassembled_in, {"Reassembled in", "afs.reassembled.in",
+		FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL } },
+	{&hf_afs_reassembled_length, {"Reassembled length", "afs.reassembled.length",
+		FT_UINT32, BASE_DEC, NULL, 0x00, NULL, HFILL } },
 	};
+
 	static gint *ett[] = {
 		&ett_afs,
 		&ett_afs_op,
@@ -3653,6 +3827,10 @@ proto_register_afs(void)
 		&ett_afs_volumeinfo,
 		&ett_afs_vicestat,
 		&ett_afs_vldb_flags,
+		&ett_afs_fragment,
+		&ett_afs_fragments,
+		&ett_afs_cm_interfaces,
+		&ett_afs_cm_capabilities,
 	};
 
 	proto_afs = proto_register_protocol("Andrew File System (AFS)",
@@ -3661,5 +3839,18 @@ proto_register_afs(void)
 	proto_register_subtree_array(ett, array_length(ett));
 	register_init_routine(&afs_init_protocol);
 
-	register_dissector("afs", dissect_afs, proto_afs);
+	new_register_dissector("afs", dissect_afs, proto_afs);
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

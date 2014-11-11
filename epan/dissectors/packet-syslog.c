@@ -7,8 +7,6 @@
  * facility) to the MTP3 dissector by Abhik Sarkar <sarkar.abhik[AT]gmail.com>
  * with some rework by Jeff Morriss <jeff.morriss.ws [AT] gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald[AT]wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -42,6 +40,9 @@
 
 #define PRIORITY_MASK 0x0007  /* 0000 0111 */
 #define FACILITY_MASK 0x03f8  /* 1111 1000 */
+
+void proto_reg_handoff_syslog(void);
+void proto_register_syslog(void);
 
 /* The maximum number if priority digits to read in. */
 #define MAX_DIGITS 3
@@ -166,6 +167,8 @@ static gint hf_syslog_msu_present = -1;
 
 static gint ett_syslog = -1;
 
+static dissector_handle_t syslog_handle;
+
 static dissector_handle_t mtp_handle;
 
 /*  The Cisco ITP's packet logging facility allows selected (SS7) MSUs to be
@@ -260,7 +263,7 @@ dissect_syslog(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   mtp3_tvb = mtp3_msu_present(tvb, pinfo, fac, lev, msg_str,
 			      (reported_msg_len - msg_len));
 
-  if (mtp3_tvb == NULL && check_col(pinfo->cinfo, COL_INFO)) {
+  if (mtp3_tvb == NULL) {
     if (pri >= 0) {
       col_add_fstr(pinfo->cinfo, COL_INFO, "%s.%s: %s",
         val_to_str_const(fac, short_fac, "UNKNOWN"),
@@ -347,15 +350,12 @@ void proto_register_syslog(void)
   proto_register_field_array(proto_syslog, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
 
-  register_dissector("syslog", dissect_syslog, proto_syslog);
+  syslog_handle = register_dissector("syslog", dissect_syslog, proto_syslog);
 }
 
 void
 proto_reg_handoff_syslog(void)
 {
-  dissector_handle_t syslog_handle;
-
-  syslog_handle = create_dissector_handle(dissect_syslog, proto_syslog);
   dissector_add_uint("udp.port", UDP_PORT_SYSLOG, syslog_handle);
   dissector_add_handle("tcp.port", syslog_handle);
 

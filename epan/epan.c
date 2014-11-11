@@ -1,7 +1,5 @@
 /* epan.c
  *
- * $Id$
- *
  * Wireshark Protocol Analyzer Library
  *
  * Copyright (c) 2001 by Gerald Combs <gerald@wireshark.org>
@@ -36,9 +34,11 @@
 #endif /* HAVE_LIBGNUTLS */
 
 #include <glib.h>
+
+#include "epan-int.h"
 #include "epan.h"
+#include "dfilter/dfilter.h"
 #include "epan_dissect.h"
-#include "report_err.h"
 
 #include "conversation.h"
 #include "circuit.h"
@@ -66,30 +66,44 @@
 #include <ares_version.h>
 #endif
 
+static wmem_allocator_t *pinfo_pool_cache = NULL;
+
 const gchar*
 epan_get_version(void) {
 	return VERSION;
+}
+
+/*
+ * Register all the plugin types that are part of libwireshark, namely
+ * dissector and tap plugins.
+ *
+ * Must be called before init_plugins(), which must be called before
+ * any registration routines are called.
+ */
+void
+epan_register_plugin_types(void)
+{
+#ifdef HAVE_PLUGINS
+	register_dissector_plugin_type();
+	register_tap_plugin_type();
+#endif
 }
 
 void
 epan_init(void (*register_all_protocols_func)(register_cb cb, gpointer client_data),
 	  void (*register_all_handoffs_func)(register_cb cb, gpointer client_data),
 	  register_cb cb,
-	  gpointer client_data,
-	  void (*report_failure_fcn_p)(const char *, va_list),
-	  void (*report_open_failure_fcn_p)(const char *, int, gboolean),
-	  void (*report_read_failure_fcn_p)(const char *, int),
-	  void (*report_write_failure_fcn_p)(const char *, int))
+	  gpointer client_data)
 {
-	init_report_err(report_failure_fcn_p, report_open_failure_fcn_p,
-	    report_read_failure_fcn_p, report_write_failure_fcn_p);
-
 	/* initialize memory allocation subsystems */
 	emem_init();
 	wmem_init();
 
 	/* initialize the GUID to name mapping table */
 	guids_init();
+
+        /* initialize name resolution (addr_resolv.c) */
+        addr_resolv_init();
 
 	except_init();
 #ifdef HAVE_LIBGCRYPT
@@ -103,13 +117,14 @@ epan_init(void (*register_all_protocols_func)(register_cb cb, gpointer client_da
 #endif
 	tap_init();
 	prefs_init();
+	expert_init();
+	packet_init();
 	proto_init(register_all_protocols_func, register_all_handoffs_func,
 	    cb, client_data);
-	packet_init();
+	packet_cache_proto_handles();
 	dfilter_init();
 	final_registration_all_protocols();
-	host_name_lookup_init();
-	expert_init();
+	expert_packet_init();
 #ifdef HAVE_LUA
 	wslua_init(cb, client_data);
 #endif
@@ -118,18 +133,80 @@ epan_init(void (*register_all_protocols_func)(register_cb cb, gpointer client_da
 void
 epan_cleanup(void)
 {
-	cleanup_dissection();
 	dfilter_cleanup();
 	proto_cleanup();
 	prefs_cleanup();
 	packet_cleanup();
-	oid_resolv_cleanup();
+	expert_cleanup();
+#ifdef HAVE_LUA
+	wslua_cleanup();
+#endif
 #ifdef HAVE_LIBGNUTLS
 	gnutls_global_deinit();
 #endif
 	except_deinit();
-	host_name_lookup_cleanup();
+	addr_resolv_cleanup();
+
+	if (pinfo_pool_cache != NULL) {
+		wmem_destroy_allocator(pinfo_pool_cache);
+		pinfo_pool_cache = NULL;
+	}
+
 	wmem_cleanup();
+}
+
+epan_t *
+epan_new(void)
+{
+	epan_t *session = g_slice_new(epan_t);
+
+	/* XXX, it should take session as param */
+	init_dissection();
+
+	return session;
+}
+
+const char *
+epan_get_user_comment(const epan_t *session, const frame_data *fd)
+{
+	if (session->get_user_comment)
+		return session->get_user_comment(session->data, fd);
+
+	return NULL;
+}
+
+const char *
+epan_get_interface_name(const epan_t *session, guint32 interface_id)
+{
+	if (session->get_interface_name)
+		return session->get_interface_name(session->data, interface_id);
+
+	return NULL;
+}
+
+const nstime_t *
+epan_get_frame_ts(const epan_t *session, guint32 frame_num)
+{
+	const nstime_t *abs_ts = NULL;
+
+	if (session->get_frame_ts)
+		abs_ts = session->get_frame_ts(session->data, frame_num);
+
+	if (!abs_ts)
+		g_warning("!!! couldn't get frame ts for %u !!!\n", frame_num);
+
+	return abs_ts;
+}
+
+void
+epan_free(epan_t *session)
+{
+	if (session) {
+		/* XXX, it should take session as param */
+		cleanup_dissection();
+
+		g_slice_free(epan_t, session);
+	}
 }
 
 void
@@ -156,34 +233,88 @@ epan_circuit_cleanup(void)
 	circuit_cleanup();
 }
 
+/* Overrides proto_tree_visible i epan_dissect_init to make all fields visible.
+ * This is > 0 if a Lua script wanted to see all fields all the time.
+ * This is ref-counted, so clearing it won't override other taps/scripts wanting it.
+ */
+static gint always_visible_refcount = 0;
+
+void
+epan_set_always_visible(gboolean force)
+{
+	if (force)
+		always_visible_refcount++;
+	else if (always_visible_refcount > 0)
+		always_visible_refcount--;
+}
+
 epan_dissect_t*
-epan_dissect_init(epan_dissect_t *edt, const gboolean create_proto_tree, const gboolean proto_tree_visible)
+epan_dissect_init(epan_dissect_t *edt, epan_t *session, const gboolean create_proto_tree, const gboolean proto_tree_visible)
 {
 	g_assert(edt);
 
-	edt->pi.pool = wmem_allocator_new(WMEM_ALLOCATOR_SIMPLE);
+	edt->session = session;
+
+	memset(&edt->pi, 0, sizeof(edt->pi));
+	if (pinfo_pool_cache != NULL) {
+		edt->pi.pool = pinfo_pool_cache;
+		pinfo_pool_cache = NULL;
+	}
+	else {
+		edt->pi.pool = wmem_allocator_new(WMEM_ALLOCATOR_BLOCK_FAST);
+	}
 
 	if (create_proto_tree) {
 		edt->tree = proto_tree_create_root(&edt->pi);
-		proto_tree_set_visible(edt->tree, proto_tree_visible);
+		proto_tree_set_visible(edt->tree, (always_visible_refcount > 0) ? TRUE : proto_tree_visible);
 	}
 	else {
 		edt->tree = NULL;
 	}
 
-	edt->pi.dependent_frames = NULL;
+	edt->tvb = NULL;
 
 	return edt;
 }
 
+void
+epan_dissect_reset(epan_dissect_t *edt)
+{
+	/* We have to preserve the pool pointer across the memzeroing */
+	wmem_allocator_t *tmp;
+
+	g_assert(edt);
+
+	g_slist_free(edt->pi.proto_data);
+	g_slist_free(edt->pi.dependent_frames);
+
+	/* Free the data sources list. */
+	free_data_sources(&edt->pi);
+
+	if (edt->tvb) {
+		/* Free all tvb's chained from this tvb */
+		tvb_free_chain(edt->tvb);
+		edt->tvb = NULL;
+	}
+
+	if (edt->tree)
+		proto_tree_reset(edt->tree);
+
+	tmp = edt->pi.pool;
+	wmem_free_all(tmp);
+
+	memset(&edt->pi, 0, sizeof(edt->pi));
+	edt->pi.pool = tmp;
+}
+
 epan_dissect_t*
-epan_dissect_new(const gboolean create_proto_tree, const gboolean proto_tree_visible)
+epan_dissect_new(epan_t *session, const gboolean create_proto_tree, const gboolean proto_tree_visible)
 {
 	epan_dissect_t *edt;
 
 	edt = g_new0(epan_dissect_t, 1);
 
-	return epan_dissect_init(edt, create_proto_tree, proto_tree_visible);
+	return epan_dissect_init(edt, session, create_proto_tree, proto_tree_visible);
 }
 
 void
@@ -194,14 +325,15 @@ epan_dissect_fake_protocols(epan_dissect_t *edt, const gboolean fake_protocols)
 }
 
 void
-epan_dissect_run(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
-        const guint8* data, frame_data *fd, column_info *cinfo)
+epan_dissect_run(epan_dissect_t *edt, int file_type_subtype,
+        struct wtap_pkthdr *phdr, tvbuff_t *tvb, frame_data *fd,
+        column_info *cinfo)
 {
 #ifdef HAVE_LUA
 	wslua_prime_dfilter(edt); /* done before entering wmem scope */
 #endif
 	wmem_enter_packet_scope();
-	dissect_packet(edt, phdr, data, fd, cinfo);
+	dissect_record(edt, file_type_subtype, phdr, tvb, fd, cinfo);
 
 	/* free all memory allocated */
 	ep_free_all();
@@ -209,12 +341,42 @@ epan_dissect_run(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
 }
 
 void
-epan_dissect_run_with_taps(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
-        const guint8* data, frame_data *fd, column_info *cinfo)
+epan_dissect_run_with_taps(epan_dissect_t *edt, int file_type_subtype,
+        struct wtap_pkthdr *phdr, tvbuff_t *tvb, frame_data *fd,
+        column_info *cinfo)
 {
 	wmem_enter_packet_scope();
 	tap_queue_init(edt);
-	dissect_packet(edt, phdr, data, fd, cinfo);
+	dissect_record(edt, file_type_subtype, phdr, tvb, fd, cinfo);
+	tap_push_tapped_queue(edt);
+
+	/* free all memory allocated */
+	ep_free_all();
+	wmem_leave_packet_scope();
+}
+
+void
+epan_dissect_file_run(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
+        tvbuff_t *tvb, frame_data *fd, column_info *cinfo)
+{
+#ifdef HAVE_LUA
+	wslua_prime_dfilter(edt); /* done before entering wmem scope */
+#endif
+	wmem_enter_packet_scope();
+	dissect_file(edt, phdr, tvb, fd, cinfo);
+
+	/* free all memory allocated */
+	ep_free_all();
+	wmem_leave_packet_scope();
+}
+
+void
+epan_dissect_file_run_with_taps(epan_dissect_t *edt, struct wtap_pkthdr *phdr,
+        tvbuff_t *tvb, frame_data *fd, column_info *cinfo)
+{
+	wmem_enter_packet_scope();
+	tap_queue_init(edt);
+	dissect_file(edt, phdr, tvb, fd, cinfo);
 	tap_push_tapped_queue(edt);
 
 	/* free all memory allocated */
@@ -227,19 +389,28 @@ epan_dissect_cleanup(epan_dissect_t* edt)
 {
 	g_assert(edt);
 
+	g_slist_free(edt->pi.proto_data);
 	g_slist_free(edt->pi.dependent_frames);
 
 	/* Free the data sources list. */
 	free_data_sources(&edt->pi);
 
-	/* Free all tvb's chained from this tvb */
-	tvb_free_chain(edt->tvb);
+	if (edt->tvb) {
+		/* Free all tvb's chained from this tvb */
+		tvb_free_chain(edt->tvb);
+	}
 
 	if (edt->tree) {
 		proto_tree_free(edt->tree);
 	}
 
-	wmem_destroy_allocator(edt->pi.pool);
+	if (pinfo_pool_cache == NULL) {
+		wmem_free_all(edt->pi.pool);
+		pinfo_pool_cache = edt->pi.pool;
+	}
+	else {
+		wmem_destroy_allocator(edt->pi.pool);
+	}
 }
 
 void
@@ -270,6 +441,25 @@ epan_dissect_fill_in_columns(epan_dissect_t *edt, const gboolean fill_col_exprs,
 {
     col_custom_set_edt(edt, edt->pi.cinfo);
     col_fill_in(&edt->pi, fill_col_exprs, fill_fd_colums);
+}
+
+gboolean
+epan_dissect_packet_contains_field(epan_dissect_t* edt,
+                                   const char *field_name)
+{
+    GPtrArray* array;
+    int        field_id;
+    gboolean   contains_field;
+
+    if (!edt || !edt->tree)
+        return FALSE;
+    field_id = proto_get_id_by_filter_name(field_name);
+    if (field_id < 0)
+        return FALSE;
+    array = proto_find_finfo(edt->tree, field_id);
+    contains_field = (array->len > 0) ? TRUE : FALSE;
+    g_ptr_array_free(array, TRUE);
+    return contains_field;
 }
 
 /*

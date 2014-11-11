@@ -5,8 +5,6 @@
  *
  * Francesco Fondelli <francesco dot fondelli, gmail dot com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,6 +32,9 @@
 #include <epan/addr_resolv.h>
 
 #include "packet-mpls.h"
+
+void proto_register_pw_eth(void);
+void proto_reg_handoff_pw_eth(void);
 
 static gint proto_pw_eth_cw = -1;
 static gint proto_pw_eth_nocw = -1;
@@ -87,23 +88,7 @@ dissect_pw_eth_cw(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     next_tvb = tvb_new_subset_remaining(tvb, 4);
     {
-        /*
-         * When Ethernet frames being decoded, pinfo->ethertype is extracted
-         * from the top-level Ethernet frame. Dissection of Ethernet PW payload
-         * overwrites this value as the same dissector is invoked again.
-         * This may lead to undesired behavior (like disappearance of "Link"
-         * tab from the "Decode as" menu).
-         *
-         * Let's save/restore ethertype. --ATA
-         *
-         * XXX it looks that more pinfo members (or even the whole pinfo)
-         * XXX should be saved/restored in PW cases. Multilayer encapsulations,
-         * XXX like ethernet/mpls/ethernet-pw/ip/vlan, may lead to undesired
-         * XXX changes if pinfo->ipproto, ptype etc.
-         */
-        guint32 etype_save = pinfo->ethertype;
         call_dissector(eth_withoutfcs_handle, next_tvb, pinfo, tree);
-        pinfo->ethertype = etype_save;
     }
 }
 
@@ -120,9 +105,7 @@ dissect_pw_eth_nocw(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     next_tvb = tvb_new_subset_remaining(tvb, 0);
     {
-        guint32 etype_save = pinfo->ethertype;
         call_dissector(eth_withoutfcs_handle, next_tvb, pinfo, tree);
-        pinfo->ethertype = etype_save;
     }
 }
 

@@ -8,8 +8,6 @@
  * http://www.tttech.com/solutions/ttethernet/
  *
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,7 +31,7 @@
 #ifndef _PACKET_TTE_H_
 #define _PACKET_TTE_H_
 
-/* in bytes, at least MAC dest/source and EthernetType must be there 
+/* in bytes, at least MAC dest/source and EthernetType must be there
    to look for TTE */
 #define TTE_HEADER_LENGTH               14
 

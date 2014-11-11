@@ -2,8 +2,6 @@
  * Routines for unix rlogin packet dissection
  * Copyright 2000, Jeffrey C. Foster <jfoste[AT]woodward.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,11 +31,14 @@
 
 #include <epan/packet.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-tcp.h"
 
 #define RLOGIN_PORT 513
+
+void proto_register_rlogin(void);
+void proto_reg_handoff_rlogin(void);
 
 static int proto_rlogin = -1;
 
@@ -208,7 +209,7 @@ static void rlogin_display(rlogin_hash_entry_t *hash_info,
 	 * to something past this segment, we'd have to remember the urgent
 	 * pointer setting for this conversation.
 	 */
-	if (tcpinfo->urgent &&                 /* if urgent pointer set */
+	if (tcpinfo && tcpinfo->urgent &&      /* if urgent pointer set */
 	    length >= tcpinfo->urgent_pointer) /* and it's in this frame */
 	{
 		/* Get urgent byte into Temp */
@@ -225,11 +226,8 @@ static void rlogin_display(rlogin_hash_entry_t *hash_info,
 		proto_tree_add_item(rlogin_tree, hf_control_message, tvb,
 		                    urgent_offset, 1, ENC_BIG_ENDIAN);
 		control_byte = tvb_get_guint8(tvb, urgent_offset);
-		if (check_col(pinfo->cinfo, COL_INFO))
-		{
-			col_append_fstr(pinfo->cinfo, COL_INFO,
+		col_append_fstr(pinfo->cinfo, COL_INFO,
 			               " (%s)", val_to_str_const(control_byte, control_message_vals, "Unknown"));
-		}
 
 		offset = urgent_offset + 1; /* adjust offset */
 	}
@@ -366,11 +364,8 @@ static void rlogin_display(rlogin_hash_entry_t *hash_info,
 		offset += 2;
 
 		/* Show setting highlights in info column */
-		if (check_col(pinfo->cinfo, COL_INFO))
-		{
-			col_append_fstr(pinfo->cinfo, COL_INFO, " (rows=%u, cols=%u)",
+		col_append_fstr(pinfo->cinfo, COL_INFO, " (rows=%u, cols=%u)",
 			                rows, columns);
-		}
 	}
 
 	if (tvb_offset_exists(tvb, offset))
@@ -384,10 +379,10 @@ static void rlogin_display(rlogin_hash_entry_t *hash_info,
 /****************************************************************
  * Main dissection function
  ****************************************************************/
-static void
-dissect_rlogin(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_rlogin(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
-	struct tcpinfo *tcpinfo = pinfo->private_data;
+	struct tcpinfo *tcpinfo = (struct tcpinfo *)data;
 	conversation_t *conversation;
 	rlogin_hash_entry_t *hash_info;
 	guint length;
@@ -397,11 +392,11 @@ dissect_rlogin(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	conversation = find_or_create_conversation(pinfo);
 
 	/* Get or create data associated with this conversation */
-	hash_info = conversation_get_proto_data(conversation, proto_rlogin);
+	hash_info = (rlogin_hash_entry_t *)conversation_get_proto_data(conversation, proto_rlogin);
 	if (!hash_info)
 	{
 		/* Populate new data struct... */
-		hash_info = se_alloc(sizeof(rlogin_hash_entry_t));
+		hash_info = wmem_new(wmem_file_scope(), rlogin_hash_entry_t);
 		hash_info->state = NONE;
 		hash_info->info_framenum = 0;  /* no frame has the number 0 */
 		hash_info->user_name[0] = '\0';
@@ -414,63 +409,60 @@ dissect_rlogin(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "Rlogin");
 
 	/* Set info column */
-	if (check_col(pinfo->cinfo, COL_INFO))
+	/* Show user-name if available */
+	if (hash_info->user_name[0])
 	{
-		/* Show user-name if available */
-		if (hash_info->user_name[0])
-		{
-			col_add_fstr(pinfo->cinfo, COL_INFO,
-			              "User name: %s, ", hash_info->user_name);
-		}
-		else
-		{
-			col_clear(pinfo->cinfo, COL_INFO);
-		}
+		col_add_fstr(pinfo->cinfo, COL_INFO,
+		              "User name: %s, ", hash_info->user_name);
+	}
+	else
+	{
+		col_clear(pinfo->cinfo, COL_INFO);
+	}
 
-		/* Work out packet content summary for display */
-		length = tvb_length(tvb);
-		if (length != 0)
+	/* Work out packet content summary for display */
+	length = tvb_length(tvb);
+	if (length != 0)
+	{
+		/* Initial NULL byte represents part of connection handshake */
+		if (tvb_get_guint8(tvb, 0) == '\0')
 		{
-			/* Initial NULL byte represents part of connection handshake */
-			if (tvb_get_guint8(tvb, 0) == '\0')
-			{
-				col_append_str(pinfo->cinfo, COL_INFO,
+			col_append_str(pinfo->cinfo, COL_INFO,
 				               (pinfo->destport == RLOGIN_PORT) ?
 				                   "Start Handshake" :
 				                   "Startup info received");
+		}
+		else
+		if (tcpinfo && tcpinfo->urgent && length >= tcpinfo->urgent_pointer)
+		{
+			/* Urgent pointer inside current data represents a control message */
+			col_append_str(pinfo->cinfo, COL_INFO, "Control Message");
+		}
+		else
+		{
+			/* Search for 2 consecutive ff bytes
+			  (signifies window change control message) */
+			ti_offset = tvb_find_guint8(tvb, 0, -1, 0xff);
+			if (ti_offset != -1 &&
+			    tvb_bytes_exist(tvb, ti_offset + 1, 1) &&
+			    tvb_get_guint8(tvb, ti_offset + 1) == 0xff)
+			{
+				col_append_str(pinfo->cinfo, COL_INFO, "Terminal Info");
 			}
 			else
-			if (tcpinfo->urgent && length >= tcpinfo->urgent_pointer)
 			{
-				/* Urgent pointer inside current data represents a control message */
-				col_append_str(pinfo->cinfo, COL_INFO, "Control Message");
-			}
-			else
-			{
-				/* Search for 2 consecutive ff bytes
-				  (signifies window change control message) */
-				ti_offset = tvb_find_guint8(tvb, 0, -1, 0xff);
-				if (ti_offset != -1 &&
-				    tvb_bytes_exist(tvb, ti_offset + 1, 1) &&
-				    tvb_get_guint8(tvb, ti_offset + 1) == 0xff)
+				/* Show any text data in the frame */
+				int bytes_to_copy = tvb_length(tvb);
+				if (bytes_to_copy > 128)
 				{
-					col_append_str(pinfo->cinfo, COL_INFO, "Terminal Info");
+					/* Truncate to 128 bytes for display */
+					bytes_to_copy = 128;
 				}
-				else
-				{
-					/* Show any text data in the frame */
-					int bytes_to_copy = tvb_length(tvb);
-					if (bytes_to_copy > 128)
-					{
-						/* Truncate to 128 bytes for display */
-						bytes_to_copy = 128;
-					}
 
-					/* Add data into info column */
-					col_append_fstr(pinfo->cinfo, COL_INFO,
-					                "Data: %s",
-					                 tvb_format_text(tvb, 0, bytes_to_copy));
-				}
+				/* Add data into info column */
+				col_append_fstr(pinfo->cinfo, COL_INFO,
+				                "Data: %s",
+				                 tvb_format_text(tvb, 0, bytes_to_copy));
 			}
 		}
 	}
@@ -480,6 +472,8 @@ dissect_rlogin(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	/* Dissect in detail */
 	rlogin_display(hash_info, tvb, pinfo, tree, tcpinfo);
+
+	return tvb_length(tvb);
 }
 
 
@@ -583,6 +577,6 @@ void proto_register_rlogin(void)
 void proto_reg_handoff_rlogin(void)
 {
 	/* Dissector install routine */
-	dissector_handle_t rlogin_handle = create_dissector_handle(dissect_rlogin,proto_rlogin);
+	dissector_handle_t rlogin_handle = new_create_dissector_handle(dissect_rlogin,proto_rlogin);
 	dissector_add_uint("tcp.port", RLOGIN_PORT, rlogin_handle);
 }

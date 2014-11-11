@@ -1,8 +1,6 @@
 /* packet-dcerpc-rras.h
- * Routines for the rras (Routing and Remote Access service) MSRPC interface 
+ * Routines for the rras (Routing and Remote Access service) MSRPC interface
  * Copyright 2005 Jean-Baptiste Marchand <jbm@hsc.fr>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>

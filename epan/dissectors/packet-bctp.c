@@ -4,8 +4,6 @@
  *
  *  (c) 2007, Luis E. Garcia Ontanon <luis@ontanon.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,6 +33,9 @@
 #define PNAME  "BCTP Q.1990"
 #define PSNAME "BCTP"
 #define PFNAME "bctp"
+
+void proto_register_bctp(void);
+void proto_reg_handoff_bctp(void);
 
 static int proto_bctp = -1;
 static int hf_bctp_bvei = -1;

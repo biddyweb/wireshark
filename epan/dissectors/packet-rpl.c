@@ -2,8 +2,6 @@
  * Routines for RPL
  * Jochen Friedrich <jochen@scram.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,9 @@
 
 #include <epan/llcsaps.h>
 #include "packet-llc.h"
+
+void proto_register_rpl(void);
+void proto_reg_handoff_rpl(void);
 
 static int proto_rpl          = -1;
 
@@ -275,10 +276,9 @@ dissect_rpl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	rpl_len  = tvb_get_ntohs(tvb, 0);
 	rpl_type = tvb_get_ntohs(tvb, 2);
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_set_str(pinfo->cinfo, COL_INFO,
+	col_set_str(pinfo->cinfo, COL_INFO,
 		    val_to_str_const(rpl_type, rpl_type_vals, "Unknown Type"));
-	}
+
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_rpl, tvb, 0,
 			rpl_len, ENC_NA);

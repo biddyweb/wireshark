@@ -5,8 +5,6 @@
  *
  * Author: Lu Pan <lu.pan@intel.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1999 Gerald Combs
@@ -33,15 +31,12 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include "crc.h"
-
-extern guint wimax_compact_dlmap_ie_decoder(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, guint offset, guint nibble_offset);
-extern guint wimax_compact_ulmap_ie_decoder(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, guint offset, guint nibble_offset);
-
+#include "wimax_compact_dlmap_ie_decoder.h"
+#include "wimax_compact_ulmap_ie_decoder.h"
 
 extern gint proto_wimax;
 
-/* forward reference */
-void dissector_wimax_harq_map_decoder(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+void proto_register_wimax_harq_map(void);
 
 static gint proto_wimax_harq_map_decoder = -1;
 static gint ett_wimax_harq_map_decoder = -1;
@@ -68,7 +63,7 @@ static gint hf_harq_map_msg_crc = -1;
 
 
 /* HARQ MAP message decoder */
-void dissector_wimax_harq_map_decoder(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static void dissector_wimax_harq_map_decoder(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	guint i, offset = 0;
 	guint tvb_len, length, dl_ie_count;
@@ -119,10 +114,7 @@ void dissector_wimax_harq_map_decoder(tvbuff_t *tvb, packet_info *pinfo, proto_t
 		dl_ie_count = ((first_24bits & WIMAX_HARQ_MAP_DL_IE_COUNT_MASK) >> WIMAX_HARQ_MAP_DL_IE_COUNT_SHIFT);
 		/* get the UL MAP appended */
 		ulmap_appended = (first_24bits & WIMAX_HARQ_UL_MAP_APPENDED_MASK);
-		if (parent_item == NULL || PITEM_FINFO(parent_item) == NULL)
-		{
-			parent_item = harq_map_item; /* Prevent crash */
-		}
+
 		/* set the offsets to Compact DL-MAP IEs */
 		offset += 2;
 		nibble_offset = 1;
@@ -215,4 +207,6 @@ void proto_register_wimax_harq_map(void)
 
 	proto_register_subtree_array(ett, array_length(ett));
 	proto_register_field_array(proto_wimax_harq_map_decoder, hf_harq_map, array_length(hf_harq_map));
+
+	register_dissector("wimax_harq_map_handler", dissector_wimax_harq_map_decoder, -1);
 }

@@ -2,8 +2,6 @@
  * Routines for h225 packet dissection
  * Copyright 2005, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,6 +35,7 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/conversation.h>
+#include <epan/wmem/wmem.h>
 
 #include <string.h>
 
@@ -66,6 +65,7 @@
 #define TCP_PORT_CS   1720
 #define TLS_PORT_CS   1300
 
+void proto_register_h225(void);
 static void reset_h225_packet_info(h225_packet_info *pi);
 static void ras_call_matching(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, h225_packet_info *pi);
 

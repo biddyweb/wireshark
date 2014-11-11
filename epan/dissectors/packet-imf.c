@@ -1,8 +1,6 @@
 /* packet-imf.c
  * Routines for Internet Message Format (IMF) packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2007 by Graeme Lunt
  *
  * Wireshark - Network traffic analyzer
@@ -30,11 +28,10 @@
 
 #include <epan/packet.h>
 #include <epan/addr_resolv.h>
-#include <epan/strutil.h>
 #include <epan/prefs.h>
 #include <epan/uat.h>
-#include <epan/base64.h>
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
 
 #include <wsutil/str_util.h>
 
@@ -42,6 +39,9 @@
 #include "packet-imf.h"
 #include "packet-ess.h"
 #include "packet-p1.h"
+
+void proto_register_imf(void);
+void proto_reg_handoff_imf(void);
 
 #define PNAME  "Internet Message Format"
 #define PSNAME "IMF"
@@ -149,6 +149,10 @@ static int ett_imf_address_list = -1;
 static int ett_imf_siolabel = -1;
 static int ett_imf_extension = -1;
 static int ett_imf_message_text = -1;
+
+static dissector_handle_t imf_handle;
+
+static expert_field ei_imf_unknown_param = EI_INIT;
 
 struct imf_field {
   const char   *name;           /* field name - in lower case for matching purposes */
@@ -279,17 +283,17 @@ static GHashTable *custom_field_table = NULL;
 static void
 header_fields_update_cb(void *r, const char **err)
 {
-  header_field_t *rec = r;
+  header_field_t *rec = (header_field_t *)r;
   char c;
 
   if (rec->header_name == NULL) {
-    *err = ep_strdup_printf("Header name can't be empty");
+    *err = g_strdup("Header name can't be empty");
     return;
   }
 
   g_strstrip(rec->header_name);
   if (rec->header_name[0] == 0) {
-    *err = ep_strdup_printf("Header name can't be empty");
+    *err = g_strdup("Header name can't be empty");
     return;
   }
 
@@ -298,7 +302,7 @@ header_fields_update_cb(void *r, const char **err)
    */
   c = proto_check_field_name(rec->header_name);
   if (c) {
-    *err = ep_strdup_printf("Header name can't contain '%c'", c);
+    *err = g_strdup_printf("Header name can't contain '%c'", c);
     return;
   }
 
@@ -308,8 +312,8 @@ header_fields_update_cb(void *r, const char **err)
 static void *
 header_fields_copy_cb(void *n, const void *o, size_t siz _U_)
 {
-  header_field_t *new_rec = n;
-  const header_field_t *old_rec = o;
+  header_field_t *new_rec = (header_field_t *)n;
+  const header_field_t *old_rec = (const header_field_t *)o;
 
   new_rec->header_name = g_strdup(old_rec->header_name);
   new_rec->description = g_strdup(old_rec->description);
@@ -322,7 +326,7 @@ header_fields_copy_cb(void *n, const void *o, size_t siz _U_)
 static void
 header_fields_free_cb(void *r)
 {
-  header_field_t *rec = r;
+  header_field_t *rec = (header_field_t *)r;
 
   g_free(rec->header_name);
   g_free(rec->description);
@@ -504,7 +508,7 @@ dissect_imf_siolabel(tvbuff_t *tvb, int offset, int length, proto_item *item, pa
   int         end_offset;
   tvbuff_t   *label_tvb;
   gchar      *type = NULL;
-  emem_strbuf_t  *label_string = ep_strbuf_new("");
+  wmem_strbuf_t  *label_string = wmem_strbuf_new(wmem_packet_scope(), "");
 
   /* a semicolon separated list of attributes */
   tree = proto_item_add_subtree(item, ett_imf_siolabel);
@@ -536,7 +540,7 @@ dissect_imf_siolabel(tvbuff_t *tvb, int offset, int length, proto_item *item, pa
     }
 
     if (tvb_strneql(tvb, item_offset, "marking", 7) == 0) {
-      proto_item_append_text(item, ": %s", tvb_get_ephemeral_string(tvb, value_offset, value_length));
+      proto_item_append_text(item, ": %s", tvb_get_string(wmem_packet_scope(), tvb, value_offset, value_length));
       proto_tree_add_item(tree, hf_imf_siolabel_marking, tvb, value_offset, value_length, ENC_ASCII|ENC_NA);
 
     } else if (tvb_strneql(tvb, item_offset, "fgcolor", 7) == 0) {
@@ -546,15 +550,15 @@ dissect_imf_siolabel(tvbuff_t *tvb, int offset, int length, proto_item *item, pa
       proto_tree_add_item(tree, hf_imf_siolabel_bgcolor, tvb, value_offset, value_length, ENC_ASCII|ENC_NA);
 
     } else if (tvb_strneql(tvb, item_offset, "type", 4) == 0) {
-      type = tvb_get_ephemeral_string(tvb, value_offset + 1, value_length - 2); /* quoted */
+      type = tvb_get_string(wmem_packet_scope(), tvb, value_offset + 1, value_length - 2); /* quoted */
       proto_tree_add_item(tree, hf_imf_siolabel_type, tvb, value_offset, value_length, ENC_ASCII|ENC_NA);
 
     } else if (tvb_strneql(tvb, item_offset, "label", 5) == 0) {
-      gchar *label = tvb_get_ephemeral_string(tvb, value_offset + 1, value_length - 2); /* quoted */
-      label_string = ep_strbuf_append(label_string, label);
+      gchar *label = tvb_get_string(wmem_packet_scope(), tvb, value_offset + 1, value_length - 2); /* quoted */
+      wmem_strbuf_append(label_string, label);
 
       if (tvb_get_guint8(tvb, item_offset + 5) == '*') { /* continuations */
-        int num = (int)strtol(tvb_get_ephemeral_string(tvb, item_offset + 6, value_offset - item_offset + 6), NULL, 10);
+        int num = (int)strtol(tvb_get_string(wmem_packet_scope(), tvb, item_offset + 6, value_offset - item_offset + 6), NULL, 10);
         proto_tree_add_string_format(tree, hf_imf_siolabel_label, tvb, value_offset, value_length,
                                      label, "Label[%d]: \"%s\"", num, label);
       } else {
@@ -563,7 +567,7 @@ dissect_imf_siolabel(tvbuff_t *tvb, int offset, int length, proto_item *item, pa
 
     } else {
       sub_item = proto_tree_add_item(tree, hf_imf_siolabel_unknown, tvb, item_offset, item_length, ENC_ASCII|ENC_NA);
-      expert_add_info_format(pinfo, sub_item, PI_PROTOCOL, PI_WARN, "Unknown parameter");
+      expert_add_info(pinfo, sub_item, &ei_imf_unknown_param);
     }
 
     if (end_offset != -1) {
@@ -571,13 +575,13 @@ dissect_imf_siolabel(tvbuff_t *tvb, int offset, int length, proto_item *item, pa
     }
   } while (end_offset != -1);
 
-  if (type && label_string->len > 0) {
+  if (type && wmem_strbuf_get_len(label_string) > 0) {
     if (strcmp (type, ":ess") == 0) {
-      label_tvb = base64_to_tvb(tvb, label_string->str);
+      label_tvb = base64_to_tvb(tvb, wmem_strbuf_get_str(label_string));
       add_new_data_source(pinfo, label_tvb, "ESS Security Label");
       dissect_ess_ESSSecurityLabel_PDU(label_tvb, pinfo, tree);
     } else if (strcmp (type, ":x411") == 0) {
-      label_tvb = base64_to_tvb(tvb, label_string->str);
+      label_tvb = base64_to_tvb(tvb, wmem_strbuf_get_str(label_string));
       add_new_data_source(pinfo, label_tvb, "X.411 Security Label");
       dissect_p1_MessageSecurityLabel_PDU(label_tvb, pinfo, tree);
     }
@@ -589,6 +593,7 @@ dissect_imf_content_type(tvbuff_t *tvb, int offset, int length, proto_item *item
                          char **type, char **parameters)
 {
   int first_colon;
+  int end_offset;
   int len;
   int i;
   proto_tree *ct_tree;
@@ -611,13 +616,18 @@ dissect_imf_content_type(tvbuff_t *tvb, int offset, int length, proto_item *item
     proto_tree_add_item(ct_tree, hf_imf_content_type_type, tvb, offset, len, ENC_ASCII|ENC_NA);
     if(type) {
       /* This string will be automatically freed */
-      (*type) = tvb_get_ephemeral_string(tvb, offset, len);
+      (*type) = tvb_get_string(wmem_packet_scope(), tvb, offset, len);
     }
-    len = tvb_find_line_end(tvb, first_colon + 1, length, NULL, FALSE);
+    end_offset = imf_find_field_end (tvb, first_colon + 1, offset + length, NULL);
+    if (end_offset == -1) {
+       /* No end found */
+       return;
+    }
+    len = end_offset - (first_colon + 1) - 2;  /* Do not include the last CRLF */
     proto_tree_add_item(ct_tree, hf_imf_content_type_parameters, tvb, first_colon + 1, len, ENC_ASCII|ENC_NA);
     if(parameters) {
       /* This string will be automatically freed */
-      (*parameters) = tvb_get_ephemeral_string(tvb, first_colon + 1, len);
+      (*parameters) = tvb_get_string(wmem_packet_scope(), tvb, first_colon + 1, len);
     }
   }
 }
@@ -709,7 +719,7 @@ dissect_imf(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       /* XXX: flag an error */
       break;
     } else {
-      key = tvb_get_ephemeral_string(tvb, start_offset, end_offset - start_offset);
+      key = tvb_get_string(wmem_packet_scope(), tvb, start_offset, end_offset - start_offset);
 
       /* convert to lower case */
       ascii_strdown_inplace (key);
@@ -762,13 +772,13 @@ dissect_imf(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         proto_tree_add_item(unknown_tree, hf_imf_extension_type, tvb, unknown_offset, start_offset - 1 - unknown_offset, ENC_ASCII|ENC_NA);
 
         /* remove 2 bytes to take off the final CRLF to make things a little prettier */
-        item = proto_tree_add_item(unknown_tree, hf_imf_extension_value, tvb, start_offset, end_offset - start_offset - 2, ENC_ASCII|ENC_NA);
+        item = proto_tree_add_item(unknown_tree, hf_imf_extension_value, tvb, value_offset, end_offset - value_offset - 2, ENC_ASCII|ENC_NA);
 
       } else {
         /* remove 2 bytes to take off the final CRLF to make things a little prettier */
         item = proto_tree_add_item(tree, hf_id, tvb, value_offset, end_offset - value_offset - 2, ENC_ASCII|ENC_NA);
       }
-      if(f_info->add_to_col_info && check_col(pinfo->cinfo, COL_INFO)) {
+      if(f_info->add_to_col_info) {
 
         col_append_fstr(pinfo->cinfo, COL_INFO, "%s: %s, ", f_info->name,
                         tvb_format_text(tvb, value_offset, end_offset - value_offset - 2));
@@ -806,7 +816,7 @@ dissect_imf(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     next_tvb = tvb_new_subset_remaining(tvb, end_offset);
 
-    dissector_try_string(media_type_dissector_table, content_type_str, next_tvb, pinfo, tree);
+    dissector_try_string(media_type_dissector_table, content_type_str, next_tvb, pinfo, tree, NULL);
 
     pinfo->private_data = pd_save;
   } else {
@@ -877,10 +887,10 @@ header_fields_initialize_cb (void)
 
   if (num_header_fields) {
     custom_field_table = g_hash_table_new_full (g_str_hash, g_str_equal, NULL, free_imf_field);
-    hf = g_malloc0 (sizeof (hf_register_info) * num_header_fields);
+    hf = (hf_register_info *)g_malloc0 (sizeof (hf_register_info) * num_header_fields);
 
     for (i = 0; i < num_header_fields; i++) {
-      hf_id = g_malloc (sizeof (gint));
+      hf_id = (gint *)g_malloc (sizeof (gint));
       *hf_id = -1;
       header_name = g_strdup (header_fields[i].header_name);
 
@@ -891,10 +901,10 @@ header_fields_initialize_cb (void)
       hf[i].hfinfo.display = BASE_NONE;
       hf[i].hfinfo.strings = NULL;
       hf[i].hfinfo.blurb = g_strdup (header_fields[i].description);
-      hf[i].hfinfo.same_name_prev = NULL;
+      hf[i].hfinfo.same_name_prev_id = -1;
       hf[i].hfinfo.same_name_next = NULL;
 
-      imffield = g_malloc (sizeof (struct imf_field));
+      imffield = (struct imf_field *)g_malloc (sizeof (struct imf_field));
       imffield->hf_id = hf_id;
       imffield->name = ascii_strdown_inplace (g_strdup (header_name));
       switch (header_fields[i].header_format) {
@@ -1202,6 +1212,10 @@ proto_register_imf(void)
     &ett_imf_message_text,
   };
 
+  static ei_register_info ei[] = {
+     { &ei_imf_unknown_param, { "imf.unknown_param", PI_PROTOCOL, PI_WARN, "Unknown parameter", EXPFILL }},
+  };
+
   static uat_field_t attributes_flds[] = {
     UAT_FLD_CSTRING(header_fields, header_name, "Header name", "IMF header name"),
     UAT_FLD_CSTRING(header_fields, description, "Description", "Description of the value contained in the header"),
@@ -1214,7 +1228,7 @@ proto_register_imf(void)
                                sizeof(header_field_t),
                                "imf_header_fields",
                                TRUE,
-                               (void*) &header_fields,
+                               &header_fields,
                                &num_header_fields,
                                /* specifies named fields, so affects dissection
                                   and the set of named fields */
@@ -1227,15 +1241,18 @@ proto_register_imf(void)
                                attributes_flds);
 
   module_t *imf_module;
+  expert_module_t* expert_imf;
   struct imf_field *f;
 
   proto_imf = proto_register_protocol(PNAME, PSNAME, PFNAME);
 
   proto_register_field_array(proto_imf, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_imf = expert_register_protocol(proto_imf);
+  expert_register_field_array(expert_imf, ei, array_length(ei));
 
   /* Allow dissector to find be found by name. */
-  register_dissector(PFNAME, dissect_imf, proto_imf);
+  imf_handle = register_dissector(PFNAME, dissect_imf, proto_imf);
 
   imf_module = prefs_register_protocol(proto_imf, NULL);
   prefs_register_uat_preference(imf_module, "custom_header_fields", "Custom IMF headers",
@@ -1255,14 +1272,10 @@ proto_register_imf(void)
 void
 proto_reg_handoff_imf(void)
 {
-  dissector_handle_t imf_handle;
-
-  imf_handle = find_dissector(PFNAME);
-
   dissector_add_string("media_type",
                        "message/rfc822", imf_handle);
 
-  register_ber_oid_dissector("1.2.840.113549.1.7.1", dissect_imf, proto_imf, "id-data");
+  register_ber_oid_dissector_handle("1.2.840.113549.1.7.1", imf_handle, proto_imf, "id-data");
 
   /*
    * Get the content type and Internet media type table

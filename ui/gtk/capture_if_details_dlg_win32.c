@@ -1,8 +1,6 @@
 /* capture_if_details_dlg.c
  * Routines for capture interface details window (only Win32!)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -1014,8 +1012,8 @@ capture_if_details_802_11_bssid_list(GtkWidget *main_vb, struct ndis_bssid_list 
 
 
     if (bssid_list->num_items != 0) {
-        char *titles[] = { "SSID", "MAC", "Vendor", "Privacy", "RSSI" , "Network Type" ,
-                           "Infra. Mode" , "Ch." , "Rates", "Country" };
+        static const char *titles[] = { "SSID", "MAC", "Vendor", "Privacy", "RSSI" , "Network Type" ,
+                                        "Infra. Mode" , "Ch." , "Rates", "Country" };
         GtkWidget *list;
         gboolean   privacy_required;
         gboolean   privacy_wpa;

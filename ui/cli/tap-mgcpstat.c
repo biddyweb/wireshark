@@ -1,8 +1,6 @@
 /* tap-mgcpstat.c
  * mgcpstat   2003 Lars Roland
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,16 +23,19 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet_info.h"
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
 #include "epan/value_string.h"
 #include "epan/dissectors/packet-mgcp.h"
-#include "timestats.h"
+#include "epan/timestats.h"
 
 #define NUM_TIMESTATS 11
+
+void register_tap_listener_mgcpstat(void);
 
 /* used to keep track of the statistics for an entire program interface */
 typedef struct _mgcpstat_t {
@@ -169,15 +170,15 @@ mgcpstat_draw(void *pms)
 
 
 static void
-mgcpstat_init(const char *optarg, void* userdata _U_)
+mgcpstat_init(const char *opt_arg, void* userdata _U_)
 {
 	mgcpstat_t *ms;
 	int i;
 	GString *error_string;
 
 	ms=g_new(mgcpstat_t,1);
-	if(!strncmp(optarg,"mgcp,rtd,",9)){
-		ms->filter=g_strdup(optarg+9);
+	if(!strncmp(opt_arg,"mgcp,rtd,",9)){
+		ms->filter=g_strdup(opt_arg+9);
 	} else {
 		ms->filter=NULL;
 	}

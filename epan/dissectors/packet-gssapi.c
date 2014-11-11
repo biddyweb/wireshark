@@ -4,8 +4,6 @@
  * Copyright 2002, Richard Sharpe <rsharpe@samba.org> Added a few
  *		   bits and pieces ...
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,9 +28,11 @@
 #include <string.h>
 
 #include <glib.h>
+
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/prefs.h>
 #include <epan/reassemble.h>
 #include <epan/asn1.h>
@@ -42,6 +42,9 @@
 #include <epan/dissectors/packet-ber.h>
 #include <epan/dissectors/packet-dcerpc.h>
 #include <epan/dissectors/packet-gssapi.h>
+
+void proto_register_gssapi(void);
+void proto_reg_handoff_gssapi(void);
 
 static int proto_gssapi = -1;
 
@@ -66,7 +69,7 @@ static gboolean gssapi_reassembly = TRUE;
 typedef struct _gssapi_conv_info_t {
 	gssapi_oid_value *oid;
 
-        emem_tree_t *frags;
+        wmem_tree_t *frags;
 
 	gboolean do_reassembly;  /* this field is used on first sequential scan of packets to help indicate when the next blob is a fragment continuing a previous one */
 	int first_frame;
@@ -98,12 +101,13 @@ static const fragment_items gssapi_frag_items = {
 };
 
 
-static GHashTable *gssapi_fragment_table = NULL;
+static reassembly_table gssapi_reassembly_table;
 
 static void
 gssapi_reassembly_init(void)
 {
-	fragment_table_init(&gssapi_fragment_table);
+	reassembly_table_init(&gssapi_reassembly_table,
+	                      &addresses_reassembly_table_functions);
 }
 
 /*
@@ -144,7 +148,7 @@ gssapi_init_oid(const char *oid, int proto, int ett, dissector_handle_t handle,
 		dissector_handle_t wrap_handle, const gchar *comment)
 {
 	char *key = g_strdup(oid);
-	gssapi_oid_value *value = g_malloc(sizeof(*value));
+	gssapi_oid_value *value = (gssapi_oid_value *)g_malloc(sizeof(*value));
 
 	value->proto = find_protocol_by_id(proto);
 	value->ett = ett;
@@ -167,7 +171,7 @@ gssapi_lookup_oid_str(const char *oid_key)
 	if(!oid_key){
 		return NULL;
 	}
-	value = g_hash_table_lookup(gssapi_oids, oid_key);
+	value = (gssapi_oid_value *)g_hash_table_lookup(gssapi_oids, oid_key);
 	return value;
 }
 
@@ -185,12 +189,12 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	tvbuff_t *oid_tvb;
 	int len, start_offset, oid_start_offset;
 	volatile int offset;
-	gint8 class;
+	gint8 appclass;
 	gboolean pc, ind_field;
 	gint32 tag;
 	guint32 len1;
 	const char *oid;
-	fragment_data *fd_head=NULL;
+	fragment_head *fd_head=NULL;
 	gssapi_frag_info_t *fi;
 	tvbuff_t *volatile gss_tvb=NULL;
 	asn1_ctx_t asn1_ctx;
@@ -212,12 +216,12 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	 */
 	conversation = find_or_create_conversation(pinfo);
 
-	gss_info = conversation_get_proto_data(conversation, proto_gssapi);
+	gss_info = (gssapi_conv_info_t *)conversation_get_proto_data(conversation, proto_gssapi);
 	if (!gss_info) {
-		gss_info = se_alloc(sizeof(gssapi_conv_info_t));
+		gss_info = wmem_new(wmem_file_scope(), gssapi_conv_info_t);
 		gss_info->oid=NULL;
 		gss_info->do_reassembly=FALSE;
-		gss_info->frags=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "gssapi_frags");
+		gss_info->frags=wmem_tree_new(wmem_file_scope());
 
 		conversation_add_proto_data(conversation, proto_gssapi, gss_info);
 	}
@@ -250,13 +254,14 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		if( (!pinfo->fd->flags.visited)
 		&&  (gss_info->do_reassembly)
 		&&  (gssapi_reassembly) ){
-			fi=se_tree_lookup32(gss_info->frags, gss_info->first_frame);
+			fi=(gssapi_frag_info_t *)wmem_tree_lookup32(gss_info->frags, gss_info->first_frame);
 			if(!fi){
 				goto done;
 			}
-			se_tree_insert32(gss_info->frags, pinfo->fd->num, fi);
-			fd_head=fragment_add(tvb, 0, pinfo, fi->first_frame,
-				gssapi_fragment_table, gss_info->frag_offset,
+			wmem_tree_insert32(gss_info->frags, pinfo->fd->num, fi);
+			fd_head=fragment_add(&gssapi_reassembly_table,
+				tvb, 0, pinfo, fi->first_frame, NULL,
+				gss_info->frag_offset,
 				tvb_length(tvb), TRUE);
 			gss_info->frag_offset+=tvb_length(tvb);
 
@@ -269,7 +274,7 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 			gss_info->do_reassembly=FALSE;
 			fi->reassembled_in=pinfo->fd->num;
 
-			gss_tvb=tvb_new_child_real_data(tvb, fd_head->data, fd_head->datalen, fd_head->datalen);
+			gss_tvb=tvb_new_chain(tvb, fd_head->tvb_data);
 			add_new_data_source(pinfo, gss_tvb, "Reassembled GSSAPI");
 		}
 		/* We have seen this packet before.
@@ -277,13 +282,14 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		 */
 		if( (pinfo->fd->flags.visited)
 		&&  (gssapi_reassembly) ){
-			fi=se_tree_lookup32(gss_info->frags, pinfo->fd->num);
+			fi=(gssapi_frag_info_t *)wmem_tree_lookup32(gss_info->frags, pinfo->fd->num);
 			if(fi){
-				fd_head=fragment_get(pinfo, fi->first_frame, gssapi_fragment_table);
+				fd_head=fragment_get(&gssapi_reassembly_table,
+					pinfo, fi->first_frame, NULL);
 				if(fd_head && (fd_head->flags&FD_DEFRAGMENTED)){
 					if(pinfo->fd->num==fi->reassembled_in){
 					        proto_item *frag_tree_item;
-						gss_tvb=tvb_new_child_real_data(tvb, fd_head->data, fd_head->datalen, fd_head->datalen);
+						gss_tvb=tvb_new_chain(tvb, fd_head->tvb_data);
 						add_new_data_source(pinfo, gss_tvb, "Reassembled GSSAPI");
 						show_fragment_tree(fd_head, &gssapi_frag_items, tree, pinfo, tvb, &frag_tree_item);
 					} else {
@@ -297,11 +303,11 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		}
 
 		/* Read header */
-		offset = get_ber_identifier(gss_tvb, offset, &class, &pc, &tag);
+		offset = get_ber_identifier(gss_tvb, offset, &appclass, &pc, &tag);
 		offset = get_ber_length(gss_tvb, offset, &len1, &ind_field);
 
 
-		if (!(class == BER_CLASS_APP && pc && tag == 0)) {
+		if (!(appclass == BER_CLASS_APP && pc && tag == 0)) {
 		  /* It could be NTLMSSP, with no OID.  This can happen
 		     for anything that microsoft calls 'Negotiate' or GSS-SPNEGO */
 			if ((tvb_length_remaining(gss_tvb, start_offset)>7) && (tvb_strneql(gss_tvb, start_offset, "NTLMSSP", 7) == 0)) {
@@ -364,20 +370,20 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		   * pointer; it just treats it as an opaque pointer, it
 		   * doesn't dereference it or free what it points to.)
 		   */
-		  oidvalue = p_get_proto_data(pinfo->fd, proto_gssapi);
+		  oidvalue = (gssapi_oid_value *)p_get_proto_data(wmem_file_scope(), pinfo, proto_gssapi, 0);
 		  if (!oidvalue && !pinfo->fd->flags.visited)
 		  {
 		    /* No handle attached to this frame, but it's the first */
 		    /* pass, so it'd be attached to the conversation. */
 		    oidvalue = gss_info->oid;
 		    if (gss_info->oid)
-		      p_add_proto_data(pinfo->fd, proto_gssapi, gss_info->oid);
+		      p_add_proto_data(wmem_file_scope(), pinfo, proto_gssapi, 0, gss_info->oid);
 		  }
 		  if (!oidvalue)
 		  {
                     proto_tree_add_text(subtree, gss_tvb, start_offset, 0,
 					  "Unknown header (class=%d, pc=%d, tag=%d)",
-					  class, pc, tag);
+					  appclass, pc, tag);
 		    return_offset = tvb_length(gss_tvb);
 		    goto done;
 		  } else {
@@ -419,15 +425,16 @@ dissect_gssapi_work(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		&&  (tvb_length(gss_tvb)==tvb_reported_length(gss_tvb))
 		&&  (len1>(guint32)tvb_length_remaining(gss_tvb, oid_start_offset))
 		&&  (gssapi_reassembly) ){
-			fi=se_alloc(sizeof(gssapi_frag_info_t));
+			fi=wmem_new(wmem_file_scope(), gssapi_frag_info_t);
 			fi->first_frame=pinfo->fd->num;
 			fi->reassembled_in=0;
-			se_tree_insert32(gss_info->frags, pinfo->fd->num, fi);
+			wmem_tree_insert32(gss_info->frags, pinfo->fd->num, fi);
 
-			fragment_add(gss_tvb, 0, pinfo, pinfo->fd->num,
-				gssapi_fragment_table, 0,
-				tvb_length(gss_tvb), TRUE);
-			fragment_set_tot_len(pinfo, pinfo->fd->num, gssapi_fragment_table, len1+oid_start_offset);
+			fragment_add(&gssapi_reassembly_table,
+				gss_tvb, 0, pinfo, pinfo->fd->num, NULL,
+				0, tvb_length(gss_tvb), TRUE);
+			fragment_set_tot_len(&gssapi_reassembly_table,
+				pinfo, pinfo->fd->num, NULL, len1+oid_start_offset);
 
 			gss_info->do_reassembly=TRUE;
 			gss_info->first_frame=pinfo->fd->num;
@@ -600,7 +607,7 @@ proto_register_gssapi(void)
 
 static int
 wrap_dissect_gssapi(tvbuff_t *tvb, int offset, packet_info *pinfo,
-		    proto_tree *tree, guint8 *drep _U_)
+		    proto_tree *tree, dcerpc_info *di _U_, guint8 *drep _U_)
 {
 	tvbuff_t *auth_tvb;
 
@@ -613,7 +620,7 @@ wrap_dissect_gssapi(tvbuff_t *tvb, int offset, packet_info *pinfo,
 
 int
 wrap_dissect_gssapi_verf(tvbuff_t *tvb, int offset, packet_info *pinfo,
-			 proto_tree *tree, guint8 *drep _U_)
+			 proto_tree *tree, dcerpc_info *di _U_, guint8 *drep _U_)
 {
 	tvbuff_t *auth_tvb;
 

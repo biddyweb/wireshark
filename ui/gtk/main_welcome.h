@@ -1,8 +1,6 @@
 /* main_welcome.h
  * Welcome "page"
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -75,6 +73,8 @@ void change_interface_selection(gchar* name, gboolean activate);
 void change_selection_for_all(gboolean enable);
 
 void update_welcome_list(void);
+
+void set_sensitivity_for_start_icon(void);
 
 #ifdef HAVE_PCAP_REMOTE
 void add_interface_to_list(guint index);

@@ -3,8 +3,6 @@
 *
 * Copyright 2004, Luis E. Garcia Ontanon <luis@ontanon.org>
 *
-* $Id$
-*
 * Wireshark - Network traffic analyzer
 * By Gerald Combs <gerald@wireshark.org>
 * Copyright 1998 Gerald Combs
@@ -48,7 +46,7 @@ static void report_error(const gchar* fmt, ...) {
      is going to be called only by the grammar
 	 which will set all those elements that aren't set here */
 extern mate_cfg_pdu* new_pducfg(gchar* name) {
-	mate_cfg_pdu* cfg = g_malloc(sizeof(mate_cfg_pdu));
+	mate_cfg_pdu* cfg = (mate_cfg_pdu *)g_malloc(sizeof(mate_cfg_pdu));
 
 	cfg->name = g_strdup(name);
 	cfg->last_id = 0;
@@ -79,7 +77,7 @@ extern mate_cfg_pdu* new_pducfg(gchar* name) {
 }
 
 extern mate_cfg_gop* new_gopcfg(gchar* name) {
-	mate_cfg_gop* cfg = g_malloc(sizeof(mate_cfg_gop));
+	mate_cfg_gop* cfg = (mate_cfg_gop *)g_malloc(sizeof(mate_cfg_gop));
 
 	cfg->name = g_strdup(name);
 	cfg->last_id = 0;
@@ -114,7 +112,7 @@ extern mate_cfg_gop* new_gopcfg(gchar* name) {
 }
 
 extern mate_cfg_gog* new_gogcfg(gchar* name) {
-	mate_cfg_gog* cfg = g_malloc(sizeof(mate_cfg_gop));
+	mate_cfg_gog* cfg = (mate_cfg_gog *)g_malloc(sizeof(mate_cfg_gop));
 
 	cfg->name = g_strdup(name);
 	cfg->last_id = 0;
@@ -156,18 +154,18 @@ extern gboolean add_hfid(header_field_info*  hfi, gchar* how, GHashTable* where)
 
 	while(hfi) {
 		first_hfi = hfi;
-		hfi = hfi->same_name_prev;
+		hfi = (hfi->same_name_prev_id != -1) ? proto_registrar_get_nth(hfi->same_name_prev_id) : NULL;
 	}
 
 	hfi = first_hfi;
 
 	while (hfi) {
 		exists = TRUE;
-		ip = g_malloc(sizeof(int));
+		ip = (int *)g_malloc(sizeof(int));
 
 		*ip = hfi->id;
 
-		if (( as = g_hash_table_lookup(where,ip) )) {
+		if (( as = (gchar *)g_hash_table_lookup(where,ip) )) {
 			g_free(ip);
 			if (! g_str_equal(as,how)) {
 				report_error("MATE Error: add field to Pdu: attempt to add %s(%i) as %s"
@@ -201,7 +199,7 @@ extern gchar* add_ranges(gchar* range,GPtrArray* range_ptr_arr) {
 		for (i=0; ranges[i]; i++) {
 			hfi = proto_registrar_get_byname(ranges[i]);
 			if (hfi) {
-				hfidp = g_malloc(sizeof(int));
+				hfidp = (int *)g_malloc(sizeof(int));
 				*hfidp = hfi->id;
 				g_ptr_array_add(range_ptr_arr,(gpointer)hfidp);
 				g_string_append_printf(matecfg->fields_filter, "||%s",ranges[i]);
@@ -218,7 +216,7 @@ extern gchar* add_ranges(gchar* range,GPtrArray* range_ptr_arr) {
 }
 
 static void new_attr_hfri(gchar* item_name, GHashTable* hfids, gchar* name) {
-	int* p_id = g_malloc(sizeof(int));
+	int* p_id = (int *)g_malloc(sizeof(int));
 	hf_register_info hfri;
 
 	memset(&hfri, 0, sizeof hfri);
@@ -247,7 +245,7 @@ static const gchar* my_protoname(int proto_id) {
 }
 
 static void analyze_pdu_hfids(gpointer k, gpointer v, gpointer p) {
-	mate_cfg_pdu* cfg = p;
+	mate_cfg_pdu* cfg = (mate_cfg_pdu *)p;
 	new_attr_hfri(cfg->name,cfg->my_hfids,(gchar*) v);
 
 	g_string_append_printf(matecfg->fields_filter,"||%s",my_protoname(*(int*)k));
@@ -260,7 +258,7 @@ static void analyze_transform_hfrs(gchar* name, GPtrArray* transforms, GHashTabl
 	AVP* avp;
 
 	for (i=0; i < transforms->len;i++) {
-		for (t = g_ptr_array_index(transforms,i); t; t=t->next ) {
+		for (t = (AVPL_Transf *)g_ptr_array_index(transforms,i); t; t=t->next ) {
 			cookie = NULL;
 			while(( avp = get_next_avp(t->replace,&cookie) )) {
 				if (! g_hash_table_lookup(hfids,avp->n))  {
@@ -314,7 +312,7 @@ static void analyze_pdu_config(mate_cfg_pdu* cfg) {
 }
 
 static void analyze_gop_config(gpointer k _U_, gpointer v, gpointer p _U_) {
-	mate_cfg_gop* cfg = v;
+	mate_cfg_gop* cfg = (mate_cfg_gop *)v;
 	void* cookie = NULL;
 	AVP* avp;
 	gint* ett;
@@ -426,7 +424,7 @@ static void analyze_gop_config(gpointer k _U_, gpointer v, gpointer p _U_) {
 }
 
 static void analyze_gog_config(gpointer k _U_, gpointer v, gpointer p _U_) {
-	mate_cfg_gog* cfg = v;
+	mate_cfg_gog* cfg = (mate_cfg_gog *)v;
 	void* avp_cookie;
 	void* avpl_cookie;
 	AVP* avp;
@@ -506,7 +504,7 @@ static void analyze_gog_config(gpointer k _U_, gpointer v, gpointer p _U_) {
 	avpl_cookie = NULL;
 	while (( avpl = get_next_avpl(cfg->keys,&avpl_cookie) )) {
 
-		if (! ( gog_keys = g_hash_table_lookup(matecfg->gogs_by_gopname,avpl->name))) {
+		if (! ( gog_keys = (LoAL *)g_hash_table_lookup(matecfg->gogs_by_gopname,avpl->name))) {
 			gog_keys = new_loal(avpl->name);
 			g_hash_table_insert(matecfg->gogs_by_gopname,gog_keys->name,gog_keys);
 		}
@@ -575,7 +573,7 @@ extern mate_config* mate_make_config(const gchar* filename, int mate_hfid) {
 	gint* ett;
 	avp_init();
 
-	matecfg = g_malloc(sizeof(mate_config));
+	matecfg = (mate_config *)g_malloc(sizeof(mate_config));
 
 	matecfg->hfid_mate = mate_hfid;
 

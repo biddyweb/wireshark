@@ -1,7 +1,5 @@
 /* packet_list_record.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,7 +26,7 @@
 
 #include <glib.h>
 
-#include <epan/column_info.h>
+#include <epan/column-info.h>
 #include <epan/packet.h>
 
 #include <QList>
@@ -43,22 +41,22 @@ public:
 
 private:
     /** The column text for some columns */
-    gchar **col_text_;
+    //gchar **col_text_;
     /**< The length of the column text strings in 'col_text' */
-    guint *col_text_len_;
+    //guint *col_text_len_;
 
     frame_data *fdata_;
 
     /** Has this record been columnized? */
-    gboolean columnized_;
+    //gboolean columnized_;
     /** Has this record been colorized? */
-    gboolean colorized_;
+    //gboolean colorized_;
 
     /* admin stuff used by the custom list model */
     /** position within the physical array */
-    guint physical_pos_;
+    //guint physical_pos_;
     /** position within the visible array */
-    gint visible_pos_;
+    //gint visible_pos_;
 
 };
 

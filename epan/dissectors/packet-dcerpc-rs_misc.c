@@ -5,8 +5,6 @@
  * This information is based off the released idl files from opengroup.
  * ftp://ftp.opengroup.org/pub/dce122/dce/src/security.tar.gz security/idl/rs_misc.idl
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,8 @@
 #include <epan/packet.h>
 #include "packet-dcerpc.h"
 
+void proto_register_rs_misc (void);
+void proto_reg_handoff_rs_misc (void);
 
 static int proto_rs_misc = -1;
 static int hf_rs_misc_opnum = -1;
@@ -50,27 +50,25 @@ static guint16  ver_rs_misc = 1;
 
 static int
 rs_misc_dissect_login_get_info_rqst (tvbuff_t *tvb, int offset,
-	packet_info *pinfo, proto_tree *tree, guint8 *drep)
+	packet_info *pinfo, proto_tree *tree, dcerpc_info *di, guint8 *drep)
 {
 
 	guint32 key_size;
 	const char *key_t1 = NULL;
 
-	offset = dissect_ndr_uint32 (tvb, offset, pinfo, tree, drep,
+	offset = dissect_ndr_uint32 (tvb, offset, pinfo, tree, di, drep,
 			hf_rs_misc_login_get_info_rqst_var, NULL);
-	offset = dissect_ndr_uint32 (tvb, offset, pinfo, tree, drep,
+	offset = dissect_ndr_uint32 (tvb, offset, pinfo, tree, di, drep,
 			hf_rs_misc_login_get_info_rqst_key_size, &key_size);
 
 	if (key_size){ /* Not able to yet decipher the OTHER versions of this call just yet. */
 
 		proto_tree_add_item (tree, hf_rs_misc_login_get_info_rqst_key_t, tvb, offset, key_size, ENC_ASCII|ENC_NA);
-		key_t1 = tvb_get_ephemeral_string(tvb, offset, key_size);
+		key_t1 = tvb_get_string(wmem_packet_scope(), tvb, offset, key_size);
 		offset += key_size;
 
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_append_fstr(pinfo->cinfo, COL_INFO,
+		col_append_fstr(pinfo->cinfo, COL_INFO,
 				"rs_login_get_info Request for: %s ", key_t1);
-		}
 	} else {
 		col_append_str(pinfo->cinfo, COL_INFO,
 				"rs_login_get_info Request (other)");

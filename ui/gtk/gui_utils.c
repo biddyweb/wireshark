@@ -3,8 +3,6 @@
  * and some with GUI-independent APIs, with this file containing the GTK+
  * implementations of them (declared in ui_util.h)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,7 @@
 
 #include "config.h"
 
+#include <stdlib.h>
 #include <string.h>
 #include <locale.h>
 
@@ -54,10 +53,7 @@
 
 #include "ui/gtk/old-gtk-compat.h"
 
-#include "image/wsicon16.xpm"
-#include "image/wsicon32.xpm"
-#include "image/wsicon48.xpm"
-#include "image/wsicon64.xpm"
+#include "ui/gtk/wsicon.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -116,13 +112,13 @@ window_icon_realize_cb(GtkWidget *win,
     GList     *ws_icon_list = NULL;
     GdkPixbuf *icon;
 
-    icon = gdk_pixbuf_new_from_xpm_data((const char **)wsicon16_xpm);
+    icon = gdk_pixbuf_new_from_inline(-1, wsicon_16_pb_data, FALSE, NULL);
     ws_icon_list = g_list_append(ws_icon_list, icon);
-    icon = gdk_pixbuf_new_from_xpm_data((const char **)wsicon32_xpm);
+    icon = gdk_pixbuf_new_from_inline(-1, wsicon_32_pb_data, FALSE, NULL);
     ws_icon_list = g_list_append(ws_icon_list, icon);
-    icon = gdk_pixbuf_new_from_xpm_data((const char **)wsicon48_xpm);
+    icon = gdk_pixbuf_new_from_inline(-1, wsicon_48_pb_data, FALSE, NULL);
     ws_icon_list = g_list_append(ws_icon_list, icon);
-    icon = gdk_pixbuf_new_from_xpm_data((const char **)wsicon64_xpm);
+    icon = gdk_pixbuf_new_from_inline(-1, wsicon_64_pb_data, FALSE, NULL);
     ws_icon_list = g_list_append(ws_icon_list, icon);
 
     gtk_window_set_icon_list(GTK_WINDOW(win), ws_icon_list);
@@ -376,6 +372,37 @@ window_get_geometry(GtkWidget         *widget,
 }
 
 
+#ifdef _WIN32
+/* Ensure Wireshark isn't obscured by the system taskbar (or other desktop toolbars).
+ * Resolves https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=3034 */
+static void
+window_adjust_if_obscured(window_geometry_t *geom)
+{
+    MONITORINFO MonitorInfo;
+    HMONITOR hMonitor;
+    POINT pt, vs;
+    DWORD dwFlags = MONITOR_DEFAULTTONEAREST; /* MONITOR_DEFAULTTOPRIMARY? */
+
+    /*
+     * Get the virtual screen's top-left coordinates so we can reliably
+     * determine which monitor we're dealing with.  See also:
+     * http://msdn.microsoft.com/en-us/library/windows/desktop/dd145136%28v=vs.85%29.aspx
+     */
+    vs.x = GetSystemMetrics(SM_XVIRTUALSCREEN);
+    vs.y = GetSystemMetrics(SM_YVIRTUALSCREEN);
+    pt.x = geom->x + vs.x;
+    pt.y = geom->y + vs.y;
+    MonitorInfo.cbSize = sizeof(MONITORINFO);
+    hMonitor = MonitorFromPoint(pt, dwFlags);
+    if (GetMonitorInfo(hMonitor, &MonitorInfo)) {
+        if (pt.x < MonitorInfo.rcWork.left)
+            geom->x += MonitorInfo.rcWork.left - pt.x;
+        if (pt.y < MonitorInfo.rcWork.top)
+            geom->y += MonitorInfo.rcWork.top - pt.y;
+    }
+}
+#endif
+
 /* set the geometry of a window from window_new() */
 void
 window_set_geometry(GtkWidget         *widget,
@@ -406,6 +433,10 @@ window_set_geometry(GtkWidget         *widget,
 
         if(geom->y < viewable_area.y || geom->y > (viewable_area.y + viewable_area.height))
             geom->y = viewable_area.y;
+
+        #ifdef _WIN32
+        window_adjust_if_obscured(geom);
+        #endif
 
         gtk_window_move(GTK_WINDOW(widget),
                         geom->x,
@@ -454,26 +485,6 @@ window_destroy(GtkWidget *win)
     gtk_widget_destroy(win);
 }
 
-#if 0
-/* Do we need this one ? */
-/* convert an xpm to a GtkWidget, using the window settings from its parent */
-/* (be sure that the parent window is already being displayed) */
-GtkWidget *
-xpm_to_widget_from_parent(GtkWidget   *parent,
-                          const char **xpm)
-{
-    GdkPixbuf *pixbuf;
-    GdkPixmap *pixmap;
-    GdkBitmap *bitmap;
-
-
-    pixbuf = gdk_pixbuf_new_from_xpm_data(xpm);
-    gdk_pixbuf_render_pixmap_and_mask_for_colormap(pixbuf, gtk_widget_get_colormap(parent), &pixmap, &bitmap, 128);
-
-    return gtk_image_new_from_pixmap(pixmap, bitmap);
-}
-#endif
-
 static GtkWidget *
 _gtk_image_new_from_pixbuf_unref(GdkPixbuf *pixbuf) {
     GtkWidget *widget;
@@ -495,7 +506,7 @@ xpm_to_widget(const char **xpm) {
 /* Convert an pixbuf data to a GtkWidget */
 /* Data should be created with "gdk-pixbuf-csource --raw" */
 GtkWidget *
-pixbuf_to_widget(const char *pb_data) {
+pixbuf_to_widget(const guint8 *pb_data) {
     GdkPixbuf *pixbuf;
 
     pixbuf = gdk_pixbuf_new_from_inline(-1, pb_data, FALSE, NULL);
@@ -536,13 +547,6 @@ main_window_update(void)
         gtk_main_iteration();
 }
 
-/* exit the main window */
-void
-main_window_exit(void)
-{
-    exit(0);
-}
-
 #ifdef HAVE_LIBPCAP
 
 /* quit a nested main window */
@@ -559,8 +563,6 @@ main_window_quit(void)
 {
     gtk_main_quit();
 }
-
-
 
 typedef struct pipe_input_tag {
     gint             source;
@@ -666,7 +668,7 @@ pipe_input_cb(GIOChannel   *source _U_,
         /* restore pipe handler */
         pipe_input->pipe_input_id = g_io_add_watch_full(pipe_input->channel,
                                                         G_PRIORITY_HIGH,
-                                                        G_IO_IN|G_IO_ERR|G_IO_HUP,
+                                                        (GIOCondition)(G_IO_IN|G_IO_ERR|G_IO_HUP),
                                                         pipe_input_cb,
                                                         pipe_input,
                                                         NULL);
@@ -701,7 +703,7 @@ pipe_input_set_handler(gint             source,
     g_io_channel_set_encoding(pipe_input.channel, NULL, NULL);
     pipe_input.pipe_input_id = g_io_add_watch_full(pipe_input.channel,
                                                    G_PRIORITY_HIGH,
-                                                   G_IO_IN|G_IO_ERR|G_IO_HUP,
+                                                   (GIOCondition)(G_IO_IN|G_IO_ERR|G_IO_HUP),
                                                    pipe_input_cb,
                                                    &pipe_input,
                                                    NULL);
@@ -1124,6 +1126,47 @@ set_window_title(GtkWidget   *win,
 }
 
 /*
+ * Collapse row and his children
+ */
+static void
+tree_collapse_row_with_children(GtkTreeView *tree_view, GtkTreeModel *model, GtkTreePath *path,
+                   GtkTreeIter *iter)
+{
+    GtkTreeIter child;
+
+    if (gtk_tree_view_row_expanded(tree_view, path)) {
+        if (gtk_tree_model_iter_children(model, &child, iter)) {
+            gtk_tree_path_down(path);
+
+        do {
+
+                if (gtk_tree_view_row_expanded(tree_view, path)) {
+                    tree_collapse_row_with_children(tree_view, model, path, &child);
+                }
+
+                gtk_tree_path_next(path);
+            } while (gtk_tree_model_iter_next(model, &child));
+
+            gtk_tree_path_up(path);
+
+            gtk_tree_view_collapse_row(tree_view, path);
+        }
+    }
+}
+
+void
+tree_collapse_path_all(GtkTreeView *tree_view, GtkTreePath *path)
+{
+    GtkTreeIter iter;
+    GtkTreeModel *model;
+
+    model = gtk_tree_view_get_model(tree_view);
+    gtk_tree_model_get_iter(model, &iter, path);
+
+    tree_collapse_row_with_children(tree_view, model, path, &iter);
+}
+
+/*
  * This callback is invoked when keyboard focus is within either
  * the packetlist view or the detail view.  The keystrokes processed
  * within this callback are attempting to modify the detail view.
@@ -1153,11 +1196,11 @@ tree_view_key_pressed_cb(GtkWidget   *tree,
                          GdkEventKey *event,
                          gpointer     user_data _U_)
 {
-    GtkTreeSelection* selection;
+    GtkTreeSelection *selection;
     GtkTreeIter iter;
     GtkTreeIter parent;
-    GtkTreeModel* model;
-    GtkTreePath* path;
+    GtkTreeModel *model;
+    GtkTreePath *path;
     gboolean    expanded, expandable;
     int rc = FALSE;
 
@@ -1183,7 +1226,12 @@ tree_view_key_pressed_cb(GtkWidget   *tree,
         case GDK_Left:
             if(expanded) {
                 /* Subtree is expanded. Collapse it. */
-                gtk_tree_view_collapse_row(GTK_TREE_VIEW(tree), path);
+                if (event->state & GDK_SHIFT_MASK)
+                {
+                    tree_collapse_row_with_children(GTK_TREE_VIEW(tree), model, path, &iter);
+                }
+                else
+                    gtk_tree_view_collapse_row(GTK_TREE_VIEW(tree), path);
                 rc = TRUE;
                 break;
             }
@@ -1295,7 +1343,7 @@ float_data_func(GtkTreeViewColumn *column _U_,
     gtk_tree_model_get(model, iter, float_col, &float_val, -1);
 
     /* save the current locale */
-    savelocale = setlocale(LC_NUMERIC, NULL);
+    savelocale = g_strdup(setlocale(LC_NUMERIC, NULL));
     /* switch to "C" locale to avoid problems with localized decimal separators
      * in g_snprintf("%f") functions
      */
@@ -1304,6 +1352,7 @@ float_data_func(GtkTreeViewColumn *column _U_,
     g_snprintf(buf, sizeof(buf), "%.2f", float_val);
     /* restore previous locale setting */
     setlocale(LC_NUMERIC, savelocale);
+    g_free(savelocale);
 
     g_object_set(renderer, "text", buf, NULL);
 }
@@ -1764,7 +1813,7 @@ gdk_pixbuf_get_from_surface(cairo_surface_t *surface,
     g_return_val_if_fail(surface != NULL, NULL);
     g_return_val_if_fail(width > 0 && height > 0, NULL);
 
-    content = cairo_surface_get_content(surface) | CAIRO_CONTENT_COLOR;
+    content = (cairo_content_t)(cairo_surface_get_content(surface) | CAIRO_CONTENT_COLOR);
     dest    = gdk_pixbuf_new(GDK_COLORSPACE_RGB,
                              !!(content & CAIRO_CONTENT_ALPHA),
                              8,
@@ -1865,6 +1914,27 @@ gtk_separator_new(GtkOrientation orientation)
 }
 #endif /* GTK_CHECK_VERSION(3,0,0) */
 
+GtkWidget *
+frame_new(const gchar *title) {
+    GtkWidget *frame, *frame_lb;
+    GString *mu_title = g_string_new("");
+
+    frame = gtk_frame_new(NULL);
+    gtk_frame_set_shadow_type(GTK_FRAME(frame), GTK_SHADOW_NONE);
+    if (title) {
+#if defined(_WIN32) || defined(__APPLE__)
+        g_string_printf(mu_title, "%s", title);
+#else
+        g_string_printf(mu_title, "<b>%s</b>", title);
+#endif
+        frame_lb = gtk_label_new(NULL);
+        gtk_label_set_markup(GTK_LABEL(frame_lb), mu_title->str);
+        gtk_frame_set_label_widget(GTK_FRAME(frame), frame_lb);
+    }
+    g_string_free(mu_title, TRUE);
+
+    return frame;
+}
 
 
 /* ---------------------------------
@@ -1879,7 +1949,8 @@ void
 ws_gtk_grid_attach_defaults(GtkGrid *grid, GtkWidget *child, gint left, gint top, gint width, gint height)
 {
     /* Use defaults for [x|y]options and [x|y]padding which match those for gtk_table_attach_defaults() */
-    ws_gtk_grid_attach_extended(grid, child, left, top, width, height, GTK_EXPAND|GTK_FILL, GTK_EXPAND|GTK_FILL, 0, 0);
+    ws_gtk_grid_attach_extended(grid, child, left, top, width, height,
+          (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), 0, 0);
 }
 
 void

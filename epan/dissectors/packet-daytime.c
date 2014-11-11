@@ -2,8 +2,6 @@
  * Routines for Daytime Protocol (RFC 867) packet dissection
  * Copyright 2006, Stephen Fisher (see AUTHORS file)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,12 +23,25 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#define NEW_PROTO_TREE_API
+
 #include "config.h"
 
 #include <epan/packet.h>
 
-static int proto_daytime = -1;
-static int hf_daytime_string = -1;
+void proto_register_daytime(void);
+void proto_reg_handoff_daytime(void);
+
+static dissector_handle_t daytime_handle;
+
+static header_field_info *hfi_daytime = NULL;
+
+#define DAYTIME_HFI_INIT HFI_INIT(proto_daytime)
+
+static header_field_info hfi_daytime_string DAYTIME_HFI_INIT =
+      { "Daytime", "daytime.string",
+	FT_STRING, BASE_NONE, NULL, 0x0,
+      	"String containing time and date", HFILL };
 
 static gint ett_daytime = -1;
 
@@ -50,13 +61,13 @@ dissect_daytime(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   if (tree) {
 
-    ti = proto_tree_add_item(tree, proto_daytime, tvb, 0, -1, ENC_NA);
+    ti = proto_tree_add_item(tree, hfi_daytime, tvb, 0, -1, ENC_NA);
     daytime_tree = proto_item_add_subtree(ti, ett_daytime);
 
     proto_tree_add_text(daytime_tree, tvb, 0, 0,
 			pinfo->srcport==DAYTIME_PORT ? "Type: Response":"Type: Request");
     if (pinfo->srcport == DAYTIME_PORT) {
-      proto_tree_add_item(daytime_tree, hf_daytime_string, tvb, 0, -1, ENC_ASCII|ENC_NA);
+      proto_tree_add_item(daytime_tree, &hfi_daytime_string, tvb, 0, -1, ENC_ASCII|ENC_NA);
     }
   }
 }
@@ -64,28 +75,30 @@ dissect_daytime(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 void
 proto_register_daytime(void)
 {
-
-  static hf_register_info hf[] = {
-    { &hf_daytime_string,
-      { "Daytime", "daytime.string",
-	FT_STRING, BASE_NONE, NULL, 0x0,
-      	"String containing time and date", HFILL }}
+#ifndef HAVE_HFI_SECTION_INIT
+  static header_field_info *hfi[] = {
+    &hfi_daytime_string,
   };
+#endif
+
   static gint *ett[] = {
     &ett_daytime,
   };
 
+  int proto_daytime;
+
   proto_daytime = proto_register_protocol("Daytime Protocol", "DAYTIME", "daytime");
-  proto_register_field_array(proto_daytime, hf, array_length(hf));
+  hfi_daytime = proto_registrar_get_nth(proto_daytime);
+
+  proto_register_fields(proto_daytime, hfi, array_length(hfi));
   proto_register_subtree_array(ett, array_length(ett));
+
+  daytime_handle = create_dissector_handle(dissect_daytime, proto_daytime);
 }
 
 void
 proto_reg_handoff_daytime(void)
 {
-  dissector_handle_t daytime_handle;
-
-  daytime_handle = create_dissector_handle(dissect_daytime, proto_daytime);
   dissector_add_uint("udp.port", DAYTIME_PORT, daytime_handle);
   dissector_add_uint("tcp.port", DAYTIME_PORT, daytime_handle);
 }

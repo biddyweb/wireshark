@@ -2,8 +2,6 @@
  * Routines for the disassembly of the Chantry/HiPath AP-Controller
  * tunneling protocol.
  *
- * $Id$
- *
  * Copyright 2009 Joerg Mayer (see AUTHORS file)
  *
  * Wireshark - Network traffic analyzer
@@ -26,7 +24,7 @@
  */
 
 /*
-  http://ietfreport.isoc.org/all-ids/draft-singh-capwap-ctp-02.txt
+  https://tools.ietf.org/html/draft-singh-capwap-ctp-02
   looks very similar (but not always identical).
 
   AC: Access Controller
@@ -46,9 +44,13 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/exceptions.h>
+#include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 #include <epan/show_exception.h>
+
+void proto_register_wassp(void);
+void proto_reg_handoff_wassp(void);
 
 /* protocol handles */
 static int proto_wassp = -1;
@@ -388,7 +390,7 @@ extval_to_str_idx(guint32 val, const ext_value_string *vs, gint *idx, const char
   if (ret != NULL)
     return ret;
 
-  return ep_strdup_printf(fmt, val);
+  return wmem_strdup_printf(wmem_packet_scope(), fmt, val);
 }
 /* ============= end copy/paste/modify  ============== */
 
@@ -774,8 +776,7 @@ dissect_snmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *wassp_tree,
 	tvbuff_t *snmp_tvb;
 
 	/* Don't add SNMP stuff to the info column */
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_set_writable(pinfo->cinfo, FALSE);
+	col_set_writable(pinfo->cinfo, FALSE);
 
 	snmp_tvb = tvb_new_subset(tvb, offset, length, length);
 
@@ -786,8 +787,7 @@ dissect_snmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *wassp_tree,
 		show_exception(snmp_tvb, pinfo, wassp_tree, EXCEPT_CODE, GET_MESSAGE);
 	} ENDTRY;
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_set_writable(pinfo->cinfo, TRUE);
+	col_set_writable(pinfo->cinfo, TRUE);
 
 	offset += length;
 
@@ -801,8 +801,7 @@ dissect_ieee80211(tvbuff_t *tvb, packet_info *pinfo, proto_tree *wassp_tree,
 	tvbuff_t *ieee80211_tvb;
 
 	/* Don't add IEEE 802.11 stuff to the info column */
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_set_writable(pinfo->cinfo, FALSE);
+	col_set_writable(pinfo->cinfo, FALSE);
 
 	ieee80211_tvb = tvb_new_subset(tvb, offset, length, length);
 
@@ -813,8 +812,7 @@ dissect_ieee80211(tvbuff_t *tvb, packet_info *pinfo, proto_tree *wassp_tree,
 		show_exception(ieee80211_tvb, pinfo, wassp_tree, EXCEPT_CODE, GET_MESSAGE);
 	} ENDTRY;
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_set_writable(pinfo->cinfo, TRUE);
+	col_set_writable(pinfo->cinfo, TRUE);
 
 	offset += length;
 
@@ -895,10 +893,8 @@ dissect_wassp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	guint32 subtype;
 
 	packet_type = tvb_get_guint8(tvb, 1);
-	if (check_col(pinfo->cinfo, COL_PROTOCOL))
-		col_set_str(pinfo->cinfo, COL_PROTOCOL, PROTO_SHORT_NAME);
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_str(pinfo->cinfo, COL_INFO, val_to_str(packet_type,
+	col_set_str(pinfo->cinfo, COL_PROTOCOL, PROTO_SHORT_NAME);
+	col_add_str(pinfo->cinfo, COL_INFO, val_to_str(packet_type,
 			wassp_tunnel_pdu_type, "Type 0x%02x"));
 
 	if (tree) {
@@ -996,7 +992,7 @@ test_wassp(tvbuff_t *tvb)
 
 #if 0
 static gboolean
-dissect_wassp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+dissect_wassp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
 	if ( !test_wassp(tvb) ) {
 		return FALSE;
@@ -2117,6 +2113,6 @@ proto_reg_handoff_wassp(void)
 #endif
 
 	snmp_handle = find_dissector("snmp");
-	ieee80211_handle = find_dissector("wlan");
+	ieee80211_handle = find_dissector("wlan_withoutfcs");
 }
 

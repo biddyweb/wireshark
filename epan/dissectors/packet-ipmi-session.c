@@ -3,8 +3,6 @@
  * Copyright 2007-2008, Alexey Neyman, Pigeon Point Systems <avn@pigeonpoint.com>
  * Copyright Duncan Laurie <duncan@sun.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,9 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+
+void proto_register_ipmi_session(void);
+void proto_reg_handoff_ipmi_session(void);
 
 #define RMCP_CLASS_IPMI 0x07
 
@@ -157,26 +158,22 @@ dissect_ipmi_session(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
 	}
 
 	/* Later it will be overridden with sub-dissector, if any */
-	if (check_col(pinfo->cinfo, COL_PROTOCOL)) {
-		if (authtype == IPMI_AUTH_RMCPP) {
-			col_set_str(pinfo->cinfo, COL_PROTOCOL, "RMCP+");
-		} else {
-			col_set_str(pinfo->cinfo, COL_PROTOCOL, "IPMI");
-		}
+	if (authtype == IPMI_AUTH_RMCPP) {
+		col_set_str(pinfo->cinfo, COL_PROTOCOL, "RMCP+");
+	} else {
+		col_set_str(pinfo->cinfo, COL_PROTOCOL, "IPMI");
 	}
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO, "Session ID 0x%x", session_id);
-		if (authtype == IPMI_AUTH_RMCPP) {
-			col_append_fstr(pinfo->cinfo, COL_INFO, ", payload type: %s",
-					val_to_str_const(payloadtype, ipmi_payload_vals, "Unknown"));
-		}
+	col_add_fstr(pinfo->cinfo, COL_INFO, "Session ID 0x%x", session_id);
+	if (authtype == IPMI_AUTH_RMCPP) {
+		col_append_fstr(pinfo->cinfo, COL_INFO, ", payload type: %s",
+				val_to_str_const(payloadtype, ipmi_payload_vals, "Unknown"));
 	}
 
 	if (tree) {
 		offset = 0;
 		ti = proto_tree_add_protocol_format(tree, proto_ipmi_session,
-				tvb, 0, tvb_length(tvb),
+				tvb, 0, -1,
 				"IPMI v%s Session Wrapper, session ID 0x%x",
 				authtype == IPMI_AUTH_RMCPP ? "2.0+" : "1.5",
 				session_id);
@@ -254,12 +251,12 @@ dissect_ipmi_session(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
 		offset += msg_len;
 
 		/* Show the rest of the session wrapper as binary data */
-		if (offset < tvb_length(tvb)) {
+		if (offset < tvb_captured_length(tvb)) {
 			proto_tree_add_item(sess_tree, hf_ipmi_session_trailer,
-					tvb, offset, tvb_length(tvb) - offset, ENC_NA);
+					tvb, offset, -1, ENC_NA);
 		}
 	}
-	return tvb_length(tvb);
+	return tvb_captured_length(tvb);
 }
 
 void

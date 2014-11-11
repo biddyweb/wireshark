@@ -2,8 +2,6 @@
  * Routines for UMTS Home Node B RANAP User Adaptation (RUA) packet dissection
  * Copyright 2010 Neil Piercy, ip.access Limited <Neil.Piercy@ipaccess.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -47,6 +45,8 @@
 #define PFNAME "rua"
 /* Dissector to use SCTP PPID 19 or a configured SCTP port. IANA assigned port = 29169*/
 #define SCTP_PORT_RUA              29169;
+
+void proto_register_rua(void);
 
 #include "packet-rua-val.h"
 

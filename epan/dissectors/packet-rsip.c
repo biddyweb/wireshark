@@ -4,8 +4,6 @@
  *
  * Copyright (c) 2006, 2010 Cray Inc. All Rights Reserved.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,7 +28,10 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <epan/ipproto.h>
+
+void proto_register_rsip(void);
 
 /* Forward declaration we need below */
 void proto_reg_handoff_rsip(void);
@@ -987,8 +988,6 @@ dissect_rsip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	/*msgcnt_required = (pinfo->ipproto == IP_PROTO_UDP)? TRUE : FALSE;*/
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "RSIP");
-
-	col_clear(pinfo->cinfo, COL_INFO);
 
 	col_add_str(pinfo->cinfo, COL_INFO,
 	    val_to_str(msgtype, msg_type_vals,

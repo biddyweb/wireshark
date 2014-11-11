@@ -2,8 +2,6 @@
  * Routines for Logical Link Control GPRS dissection ETSI 4.64(TS 101 351 V8.7.0)
  * Copyright 2000, Josef Korelus <jkor@quick.cz>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,10 @@
 
 #include <epan/packet.h>
 #include <epan/prefs.h>
+#include <wiretap/wtap.h>
+
+void proto_register_llcgprs(void);
+void proto_reg_handoff_llcgprs(void);
 
 #define I_FORMAT	1
 #define S_FORMAT	2

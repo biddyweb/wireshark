@@ -1,8 +1,6 @@
 /* packet-ascend.c
  * Routines for decoding Lucent/Ascend packet traces
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  *
@@ -24,7 +22,12 @@
 #include "config.h"
 
 #include <glib.h>
+
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
+
+void proto_register_ascend(void);
+void proto_reg_handoff_ascend(void);
 
 static int proto_ascend  = -1;
 static int hf_link_type  = -1;

@@ -1,7 +1,5 @@
 /* preferences_dialog.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,7 +27,6 @@
 #include <glib.h>
 
 #include "color.h"
-#include "packet-range.h"
 
 #include <epan/prefs.h>
 
@@ -38,6 +35,7 @@
 #include <QComboBox>
 
 extern pref_t *prefFromPrefPtr(void *pref_ptr);
+extern guint fill_advanced_prefs(module_t *module, gpointer root_ptr);
 
 namespace Ui {
 class PreferencesDialog;
@@ -46,7 +44,7 @@ class PreferencesDialog;
 class PreferencesDialog : public QDialog
 {
     Q_OBJECT
-    
+
 public:
     explicit PreferencesDialog(QWidget *parent = 0);
     ~PreferencesDialog();
@@ -69,7 +67,6 @@ private:
 private slots:
     void on_prefsTree_currentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous);
     void on_advancedSearchLineEdit_textEdited(const QString &search_str);
-    void on_advancedTree_itemActivated(QTreeWidgetItem *item, int column);
     void lineEditPrefDestroyed();
     void enumPrefDestroyed();
     void uintPrefEditingFinished();
@@ -79,6 +76,7 @@ private slots:
     void rangePrefEditingFinished();
 
     void on_advancedTree_currentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous);
+    void on_advancedTree_itemActivated(QTreeWidgetItem *item, int column);
 
     void on_buttonBox_accepted();
     void on_buttonBox_helpRequested();

@@ -1,15 +1,13 @@
 /* voip_calls_dlg.h
  * VoIP conversations addition for Wireshark
  *
- * $Id$
- *
  * Copyright 2004, Ericsson , Spain
  * By Francisco Alcoba <francisco.alcoba@ericsson.com>
  *
  * based on h323_conversations_dlg.h
  * Copyright 2004, Iskratel, Ltd, Kranj
  * By Miha Jemec <m.jemec@iskratel.si>
- * 
+ *
  * H323, RTP and Graph Support
  * By Alejandro Vaquero, alejandro.vaquero@verso.com
  * Copyright 2005, Verso Technologies Inc.

@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -23,6 +21,8 @@
 #include "config.h"
 
 #include "dfvm.h"
+
+#include <ftypes/ftypes-int.h>
 
 dfvm_insn_t*
 dfvm_insn_new(dfvm_opcode_t op)
@@ -97,7 +97,7 @@ dfvm_dump(FILE *f, dfilter_t *df)
 	char		*value_str;
 	GSList		*range_list;
 	drange_node	*range_item;
-        
+
         /* First dump the constant initializations */
         fprintf(f, "Constants:\n");
 	length = df->consts->len;
@@ -359,7 +359,7 @@ any_test(dfilter_t *df, FvalueCmpFunc cmp, int reg1, int reg2)
 	while (list_a) {
 		list_b = df->registers[reg2];
 		while (list_b) {
-			if (cmp(list_a->data, list_b->data)) {
+			if (cmp((fvalue_t *)list_a->data, (fvalue_t *)list_b->data)) {
 				return TRUE;
 			}
 			list_b = g_list_next(list_b);

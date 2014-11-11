@@ -5,8 +5,6 @@
  *
  * Copyright 2001, Heinz Prantner <heinz.prantner[AT]radisys.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,7 +32,11 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/sctpppids.h>
+
+#define M2TP_PAYLOAD_PROTOCOL_ID                       99    /* s-link, not IANA-registered */
+
+void proto_register_m2tp(void);
+void proto_reg_handoff_m2tp(void);
 
 #define SCTP_PORT_M2TP        9908  /* unassigned port number (not assigned by IANA) */
 
@@ -269,17 +271,16 @@ dissect_m2tp_common_header(tvbuff_t *common_header_tvb, packet_info *pinfo, prot
   message_type   = tvb_get_guint8(common_header_tvb, MESSAGE_TYPE_OFFSET);
   message_length = tvb_get_ntohl (common_header_tvb, MESSAGE_LENGTH_OFFSET);
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(message_class * 256 + message_type, m2tp_message_class_type_acro_values, "reserved"));
+  col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(message_class * 256 + message_type, m2tp_message_class_type_acro_values, "reserved"));
 
   if (m2tp_tree) {
     /* add the components of the common header to the protocol tree */
     proto_tree_add_uint(m2tp_tree, hf_m2tp_version, common_header_tvb, VERSION_OFFSET, VERSION_LENGTH, version);
     proto_tree_add_uint(m2tp_tree, hf_m2tp_reserved, common_header_tvb, RESERVED_OFFSET, RESERVED_LENGTH, reserved);
     proto_tree_add_uint(m2tp_tree, hf_m2tp_message_class, common_header_tvb, MESSAGE_CLASS_OFFSET, MESSAGE_CLASS_LENGTH, message_class);
-    proto_tree_add_uint_format(m2tp_tree, hf_m2tp_message_type,
+    proto_tree_add_uint_format_value(m2tp_tree, hf_m2tp_message_type,
                                common_header_tvb, MESSAGE_TYPE_OFFSET, MESSAGE_TYPE_LENGTH,
-                               message_type, "Message type: %u (%s)",
+                               message_type, "%u (%s)",
                                message_type, val_to_str_const(message_class * 256 + message_type, m2tp_message_class_type_values, "reserved"));
     proto_tree_add_uint(m2tp_tree, hf_m2tp_message_length, common_header_tvb, MESSAGE_LENGTH_OFFSET, MESSAGE_LENGTH_LENGTH, message_length);
   };
@@ -334,7 +335,7 @@ dissect_m2tp_info_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree,
   if (parameter_tree) {
     length = tvb_get_ntohs(parameter_tvb, PARAMETER_LENGTH_OFFSET);
     info_string_length = length - PARAMETER_HEADER_LENGTH;
-    info_string = tvb_get_ephemeral_string(parameter_tvb, INFO_STRING_OFFSET, info_string_length);
+    info_string = tvb_get_string(wmem_packet_scope(), parameter_tvb, INFO_STRING_OFFSET, info_string_length);
     proto_tree_add_string(parameter_tree, hf_m2tp_info_string, parameter_tvb, INFO_STRING_OFFSET, info_string_length, info_string);
     proto_item_set_text(parameter_item, "Info String (%.*s)", info_string_length, info_string);
   }
@@ -511,7 +512,7 @@ dissect_m2tp_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_item *m2tp
   offset += COMMON_HEADER_LENGTH;
 
   /* extract zero or more parameters and process them individually */
-  while(tvb_reported_length_remaining(message_tvb, offset)) {
+  while(tvb_reported_length_remaining(message_tvb, offset) > 0) {
     length         = tvb_get_ntohs(message_tvb, offset + PARAMETER_LENGTH_OFFSET);
     padding_length = nr_of_padding_bytes(length);
     total_length   = length + padding_length;

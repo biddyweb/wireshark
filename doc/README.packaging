@@ -23,12 +23,12 @@ this location. Don't use http://www.wireshark.org/download/src.
 Logo and icon artwork can be found in the "image" directory in the
 distribution. This is available online at
 
-    http://anonsvn.wireshark.org/wireshark/trunk/image/
+    https://code.wireshark.org/review/gitweb?p=wireshark.git;a=tree;f=image;hb=HEAD
 
 2. Licensing.
 
-Wireshark is released under the GNU General Public License version 2.
-Make sure your package complies with this license.
+Wireshark is released under the GNU General Public License version 2 or
+newer.  Make sure your package complies with this license.
 
 3. Privileges.
 
@@ -78,7 +78,7 @@ show how to restrict access using setcap and setuid respectively:
 # groupadd -g packetcapture
 # chmod 750 /usr/bin/dumpcap
 # chgrp packetcapture /usr/bin/dumpcap
-# setcap cap_net_raw,cap_net_admin+eip /usr/bin/dumpcap
+# setcap cap_net_raw,cap_net_admin+ep /usr/bin/dumpcap
 
 # groupadd -g packetcapture
 # chgrp packetcapture /usr/bin/dumpcap
@@ -93,7 +93,7 @@ you use this to differentiate it from official Wireshark releases.
 
 4.1. Source-level version detection.
 
-The SVN version corresponding to each release is in svnversion.h. It's
+The Git version corresponding to each release is in version.h. It's
 defined as a string. If you need a numeric definition, let us know.
 
 5. Trademarks.
@@ -109,5 +109,3 @@ case. E.g., "WireShark" is incorrect.
 
 If you have a question not addressed here, send it to
 wireshark-dev@wireshark.org.
-
-$Id$

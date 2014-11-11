@@ -2,8 +2,6 @@
  * Routines for X.420 (X.400 Message Transfer)  packet dissection
  * Graeme Lunt 2005
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -48,8 +46,6 @@
 
 /* Initialize the protocol and registered fields */
 static int proto_p22 = -1;
-
-static const char *object_identifier_id; /* content type identifier */
 
 static const value_string charsetreg_vals [] = {
   { 1, "C0: (ISO/IEC 6429)"},
@@ -142,7 +138,7 @@ void proto_register_p22(void) {
 /*--- proto_reg_handoff_p22 --- */
 void proto_reg_handoff_p22(void) {
 
-#include "packet-p22-dis-tab.c" 
+#include "packet-p22-dis-tab.c"
 
   register_ber_oid_dissector("2.6.1.10.0", dissect_p22, proto_p22, "InterPersonal Message (1984)");
   register_ber_oid_dissector("2.6.1.10.1", dissect_p22, proto_p22, "InterPersonal Message (1988)");

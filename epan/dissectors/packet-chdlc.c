@@ -1,8 +1,6 @@
 /* packet-chdlc.c
  * Routines for Cisco HDLC packet disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,7 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <wsutil/pint.h>
 #include <epan/etypes.h>
 #include <epan/prefs.h>
 #include <epan/chdlctypes.h>
@@ -40,6 +39,11 @@
  *
  *    http://www.nethelp.no/net/cisco-hdlc.txt
  */
+
+void proto_register_chdlc(void);
+void proto_reg_handoff_chdlc(void);
+void proto_register_slarp(void);
+void proto_reg_handoff_slarp(void);
 
 static int proto_chdlc = -1;
 static int hf_chdlc_addr = -1;
@@ -107,7 +111,7 @@ capture_chdlc( const guchar *pd, int offset, int len, packet_counts *ld ) {
     ld->other++;
     return;
   }
-  switch (pntohs(&pd[offset + 2])) {
+  switch (pntoh16(&pd[offset + 2])) {
     case ETHERTYPE_IP:
       capture_ip(pd, offset + 4, len, ld);
       break;
@@ -218,8 +222,9 @@ proto_register_chdlc(void)
   proto_register_subtree_array(ett, array_length(ett));
 
 /* subdissector code */
-  subdissector_table = register_dissector_table("chdlctype",
-                                                "Cisco HDLC frame type", FT_UINT16, BASE_HEX);
+  subdissector_table = register_dissector_table("chdlc.protocol",
+                                                "Cisco HDLC protocol",
+                                                FT_UINT16, BASE_HEX);
 
   register_dissector("chdlc", dissect_chdlc, proto_chdlc);
 
@@ -359,5 +364,5 @@ proto_reg_handoff_slarp(void)
   dissector_handle_t slarp_handle;
 
   slarp_handle = create_dissector_handle(dissect_slarp, proto_slarp);
-  dissector_add_uint("chdlctype", CISCO_SLARP, slarp_handle);
+  dissector_add_uint("chdlc.protocol", CISCO_SLARP, slarp_handle);
 }

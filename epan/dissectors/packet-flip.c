@@ -3,8 +3,6 @@
  *
  * Copyright 2009, Juha Siltanen <juha.siltanen@nsn.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -55,9 +53,10 @@
 #include <epan/emem.h>
 #include <epan/strutil.h>
 
-#include "packet-rtp.h"
-#include "packet-rtcp.h"
 #include <epan/rtp_pt.h>
+
+void proto_register_flip(void);
+void proto_reg_handoff_flip(void);
 
 static int proto_flip = -1;
 
@@ -81,6 +80,7 @@ static int hf_flip_chksum_chksum = -1;
 #define FLIP_CHKSUM_HDR_LEN        (4)
 #define FLIP_EXTENSION_HDR_MIN_LEN (4)
 
+#if 0
 static const value_string flip_short_header_names[]={
     { FLIP_BASIC,  "BASIC" },
     { FLIP_CHKSUM, "CHKSUM"},
@@ -92,6 +92,7 @@ static const value_string flip_long_header_names[] = {
     { FLIP_CHKSUM, "Checksum"},
     { 0,           NULL }
 };
+#endif
 
 static const value_string flip_boolean[] = {
     {0, "No"},
@@ -135,8 +136,6 @@ static dissector_handle_t data_handle;
 static dissector_handle_t forced_handle;
 
 /* Forward declaration. */
-void
-proto_reg_handoff_flip(void);
 static gboolean
 is_payload_rtp(tvbuff_t *tvb);
 static gboolean

@@ -1,8 +1,6 @@
 /* unicode-utils.c
  * Unicode utility routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2006 Gerald Combs
@@ -22,13 +20,25 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef _WIN32
-#error "This is only for Windows"
-#endif
-
 #include "unicode-utils.h"
 
+int
+ws_utf8_char_len(guint8 ch)
+{
+  if (ch >= 0xfe) return -1;
+  if (ch >= 0xfc) return  6;
+  if (ch >= 0xf8) return  5;
+  if (ch >= 0xf0) return  4;
+  if (ch >= 0xe0) return  3;
+  if (ch >= 0xc0) return  2;
+  else            return  1;
+}
+
+
+#ifdef _WIN32
+
 #include <shellapi.h>
+#include <strsafe.h>
 
 /** @file
  * Unicode utilities (internal interface)
@@ -98,7 +108,7 @@ utf_8to16_snprintf(TCHAR *utf16buf, gint utf16buf_len, const gchar* fmt, ...)
     dst = g_strdup_vprintf(fmt, ap);
     va_end(ap);
 
-    _snwprintf(utf16buf, utf16buf_len, _T("%s"), utf_8to16(dst));
+    StringCchPrintf(utf16buf, utf16buf_len, _T("%s"), utf_8to16(dst));
 
     g_free(dst);
 }
@@ -157,3 +167,5 @@ arg_list_utf_16to8(int argc, char *argv[]) {
     }
   } /* XXX else bail because something is horribly, horribly wrong? */
 }
+
+#endif

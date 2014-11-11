@@ -1,8 +1,6 @@
 /* packet-pcnfsd.c
  * Routines for PCNFSD dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,6 +35,10 @@ Protocol information comes from the book
 
 #include "packet-rpc.h"
 #include "packet-pcnfsd.h"
+#include <epan/wmem/wmem.h>
+
+void proto_register_pcnfsd(void);
+void proto_reg_handoff_pcnfsd(void);
 
 static int proto_pcnfsd = -1;
 static int hf_pcnfsd_procedure_v1 = -1;
@@ -99,7 +101,7 @@ dissect_pcnfsd_mapreq(tvbuff_t *tvb, int offset, proto_tree *tree)
 
 static int
 dissect_pcnfsd2_dissect_mapreq_arg_item(tvbuff_t *tvb, int offset,
-	packet_info *pinfo _U_, proto_tree *tree)
+	packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	offset = dissect_pcnfsd_mapreq(tvb, offset, tree);
 
@@ -112,12 +114,12 @@ dissect_pcnfsd2_dissect_mapreq_arg_item(tvbuff_t *tvb, int offset,
 
 static int
 dissect_pcnfsd2_mapid_call(tvbuff_t *tvb, int offset, packet_info *pinfo,
-	proto_tree *tree)
+	proto_tree *tree, void* data _U_)
 {
 	offset = dissect_rpc_string(tvb, tree, hf_pcnfsd_comment, offset, NULL);
 
 	offset = dissect_rpc_list(tvb, pinfo, tree, offset,
-		dissect_pcnfsd2_dissect_mapreq_arg_item);
+		  dissect_pcnfsd2_dissect_mapreq_arg_item, NULL);
 
 	return offset;
 }
@@ -136,7 +138,7 @@ static const value_string names_maprstat[] =
 
 static int
 dissect_pcnfsd2_dissect_mapreq_res_item(tvbuff_t *tvb, int offset,
-	packet_info *pinfo _U_, proto_tree *tree)
+	packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	guint32 maprstat;
 
@@ -159,12 +161,12 @@ dissect_pcnfsd2_dissect_mapreq_res_item(tvbuff_t *tvb, int offset,
 
 static int
 dissect_pcnfsd2_mapid_reply(tvbuff_t *tvb, int offset, packet_info *pinfo,
-	proto_tree *tree)
+	proto_tree *tree, void* data _U_)
 {
 	offset = dissect_rpc_string(tvb, tree, hf_pcnfsd_comment, offset, NULL);
 
 	offset = dissect_rpc_list(tvb, pinfo, tree, offset,
-		dissect_pcnfsd2_dissect_mapreq_res_item);
+		  dissect_pcnfsd2_dissect_mapreq_res_item, NULL);
 
 	return offset;
 }
@@ -176,7 +178,7 @@ pcnfsd_decode_obscure(const char* data, int len)
 	char *decoded_buf;
 	char *decoded_data;
 
-	decoded_buf = ep_alloc(len);
+	decoded_buf = (char *)wmem_alloc(wmem_packet_scope(), len);
 	decoded_data = decoded_buf;
 	for ( ; len>0 ; len--, data++, decoded_data++) {
 		*decoded_data = (*data ^ 0x5b) & 0x7f;
@@ -188,7 +190,7 @@ pcnfsd_decode_obscure(const char* data, int len)
 /* "NFS Illustrated" 14.7.13 */
 static int
 dissect_pcnfsd2_auth_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
-	proto_tree *tree)
+	proto_tree *tree, void* data _U_)
 {
 	int	newoffset;
 	const char	*ident = NULL;
@@ -249,7 +251,7 @@ dissect_pcnfsd2_auth_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
 
 	if (password) {
 		/* Only attempt to decode the password if it has been specified */
-		if (strcmp(password, RPC_STRING_EMPTY))	
+		if (strcmp(password, RPC_STRING_EMPTY))
 			pcnfsd_decode_obscure(password, (int)strlen(password));
 
 		if (password_tree)
@@ -274,7 +276,7 @@ dissect_pcnfsd2_auth_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
 /* "NFS Illustrated" 14.7.13 */
 static int
 dissect_pcnfsd2_auth_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
-	proto_tree *tree)
+	proto_tree *tree, void* data _U_)
 {
 	int	gids_count;
 	proto_item	*gitem = NULL;
@@ -444,4 +446,3 @@ proto_reg_handoff_pcnfsd(void)
 	rpc_init_proc_table(PCNFSD_PROGRAM, 1, pcnfsd1_proc, hf_pcnfsd_procedure_v1);
 	rpc_init_proc_table(PCNFSD_PROGRAM, 2, pcnfsd2_proc, hf_pcnfsd_procedure_v2);
 }
-

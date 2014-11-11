@@ -5,8 +5,6 @@
  * Routines for NDMP dissection
  * 2001 Ronnie Sahlberg (see AUTHORS for email)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,14 +35,16 @@
 
 #include <epan/packet.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include "packet-rpc.h"
 #include "packet-ndmp.h"
 #include "packet-tcp.h"
 #include "packet-scsi.h"
 #include <epan/prefs.h>
 #include <epan/reassemble.h>
-#include <epan/dissectors/rpc_defrag.h>
+
+void proto_register_ndmp(void);
+void proto_reg_handoff_ndmp(void);
 
 #define TCP_PORT_NDMP 10000
 
@@ -283,8 +283,7 @@ static const fragment_items ndmp_frag_items = {
        "NDMP fragments"
 };
 
-static GHashTable *ndmp_fragment_table = NULL;
-static GHashTable *ndmp_reassembled_table = NULL;
+static reassembly_table ndmp_reassembly_table;
 
 /* XXX someone should start adding the new stuff from v3, v4 and v5*/
 #define NDMP_PROTOCOL_UNKNOWN	0
@@ -316,10 +315,10 @@ typedef struct _ndmp_task_data_t {
 
 typedef struct _ndmp_conv_data_t {
 	guint8 version;
-	emem_tree_t *tasks;	/* indexed by Sequence# */
-	emem_tree_t *itl;		/* indexed by packet# */
-	emem_tree_t *fragsA; /* indexed by Sequence# */
-	emem_tree_t *fragsB;
+	wmem_map_t *tasks;	/* indexed by Sequence# */
+	wmem_tree_t *itl;		/* indexed by packet# */
+	wmem_map_t *fragsA; /* indexed by Sequence# */
+	wmem_map_t *fragsB;
 	ndmp_task_data_t *task;
 	conversation_t *conversation;
 } ndmp_conv_data_t;
@@ -331,11 +330,11 @@ get_itl_nexus(packet_info *pinfo, gboolean create_new)
 {
 	itl_nexus_t *itl;
 
-	if(create_new || !(itl=se_tree_lookup32_le(ndmp_conv_data->itl, pinfo->fd->num))){
-		itl=se_alloc(sizeof(itl_nexus_t));
+	if(create_new || !(itl=(itl_nexus_t *)wmem_tree_lookup32_le(ndmp_conv_data->itl, pinfo->fd->num))){
+		itl=wmem_new(wmem_file_scope(), itl_nexus_t);
 		itl->cmdset=0xff;
 		itl->conversation=ndmp_conv_data->conversation;
-		se_tree_insert32(ndmp_conv_data->itl, pinfo->fd->num, itl);
+		wmem_tree_insert32(ndmp_conv_data->itl, pinfo->fd->num, itl);
 	}
 	return itl;
 }
@@ -662,7 +661,7 @@ dissect_error(tvbuff_t *tvb, int offset, packet_info *pinfo,
 	/* error */
 	err=tvb_get_ntohl(tvb, offset);
 	proto_tree_add_item(tree, hf_ndmp_error, tvb, offset, 4, ENC_BIG_ENDIAN);
-	if(err && check_col(pinfo->cinfo, COL_INFO)) {
+	if(err) {
 		col_append_fstr(pinfo->cinfo, COL_INFO,
 			" NDMP Error:%s ",
 			val_to_str(err, error_vals,
@@ -714,7 +713,7 @@ static const value_string addr_type_vals[] = {
 
 static int
 dissect_ndmp_addr_type(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
-    proto_tree *tree)
+    proto_tree *tree, void* data _U_)
 {
 	proto_tree_add_item(tree, hf_ndmp_addr_type, tvb, offset, 4, ENC_BIG_ENDIAN);
 	offset += 4;
@@ -727,7 +726,7 @@ dissect_ndmp_addr_msg(tvbuff_t *tvb, int offset, packet_info *pinfo,
     proto_tree *tree, guint32 seq _U_)
 {
 	/*address type*/
-	return dissect_ndmp_addr_type(tvb, offset, pinfo, tree);
+	return dissect_ndmp_addr_type(tvb, offset, pinfo, tree, NULL);
 }
 
 static int
@@ -755,7 +754,7 @@ static const value_string auth_type_vals[] = {
 };
 static int
 dissect_auth_type(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
-    proto_tree *tree)
+    proto_tree *tree, void* data _U_)
 {
 	proto_tree_add_item(tree, hf_ndmp_auth_type, tvb, offset, 4, ENC_BIG_ENDIAN);
 	offset += 4;
@@ -768,7 +767,7 @@ dissect_get_auth_type_request(tvbuff_t *tvb, int offset, packet_info *pinfo,
     proto_tree *tree, guint32 seq _U_)
 {
 	/* auth type */
-	return dissect_auth_type(tvb, offset, pinfo, tree);
+	return dissect_auth_type(tvb, offset, pinfo, tree, NULL);
 }
 
 static int
@@ -812,7 +811,7 @@ dissect_ndmp_config_get_auth_attr_reply(tvbuff_t *tvb, int offset,
 
 static int
 dissect_default_env(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
-    proto_tree *tree)
+    proto_tree *tree, void* data _U_)
 {
 	/* name */
 	offset = dissect_rpc_string(tvb, tree,
@@ -901,7 +900,7 @@ dissect_butype_attrs(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
 }
 
 static int
-dissect_butype_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree)
+dissect_butype_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	/*butype name*/
 	offset = dissect_rpc_string(tvb, tree,
@@ -983,7 +982,7 @@ dissect_fs_invalid(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
 
 static int
 dissect_fs_env(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
-    proto_tree *tree)
+    proto_tree *tree, void* data _U_)
 {
 	/* name */
 	offset = dissect_rpc_string(tvb, tree,
@@ -997,7 +996,7 @@ dissect_fs_env(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
 }
 
 static int
-dissect_fs_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree)
+dissect_fs_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	/* invalid bits */
 	offset=dissect_fs_invalid(tvb, offset, pinfo, tree);
@@ -1093,7 +1092,7 @@ dissect_tape_attr(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
 
 static int
 dissect_tape_capability(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
-    proto_tree *tree)
+    proto_tree *tree, void* data _U_)
 {
 	/* name */
 	offset = dissect_rpc_string(tvb, tree,
@@ -1107,7 +1106,7 @@ dissect_tape_capability(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
 }
 
 static int
-dissect_tape_dev_cap(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree)
+dissect_tape_dev_cap(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	/* device */
 	offset = dissect_rpc_string(tvb, tree,
@@ -1124,7 +1123,7 @@ dissect_tape_dev_cap(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *
 }
 
 static int
-dissect_tape_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree)
+dissect_tape_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	/* model */
 	offset = dissect_rpc_string(tvb, tree,
@@ -1152,7 +1151,7 @@ dissect_get_tape_info_reply(tvbuff_t *tvb, int offset, packet_info *pinfo,
 }
 
 static int
-dissect_scsi_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree)
+dissect_scsi_info(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	/* model */
 	offset = dissect_rpc_string(tvb, tree,
@@ -1208,7 +1207,7 @@ dissect_get_server_info_reply(tvbuff_t *tvb, int offset, packet_info *pinfo,
 
 static int
 dissect_ext_version(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
-		proto_tree *tree) {
+		proto_tree *tree, void* data _U_) {
 
 	/* extension version */
 	proto_tree_add_item(tree, hf_ndmp_ext_version, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -1220,7 +1219,7 @@ dissect_ext_version(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
 
 static int
 dissect_class_list(tvbuff_t *tvb, int offset, packet_info *pinfo,
-		proto_tree *tree) {
+		proto_tree *tree, void* data _U_) {
 
 	/* class id */
 	proto_tree_add_item(tree, hf_ndmp_ex_class_id, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -1250,7 +1249,7 @@ dissect_get_ext_list_reply(tvbuff_t *tvb, int offset, packet_info *pinfo,
 
 static int
 dissect_class_version(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
-		proto_tree *tree) {
+		proto_tree *tree, void* data _U_) {
 
 	/* class id */
 	proto_tree_add_item(tree, hf_ndmp_ex_class_id, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -1405,7 +1404,7 @@ dissect_execute_cdb_cdb(tvbuff_t *tvb, int offset, packet_info *pinfo,
 		cdb_tvb=tvb_new_subset(tvb, offset, tvb_len, tvb_rlen);
 
 		if(ndmp_conv_data->task && !ndmp_conv_data->task->itlq){
-			ndmp_conv_data->task->itlq=se_alloc(sizeof(itlq_nexus_t));
+			ndmp_conv_data->task->itlq=wmem_new(wmem_file_scope(), itlq_nexus_t);
 			ndmp_conv_data->task->itlq->lun=0xffff;
 			ndmp_conv_data->task->itlq->first_exchange_frame=pinfo->fd->num;
 			ndmp_conv_data->task->itlq->last_exchange_frame=0;
@@ -1875,7 +1874,7 @@ static const value_string halt_vals[] = {
 };
 
 static int
-dissect_tcp_env(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_tcp_env(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	/* name */
 	offset = dissect_rpc_string(tvb, tree,
@@ -1890,7 +1889,7 @@ dissect_tcp_env(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *t
 
 
 static int
-dissect_ndmp_v4_tcp_addr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree)
+dissect_ndmp_v4_tcp_addr(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	/* IP addr */
 	proto_tree_add_item(tree, hf_ndmp_addr_ip, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -2364,7 +2363,7 @@ static const value_string file_fs_type_vals[] = {
 };
 
 static int
-dissect_file_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree)
+dissect_file_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, void* data _U_)
 {
 	proto_item* item = NULL;
 	proto_tree* tree = NULL;
@@ -2388,17 +2387,13 @@ dissect_file_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *par
 		/* file */
 		offset = dissect_rpc_string(tvb, tree,
 				hf_ndmp_file_name, offset, &name);
-		if (check_col(pinfo->cinfo, COL_INFO)){
-			col_append_fstr(pinfo->cinfo, COL_INFO, " %s", name);
-		}
+		col_append_fstr(pinfo->cinfo, COL_INFO, " %s", name);
 		break;
 	case NDMP_FS_NT:
 		/* nt file */
 		offset = dissect_rpc_string(tvb, tree,
 				hf_ndmp_nt_file_name, offset, &name);
-		if (check_col(pinfo->cinfo, COL_INFO)){
-			col_append_fstr(pinfo->cinfo, COL_INFO, " %s", name);
-		}
+		col_append_fstr(pinfo->cinfo, COL_INFO, " %s", name);
 
 		/* dos file */
 		offset = dissect_rpc_string(tvb, tree,
@@ -2408,15 +2403,11 @@ dissect_file_name(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *par
 		/* file */
 		offset = dissect_rpc_string(tvb, tree,
 				hf_ndmp_file_name, offset, &name);
-		if (check_col(pinfo->cinfo, COL_INFO)){
-			col_append_fstr(pinfo->cinfo, COL_INFO, " %s", name);
-		}
+		col_append_fstr(pinfo->cinfo, COL_INFO, " %s", name);
 	}
 
-	if (check_col(pinfo->cinfo, COL_INFO)){
-		col_append_fstr(pinfo->cinfo, COL_INFO, " (%s)",
+	col_append_fstr(pinfo->cinfo, COL_INFO, " (%s)",
 			val_to_str_const(type, file_fs_type_vals, "Unknown type") );
-	}
 
 	proto_item_set_len(item, offset-old_offset);
 	return offset;
@@ -2484,7 +2475,7 @@ static const value_string file_type_vals[] = {
 };
 
 static int
-dissect_file_stats(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree)
+dissect_file_stats(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, void* data _U_)
 {
 	proto_item* item = NULL;
 	proto_tree* tree = NULL;
@@ -2554,7 +2545,7 @@ dissect_file_stats(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *pa
 
 
 static int
-dissect_file(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree)
+dissect_ndmp_file(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *parent_tree, void* data _U_)
 {
 	proto_item* item = NULL;
 	proto_tree* tree = NULL;
@@ -2592,13 +2583,13 @@ dissect_fh_add_file_request(tvbuff_t *tvb, int offset, packet_info *pinfo,
 {
 	/* files */
 	offset = dissect_rpc_array(tvb, pinfo, tree, offset,
-			dissect_file, hf_ndmp_files);
+			dissect_ndmp_file, hf_ndmp_files);
 
 	return offset;
 }
 
 static int
-dissect_dir(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree)
+dissect_dir(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	/* file names */
 	offset = dissect_rpc_array(tvb, pinfo, tree, offset,
@@ -2627,7 +2618,7 @@ dissect_fh_add_dir_request(tvbuff_t *tvb, int offset, packet_info *pinfo,
 }
 
 static int
-dissect_node(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree)
+dissect_node(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	/* file stats */
 	offset = dissect_rpc_array(tvb, pinfo, tree, offset,
@@ -2673,7 +2664,7 @@ dissect_data_start_backup_request(tvbuff_t *tvb, int offset, packet_info *pinfo,
 
 static int
 dissect_nlist(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
-    proto_tree *tree)
+    proto_tree *tree, void* data _U_)
 {
 	/*original path*/
 	offset = dissect_rpc_string(tvb, tree,
@@ -3032,12 +3023,10 @@ dissect_ndmp_header(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *p
 	/* error */
 	offset=dissect_error(tvb, offset, pinfo, tree, nh->seq);
 
-	if (check_col(pinfo->cinfo, COL_INFO)){
-		col_append_fstr(pinfo->cinfo, COL_INFO, "%s %s ",
+	col_append_fstr(pinfo->cinfo, COL_INFO, "%s %s ",
 			val_to_str(nh->msg, msg_vals, "Unknown Message (0x%02x)"),
 			val_to_str(nh->type, msg_type_vals, "Unknown Type (0x%02x)")
 			);
-	}
 
 	return offset;
 }
@@ -3089,8 +3078,8 @@ dissect_ndmp_cmd(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *tree
 	return offset;
 }
 
-static void
-dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
 	int offset = 0;
 	guint32 ndmp_rm;
@@ -3105,13 +3094,17 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	proto_tree *ndmp_tree = NULL;
 	proto_item *hdr_item = NULL;
 	proto_tree *hdr_tree = NULL;
-	emem_tree_t *frags;
+	wmem_map_t *frags;
 	conversation_t *conversation;
 	proto_item *vers_item;
 	gboolean save_fragmented, save_writable;
 	gboolean do_frag = TRUE;
 	tvbuff_t* new_tvb = NULL;
-	fragment_data *frag_msg = NULL;
+	fragment_head *frag_msg = NULL;
+
+	/* Reject the packet if data is NULL under conditions where it'll be used */
+	if (data == NULL && ndmp_defragment && ndmp_desegment)
+		return 0;
 
 	top_tree=tree; /* scsi should open its expansions on the top level */
 
@@ -3121,15 +3114,15 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	 */
 	conversation = find_or_create_conversation(pinfo);
 
-	ndmp_conv_data=conversation_get_proto_data(conversation, proto_ndmp);
+	ndmp_conv_data=(ndmp_conv_data_t *)conversation_get_proto_data(conversation, proto_ndmp);
 	if(!ndmp_conv_data){
-		ndmp_conv_data=se_alloc(sizeof(ndmp_conv_data_t));
-		ndmp_conv_data->version=NDMP_PROTOCOL_UNKNOWN;
-		ndmp_conv_data->tasks=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "NDMP tasks");
-		ndmp_conv_data->itl=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "NDMP itl");
-		ndmp_conv_data->conversation=conversation;
-		ndmp_conv_data->fragsA=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "NDMP fragsA");
-		ndmp_conv_data->fragsB=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "NDMP fragsB");
+		ndmp_conv_data=wmem_new(wmem_file_scope(), ndmp_conv_data_t);
+		ndmp_conv_data->version = NDMP_PROTOCOL_UNKNOWN;
+		ndmp_conv_data->tasks   = wmem_map_new(wmem_file_scope(), g_direct_hash, g_direct_equal);
+		ndmp_conv_data->itl     = wmem_tree_new(wmem_file_scope());
+		ndmp_conv_data->conversation = conversation;
+		ndmp_conv_data->fragsA  = wmem_map_new(wmem_file_scope(), g_direct_hash, g_direct_equal);
+		ndmp_conv_data->fragsB  = wmem_map_new(wmem_file_scope(), g_direct_hash, g_direct_equal);
 
 		conversation_add_proto_data(conversation, proto_ndmp, ndmp_conv_data);
 
@@ -3173,9 +3166,7 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		/*
 		 * Figure out the tcp seq and pdu length.  Fragment tree is indexed based on seq;
 		 */
-		DISSECTOR_ASSERT((pinfo != NULL) && (pinfo->private_data != NULL));
-
-		tcpinfo = pinfo->private_data;
+		tcpinfo = (struct tcpinfo *)data;
 
 		seq = tcpinfo->seq;
 		len = (ndmp_rm & RPC_RM_FRAGLEN) + 4;
@@ -3187,7 +3178,7 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		 */
 		tcpinfo->seq = nxt;
 
-		nfi = se_tree_lookup32(frags, seq);
+		nfi = (ndmp_frag_info *)wmem_map_lookup(frags, GUINT_TO_POINTER(seq));
 
 		if (!nfi)
 		{
@@ -3203,10 +3194,10 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			{
 				if ( !(pinfo->fd->flags.visited))
 				{
-					nfi=se_alloc(sizeof(ndmp_frag_info));
+					nfi=wmem_new(wmem_file_scope(), ndmp_frag_info);
 					nfi->first_seq = seq;
 					nfi->offset = 1;
-					se_tree_insert32(frags, nxt, (void *)nfi);
+					wmem_map_insert(frags, GUINT_TO_POINTER(nxt), (void *)nfi);
 				}
 			}
 			/*
@@ -3236,10 +3227,10 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			{
 				if ( !(pinfo->fd->flags.visited))
 				{
-					nfi=se_alloc(sizeof(ndmp_frag_info));
+					nfi=wmem_new(wmem_file_scope(), ndmp_frag_info);
 					nfi->first_seq = seq;
 					nfi->offset = frag_num+1;
-					se_tree_insert32(frags, nxt, (void *)nfi);
+					wmem_map_insert(frags, GUINT_TO_POINTER(nxt), (void *)nfi);
 				}
 			}
 		}
@@ -3249,10 +3240,8 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		{
 			pinfo->fragmented = TRUE;
 
-			frag_msg = fragment_add_seq_check(tvb, 4, pinfo,
-				seq,
-				ndmp_fragment_table,
-				ndmp_reassembled_table,
+			frag_msg = fragment_add_seq_check(&ndmp_reassembly_table,
+				tvb, 4, pinfo, seq, NULL,
 				frag_num,
 				tvb_length_remaining(tvb, offset)-4,
 				!(ndmp_rm & RPC_RM_LASTFRAG));
@@ -3269,10 +3258,7 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			 */
 			col_set_str(pinfo->cinfo, COL_PROTOCOL, "NDMP");
 
-			if (check_col(pinfo->cinfo, COL_INFO)) {
-				col_clear(pinfo->cinfo, COL_INFO);
-				col_append_fstr(pinfo->cinfo, COL_INFO, "[NDMP fragment] ");
-			}
+			col_set_str(pinfo->cinfo, COL_INFO, "[NDMP fragment] ");
 
 			/*
 			 * Add the record marker information to the tree
@@ -3296,7 +3282,7 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			proto_tree_add_text(ndmp_tree, tvb, 4, nbytes, "NDMP fragment data (%u byte%s)", nbytes, plurality(nbytes, "", "s"));
 
 			pinfo->fragmented = save_fragmented;
-			return;
+			return tvb_length(tvb);
 		}
 	}
 	else
@@ -3310,7 +3296,7 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	if (size < 24) {
 		/* too short to be NDMP */
 		pinfo->fragmented = save_fragmented;
-		return;
+		return tvb_length(tvb);
 	}
 
 	/*
@@ -3320,7 +3306,7 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	if (!check_ndmp_hdr(new_tvb))
 	{
 		pinfo->fragmented = save_fragmented;
-		return;
+		return tvb_length(tvb);
 	}
 
 	nh.seq = tvb_get_ntohl(new_tvb, offset);
@@ -3357,14 +3343,14 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	switch(nh.type){
 	case NDMP_MESSAGE_REQUEST:
 		if(!pinfo->fd->flags.visited){
-			ndmp_conv_data->task=se_alloc(sizeof(ndmp_task_data_t));
+			ndmp_conv_data->task=wmem_new(wmem_file_scope(), ndmp_task_data_t);
 			ndmp_conv_data->task->request_frame=pinfo->fd->num;
 			ndmp_conv_data->task->response_frame=0;
 			ndmp_conv_data->task->ndmp_time=pinfo->fd->abs_ts;
 			ndmp_conv_data->task->itlq=NULL;
-			se_tree_insert32(ndmp_conv_data->tasks, nh.seq, ndmp_conv_data->task);
+			wmem_map_insert(ndmp_conv_data->tasks, GUINT_TO_POINTER(nh.seq), ndmp_conv_data->task);
 		} else {
-			ndmp_conv_data->task=se_tree_lookup32(ndmp_conv_data->tasks, nh.seq);
+			ndmp_conv_data->task=(ndmp_task_data_t *)wmem_map_lookup(ndmp_conv_data->tasks, GUINT_TO_POINTER(nh.seq));
 		}
 		if(ndmp_conv_data->task && ndmp_conv_data->task->response_frame){
 			proto_item *it;
@@ -3374,7 +3360,7 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		}
 		break;
 	case NDMP_MESSAGE_REPLY:
-		ndmp_conv_data->task=se_tree_lookup32(ndmp_conv_data->tasks, nh.rep_seq);
+		ndmp_conv_data->task=(ndmp_task_data_t *)wmem_map_lookup(ndmp_conv_data->tasks, GUINT_TO_POINTER(nh.rep_seq));
 
 		if(ndmp_conv_data->task && !pinfo->fd->flags.visited){
 			ndmp_conv_data->task->response_frame=pinfo->fd->num;
@@ -3417,7 +3403,7 @@ dissect_ndmp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	pinfo->fragmented = save_fragmented;
 	col_set_writable(pinfo->cinfo, save_writable);
 
-	return;
+	return tvb_length(tvb);
 }
 
 static guint
@@ -3497,7 +3483,7 @@ check_if_ndmp(tvbuff_t *tvb, packet_info *pinfo)
  *  At this point we may have either an NDMP PDU or an NDMP PDU fragment.
  */
 static int
-dissect_ndmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_ndmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 	/* If we are doing defragmentation, don't check more than the record mark here,
 	 * because if this is a continuation of a fragmented NDMP PDU there won't be a
@@ -3513,7 +3499,7 @@ dissect_ndmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 	}
 
 	tcp_dissect_pdus(tvb, pinfo, tree, ndmp_desegment, 4,
-			 get_ndmp_pdu_len, dissect_ndmp_message);
+			 get_ndmp_pdu_len, dissect_ndmp_message, data);
 	return tvb_length(tvb);
 }
 
@@ -3524,22 +3510,23 @@ dissect_ndmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
  *  as the protocol dissector for this conversation.
  */
 static int
-dissect_ndmp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_ndmp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 	if (tvb_length(tvb) < 28)
 		return 0;
 	if (!check_if_ndmp(tvb, pinfo))
 		return 0;
+
 	tcp_dissect_pdus(tvb, pinfo, tree, ndmp_desegment, 28,
-			 get_ndmp_pdu_len, dissect_ndmp_message);
+			 get_ndmp_pdu_len, dissect_ndmp_message, data);
 	return tvb_length(tvb);
 }
 
 static void
 ndmp_init(void)
 {
-	fragment_table_init(&ndmp_fragment_table);
-	reassembled_table_init(&ndmp_reassembled_table);
+	reassembly_table_init(&ndmp_reassembly_table,
+	    &addresses_reassembly_table_functions);
 }
 
 
@@ -4336,9 +4323,20 @@ proto_register_ndmp(void)
 void
 proto_reg_handoff_ndmp(void)
 {
-  ndmp_handle = new_create_dissector_handle(dissect_ndmp, proto_ndmp);
-#if 0 /* tcpencap needs to own this TCP port; See packet-ipsec-tcp.c */
-  dissector_add_uint("tcp.port",TCP_PORT_NDMP, ndmp_handle);
-#endif
-  heur_dissector_add("tcp", dissect_ndmp_heur, proto_ndmp);
+	ndmp_handle = new_create_dissector_handle(dissect_ndmp, proto_ndmp);
+	dissector_add_uint("tcp.port",TCP_PORT_NDMP, ndmp_handle);
+	heur_dissector_add("tcp", dissect_ndmp_heur, proto_ndmp);
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

@@ -1,8 +1,6 @@
 /* tap-protocolinfo.c
  * protohierstat   2002 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,14 +25,17 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/epan_dissect.h"
 #include "epan/column-utils.h"
 #include "epan/proto.h"
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
 #include <epan/strutil.h>
+
+void register_tap_listener_protocolinfo(void);
 
 typedef struct _pci_t {
 	char *filter;
@@ -60,7 +61,7 @@ protocolinfo_packet(void *prs, packet_info *pinfo, epan_dissect_t *edt, const vo
 	 * To prevent a crash, we check whether INFO column is writable
 	 * and, if not, we report that error and exit.
 	 */
-	if (!check_col(pinfo->cinfo, COL_INFO)) {
+	if (!col_get_writable(pinfo->cinfo)) {
 		fprintf(stderr, "tshark: the proto,colinfo tap doesn't work if the INFO column isn't being printed.\n");
 		exit(1);
 	}
@@ -70,7 +71,7 @@ protocolinfo_packet(void *prs, packet_info *pinfo, epan_dissect_t *edt, const vo
 	}
 
 	for(i=0;i<gp->len;i++){
-		str=(char *)proto_construct_match_selected_string(gp->pdata[i], NULL);
+		str=(char *)proto_construct_match_selected_string((field_info *)gp->pdata[i], NULL);
 		if(str){
 			col_append_fstr(pinfo->cinfo, COL_INFO, "  %s",str);
 		}
@@ -81,7 +82,7 @@ protocolinfo_packet(void *prs, packet_info *pinfo, epan_dissect_t *edt, const vo
 
 
 static void
-protocolinfo_init(const char *optarg, void* userdata _U_)
+protocolinfo_init(const char *opt_arg, void* userdata _U_)
 {
 	pci_t *rs;
 	const char *field=NULL;
@@ -89,8 +90,8 @@ protocolinfo_init(const char *optarg, void* userdata _U_)
 	header_field_info *hfi;
 	GString *error_string;
 
-	if(!strncmp("proto,colinfo,",optarg,14)){
-		filter=optarg+14;
+	if(!strncmp("proto,colinfo,",opt_arg,14)){
+		filter=opt_arg+14;
 		field=strchr(filter,',');
 		if(field){
 			field+=1;  /* skip the ',' */

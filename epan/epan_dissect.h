@@ -1,7 +1,5 @@
 /* epan_dissect.h
  *
- * $Id$
- *
  * Wireshark Protocol Analyzer Library
  *
  * Copyright (c) 2001 by Gerald Combs <gerald@wireshark.org>
@@ -28,6 +26,7 @@
 extern "C" {
 #endif /* __cplusplus */
 
+#include "epan.h"
 #include "tvbuff.h"
 #include "proto.h"
 #include "packet_info.h"
@@ -38,7 +37,8 @@ extern "C" {
  * as the structures that the epan_dissect_t contains might have pointers
  * to addresses in your byte array.
  */
-struct _epan_dissect_t {
+struct epan_dissect {
+	struct epan_session *session;
 	tvbuff_t	*tvb;
 	proto_tree	*tree;
 	packet_info	pi;

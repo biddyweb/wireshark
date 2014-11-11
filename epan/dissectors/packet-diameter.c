@@ -1,8 +1,6 @@
 /* packet-diameter.c
  * Routines for Diameter packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2001 by David Frascone <dave@frascone.com>
  * Copyright (c) 2007 by Luis E. Garcia Ontanon <luis@ontanon.org>
  *
@@ -51,18 +49,24 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/filesystem.h>
+#include <epan/exceptions.h>
+#include <wsutil/filesystem.h>
 #include <epan/prefs.h>
 #include <epan/sminmpec.h>
-#include <epan/emem.h>
 #include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 #include <epan/conversation.h>
 #include <epan/tap.h>
+#include <epan/exported_pdu.h>
 #include <epan/diam_dict.h>
 #include <epan/sctpppids.h>
+#include <epan/show_exception.h>
+#include <epan/to_str.h>
 #include "packet-tcp.h"
 #include "packet-diameter.h"
+
+void proto_register_diameter(void);
+void proto_reg_handoff_diameter(void);
 
 /* Diameter Header Flags */
 /* RPETrrrrCCCCCCCCCCCCCCCCCCCCCCCC  */
@@ -76,12 +80,14 @@
 #define DIAM_FLAGS_RESERVED7 0x01
 #define DIAM_FLAGS_RESERVED  0x0f
 
+#if 0
 #define DIAM_LENGTH_MASK  0x00ffffffl
 #define DIAM_COMMAND_MASK DIAM_LENGTH_MASK
 #define DIAM_GET_FLAGS(dh)                ((dh.flagsCmdCode & ~DIAM_COMMAND_MASK) >> 24)
 #define DIAM_GET_VERSION(dh)              ((dh.versionLength & (~DIAM_LENGTH_MASK)) >> 24)
 #define DIAM_GET_COMMAND(dh)              (dh.flagsCmdCode & DIAM_COMMAND_MASK)
 #define DIAM_GET_LENGTH(dh)               (dh.versionLength & DIAM_LENGTH_MASK)
+#endif
 
 /* Diameter AVP Flags */
 #define AVP_FLAGS_P 0x20
@@ -97,34 +103,36 @@
 #define DIAMETER_V16 16
 #define DIAMETER_RFC 1
 
+static gint exported_pdu_tap = -1;
+
 /* Conversation Info */
 typedef struct _diameter_conv_info_t {
-        emem_tree_t *pdus_tree;
+	wmem_map_t *pdus_tree;
 } diameter_conv_info_t;
 
 typedef struct _diam_ctx_t {
 	proto_tree *tree;
 	packet_info *pinfo;
-	emem_tree_t *avps;
+	wmem_tree_t *avps;
 	gboolean version_rfc;
 } diam_ctx_t;
 
 typedef struct _diam_avp_t diam_avp_t;
 typedef struct _avp_type_t avp_type_t;
 
-typedef const char *(*diam_avp_dissector_t)(diam_ctx_t *, diam_avp_t *, tvbuff_t *);
+typedef const char *(*diam_avp_dissector_t)(diam_ctx_t *, diam_avp_t *, tvbuff_t *, diam_sub_dis_t *);
 
 
 typedef struct _diam_vnd_t {
-	guint32 code;
+	guint32  code;
 	GArray *vs_avps;
-	value_string_ext *vs_avps_ext;
+	const value_string_ext *vs_avps_ext;
 	GArray *vs_cmds;
 } diam_vnd_t;
 
 struct _diam_avp_t {
 	guint32 code;
-	const diam_vnd_t *vendor;
+	diam_vnd_t *vendor;
 	diam_avp_dissector_t dissector_v16;
 	diam_avp_dissector_t dissector_rfc;
 
@@ -138,13 +146,13 @@ struct _diam_avp_t {
 #define VND_CMD_VS(v)      ((value_string *)(void *)((v)->vs_cmds->data))
 
 typedef struct _diam_dictionary_t {
-	emem_tree_t *avps;
-	emem_tree_t *vnds;
+	wmem_tree_t *avps;
+	wmem_tree_t *vnds;
 	value_string *applications;
 	value_string *commands;
 } diam_dictionary_t;
 
-typedef diam_avp_t *(*avp_constructor_t)(const avp_type_t *, guint32, const diam_vnd_t *, const char *,  const value_string *, void *);
+typedef diam_avp_t *(*avp_constructor_t)(const avp_type_t *, guint32, diam_vnd_t *, const char *,  const value_string *, void *);
 
 struct _avp_type_t {
 	const char *name;
@@ -156,10 +164,10 @@ struct _avp_type_t {
 };
 
 struct _build_dict {
-	GArray *hf;
-	GPtrArray *ett;
-	GHashTable *types;
-	GHashTable *avps;
+	wmem_array_t *hf;
+	GPtrArray    *ett;
+	GHashTable   *types;
+	GHashTable   *avps;
 };
 
 
@@ -183,7 +191,7 @@ typedef struct _proto_avp_t {
 	avp_reassemble_mode_t reassemble_mode;
 } proto_avp_t;
 
-static const char *simple_avp(diam_ctx_t *, diam_avp_t *, tvbuff_t *);
+static const char *simple_avp(diam_ctx_t *, diam_avp_t *, tvbuff_t *, diam_sub_dis_t *);
 
 static diam_vnd_t unknown_vendor = { 0xffffffff, NULL, NULL, NULL };
 static diam_vnd_t no_vnd = { 0, NULL, NULL, NULL };
@@ -256,6 +264,7 @@ static int hf_diameter_avp_flags_reserved6 = -1;
 static int hf_diameter_avp_flags_reserved7 = -1;
 static int hf_diameter_avp_vendor_id = -1;
 static int hf_diameter_avp_data_wrong_length = -1;
+static int hf_diameter_avp_pad = -1;
 
 static int hf_diameter_answer_in = -1;
 static int hf_diameter_answer_to = -1;
@@ -266,6 +275,7 @@ static int hf_framed_ipv6_prefix_reserved = -1;
 static int hf_framed_ipv6_prefix_length = -1;
 static int hf_framed_ipv6_prefix_bytes = -1;
 static int hf_framed_ipv6_prefix_ipv6 = -1;
+static int hf_diameter_3gpp2_exp_res = -1;
 
 static gint ett_diameter = -1;
 static gint ett_diameter_flags = -1;
@@ -274,16 +284,28 @@ static gint ett_diameter_avpinfo = -1;
 static gint ett_unknown = -1;
 static gint ett_err = -1;
 
+
+static expert_field ei_diameter_reserved_bit_set = EI_INIT;
+static expert_field ei_diameter_avp_len = EI_INIT;
+static expert_field ei_diameter_avp_no_data = EI_INIT;
+static expert_field ei_diameter_application_id = EI_INIT;
+static expert_field ei_diameter_version = EI_INIT;
+static expert_field ei_diameter_avp_pad = EI_INIT;
+static expert_field ei_diameter_code = EI_INIT;
+static expert_field ei_diameter_avp_code = EI_INIT;
+static expert_field ei_diameter_avp_vendor_id = EI_INIT;
+
 /* Tap for Diameter */
 static int diameter_tap = -1;
 
 /* For conversations */
 
-
+static dissector_handle_t diameter_udp_handle;
 static dissector_handle_t diameter_tcp_handle;
 static dissector_handle_t diameter_sctp_handle;
 static range_t *global_diameter_tcp_port_range;
 static range_t *global_diameter_sctp_port_range;
+static range_t *global_diameter_udp_port_range;
 /* This is used for TCP and SCTP */
 #define DEFAULT_DIAMETER_PORT_RANGE "3868"
 
@@ -294,6 +316,7 @@ static gboolean gbl_diameter_desegment = TRUE;
 static dissector_table_t diameter_dissector_table;
 static dissector_table_t diameter_3gpp_avp_dissector_table;
 static dissector_table_t diameter_ericsson_avp_dissector_table;
+static dissector_table_t diameter_expr_result_vnd_table;
 
 static const char *avpflags_str[] = {
 	"---",
@@ -306,21 +329,40 @@ static const char *avpflags_str[] = {
 	"VMP",
 };
 
-static gint
-compare_avps (gconstpointer  a, gconstpointer  b)
+static void
+export_diameter_pdu(packet_info *pinfo, tvbuff_t *tvb)
 {
-	value_string *vsa = (value_string *)a;
-	value_string *vsb = (value_string *)b;
+	exp_pdu_data_t *exp_pdu_data;
+	guint8 tags_bit_field;
 
-	if(vsa->value > vsb->value)
+	tags_bit_field = EXP_PDU_TAG_IP_SRC_BIT + EXP_PDU_TAG_IP_DST_BIT + EXP_PDU_TAG_SRC_PORT_BIT +
+		EXP_PDU_TAG_DST_PORT_BIT + EXP_PDU_TAG_ORIG_FNO_BIT;
+
+	exp_pdu_data = load_export_pdu_tags(pinfo, "diameter", -1, &tags_bit_field, 1);
+
+	exp_pdu_data->tvb_captured_length = tvb_captured_length(tvb);
+	exp_pdu_data->tvb_reported_length = tvb_reported_length(tvb);
+	exp_pdu_data->pdu_tvb = tvb;
+
+	tap_queue_packet(exported_pdu_tap, pinfo, exp_pdu_data);
+
+}
+
+static int
+compare_avps(const void *a, const void *b)
+{
+	const value_string *vsa = (const value_string *)a;
+	const value_string *vsb = (const value_string *)b;
+
+	if (vsa->value > vsb->value)
 		return 1;
-	if(vsa->value < vsb->value)
+	if (vsa->value < vsb->value)
 		return -1;
 
 	return 0;
 }
 
-/* Special decoding of some AVP:s */
+/* Special decoding of some AVPs */
 
 static int
 dissect_diameter_vendor_id(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, void *data _U_)
@@ -348,11 +390,41 @@ dissect_diameter_eap_payload(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
 	return tvb_length(tvb);
 }
 
+/* http://www.3gpp2.org/public_html/X/VSA-VSE.cfm */
+static const value_string diameter_3gpp2_exp_res_vals[]= {
+	{ 5001,	"Diameter_Error_User_No_WLAN_Subscription"},
+	{ 5002,	"Diameter_Error_Roaming_Not_Allowed(Obsoleted)"},
+	{ 5003,	"Diameter_Error_User_No_FAP_Subscription"},
+	{0,NULL}
+};
+
+static int
+dissect_diameter_3gpp2_exp_res(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, void *data) {
+	proto_item *pi;
+	diam_sub_dis_t *diam_sub_dis;
+
+	/* Reject the packet if data is NULL */
+	if (data == NULL)
+		return 0;
+	diam_sub_dis = (diam_sub_dis_t*)data;
+
+	pi = proto_tree_add_item(tree, hf_diameter_3gpp2_exp_res, tvb, 0, 4, ENC_BIG_ENDIAN);
+	diam_sub_dis->avp_str = (char *)wmem_alloc(wmem_packet_scope(), ITEM_LABEL_LENGTH+1);
+	proto_item_fill_label(PITEM_FINFO(pi), diam_sub_dis->avp_str);
+	diam_sub_dis->avp_str = strstr(diam_sub_dis->avp_str,": ")+2;
+
+
+	return 4;
+}
+
+
 /* From RFC 3162 section 2.3 */
 static int
 dissect_diameter_base_framed_ipv6_prefix(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, void *data _U_)
 {
+	diam_sub_dis_t *diam_sub_dis = (diam_sub_dis_t*)data;
 	guint8 prefix_len, prefix_len_bytes;
+	/*diam_sub_dis_t *diam_sub_dis_inf = (diam_sub_dis_t*)data;*/
 
 	proto_tree_add_item(tree, hf_framed_ipv6_prefix_reserved, tvb, 0, 1, ENC_BIG_ENDIAN);
 	proto_tree_add_item(tree, hf_framed_ipv6_prefix_length, tvb, 1, 1, ENC_BIG_ENDIAN);
@@ -365,15 +437,57 @@ dissect_diameter_base_framed_ipv6_prefix(tvbuff_t *tvb, packet_info *pinfo _U_, 
 	proto_tree_add_item(tree, hf_framed_ipv6_prefix_bytes, tvb, 2, prefix_len_bytes, ENC_NA);
 
 	/* If we have a fully IPv6 address, display it as such */
-	if (prefix_len_bytes == 16)
+	if (prefix_len_bytes == 16){
 		proto_tree_add_item(tree, hf_framed_ipv6_prefix_ipv6, tvb, 2, prefix_len_bytes, ENC_NA);
+	}else{
+		struct e_in6_addr value;
+
+		memset(&value.bytes, 0, sizeof(value));
+		tvb_memcpy(tvb, (guint8 *)&value.bytes, 2, prefix_len_bytes);
+		value.bytes[prefix_len_bytes] = value.bytes[prefix_len_bytes] & (0xff<<(prefix_len % 8));
+		proto_tree_add_ipv6(tree, hf_framed_ipv6_prefix_ipv6, tvb, 2, prefix_len_bytes, value.bytes);
+		diam_sub_dis->avp_str = wmem_strdup_printf(wmem_packet_scope(), "%s/%u", ip6_to_str((const struct e_in6_addr *)&value),prefix_len);
+	}
 
 	return(prefix_len_bytes+2);
 }
 
+/* Call subdissectors for AVPs.
+ * This is a separate function to avoid having any local variables that might
+ * get clobbered by the exception longjmp() (without having to declare the
+ * variables as volatile and deal with casting them).
+ */
+static void
+call_avp_subdissector(guint32 vendorid, guint32 code, tvbuff_t *subtvb, packet_info *pinfo, proto_tree *avp_tree, diam_sub_dis_t *diam_sub_dis_inf)
+{
+	TRY {
+		switch (vendorid) {
+		case 0:
+			dissector_try_uint_new(diameter_dissector_table, code, subtvb, pinfo, avp_tree, FALSE, diam_sub_dis_inf);
+			break;
+		case VENDOR_ERICSSON:
+			dissector_try_uint_new(diameter_ericsson_avp_dissector_table, code, subtvb, pinfo, avp_tree, FALSE, diam_sub_dis_inf);
+			break;
+		case VENDOR_THE3GPP:
+			dissector_try_uint_new(diameter_3gpp_avp_dissector_table, code, subtvb, pinfo, avp_tree, FALSE, diam_sub_dis_inf);
+			break;
+		default:
+			break;
+		}
+
+		/* Debug
+		proto_tree_add_text(avp_tree, subtvb, 0, -1, "AVP %u data, Vendor Id %u ",code,vendorid);
+		*/
+	}
+	CATCH_NONFATAL_ERRORS {
+		show_exception(subtvb, pinfo, avp_tree, EXCEPT_CODE, GET_MESSAGE);
+	}
+	ENDTRY;
+}
+
 /* Dissect an AVP at offset */
 static int
-dissect_diameter_avp(diam_ctx_t *c, tvbuff_t *tvb, int offset)
+dissect_diameter_avp(diam_ctx_t *c, tvbuff_t *tvb, int offset, diam_sub_dis_t *diam_sub_dis_inf)
 {
 	guint32 code           = tvb_get_ntohl(tvb,offset);
 	guint32 len            = tvb_get_ntohl(tvb,offset+4);
@@ -381,25 +495,35 @@ dissect_diameter_avp(diam_ctx_t *c, tvbuff_t *tvb, int offset)
 	guint32 flags_bits_idx = (len & 0xE0000000) >> 29;
 	guint32 flags_bits     = (len & 0xFF000000) >> 24;
 	guint32 vendorid       = vendor_flag ? tvb_get_ntohl(tvb,offset+8) : 0 ;
-	emem_tree_key_t k[]    = {
-		{1,&code},
-		{1,&vendorid},
-		{0,NULL}
-	};
-	diam_avp_t *a          = (diam_avp_t *)emem_tree_lookup32_array(dictionary.avps,k);
+	wmem_tree_key_t k[3];
+	diam_avp_t *a;
 	proto_item *pi, *avp_item;
 	proto_tree *avp_tree, *save_tree;
 	tvbuff_t *subtvb;
 	diam_vnd_t *vendor;
 	const char *code_str;
-	const char *avp_str;
+	const char *avp_str = NULL;
+	guint8 pad_len;
+
+	k[0].length = 1;
+	k[0].key = &code;
+
+	k[1].length = 1;
+	k[1].key = &vendorid;
+
+	k[2].length = 0;
+	k[2].key = NULL;
+
+	a = (diam_avp_t *)wmem_tree_lookup32_array(dictionary.avps,k);
+
 	len &= 0x00ffffff;
+	pad_len =  (len % 4) ? 4 - (len % 4) : 0 ;
 
 	if (!a) {
 		a = &unknown_avp;
 
 		if (vendor_flag) {
-			if (! (vendor = (diam_vnd_t *)emem_tree_lookup32(dictionary.vnds,vendorid) ))
+			if (! (vendor = (diam_vnd_t *)wmem_tree_lookup32(dictionary.vnds,vendorid) ))
 				vendor = &unknown_vendor;
 		} else {
 			vendor = &no_vnd;
@@ -408,16 +532,20 @@ dissect_diameter_avp(diam_ctx_t *c, tvbuff_t *tvb, int offset)
 		vendor = (diam_vnd_t *)a->vendor;
 	}
 
-	if(vendor->vs_avps_ext == NULL) {
+	if (vendor->vs_avps_ext == NULL) {
 		g_array_sort(vendor->vs_avps, compare_avps);
-		vendor->vs_avps_ext = value_string_ext_new(VND_AVP_VS(vendor), VND_AVP_VS_LEN(vendor)+1,
-							   g_strdup_printf("diameter_vendor_%s",val_to_str_ext_const(vendorid, &sminmpec_values_ext, "Unknown")));
+		vendor->vs_avps_ext = value_string_ext_new(VND_AVP_VS(vendor),
+							   VND_AVP_VS_LEN(vendor)+1,
+							   g_strdup_printf("diameter_vendor_%s",
+									   val_to_str_ext_const(vendorid,
+												&sminmpec_values_ext,
+												"Unknown")));
 #if 0
 		{ /* Debug code */
-			value_string *vendor_avp_vs=VALUE_STRING_EXT_VS_P(vendor->vs_avps_ext);
+			value_string *vendor_avp_vs = VALUE_STRING_EXT_VS_P(vendor->vs_avps_ext);
 			gint i = 0;
-			while(vendor_avp_vs[i].strptr!=NULL) {
-				g_warning("%u %s",vendor_avp_vs[i].value,vendor_avp_vs[i].strptr);
+			while (vendor_avp_vs[i].strptr != NULL) {
+				g_warning("%u %s", vendor_avp_vs[i].value, vendor_avp_vs[i].strptr);
 				i++;
 			}
 		}
@@ -425,8 +553,8 @@ dissect_diameter_avp(diam_ctx_t *c, tvbuff_t *tvb, int offset)
 	}
 
 	/* Add root of tree for this AVP */
-	avp_item = proto_tree_add_item(c->tree,hf_diameter_avp,tvb,offset,len,ENC_NA);
-	avp_tree = proto_item_add_subtree(avp_item,a->ett);
+	avp_item = proto_tree_add_item(c->tree, hf_diameter_avp, tvb, offset, len + pad_len, ENC_NA);
+	avp_tree = proto_item_add_subtree(avp_item, a->ett);
 
 	pi = proto_tree_add_item(avp_tree,hf_diameter_avp_code,tvb,offset,4,ENC_BIG_ENDIAN);
 	code_str = val_to_str_ext_const(code, vendor->vs_avps_ext, "Unknown");
@@ -435,12 +563,9 @@ dissect_diameter_avp(diam_ctx_t *c, tvbuff_t *tvb, int offset)
 	/* Code */
 	if (a == &unknown_avp) {
 		proto_tree *tu = proto_item_add_subtree(pi,ett_unknown);
-		proto_item *iu = proto_tree_add_text(tu,tvb,offset,4,"Unknown AVP, "
-		                                     "if you know what this is you can add it to dictionary.xml");
-		expert_add_info_format(c->pinfo, iu, PI_UNDECODED, PI_WARN,
-		                       "Unknown AVP %u (vendor=%s)", code,
-		                       val_to_str_ext_const(vendorid, &sminmpec_values_ext, "Unknown"));
-		PROTO_ITEM_SET_GENERATED(iu);
+		proto_tree_add_expert_format(tu, c->pinfo, &ei_diameter_avp_code, tvb, offset, 4,
+			"Unknown AVP %u (vendor=%s), if you know what this is you can add it to dictionary.xml", code,
+			val_to_str_ext_const(vendorid, &sminmpec_values_ext, "Unknown"));
 	}
 
 	offset += 4;
@@ -455,15 +580,15 @@ dissect_diameter_avp(diam_ctx_t *c, tvbuff_t *tvb, int offset)
 		proto_tree_add_item(flags_tree,hf_diameter_avp_flags_mandatory,tvb,offset,1,ENC_BIG_ENDIAN);
 		proto_tree_add_item(flags_tree,hf_diameter_avp_flags_protected,tvb,offset,1,ENC_BIG_ENDIAN);
 		pi = proto_tree_add_item(flags_tree,hf_diameter_avp_flags_reserved3,tvb,offset,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x10) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if (flags_bits & 0x10) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 		pi = proto_tree_add_item(flags_tree,hf_diameter_avp_flags_reserved4,tvb,offset,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x08) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if (flags_bits & 0x08) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 		pi = proto_tree_add_item(flags_tree,hf_diameter_avp_flags_reserved5,tvb,offset,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x04) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if (flags_bits & 0x04) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 		proto_tree_add_item(flags_tree,hf_diameter_avp_flags_reserved6,tvb,offset,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x02) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if (flags_bits & 0x02) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 		proto_tree_add_item(flags_tree,hf_diameter_avp_flags_reserved7,tvb,offset,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x01) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if (flags_bits & 0x01) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 	}
 	offset += 1;
 
@@ -477,60 +602,80 @@ dissect_diameter_avp(diam_ctx_t *c, tvbuff_t *tvb, int offset)
 		pi = proto_tree_add_item(avp_tree,hf_diameter_avp_vendor_id,tvb,offset,4,ENC_BIG_ENDIAN);
 		if (vendor == &unknown_vendor) {
 			proto_tree *tu = proto_item_add_subtree(pi,ett_unknown);
-			proto_item *iu = proto_tree_add_text(tu,tvb,offset,4,"Unknown Vendor, "
-			                                     "if you know whose this is you can add it to dictionary.xml");
-			expert_add_info_format(c->pinfo, iu, PI_UNDECODED, PI_WARN, "Unknown Vendor");
-			PROTO_ITEM_SET_GENERATED(iu);
+			proto_tree_add_expert(tu, c->pinfo, &ei_diameter_avp_vendor_id, tvb, offset, 4);
 		}
 		offset += 4;
 	}
 
 	if ( len == (guint32)(vendor_flag ? 12 : 8) ) {
 		/* Data is empty so return now */
-		proto_item *iu = proto_tree_add_text(avp_tree,tvb,offset,0,"No data");
-		expert_add_info_format(c->pinfo, iu, PI_UNDECODED, PI_WARN, "Data is empty");
-		PROTO_ITEM_SET_GENERATED(iu);
-		return len;
+		proto_tree_add_expert(avp_tree, c->pinfo, &ei_diameter_avp_no_data, tvb, offset, 0);
+		/* pad_len is always 0 in this case, but kept here for consistency */
+		return len+pad_len;
+	}
+	/* If we are dissecting a grouped AVP and find a Vendor Id AVP(266), save it */
+	if((diam_sub_dis_inf->dis_gouped)&&(!vendor_flag)&&(code==266)){
+		diam_sub_dis_inf->vendor_id = tvb_get_ntohl(tvb,offset);
 	}
 
 	subtvb = tvb_new_subset(tvb,offset,len-(8+(vendor_flag?4:0)),len-(8+(vendor_flag?4:0)));
+	offset += len-(8+(vendor_flag?4:0));
 
 	save_tree = c->tree;
 	c->tree = avp_tree;
-	if (c->version_rfc) {
-		avp_str = a->dissector_rfc(c,a,subtvb);
+
+	/* If we are dissecting a grouped AVP and find Experimental-Result-Code AVP(298)
+	 * it might be Vendor defined e.g we can't use the enum from the .xml file.
+	 * Actually the xml enum is for 3GPP so let the AVP dissector handle that too
+	 */
+	if((diam_sub_dis_inf->dis_gouped)
+		&&(!vendor_flag)
+		&&(code==298)
+		&&(diam_sub_dis_inf->vendor_id != 0)
+		&&(diam_sub_dis_inf->vendor_id != VENDOR_THE3GPP))
+	{
+		/* call subdissector */
+		dissector_try_uint_new(diameter_expr_result_vnd_table, diam_sub_dis_inf->vendor_id, subtvb, c->pinfo, avp_tree, FALSE, diam_sub_dis_inf);
+		if(diam_sub_dis_inf->avp_str){
+			proto_item_append_text(avp_item," val=%s", diam_sub_dis_inf->avp_str);
+		}
+	}else if (c->version_rfc) {
+		avp_str = a->dissector_rfc(c,a,subtvb, diam_sub_dis_inf);
 	} else {
-		avp_str = a->dissector_v16(c,a,subtvb);
+		avp_str = a->dissector_v16(c,a,subtvb, diam_sub_dis_inf);
 	}
 	c->tree = save_tree;
 
-	if (avp_str) proto_item_append_text(avp_item," val=%s", avp_str);
+	diam_sub_dis_inf->avp_str = NULL;
+	call_avp_subdissector(vendorid, code, subtvb, c->pinfo, avp_tree, diam_sub_dis_inf);
 
-	/* Call subdissectors for AVP:s */
-	switch (vendorid) {
-	case 0:
-		dissector_try_uint(diameter_dissector_table, code, subtvb, c->pinfo, avp_tree);
-		break;
-	case VENDOR_ERICSSON:
-		dissector_try_uint(diameter_ericsson_avp_dissector_table, code, subtvb, c->pinfo, avp_tree);
-		break;
-	case VENDOR_THE3GPP:
-		dissector_try_uint(diameter_3gpp_avp_dissector_table, code, subtvb, c->pinfo, avp_tree);
-		break;
-	default:
-		break;
+	/* Let the subdissector have precedence filling in the avp_item string */
+	if(diam_sub_dis_inf->avp_str){
+		proto_item_append_text(avp_item," val=%s", diam_sub_dis_inf->avp_str);
+	}else if (avp_str){
+		proto_item_append_text(avp_item," val=%s", avp_str);
 	}
-	/* Debug
-	proto_tree_add_text(avp_tree, subtvb, 0, -1, "AVP %u data, Vendor Id %u ",code,vendorid);
-	*/
 
-	return len;
+
+	if (pad_len) {
+		guint8 i;
+
+		pi = proto_tree_add_item(avp_tree, hf_diameter_avp_pad, tvb, offset, pad_len, ENC_NA);
+		for (i=0; i < pad_len; i++) {
+			if (tvb_get_guint8(tvb, offset++) != 0) {
+				expert_add_info(c->pinfo, pi, &ei_diameter_avp_pad);
+				break;
+			}
+		}
+	}
+
+	return len+pad_len;
 }
 
 static const char *
-address_rfc_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
+address_rfc_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb, diam_sub_dis_t *diam_sub_dis_inf _U_)
 {
-	char *label = (char *)ep_alloc(ITEM_LABEL_LENGTH+1);
+	char *label = (char *)wmem_alloc(wmem_packet_scope(), ITEM_LABEL_LENGTH+1);
 	address_avp_t *t = (address_avp_t *)a->type_data;
 	proto_item *pi = proto_tree_add_item(c->tree,a->hf_value,tvb,0,tvb_length(tvb),ENC_BIG_ENDIAN);
 	proto_tree *pt = proto_item_add_subtree(pi,t->ett);
@@ -541,16 +686,14 @@ address_rfc_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 	switch (addr_type ) {
 		case 1:
 			if (len != 4) {
-				pi = proto_tree_add_text(pt,tvb,2,len,"Wrong length for IPv4 Address: %d instead of 4",len);
-				expert_add_info_format(c->pinfo, pi, PI_MALFORMED, PI_WARN, "Wrong length for IPv4 Address");
+				proto_tree_add_expert_format(pt, c->pinfo, &ei_diameter_avp_len, tvb, 2, len, "Wrong length for IPv4 Address: %d instead of 4", len);
 				return "[Malformed]";
 			}
 			pi = proto_tree_add_item(pt,t->hf_ipv4,tvb,2,4,ENC_BIG_ENDIAN);
 			break;
 		case 2:
 			if (len != 16) {
-				pi = proto_tree_add_text(pt,tvb,2,len,"Wrong length for IPv6 Address: %d instead of 16",len);
-				expert_add_info_format(c->pinfo, pi, PI_MALFORMED, PI_WARN, "Wrong length for IPv6 Address");
+				proto_tree_add_expert_format(pt, c->pinfo, &ei_diameter_avp_len, tvb, 2, len, "Wrong length for IPv6 Address: %d instead of 16", len);
 				return "[Malformed]";
 			}
 			pi = proto_tree_add_item(pt,t->hf_ipv6,tvb,2,16,ENC_NA);
@@ -566,7 +709,7 @@ address_rfc_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 }
 
 static const char *
-proto_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
+proto_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb, diam_sub_dis_t *diam_sub_dis_inf)
 {
 	proto_avp_t *t = (proto_avp_t *)a->type_data;
 
@@ -574,25 +717,30 @@ proto_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 
 	if (!t->handle) {
 		t->handle = find_dissector(t->name);
-		if(!t->handle) t->handle = data_handle;
+		if (!t->handle) t->handle = data_handle;
 	}
 
-	call_dissector(t->handle, tvb, c->pinfo, c->tree);
+	TRY {
+		call_dissector_with_data(t->handle, tvb, c->pinfo, c->tree, diam_sub_dis_inf);
+	}
+	CATCH_NONFATAL_ERRORS {
+		show_exception(tvb, c->pinfo, c->tree, EXCEPT_CODE, GET_MESSAGE);
+	}
+	ENDTRY;
 
 	return "";
 }
 
 static const char *
-time_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
+time_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb, diam_sub_dis_t *diam_sub_dis_inf _U_)
 {
 	int len = tvb_length(tvb);
-	char *label = (char *)ep_alloc(ITEM_LABEL_LENGTH+1);
+	char *label = (char *)wmem_alloc(wmem_packet_scope(), ITEM_LABEL_LENGTH+1);
 	proto_item *pi;
 
 	if ( len != 4 ) {
-		pi = proto_tree_add_text(c->tree, tvb, 0, 4, "Error! AVP value MUST be 4 bytes");
-		expert_add_info_format(c->pinfo, pi, PI_MALFORMED, PI_NOTE,
-				       "Bad Timestamp Length (%u)", len);
+		proto_tree_add_expert_format(c->tree, c->pinfo, &ei_diameter_avp_len, tvb, 0, 4,
+				"Bad Timestamp Length: %d instead of 4", len);
 		return "[Malformed]";
 	}
 
@@ -603,9 +751,9 @@ time_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 }
 
 static const char *
-address_v16_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
+address_v16_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb, diam_sub_dis_t *diam_sub_dis_inf _U_)
 {
-	char *label = (char *)ep_alloc(ITEM_LABEL_LENGTH+1);
+	char *label = (char *)wmem_alloc(wmem_packet_scope(), ITEM_LABEL_LENGTH+1);
 	address_avp_t *t = (address_avp_t *)a->type_data;
 	proto_item *pi = proto_tree_add_item(c->tree,a->hf_value,tvb,0,tvb_length(tvb),ENC_BIG_ENDIAN);
 	proto_tree *pt = proto_item_add_subtree(pi,t->ett);
@@ -620,8 +768,8 @@ address_v16_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 			break;
 		default:
 			pi = proto_tree_add_item(pt,t->hf_other,tvb,0,len,ENC_BIG_ENDIAN);
-			expert_add_info_format(c->pinfo, pi, PI_MALFORMED, PI_NOTE,
-					       "Bad Address Length (%u)", len);
+			expert_add_info_format(c->pinfo, pi, &ei_diameter_avp_len,
+					"Bad Address Length (%u)", len);
 
 			break;
 	}
@@ -632,9 +780,9 @@ address_v16_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 }
 
 static const char *
-simple_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
+simple_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb, diam_sub_dis_t *diam_sub_dis_inf _U_)
 {
-	char *label = (char *)ep_alloc(ITEM_LABEL_LENGTH+1);
+	char *label = (char *)wmem_alloc(wmem_packet_scope(), ITEM_LABEL_LENGTH+1);
 	proto_item *pi = proto_tree_add_item(c->tree,a->hf_value,tvb,0,tvb_length(tvb),ENC_BIG_ENDIAN);
 	proto_item_fill_label(PITEM_FINFO(pi), label);
 	label = strstr(label,": ")+2;
@@ -642,9 +790,9 @@ simple_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 }
 
 static const char *
-utf8_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
+utf8_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb, diam_sub_dis_t *diam_sub_dis_inf _U_)
 {
-	char *label = (char *)ep_alloc(ITEM_LABEL_LENGTH+1);
+	char *label = (char *)wmem_alloc(wmem_packet_scope(), ITEM_LABEL_LENGTH+1);
 	proto_item *pi = proto_tree_add_item(c->tree,a->hf_value,tvb,0,tvb_length(tvb),ENC_UTF_8|ENC_BIG_ENDIAN);
 	proto_item_fill_label(PITEM_FINFO(pi), label);
 	label = strstr(label,": ")+2;
@@ -652,7 +800,7 @@ utf8_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 }
 
 static const char *
-integer32_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
+integer32_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb, diam_sub_dis_t *diam_sub_dis_inf _U_)
 {
 	char *label;
 	proto_item *pi;
@@ -661,7 +809,7 @@ integer32_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 	gint length = tvb_length_remaining(tvb,0);
 	if (length == 4) {
 		pi= proto_tree_add_item(c->tree,a->hf_value,tvb,0,tvb_length_remaining(tvb,0),ENC_BIG_ENDIAN);
-		label = (char *)ep_alloc(ITEM_LABEL_LENGTH+1);
+		label = (char *)wmem_alloc(wmem_packet_scope(), ITEM_LABEL_LENGTH+1);
 		proto_item_fill_label(PITEM_FINFO(pi), label);
 		label = strstr(label,": ")+2;
 	}
@@ -669,8 +817,8 @@ integer32_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 		pi = proto_tree_add_bytes_format(c->tree, hf_diameter_avp_data_wrong_length,
 						 tvb, 0, length, NULL,
 						"Error!  Bad Integer32 Length");
-		expert_add_info_format(c->pinfo, pi, PI_MALFORMED, PI_NOTE,
-				       "Bad Integer32 Length (%u)", length);
+		expert_add_info_format(c->pinfo, pi, &ei_diameter_avp_len,
+					"Bad Integer32 Length (%u)", length);
 		PROTO_ITEM_SET_GENERATED(pi);
 		label = NULL;
 	}
@@ -678,7 +826,7 @@ integer32_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 }
 
 static const char *
-integer64_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
+integer64_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb, diam_sub_dis_t *diam_sub_dis_inf _U_)
 {
 	char *label;
 	proto_item *pi;
@@ -687,7 +835,7 @@ integer64_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 	gint length = tvb_length_remaining(tvb,0);
 	if (length == 8) {
 		pi= proto_tree_add_item(c->tree,a->hf_value,tvb,0,tvb_length_remaining(tvb,0),ENC_BIG_ENDIAN);
-		label = (char *)ep_alloc(ITEM_LABEL_LENGTH+1);
+		label = (char *)wmem_alloc(wmem_packet_scope(), ITEM_LABEL_LENGTH+1);
 		proto_item_fill_label(PITEM_FINFO(pi), label);
 		label = strstr(label,": ")+2;
 	}
@@ -695,8 +843,8 @@ integer64_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 		pi = proto_tree_add_bytes_format(c->tree, hf_diameter_avp_data_wrong_length,
 						 tvb, 0, length, NULL,
 						"Error!  Bad Integer64 Length");
-		expert_add_info_format(c->pinfo, pi, PI_MALFORMED, PI_NOTE,
-				       "Bad Integer64 Length (%u)", length);
+		expert_add_info_format(c->pinfo, pi, &ei_diameter_avp_len,
+				"Bad Integer64 Length (%u)", length);
 		PROTO_ITEM_SET_GENERATED(pi);
 		label = NULL;
 	}
@@ -704,7 +852,7 @@ integer64_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 }
 
 static const char *
-unsigned32_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
+unsigned32_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb, diam_sub_dis_t *diam_sub_dis_inf _U_)
 {
 	char *label;
 	proto_item *pi;
@@ -713,7 +861,7 @@ unsigned32_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 	gint length = tvb_length_remaining(tvb,0);
 	if (length == 4) {
 		pi= proto_tree_add_item(c->tree,a->hf_value,tvb,0,tvb_length_remaining(tvb,0),ENC_BIG_ENDIAN);
-		label = (char *)ep_alloc(ITEM_LABEL_LENGTH+1);
+		label = (char *)wmem_alloc(wmem_packet_scope(), ITEM_LABEL_LENGTH+1);
 		proto_item_fill_label(PITEM_FINFO(pi), label);
 		label = strstr(label,": ")+2;
 	}
@@ -721,8 +869,8 @@ unsigned32_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 		pi = proto_tree_add_bytes_format(c->tree, hf_diameter_avp_data_wrong_length,
 						 tvb, 0, length, NULL,
 						"Error!  Bad Unsigned32 Length");
-		expert_add_info_format(c->pinfo, pi, PI_MALFORMED, PI_NOTE,
-				       "Bad Unsigned32 Length (%u)", length);
+		expert_add_info_format(c->pinfo, pi, &ei_diameter_avp_len,
+					"Bad Unsigned32 Length (%u)", length);
 		PROTO_ITEM_SET_GENERATED(pi);
 		label = NULL;
 	}
@@ -730,7 +878,7 @@ unsigned32_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 }
 
 static const char *
-unsigned64_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
+unsigned64_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb, diam_sub_dis_t *diam_sub_dis_inf _U_)
 {
 	char *label;
 	proto_item *pi;
@@ -739,7 +887,7 @@ unsigned64_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 	gint length = tvb_length_remaining(tvb,0);
 	if (length == 8) {
 		pi= proto_tree_add_item(c->tree,a->hf_value,tvb,0,tvb_length_remaining(tvb,0),ENC_BIG_ENDIAN);
-		label = (char *)ep_alloc(ITEM_LABEL_LENGTH+1);
+		label = (char *)wmem_alloc(wmem_packet_scope(), ITEM_LABEL_LENGTH+1);
 		proto_item_fill_label(PITEM_FINFO(pi), label);
 		label = strstr(label,": ")+2;
 	}
@@ -747,8 +895,8 @@ unsigned64_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 		pi = proto_tree_add_bytes_format(c->tree, hf_diameter_avp_data_wrong_length,
 						 tvb, 0, length, NULL,
 						"Error!  Bad Unsigned64 Length");
-		expert_add_info_format(c->pinfo, pi, PI_MALFORMED, PI_NOTE,
-				       "Bad Unsigned64 Length (%u)", length);
+		expert_add_info_format(c->pinfo, pi, &ei_diameter_avp_len,
+				"Bad Unsigned64 Length (%u)", length);
 		PROTO_ITEM_SET_GENERATED(pi);
 		label = NULL;
 	}
@@ -756,7 +904,7 @@ unsigned64_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 }
 
 static const char *
-float32_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
+float32_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb, diam_sub_dis_t *diam_sub_dis_inf _U_)
 {
 	char *label;
 	proto_item *pi;
@@ -765,7 +913,7 @@ float32_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 	gint length = tvb_length_remaining(tvb,0);
 	if (length == 4) {
 		pi= proto_tree_add_item(c->tree,a->hf_value,tvb,0,tvb_length_remaining(tvb,0),ENC_BIG_ENDIAN);
-		label = (char *)ep_alloc(ITEM_LABEL_LENGTH+1);
+		label = (char *)wmem_alloc(wmem_packet_scope(), ITEM_LABEL_LENGTH+1);
 		proto_item_fill_label(PITEM_FINFO(pi), label);
 		label = strstr(label,": ")+2;
 	}
@@ -773,8 +921,8 @@ float32_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 		pi = proto_tree_add_bytes_format(c->tree, hf_diameter_avp_data_wrong_length,
 						 tvb, 0, length, NULL,
 						"Error!  Bad Float32 Length");
-		expert_add_info_format(c->pinfo, pi, PI_MALFORMED, PI_NOTE,
-				       "Bad Float32 Length (%u)", length);
+		expert_add_info_format(c->pinfo, pi, &ei_diameter_avp_len,
+				"Bad Float32 Length (%u)", length);
 		PROTO_ITEM_SET_GENERATED(pi);
 		label = NULL;
 	}
@@ -782,7 +930,7 @@ float32_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 }
 
 static const char *
-float64_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
+float64_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb, diam_sub_dis_t *diam_sub_dis_inf _U_)
 {
 	char *label;
 	proto_item *pi;
@@ -791,7 +939,7 @@ float64_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 	gint length = tvb_length_remaining(tvb,0);
 	if (length == 8) {
 		pi= proto_tree_add_item(c->tree,a->hf_value,tvb,0,tvb_length_remaining(tvb,0),ENC_BIG_ENDIAN);
-		label = (char *)ep_alloc(ITEM_LABEL_LENGTH+1);
+		label = (char *)wmem_alloc(wmem_packet_scope(), ITEM_LABEL_LENGTH+1);
 		proto_item_fill_label(PITEM_FINFO(pi), label);
 		label = strstr(label,": ")+2;
 	}
@@ -799,8 +947,8 @@ float64_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 		pi = proto_tree_add_bytes_format(c->tree, hf_diameter_avp_data_wrong_length,
 						 tvb, 0, length, NULL,
 						"Error!  Bad Float64 Length");
-		expert_add_info_format(c->pinfo, pi, PI_MALFORMED, PI_NOTE,
-				       "Bad Float64 Length (%u)", length);
+		expert_add_info_format(c->pinfo, pi, &ei_diameter_avp_len,
+				"Bad Float64 Length (%u)", length);
 		PROTO_ITEM_SET_GENERATED(pi);
 		label = NULL;
 	}
@@ -808,7 +956,7 @@ float64_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 }
 
 static const char *
-grouped_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
+grouped_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb, diam_sub_dis_t *diam_sub_dis_inf)
 {
 	int offset = 0;
 	int len = tvb_length(tvb);
@@ -817,10 +965,15 @@ grouped_avp(diam_ctx_t *c, diam_avp_t *a, tvbuff_t *tvb)
 
 	c->tree = proto_item_add_subtree(pi,a->ett);
 
+	/* Set the flag that we are dissecting a grouped AVP */
+	diam_sub_dis_inf->dis_gouped = TRUE;
 	while (offset < len) {
-		offset += dissect_diameter_avp(c, tvb, offset);
-		offset +=  (offset % 4) ? 4 - (offset % 4) : 0 ;
+		offset += dissect_diameter_avp(c, tvb, offset, diam_sub_dis_inf);
 	}
+	/* Clear info collected in grouped AVP */
+	diam_sub_dis_inf->vendor_id  = 0;
+	diam_sub_dis_inf->dis_gouped = FALSE;
+	diam_sub_dis_inf->avp_str = NULL;
 
 	c->tree = pt;
 
@@ -834,8 +987,8 @@ static const char *msgflags_str[] = {
 	"RP--", "RP-T", "RPE-", "RPET"
 };
 
-static void
-dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
 	guint32 first_word  = tvb_get_ntohl(tvb,0);
 	guint32 version = (first_word & 0xff000000) >> 24;
@@ -843,22 +996,23 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	int packet_len = first_word & 0x00ffffff;
 	proto_item *pi, *cmd_item, *app_item, *version_item;
 	proto_tree *diam_tree;
-	diam_ctx_t *c = (diam_ctx_t *)ep_alloc0(sizeof(diam_ctx_t));
+	diam_ctx_t *c = (diam_ctx_t *)wmem_alloc0(wmem_packet_scope(), sizeof(diam_ctx_t));
 	int offset;
 	value_string *cmd_vs;
 	const char *cmd_str;
 	guint32 cmd = tvb_get_ntoh24(tvb,5);
-	guint32 fourth = tvb_get_ntohl(tvb,8);
 	guint32 hop_by_hop_id, end_to_end_id;
 	conversation_t *conversation;
 	diameter_conv_info_t *diameter_conv_info;
 	diameter_req_ans_pair_t *diameter_pair = NULL;
-	emem_tree_t *pdus_tree;
+	wmem_tree_t *pdus_tree;
 	proto_item *it;
 	nstime_t ns;
-	void *pd_save;
+	diam_sub_dis_t *diam_sub_dis_inf = wmem_new0(wmem_packet_scope(), diam_sub_dis_t);
 
-	pd_save = pinfo->private_data;
+
+	diam_sub_dis_inf->application_id = tvb_get_ntohl(tvb,8);
+
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "DIAMETER");
 
 	pi = proto_tree_add_item(tree,proto_diameter,tvb,0,-1,ENC_NA);
@@ -878,13 +1032,13 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		proto_tree_add_item(pt,hf_diameter_flags_error,tvb,4,1,ENC_BIG_ENDIAN);
 		proto_tree_add_item(pt,hf_diameter_flags_T,tvb,4,1,ENC_BIG_ENDIAN);
 		proto_tree_add_item(pt,hf_diameter_flags_reserved4,tvb,4,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x08) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if (flags_bits & 0x08) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 		pi = proto_tree_add_item(pt,hf_diameter_flags_reserved5,tvb,4,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x04) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if (flags_bits & 0x04) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 		pi = proto_tree_add_item(pt,hf_diameter_flags_reserved6,tvb,4,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x02) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if (flags_bits & 0x02) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 		pi = proto_tree_add_item(pt,hf_diameter_flags_reserved7,tvb,4,1,ENC_BIG_ENDIAN);
-		if(flags_bits & 0x01) proto_item_set_expert_flags(pi, PI_MALFORMED, PI_WARN);
+		if (flags_bits & 0x01) expert_add_info(c->pinfo, pi, &ei_diameter_reserved_bit_set);
 	}
 
 	cmd_item = proto_tree_add_item(diam_tree,hf_diameter_code,tvb,5,3,ENC_BIG_ENDIAN);
@@ -894,7 +1048,7 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			guint32 vendorid = tvb_get_ntohl(tvb,8);
 			diam_vnd_t *vendor;
 
-			if (! ( vendor = (diam_vnd_t *)emem_tree_lookup32(dictionary.vnds,vendorid) ) ) {
+			if (! ( vendor = (diam_vnd_t *)wmem_tree_lookup32(dictionary.vnds,vendorid) ) ) {
 				vendor = &unknown_vendor;
 			}
 
@@ -905,19 +1059,15 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			break;
 		}
 		case DIAMETER_RFC: {
-			/* Store the application id to be used by subdissectors */
-			pinfo->private_data = &fourth;
 
 			cmd_vs = (value_string *)(void *)all_cmds->data;
 
 			app_item = proto_tree_add_item(diam_tree, hf_diameter_application_id, tvb, 8, 4, ENC_BIG_ENDIAN);
-			if (match_strval(fourth, dictionary.applications) == NULL) {
+
+			if (try_val_to_str(diam_sub_dis_inf->application_id, dictionary.applications) == NULL) {
 				proto_tree *tu = proto_item_add_subtree(app_item,ett_unknown);
-				proto_item *iu = proto_tree_add_text(tu, tvb, 8, 4, "Unknown Application Id, "
-				                                     "if you know what this is you can add it to dictionary.xml");
-				expert_add_info_format(c->pinfo, iu, PI_UNDECODED, PI_WARN,
-				                       "Unknown Application Id (%u)", fourth);
-				PROTO_ITEM_SET_GENERATED(iu);
+				proto_tree_add_expert_format(tu, c->pinfo, &ei_diameter_application_id, tvb, 8, 4,
+					"Unknown Application Id (%u), if you know what this is you can add it to dictionary.xml", diam_sub_dis_inf->application_id);
 			}
 
 			c->version_rfc = TRUE;
@@ -926,9 +1076,7 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		default:
 		{
 			proto_tree *pt = proto_item_add_subtree(version_item,ett_err);
-			proto_item *pi_local = proto_tree_add_text(pt,tvb,0,1,"Unknown Diameter Version (decoding as RFC 3588)");
-			expert_add_info_format(pinfo, pi_local, PI_UNDECODED, PI_WARN, "Unknown Diameter Version");
-			PROTO_ITEM_SET_GENERATED(pi);
+			proto_tree_add_expert(pt, pinfo, &ei_diameter_version, tvb, 0, 1);
 			c->version_rfc = TRUE;
 			cmd_vs = VND_CMD_VS(&no_vnd);
 			break;
@@ -937,25 +1085,25 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	cmd_str = val_to_str_const(cmd, cmd_vs, "Unknown");
 
 	col_add_fstr(pinfo->cinfo, COL_INFO,
-			 "cmd=%s%s(%d) flags=%s %s=%s(%d) h2h=%x e2e=%x",
-			 cmd_str,
-			 ((flags_bits>>4)&0x08) ? "Request" : "Answer",
-			 cmd,
-			 msgflags_str[((flags_bits>>4)&0x0f)],
-			 c->version_rfc ? "appl" : "vend",
-			 val_to_str_const(fourth, c->version_rfc ? dictionary.applications : vnd_short_vs, "Unknown"),
-			 fourth,
-			 tvb_get_ntohl(tvb,12),
-			 tvb_get_ntohl(tvb,16));
+		     "cmd=%s%s(%d) flags=%s %s=%s(%d) h2h=%x e2e=%x",
+		     cmd_str,
+		     ((flags_bits>>4)&0x08) ? " Request" : " Answer",
+		     cmd,
+		     msgflags_str[((flags_bits>>4)&0x0f)],
+		     c->version_rfc ? "appl" : "vend",
+		     val_to_str_const(diam_sub_dis_inf->application_id, c->version_rfc ? dictionary.applications : vnd_short_vs, "Unknown"),
+		     diam_sub_dis_inf->application_id,
+		     tvb_get_ntohl(tvb,12),
+		     tvb_get_ntohl(tvb,16));
+
+	col_append_str(pinfo->cinfo, COL_INFO, " | ");
+	col_set_fence(pinfo->cinfo, COL_INFO);
 
 	/* Append name to command item, warn if unknown */
 	proto_item_append_text(cmd_item," %s", cmd_str);
 	if (strcmp(cmd_str, "Unknown") == 0) {
 		proto_tree *tu = proto_item_add_subtree(cmd_item,ett_unknown);
-		proto_item *iu = proto_tree_add_text(tu,tvb, 5 ,3,"Unknown command, "
-		                                     "if you know what this is you can add it to dictionary.xml");
-		expert_add_info_format(c->pinfo, iu, PI_UNDECODED, PI_WARN, "Unknown command (%u)", cmd);
-		PROTO_ITEM_SET_GENERATED(iu);
+		proto_tree_add_expert(tu, c->pinfo, &ei_diameter_code, tvb, 5, 3);
 	}
 
 
@@ -966,7 +1114,7 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	/* Conversation tracking stuff */
 	/*
-	 * FIXME: Looking at epan/conversation.c it seems unlike that this will work properly in
+	 * FIXME: Looking at epan/conversation.c it seems unlikely that this will work properly in
 	 * multi-homed SCTP connections. This will probably need to be fixed at some point.
 	 */
 
@@ -974,27 +1122,26 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	diameter_conv_info = (diameter_conv_info_t *)conversation_get_proto_data(conversation, proto_diameter);
 	if (!diameter_conv_info) {
-		diameter_conv_info = (diameter_conv_info_t *)se_alloc(sizeof(diameter_conv_info_t));
-		diameter_conv_info->pdus_tree = se_tree_create_non_persistent(
-					EMEM_TREE_TYPE_RED_BLACK, "diameter_pdu_trees");
+		diameter_conv_info = wmem_new(wmem_file_scope(), diameter_conv_info_t);
+		diameter_conv_info->pdus_tree = wmem_map_new(wmem_file_scope(), g_direct_hash, g_direct_equal);
 
 		conversation_add_proto_data(conversation, proto_diameter, diameter_conv_info);
 	}
 
-	/* pdus_tree is an se_tree keyed by frame number (in order to handle hop-by-hop collisions */
-	pdus_tree = (emem_tree_t *)se_tree_lookup32(diameter_conv_info->pdus_tree, hop_by_hop_id);
+	/* pdus_tree is an wmem_tree keyed by frame number (in order to handle hop-by-hop collisions */
+	pdus_tree = (wmem_tree_t *)wmem_map_lookup(diameter_conv_info->pdus_tree, GUINT_TO_POINTER(hop_by_hop_id));
 
 	if (pdus_tree == NULL && (flags_bits & DIAM_FLAGS_R)) {
 		/* This is the first request we've seen with this hop-by-hop id */
-		pdus_tree = se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "diameter_pdus");
-		se_tree_insert32(diameter_conv_info->pdus_tree, hop_by_hop_id, pdus_tree);
+		pdus_tree = wmem_tree_new(wmem_file_scope());
+		wmem_map_insert(diameter_conv_info->pdus_tree, GUINT_TO_POINTER(hop_by_hop_id), pdus_tree);
 	}
 
 	if (pdus_tree) {
 		if (!pinfo->fd->flags.visited) {
 			if (flags_bits & DIAM_FLAGS_R) {
 				/* This is a request */
-				diameter_pair = (diameter_req_ans_pair_t *)se_alloc(sizeof(diameter_req_ans_pair_t));
+				diameter_pair = wmem_new(wmem_file_scope(), diameter_req_ans_pair_t);
 				diameter_pair->hop_by_hop_id = hop_by_hop_id;
 				diameter_pair->end_to_end_id = end_to_end_id;
 				diameter_pair->cmd_code = cmd;
@@ -1003,10 +1150,10 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				diameter_pair->req_frame = PINFO_FD_NUM(pinfo);
 				diameter_pair->ans_frame = 0;
 				diameter_pair->req_time = pinfo->fd->abs_ts;
-				se_tree_insert32(pdus_tree, PINFO_FD_NUM(pinfo), (void *)diameter_pair);
+				wmem_tree_insert32(pdus_tree, PINFO_FD_NUM(pinfo), (void *)diameter_pair);
 			} else {
 				/* Look for a request which occurs earlier in the trace than this answer. */
-				diameter_pair = (diameter_req_ans_pair_t *)se_tree_lookup32_le(pdus_tree, PINFO_FD_NUM(pinfo));
+				diameter_pair = (diameter_req_ans_pair_t *)wmem_tree_lookup32_le(pdus_tree, PINFO_FD_NUM(pinfo));
 
 				/* Verify the end-to-end-id matches before declaring a match */
 				if (diameter_pair && diameter_pair->end_to_end_id == end_to_end_id) {
@@ -1015,7 +1162,7 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			}
 		} else {
 			/* Look for a request which occurs earlier in the trace than this answer. */
-			diameter_pair = (diameter_req_ans_pair_t *)se_tree_lookup32_le(pdus_tree, PINFO_FD_NUM(pinfo));
+			diameter_pair = (diameter_req_ans_pair_t *)wmem_tree_lookup32_le(pdus_tree, PINFO_FD_NUM(pinfo));
 
 			/* If the end-to-end ID doesn't match then this is not the request we were
 			 * looking for.
@@ -1027,7 +1174,7 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	if (!diameter_pair) {
 		/* create a "fake" diameter_pair structure */
-		diameter_pair = (diameter_req_ans_pair_t *)ep_alloc(sizeof(diameter_req_ans_pair_t));
+		diameter_pair = (diameter_req_ans_pair_t *)wmem_alloc(wmem_packet_scope(), sizeof(diameter_req_ans_pair_t));
 		diameter_pair->hop_by_hop_id = hop_by_hop_id;
 		diameter_pair->cmd_code = cmd;
 		diameter_pair->result_code = 0;
@@ -1036,53 +1183,53 @@ dissect_diameter_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		diameter_pair->ans_frame = 0;
 		diameter_pair->req_time = pinfo->fd->abs_ts;
 	}
-	diameter_pair->processing_request=(flags_bits & DIAM_FLAGS_R)!=0;
+	diameter_pair->processing_request=(flags_bits & DIAM_FLAGS_R)!= 0;
 
-	if (!tree) return;
+	if (tree){
+		/* print state tracking info in the tree */
+		if (flags_bits & DIAM_FLAGS_R) {
+			/* This is a request */
+			if (diameter_pair->ans_frame) {
+				it = proto_tree_add_uint(diam_tree, hf_diameter_answer_in,
+						tvb, 0, 0, diameter_pair->ans_frame);
+				PROTO_ITEM_SET_GENERATED(it);
+			}
+		} else {
+			/* This is an answer */
+			if (diameter_pair->req_frame) {
+				it = proto_tree_add_uint(diam_tree, hf_diameter_answer_to,
+						tvb, 0, 0, diameter_pair->req_frame);
+				PROTO_ITEM_SET_GENERATED(it);
 
-	/* print state tracking info in the tree */
-	if (flags_bits & DIAM_FLAGS_R) {
-		/* This is a request */
-		if (diameter_pair->ans_frame) {
-			it = proto_tree_add_uint(diam_tree, hf_diameter_answer_in,
-					tvb, 0, 0, diameter_pair->ans_frame);
-			PROTO_ITEM_SET_GENERATED(it);
+				nstime_delta(&ns, &pinfo->fd->abs_ts, &diameter_pair->req_time);
+				diameter_pair->srt_time = ns;
+				it = proto_tree_add_time(diam_tree, hf_diameter_answer_time, tvb, 0, 0, &ns);
+				PROTO_ITEM_SET_GENERATED(it);
+				/* TODO: Populate result_code in tap record from AVP 268 */
+			}
 		}
-	} else {
-		/* This is an answer */
-		if (diameter_pair->req_frame) {
-			it = proto_tree_add_uint(diam_tree, hf_diameter_answer_to,
-					tvb, 0, 0, diameter_pair->req_frame);
-			PROTO_ITEM_SET_GENERATED(it);
 
-			nstime_delta(&ns, &pinfo->fd->abs_ts, &diameter_pair->req_time);
-			diameter_pair->srt_time = ns;
-			it = proto_tree_add_time(diam_tree, hf_diameter_answer_time, tvb, 0, 0, &ns);
-			PROTO_ITEM_SET_GENERATED(it);
-			/* TODO: Populate result_code in tap record from AVP 268 */
+		offset = 20;
+
+		/* Dissect AVPs until the end of the packet is reached */
+		while (offset < packet_len) {
+			offset += dissect_diameter_avp(c, tvb, offset, diam_sub_dis_inf);
 		}
 	}
-
-	offset = 20;
-
-	/* Dissect AVPs until the end of the packet is reached */
-	while (offset < packet_len) {
-		offset += dissect_diameter_avp(c, tvb, offset);
-
-		/* Skip to next 4-byte boundary */
-		offset +=  (offset % 4) ? 4 - (offset % 4) : 0 ;
-	}
-
 
 	/* Handle requests for which no answers were found and
 	 * anawers for which no requests were found in the tap listener.
 	 * In case if you don't need unpaired requests/answers use:
-	 * if(diameter_pair->processing_request || !diameter_pair->req_frame)
+	 * if (diameter_pair->processing_request || !diameter_pair->req_frame)
 	 *   return;
 	 */
 	tap_queue_packet(diameter_tap, pinfo, diameter_pair);
 
-	pinfo->private_data = pd_save;
+	if (have_tap_listener(exported_pdu_tap)){
+		export_diameter_pdu(pinfo,tvb);
+	}
+
+	return tvb_length(tvb);
 }
 
 static guint
@@ -1095,33 +1242,69 @@ get_diameter_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 static gboolean
 check_diameter(tvbuff_t *tvb)
 {
-	if (tvb_length(tvb) < 1)
-		return FALSE;   /* not enough bytes to check the version */
+	guint32 diam_len;
+	guint8 flags;
 
+	/* Ensure we don't throw an exception trying to do these heuristics */
+	if (tvb_length(tvb) < 5)
+		return FALSE;
+
+	/* Check if the Diameter version is 1 */
 	if (tvb_get_guint8(tvb, 0) != 1)
-		return FALSE;   /* not version 1 */
+		return FALSE;
 
-		  /*
-		   * XXX - fetch length and make sure it's at least MIN_DIAMETER_SIZE?
-		   * Fetch flags and check that none of the DIAM_FLAGS_RESERVED bits
-		   * are set?
-		   */
+	/* Check if the message size is reasonable.
+	 * Diameter messages can technically be of any size; this limit
+	 * is just a practical one (feel free to tune it).
+	 */
+	diam_len = tvb_get_ntoh24(tvb, 1);
+	if (diam_len > 65534)
+		return FALSE;
+
+	/* Diameter minimum message length:
+	 *
+	 * Version+Length - 4 bytes
+	 * Flags+CC - 4 bytes
+	 * AppID - 4 bytes
+	 * HbH - 4 bytes
+	 * E2E - 4 bytes
+	 * 2 AVPs (Orig-Host, Orig-Realm), each including:
+	 *  * AVP code - 4 bytes
+	 *  * AVP flags + length - 4 bytes
+	 *  * (no data - what would a reasonable minimum be?)
+	 *
+	 * --> 36 bytes
+	 */
+	if (diam_len < 36)
+		return FALSE;
+
+	flags = tvb_get_guint8(tvb, 4);
+
+	/* Check if any of the Reserved flag bits are set */
+	if (flags & 0x0f)
+		return FALSE;
+
+	/* Check if both the R- and E-bits are set */
+	if ((flags & DIAM_FLAGS_R) && (flags & DIAM_FLAGS_E))
+		return FALSE;
+
 	return TRUE;
 }
 
-/************************************************/
-/* Main dissection function                     */
+/*****************************************************************/
+/* Main dissection function                                      */
+/* Checks if the message looks like Diameter before accepting it */
+/*****************************************************************/
 static int
-dissect_diameter(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_diameter(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 	if (!check_diameter(tvb))
 		return 0;
-	dissect_diameter_common(tvb, pinfo, tree);
-	return tvb_length(tvb);
+	return dissect_diameter_common(tvb, pinfo, tree, data);
 }
 
-static void
-dissect_diameter_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_diameter_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 	/* Check if we have the start of a PDU or if this is segment */
 	if (!check_diameter(tvb)) {
@@ -1130,8 +1313,10 @@ dissect_diameter_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		call_dissector(data_handle, tvb, pinfo, tree);
 	} else {
 		tcp_dissect_pdus(tvb, pinfo, tree, gbl_diameter_desegment, 4,
-				 get_diameter_pdu_len, dissect_diameter_common);
+				 get_diameter_pdu_len, dissect_diameter_common, data);
 	}
+
+	return tvb_length(tvb);
 }
 
 
@@ -1156,84 +1341,93 @@ alnumerize(char *name)
 
 static guint
 reginfo(int *hf_ptr, const char *name, const char *abbr, const char *desc,
-	enum ftenum ft, base_display_e base, value_string_ext *vs_ext,
+	enum ftenum ft, field_display_e base, const value_string_ext *vs_ext,
 	guint32 mask)
 {
-	hf_register_info hf = { hf_ptr, {
-				name ? wmem_strdup(wmem_epan_scope(), name) : wmem_strdup(wmem_epan_scope(), abbr),
-				wmem_strdup(wmem_epan_scope(), abbr),
-				ft,
-				base,
-				NULL,
-				mask,
-				wmem_strdup(wmem_epan_scope(), desc),
-				HFILL }};
+	hf_register_info hf;
 
-	if(vs_ext) {
+	hf.p_id					= hf_ptr;
+	hf.hfinfo.name				= name;
+	hf.hfinfo.abbrev			= abbr;
+	hf.hfinfo.type				= ft;
+	hf.hfinfo.display			= base;
+	hf.hfinfo.strings			= NULL;
+	hf.hfinfo.bitmask			= mask;
+	hf.hfinfo.blurb				= desc;
+	/* HFILL */
+	HFILL_INIT(hf);
+
+	if (vs_ext) {
 		hf.hfinfo.strings = vs_ext;
 	}
 
-	g_array_append_vals(build_dict.hf,&hf,1);
-	return build_dict.hf->len - 1;
+	wmem_array_append_one(build_dict.hf,hf);
+	return wmem_array_get_count(build_dict.hf);
 }
 
 static void
 basic_avp_reginfo(diam_avp_t *a, const char *name, enum ftenum ft,
-		  base_display_e base, value_string_ext *vs_ext)
+		  field_display_e base, const value_string_ext *vs_ext)
 {
-	hf_register_info hf[] = { { &(a->hf_value),
-				  { NULL, NULL, ft, base, NULL, 0x0,
-				  a->vendor->code ?
-				  wmem_strdup_printf(wmem_epan_scope(), "vendor=%d code=%d", a->vendor->code, a->code)
-				  : wmem_strdup_printf(wmem_epan_scope(), "code=%d", a->code),
-				  HFILL }}
-	};
+	hf_register_info hf;
 	gint *ettp = &(a->ett);
 
-	hf->hfinfo.name = wmem_strdup_printf(wmem_epan_scope(), "%s",name);
-	hf->hfinfo.abbrev = alnumerize(wmem_strdup_printf(wmem_epan_scope(), "diameter.%s",name));
-	if(vs_ext) {
-		hf->hfinfo.strings = vs_ext;
+	hf.p_id					= &(a->hf_value);
+	hf.hfinfo.name				= NULL;
+	hf.hfinfo.abbrev			= NULL;
+	hf.hfinfo.type				= ft;
+	hf.hfinfo.display			= base;
+	hf.hfinfo.strings			= NULL;
+	hf.hfinfo.bitmask			= 0x0;
+	hf.hfinfo.blurb				= a->vendor->code ?
+						    wmem_strdup_printf(wmem_epan_scope(), "vendor=%d code=%d", a->vendor->code, a->code)
+						  : wmem_strdup_printf(wmem_epan_scope(), "code=%d", a->code);
+	/* HFILL */
+	HFILL_INIT(hf);
+
+	hf.hfinfo.name = wmem_strdup_printf(wmem_epan_scope(), "%s",name);
+	hf.hfinfo.abbrev = alnumerize(wmem_strdup_printf(wmem_epan_scope(), "diameter.%s",name));
+	if (vs_ext) {
+		hf.hfinfo.strings = vs_ext;
 	}
 
-	g_array_append_vals(build_dict.hf,hf,1);
+	wmem_array_append(build_dict.hf,&hf,1);
 	g_ptr_array_add(build_dict.ett,ettp);
 }
 
 static diam_avp_t *
 build_address_avp(const avp_type_t *type _U_, guint32 code,
-		  const diam_vnd_t *vendor, const char *name,
+		  diam_vnd_t *vendor, const char *name,
 		  const value_string *vs _U_, void *data _U_)
 {
-	diam_avp_t *a = (diam_avp_t *)g_malloc0(sizeof(diam_avp_t));
-	address_avp_t *t = (address_avp_t *)g_malloc(sizeof(address_avp_t));
+	diam_avp_t *a = wmem_new0(wmem_epan_scope(), diam_avp_t);
+	address_avp_t *t = wmem_new(wmem_epan_scope(), address_avp_t);
 	gint *ettp = &(t->ett);
 
 	a->code = code;
 	a->vendor = vendor;
 /*
-It seems like the radius AVP:s 1-255 will use the defs from RADIUS in which case:
-http://www.ietf.org/rfc/rfc2865.txt?number=2865
-Address
-
-      The Address field is four octets.  The value 0xFFFFFFFF indicates
-      that the NAS Should allow the user to select an address (e.g.
-      Negotiated).  The value 0xFFFFFFFE indicates that the NAS should
-      select an address for the user (e.g. Assigned from a pool of
-      addresses kept by the NAS).  Other valid values indicate that the
-      NAS should use that value as the user's IP address.
-Where as in Diameter:
-RFC3588
-   Address
-      The Address format is derived from the OctetString AVP Base
-      Format.  It is a discriminated union, representing, for example a
-      32-bit (IPv4) [IPV4] or 128-bit (IPv6) [IPV6] address, most
-      significant octet first.  The first two octets of the Address
-      AVP represents the AddressType, which contains an Address Family
-      defined in [IANAADFAM].  The AddressType is used to discriminate
-      the content and format of the remaining octets.
-
-*/
+ * It seems like the radius AVPs 1-255 will use the defs from RADIUS in which case:
+ * http://www.ietf.org/rfc/rfc2865.txt?number=2865
+ * Address
+ *    The Address field is four octets.  The value 0xFFFFFFFF indicates
+ *    that the NAS Should allow the user to select an address (e.g.
+ *    Negotiated).  The value 0xFFFFFFFE indicates that the NAS should
+ *    select an address for the user (e.g. Assigned from a pool of
+ *    addresses kept by the NAS).  Other valid values indicate that the
+ *    NAS should use that value as the user's IP address.
+ *
+ * Where as in Diameter:
+ * RFC3588
+ * Address
+ *    The Address format is derived from the OctetString AVP Base
+ *    Format.  It is a discriminated union, representing, for example a
+ *    32-bit (IPv4) [IPV4] or 128-bit (IPv6) [IPV6] address, most
+ *    significant octet first.  The first two octets of the Address
+ *    AVP represents the AddressType, which contains an Address Family
+ *    defined in [IANAADFAM].  The AddressType is used to discriminate
+ *    the content and format of the remaining octets.
+ */
 	a->dissector_v16 = address_v16_avp;
 	if (code<256) {
 		a->dissector_rfc = address_v16_avp;
@@ -1250,22 +1444,22 @@ RFC3588
 	t->hf_ipv6 = -1;
 	t->hf_other = -1;
 
-	basic_avp_reginfo(a,name,FT_BYTES,BASE_NONE,NULL);
+	basic_avp_reginfo(a, name, FT_BYTES, BASE_NONE, NULL);
 
-	reginfo(&(t->hf_address_type), ep_strdup_printf("%s Address Family",name),
-		alnumerize(ep_strdup_printf("diameter.%s.addr_family",name)),
-		NULL, FT_UINT16, (base_display_e)(BASE_DEC|BASE_EXT_STRING), &diameter_avp_data_addrfamily_vals_ext, 0);
+	reginfo(&(t->hf_address_type), wmem_strdup_printf(wmem_epan_scope(), "%s Address Family",name),
+		alnumerize(wmem_strdup_printf(wmem_epan_scope(), "diameter.%s.addr_family",name)),
+		NULL, FT_UINT16, (field_display_e)(BASE_DEC|BASE_EXT_STRING), &diameter_avp_data_addrfamily_vals_ext, 0);
 
-	reginfo(&(t->hf_ipv4), ep_strdup_printf("%s Address",name),
-		alnumerize(ep_strdup_printf("diameter.%s.IPv4",name)),
+	reginfo(&(t->hf_ipv4), wmem_strdup_printf(wmem_epan_scope(), "%s Address",name),
+		alnumerize(wmem_strdup_printf(wmem_epan_scope(), "diameter.%s.IPv4",name)),
 		NULL, FT_IPv4, BASE_NONE, NULL, 0);
 
-	reginfo(&(t->hf_ipv6), ep_strdup_printf("%s Address",name),
-		alnumerize(ep_strdup_printf("diameter.%s.IPv6",name)),
+	reginfo(&(t->hf_ipv6), wmem_strdup_printf(wmem_epan_scope(), "%s Address",name),
+		alnumerize(wmem_strdup_printf(wmem_epan_scope(), "diameter.%s.IPv6",name)),
 		NULL, FT_IPv6, BASE_NONE, NULL, 0);
 
-	reginfo(&(t->hf_other), ep_strdup_printf("%s Address",name),
-		alnumerize(ep_strdup_printf("diameter.%s.Bytes",name)),
+	reginfo(&(t->hf_other), wmem_strdup_printf(wmem_epan_scope(), "%s Address",name),
+		alnumerize(wmem_strdup_printf(wmem_epan_scope(), "diameter.%s.Bytes",name)),
 		NULL, FT_BYTES, BASE_NONE, NULL, 0);
 
 	g_ptr_array_add(build_dict.ett,ettp);
@@ -1275,7 +1469,7 @@ RFC3588
 
 static diam_avp_t *
 build_proto_avp(const avp_type_t *type _U_, guint32 code,
-		const diam_vnd_t *vendor, const char *name _U_,
+		diam_vnd_t *vendor, const char *name _U_,
 		const value_string *vs _U_, void *data)
 {
 	diam_avp_t *a = (diam_avp_t *)g_malloc0(sizeof(diam_avp_t));
@@ -1300,18 +1494,18 @@ build_proto_avp(const avp_type_t *type _U_, guint32 code,
 }
 
 static diam_avp_t *
-build_simple_avp(const avp_type_t *type, guint32 code, const diam_vnd_t *vendor,
+build_simple_avp(const avp_type_t *type, guint32 code, diam_vnd_t *vendor,
 		 const char *name, const value_string *vs, void *data _U_)
 {
 	diam_avp_t *a;
-	value_string_ext *vs_ext = NULL;
-	base_display_e base;
+	const value_string_ext *vs_ext = NULL;
+	field_display_e base;
 	guint i = 0;
 
 	/*
 	 * Only 32-bit or shorter integral types can have a list of values.
 	 */
-	base = (base_display_e)type->base;
+	base = (field_display_e)type->base;
 	if (vs != NULL) {
 		switch (type->ft) {
 
@@ -1331,8 +1525,8 @@ build_simple_avp(const avp_type_t *type, guint32 code, const diam_vnd_t *vendor,
 		while (vs[i].strptr) {
 		  i++;
 		}
-		vs_ext = value_string_ext_new((value_string *)vs, i+1, wmem_strdup_printf(wmem_epan_scope(), "%s_vals_ext",name));
-		base = (base_display_e)(base|BASE_EXT_STRING);
+		vs_ext = value_string_ext_new(vs, i+1, wmem_strdup_printf(wmem_epan_scope(), "%s_vals_ext",name));
+		base = (field_display_e)(base|BASE_EXT_STRING);
 	}
 
 	a = (diam_avp_t *)wmem_alloc0(wmem_epan_scope(), sizeof(diam_avp_t));
@@ -1343,7 +1537,7 @@ build_simple_avp(const avp_type_t *type, guint32 code, const diam_vnd_t *vendor,
 	a->ett = -1;
 	a->hf_value = -1;
 
-	basic_avp_reginfo(a,name,type->ft,base,vs_ext);
+	basic_avp_reginfo(a, name, type->ft, base, vs_ext);
 
 	return a;
 }
@@ -1431,7 +1625,7 @@ dictionary_load(void)
 	ddict_avp_t *a;
 	gboolean do_debug_parser = getenv("WIRESHARK_DEBUG_DIAM_DICT_PARSER") ? TRUE : FALSE;
 	gboolean do_dump_dict = getenv("WIRESHARK_DUMP_DIAM_DICT") ? TRUE : FALSE;
-	char *dir = ep_strdup_printf("%s" G_DIR_SEPARATOR_S "diameter" G_DIR_SEPARATOR_S, get_datafile_dir());
+	char *dir;
 	const avp_type_t *type;
 	const avp_type_t *octetstring = &basic_types[0];
 	diam_avp_t *avp;
@@ -1439,13 +1633,13 @@ dictionary_load(void)
 	diam_vnd_t *vnd;
 	GArray *vnd_shrt_arr = g_array_new(TRUE,TRUE,sizeof(value_string));
 
-	build_dict.hf = g_array_new(FALSE,TRUE,sizeof(hf_register_info));
+	build_dict.hf = wmem_array_new(wmem_epan_scope(),sizeof(hf_register_info));
 	build_dict.ett = g_ptr_array_new();
 	build_dict.types = g_hash_table_new(strcase_hash,strcase_equal);
 	build_dict.avps = g_hash_table_new(strcase_hash,strcase_equal);
 
-	dictionary.vnds = pe_tree_create(EMEM_TREE_TYPE_RED_BLACK,"diameter_vnds");
-	dictionary.avps = pe_tree_create(EMEM_TREE_TYPE_RED_BLACK,"diameter_avps");
+	dictionary.vnds = wmem_tree_new(wmem_epan_scope());
+	dictionary.avps = wmem_tree_new(wmem_epan_scope());
 
 	unknown_vendor.vs_cmds = g_array_new(TRUE,TRUE,sizeof(value_string));
 	unknown_vendor.vs_avps = g_array_new(TRUE,TRUE,sizeof(value_string));
@@ -1454,7 +1648,7 @@ dictionary_load(void)
 
 	all_cmds = g_array_new(TRUE,TRUE,sizeof(value_string));
 
-	pe_tree_insert32(dictionary.vnds,0,&no_vnd);
+	wmem_tree_insert32(dictionary.vnds,0,&no_vnd);
 	g_hash_table_insert(vendors,(gchar *)"None",&no_vnd);
 
 	/* initialize the types hash with the known basic types */
@@ -1463,7 +1657,9 @@ dictionary_load(void)
 	}
 
 	/* load the dictionary */
+	dir = g_strdup_printf("%s" G_DIR_SEPARATOR_S "diameter" G_DIR_SEPARATOR_S, get_datafile_dir());
 	d = ddict_scan(dir,"dictionary.xml",do_debug_parser);
+	g_free(dir);
 	if (d == NULL) {
 		return 0;
 	}
@@ -1500,7 +1696,10 @@ dictionary_load(void)
 		GArray *arr = g_array_new(TRUE,TRUE,sizeof(value_string));
 
 		for (; p; p = p->next) {
-			value_string item = {p->code,p->name};
+			value_string item[1];
+
+			item[0].value = p->code;
+			item[0].strptr = p->name;
 			g_array_append_val(arr,item);
 		}
 
@@ -1510,7 +1709,10 @@ dictionary_load(void)
 
 	if ((v = d->vendors)) {
 		for ( ; v; v = v->next) {
-			value_string item = {v->code,v->name};
+			value_string item[1];
+
+			item[0].value = v->code;
+			item[0].strptr = v->name;
 
 			if (v->name == NULL) {
 				fprintf(stderr,"Diameter Dictionary: Invalid Vendor (empty name): code==%d\n",v->code);
@@ -1522,12 +1724,12 @@ dictionary_load(void)
 
 			g_array_append_val(vnd_shrt_arr,item);
 
-			vnd = (diam_vnd_t *)g_malloc(sizeof(diam_vnd_t));
+			vnd = wmem_new(wmem_epan_scope(), diam_vnd_t);
 			vnd->code = v->code;
 			vnd->vs_cmds = g_array_new(TRUE,TRUE,sizeof(value_string));
 			vnd->vs_avps = g_array_new(TRUE,TRUE,sizeof(value_string));
 			vnd->vs_avps_ext = NULL;
-			pe_tree_insert32(dictionary.vnds,vnd->code,vnd);
+			wmem_tree_insert32(dictionary.vnds,vnd->code,vnd);
 			g_hash_table_insert(vendors,v->name,vnd);
 		}
 	}
@@ -1544,7 +1746,11 @@ dictionary_load(void)
 			}
 
 			if ((vnd = (diam_vnd_t *)g_hash_table_lookup(vendors,c->vendor))) {
-				value_string item = {c->code,c->name};
+				value_string item[1];
+
+				item[0].value =  c->code;
+				item[0].strptr = c->name;
+
 				g_array_append_val(vnd->vs_cmds,item);
 				/* Also add to all_cmds as used by RFC version */
 				g_array_append_val(all_cmds,item);
@@ -1568,7 +1774,12 @@ dictionary_load(void)
 		}
 
 		if ((vnd = (diam_vnd_t *)g_hash_table_lookup(vendors,vend))) {
-			value_string vndvs = {a->code,a->name};
+			value_string vndvs[1];
+
+			vndvs[0].value =  a->code;
+			vndvs[0].strptr = a->name;
+
+
 			g_array_append_val(vnd->vs_avps,vndvs);
 		} else {
 			fprintf(stderr,"Diameter Dictionary: No Vendor: %s\n",vend);
@@ -1576,14 +1787,22 @@ dictionary_load(void)
 		}
 
 		if ((e = a->enums)) {
-			GArray *arr = g_array_new(TRUE,TRUE,sizeof(value_string));
+			wmem_array_t *arr = wmem_array_new(wmem_epan_scope(), sizeof(value_string));
+			value_string term[1];
+
+			term[0].value =  0;
+			term[0].strptr = NULL;
 
 			for (; e; e = e->next) {
-				value_string item = {e->code,e->name};
-				g_array_append_val(arr,item);
+				value_string item[1];
+
+				item[0].value =  e->code;
+				item[0].strptr = e->name;
+				wmem_array_append_one(arr,item);
 			}
-			g_array_sort(arr, compare_avps);
-			vs = (value_string *)arr->data;
+			wmem_array_sort(arr, compare_avps);
+			wmem_array_append_one(arr,term);
+			vs = (value_string *)wmem_array_get_raw(arr);
 		}
 
 		type = NULL;
@@ -1610,12 +1829,16 @@ dictionary_load(void)
 			g_hash_table_insert(build_dict.avps, a->name, avp);
 
 			{
-				emem_tree_key_t k[] = {
-					{ 1, &(a->code) },
-					{ 1, &(vnd->code) },
-					{ 0 , NULL }
-				};
-				pe_tree_insert32_array(dictionary.avps,k,avp);
+				wmem_tree_key_t k[3];
+
+				k[0].length = 1;
+				k[0].key	= &(a->code);
+				k[1].length = 1;
+				k[1].key	= &(vnd->code);
+				k[2].length = 0;
+				k[2].key	= NULL;
+
+				wmem_tree_insert32_array(dictionary.avps,k,avp);
 			}
 		}
 	}
@@ -1626,33 +1849,6 @@ dictionary_load(void)
 	return 1;
 }
 
-static void
-tcp_range_delete_callback(guint32 port)
-{
-	dissector_delete_uint("tcp.port", port, diameter_tcp_handle);
-}
-
-static void
-tcp_range_add_callback(guint32 port)
-{
-	dissector_add_uint("tcp.port", port, diameter_tcp_handle);
-}
-
-static void
-sctp_range_delete_callback(guint32 port)
-{
-	dissector_delete_uint("sctp.port", port, diameter_sctp_handle);
-}
-
-static void
-sctp_range_add_callback(guint32 port)
-{
-	dissector_add_uint("sctp.port", port, diameter_sctp_handle);
-}
-
-/* registration with the filtering engine */
-void proto_reg_handoff_diameter(void);
-
 /*
  * This does most of the registration work; see proto_register_diameter()
  * for the reason why we split it off.
@@ -1661,6 +1857,7 @@ static void
 real_proto_register_diameter(void)
 {
 	module_t *diameter_module;
+	expert_module_t* expert_diameter;
 	guint i, ett_length;
 
 	hf_register_info hf_base[] = {
@@ -1715,6 +1912,8 @@ real_proto_register_diameter(void)
 	{ &hf_diameter_avp_len,
 		  { "AVP Length","diameter.avp.len", FT_UINT24, BASE_DEC,
 			  NULL, 0x0, NULL, HFILL }},
+	{ &hf_diameter_avp_code,
+		  { "AVP Code", "diameter.avp.code", FT_UINT32, BASE_DEC, NULL, 0, NULL, HFILL }},
 	{ &hf_diameter_avp_flags,
 		  { "AVP Flags","diameter.avp.flags", FT_UINT8, BASE_HEX,
 			  NULL, 0x0, NULL, HFILL }},
@@ -1746,15 +1945,13 @@ real_proto_register_diameter(void)
 		  { "AVP Vendor Id","diameter.avp.vendorId", FT_UINT32, BASE_DEC|BASE_EXT_STRING,
 			  &sminmpec_values_ext, 0x0, NULL, HFILL }},
 	{ &(unknown_avp.hf_value),
-		  { "Value","diameter.avp.unknown", FT_BYTES, BASE_NONE,
-			  NULL, 0x0, NULL, HFILL }},
+		  { "Value","diameter.avp.unknown", FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }},
 	{ &hf_diameter_avp_data_wrong_length,
-		  { "Data","diameter.avp.invalid-data", FT_BYTES, BASE_NONE,
-		    NULL, 0x0, NULL, HFILL }},
+		  { "Data","diameter.avp.invalid-data", FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+	{ &hf_diameter_avp_pad,
+		  { "Padding","diameter.avp.pad", FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }},
 	{ &hf_diameter_code,
 		  { "Command Code", "diameter.cmd.code", FT_UINT32, BASE_DEC, NULL, 0, NULL, HFILL }},
-	{ &hf_diameter_avp_code,
-		  { "AVP Code", "diameter.avp.code", FT_UINT32, BASE_DEC, NULL, 0, NULL, HFILL }},
 	{ &hf_diameter_answer_in,
 		{ "Answer In", "diameter.answer_in", FT_FRAMENUM, BASE_NONE, NULL, 0x0,
 		"The answer to this diameter request is in this frame", HFILL }},
@@ -1766,20 +1963,21 @@ real_proto_register_diameter(void)
 		"The time between the request and the answer", HFILL }},
 	{ &hf_framed_ipv6_prefix_reserved,
 	    { "Framed IPv6 Prefix Reserved byte", "diameter.framed_ipv6_prefix_reserved",
-	    FT_UINT8, BASE_HEX, NULL, 0,
-	    NULL, HFILL }},
+	    FT_UINT8, BASE_HEX, NULL, 0, NULL, HFILL }},
 	{ &hf_framed_ipv6_prefix_length,
 	    { "Framed IPv6 Prefix length (in bits)", "diameter.framed_ipv6_prefix_length",
-	    FT_UINT8, BASE_DEC, NULL, 0,
-	    NULL, HFILL }},
+	    FT_UINT8, BASE_DEC, NULL, 0, NULL, HFILL }},
 	{ &hf_framed_ipv6_prefix_bytes,
 	    { "Framed IPv6 Prefix as a bytestring", "diameter.framed_ipv6_prefix_bytes",
-	    FT_BYTES, BASE_NONE, NULL, 0,
-	    NULL, HFILL }},
+	    FT_BYTES, BASE_NONE, NULL, 0, NULL, HFILL }},
 	{ &hf_framed_ipv6_prefix_ipv6,
 	    { "Framed IPv6 Prefix as an IPv6 address", "diameter.framed_ipv6_prefix_ipv6",
-	    FT_IPv6, BASE_NONE, NULL, 0,
-	    "This field is present only if the prefix length is 128", HFILL }}
+	    FT_IPv6, BASE_NONE, NULL, 0, "This field is present only if the prefix length is 128", HFILL }},
+	{ &hf_diameter_3gpp2_exp_res,
+		{ "Experimental-Result-Code", "diameter.3gpp2.exp_res",
+		FT_UINT32, BASE_DEC, VALS(diameter_3gpp2_exp_res_vals), 0x0,	NULL, HFILL }
+		},
+
 	};
 
 	gint *ett_base[] = {
@@ -1792,7 +1990,19 @@ real_proto_register_diameter(void)
 		&(unknown_avp.ett)
 	};
 
-	g_array_append_vals(build_dict.hf, hf_base, array_length(hf_base));
+	static ei_register_info ei[] = {
+		{ &ei_diameter_reserved_bit_set, { "diameter.reserved_bit_set", PI_MALFORMED, PI_WARN, "Reserved bit set", EXPFILL }},
+		{ &ei_diameter_avp_code, { "diameter.avp.code.unknown", PI_UNDECODED, PI_WARN, "Unknown AVP, if you know what this is you can add it to dictionary.xml", EXPFILL }},
+		{ &ei_diameter_avp_vendor_id, { "diameter.unknown_vendor", PI_UNDECODED, PI_WARN, "Unknown Vendor, if you know whose this is you can add it to dictionary.xml", EXPFILL }},
+		{ &ei_diameter_avp_no_data, { "diameter.avp.no_data", PI_UNDECODED, PI_WARN, "Data is empty", EXPFILL }},
+		{ &ei_diameter_avp_pad, { "diameter.avp.pad.non_zero", PI_MALFORMED, PI_NOTE, "Padding is non-zero", EXPFILL }},
+		{ &ei_diameter_avp_len, { "diameter.avp.invalid-len", PI_MALFORMED, PI_WARN, "Wrong length", EXPFILL }},
+		{ &ei_diameter_application_id, { "diameter.applicationId.unknown", PI_UNDECODED, PI_WARN, "Unknown Application Id, if you know what this is you can add it to dictionary.xml", EXPFILL }},
+		{ &ei_diameter_version, { "diameter.version.unknown", PI_UNDECODED, PI_WARN, "Unknown Diameter Version (decoding as RFC 3588)", EXPFILL }},
+		{ &ei_diameter_code, { "diameter.cmd.code.unknown", PI_UNDECODED, PI_WARN, "Unknown command, if you know what this is you can add it to dictionary.xml", EXPFILL }},
+	};
+
+	wmem_array_append(build_dict.hf, hf_base, array_length(hf_base));
 	ett_length = array_length(ett_base);
 	for (i = 0; i < ett_length; i++) {
 		g_ptr_array_add(build_dict.ett, ett_base[i]);
@@ -1800,23 +2010,27 @@ real_proto_register_diameter(void)
 
 	proto_diameter = proto_register_protocol ("Diameter Protocol", "DIAMETER", "diameter");
 
-	proto_register_field_array(proto_diameter, (hf_register_info *)(void *)build_dict.hf->data, build_dict.hf->len);
+	proto_register_field_array(proto_diameter, (hf_register_info *)wmem_array_get_raw(build_dict.hf), wmem_array_get_count(build_dict.hf));
 	proto_register_subtree_array((gint **)build_dict.ett->pdata, build_dict.ett->len);
+	expert_diameter = expert_register_protocol(proto_diameter);
+	expert_register_field_array(expert_diameter, ei, array_length(ei));
 
-	g_array_free(build_dict.hf,FALSE);
 	g_ptr_array_free(build_dict.ett,TRUE);
 
 	/* Allow dissector to find be found by name. */
 	new_register_dissector("diameter", dissect_diameter, proto_diameter);
 
-	/* Register dissector table(s) to do sub dissection of AVP:s ( OctetStrings) */
+	/* Register dissector table(s) to do sub dissection of AVPs (OctetStrings) */
 	diameter_dissector_table = register_dissector_table("diameter.base", "DIAMETER_BASE_AVPS", FT_UINT32, BASE_DEC);
 	diameter_3gpp_avp_dissector_table = register_dissector_table("diameter.3gpp", "DIAMETER_3GPP_AVPS", FT_UINT32, BASE_DEC);
 	diameter_ericsson_avp_dissector_table = register_dissector_table("diameter.ericsson", "DIAMETER_ERICSSON_AVPS", FT_UINT32, BASE_DEC);
 
+	diameter_expr_result_vnd_table = register_dissector_table("diameter.vnd_exp_res", "DIAMETER Experimental-Result-Code", FT_UINT32, BASE_DEC);
+
 	/* Set default TCP ports */
 	range_convert_str(&global_diameter_tcp_port_range, DEFAULT_DIAMETER_PORT_RANGE, MAX_UDP_PORT);
 	range_convert_str(&global_diameter_sctp_port_range, DEFAULT_DIAMETER_PORT_RANGE, MAX_SCTP_PORT);
+	range_convert_str(&global_diameter_udp_port_range, "", MAX_UDP_PORT);
 
 	/* Register configuration options for ports */
 	diameter_module = prefs_register_protocol(proto_diameter,
@@ -1840,11 +2054,15 @@ real_proto_register_diameter(void)
 				       " To use this option, you must also enable \"Allow subdissectors to reassemble TCP streams\" in the TCP protocol settings.",
 				       &gbl_diameter_desegment);
 
+	prefs_register_range_preference(diameter_module, "udp.ports", "Diameter UDP ports",
+					"UDP ports to be decoded as Diameter (default: 0 as Diameter over UDP is nonstandard)",
+					&global_diameter_udp_port_range, MAX_UDP_PORT);
+
+
 	/*  Register some preferences we no longer support, so we can report
 	 *  them as obsolete rather than just illegal.
 	 */
 	prefs_register_obsolete_preference(diameter_module, "version");
-	prefs_register_obsolete_preference(diameter_module, "udp.port");
 	prefs_register_obsolete_preference(diameter_module, "tcp.port");
 	prefs_register_obsolete_preference(diameter_module, "sctp.port");
 	prefs_register_obsolete_preference(diameter_module, "command_in_header");
@@ -1879,17 +2097,19 @@ proto_reg_handoff_diameter(void)
 	static gboolean Initialized=FALSE;
 	static range_t *diameter_tcp_port_range;
 	static range_t *diameter_sctp_port_range;
+	static range_t *diameter_udp_port_range;
 
 	if (!Initialized) {
 		diameter_sctp_handle = find_dissector("diameter");
-		diameter_tcp_handle = create_dissector_handle(dissect_diameter_tcp,
+		diameter_tcp_handle = new_create_dissector_handle(dissect_diameter_tcp,
 							      proto_diameter);
+		diameter_udp_handle = new_create_dissector_handle(dissect_diameter, proto_diameter);
 		data_handle = find_dissector("data");
 		eap_handle = find_dissector("eap");
 
 		dissector_add_uint("sctp.ppi", DIAMETER_PROTOCOL_ID, diameter_sctp_handle);
 
-		/* Register special decoding for some AVP:s */
+		/* Register special decoding for some AVPs */
 		/* AVP Code: 97 Framed-IPv6-Address */
 		dissector_add_uint("diameter.base", 97,
 			new_create_dissector_handle(dissect_diameter_base_framed_ipv6_prefix, proto_diameter));
@@ -1903,18 +2123,42 @@ proto_reg_handoff_diameter(void)
 		dissector_add_uint("diameter.base", 463,
 			new_create_dissector_handle(dissect_diameter_eap_payload, proto_diameter));
 
+		/* Register dissector for Experimental result code, with 3GPP2:s vendor Id */
+		dissector_add_uint("diameter.vnd_exp_res", VENDOR_THE3GPP2,
+			new_create_dissector_handle(dissect_diameter_3gpp2_exp_res, proto_diameter));
+
 		Initialized=TRUE;
 	} else {
-		range_foreach(diameter_tcp_port_range, tcp_range_delete_callback);
-		range_foreach(diameter_sctp_port_range, sctp_range_delete_callback);
+		dissector_delete_uint_range("tcp.port", diameter_tcp_port_range, diameter_tcp_handle);
+		dissector_delete_uint_range("sctp.port", diameter_sctp_port_range, diameter_sctp_handle);
+		dissector_delete_uint_range("udp.port", diameter_udp_port_range, diameter_udp_handle);
 		g_free(diameter_tcp_port_range);
 		g_free(diameter_sctp_port_range);
+		g_free(diameter_udp_port_range);
 	}
 
 	/* set port for future deletes */
 	diameter_tcp_port_range = range_copy(global_diameter_tcp_port_range);
 	diameter_sctp_port_range = range_copy(global_diameter_sctp_port_range);
-	range_foreach(diameter_tcp_port_range, tcp_range_add_callback);
-	range_foreach(diameter_sctp_port_range, sctp_range_add_callback);
+	diameter_udp_port_range = range_copy(global_diameter_udp_port_range);
+	dissector_add_uint_range("tcp.port",  diameter_tcp_port_range,  diameter_tcp_handle);
+	dissector_add_uint_range("sctp.port", diameter_sctp_port_range, diameter_sctp_handle);
+	dissector_add_uint_range("udp.port", diameter_udp_port_range, diameter_udp_handle);
+
+	exported_pdu_tap = find_tap_id(EXPORT_PDU_TAP_NAME_LAYER_7);
+
 }
 
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

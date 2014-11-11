@@ -3,8 +3,6 @@
 #     a) common to both files and
 #     b) portable between both files
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -35,7 +33,7 @@ NONGENERATED_C_FILES = \
 	atm.c			\
 	ber.c			\
 	btsnoop.c		\
-	buffer.c		\
+	camins.c		\
 	catapult_dct2000.c	\
 	commview.c		\
 	cosine.c		\
@@ -55,7 +53,9 @@ NONGENERATED_C_FILES = \
 	mime_file.c		\
 	k12.c			\
 	lanalyzer.c		\
+	logcat.c		\
 	libpcap.c		\
+	merge.c			\
 	mpeg.c			\
 	mp2t.c			\
 	netmon.c		\
@@ -73,6 +73,7 @@ NONGENERATED_C_FILES = \
 	pppdump.c		\
 	radcom.c		\
 	snoop.c			\
+	stanag4607.c		\
 	tnef.c			\
 	toshiba.c		\
 	visual.c		\
@@ -88,8 +89,8 @@ NONGENERATED_HEADER_FILES = \
 	ascend-int.h		\
 	atm.h			\
 	ber.h			\
-	buffer.h		\
 	btsnoop.h		\
+	camins.h		\
 	catapult_dct2000.h	\
 	commview.h		\
 	cosine.h		\
@@ -110,6 +111,8 @@ NONGENERATED_HEADER_FILES = \
 	k12.h			\
 	lanalyzer.h		\
 	libpcap.h		\
+	logcat.h		\
+	merge.h			\
 	mpeg.h			\
 	mp2t.h			\
 	netmon.h		\
@@ -123,11 +126,13 @@ NONGENERATED_HEADER_FILES = \
 	pcap-common.h		\
 	pcap-encap.h		\
 	pcapng.h		\
+	pcapng_module.h		\
 	peekclassic.h           \
 	peektagged.h		\
 	pppdump.h		\
 	radcom.h		\
 	snoop.h			\
+	stanag4607.h		\
 	tnef.h			\
 	toshiba.h		\
 	visual.h		\

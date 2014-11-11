@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-charging_ase.c                                                      */
 /* ../../tools/asn2wrs.py -b -p charging_ase -c ./charging_ase.cnf -s ./packet-charging_ase-template -D . -O ../../epan/dissectors Tariffing-Data-Types.asn */
 
@@ -8,8 +8,6 @@
 #line 1 "../../asn1/charging_ase/packet-charging_ase-template.c"
 /* packet-charging_ase-template.c
  * Copyright 2009 , Anders Broman <anders.broman [AT] ericsson.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -43,6 +41,9 @@
 #define PNAME  "Charging ASE"
 #define PSNAME "ChargingASE"
 #define PFNAME "chargingase"
+
+void proto_register_charging_ase(void);
+void proto_reg_handoff_charging_ase(void);
 
 /* Define the Charging ASE proto */
 static int proto_charging_ase = -1;
@@ -114,7 +115,7 @@ static int hf_charging_ase_T_tariffControlIndicators_non_cyclicTariff = -1;
 static int hf_charging_ase_T_tariffControlIndicators_01_non_cyclicTariff = -1;
 
 /*--- End of included file: packet-charging_ase-hf.c ---*/
-#line 43 "../../asn1/charging_ase/packet-charging_ase-template.c"
+#line 44 "../../asn1/charging_ase/packet-charging_ase-template.c"
 
 static int ett_charging_ase = -1;
 
@@ -152,7 +153,7 @@ static gint ett_charging_ase_T_tariffControlIndicators_01 = -1;
 static gint ett_charging_ase_ChargingReferenceIdentification = -1;
 
 /*--- End of included file: packet-charging_ase-ett.c ---*/
-#line 46 "../../asn1/charging_ase/packet-charging_ase-template.c"
+#line 47 "../../asn1/charging_ase/packet-charging_ase-template.c"
 
 static dissector_handle_t charging_ase_handle;
 
@@ -531,7 +532,7 @@ dissect_charging_ase_CriticalityType(gboolean implicit_tag _U_, tvbuff_t *tvb _U
 
 static int
 dissect_charging_ase_T_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 14 "../../asn1/charging_ase/charging_ase.cnf"
+#line 13 "../../asn1/charging_ase/charging_ase.cnf"
 
 	proto_tree_add_text(tree, tvb, offset, -1, "Extensions not dissected");
 	return tvb_length(tvb);
@@ -838,7 +839,7 @@ int dissect_charging_ase_ChargingMessageType_PDU(tvbuff_t *tvb _U_, packet_info 
 
 
 /*--- End of included file: packet-charging_ase-fn.c ---*/
-#line 50 "../../asn1/charging_ase/packet-charging_ase-template.c"
+#line 51 "../../asn1/charging_ase/packet-charging_ase-template.c"
 
 static void
 dissect_charging_ase(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
@@ -869,23 +870,23 @@ proto_register_charging_ase(void)
         FT_UINT32, BASE_DEC, VALS(charging_ase_ChargingMessageType_vals), 0,
         NULL, HFILL }},
     { &hf_charging_ase_crgt,
-      { "crgt", "charging_ase.crgt",
+      { "crgt", "charging_ase.crgt_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChargingTariffInformation", HFILL }},
     { &hf_charging_ase_aocrg,
-      { "aocrg", "charging_ase.aocrg",
+      { "aocrg", "charging_ase.aocrg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AddOnChargingInformation", HFILL }},
     { &hf_charging_ase_crga,
-      { "crga", "charging_ase.crga",
+      { "crga", "charging_ase.crga_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChargingAcknowledgementInformation", HFILL }},
     { &hf_charging_ase_start,
-      { "start", "charging_ase.start",
+      { "start", "charging_ase.start_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "StartCharging", HFILL }},
     { &hf_charging_ase_stop,
-      { "stop", "charging_ase.stop",
+      { "stop", "charging_ase.stop_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "StopCharging", HFILL }},
     { &hf_charging_ase_acknowledgementIndicators,
@@ -897,15 +898,15 @@ proto_register_charging_ase(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_numOfExtensions_OF_ExtensionField", HFILL }},
     { &hf_charging_ase_extensions_item,
-      { "ExtensionField", "charging_ase.ExtensionField",
+      { "ExtensionField", "charging_ase.ExtensionField_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_charging_ase_originationIdentification,
-      { "originationIdentification", "charging_ase.originationIdentification",
+      { "originationIdentification", "charging_ase.originationIdentification_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChargingReferenceIdentification", HFILL }},
     { &hf_charging_ase_destinationIdentification,
-      { "destinationIdentification", "charging_ase.destinationIdentification",
+      { "destinationIdentification", "charging_ase.destinationIdentification_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ChargingReferenceIdentification", HFILL }},
     { &hf_charging_ase_chargingControlIndicators,
@@ -917,7 +918,7 @@ proto_register_charging_ase(void)
         FT_UINT32, BASE_DEC, VALS(charging_ase_T_addOncharge_vals), 0,
         NULL, HFILL }},
     { &hf_charging_ase_addOnChargeCurrency,
-      { "addOnChargeCurrency", "charging_ase.addOnChargeCurrency",
+      { "addOnChargeCurrency", "charging_ase.addOnChargeCurrency_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CurrencyFactorScale", HFILL }},
     { &hf_charging_ase_addOnChargePulse,
@@ -933,11 +934,11 @@ proto_register_charging_ase(void)
         FT_UINT32, BASE_DEC, VALS(charging_ase_T_chargingTariff_vals), 0,
         NULL, HFILL }},
     { &hf_charging_ase_tariffCurrency,
-      { "tariffCurrency", "charging_ase.tariffCurrency",
+      { "tariffCurrency", "charging_ase.tariffCurrency_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_charging_ase_tariffPulse,
-      { "tariffPulse", "charging_ase.tariffPulse",
+      { "tariffPulse", "charging_ase.tariffPulse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_charging_ase_local,
@@ -949,7 +950,7 @@ proto_register_charging_ase(void)
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_charging_ase_currencyFactorScale,
-      { "currencyFactorScale", "charging_ase.currencyFactorScale",
+      { "currencyFactorScale", "charging_ase.currencyFactorScale_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_charging_ase_tariffDuration,
@@ -985,7 +986,7 @@ proto_register_charging_ase(void)
         FT_UINT32, BASE_DEC, VALS(charging_ase_CriticalityType_vals), 0,
         "CriticalityType", HFILL }},
     { &hf_charging_ase_value,
-      { "value", "charging_ase.value",
+      { "value", "charging_ase.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_charging_ase_networkOperators,
@@ -1001,15 +1002,15 @@ proto_register_charging_ase(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_charging_ase_currentTariffCurrency,
-      { "currentTariffCurrency", "charging_ase.currentTariffCurrency",
+      { "currentTariffCurrency", "charging_ase.currentTariffCurrency_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TariffCurrencyFormat", HFILL }},
     { &hf_charging_ase_tariffSwitchCurrency,
-      { "tariffSwitchCurrency", "charging_ase.tariffSwitchCurrency",
+      { "tariffSwitchCurrency", "charging_ase.tariffSwitchCurrency_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_charging_ase_nextTariffCurrency,
-      { "nextTariffCurrency", "charging_ase.nextTariffCurrency",
+      { "nextTariffCurrency", "charging_ase.nextTariffCurrency_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TariffCurrencyFormat", HFILL }},
     { &hf_charging_ase_tariffSwitchoverTime,
@@ -1021,7 +1022,7 @@ proto_register_charging_ase(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_minCommunicationTariffNum_maxCommunicationTariffNum_OF_CommunicationChargeCurrency", HFILL }},
     { &hf_charging_ase_communicationChargeSequenceCurrency_item,
-      { "CommunicationChargeCurrency", "charging_ase.CommunicationChargeCurrency",
+      { "CommunicationChargeCurrency", "charging_ase.CommunicationChargeCurrency_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_charging_ase_tariffControlIndicators,
@@ -1029,23 +1030,23 @@ proto_register_charging_ase(void)
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_charging_ase_callAttemptChargeCurrency,
-      { "callAttemptChargeCurrency", "charging_ase.callAttemptChargeCurrency",
+      { "callAttemptChargeCurrency", "charging_ase.callAttemptChargeCurrency_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CurrencyFactorScale", HFILL }},
     { &hf_charging_ase_callSetupChargeCurrency,
-      { "callSetupChargeCurrency", "charging_ase.callSetupChargeCurrency",
+      { "callSetupChargeCurrency", "charging_ase.callSetupChargeCurrency_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CurrencyFactorScale", HFILL }},
     { &hf_charging_ase_currentTariffPulse,
-      { "currentTariffPulse", "charging_ase.currentTariffPulse",
+      { "currentTariffPulse", "charging_ase.currentTariffPulse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TariffPulseFormat", HFILL }},
     { &hf_charging_ase_tariffSwitchPulse,
-      { "tariffSwitchPulse", "charging_ase.tariffSwitchPulse",
+      { "tariffSwitchPulse", "charging_ase.tariffSwitchPulse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_charging_ase_nextTariffPulse,
-      { "nextTariffPulse", "charging_ase.nextTariffPulse",
+      { "nextTariffPulse", "charging_ase.nextTariffPulse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TariffPulseFormat", HFILL }},
     { &hf_charging_ase_communicationChargeSequencePulse,
@@ -1053,7 +1054,7 @@ proto_register_charging_ase(void)
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_minCommunicationTariffNum_maxCommunicationTariffNum_OF_CommunicationChargePulse", HFILL }},
     { &hf_charging_ase_communicationChargeSequencePulse_item,
-      { "CommunicationChargePulse", "charging_ase.CommunicationChargePulse",
+      { "CommunicationChargePulse", "charging_ase.CommunicationChargePulse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_charging_ase_tariffControlIndicators_01,
@@ -1110,7 +1111,7 @@ proto_register_charging_ase(void)
         NULL, HFILL }},
 
 /*--- End of included file: packet-charging_ase-hfarr.c ---*/
-#line 73 "../../asn1/charging_ase/packet-charging_ase-template.c"
+#line 74 "../../asn1/charging_ase/packet-charging_ase-template.c"
   };
 
   /* List of subtrees */
@@ -1151,7 +1152,7 @@ proto_register_charging_ase(void)
     &ett_charging_ase_ChargingReferenceIdentification,
 
 /*--- End of included file: packet-charging_ase-ettarr.c ---*/
-#line 79 "../../asn1/charging_ase/packet-charging_ase-template.c"
+#line 80 "../../asn1/charging_ase/packet-charging_ase-template.c"
         };
 
   proto_charging_ase = proto_register_protocol(PNAME, PSNAME, PFNAME);

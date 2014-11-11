@@ -1,7 +1,5 @@
 /* import_text_dialog.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,7 +30,7 @@
 
 #include "ui/text_import.h"
 
-#include <syntax_line_edit.h>
+#include "syntax_line_edit.h"
 
 #include <QDialog>
 #include <QPushButton>
@@ -45,12 +43,12 @@ class ImportTextDialog;
 class ImportTextDialog : public QDialog
 {
     Q_OBJECT
-    
+
 public:
     explicit ImportTextDialog(QWidget *parent = 0);
     ~ImportTextDialog();
     QString &capfileName();
-    
+
 private:
     void convertTextFile();
     void enableHeaderWidgets(bool enable_buttons = true);
@@ -71,6 +69,7 @@ private slots:
     void on_textFileLineEdit_textChanged(const QString &arg1);
     void on_encapComboBox_currentIndexChanged(int index);
     void on_dateTimeLineEdit_textChanged(const QString &arg1);
+    void on_directionIndicationCheckBox_toggled(bool checked);
     void on_noDummyButton_toggled(bool checked);
     void on_ethernetButton_toggled(bool checked);
     void on_ipv4Button_toggled(bool checked);

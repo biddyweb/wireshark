@@ -1,7 +1,5 @@
 /* proto_tree_model.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -100,7 +98,7 @@ proto_tree_model_iter_nth_child(GtkTreeModel *tree_model, GtkTreeIter *iter, Gtk
 
 	if (parent) {
 		g_return_val_if_fail(parent->stamp == model->stamp, FALSE);
-		node = parent->user_data;
+		node = (proto_node *)parent->user_data;
 	} else
 		node = model->protocol_tree;
 
@@ -159,7 +157,7 @@ fi_get_string(field_info *fi)
 	if (!fi->rep) {
 		label_ptr = label_str;
 		proto_item_fill_label(fi, label_str);
-	} else 
+	} else
 		label_ptr = fi->rep->representation;
 
 	if (FI_GET_FLAG(fi, FI_GENERATED)) {
@@ -190,7 +188,7 @@ proto_tree_model_get_value(GtkTreeModel *tree_model, GtkTreeIter *iter, gint col
 	g_return_if_fail(iter->stamp == model->stamp);
 	g_return_if_fail(column == 0 || column == 1);
 
-	node = iter->user_data;
+	node = (proto_node *)iter->user_data;
 	fi = PNODE_FINFO(node);
 
 	/* dissection with an invisible proto tree? */
@@ -230,7 +228,7 @@ proto_tree_model_iter_next(GtkTreeModel *tree_model, GtkTreeIter *iter)
 
 	g_return_val_if_fail(iter->stamp == model->stamp, FALSE);
 
-	current = iter->user_data;
+	current = (proto_node *)iter->user_data;
 	current = current->next;
 	while (current) {
 		if (model->with_hidden || !PROTO_ITEM_IS_HIDDEN(current)) {
@@ -262,7 +260,7 @@ proto_tree_model_iter_n_children(GtkTreeModel *tree_model, GtkTreeIter *iter)
 
 	if (iter) {
 		g_return_val_if_fail(iter->stamp == model->stamp, 0);
-		node = iter->user_data;
+		node = (proto_node *)iter->user_data;
 	} else
 		node = model->protocol_tree;
 
@@ -292,7 +290,7 @@ proto_tree_model_get_path(GtkTreeModel *tree_model, GtkTreeIter *iter)
 	g_return_val_if_fail(iter != NULL, NULL);
 	g_return_val_if_fail(iter->stamp == model->stamp, NULL);
 
-	node = iter->user_data;
+	node = (proto_node *)iter->user_data;
 	g_return_val_if_fail(node != model->protocol_tree, NULL);
 
 	path = gtk_tree_path_new();
@@ -336,7 +334,7 @@ proto_tree_model_iter_has_child(GtkTreeModel *tree_model, GtkTreeIter *iter)
 
 	if (iter) {
 		g_return_val_if_fail(iter->stamp == model->stamp, FALSE);
-		node = iter->user_data;
+		node = (proto_node *)iter->user_data;
 	} else
 		node = model->protocol_tree;
 
@@ -364,7 +362,7 @@ proto_tree_model_iter_parent(GtkTreeModel *tree_model, GtkTreeIter *iter, GtkTre
 	g_return_val_if_fail(iter != NULL, FALSE);
 	g_return_val_if_fail(child->stamp == model->stamp, FALSE);
 
-	node = child->user_data;
+	node = (proto_node *)child->user_data;
 	if (node->parent == model->protocol_tree)
 		return FALSE;
 	g_return_val_if_fail(node->parent != NULL, FALSE);
@@ -415,7 +413,7 @@ proto_tree_model_class_init(ProtoTreeModelClass *klass)
 	object_class->finalize = _class_finalize;
 }
 
-GType 
+GType
 proto_tree_model_get_type(void)
 {
 	static GType proto_tree_type = 0;
@@ -453,7 +451,7 @@ proto_tree_model_get_type(void)
 	return proto_tree_type;
 }
 
-void 
+void
 proto_tree_model_force_resolv(ProtoTreeModel *model, const e_addr_resolve *flags)
 {
 	model->resolv_forced = TRUE;

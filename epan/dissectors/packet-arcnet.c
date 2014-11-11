@@ -2,8 +2,6 @@
  * Routines for arcnet dissection
  * Copyright 2001-2002, Peter Fales <ethereal@fales-lorenz.net>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,7 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
 #include "packet-arcnet.h"
 #include <epan/arcnet_pids.h>
 #include "packet-ip.h"

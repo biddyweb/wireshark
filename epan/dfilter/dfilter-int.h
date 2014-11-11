@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -30,7 +28,7 @@
 #include <stdio.h>
 
 /* Passed back to user */
-struct _dfilter_t {
+struct epan_dfilter {
 	GPtrArray	*insns;
 	GPtrArray	*consts;
 	guint		num_registers;
@@ -57,11 +55,7 @@ typedef struct {
 } dfwork_t;
 
 /* Constructor/Destructor prototypes for Lemon Parser */
-#if GLIB_CHECK_VERSION(2,16,0)
 void *DfilterAlloc(void* (*)(gsize));
-#else
-void *DfilterAlloc(void* (*)(gulong));
-#endif
 
 void DfilterFree(void*, void (*)(void *));
 void Dfilter(void*, int, stnode_t*, dfwork_t*);
@@ -74,7 +68,7 @@ extern stnode_t *df_lval;
 
 /* Set dfilter_error_msg_buf and dfilter_error_msg */
 void
-dfilter_fail(const char *format, ...);
+dfilter_fail(const char *format, ...) G_GNUC_PRINTF(1, 2);
 
 void
 DfilterTrace(FILE *TraceFILE, char *zTracePrompt);

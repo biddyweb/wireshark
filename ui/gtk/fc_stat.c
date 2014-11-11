@@ -1,8 +1,6 @@
 /* fc_stat.c
  * fc_stat   2003 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,10 +31,8 @@
 #include <epan/value_string.h>
 #include <epan/tap.h>
 #include <epan/conversation.h>
-#include <epan/dissectors/packet-scsi.h>
 #include <epan/dissectors/packet-fc.h>
 
-#include "../timestats.h"
 #include "ui/simple_dialog.h"
 #include "../file.h"
 #include "../stat_menu.h"
@@ -49,6 +45,8 @@
 #include "ui/gtk/main.h"
 
 #include "ui/gtk/old-gtk-compat.h"
+
+void register_tap_listener_gtkfcstat(void);
 
 /* used to keep track of the statistics for an entire program interface */
 typedef struct _fcstat_t {
@@ -74,7 +72,7 @@ fcstat_reset(void *pfc)
 static int
 fcstat_packet(void *pfc, packet_info *pinfo, epan_dissect_t *edt _U_, const void *psi)
 {
-	const fc_hdr *fc=psi;
+	const fc_hdr *fc=(const fc_hdr *)psi;
 	fcstat_t *fs=(fcstat_t *)pfc;
 
 	/* we are only interested in reply packets */
@@ -82,11 +80,11 @@ fcstat_packet(void *pfc, packet_info *pinfo, epan_dissect_t *edt _U_, const void
 		return 0;
 	}
 	/* if we havnt seen the request, just ignore it */
-	if( (!fc->itlq) || (fc->itlq->first_exchange_frame==0) ){
+	if ( (!fc->fc_ex) || (fc->fc_ex->first_exchange_frame==0) ){
 		return 0;
 	}
 
-	add_srt_table_data(&fs->fc_srt_table, fc->type, &fc->itlq->fc_time, pinfo);
+	add_srt_table_data(&fs->fc_srt_table, fc->type, &fc->fc_ex->fc_time, pinfo);
 
 	return 1;
 }
@@ -133,7 +131,7 @@ gtk_fcstat_init(const char *opt_arg, void *userdata _U_)
 		filter=NULL;
 	}
 
-	fc=g_malloc(sizeof(fcstat_t));
+	fc=(fcstat_t *)g_malloc(sizeof(fcstat_t));
 
 	fc->win = dlg_window_new("fc-stat");  /* transient_for top_level */
 	gtk_window_set_destroy_with_parent (GTK_WINDOW(fc->win), TRUE);
@@ -178,7 +176,7 @@ gtk_fcstat_init(const char *opt_arg, void *userdata _U_)
 	bbox = dlg_button_row_new(GTK_STOCK_CLOSE, NULL);
 	gtk_box_pack_end(GTK_BOX(vbox), bbox, FALSE, FALSE, 0);
 
-	close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+	close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
 	window_set_cancel_button(fc->win, close_bt, window_cancel_button_cb);
 
 	g_signal_connect(fc->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
@@ -207,12 +205,6 @@ static tap_param_dlg fc_stat_dlg = {
 void
 register_tap_listener_gtkfcstat(void)
 {
-	register_dfilter_stat(&fc_stat_dlg, "Fibre Channel",
+	register_param_stat(&fc_stat_dlg, "Fibre Channel",
 	    REGISTER_STAT_GROUP_RESPONSE_TIME);
 }
-
-void fc_srt_cb(GtkAction *action, gpointer user_data _U_)
-{
-	tap_param_dlg_cb(action, &fc_stat_dlg);
-}
-

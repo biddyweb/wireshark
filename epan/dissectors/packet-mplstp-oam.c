@@ -1,6 +1,5 @@
 /* packet-mplstp-oam.c
 *
-* $Id$
 * Routines for MPLS-TP Lock Instruct Protocol    : RFC 6435
 *              MPLS-TP Fault-Management Protocol : RFC 6427
 *
@@ -32,6 +31,9 @@
 #include <epan/packet.h>
 #include <packet-ip.h>
 #include <epan/dissectors/packet-bfd.h>
+
+void proto_register_mplstp_lock(void);
+void proto_register_mplstp_fm(void);
 
 /* MPLS-TP FM protocol specific variables */
 static gint proto_mplstp_fm     = -1;
@@ -191,8 +193,8 @@ dissect_mplstp_fm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                                    offset, 1, ENC_BIG_ENDIAN);
    fm_flags = proto_item_add_subtree(ti_flags, ett_mplstp_fm_flags);
 
-   proto_tree_add_item (fm_flags, hf_mplstp_fm_flags_l, tvb, offset, 1, FALSE);
-   proto_tree_add_item (fm_flags, hf_mplstp_fm_flags_r, tvb, offset, 1, FALSE);
+   proto_tree_add_item (fm_flags, hf_mplstp_fm_flags_l, tvb, offset, 1, ENC_BIG_ENDIAN);
+   proto_tree_add_item (fm_flags, hf_mplstp_fm_flags_r, tvb, offset, 1, ENC_BIG_ENDIAN);
    offset = offset + 1;
 
    /* Refresh-Timer field */

@@ -1,7 +1,5 @@
 /* main_welcome.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,7 +36,7 @@
 
 #include <QWidget>
 #include <QResizeEvent>
-#ifndef Q_WS_MAC
+#if !defined(Q_OS_MAC) || QT_VERSION > QT_VERSION_CHECK(5, 0, 0)
 #include <QGraphicsBlurEffect>
 #endif
 
@@ -93,30 +91,35 @@ MainWelcome::MainWelcome(QWidget *parent) :
                       )
                       .arg(tango_aluminium_6, 6, 16, QChar('0'))   // Text color
                       .arg(tango_sky_blue_4,  6, 16, QChar('0'))   // Selected background
-                      .arg(tango_aluminium_2, 6, 16, QChar('0'))   // Hover background
+                      .arg(tango_sky_blue_1, 6, 16, QChar('0'))   // Hover background
                       .arg(tango_aluminium_6, 6, 16, QChar('0'))   // Hover foreground
                 );
 
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     recent_files_->setAttribute(Qt::WA_MacShowFocusRect, false);
     welcome_ui_->taskList->setAttribute(Qt::WA_MacShowFocusRect, false);
     welcome_ui_->interfaceTree->setAttribute(Qt::WA_MacShowFocusRect, false);
 #endif
 
-    task_list_->setStyleSheet(
-                "QListWidget {"
-                "  margin-right: 2em;"
-                "}"
-                "QListWidget::item {"
-                "  padding: 1.5em;"
-                "  margin-bottom: 1em;"
-                "  border-radius: 0.5em;"
-                "}"
-//                "QListWidget::item:hover {"
-//                "  background-color: palette(midlight);"
-//                "  background-color: palette(midlight);"
-//                "}"
-                );
+    task_list_->setMinimumWidth((task_list_->fontMetrics().height() * 7) // 2 + 1.5 + 1.5 + <mystery_width/> em
+                                + task_list_->fontMetrics().width(QString("live packets from your network")));
+    task_list_->setStyleSheet(QString(
+                                  "QListWidget {"
+                                  "  margin-right: 2em;"
+                                  "}"
+                                  "QListWidget::item {"
+                                  "  padding: 1.5em;"
+                                  "  margin-bottom: 1em;"
+                                  "  border-radius: 0.5em;"
+                                  "  border: 1px solid #%1;"
+                                  "}"
+                                  "QListWidget::item::selected {"
+                                  "  border: 1px solid #%2;"
+                                  "}"
+                                  )
+                              .arg(tango_sky_blue_4, 6, 16, QChar('0'))   // Default border
+                              .arg(tango_sky_blue_4,  6, 16, QChar('0'))   // Selected border
+                              );
 
     recent_files_->setStyleSheet(
             "QListWidget::item {"
@@ -137,12 +140,22 @@ MainWelcome::MainWelcome(QWidget *parent) :
     connect(task_list_, SIGNAL(itemSelectionChanged()), this, SLOT(showTask()));
     connect(welcome_ui_->interfaceTree, SIGNAL(itemDoubleClicked(QTreeWidgetItem*,int)),
             this, SLOT(interfaceDoubleClicked(QTreeWidgetItem*,int)));
+    connect(welcome_ui_->interfaceTree, SIGNAL(interfaceUpdated(const char*,bool)),
+            welcome_ui_->captureFilterComboBox, SIGNAL(interfacesChanged()));
+    connect(welcome_ui_->captureFilterComboBox, SIGNAL(pushFilterSyntaxStatus(QString&)),
+            this, SIGNAL(pushFilterSyntaxStatus(QString&)));
+    connect(welcome_ui_->captureFilterComboBox, SIGNAL(popFilterSyntaxStatus()),
+            this, SIGNAL(popFilterSyntaxStatus()));
+    connect(welcome_ui_->captureFilterComboBox, SIGNAL(captureFilterSyntaxChanged(bool)),
+            this, SIGNAL(captureFilterSyntaxChanged(bool)));
+    connect(welcome_ui_->captureFilterComboBox, SIGNAL(startCapture()),
+            this, SIGNAL(startCapture()));
     connect(recent_files_, SIGNAL(itemActivated(QListWidgetItem *)), this, SLOT(openRecentItem(QListWidgetItem *)));
     updateRecentFiles();
 
     task_list_->setCurrentRow(0);
 
-#ifndef Q_WS_MAC
+#if !defined(Q_OS_MAC) || QT_VERSION > QT_VERSION_CHECK(5, 0, 0)
     // This crashes with Qt 4.8.3 on OS X.
     QGraphicsBlurEffect *blur = new QGraphicsBlurEffect(welcome_ui_->childContainer);
     blur->setBlurRadius(1.3);
@@ -152,9 +165,14 @@ MainWelcome::MainWelcome(QWidget *parent) :
     splash_overlay_ = new SplashOverlay(this);
 }
 
+InterfaceTree *MainWelcome::getInterfaceTree()
+{
+    return welcome_ui_->interfaceTree;
+}
+
 void MainWelcome::destroySplashOverlay()
 {
-#ifndef Q_WS_MAC
+#if !defined(Q_OS_MAC) || QT_VERSION > QT_VERSION_CHECK(5, 0, 0)
     welcome_ui_->childContainer->setGraphicsEffect(NULL);
 #endif
     delete splash_overlay_;

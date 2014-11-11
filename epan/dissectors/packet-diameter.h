@@ -2,8 +2,6 @@
  * packet-diameter.h
  *
  * Definitions for Diameter packet disassembly
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,3 +36,11 @@ typedef struct _diameter_req_ans_pair_t
 	gboolean	processing_request; /* TRUE if processing request, FALSE if processing answer. */
 } diameter_req_ans_pair_t;
 
+/* Info needed by AVP sub dissectors */
+typedef struct _diam_sub_dis_t {
+	guint32 application_id;
+	guint32 feature_list_id;
+	gboolean dis_gouped;       /**< Set during dissection of grouped AVP */
+	guint32 vendor_id;
+	char *avp_str;
+} diam_sub_dis_t;

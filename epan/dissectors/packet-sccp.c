@@ -12,8 +12,6 @@
  *
  * Copyright 2002, Jeff Morriss <jeff.morriss.ws [AT] gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -45,6 +43,7 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/reassemble.h>
 #include <epan/asn1.h>
 #include <epan/uat.h>
@@ -52,6 +51,8 @@
 #include <epan/expert.h>
 #include <epan/tap.h>
 #include <address.h>
+#include <epan/to_str.h>
+#include <wiretap/wtap.h>
 #include "packet-mtp3.h"
 #include "packet-tcap.h"
 #include "packet-sccp.h"
@@ -60,6 +61,7 @@
 #include "packet-frame.h"
 
 /* function prototypes */
+void proto_register_sccp(void);
 void proto_reg_handoff_sccp(void);
 
 static Standard_Type decode_mtp3_standard;
@@ -707,8 +709,16 @@ static gint ett_sccp_xudt_msg_fragment = -1;
 static gint ett_sccp_xudt_msg_fragments = -1;
 static gint ett_sccp_assoc = -1;
 
-/* Declarations to desegment XUDT Messages */
-static gboolean sccp_xudt_desegment = TRUE;
+static expert_field ei_sccp_wrong_length = EI_INIT;
+static expert_field ei_sccp_international_standard_address = EI_INIT;
+static expert_field ei_sccp_no_ssn_present = EI_INIT;
+static expert_field ei_sccp_ssn_zero = EI_INIT;
+static expert_field ei_sccp_class_unexpected = EI_INIT;
+static expert_field ei_sccp_handling_invalid = EI_INIT;
+static expert_field ei_sccp_gt_digits_missing = EI_INIT;
+
+
+static gboolean sccp_reassemble = TRUE;
 static gboolean show_key_params = FALSE;
 static gboolean set_addresses = FALSE;
 
@@ -738,8 +748,7 @@ static const fragment_items sccp_xudt_msg_frag_items = {
   "SCCP XUDT Message fragments"
 };
 
-static GHashTable *sccp_xudt_msg_fragment_table = NULL;
-static GHashTable *sccp_xudt_msg_reassembled_table = NULL;
+static reassembly_table sccp_xudt_msg_reassembly_table;
 
 
 #define SCCP_USER_DATA   0
@@ -791,7 +800,6 @@ static const value_string sccp_users_vals[] = {
 static guint32  sccp_source_pc_global = 0;
 static gboolean sccp_show_length      = FALSE;
 
-static module_t *sccp_module;
 static heur_dissector_list_t heur_subdissector_list;
 
 /*  Keep track of SSN value of current message so if/when we get to the data
@@ -805,7 +813,7 @@ static guint slr = 0;
 
 static dissector_table_t sccp_ssn_dissector_table;
 
-static emem_tree_t       *assocs        = NULL;
+static wmem_tree_t       *assocs        = NULL;
 static sccp_assoc_info_t *assoc;
 static sccp_msg_info_t   *sccp_msg;
 static sccp_assoc_info_t  no_assoc      = {0,0,0,0,0,FALSE,FALSE,NULL,NULL,SCCP_PLOAD_NONE,NULL,NULL,NULL,0};
@@ -906,11 +914,11 @@ looks_like_valid_sccp(guint32 frame_num _U_, tvbuff_t *tvb, guint8 my_mtp3_stand
    * Accesses beyond this length need to check the length first because
    * we don't want to throw an exception in here...
    */
-  if (len < 6)
+  if (len < 5)
     RETURN_FALSE;
 
   msgtype = tvb_get_guint8(tvb, SCCP_MSG_TYPE_OFFSET);
-  if (!match_strval(msgtype, sccp_message_type_acro_values)) {
+  if (!try_val_to_str(msgtype, sccp_message_type_acro_values)) {
     RETURN_FALSE;
   }
   offset = SCCP_MSG_TYPE_LENGTH;
@@ -964,7 +972,7 @@ looks_like_valid_sccp(guint32 frame_num _U_, tvbuff_t *tvb, guint8 my_mtp3_stand
         msgtype == SCCP_MSG_TYPE_LUDTS) {
 
       cause = tvb_get_guint8(tvb, offset);
-      if (!match_strval(cause, sccp_return_cause_values))
+      if (!try_val_to_str(cause, sccp_return_cause_values))
         RETURN_FALSE;
       offset += RETURN_CAUSE_LENGTH;
     }
@@ -1035,6 +1043,13 @@ looks_like_valid_sccp(guint32 frame_num _U_, tvbuff_t *tvb, guint8 my_mtp3_stand
   break;
   case SCCP_MSG_TYPE_CR:
   {
+    if (len < SCCP_MSG_TYPE_LENGTH
+        + DESTINATION_LOCAL_REFERENCE_LENGTH
+        + PROTOCOL_CLASS_LENGTH
+        + POINTER_LENGTH
+        + POINTER_LENGTH)
+      RETURN_FALSE;
+
     offset += DESTINATION_LOCAL_REFERENCE_LENGTH;
 
     /* Class is only the lower 4 bits, but the upper 4 bits are spare
@@ -1044,6 +1059,18 @@ looks_like_valid_sccp(guint32 frame_num _U_, tvbuff_t *tvb, guint8 my_mtp3_stand
     msg_class = tvb_get_guint8(tvb, offset);
     if (msg_class != 2)
       RETURN_FALSE;
+
+    offset += PROTOCOL_CLASS_LENGTH;
+    data_ptr = tvb_get_guint8(tvb, offset);
+    if (data_ptr == 0)
+      RETURN_FALSE;
+
+    offset += POINTER_LENGTH;
+    opt_ptr = tvb_get_guint8(tvb, offset);
+    if (opt_ptr == 0)
+      RETURN_FALSE;
+
+    offset += POINTER_LENGTH;
   }
   break;
   case SCCP_MSG_TYPE_CC:
@@ -1086,10 +1113,16 @@ looks_like_valid_sccp(guint32 frame_num _U_, tvbuff_t *tvb, guint8 my_mtp3_stand
   break;
   case SCCP_MSG_TYPE_CREF:
   {
+    if (len < SCCP_MSG_TYPE_LENGTH
+        + DESTINATION_LOCAL_REFERENCE_LENGTH
+        + REFUSAL_CAUSE_LENGTH
+        + POINTER_LENGTH)
+      RETURN_FALSE;
+
     offset += DESTINATION_LOCAL_REFERENCE_LENGTH;
 
     cause = tvb_get_guint8(tvb, offset);
-    if (!match_strval(cause, sccp_refusal_cause_values))
+    if (!try_val_to_str(cause, sccp_refusal_cause_values))
       RETURN_FALSE;
     offset += REFUSAL_CAUSE_LENGTH;
 
@@ -1123,7 +1156,7 @@ looks_like_valid_sccp(guint32 frame_num _U_, tvbuff_t *tvb, guint8 my_mtp3_stand
     offset += SOURCE_LOCAL_REFERENCE_LENGTH;
 
     cause = tvb_get_guint8(tvb, offset);
-    if (!match_strval(cause, sccp_release_cause_values))
+    if (!try_val_to_str(cause, sccp_release_cause_values))
       RETURN_FALSE;
     offset += RELEASE_CAUSE_LENGTH;
 
@@ -1162,7 +1195,7 @@ looks_like_valid_sccp(guint32 frame_num _U_, tvbuff_t *tvb, guint8 my_mtp3_stand
     offset += DESTINATION_LOCAL_REFERENCE_LENGTH;
 
     cause = tvb_get_guint8(tvb, offset);
-    if (!match_strval(cause, sccp_error_cause_values))
+    if (!try_val_to_str(cause, sccp_error_cause_values))
       RETURN_FALSE;
   }
   break;
@@ -1257,7 +1290,7 @@ looks_like_valid_sccp(guint32 frame_num _U_, tvbuff_t *tvb, guint8 my_mtp3_stand
   if (opt_ptr) {
     guint8 opt_param;
 
-    opt_ptr += offset-1; /* (offset was already incremented) */
+    opt_ptr += offset-pointer_length; /* (offset was already incremented) */
 
     /* Check that the optional pointer is within bounds */
     if (opt_ptr > len)
@@ -1265,7 +1298,7 @@ looks_like_valid_sccp(guint32 frame_num _U_, tvbuff_t *tvb, guint8 my_mtp3_stand
 
     opt_param = tvb_get_guint8(tvb, opt_ptr);
     /* Check if the (1st) optional parameter tag is valid */
-    if (!match_strval(opt_param, sccp_parameter_values))
+    if (!try_val_to_str(opt_param, sccp_parameter_values))
       RETURN_FALSE;
 
     /* Check that the (1st) parameter length is within bounds */
@@ -1287,7 +1320,7 @@ looks_like_valid_sccp(guint32 frame_num _U_, tvbuff_t *tvb, guint8 my_mtp3_stand
 static sccp_assoc_info_t *
 new_assoc(guint32 calling, guint32 called)
 {
-  sccp_assoc_info_t *a = se_new0(sccp_assoc_info_t);
+  sccp_assoc_info_t *a = wmem_new0(wmem_file_scope(), sccp_assoc_info_t);
 
   a->id            = next_assoc_id++;
   a->calling_dpc   = calling;
@@ -1321,24 +1354,31 @@ get_sccp_assoc(packet_info *pinfo, guint offset, guint32 src_lr, guint32 dst_lr,
   if (assoc)
     return assoc;
 
-  opck = opc->type == AT_SS7PC ? mtp3_pc_hash((const mtp3_addr_pc_t *)opc->data) : g_str_hash(ep_address_to_str(opc));
-  dpck = dpc->type == AT_SS7PC ? mtp3_pc_hash((const mtp3_addr_pc_t *)dpc->data) : g_str_hash(ep_address_to_str(dpc));
+  opck = opc->type == AT_SS7PC ? mtp3_pc_hash((const mtp3_addr_pc_t *)opc->data) : g_str_hash(address_to_str(wmem_packet_scope(), opc));
+  dpck = dpc->type == AT_SS7PC ? mtp3_pc_hash((const mtp3_addr_pc_t *)dpc->data) : g_str_hash(address_to_str(wmem_packet_scope(), dpc));
 
 
   switch (msg_type) {
   case SCCP_MSG_TYPE_CR:
   {
     /* CR contains the opc,dpc,dlr key of backward messages swapped as dpc,opc,slr  */
-    emem_tree_key_t bw_key[] = {
-      {1, &dpck},
-      {1, &opck},
-      {1, &src_lr},
-      {0, NULL}
-    };
+    wmem_tree_key_t bw_key[4];
 
-    if (! ( assoc = (sccp_assoc_info_t *)se_tree_lookup32_array(assocs,bw_key) ) && ! PINFO_FD_VISITED(pinfo) ) {
+    bw_key[0].length = 1;
+    bw_key[0].key = &dpck;
+
+    bw_key[1].length = 1;
+    bw_key[1].key = &opck;
+
+    bw_key[2].length = 1;
+    bw_key[2].key = &src_lr;
+
+    bw_key[3].length = 0;
+    bw_key[3].key = NULL;
+
+    if (! ( assoc = (sccp_assoc_info_t *)wmem_tree_lookup32_array(assocs, bw_key) ) && ! PINFO_FD_VISITED(pinfo) ) {
       assoc = new_assoc(opck, dpck);
-      se_tree_insert32_array(assocs, bw_key, assoc);
+      wmem_tree_insert32_array(assocs, bw_key, assoc);
       assoc->has_bw_key = TRUE;
     }
 
@@ -1348,34 +1388,55 @@ get_sccp_assoc(packet_info *pinfo, guint offset, guint32 src_lr, guint32 dst_lr,
   }
   case SCCP_MSG_TYPE_CC:
   {
-    emem_tree_key_t fw_key[] = {
-      {1, &dpck}, {1, &opck}, {1, &src_lr}, {0, NULL}
-    };
-    emem_tree_key_t bw_key[] = {
-      {1, &opck}, {1, &dpck}, {1, &dst_lr}, {0, NULL}
-    };
+    wmem_tree_key_t fw_key[4];
+    wmem_tree_key_t bw_key[4];
 
-    if ( ( assoc = (sccp_assoc_info_t *)se_tree_lookup32_array(assocs, bw_key) ) ) {
+    fw_key[0].length = 1;
+    fw_key[0].key = &dpck;
+
+    fw_key[1].length = 1;
+    fw_key[1].key = &opck;
+
+    fw_key[2].length = 1;
+    fw_key[2].key = &src_lr;
+
+    fw_key[3].length = 0;
+    fw_key[3].key = NULL;
+
+    bw_key[0].length = 1;
+    bw_key[0].key = &opck;
+
+    bw_key[1].length = 1;
+    bw_key[1].key = &dpck;
+
+    bw_key[2].length = 1;
+    bw_key[2].key = &dst_lr;
+
+    bw_key[3].length = 0;
+    bw_key[3].key = NULL;
+
+
+    if ( ( assoc = (sccp_assoc_info_t *)wmem_tree_lookup32_array(assocs, bw_key) ) ) {
       goto got_assoc;
     }
 
-    if ( (assoc = (sccp_assoc_info_t *)se_tree_lookup32_array(assocs, fw_key) ) ) {
+    if ( (assoc = (sccp_assoc_info_t *)wmem_tree_lookup32_array(assocs, fw_key) ) ) {
       goto got_assoc;
     }
 
-    assoc = new_assoc(dpck,opck);
+    assoc = new_assoc(dpck, opck);
 
   got_assoc:
 
     pinfo->p2p_dir = P2P_DIR_RECV;
 
     if ( ! PINFO_FD_VISITED(pinfo) && ! assoc->has_bw_key ) {
-      se_tree_insert32_array(assocs, bw_key, assoc);
+      wmem_tree_insert32_array(assocs, bw_key, assoc);
       assoc->has_bw_key = TRUE;
     }
 
     if ( ! PINFO_FD_VISITED(pinfo) && ! assoc->has_fw_key ) {
-      se_tree_insert32_array(assocs, fw_key, assoc);
+      wmem_tree_insert32_array(assocs, fw_key, assoc);
       assoc->has_fw_key = TRUE;
     }
 
@@ -1383,17 +1444,38 @@ get_sccp_assoc(packet_info *pinfo, guint offset, guint32 src_lr, guint32 dst_lr,
   }
   case SCCP_MSG_TYPE_RLC:
   {
-    emem_tree_key_t bw_key[] = {
-      {1, &dpck}, {1, &opck}, {1, &src_lr}, {0, NULL}
-    };
-    emem_tree_key_t fw_key[] = {
-      {1, &opck}, {1, &dpck}, {1, &dst_lr}, {0, NULL}
-    };
-    if ( ( assoc = (sccp_assoc_info_t *)se_tree_lookup32_array(assocs, bw_key) ) ) {
+    wmem_tree_key_t fw_key[4];
+    wmem_tree_key_t bw_key[4];
+
+    fw_key[0].length = 1;
+    fw_key[0].key = &dpck;
+
+    fw_key[1].length = 1;
+    fw_key[1].key = &opck;
+
+    fw_key[2].length = 1;
+    fw_key[2].key = &src_lr;
+
+    fw_key[3].length = 0;
+    fw_key[3].key = NULL;
+
+    bw_key[0].length = 1;
+    bw_key[0].key = &opck;
+
+    bw_key[1].length = 1;
+    bw_key[1].key = &dpck;
+
+    bw_key[2].length = 1;
+    bw_key[2].key = &dst_lr;
+
+    bw_key[3].length = 0;
+    bw_key[3].key = NULL;
+
+    if ( ( assoc = (sccp_assoc_info_t *)wmem_tree_lookup32_array(assocs, bw_key) ) ) {
       goto got_assoc_rlc;
     }
 
-    if ( (assoc = (sccp_assoc_info_t *)se_tree_lookup32_array(assocs, fw_key) ) ) {
+    if ( (assoc = (sccp_assoc_info_t *)wmem_tree_lookup32_array(assocs, fw_key) ) ) {
       goto got_assoc_rlc;
     }
 
@@ -1404,23 +1486,34 @@ get_sccp_assoc(packet_info *pinfo, guint offset, guint32 src_lr, guint32 dst_lr,
     pinfo->p2p_dir = P2P_DIR_SENT;
 
     if ( ! PINFO_FD_VISITED(pinfo) && ! assoc->has_bw_key ) {
-      se_tree_insert32_array(assocs, bw_key, assoc);
+      wmem_tree_insert32_array(assocs, bw_key, assoc);
       assoc->has_bw_key = TRUE;
     }
 
     if ( ! PINFO_FD_VISITED(pinfo) && ! assoc->has_fw_key ) {
-      se_tree_insert32_array(assocs, fw_key, assoc);
+      wmem_tree_insert32_array(assocs, fw_key, assoc);
       assoc->has_fw_key = TRUE;
     }
     break;
   }
   default:
   {
-    emem_tree_key_t key[] = {
-      {1, &opck}, {1, &dpck}, {1, &dst_lr}, {0, NULL}
-    };
+    wmem_tree_key_t key[4];
 
-    assoc = (sccp_assoc_info_t *)se_tree_lookup32_array(assocs, key);
+    key[0].length = 1;
+    key[0].key = &opck;
+
+    key[1].length = 1;
+    key[1].key = &dpck;
+
+    key[2].length = 1;
+    key[2].key = &dst_lr;
+
+    key[3].length = 0;
+    key[3].key = NULL;
+
+
+    assoc = (sccp_assoc_info_t *)wmem_tree_lookup32_array(assocs, key);
 
     if (assoc) {
       if (assoc->calling_dpc == dpck) {
@@ -1436,7 +1529,7 @@ get_sccp_assoc(packet_info *pinfo, guint offset, guint32 src_lr, guint32 dst_lr,
 
   if (assoc && trace_sccp) {
     if ( ! PINFO_FD_VISITED(pinfo)) {
-      sccp_msg_info_t *msg = se_alloc0(sizeof(sccp_msg_info_t));
+      sccp_msg_info_t *msg = wmem_new0(wmem_file_scope(), sccp_msg_info_t);
       msg->framenum = framenum;
       msg->offset = offset;
       msg->data.co.next = NULL;
@@ -1494,12 +1587,11 @@ dissect_sccp_unknown_param(tvbuff_t *tvb, proto_tree *tree, guint8 type, guint l
 static void
 dissect_sccp_dlr_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
-  proto_item *lr_item, *expert_item;
+  proto_item *lr_item;
 
   if (length != 3) {
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 3, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 3, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 3, got %u", length);
     return;
   }
 
@@ -1515,12 +1607,11 @@ dissect_sccp_dlr_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guin
 static void
 dissect_sccp_slr_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
-  proto_item *lr_item, *expert_item;
+  proto_item *lr_item;
 
   if (length != 3) {
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 3, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 3, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 3, got %u", length);
     return;
   }
 
@@ -1545,7 +1636,7 @@ dissect_sccp_gt_address_information(tvbuff_t *tvb, packet_info *pinfo,
   proto_tree *digits_tree;
   char *gt_digits;
 
-  gt_digits = (char *)ep_alloc0(GT_MAX_SIGNALS+1);
+  gt_digits = (char *)wmem_alloc0(wmem_packet_scope(), GT_MAX_SIGNALS+1);
 
   while (offset < length) {
     odd_signal = tvb_get_guint8(tvb, offset) & GT_ODD_SIGNAL_MASK;
@@ -1566,7 +1657,7 @@ dissect_sccp_gt_address_information(tvbuff_t *tvb, packet_info *pinfo,
   if (is_connectionless(message_type) && sccp_msg) {
     guint8 **gt_ptr = called ? &(sccp_msg->data.ud.called_gt) : &(sccp_msg->data.ud.calling_gt);
 
-    *gt_ptr  = (guint8 *)ep_strdup(gt_digits);
+    *gt_ptr  = (guint8 *)wmem_strdup(wmem_packet_scope(), gt_digits);
   }
 
   digits_item = proto_tree_add_string(tree, called ? hf_sccp_called_gt_digits
@@ -1668,6 +1759,11 @@ dissect_sccp_global_title(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, g
                         tvb, offset, GT_NAI_LENGTH, nai);
 
     offset += GT_NAI_LENGTH;
+  }
+
+  if(length == 0){
+      expert_add_info(pinfo, gt_item, &ei_sccp_gt_digits_missing);
+      return;
   }
 
   /* Decode address signal(s) */
@@ -1772,9 +1868,7 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
                                       : hf_sccp_calling_ansi_national_indicator,
                                       tvb, 0, ADDRESS_INDICATOR_LENGTH, national);
     if (national == 0)
-      expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_WARN, "Address is coded to "
-                             "international standards.  This doesn't normally happen in ANSI "
-                             "networks.");
+      expert_add_info(pinfo, expert_item, &ei_sccp_international_standard_address);
   } else {
     guint8 natl_use_bit = tvb_get_guint8(tvb, 0) & ITU_RESERVED_MASK;
 
@@ -1805,8 +1899,7 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
                                       called ? hf_sccp_called_itu_ssn_indicator : hf_sccp_calling_itu_ssn_indicator,
                                       tvb, 0, ADDRESS_INDICATOR_LENGTH, ssni);
     if ((routing_ind == ROUTE_ON_SSN) && (ssni == 0)) {
-      expert_add_info_format(pinfo, expert_item, PI_PROTOCOL, PI_WARN,
-                             "Message is routed on SSN, but SSN is not present");
+      expert_add_info(pinfo, expert_item, &ei_sccp_no_ssn_present);
     }
 
     pci = tvb_get_guint8(tvb, 0) & ITU_PC_INDICATOR_MASK;
@@ -1819,11 +1912,9 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
     if (pci) {
       if (decode_mtp3_standard == ITU_STANDARD || national == 0) {
         if (length < offset + ITU_PC_LENGTH) {
-          expert_item = proto_tree_add_text(call_tree, tvb, 0, -1,
+          proto_tree_add_expert_format(call_tree, pinfo, &ei_sccp_wrong_length, tvb, 0, -1,
                                             "Wrong length indicated (%u) should be at least %u, PC is %u octets",
                                             length, offset + ITU_PC_LENGTH, ITU_PC_LENGTH);
-          expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated");
-          PROTO_ITEM_SET_GENERATED(expert_item);
           return;
         }
         proto_tree_add_item(call_tree, called ? hf_sccp_called_itu_pc : hf_sccp_calling_itu_pc,
@@ -1833,11 +1924,9 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
       } else if (decode_mtp3_standard == JAPAN_STANDARD) {
 
         if (length < offset + JAPAN_PC_LENGTH) {
-          expert_item = proto_tree_add_text(call_tree, tvb, 0, -1,
+          proto_tree_add_expert_format(call_tree, pinfo, &ei_sccp_wrong_length, tvb, 0, -1,
                                             "Wrong length indicated (%u) should be at least %u, PC is %u octets",
                                             length, offset + JAPAN_PC_LENGTH, JAPAN_PC_LENGTH);
-          expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated");
-          PROTO_ITEM_SET_GENERATED(expert_item);
           return;
         }
         proto_tree_add_item(call_tree, called ? hf_sccp_called_japan_pc : hf_sccp_calling_japan_pc,
@@ -1848,11 +1937,9 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
       } else /* CHINESE_ITU_STANDARD */ {
 
         if (length < offset + ANSI_PC_LENGTH) {
-          expert_item = proto_tree_add_text(call_tree, tvb, 0, -1,
+          proto_tree_add_expert_format(call_tree, pinfo, &ei_sccp_wrong_length, tvb, 0, -1,
                                             "Wrong length indicated (%u) should be at least %u, PC is %u octets",
                                             length, offset + ANSI_PC_LENGTH, ANSI_PC_LENGTH);
-          expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated");
-          PROTO_ITEM_SET_GENERATED(expert_item);
           return;
         }
         offset = dissect_sccp_3byte_pc(tvb, call_tree, offset, called);
@@ -1865,8 +1952,7 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
       ssn = tvb_get_guint8(tvb, offset);
 
       if ((routing_ind == ROUTE_ON_SSN) && (ssn == 0)) {
-        expert_add_info_format(pinfo, expert_item, PI_PROTOCOL, PI_WARN,
-                               "Message is routed on SSN, but SSN is zero (unspecified)");
+        expert_add_info(pinfo, expert_item, &ei_sccp_ssn_zero);
       }
 
       if (called && assoc)
@@ -1941,8 +2027,7 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
                                       : hf_sccp_calling_ansi_ssn_indicator,
                                       tvb, 0, ADDRESS_INDICATOR_LENGTH, ssni);
     if ((routing_ind == ROUTE_ON_SSN) && (ssni == 0)) {
-      expert_add_info_format(pinfo, expert_item, PI_PROTOCOL, PI_WARN,
-                             "Message is routed on SSN, but SSN is not present");
+      expert_add_info(pinfo, expert_item, &ei_sccp_no_ssn_present);
     }
 
     offset = ADDRESS_INDICATOR_LENGTH;
@@ -1952,8 +2037,7 @@ dissect_sccp_called_calling_param(tvbuff_t *tvb, proto_tree *tree, packet_info *
       ssn = tvb_get_guint8(tvb, offset);
 
       if ((routing_ind == ROUTE_ON_SSN) && (ssn == 0)) {
-        expert_add_info_format(pinfo, expert_item, PI_PROTOCOL, PI_WARN,
-                               "Message is routed on SSN, but SSN is zero (unspecified)");
+        expert_add_info(pinfo, expert_item, &ei_sccp_ssn_zero);
       }
 
       if (called && assoc) {
@@ -2017,9 +2101,8 @@ dissect_sccp_class_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gu
   gboolean    invalid_class = FALSE;
 
   if (length != 1) {
-    pi = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(pi);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 1, got %u", length);
     return;
   }
 
@@ -2062,7 +2145,7 @@ dissect_sccp_class_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gu
   }
 
   if (invalid_class)
-    expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Unexpected message class for this message type");
+    expert_add_info(pinfo, pi, &ei_sccp_class_unexpected);
 
   if (msg_class == 0 || msg_class == 1) {
     guint8 handling = tvb_get_guint8(tvb, 0) & CLASS_SPARE_HANDLING_MASK;
@@ -2070,8 +2153,8 @@ dissect_sccp_class_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gu
     pi = proto_tree_add_item(tree, hf_sccp_handling, tvb, 0, length, ENC_NA);
     handling >>= CLASS_SPARE_HANDLING_SHIFT;
 
-    if (match_strval(handling, sccp_class_handling_values) == NULL) {
-      expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_ERROR, "Invalid message handling");
+    if (try_val_to_str(handling, sccp_class_handling_values) == NULL) {
+      expert_add_info(pinfo, pi, &ei_sccp_handling_invalid);
     }
   }
 }
@@ -2080,10 +2163,8 @@ static void
 dissect_sccp_segmenting_reassembling_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 1, got %u", length);
     return;
   }
 
@@ -2096,10 +2177,8 @@ dissect_sccp_receive_sequence_number_param(tvbuff_t *tvb, packet_info *pinfo, pr
   guint8 rsn;
 
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 1, got %u", length);
     return;
   }
 
@@ -2137,11 +2216,8 @@ static void
 dissect_sccp_credit_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR,
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
                            "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
     return;
   }
 
@@ -2151,105 +2227,76 @@ dissect_sccp_credit_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, g
 static void
 dissect_sccp_release_cause_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
-  guint8 cause;
-
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length,
-                                      "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR,
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
                            "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
     return;
   }
 
-  cause = tvb_get_guint8(tvb, 0);
-  proto_tree_add_uint(tree, hf_sccp_release_cause, tvb, 0, length, cause);
+  proto_tree_add_item(tree, hf_sccp_release_cause, tvb, 0, length, ENC_LITTLE_ENDIAN);
 
   if (show_key_params)
-    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", cause);
+    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", tvb_get_guint8(tvb, 0));
 }
 
 static void
 dissect_sccp_return_cause_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
-  guint8 cause;
-
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR,
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
                            "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
     return;
   }
 
-  cause = tvb_get_guint8(tvb, 0);
-  proto_tree_add_uint(tree, hf_sccp_return_cause, tvb, 0, length, cause);
+  proto_tree_add_item(tree, hf_sccp_return_cause, tvb, 0, length, ENC_LITTLE_ENDIAN);
 
   if (show_key_params)
-    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", cause);
+    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", tvb_get_guint8(tvb, 0));
 }
 
 static void
 dissect_sccp_reset_cause_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
-  guint8 cause;
-
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR,
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
                            "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
     return;
   }
 
-  cause = tvb_get_guint8(tvb, 0);
-  proto_tree_add_uint(tree, hf_sccp_reset_cause, tvb, 0, length, cause);
+  proto_tree_add_item(tree, hf_sccp_reset_cause, tvb, 0, length, ENC_LITTLE_ENDIAN);
 
   if (show_key_params)
-    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", cause);
+    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", tvb_get_guint8(tvb, 0));
 }
 
 static void
 dissect_sccp_error_cause_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
-  guint8 cause;
-
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 1, got %u", length);
     return;
   }
 
-  cause = tvb_get_guint8(tvb, 0);
-  proto_tree_add_uint(tree, hf_sccp_error_cause, tvb, 0, length, cause);
+  proto_tree_add_item(tree, hf_sccp_error_cause, tvb, 0, length, ENC_LITTLE_ENDIAN);
 
   if (show_key_params)
-    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", cause);
+    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", tvb_get_guint8(tvb, 0));
 }
 
 static void
 dissect_sccp_refusal_cause_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
-  guint8 cause;
-
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 1, got %u", length);
     return;
   }
 
-  cause = tvb_get_guint8(tvb, 0);
-  proto_tree_add_uint(tree, hf_sccp_refusal_cause, tvb, 0, length, cause);
+  proto_tree_add_item(tree, hf_sccp_refusal_cause, tvb, 0, length, ENC_LITTLE_ENDIAN);
 
   if (show_key_params)
-    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", cause);
+    col_append_fstr(pinfo->cinfo, COL_INFO, "Cause=%d ", tvb_get_guint8(tvb, 0));
 }
 
 
@@ -2261,6 +2308,7 @@ dissect_sccp_data_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   guint8 other_ssn = INVALID_SSN;
   const mtp3_addr_pc_t *dpc = NULL;
   const mtp3_addr_pc_t *opc = NULL;
+  heur_dtbl_entry_t *hdtbl_entry;
 
   if ((trace_sccp) && (assoc && assoc != &no_assoc)) {
     pinfo->sccp_info = assoc->curr_msg;
@@ -2333,7 +2381,7 @@ dissect_sccp_data_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   }
 
   /* try heuristic subdissector list to see if there are any takers */
-  if (dissector_try_heuristic(heur_subdissector_list, tvb, pinfo, tree, NULL)) {
+  if (dissector_try_heuristic(heur_subdissector_list, tvb, pinfo, tree, &hdtbl_entry, NULL)) {
     return;
   }
 
@@ -2364,10 +2412,8 @@ dissect_sccp_segmentation_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
   proto_tree_add_item(param_tree, hf_sccp_segmentation_remaining, tvb, 0, 1, ENC_NA);
 
   if (length-1 != 3) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length-1, "Wrong length indicated. Expected 3, got %u", length-1);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 3, got %u", length-1);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length-1,
+                                 "Wrong length indicated. Expected 3, got %u", length-1);
     return;
   }
 
@@ -2387,10 +2433,8 @@ static void
 dissect_sccp_importance_param(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint length)
 {
   if (length != 1) {
-    proto_item *expert_item;
-    expert_item = proto_tree_add_text(tree, tvb, 0, length, "Wrong length indicated. Expected 1, got %u", length);
-    expert_add_info_format(pinfo, expert_item, PI_MALFORMED, PI_ERROR, "Wrong length indicated. Expected 1, got %u", length);
-    PROTO_ITEM_SET_GENERATED(expert_item);
+    proto_tree_add_expert_format(tree, pinfo, &ei_sccp_wrong_length, tvb, 0, length,
+                                 "Wrong length indicated. Expected 1, got %u", length);
     return;
   }
 
@@ -2662,7 +2706,7 @@ dissect_sccp_optional_parameters(tvbuff_t *tvb, packet_info *pinfo,
 static sccp_msg_info_t *
 new_ud_msg(packet_info *pinfo, guint32 msg_type _U_)
 {
-  sccp_msg_info_t *m = ep_new0(sccp_msg_info_t);
+  sccp_msg_info_t *m = wmem_new0(wmem_packet_scope(), sccp_msg_info_t);
   m->framenum = PINFO_FD_NUM(pinfo);
   m->data.ud.calling_gt = NULL;
   m->data.ud.called_gt = NULL;
@@ -2671,7 +2715,7 @@ new_ud_msg(packet_info *pinfo, guint32 msg_type _U_)
   return m;
 }
 
-static void
+static int
 dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
                      proto_tree *tree)
 {
@@ -2680,7 +2724,7 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
   guint16   offset = 0;
   gboolean  save_fragmented;
   tvbuff_t *new_tvb = NULL;
-  fragment_data *frag_msg = NULL;
+  fragment_head *frag_msg = NULL;
   guint32   source_local_ref = 0;
   guint8    more;
   guint     msg_offset = tvb_offset_from_real_beginning(tvb);
@@ -2860,7 +2904,7 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
     VARIABLE_POINTER(variable_pointer1, hf_sccp_variable_pointer1, POINTER_LENGTH);
 
     /* Reassemble */
-    if (!sccp_xudt_desegment) {
+    if (!sccp_reassemble) {
       proto_tree_add_text(sccp_tree, tvb, variable_pointer1,
                           tvb_get_guint8(tvb, variable_pointer1)+1,
                           "Segmented Data");
@@ -2870,12 +2914,13 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
     } else {
       save_fragmented = pinfo->fragmented;
       pinfo->fragmented = TRUE;
-      frag_msg = fragment_add_seq_next(tvb, variable_pointer1 + 1, pinfo,
-                                       source_local_ref,                      /* ID for fragments belonging together */
-                                       sccp_xudt_msg_fragment_table,          /* list of message fragments */
-                                       sccp_xudt_msg_reassembled_table,       /* list of reassembled messages */
-                                       tvb_get_guint8(tvb,variable_pointer1), /* fragment length - to the end */
-                                       more);                                 /* More fragments? */
+      frag_msg = fragment_add_seq_next(&sccp_xudt_msg_reassembly_table,
+                                       tvb, variable_pointer1 + 1,
+                                       pinfo,
+                                       source_local_ref,                       /* ID for fragments belonging together */
+                                       NULL,
+                                       tvb_get_guint8(tvb, variable_pointer1), /* fragment length - to the end */
+                                       more);                                  /* More fragments? */
 
       new_tvb = process_reassembled_data(tvb, variable_pointer1 + 1, pinfo,
                                          "Reassembled SCCP", frag_msg,
@@ -2926,7 +2971,7 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
     break;
 
   case SCCP_MSG_TYPE_UDT:
-    pinfo->sccp_info = sccp_msg = new_ud_msg(pinfo,message_type);
+    pinfo->sccp_info = sccp_msg = new_ud_msg(pinfo, message_type);
 
     offset += dissect_sccp_parameter(tvb, pinfo, sccp_tree, tree,
                                      PARAMETER_CLASS, offset,
@@ -2953,7 +2998,7 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
     gboolean save_in_error_pkt = pinfo->flags.in_error_pkt;
     pinfo->flags.in_error_pkt = TRUE;
 
-    pinfo->sccp_info =  sccp_msg = new_ud_msg(pinfo,message_type);
+    pinfo->sccp_info =  sccp_msg = new_ud_msg(pinfo, message_type);
 
     offset += dissect_sccp_parameter(tvb, pinfo, sccp_tree, tree,
                                      PARAMETER_RETURN_CAUSE, offset,
@@ -3057,7 +3102,7 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
     break;
 
   case SCCP_MSG_TYPE_XUDT:
-    pinfo->sccp_info =  sccp_msg = new_ud_msg(pinfo,message_type);
+    pinfo->sccp_info =  sccp_msg = new_ud_msg(pinfo, message_type);
     offset += dissect_sccp_parameter(tvb, pinfo, sccp_tree, tree,
                                      PARAMETER_CLASS, offset,
                                      PROTOCOL_CLASS_LENGTH);
@@ -3085,7 +3130,7 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
                                     variable_pointer2);
 
     if (tvb_get_guint8(tvb, optional_pointer) == PARAMETER_SEGMENTATION) {
-      if (!sccp_xudt_desegment) {
+      if (!sccp_reassemble) {
         proto_tree_add_text(sccp_tree, tvb, variable_pointer3, tvb_get_guint8(tvb, variable_pointer3)+1, "Segmented Data");
       } else {
         guint8 octet;
@@ -3101,7 +3146,7 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
          * The values 0000 to 1111 are possible; the value 0000 indicates
          * the last segment.
          */
-        octet = tvb_get_guint8(tvb,optional_pointer+2);
+        octet = tvb_get_guint8(tvb, optional_pointer+2);
         source_local_ref = tvb_get_letoh24(tvb, optional_pointer+3);
 
         if ((octet & 0x0f) == 0)
@@ -3109,15 +3154,17 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
 
         save_fragmented = pinfo->fragmented;
         pinfo->fragmented = TRUE;
-        frag_msg = fragment_add_seq_next(tvb, variable_pointer3 + 1, pinfo,
+        frag_msg = fragment_add_seq_next(&sccp_xudt_msg_reassembly_table,
+                                         tvb, variable_pointer3 + 1,
+                                         pinfo,
                                          source_local_ref,                            /* ID for fragments belonging together */
-                                         sccp_xudt_msg_fragment_table,                /* list of message fragments */
-                                         sccp_xudt_msg_reassembled_table,             /* list of reassembled messages */
-                                         tvb_get_guint8(tvb,variable_pointer3),       /* fragment length - to the end */
+                                         NULL,
+                                         tvb_get_guint8(tvb, variable_pointer3),       /* fragment length - to the end */
                                          more_frag);                          /* More fragments? */
 
         if ((octet & 0x80) == 0x80) /*First segment, set number of segments*/
-          fragment_set_tot_len(pinfo, source_local_ref, sccp_xudt_msg_fragment_table,(octet & 0xf));
+          fragment_set_tot_len(&sccp_xudt_msg_reassembly_table,
+                               pinfo, source_local_ref, NULL, (octet & 0xf));
 
         new_tvb = process_reassembled_data(tvb, variable_pointer3 + 1,
                                            pinfo, "Reassembled SCCP",
@@ -3147,7 +3194,7 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
     gboolean save_in_error_pkt = pinfo->flags.in_error_pkt;
     pinfo->flags.in_error_pkt = TRUE;
 
-    pinfo->sccp_info =  sccp_msg = new_ud_msg(pinfo,message_type);
+    pinfo->sccp_info =  sccp_msg = new_ud_msg(pinfo, message_type);
     offset += dissect_sccp_parameter(tvb, pinfo, sccp_tree, tree,
                                      PARAMETER_RETURN_CAUSE, offset,
                                      RETURN_CAUSE_LENGTH);
@@ -3170,7 +3217,7 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
                                     variable_pointer2);
 
     if (tvb_get_guint8(tvb, optional_pointer) == PARAMETER_SEGMENTATION) {
-      if (!sccp_xudt_desegment) {
+      if (!sccp_reassemble) {
         proto_tree_add_text(sccp_tree, tvb, variable_pointer3, tvb_get_guint8(tvb, variable_pointer3)+1, "Segmented Data");
 
       } else {
@@ -3188,7 +3235,7 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
          * The values 0000 to 1111 are possible; the value 0000 indicates
          * the last segment.
          */
-        octet = tvb_get_guint8(tvb,optional_pointer+2);
+        octet = tvb_get_guint8(tvb, optional_pointer+2);
         source_local_ref = tvb_get_letoh24(tvb, optional_pointer+3);
 
         if ((octet & 0x0f) == 0)
@@ -3196,15 +3243,17 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
 
         save_fragmented = pinfo->fragmented;
         pinfo->fragmented = TRUE;
-        frag_msg = fragment_add_seq_next(tvb, variable_pointer3 + 1, pinfo,
+        frag_msg = fragment_add_seq_next(&sccp_xudt_msg_reassembly_table,
+                                         tvb, variable_pointer3 + 1,
+                                         pinfo,
                                          source_local_ref,                            /* ID for fragments belonging together */
-                                         sccp_xudt_msg_fragment_table,                /* list of message fragments */
-                                         sccp_xudt_msg_reassembled_table,             /* list of reassembled messages */
-                                         tvb_get_guint8(tvb,variable_pointer3),       /* fragment length - to the end */
-                                         more_frag);                          /* More fragments? */
+                                         NULL,
+                                         tvb_get_guint8(tvb, variable_pointer3),      /* fragment length - to the end */
+                                         more_frag);                                  /* More fragments? */
 
         if ((octet & 0x80) == 0x80) /*First segment, set number of segments*/
-          fragment_set_tot_len(pinfo, source_local_ref, sccp_xudt_msg_fragment_table,(octet & 0xf));
+          fragment_set_tot_len(&sccp_xudt_msg_reassembly_table,
+                               pinfo, source_local_ref, NULL, (octet & 0xf));
 
         new_tvb = process_reassembled_data(tvb, variable_pointer3 + 1,
                                            pinfo, "Reassembled SCCP",
@@ -3231,7 +3280,7 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
     break;
   }
   case SCCP_MSG_TYPE_LUDT:
-    pinfo->sccp_info =  sccp_msg = new_ud_msg(pinfo,message_type);
+    pinfo->sccp_info =  sccp_msg = new_ud_msg(pinfo, message_type);
 
     offset += dissect_sccp_parameter(tvb, pinfo, sccp_tree, tree,
                                      PARAMETER_CLASS, offset,
@@ -3258,7 +3307,7 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
     break;
 
   case SCCP_MSG_TYPE_LUDTS:
-    pinfo->sccp_info =  sccp_msg = new_ud_msg(pinfo,message_type);
+    pinfo->sccp_info =  sccp_msg = new_ud_msg(pinfo, message_type);
     offset += dissect_sccp_parameter(tvb, pinfo, sccp_tree, tree,
                                      PARAMETER_RETURN_CAUSE, offset,
                                      RETURN_CAUSE_LENGTH);
@@ -3315,6 +3364,7 @@ dissect_sccp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sccp_tree,
     }
   }
 
+  return offset;
 }
 
 static void
@@ -3337,7 +3387,7 @@ dissect_sccp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      */
     decode_mtp3_standard = mtp3_addr_p->type;
   } else {
-    decode_mtp3_standard = mtp3_standard;
+    decode_mtp3_standard = (Standard_Type)mtp3_standard;
   }
 
   /* Make entry in the Protocol column on summary display */
@@ -3413,10 +3463,22 @@ static struct _sccp_ul {
 };
 
 static void
-sccp_users_update_cb(void *r, const char **err _U_)
+sccp_users_update_cb(void *r, const char **err)
 {
   sccp_user_t *u = (sccp_user_t *)r;
   struct _sccp_ul *c;
+  range_t *empty;
+
+  empty = range_empty();
+  if (ranges_are_equal(u->called_pc, empty)) {
+          *err = g_strdup("Must specify a PC");
+          return;
+  }
+
+  if (ranges_are_equal(u->called_ssn, empty)) {
+          *err = g_strdup("Must specify an SSN");
+          return;
+  }
 
   for (c=user_list; c->handlep; c++) {
     if (c->id == u->user) {
@@ -3459,8 +3521,8 @@ sccp_users_free_cb(void *r)
 
 
 UAT_DEC_CB_DEF(sccp_users, ni, sccp_user_t)
-UAT_RANGE_CB_DEF(sccp_users, called_pc,sccp_user_t)
-UAT_RANGE_CB_DEF(sccp_users, called_ssn,sccp_user_t)
+UAT_RANGE_CB_DEF(sccp_users, called_pc, sccp_user_t)
+UAT_RANGE_CB_DEF(sccp_users, called_ssn, sccp_user_t)
 UAT_VS_DEF(sccp_users, user, sccp_user_t, guint, SCCP_USER_DATA, "Data")
 
 /** End SccpUsersTable **/
@@ -3470,9 +3532,8 @@ static void
 init_sccp(void)
 {
   next_assoc_id = 1;
-  fragment_table_init (&sccp_xudt_msg_fragment_table);
-  reassembled_table_init(&sccp_xudt_msg_reassembled_table);
-
+  reassembly_table_init (&sccp_xudt_msg_reassembly_table,
+                         &addresses_reassembly_table_functions);
 }
 
 /* Register the protocol with Wireshark */
@@ -3990,6 +4051,19 @@ proto_register_sccp(void)
     &ett_sccp_assoc
   };
 
+  static ei_register_info ei[] = {
+     { &ei_sccp_wrong_length, { "sccp.wrong_length", PI_MALFORMED, PI_ERROR, "Wrong length indicated.", EXPFILL }},
+     { &ei_sccp_international_standard_address, { "sccp.international_standard_address", PI_MALFORMED, PI_WARN,
+            "Address is coded to international standards.  This doesn't normally happen in ANSI networks.", EXPFILL }},
+     { &ei_sccp_no_ssn_present, { "sccp.ssn.not_present", PI_PROTOCOL, PI_WARN, "Message is routed on SSN, but SSN is not present", EXPFILL }},
+     { &ei_sccp_ssn_zero, { "sccp.ssn.is_zero", PI_PROTOCOL, PI_WARN, "Message is routed on SSN, but SSN is zero (unspecified)", EXPFILL }},
+     { &ei_sccp_class_unexpected, { "sccp.class_unexpected", PI_MALFORMED, PI_ERROR, "Unexpected message class for this message type", EXPFILL }},
+     { &ei_sccp_handling_invalid, { "sccp.handling_invalid", PI_MALFORMED, PI_ERROR, "Invalid message handling", EXPFILL }},
+     { &ei_sccp_gt_digits_missing, { "sccp.gt_digits_missing", PI_MALFORMED, PI_ERROR, "Address digits missing", EXPFILL }},
+  };
+
+  module_t *sccp_module;
+  expert_module_t* expert_sccp;
 
   static uat_field_t users_flds[] = {
     UAT_FLD_DEC(sccp_users, ni, "Network Indicator", "Network Indicator"),
@@ -4001,7 +4075,7 @@ proto_register_sccp(void)
 
 
   uat_t *users_uat = uat_new("SCCP Users Table", sizeof(sccp_user_t),
-                             "sccp_users", TRUE, (void*) &sccp_users,
+                             "sccp_users", TRUE, &sccp_users,
                              &num_sccp_users, UAT_AFFECTS_DISSECTION,
                              "ChSccpUsers", sccp_users_copy_cb,
                              sccp_users_update_cb, sccp_users_free_cb,
@@ -4016,7 +4090,8 @@ proto_register_sccp(void)
   /* Required function calls to register the header fields and subtrees used */
   proto_register_field_array(proto_sccp, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
-
+  expert_sccp = expert_register_protocol(proto_sccp);
+  expert_register_field_array(expert_sccp, ei, array_length(ei));
 
   sccp_ssn_dissector_table = register_dissector_table("sccp.ssn", "SCCP SSN", FT_UINT8, BASE_DEC);
 
@@ -4034,9 +4109,9 @@ proto_register_sccp(void)
                                  &sccp_show_length);
 
   prefs_register_bool_preference(sccp_module, "defragment_xudt",
-                                 "Reassemble XUDT messages",
-                                 "Whether XUDT messages should be reassembled",
-                                 &sccp_xudt_desegment);
+                                 "Reassemble SCCP messages",
+                                 "Whether SCCP messages should be reassembled",
+                                 &sccp_reassemble);
 
   prefs_register_bool_preference(sccp_module, "trace_sccp",
                                  "Trace Associations",
@@ -4065,7 +4140,7 @@ proto_register_sccp(void)
 
   register_init_routine(&init_sccp);
 
-  assocs = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "sccp_associations");
+  assocs = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope());
 
   sccp_tap = register_tap("sccp");
 

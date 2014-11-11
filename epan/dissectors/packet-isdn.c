@@ -1,8 +1,6 @@
 /* packet-isdn.c
  * Routines for ISDN packet disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,9 +23,14 @@
 #include "config.h"
 
 #include <glib.h>
+
 #include <epan/packet.h>
 #include <epan/prefs.h>
+#include <wiretap/wtap.h>
 #include <epan/circuit.h>
+
+void proto_register_isdn(void);
+void proto_reg_handoff_isdn(void);
 
 static int proto_isdn = -1;
 static int hf_isdn_channel = -1;
@@ -197,7 +200,7 @@ dissect_isdn(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	}
 
 	if (!try_circuit_dissector(pinfo->ctype, pinfo->circuit_id,
-	    pinfo->fd->num, tvb, pinfo, tree))
+		pinfo->fd->num, tvb, pinfo, tree, NULL))
 		call_dissector(data_handle, tvb, pinfo, tree);
 }
 

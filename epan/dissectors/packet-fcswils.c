@@ -2,8 +2,6 @@
  * Routines for FC Inter-switch link services
  * Copyright 2001, Dinesh G Dutt <ddutt@cisco.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,13 +26,16 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/to_str.h>
+#include <epan/wmem/wmem.h>
 #include <epan/conversation.h>
 #include <epan/etypes.h>
-#include "packet-scsi.h"
 #include "packet-fc.h"
 #include "packet-fcswils.h"
 #include "packet-fcct.h"
+
+void proto_register_fcswils(void);
+void proto_reg_handoff_fcswils(void);
 
 /*
  * See the FC-SW specifications.
@@ -435,8 +436,8 @@ static gint get_zoneobj_len(tvbuff_t *tvb, gint offset);
 static gint
 fcswils_equal(gconstpointer v, gconstpointer w)
 {
-    const fcswils_conv_key_t *v1 = v;
-    const fcswils_conv_key_t *v2 = w;
+    const fcswils_conv_key_t *v1 = (const fcswils_conv_key_t *)v;
+    const fcswils_conv_key_t *v2 = (const fcswils_conv_key_t *)w;
 
     return (v1->conv_idx == v2->conv_idx);
 }
@@ -444,7 +445,7 @@ fcswils_equal(gconstpointer v, gconstpointer w)
 static guint
 fcswils_hash(gconstpointer v)
 {
-    const fcswils_conv_key_t *key = v;
+    const fcswils_conv_key_t *key = (const fcswils_conv_key_t *)v;
     guint val;
 
     val = key->conv_idx;
@@ -469,7 +470,7 @@ static guint8 *
 zonenm_to_str(tvbuff_t *tvb, gint offset)
 {
     int len = tvb_get_guint8(tvb, offset);
-    return tvb_get_ephemeral_string(tvb, offset+4, len);
+    return tvb_get_string(wmem_packet_scope(), tvb, offset+4, len);
 }
 
 /* Offset points to the start of the zone object */
@@ -718,11 +719,11 @@ dissect_swils_elp(tvbuff_t *tvb, proto_tree *elp_tree, guint8 isreq _U_)
         proto_tree_add_item(elp_tree, hf_swils_elp_rev, tvb, offset++, 1, ENC_BIG_ENDIAN);
         proto_tree_add_item(elp_tree, hf_swils_elp_flags, tvb, offset, 2, ENC_NA);
         offset += 3;
-        proto_tree_add_uint_format(elp_tree, hf_swils_elp_r_a_tov, tvb, offset, 4,
-                                   elp.r_a_tov, "R_A_TOV: %d msecs", elp.r_a_tov);
+        proto_tree_add_uint_format_value(elp_tree, hf_swils_elp_r_a_tov, tvb, offset, 4,
+                                   elp.r_a_tov, "%d msecs", elp.r_a_tov);
         offset += 4;
-        proto_tree_add_uint_format(elp_tree, hf_swils_elp_e_d_tov, tvb, offset, 4,
-                                   elp.e_d_tov, "E_D_TOV: %d msecs", elp.e_d_tov);
+        proto_tree_add_uint_format_value(elp_tree, hf_swils_elp_e_d_tov, tvb, offset, 4,
+                                   elp.e_d_tov, "%d msecs", elp.e_d_tov);
         offset += 4;
         proto_tree_add_string(elp_tree, hf_swils_elp_req_epn, tvb, offset, 8,
                               fcwwn_to_str(elp.req_epname));
@@ -740,8 +741,8 @@ dissect_swils_elp(tvbuff_t *tvb, proto_tree *elp_tree, guint8 isreq _U_)
         } else {
             flags="Class F Invld";
         }
-        proto_tree_add_bytes_format(elp_tree, hf_swils_elp_clsf_svcp, tvb, offset, 6,
-                                    &elp.clsf_svcparm[0], "Class F Svc Parameters: (%s)", flags);
+        proto_tree_add_bytes_format_value(elp_tree, hf_swils_elp_clsf_svcp, tvb, offset, 6,
+                                    &elp.clsf_svcparm[0], "(%s)", flags);
         offset += 6;
 
         proto_tree_add_item(elp_tree, hf_swils_elp_clsf_rcvsz, tvb, offset, 2, ENC_BIG_ENDIAN);
@@ -758,7 +759,7 @@ dissect_swils_elp(tvbuff_t *tvb, proto_tree *elp_tree, guint8 isreq _U_)
             char *flagsbuf;
             gint stroff, returned_length;
 
-            flagsbuf=ep_alloc(MAX_FLAGS_LEN);
+            flagsbuf=(char *)wmem_alloc(wmem_packet_scope(), MAX_FLAGS_LEN);
             stroff = 0;
 
             returned_length = g_snprintf(flagsbuf+stroff, MAX_FLAGS_LEN-stroff,
@@ -773,7 +774,7 @@ dissect_swils_elp(tvbuff_t *tvb, proto_tree *elp_tree, guint8 isreq _U_)
                 stroff += MIN(returned_length, MAX_FLAGS_LEN-stroff);
             }
             if (elp.cls1_svcparm[0] & 0x10) {
-                returned_length = g_snprintf(flagsbuf+stroff, MAX_FLAGS_LEN-stroff, " | LKS");
+                /*returned_length =*/ g_snprintf(flagsbuf+stroff, MAX_FLAGS_LEN-stroff, " | LKS");
             }
             flags=flagsbuf;
         }
@@ -781,8 +782,8 @@ dissect_swils_elp(tvbuff_t *tvb, proto_tree *elp_tree, guint8 isreq _U_)
             flags="Class 1 Invalid";
         }
 
-        proto_tree_add_bytes_format(elp_tree, hf_swils_elp_cls1_svcp, tvb, offset, 2,
-                                    NULL, "Class 1 Svc Parameters: (%s)", flags);
+        proto_tree_add_bytes_format_value(elp_tree, hf_swils_elp_cls1_svcp, tvb, offset, 2,
+                                    NULL, "(%s)", flags);
         offset += 2;
         if (elp.cls1_svcparm[0] & 0x80) {
             proto_tree_add_item(elp_tree, hf_swils_elp_cls1_rcvsz, tvb, offset, 2, ENC_BIG_ENDIAN);
@@ -801,9 +802,9 @@ dissect_swils_elp(tvbuff_t *tvb, proto_tree *elp_tree, guint8 isreq _U_)
             flags="Class 2 Invld";
         }
 
-        proto_tree_add_bytes_format(elp_tree, hf_swils_elp_cls2_svcp, tvb, offset, 2,
+        proto_tree_add_bytes_format_value(elp_tree, hf_swils_elp_cls2_svcp, tvb, offset, 2,
                                     &elp.cls2_svcparm[0],
-                                    "Class 2 Svc Parameters: (%s)", flags);
+                                    "(%s)", flags);
         offset += 2;
 
         if (elp.cls2_svcparm[0] & 0x80) {
@@ -822,9 +823,9 @@ dissect_swils_elp(tvbuff_t *tvb, proto_tree *elp_tree, guint8 isreq _U_)
         else {
             flags="Class 3 Invld";
         }
-        proto_tree_add_bytes_format(elp_tree, hf_swils_elp_cls3_svcp, tvb, offset, 2,
+        proto_tree_add_bytes_format_value(elp_tree, hf_swils_elp_cls3_svcp, tvb, offset, 2,
                                     &elp.cls3_svcparm[0],
-                                    "Class 3 Svc Parameters: (%s)", flags);
+                                    "(%s)", flags);
         offset += 2;
 
         if (elp.cls3_svcparm[0] & 0x80) {
@@ -870,9 +871,9 @@ dissect_swils_efp(tvbuff_t *tvb, proto_tree *efp_tree, guint8 isreq _U_)
     efp.payload_len = tvb_get_ntohs(tvb, offset);
     if (efp.payload_len < FC_SWILS_EFP_SIZE) {
         if (efp_tree)
-            proto_tree_add_uint_format(efp_tree, hf_swils_efp_payload_len,
+            proto_tree_add_uint_format_value(efp_tree, hf_swils_efp_payload_len,
                                        tvb, offset, 2, efp.payload_len,
-                                       "Payload Len: %u (bogus, must be >= %u)",
+                                       "%u (bogus, must be >= %u)",
                                        efp.payload_len, FC_SWILS_EFP_SIZE);
         return;
     }
@@ -1757,8 +1758,8 @@ static fcswils_func_table_t fcswils_func_table[FC_SWILS_MAXCODE] = {
 };
 
 /* Code to actually dissect the packets */
-static void
-dissect_fcswils(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_fcswils(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
     proto_item          *ti            = NULL;
     guint8               opcode;
@@ -1770,6 +1771,12 @@ dissect_fcswils(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     proto_tree          *swils_tree    = NULL;
     guint8               isreq         = FC_SWILS_REQ;
     tvbuff_t            *next_tvb;
+    fc_hdr *fchdr;
+
+    /* Reject the packet if data is NULL */
+    if (data == NULL)
+        return 0;
+    fchdr = (fc_hdr *)data;
 
     /* Make entries in Protocol column and Info column on summary display */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "SW_ILS");
@@ -1786,12 +1793,12 @@ dissect_fcswils(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* Register conversation if this is not a response */
     if ((opcode != FC_SWILS_SWACC) && (opcode != FC_SWILS_SWRJT)) {
         conversation = find_conversation(pinfo->fd->num, &pinfo->src, &pinfo->dst,
-                                         pinfo->ptype, pinfo->oxid,
-                                         pinfo->rxid, NO_PORT2);
+                                         pinfo->ptype, fchdr->oxid,
+                                         fchdr->rxid, NO_PORT2);
         if (!conversation) {
             conversation = conversation_new(pinfo->fd->num, &pinfo->src, &pinfo->dst,
-                                            pinfo->ptype, pinfo->oxid,
-                                            pinfo->rxid, NO_PORT2);
+                                            pinfo->ptype, fchdr->oxid,
+                                            fchdr->rxid, NO_PORT2);
         }
 
         ckey.conv_idx = conversation->index;
@@ -1806,10 +1813,10 @@ dissect_fcswils(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             cdata->opcode = opcode;
         }
         else {
-            req_key = se_alloc(sizeof(fcswils_conv_key_t));
+            req_key = wmem_new(wmem_file_scope(), fcswils_conv_key_t);
             req_key->conv_idx = conversation->index;
 
-            cdata = se_alloc(sizeof(fcswils_conv_data_t));
+            cdata = wmem_new(wmem_file_scope(), fcswils_conv_data_t);
             cdata->opcode = opcode;
 
             g_hash_table_insert(fcswils_req_hash, req_key, cdata);
@@ -1818,15 +1825,15 @@ dissect_fcswils(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     else {
         /* Opcode is ACC or RJT */
         conversation = find_conversation(pinfo->fd->num, &pinfo->src, &pinfo->dst,
-                                         pinfo->ptype, pinfo->oxid,
-                                         pinfo->rxid, NO_PORT2);
+                                         pinfo->ptype, fchdr->oxid,
+                                         fchdr->rxid, NO_PORT2);
         isreq = FC_SWILS_RPLY;
         if (!conversation) {
             if (tree && (opcode == FC_SWILS_SWACC)) {
                 /* No record of what this accept is for. Can't decode */
                 proto_tree_add_text(swils_tree, tvb, 0, tvb_length(tvb),
                                     "No record of Exchg. Unable to decode SW_ACC");
-                return;
+                return 0;
             }
         }
         else {
@@ -1846,25 +1853,23 @@ dissect_fcswils(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     /* No record of what this accept is for. Can't decode */
                     proto_tree_add_text(swils_tree, tvb, 0, tvb_length(tvb),
                                         "No record of SW_ILS Req. Unable to decode SW_ACC");
-                    return;
+                    return 0;
                 }
             }
         }
     }
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        if (isreq == FC_SWILS_REQ) {
-            col_add_str(pinfo->cinfo, COL_INFO,
+    if (isreq == FC_SWILS_REQ) {
+        col_add_str(pinfo->cinfo, COL_INFO,
+                    val_to_str(opcode, fc_swils_opcode_key_val, "0x%x"));
+    }
+    else if (opcode == FC_SWILS_SWRJT) {
+        col_add_fstr(pinfo->cinfo, COL_INFO, "SW_RJT (%s)",
+                        val_to_str(failed_opcode, fc_swils_opcode_key_val, "0x%x"));
+    }
+    else {
+        col_add_fstr(pinfo->cinfo, COL_INFO, "SW_ACC (%s)",
                         val_to_str(opcode, fc_swils_opcode_key_val, "0x%x"));
-        }
-        else if (opcode == FC_SWILS_SWRJT) {
-            col_add_fstr(pinfo->cinfo, COL_INFO, "SW_RJT (%s)",
-                         val_to_str(failed_opcode, fc_swils_opcode_key_val, "0x%x"));
-        }
-        else {
-            col_add_fstr(pinfo->cinfo, COL_INFO, "SW_ACC (%s)",
-                         val_to_str(opcode, fc_swils_opcode_key_val, "0x%x"));
-        }
     }
 
     if (tree) {
@@ -1883,6 +1888,7 @@ dissect_fcswils(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         call_dissector(data_handle, next_tvb, pinfo, tree);
     }
 
+    return tvb_length(tvb);
 }
 
 /* Register the protocol with Wireshark */
@@ -1927,7 +1933,7 @@ proto_register_fcswils(void)
            NULL, HFILL}},
 
         { &hf_swils_elp_clsf_svcp,
-          {"Class F Svc Param", "swils.elp.clsfp",
+          {"Class F Svc Parameters", "swils.elp.clsfp",
            FT_BYTES, BASE_NONE, NULL, 0x0,
            NULL, HFILL}},
 
@@ -1952,7 +1958,7 @@ proto_register_fcswils(void)
            NULL, HFILL}},
 
         { &hf_swils_elp_cls1_svcp,
-          {"Class 1 Svc Param", "swils.elp.cls1p",
+          {"Class 1 Svc Parameters", "swils.elp.cls1p",
            FT_BYTES, BASE_NONE, NULL, 0x0,
            NULL, HFILL}},
 
@@ -1962,7 +1968,7 @@ proto_register_fcswils(void)
            NULL, HFILL}},
 
         { &hf_swils_elp_cls2_svcp,
-          {"Class 2 Svc Param", "swils.elp.cls2p",
+          {"Class 2 Svc Parameters", "swils.elp.cls2p",
            FT_BYTES, BASE_NONE, NULL, 0x0,
            NULL, HFILL}},
 
@@ -1972,7 +1978,7 @@ proto_register_fcswils(void)
            NULL, HFILL}},
 
         { &hf_swils_elp_cls3_svcp,
-          {"Class 3 Svc Param", "swils.elp.cls3p",
+          {"Class 3 Svc Parameters", "swils.elp.cls3p",
            FT_BYTES, BASE_NONE, NULL, 0x0,
            NULL, HFILL}},
 
@@ -2569,7 +2575,7 @@ proto_reg_handoff_fcswils(void)
 {
     dissector_handle_t swils_handle;
 
-    swils_handle = create_dissector_handle(dissect_fcswils, proto_fcswils);
+    swils_handle = new_create_dissector_handle(dissect_fcswils, proto_fcswils);
     dissector_add_uint("fc.ftype", FC_FTYPE_SWILS, swils_handle);
 
     data_handle = find_dissector("data");

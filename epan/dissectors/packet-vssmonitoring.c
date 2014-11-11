@@ -5,8 +5,6 @@
  *
  * 20111205 - First edition by Sake Blok (sake.blok@SYN-bit.nl)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -48,6 +46,8 @@ static const value_string clksrc_vals[] = {
   { 0,                  NULL }
 };
 
+void proto_register_vssmonitoring(void);
+void proto_reg_handoff_vssmonitoring(void);
 
 static int proto_vssmonitoring = -1;
 
@@ -86,6 +86,13 @@ dissect_vssmonitoring(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
    * with a length that includes one or more of a time stamp and
    * a 1-byte or 2-byte port stamp.
    *
+   * See
+   *
+   *    http://www.vssmonitoring.com/portals/application_note/Port%20and%20Time%20Stamping.pdf
+   *
+   * (although that speaks of 2-byte port stamps as being for a "future
+   * release").
+   *
    * This means a trailer length must not be more than 14 bytes,
    * and:
    *
@@ -123,6 +130,12 @@ dissect_vssmonitoring(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
       /* The timestamp will be based on the uptime until the TAP is completely booted,
        * this takes about 60s, but use 1 hour to be sure
        */
+
+      /* Probably just null data to fill up a short frame.
+       * FIXME: Should be made even stricter.
+       */
+      if (vssmonitoring_time.secs == 0)
+        return 0;
       if (vssmonitoring_time.secs > 3600) {
 
         /* Check whether the timestamp in the PCAP header and the VSS-Monitoring

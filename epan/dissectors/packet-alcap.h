@@ -1,7 +1,5 @@
 /* packet-alcap.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,7 +24,7 @@
 
 #include <epan/dissectors/packet-e164.h>
 
-extern void alcap_tree_from_bearer_key(proto_tree* tree, tvbuff_t* tvb, const gchar* key);
+extern void alcap_tree_from_bearer_key(proto_tree* tree, tvbuff_t* tvb, packet_info *pinfo, const gchar* key);
 
 typedef struct _alcap_msg_data_t {
     guint msg_type;

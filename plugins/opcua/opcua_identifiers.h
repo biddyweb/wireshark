@@ -1,6 +1,4 @@
 /******************************************************************************
-** $Id$
-**
 ** Copyright (C) 2006-2007 ascolab GmbH. All Rights Reserved.
 ** Web: http://www.ascolab.com
 **
@@ -32,7 +30,7 @@ typedef void (*fctEnumParser)(proto_tree *tree, tvbuff_t *tvb, gint *pOffset);
 /* declare type parser function prototype */
 typedef void (*fctComplexTypeParser)(proto_tree *tree, tvbuff_t *tvb, gint *pOffset, const char *szFieldName);
 /* declare type parser function prototype */
-typedef void (*fctSimpleTypeParser)(proto_tree *tree, tvbuff_t *tvb, gint *pOffset, int hfIndex);
+typedef proto_item* (*fctSimpleTypeParser)(proto_tree *tree, tvbuff_t *tvb, gint *pOffset, int hfIndex);
 
 typedef struct _ParserEntry
 {

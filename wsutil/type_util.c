@@ -1,8 +1,6 @@
 /* type_util.c
  * Types utility routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,7 +36,7 @@
  * gstutils.h: Header for various utility functions
  *
  * GNU GPL v2
- * 
+ *
  */
 
 /* work around error C2520: conversion from unsigned __int64 to double

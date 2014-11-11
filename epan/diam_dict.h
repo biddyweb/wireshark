@@ -17,9 +17,8 @@
  ** Library General Public License for more details.
  **
  ** You should have received a copy of the GNU Library General Public
- ** License along with this library; if not, write to the
- ** Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- ** Boston, MA  02111-1307, USA.
+ ** License along with this library; if not, write to the Free Software
+ ** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 #ifndef _DIAM_DICT_H_
@@ -28,7 +27,7 @@
 struct _ddict_namecode_t {
 	char* name;
 	guint code;
-	struct _ddict_namecode_t* next;	
+	struct _ddict_namecode_t* next;
 };
 
 typedef struct _ddict_namecode_t ddict_gavp_t;
@@ -39,7 +38,7 @@ typedef struct _ddict_vendor_t {
 	char* name;
 	char* desc;
 	guint code;
-	struct _ddict_vendor_t* next;	
+	struct _ddict_vendor_t* next;
 } ddict_vendor_t;
 
 typedef struct _ddict_avp_t {

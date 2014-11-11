@@ -3,8 +3,6 @@
  * By Owen Kirby <osk@exegin.com>
  * Copyright 2009 Exegin Technologies Limited
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -80,5 +78,6 @@ extern void     zbee_security_handoff   (void);
 
 /* Security Dissector Routine. */
 extern tvbuff_t *dissect_zbee_secure(tvbuff_t *, packet_info *, proto_tree *, guint);
+extern gboolean zbee_sec_ccm_decrypt(const gchar *, const gchar *, const gchar *, const gchar *, gchar *, guint, guint, guint);
 
 #endif /* PACKET_ZBEE_SECURITY_H */

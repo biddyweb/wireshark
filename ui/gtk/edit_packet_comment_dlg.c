@@ -2,8 +2,6 @@
  * Dialog box for editing or adding packet comments.
  * Copyright 2012 Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,10 +28,9 @@
 #include <gtk/gtk.h>
 
 #include <epan/epan.h>
-#include <epan/filesystem.h>
+#include <wsutil/filesystem.h>
 
 #include "ui/main_statusbar.h"
-#include "ui/simple_dialog.h"
 
 #include "ui/gtk/dlg_utils.h"
 #include "ui/gtk/expert_comp_dlg.h"
@@ -66,6 +63,7 @@ pkt_comment_text_buff_ok_cb(GtkWidget *w _U_, GtkWidget *view)
 
   packet_list_update_packet_comment(new_packet_comment);
   expert_comp_packet_comment_updated();
+  status_expert_update();
 
   window_destroy(edit_or_add_pkt_comment_dlg);
 
@@ -109,8 +107,7 @@ edit_packet_comment_dlg (GtkAction *action _U_, gpointer data _U_)
   GtkWidget *bbox;
   GtkWidget *ok_bt, *cancel_bt, *help_bt;
   GtkTextBuffer *buffer;
-  const gchar *opt_comment;
-  gchar *buf_str;
+  gchar *opt_comment;
 
   edit_or_add_pkt_comment_dlg = dlg_window_new ("Edit or Add Packet Comments");
   gtk_widget_set_size_request (edit_or_add_pkt_comment_dlg, 500, 160);
@@ -138,9 +135,8 @@ edit_packet_comment_dlg (GtkAction *action _U_, gpointer data _U_)
   /*g_warning("Fetched comment '%s'",opt_comment);*/
 
   if(opt_comment){
-    buf_str = g_strdup_printf("%s", opt_comment);
-    gtk_text_buffer_set_text (buffer, buf_str, -1);
-    g_free(buf_str);
+    gtk_text_buffer_set_text(buffer, opt_comment, -1);
+    g_free(opt_comment);
   }
 
   /* Button row. */
@@ -237,7 +233,7 @@ edit_capture_comment_dlg_launch (void)
   g_signal_connect (ok_bt, "clicked", G_CALLBACK(capture_comment_text_buff_ok_cb), view);
   gtk_widget_set_sensitive (ok_bt, TRUE);
 
-  cancel_bt = g_object_get_data (G_OBJECT(bbox), GTK_STOCK_CANCEL);
+  cancel_bt = (GtkWidget *)g_object_get_data (G_OBJECT(bbox), GTK_STOCK_CANCEL);
   window_set_cancel_button (edit_or_add_capture_comment_dlg, cancel_bt, window_cancel_button_cb);
 
   help_bt = (GtkWidget *)g_object_get_data (G_OBJECT(bbox), GTK_STOCK_HELP);
@@ -253,7 +249,7 @@ edit_capture_comment_dlg_launch (void)
   gtk_widget_show (edit_or_add_capture_comment_dlg);
 
 }
-    
+
 
 void
 edit_capture_comment_dlg_hide(void)

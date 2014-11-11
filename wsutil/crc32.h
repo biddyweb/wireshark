@@ -1,8 +1,6 @@
 /* crc32.h
  * Declaration of CRC-32 routine and table
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -88,6 +86,15 @@ WS_DLL_PUBLIC guint32 crc32_ccitt_seed(const guint8 *buf, guint len, guint32 see
  @param seed The seed to use.
  @return The CRC32 MPEG-2 checksum (using the given seed). */
 WS_DLL_PUBLIC guint32 crc32_mpeg2_seed(const guint8 *buf, guint len, guint32 seed);
+
+/** Computes CRC32 checksum for the given data with the polynom 0x0AA725CF using
+ *  precompiled CRC table
+ * @param buf a pointer to a buffer of the given length
+ * @param len the length of the given buffer
+ * @param seed The seed to use.
+ * @return the CRC32 checksum for the buffer
+ */
+WS_DLL_PUBLIC guint32 crc32_0x0AA725CF_seed(const guint8 *buf, guint len, guint32 seed);
 
 WS_DLL_PUBLIC int AirPDcapWepDecrypt(
 	const guchar *seed,

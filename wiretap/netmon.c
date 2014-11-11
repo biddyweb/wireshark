@@ -1,7 +1,5 @@
 /* netmon.c
  *
- * $Id$
- *
  * Wiretap Library
  * Copyright (c) 1998 by Gilbert Ramirez <gram@alumni.rice.edu>
  *
@@ -25,7 +23,7 @@
 #include <string.h>
 #include "wtap-int.h"
 #include "file_wrappers.h"
-#include "buffer.h"
+#include <wsutil/buffer.h>
 #include "atm.h"
 #include "pcap-encap.h"
 #include "netmon.h"
@@ -180,14 +178,9 @@ static const int netmon_encap[] = {
 static gboolean netmon_read(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset);
 static gboolean netmon_seek_read(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
-    int *err, gchar **err_info);
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info);
 static gboolean netmon_read_atm_pseudoheader(FILE_T fh,
     union wtap_pseudo_header *pseudo_header, int *err, gchar **err_info);
-static gboolean netmon_read_rec_data(FILE_T fh, guint8 *pd, int length,
-    int *err, gchar **err_info);
-static int netmon_read_rec_trailer(FILE_T fh, int trlr_size, int *err,
-    gchar **err_info);
 static void netmon_sequential_close(wtap *wth);
 static gboolean netmon_dump(wtap_dumper *wdh, const struct wtap_pkthdr *phdr,
     const guint8 *pd, int *err);
@@ -238,11 +231,11 @@ int netmon_open(wtap *wth, int *err, gchar **err_info)
 	switch (hdr.ver_major) {
 
 	case 1:
-		file_type = WTAP_FILE_NETMON_1_x;
+		file_type = WTAP_FILE_TYPE_SUBTYPE_NETMON_1_x;
 		break;
 
 	case 2:
-		file_type = WTAP_FILE_NETMON_2_x;
+		file_type = WTAP_FILE_TYPE_SUBTYPE_NETMON_2_x;
 		break;
 
 	default:
@@ -251,7 +244,7 @@ int netmon_open(wtap *wth, int *err, gchar **err_info)
 		return -1;
 	}
 
-	hdr.network = pletohs(&hdr.network);
+	hdr.network = pletoh16(&hdr.network);
 	if (hdr.network >= NUM_NETMON_ENCAPS
 	    || netmon_encap[hdr.network] == WTAP_ENCAP_UNKNOWN) {
 		*err = WTAP_ERR_UNSUPPORTED_ENCAP;
@@ -261,7 +254,7 @@ int netmon_open(wtap *wth, int *err, gchar **err_info)
 	}
 
 	/* This is a netmon file */
-	wth->file_type = file_type;
+	wth->file_type_subtype = file_type;
 	netmon = (netmon_t *)g_malloc(sizeof(netmon_t));
 	wth->priv = (void *)netmon;
 	wth->subtype_read = netmon_read;
@@ -280,12 +273,12 @@ int netmon_open(wtap *wth, int *err, gchar **err_info)
 	 * Convert the time stamp to a "time_t" and a number of
 	 * milliseconds.
 	 */
-	tm.tm_year = pletohs(&hdr.ts_year) - 1900;
-	tm.tm_mon = pletohs(&hdr.ts_month) - 1;
-	tm.tm_mday = pletohs(&hdr.ts_day);
-	tm.tm_hour = pletohs(&hdr.ts_hour);
-	tm.tm_min = pletohs(&hdr.ts_min);
-	tm.tm_sec = pletohs(&hdr.ts_sec);
+	tm.tm_year = pletoh16(&hdr.ts_year) - 1900;
+	tm.tm_mon = pletoh16(&hdr.ts_month) - 1;
+	tm.tm_mday = pletoh16(&hdr.ts_day);
+	tm.tm_hour = pletoh16(&hdr.ts_hour);
+	tm.tm_min = pletoh16(&hdr.ts_min);
+	tm.tm_sec = pletoh16(&hdr.ts_sec);
 	tm.tm_isdst = -1;
 	netmon->start_secs = mktime(&tm);
 	/*
@@ -302,15 +295,24 @@ int netmon_open(wtap *wth, int *err, gchar **err_info)
 	 * intervals since 1601-01-01 00:00:00 "UTC", there, instead
 	 * of stuffing a SYSTEMTIME, which is time-zone-dependent, there?).
 	 */
-	netmon->start_nsecs = pletohs(&hdr.ts_msec)*1000000;
+	netmon->start_nsecs = pletoh16(&hdr.ts_msec)*1000000;
 
 	netmon->version_major = hdr.ver_major;
 	netmon->version_minor = hdr.ver_minor;
 
 	/*
+	 * No frame table allocated yet; initialize these in case we
+	 * get an error before allocating it or when trying to allocate
+	 * it, so that the attempt to release the private data on failure
+	 * doesn't crash.
+	 */
+	netmon->frame_table_size = 0;
+	netmon->frame_table = NULL;
+
+	/*
 	 * Get the offset of the frame index table.
 	 */
-	frame_table_offset = pletohl(&hdr.frametableoffset);
+	frame_table_offset = pletoh32(&hdr.frametableoffset);
 
 	/*
 	 * It appears that some NetMon 2.x files don't have the
@@ -323,20 +325,18 @@ int netmon_open(wtap *wth, int *err, gchar **err_info)
 	 * Therefore, we must read the frame table, and use the offsets
 	 * in it as the offsets of the frames.
 	 */
-	frame_table_length = pletohl(&hdr.frametablelength);
+	frame_table_length = pletoh32(&hdr.frametablelength);
 	frame_table_size = frame_table_length / (guint32)sizeof (guint32);
 	if ((frame_table_size * sizeof (guint32)) != frame_table_length) {
 		*err = WTAP_ERR_BAD_FILE;
 		*err_info = g_strdup_printf("netmon: frame table length is %u, which is not a multiple of the size of an entry",
 		    frame_table_length);
-		g_free(netmon);
 		return -1;
 	}
 	if (frame_table_size == 0) {
 		*err = WTAP_ERR_BAD_FILE;
 		*err_info = g_strdup_printf("netmon: frame table length is %u, which means it's less than one entry in size",
 		    frame_table_length);
-		g_free(netmon);
 		return -1;
 	}
 	/*
@@ -356,14 +356,16 @@ int netmon_open(wtap *wth, int *err, gchar **err_info)
 		*err = WTAP_ERR_BAD_FILE;
 		*err_info = g_strdup_printf("netmon: frame table length is %u, which is larger than we support",
 		    frame_table_length);
-		g_free(netmon);
 		return -1;
 	}
 	if (file_seek(wth->fh, frame_table_offset, SEEK_SET, err) == -1) {
-		g_free(netmon);
 		return -1;
 	}
-	frame_table = (guint32 *)g_malloc(frame_table_length);
+	frame_table = (guint32 *)g_try_malloc(frame_table_length);
+	if (frame_table_length != 0 && frame_table == NULL) {
+		*err = ENOMEM;	/* we assume we're out of memory */
+		return -1;
+	}
 	errno = WTAP_ERR_CANT_READ;
 	bytes_read = file_read(frame_table, frame_table_length, wth->fh);
 	if ((guint32)bytes_read != frame_table_length) {
@@ -371,7 +373,6 @@ int netmon_open(wtap *wth, int *err, gchar **err_info)
 		if (*err == 0)
 			*err = WTAP_ERR_SHORT_READ;
 		g_free(frame_table);
-		g_free(netmon);
 		return -1;
 	}
 	netmon->frame_table_size = frame_table_size;
@@ -382,7 +383,7 @@ int netmon_open(wtap *wth, int *err, gchar **err_info)
 	 * OK, now byte-swap the frame table.
 	 */
 	for (i = 0; i < frame_table_size; i++)
-		frame_table[i] = pletohl(&frame_table[i]);
+		frame_table[i] = pletoh32(&frame_table[i]);
 #endif
 
 	/* Set up to start reading at the first frame. */
@@ -410,52 +411,24 @@ int netmon_open(wtap *wth, int *err, gchar **err_info)
 	return 1;
 }
 
-static size_t
-netmon_trailer_size(netmon_t *netmon)
-{
-	if ((netmon->version_major == 2 && netmon->version_minor >= 1) ||
-	    netmon->version_major > 2) {
-	    	if (netmon->version_major > 2) {
-	    		/*
-	    		 * Asssume 2.3 format, for now.
-	    		 */
-			return sizeof (struct netmonrec_2_3_trlr);
-	    	} else {
-			switch (netmon->version_minor) {
-
-			case 1:
-				return sizeof (struct netmonrec_2_1_trlr);
-
-			case 2:
-				return sizeof (struct netmonrec_2_2_trlr);
-
-			default:
-				return sizeof (struct netmonrec_2_3_trlr);
-			}
-		}
-	}
-	return 0;	/* no trailer */
-}
-
 static void
-netmon_set_pseudo_header_info(int pkt_encap,
-    union wtap_pseudo_header *pseudo_header, guint8 *pd, int length)
+netmon_set_pseudo_header_info(struct wtap_pkthdr *phdr, Buffer *buf)
 {
-	switch (pkt_encap) {
+	switch (phdr->pkt_encap) {
 
 	case WTAP_ENCAP_ATM_PDUS:
 		/*
 		 * Attempt to guess from the packet data, the VPI, and
-		 * the VCIinformation about the type of traffic.
+		 * the VCI information about the type of traffic.
 		 */
-		atm_guess_traffic_type(pd, length, pseudo_header);
+		atm_guess_traffic_type(phdr, buffer_start_ptr(buf));
 		break;
 
 	case WTAP_ENCAP_ETHERNET:
 		/*
 		 * We assume there's no FCS in this frame.
 		 */
-		pseudo_header->eth.fcs_len = 0;
+		phdr->pseudo_header.eth.fcs_len = 0;
 		break;
 
 	case WTAP_ENCAP_IEEE_802_11_NETMON:
@@ -465,60 +438,57 @@ netmon_set_pseudo_header_info(int pkt_encap,
 		 * I'm not sure about control frames.  An
 		 * "FCS length" of -2 means "NetMon weirdness".
 		 */
-		pseudo_header->ieee_802_11.fcs_len = -2;
-		pseudo_header->ieee_802_11.decrypted = FALSE;
+		phdr->pseudo_header.ieee_802_11.fcs_len = -2;
+		phdr->pseudo_header.ieee_802_11.decrypted = FALSE;
 		break;
 	}
 }
 
-/* Read the next packet */
-static gboolean netmon_read(wtap *wth, int *err, gchar **err_info,
-    gint64 *data_offset)
+typedef enum {
+	SUCCESS,
+	FAILURE,
+	RETRY
+} process_record_retval;
+
+/*
+ * Number of seconds between the UN*X epoch (January 1, 1970, 00:00:00 GMT)
+ * and the Windows NT epoch (January 1, 1601, 00:00:00 "GMT").
+ */
+#define TIME_FIXUP_CONSTANT G_GUINT64_CONSTANT(11644473600)
+
+#ifndef TIME_T_MIN
+#define TIME_T_MIN ((time_t) ((time_t)0 < (time_t) -1 ? (time_t) 0 \
+		    : ~ (time_t) 0 << (sizeof (time_t) * CHAR_BIT - 1)))
+#endif
+#ifndef TIME_T_MAX
+#define TIME_T_MAX ((time_t) (~ (time_t) 0 - TIME_T_MIN))
+#endif
+
+static process_record_retval
+netmon_process_record(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr,
+    Buffer *buf, int *err, gchar **err_info)
 {
 	netmon_t *netmon = (netmon_t *)wth->priv;
-	guint32	packet_size = 0;
-	guint32 orig_size = 0;
-	int	bytes_read;
+	int	hdr_size = 0;
 	union {
 		struct netmonrec_1_x_hdr hdr_1_x;
 		struct netmonrec_2_x_hdr hdr_2_x;
 	}	hdr;
-	int	hdr_size = 0;
-	int	trlr_size;
-	gint64	rec_offset;
-	guint8	*data_ptr;
+	int	bytes_read;
 	gint64	delta = 0;	/* signed - frame times can be before the nominal start */
 	gint64	t;
 	time_t	secs;
-	guint32	nsecs;
-
-again:
-	/* Have we reached the end of the packet data? */
-	if (netmon->current_frame >= netmon->frame_table_size) {
-		/* Yes.  We won't need the frame table any more;
-		   free it. */
-		g_free(netmon->frame_table);
-		netmon->frame_table = NULL;
-		*err = 0;	/* it's just an EOF, not an error */
-		return FALSE;
-	}
-
-	/* Seek to the beginning of the current record, if we're
-	   not there already (seeking to the current position
-	   may still cause a seek and a read of the underlying file,
-	   so we don't want to do it unconditionally).
-
-	   Yes, the current record could be before the previous
-	   record.  At least some captures put the trailer record
-	   with statistics as the first physical record in the
-	   file, but set the frame table up so it's the last
-	   record in sequence. */
-	rec_offset = netmon->frame_table[netmon->current_frame];
-	if (file_tell(wth->fh) != rec_offset) {
-		if (file_seek(wth->fh, rec_offset, SEEK_SET, err) == -1)
-			return FALSE;
-	}
-	netmon->current_frame++;
+	int	nsecs;
+	guint32	packet_size = 0;
+	guint32 orig_size = 0;
+	int	trlr_size;
+	union {
+		struct netmonrec_2_1_trlr trlr_2_1;
+		struct netmonrec_2_2_trlr trlr_2_2;
+		struct netmonrec_2_3_trlr trlr_2_3;
+	}	trlr;
+	guint16 network;
+	int	pkt_encap;
 
 	/* Read record header. */
 	switch (netmon->version_major) {
@@ -533,25 +503,25 @@ again:
 	}
 	errno = WTAP_ERR_CANT_READ;
 
-	bytes_read = file_read(&hdr, hdr_size, wth->fh);
+	bytes_read = file_read(&hdr, hdr_size, fh);
 	if (bytes_read != hdr_size) {
-		*err = file_error(wth->fh, err_info);
+		*err = file_error(fh, err_info);
 		if (*err == 0 && bytes_read != 0) {
 			*err = WTAP_ERR_SHORT_READ;
 		}
-		return FALSE;
+		return FAILURE;
 	}
 
 	switch (netmon->version_major) {
 
 	case 1:
-		orig_size = pletohs(&hdr.hdr_1_x.orig_len);
-		packet_size = pletohs(&hdr.hdr_1_x.incl_len);
+		orig_size = pletoh16(&hdr.hdr_1_x.orig_len);
+		packet_size = pletoh16(&hdr.hdr_1_x.incl_len);
 		break;
 
 	case 2:
-		orig_size = pletohl(&hdr.hdr_2_x.orig_len);
-		packet_size = pletohl(&hdr.hdr_2_x.incl_len);
+		orig_size = pletoh32(&hdr.hdr_2_x.orig_len);
+		packet_size = pletoh32(&hdr.hdr_2_x.incl_len);
 		break;
 	}
 	if (packet_size > WTAP_MAX_PACKET_SIZE) {
@@ -562,10 +532,10 @@ again:
 		*err = WTAP_ERR_BAD_FILE;
 		*err_info = g_strdup_printf("netmon: File has %u-byte packet, bigger than maximum of %u",
 		    packet_size, WTAP_MAX_PACKET_SIZE);
-		return FALSE;
+		return FAILURE;
 	}
 
-	*data_offset = file_tell(wth->fh);
+	phdr->rec_type = REC_TYPE_PACKET;
 
 	/*
 	 * If this is an ATM packet, the first
@@ -585,11 +555,11 @@ again:
 			*err = WTAP_ERR_BAD_FILE;
 			*err_info = g_strdup_printf("netmon: ATM file has a %u-byte packet, too small to have even an ATM pseudo-header",
 			    packet_size);
-			return FALSE;
+			return FAILURE;
 		}
-		if (!netmon_read_atm_pseudoheader(wth->fh, &wth->phdr.pseudo_header,
+		if (!netmon_read_atm_pseudoheader(fh, &phdr->pseudo_header,
 		    err, err_info))
-			return FALSE;	/* Read error */
+			return FAILURE;	/* Read error */
 
 		/*
 		 * Don't count the pseudo-header as part of the packet.
@@ -602,12 +572,6 @@ again:
 		break;
 	}
 
-	buffer_assure_space(wth->frame_buffer, packet_size);
-	data_ptr = buffer_start_ptr(wth->frame_buffer);
-	if (!netmon_read_rec_data(wth->fh, data_ptr, packet_size, err,
-	    err_info))
-		return FALSE;	/* Read error */
-
 	switch (netmon->version_major) {
 
 	case 1:
@@ -617,11 +581,11 @@ again:
 		 * a gint64 such as delta, even after multiplying
 		 * it by 1000000.
 		 *
-		 * pletohl() returns a guint32; we cast it to gint64
+		 * pletoh32() returns a guint32; we cast it to gint64
 		 * before multiplying, so that the product doesn't
 		 * overflow a guint32.
 		 */
-		delta = ((gint64)pletohl(&hdr.hdr_1_x.ts_delta))*1000000;
+		delta = ((gint64)pletoh32(&hdr.hdr_1_x.ts_delta))*1000000;
 		break;
 
 	case 2:
@@ -638,7 +602,7 @@ again:
 		 * positive number-of-microseconds into a small
 		 * negative number-of-100-nanosecond-increments.
 		 */
-		delta = pletohll(&hdr.hdr_2_x.ts_delta)*10;
+		delta = pletoh64(&hdr.hdr_2_x.ts_delta)*10;
 
 		/*
 		 * OK, it's now a signed value in 100-nanosecond
@@ -674,97 +638,260 @@ again:
 		secs--;
 	}
 	secs += (time_t)(t/1000000000);
-	nsecs = (guint32)(t%1000000000);
-	wth->phdr.presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
-	wth->phdr.ts.secs = netmon->start_secs + secs;
-	wth->phdr.ts.nsecs = nsecs;
-	wth->phdr.caplen = packet_size;
-	wth->phdr.len = orig_size;
-
-	/*
-	 * For version 2.1 and later, there's additional information
-	 * after the frame data.
-	 */
-	trlr_size = (int)netmon_trailer_size(netmon);
-	if (trlr_size != 0) {
-		/*
-		 * I haz a trailer.
-		 */
-		wth->phdr.pkt_encap = netmon_read_rec_trailer(wth->fh,
-		    trlr_size, err, err_info);
-		if (wth->phdr.pkt_encap == -1)
-			return FALSE;	/* error */
-		if (wth->phdr.pkt_encap == 0)
-			goto again;
-		netmon_set_pseudo_header_info(wth->phdr.pkt_encap,
-		    &wth->phdr.pseudo_header, data_ptr, packet_size);
-	} else {
-		netmon_set_pseudo_header_info(wth->file_encap,
-		    &wth->phdr.pseudo_header, data_ptr, packet_size);
-	}
-
-	return TRUE;
-}
-
-static gboolean
-netmon_seek_read(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
-    int *err, gchar **err_info)
-{
-	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
-	netmon_t *netmon = (netmon_t *)wth->priv;
-	int	trlr_size;
-	int	pkt_encap;
-
-	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
-		return FALSE;
-
-	switch (wth->file_encap) {
-
-	case WTAP_ENCAP_ATM_PDUS:
-		if (!netmon_read_atm_pseudoheader(wth->random_fh, pseudo_header,
-		    err, err_info)) {
-			/* Read error */
-			return FALSE;
-		}
-		break;
-	}
+	nsecs = (int)(t%1000000000);
+	phdr->presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
+	phdr->ts.secs = netmon->start_secs + secs;
+	phdr->ts.nsecs = nsecs;
+	phdr->caplen = packet_size;
+	phdr->len = orig_size;
 
 	/*
 	 * Read the packet data.
 	 */
-	if (!netmon_read_rec_data(wth->random_fh, pd, length, err, err_info))
-		return FALSE;
+	if (!wtap_read_packet_bytes(fh, buf, phdr->caplen, err, err_info))
+		return FAILURE;
 
 	/*
 	 * For version 2.1 and later, there's additional information
 	 * after the frame data.
 	 */
-	trlr_size = (int)netmon_trailer_size(netmon);
-	if (trlr_size != 0) {
-		/*
-		 * I haz a trailer.
-		 */
-		pkt_encap = netmon_read_rec_trailer(wth->random_fh,
-		    trlr_size, err, err_info);
-		if (pkt_encap == -1)
-			return FALSE;	/* error */
-		if (pkt_encap == 0) {
+	if ((netmon->version_major == 2 && netmon->version_minor >= 1) ||
+	    netmon->version_major > 2) {
+		if (netmon->version_major > 2) {
 			/*
-			 * This should not happen.
+			 * Asssume 2.3 format, for now.
 			 */
-			*err = WTAP_ERR_BAD_FILE;
-			*err_info = g_strdup("netmon: saw metadata in netmon_seek_read");
-			return FALSE;
+			trlr_size = (int)sizeof (struct netmonrec_2_3_trlr);
+		} else {
+			switch (netmon->version_minor) {
+
+			case 1:
+				trlr_size = (int)sizeof (struct netmonrec_2_1_trlr);
+				break;
+
+			case 2:
+				trlr_size = (int)sizeof (struct netmonrec_2_2_trlr);
+				break;
+
+			default:
+				trlr_size = (int)sizeof (struct netmonrec_2_3_trlr);
+				break;
+			}
 		}
-		netmon_set_pseudo_header_info(pkt_encap, pseudo_header,
-		    pd, length);
-	} else {
-		netmon_set_pseudo_header_info(wth->file_encap, pseudo_header,
-		    pd, length);
+
+		errno = WTAP_ERR_CANT_READ;
+		bytes_read = file_read(&trlr, trlr_size, fh);
+		if (bytes_read != trlr_size) {
+			*err = file_error(fh, err_info);
+			if (*err == 0 && bytes_read != 0) {
+				*err = WTAP_ERR_SHORT_READ;
+			}
+			return FAILURE;
+		}
+
+		network = pletoh16(trlr.trlr_2_1.network);
+		if ((network & 0xF000) == NETMON_NET_PCAP_BASE) {
+			/*
+			 * Converted pcap file - the LINKTYPE_ value
+			 * is the network value with 0xF000 masked off.
+			 */
+			network &= 0x0FFF;
+			pkt_encap = wtap_pcap_encap_to_wtap_encap(network);
+			if (pkt_encap == WTAP_ENCAP_UNKNOWN) {
+				*err = WTAP_ERR_UNSUPPORTED_ENCAP;
+				*err_info = g_strdup_printf("netmon: converted pcap network type %u unknown or unsupported",
+				    network);
+				return FAILURE;
+			}
+		} else if (network < NUM_NETMON_ENCAPS) {
+			/*
+			 * Regular NetMon encapsulation.
+			 */
+			pkt_encap = netmon_encap[network];
+			if (pkt_encap == WTAP_ENCAP_UNKNOWN) {
+				*err = WTAP_ERR_UNSUPPORTED_ENCAP;
+				*err_info = g_strdup_printf("netmon: network type %u unknown or unsupported",
+				    network);
+				return FAILURE;
+			}
+		} else {
+			/*
+			 * Special packet type for metadata.
+			 */
+			switch (network) {
+
+			case NETMON_NET_NETEVENT:
+				/*
+				 * Event Tracing event.
+				 *
+				 * http://msdn.microsoft.com/en-us/library/aa363759(VS.85).aspx
+				 */
+				return RETRY;
+
+			case NETMON_NET_NETWORK_INFO_EX:
+				/*
+				 * List of adapters on which the capture
+				 * was done.
+				 */
+				return RETRY;
+
+			case NETMON_NET_PAYLOAD_HEADER:
+				/*
+				 * Header for a fake frame constructed
+				 * by reassembly.
+				 */
+				return RETRY;
+
+			case NETMON_NET_NETWORK_INFO:
+				/*
+				 * List of adapters on which the capture
+				 * was done.
+				 */
+				return RETRY;
+
+			case NETMON_NET_DNS_CACHE:
+				/*
+				 * List of resolved IP addresses.
+				 */
+				return RETRY;
+
+			case NETMON_NET_NETMON_FILTER:
+				/*
+				 * NetMon capture or display filter
+				 * string.
+				 */
+				return RETRY;
+
+			default:
+				*err = WTAP_ERR_UNSUPPORTED_ENCAP;
+				*err_info = g_strdup_printf("netmon: network type %u unknown or unsupported",
+				    network);
+				return FAILURE;
+			}
+		}
+
+		phdr->pkt_encap = pkt_encap;
+		if (netmon->version_major > 2 || netmon->version_minor > 2) {
+			/*
+			 * This code is based on the Samba code:
+			 *
+			 *	Unix SMB/Netbios implementation.
+			 *	Version 1.9.
+			 *	time handling functions
+			 *	Copyright (C) Andrew Tridgell 1992-1998
+			 */
+			guint64 d;
+			gint64 utcsecs;
+			/* The next two lines are a fix needed for the
+			    broken SCO compiler. JRA. */
+			time_t l_time_min = TIME_T_MIN;
+			time_t l_time_max = TIME_T_MAX;
+
+			d = pletoh64(trlr.trlr_2_3.utc_timestamp);
+
+			/* Split into seconds and nanoseconds. */
+			utcsecs = d / 10000000;
+			nsecs = (int)((d % 10000000)*100);
+
+			/* Now adjust the seconds. */
+			utcsecs -= TIME_FIXUP_CONSTANT;
+
+			if (!(l_time_min <= secs && secs <= l_time_max)) {
+				*err = WTAP_ERR_BAD_FILE;
+				*err_info = g_strdup_printf("netmon: time stamp outside supported range");
+				return FAILURE;
+			}
+
+			/*
+			 * Get the time as seconds and nanoseconds.
+			 * and overwrite the time stamp obtained
+			 * from the record header.
+			 */
+			phdr->ts.secs = (time_t) utcsecs;
+			phdr->ts.nsecs = nsecs;
+		}
 	}
 
-	return TRUE;
+	netmon_set_pseudo_header_info(phdr, buf);
+	return SUCCESS;
+}
+
+/* Read the next packet */
+static gboolean netmon_read(wtap *wth, int *err, gchar **err_info,
+    gint64 *data_offset)
+{
+	netmon_t *netmon = (netmon_t *)wth->priv;
+	gint64	rec_offset;
+
+	for (;;) {
+		/* Have we reached the end of the packet data? */
+		if (netmon->current_frame >= netmon->frame_table_size) {
+			/* Yes.  We won't need the frame table any more;
+			   free it. */
+			g_free(netmon->frame_table);
+			netmon->frame_table = NULL;
+			*err = 0;	/* it's just an EOF, not an error */
+			return FALSE;
+		}
+
+		/* Seek to the beginning of the current record, if we're
+		   not there already (seeking to the current position
+		   may still cause a seek and a read of the underlying file,
+		   so we don't want to do it unconditionally).
+
+		   Yes, the current record could be before the previous
+		   record.  At least some captures put the trailer record
+		   with statistics as the first physical record in the
+		   file, but set the frame table up so it's the last
+		   record in sequence. */
+		rec_offset = netmon->frame_table[netmon->current_frame];
+		if (file_tell(wth->fh) != rec_offset) {
+			if (file_seek(wth->fh, rec_offset, SEEK_SET, err) == -1)
+				return FALSE;
+		}
+		netmon->current_frame++;
+
+		*data_offset = file_tell(wth->fh);
+
+		switch (netmon_process_record(wth, wth->fh, &wth->phdr,
+		    wth->frame_buffer, err, err_info)) {
+
+		case RETRY:
+			continue;
+
+		case SUCCESS:
+			return TRUE;
+
+		case FAILURE:
+			return FALSE;
+		}
+	}
+}
+
+static gboolean
+netmon_seek_read(wtap *wth, gint64 seek_off,
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info)
+{
+	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
+		return FALSE;
+
+	switch (netmon_process_record(wth, wth->random_fh, phdr, buf, err,
+	    err_info)) {
+
+	default:
+		/*
+		 * This should not happen.
+		 */
+		*err = WTAP_ERR_BAD_FILE;
+		*err_info = g_strdup("netmon: saw metadata in netmon_seek_read");
+		return FALSE;
+
+	case SUCCESS:
+		return TRUE;
+
+	case FAILURE:
+		return FALSE;
+	}
 }
 
 static gboolean
@@ -801,109 +928,6 @@ netmon_read_atm_pseudoheader(FILE_T fh, union wtap_pseudo_header *pseudo_header,
 	return TRUE;
 }
 
-static gboolean
-netmon_read_rec_data(FILE_T fh, guint8 *pd, int length, int *err,
-    gchar **err_info)
-{
-	int	bytes_read;
-
-	errno = WTAP_ERR_CANT_READ;
-	bytes_read = file_read(pd, length, fh);
-
-	if (bytes_read != length) {
-		*err = file_error(fh, err_info);
-		if (*err == 0)
-			*err = WTAP_ERR_SHORT_READ;
-		return FALSE;
-	}
-	return TRUE;
-}
-
-/*
- * Read a record trailer.
- * On success, returns the packet encapsulation type.
- * On error, returns -1 (which is WTAP_ENCAP_PER_PACKET, but we'd
- * never return that on success).
- * For metadata packets, returns 0 (which is WTAP_ENCAP_UNKNOWN, but
- * we'd never return that on success).
- */
-static int
-netmon_read_rec_trailer(FILE_T fh, int trlr_size, int *err, gchar **err_info)
-{
-	int	bytes_read;
-	union {
-		struct netmonrec_2_1_trlr trlr_2_1;
-		struct netmonrec_2_2_trlr trlr_2_2;
-		struct netmonrec_2_3_trlr trlr_2_3;
-	}	trlr;
-	guint16 network;
-	int	pkt_encap;
-
-	errno = WTAP_ERR_CANT_READ;
-	bytes_read = file_read(&trlr, trlr_size, fh);
-	if (bytes_read != trlr_size) {
-		*err = file_error(fh, err_info);
-		if (*err == 0 && bytes_read != 0) {
-			*err = WTAP_ERR_SHORT_READ;
-		}
-		return -1;	/* error */
-	}
-
-	network = pletohs(trlr.trlr_2_1.network);
-	if ((network & 0xF000) == NETMON_NET_PCAP_BASE) {
-		/*
-		 * Converted pcap file - the LINKTYPE_ value
-		 * is the network value with 0xF000 masked off.
-		 */
-		network &= 0x0FFF;
-		pkt_encap = wtap_pcap_encap_to_wtap_encap(network);
-		if (pkt_encap == WTAP_ENCAP_UNKNOWN) {
-			*err = WTAP_ERR_UNSUPPORTED_ENCAP;
-			*err_info = g_strdup_printf("netmon: converted pcap network type %u unknown or unsupported",
-			    network);
-			return -1;	/* error */
-		}
-	} else if (network < NUM_NETMON_ENCAPS) {
-		/*
-		 * Regular NetMon encapsulation.
-		 */
-		pkt_encap = netmon_encap[network];
-		if (pkt_encap == WTAP_ENCAP_UNKNOWN) {
-			*err = WTAP_ERR_UNSUPPORTED_ENCAP;
-			*err_info = g_strdup_printf("netmon: network type %u unknown or unsupported",
-			    network);
-			return -1;	/* error */
-		}
-	} else {
-		/*
-		 * Special packet type for metadata.
-		 */
-		switch (network) {
-
-		case NETMON_NET_NETEVENT:
-		case NETMON_NET_NETWORK_INFO_EX:
-		case NETMON_NET_PAYLOAD_HEADER:
-		case NETMON_NET_NETWORK_INFO:
-		case NETMON_NET_DNS_CACHE:
-		case NETMON_NET_NETMON_FILTER:
-			/*
-			 * Just ignore those record types, for
-			 * now.  Tell our caller to read the next
-			 * record.
-			 */
-			return 0;
-
-		default:
-			*err = WTAP_ERR_UNSUPPORTED_ENCAP;
-			*err_info = g_strdup_printf("netmon: network type %u unknown or unsupported",
-			    network);
-			return -1;	/* error */
-		}
-	}
-
-	return pkt_encap;	/* success */
-}
-
 /* Throw away the frame table used by the sequential I/O stream. */
 static void
 netmon_sequential_close(wtap *wth)
@@ -918,7 +942,7 @@ netmon_sequential_close(wtap *wth)
 
 typedef struct {
 	gboolean got_first_record_time;
-	struct wtap_nstime first_record_time;
+	nstime_t first_record_time;
 	guint32	frame_table_offset;
 	guint32	*frame_table;
 	guint	frame_table_index;
@@ -983,10 +1007,8 @@ gboolean netmon_dump_open(wtap_dumper *wdh, int *err)
 	   haven't yet written any packets.  As we'll have to rewrite
 	   the header when we've written out all the packets, we just
 	   skip over the header for now. */
-	if (fseek(wdh->fh, CAPTUREFILE_HEADER_SIZE, SEEK_SET) == -1) {
-		*err = errno;
+	if (wtap_dump_file_seek(wdh, CAPTUREFILE_HEADER_SIZE, SEEK_SET, err) == -1)
 		return FALSE;
-	}
 
 	wdh->subtype_write = netmon_dump;
 	wdh->subtype_close = netmon_dump_close;
@@ -1020,6 +1042,40 @@ static gboolean netmon_dump(wtap_dumper *wdh, const struct wtap_pkthdr *phdr,
 	int atm_hdrsize;
 	gint64	secs;
 	gint32	nsecs;
+
+	/* We can only write packet records. */
+	if (phdr->rec_type != REC_TYPE_PACKET) {
+		*err = WTAP_ERR_REC_TYPE_UNSUPPORTED;
+		return FALSE;
+	}
+
+	switch (wdh->file_type_subtype) {
+
+	case WTAP_FILE_TYPE_SUBTYPE_NETMON_1_x:
+		/*
+		 * The length fields are 16-bit, so there's a hard limit
+		 * of 65535.
+		 */
+		if (phdr->caplen > 65535) {
+			*err = WTAP_ERR_PACKET_TOO_LARGE;
+			return FALSE;
+		}
+		break;
+
+	case WTAP_FILE_TYPE_SUBTYPE_NETMON_2_x:
+		/* Don't write anything we're not willing to read. */
+		if (phdr->caplen > WTAP_MAX_PACKET_SIZE) {
+			*err = WTAP_ERR_PACKET_TOO_LARGE;
+			return FALSE;
+		}
+		break;
+
+	default:
+		/* We should never get here - our open routine
+		   should only get called for the types above. */
+		*err = WTAP_ERR_UNSUPPORTED_FILE_TYPE;
+		return FALSE;
+	}
 
 	if (wdh->encap == WTAP_ENCAP_PER_PACKET) {
 		/*
@@ -1101,20 +1157,20 @@ static gboolean netmon_dump(wtap_dumper *wdh, const struct wtap_pkthdr *phdr,
 		nsecs += 1000000000;
 		secs--;
 	}
-	switch (wdh->file_type) {
+	switch (wdh->file_type_subtype) {
 
-	case WTAP_FILE_NETMON_1_x:
-		rec_1_x_hdr.ts_delta = htolel(secs*1000 + (nsecs + 500000)/1000000);
-		rec_1_x_hdr.orig_len = htoles(phdr->len + atm_hdrsize);
-		rec_1_x_hdr.incl_len = htoles(phdr->caplen + atm_hdrsize);
+	case WTAP_FILE_TYPE_SUBTYPE_NETMON_1_x:
+		rec_1_x_hdr.ts_delta = GUINT32_TO_LE(secs*1000 + (nsecs + 500000)/1000000);
+		rec_1_x_hdr.orig_len = GUINT16_TO_LE(phdr->len + atm_hdrsize);
+		rec_1_x_hdr.incl_len = GUINT16_TO_LE(phdr->caplen + atm_hdrsize);
 		hdrp = &rec_1_x_hdr;
 		hdr_size = sizeof rec_1_x_hdr;
 		break;
 
-	case WTAP_FILE_NETMON_2_x:
-		rec_2_x_hdr.ts_delta = htolell(secs*1000000 + (nsecs + 500)/1000);
-		rec_2_x_hdr.orig_len = htolel(phdr->len + atm_hdrsize);
-		rec_2_x_hdr.incl_len = htolel(phdr->caplen + atm_hdrsize);
+	case WTAP_FILE_TYPE_SUBTYPE_NETMON_2_x:
+		rec_2_x_hdr.ts_delta = GUINT64_TO_LE(secs*1000000 + (nsecs + 500)/1000);
+		rec_2_x_hdr.orig_len = GUINT32_TO_LE(phdr->len + atm_hdrsize);
+		rec_2_x_hdr.incl_len = GUINT32_TO_LE(phdr->caplen + atm_hdrsize);
 		hdrp = &rec_2_x_hdr;
 		hdr_size = sizeof rec_2_x_hdr;
 		break;
@@ -1188,7 +1244,7 @@ static gboolean netmon_dump(wtap_dumper *wdh, const struct wtap_pkthdr *phdr,
 	}
 
 	netmon->frame_table[netmon->frame_table_index] =
-	    htolel(netmon->frame_table_offset);
+	    GUINT32_TO_LE(netmon->frame_table_offset);
 
 	/*
 	 * Is this the last record we can write?
@@ -1234,11 +1290,12 @@ static gboolean netmon_dump_close(wtap_dumper *wdh, int *err)
 		return FALSE;
 
 	/* Now go fix up the file header. */
-	fseek(wdh->fh, 0, SEEK_SET);
+	if (wtap_dump_file_seek(wdh, 0, SEEK_SET, err) == -1)
+		return FALSE;
 	memset(&file_hdr, '\0', sizeof file_hdr);
-	switch (wdh->file_type) {
+	switch (wdh->file_type_subtype) {
 
-	case WTAP_FILE_NETMON_1_x:
+	case WTAP_FILE_TYPE_SUBTYPE_NETMON_1_x:
 		magicp = netmon_1_x_magic;
 		magic_size = sizeof netmon_1_x_magic;
 		/* NetMon file version, for 1.x, is 1.1 */
@@ -1246,7 +1303,7 @@ static gboolean netmon_dump_close(wtap_dumper *wdh, int *err)
 		file_hdr.ver_minor = 1;
 		break;
 
-	case WTAP_FILE_NETMON_2_x:
+	case WTAP_FILE_TYPE_SUBTYPE_NETMON_2_x:
 		magicp = netmon_2_x_magic;
 		magic_size = sizeof netmon_2_x_magic;
 		/*
@@ -1286,31 +1343,31 @@ static gboolean netmon_dump_close(wtap_dumper *wdh, int *err)
 		 * type in the file header is irrelevant.  Set it
 		 * to 1, just as Network Monitor does.
 		 */
-		file_hdr.network = htoles(1);
+		file_hdr.network = GUINT16_TO_LE(1);
 	} else
-		file_hdr.network = htoles(wtap_encap[wdh->encap]);
+		file_hdr.network = GUINT16_TO_LE(wtap_encap[wdh->encap]);
 	tm = localtime(&netmon->first_record_time.secs);
 	if (tm != NULL) {
-		file_hdr.ts_year  = htoles(1900 + tm->tm_year);
-		file_hdr.ts_month = htoles(tm->tm_mon + 1);
-		file_hdr.ts_dow   = htoles(tm->tm_wday);
-		file_hdr.ts_day   = htoles(tm->tm_mday);
-		file_hdr.ts_hour  = htoles(tm->tm_hour);
-		file_hdr.ts_min   = htoles(tm->tm_min);
-		file_hdr.ts_sec   = htoles(tm->tm_sec);
+		file_hdr.ts_year  = GUINT16_TO_LE(1900 + tm->tm_year);
+		file_hdr.ts_month = GUINT16_TO_LE(tm->tm_mon + 1);
+		file_hdr.ts_dow   = GUINT16_TO_LE(tm->tm_wday);
+		file_hdr.ts_day   = GUINT16_TO_LE(tm->tm_mday);
+		file_hdr.ts_hour  = GUINT16_TO_LE(tm->tm_hour);
+		file_hdr.ts_min   = GUINT16_TO_LE(tm->tm_min);
+		file_hdr.ts_sec   = GUINT16_TO_LE(tm->tm_sec);
 	} else {
-		file_hdr.ts_year  = htoles(1900 + 0);
-		file_hdr.ts_month = htoles(0 + 1);
-		file_hdr.ts_dow   = htoles(0);
-		file_hdr.ts_day   = htoles(0);
-		file_hdr.ts_hour  = htoles(0);
-		file_hdr.ts_min   = htoles(0);
-		file_hdr.ts_sec   = htoles(0);
+		file_hdr.ts_year  = GUINT16_TO_LE(1900 + 0);
+		file_hdr.ts_month = GUINT16_TO_LE(0 + 1);
+		file_hdr.ts_dow   = GUINT16_TO_LE(0);
+		file_hdr.ts_day   = GUINT16_TO_LE(0);
+		file_hdr.ts_hour  = GUINT16_TO_LE(0);
+		file_hdr.ts_min   = GUINT16_TO_LE(0);
+		file_hdr.ts_sec   = GUINT16_TO_LE(0);
 	}
-	file_hdr.ts_msec = htoles(netmon->first_record_time.nsecs/1000000);
-	file_hdr.frametableoffset = htolel(netmon->frame_table_offset);
+	file_hdr.ts_msec = GUINT16_TO_LE(netmon->first_record_time.nsecs/1000000);
+	file_hdr.frametableoffset = GUINT32_TO_LE(netmon->frame_table_offset);
 	file_hdr.frametablelength =
-	    htolel(netmon->frame_table_index * sizeof *netmon->frame_table);
+	    GUINT32_TO_LE(netmon->frame_table_index * sizeof *netmon->frame_table);
 	if (!wtap_dump_file_write(wdh, &file_hdr, sizeof file_hdr, err))
 		return FALSE;
 

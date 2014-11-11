@@ -2,8 +2,6 @@
  * Routines for docsis Mac Management Header dissection
  * Copyright 2002, Anand V. Narwani <anand[AT]narwani.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -73,6 +71,8 @@
 #define MGT_REG_REQ_MP 44
 #define MGT_REG_RSP_MP 45
 
+void proto_register_docsis_mgmt(void);
+void proto_reg_handoff_docsis_mgmt(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_docsis_mgmt = -1;

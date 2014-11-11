@@ -3,8 +3,6 @@
  * By Owen Kirby <osk@exegin.com>
  * Copyright 2009 Exegin Technologies Limited
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,36 +27,40 @@
 
 #include <string.h>
 #include <glib.h>
+
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/prefs.h>    /* req'd for packet-zbee-security.h */
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
 #include <epan/reassemble.h>
+#include <epan/to_str.h>
 
 #include "packet-zbee.h"
 #include "packet-zbee-nwk.h"
 #include "packet-zbee-security.h"
 #include "packet-zbee-aps.h"
+#include "packet-zbee-zdp.h"
 
 /*************************
  * Function Declarations *
  *************************
  */
 /* Dissector Routines */
-static void    dissect_zbee_aps            (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
-static void    dissect_zbee_aps_cmd        (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
-static void    dissect_zbee_apf            (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+static void    dissect_zbee_aps_cmd        (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version, void *data);
 
 /* Command Dissector Helpers */
 static guint   dissect_zbee_aps_skke_challenge (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset);
 static guint   dissect_zbee_aps_skke_data      (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset);
 static guint   dissect_zbee_aps_transport_key  (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset);
-static guint   dissect_zbee_aps_update_device  (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset);
+static guint   dissect_zbee_aps_update_device  (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset, guint8 version);
 static guint   dissect_zbee_aps_remove_device  (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset);
 static guint   dissect_zbee_aps_request_key    (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset);
 static guint   dissect_zbee_aps_switch_key     (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset);
 static guint   dissect_zbee_aps_auth_challenge (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset);
 static guint   dissect_zbee_aps_auth_data      (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset);
-static guint   dissect_zbee_aps_tunnel         (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset);
+static guint   dissect_zbee_aps_tunnel         (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset, void *data);
+static guint   dissect_zbee_t2                 (tvbuff_t *tvb, proto_tree *tree, guint16 cluster_id);
 
 /* Helper routine. */
 static guint   zbee_apf_transaction_len    (tvbuff_t *tvb, guint offset, guint8 type);
@@ -132,20 +134,38 @@ static int hf_zbee_aps_reassembled_length = -1;
 static gint ett_zbee_aps_fragment = -1;
 static gint ett_zbee_aps_fragments = -1;
 
+/* Test Profile #2 indices. */
+static int hf_zbee_aps_t2_cluster = -1;
+static int hf_zbee_aps_t2_btres_octet_sequence = -1;
+static int hf_zbee_aps_t2_btres_octet_sequence_length_requested = -1;
+static int hf_zbee_aps_t2_btres_status = -1;
+static int hf_zbee_aps_t2_btreq_octet_sequence = -1;
+static int hf_zbee_aps_t2_btreq_octet_sequence_length = -1;
+
+/* ZDP indices. */
+static int hf_zbee_aps_zdp_cluster = -1;
+
 /* Subtree indices for the ZigBee 2004 & earlier Application Framework. */
 static gint ett_zbee_apf = -1;
 
+/* Subtree indices for the ZigBee Test Profile #2. */
+static gint ett_zbee_aps_t2 = -1;
+
+static expert_field ei_zbee_aps_invalid_delivery_mode = EI_INIT;
+static expert_field ei_zbee_aps_missing_payload = EI_INIT;
+
 /* Dissector Handles. */
-static dissector_handle_t   data_handle;
 static dissector_handle_t   zbee_aps_handle;
 static dissector_handle_t   zbee_apf_handle;
+
+/* Subdissector Handles. */
+static dissector_handle_t   data_handle;
 
 /* Dissector List. */
 static dissector_table_t    zbee_aps_dissector_table;
 
-/* Fragment and Reassembly tables. */
-static GHashTable   *zbee_aps_fragment_table = NULL;
-static GHashTable   *zbee_aps_reassembled_table = NULL;
+/* Reassembly table. */
+static reassembly_table     zbee_aps_reassembly_table;
 
 static const fragment_items zbee_aps_frag_items = {
     /* Fragment subtrees */
@@ -254,6 +274,7 @@ static const value_string zbee_apf_type_names[] = {
     { 0, NULL }
 };
 
+#if 0
 static const value_string zbee_apf_kvp_command_names[] = {
     { ZBEE_APP_KVP_SET,         "Set" },
     { ZBEE_APP_KVP_EVENT,       "Event" },
@@ -265,7 +286,9 @@ static const value_string zbee_apf_kvp_command_names[] = {
     { ZBEE_APP_KVP_EVENT_RESP,  "Event Response" },
     { 0, NULL }
 };
+#endif
 
+#if 0
 static const value_string zbee_apf_kvp_type_names[] = {
     { ZBEE_APP_KVP_NO_DATA,     "No Data" },
     { ZBEE_APP_KVP_UINT8,       "8-bit Unsigned Integer" },
@@ -279,6 +302,7 @@ static const value_string zbee_apf_kvp_type_names[] = {
     { ZBEE_APP_KVP_OCT_STRING,  "Octet String" },
     { 0, NULL }
 };
+#endif
 
 /* ZigBee Application Profile ID Names */
 const range_string zbee_aps_apid_names[] = {
@@ -502,9 +526,16 @@ const value_string zbee_aps_cid_names[] = {
     { ZBEE_ZCL_CID_MULTISTATE_OUTPUT_BASIC,         "Multistate Output (Basic)"},
     { ZBEE_ZCL_CID_MULTISTATE_VALUE_BASIC,          "Multistate Value (Basic)"},
     { ZBEE_ZCL_CID_COMMISSIONING,                   "Commissioning"},
+    { ZBEE_ZCL_CID_PARTITION,                       "Partition"},
+    { ZBEE_ZCL_CID_OTA_UPGRADE,                     "OTA Upgrade"},
+    { ZBEE_ZCL_CID_POLL_CONTROL,                    "Poll Control"},
+    /* */
+    { ZBEE_ZCL_CID_POWER_PROFILE,                    "Power Profile"},
+    { ZBEE_ZCL_CID_APPLIANCE_CONTROL,                "Appliance Control"},
 
 /* Closures */
     { ZBEE_ZCL_CID_SHADE_CONFIG,                    "Shade Configuration"},
+    { ZBEE_ZCL_CID_DOOR_LOCK,                       "Door Lock"},
 
 /* HVAC */
     { ZBEE_ZCL_CID_PUMP_CONFIG_CONTROL,             "Pump Configuration Control"},
@@ -561,6 +592,43 @@ const value_string zbee_aps_cid_names[] = {
     { ZBEE_ZCL_CID_SMART_ENERGY_TUNNELING,          "Smart Energy Tunneling"},
     { ZBEE_ZCL_CID_PRE_PAYMENT,                     "Pre-Payment"},
 
+/* ZCL Cluster IDs - Home Automation */
+    {ZBEE_ZCL_CID_APPLIANCE_IDENTIFICATION,         "Appliance Identification"},
+    {ZBEE_ZCL_CID_METER_IDENTIFICATION,             "Meter Identification"},
+    {ZBEE_ZCL_CID_APPLIANCE_EVENTS_AND_ALERT,       "Appliance Events And Alerts"},
+    {ZBEE_ZCL_CID_APPLIANCE_STATISTICS,             "Appliance Statistics"},
+
+    { 0, NULL }
+};
+
+/* APS Test Profile #2 Cluster Names */
+const value_string zbee_aps_t2_cid_names[] = {
+    { ZBEE_APS_T2_CID_BR,         "Broadcast Request"},
+    { ZBEE_APS_T2_CID_BTADR,      "Broadcast to All Devices Response"},
+    { ZBEE_APS_T2_CID_BTARACR,    "Broadcast to All Routers and Coordinator Response"},
+    { ZBEE_APS_T2_CID_BTARXOWIDR, "Broadcast to All RXOnWhenIdle Devices Response"},
+    { ZBEE_APS_T2_CID_BTGREQ,     "Buffer Test Group Request"},
+    { ZBEE_APS_T2_CID_BTGRES,     "Buffer Test Group Response"},
+    { ZBEE_APS_T2_CID_BTREQ,      "Buffer Test Request"},
+    { ZBEE_APS_T2_CID_BTRES,      "Buffer Test Response"},
+    { ZBEE_APS_T2_CID_FNDR,       "Freeform No Data Response"},
+    { ZBEE_APS_T2_CID_FREQ,       "Freeform Request"},
+    { ZBEE_APS_T2_CID_FRES,       "Freeform Response"},
+    { ZBEE_APS_T2_CID_PCR,        "Packet Count Response"},
+    { ZBEE_APS_T2_CID_RDREQ,      "Route Discovery Request"},
+    { ZBEE_APS_T2_CID_RDRES,      "Route Discovery Response"},
+    { ZBEE_APS_T2_CID_RESPC,      "Reset Packet Count"},
+    { ZBEE_APS_T2_CID_RETPC,      "Retreive Packet Count"},
+    { ZBEE_APS_T2_CID_TCP,        "Transmit Counted Packets"},
+
+    { 0, NULL }
+};
+
+/* APS Test Profile #2 Buffer Test Response Status Names */
+const value_string zbee_aps_t2_btres_status_names[] = {
+    { ZBEE_APS_T2_CID_BTRES_S_SBT,   "Successful Buffer Test"},
+    { ZBEE_APS_T2_CID_BTRES_S_TFOFA, "Transmission Failure on First Attempt"},
+
     { 0, NULL }
 };
 
@@ -577,31 +645,35 @@ const value_string zbee_aps_cid_names[] = {
  *      void
  *---------------------------------------------------------------
  */
-static void
-dissect_zbee_aps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_zbee_aps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
     tvbuff_t            *payload_tvb = NULL;
     dissector_handle_t  profile_handle = NULL;
 
-    proto_tree      *aps_tree = NULL;
-    proto_tree      *field_tree = NULL;
-    proto_item      *proto_root = NULL;
+    proto_tree      *aps_tree;
+    proto_tree      *field_tree;
+    proto_item      *proto_root;
     proto_item      *ti;
 
     zbee_aps_packet packet;
-    zbee_nwk_packet *nwk = (zbee_nwk_packet *)pinfo->private_data;
+    zbee_nwk_packet *nwk;
 
     guint8          fcf;
     guint8          offset = 0;
+
+    /* Reject the packet if data is NULL */
+    if (data == NULL)
+        return 0;
+    nwk = (zbee_nwk_packet *)data;
 
     /* Init. */
     memset(&packet, 0, sizeof(zbee_aps_packet));
 
     /*  Create the protocol tree */
-    if(tree){
-        proto_root = proto_tree_add_protocol_format(tree, proto_zbee_aps, tvb, offset, tvb_length(tvb), "ZigBee Application Support Layer");
-        aps_tree = proto_item_add_subtree(proto_root, ett_zbee_aps);
-    }
+    proto_root = proto_tree_add_protocol_format(tree, proto_zbee_aps, tvb, offset, tvb_length(tvb), "ZigBee Application Support Layer");
+    aps_tree = proto_item_add_subtree(proto_root, ett_zbee_aps);
+
     /* Set the protocol column, if the NWK layer hasn't already done so. */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "ZigBee");
 
@@ -616,43 +688,42 @@ dissect_zbee_aps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     packet.ext_header    = zbee_get_bit_field(fcf, ZBEE_APS_FCF_EXT_HEADER);
 
     /* Display the frame type to the proto root and info column. */
-    if (tree) {
-        proto_item_append_text(proto_root, " %s", val_to_str_const(packet.type, zbee_aps_frame_types, "Unknown Type"));
-    }
-    col_clear(pinfo->cinfo, COL_INFO);
+    proto_item_append_text(proto_root, " %s", val_to_str_const(packet.type, zbee_aps_frame_types, "Unknown Type"));
+
+    col_set_str(pinfo->cinfo, COL_INFO, "APS: ");
     col_append_str(pinfo->cinfo, COL_INFO, val_to_str_const(packet.type, zbee_aps_frame_types, "Unknown Frame Type"));
 
     /*  Display the FCF */
-    if (tree) {
-        /* Create the subtree */
-        ti = proto_tree_add_text(aps_tree, tvb, offset, 1, "Frame Control Field: %s (0x%02x)",
-                    val_to_str_const(packet.type, zbee_aps_frame_types, "Unknown"), fcf);
-        field_tree = proto_item_add_subtree(ti, ett_zbee_aps_fcf);
 
-        /* Add the frame type and delivery mode. */
-        proto_tree_add_uint(field_tree, hf_zbee_aps_fcf_frame_type, tvb, offset, 1, fcf & ZBEE_APS_FCF_FRAME_TYPE);
-        proto_tree_add_uint(field_tree, hf_zbee_aps_fcf_delivery, tvb, offset, 1, fcf & ZBEE_APS_FCF_DELIVERY_MODE);
+    /* Create the subtree */
+    ti = proto_tree_add_text(aps_tree, tvb, offset, 1, "Frame Control Field: %s (0x%02x)",
+            val_to_str_const(packet.type, zbee_aps_frame_types, "Unknown"), fcf);
+    field_tree = proto_item_add_subtree(ti, ett_zbee_aps_fcf);
 
-        if (pinfo->zbee_stack_vers >= ZBEE_VERSION_2007) {
-            /* ZigBee 2007 and later uses an ack mode flag. */
-            if (packet.type == ZBEE_APS_FCF_ACK) {
-                proto_tree_add_boolean(field_tree, hf_zbee_aps_fcf_ack_format, tvb, offset, 1,
-                        fcf & ZBEE_APS_FCF_ACK_FORMAT);
-            }
+    /* Add the frame type and delivery mode. */
+    proto_tree_add_uint(field_tree, hf_zbee_aps_fcf_frame_type, tvb, offset, 1, fcf & ZBEE_APS_FCF_FRAME_TYPE);
+    proto_tree_add_uint(field_tree, hf_zbee_aps_fcf_delivery, tvb, offset, 1, fcf & ZBEE_APS_FCF_DELIVERY_MODE);
+
+    if (nwk->version >= ZBEE_VERSION_2007) {
+        /* ZigBee 2007 and later uses an ack mode flag. */
+        if (packet.type == ZBEE_APS_FCF_ACK) {
+            proto_tree_add_boolean(field_tree, hf_zbee_aps_fcf_ack_format, tvb, offset, 1,
+                    fcf & ZBEE_APS_FCF_ACK_FORMAT);
         }
-        else {
-            /* ZigBee 2004, uses indirect mode. */
-            if (packet.delivery == ZBEE_APS_FCF_INDIRECT) {
-                proto_tree_add_boolean(field_tree, hf_zbee_aps_fcf_indirect_mode, tvb, offset, 1,
-                        fcf & ZBEE_APS_FCF_INDIRECT_MODE);
-            }
-        }
-
-        /*  Add the rest of the flags */
-        proto_tree_add_boolean(field_tree, hf_zbee_aps_fcf_security, tvb, offset, 1, fcf & ZBEE_APS_FCF_SECURITY);
-        proto_tree_add_boolean(field_tree, hf_zbee_aps_fcf_ack_req, tvb, offset, 1, fcf & ZBEE_APS_FCF_ACK_REQ);
-        proto_tree_add_boolean(field_tree, hf_zbee_aps_fcf_ext_header, tvb, offset, 1, fcf & ZBEE_APS_FCF_EXT_HEADER);
     }
+    else {
+        /* ZigBee 2004, uses indirect mode. */
+        if (packet.delivery == ZBEE_APS_FCF_INDIRECT) {
+            proto_tree_add_boolean(field_tree, hf_zbee_aps_fcf_indirect_mode, tvb, offset, 1,
+                    fcf & ZBEE_APS_FCF_INDIRECT_MODE);
+        }
+    }
+
+    /*  Add the rest of the flags */
+    proto_tree_add_boolean(field_tree, hf_zbee_aps_fcf_security, tvb, offset, 1, fcf & ZBEE_APS_FCF_SECURITY);
+    proto_tree_add_boolean(field_tree, hf_zbee_aps_fcf_ack_req, tvb, offset, 1, fcf & ZBEE_APS_FCF_ACK_REQ);
+    proto_tree_add_boolean(field_tree, hf_zbee_aps_fcf_ext_header, tvb, offset, 1, fcf & ZBEE_APS_FCF_EXT_HEADER);
+
     offset += 1;
 
     /* Check if the endpoint addressing fields are present. */
@@ -662,7 +733,7 @@ dissect_zbee_aps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             break;
 
         case ZBEE_APS_FCF_ACK:
-            if ((pinfo->zbee_stack_vers >= ZBEE_VERSION_2007) && (packet.ack_format)) {
+            if ((nwk->version >= ZBEE_VERSION_2007) && (packet.ack_format)) {
                 /* Command Ack: endpoint addressing does not exist. */
                 goto dissect_zbee_aps_no_endpt;
             }
@@ -685,7 +756,7 @@ dissect_zbee_aps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         packet.dst_present = TRUE;
         packet.src_present = TRUE;
     }
-    else if ((packet.delivery == ZBEE_APS_FCF_INDIRECT) && (pinfo->zbee_stack_vers <= ZBEE_VERSION_2004)) {
+    else if ((packet.delivery == ZBEE_APS_FCF_INDIRECT) && (nwk->version <= ZBEE_VERSION_2004)) {
         /* Indirect addressing was removed in ZigBee 2006, basically because it
          * was a useless, broken feature which only complicated things. Treat
          * this mode as invalid for ZigBee 2006 and later. When using indirect
@@ -695,7 +766,7 @@ dissect_zbee_aps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         packet.dst_present = (!packet.indirect_mode);
         packet.src_present = (packet.indirect_mode);
     }
-    else if ((packet.delivery == ZBEE_APS_FCF_GROUP) && (pinfo->zbee_stack_vers >= ZBEE_VERSION_2007)) {
+    else if ((packet.delivery == ZBEE_APS_FCF_GROUP) && (nwk->version >= ZBEE_VERSION_2007)) {
         /* Group addressing was added in ZigBee 2006, and contains only the
          * source endpoint. (IMO, Broacast deliveries should do the same).
          */
@@ -704,18 +775,16 @@ dissect_zbee_aps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
     else {
         /* Illegal Delivery Mode. */
-        expert_add_info_format(pinfo, proto_root, PI_MALFORMED, PI_WARN, "Invalid Delivery Mode");
-        return;
+        expert_add_info(pinfo, proto_root, &ei_zbee_aps_invalid_delivery_mode);
+        return tvb_length(tvb);
 
     }
 
     /* If the destination endpoint is present, get and display it. */
     if (packet.dst_present) {
         packet.dst = tvb_get_guint8(tvb, offset);
-        if (tree) {
-            proto_tree_add_uint(aps_tree, hf_zbee_aps_dst, tvb, offset, 1, packet.dst);
-            proto_item_append_text(proto_root, ", Dst Endpt: %d", packet.dst);
-        }
+        proto_tree_add_uint(aps_tree, hf_zbee_aps_dst, tvb, offset, 1, packet.dst);
+        proto_item_append_text(proto_root, ", Dst Endpt: %d", packet.dst);
         offset += 1;
 
         /* Update the info column. */
@@ -725,10 +794,8 @@ dissect_zbee_aps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* If the group address is present, display it. */
     if (packet.delivery == ZBEE_APS_FCF_GROUP) {
         packet.group = tvb_get_letohs(tvb, offset);
-        if (tree) {
-            proto_tree_add_uint(aps_tree, hf_zbee_aps_group, tvb, offset,2, packet.group);
-            proto_item_append_text(proto_root, ", Group: 0x%04x", packet.group);
-        }
+        proto_tree_add_uint(aps_tree, hf_zbee_aps_group, tvb, offset,2, packet.group);
+        proto_item_append_text(proto_root, ", Group: 0x%04x", packet.group);
         offset +=2;
 
         /* Update the info column. */
@@ -736,43 +803,47 @@ dissect_zbee_aps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
 
     /* Get and display the cluster ID. */
-    if (pinfo->zbee_stack_vers >= ZBEE_VERSION_2007) {
+    if (nwk->version >= ZBEE_VERSION_2007) {
         /* Cluster ID is 16-bits long in ZigBee 2007 and later. */
-        pinfo->zbee_cluster_id = packet.cluster = tvb_get_letohs(tvb, offset);
-        if (tree) {
-            proto_tree_add_uint(aps_tree, hf_zbee_aps_cluster, tvb, offset,2, packet.cluster);
+        nwk->cluster_id = tvb_get_letohs(tvb, offset);
+        switch (tvb_get_letohs(tvb, offset + 2)) {
+            case ZBEE_DEVICE_PROFILE:
+                proto_tree_add_uint_format(aps_tree, hf_zbee_aps_zdp_cluster, tvb, offset, 2, nwk->cluster_id,
+                    "%s (Cluster ID: 0x%04x)", val_to_str(nwk->cluster_id, zbee_zdp_cluster_names,
+                    "Unknown Device Profile Cluster"), nwk->cluster_id);
+                break;
+            case ZBEE_PROFILE_T2:
+                proto_tree_add_item(aps_tree, hf_zbee_aps_t2_cluster, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+                break;
+            default:
+                proto_tree_add_item(aps_tree, hf_zbee_aps_cluster, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+                break;
         }
-        offset +=2;
+        offset += 2;
     }
     else {
         /* Cluster ID is 8-bits long in ZigBee 2004 and earlier. */
-        pinfo->zbee_cluster_id = packet.cluster = tvb_get_guint8(tvb, offset);
-        if (tree) {
-            proto_tree_add_uint_format_value(aps_tree, hf_zbee_aps_cluster, tvb, offset,
-                   1, packet.cluster, "0x%02x", packet.cluster);
-        }
+        nwk->cluster_id = tvb_get_guint8(tvb, offset);
+        proto_tree_add_uint_format_value(aps_tree, hf_zbee_aps_cluster, tvb, offset,
+                1, nwk->cluster_id, "0x%02x", nwk->cluster_id);
         offset += 1;
     }
 
     /* Get and display the profile ID. */
     packet.profile = tvb_get_letohs(tvb, offset);
     profile_handle = dissector_get_uint_handle(zbee_aps_dissector_table, packet.profile);
-    if (tree) {
-        proto_tree_add_uint(aps_tree, hf_zbee_aps_profile, tvb, offset,2,
-               packet.profile);
-        /* Update the protocol root and info column later, after the source endpoint
-         * so that the source and destination will be back-to-back in the text.
-         */
-    }
+    proto_tree_add_uint(aps_tree, hf_zbee_aps_profile, tvb, offset,2,
+            packet.profile);
+    /* Update the protocol root and info column later, after the source endpoint
+     * so that the source and destination will be back-to-back in the text.
+     */
     offset +=2;
 
     /* The source endpoint is present for all cases except indirect /w indirect_mode == FALSE */
     if ((packet.delivery != ZBEE_APS_FCF_INDIRECT) || (!packet.indirect_mode)) {
         packet.src = tvb_get_guint8(tvb, offset);
-        if (tree) {
-            proto_tree_add_uint(aps_tree, hf_zbee_aps_src, tvb, offset, 1, packet.src);
-            proto_item_append_text(proto_root, ", Src Endpt: %d", packet.src);
-        }
+        proto_tree_add_uint(aps_tree, hf_zbee_aps_src, tvb, offset, 1, packet.src);
+        proto_item_append_text(proto_root, ", Src Endpt: %d", packet.src);
         offset += 1;
 
         /* Update the info column. */
@@ -781,19 +852,17 @@ dissect_zbee_aps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     /* Display the profile ID now that the source endpoint was listed. */
     if (packet.type == ZBEE_APS_FCF_DATA) {
-      col_append_fstr(pinfo->cinfo, COL_PROTOCOL, " %s",
-              rval_to_str(packet.profile, zbee_aps_apid_abbrs, ""));
+        col_append_fstr(pinfo->cinfo, COL_PROTOCOL, " %s",
+                rval_to_str_const(packet.profile, zbee_aps_apid_abbrs, ""));
     }
 
     /* Jump here if there is no endpoint addressing in this frame. */
 dissect_zbee_aps_no_endpt:
 
     /* Get and display the APS counter. Only present on ZigBee 2007 and later. */
-    if (pinfo->zbee_stack_vers >= ZBEE_VERSION_2007) {
+    if (nwk->version >= ZBEE_VERSION_2007) {
         packet.counter = tvb_get_guint8(tvb, offset);
-        if (tree) {
-            proto_tree_add_uint(aps_tree, hf_zbee_aps_counter, tvb, offset, 1, packet.counter);
-        }
+        proto_tree_add_uint(aps_tree, hf_zbee_aps_counter, tvb, offset, 1, packet.counter);
         offset += 1;
     }
 
@@ -801,22 +870,18 @@ dissect_zbee_aps_no_endpt:
     if (packet.ext_header) {
         fcf = tvb_get_guint8(tvb, offset);
         packet.fragmentation = fcf & ZBEE_APS_EXT_FCF_FRAGMENT;
-        if (tree) {
-            /* Create a subtree */
-            ti = proto_tree_add_text(aps_tree, tvb, offset, 1, "Extended Frame Control Field (0x%02x)", fcf);
-            field_tree = proto_item_add_subtree(ti, ett_zbee_aps_fcf);
+        /* Create a subtree */
+        ti = proto_tree_add_text(aps_tree, tvb, offset, 1, "Extended Frame Control Field (0x%02x)", fcf);
+        field_tree = proto_item_add_subtree(ti, ett_zbee_aps_fcf);
 
-            /* Display the fragmentation sub-field. */
-            proto_tree_add_uint(field_tree, hf_zbee_aps_fragmentation, tvb, offset, 1, packet.fragmentation);
-        }
+        /* Display the fragmentation sub-field. */
+        proto_tree_add_uint(field_tree, hf_zbee_aps_fragmentation, tvb, offset, 1, packet.fragmentation);
         offset += 1;
 
         /* If fragmentation is enabled, get and display the block number. */
         if (packet.fragmentation != ZBEE_APS_EXT_FCF_FRAGMENT_NONE) {
             packet.block_number = tvb_get_guint8(tvb, offset);
-            if (tree) {
-                proto_tree_add_uint(field_tree, hf_zbee_aps_block_number, tvb, offset, 1, packet.block_number);
-            }
+            proto_tree_add_uint(field_tree, hf_zbee_aps_block_number, tvb, offset, 1, packet.block_number);
             offset += 1;
         }
 
@@ -850,7 +915,7 @@ dissect_zbee_aps_no_endpt:
         payload_tvb = dissect_zbee_secure(tvb, pinfo, aps_tree, offset);
         if (payload_tvb == NULL) {
             /* If Payload_tvb is NULL, then the security dissector cleaned up. */
-            return;
+            return tvb_length(tvb);
         }
     }
     /* If the payload exists, create a tvb subset. */
@@ -862,7 +927,7 @@ dissect_zbee_aps_no_endpt:
     if ((payload_tvb) && (packet.fragmentation != ZBEE_APS_EXT_FCF_FRAGMENT_NONE)) {
         guint32         msg_id;
         guint32         block_num;
-        fragment_data   *frag_msg = NULL;
+        fragment_head   *frag_msg = NULL;
         tvbuff_t        *new_tvb;
 
         /* Set the fragmented flag. */
@@ -879,7 +944,7 @@ dissect_zbee_aps_no_endpt:
          * the block number is the block being sent.
          */
         if (packet.fragmentation == ZBEE_APS_EXT_FCF_FRAGMENT_FIRST) {
-            fragment_set_tot_len(pinfo, msg_id, zbee_aps_fragment_table, packet.block_number);
+            fragment_set_tot_len(&zbee_aps_reassembly_table, pinfo, msg_id, NULL, packet.block_number);
             block_num = 0;  /* first packet. */
         }
         else {
@@ -887,8 +952,9 @@ dissect_zbee_aps_no_endpt:
         }
 
         /* Add this fragment to the reassembly handler. */
-        frag_msg = fragment_add_seq_check(payload_tvb, 0, pinfo, msg_id, zbee_aps_fragment_table,
-                zbee_aps_reassembled_table, block_num, tvb_length(payload_tvb), TRUE);
+        frag_msg = fragment_add_seq_check(&zbee_aps_reassembly_table,
+                payload_tvb, 0, pinfo, msg_id, NULL,
+                block_num, tvb_length(payload_tvb), TRUE);
 
         new_tvb = process_reassembled_data(payload_tvb, 0, pinfo, "Reassembled ZigBee APS" ,
                 frag_msg, &zbee_aps_frag_items, NULL, aps_tree);
@@ -904,7 +970,7 @@ dissect_zbee_aps_no_endpt:
         else {
             /* The reassembly handler could not defragment the message. */
             call_dissector(data_handle, payload_tvb, pinfo, tree);
-            return;
+            return tvb_length(tvb);
         }
     }
 
@@ -914,30 +980,30 @@ dissect_zbee_aps_no_endpt:
             if (!payload_tvb) {
                 break;
             }
-            if (pinfo->zbee_stack_vers <= ZBEE_VERSION_2004) {
+            if (nwk->version <= ZBEE_VERSION_2004) {
                 /*
                  * In ZigBee 2004, an "application framework" sits between the
                  * APS and application. Call a subdissector to handle it.
                  */
-                pinfo->private_data = profile_handle;
+                nwk->private_data = profile_handle;
                 profile_handle = zbee_apf_handle;
             }
             else if (profile_handle == NULL) {
                 /* Could not locate a profile dissector. */
                 break;
             }
-            call_dissector(profile_handle, payload_tvb, pinfo, tree);
-            return;
+            call_dissector_with_data(profile_handle, payload_tvb, pinfo, tree, nwk);
+            return tvb_length(tvb);
 
         case ZBEE_APS_FCF_CMD:
             if (!payload_tvb) {
                 /* Command packets MUST contain a payload. */
-                expert_add_info_format(pinfo, proto_root, PI_MALFORMED, PI_ERROR, "Missing Payload");
+                expert_add_info(pinfo, proto_root, &ei_zbee_aps_missing_payload);
                 THROW(BoundsError);
-                return;
+                return tvb_length(tvb);
             }
-            dissect_zbee_aps_cmd(payload_tvb, pinfo, aps_tree);
-            return;
+            dissect_zbee_aps_cmd(payload_tvb, pinfo, aps_tree, nwk->version, data);
+            return tvb_length(tvb);
 
         case ZBEE_APS_FCF_ACK:
             /* Acks should never contain a payload. */
@@ -951,9 +1017,16 @@ dissect_zbee_aps_no_endpt:
      * If we get this far, then no subdissectors have been called, use the data
      * dissector to display the leftover bytes, if any.
      */
+
+    if (payload_tvb && (packet.profile == ZBEE_PROFILE_T2)) {
+        payload_tvb = tvb_new_subset_remaining(payload_tvb, dissect_zbee_t2(payload_tvb, aps_tree, nwk->cluster_id));
+    }
+
     if (payload_tvb) {
         call_dissector(data_handle, payload_tvb, pinfo, tree);
     }
+
+    return tvb_length(tvb);
 } /* dissect_zbee_aps */
 
 /*FUNCTION:------------------------------------------------------
@@ -966,26 +1039,26 @@ dissect_zbee_aps_no_endpt:
  *      packet_into *pinfo  - pointer to packet information fields
  *      proto_tree *tree    - pointer to data tree Wireshark uses to display packet.
  *      proto_item *proto_root - pointer to the root of the APS tree
+ *      data                - raw packet private data.
  *  RETURNS
  *      void
  *---------------------------------------------------------------
  */
-static void dissect_zbee_aps_cmd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static void dissect_zbee_aps_cmd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 version, void *data)
 {
-    proto_item  *cmd_root = NULL;
-    proto_tree  *cmd_tree = NULL;
+    proto_item  *cmd_root;
+    proto_tree  *cmd_tree;
 
     guint       offset = 0;
     guint8      cmd_id = tvb_get_guint8(tvb, offset);
 
     /*  Create a subtree for the APS Command frame, and add the command ID to it. */
-    if(tree){
-        cmd_root = proto_tree_add_text(tree, tvb, offset, tvb_length(tvb), "Command Frame: %s", val_to_str_const(cmd_id, zbee_aps_cmd_names, "Unknown"));
-        cmd_tree = proto_item_add_subtree(cmd_root, ett_zbee_aps_cmd);
+    cmd_root = proto_tree_add_text(tree, tvb, offset, tvb_length(tvb),
+            "Command Frame: %s", val_to_str_const(cmd_id, zbee_aps_cmd_names, "Unknown"));
+    cmd_tree = proto_item_add_subtree(cmd_root, ett_zbee_aps_cmd);
 
-        /* Add the command ID. */
-        proto_tree_add_uint(cmd_tree, hf_zbee_aps_cmd_id, tvb, offset, 1, cmd_id);
-    }
+    /* Add the command ID. */
+    proto_tree_add_uint(cmd_tree, hf_zbee_aps_cmd_id, tvb, offset, 1, cmd_id);
     offset += 1;
 
     /* Add the command name to the info column. */
@@ -1010,7 +1083,7 @@ static void dissect_zbee_aps_cmd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 
         case ZBEE_APS_CMD_UPDATE_DEVICE:
             /* Update Device Command. */
-            offset = dissect_zbee_aps_update_device(tvb, pinfo, cmd_tree, offset);
+            offset = dissect_zbee_aps_update_device(tvb, pinfo, cmd_tree, offset, version);
             break;
 
         case ZBEE_APS_CMD_REMOVE_DEVICE:
@@ -1042,7 +1115,7 @@ static void dissect_zbee_aps_cmd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 
         case ZBEE_APS_CMD_TUNNEL:
             /* Tunnel Command. */
-            offset = dissect_zbee_aps_tunnel(tvb, pinfo, cmd_tree, offset);
+            offset = dissect_zbee_aps_tunnel(tvb, pinfo, cmd_tree, offset, data);
             break;
 
         default:
@@ -1053,16 +1126,14 @@ static void dissect_zbee_aps_cmd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
     if (offset < tvb_length(tvb)) {
         /* There are leftover bytes! */
         guint       leftover_len    = tvb_length(tvb) - offset;
-        proto_tree  *root           = NULL;
+        proto_tree  *root;
         tvbuff_t    *leftover_tvb   = tvb_new_subset(tvb, offset, leftover_len, leftover_len);
 
-        if (tree) {
-            /* Get the APS Root. */
-            root = proto_tree_get_root(tree);
+        /* Get the APS Root. */
+        root = proto_tree_get_root(tree);
 
-            /* Correct the length of the command tree. */
-            proto_item_set_len(cmd_root, offset);
-        }
+        /* Correct the length of the command tree. */
+        proto_item_set_len(cmd_root, offset);
 
         /* Dump the leftover to the data dissector. */
         call_dissector(data_handle, leftover_tvb, pinfo, root);
@@ -1087,23 +1158,16 @@ static void dissect_zbee_aps_cmd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 static guint
 dissect_zbee_aps_skke_challenge(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint offset)
 {
-
     /* Get and display the initiator address. */
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_aps_cmd_initiator, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_initiator, tvb, offset, 8, ENC_LITTLE_ENDIAN);
     offset += 8;
 
     /* Get and display the responder address. */
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_aps_cmd_responder, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_responder, tvb, offset, 8, ENC_LITTLE_ENDIAN);
     offset += 8;
 
     /* Get and display the SKKE data. */
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_aps_cmd_challenge, tvb, offset, ZBEE_APS_CMD_SKKE_DATA_LENGTH, ENC_NA);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_challenge, tvb, offset, ZBEE_APS_CMD_SKKE_DATA_LENGTH, ENC_NA);
     offset += ZBEE_APS_CMD_SKKE_DATA_LENGTH;
 
     /* Done */
@@ -1128,24 +1192,16 @@ dissect_zbee_aps_skke_challenge(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tre
 static guint
 dissect_zbee_aps_skke_data(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint offset)
 {
-
     /* Get and display the initiator address. */
-
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_aps_cmd_initiator, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_initiator, tvb, offset, 8, ENC_LITTLE_ENDIAN);
     offset += 8;
 
     /* Get and display the responder address. */
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_aps_cmd_responder, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_responder, tvb, offset, 8, ENC_LITTLE_ENDIAN);
     offset += 8;
 
     /* Get and display the SKKE data. */
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_aps_cmd_mac, tvb, offset, ZBEE_APS_CMD_SKKE_DATA_LENGTH, ENC_NA);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_mac, tvb, offset, ZBEE_APS_CMD_SKKE_DATA_LENGTH, ENC_NA);
     offset += ZBEE_APS_CMD_SKKE_DATA_LENGTH;
 
     /* Done */
@@ -1178,9 +1234,7 @@ dissect_zbee_aps_transport_key(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree
 
     /* Get and display the key type. */
     key_type = tvb_get_guint8(tvb, offset);
-    if (tree) {
-        proto_tree_add_uint(tree, hf_zbee_aps_cmd_key_type, tvb, offset, 1, key_type);
-    }
+    proto_tree_add_uint(tree, hf_zbee_aps_cmd_key_type, tvb, offset, 1, key_type);
     offset += 1;
 
     /* Coincidentally, all the key descriptors start with the key. So
@@ -1189,14 +1243,12 @@ dissect_zbee_aps_transport_key(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree
     for (i=0; i<ZBEE_APS_CMD_KEY_LENGTH ; i++) {
         key[i] = tvb_get_guint8(tvb, offset+i);
     } /* for */
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_aps_cmd_key, tvb, offset, ZBEE_APS_CMD_KEY_LENGTH, ENC_NA);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_key, tvb, offset, ZBEE_APS_CMD_KEY_LENGTH, ENC_NA);
     offset += ZBEE_APS_CMD_KEY_LENGTH;
 
     /* Update the key ring for this pan */
-    if ( !pinfo->fd->flags.visited && (nwk_hints = (zbee_nwk_hints_t *)p_get_proto_data(pinfo->fd,
-                                                proto_get_id_by_filter_name(ZBEE_PROTOABBREV_NWK)))) {
+    if ( !pinfo->fd->flags.visited && (nwk_hints = (zbee_nwk_hints_t *)p_get_proto_data(wmem_file_scope(), pinfo,
+                    proto_get_id_by_filter_name(ZBEE_PROTOABBREV_NWK), 0))) {
 
         nwk_keyring = (GSList **)g_hash_table_lookup(zbee_table_nwk_keyring, &nwk_hints->src_pan);
         if ( !nwk_keyring ) {
@@ -1206,18 +1258,19 @@ dissect_zbee_aps_transport_key(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree
              */
             nwk_keyring = (GSList **)g_malloc0(sizeof(GSList*));
             g_hash_table_insert(zbee_table_nwk_keyring,
-                            g_memdup(&nwk_hints->src_pan, sizeof(nwk_hints->src_pan)), nwk_keyring);
+                    g_memdup(&nwk_hints->src_pan, sizeof(nwk_hints->src_pan)), nwk_keyring);
         }
 
         if ( nwk_keyring ) {
             if ( !*nwk_keyring ||
                     memcmp( ((key_record_t *)((GSList *)(*nwk_keyring))->data)->key, &key,
-                    ZBEE_APS_CMD_KEY_LENGTH) ) {
+                        ZBEE_APS_CMD_KEY_LENGTH) ) {
                 /* Store a new or different key in the key ring */
                 key_record.frame_num = pinfo->fd->num;
                 key_record.label = NULL;
                 memcpy(&key_record.key, &key, ZBEE_APS_CMD_KEY_LENGTH);
-                *nwk_keyring = g_slist_prepend(*nwk_keyring, se_memdup(&key_record, sizeof(key_record_t)));
+                *nwk_keyring = g_slist_prepend(*nwk_keyring, wmem_memdup(wmem_file_scope(),
+                            &key_record, sizeof(key_record_t)));
             }
         }
     }
@@ -1225,69 +1278,58 @@ dissect_zbee_aps_transport_key(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree
     /* Parse the rest of the key descriptor. */
     switch (key_type) {
         case ZBEE_APS_CMD_KEY_STANDARD_NWK:
-        case ZBEE_APS_CMD_KEY_HIGH_SEC_NWK: {
-            /* Network Key */
-            guint8  seqno;
+        case ZBEE_APS_CMD_KEY_HIGH_SEC_NWK:
+            {
+                /* Network Key */
+                guint8  seqno;
 
-            /* Get and display the sequence number. */
-            seqno = tvb_get_guint8(tvb, offset);
-            if (tree) {
+                /* Get and display the sequence number. */
+                seqno = tvb_get_guint8(tvb, offset);
                 proto_tree_add_uint(tree, hf_zbee_aps_cmd_seqno, tvb, offset, 1, seqno);
-            }
-            offset += 1;
+                offset += 1;
 
-            /* Get and display the destination address. */
-            if (tree) {
+                /* Get and display the destination address. */
                 proto_tree_add_item(tree, hf_zbee_aps_cmd_dst, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-            }
-            offset += 8;
+                offset += 8;
 
-            /* Get and display the source address. */
-            if (tree) {
+                /* Get and display the source address. */
                 proto_tree_add_item(tree, hf_zbee_aps_cmd_src, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-            }
-            offset += 8;
+                offset += 8;
 
-            break;
-        }
+                break;
+            }
         case ZBEE_APS_CMD_KEY_TC_MASTER:
-        case ZBEE_APS_CMD_KEY_TC_LINK:{
-            /* Trust Center master key. */
+        case ZBEE_APS_CMD_KEY_TC_LINK:
+            {
+                /* Trust Center master key. */
 
-            /* Get and display the destination address. */
-            if (tree) {
+                /* Get and display the destination address. */
                 proto_tree_add_item(tree, hf_zbee_aps_cmd_dst, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-            }
-            offset += 8;
+                offset += 8;
 
-            /* Get and display the source address. */
-            if (tree) {
+                /* Get and display the source address. */
                 proto_tree_add_item(tree, hf_zbee_aps_cmd_src, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-            }
-            offset += 8;
+                offset += 8;
 
-            break;
-        }
+                break;
+            }
         case ZBEE_APS_CMD_KEY_APP_MASTER:
-        case ZBEE_APS_CMD_KEY_APP_LINK:{
-            /* Application master or link key, both have the same format. */
-            guint8  initiator;
+        case ZBEE_APS_CMD_KEY_APP_LINK:
+            {
+                /* Application master or link key, both have the same format. */
+                guint8  initiator;
 
-            /* get and display the partner address.  */
-            if (tree) {
+                /* get and display the partner address.  */
                 proto_tree_add_item(tree, hf_zbee_aps_cmd_partner, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-            }
-            offset += 8;
+                offset += 8;
 
-            /* get and display the initiator flag. */
-            initiator = tvb_get_guint8(tvb, offset);
-            if (tree) {
+                /* get and display the initiator flag. */
+                initiator = tvb_get_guint8(tvb, offset);
                 proto_tree_add_boolean(tree, hf_zbee_aps_cmd_initiator_flag, tvb, offset, 1, initiator);
-            }
-            offset += 1;
+                offset += 1;
 
-            break;
-        }
+                break;
+            }
         default:
             break;
     } /* switch */
@@ -1311,31 +1353,20 @@ dissect_zbee_aps_transport_key(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree
  *---------------------------------------------------------------
  */
 static guint
-dissect_zbee_aps_update_device(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset)
+dissect_zbee_aps_update_device(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint offset, guint8 version)
 {
-    guint16 short_addr;
-    guint8  status;
-
     /* Get and display the device address. */
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_aps_cmd_device, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_device, tvb, offset, 8, ENC_LITTLE_ENDIAN);
     offset += 8;
 
     /* Get and display the short address. Only on ZigBee 2006 and later. */
-    if (pinfo->zbee_stack_vers >= ZBEE_VERSION_2007) {
-        short_addr = tvb_get_letohs(tvb, offset);
-        if (tree) {
-            proto_tree_add_uint(tree, hf_zbee_aps_cmd_short_addr, tvb, offset, 2, short_addr);
-        }
+    if (version >= ZBEE_VERSION_2007) {
+        proto_tree_add_item(tree, hf_zbee_aps_cmd_short_addr, tvb, offset, 2, ENC_LITTLE_ENDIAN);
         offset +=2;
     }
 
     /* Get and display the status. */
-    status = tvb_get_guint8(tvb, offset);
-    if (tree) {
-        proto_tree_add_uint(tree, hf_zbee_aps_cmd_device_status, tvb, offset, 1, status);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_device_status, tvb, offset, 1, ENC_NA);
     offset += 1;
 
     /* Done */
@@ -1359,11 +1390,8 @@ dissect_zbee_aps_update_device(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
 static guint
 dissect_zbee_aps_remove_device(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, guint offset)
 {
-
     /* Get and display the device address. */
-    if(tree){
-        proto_tree_add_item(tree, hf_zbee_aps_cmd_device, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_device, tvb, offset, 8, ENC_LITTLE_ENDIAN);
     offset += 8;
 
     /* Done */
@@ -1391,16 +1419,12 @@ dissect_zbee_aps_request_key(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *
 
     /* Get and display the key type. */
     key_type = tvb_get_guint8(tvb, offset);
-    if (tree) {
-        proto_tree_add_uint(tree, hf_zbee_aps_cmd_key_type, tvb, offset, 1, key_type);
-    }
+    proto_tree_add_uint(tree, hf_zbee_aps_cmd_key_type, tvb, offset, 1, key_type);
     offset += 1;
 
     /* Get and display the partner address. Only present on application master key. */
     if (key_type == ZBEE_APS_CMD_KEY_APP_MASTER) {
-        if (tree) {
-            proto_tree_add_item(tree, hf_zbee_aps_cmd_partner, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-        }
+        proto_tree_add_item(tree, hf_zbee_aps_cmd_partner, tvb, offset, 8, ENC_LITTLE_ENDIAN);
         offset += 8;
     }
 
@@ -1429,9 +1453,7 @@ dissect_zbee_aps_switch_key(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *t
 
     /* Get and display the sequence number. */
     seqno = tvb_get_guint8(tvb, offset);
-    if (tree) {
-        proto_tree_add_uint(tree, hf_zbee_aps_cmd_seqno, tvb, offset, 1, seqno);
-    }
+    proto_tree_add_uint(tree, hf_zbee_aps_cmd_seqno, tvb, offset, 1, seqno);
     offset += 1;
 
     /* Done */
@@ -1461,36 +1483,26 @@ dissect_zbee_aps_auth_challenge(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tre
 
     /* Get and display the key type. */
     key_type = tvb_get_guint8(tvb, offset);
-    if (tree) {
-        proto_tree_add_uint(tree, hf_zbee_aps_cmd_ea_key_type, tvb, offset, 1, key_type);
-    }
+    proto_tree_add_uint(tree, hf_zbee_aps_cmd_ea_key_type, tvb, offset, 1, key_type);
     offset += 1;
 
     /* If using the network key, display the key sequence number. */
     if (key_type == ZBEE_APS_CMD_EA_KEY_NWK) {
         key_seqno = tvb_get_guint8(tvb, offset);
-        if (tree) {
-            proto_tree_add_uint(tree, hf_zbee_aps_cmd_seqno, tvb, offset, 1, key_seqno);
-        }
+        proto_tree_add_uint(tree, hf_zbee_aps_cmd_seqno, tvb, offset, 1, key_seqno);
         offset += 1;
     }
 
     /* Get and display the initiator address. */
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_aps_cmd_initiator, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_initiator, tvb, offset, 8, ENC_LITTLE_ENDIAN);
     offset += 8;
 
     /* Get and display the responder address. */
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_aps_cmd_responder, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_responder, tvb, offset, 8, ENC_LITTLE_ENDIAN);
     offset += 8;
 
     /* Get and display the challenge. */
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_aps_cmd_challenge, tvb, offset, ZBEE_APS_CMD_EA_CHALLENGE_LENGTH, ENC_NA);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_challenge, tvb, offset, ZBEE_APS_CMD_EA_CHALLENGE_LENGTH, ENC_NA);
     offset += ZBEE_APS_CMD_EA_CHALLENGE_LENGTH;
 
     /* Done*/
@@ -1518,28 +1530,22 @@ dissect_zbee_aps_auth_data(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tr
     guint8  data_type;
 
     /* Display the MAC. */
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_aps_cmd_mac, tvb, offset, ZBEE_APS_CMD_EA_MAC_LENGTH, ENC_NA);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_mac, tvb, offset, ZBEE_APS_CMD_EA_MAC_LENGTH, ENC_NA);
     offset += ZBEE_APS_CMD_EA_MAC_LENGTH;
 
     /* Get and display the data type. */
     data_type = tvb_get_guint8(tvb, offset);
-    if (tree) {
-        /* Note! We're interpreting the DataType field to be the same as
-         * KeyType field in the challenge frames. So far, this seems
-         * consistent, although ZigBee appears to have left some holes
-         * in the definition of the DataType and Data fields (ie: what
-         * happens when KeyType == Link Key?)
-         */
-        proto_tree_add_uint(tree, hf_zbee_aps_cmd_ea_key_type, tvb, offset, 1, data_type);
-    }
+    /* Note! We're interpreting the DataType field to be the same as
+     * KeyType field in the challenge frames. So far, this seems
+     * consistent, although ZigBee appears to have left some holes
+     * in the definition of the DataType and Data fields (ie: what
+     * happens when KeyType == Link Key?)
+     */
+    proto_tree_add_uint(tree, hf_zbee_aps_cmd_ea_key_type, tvb, offset, 1, data_type);
     offset += 1;
 
     /* Display the data field. */
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_aps_cmd_ea_data, tvb, offset, ZBEE_APS_CMD_EA_DATA_LENGTH, ENC_NA);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_ea_data, tvb, offset, ZBEE_APS_CMD_EA_DATA_LENGTH, ENC_NA);
     offset += ZBEE_APS_CMD_EA_DATA_LENGTH;
 
     /* Done */
@@ -1548,7 +1554,7 @@ dissect_zbee_aps_auth_data(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tr
 
 /*FUNCTION:------------------------------------------------------
  *  NAME
- *      dissect_zbee_aps_auth_data
+ *      dissect_zbee_aps_tunnel
  *  DESCRIPTION
  *      Helper dissector for the Tunnel command.
  *  PARAMETERS
@@ -1556,26 +1562,25 @@ dissect_zbee_aps_auth_data(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tr
  *      packet_into *pinfo  - pointer to packet information fields
  *      proto_tree *tree    - pointer to the command subtree.
  *      offset              - offset into the tvb to begin dissection.
+ *      data                - raw packet private data.
  *  RETURNS
  *      guint               - offset after command dissection.
  *---------------------------------------------------------------
  */
 static guint
-dissect_zbee_aps_tunnel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset)
+dissect_zbee_aps_tunnel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset, void *data)
 {
-    proto_tree  *root = NULL;
+    proto_tree  *root;
     tvbuff_t    *tunnel_tvb;
 
     /* Get and display the destination address. */
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_aps_cmd_dst, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-    }
+    proto_tree_add_item(tree, hf_zbee_aps_cmd_dst, tvb, offset, 8, ENC_LITTLE_ENDIAN);
     offset += 8;
 
     /* The remainder is a tunneled APS frame. */
     tunnel_tvb = tvb_new_subset_remaining(tvb, offset);
-    if (tree) root = proto_tree_get_root(tree);
-    call_dissector(zbee_aps_handle, tunnel_tvb, pinfo, root);
+    root = proto_tree_get_root(tree);
+    call_dissector_with_data(zbee_aps_handle, tunnel_tvb, pinfo, root, data);
     offset = tvb_length(tvb);
 
     /* Done */
@@ -1597,9 +1602,9 @@ dissect_zbee_aps_tunnel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gui
  *      void
  *---------------------------------------------------------------
  */
-static void dissect_zbee_apf(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int dissect_zbee_apf(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
-    proto_tree  *apf_tree = NULL;
+    proto_tree  *apf_tree;
     proto_item  *proto_root;
 
     guint8      count;
@@ -1608,23 +1613,22 @@ static void dissect_zbee_apf(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
     guint       i;
 
     tvbuff_t    *app_tvb;
+    dissector_handle_t  app_dissector = NULL;
+    zbee_nwk_packet *nwk = (zbee_nwk_packet *)data;
 
-    dissector_handle_t  app_dissector = (dissector_handle_t)(pinfo->private_data);
+    if (nwk != NULL)
+        app_dissector = (dissector_handle_t)(nwk->private_data);
 
     /* Create the tree for the application framework. */
-    if (tree) {
-        proto_root = proto_tree_add_protocol_format(tree, proto_zbee_apf, tvb, 0,
-                tvb_length(tvb), "ZigBee Application Framework");
-        apf_tree = proto_item_add_subtree(proto_root, ett_zbee_apf);
-    }
+    proto_root = proto_tree_add_protocol_format(tree, proto_zbee_apf, tvb, 0,
+            tvb_length(tvb), "ZigBee Application Framework");
+    apf_tree = proto_item_add_subtree(proto_root, ett_zbee_apf);
 
     /* Get the count and type. */
     count   = zbee_get_bit_field(tvb_get_guint8(tvb, offset), ZBEE_APP_COUNT);
     type    = zbee_get_bit_field(tvb_get_guint8(tvb, offset), ZBEE_APP_TYPE);
-    if (tree) {
-        proto_tree_add_uint(apf_tree, hf_zbee_apf_count, tvb, offset, 1, count);
-        proto_tree_add_uint(apf_tree, hf_zbee_apf_type, tvb, offset, 1, type);
-    }
+    proto_tree_add_uint(apf_tree, hf_zbee_apf_count, tvb, offset, 1, count);
+    proto_tree_add_uint(apf_tree, hf_zbee_apf_type, tvb, offset, 1, type);
     offset += 1;
 
     /* Ensure the application dissector exists. */
@@ -1642,7 +1646,7 @@ static void dissect_zbee_apf(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
         app_tvb = tvb_new_subset(tvb, offset, length, length);
 
         /* Call the application dissector. */
-        call_dissector(app_dissector, app_tvb, pinfo, tree);
+        call_dissector_with_data(app_dissector, app_tvb, pinfo, tree, data);
 
         /* Adjust the offset. */
         offset += length;
@@ -1654,7 +1658,54 @@ dissect_app_end:
         app_tvb = tvb_new_subset_remaining(tvb, offset);
         call_dissector(data_handle, app_tvb, pinfo, tree);
     }
+
+    return tvb_length(tvb);
 } /* dissect_zbee_apf */
+
+/*FUNCTION:------------------------------------------------------
+ *  NAME
+ *      dissect_zbee_t2
+ *  DESCRIPTION
+ *      ZigBee Test Profile #2 dissector for Wireshark.
+ *  PARAMETERS
+ *      tvbuff_t *tvb       - pointer to buffer containing raw packet.
+ *      packet_into *pinfo  - pointer to packet information fields.
+ *      guint16 clisuer_id  - ZigBee Test Profile #2 cluster ID.
+ *  RETURNS
+ *      guint
+ *---------------------------------------------------------------
+ */
+static guint
+dissect_zbee_t2(tvbuff_t *tvb, proto_tree *tree, guint16 cluster_id)
+{
+    guint offset = 0;
+    guint8 payload_length;
+    proto_item *ti;
+    proto_tree *t2_tree;
+
+    ti = proto_tree_add_text(tree, tvb, 0, tvb_length(tvb), "ZigBee Test Profile #2");
+    t2_tree = proto_item_add_subtree(ti, ett_zbee_aps_t2);
+    switch (cluster_id) {
+        case ZBEE_APS_T2_CID_BTRES:
+            payload_length = tvb_get_guint8(tvb, offset);
+            proto_tree_add_uint(t2_tree, hf_zbee_aps_t2_btres_octet_sequence_length_requested, tvb, offset, 1,
+                payload_length);
+            offset += 1;
+            proto_tree_add_item(t2_tree, hf_zbee_aps_t2_btres_status, tvb, offset, 1, ENC_NA);
+            offset += 1;
+            proto_tree_add_item(t2_tree, hf_zbee_aps_t2_btres_octet_sequence, tvb, offset, payload_length, ENC_NA);
+            offset += payload_length;
+            break;
+        case ZBEE_APS_T2_CID_BTREQ:
+            payload_length = tvb_get_guint8(tvb, offset);
+            proto_tree_add_uint(t2_tree, hf_zbee_aps_t2_btreq_octet_sequence_length, tvb, offset, 1, payload_length);
+            offset += 1;
+            proto_tree_add_item(t2_tree, hf_zbee_aps_t2_btreq_octet_sequence, tvb, offset, payload_length, ENC_NA);
+            offset += payload_length;
+            break;
+    }
+    return offset;
+} /* dissect_zbee_t2 */
 
 /*FUNCTION:------------------------------------------------------
  *  NAME
@@ -1928,7 +1979,32 @@ void proto_register_zbee_aps(void)
 
             { &hf_zbee_aps_reassembled_length,
             { "Reassembled ZigBee APS length",         "zbee_aps.reassembled.length", FT_UINT32, BASE_DEC, NULL, 0x0,
-                NULL, HFILL }}
+                NULL, HFILL }},
+
+            { &hf_zbee_aps_t2_cluster,
+                { "Cluster", "zbee_aps.t2.cluster", FT_UINT16, BASE_HEX, VALS(zbee_aps_t2_cid_names), 0x0, NULL,
+                    HFILL }},
+
+            { &hf_zbee_aps_t2_btres_octet_sequence,
+                { "Octet Sequence", "zbee_aps.t2.btres.octet_sequence", FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+
+            { &hf_zbee_aps_t2_btres_octet_sequence_length_requested,
+                { "Octet Sequence Length Requested", "zbee_aps.t2.btres.octet_sequence_length_requested", FT_UINT8,
+                    BASE_DEC, NULL, 0x0, NULL, HFILL }},
+
+            { &hf_zbee_aps_t2_btres_status,
+                { "Status", "zbee_aps.t2.btres.status", FT_UINT8, BASE_HEX, VALS(zbee_aps_t2_btres_status_names), 0x0,
+                    NULL, HFILL }},
+
+            { &hf_zbee_aps_t2_btreq_octet_sequence,
+                { "Octet Sequence", "zbee_aps.t2.btreq.octet_sequence", FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+
+            { &hf_zbee_aps_t2_btreq_octet_sequence_length,
+                { "Octet Sequence Length", "zbee_aps.t2.btreq.octet_sequence_length", FT_UINT8, BASE_DEC, NULL, 0x0,
+                    NULL, HFILL }},
+
+            { &hf_zbee_aps_zdp_cluster,
+                { "Cluster", "zbee_aps.zdp_cluster", FT_UINT16, BASE_HEX, NULL, 0x0, NULL, HFILL }}
     };
 
     static hf_register_info hf_apf[] = {
@@ -1948,21 +2024,31 @@ void proto_register_zbee_aps(void)
         &ett_zbee_aps_ext,
         &ett_zbee_aps_cmd,
         &ett_zbee_aps_fragment,
-        &ett_zbee_aps_fragments
+        &ett_zbee_aps_fragments,
+        &ett_zbee_aps_t2
     };
 
     static gint *ett_apf[] = {
         &ett_zbee_apf
     };
 
+    static ei_register_info ei[] = {
+        { &ei_zbee_aps_invalid_delivery_mode, { "zbee_aps.invalid_delivery_mode", PI_PROTOCOL, PI_WARN, "Invalid Delivery Mode", EXPFILL }},
+        { &ei_zbee_aps_missing_payload, { "zbee_aps.missing_payload", PI_MALFORMED, PI_ERROR, "Missing Payload", EXPFILL }},
+    };
+
+    expert_module_t* expert_zbee_aps;
+
     /* Register ZigBee APS protocol with Wireshark. */
     proto_zbee_aps = proto_register_protocol("ZigBee Application Support Layer", "ZigBee APS", ZBEE_PROTOABBREV_APS);
     proto_register_field_array(proto_zbee_aps, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_zbee_aps = expert_register_protocol(proto_zbee_aps);
+    expert_register_field_array(expert_zbee_aps, ei, array_length(ei));
 
     /* Register the APS dissector and subdissector list. */
     zbee_aps_dissector_table = register_dissector_table("zbee.profile", "ZigBee Profile ID", FT_UINT16, BASE_HEX);
-    register_dissector(ZBEE_PROTOABBREV_APS, dissect_zbee_aps, proto_zbee_aps);
+    zbee_aps_handle = new_register_dissector(ZBEE_PROTOABBREV_APS, dissect_zbee_aps, proto_zbee_aps);
 
     /* Register the init routine. */
     register_init_routine(proto_init_zbee_aps);
@@ -1973,7 +2059,7 @@ void proto_register_zbee_aps(void)
     proto_register_subtree_array(ett_apf, array_length(ett_apf));
 
     /* Register the App dissector. */
-    register_dissector(ZBEE_PROTOABBREV_APF, dissect_zbee_apf, proto_zbee_apf);
+    zbee_apf_handle = new_register_dissector(ZBEE_PROTOABBREV_APF, dissect_zbee_apf, proto_zbee_apf);
 } /* proto_register_zbee_aps */
 
 /*FUNCTION:------------------------------------------------------
@@ -1991,8 +2077,6 @@ void proto_reg_handoff_zbee_aps(void)
 {
     /* Find the other dissectors we need. */
     data_handle     = find_dissector("data");
-    zbee_aps_handle = find_dissector(ZBEE_PROTOABBREV_APS);
-    zbee_apf_handle = find_dissector(ZBEE_PROTOABBREV_APF);
 } /* proto_reg_handoff_zbee_aps */
 
 /*FUNCTION:------------------------------------------------------
@@ -2009,7 +2093,19 @@ void proto_reg_handoff_zbee_aps(void)
  */
 static void proto_init_zbee_aps(void)
 {
-    fragment_table_init(&zbee_aps_fragment_table);
-    reassembled_table_init(&zbee_aps_reassembled_table);
+    reassembly_table_init(&zbee_aps_reassembly_table,
+                          &addresses_reassembly_table_functions);
 } /* proto_init_zbee_aps */
 
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

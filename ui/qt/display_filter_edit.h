@@ -1,7 +1,5 @@
 /* display_filter_edit.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,7 +29,7 @@ class DisplayFilterEdit : public SyntaxLineEdit
 {
     Q_OBJECT
 public:
-    explicit DisplayFilterEdit(QWidget *parent = 0, bool plain = false);
+    explicit DisplayFilterEdit(QWidget *parent = 0, bool plain = true);
 
 protected:
     void paintEvent(QPaintEvent *evt);
@@ -46,10 +44,10 @@ public slots:
 private slots:
     void checkFilter(const QString &text);
     void bookmarkClicked();
+    void clearFilter();
 
 private:
     bool plain_;
-    bool field_name_only_;
     QString empty_filter_message_;
     QToolButton *bookmark_button_;
     QToolButton *clear_button_;

@@ -1,7 +1,5 @@
 /* proto_tree.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -89,6 +87,8 @@ proto_tree_draw_node(proto_node *node, gpointer data)
 
     QTreeWidgetItem *parentItem = (QTreeWidgetItem *)data;
     QTreeWidgetItem *item;
+    ProtoTree *proto_tree = qobject_cast<ProtoTree *>(parentItem->treeWidget());
+
     item = new QTreeWidgetItem(parentItem, 0);
 
     // Set our colors.
@@ -105,6 +105,10 @@ proto_tree_draw_node(proto_node *node, gpointer data)
             item->setData(0, Qt::ForegroundRole, pal.link());
             font.setUnderline(true);
             item->setData(0, Qt::FontRole, font);
+
+            if (fi->hfinfo->type == FT_FRAMENUM) {
+                proto_tree->emitRelatedFrame(fi->value.value.uinteger);
+            }
         }
     }
 
@@ -140,7 +144,7 @@ proto_tree_draw_node(proto_node *node, gpointer data)
     }
 
     if (is_branch) {
-        if (tree_is_expanded[fi->tree_type]) {
+        if (tree_expanded(fi->tree_type)) {
             item->setExpanded(true);
         } else {
             item->setExpanded(false);
@@ -151,13 +155,16 @@ proto_tree_draw_node(proto_node *node, gpointer data)
 }
 
 ProtoTree::ProtoTree(QWidget *parent) :
-    QTreeWidget(parent)
+    QTreeWidget(parent),
+    decode_as_(NULL)
 {
     QMenu *submenu, *subsubmenu;
 
     setAccessibleName(tr("Packet details"));
     setUniformRowHeights(true);
 
+    // XXX We might want to reimplement setParent() and fill in the context
+    // menu there.
     ctx_menu_.addAction(window()->findChild<QAction *>("actionViewExpandSubtrees"));
     ctx_menu_.addAction(window()->findChild<QAction *>("actionViewExpandAll"));
     ctx_menu_.addAction(window()->findChild<QAction *>("actionViewCollapseAll"));
@@ -224,7 +231,8 @@ ProtoTree::ProtoTree(QWidget *parent) :
 //    "     <menuitem name='ProtocolHelp' action='/ProtocolHelp'/>\n"
 //    "     <menuitem name='ProtocolPreferences' action='/ProtocolPreferences'/>\n"
     ctx_menu_.addSeparator();
-//    "     <menuitem name='DecodeAs' action='/DecodeAs'/>\n"
+    decode_as_ = window()->findChild<QAction *>("actionAnalyzeDecodeAs");
+    ctx_menu_.addAction(decode_as_);
 //    "     <menuitem name='DisableProtocol' action='/DisableProtocol'/>\n"
 //    "     <menuitem name='ResolveName' action='/ResolveName'/>\n"
 //    "     <menuitem name='GotoCorrespondingPacket' action='/GotoCorrespondingPacket'/>\n"
@@ -244,7 +252,9 @@ void ProtoTree::clear() {
 
 void ProtoTree::contextMenuEvent(QContextMenuEvent *event)
 {
+    decode_as_->setData(qVariantFromValue(true));
     ctx_menu_.exec(event->globalPos());
+    decode_as_->setData(QVariant());
 }
 
 void ProtoTree::fillProtocolTree(proto_tree *protocol_tree) {
@@ -252,6 +262,11 @@ void ProtoTree::fillProtocolTree(proto_tree *protocol_tree) {
     setFont(wsApp->monospaceFont());
 
     proto_tree_children_foreach(protocol_tree, proto_tree_draw_node, invisibleRootItem());
+}
+
+void ProtoTree::emitRelatedFrame(int related_frame)
+{
+    emit relatedFrame(related_frame);
 }
 
 void ProtoTree::updateSelectionStatus(QTreeWidgetItem* item) {
@@ -334,7 +349,7 @@ void ProtoTree::expand(const QModelIndex & index) {
     if (fi->tree_type != -1) {
         g_assert(fi->tree_type >= 0 &&
                  fi->tree_type < num_tree_types);
-        tree_is_expanded[fi->tree_type] = TRUE;
+        tree_expanded_set(fi->tree_type, TRUE);
     }
 }
 
@@ -351,7 +366,7 @@ void ProtoTree::collapse(const QModelIndex & index) {
     if (fi->tree_type != -1) {
         g_assert(fi->tree_type >= 0 &&
                  fi->tree_type < num_tree_types);
-        tree_is_expanded[fi->tree_type] = FALSE;
+        tree_expanded_set(fi->tree_type, FALSE);
     }
 }
 
@@ -388,7 +403,7 @@ void ProtoTree::expandAll()
 {
     int i;
     for(i=0; i < num_tree_types; i++) {
-        tree_is_expanded[i] = TRUE;
+        tree_expanded_set(i, TRUE);
     }
     QTreeWidget::expandAll();
 }
@@ -397,7 +412,7 @@ void ProtoTree::collapseAll()
 {
     int i;
     for(i=0; i < num_tree_types; i++) {
-        tree_is_expanded[i] = FALSE;
+        tree_expanded_set(i, FALSE);
     }
     QTreeWidget::collapseAll();
 }

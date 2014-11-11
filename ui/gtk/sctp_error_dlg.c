@@ -1,8 +1,6 @@
 /*
  * Copyright 2004, Irene Ruengeler <i.ruengeler [AT] fh-muenster.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,7 +24,7 @@
 
 #include <gtk/gtk.h>
 
-#include "epan/filesystem.h"
+#include "wsutil/filesystem.h"
 
 #include "../globals.h"
 #include "ui/simple_dialog.h"
@@ -34,8 +32,10 @@
 #include "ui/gtk/dlg_utils.h"
 #include "ui/gtk/gui_utils.h"
 #include "ui/gtk/main.h"
-#include "ui/gtk/sctp_stat.h"
+#include "ui/tap-sctp-analysis.h"
+#include "ui/gtk/sctp_stat_gtk.h"
 #include "ui/gtk/gui_utils.h"
+#include "ui/gtk/stock_icons.h"
 
 static GtkWidget *sctp_error_dlg=NULL;
 static GtkWidget *clist = NULL;
@@ -261,7 +261,7 @@ gtk_sctperror_dlg(void)
 	gtk_widget_show (bt_frame);
 	gtk_container_add (GTK_CONTAINER (hbuttonbox2), bt_frame);
 
-	bt_close = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
+	bt_close = ws_gtk_button_new_from_stock(GTK_STOCK_CLOSE);
 	gtk_widget_show (bt_close);
 	gtk_container_add (GTK_CONTAINER (hbuttonbox2), bt_close);
 

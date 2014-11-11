@@ -1,7 +1,6 @@
 ## Makefile for building wireshark.exe with Microsoft C and nmake
 ## Use: $(MAKE) /$(MAKEFLAGS) -f makefile.nmake
 #
-# $Id$
 
 include ..\config.nmake
 include <win32.mak>
@@ -12,14 +11,15 @@ include ..\Makefile.nmake.inc
 include Makefile.common
 
 CFLAGS=$(WARNINGS_ARE_ERRORS) $(STANDARD_CFLAGS) \
-	/I. /I.. $(GLIB_CFLAGS) \
+	/I. /I.. $(GLIB_CFLAGS) $(GNUTLS_CFLAGS) \
 	/I$(PCAP_DIR)\include -DWS_BUILD_DLL
 
 .c.obj::
-   $(CC) $(CFLAGS) -Fd.\ -c $<
+	$(CC) $(CFLAGS) -Fd.\ -c $<
 
 # For use when making libwsutil.dll
-libwsutil_LIBS = $(GLIB_LIBS)
+libwsutil_LIBS = $(GLIB_LIBS) \
+	$(GNUTLS_LIBS)
 
 OBJECTS = file_util.obj		\
 	inet_aton.obj		\
@@ -27,7 +27,6 @@ OBJECTS = file_util.obj		\
 	inet_pton.obj		\
 	$(LIBWSUTIL_SRC:.c=.obj) \
 	strptime.obj		\
-	unicode-utils.obj	\
 	wsgetopt.obj
 
 # For use when making libwsutil.dll

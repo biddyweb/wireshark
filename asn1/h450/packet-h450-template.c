@@ -4,8 +4,6 @@
  * 2003  Graeme Reid (graeme.reid@norwoodsystems.com)
  * Copyright 2005, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -43,6 +41,10 @@
 #define PNAME  "H.450 Supplementary Services"
 #define PSNAME "H.450"
 #define PFNAME "h450"
+
+void proto_register_h450(void);
+void proto_reg_handoff_h450(void);
+
 
 /* Initialize the protocol and registered fields */
 static int proto_h450 = -1;
@@ -111,17 +113,20 @@ static const h450_err_t *get_err(gint32 errcode) {
 
 /*--- dissect_h450_arg ------------------------------------------------------*/
 static int
-dissect_h450_arg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
+dissect_h450_arg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data) {
   proto_item *hidden_item;
-  int offset;
+  int offset = 0;
   rose_ctx_t *rctx;
   gint32 opcode;
   const h450_op_t *op_ptr;
   const gchar *p;
 
-  offset = 0;
-  rctx = get_rose_ctx(pinfo->private_data);
+  /* Reject the packet if data is NULL */
+  if (data == NULL)
+    return 0;
+  rctx = get_rose_ctx(data);
   DISSECTOR_ASSERT(rctx);
+
   if (rctx->d.pdu != 1)  /* invoke */
     return offset;
   if (rctx->d.code != 0)  /* local */
@@ -133,7 +138,7 @@ dissect_h450_arg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
 
   hidden_item = proto_tree_add_uint(tree, hf_h450_operation, tvb, 0, 0, opcode);
   PROTO_ITEM_SET_HIDDEN(hidden_item);
-  p = match_strval(opcode, VALS(h450_str_operation));
+  p = try_val_to_str(opcode, VALS(h450_str_operation));
   if (p) {
     proto_item_append_text(rctx->d.code_item, " - %s", p);
     if (rctx->apdu_depth >= 0)
@@ -153,17 +158,20 @@ dissect_h450_arg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
 
 /*--- dissect_h450_res ------------------------------------------------------*/
 static int
-dissect_h450_res(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
+dissect_h450_res(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data) {
   proto_item *hidden_item;
-  int offset;
+  int offset = 0;
   rose_ctx_t *rctx;
   gint32 opcode;
   const h450_op_t *op_ptr;
   const gchar *p;
 
-  offset = 0;
-  rctx = get_rose_ctx(pinfo->private_data);
+  /* Reject the packet if data is NULL */
+  if (data == NULL)
+    return 0;
+  rctx = get_rose_ctx(data);
   DISSECTOR_ASSERT(rctx);
+
   if (rctx->d.pdu != 2)  /* returnResult */
     return offset;
   if (rctx->d.code != 0)  /* local */
@@ -175,7 +183,7 @@ dissect_h450_res(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
 
   hidden_item = proto_tree_add_uint(tree, hf_h450_operation, tvb, 0, 0, opcode);
   PROTO_ITEM_SET_HIDDEN(hidden_item);
-  p = match_strval(opcode, VALS(h450_str_operation));
+  p = try_val_to_str(opcode, VALS(h450_str_operation));
   if (p) {
     proto_item_append_text(rctx->d.code_item, " - %s", p);
     if (rctx->apdu_depth >= 0)
@@ -195,17 +203,20 @@ dissect_h450_res(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
 
 /*--- dissect_h450_err ------------------------------------------------------*/
 static int
-dissect_h450_err(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
+dissect_h450_err(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data) {
   proto_item *hidden_item;
-  int offset;
+  int offset = 0;
   rose_ctx_t *rctx;
   gint32 errcode;
   const h450_err_t *err_ptr;
   const gchar *p;
 
-  offset = 0;
-  rctx = get_rose_ctx(pinfo->private_data);
+  /* Reject the packet if data is NULL */
+  if (data == NULL)
+    return 0;
+  rctx = get_rose_ctx(data);
   DISSECTOR_ASSERT(rctx);
+
   if (rctx->d.pdu != 3)  /* returnError */
     return offset;
   if (rctx->d.code != 0)  /* local */
@@ -217,7 +228,7 @@ dissect_h450_err(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
 
   hidden_item = proto_tree_add_uint(tree, hf_h450_error, tvb, 0, 0, errcode);
   PROTO_ITEM_SET_HIDDEN(hidden_item);
-  p = match_strval(errcode, VALS(h450_str_error));
+  p = try_val_to_str(errcode, VALS(h450_str_error));
   if (p) {
     proto_item_append_text(rctx->d.code_item, " - %s", p);
     if (rctx->apdu_depth >= 0)

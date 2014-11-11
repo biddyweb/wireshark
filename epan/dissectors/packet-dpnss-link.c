@@ -2,8 +2,6 @@
  * Routines for DPNSS/DASS2 link layer dissection
  * Copyright 2009, Rolf Fiedler <rolf.fiedler[at]innoventif[dot]de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,10 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
+
+void proto_register_dpnss_link(void);
+void proto_reg_handoff_dpnss_link(void);
 
 static dissector_handle_t dpnss_handle; /* DPNSS UI frame dissector */
 #define LINK_HEADER_SIZE 3

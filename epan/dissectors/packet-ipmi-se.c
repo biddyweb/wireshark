@@ -2,8 +2,6 @@
  * Sub-dissectors for IPMI messages (netFn=Sensor/Event)
  * Copyright 2007-2008, Alexey Neyman, Pigeon Point Systems <avn@pigeonpoint.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -1839,7 +1837,7 @@ parse_platform_event(tvbuff_t *tvb, proto_tree *tree)
 	   fall back to "default" display in such weird cases.
 	*/
 	reinit_statics();
-	if (tvb_length(tvb) <= 5) {
+	if (tvb_captured_length(tvb) <= 5) {
 		return;
 	}
 
@@ -1856,7 +1854,7 @@ parse_platform_event(tvbuff_t *tvb, proto_tree *tree)
 	}
 
 	/* Now the same for byte 3 */
-	if (tvb_length(tvb) <= 6) {
+	if (tvb_captured_length(tvb) <= 6) {
 		return;
 	}
 
@@ -2030,7 +2028,7 @@ cfgparam_13(tvbuff_t *tvb, proto_tree *tree)
 
 	proto_tree_add_bitmask_text(tree, tvb, 0, 1, NULL, NULL, ett_ipmi_se_cp13_byte1, byte1, ENC_LITTLE_ENDIAN, 0);
 	proto_tree_add_item(tree, hf_ipmi_se_cp13_blocksel, tvb, 1, 1, ENC_LITTLE_ENDIAN);
-	proto_tree_add_item(tree, hf_ipmi_se_cp13_string, tvb, 2, tvb_length(tvb) - 2, ENC_ASCII|ENC_NA);
+	proto_tree_add_item(tree, hf_ipmi_se_cp13_string, tvb, 2, -1, ENC_ASCII|ENC_NA);
 }
 
 static void
@@ -2162,7 +2160,7 @@ static const struct true_false_string tfs_2b_enabled = {
 /* Set event receiver.
  */
 static void
-rq00(tvbuff_t *tvb, proto_tree *tree)
+rq00(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte2[] = { &hf_ipmi_se_00_lun, NULL };
 	unsigned int addr;
@@ -2181,7 +2179,7 @@ rq00(tvbuff_t *tvb, proto_tree *tree)
 /* Get event receiver.
  */
 static void
-rs01(tvbuff_t *tvb, proto_tree *tree)
+rs01(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte2[] = { &hf_ipmi_se_01_lun, NULL };
 	unsigned int addr;
@@ -2200,7 +2198,7 @@ rs01(tvbuff_t *tvb, proto_tree *tree)
 /* Platform event.
  */
 static void
-rq02(tvbuff_t *tvb, proto_tree *tree)
+rq02(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	parse_platform_event(tvb, tree);
 }
@@ -2208,7 +2206,7 @@ rq02(tvbuff_t *tvb, proto_tree *tree)
 /* Get PEF capabilities.
  */
 static void
-rs10(tvbuff_t *tvb, proto_tree *tree)
+rs10(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte2[] = { &hf_ipmi_se_10_action_oem_filter, &hf_ipmi_se_10_action_diag_intr,
 		&hf_ipmi_se_10_action_oem_action, &hf_ipmi_se_10_action_pwr_cycle, &hf_ipmi_se_10_action_reset,
@@ -2223,7 +2221,7 @@ rs10(tvbuff_t *tvb, proto_tree *tree)
 /* Arm PEF Postpone Timer.
  */
 static void
-rq11(tvbuff_t *tvb, proto_tree *tree)
+rq11(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	guint8 val;
 
@@ -2233,7 +2231,7 @@ rq11(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-rs11(tvbuff_t *tvb, proto_tree *tree)
+rs11(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	guint8 val;
 
@@ -2245,7 +2243,7 @@ rs11(tvbuff_t *tvb, proto_tree *tree)
 /* Set PEF Configuration Parameters.
  */
 static void
-rq12(tvbuff_t *tvb, proto_tree *tree)
+rq12(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_item *ti;
 	proto_tree *s_tree;
@@ -2261,18 +2259,18 @@ rq12(tvbuff_t *tvb, proto_tree *tree)
 	} else {
 		desc = "Reserved";
 	}
-	ti = proto_tree_add_uint_format(tree, hf_ipmi_se_12_byte1, tvb, 0, 1,
-			pno, "Parameter selector: %s (0x%02x)", desc, pno);
+	ti = proto_tree_add_uint_format_value(tree, hf_ipmi_se_12_byte1, tvb, 0, 1,
+			pno, "%s (0x%02x)", desc, pno);
 	s_tree = proto_item_add_subtree(ti, ett_ipmi_se_12_byte1);
 	proto_tree_add_uint_format(s_tree, hf_ipmi_se_12_param, tvb, 0, 1,
 			pno, "%sParameter selector: %s (0x%02x)",
 			ipmi_dcd8(pno, 0x7f), desc, pno);
 
 	if (pno < array_length(conf_params)) {
-		sub = tvb_new_subset(tvb, 1, tvb_length(tvb) - 1, tvb_length(tvb) - 1);
+		sub = tvb_new_subset_remaining(tvb, 1);
 		conf_params[pno].intrp(sub, tree);
 	} else {
-		proto_tree_add_none_format(tree, hf_ipmi_se_12_data, tvb, 1, tvb_length(tvb) - 1,
+		proto_tree_add_none_format(tree, hf_ipmi_se_12_data, tvb, 1, -1,
 				"Configuration parameter data: %s", desc);
 	}
 }
@@ -2288,7 +2286,7 @@ static const value_string cc12[] = {
 /* Get PEF Configuration Parameters.
  */
 static void
-rq13(tvbuff_t *tvb, proto_tree *tree)
+rq13(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_item *ti;
 	proto_tree *s_tree;
@@ -2297,9 +2295,9 @@ rq13(tvbuff_t *tvb, proto_tree *tree)
 
 	pno = tvb_get_guint8(tvb, 0);
 
+	ipmi_set_data(pinfo, 0, pno);
 	if (!tree) {
 		/* Just cache parameter selector */
-		ipmi_setsaveddata(0, pno);
 		return;
 	}
 
@@ -2312,8 +2310,8 @@ rq13(tvbuff_t *tvb, proto_tree *tree)
 	} else {
 		desc = "Reserved";
 	}
-	ti = proto_tree_add_uint_format(tree, hf_ipmi_se_13_byte1, tvb, 0, 1,
-			pno, "Parameter selector: %s (0x%02x)", desc, pno);
+	ti = proto_tree_add_uint_format_value(tree, hf_ipmi_se_13_byte1, tvb, 0, 1,
+			pno, "%s (0x%02x)", desc, pno);
 	s_tree = proto_item_add_subtree(ti, ett_ipmi_se_13_byte1);
 	proto_tree_add_item(s_tree, hf_ipmi_se_13_getrev, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 	proto_tree_add_uint_format(s_tree, hf_ipmi_se_13_param, tvb, 0, 1,
@@ -2325,7 +2323,7 @@ rq13(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-rs13(tvbuff_t *tvb, proto_tree *tree)
+rs13(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_se_13_rev_present, &hf_ipmi_se_13_rev_compat, NULL };
 	proto_item *ti;
@@ -2336,18 +2334,18 @@ rs13(tvbuff_t *tvb, proto_tree *tree)
 	proto_tree_add_bitmask_text(tree, tvb, 0, 1, "Parameter revision", NULL,
 			ett_ipmi_se_13_rev, byte1, ENC_LITTLE_ENDIAN, 0);
 
-	if (!ipmi_getsaveddata(0, &pno)) {
+	if (!ipmi_get_data(pinfo, 0, &pno)) {
 		/* No request found - cannot parse further */
-		if (tvb_length(tvb) > 1) {
-			proto_tree_add_item(tree, hf_ipmi_se_13_data, tvb, 1, tvb_length(tvb) - 1, ENC_NA);
+		if (tvb_captured_length(tvb) > 1) {
+			proto_tree_add_item(tree, hf_ipmi_se_13_data, tvb, 1, -1, ENC_NA);
 		}
 		return;
 	}
 
-	if ((pno & 0x80) && tvb_length(tvb) > 1) {
+	if ((pno & 0x80) && tvb_captured_length(tvb) > 1) {
 		ti = proto_tree_add_text(tree, tvb, 0, 0, "Requested parameter revision; parameter data returned");
 		PROTO_ITEM_SET_GENERATED(ti);
-	} else if (!(pno & 0x80) && tvb_length(tvb) == 1) {
+	} else if (!(pno & 0x80) && tvb_captured_length(tvb) == 1) {
 		ti = proto_tree_add_text(tree, tvb, 0, 0, "Requested parameter data; only parameter version returned");
 		PROTO_ITEM_SET_GENERATED(ti);
 	}
@@ -2364,12 +2362,12 @@ rs13(tvbuff_t *tvb, proto_tree *tree)
 	ti = proto_tree_add_text(tree, tvb, 0, 0, "Parameter: %s", desc);
 	PROTO_ITEM_SET_GENERATED(ti);
 
-	if (tvb_length(tvb) > 1) {
+	if (tvb_captured_length(tvb) > 1) {
 		if (pno < array_length(conf_params)) {
-			sub = tvb_new_subset(tvb, 1, tvb_length(tvb) - 1, tvb_length(tvb) - 1);
+			sub = tvb_new_subset_remaining(tvb, 1);
 			conf_params[pno].intrp(sub, tree);
 		} else {
-			proto_tree_add_item(tree, hf_ipmi_se_13_data, tvb, 1, tvb_length(tvb) - 1, ENC_NA);
+			proto_tree_add_item(tree, hf_ipmi_se_13_data, tvb, 1, -1, ENC_NA);
 		}
 	}
 }
@@ -2382,7 +2380,7 @@ static const value_string cc13[] = {
 /* Set Last Processed Event ID Command.
  */
 static void
-rq14(tvbuff_t *tvb, proto_tree *tree)
+rq14(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const gint *byte1[] = { &hf_ipmi_se_14_processed_by, NULL };
 
@@ -2398,7 +2396,7 @@ static const value_string cc14[] = {
 /* Get Last Processed Event ID Command.
  */
 static void
-rs15(tvbuff_t *tvb, proto_tree *tree)
+rs15(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	guint16 tmp;
 
@@ -2428,35 +2426,35 @@ static const value_string cc15[] = {
 /* Alert Immediate.
  */
 static void
-rq16(tvbuff_t *tvb, proto_tree *tree)
+rq16(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const gint *byte1[] = { &hf_ipmi_se_16_chan, NULL };
 	static const gint *byte2[] = { &hf_ipmi_se_16_op, &hf_ipmi_se_16_dst, NULL };
 	static const gint *byte3[] = { &hf_ipmi_se_16_send_string, &hf_ipmi_se_16_string_sel, NULL };
 	tvbuff_t *sub;
 
+	ipmi_set_data(pinfo, 0, (tvb_get_guint8(tvb, 1) & 0xc0) >> 6);
 	if (!tree) {
 		/* Save the operation */
-		ipmi_setsaveddata(0, (tvb_get_guint8(tvb, 1) & 0xc0) >> 6);
 		return;
 	}
 
 	proto_tree_add_bitmask_text(tree, tvb, 0, 1, NULL, NULL, ett_ipmi_se_16_byte1, byte1, ENC_LITTLE_ENDIAN, 0);
 	proto_tree_add_bitmask_text(tree, tvb, 1, 1, NULL, NULL, ett_ipmi_se_16_byte2, byte2, ENC_LITTLE_ENDIAN, 0);
 	proto_tree_add_bitmask_text(tree, tvb, 2, 1, NULL, NULL, ett_ipmi_se_16_byte3, byte3, ENC_LITTLE_ENDIAN, 0);
-	if (tvb_length(tvb) > 3) {
+	if (tvb_captured_length(tvb) > 3) {
 		proto_tree_add_item(tree, hf_ipmi_se_16_gen, tvb, 3, 1, ENC_LITTLE_ENDIAN);
-		sub = tvb_new_subset(tvb, 4, tvb_length(tvb) - 4, tvb_length(tvb) - 4);
+		sub = tvb_new_subset_remaining(tvb, 4);
 		parse_platform_event(sub, tree);
 	}
 }
 
 static void
-rs16(tvbuff_t *tvb, proto_tree *tree)
+rs16(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	guint32 val;
 
-	if (ipmi_getsaveddata(0, &val) && val == 0x01) {
+	if (ipmi_get_data(pinfo, 0, &val) && val == 0x01) {
 		/* Operation == Get Alert Immediate Status */
 		proto_tree_add_item(tree, hf_ipmi_se_16_status, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 	}
@@ -2472,7 +2470,7 @@ static const value_string cc16[] = {
 /* PET Acknowledge.
  */
 static void
-rq17(tvbuff_t *tvb, proto_tree *tree)
+rq17(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_se_17_seq, tvb, 0, 2, ENC_LITTLE_ENDIAN);
 	ipmi_add_timestamp(tree, hf_ipmi_se_17_tstamp, tvb, 2);
@@ -2487,25 +2485,28 @@ rq17(tvbuff_t *tvb, proto_tree *tree)
 /* Get Device SDR Info.
  */
 static void
-rq20(tvbuff_t *tvb, proto_tree *tree)
+rq20(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_se_20_rq_op, NULL };
 
-	if (tvb_length(tvb) > 0) {
-		proto_tree_add_bitmask_text(tree, tvb, 0, 1, NULL, NULL,
-				ett_ipmi_se_20_rq_byte1, byte1, ENC_LITTLE_ENDIAN, 0);
-		ipmi_setsaveddata(0, tvb_get_guint8(tvb, 0) & 0x01);
+	if (tvb_captured_length(tvb) > 0) {
+		ipmi_set_data(pinfo, 0, tvb_get_guint8(tvb, 0) & 0x01);
+
+		if (tree) {
+			proto_tree_add_bitmask_text(tree, tvb, 0, 1, NULL, NULL,
+					ett_ipmi_se_20_rq_byte1, byte1, ENC_LITTLE_ENDIAN, 0);
+		}
 	}
 }
 
 static void
-rs20(tvbuff_t *tvb, proto_tree *tree)
+rs20(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte2[] = { &hf_ipmi_se_20_rs_population, &hf_ipmi_se_20_rs_lun3,
 		&hf_ipmi_se_20_rs_lun2, &hf_ipmi_se_20_rs_lun1, &hf_ipmi_se_20_rs_lun0, NULL };
 	guint32 val;
 
-	if (ipmi_getsaveddata(0, &val) && val) {
+	if (ipmi_get_data(pinfo, 0, &val) && val) {
 		proto_tree_add_item(tree, hf_ipmi_se_20_rs_sdr, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 	} else {
 		proto_tree_add_item(tree, hf_ipmi_se_20_rs_num, tvb, 0, 1, ENC_LITTLE_ENDIAN);
@@ -2522,7 +2523,7 @@ rs20(tvbuff_t *tvb, proto_tree *tree)
 /* Get Device SDR.
  */
 static void
-rq21(tvbuff_t *tvb, proto_tree *tree)
+rq21(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	guint8 len;
 
@@ -2536,10 +2537,10 @@ rq21(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-rs21(tvbuff_t *tvb, proto_tree *tree)
+rs21(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_se_21_next, tvb, 0, 2, ENC_LITTLE_ENDIAN);
-	proto_tree_add_item(tree, hf_ipmi_se_21_recdata, tvb, 2, tvb_length(tvb) - 2, ENC_NA);
+	proto_tree_add_item(tree, hf_ipmi_se_21_recdata, tvb, 2, -1, ENC_NA);
 }
 
 static const value_string cc21[] = {
@@ -2550,7 +2551,7 @@ static const value_string cc21[] = {
 /* Reserve Device SDR Repository.
  */
 static void
-rs22(tvbuff_t *tvb, proto_tree *tree)
+rs22(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_se_22_resid, tvb, 0, 2, ENC_LITTLE_ENDIAN);
 }
@@ -2558,7 +2559,7 @@ rs22(tvbuff_t *tvb, proto_tree *tree)
 /* Get Sensor Reading Factors.
  */
 static void
-rq23(tvbuff_t *tvb, proto_tree *tree)
+rq23(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_se_23_rq_sensor, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 	proto_tree_add_item(tree, hf_ipmi_se_23_rq_reading, tvb, 1, 1, ENC_LITTLE_ENDIAN);
@@ -2575,7 +2576,7 @@ sign_extend(gint16 v, int bits)
 }
 
 static void
-rs23(tvbuff_t *tvb, proto_tree *tree)
+rs23(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_item *ti;
 	proto_tree *s_tree, *st2;
@@ -2646,7 +2647,7 @@ rs23(tvbuff_t *tvb, proto_tree *tree)
 /* Set Sensor Hysteresis.
  */
 static void
-rq24(tvbuff_t *tvb, proto_tree *tree)
+rq24(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_se_24_sensor, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 	proto_tree_add_item(tree, hf_ipmi_se_24_mask, tvb, 1, 1, ENC_LITTLE_ENDIAN);
@@ -2657,14 +2658,14 @@ rq24(tvbuff_t *tvb, proto_tree *tree)
 /* Get Sensor Hysteresis.
  */
 static void
-rq25(tvbuff_t *tvb, proto_tree *tree)
+rq25(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_se_25_sensor, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 	proto_tree_add_item(tree, hf_ipmi_se_25_mask, tvb, 1, 1, ENC_LITTLE_ENDIAN);
 }
 
 static void
-rs25(tvbuff_t *tvb, proto_tree *tree)
+rs25(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_se_25_hyst_pos, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 	proto_tree_add_item(tree, hf_ipmi_se_25_hyst_neg, tvb, 1, 1, ENC_LITTLE_ENDIAN);
@@ -2690,7 +2691,7 @@ add_thresholds(tvbuff_t *tvb, int offs, proto_tree *tree, const char *desc)
 /* Set Sensor Thresholds.
  */
 static void
-rq26(tvbuff_t *tvb, proto_tree *tree)
+rq26(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_se_26_sensor, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 	add_thresholds(tvb, 1, tree, "Set thresholds: ");
@@ -2699,13 +2700,13 @@ rq26(tvbuff_t *tvb, proto_tree *tree)
 /* Get Sensor Thresholds.
  */
 static void
-rq27(tvbuff_t *tvb, proto_tree *tree)
+rq27(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_se_27_sensor, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 }
 
 static void
-rs27(tvbuff_t *tvb, proto_tree *tree)
+rs27(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	add_thresholds(tvb, 0, tree, "Readable thresholds: ");
 }
@@ -2729,7 +2730,7 @@ add_events(tvbuff_t *tvb, int offs, proto_tree *tree, const struct true_false_st
 	static const int *tsel[] = { &ett_ipmi_se_XX_b1, &ett_ipmi_se_XX_b2, &ett_ipmi_se_XX_b3, &ett_ipmi_se_XX_b4 };
 	proto_item *ti;
 	proto_tree *s_tree;
-	int len = tvb_length(tvb);
+	int len = tvb_captured_length(tvb);
 	int i, j, val, msk;
 
 	for (i = 0; (offs < len) && (i < 4); i++, offs++) {
@@ -2751,7 +2752,7 @@ add_events(tvbuff_t *tvb, int offs, proto_tree *tree, const struct true_false_st
 /* Set Sensor Event Enable.
  */
 static void
-rq28(tvbuff_t *tvb, proto_tree *tree)
+rq28(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte2[] = { &hf_ipmi_se_28_fl_evm, &hf_ipmi_se_28_fl_scan, &hf_ipmi_se_28_fl_action, NULL };
 	static const struct true_false_string tfs_lect = { "Select", "Do not select" };
@@ -2764,13 +2765,13 @@ rq28(tvbuff_t *tvb, proto_tree *tree)
 /* Get Sensor Event Enable.
  */
 static void
-rq29(tvbuff_t *tvb, proto_tree *tree)
+rq29(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_se_29_sensor, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 }
 
 static void
-rs29(tvbuff_t *tvb, proto_tree *tree)
+rs29(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_se_29_fl_evm, &hf_ipmi_se_29_fl_scan, NULL };
 
@@ -2781,7 +2782,7 @@ rs29(tvbuff_t *tvb, proto_tree *tree)
 /* Re-arm Sensor Events.
  */
 static void
-rq2a(tvbuff_t *tvb, proto_tree *tree)
+rq2a(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte2[] = { &hf_ipmi_se_2a_fl_sel, NULL };
 	static const struct true_false_string rearm_tfs = { "Re-arm", "Do not re-arm" };
@@ -2794,13 +2795,13 @@ rq2a(tvbuff_t *tvb, proto_tree *tree)
 /* Get Sensor Event Status.
  */
 static void
-rq2b(tvbuff_t *tvb, proto_tree *tree)
+rq2b(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_se_2b_sensor, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 }
 
 static void
-rs2b(tvbuff_t *tvb, proto_tree *tree)
+rs2b(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_se_2b_fl_evm, &hf_ipmi_se_2b_fl_scan, &hf_ipmi_se_2b_fl_unavail, NULL };
 	static const struct true_false_string occur_tfs = { "Occurred", "Did not occur" };
@@ -2812,13 +2813,13 @@ rs2b(tvbuff_t *tvb, proto_tree *tree)
 /* Get Sensor Reading.
  */
 static void
-rq2d(tvbuff_t *tvb, proto_tree *tree)
+rq2d(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_se_2d_sensor, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 }
 
 static void
-rs2d(tvbuff_t *tvb, proto_tree *tree)
+rs2d(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	/* Reuse flags from Event Status message */
 	static const int *byte2[] = { &hf_ipmi_se_2b_fl_evm, &hf_ipmi_se_2b_fl_scan, &hf_ipmi_se_2b_fl_unavail, NULL };
@@ -2835,7 +2836,7 @@ rs2d(tvbuff_t *tvb, proto_tree *tree)
 
 	proto_tree_add_item(tree, hf_ipmi_se_2d_reading, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 	proto_tree_add_bitmask_text(tree, tvb, 1, 1, NULL, NULL, ett_ipmi_se_2d_byte2, byte2, ENC_LITTLE_ENDIAN, 0);
-	len = tvb_length(tvb);
+	len = tvb_captured_length(tvb);
 	for (i = 0; i < 2 && i < len - 2; i++) {
 		ti = proto_tree_add_text(tree, tvb, i + 2, 1, "Threshold comparisons/assertions (byte %d)", i);
 		s_tree = proto_item_add_subtree(ti, *tsel[i]);
@@ -2850,7 +2851,7 @@ rs2d(tvbuff_t *tvb, proto_tree *tree)
 /* Set Sensor Type.
  */
 static void
-rq2e(tvbuff_t *tvb, proto_tree *tree)
+rq2e(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	guint8 stype, evtype;
 	const struct sensor_info *si;
@@ -2876,13 +2877,13 @@ rq2e(tvbuff_t *tvb, proto_tree *tree)
 /* Get Sensor Type.
  */
 static void
-rq2f(tvbuff_t *tvb, proto_tree *tree)
+rq2f(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_se_2f_sensor, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 }
 
 static void
-rs2f(tvbuff_t *tvb, proto_tree *tree)
+rs2f(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	guint8 stype, evtype;
 	const struct sensor_info *si;

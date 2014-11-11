@@ -5,8 +5,6 @@
  * This information is based off the released idl files from opengroup.
  * ftp://ftp.opengroup.org/pub/dce122/dce/src/file.tar.gz file/bosserver/bbos_ncs_interface.idl
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include "packet-dcerpc.h"
+
+void proto_register_dcerpc_bossvr(void);
+void proto_reg_handoff_dcerpc_bossvr(void);
 
 
 static int proto_bossvr = -1;
@@ -84,7 +85,7 @@ static dcerpc_sub_dissector bossvr_dissectors[] = {
 };
 
 void
-proto_register_bossvr (void)
+proto_register_dcerpc_bossvr (void)
 {
 	static hf_register_info hf[] = {
 		{ &hf_bossvr_opnum,
@@ -101,7 +102,7 @@ proto_register_bossvr (void)
 }
 
 void
-proto_reg_handoff_bossvr (void)
+proto_reg_handoff_dcerpc_bossvr (void)
 {
 	/* Register the protocol as dcerpc */
 	dcerpc_init_uuid (proto_bossvr, ett_bossvr, &uuid_bossvr, ver_bossvr, bossvr_dissectors, hf_bossvr_opnum);

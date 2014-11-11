@@ -1,8 +1,6 @@
 /* packet-lwres.c
  * Routines for light weight reslover (lwres, part of BIND9) packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2003 by Oleg Terletsky <oleg.terletsky@comverse.com>
  *
  * Wireshark - Network traffic analyzer
@@ -32,7 +30,12 @@
 
 #include <epan/packet.h>
 #include <epan/prefs.h>
+#include <epan/to_str.h>
+
 #include "packet-dns.h"
+
+void proto_register_lwres(void);
+void proto_reg_handoff_lwres(void);
 
 #define LWRES_LWPACKET_LENGTH           (4 * 5 + 2 * 4)
 #define LWRES_LWPACKETFLAG_RESPONSE     0x0001U /* if set, pkt is a response */
@@ -182,8 +185,6 @@ static int ett_ns_rec_item = -1;
 
 static guint global_lwres_port = LWRES_UDP_PORT;
 
-void proto_reg_handoff_lwres(void);
-
 
 /* Define the lwres proto */
 static int proto_lwres = -1;
@@ -290,7 +291,7 @@ static void dissect_getnamebyaddr_response(tvbuff_t* tvb, proto_tree* lwres_tree
         for(i=0; i<naliases; i++)
         {
             aliaslen = tvb_get_ntohs(tvb, offset);
-            aliasname = tvb_get_ephemeral_string(tvb, offset + 2, aliaslen);
+            aliasname = tvb_get_string(wmem_packet_scope(), tvb, offset + 2, aliaslen);
 
             alias_item = proto_tree_add_text(nba_resp_tree, tvb, offset, 2 + aliaslen, "Alias %s",aliasname);
             alias_tree = proto_item_add_subtree(alias_item, ett_adn_alias);
@@ -416,7 +417,7 @@ static void dissect_getaddrsbyname_response(tvbuff_t* tvb, proto_tree* lwres_tre
         for(i=0; i<naliases; i++)
         {
             aliaslen = tvb_get_ntohs(tvb, offset);
-            aliasname = tvb_get_ephemeral_string(tvb, offset + 2, aliaslen);
+            aliasname = tvb_get_string(wmem_packet_scope(), tvb, offset + 2, aliaslen);
 
             alias_item = proto_tree_add_text(adn_resp_tree, tvb, offset, 2 + aliaslen, "Alias %s",aliasname);
             alias_tree = proto_item_add_subtree(alias_item, ett_adn_alias);
@@ -907,26 +908,22 @@ dissect_lwres(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     message_type = (flags & LWRES_LWPACKETFLAG_RESPONSE) ? 2 : 1;
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-            col_clear(pinfo->cinfo, COL_INFO);
-
-        if(flags & LWRES_LWPACKETFLAG_RESPONSE)
-        {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                    "%s, opcode=%s, serial=0x%x, result=%s",
-                        val_to_str_const((guint32)message_type,message_types_values,"unknown"),
-                        val_to_str_const(opcode, opcode_values, "unknown"),
-                        serial,
-                        val_to_str_const(result,result_values,"unknown"));
-            }
-        else
-        {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                        "%s, opcode=%s, serial=0x%x",
-                        val_to_str_const((guint32)message_type,message_types_values,"unknown"),
-                        val_to_str_const(opcode, opcode_values, "unknown"),
-                serial);
-        }
+    if(flags & LWRES_LWPACKETFLAG_RESPONSE)
+    {
+        col_add_fstr(pinfo->cinfo, COL_INFO,
+            "%s, opcode=%s, serial=0x%x, result=%s",
+                val_to_str_const((guint32)message_type,message_types_values,"unknown"),
+                val_to_str_const(opcode, opcode_values, "unknown"),
+                serial,
+                val_to_str_const(result,result_values,"unknown"));
+    }
+    else
+    {
+        col_add_fstr(pinfo->cinfo, COL_INFO,
+                "%s, opcode=%s, serial=0x%x",
+                val_to_str_const((guint32)message_type,message_types_values,"unknown"),
+                val_to_str_const(opcode, opcode_values, "unknown"),
+        serial);
     }
 
     if(tree)

@@ -2,8 +2,6 @@
  * Routines for SMB \PIPE\NETLOGON packet disassembly
  * Copyright 2001,2003 Tim Potter <tpot@samba.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -82,15 +80,15 @@
 
 
 /* needed to decrypt PAC_LOGON_INFO in kerberos */
-int 
+int
 netlogon_dissect_PAC_LOGON_INFO(tvbuff_t *tvb, int offset,
 			packet_info *pinfo, proto_tree *tree,
-			guint8 *drep);
+			dcerpc_info *di, guint8 *drep);
 
 /* needed to decrypt PAC_S4U_DELEGATION_INFO in kerberos */
-int 
+int
 netlogon_dissect_PAC_S4U_DELEGATION_INFO(tvbuff_t *tvb, int offset,
 			packet_info *pinfo, proto_tree *tree,
-			guint8 *drep);
+			dcerpc_info *di, guint8 *drep);
 
 #endif /* packet-dcerpc-netlogon.h */

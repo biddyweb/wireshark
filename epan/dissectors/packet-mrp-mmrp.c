@@ -7,8 +7,6 @@
  * Torrey Atcitty <tatcitty[AT]harman.com> and Craig Gunther <craig.gunther[AT]harman.com>
  * Copyright 2010
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald[AT]wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,9 @@
 
 #include <epan/packet.h>
 #include <epan/etypes.h>
+
+void proto_register_mrp_mmrp(void);
+void proto_reg_handoff_mrp_mmrp(void);
 
 /* MMRP End Mark Sequence */
 #define MMRP_END_MARK       0x0000

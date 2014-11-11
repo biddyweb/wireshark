@@ -2,8 +2,6 @@
  * Routines for Reliable UDP Protocol.
  * Copyright 2004, Duncan Sargeant <dunc-ethereal@rcpt.to>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -47,6 +45,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/prefs.h>
+
+
+void proto_register_rudp(void);
 
 /* Disable rudp by default. The previously hardcoded value of
  * 7000 (used by Cisco) collides with afs and as the draft states:

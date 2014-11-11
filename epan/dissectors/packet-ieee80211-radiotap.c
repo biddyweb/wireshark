@@ -2,8 +2,6 @@
  *  packet-ieee80211-radiotap.c
  *	Decode packets with a Radiotap header
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,7 @@
 #include <errno.h>
 
 #include <epan/packet.h>
+#include <wsutil/pint.h>
 #include <epan/crc32-tvb.h>
 #include <epan/frequency-utils.h>
 #include <epan/tap.h>
@@ -210,6 +209,10 @@ static gint ett_radiotap_ampdu_flags = -1;
 static gint ett_radiotap_vht = -1;
 static gint ett_radiotap_vht_known = -1;
 static gint ett_radiotap_vht_user = -1;
+
+static expert_field ei_radiotap_data_past_header = EI_INIT;
+static expert_field ei_radiotap_present_reserved = EI_INIT;
+static expert_field ei_radiotap_present = EI_INIT;
 
 static dissector_handle_t ieee80211_handle;
 static dissector_handle_t ieee80211_datapad_handle;
@@ -867,15 +870,15 @@ capture_radiotap(const guchar * pd, int offset, int len, packet_counts * ld)
 	guint16 it_len;
 	guint32 present, xpresent;
 	guint8  rflags;
-	struct ieee80211_radiotap_header *hdr;
+	const struct ieee80211_radiotap_header *hdr;
 
 	if (!BYTES_ARE_IN_FRAME(offset, len,
 				sizeof(struct ieee80211_radiotap_header))) {
 		ld->other++;
 		return;
 	}
-	hdr = (void *)pd;
-	it_len = pletohs(&hdr->it_len);
+	hdr = (const struct ieee80211_radiotap_header *)pd;
+	it_len = pletoh16(&hdr->it_len);
 	if (!BYTES_ARE_IN_FRAME(offset, len, it_len)) {
 		ld->other++;
 		return;
@@ -893,7 +896,7 @@ capture_radiotap(const guchar * pd, int offset, int len, packet_counts * ld)
 		return;
 	}
 
-	present = pletohl(&hdr->it_present);
+	present = pletoh32(&hdr->it_present);
 	offset += (int)sizeof(struct ieee80211_radiotap_header);
 	it_len -= (int)sizeof(struct ieee80211_radiotap_header);
 
@@ -904,7 +907,7 @@ capture_radiotap(const guchar * pd, int offset, int len, packet_counts * ld)
 			ld->other++;
 			return;
 		}
-		xpresent = pletohl(pd + offset);
+		xpresent = pletoh32(pd + offset);
 		offset += 4;
 		it_len -= 4;
 	}
@@ -961,7 +964,7 @@ static void
 dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 {
 	proto_tree *radiotap_tree     = NULL;
-	proto_tree *pt, *present_tree = NULL;
+	proto_tree *pt = NULL, *present_tree = NULL;
 	proto_tree *ft;
 	proto_item *ti                = NULL;
 	proto_item *hidden_item;
@@ -1024,11 +1027,11 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 				    tvb, 2, 2, length);
 	}
 
-	data = ep_tvb_memdup(tvb, 0, length);
+	data = tvb_memdup(wmem_packet_scope(), tvb, 0, length);
 	if (!data)
 		return;
 
-	if (ieee80211_radiotap_iterator_init(&iter, data, length, NULL)) {
+	if (ieee80211_radiotap_iterator_init(&iter, (struct ieee80211_radiotap_header *)data, length, NULL)) {
 		if (tree)
 			proto_item_append_text(ti, " (invalid)");
 		/* maybe the length was correct anyway ... */
@@ -1053,7 +1056,7 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 					 ENC_NA);
 
 		for (i = 0; i < n_bitmaps; i++) {
-			guint32 bmap = pletohl(bmap_start + 4 * i);
+			guint32 bmap = pletoh32(bmap_start + 4 * i);
 
 			rtap_ns_offset = rtap_ns_offset_next;
 			rtap_ns_offset_next += 32;
@@ -1075,8 +1078,12 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 			if ((bmap & (BIT(IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE) |
 				     BIT(IEEE80211_RADIOTAP_VENDOR_NAMESPACE)))
 				== (BIT(IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE) |
-				    BIT(IEEE80211_RADIOTAP_VENDOR_NAMESPACE)))
+				    BIT(IEEE80211_RADIOTAP_VENDOR_NAMESPACE))) {
+				expert_add_info_format(pinfo, pt, &ei_radiotap_present,
+						       "Both radiotap and vendor namespace specified in bitmask word %u",
+						       i);
 				goto malformed;
+			}
 
 			if (!rtap_ns)
 				goto always_bits;
@@ -1155,10 +1162,7 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 			/* Check if Reserved/Not Defined is not "zero" */
 			if(bmap & IEEE80211_RADIOTAP_NOTDEFINED)
 			{
-				expert_add_info_format(pinfo,ti, PI_UNDECODED, PI_NOTE,
-				"Unknown Radiotap fields, code not implemented, "
-				"Please check radiotap documentation, "
-				"Contact Wireshark developers if you want this supported" );
+				expert_add_info(pinfo, pt, &ei_radiotap_present_reserved);
 			}
  always_bits:
 			proto_tree_add_item(present_tree,
@@ -1185,18 +1189,18 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 			manuf_name = tvb_get_manuf_name(tvb, offset);
 			subns = tvb_get_guint8(tvb, offset+3);
 
-			vt = proto_tree_add_bytes_format(radiotap_tree,
+			vt = proto_tree_add_bytes_format_value(radiotap_tree,
 							 hf_radiotap_vendor_ns,
 							 tvb, offset,
 							 iter.this_arg_size,
 							 NULL,
-							 "Vendor namespace: %s-%d",
+							 "%s-%d",
 							 manuf_name, subns);
 			ven_tree = proto_item_add_subtree(vt, ett_radiotap_vendor);
-			proto_tree_add_bytes_format(ven_tree,
+			proto_tree_add_bytes_format_value(ven_tree,
 						    hf_radiotap_ven_oui, tvb,
 						    offset, 3, NULL,
-						    "Vendor: %s", manuf_name);
+						    "%s", manuf_name);
 			proto_tree_add_item(ven_tree, hf_radiotap_ven_subns,
 					    tvb, offset + 3, 1, ENC_BIG_ENDIAN);
 			proto_tree_add_item(ven_tree, hf_radiotap_ven_skip, tvb,
@@ -1336,10 +1340,10 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 				chan_str = ieee80211_mhz_to_str(freq);
 				col_add_fstr(pinfo->cinfo,
 					     COL_FREQ_CHAN, "%s", chan_str);
-				proto_tree_add_uint_format(radiotap_tree,
+				proto_tree_add_uint_format_value(radiotap_tree,
 							   hf_radiotap_channel_frequency,
 							   tvb, offset, 2, freq,
-							   "Channel frequency: %s",
+							   "%s",
 							   chan_str);
 				g_free(chan_str);
 				/* We're already 2-byte aligned. */
@@ -1403,23 +1407,21 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 		case IEEE80211_RADIOTAP_DBM_ANTSIGNAL:
 			dbm = (gint8)tvb_get_guint8(tvb, offset);
 			col_add_fstr(pinfo->cinfo, COL_RSSI, "%d dBm", dbm);
-			if (tree) {
-				proto_tree_add_int_format(radiotap_tree,
+			proto_tree_add_int_format_value(radiotap_tree,
 							  hf_radiotap_dbm_antsignal,
 							  tvb, offset, 1, dbm,
-							  "SSI Signal: %d dBm",
+							  "%d dBm",
 							  dbm);
-			}
 			radiotap_info->dbm_antsignal = dbm;
 			break;
 
 		case IEEE80211_RADIOTAP_DBM_ANTNOISE:
 			dbm = (gint8) tvb_get_guint8(tvb, offset);
 			if (tree) {
-				proto_tree_add_int_format(radiotap_tree,
+				proto_tree_add_int_format_value(radiotap_tree,
 							  hf_radiotap_dbm_antnoise,
 							  tvb, offset, 1, dbm,
-							  "SSI Noise: %d dBm",
+							  "%d dBm",
 							  dbm);
 			}
 			radiotap_info->dbm_antnoise = dbm;
@@ -1470,10 +1472,10 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 			db = tvb_get_guint8(tvb, offset);
 			col_add_fstr(pinfo->cinfo, COL_RSSI, "%u dB", db);
 			if (tree) {
-				proto_tree_add_uint_format(radiotap_tree,
+				proto_tree_add_uint_format_value(radiotap_tree,
 							   hf_radiotap_db_antsignal,
 							   tvb, offset, 1, db,
-							   "SSI Signal: %u dB",
+							   "%u dB",
 							   db);
 			}
 			break;
@@ -1481,10 +1483,10 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 		case IEEE80211_RADIOTAP_DB_ANTNOISE:
 			db = tvb_get_guint8(tvb, offset);
 			if (tree) {
-				proto_tree_add_uint_format(radiotap_tree,
+				proto_tree_add_uint_format_value(radiotap_tree,
 							   hf_radiotap_db_antnoise,
 							   tvb, offset, 1, db,
-							   "SSI Noise: %u dB",
+							   "%u dB",
 							   db);
 			}
 			break;
@@ -1805,11 +1807,20 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 				if (vht_tree) {
 					proto_tree_add_item(vht_tree, hf_radiotap_vht_gi,
 							tvb, offset + 2, 1, ENC_LITTLE_ENDIAN);
-					proto_tree_add_item(vht_tree, hf_radiotap_vht_sgi_nsym_da,
-							tvb, offset + 2, 1, ENC_LITTLE_ENDIAN);
 				}
 			} else {
 				can_calculate_rate = FALSE;	/* no GI width */
+			}
+
+			if (known & IEEE80211_RADIOTAP_VHT_HAVE_SGI_NSYM_DA) {
+				if (vht_tree) {
+					it = proto_tree_add_item(vht_tree, hf_radiotap_vht_sgi_nsym_da,
+							tvb, offset + 2, 1, ENC_LITTLE_ENDIAN);
+					if ((flags & IEEE80211_RADIOTAP_VHT_SGI_NSYM_DA) &&
+						(known & IEEE80211_RADIOTAP_VHT_HAVE_GI) &&
+						!(flags & IEEE80211_RADIOTAP_VHT_SGI))
+						proto_item_append_text(it, " (invalid)");
+				}
 			}
 
 			if (known & IEEE80211_RADIOTAP_VHT_HAVE_LDPC_EXTRA) {
@@ -1826,7 +1837,7 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 			}
 
 			if (known & IEEE80211_RADIOTAP_VHT_HAVE_BW) {
-				if (bw <= sizeof(ieee80211_vht_bw2rate_index)/sizeof(ieee80211_vht_bw2rate_index[0]))
+				if (bw < sizeof(ieee80211_vht_bw2rate_index)/sizeof(ieee80211_vht_bw2rate_index[0]))
 					bandwidth = ieee80211_vht_bw2rate_index[bw];
 				else
 					can_calculate_rate = FALSE; /* unknown bandwidth */
@@ -1874,7 +1885,7 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 							tvb, offset + 8, 1,ENC_LITTLE_ENDIAN);
 					}
 
-					if (can_calculate_rate) {
+					if (can_calculate_rate && mcs <= MAX_MCS_VHT_INDEX) {
 						float rate = ieee80211_vhtinfo[mcs].rates[bandwidth][gi_length] * nss;
 						if (rate != 0.0f && user_tree) {
 							rate_ti = proto_tree_add_float_format(user_tree,
@@ -1906,6 +1917,7 @@ dissect_radiotap(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 	}
 
 	if (err != -ENOENT && tree) {
+		expert_add_info(pinfo, pt, &ei_radiotap_data_past_header);
  malformed:
 		proto_item_append_text(ti, " (malformed)");
 	}
@@ -2379,24 +2391,24 @@ void proto_register_radiotap(void)
 		  "Antenna number this frame was sent/received over (starting at 0)", HFILL}},
 
 		{&hf_radiotap_dbm_antsignal,
-		 {"SSI Signal (dBm)", "radiotap.dbm_antsignal",
+		 {"SSI Signal", "radiotap.dbm_antsignal",
 		  FT_INT32, BASE_DEC, NULL, 0x0,
 		  "RF signal power at the antenna from a fixed,"
                   " arbitrary value in decibels from one milliwatt", HFILL}},
 
 		{&hf_radiotap_db_antsignal,
-		 {"SSI Signal (dB)", "radiotap.db_antsignal",
+		 {"SSI Signal", "radiotap.db_antsignal",
 		  FT_UINT32, BASE_DEC, NULL, 0x0,
 		  "RF signal power at the antenna from a fixed, arbitrary value in decibels", HFILL}},
 
 		{&hf_radiotap_dbm_antnoise,
-		 {"SSI Noise (dBm)", "radiotap.dbm_antnoise",
+		 {"SSI Noise", "radiotap.dbm_antnoise",
 		  FT_INT32, BASE_DEC, NULL, 0x0,
 		  "RF noise power at the antenna from a fixed, arbitrary value"
                   " in decibels per one milliwatt", HFILL}},
 
 		{&hf_radiotap_db_antnoise,
-		 {"SSI Noise (dB)", "radiotap.db_antnoise",
+		 {"SSI Noise", "radiotap.db_antnoise",
 		  FT_UINT32, BASE_DEC, NULL, 0x0,
 		  "RF noise power at the antenna from a fixed, arbitrary value"
                   " in decibels", HFILL}},
@@ -2786,13 +2798,21 @@ void proto_register_radiotap(void)
 		&ett_radiotap_vht_known,
 		&ett_radiotap_vht_user
 	};
+	static ei_register_info ei[] = {
+		{ &ei_radiotap_present, { "radiotap.present.radiotap_and_vendor", PI_MALFORMED, PI_ERROR, "Both radiotap and vendor namespace specified in bitmask word", EXPFILL }},
+		{ &ei_radiotap_present_reserved, { "radiotap.present.reserved.unknown", PI_UNDECODED, PI_NOTE, "Unknown Radiotap fields, code not implemented, Please check radiotap documentation, Contact Wireshark developers if you want this supported", EXPFILL }},
+		{ &ei_radiotap_data_past_header, { "radiotap.data_past_header", PI_MALFORMED, PI_ERROR, "Radiotap data goes past the end of the radiotap header", EXPFILL }},
+	};
+
 	module_t *radiotap_module;
+	expert_module_t* expert_radiotap;
 
 	proto_radiotap =
-	    proto_register_protocol("IEEE 802.11 Radiotap Capture header",
-				    "802.11 Radiotap", "radiotap");
+	    proto_register_protocol("IEEE 802.11 Radiotap Capture header", "802.11 Radiotap", "radiotap");
 	proto_register_field_array(proto_radiotap, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_radiotap = expert_register_protocol(proto_radiotap);
+	expert_register_field_array(expert_radiotap, ei, array_length(ei));
 	register_dissector("radiotap", dissect_radiotap, proto_radiotap);
 
 	radiotap_tap = register_tap("radiotap");

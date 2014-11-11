@@ -3,8 +3,6 @@
  * Gilbert Ramirez <gram@alumni.rice.edu>
  * Jochen Friedrich <jochen@scram.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,7 +29,6 @@
 #include <epan/llcsaps.h>
 #include <epan/ppptypes.h>
 #include <epan/sna-utils.h>
-#include <epan/charsets.h>
 #include <epan/prefs.h>
 #include <epan/reassemble.h>
 
@@ -40,6 +37,8 @@
  * ftp://ftp.software.ibm.com/networking/pub/standards/aiw/formats/
  *
  */
+void proto_register_sna(void);
+void proto_reg_handoff_sna(void);
 
 static int proto_sna = -1;
 static int proto_sna_xid = -1;
@@ -298,7 +297,7 @@ static dissector_handle_t data_handle;
 
 /* Defragment fragmented SNA BIUs*/
 static gboolean sna_defragment = TRUE;
-static GHashTable *sna_fragment_table = NULL;
+static reassembly_table sna_reassembly_table;
 
 /* Format Identifier */
 static const value_string sna_th_fid_vals[] = {
@@ -1540,8 +1539,7 @@ dissect_xid(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	format = hi_nibble(type);
 
 	/* Summary information */
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_fstr(pinfo->cinfo, COL_INFO,
+	col_add_fstr(pinfo->cinfo, COL_INFO,
 		    "SNA XID Format:%d Type:%s", format,
 		    val_to_str_const(lo_nibble(type), sna_xid_type_vals,
 		    "Unknown Type"));
@@ -1654,7 +1652,7 @@ static tvbuff_t*
 defragment_by_sequence(packet_info *pinfo, tvbuff_t *tvb, int offset, int mpf,
     int id)
 {
-	fragment_data *fd_head;
+	fragment_head *fd_head;
 	int frag_number = -1;
 	int more_frags = TRUE;
 	tvbuff_t *rh_tvb = NULL;
@@ -1684,9 +1682,9 @@ defragment_by_sequence(packet_info *pinfo, tvbuff_t *tvb, int offset, int mpf,
 		/* XXX - check length ??? */
 		frag_len = tvb_reported_length_remaining(tvb, offset);
 		if (tvb_bytes_exist(tvb, offset, frag_len)) {
-			fd_head = fragment_add_seq(tvb, offset, pinfo, id,
-			    sna_fragment_table, frag_number, frag_len,
-			    more_frags);
+			fd_head = fragment_add_seq(&sna_reassembly_table,
+			    tvb, offset, pinfo, id, NULL,
+			    frag_number, frag_len, more_frags, 0);
 
 			/* We added the LAST segment and reassembly didn't
 			 * complete. Insert a zero-length MIDDLE segment to
@@ -1695,15 +1693,14 @@ defragment_by_sequence(packet_info *pinfo, tvbuff_t *tvb, int offset, int mpf,
 		         * See above long comment about this trickery. */
 
 			if (mpf == MPF_LAST_SEGMENT && !fd_head) {
-				fd_head = fragment_add_seq(tvb, offset, pinfo,
-				    id, sna_fragment_table,
-				    MIDDLE_FRAG_NUMBER, 0, TRUE);
+				fd_head = fragment_add_seq(&sna_reassembly_table,
+				    tvb, offset, pinfo, id, NULL,
+				    MIDDLE_FRAG_NUMBER, 0, TRUE, 0);
 			}
 
 			if (fd_head != NULL) {
 				/* We have the complete reassembled payload. */
-				rh_tvb = tvb_new_child_real_data(tvb, fd_head->data,
-				    fd_head->len, fd_head->len);
+				rh_tvb = tvb_new_chain(tvb, fd_head->tvb_data);
 
 				/* Add the defragmented data to the data
 				 * source list. */
@@ -1778,7 +1775,7 @@ dissect_fid2(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 {
 	proto_tree	*bf_tree;
 	proto_item	*bf_item;
-	guint8		th_0=0, daf=0, oaf=0;
+	guint8		th_0;
 	const guint8	*ptr;
 	unsigned int	mpf, id;
 
@@ -1788,26 +1785,22 @@ dissect_fid2(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	mpf = mpf_value(th_0);
 
 	if (tree) {
-		daf = tvb_get_guint8(tvb, 2);
-		oaf = tvb_get_guint8(tvb, 3);
 
 		/* Byte 0 */
-		bf_item = proto_tree_add_uint(tree, hf_sna_th_0, tvb, 0, 1,
-		    th_0);
+		bf_item = proto_tree_add_item(tree, hf_sna_th_0, tvb, 0, 1, ENC_NA);
 		bf_tree = proto_item_add_subtree(bf_item, ett_sna_th_fid);
 
-		proto_tree_add_uint(bf_tree, hf_sna_th_fid, tvb, 0, 1, th_0);
-		proto_tree_add_uint(bf_tree, hf_sna_th_mpf, tvb, 0, 1, th_0);
-		proto_tree_add_uint(bf_tree, hf_sna_th_odai,tvb, 0, 1, th_0);
-		proto_tree_add_uint(bf_tree, hf_sna_th_efi, tvb, 0, 1, th_0);
+		proto_tree_add_item(bf_tree, hf_sna_th_fid, tvb, 0, 1, ENC_NA);
+		proto_tree_add_item(bf_tree, hf_sna_th_mpf, tvb, 0, 1, ENC_NA);
+		proto_tree_add_item(bf_tree, hf_sna_th_odai,tvb, 0, 1, ENC_NA);
+		proto_tree_add_item(bf_tree, hf_sna_th_efi, tvb, 0, 1, ENC_NA);
 
 
 		/* Byte 1 */
 		proto_tree_add_text(tree, tvb, 1, 1, "Reserved");
 
 		/* Byte 2 */
-		proto_tree_add_uint_format(tree, hf_sna_th_daf, tvb, 2, 1, daf,
-		    "Destination Address Field: 0x%02x", daf);
+		proto_tree_add_item(tree, hf_sna_th_daf, tvb, 2, 1, ENC_NA);
 	}
 
 	/* Set DST addr */
@@ -1815,11 +1808,8 @@ dissect_fid2(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	SET_ADDRESS(&pinfo->net_dst, AT_SNA, SNA_FID2_ADDR_LEN, ptr);
 	SET_ADDRESS(&pinfo->dst, AT_SNA, SNA_FID2_ADDR_LEN, ptr);
 
-	if (tree) {
-		/* Byte 3 */
-		proto_tree_add_uint_format(tree, hf_sna_th_oaf, tvb, 3, 1, oaf,
-		    "Origin Address Field: 0x%02x", oaf);
-	}
+	/* Byte 3 */
+	proto_tree_add_item(tree, hf_sna_th_oaf, tvb, 3, 1, ENC_NA);
 
 	/* Set SRC addr */
 	ptr = tvb_get_ptr(tvb, 3, SNA_FID2_ADDR_LEN);
@@ -1827,17 +1817,16 @@ dissect_fid2(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	SET_ADDRESS(&pinfo->src, AT_SNA, SNA_FID2_ADDR_LEN, ptr);
 
 	id = tvb_get_ntohs(tvb, 4);
-	if (tree)
-		proto_tree_add_uint(tree, hf_sna_th_snf, tvb, 4, 2, id);
+	proto_tree_add_item(tree, hf_sna_th_snf, tvb, 4, 2, ENC_BIG_ENDIAN);
 
 	if (mpf != MPF_WHOLE_BIU && !sna_defragment) {
 		if (mpf == MPF_FIRST_SEGMENT) {
 			*continue_dissecting = rh_only;
-        	} else {
+			} else {
 			*continue_dissecting = stop_here;
-        	}
+			}
 
-    	}
+		}
 	else if (sna_defragment) {
 		*rh_tvb_ptr = defragment_by_sequence(pinfo, tvb,
 		    bytes_in_header, mpf, id);
@@ -2153,8 +2142,7 @@ dissect_fid(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	th_fid = hi_nibble(tvb_get_guint8(tvb, 0));
 
 	/* Summary information */
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_str(pinfo->cinfo, COL_INFO,
+	col_add_str(pinfo->cinfo, COL_INFO,
 		    val_to_str(th_fid, sna_th_fid_vals, "Unknown FID: %01x"));
 
 	if (tree) {
@@ -2394,7 +2382,6 @@ static void
 dissect_control_0e(tvbuff_t *tvb, proto_tree *tree)
 {
 	gint	len;
-	guint8	*buf;
 
 	if (!tree)
 		return;
@@ -2405,9 +2392,7 @@ dissect_control_0e(tvbuff_t *tvb, proto_tree *tree)
 	if (len <= 0)
 		return;
 
-	buf = tvb_get_ephemeral_string(tvb, 3, len);
-	EBCDIC_to_ASCII(buf, len);
-	proto_tree_add_string(tree, hf_sna_control_0e_value, tvb, 3, len, (char *)buf);
+	proto_tree_add_item(tree, hf_sna_control_0e_value, tvb, 3, len, ENC_EBCDIC|ENC_NA);
 }
 
 static void
@@ -2610,7 +2595,8 @@ dissect_sna_xid(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 static void
 sna_init(void)
 {
-	fragment_table_init(&sna_fragment_table);
+	reassembly_table_init(&sna_reassembly_table,
+	    &addresses_reassembly_table_functions);
 }
 
 

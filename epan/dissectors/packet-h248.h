@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-h248.h                                                              */
 /* ../../tools/asn2wrs.py -b -p h248 -c ./h248.cnf -s ./packet-h248-template -D . -O ../../epan/dissectors h248v3.asn h248v1support.asn */
 
@@ -11,8 +11,6 @@
  *
  * Ronnie Sahlberg 2004
  * Luis Ontanon 2005
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -50,6 +48,7 @@ extern void h248_param_ber_octetstring(proto_tree*, tvbuff_t*, packet_info* , in
 extern void h248_param_ber_boolean(proto_tree*, tvbuff_t*, packet_info* , int, h248_curr_info_t*,void* ignored);
 extern void external_dissector(proto_tree*, tvbuff_t*, packet_info* , int, h248_curr_info_t*,void* dissector_handle);
 extern void h248_param_PkgdName(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo , int hfid _U_, h248_curr_info_t* u _U_, void* dissector_hdl);
+extern void h248_param_external_dissector(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo , int hfid _U_, h248_curr_info_t* u _U_, void* dissector_hdl);
 
 typedef enum {
 	ADD_PKG,	/* add package at registration ONLY if no matching package ID */
@@ -69,7 +68,7 @@ typedef struct _h248_pkg_sig_t {
 	guint32 id;
 	int* hfid;
 	gint* ett;
-	const h248_pkg_param_t* parameters;	
+	const h248_pkg_param_t* parameters;
 	const value_string* param_names;
 } h248_pkg_sig_t;
 
@@ -77,7 +76,7 @@ typedef struct _h248_pkg_evt_t {
 	guint32 id;
 	int* hfid;
 	gint* ett;
-	const h248_pkg_param_t* parameters;	
+	const h248_pkg_param_t* parameters;
 	const value_string* param_names;
 } h248_pkg_evt_t;
 
@@ -85,15 +84,15 @@ typedef struct _h248_pkg_stat_t {
 	guint32 id;
 	int* hfid;
 	gint* ett;
-	const h248_pkg_param_t* parameters;	
+	const h248_pkg_param_t* parameters;
 	const value_string* param_names;
 } h248_pkg_stat_t;
 
 typedef struct _h248_package_t {
-	guint32 id;
-	int* hfid;
-	gint* ett;
-	const value_string* param_names;
+	guint32 id;                            /**< Package ID */
+	int* hfid;                             /**< hfid that will display the package name */
+	gint* ett;                             /**< The ett for this item */
+	const value_string* param_names;       /**< The parameter names, Value 00000 should be the package name */
 	const value_string* signal_names;
 	const value_string* event_names;
 	const value_string* stats_names;
@@ -121,7 +120,12 @@ struct _h248_curr_info_t {
 	const h248_pkg_param_t* par;
 };
 
+typedef struct h248_term_info {
+	guint8 wild_card;
+	gchar *str;
+} h248_term_info_t;
+
 WS_DLL_PUBLIC
-void h248_register_package(const h248_package_t* pkg, pkg_reg_action reg_action);
+void h248_register_package(h248_package_t* pkg, pkg_reg_action reg_action);
 
 #endif  /* PACKET_H248_H */

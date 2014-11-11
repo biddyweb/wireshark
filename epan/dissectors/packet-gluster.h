@@ -4,8 +4,6 @@
  * With contributions from:
  *    Shreedhara LG <shreedharlg@gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -70,7 +68,7 @@
 /* available in version 310 (3.1.0) */
 
 #define GD_MGMT_PROGRAM		1238433
-/* available in version 1 and 2 */
+/* available in version 1, 2 and 3 */
 
 #define GD_FRIEND_PROGRAM	1238437
 /* only available in version 2 (0.0.2) */
@@ -232,6 +230,17 @@ enum glusterd_mgmt_2_procnum {
 	GLUSTERD_MGMT_2_MAXVALUE
 };
 
+/* GLUSTERD1_MGMT_PROGRAM  for version 3 */
+enum glusterd_mgmt_3_procnum {
+	GLUSTERD_MGMT_3_NULL = 0,
+	GLUSTERD_MGMT_3_LOCK,
+	GLUSTERD_MGMT_3_PRE_VALIDATE,
+	GLUSTERD_MGMT_3_BRICK_OP,
+	GLUSTERD_MGMT_3_COMMIT,
+	GLUSTERD_MGMT_3_POST_VALIDATE,
+	GLUSTERD_MGMT_3_UNLOCK,
+	GLUSTERD_MGMT_3_MAXVALUE
+};
 
 /* GLUSTERFS_PROGRAM */
 enum gf_brick_procnum {
@@ -351,20 +360,24 @@ enum gf_fop_procnum {
 	GFS3_OP_READDIRP,
 	GFS3_OP_RELEASE,
 	GFS3_OP_RELEASEDIR,
+	GFS3_OP_FREMOVEXATTR,
+	GFS3_OP_FALLOCATE,
+	GFS3_OP_DISCARD,
+	GFS3_OP_ZEROFILL,
 	GFS3_OP_MAXVALUE
 };
 
 /* dir-entry types from libglusterfs/src/compat.h */
 enum gluster_entry_types {
-	DT_UNKNOWN = 0,
-	DT_FIFO = 1,
-	DT_CHR = 2,
-	DT_DIR = 4,
-	DT_BLK = 6,
-	DT_REG = 8,
-	DT_LNK = 10,
-	DT_SOCK = 12,
-	DT_WHT = 14
+	GLUSTER_DT_UNKNOWN = 0,
+	GLUSTER_DT_FIFO = 1,
+	GLUSTER_DT_CHR = 2,
+	GLUSTER_DT_DIR = 4,
+	GLUSTER_DT_BLK = 6,
+	GLUSTER_DT_REG = 8,
+	GLUSTER_DT_LNK = 10,
+	GLUSTER_DT_SOCK = 12,
+	GLUSTER_DT_WHT = 14
 };
 
 
@@ -422,6 +435,10 @@ enum glusterd_ops {
 	GD_OP_LIST_VOLUME,
 	GD_OP_CLEARLOCKS_VOLUME,
 	GD_OP_DEFRAG_BRICK_VOLUME,
+	GD_OP_COPY_FILE,
+	GD_OP_SYS_EXEC,
+	GD_OP_GSYNC_CREATE,
+	GD_OP_SNAP,
 	GD_OP_MAX
 };
 
@@ -431,9 +448,9 @@ gluster_rpc_dissect_dict(proto_tree *tree, tvbuff_t *tvb, int hfindex,
 
 extern int
 gluster_dissect_common_reply(tvbuff_t *tvb, int offset,
-				packet_info *pinfo, proto_tree *tree);
+				packet_info *pinfo, proto_tree *tree, void* data _U_);
 extern int
 glusterfs_gfs3_3_op_common_reply(tvbuff_t *tvb, int offset,
-				packet_info *pinfo, proto_tree *tree);
+				packet_info *pinfo, proto_tree *tree, void* data _U_);
 
 #endif /* __PACKET_GLUSTER_H__ */

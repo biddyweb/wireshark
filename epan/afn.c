@@ -1,8 +1,6 @@
 /* afn.c
  * RFC 1700 address family numbers
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -24,7 +22,7 @@
 
 #include "config.h"
 
-#include <epan/packet.h>
+#include <epan/value_string.h>
 #include <epan/afn.h>
 
 const value_string afn_vals[] = {
@@ -59,6 +57,9 @@ const value_string afn_vals[] = {
     { AFNUM_EIGRP_IPV4, "EIGRP IPv4 Service Family" },
     { AFNUM_EIGRP_IPV6, "EIGRP IPv6 Service Family" },
     { AFNUM_LCAF, "LISP Canonical Address Format (LCAF)" },
+    { AFNUM_LINK_STATE, "Link State and TE information" },
+    { AFNUM_EUI48, "48-bit MAC Address" },
+    { AFNUM_EUI64, "64-bit MAC Address" },
     { 65535, "Reserved" },
     { 0, NULL },
 };

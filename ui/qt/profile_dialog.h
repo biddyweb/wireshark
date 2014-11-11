@@ -1,7 +1,5 @@
 /* profile_dialog.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,7 +33,7 @@ class ProfileDialog;
 class ProfileDialog : public QDialog
 {
     Q_OBJECT
-    
+
 public:
     enum ProfileAction { ShowProfiles, NewProfile, EditCurrentProfile, DeleteCurrentProfile };
 

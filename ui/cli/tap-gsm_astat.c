@@ -3,8 +3,6 @@
  * Copyright 2003, Michael Lum <mlum [AT] telostech.com>
  * In association with Telos Technology Inc.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,8 +29,9 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet_info.h"
 #include "epan/value_string.h"
 #include <epan/tap.h>
@@ -40,6 +39,7 @@
 #include <epan/dissectors/packet-bssap.h>
 #include <epan/dissectors/packet-gsm_a_common.h>
 
+void register_tap_listener_gsm_astat(void);
 
 typedef struct _gsm_a_stat_t {
     int		bssmap_message_type[0xff];
@@ -315,7 +315,7 @@ gsm_a_stat_draw(
 
 
 static void
-gsm_a_stat_init(const char *optarg _U_,void* userdata _U_)
+gsm_a_stat_init(const char *opt_arg _U_,void* userdata _U_)
 {
     gsm_a_stat_t	*stat_p;
     GString		*err_p;

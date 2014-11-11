@@ -9,8 +9,6 @@
  * Significantly based on packet-fcip.c by
  *       Copyright 2001, Dinesh G Dutt (ddutt@cisco.com)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,6 +36,10 @@
 #include <epan/prefs.h>
 #include <epan/conversation.h>
 #include "packet-tcp.h"
+#include "packet-fc.h"
+
+void proto_register_ifcp(void);
+void proto_reg_handoff_ifcp(void);
 
 #define iFCP_ENCAP_HEADER_LEN                    28
 #define iFCP_MIN_HEADER_LEN                      16 /* upto frame len field */
@@ -307,8 +309,8 @@ dissect_commonflags(tvbuff_t *tvb, int offset, proto_tree *parent_tree)
 	}
 }
 
-static void
-dissect_ifcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_ifcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data _U_)
 {
 	gint offset = 0, frame_len = 0;
 	guint8 sof = 0, eof = 0;
@@ -321,10 +323,11 @@ dissect_ifcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	proto_tree *frame_len_tree=NULL;
 	proto_tree *sof_tree=NULL;
 	proto_tree *eof_tree=NULL;
+	fc_data_t fc_data;
 
 	/* verify we have a full header  (do we need to do this? */
 	if(tvb_length(tvb)<iFCP_ENCAP_HEADER_LEN){
-		return;
+		return 0;
 	}
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "iFCP");
@@ -463,36 +466,37 @@ dissect_ifcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 
 	/* Call the FC Dissector if this is carrying an FC frame */
 	/* Set the SOF/EOF flags in the packet_info header */
-	pinfo->sof_eof = 0;
+	fc_data.sof_eof = 0;
 
 	switch(sof){
 	case iFCP_SOFi3:
 	case iFCP_SOFi2:
 	case iFCP_SOFi4:
-		pinfo->sof_eof = PINFO_SOF_FIRST_FRAME;
+		fc_data.sof_eof = FC_DATA_SOF_FIRST_FRAME;
 		break;
 	case iFCP_SOFf:
-		pinfo->sof_eof = PINFO_SOF_SOFF;
+		fc_data.sof_eof = FC_DATA_SOF_SOFF;
 		break;
 	default:
 		if(sof){
 			if (eof != iFCP_EOFn) {
-				pinfo->sof_eof |= PINFO_EOF_LAST_FRAME;
+				fc_data.sof_eof |= FC_DATA_EOF_LAST_FRAME;
                 	} else if (eof != iFCP_EOFt) {
-				pinfo->sof_eof |= PINFO_EOF_INVALID;
+				fc_data.sof_eof |= FC_DATA_EOF_INVALID;
 			}
 		}
 	}
 
 	next_tvb=tvb_new_subset(tvb, offset, frame_len-offset-4, frame_len-offset-4);
+	fc_data.ethertype = 0;
 
 	if(fc_handle){
-		call_dissector(fc_handle, next_tvb, pinfo, parent_tree);
+		call_dissector_with_data(fc_handle, next_tvb, pinfo, parent_tree, &fc_data);
 	} else if(data_handle){
 		call_dissector(data_handle, next_tvb, pinfo, parent_tree);
 	}
 
-	return;
+	return tvb_length(tvb);
 }
 
 static guint
@@ -508,32 +512,33 @@ get_ifcp_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 	return pdu_len;
 }
 
-static void
-dissect_ifcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_ifcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data)
 {
-	tcp_dissect_pdus(tvb, pinfo, parent_tree, ifcp_desegment, iFCP_MIN_HEADER_LEN, get_ifcp_pdu_len, dissect_ifcp_pdu);
+	tcp_dissect_pdus(tvb, pinfo, parent_tree, ifcp_desegment, iFCP_MIN_HEADER_LEN, get_ifcp_pdu_len, dissect_ifcp_pdu, data);
+	return tvb_length(tvb);
 }
 
 
-/* This is called for those sessions where we have explicitely said
+/* This is called for those sessions where we have explicitly said
  * this to be iFCP using "Decode As..."
  * In this case we will not check the port number for sanity and just
  * do as the user said.
  */
-static void
-dissect_ifcp_handle(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_ifcp_handle(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
-	dissect_ifcp(tvb, pinfo, tree);
+	return dissect_ifcp(tvb, pinfo, tree, data);
 }
 
 static gboolean
-dissect_ifcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_ifcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 	if(!ifcp_header_test(tvb, 0)){
 		return FALSE;
 	}
 
-	dissect_ifcp(tvb, pinfo, tree);
+	dissect_ifcp(tvb, pinfo, tree, data);
 
 	/* our heuristics are so strong that if the heuristics above passed
 	 * and the dissection of the pdu did not cause any exceptions
@@ -586,10 +591,10 @@ proto_register_ifcp (void)
         { &hf_ifcp_encap_crc,
           {"CRC", "ifcp.encap.crc", FT_UINT32, BASE_HEX, NULL, 0, NULL, HFILL}},
         { &hf_ifcp_sof,
-          {"SOF", "ifcp.sof", FT_UINT8, BASE_HEX, VALS (&ifcp_sof_vals), 0,
+          {"SOF", "ifcp.sof", FT_UINT8, BASE_HEX, VALS (ifcp_sof_vals), 0,
            NULL, HFILL}},
         { &hf_ifcp_eof,
-          {"EOF", "ifcp.eof", FT_UINT8, BASE_HEX, VALS (&ifcp_eof_vals), 0,
+          {"EOF", "ifcp.eof", FT_UINT8, BASE_HEX, VALS (ifcp_eof_vals), 0,
            NULL, HFILL}},
         { &hf_ifcp_sof_c,
           {"SOF Compliment", "ifcp.sof_c", FT_UINT8, BASE_HEX, NULL , 0,
@@ -660,7 +665,7 @@ proto_reg_handoff_ifcp (void)
 {
     heur_dissector_add("tcp", dissect_ifcp_heur, proto_ifcp);
 
-    ifcp_handle = create_dissector_handle(dissect_ifcp_handle, proto_ifcp);
+    ifcp_handle = new_create_dissector_handle(dissect_ifcp_handle, proto_ifcp);
     dissector_add_handle("tcp.port", ifcp_handle);
 
     data_handle = find_dissector("data");

@@ -4,8 +4,6 @@
  * Copyright 2000, Ralf Hoelzer <ralf@well.com>
  * Copyright 2004, Devin Heitmueller <dheitmueller@netilla.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,10 @@
 #include <epan/strutil.h>
 
 #include "packet-aim.h"
+
+void proto_register_aim_messaging(void);
+void proto_reg_handoff_aim_messaging(void);
+
 
 #define FAMILY_MESSAGING  0x0004
 
@@ -318,7 +320,7 @@ dissect_aim_msg_outgoing(tvbuff_t *tvb, packet_info *pinfo, proto_tree *msg_tree
 	int offset = 0;
 	const aim_tlv *aim_ch_tlvs = NULL;
 	guint16 channel_id;
-	guchar buddyname[MAX_BUDDYNAME_LENGTH+1];
+	guint8 *buddyname;
 	int buddyname_length;
 
 	/* ICBM Cookie */
@@ -332,8 +334,7 @@ dissect_aim_msg_outgoing(tvbuff_t *tvb, packet_info *pinfo, proto_tree *msg_tree
 	offset += 2;
 
 	/* Add the outgoing username to the info column */
-	buddyname_length = aim_get_buddyname(buddyname, tvb, offset,
-							  offset + 1);
+	buddyname_length = aim_get_buddyname(&buddyname, tvb, offset);
 	col_append_fstr(pinfo->cinfo, COL_INFO, " to: %s",
 			format_text(buddyname, buddyname_length));
 
@@ -503,7 +504,7 @@ dissect_aim_rendezvous_extended_message(tvbuff_t *tvb, proto_tree *msg_tree)
 	proto_tree_add_item(msg_tree, hf_aim_rendezvous_extended_data_message_priority_code, tvb, offset, 2, ENC_BIG_ENDIAN); offset+=2;
 	text_length = tvb_get_letohs(tvb, offset);
 	proto_tree_add_item(msg_tree, hf_aim_rendezvous_extended_data_message_text_length, tvb, offset, 2, ENC_BIG_ENDIAN); offset+=2;
-	text = tvb_get_ephemeral_string(tvb, offset, text_length);
+	text = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, text_length, ENC_ASCII|ENC_NA);
 	proto_tree_add_text(msg_tree, tvb, offset, text_length, "Text: %s", text); /* offset+=text_length; */
 
 	offset = tvb_length(tvb);

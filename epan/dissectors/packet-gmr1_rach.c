@@ -10,8 +10,6 @@
  *
  * Especially [1] 10.1.8
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,10 +32,15 @@
 #include "config.h"
 
 #include <glib.h>
+
+#include <stdlib.h>
+
 #include <epan/packet.h>
 
 #include "packet-csn1.h"
 
+void proto_register_gmr1_rach(void);
+void proto_reg_handoff_gmr1_rach(void);
 
 /* GMR-1 RACH proto */
 static int proto_gmr1_rach = -1;

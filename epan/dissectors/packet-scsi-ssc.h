@@ -5,8 +5,6 @@
  * Dinesh G Dutt (ddutt@cisco.com)
  * Ronnie sahlberg 2006
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2002 Gerald Combs
@@ -59,6 +57,6 @@
 
 extern int hf_scsi_ssc_opcode;
 extern scsi_cdb_table_t scsi_ssc_table[256];
-WS_DLL_PUBLIC const value_string scsi_ssc_vals[];
+WS_DLL_PUBLIC value_string_ext scsi_ssc_vals_ext;
 
 #endif

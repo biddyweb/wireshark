@@ -2,8 +2,6 @@
  * Definitions for toolbar utility routines
  * Copyright 2003, Ulf Lamping <ulf.lamping@web.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,13 +33,16 @@
 /** Redraw the main toolbar. Used, when user changes preferences. */
 void toolbar_redraw_all(void);
 
-/** Set object data of some buttons (where needed). It's needed so callback 
- *  functions can read back their required data. Acts like g_object_set_data() 
+/** Set object data of some buttons (where needed). It's needed so callback
+ *  functions can read back their required data. Acts like g_object_set_data()
  *  on multiple buttons.
  *
  * @param key the key
  * @param data the data to set
  */
 void set_toolbar_object_data(const gchar *key, gpointer data);
+
+void set_start_button_sensitive(gboolean enable);
+void set_menus_capture_start_sensitivity(gboolean enable);
 
 #endif /* __TOOLBAR_H__ */

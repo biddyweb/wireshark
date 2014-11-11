@@ -3,8 +3,6 @@
  *
  * (C) 2005, Luis E. Garcia Ontanon.
  *
- * $Id$
- *
  * Refer to the AUTHORS file or the AUTHORS section in the man page
  * for contacting the author(s) of this file.
  *
@@ -39,20 +37,23 @@
 #include <glib.h>
 
 #include <wsutil/str_util.h>
+#include <wsutil/report_err.h>
 
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/packet.h>
 #include <epan/tvbparse.h>
 #include <epan/dtd.h>
-#include <epan/report_err.h>
-#include <epan/filesystem.h>
+#include <wsutil/filesystem.h>
 #include <epan/prefs.h>
 #include <epan/garrayfix.h>
 
 #include "packet-xml.h"
 
+void proto_register_xml(void);
+void proto_reg_handoff_xml(void);
+
 struct _attr_reg_data {
-    GArray *hf;
+    wmem_array_t *hf;
     const gchar *basename;
 };
 
@@ -97,7 +98,7 @@ static range_t *xml_tcp_range        = NULL;
 #define XML_SCOPED_NAME -1001
 
 
-static GArray *hf_arr;
+static wmem_array_t *hf_arr;
 static GArray *ett_arr;
 
 static const gchar *default_media_types[] = {
@@ -107,6 +108,7 @@ static const gchar *default_media_types[] = {
     "text/vnd.wap.sl",
     "text/vnd.wap.co",
     "text/vnd.wap.emn",
+    "application/atom+xml",
     "application/auth-policy+xml",
     "application/ccmp+xml",
     "application/cpim-pidf+xml",
@@ -115,6 +117,7 @@ static const gchar *default_media_types[] = {
     "application/media_control+xml",
     "application/note+xml",
     "application/pidf+xml",
+    "application/pidf-diff+xml",
     "application/poc-settings+xml",
     "application/rdf+xml",
     "application/reginfo+xml",
@@ -138,6 +141,7 @@ static const gchar *default_media_types[] = {
     "application/vnd.etsi.mcid+xml",
     "application/vnd.etsi.sci+xml",
     "application/vnd.etsi.simservs+xml",
+    "application/vnd.oma.xdm-apd+xml",
     "application/vnd.3gpp.cw+xml",
     "application/vnd.3gpp.SRVCC-info+xml",
     "application/vnd.wv.csp+xml",
@@ -190,7 +194,7 @@ dissect_xml(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         g_ptr_array_free(stack, TRUE);
 
     stack = g_ptr_array_new();
-    current_frame                 = (xml_frame_t *)ep_alloc(sizeof(xml_frame_t));
+    current_frame                 = (xml_frame_t *)wmem_alloc(wmem_packet_scope(), sizeof(xml_frame_t));
     current_frame->type           = XML_FRAME_ROOT;
     current_frame->name           = NULL;
     current_frame->name_orig_case = NULL;
@@ -211,7 +215,7 @@ dissect_xml(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         colinfo_str = "/XML";
     } else {
         char *colinfo_str_buf;
-        colinfo_str_buf = ep_strdup_printf("/%s", root_ns->name);
+        colinfo_str_buf = wmem_strdup_printf(wmem_packet_scope(), "/%s", root_ns->name);
         ascii_strup_inplace(colinfo_str_buf);
         colinfo_str = colinfo_str_buf;
     }
@@ -235,8 +239,10 @@ static gboolean dissect_xml_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
         dissect_xml(tvb, pinfo, tree);
         return TRUE;
     } else if (pref_heuristic_unicode) {
-        const guint8 *data_str    = tvb_get_ephemeral_unicode_string(tvb, 0, tvb_length(tvb), ENC_LITTLE_ENDIAN);
+        /* XXX - UCS-2, or UTF-16? */
+        const guint8 *data_str    = tvb_get_string_enc(NULL, tvb, 0, tvb_length(tvb), ENC_UCS_2|ENC_LITTLE_ENDIAN);
         tvbuff_t     *unicode_tvb = tvb_new_child_real_data(tvb, data_str, tvb_length(tvb)/2, tvb_length(tvb)/2);
+        tvb_set_free_cb(unicode_tvb, g_free);
         if (tvbparse_peek(tvbparse_init(unicode_tvb, 0, -1, NULL, want_ignore), want_heur)) {
             add_new_data_source(pinfo, unicode_tvb, "UTF8");
             dissect_xml(unicode_tvb, pinfo, tree);
@@ -324,7 +330,7 @@ static void after_token(void *tvbparse_data, const void *wanted_data _U_, tvbpar
                         tvb_format_text(tok->tvb, tok->offset, tok->len));
 
     if (is_cdata) {
-        new_frame                 = (xml_frame_t *)ep_alloc(sizeof(xml_frame_t));
+        new_frame                 = (xml_frame_t *)wmem_alloc(wmem_packet_scope(), sizeof(xml_frame_t));
         new_frame->type           = XML_FRAME_CDATA;
         new_frame->name           = NULL;
         new_frame->name_orig_case = NULL;
@@ -345,7 +351,7 @@ static void before_xmpli(void *tvbparse_data, const void *wanted_data _U_, tvbpa
     proto_item      *pi;
     proto_tree      *pt;
     tvbparse_elem_t *name_tok      = tok->sub->next;
-    gchar           *name          = tvb_get_ephemeral_string(name_tok->tvb, name_tok->offset, name_tok->len);
+    gchar           *name          = tvb_get_string(wmem_packet_scope(), name_tok->tvb, name_tok->offset, name_tok->len);
     xml_ns_t        *ns            = (xml_ns_t *)g_hash_table_lookup(xmpli_names, name);
     xml_frame_t     *new_frame;
 
@@ -367,7 +373,7 @@ static void before_xmpli(void *tvbparse_data, const void *wanted_data _U_, tvbpa
 
     pt = proto_item_add_subtree(pi, ett);
 
-    new_frame                 = (xml_frame_t *)ep_alloc(sizeof(xml_frame_t));
+    new_frame                 = (xml_frame_t *)wmem_alloc(wmem_packet_scope(), sizeof(xml_frame_t));
     new_frame->type           = XML_FRAME_XMPLI;
     new_frame->name           = name;
     new_frame->name_orig_case = name;
@@ -388,9 +394,7 @@ static void after_xmlpi(void *tvbparse_data, const void *wanted_data _U_, tvbpar
     GPtrArray   *stack         = (GPtrArray *)tvbparse_data;
     xml_frame_t *current_frame = (xml_frame_t *)g_ptr_array_index(stack, stack->len - 1);
 
-    proto_tree_add_text(current_frame->tree,
-                           tok->tvb, tok->offset, tok->len, "%s",
-                           tvb_format_text(tok->tvb, tok->offset, tok->len));
+    proto_tree_add_format_text(current_frame->tree, tok->tvb, tok->offset, tok->len);
 
     if (stack->len > 1) {
         g_ptr_array_remove_index_fast(stack, stack->len - 1);
@@ -417,8 +421,8 @@ static void before_tag(void *tvbparse_data, const void *wanted_data _U_, tvbpars
         tvbparse_elem_t *leaf_tok = name_tok->sub->sub->next->next;
         xml_ns_t        *nameroot_ns;
 
-        root_name      = (gchar *)tvb_get_ephemeral_string(root_tok->tvb, root_tok->offset, root_tok->len);
-        name           = (gchar *)tvb_get_ephemeral_string(leaf_tok->tvb, leaf_tok->offset, leaf_tok->len);
+        root_name      = (gchar *)tvb_get_string(wmem_packet_scope(), root_tok->tvb, root_tok->offset, root_tok->len);
+        name           = (gchar *)tvb_get_string(wmem_packet_scope(), leaf_tok->tvb, leaf_tok->offset, leaf_tok->len);
         name_orig_case = name;
 
         nameroot_ns = (xml_ns_t *)g_hash_table_lookup(xml_ns.elements, root_name);
@@ -433,8 +437,8 @@ static void before_tag(void *tvbparse_data, const void *wanted_data _U_, tvbpars
         }
 
     } else {
-        name = tvb_get_ephemeral_string(name_tok->tvb, name_tok->offset, name_tok->len);
-        name_orig_case = ep_strdup(name);
+        name = tvb_get_string(wmem_packet_scope(), name_tok->tvb, name_tok->offset, name_tok->len);
+        name_orig_case = wmem_strdup(wmem_packet_scope(), name);
         ascii_strdown_inplace(name);
 
         if(current_frame->ns) {
@@ -457,7 +461,7 @@ static void before_tag(void *tvbparse_data, const void *wanted_data _U_, tvbpars
 
     pt = proto_item_add_subtree(pi, ns->ett);
 
-    new_frame = (xml_frame_t *)ep_alloc(sizeof(xml_frame_t));
+    new_frame = (xml_frame_t *)wmem_alloc(wmem_packet_scope(), sizeof(xml_frame_t));
     new_frame->type           = XML_FRAME_TAG;
     new_frame->name           = name;
     new_frame->name_orig_case = name_orig_case;
@@ -502,8 +506,7 @@ static void after_untag(void *tvbparse_data, const void *wanted_data _U_, tvbpar
 
     proto_item_set_len(current_frame->item, (tok->offset - current_frame->start_offset) + tok->len);
 
-    proto_tree_add_text(current_frame->tree, tok->tvb, tok->offset, tok->len, "%s",
-                        tvb_format_text(tok->tvb, tok->offset, tok->len));
+    proto_tree_add_format_text(current_frame->tree, tok->tvb, tok->offset, tok->len);
 
     if (stack->len > 1) {
         g_ptr_array_remove_index_fast(stack, stack->len - 1);
@@ -525,9 +528,9 @@ static void before_dtd_doctype(void *tvbparse_data, const void *wanted_data _U_,
 
     proto_item_set_text(dtd_item, "%s", tvb_format_text(tok->tvb, tok->offset, tok->len));
 
-    new_frame = (xml_frame_t *)ep_alloc(sizeof(xml_frame_t));
+    new_frame = (xml_frame_t *)wmem_alloc(wmem_packet_scope(), sizeof(xml_frame_t));
     new_frame->type           = XML_FRAME_DTD_DOCTYPE;
-    new_frame->name           = (gchar *)tvb_get_ephemeral_string(name_tok->tvb,
+    new_frame->name           = (gchar *)tvb_get_string(wmem_packet_scope(), name_tok->tvb,
                                                                   name_tok->offset,
                                                                   name_tok->len);
     new_frame->name_orig_case = new_frame->name;
@@ -586,8 +589,8 @@ static void after_attrib(void *tvbparse_data, const void *wanted_data _U_, tvbpa
     proto_item      *pi;
     xml_frame_t     *new_frame;
 
-    name           = tvb_get_ephemeral_string(tok->sub->tvb, tok->sub->offset, tok->sub->len);
-    name_orig_case = ep_strdup(name);
+    name           = tvb_get_string(wmem_packet_scope(), tok->sub->tvb, tok->sub->offset, tok->sub->len);
+    name_orig_case = wmem_strdup(wmem_packet_scope(), name);
     ascii_strdown_inplace(name);
 
     if(current_frame->ns && (hfidp = (int *)g_hash_table_lookup(current_frame->ns->attributes, name) )) {
@@ -603,7 +606,7 @@ static void after_attrib(void *tvbparse_data, const void *wanted_data _U_, tvbpa
 
     current_frame->last_item = pi;
 
-    new_frame = (xml_frame_t *)ep_alloc(sizeof(xml_frame_t));
+    new_frame = (xml_frame_t *)wmem_alloc(wmem_packet_scope(), sizeof(xml_frame_t));
     new_frame->type           = XML_FRAME_ATTRIB;
     new_frame->name           = name;
     new_frame->name_orig_case = name_orig_case;
@@ -800,7 +803,7 @@ static xml_ns_t *xml_new_namespace(GHashTable *hash, const gchar *name, ...)
 }
 
 
-static void add_xml_field(GArray *hfs, int *p_id, const gchar *name, const gchar *fqn)
+static void add_xml_field(wmem_array_t *hfs, int *p_id, const gchar *name, const gchar *fqn)
 {
     hf_register_info hfri;
 
@@ -815,17 +818,16 @@ static void add_xml_field(GArray *hfs, int *p_id, const gchar *name, const gchar
     hfri.hfinfo.id             = 0;
     hfri.hfinfo.parent         = 0;
     hfri.hfinfo.ref_type       = HF_REF_TYPE_NONE;
-    hfri.hfinfo.bitshift       = 0;
     hfri.hfinfo.same_name_next = NULL;
-    hfri.hfinfo.same_name_prev = NULL;
+    hfri.hfinfo.same_name_prev_id = -1;
 
-    g_array_append_val(hfs, hfri);
+    wmem_array_append_one(hfs, hfri);
 }
 
 static void add_xml_attribute_names(gpointer k, gpointer v, gpointer p)
 {
     struct _attr_reg_data *d = (struct _attr_reg_data *)p;
-    gchar *basename = g_strdup_printf("%s.%s", d->basename, (gchar *)k);
+    const gchar *basename = wmem_strdup_printf(wmem_epan_scope(), "%s.%s", d->basename, (gchar *)k);
 
     add_xml_field(d->hf, (int*) v, (gchar *)k, basename);
 }
@@ -834,7 +836,7 @@ static void add_xml_attribute_names(gpointer k, gpointer v, gpointer p)
 static void add_xmlpi_namespace(gpointer k _U_, gpointer v, gpointer p)
 {
     xml_ns_t *ns       = (xml_ns_t *)v;
-    gchar    *basename = g_strdup_printf("%s.%s", (gchar *)p, ns->name);
+    const gchar *basename = wmem_strdup_printf(wmem_epan_scope(), "%s.%s", (gchar *)p, ns->name);
     gint     *ett_p    = &(ns->ett);
     struct _attr_reg_data d;
 
@@ -943,7 +945,7 @@ static xml_ns_t *make_xml_hier(gchar      *elem_name,
                                GHashTable *elements,
                                GPtrArray  *hier,
                                GString    *error,
-                               GArray     *hfs,
+                               wmem_array_t *hfs,
                                GArray     *etts,
                                char       *proto_name)
 {
@@ -965,7 +967,7 @@ static xml_ns_t *make_xml_hier(gchar      *elem_name,
     }
 
     for (i = 0; i < hier->len; i++) {
-        if( strcmp(elem_name, (gchar *) g_ptr_array_index(hier, i) ) == 0 ) {
+        if( (elem_name) && (strcmp(elem_name, (gchar *) g_ptr_array_index(hier, i) ) == 0 )) {
             recurred = TRUE;
         }
     }
@@ -979,8 +981,8 @@ static xml_ns_t *make_xml_hier(gchar      *elem_name,
     fresh = duplicate_element(orig);
     fresh->fqn = fqn;
 
-    add_xml_field(hfs, &(fresh->hf_tag), g_strdup(elem_name), fqn);
-    add_xml_field(hfs, &(fresh->hf_cdata), g_strdup(elem_name), fqn);
+    add_xml_field(hfs, &(fresh->hf_tag), wmem_strdup(wmem_epan_scope(), elem_name), fqn);
+    add_xml_field(hfs, &(fresh->hf_cdata), wmem_strdup(wmem_epan_scope(), elem_name), fqn);
 
     ett_p = &fresh->ett;
     g_array_append_val(etts, ett_p);
@@ -1039,7 +1041,7 @@ static void register_dtd(dtd_build_data_t *dtd_data, GString *errors)
     GHashTable *elements      = g_hash_table_new(g_str_hash, g_str_equal);
     gchar      *root_name     = NULL;
     xml_ns_t   *root_element  = NULL;
-    GArray     *hfs;
+    wmem_array_t *hfs;
     GArray     *etts;
     GPtrArray  *hier;
     gchar      *curr_name;
@@ -1118,7 +1120,7 @@ static void register_dtd(dtd_build_data_t *dtd_data, GString *errors)
          * if we were given a proto_name the namespace will be registered
          * as an independent protocol with its own hf and ett arrays.
          */
-        hfs  = g_array_new(FALSE, FALSE, sizeof(hf_register_info));
+        hfs  = wmem_array_new(wmem_epan_scope(), sizeof(hf_register_info));
         etts = g_array_new(FALSE, FALSE, sizeof(gint *));
     }
 
@@ -1218,7 +1220,7 @@ static void register_dtd(dtd_build_data_t *dtd_data, GString *errors)
         gint *ett_p;
 
         if ( ! dtd_data->description) {
-            dtd_data->description = g_strdup(root_name);
+            dtd_data->description = wmem_strdup(wmem_epan_scope(), root_name);
         }
 
         ett_p = &root_element->ett;
@@ -1229,7 +1231,7 @@ static void register_dtd(dtd_build_data_t *dtd_data, GString *errors)
         root_element->hf_tag = proto_register_protocol(dtd_data->description,
                                                        dtd_data->proto_name,
                                                        dtd_data->proto_name);
-        proto_register_field_array(root_element->hf_tag, (hf_register_info*)g_array_data(hfs), hfs->len);
+        proto_register_field_array(root_element->hf_tag, (hf_register_info*)wmem_array_get_raw(hfs), wmem_array_get_count(hfs));
         proto_register_subtree_array((gint **)g_array_data(etts), etts->len);
 
         if (dtd_data->media_type) {
@@ -1239,7 +1241,6 @@ static void register_dtd(dtd_build_data_t *dtd_data, GString *errors)
 
         dtd_data->description = NULL;
         dtd_data->proto_name  = NULL;
-        g_array_free(hfs, FALSE);
         g_array_free(etts, TRUE);
     }
 
@@ -1283,7 +1284,7 @@ static void init_xml_names(void)
     xmlpi_xml_ns->elements = NULL;
 
 
-    dirname = get_persconffile_path("dtds", FALSE, FALSE);
+    dirname = get_persconffile_path("dtds", FALSE);
 
     if (test_for_directory(dirname) != EISDIR) {
         /* Although dir isn't a directory it may still use memory */
@@ -1352,16 +1353,6 @@ static void init_xml_names(void)
     g_free(dummy);
 }
 
-static void range_delete_xml_tcp_callback(guint32 port)
-{
-    dissector_delete_uint("tcp.port", port, xml_handle);
-}
-
-static void range_add_xml_tcp_callback(guint32 port)
-{
-    dissector_add_uint("tcp.port", port, xml_handle);
-}
-
 static void apply_prefs(void)
 {
     if (pref_heuristic_media_save != pref_heuristic_media) {
@@ -1398,10 +1389,10 @@ static void apply_prefs(void)
         }
     }
 
-    range_foreach(xml_tcp_range, range_delete_xml_tcp_callback);
+	dissector_delete_uint_range("tcp.port", xml_tcp_range, xml_handle);
     g_free(xml_tcp_range);
     xml_tcp_range = range_copy(global_xml_tcp_range);
-    range_foreach(xml_tcp_range, range_add_xml_tcp_callback);
+	dissector_add_uint_range("tcp.port", xml_tcp_range, xml_handle);
 }
 
 void
@@ -1458,17 +1449,17 @@ proto_register_xml(void)
     };
     module_t *xml_module;
 
-    hf_arr  = g_array_new(FALSE, FALSE, sizeof(hf_register_info));
+    hf_arr  = wmem_array_new(wmem_epan_scope(), sizeof(hf_register_info));
     ett_arr = g_array_new(FALSE, FALSE, sizeof(gint *));
 
-    g_array_append_vals(hf_arr, hf_base, array_length(hf_base));
+    wmem_array_append(hf_arr, hf_base, array_length(hf_base));
     g_array_append_vals(ett_arr, ett_base, array_length(ett_base));
 
     init_xml_names();
 
     xml_ns.hf_tag = proto_register_protocol("eXtensible Markup Language", "XML", xml_ns.name);
 
-    proto_register_field_array(xml_ns.hf_tag, (hf_register_info*)g_array_data(hf_arr), hf_arr->len);
+    proto_register_field_array(xml_ns.hf_tag, (hf_register_info*)wmem_array_get_raw(hf_arr), wmem_array_get_count(hf_arr));
     proto_register_subtree_array((gint **)g_array_data(ett_arr), ett_arr->len);
 
     xml_module = prefs_register_protocol(xml_ns.hf_tag, apply_prefs);
@@ -1484,11 +1475,11 @@ proto_register_xml(void)
     prefs_register_bool_preference(xml_module, "heuristic_udp", "Use Heuristics for UDP",
                                    "Try to recognize XML for unknown UDP ports",
                                    &pref_heuristic_udp);
+    /* XXX - UCS-2, or UTF-16? */
     prefs_register_bool_preference(xml_module, "heuristic_unicode", "Use Unicode in heuristics",
-                                   "Try to recognize XML encoded in Unicode (UCS-2)",
+                                   "Try to recognize XML encoded in Unicode (UCS-2BE)",
                                    &pref_heuristic_unicode);
 
-    g_array_free(hf_arr, FALSE);
     g_array_free(ett_arr, TRUE);
 
     register_dissector("xml", dissect_xml, xml_ns.hf_tag);

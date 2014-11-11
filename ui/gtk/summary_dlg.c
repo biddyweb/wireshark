@@ -1,8 +1,6 @@
 /* summary_dlg.c
  * Routines for capture file summary window
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -82,6 +80,7 @@ add_string_to_grid_sensitive(GtkWidget *grid, guint *row, const gchar *title, co
     ws_gtk_grid_attach_defaults(GTK_GRID(grid), label, 0, *row, 1, 1);
 
     label = gtk_label_new(value);
+    gtk_label_set_line_wrap(GTK_LABEL(label), TRUE);
     gtk_misc_set_alignment(GTK_MISC(label), 0.0f, 0.5f);
     gtk_widget_set_sensitive(label, sensitive);
     ws_gtk_grid_attach_defaults(GTK_GRID(grid), label, 1, *row, 1, 1);
@@ -116,14 +115,6 @@ time_to_string(char *string_buff, gulong string_buff_size, time_t ti_time)
 {
   struct tm *ti_tm;
 
-#if (defined _WIN32) && (_MSC_VER < 1500)
-  /* calling localtime() on MSVC 2005 with huge values causes it to crash */
-  /* XXX - find the exact value that still does work */
-  /* XXX - using _USE_32BIT_TIME_T might be another way to circumvent this problem */
-  if (ti_time > 2000000000) {
-      ti_tm = NULL;
-  } else
-#endif
   ti_tm = localtime(&ti_time);
   if (ti_tm == NULL) {
     g_snprintf(string_buff, string_buff_size, "Not representable");
@@ -147,18 +138,20 @@ summary_ok_cb(GtkWidget *w _U_, GtkWidget *view)
   GtkTextIter end_iter;
   gchar *new_comment = NULL;
 
-  buffer = gtk_text_view_get_buffer (GTK_TEXT_VIEW (view));
-  gtk_text_buffer_get_start_iter (buffer, &start_iter);
-  gtk_text_buffer_get_end_iter (buffer, &end_iter);
+  if (view != NULL && cfile.filename != NULL) {
+    buffer = gtk_text_view_get_buffer (GTK_TEXT_VIEW (view));
+    gtk_text_buffer_get_start_iter (buffer, &start_iter);
+    gtk_text_buffer_get_end_iter (buffer, &end_iter);
 
-  new_comment = gtk_text_buffer_get_text (buffer, &start_iter, &end_iter, FALSE /* whether to include invisible text */);
+    new_comment = gtk_text_buffer_get_text (buffer, &start_iter, &end_iter, FALSE /* whether to include invisible text */);
 
-  cf_update_capture_comment(&cfile, new_comment);
+    cf_update_capture_comment(&cfile, new_comment);
 
-  /* Update the main window */
-  main_update_for_unsaved_changes(&cfile);
+    /* Update the main window */
+    main_update_for_unsaved_changes(&cfile);
 
-  status_capture_comment_update();
+    status_capture_comment_update();
+  }
 
   window_destroy(summary_dlg);
 }
@@ -177,7 +170,7 @@ summary_open_cb(GtkWidget *w _U_, gpointer d _U_)
   GtkWidget         *main_vb, *bbox, *cancel_bt, *ok_bt, *help_bt;
   GtkWidget         *grid, *scrolled_window;
   GtkWidget         *list, *treeview;
-  GtkWidget         *comment_view, *comment_frame, *comment_vbox;
+  GtkWidget         *comment_view = NULL, *comment_frame, *comment_vbox;
   GtkTextBuffer     *buffer = NULL;
   gchar             *buf_str;
   GtkListStore      *store;
@@ -196,11 +189,7 @@ summary_open_cb(GtkWidget *w _U_, gpointer d _U_)
   double        seconds;
   double        disp_seconds;
   double        marked_seconds;
-  guint         offset;
-  guint         snip;
   guint         row;
-  gchar        *str_dup;
-  gchar        *str_work;
 
   unsigned int  elapsed_time;
   iface_options iface;
@@ -267,7 +256,7 @@ summary_open_cb(GtkWidget *w _U_, gpointer d _U_)
 
   /* format */
   g_snprintf(string_buff, SUM_STR_MAX, "%s%s",
-             wtap_file_type_string(summary.file_type),
+             wtap_file_type_subtype_string(summary.file_type),
              summary.iscompressed? " (gzip compressed)" : "");
   add_string_to_grid(grid, &row, "Format:", string_buff);
 
@@ -290,27 +279,29 @@ summary_open_cb(GtkWidget *w _U_, gpointer d _U_)
   }
 
   /* Capture file comment area */
-  comment_frame = gtk_frame_new("Capture file comments");
-  gtk_frame_set_shadow_type(GTK_FRAME(comment_frame), GTK_SHADOW_ETCHED_IN);
-  gtk_box_pack_start(GTK_BOX(main_vb), comment_frame, TRUE, TRUE, 0);
-  gtk_widget_show(comment_frame);
+  if (wtap_dump_can_write(cfile.linktypes, WTAP_COMMENT_PER_SECTION)) {
+    comment_frame = gtk_frame_new("Capture file comments");
+    gtk_frame_set_shadow_type(GTK_FRAME(comment_frame), GTK_SHADOW_ETCHED_IN);
+    gtk_box_pack_start(GTK_BOX(main_vb), comment_frame, TRUE, TRUE, 0);
+    gtk_widget_show(comment_frame);
 
-  comment_vbox = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 0, FALSE);
-  gtk_container_add(GTK_CONTAINER(comment_frame), comment_vbox);
-  gtk_widget_show(comment_vbox);
+    comment_vbox = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 0, FALSE);
+    gtk_container_add(GTK_CONTAINER(comment_frame), comment_vbox);
+    gtk_widget_show(comment_vbox);
 
-  comment_view = gtk_text_view_new();
-  gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(comment_view), GTK_WRAP_WORD);
-  buffer = gtk_text_view_get_buffer (GTK_TEXT_VIEW (comment_view));
-  if(summary.opt_comment == NULL) {
-    gtk_text_buffer_set_text (buffer, "", -1);
-  } else {
-    buf_str = g_strdup_printf("%s", summary.opt_comment);
-    gtk_text_buffer_set_text (buffer, buf_str, -1);
-    g_free(buf_str);
+    comment_view = gtk_text_view_new();
+    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(comment_view), GTK_WRAP_WORD);
+    buffer = gtk_text_view_get_buffer (GTK_TEXT_VIEW (comment_view));
+    if(summary.opt_comment == NULL) {
+      gtk_text_buffer_set_text (buffer, "", -1);
+    } else {
+      buf_str = g_strdup_printf("%s", summary.opt_comment);
+      gtk_text_buffer_set_text (buffer, buf_str, -1);
+      g_free(buf_str);
+    }
+    gtk_box_pack_start(GTK_BOX(comment_vbox), comment_view, TRUE, TRUE, 0);
+    gtk_widget_show (comment_view);
   }
-  gtk_box_pack_start(GTK_BOX(comment_vbox), comment_view, TRUE, TRUE, 0);
-  gtk_widget_show (comment_view);
 
   /*
    * We must have no un-time-stamped packets (i.e., the number of
@@ -442,23 +433,7 @@ summary_open_cb(GtkWidget *w _U_, gpointer d _U_)
 
   if (summary.dfilter) {
     /* Display filter */
-    /* limit each row to some reasonable length */
-    str_dup = g_strdup_printf("%s", summary.dfilter);
-    str_work = g_strdup(str_dup);
-    offset = 0;
-    snip = 0;
-    while(strlen(str_work) > FILTER_SNIP_LEN) {
-        str_work[FILTER_SNIP_LEN] = '\0';
-        add_string_to_grid(grid, &row, (snip == 0) ? "Display filter:" : "", str_work);
-        g_free(str_work);
-        offset+=FILTER_SNIP_LEN;
-        str_work = g_strdup(&str_dup[offset]);
-        snip++;
-    }
-
-    add_string_to_grid(grid, &row, (snip == 0) ? "Display filter:" : "", str_work);
-    g_free(str_work);
-    g_free(str_dup);
+    add_string_to_grid(grid, &row, "Display filter:", summary.dfilter);
   } else {
     /* Display filter */
     add_string_to_grid(grid, &row, "Display filter:", "none");
@@ -543,24 +518,21 @@ summary_open_cb(GtkWidget *w _U_, gpointer d _U_)
 
   /* Average packet size */
   if (summary.packet_count > 1) {
-    g_snprintf(cap_buf, SUM_STR_MAX, "%.3f bytes",
-               /* MSVC cannot convert from unsigned __int64 to float, so first convert to signed __int64 */
-               (float) ((gint64) summary.bytes)/summary.packet_count);
+    g_snprintf(cap_buf, SUM_STR_MAX, "%" G_GUINT64_FORMAT " bytes",
+              (guint64) ((double)summary.bytes/summary.packet_count + 0.5) );
   } else {
     cap_buf[0] = '\0';
   }
   if (summary.dfilter && summary.filtered_count > 1) {
-    g_snprintf(disp_buf, SUM_STR_MAX, "%.3f bytes",
-               /* MSVC cannot convert from unsigned __int64 to float, so first convert to signed __int64 */
-               (float) ((gint64) summary.filtered_bytes)/summary.filtered_count);
+    g_snprintf(disp_buf, SUM_STR_MAX, "%" G_GUINT64_FORMAT " bytes",
+              (guint64) ((double)summary.filtered_bytes/summary.filtered_count + 0.5));
   } else {
     disp_buf[0] = '\0';
   }
   disp_pct_buf[0] = '\0';
   if (summary.marked_count > 1) {
-    g_snprintf(mark_buf, SUM_STR_MAX, "%.3f bytes",
-               /* MSVC cannot convert from unsigned __int64 to float, so first convert to signed __int64 */
-               (float) ((gint64) summary.marked_bytes)/summary.marked_count);
+    g_snprintf(mark_buf, SUM_STR_MAX, "%" G_GUINT64_FORMAT " bytes",
+              (guint64) ((double)summary.marked_bytes/summary.marked_count + 0.5));
   } else {
     mark_buf[0] = '\0';
   }
@@ -655,15 +627,15 @@ summary_open_cb(GtkWidget *w _U_, gpointer d _U_)
   bbox = dlg_button_row_new(GTK_STOCK_CANCEL, GTK_STOCK_OK, GTK_STOCK_HELP, NULL);
   gtk_box_pack_start(GTK_BOX(main_vb), bbox, TRUE, TRUE, 0);
 
-  cancel_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
+  cancel_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CANCEL);
   window_set_cancel_button(summary_dlg, cancel_bt, window_cancel_button_cb);
 
-  ok_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
+  ok_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_OK);
   g_signal_connect (ok_bt, "clicked",
                     G_CALLBACK(summary_ok_cb), comment_view);
   gtk_widget_grab_focus(ok_bt);
 
-  help_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+  help_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
   g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), (gpointer)HELP_STATS_SUMMARY_DIALOG);
 
 
@@ -680,6 +652,7 @@ summary_to_texbuff(GtkTextBuffer *buffer)
 {
   summary_tally summary;
   gchar         string_buff[SUM_STR_MAX];
+  gchar         tmp_buff[SUM_STR_MAX];
   gchar *buf_str;
   unsigned int  i;
   unsigned int  elapsed_time;
@@ -693,7 +666,7 @@ summary_to_texbuff(GtkTextBuffer *buffer)
 #endif
 
   /* Add Wireshark version*/
-  g_snprintf(string_buff, SUM_STR_MAX, "Summary created by Wireshark %s\n\n", wireshark_svnversion);
+  g_snprintf(string_buff, SUM_STR_MAX, "Summary created by Wireshark %s\n\n", wireshark_gitversion);
   gtk_text_buffer_insert_at_cursor (buffer, string_buff, -1);
 
   /* Info about file */
@@ -701,29 +674,29 @@ summary_to_texbuff(GtkTextBuffer *buffer)
   gtk_text_buffer_insert_at_cursor (buffer, string_buff, -1);
 
   /* Filename */
-  g_snprintf(string_buff, SUM_STR_MAX, INDENT "Name:             %s\n", summary.filename);
+  g_snprintf(string_buff, SUM_STR_MAX, INDENT "Name: %s\n", summary.filename);
   gtk_text_buffer_insert_at_cursor (buffer, string_buff, -1);
 
   /* length */
-  g_snprintf(string_buff, SUM_STR_MAX, INDENT "Length:            %" G_GINT64_MODIFIER "d bytes\n",
+  g_snprintf(string_buff, SUM_STR_MAX, INDENT "Length: %" G_GINT64_MODIFIER "d bytes\n",
              summary.file_length);
   gtk_text_buffer_insert_at_cursor (buffer, string_buff, -1);
 
   /* format */
-  g_snprintf(string_buff, SUM_STR_MAX, INDENT "Format:            %s%s",
-             wtap_file_type_string(summary.file_type),
+  g_snprintf(string_buff, SUM_STR_MAX, INDENT "Format: %s%s",
+             wtap_file_type_subtype_string(summary.file_type),
              summary.iscompressed? " (gzip compressed)\n" : "\n");
   gtk_text_buffer_insert_at_cursor (buffer, string_buff, -1);
 
   /* encapsulation */
   if (summary.file_encap_type == WTAP_ENCAP_PER_PACKET) {
     for (i = 0; i < summary.packet_encap_types->len; i++) {
-      g_snprintf(string_buff, SUM_STR_MAX, INDENT "Encapsulation:    %s\n",
+      g_snprintf(string_buff, SUM_STR_MAX, INDENT "Encapsulation: %s\n",
                  wtap_encap_string(g_array_index(summary.packet_encap_types, int, i)));
       gtk_text_buffer_insert_at_cursor (buffer, string_buff, -1);
     }
   } else {
-    g_snprintf(string_buff, SUM_STR_MAX, INDENT "Encapsulation:    %s\n", wtap_encap_string(summary.file_encap_type));
+    g_snprintf(string_buff, SUM_STR_MAX, INDENT "Encapsulation: %s\n", wtap_encap_string(summary.file_encap_type));
     gtk_text_buffer_insert_at_cursor (buffer, string_buff, -1);
   }
   if (summary.has_snap) {
@@ -744,13 +717,13 @@ summary_to_texbuff(GtkTextBuffer *buffer)
     gtk_text_buffer_insert_at_cursor (buffer, string_buff, -1);
 
     /* start time */
-    time_to_string(string_buff, SUM_STR_MAX, (time_t)summary.start_time);
-    g_snprintf(string_buff, SUM_STR_MAX, INDENT "First packet: %s\n",string_buff);
+    time_to_string(tmp_buff, SUM_STR_MAX, (time_t)summary.start_time);
+    g_snprintf(string_buff, SUM_STR_MAX, INDENT "First packet: %s\n",tmp_buff);
     gtk_text_buffer_insert_at_cursor (buffer, string_buff, -1);
 
     /* stop time */
-    time_to_string(string_buff, SUM_STR_MAX, (time_t)summary.stop_time);
-    g_snprintf(string_buff, SUM_STR_MAX, INDENT "Last packet: %s\n", string_buff);
+    time_to_string(tmp_buff, SUM_STR_MAX, (time_t)summary.stop_time);
+    g_snprintf(string_buff, SUM_STR_MAX, INDENT "Last packet: %s\n", tmp_buff);
     gtk_text_buffer_insert_at_cursor (buffer, string_buff, -1);
 
     /*
@@ -761,13 +734,13 @@ summary_to_texbuff(GtkTextBuffer *buffer)
       /* elapsed seconds */
       elapsed_time = (unsigned int)summary.elapsed_time;
       if(elapsed_time/86400) {
-          g_snprintf(string_buff, SUM_STR_MAX, "%02u days %02u:%02u:%02u",
+          g_snprintf(tmp_buff, SUM_STR_MAX, "%02u days %02u:%02u:%02u",
             elapsed_time/86400, elapsed_time%86400/3600, elapsed_time%3600/60, elapsed_time%60);
       } else {
-          g_snprintf(string_buff, SUM_STR_MAX, "%02u:%02u:%02u",
+          g_snprintf(tmp_buff, SUM_STR_MAX, "%02u:%02u:%02u",
             elapsed_time%86400/3600, elapsed_time%3600/60, elapsed_time%60);
       }
-      g_snprintf(string_buff, SUM_STR_MAX, INDENT "Elapsed: %s\n", string_buff);
+      g_snprintf(string_buff, SUM_STR_MAX, INDENT "Elapsed: %s\n", tmp_buff);
       gtk_text_buffer_insert_at_cursor (buffer, string_buff, -1);
     }
   }
@@ -980,14 +953,14 @@ show_packet_comment_summary_dlg (GtkAction *action _U_, gpointer data _U_)
   bbox = dlg_button_row_new (GTK_STOCK_COPY, GTK_STOCK_CANCEL, GTK_STOCK_HELP, NULL);
   gtk_box_pack_end (GTK_BOX(vbox), bbox, FALSE, FALSE, 0);
 
-  copy_bt = g_object_get_data (G_OBJECT(bbox), GTK_STOCK_COPY);
+  copy_bt = (GtkWidget *)g_object_get_data (G_OBJECT(bbox), GTK_STOCK_COPY);
   g_signal_connect (copy_bt, "clicked", G_CALLBACK(comment_summary_copy_to_clipboard_cb), view);
   gtk_widget_set_sensitive (copy_bt, TRUE);
 
-  cancel_bt = g_object_get_data (G_OBJECT(bbox), GTK_STOCK_CANCEL);
+  cancel_bt = (GtkWidget *)g_object_get_data (G_OBJECT(bbox), GTK_STOCK_CANCEL);
   window_set_cancel_button (view_capture_and_pkt_comments_dlg, cancel_bt, window_cancel_button_cb);
 
-  help_bt = g_object_get_data (G_OBJECT(bbox), GTK_STOCK_HELP);
+  help_bt = (GtkWidget *)g_object_get_data (G_OBJECT(bbox), GTK_STOCK_HELP);
 #if 0
   g_signal_connect (help_bt, "clicked",/* G_CALLBACK(topic_cb)*/NULL, /*(gpointer)HELP_MANUAL_ADDR_RESOLVE_DIALOG*/NULL);
 #endif

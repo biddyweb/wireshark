@@ -1,8 +1,6 @@
 /* capture_ifinfo.h
  * Definitions for routines to get information about capture interfaces
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,18 @@
 extern "C" {
 #endif /* __cplusplus */
 
+typedef enum {
+	IF_WIRED,
+	IF_AIRPCAP,
+	IF_PIPE,
+	IF_STDIN,
+	IF_BLUETOOTH,
+	IF_WIRELESS,
+	IF_DIALUP,
+	IF_USB,
+	IF_VIRTUAL
+} interface_type;
+
 /*
  * The list of interfaces returned by "get_interface_list()" is
  * a list of these structures.
@@ -42,6 +52,7 @@ typedef struct {
 				   e.g. "Realtek PCIe GBE Family Controller",
 				   or NULL if not available */
 	GSList  *addrs;         /* containing address values of if_addr_t */
+	interface_type type;    /* type of interface */
 	gboolean loopback;      /* TRUE if loopback, FALSE otherwise */
 } if_info_t;
 
@@ -64,7 +75,7 @@ typedef struct {
 /**
  * Fetch the interface list from a child process.
  */
-extern GList *capture_interface_list(int *err, char **err_str);
+extern GList *capture_interface_list(int *err, char **err_str, void (*update_cb)(void));
 
 /* Error values from "get_interface_list()/capture_interface_list()". */
 #define	CANT_GET_INTERFACE_LIST	1	/* error getting list */
@@ -97,17 +108,11 @@ typedef struct {
  */
 extern if_capabilities_t *
 capture_get_if_capabilities(const char *devname, gboolean monitor_mode,
-                            char **err_str);
+                            char **err_str, void (*update_cb)(void));
 
 void free_if_capabilities(if_capabilities_t *caps);
 
 void add_interface_to_remote_list(if_info_t *if_info);
-
-/**
- * Get the type of an interface, given its name and description.
- */
-extern guint
-get_interface_type(gchar *name, gchar *description);
 
 #ifdef __cplusplus
 }

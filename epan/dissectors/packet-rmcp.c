@@ -3,8 +3,6 @@
  *
  * Duncan Laurie <duncan@sun.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -23,14 +21,18 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
- * 02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 #include "config.h"
 
 #include <glib.h>
 #include <epan/packet.h>
+
+void proto_register_rmcp(void);
+void proto_register_rsp(void);
+void proto_reg_handoff_rmcp(void);
+void proto_reg_handoff_rsp(void);
 
 /*
  * See
@@ -88,7 +90,7 @@ dissect_rmcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 	proto_tree	*rmcp_tree = NULL, *field_tree;
 	proto_item	*ti, *tf;
 	tvbuff_t	*next_tvb;
-	guint8		class;
+	guint8		rmcp_class;
 	const gchar	*class_str;
 	guint8		type;
 	guint		len;
@@ -99,19 +101,18 @@ dissect_rmcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 	 */
 	if (!tvb_bytes_exist(tvb, 3, 1))
 		return 0;	/* class value byte not present */
-	class = tvb_get_guint8(tvb, 3);
+	rmcp_class = tvb_get_guint8(tvb, 3);
 
 	/* Get the normal/ack bit from the RMCP class */
-	type = (class & RMCP_TYPE_MASK) >> 7;
-	class &= RMCP_CLASS_MASK;
+	type = (rmcp_class & RMCP_TYPE_MASK) >> 7;
+	rmcp_class &= RMCP_CLASS_MASK;
 
-	class_str = match_strval(class, rmcp_class_vals);
+	class_str = try_val_to_str(rmcp_class, rmcp_class_vals);
 	if (class_str == NULL)
 		return 0;	/* unknown class value */
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "RMCP");
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_fstr(pinfo->cinfo, COL_INFO, "%s, Class: %s",
+	col_add_fstr(pinfo->cinfo, COL_INFO, "%s, Class: %s",
 		     val_to_str(type, rmcp_type_vals, "Unknown (0x%02x)"),
 		     class_str);
 
@@ -138,11 +139,11 @@ dissect_rmcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
 		next_tvb = tvb_new_subset_remaining(tvb, 4);
 
-		if (!dissector_try_uint(rmcp_dissector_table, class, next_tvb, pinfo,
+		if (!dissector_try_uint(rmcp_dissector_table, rmcp_class, next_tvb, pinfo,
 			tree)) {
 			len = call_dissector(data_handle, next_tvb, pinfo, tree);
 			if (len < tvb_length(next_tvb)) {
-			proto_tree_add_text(tree, tvb, 4 + len, -1, 
+			proto_tree_add_text(tree, tvb, 4 + len, -1,
 				"RSP Trailer (%d bytes):", tvb_length(next_tvb) - len);
 			}
 		}
@@ -158,7 +159,7 @@ dissect_rsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 	proto_item	*ti/*, *tf*/;
 	tvbuff_t	*next_tvb;
 	int 		offset = 0;
-	
+
 	if (tree) {
 		ti = proto_tree_add_protocol_format(tree, proto_rsp, tvb, offset, 8,
 			 "RMCP Security-extension Protocol");
@@ -167,10 +168,10 @@ dissect_rsp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 		proto_tree_add_item(rsp_tree, hf_rsp_session_id, tvb, offset, 4, ENC_BIG_ENDIAN);
 		offset += 4;
 		proto_tree_add_item(rsp_tree, hf_rsp_sequence, tvb, offset, 4, ENC_BIG_ENDIAN);
-		offset += 4;
+		/*offset += 4;*/
 	}
-	
-	/* XXX determination of RCMP message length needs to 
+
+	/* XXX determination of RCMP message length needs to
 	 * be done according to 3.2.3.3.3 of the specification.
 	 * This is only valid for session ID equals 0
 	 */

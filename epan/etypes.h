@@ -1,8 +1,6 @@
 /* etypes.h
  * Defines ethernet packet types, similar to tcpdump's ethertype.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,13 +25,19 @@
 
 #include "ws_symbol_export.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+#include <epan/value_string.h>
+
 /*
  * Maximum length of an IEEE 802.3 frame; Ethernet type/length values
  * less than or equal to it are lengths.
  */
 #define IEEE_802_3_MAX_LEN		1500
 
-/* 
+/*
  * Minimum length of an Ethernet II frame;  Ethernet type/length values
  * greater than or equal to it are types.
  */
@@ -256,6 +260,10 @@
 #define ETHERTYPE_WLCCP			0x872D	/* Cisco Wireless Lan Context Control Protocol */
 #endif
 
+#ifndef ETHERTYPE_MINT
+#define ETHERTYPE_MINT			0x8783	/* Motorola Media Indepentent Network Transport */
+#endif
+
 #ifndef ETHERTYPE_MAC_CONTROL
 #define ETHERTYPE_MAC_CONTROL		0x8808
 #endif
@@ -440,6 +448,10 @@
 #define ETHERTYPE_MRP			0x88E3  /* IEC 61158-6-10 Media Redundancy Protocol (MRP) */
 #endif
 
+#ifndef ETHERTYPE_MACSEC
+#define ETHERTYPE_MACSEC			0x88E5  /* IEEE 802.1ae Media access control security (MACSEC) */
+#endif
+
 #ifndef ETHERTYPE_IEEE_802_1AH
 #define ETHERTYPE_IEEE_802_1AH		0x88E7  /* IEEE 802.1ah Provider Backbone Bridge Mac-in-Mac */
 #endif
@@ -484,6 +496,10 @@
 
 #ifndef ETHERTYPE_FCOE
 #define ETHERTYPE_FCOE			0x8906	/* Fibre Channel over Ethernet */
+#endif
+
+#ifndef ETHERTYPE_CMD
+#define ETHERTYPE_CMD			0x8909	/* Cisco Systems Inc - Cisco MetaData */
 #endif
 
 #ifndef ETHERTYPE_IEEE80211_DATA_ENCAP
@@ -540,4 +556,8 @@
 
 WS_DLL_PUBLIC const value_string etype_vals[];
 
-#endif /* etypes.h */
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* __ETYPES_H__ */

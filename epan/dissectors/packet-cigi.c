@@ -4,8 +4,6 @@
  * CIGI - http://cigi.sourceforge.net/
  * Copyright (c) 2005 The Boeing Company
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,10 +32,15 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/prefs.h>
+#include <epan/wmem/wmem.h>
+#include <epan/to_str.h>
 
 /* Forward declaration */
+void proto_register_cigi(void);
 void proto_reg_handoff_cigi(void);
+
 static gboolean packet_is_cigi(tvbuff_t*);
 static void dissect_cigi_pdu(tvbuff_t*, packet_info*, proto_tree*);
 static void cigi_add_tree(tvbuff_t*, proto_tree*);
@@ -1948,6 +1951,7 @@ static int hf_cigi3_3_symbol_line_definition_stipple_pattern_length = -1;
 static int hf_cigi3_3_symbol_line_definition_vertex_u[] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
 static int hf_cigi3_3_symbol_line_definition_vertex_v[] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
 
+#if 0
 static const value_string cigi3_3_symbol_line_definition_primitive_type_vals[] = {
     {0, "Point"},
     {1, "Line"},
@@ -1958,6 +1962,7 @@ static const value_string cigi3_3_symbol_line_definition_primitive_type_vals[] =
     {6, "Triangle Fan"},
     {0, NULL}
 };
+#endif
 
 /* CIGI3_3 Symbol Clone */
 #define CIGI3_PACKET_SIZE_SYMBOL_CLONE_DEFINITION 8
@@ -2454,14 +2459,14 @@ packet_is_cigi(tvbuff_t *tvb)
         /* Not enough data available to check */
         return FALSE;
     }
-    packet_id = tvb_get_guint8(tvb, 0);
     packet_size = tvb_get_guint8(tvb, 1);
-    cigi_version_local = tvb_get_guint8(tvb, 2);
 
     if ( packet_size > tvb_reported_length(tvb) ) {
         return FALSE;
     }
 
+    packet_id = tvb_get_guint8(tvb, 0);
+    cigi_version_local = tvb_get_guint8(tvb, 2);
     /* Currently there are only 3 versions of CIGI */
     switch ( cigi_version_local ) {
 
@@ -2619,7 +2624,6 @@ dissect_cigi_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     const char* src_str;
     const char* dest_str;
-    const char* info_str;
 
     packet_id = tvb_get_guint8(tvb, 0);
 
@@ -2635,28 +2639,27 @@ dissect_cigi_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
 
     /* Format the Info String */
-    src_str = ip_to_str(pinfo->src.data);
+    src_str = (const char*)ip_to_str((const guint8 *)pinfo->src.data);
     if ( !g_ascii_strcasecmp(global_host_ip, src_str) ) {
         src_str = "Host";
     } else if ( !g_ascii_strcasecmp(global_ig_ip, src_str) ) {
         src_str = "IG";
     }
 
-    dest_str = ip_to_str(pinfo->dst.data);
+    dest_str = (const char*)ip_to_str((const guint8 *)pinfo->dst.data);
     if ( !g_ascii_strcasecmp(global_host_ip, dest_str) ) {
         dest_str = "Host";
     } else if ( !g_ascii_strcasecmp(global_ig_ip, dest_str) ) {
         dest_str = "IG";
     }
 
-    info_str = se_strdup_printf("%s => %s (%u bytes)", src_str, dest_str,
+    col_add_fstr(pinfo->cinfo, COL_INFO, "%s => %s (%u bytes)", src_str, dest_str,
         tvb_reported_length(tvb));
-
-    col_set_str(pinfo->cinfo, COL_INFO, info_str);
 
     if (tree) {
 
-        ti = proto_tree_add_protocol_format(tree, proto_cigi, tvb, 0, tvb_length(tvb), "Common Image Generator Interface (%i), %s", cigi_version, info_str);
+        ti = proto_tree_add_protocol_format(tree, proto_cigi, tvb, 0, tvb_length(tvb), "Common Image Generator Interface (%i), %s => %s (%u bytes)",
+                                            cigi_version, src_str, dest_str, tvb_reported_length(tvb));
 
         cigi_tree = proto_item_add_subtree(ti, ett_cigi);
 

@@ -3,8 +3,6 @@
  * This is the base for other PROFINET protocols like IO, CBA, DCP, ...
  * (the "content subdissectors" will register themselves using a heuristic)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1999 Gerald Combs
@@ -26,14 +24,6 @@
 
 #include "config.h"
 
-#ifdef HAVE_SYS_TYPES_H
-# include <sys/types.h>
-#endif
-
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif
-
 #include <epan/packet.h>
 #include <epan/reassemble.h>
 #include <epan/addr_resolv.h>
@@ -47,6 +37,10 @@
 #include <wsutil/crc16.h>
 #include <wsutil/crc16-plain.h>
 #include "packet-pn.h"
+
+
+void proto_register_pn_rt(void);
+void proto_reg_handoff_pn_rt(void);
 
 /* Define the pn-rt proto */
 static int proto_pn_rt     = -1;
@@ -94,6 +88,8 @@ static int ett_pn_rt_sf = -1;
 static int ett_pn_rt_frag = -1;
 static int ett_pn_rt_frag_status = -1;
 
+static expert_field ei_pn_rt_sf_crc16 = EI_INIT;
+
 /*
  * Here are the global variables associated with
  * the various user definable characteristics of the dissection
@@ -105,11 +101,14 @@ static gboolean pn_rt_summary_in_tree = TRUE;
 static heur_dissector_list_t heur_subdissector_list;
 
 
+#if 0
 static const value_string pn_rt_position_control[] = {
     { 0x00, "CRC16 and CycleCounter shall not be checked" },
     { 0x80, "CRC16 and CycleCounter valid" },
     { 0, NULL }
 };
+#endif
+
 static const value_string pn_rt_ds_redundancy[] = {
     { 0x00, "One primary AR of a given AR-set is present" },
     { 0x01, "None primary AR of a given AR-set is present" },
@@ -170,7 +169,13 @@ IsDFP_Frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* the sub tvb will NOT contain the frame_id here! */
     u16FrameID = GPOINTER_TO_UINT(pinfo->private_data);
 
-    /* try to bild a temporaray buffer for generating this CRC */
+    /* try to build a temporaray buffer for generating this CRC */
+    if (!pinfo->src.data || !pinfo->dst.data ||
+            pinfo->dst.type != AT_ETHER || pinfo->src.type != AT_ETHER) {
+        /* if we don't have src/dst mac addresses then we assume it's not
+         * to avoid various crashes */
+        return FALSE;
+    }
     memcpy(&virtualFramebuffer[0], pinfo->dst.data, 6);
     memcpy(&virtualFramebuffer[6], pinfo->src.data, 6);
     virtualFramebuffer[12] = 0x88;
@@ -302,7 +307,7 @@ dissect_CSF_SDU_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
                 crc = crc16_plain_tvb_offset_seed(tvb, u32SubStart, offset-u32SubStart, 0);
                 if (crc != u16SFCRC16) {
                     proto_item_append_text(item, " [Preliminary check: incorrect, should be: %u]", crc);
-                    expert_add_info_format(pinfo, item, PI_CHECKSUM, PI_ERROR, "Bad checksum");
+                    expert_add_info(pinfo, item, &ei_pn_rt_sf_crc16);
                 } else {
                     proto_item_append_text(item, " [Preliminary check: Correct]");
                 }
@@ -333,7 +338,7 @@ dissect_pn_rt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 /* for reasemble processing we need some inits.. */
 /* Register PNIO defrag table init routine.      */
 
-static GHashTable *pdu_frag_table  = NULL;
+static reassembly_table pdu_reassembly_table;
 static GHashTable *reasembled_frag_table = NULL;
 
 static dissector_handle_t data_handle;
@@ -355,7 +360,8 @@ pnio_defragment_init(void)
     for (i=0; i < 16; i++)    /* init  the reasemble help array */
         start_frag_OR_ID[i] = 0;
 
-    fragment_table_init(&pdu_frag_table);
+    reassembly_table_init(&pdu_reassembly_table,
+                          &addresses_reassembly_table_functions);
     if (reasembled_frag_table == NULL)
     {
         reasembled_frag_table =  g_hash_table_new(NULL, NULL);
@@ -405,6 +411,7 @@ dissect_FRAG_PDU_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
             uFragNumber,
             val_to_str( (u8FragStatus & 0x80) >> 7, pn_rt_frag_status_more_follows, "Unknown"));
 
+        /* Is this a string or a bunch of bytes? Should it be FT_BYTES? */
         proto_tree_add_string_format(sub_tree, hf_pn_rt_frag_data, tvb, offset, tvb_length(tvb) - offset, "data",
             "Fragment Length: %d bytes", tvb_length(tvb) - offset);
         col_append_fstr(pinfo->cinfo, COL_INFO, " Fragment Length: %d bytes", tvb_length(tvb) - offset);
@@ -419,7 +426,7 @@ dissect_FRAG_PDU_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
         {
             guint32 u32FragID;
             guint32 u32ReasembleID /*= 0xfedc ??*/;
-            fragment_data *pdu_frag;
+            fragment_head *pdu_frag;
 
             u32FragID = (u16FrameID & 0xf);
             if (uFragNumber == 0)
@@ -431,26 +438,25 @@ dissect_FRAG_PDU_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
             }
             u32ReasembleID = start_frag_OR_ID[u32FragID];
             /* use frame data instead of "pnio fraglen" which sets 8 octet steps */
-            pdu_frag = fragment_add_seq(tvb, offset, pinfo, u32ReasembleID, pdu_frag_table, uFragNumber,
-                                        (tvb_length(tvb) - offset)/*u8FragDataLength*8*/, bMoreFollows);
+            pdu_frag = fragment_add_seq(&pdu_reassembly_table, tvb, offset,
+                                        pinfo, u32ReasembleID, NULL, uFragNumber,
+                                        (tvb_length(tvb) - offset)/*u8FragDataLength*8*/, bMoreFollows, 0);
 
             if (pdu_frag && !bMoreFollows) /* PDU is complete! and last fragment */
-            {   /* store this frag as the completed frag in hash table */
+            {   /* store this fragment as the completed fragment in hash table */
                 g_hash_table_insert(reasembled_frag_table, GUINT_TO_POINTER(pinfo->fd->num), pdu_frag);
                 start_frag_OR_ID[u32FragID] = 0; /* reset the starting frame counter */
             }
             if (!bMoreFollows) /* last fragment */
             {
-                pdu_frag = (fragment_data *)g_hash_table_lookup(reasembled_frag_table, GUINT_TO_POINTER(pinfo->fd->num));
-                if (pdu_frag)    /* found a matching frag dissect it */
+                pdu_frag = (fragment_head *)g_hash_table_lookup(reasembled_frag_table, GUINT_TO_POINTER(pinfo->fd->num));
+                if (pdu_frag)    /* found a matching fragment; dissect it */
                 {
                     guint16   type;
-                    guint16   pdu_length;
                     tvbuff_t *pdu_tvb;
 
-                    pdu_length = pdu_frag->len;
-                    /* create the new tvb for defraged frame */
-                    pdu_tvb = tvb_new_child_real_data(tvb, pdu_frag->data, pdu_length, pdu_length);
+                    /* create the new tvb for defragmented frame */
+                    pdu_tvb = tvb_new_chain(tvb, pdu_frag->tvb_data);
                     /* add the defragmented data to the data source list */
                     add_new_data_source(pinfo, pdu_tvb, "Reassembled Profinet Frame");
                     /* PDU is complete: look for the Ethertype and give it to the appropriate dissection routine */
@@ -489,6 +495,7 @@ dissect_pn_rt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     gchar        szFieldSummary[100];
     tvbuff_t    *next_tvb;
     gboolean     bCyclic;
+    heur_dtbl_entry_t *hdtbl_entry;
 
 
     /* If the link-layer dissector for the protocol above us knows whether
@@ -800,7 +807,7 @@ dissect_pn_rt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     next_tvb = tvb_new_subset(tvb, 2, data_len, data_len);
 
     /* ask heuristics, if some sub-dissector is interested in this packet payload */
-    if (!dissector_try_heuristic(heur_subdissector_list, next_tvb, pinfo, tree, NULL)) {
+    if (!dissector_try_heuristic(heur_subdissector_list, next_tvb, pinfo, tree, &hdtbl_entry, NULL)) {
         /*col_set_str(pinfo->cinfo, COL_INFO, "Unknown");*/
 
         /* Oh, well, we don't know this; dissect it as data. */
@@ -945,6 +952,7 @@ proto_register_pn_rt(void)
             FT_UINT8, BASE_DEC, NULL, 0x3F,
             NULL, HFILL }},
 
+        /* Is this a string or a bunch of bytes? Should it be FT_BYTES? */
         { &hf_pn_rt_frag_data,
           { "FragData", "pn_rt.frag_data",
             FT_STRING, BASE_NONE, NULL, 0x00,
@@ -958,13 +966,21 @@ proto_register_pn_rt(void)
         &ett_pn_rt_frag,
         &ett_pn_rt_frag_status
     };
+
+    static ei_register_info ei[] = {
+        { &ei_pn_rt_sf_crc16, { "pn_rt.sf.crc16_bad", PI_CHECKSUM, PI_ERROR, "Bad checksum", EXPFILL }},
+    };
+
     module_t *pn_rt_module;
+    expert_module_t* expert_pn_rt;
 
     proto_pn_rt = proto_register_protocol("PROFINET Real-Time Protocol",
                                           "PN-RT", "pn_rt");
 
     proto_register_field_array(proto_pn_rt, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_pn_rt = expert_register_protocol(proto_pn_rt);
+    expert_register_field_array(expert_pn_rt, ei, array_length(ei));
 
     /* Register our configuration options */
 

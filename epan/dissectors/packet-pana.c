@@ -2,8 +2,6 @@
  * Routines for Protocol for carrying Authentication for Network Access dissection
  * Copyright 2006, Peter Racz <racz@ifi.unizh.ch>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,7 +32,10 @@
 
 #include <epan/packet.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
+
+void proto_register_pana(void);
+void proto_reg_handoff_pana(void);
 
 #if 0
 #define PANA_UDP_PORT 3001
@@ -133,7 +134,7 @@ static const value_string msg_subtype_names[] = {
        { 0, NULL }
 };
 
-#define AVP_CODE_MAX 11
+#define AVP_CODE_MAX 13
 static const value_string avp_code_names[] = {
        { 1, "AUTH AVP" },
        { 2, "EAP-Payload AVP" },
@@ -146,15 +147,19 @@ static const value_string avp_code_names[] = {
        { 9, "Termination-Cause" },
        { 10, "PaC-Information" },
        { 11, "Relayed-Message" },
+       { 12, "Encryption-Encap" },
+       { 13, "Encryption-Algorithm" },
        { 0, NULL }
 };
 
+#if 0
 static const value_string avp_resultcode_names[] = {
        { 0, "PANA_SUCCESS" },
        { 1, "PANA_AUTHENTICATION_REJECTED" },
        { 2, "PANA_AUTHORIZATION_REJECTED" },
        { 0, NULL }
 };
+#endif
 
 typedef enum {
   PANA_OCTET_STRING = 1,
@@ -207,7 +212,7 @@ typedef struct _pana_transaction_t {
 } pana_transaction_t;
 
 typedef struct _pana_conv_info_t {
-        emem_tree_t *pdus;
+        wmem_map_t *pdus;
 } pana_conv_info_t;
 
 static void
@@ -299,6 +304,8 @@ pana_avp_get_type(guint16 avp_code, guint32 vendor_id)
                        case 9:  return PANA_ENUMERATED;         /* Termination-Cause AVP */
                        case 10: return PANA_OCTET_STRING;       /* PaC-Information AVP */
                        case 11: return PANA_ENCAPSULATED;       /* Relayed-Message AVP */
+                       case 12: return PANA_OCTET_STRING;       /* Encryption-Encap AVP */
+                       case 13: return PANA_UNSIGNED32;         /* Encryption-Algorithm AVP */
                        default: return PANA_OCTET_STRING;
                }
        } else {
@@ -518,11 +525,9 @@ dissect_pana_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
        seq_num    = tvb_get_ntohl(tvb, 12);
        avp_length = msg_length - 16;
 
-       if (check_col(pinfo->cinfo, COL_INFO)) {
-               col_add_fstr(pinfo->cinfo, COL_INFO, "Type %s-%s",
+       col_add_fstr(pinfo->cinfo, COL_INFO, "Type %s-%s",
                             val_to_str(msg_type, msg_type_names, "Unknown (%d)"),
                             val_to_str(flags & PANA_FLAG_R, msg_subtype_names, "Unknown (%d)"));
-       }
 
        /* Make the protocol tree */
        if (tree) {
@@ -541,13 +546,13 @@ dissect_pana_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
        /*
         * Do we already have a state structure for this conv
         */
-       pana_info = conversation_get_proto_data(conversation, proto_pana);
+       pana_info = (pana_conv_info_t *)conversation_get_proto_data(conversation, proto_pana);
        if (!pana_info) {
                /* No.  Attach that information to the conversation, and add
                 * it to the list of information structures.
                 */
-               pana_info = se_alloc(sizeof(pana_conv_info_t));
-               pana_info->pdus=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "pana_pdus");
+               pana_info = wmem_new(wmem_file_scope(), pana_conv_info_t);
+               pana_info->pdus=wmem_map_new(wmem_file_scope(), g_direct_hash, g_direct_equal);
 
                conversation_add_proto_data(conversation, proto_pana, pana_info);
        }
@@ -555,24 +560,24 @@ dissect_pana_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
        if(!pinfo->fd->flags.visited){
                if(flags&PANA_FLAG_R){
                       /* This is a request */
-                      pana_trans=se_alloc(sizeof(pana_transaction_t));
+                      pana_trans=wmem_new(wmem_file_scope(), pana_transaction_t);
                       pana_trans->req_frame=pinfo->fd->num;
                       pana_trans->rep_frame=0;
                       pana_trans->req_time=pinfo->fd->abs_ts;
-                      se_tree_insert32(pana_info->pdus, seq_num, (void *)pana_trans);
+                      wmem_map_insert(pana_info->pdus, GUINT_TO_POINTER(seq_num), (void *)pana_trans);
                } else {
-                      pana_trans=se_tree_lookup32(pana_info->pdus, seq_num);
+                      pana_trans=(pana_transaction_t *)wmem_map_lookup(pana_info->pdus, GUINT_TO_POINTER(seq_num));
                       if(pana_trans){
                               pana_trans->rep_frame=pinfo->fd->num;
                       }
                }
        } else {
-               pana_trans=se_tree_lookup32(pana_info->pdus, seq_num);
+               pana_trans=(pana_transaction_t *)wmem_map_lookup(pana_info->pdus, GUINT_TO_POINTER(seq_num));
        }
 
        if(!pana_trans){
                /* create a "fake" pana_trans structure */
-               pana_trans=ep_alloc(sizeof(pana_transaction_t));
+               pana_trans=wmem_new(wmem_packet_scope(), pana_transaction_t);
                pana_trans->req_frame=0;
                pana_trans->rep_frame=0;
                pana_trans->req_time=pinfo->fd->abs_ts;
@@ -670,13 +675,8 @@ dissect_pana(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
                return 0;
        }
 
-       /* Get header fields */
-       pana_res   = tvb_get_ntohs(tvb, 0);
+	   /* Check minimum packet length */
        msg_length = tvb_get_ntohs(tvb, 2);
-       flags      = tvb_get_ntohs(tvb, 4);
-       msg_type   = tvb_get_ntohs(tvb, 6);
-
-       /* Check minimum packet length */
        if(msg_length < 16) {
                return 0;
        }
@@ -687,16 +687,19 @@ dissect_pana(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
        }
 
        /* check that the reserved field is zero */
+       pana_res   = tvb_get_ntohs(tvb, 0);
        if (pana_res != 0) {
                return 0;
        }
 
        /* verify that none of the reserved bits are set */
+       flags      = tvb_get_ntohs(tvb, 4);
        if (flags & PANA_FLAG_RESERVED) {
                return 0;
        }
 
        /* verify that we recognize the message type */
+       msg_type   = tvb_get_ntohs(tvb, 6);
        if ((msg_type > MSG_TYPE_MAX) || (msg_type == 0)) {
                return 0;
        }

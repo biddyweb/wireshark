@@ -1,8 +1,6 @@
 /* packet-gsm_sms_ud.c
  * Routines for GSM SMS TP-UD (GSM 03.40) dissection
  *
- * $Id$
- *
  * Refer to the AUTHORS file or the AUTHORS section in the man page
  * for contacting the author(s) of this file.
  *
@@ -65,6 +63,9 @@
 #include <epan/prefs.h>
 #include <epan/reassemble.h>
 
+void proto_register_gsm_sms_ud(void);
+void proto_reg_handoff_gsm_sms_ud(void);
+
 static void dissect_gsm_sms_ud(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 
 static int proto_gsm_sms_ud = -1;
@@ -105,8 +106,7 @@ static gint ett_gsm_sms_ud_fragments = -1;
 static dissector_table_t gsm_sms_dissector_table;
 
 /* Short Message reassembly */
-static GHashTable *sm_fragment_table    = NULL;
-static GHashTable *sm_reassembled_table = NULL;
+static reassembly_table sm_reassembly_table;
 
 static const fragment_items sm_frag_items = {
     /* Fragment subtrees */
@@ -146,8 +146,8 @@ static dissector_handle_t wsp_handle;
 static void
 gsm_sms_ud_defragment_init(void)
 {
-    fragment_table_init(&sm_fragment_table);
-    reassembled_table_init(&sm_reassembled_table);
+    reassembly_table_init(&sm_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 /*
@@ -206,7 +206,7 @@ parse_gsm_sms_ud_message(proto_tree *sm_tree, tvbuff_t *tvb, packet_info *pinfo,
     guint32        i                         = 0;
     /* Multiple Messages UDH */
     gboolean       is_fragmented             = FALSE;
-    fragment_data *fd_sm                     = NULL;
+    fragment_head *fd_sm                     = NULL;
     guint16        sm_id                     = 0;
     guint16        frags                     = 0;
     guint16        frag                      = 0;
@@ -354,10 +354,11 @@ parse_gsm_sms_ud_message(proto_tree *sm_tree, tvbuff_t *tvb, packet_info *pinfo,
         try_gsm_sms_ud_reassemble = TRUE;
         save_fragmented = pinfo->fragmented;
         pinfo->fragmented = TRUE;
-        fd_sm = fragment_add_seq_check(tvb, i, pinfo,
+        fd_sm = fragment_add_seq_check(&sm_reassembly_table,
+                tvb, i,
+                pinfo,
                 sm_id,                /* guint32 ID for fragments belonging together */
-                sm_fragment_table,    /* list of message fragments */
-                sm_reassembled_table, /* list of reassembled messages */
+                NULL,
                 frag-1,               /* guint32 fragment sequence number */
                 sm_data_len,          /* guint32 fragment length */
                 (frag != frags));     /* More fragments? */

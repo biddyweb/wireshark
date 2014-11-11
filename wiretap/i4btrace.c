@@ -1,7 +1,5 @@
 /* i4btrace.c
  *
- * $Id$
- *
  * Wiretap Library
  * Copyright (c) 1999 by Bert Driehuis <driehuis@playbeing.org>
  *
@@ -27,7 +25,7 @@
 #include <string.h>
 #include "wtap-int.h"
 #include "file_wrappers.h"
-#include "buffer.h"
+#include <wsutil/buffer.h>
 #include "i4b_trace.h"
 #include "i4btrace.h"
 
@@ -38,15 +36,9 @@ typedef struct {
 static gboolean i4btrace_read(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset);
 static gboolean i4btrace_seek_read(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
-    int *err, gchar **err_info);
-static int i4b_read_rec_header(FILE_T fh, i4b_trace_hdr_t *hdr, int *err,
-    gchar **err_info);
-static void i4b_byte_swap_header(wtap *wth, i4b_trace_hdr_t *hdr);
-static gboolean i4b_read_rec_data(FILE_T fh, guint8 *pd, int length, int *err,
-    gchar **err_info);
-static void i4b_set_pseudo_header(i4b_trace_hdr_t *hdr,
-    union wtap_pseudo_header *pseudo_header);
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info);
+static int i4b_read_rec(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr,
+    Buffer *buf, int *err, gchar **err_info);
 
 /*
  * Test some fields in the header to see if they make sense.
@@ -78,11 +70,11 @@ int i4btrace_open(wtap *wth, int *err, gchar **err_info)
 		/*
 		 * OK, try byte-swapping the header fields.
 		 */
-		hdr.length = BSWAP32(hdr.length);
-		hdr.unit = BSWAP32(hdr.unit);
-		hdr.type = BSWAP32(hdr.type);
-		hdr.dir = BSWAP32(hdr.dir);
-		hdr.trunc = BSWAP32(hdr.trunc);
+		hdr.length = GUINT32_SWAP_LE_BE(hdr.length);
+		hdr.unit = GUINT32_SWAP_LE_BE(hdr.unit);
+		hdr.type = GUINT32_SWAP_LE_BE(hdr.type);
+		hdr.dir = GUINT32_SWAP_LE_BE(hdr.dir);
+		hdr.trunc = GUINT32_SWAP_LE_BE(hdr.trunc);
 		if (!I4B_HDR_IS_OK(hdr)) {
 			/*
 			 * It doesn't look valid in either byte order.
@@ -102,7 +94,7 @@ int i4btrace_open(wtap *wth, int *err, gchar **err_info)
 
 	/* Get capture start time */
 
-	wth->file_type = WTAP_FILE_I4BTRACE;
+	wth->file_type_subtype = WTAP_FILE_TYPE_SUBTYPE_I4BTRACE;
 	i4btrace = (i4btrace_t *)g_malloc(sizeof(i4btrace_t));
 	wth->priv = (void *)i4btrace;
 	wth->subtype_read = i4btrace_read;
@@ -121,19 +113,64 @@ int i4btrace_open(wtap *wth, int *err, gchar **err_info)
 static gboolean i4btrace_read(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset)
 {
-	int	ret;
-	i4b_trace_hdr_t hdr;
-	guint32 length;
-	void *bufp;
-
-	/* Read record header. */
 	*data_offset = file_tell(wth->fh);
-	ret = i4b_read_rec_header(wth->fh, &hdr, err, err_info);
-	if (ret <= 0) {
+
+	return i4b_read_rec(wth, wth->fh, &wth->phdr, wth->frame_buffer,
+	    err, err_info);
+}
+
+static gboolean
+i4btrace_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *phdr,
+    Buffer *buf, int *err, gchar **err_info)
+{
+	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
+		return FALSE;
+
+	if (!i4b_read_rec(wth, wth->random_fh, phdr, buf, err, err_info)) {
 		/* Read error or EOF */
+		if (*err == 0) {
+			/* EOF means "short read" in random-access mode */
+			*err = WTAP_ERR_SHORT_READ;
+		}
 		return FALSE;
 	}
-	i4b_byte_swap_header(wth, &hdr);
+	return TRUE;
+}
+
+static gboolean
+i4b_read_rec(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr, Buffer *buf,
+    int *err, gchar **err_info)
+{
+	i4btrace_t *i4btrace = (i4btrace_t *)wth->priv;
+	i4b_trace_hdr_t hdr;
+	int	bytes_read;
+	guint32 length;
+
+	errno = WTAP_ERR_CANT_READ;
+	bytes_read = file_read(&hdr, sizeof hdr, fh);
+	if (bytes_read != sizeof hdr) {
+		*err = file_error(fh, err_info);
+		if (*err == 0 && bytes_read != 0) {
+			/* Read something, but not enough */
+			*err = WTAP_ERR_SHORT_READ;
+		}
+		return FALSE;
+	}
+
+	if (i4btrace->byte_swapped) {
+		/*
+		 * Byte-swap the header.
+		 */
+		hdr.length = GUINT32_SWAP_LE_BE(hdr.length);
+		hdr.unit = GUINT32_SWAP_LE_BE(hdr.unit);
+		hdr.type = GUINT32_SWAP_LE_BE(hdr.type);
+		hdr.dir = GUINT32_SWAP_LE_BE(hdr.dir);
+		hdr.trunc = GUINT32_SWAP_LE_BE(hdr.trunc);
+		hdr.count = GUINT32_SWAP_LE_BE(hdr.count);
+		hdr.ts_sec = GUINT32_SWAP_LE_BE(hdr.ts_sec);
+		hdr.ts_usec = GUINT32_SWAP_LE_BE(hdr.ts_usec);
+	}
+
 	if (hdr.length < sizeof(hdr)) {
 		*err = WTAP_ERR_BAD_FILE;	/* record length < header! */
 		*err_info = g_strdup_printf("i4btrace: record length %u < header length %lu",
@@ -152,21 +189,14 @@ static gboolean i4btrace_read(wtap *wth, int *err, gchar **err_info,
 		return FALSE;
 	}
 
-	wth->phdr.presence_flags = WTAP_HAS_TS;
+	phdr->rec_type = REC_TYPE_PACKET;
+	phdr->presence_flags = WTAP_HAS_TS;
 
-	wth->phdr.len = length;
-	wth->phdr.caplen = length;
+	phdr->len = length;
+	phdr->caplen = length;
 
-	wth->phdr.ts.secs = hdr.ts_sec;
-	wth->phdr.ts.nsecs = hdr.ts_usec * 1000;
-
-	/*
-	 * Read the packet data.
-	 */
-	buffer_assure_space(wth->frame_buffer, length);
-	bufp = buffer_start_ptr(wth->frame_buffer);
-	if (!i4b_read_rec_data(wth->fh, bufp, length, err, err_info))
-		return FALSE;	/* Read error */
+	phdr->ts.secs = hdr.ts_sec;
+	phdr->ts.nsecs = hdr.ts_usec * 1000;
 
 	switch (hdr.type) {
 
@@ -176,139 +206,38 @@ static gboolean i4btrace_read(wtap *wth, int *err, gchar **err_info,
 		 * as that means it has a 4-byte AF_ type as the
 		 * encapsulation header.
 		 */
-		wth->phdr.pkt_encap = WTAP_ENCAP_NULL;
+		phdr->pkt_encap = WTAP_ENCAP_NULL;
 		break;
-
-	case TRC_CH_D:
-	case TRC_CH_B1:
-	case TRC_CH_B2:
-		/*
-		 * D or B channel.
-		 */
-		wth->phdr.pkt_encap = WTAP_ENCAP_ISDN;
-		break;
-	}
-
-	i4b_set_pseudo_header(&hdr, &wth->phdr.pseudo_header);
-
-	return TRUE;
-}
-
-static gboolean
-i4btrace_seek_read(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
-    int *err, gchar **err_info)
-{
-	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
-	int	ret;
-	i4b_trace_hdr_t hdr;
-
-	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
-		return FALSE;
-
-	/* Read record header. */
-	ret = i4b_read_rec_header(wth->random_fh, &hdr, err, err_info);
-	if (ret <= 0) {
-		/* Read error or EOF */
-		if (ret == 0) {
-			/* EOF means "short read" in random-access mode */
-			*err = WTAP_ERR_SHORT_READ;
-		}
-		return FALSE;
-	}
-	i4b_byte_swap_header(wth, &hdr);
-
-	i4b_set_pseudo_header(&hdr, pseudo_header);
-
-	/*
-	 * Read the packet data.
-	 */
-	return i4b_read_rec_data(wth->random_fh, pd, length, err, err_info);
-}
-
-static int
-i4b_read_rec_header(FILE_T fh, i4b_trace_hdr_t *hdr, int *err, gchar **err_info)
-{
-	int	bytes_read;
-
-	errno = WTAP_ERR_CANT_READ;
-	bytes_read = file_read(hdr, sizeof *hdr, fh);
-	if (bytes_read != sizeof *hdr) {
-		*err = file_error(fh, err_info);
-		if (*err != 0)
-			return -1;
-		if (bytes_read != 0) {
-			*err = WTAP_ERR_SHORT_READ;
-			return -1;
-		}
-		return 0;
-	}
-	return 1;
-}
-
-static void
-i4b_byte_swap_header(wtap *wth, i4b_trace_hdr_t *hdr)
-{
-	i4btrace_t *i4btrace = (i4btrace_t *)wth->priv;
-
-	if (i4btrace->byte_swapped) {
-		/*
-		 * Byte-swap the header.
-		 */
-		hdr->length = BSWAP32(hdr->length);
-		hdr->unit = BSWAP32(hdr->unit);
-		hdr->type = BSWAP32(hdr->type);
-		hdr->dir = BSWAP32(hdr->dir);
-		hdr->trunc = BSWAP32(hdr->trunc);
-		hdr->count = BSWAP32(hdr->count);
-		hdr->ts_sec = BSWAP32(hdr->ts_sec);
-		hdr->ts_usec = BSWAP32(hdr->ts_usec);
-	}
-}
-
-static gboolean
-i4b_read_rec_data(FILE_T fh, guint8 *pd, int length, int *err, gchar **err_info)
-{
-	int	bytes_read;
-
-	errno = WTAP_ERR_CANT_READ;
-	bytes_read = file_read(pd, length, fh);
-
-	if (bytes_read != length) {
-		*err = file_error(fh, err_info);
-		if (*err == 0)
-			*err = WTAP_ERR_SHORT_READ;
-		return FALSE;
-	}
-	return TRUE;
-}
-
-static void
-i4b_set_pseudo_header(i4b_trace_hdr_t *hdr,
-    union wtap_pseudo_header *pseudo_header)
-{
-	pseudo_header->isdn.uton = (hdr->dir == FROM_TE);
-	switch (hdr->type) {
 
 	case TRC_CH_D:
 		/*
 		 * D channel, so it's LAPD; set "p2p.sent".
 		 */
-		pseudo_header->isdn.channel = 0;
+		phdr->pkt_encap = WTAP_ENCAP_ISDN;
+		phdr->pseudo_header.isdn.channel = 0;
 		break;
 
 	case TRC_CH_B1:
 		/*
 		 * B channel 1.
 		 */
-		pseudo_header->isdn.channel = 1;
+		phdr->pkt_encap = WTAP_ENCAP_ISDN;
+		phdr->pseudo_header.isdn.channel = 1;
 		break;
 
 	case TRC_CH_B2:
 		/*
 		 * B channel 2.
 		 */
-		pseudo_header->isdn.channel = 2;
+		phdr->pkt_encap = WTAP_ENCAP_ISDN;
+		phdr->pseudo_header.isdn.channel = 2;
 		break;
 	}
+
+	phdr->pseudo_header.isdn.uton = (hdr.dir == FROM_TE);
+
+	/*
+	 * Read the packet data.
+	 */
+	return wtap_read_packet_bytes(fh, buf, length, err, err_info);
 }

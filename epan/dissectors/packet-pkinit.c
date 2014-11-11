@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-pkinit.c                                                            */
 /* ../../tools/asn2wrs.py -b -p pkinit -c ./pkinit.cnf -s ./packet-pkinit-template -D . -O ../../epan/dissectors PKINIT.asn */
 
@@ -9,8 +9,6 @@
 /* packet-pkinit.c
  * Routines for PKINIT packet dissection
  *  Ronnie Sahlberg 2004
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -47,6 +45,9 @@
 #define PSNAME "PKInit"
 #define PFNAME "pkinit"
 
+void proto_register_pkinit(void);
+void proto_reg_handoff_pkinit(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_pkinit = -1;
 
@@ -78,7 +79,7 @@ static int hf_pkinit_dhNonce = -1;                /* INTEGER */
 static int hf_pkinit_dhKeyExpiration = -1;        /* KerberosTime */
 
 /*--- End of included file: packet-pkinit-hf.c ---*/
-#line 45 "../../asn1/pkinit/packet-pkinit-template.c"
+#line 46 "../../asn1/pkinit/packet-pkinit-template.c"
 
 /* Initialize the subtree pointers */
 
@@ -95,7 +96,7 @@ static gint ett_pkinit_PaPkAsRep = -1;
 static gint ett_pkinit_KDCDHKeyInfo = -1;
 
 /*--- End of included file: packet-pkinit-ett.c ---*/
-#line 48 "../../asn1/pkinit/packet-pkinit-template.c"
+#line 49 "../../asn1/pkinit/packet-pkinit-template.c"
 
 static int dissect_KerberosV5Spec2_KerberosTime(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset,  asn1_ctx_t *actx, proto_tree *tree, int hf_index _U_);
 static int dissect_KerberosV5Spec2_Checksum(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset,  asn1_ctx_t *actx, proto_tree *tree, int hf_index _U_);
@@ -306,7 +307,7 @@ static void dissect_KDCDHKeyInfo_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, 
 
 
 /*--- End of included file: packet-pkinit-fn.c ---*/
-#line 55 "../../asn1/pkinit/packet-pkinit-template.c"
+#line 56 "../../asn1/pkinit/packet-pkinit-template.c"
 
 int
 dissect_pkinit_PA_PK_AS_REQ(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_ctx_t *actx _U_) {
@@ -354,19 +355,19 @@ void proto_register_pkinit(void) {
 /*--- Included file: packet-pkinit-hfarr.c ---*/
 #line 1 "../../asn1/pkinit/packet-pkinit-hfarr.c"
     { &hf_pkinit_AuthPack_PDU,
-      { "AuthPack", "pkinit.AuthPack",
+      { "AuthPack", "pkinit.AuthPack_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkinit_KRB5PrincipalName_PDU,
-      { "KRB5PrincipalName", "pkinit.KRB5PrincipalName",
+      { "KRB5PrincipalName", "pkinit.KRB5PrincipalName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkinit_KDCDHKeyInfo_PDU,
-      { "KDCDHKeyInfo", "pkinit.KDCDHKeyInfo",
+      { "KDCDHKeyInfo", "pkinit.KDCDHKeyInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkinit_signedAuthPack,
-      { "signedAuthPack", "pkinit.signedAuthPack",
+      { "signedAuthPack", "pkinit.signedAuthPack_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ContentInfo", HFILL }},
     { &hf_pkinit_trustedCertifiers,
@@ -378,7 +379,7 @@ void proto_register_pkinit(void) {
         FT_UINT32, BASE_DEC, VALS(pkinit_TrustedCA_vals), 0,
         NULL, HFILL }},
     { &hf_pkinit_kdcCert,
-      { "kdcCert", "pkinit.kdcCert",
+      { "kdcCert", "pkinit.kdcCert_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "IssuerAndSerialNumber", HFILL }},
     { &hf_pkinit_caName,
@@ -386,15 +387,15 @@ void proto_register_pkinit(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Name", HFILL }},
     { &hf_pkinit_issuerAndSerial,
-      { "issuerAndSerial", "pkinit.issuerAndSerial",
+      { "issuerAndSerial", "pkinit.issuerAndSerial_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "IssuerAndSerialNumber", HFILL }},
     { &hf_pkinit_pkAuthenticator,
-      { "pkAuthenticator", "pkinit.pkAuthenticator",
+      { "pkAuthenticator", "pkinit.pkAuthenticator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkinit_clientPublicValue,
-      { "clientPublicValue", "pkinit.clientPublicValue",
+      { "clientPublicValue", "pkinit.clientPublicValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SubjectPublicKeyInfo", HFILL }},
     { &hf_pkinit_supportedCMSTypes,
@@ -402,7 +403,7 @@ void proto_register_pkinit(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_AlgorithmIdentifier", HFILL }},
     { &hf_pkinit_supportedCMSTypes_item,
-      { "AlgorithmIdentifier", "pkinit.AlgorithmIdentifier",
+      { "AlgorithmIdentifier", "pkinit.AlgorithmIdentifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkinit_cusec,
@@ -410,7 +411,7 @@ void proto_register_pkinit(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_pkinit_ctime,
-      { "ctime", "pkinit.ctime",
+      { "ctime", "pkinit.ctime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "KerberosTime", HFILL }},
     { &hf_pkinit_paNonce,
@@ -418,23 +419,23 @@ void proto_register_pkinit(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_4294967295", HFILL }},
     { &hf_pkinit_paChecksum,
-      { "paChecksum", "pkinit.paChecksum",
+      { "paChecksum", "pkinit.paChecksum_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Checksum", HFILL }},
     { &hf_pkinit_realm,
-      { "realm", "pkinit.realm",
+      { "realm", "pkinit.realm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkinit_principalName,
-      { "principalName", "pkinit.principalName",
+      { "principalName", "pkinit.principalName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_pkinit_dhSignedData,
-      { "dhSignedData", "pkinit.dhSignedData",
+      { "dhSignedData", "pkinit.dhSignedData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ContentInfo", HFILL }},
     { &hf_pkinit_encKeyPack,
-      { "encKeyPack", "pkinit.encKeyPack",
+      { "encKeyPack", "pkinit.encKeyPack_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ContentInfo", HFILL }},
     { &hf_pkinit_subjectPublicKey,
@@ -446,12 +447,12 @@ void proto_register_pkinit(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_pkinit_dhKeyExpiration,
-      { "dhKeyExpiration", "pkinit.dhKeyExpiration",
+      { "dhKeyExpiration", "pkinit.dhKeyExpiration_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "KerberosTime", HFILL }},
 
 /*--- End of included file: packet-pkinit-hfarr.c ---*/
-#line 99 "../../asn1/pkinit/packet-pkinit-template.c"
+#line 100 "../../asn1/pkinit/packet-pkinit-template.c"
   };
 
   /* List of subtrees */
@@ -470,7 +471,7 @@ void proto_register_pkinit(void) {
     &ett_pkinit_KDCDHKeyInfo,
 
 /*--- End of included file: packet-pkinit-ettarr.c ---*/
-#line 104 "../../asn1/pkinit/packet-pkinit-template.c"
+#line 105 "../../asn1/pkinit/packet-pkinit-template.c"
   };
 
   /* Register protocol */
@@ -494,6 +495,6 @@ void proto_reg_handoff_pkinit(void) {
 
 
 /*--- End of included file: packet-pkinit-dis-tab.c ---*/
-#line 119 "../../asn1/pkinit/packet-pkinit-template.c"
+#line 120 "../../asn1/pkinit/packet-pkinit-template.c"
 }
 

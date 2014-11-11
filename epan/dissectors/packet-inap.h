@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-inap.h                                                              */
 /* ../../tools/asn2wrs.py -b -p inap -c ./inap.cnf -s ./packet-inap-template -D . -O ../../epan/dissectors IN-common-classes.asn IN-SSF-SCF-Classes.asn IN-SCF-SRF-Classes.asn IN-operationcodes.asn IN-object-identifiers.asn IN-common-datatypes.asn IN-SSF-SCF-datatypes.asn IN-SSF-SCF-ops-args.asn IN-SCF-SRF-datatypes.asn IN-SCF-SRF-ops-args.asn IN-errorcodes.asn IN-errortypes.asn ../ros/Remote-Operations-Information-Objects.asn ../ros/Remote-Operations-Generic-ROS-PDUs.asn */
 
@@ -7,8 +7,6 @@
 
 #line 1 "../../asn1/inap/packet-inap-template.h"
 /* packet-inap.h
- *
- * $Id$
  *
  * Copyright 2004, Tim Endean <endeant@hotmail.com>
  *
@@ -54,6 +52,6 @@ int dissect_inap_RedirectionInformation(gboolean implicit_tag _U_, tvbuff_t *tvb
 int dissect_inap_ServiceKey(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_);
 
 /*--- End of included file: packet-inap-exp.h ---*/
-#line 31 "../../asn1/inap/packet-inap-template.h"
+#line 29 "../../asn1/inap/packet-inap-template.h"
 
 #endif  /* PACKET_INAP_H */

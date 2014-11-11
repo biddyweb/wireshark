@@ -2,8 +2,6 @@
  * Routines for Microsoft Proxy packet dissection
  * Copyright 2000, Jeffrey C. Foster <jfoste@woodward.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,13 +27,13 @@
  */
 
 /************************************************************************
- *									*
- *  Notes: These are possible command values. User input is welcome 	*
- *									*
- *  Command = 0x040a - Remote host closed connection (maybe ?? )	*
- *  Command = 0x0411 - Remote host closed connection			*
- *  Command = 0x0413 - Local host closed connection or SYN worked	*
- *									*
+ *                                                                      *
+ *  Notes: These are possible command values. User input is welcome     *
+ *                                                                      *
+ *  Command = 0x040a - Remote host closed connection (maybe ?? )        *
+ *  Command = 0x0411 - Remote host closed connection                    *
+ *  Command = 0x0413 - Local host closed connection or SYN worked       *
+ *                                                                      *
  ************************************************************************/
 
 
@@ -49,14 +47,14 @@
 #include <epan/packet.h>
 #include <epan/addr_resolv.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 
 #include "packet-tcp.h"
 #include "packet-udp.h"
 
-extern void udp_hash_add(guint16 proto,
-        void (*dissect)(const guchar *, int, frame_data *, proto_tree *));
+void proto_register_msproxy(void);
+void proto_reg_handoff_msproxy(void);
 
 
 static int proto_msproxy = -1;
@@ -92,6 +90,9 @@ static int hf_msproxy_server_int_addr = -1;
 static int hf_msproxy_server_int_port = -1;
 static int hf_msproxy_server_ext_addr = -1;
 static int hf_msproxy_server_ext_port = -1;
+
+static expert_field ei_msproxy_unknown = EI_INIT;
+static expert_field ei_msproxy_unhandled = EI_INIT;
 
 static dissector_handle_t msproxy_sub_handle;
 
@@ -206,13 +207,12 @@ static void msproxy_sub_dissector( tvbuff_t *tvb, packet_info *pinfo,
 
 	DISSECTOR_ASSERT( conversation);	/* should always find a conversation */
 
-	redirect_info = conversation_get_proto_data(conversation,
+	redirect_info = (redirect_entry_t *)conversation_get_proto_data(conversation,
 		proto_msproxy);
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "MS Proxy");
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_set_str(pinfo->cinfo, COL_INFO,
+	col_set_str(pinfo->cinfo, COL_INFO,
 			(( redirect_info->proto == PT_TCP) ? "TCP stream" :
 			 "UDP packets"));
 
@@ -230,7 +230,7 @@ static void msproxy_sub_dissector( tvbuff_t *tvb, packet_info *pinfo,
 
 	}
 
-/* set pinfo->{src/dst port} and call the UDP sub-dissector lookup */
+/* set pinfo->{src/dst port} and call the TCP or UDP sub-dissector lookup */
 
 	if ( pinfo->srcport == redirect_info->clnt_port)
        		ptr = &pinfo->destport;
@@ -241,7 +241,7 @@ static void msproxy_sub_dissector( tvbuff_t *tvb, packet_info *pinfo,
 
 	if ( redirect_info->proto == PT_TCP)
 		decode_tcp_ports( tvb, 0, pinfo, tree, pinfo->srcport,
-			pinfo->destport, NULL);
+			pinfo->destport, NULL, NULL);
 	else
 		decode_udp_ports( tvb, 0, pinfo, tree, pinfo->srcport,
 			pinfo->destport, -1);
@@ -277,17 +277,17 @@ static void add_msproxy_conversation( packet_info *pinfo,
 	}
 
 	conversation = find_conversation( pinfo->fd->num, &pinfo->src,
-		&pinfo->dst, hash_info->proto, hash_info->server_int_port,
+		&pinfo->dst, (port_type)hash_info->proto, hash_info->server_int_port,
 		hash_info->clnt_port, 0);
 
 	if ( !conversation) {
 		conversation = conversation_new( pinfo->fd->num, &pinfo->src, &pinfo->dst,
-			hash_info->proto, hash_info->server_int_port,
+			(port_type)hash_info->proto, hash_info->server_int_port,
 			hash_info->clnt_port, 0);
 	}
 	conversation_set_dissector(conversation, msproxy_sub_handle);
 
-	new_conv_info = se_alloc(sizeof(redirect_entry_t));
+	new_conv_info = wmem_new(wmem_file_scope(), redirect_entry_t);
 
 	new_conv_info->remote_addr = hash_info->dst_addr;
 	new_conv_info->clnt_port = hash_info->clnt_port;
@@ -312,7 +312,7 @@ static int display_application_name(tvbuff_t *tvb, int offset,
 
 	length = tvb_strnlen( tvb, offset, 255);
 	proto_tree_add_text( tree, tvb, offset, length, "Application: %.*s",
-		length, tvb_get_ephemeral_string( tvb, offset, length));
+		length, tvb_get_string( wmem_packet_scope(),  tvb, offset, length));
 
 	return length;
 }
@@ -375,7 +375,7 @@ static void dissect_user_info_2(tvbuff_t *tvb, int offset,
 			return;
 		proto_tree_add_text( tree, tvb, offset, length + 1,
 			"User name: %.*s", length,
-			tvb_get_ephemeral_string( tvb, offset, length));
+			tvb_get_string( wmem_packet_scope(),  tvb, offset, length));
 		offset += length + 2;
 
 		length = tvb_strnlen( tvb, offset, 255);
@@ -383,7 +383,7 @@ static void dissect_user_info_2(tvbuff_t *tvb, int offset,
 			return;
 		proto_tree_add_text( tree, tvb, offset, length + 1,
 			"Application name: %.*s", length,
-			tvb_get_ephemeral_string( tvb, offset, length));
+			tvb_get_string( wmem_packet_scope(),  tvb, offset, length));
 		offset += length + 1;
 
 		length = tvb_strnlen( tvb, offset, 255);
@@ -391,7 +391,7 @@ static void dissect_user_info_2(tvbuff_t *tvb, int offset,
 			return;
 		proto_tree_add_text( tree, tvb, offset, length + 1,
 			"Client computer name: %.*s", length,
-			tvb_get_ephemeral_string( tvb, offset, length));
+			tvb_get_string( wmem_packet_scope(),  tvb, offset, length));
 	}
 }
 
@@ -580,7 +580,7 @@ static void dissect_request_resolve(tvbuff_t *tvb, int offset,
 	if ( tree){
   	 	ti = proto_tree_add_text(tree, tvb, offset, length + 1,
    		 	"Host Name: %.*s", length,
-   		 	tvb_get_ephemeral_string( tvb, offset + 18, length));
+   		 	tvb_get_string( wmem_packet_scope(),  tvb, offset + 18, length));
 
 		name_tree = proto_item_add_subtree(ti, ett_msproxy_name);
 
@@ -591,7 +591,7 @@ static void dissect_request_resolve(tvbuff_t *tvb, int offset,
 		offset += 17;
 
 		proto_tree_add_text( name_tree, tvb, offset, length, "String: %s",
-   		 	tvb_get_ephemeral_string( tvb, offset, length));
+   		 	tvb_get_string( wmem_packet_scope(),  tvb, offset, length));
 	}
 }
 
@@ -684,8 +684,8 @@ static void dissect_msproxy_request(tvbuff_t *tvb,
 	cmd = tvb_get_ntohs( tvb, offset);
 
 	if ( tree)
-		proto_tree_add_uint_format( tree, hf_msproxy_cmd, tvb, offset, 2,
-			cmd, "Command: %s (0x%02x)",
+		proto_tree_add_uint_format_value( tree, hf_msproxy_cmd, tvb, offset, 2,
+			cmd, "%s (0x%02x)",
 			get_msproxy_cmd_name( cmd, FROM_CLIENT),
 			cmd);
 
@@ -811,7 +811,7 @@ static void dissect_auth_1_ack(tvbuff_t *tvb, int offset,
 
 		/* XXX - always 255? */
 		proto_tree_add_text( tree, tvb, offset, 255, "NT domain: %.255s",
-			tvb_get_ephemeral_string( tvb, offset, 255));
+			tvb_get_string( wmem_packet_scope(),  tvb, offset, 255));
 	}
 }
 
@@ -1004,8 +1004,8 @@ static void dissect_msproxy_response(tvbuff_t *tvb, packet_info *pinfo,
 
 	cmd = tvb_get_ntohs( tvb, offset);
 
-	ti = proto_tree_add_uint_format( tree, hf_msproxy_cmd, tvb, offset, 2,
-			cmd, "Command: 0x%02x (%s)", cmd,
+	ti = proto_tree_add_uint_format_value( tree, hf_msproxy_cmd, tvb, offset, 2,
+			cmd, "0x%02x (%s)", cmd,
 			get_msproxy_cmd_name( cmd, FROM_SERVER));
 	offset += 2;
 
@@ -1052,16 +1052,16 @@ static void dissect_msproxy_response(tvbuff_t *tvb, packet_info *pinfo,
 
 		case MSPROXY_CONNECT_AUTHFAILED:
 		case MSPROXY_BIND_AUTHFAILED:
-			expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN, "No know information (help wanted)");
+			expert_add_info(pinfo, ti, &ei_msproxy_unknown);
 			break;
 
 		default:
 
 			if ((((cmd >> 8) ==  MSPROXY_CONNREFUSED) ||
 				((cmd >> 12) ==  MSPROXY_CONNREFUSED)))
-				expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN, "No know information (help wanted)");
+				expert_add_info(pinfo, ti, &ei_msproxy_unknown);
 			else
-				expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN, "Unhandled response command (report this, please)");                
+				expert_add_info(pinfo, ti, &ei_msproxy_unhandled);
 	}
 
 
@@ -1072,7 +1072,7 @@ static void dissect_msproxy_response(tvbuff_t *tvb, packet_info *pinfo,
 static void dissect_msproxy(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
 
 
-	proto_tree      *msproxy_tree = NULL;
+	proto_tree      *msproxy_tree;
 	proto_item      *ti;
 	unsigned int	cmd;
 
@@ -1085,32 +1085,24 @@ static void dissect_msproxy(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	conversation = find_or_create_conversation(pinfo);
 
-	hash_info = conversation_get_proto_data(conversation, proto_msproxy);
+	hash_info = (hash_entry_t *)conversation_get_proto_data(conversation, proto_msproxy);
 	if ( !hash_info) {
-    		hash_info = se_alloc(sizeof(hash_entry_t));
+    		hash_info = wmem_new(wmem_file_scope(), hash_entry_t);
 		conversation_add_proto_data(conversation, proto_msproxy,
 			hash_info);
 	}
 
-	if (check_col(pinfo->cinfo, COL_INFO)){
+	cmd = tvb_get_ntohs( tvb, 36);
 
-		cmd = tvb_get_ntohs( tvb, 36);
+	if ( pinfo->srcport == UDP_PORT_MSPROXY)
+		col_add_fstr( pinfo->cinfo, COL_INFO, "Server message: %s",
+			get_msproxy_cmd_name( cmd, FROM_SERVER));
+	else
+		col_add_fstr(pinfo->cinfo, COL_INFO, "Client message: %s",
+			get_msproxy_cmd_name( cmd, FROM_CLIENT));
 
-		if ( pinfo->srcport == UDP_PORT_MSPROXY)
-			col_add_fstr( pinfo->cinfo, COL_INFO, "Server message: %s",
-				get_msproxy_cmd_name( cmd, FROM_SERVER));
-		else
-			col_add_fstr(pinfo->cinfo, COL_INFO, "Client message: %s",
-				get_msproxy_cmd_name( cmd, FROM_CLIENT));
-
-	}
-
-	if (tree) {				/* if proto tree, decode data */
-    		ti = proto_tree_add_item( tree, proto_msproxy, tvb, 0, -1,
-    				ENC_NA );
-
-		msproxy_tree = proto_item_add_subtree(ti, ett_msproxy);
-	}
+	ti = proto_tree_add_item( tree, proto_msproxy, tvb, 0, -1, ENC_NA );
+	msproxy_tree = proto_item_add_subtree(ti, ett_msproxy);
 
 	if ( pinfo->srcport == UDP_PORT_MSPROXY)
 		dissect_msproxy_response( tvb, pinfo, msproxy_tree, hash_info);
@@ -1270,11 +1262,19 @@ proto_register_msproxy( void){
 		},
 	};
 
-	proto_msproxy = proto_register_protocol( "MS Proxy Protocol",
-		"MS Proxy", "msproxy");
+	static ei_register_info ei[] = {
+		{ &ei_msproxy_unknown, { "msproxy.unknown", PI_UNDECODED, PI_WARN, "No know information (help wanted)", EXPFILL }},
+		{ &ei_msproxy_unhandled, { "msproxy.command.unhandled", PI_UNDECODED, PI_WARN, "Unhandled response command (report this, please)", EXPFILL }},
+	};
+
+	expert_module_t* expert_msproxy;
+
+	proto_msproxy = proto_register_protocol( "MS Proxy Protocol", "MS Proxy", "msproxy");
 
 	proto_register_field_array(proto_msproxy, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_msproxy = expert_register_protocol(proto_msproxy);
+	expert_register_field_array(expert_msproxy, ei, array_length(ei));
 
 	register_init_routine( &msproxy_reinit);	/* register re-init routine */
 

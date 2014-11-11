@@ -10,8 +10,6 @@
  *                     - David Buechi <bhd@zhwin.ch>
  *
  *
- * $Id$
- *
  * A dissector for:
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -39,6 +37,8 @@
 #include <epan/etypes.h>
 #include <epan/emem.h>
 
+void proto_register_epl_v1(void);
+void proto_reg_handoff_epl_v1(void);
 
 /* Offsets of fields within an EPL_V1 packet. */
 #define EPL_V1_SERVICE_OFFSET                     0   /* same offset for all message types*/
@@ -190,7 +190,7 @@ static int hf_epl_v1_asnd_poll_out_size           = -1;
 static gint ett_epl_v1 = -1;
 
 
-gint
+static gint
 dissect_epl_v1_soc(proto_tree *epl_v1_tree, tvbuff_t *tvb, gint offset)
 {
 	proto_tree_add_item(epl_v1_tree, hf_epl_v1_soc_ms, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -213,7 +213,7 @@ dissect_epl_v1_soc(proto_tree *epl_v1_tree, tvbuff_t *tvb, gint offset)
 }
 
 
-gint
+static gint
 dissect_epl_v1_eoc(proto_tree *epl_v1_tree, tvbuff_t *tvb, gint offset)
 {
 	offset += 1;
@@ -228,7 +228,7 @@ dissect_epl_v1_eoc(proto_tree *epl_v1_tree, tvbuff_t *tvb, gint offset)
 }
 
 
-gint
+static gint
 dissect_epl_v1_preq(proto_tree *epl_v1_tree, tvbuff_t *tvb, gint offset)
 {
 	guint16 len;
@@ -252,7 +252,7 @@ dissect_epl_v1_preq(proto_tree *epl_v1_tree, tvbuff_t *tvb, gint offset)
 
 
 
-gint
+static gint
 dissect_epl_v1_pres(proto_tree *epl_v1_tree, tvbuff_t *tvb, gint offset)
 {
 	guint16 len;
@@ -280,7 +280,7 @@ dissect_epl_v1_pres(proto_tree *epl_v1_tree, tvbuff_t *tvb, gint offset)
 
 
 
-gint
+static gint
 dissect_epl_v1_ainv(proto_tree *epl_v1_tree, tvbuff_t *tvb, gint offset)
 {
 	proto_tree_add_item(epl_v1_tree, hf_epl_v1_ainv_channel, tvb, offset, 1, ENC_LITTLE_ENDIAN);
@@ -291,7 +291,7 @@ dissect_epl_v1_ainv(proto_tree *epl_v1_tree, tvbuff_t *tvb, gint offset)
 
 
 
-gint
+static gint
 dissect_epl_v1_asnd(proto_tree *epl_v1_tree, tvbuff_t *tvb, gint offset)
 {
 	guint8  epl_v1_asnd_channel;

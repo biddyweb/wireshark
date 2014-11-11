@@ -1,8 +1,6 @@
-/* packet-aim.c
+/* packet-aim-chatnav.c
  * Routines for AIM Instant Messenger (OSCAR) dissection
  * Copyright 2004, Jelmer Vernooij <jelmer@samba.org>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>

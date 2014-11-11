@@ -3,8 +3,6 @@
  * IETF draft draft-zimmermann-avt-zrtp-22
  * Copyright 2007, Sagar Pai <sagar@gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,9 +30,13 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/strutil.h>
+#include <epan/wmem/wmem.h>
 #include <wsutil/crc32.h>
 #include "packet-rtp.h"
 #include "packet-rtcp.h"
+
+void proto_reg_handoff_zrtp(void);
+void proto_register_zrtp(void);
 
 /*
   RTP header
@@ -296,7 +298,7 @@ key_to_val(const gchar *key, int keylen, const value_string_keyval *kv, const gc
     }
     i++;
   }
-  return ep_strdup_printf(fmt, key);
+  return wmem_strdup_printf(wmem_packet_scope(), fmt, key);
 }
 
 static const gchar *
@@ -459,7 +461,7 @@ static void
 dissect_Conf2ACK(packet_info *pinfo) {
 
   /* Signals start of SRT(C)P streams */
-  struct srtp_info *dummy_srtp_info = se_alloc0(sizeof(struct srtp_info));
+  struct srtp_info *dummy_srtp_info = wmem_new0(wmem_file_scope(), struct srtp_info);
 
   dummy_srtp_info->encryption_algorithm = SRTP_ENC_ALG_AES_CM;
   dummy_srtp_info->auth_algorithm = SRTP_AUTH_ALG_HMAC_SHA1;
@@ -593,11 +595,11 @@ dissect_Commit(tvbuff_t *tvb, packet_info *pinfo, proto_tree *zrtp_tree) {
   proto_tree_add_item(zrtp_tree, hf_zrtp_msg_zid, tvb, data_offset+0, 12, ENC_NA);
   tvb_memcpy(tvb, (void *)value, data_offset+12, 4);
   value[4] = '\0';
-  proto_tree_add_string_format(zrtp_tree, hf_zrtp_msg_hash, tvb, data_offset+12, 4, value,
-                                  "Hash: %s", key_to_val(value, 4, zrtp_hash_type_vals, "Unknown hash type %s"));
+  proto_tree_add_string_format_value(zrtp_tree, hf_zrtp_msg_hash, tvb, data_offset+12, 4, value,
+                                  "%s", key_to_val(value, 4, zrtp_hash_type_vals, "Unknown hash type %s"));
   tvb_memcpy(tvb, (void *)value, data_offset+16, 4);
   value[4] = '\0';
-  proto_tree_add_string_format(zrtp_tree, hf_zrtp_msg_cipher, tvb, data_offset+16, 4, value, "Cipher: %s",
+  proto_tree_add_string_format_value(zrtp_tree, hf_zrtp_msg_cipher, tvb, data_offset+16, 4, value, "%s",
                                   key_to_val(value, 4, zrtp_cipher_type_vals, "Unknown cipher type %s"));
   tvb_memcpy(tvb, (void *)value, data_offset+20, 4);
   value[4] = '\0';
@@ -605,8 +607,8 @@ dissect_Commit(tvbuff_t *tvb, packet_info *pinfo, proto_tree *zrtp_tree) {
                                   "Auth tag: %s", key_to_val(value, 4, zrtp_auth_tag_vals, "Unknown auth tag %s"));
   tvb_memcpy(tvb, (void *)value, data_offset+24, 4);
   value[4] = '\0';
-  proto_tree_add_string_format(zrtp_tree, hf_zrtp_msg_keya, tvb, data_offset+24, 4, value,
-                                  "Key agreement: %s", key_to_val(value, 4, zrtp_key_agreement_vals, "Unknown key agreement %s"));
+  proto_tree_add_string_format_value(zrtp_tree, hf_zrtp_msg_keya, tvb, data_offset+24, 4, value,
+                                  "%s", key_to_val(value, 4, zrtp_key_agreement_vals, "Unknown key agreement %s"));
 
   if(!strncmp(value, "Mult", 4)) {
     key_type = 1;

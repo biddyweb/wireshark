@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-disp.c                                                              */
 /* ../../tools/asn2wrs.py -b -p disp -c ./disp.cnf -s ./packet-disp-template -D . -O ../../epan/dissectors disp.asn */
 
@@ -9,8 +9,6 @@
 /* packet-disp.c
  * Routines for X.525 (X.500 Directory Shadow Asbtract Service) and X.519 DISP packet dissection
  * Graeme Lunt 2005
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -61,6 +59,9 @@
 #define PSNAME "DISP"
 #define PFNAME "disp"
 
+void proto_register_disp(void);
+void proto_reg_handoff_disp(void);
+
 static guint global_disp_tcp_port = 102;
 static dissector_handle_t tpkt_handle;
 static void prefs_register_disp(void); /* forward declaration for use in preferences registration */
@@ -68,8 +69,6 @@ static void prefs_register_disp(void); /* forward declaration for use in prefere
 
 /* Initialize the protocol and registered fields */
 static int proto_disp = -1;
-
-static struct SESSION_DATA_STRUCTURE* session = NULL;
 
 
 /*--- Included file: packet-disp-hf.c ---*/
@@ -183,7 +182,7 @@ static int hf_disp_signedShadowError = -1;        /* T_signedShadowError */
 static int hf_disp_shadowError = -1;              /* ShadowErrorData */
 
 /*--- End of included file: packet-disp-hf.c ---*/
-#line 67 "../../asn1/disp/packet-disp-template.c"
+#line 66 "../../asn1/disp/packet-disp-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_disp = -1;
@@ -246,7 +245,7 @@ static gint ett_disp_ShadowError = -1;
 static gint ett_disp_T_signedShadowError = -1;
 
 /*--- End of included file: packet-disp-ett.c ---*/
-#line 71 "../../asn1/disp/packet-disp-template.c"
+#line 70 "../../asn1/disp/packet-disp-template.c"
 
 
 /*--- Included file: packet-disp-fn.c ---*/
@@ -656,7 +655,7 @@ static const value_string disp_StandardUpdate_vals[] = {
 
 static int
 dissect_disp_StandardUpdate(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 58 "../../asn1/disp/disp.cnf"
+#line 64 "../../asn1/disp/disp.cnf"
   guint32 update;
 
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
@@ -745,12 +744,6 @@ dissect_disp_T_signedCoordinateShadowUpdateArgument(gboolean implicit_tag _U_, t
   return offset;
 }
 
-
-static const value_string disp_CoordinateShadowUpdateArgument_vals[] = {
-  {   0, "unsignedCoordinateShadowUpdateArgument" },
-  {   1, "signedCoordinateShadowUpdateArgument" },
-  { 0, NULL }
-};
 
 static const ber_choice_t CoordinateShadowUpdateArgument_choice[] = {
   {   0, &hf_disp_unsignedCoordinateShadowUpdateArgument, BER_CLASS_CON, 0, BER_FLAGS_IMPLTAG, dissect_disp_CoordinateShadowUpdateArgumentData },
@@ -852,7 +845,7 @@ static const ber_choice_t CoordinateShadowUpdateResult_choice[] = {
 
 static int
 dissect_disp_CoordinateShadowUpdateResult(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 68 "../../asn1/disp/disp.cnf"
+#line 74 "../../asn1/disp/disp.cnf"
   guint32 update;
 
     offset = dissect_ber_choice(actx, tree, tvb, offset,
@@ -877,7 +870,7 @@ static const value_string disp_T_standard_vals[] = {
 
 static int
 dissect_disp_T_standard(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 38 "../../asn1/disp/disp.cnf"
+#line 44 "../../asn1/disp/disp.cnf"
   guint32 update;
 
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
@@ -947,12 +940,6 @@ dissect_disp_T_signedRequestShadowUpdateArgument(gboolean implicit_tag _U_, tvbu
 }
 
 
-static const value_string disp_RequestShadowUpdateArgument_vals[] = {
-  {   0, "unsignedRequestShadowUpdateArgument" },
-  {   1, "signedRequestShadowUpdateArgument" },
-  { 0, NULL }
-};
-
 static const ber_choice_t RequestShadowUpdateArgument_choice[] = {
   {   0, &hf_disp_unsignedRequestShadowUpdateArgument, BER_CLASS_CON, 0, BER_FLAGS_IMPLTAG, dissect_disp_RequestShadowUpdateArgumentData },
   {   1, &hf_disp_signedRequestShadowUpdateArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_disp_T_signedRequestShadowUpdateArgument },
@@ -983,7 +970,7 @@ static const ber_choice_t RequestShadowUpdateResult_choice[] = {
 
 static int
 dissect_disp_RequestShadowUpdateResult(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 78 "../../asn1/disp/disp.cnf"
+#line 84 "../../asn1/disp/disp.cnf"
   guint32 update;
 
     offset = dissect_ber_choice(actx, tree, tvb, offset,
@@ -1285,7 +1272,7 @@ static const ber_choice_t RefreshInformation_choice[] = {
 
 static int
 dissect_disp_RefreshInformation(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 48 "../../asn1/disp/disp.cnf"
+#line 54 "../../asn1/disp/disp.cnf"
   guint32 update;
 
     offset = dissect_ber_choice(actx, tree, tvb, offset,
@@ -1335,12 +1322,6 @@ dissect_disp_T_signedUpdateShadowArgument(gboolean implicit_tag _U_, tvbuff_t *t
 }
 
 
-static const value_string disp_UpdateShadowArgument_vals[] = {
-  {   0, "unsignedUpdateShadowArgument" },
-  {   1, "signedUpdateShadowArgument" },
-  { 0, NULL }
-};
-
 static const ber_choice_t UpdateShadowArgument_choice[] = {
   {   0, &hf_disp_unsignedUpdateShadowArgument, BER_CLASS_CON, 0, BER_FLAGS_IMPLTAG, dissect_disp_UpdateShadowArgumentData },
   {   1, &hf_disp_signedUpdateShadowArgument, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_disp_T_signedUpdateShadowArgument },
@@ -1371,7 +1352,7 @@ static const ber_choice_t UpdateShadowResult_choice[] = {
 
 static int
 dissect_disp_UpdateShadowResult(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 88 "../../asn1/disp/disp.cnf"
+#line 94 "../../asn1/disp/disp.cnf"
   guint32 update;
 
     offset = dissect_ber_choice(actx, tree, tvb, offset,
@@ -1405,7 +1386,7 @@ static const value_string disp_ShadowProblem_vals[] = {
 
 static int
 dissect_disp_ShadowProblem(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 98 "../../asn1/disp/disp.cnf"
+#line 104 "../../asn1/disp/disp.cnf"
   guint32 problem;
 
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
@@ -1455,12 +1436,6 @@ dissect_disp_T_signedShadowError(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 }
 
 
-static const value_string disp_ShadowError_vals[] = {
-  {   0, "unsignedShadowError" },
-  {   1, "signedShadowError" },
-  { 0, NULL }
-};
-
 static const ber_choice_t ShadowError_choice[] = {
   {   0, &hf_disp_unsignedShadowError, BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_disp_ShadowErrorData },
   {   1, &hf_disp_signedShadowError, BER_CLASS_CON, 0, BER_FLAGS_IMPLTAG, dissect_disp_T_signedShadowError },
@@ -1496,39 +1471,35 @@ static void dissect_ShadowingAgreementInfo_PDU(tvbuff_t *tvb _U_, packet_info *p
 
 
 /*--- End of included file: packet-disp-fn.c ---*/
-#line 73 "../../asn1/disp/packet-disp-template.c"
+#line 72 "../../asn1/disp/packet-disp-template.c"
 
 /*
 * Dissect DISP PDUs inside a ROS PDUs
 */
-static void
-dissect_disp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_disp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data)
 {
 	int offset = 0;
 	int old_offset;
-	proto_item *item=NULL;
-	proto_tree *tree=NULL;
+	proto_item *item;
+	proto_tree *tree;
+	struct SESSION_DATA_STRUCTURE* session;
 	int (*disp_dissector)(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset, asn1_ctx_t *actx, proto_tree *tree, int hf_index _U_) = NULL;
 	const char *disp_op_name;
 	asn1_ctx_t asn1_ctx;
 
+	/* do we have operation information from the ROS dissector */
+	if (data == NULL)
+		return 0;
+	session  = (struct SESSION_DATA_STRUCTURE*)data;
+
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
-	/* do we have operation information from the ROS dissector?  */
-	if( !pinfo->private_data ){
-		if(parent_tree){
-			proto_tree_add_text(parent_tree, tvb, offset, -1,
-				"Internal error: can't get operation information from ROS dissector.");
-		}
-		return  ;
-	} else {
-		session  = ( (struct SESSION_DATA_STRUCTURE*)(pinfo->private_data) );
-	}
+	asn1_ctx.private_data = session;
 
-	if(parent_tree){
-		item = proto_tree_add_item(parent_tree, proto_disp, tvb, 0, -1, ENC_NA);
-		tree = proto_item_add_subtree(item, ett_disp);
-	}
+	item = proto_tree_add_item(parent_tree, proto_disp, tvb, 0, -1, ENC_NA);
+	tree = proto_item_add_subtree(item, ett_disp);
+
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "DISP");
   	col_clear(pinfo->cinfo, COL_INFO);
 
@@ -1599,7 +1570,7 @@ dissect_disp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	  break;
 	default:
 	  proto_tree_add_text(tree, tvb, offset, -1,"Unsupported DISP PDU");
-	  return;
+	  return tvb_length(tvb);
 	}
 
 	if(disp_dissector) {
@@ -1614,6 +1585,8 @@ dissect_disp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	    }
 	  }
 	}
+
+	return tvb_length(tvb);
 }
 
 
@@ -1627,15 +1600,15 @@ void proto_register_disp(void) {
 /*--- Included file: packet-disp-hfarr.c ---*/
 #line 1 "../../asn1/disp/packet-disp-hfarr.c"
     { &hf_disp_EstablishParameter_PDU,
-      { "EstablishParameter", "disp.EstablishParameter",
+      { "EstablishParameter", "disp.EstablishParameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_ModificationParameter_PDU,
-      { "ModificationParameter", "disp.ModificationParameter",
+      { "ModificationParameter", "disp.ModificationParameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_ShadowingAgreementInfo_PDU,
-      { "ShadowingAgreementInfo", "disp.ShadowingAgreementInfo",
+      { "ShadowingAgreementInfo", "disp.ShadowingAgreementInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_modifiedSecondaryShadows,
@@ -1643,11 +1616,11 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_SupplierAndConsumers", HFILL }},
     { &hf_disp_modifiedSecondaryShadows_item,
-      { "SupplierAndConsumers", "disp.SupplierAndConsumers",
+      { "SupplierAndConsumers", "disp.SupplierAndConsumers_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_shadowSubject,
-      { "shadowSubject", "disp.shadowSubject",
+      { "shadowSubject", "disp.shadowSubject_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UnitOfReplication", HFILL }},
     { &hf_disp_updateMode,
@@ -1655,7 +1628,7 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, VALS(disp_UpdateMode_vals), 0,
         NULL, HFILL }},
     { &hf_disp_master,
-      { "master", "disp.master",
+      { "master", "disp.master_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AccessPoint", HFILL }},
     { &hf_disp_secondaryShadows,
@@ -1663,7 +1636,7 @@ void proto_register_disp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_disp_area,
-      { "area", "disp.area",
+      { "area", "disp.area_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AreaSpecification", HFILL }},
     { &hf_disp_replication_attributes,
@@ -1671,7 +1644,7 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "AttributeSelection", HFILL }},
     { &hf_disp_knowledge,
-      { "knowledge", "disp.knowledge",
+      { "knowledge", "disp.knowledge_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_subordinates,
@@ -1687,7 +1660,7 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, VALS(disp_T_supplyContexts_vals), 0,
         NULL, HFILL }},
     { &hf_disp_allContexts,
-      { "allContexts", "disp.allContexts",
+      { "allContexts", "disp.allContexts_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_selectedContexts,
@@ -1703,7 +1676,7 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "DistinguishedName", HFILL }},
     { &hf_disp_replicationArea,
-      { "replicationArea", "disp.replicationArea",
+      { "replicationArea", "disp.replicationArea_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SubtreeSpecification", HFILL }},
     { &hf_disp_knowledgeType,
@@ -1715,7 +1688,7 @@ void proto_register_disp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_disp_AttributeSelection_item,
-      { "ClassAttributeSelection", "disp.ClassAttributeSelection",
+      { "ClassAttributeSelection", "disp.ClassAttributeSelection_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_class,
@@ -1727,7 +1700,7 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, VALS(disp_ClassAttributes_vals), 0,
         NULL, HFILL }},
     { &hf_disp_allAttributes,
-      { "allAttributes", "disp.allAttributes",
+      { "allAttributes", "disp.allAttributes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_include,
@@ -1747,7 +1720,7 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, VALS(disp_SupplierUpdateMode_vals), 0,
         "SupplierUpdateMode", HFILL }},
     { &hf_disp_consumerInitiated,
-      { "consumerInitiated", "disp.consumerInitiated",
+      { "consumerInitiated", "disp.consumerInitiated_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ConsumerUpdateMode", HFILL }},
     { &hf_disp_onChange,
@@ -1755,11 +1728,11 @@ void proto_register_disp(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_disp_scheduled,
-      { "scheduled", "disp.scheduled",
+      { "scheduled", "disp.scheduled_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SchedulingParameters", HFILL }},
     { &hf_disp_periodic,
-      { "periodic", "disp.periodic",
+      { "periodic", "disp.periodic_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PeriodicStrategy", HFILL }},
     { &hf_disp_othertimes,
@@ -1779,7 +1752,7 @@ void proto_register_disp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_disp_agreementID,
-      { "agreementID", "disp.agreementID",
+      { "agreementID", "disp.agreementID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_lastUpdate,
@@ -1795,27 +1768,27 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, VALS(disp_StandardUpdate_vals), 0,
         "StandardUpdate", HFILL }},
     { &hf_disp_other,
-      { "other", "disp.other",
+      { "other", "disp.other_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNAL", HFILL }},
     { &hf_disp_securityParameters,
-      { "securityParameters", "disp.securityParameters",
+      { "securityParameters", "disp.securityParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_unsignedCoordinateShadowUpdateArgument,
-      { "unsignedCoordinateShadowUpdateArgument", "disp.unsignedCoordinateShadowUpdateArgument",
+      { "unsignedCoordinateShadowUpdateArgument", "disp.unsignedCoordinateShadowUpdateArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CoordinateShadowUpdateArgumentData", HFILL }},
     { &hf_disp_signedCoordinateShadowUpdateArgument,
-      { "signedCoordinateShadowUpdateArgument", "disp.signedCoordinateShadowUpdateArgument",
+      { "signedCoordinateShadowUpdateArgument", "disp.signedCoordinateShadowUpdateArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_coordinateShadowUpdateArgument,
-      { "coordinateShadowUpdateArgument", "disp.coordinateShadowUpdateArgument",
+      { "coordinateShadowUpdateArgument", "disp.coordinateShadowUpdateArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CoordinateShadowUpdateArgumentData", HFILL }},
     { &hf_disp_algorithmIdentifier,
-      { "algorithmIdentifier", "disp.algorithmIdentifier",
+      { "algorithmIdentifier", "disp.algorithmIdentifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_encrypted,
@@ -1823,7 +1796,7 @@ void proto_register_disp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING", HFILL }},
     { &hf_disp_null,
-      { "null", "disp.null",
+      { "null", "disp.null_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_information,
@@ -1843,19 +1816,19 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_Attribute", HFILL }},
     { &hf_disp_notification_item,
-      { "Attribute", "disp.Attribute",
+      { "Attribute", "disp.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_unsignedInformation,
-      { "unsignedInformation", "disp.unsignedInformation",
+      { "unsignedInformation", "disp.unsignedInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "InformationData", HFILL }},
     { &hf_disp_signedInformation,
-      { "signedInformation", "disp.signedInformation",
+      { "signedInformation", "disp.signedInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_information_data,
-      { "information", "disp.information",
+      { "information", "disp.information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "InformationData", HFILL }},
     { &hf_disp_requestedStrategy,
@@ -1867,15 +1840,15 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, VALS(disp_T_standard_vals), 0,
         NULL, HFILL }},
     { &hf_disp_unsignedRequestShadowUpdateArgument,
-      { "unsignedRequestShadowUpdateArgument", "disp.unsignedRequestShadowUpdateArgument",
+      { "unsignedRequestShadowUpdateArgument", "disp.unsignedRequestShadowUpdateArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RequestShadowUpdateArgumentData", HFILL }},
     { &hf_disp_signedRequestShadowUpdateArgument,
-      { "signedRequestShadowUpdateArgument", "disp.signedRequestShadowUpdateArgument",
+      { "signedRequestShadowUpdateArgument", "disp.signedRequestShadowUpdateArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_requestShadowUpdateArgument,
-      { "requestShadowUpdateArgument", "disp.requestShadowUpdateArgument",
+      { "requestShadowUpdateArgument", "disp.requestShadowUpdateArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RequestShadowUpdateArgumentData", HFILL }},
     { &hf_disp_updateTime,
@@ -1883,7 +1856,7 @@ void proto_register_disp(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "Time", HFILL }},
     { &hf_disp_updateWindow,
-      { "updateWindow", "disp.updateWindow",
+      { "updateWindow", "disp.updateWindow_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_updatedInfo,
@@ -1891,15 +1864,15 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, VALS(disp_RefreshInformation_vals), 0,
         "RefreshInformation", HFILL }},
     { &hf_disp_unsignedUpdateShadowArgument,
-      { "unsignedUpdateShadowArgument", "disp.unsignedUpdateShadowArgument",
+      { "unsignedUpdateShadowArgument", "disp.unsignedUpdateShadowArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UpdateShadowArgumentData", HFILL }},
     { &hf_disp_signedUpdateShadowArgument,
-      { "signedUpdateShadowArgument", "disp.signedUpdateShadowArgument",
+      { "signedUpdateShadowArgument", "disp.signedUpdateShadowArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_updateShadowArgument,
-      { "updateShadowArgument", "disp.updateShadowArgument",
+      { "updateShadowArgument", "disp.updateShadowArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UpdateShadowArgumentData", HFILL }},
     { &hf_disp_start,
@@ -1911,11 +1884,11 @@ void proto_register_disp(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "Time", HFILL }},
     { &hf_disp_noRefresh,
-      { "noRefresh", "disp.noRefresh",
+      { "noRefresh", "disp.noRefresh_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_total,
-      { "total", "disp.total",
+      { "total", "disp.total_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TotalRefresh", HFILL }},
     { &hf_disp_incremental,
@@ -1923,11 +1896,11 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "IncrementalRefresh", HFILL }},
     { &hf_disp_otherStrategy,
-      { "otherStrategy", "disp.otherStrategy",
+      { "otherStrategy", "disp.otherStrategy_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNAL", HFILL }},
     { &hf_disp_sDSE,
-      { "sDSE", "disp.sDSE",
+      { "sDSE", "disp.sDSE_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SDSEContent", HFILL }},
     { &hf_disp_subtree,
@@ -1935,7 +1908,7 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_Subtree", HFILL }},
     { &hf_disp_subtree_item,
-      { "Subtree", "disp.Subtree",
+      { "Subtree", "disp.Subtree_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_sDSEType,
@@ -1955,7 +1928,7 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_Attribute", HFILL }},
     { &hf_disp_attributes_item,
-      { "Attribute", "disp.Attribute",
+      { "Attribute", "disp.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_attValIncomplete,
@@ -1971,7 +1944,7 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "RelativeDistinguishedName", HFILL }},
     { &hf_disp_IncrementalRefresh_item,
-      { "IncrementalStepRefresh", "disp.IncrementalStepRefresh",
+      { "IncrementalStepRefresh", "disp.IncrementalStepRefresh_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_sDSEChanges,
@@ -1979,15 +1952,15 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, VALS(disp_T_sDSEChanges_vals), 0,
         NULL, HFILL }},
     { &hf_disp_add,
-      { "add", "disp.add",
+      { "add", "disp.add_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SDSEContent", HFILL }},
     { &hf_disp_remove,
-      { "remove", "disp.remove",
+      { "remove", "disp.remove_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_modify,
-      { "modify", "disp.modify",
+      { "modify", "disp.modify_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ContentChange", HFILL }},
     { &hf_disp_subordinateUpdates,
@@ -1995,7 +1968,7 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_SubordinateChanges", HFILL }},
     { &hf_disp_subordinateUpdates_item,
-      { "SubordinateChanges", "disp.SubordinateChanges",
+      { "SubordinateChanges", "disp.SubordinateChanges_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_rename,
@@ -2019,7 +1992,7 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_Attribute", HFILL }},
     { &hf_disp_replace_item,
-      { "Attribute", "disp.Attribute",
+      { "Attribute", "disp.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_changes,
@@ -2035,7 +2008,7 @@ void proto_register_disp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "RelativeDistinguishedName", HFILL }},
     { &hf_disp_subordinate_changes,
-      { "changes", "disp.changes",
+      { "changes", "disp.changes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "IncrementalStepRefresh", HFILL }},
     { &hf_disp_problem,
@@ -2043,20 +2016,20 @@ void proto_register_disp(void) {
         FT_INT32, BASE_DEC, VALS(disp_ShadowProblem_vals), 0,
         "ShadowProblem", HFILL }},
     { &hf_disp_unsignedShadowError,
-      { "unsignedShadowError", "disp.unsignedShadowError",
+      { "unsignedShadowError", "disp.unsignedShadowError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ShadowErrorData", HFILL }},
     { &hf_disp_signedShadowError,
-      { "signedShadowError", "disp.signedShadowError",
+      { "signedShadowError", "disp.signedShadowError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_disp_shadowError,
-      { "shadowError", "disp.shadowError",
+      { "shadowError", "disp.shadowError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ShadowErrorData", HFILL }},
 
 /*--- End of included file: packet-disp-hfarr.c ---*/
-#line 200 "../../asn1/disp/packet-disp-template.c"
+#line 197 "../../asn1/disp/packet-disp-template.c"
   };
 
   /* List of subtrees */
@@ -2121,13 +2094,13 @@ void proto_register_disp(void) {
     &ett_disp_T_signedShadowError,
 
 /*--- End of included file: packet-disp-ettarr.c ---*/
-#line 206 "../../asn1/disp/packet-disp-template.c"
+#line 203 "../../asn1/disp/packet-disp-template.c"
   };
   module_t *disp_module;
 
   /* Register protocol */
   proto_disp = proto_register_protocol(PNAME, PSNAME, PFNAME);
-  register_dissector("disp", dissect_disp, proto_disp);
+  new_register_dissector("disp", dissect_disp, proto_disp);
 
   /* Register fields and subtrees */
   proto_register_field_array(proto_disp, hf, array_length(hf));
@@ -2160,7 +2133,7 @@ void proto_reg_handoff_disp(void) {
 
 
 /*--- End of included file: packet-disp-dis-tab.c ---*/
-#line 234 "../../asn1/disp/packet-disp-template.c"
+#line 231 "../../asn1/disp/packet-disp-template.c"
 
   /* APPLICATION CONTEXT */
 

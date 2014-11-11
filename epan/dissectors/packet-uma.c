@@ -2,8 +2,6 @@
  * Routines for Unlicensed Mobile Access(UMA) dissection
  * Copyright 2005-2006,2009, Anders Broman <anders.broman[at]ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -70,6 +68,9 @@
 #include "packet-tcp.h"
 #include "packet-rrc.h"
 
+void proto_register_uma(void);
+void proto_reg_handoff_uma(void);
+
 /* Length field is 2 bytes and comes first */
 #define UMA_HEADER_SIZE 2
 static gboolean uma_desegment = TRUE;
@@ -78,7 +79,6 @@ static dissector_handle_t uma_tcp_handle;
 static dissector_handle_t uma_udp_handle;
 static dissector_handle_t data_handle;
 static dissector_table_t  bssap_pdu_type_table;
-static dissector_handle_t rtp_handle;
 static dissector_handle_t rtcp_handle;
 static dissector_handle_t llc_handle;
 
@@ -974,7 +974,7 @@ dissect_uma_IE(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset)
 		break;
 	case 10:		/* UNC SGW Fully Qualified Domain/Host Name */
 		if ( ie_len > 0){
-			string = (gchar*)tvb_get_ephemeral_string(tvb, ie_offset, ie_len);
+			string = (gchar*)tvb_get_string(wmem_packet_scope(), tvb, ie_offset, ie_len);
 			proto_tree_add_string(urr_ie_tree, hf_uma_urr_FQDN, tvb, ie_offset, ie_len, string);
 		}else{
 			proto_tree_add_text(urr_ie_tree,tvb,offset,1,"FQDN not present");
@@ -1440,7 +1440,7 @@ dissect_uma_IE(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset)
 	case 98:
 		/* UNC Fully Qualified Domain/Host Name */
 		if ( ie_len > 0){
-			string = (gchar*)tvb_get_ephemeral_string(tvb, ie_offset, ie_len);
+			string = (gchar*)tvb_get_string(wmem_packet_scope(), tvb, ie_offset, ie_len);
 			proto_tree_add_string(urr_ie_tree, hf_uma_unc_FQDN, tvb, ie_offset, ie_len, string);
 		}else{
 			proto_tree_add_text(urr_ie_tree,tvb,offset,1,"UNC FQDN not present");
@@ -1528,8 +1528,8 @@ dissect_uma_IE(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset)
 		proto_tree_add_item(urr_ie_tree, hf_uma_urr_RTP_port, tvb, ie_offset, 2, ENC_BIG_ENDIAN);
 		/* TODO find out exactly which element contains IP addr */
 		/* Debug
-		proto_tree_add_text(urr_ie_tree,tvb,ie_offset,ie_len,"IP %u, Port %u Handle %u",
-			rtp_ipv4_address,RTP_UDP_port,rtp_handle);
+		proto_tree_add_text(urr_ie_tree,tvb,ie_offset,ie_len,"IP %u, Port %u,
+			rtp_ipv4_address,RTP_UDP_port);
 			*/
 		if(unc_ipv4_address!=0){
 			SET_ADDRESS(&src_addr, AT_IPv4, 4, &unc_ipv4_address);
@@ -1537,7 +1537,7 @@ dissect_uma_IE(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset)
 			/* Set Source IP = own IP */
 			src_addr = pinfo->src;
 		}
-		if((!pinfo->fd->flags.visited) && RTP_UDP_port!=0 && rtp_handle){
+		if((!pinfo->fd->flags.visited) && RTP_UDP_port!=0){
 
 			rtp_add_address(pinfo, &src_addr, RTP_UDP_port, 0, "UMA", pinfo->fd->num, FALSE, 0);
 			if ((RTP_UDP_port & 0x1) == 0){ /* Even number RTP port RTCP should follow on odd number */
@@ -1614,8 +1614,8 @@ dissect_uma_IE(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset)
 
 
 
-static void
-dissect_uma(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_uma(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	int		offset = 0;
 	guint8	octet, pd;
@@ -1641,7 +1641,7 @@ dissect_uma(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	proto_tree_add_item(uma_tree, hf_uma_skip_ind, tvb, offset, 1, ENC_BIG_ENDIAN);
 	if ((octet & 0xf0) != 0 ){
 		proto_tree_add_text(uma_tree, tvb,offset,-1,"Skip this message");
-		return;
+		return tvb_length(tvb);
 	}
 
 	proto_tree_add_item(uma_tree, hf_uma_pd, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -1675,6 +1675,8 @@ dissect_uma(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		proto_tree_add_text(uma_tree, tvb,offset,-1,"Unknown protocol %u",pd);
 		break;
 	}
+
+	return tvb_length(tvb);
 }
 
 static guint
@@ -1684,11 +1686,12 @@ get_uma_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 	return tvb_get_ntohs(tvb,offset)+2;
 }
 
-static void
-dissect_uma_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_uma_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
 	tcp_dissect_pdus(tvb, pinfo, tree, uma_desegment, UMA_HEADER_SIZE,
-	    get_uma_pdu_len, dissect_uma);
+	    get_uma_pdu_len, dissect_uma, data);
+	return tvb_length(tvb);
 }
 
 static int
@@ -1739,18 +1742,6 @@ dissect_uma_urlc_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
 
 }
 
-static void
-range_delete_callback(guint32 port)
-{
-    dissector_delete_uint("tcp.port", port, uma_tcp_handle);
-}
-
-static void
-range_add_callback(guint32 port)
-{
-    dissector_add_uint("tcp.port", port, uma_tcp_handle);
-}
-
 /* Register the protocol with Wireshark */
 /* If this dissector uses sub-dissector registration add a registration routine.
    This format is required because a script is used to find these routines and
@@ -1767,18 +1758,17 @@ proto_reg_handoff_uma(void)
 		uma_udp_handle = find_dissector("umaudp");
 		dissector_add_handle("udp.port", uma_udp_handle);  /* for "decode-as" */
 		data_handle = find_dissector("data");
-		rtp_handle = find_dissector("rtp");
 		rtcp_handle = find_dissector("rtcp");
 		llc_handle = find_dissector("llcgprs");
 		bssap_pdu_type_table = find_dissector_table("bssap.pdu_type");
 		Initialized=TRUE;
 	} else {
-		range_foreach(uma_tcp_port_range, range_delete_callback);
+		dissector_delete_uint_range("tcp.port", uma_tcp_port_range, uma_tcp_handle);
 		g_free(uma_tcp_port_range);
 	}
 
 	uma_tcp_port_range = range_copy(global_uma_tcp_port_range);
-	range_foreach(uma_tcp_port_range, range_add_callback);
+	dissector_add_uint_range("tcp.port", uma_tcp_port_range, uma_tcp_handle);
 }
 
 /* this format is require because a script is used to build the C function
@@ -2292,8 +2282,8 @@ proto_register_uma(void)
 /* Register the protocol name and description */
 	proto_uma = proto_register_protocol("Unlicensed Mobile Access","UMA", "uma");
 	/* subdissector code */
-	register_dissector("umatcp", dissect_uma_tcp, proto_uma);
-        new_register_dissector("umaudp", dissect_uma_urlc_udp, proto_uma);
+	new_register_dissector("umatcp", dissect_uma_tcp, proto_uma);
+	new_register_dissector("umaudp", dissect_uma_urlc_udp, proto_uma);
 
 /* Required function calls to register the header fields and subtrees used */
 	proto_register_field_array(proto_uma, hf, array_length(hf));

@@ -2,8 +2,6 @@
  * SCTP chunk counter for wireshark
  * Copyright 2005 Oleg Terletsky <oleg.terletsky@comverse.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,8 +24,9 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet_info.h"
 #include "epan/addr_resolv.h"
 #include <epan/tap.h>
@@ -35,6 +34,8 @@
 #include "epan/value_string.h"
 #include <epan/dissectors/packet-sctp.h>
 #include <epan/to_str.h>
+
+void register_tap_listener_sctpstat(void);
 
 typedef struct sctp_ep {
 	struct sctp_ep* next;
@@ -211,14 +212,14 @@ sctpstat_draw(void *phs)
 
 
 static void
-sctpstat_init(const char *optarg, void* userdata _U_)
+sctpstat_init(const char *opt_arg, void* userdata _U_)
 {
 	sctpstat_t *hs;
 	GString *error_string;
 
 	hs = (sctpstat_t *)g_malloc(sizeof(sctpstat_t));
-	if(!strncmp(optarg,"sctp,stat,",11)){
-		hs->filter=g_strdup(optarg+11);
+	if(!strncmp(opt_arg,"sctp,stat,",11)){
+		hs->filter=g_strdup(opt_arg+11);
 	} else {
 		hs->filter=NULL;
 	}

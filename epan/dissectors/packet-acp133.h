@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-acp133.h                                                            */
 /* ../../tools/asn2wrs.py -b -p acp133 -c ./acp133.cnf -s ./packet-acp133-template -D . -O ../../epan/dissectors acp133.asn MHSDirectoryObjectsAndAttributes.asn */
 
@@ -9,8 +9,6 @@
 /* packet-acp133.h
  * Routines for ACP133 specific syntaxes in X.500 packet dissection
  * Graeme Lunt 2005
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>

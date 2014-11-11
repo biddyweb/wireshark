@@ -2,8 +2,6 @@
  * Routines for nntp packet dissection
  * Copyright 1999, Richard Sharpe <rsharpe@ns.aus.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/strutil.h>
+
+void proto_register_nntp(void);
+void proto_reg_handoff_nntp(void);
 
 static int proto_nntp = -1;
 static int hf_nntp_response = -1;
@@ -54,20 +55,17 @@ dissect_nntp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "NNTP");
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		/*
-		 * Put the first line from the buffer into the summary
-		 * (but leave out the line terminator).
-		 *
-		 * Note that "tvb_find_line_end()" will return a value that
-		 * is not longer than what's in the buffer, so the
-		 * "tvb_get_ptr()" call won't throw an exception.
-		 */
-		linelen = tvb_find_line_end(tvb, offset, -1, &next_offset,
-		    FALSE);
-		col_add_fstr(pinfo->cinfo, COL_INFO, "%s: %s", type,
+	/*
+	 * Put the first line from the buffer into the summary
+	 * (but leave out the line terminator).
+	 *
+	 * Note that "tvb_find_line_end()" will return a value that
+	 * is not longer than what's in the buffer, so the
+	 * "tvb_get_ptr()" call won't throw an exception.
+	 */
+	linelen = tvb_find_line_end(tvb, offset, -1, &next_offset, FALSE);
+	col_add_fstr(pinfo->cinfo, COL_INFO, "%s: %s", type,
 		    tvb_format_text(tvb, offset, linelen));
-	}
 
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_nntp, tvb, offset, -1,
@@ -101,9 +99,7 @@ dissect_nntp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			/*
 			 * Put this line.
 			 */
-			proto_tree_add_text(nntp_tree, tvb, offset,
-			    next_offset - offset, "%s",
-			    tvb_format_text(tvb, offset, next_offset - offset));
+			proto_tree_add_format_text(nntp_tree, tvb, offset, next_offset - offset);
 			offset = next_offset;
 		}
 	}

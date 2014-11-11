@@ -1,6 +1,4 @@
-/* wireshark_application.c
- *
- * $Id$
+/* wireshark_application.h
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -31,6 +29,7 @@
 #include "epan/prefs.h"
 
 #include "capture_opts.h"
+#include "capture_session.h"
 #include "file.h"
 #include "register.h"
 
@@ -41,6 +40,7 @@
 #include <QFont>
 #include <QList>
 #include <QThread>
+#include <QTimer>
 
 // Recent items:
 // - Read from prefs
@@ -65,7 +65,8 @@ public:
         ColumnsChanged,
         FilterExpressionsChanged,
         PacketDissectionChanged,
-        PreferencesChanged
+        PreferencesChanged,
+        StaticRecentFilesRead
     };
 
     void registerUpdate(register_action_e action, const char *message);
@@ -74,9 +75,7 @@ public:
     e_prefs * readConfigurationFiles(char **gdp_path, char **dp_path);
     QList<recent_item_status *> recentItems() const;
     void addRecentItem(const QString &filename, qint64 size, bool accessible);
-#ifdef HAVE_LIBPCAP
-    void captureCallback(int event, capture_options * capture_opts);
-#endif
+    void captureCallback(int event, capture_session * cap_session);
     void captureFileCallback(int event, void * data);
     QDir lastOpenDir();
     void setLastOpenDir(const char *dir_name);
@@ -86,15 +85,14 @@ public:
     void setMonospaceFont(const char *font_string);
     int monospaceTextSize(const char *str, bool bold = false);
     void setConfigurationProfile(const gchar *profile_name);
-
+    bool isInitialized() { return initialized_; }
 
 private:
-    void prefsToCaptureOpts();
-
     bool initialized_;
     QFont mono_regular_font_;
     QFont mono_bold_font_;
-    QTimer *recent_timer_;
+    QTimer recent_timer_;
+    QTimer tap_update_timer_;
     QList<QString> pending_open_files_;
 
 protected:
@@ -102,27 +100,26 @@ protected:
 
 signals:
     void appInitialized();
-    void openCaptureFile(QString &cf_path);
+    void openCaptureFile(QString &cf_path, QString &display_filter, unsigned int type);
+    void recentFilesRead();
     void updateRecentItemStatus(const QString &filename, qint64 size, bool accessible);
     void splashUpdate(register_action_e action, const char *message);
     void configurationProfileChanged(const gchar *profile_name);
 
-    void columnsChanged();
+    void columnsChanged(); // XXX This recreates the packet list. We might want to rename it accordingly.
     void filterExpressionsChanged();
     void packetDissectionChanged();
     void preferencesChanged();
 
-#ifdef HAVE_LIBPCAP
     // XXX It might make more sense to move these to main.cpp or main_window.cpp or their own class.
-    void captureCapturePrepared(capture_options *capture_opts);
-    void captureCaptureUpdateStarted(capture_options *capture_opts);
-    void captureCaptureUpdateContinue(capture_options *capture_opts);
-    void captureCaptureUpdateFinished(capture_options *capture_opts);
-    void captureCaptureFixedStarted(capture_options *capture_opts);
-    void captureCaptureFixedFinished(capture_options *capture_opts);
-    void captureCaptureStopping(capture_options *capture_opts);
-    void captureCaptureFailed(capture_options *capture_opts);
-#endif
+    void captureCapturePrepared(capture_session *cap_session);
+    void captureCaptureUpdateStarted(capture_session *cap_session);
+    void captureCaptureUpdateContinue(capture_session *cap_session);
+    void captureCaptureUpdateFinished(capture_session *cap_session);
+    void captureCaptureFixedStarted(capture_session *cap_session);
+    void captureCaptureFixedFinished(capture_session *cap_session);
+    void captureCaptureStopping(capture_session *cap_session);
+    void captureCaptureFailed(capture_session *cap_session);
 
     void captureFileOpened(const capture_file *cf);
     void captureFileReadStarted(const capture_file *cf);
@@ -137,9 +134,15 @@ private slots:
     void cleanup();
     void itemStatusFinished(const QString &filename = "", qint64 size = 0, bool accessible = false);
     void refreshRecentFiles(void);
+    void updateTaps();
 };
 
 extern WiresharkApplication *wsApp;
+
+/** Global compile time version string */
+extern GString *comp_info_str;
+/** Global runtime version string */
+extern GString *runtime_info_str;
 
 #endif // WIRESHARK_APPLICATION_H
 

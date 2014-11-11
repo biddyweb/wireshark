@@ -2,8 +2,6 @@
  * Routines for STANAG 4406 (X.400 Military Message Extensions)  packet dissection
  * Graeme Lunt 2005
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,12 +32,16 @@
 #include "packet-x509if.h"
 
 #include "packet-p772.h"
-#include "packet-p1.h" 
-#include "packet-p22.h" 
+#include "packet-p1.h"
+#include "packet-p22.h"
 
 #define PNAME  "STANAG 4406 Message"
 #define PSNAME "P772"
 #define PFNAME "p772"
+
+void proto_register_p772(void);
+void proto_reg_handoff_p772(void);
+
 
 /* Initialize the protocol and registered fields */
 static int proto_p772 = -1;
@@ -103,7 +105,7 @@ void proto_register_p772(void) {
   proto_register_field_array(proto_p772, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
 
-  register_ber_syntax_dissector("STANAG 4406", proto_p772, dissect_p772); 
+  register_ber_syntax_dissector("STANAG 4406", proto_p772, dissect_p772);
   register_ber_oid_syntax(".p772", NULL, "STANAG 4406");
 }
 

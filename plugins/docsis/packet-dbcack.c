@@ -2,8 +2,6 @@
  * Routines for DOCSIS 3.0 Dynamic Bonding Change Acknowledge Message dissection.
  * Copyright 2010, Guido Reismueller <g.reismueller[AT]avm.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,6 +25,9 @@
 
 #include <epan/packet.h>
 
+void proto_register_docsis_dbcack(void);
+void proto_reg_handoff_docsis_dbcack(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_docsis_dbcack = -1;
 static int hf_docsis_dbcack_tranid = -1;
@@ -46,7 +47,6 @@ dissect_dbcack (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 
   transid = tvb_get_ntohs (tvb, 0);
 
-  col_clear (pinfo->cinfo, COL_INFO);
   col_add_fstr (pinfo->cinfo, COL_INFO,
 	    "Dynamic Bonding Change Acknowledge: Tran-Id = %u", transid);
 

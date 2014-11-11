@@ -1,4 +1,5 @@
-/* Declarations for getopt.
+/*
+   Declarations for getopt.
    Copyright (C) 1989-1994,1996-1999,2001,2003,2004,2009,2010
    Free Software Foundation, Inc.
    This file is part of the GNU C Library.
@@ -14,9 +15,9 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+   */
 
 #ifndef _GETOPT_H
 
@@ -175,9 +176,9 @@ WS_DLL_PUBLIC int getopt (int ___argc, char *const *___argv,
 #endif /* __GNU_LIBRARY__ */
 
 #ifndef __need_getopt
-extern int getopt_long (int ___argc, char *const *___argv,
+WS_DLL_PUBLIC int getopt_long (int ___argc, char *const *___argv,
 			const char *__shortopts,
-		        const struct option *__longopts, int *__longind)
+			const struct option *__longopts, int *__longind)
        __THROW;
 extern int getopt_long_only (int ___argc, char *const *___argv,
 			     const char *__shortopts,

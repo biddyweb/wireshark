@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-p1.c                                                                */
 /* ../../tools/asn2wrs.py -b -C -p p1 -c ./p1.cnf -s ./packet-p1-template -D . -O ../../epan/dissectors MTAAbstractService.asn MTSAbstractService.asn MTSAccessProtocol.asn MHSProtocolObjectIdentifiers.asn MTSUpperBounds.asn */
 
@@ -9,8 +9,6 @@
 /* packet-p1.c
  * Routines for X.411 (X.400 Message Transfer)  packet dissection
  * Graeme Lunt 2005
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -39,6 +37,7 @@
 #include <epan/oids.h>
 #include <epan/asn1.h>
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-ber.h"
 #include "packet-acse.h"
@@ -64,21 +63,6 @@ static void prefs_register_p1(void); /* forward declaration for use in preferenc
 /* Initialize the protocol and registered fields */
 static int proto_p1 = -1;
 static int proto_p3 = -1;
-
-static struct SESSION_DATA_STRUCTURE* session = NULL;
-static int extension_id = -1; /* integer extension id */
-static const char *object_identifier_id = NULL; /* extensions identifier */
-static const char *content_type_id = NULL; /* content type identifier */
-static gboolean report_unknown_content_type = FALSE;
-
-#define MAX_ORA_STR_LEN     256
-static char *oraddress = NULL;
-static char *ddatype = NULL;
-static gboolean doing_address=FALSE;
-static gboolean doing_subjectid=FALSE;
-static proto_item *address_item = NULL;
-
-static proto_tree *top_tree=NULL;
 
 static int hf_p1_MTS_APDU_PDU = -1;
 static int hf_p1_MTABindArgument_PDU = -1;
@@ -655,7 +639,7 @@ static int hf_p1_G3FacsimileNonBasicParameters_jpeg = -1;
 static int hf_p1_G3FacsimileNonBasicParameters_processable_mode_26 = -1;
 
 /*--- End of included file: packet-p1-hf.c ---*/
-#line 81 "../../asn1/p1/packet-p1-template.c"
+#line 65 "../../asn1/p1/packet-p1-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_p1 = -1;
@@ -852,7 +836,12 @@ static gint ett_p1_SEQUENCE_SIZE_1_ub_recipients_OF_PerRecipientMessageSubmissio
 static gint ett_p1_SEQUENCE_SIZE_1_ub_recipients_OF_PerRecipientProbeSubmissionFields = -1;
 
 /*--- End of included file: packet-p1-ett.c ---*/
-#line 92 "../../asn1/p1/packet-p1-template.c"
+#line 76 "../../asn1/p1/packet-p1-template.c"
+
+static expert_field ei_p1_unknown_extension_attribute_type = EI_INIT;
+static expert_field ei_p1_unknown_standard_extension = EI_INIT;
+static expert_field ei_p1_unknown_built_in_content_type = EI_INIT;
+static expert_field ei_p1_unknown_tokendata_type = EI_INIT;
 
 /* Dissector tables */
 static dissector_table_t p1_extension_dissector_table;
@@ -881,29 +870,88 @@ const value_string p3_opr_code_string_vals[] = {
 
 /* P3 ERRORS */
 static const value_string p3_err_code_string_vals[] = {
-	{ err_ros_bind, "mts_bind_error" },  
-	{ err_submission_control_violated, "submission_control_violated" },  
-	{ err_element_of_service_not_subscribed, "element_of_service_not_subscribed" },  
-	{ err_deferred_delivery_cancellation_rejected, "deferred_delivery_cancellation_rejected" },  
-	{ err_originator_invalid, "originator_invalid" },  
-	{ err_recipient_improperly_specified, "recipient_improperly_specified" },  
-	{ err_message_submission_identifier_invalid, "message_submission_identifier_invalid" },  
-	{ err_inconsistent_request, "inconsistent_request" },  
-	{ err_security_error, "security_error" },  
-	{ err_unsupported_critical_function, "unsupported_critical_function" },  
-	{ err_remote_bind_error, "remote_bind_error" },  
-	{ err_delivery_control_violated, "delivery_control_violated" },  
-	{ err_control_violates_registration, "control_violates_registration" },  
-	{ err_operation_refused, "operation_refused" },  
-	{ err_register_rejected, "register_rejected" },  
-	{ err_new_credentials_unacceptable, "new_credentials_unacceptable" },  
-	{ err_old_credentials_incorrectly_specified, "old_credentials_incorrectly_specified" },  
+	{ err_ros_bind, "mts_bind_error" },
+	{ err_submission_control_violated, "submission_control_violated" },
+	{ err_element_of_service_not_subscribed, "element_of_service_not_subscribed" },
+	{ err_deferred_delivery_cancellation_rejected, "deferred_delivery_cancellation_rejected" },
+	{ err_originator_invalid, "originator_invalid" },
+	{ err_recipient_improperly_specified, "recipient_improperly_specified" },
+	{ err_message_submission_identifier_invalid, "message_submission_identifier_invalid" },
+	{ err_inconsistent_request, "inconsistent_request" },
+	{ err_security_error, "security_error" },
+	{ err_unsupported_critical_function, "unsupported_critical_function" },
+	{ err_remote_bind_error, "remote_bind_error" },
+	{ err_delivery_control_violated, "delivery_control_violated" },
+	{ err_control_violates_registration, "control_violates_registration" },
+	{ err_operation_refused, "operation_refused" },
+	{ err_register_rejected, "register_rejected" },
+	{ err_new_credentials_unacceptable, "new_credentials_unacceptable" },
+	{ err_old_credentials_incorrectly_specified, "old_credentials_incorrectly_specified" },
 	  { 0, NULL }
 };
 
 
 /*--- End of included file: packet-p1-table.c ---*/
-#line 99 "../../asn1/p1/packet-p1-template.c"
+#line 88 "../../asn1/p1/packet-p1-template.c"
+
+typedef struct p1_address_ctx {
+	gboolean do_address;
+	const char *content_type_id;
+	gboolean report_unknown_content_type;
+	wmem_strbuf_t* oraddress;
+} p1_address_ctx_t;
+
+static void set_do_address(asn1_ctx_t* actx, gboolean do_address)
+{
+	p1_address_ctx_t* ctx;
+
+	if (actx->subtree.tree_ctx == NULL) {
+		actx->subtree.tree_ctx = wmem_new0(wmem_packet_scope(), p1_address_ctx_t);
+	}
+
+	ctx = (p1_address_ctx_t*)actx->subtree.tree_ctx;
+	ctx->do_address = do_address;
+}
+
+static void do_address(const char* addr, tvbuff_t* tvb_string, asn1_ctx_t* actx)
+{
+	p1_address_ctx_t* ctx = (p1_address_ctx_t*)actx->subtree.tree_ctx;
+
+	if (ctx && ctx->do_address) {
+		if (addr) {
+			wmem_strbuf_append(ctx->oraddress, addr);
+		}
+		if (tvb_string) {
+			wmem_strbuf_append(ctx->oraddress, tvb_format_text(tvb_string, 0, tvb_length(tvb_string)));
+		}
+	}
+
+}
+
+static void do_address_str(const char* addr, tvbuff_t* tvb_string, asn1_ctx_t* actx)
+{
+	wmem_strbuf_t *ddatype = (wmem_strbuf_t *)actx->value_ptr;
+	p1_address_ctx_t* ctx = (p1_address_ctx_t*)actx->subtree.tree_ctx;
+
+	do_address(addr, tvb_string, actx);
+
+	if (ctx && ctx->do_address && ddatype && tvb_string)
+		wmem_strbuf_append(ddatype, tvb_format_text(tvb_string, 0, tvb_length(tvb_string)));
+}
+
+static void do_address_str_tree(const char* addr, tvbuff_t* tvb_string, asn1_ctx_t* actx, proto_tree* tree)
+{
+	wmem_strbuf_t *ddatype = (wmem_strbuf_t *)actx->value_ptr;
+	p1_address_ctx_t* ctx = (p1_address_ctx_t*)actx->subtree.tree_ctx;
+
+	do_address(addr, tvb_string, actx);
+
+	if (ctx && ctx->do_address && tvb_string && ddatype) {
+		if (wmem_strbuf_get_len(ddatype) > 0) {
+			proto_item_append_text (tree, " (%s=%s)", wmem_strbuf_get_str(ddatype), tvb_format_text(tvb_string, 0, tvb_length(tvb_string)));
+		}
+	}
+}
 
 
 /*--- Included file: packet-p1-fn.c ---*/
@@ -921,24 +969,21 @@ dissect_p1_NULL(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, as
 
 static int
 dissect_p1_MTAName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 682 "../../asn1/p1/p1.cnf"
+#line 696 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*mtaname = NULL;
+	p1_address_ctx_t* ctx = (p1_address_ctx_t*)actx->subtree.tree_ctx;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_IA5String,
                                                         actx, tree, tvb, offset,
                                                         1, ub_mta_name_length, hf_index, &mtaname);
 
 
-	if(doing_address) {
-
-		proto_item_append_text(address_item, " %s", tvb_format_text(mtaname, 0, tvb_length(mtaname)));
-
+	if (ctx && ctx->do_address) {
+		proto_item_append_text(actx->subtree.tree, " %s", tvb_format_text(mtaname, 0, tvb_length(mtaname)));
 	} else {
-
-	if (check_col(actx->pinfo->cinfo, COL_INFO) && mtaname) {
-		col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s", tvb_format_text(mtaname, 0, tvb_length(mtaname)));
-	}
-
+		if (mtaname) {
+			col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s", tvb_format_text(mtaname, 0, tvb_length(mtaname)));
+		}
 	}
 
 
@@ -993,7 +1038,7 @@ dissect_p1_Password(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_
 
 static int
 dissect_p1_TokenTypeIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &object_identifier_id);
+  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &actx->external.direct_reference);
 
   return offset;
 }
@@ -1002,10 +1047,10 @@ dissect_p1_TokenTypeIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
 
 static int
 dissect_p1_TokenTypeData(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1216 "../../asn1/p1/p1.cnf"
-	
-	if(object_identifier_id) 
-   	   call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 1154 "../../asn1/p1/p1.cnf"
+
+	if(actx->external.direct_reference)
+		call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree, actx->private_data);
 
 
 
@@ -1113,7 +1158,7 @@ static const ber_choice_t Credentials_choice[] = {
 
 int
 dissect_p1_Credentials(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1224 "../../asn1/p1/p1.cnf"
+#line 1162 "../../asn1/p1/p1.cnf"
   gint credentials = -1;
 
     offset = dissect_ber_choice(actx, tree, tvb, offset,
@@ -1122,9 +1167,7 @@ dissect_p1_Credentials(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset 
 
 
   if( (credentials!=-1) && p1_Credentials_vals[credentials].strptr ){
-    if (check_col(actx->pinfo->cinfo, COL_INFO)) {
-      col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s", p1_Credentials_vals[credentials].strptr);
-    }
+    col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s", p1_Credentials_vals[credentials].strptr);
   }
 
 
@@ -1185,7 +1228,7 @@ dissect_p1_PrivacyMark(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset 
 
 static int
 dissect_p1_SecurityCategoryIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &object_identifier_id);
+  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &actx->external.direct_reference);
 
   return offset;
 }
@@ -1197,10 +1240,10 @@ dissect_p1_SecurityCategoryValue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 #line 562 "../../asn1/p1/p1.cnf"
 	const char *name;
 
-	if (object_identifier_id) {
-		offset = call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
-		name = oid_resolved_from_string(object_identifier_id);
-		proto_item_append_text(tree, " (%s)", name ? name : object_identifier_id); 
+	if (actx->external.direct_reference) {
+		offset = call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree, actx->private_data);
+		name = oid_resolved_from_string(actx->external.direct_reference);
+		proto_item_append_text(tree, " (%s)", name ? name : actx->external.direct_reference);
 	} else {
 		offset = dissect_unknown_ber(actx->pinfo, tvb, offset, tree);
 	}
@@ -1374,12 +1417,12 @@ static const value_string p1_MTABindError_vals[] = {
 
 static int
 dissect_p1_MTABindError(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1207 "../../asn1/p1/p1.cnf"
+#line 1145 "../../asn1/p1/p1.cnf"
   int error = -1;
     offset = dissect_ber_constrained_integer(implicit_tag, actx, tree, tvb, offset,
                                                             0U, ub_integer_options, hf_index, &error);
 
-  if((error != -1) && check_col(actx->pinfo->cinfo, COL_INFO))
+  if((error != -1))
     col_append_fstr(actx->pinfo->cinfo, COL_INFO, " (%s)", val_to_str(error, p1_MTABindError_vals, "error(%d)"));
 
 
@@ -1391,7 +1434,7 @@ dissect_p1_MTABindError(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset
 
 static int
 dissect_p1_T_x121_dcc_code(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 866 "../../asn1/p1/p1.cnf"
+#line 842 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*nstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_NumericString,
@@ -1399,8 +1442,7 @@ dissect_p1_T_x121_dcc_code(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
                                                         ub_country_name_numeric_length, ub_country_name_numeric_length, hf_index, &nstring);
 
 
-	if(doing_address && nstring)
-		g_strlcat(oraddress, tvb_format_text(nstring, 0, tvb_length(nstring)), MAX_ORA_STR_LEN);
+	do_address(NULL, nstring, actx);
 
 
 
@@ -1411,7 +1453,7 @@ dissect_p1_T_x121_dcc_code(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
 
 static int
 dissect_p1_T_iso_3166_alpha2_code(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 818 "../../asn1/p1/p1.cnf"
+#line 800 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*nstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_PrintableString,
@@ -1419,8 +1461,7 @@ dissect_p1_T_iso_3166_alpha2_code(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, 
                                                         ub_country_name_alpha_length, ub_country_name_alpha_length, hf_index, &nstring);
 
 
-	if(doing_address && nstring)
-		g_strlcat(oraddress, tvb_format_text(nstring, 0, tvb_length(nstring)), MAX_ORA_STR_LEN);
+	do_address(NULL, nstring, actx);
 
 
 
@@ -1454,12 +1495,10 @@ dissect_p1_CountryName_U(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 static int
 dissect_p1_CountryName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 596 "../../asn1/p1/p1.cnf"
- if(doing_address)
-    g_strlcat(oraddress, "/C=", MAX_ORA_STR_LEN);
- 
-   offset = dissect_ber_tagged_type(implicit_tag, actx, tree, tvb, offset,
-                                      hf_index, BER_CLASS_APP, 1, TRUE, dissect_p1_CountryName_U);
+	do_address("/C=", NULL, actx);
 
+	  offset = dissect_ber_tagged_type(implicit_tag, actx, tree, tvb, offset,
+                                      hf_index, BER_CLASS_APP, 1, TRUE, dissect_p1_CountryName_U);
 
 
 
@@ -1471,7 +1510,7 @@ dissect_p1_CountryName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset 
 
 static int
 dissect_p1_T_numeric(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 874 "../../asn1/p1/p1.cnf"
+#line 849 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*nstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_NumericString,
@@ -1479,8 +1518,7 @@ dissect_p1_T_numeric(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U
                                                         0, ub_domain_name_length, hf_index, &nstring);
 
 
-	if(doing_address && nstring)
-		g_strlcat(oraddress, tvb_format_text(nstring, 0, tvb_length(nstring)), MAX_ORA_STR_LEN);
+	do_address(NULL, nstring, actx);
 
 
 
@@ -1491,7 +1529,7 @@ dissect_p1_T_numeric(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U
 
 static int
 dissect_p1_T_printable(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 826 "../../asn1/p1/p1.cnf"
+#line 807 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*nstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_PrintableString,
@@ -1499,8 +1537,7 @@ dissect_p1_T_printable(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset 
                                                         0, ub_domain_name_length, hf_index, &nstring);
 
 
-	if(doing_address && nstring)
-		g_strlcat(oraddress, tvb_format_text(nstring, 0, tvb_length(nstring)), MAX_ORA_STR_LEN);
+	do_address(NULL, nstring, actx);
 
 
 
@@ -1533,13 +1570,11 @@ dissect_p1_AdministrationDomainName_U(gboolean implicit_tag _U_, tvbuff_t *tvb _
 
 static int
 dissect_p1_AdministrationDomainName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 603 "../../asn1/p1/p1.cnf"
-  if(doing_address)
-    g_strlcat(oraddress, "/A=", MAX_ORA_STR_LEN);
+#line 601 "../../asn1/p1/p1.cnf"
+	do_address("/A=", NULL, actx);
 
-   offset = dissect_ber_tagged_type(implicit_tag, actx, tree, tvb, offset,
+	  offset = dissect_ber_tagged_type(implicit_tag, actx, tree, tvb, offset,
                                       hf_index, BER_CLASS_APP, 2, TRUE, dissect_p1_AdministrationDomainName_U);
-
 
 
 
@@ -1551,7 +1586,7 @@ dissect_p1_AdministrationDomainName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_
 
 static int
 dissect_p1_T_numeric_private_domain_identifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 890 "../../asn1/p1/p1.cnf"
+#line 863 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*nstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_NumericString,
@@ -1559,8 +1594,7 @@ dissect_p1_T_numeric_private_domain_identifier(gboolean implicit_tag _U_, tvbuff
                                                         1, ub_domain_name_length, hf_index, &nstring);
 
 
-	if(doing_address && nstring)
-		g_strlcat(oraddress, tvb_format_text(nstring, 0, tvb_length(nstring)), MAX_ORA_STR_LEN);
+	do_address(NULL, nstring, actx);
 
 
 
@@ -1571,7 +1605,7 @@ dissect_p1_T_numeric_private_domain_identifier(gboolean implicit_tag _U_, tvbuff
 
 static int
 dissect_p1_T_printable_private_domain_identifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 842 "../../asn1/p1/p1.cnf"
+#line 821 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*nstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_PrintableString,
@@ -1579,8 +1613,7 @@ dissect_p1_T_printable_private_domain_identifier(gboolean implicit_tag _U_, tvbu
                                                         1, ub_domain_name_length, hf_index, &nstring);
 
 
-	if(doing_address && nstring)
-		g_strlcat(oraddress, tvb_format_text(nstring, 0, tvb_length(nstring)), MAX_ORA_STR_LEN);
+	do_address(NULL, nstring, actx);
 
 
 
@@ -1602,10 +1635,9 @@ static const ber_choice_t PrivateDomainIdentifier_choice[] = {
 
 static int
 dissect_p1_PrivateDomainIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 733 "../../asn1/p1/p1.cnf"
+#line 736 "../../asn1/p1/p1.cnf"
 
-	if(doing_address)
-		g_strlcat(oraddress, "/P=", MAX_ORA_STR_LEN);
+	do_address("/P=", NULL, actx);
 
 	  offset = dissect_ber_choice(actx, tree, tvb, offset,
                                  PrivateDomainIdentifier_choice, hf_index, ett_p1_PrivateDomainIdentifier,
@@ -1637,20 +1669,27 @@ dissect_p1_GlobalDomainIdentifier_U(gboolean implicit_tag _U_, tvbuff_t *tvb _U_
 
 static int
 dissect_p1_GlobalDomainIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1087 "../../asn1/p1/p1.cnf"
-	
-	oraddress = (char *)ep_alloc(MAX_ORA_STR_LEN); oraddress[0] = '\0';	
-	address_item = tree;
+#line 1024 "../../asn1/p1/p1.cnf"
+	p1_address_ctx_t* ctx;
+
+	if (actx->subtree.tree_ctx == NULL) {
+		actx->subtree.tree_ctx = wmem_new0(wmem_packet_scope(), p1_address_ctx_t);
+	}
+
+	ctx = (p1_address_ctx_t*)actx->subtree.tree_ctx;
+	ctx->oraddress = wmem_strbuf_new(wmem_packet_scope(), "");
+
+	actx->subtree.tree = tree;
 
 	  offset = dissect_ber_tagged_type(implicit_tag, actx, tree, tvb, offset,
                                       hf_index, BER_CLASS_APP, 3, TRUE, dissect_p1_GlobalDomainIdentifier_U);
 
 
-	if(*oraddress) {
-		proto_item_append_text(address_item, " (%s/", oraddress);
+	if (ctx->oraddress && (wmem_strbuf_get_len(ctx->oraddress) > 0)) {
+		proto_item_append_text(actx->subtree.tree, " (%s/", wmem_strbuf_get_str(ctx->oraddress));
 
-		if(doing_subjectid  && check_col(actx->pinfo->cinfo, COL_INFO)) {
-			col_append_fstr(actx->pinfo->cinfo, COL_INFO, " (%s/", oraddress);
+		if (hf_index == hf_p1_subject_identifier) {
+			col_append_fstr(actx->pinfo->cinfo, COL_INFO, " (%s/", wmem_strbuf_get_str(ctx->oraddress));
 		}
 	}
 
@@ -1664,20 +1703,21 @@ dissect_p1_GlobalDomainIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, 
 
 static int
 dissect_p1_LocalIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1106 "../../asn1/p1/p1.cnf"
-	tvbuff_t 	*id = NULL;
-	
+#line 1050 "../../asn1/p1/p1.cnf"
+	tvbuff_t	*id = NULL;
+	p1_address_ctx_t* ctx = (p1_address_ctx_t*)actx->subtree.tree_ctx;
+
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_IA5String,
                                                         actx, tree, tvb, offset,
                                                         1, ub_local_id_length, hf_index, &id);
 
-	
-	if(id) {
-	  if(doing_address) 
-		  proto_item_append_text(address_item, " $ %s)", tvb_format_text(id, 0, tvb_length(id)));
 
-          if(doing_subjectid  && check_col(actx->pinfo->cinfo, COL_INFO)) 
-		col_append_fstr(actx->pinfo->cinfo, COL_INFO, " $ %s)", tvb_format_text(id, 0, tvb_length(id)));
+	if(id) {
+		if (ctx && ctx->do_address)
+			proto_item_append_text(actx->subtree.tree, " $ %s)", tvb_format_text(id, 0, tvb_length(id)));
+
+		if (hf_index == hf_p1_subject_identifier)
+			col_append_fstr(actx->pinfo->cinfo, COL_INFO, " $ %s)", tvb_format_text(id, 0, tvb_length(id)));
 	}
 
 
@@ -1704,22 +1744,15 @@ dissect_p1_MTSIdentifier_U(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
 
 static int
 dissect_p1_MTSIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1119 "../../asn1/p1/p1.cnf"
+#line 1064 "../../asn1/p1/p1.cnf"
 
-	doing_address = TRUE;
-
-	if(hf_index == hf_p1_subject_identifier)
-		doing_subjectid = TRUE;
+	set_do_address(actx, TRUE);
 
 	  offset = dissect_ber_tagged_type(implicit_tag, actx, tree, tvb, offset,
                                       hf_index, BER_CLASS_APP, 4, TRUE, dissect_p1_MTSIdentifier_U);
 
 
-	doing_address = FALSE;
-
-	if(hf_index == hf_p1_subject_identifier)
-		doing_subjectid = FALSE;
-
+	set_do_address(actx, FALSE);
 
 
 
@@ -1730,9 +1763,8 @@ dissect_p1_MTSIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 static int
 dissect_p1_MessageIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1081 "../../asn1/p1/p1.cnf"
-
-	address_item = NULL;
+#line 1019 "../../asn1/p1/p1.cnf"
+	actx->subtree.tree = NULL;
 
 	  offset = dissect_p1_MTSIdentifier(implicit_tag, tvb, offset, actx, tree, hf_index);
 
@@ -1746,7 +1778,7 @@ dissect_p1_MessageIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
 
 static int
 dissect_p1_X121Address(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 702 "../../asn1/p1/p1.cnf"
+#line 713 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*string = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_NumericString,
@@ -1754,11 +1786,7 @@ dissect_p1_X121Address(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset 
                                                         1, ub_x121_address_length, hf_index, &string);
 
 
-	if(doing_address && string) {
-		g_strlcat(oraddress, "/X121=", MAX_ORA_STR_LEN);
-		g_strlcat(oraddress, tvb_format_text(string, 0, tvb_length(string)), MAX_ORA_STR_LEN);
-	}
-
+	do_address("/PX121=", string, actx);
 
 
 
@@ -1778,7 +1806,7 @@ dissect_p1_NetworkAddress(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offs
 
 static int
 dissect_p1_TerminalIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 716 "../../asn1/p1/p1.cnf"
+#line 723 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*string = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_PrintableString,
@@ -1786,10 +1814,7 @@ dissect_p1_TerminalIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
                                                         1, ub_terminal_id_length, hf_index, &string);
 
 
-	if(doing_address && string) {
-		g_strlcat(oraddress, "/UA-ID=", MAX_ORA_STR_LEN);
-		g_strlcat(oraddress, tvb_format_text(string, 0, tvb_length(string)), MAX_ORA_STR_LEN);
-	}
+	do_address("/UA-ID=", string, actx);
 
 
 
@@ -1800,7 +1825,7 @@ dissect_p1_TerminalIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
 
 static int
 dissect_p1_T_numeric_private_domain_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 882 "../../asn1/p1/p1.cnf"
+#line 856 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*nstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_NumericString,
@@ -1808,8 +1833,7 @@ dissect_p1_T_numeric_private_domain_name(gboolean implicit_tag _U_, tvbuff_t *tv
                                                         1, ub_domain_name_length, hf_index, &nstring);
 
 
-	if(doing_address && nstring)
-		g_strlcat(oraddress, tvb_format_text(nstring, 0, tvb_length(nstring)), MAX_ORA_STR_LEN);
+	do_address(NULL, nstring, actx);
 
 
 
@@ -1820,7 +1844,7 @@ dissect_p1_T_numeric_private_domain_name(gboolean implicit_tag _U_, tvbuff_t *tv
 
 static int
 dissect_p1_T_printable_private_domain_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 834 "../../asn1/p1/p1.cnf"
+#line 814 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*nstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_PrintableString,
@@ -1828,8 +1852,7 @@ dissect_p1_T_printable_private_domain_name(gboolean implicit_tag _U_, tvbuff_t *
                                                         1, ub_domain_name_length, hf_index, &nstring);
 
 
-	if(doing_address && nstring)
-		g_strlcat(oraddress, tvb_format_text(nstring, 0, tvb_length(nstring)), MAX_ORA_STR_LEN);
+	do_address(NULL, nstring, actx);
 
 
 
@@ -1851,10 +1874,9 @@ static const ber_choice_t PrivateDomainName_choice[] = {
 
 static int
 dissect_p1_PrivateDomainName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 726 "../../asn1/p1/p1.cnf"
+#line 730 "../../asn1/p1/p1.cnf"
 
-	if(doing_address)
-		g_strlcat(oraddress, "/P=", MAX_ORA_STR_LEN);
+	do_address("/P=", NULL, actx);
 
 	  offset = dissect_ber_choice(actx, tree, tvb, offset,
                                  PrivateDomainName_choice, hf_index, ett_p1_PrivateDomainName,
@@ -1870,7 +1892,7 @@ dissect_p1_PrivateDomainName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
 
 static int
 dissect_p1_OrganizationName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 743 "../../asn1/p1/p1.cnf"
+#line 745 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*string = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_PrintableString,
@@ -1878,10 +1900,7 @@ dissect_p1_OrganizationName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
                                                         1, ub_organization_name_length, hf_index, &string);
 
 
-	if(doing_address && string) {
-		g_strlcat(oraddress, "/O=", MAX_ORA_STR_LEN);
-		g_strlcat(oraddress, tvb_format_text(string, 0, tvb_length(string)), MAX_ORA_STR_LEN);
-	}
+	do_address("/O=", string, actx);
 
 
 
@@ -1903,7 +1922,7 @@ dissect_p1_NumericUserIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 
 static int
 dissect_p1_T_printable_surname(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 946 "../../asn1/p1/p1.cnf"
+#line 904 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*pstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_PrintableString,
@@ -1911,10 +1930,7 @@ dissect_p1_T_printable_surname(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
                                                         1, ub_surname_length, hf_index, &pstring);
 
 
-	if(doing_address && pstring) {
-	    g_strlcat(oraddress, "/S=", MAX_ORA_STR_LEN);
-	  g_strlcat(oraddress, tvb_format_text(pstring, 0, tvb_length(pstring)), MAX_ORA_STR_LEN);
-	}
+	do_address("/S=", pstring, actx);
 
 
 
@@ -1925,7 +1941,7 @@ dissect_p1_T_printable_surname(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
 
 static int
 dissect_p1_T_printable_given_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 956 "../../asn1/p1/p1.cnf"
+#line 911 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*pstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_PrintableString,
@@ -1933,10 +1949,7 @@ dissect_p1_T_printable_given_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, 
                                                         1, ub_given_name_length, hf_index, &pstring);
 
 
-	if(doing_address && pstring) {
-	    g_strlcat(oraddress, "/G=", MAX_ORA_STR_LEN);
-	  g_strlcat(oraddress, tvb_format_text(pstring, 0, tvb_length(pstring)), MAX_ORA_STR_LEN);
-	}
+	do_address("/G=", pstring, actx);
 
 
 
@@ -1947,7 +1960,7 @@ dissect_p1_T_printable_given_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, 
 
 static int
 dissect_p1_T_printable_initials(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 966 "../../asn1/p1/p1.cnf"
+#line 918 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*pstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_PrintableString,
@@ -1955,10 +1968,7 @@ dissect_p1_T_printable_initials(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
                                                         1, ub_initials_length, hf_index, &pstring);
 
 
-	if(doing_address && pstring) {
-	    g_strlcat(oraddress, "/I=", MAX_ORA_STR_LEN);
-	  g_strlcat(oraddress, tvb_format_text(pstring, 0, tvb_length(pstring)), MAX_ORA_STR_LEN);
-	}
+	do_address("/I=", pstring, actx);
 
 
 
@@ -1969,7 +1979,7 @@ dissect_p1_T_printable_initials(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 static int
 dissect_p1_T_printable_generation_qualifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 976 "../../asn1/p1/p1.cnf"
+#line 925 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*pstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_PrintableString,
@@ -1977,10 +1987,7 @@ dissect_p1_T_printable_generation_qualifier(gboolean implicit_tag _U_, tvbuff_t 
                                                         1, ub_generation_qualifier_length, hf_index, &pstring);
 
 
-	if(doing_address && pstring) {
-	    g_strlcat(oraddress, "/Q=", MAX_ORA_STR_LEN);
-	  g_strlcat(oraddress, tvb_format_text(pstring, 0, tvb_length(pstring)), MAX_ORA_STR_LEN);
-	}
+	do_address("/Q=", pstring, actx);
 
 
 
@@ -2008,18 +2015,10 @@ dissect_p1_PersonalName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset
 
 static int
 dissect_p1_OrganizationalUnitName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 769 "../../asn1/p1/p1.cnf"
+#line 765 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*string = NULL;
 
-	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_PrintableString,
-                                                        actx, tree, tvb, offset,
-                                                        1, ub_organizational_unit_name_length, hf_index, &string);
-
-
-	if(doing_address && string) {
-		g_strlcat(oraddress, "/OU=", MAX_ORA_STR_LEN);
-		g_strlcat(oraddress, tvb_format_text(string, 0, tvb_length(string)), MAX_ORA_STR_LEN);
-	}
+	do_address("/OU=", string, actx);
 
 
 
@@ -2055,9 +2054,8 @@ static const ber_sequence_t BuiltInStandardAttributes_sequence[] = {
 
 static int
 dissect_p1_BuiltInStandardAttributes(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1143 "../../asn1/p1/p1.cnf"
-
-	address_item = tree;	
+#line 1081 "../../asn1/p1/p1.cnf"
+	actx->subtree.tree = tree;
 
 	  offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    BuiltInStandardAttributes_sequence, hf_index, ett_p1_BuiltInStandardAttributes);
@@ -2072,7 +2070,7 @@ dissect_p1_BuiltInStandardAttributes(gboolean implicit_tag _U_, tvbuff_t *tvb _U
 
 static int
 dissect_p1_T_printable_type(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1026 "../../asn1/p1/p1.cnf"
+#line 960 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*pstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_PrintableString,
@@ -2080,12 +2078,8 @@ dissect_p1_T_printable_type(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
                                                         1, ub_domain_defined_attribute_type_length, hf_index, &pstring);
 
 
-	if(doing_address && pstring) {
-	    g_strlcat(oraddress, "/DD.", MAX_ORA_STR_LEN);
-	    g_strlcat(oraddress, tvb_format_text(pstring, 0, tvb_length(pstring)), MAX_ORA_STR_LEN);
-	    g_strlcat(ddatype, tvb_format_text(pstring, 0, tvb_length(pstring)), MAX_ORA_STR_LEN);
-	}
-	
+	do_address_str("/DD.", pstring, actx);
+
 
 
   return offset;
@@ -2095,7 +2089,7 @@ dissect_p1_T_printable_type(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 
 static int
 dissect_p1_T_printable_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1037 "../../asn1/p1/p1.cnf"
+#line 967 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*pstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_PrintableString,
@@ -2103,14 +2097,8 @@ dissect_p1_T_printable_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
                                                         1, ub_domain_defined_attribute_value_length, hf_index, &pstring);
 
 
-	if(doing_address && pstring) {
-	    g_strlcat(oraddress, "=", MAX_ORA_STR_LEN);
-	    g_strlcat(oraddress, tvb_format_text(pstring, 0, tvb_length(pstring)), MAX_ORA_STR_LEN);
-	    if (*ddatype) {
-	       proto_item_append_text (tree, " (%s=%s)", ddatype, tvb_format_text(pstring, 0, tvb_length(pstring)));
-	    }
-	}
-	
+	do_address_str_tree("=", pstring, actx, tree);
+
 
 
   return offset;
@@ -2125,8 +2113,8 @@ static const ber_sequence_t BuiltInDomainDefinedAttribute_sequence[] = {
 
 static int
 dissect_p1_BuiltInDomainDefinedAttribute(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1050 "../../asn1/p1/p1.cnf"
-        ddatype = (char *)ep_alloc(MAX_ORA_STR_LEN); ddatype[0] = '\0';
+#line 974 "../../asn1/p1/p1.cnf"
+	actx->value_ptr = wmem_strbuf_new(wmem_packet_scope(), "");
 
 	  offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    BuiltInDomainDefinedAttribute_sequence, hf_index, ett_p1_BuiltInDomainDefinedAttribute);
@@ -2199,7 +2187,7 @@ static const value_string p1_ExtensionAttributeType_vals[] = {
 static int
 dissect_p1_ExtensionAttributeType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
-                                                &extension_id);
+                                                &actx->external.indirect_reference);
 
   return offset;
 }
@@ -2210,18 +2198,18 @@ static int
 dissect_p1_T_extension_attribute_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 576 "../../asn1/p1/p1.cnf"
 
-	proto_item_append_text(tree, " (%s)", val_to_str(extension_id, p1_ExtensionAttributeType_vals, "extension-attribute-type %d")); 
-	if (dissector_try_uint(p1_extension_attribute_dissector_table, extension_id, tvb, actx->pinfo, tree)) {
+	proto_item_append_text(tree, " (%s)", val_to_str(actx->external.indirect_reference, p1_ExtensionAttributeType_vals, "extension-attribute-type %d"));
+	if (dissector_try_uint(p1_extension_attribute_dissector_table, actx->external.indirect_reference, tvb, actx->pinfo, tree)) {
 		offset =tvb_length(tvb);
 	} else {
 		proto_item *item = NULL;
 		proto_tree *next_tree = NULL;
 
-		item = proto_tree_add_text(tree, tvb, 0, tvb_length_remaining(tvb, offset), 
-			"Dissector for extension-attribute-type %d not implemented.  Contact Wireshark developers if you want this supported", extension_id);
+		item = proto_tree_add_text(tree, tvb, 0, tvb_length_remaining(tvb, offset),
+			"Dissector for extension-attribute-type %d not implemented.  Contact Wireshark developers if you want this supported", actx->external.indirect_reference);
 		next_tree = proto_item_add_subtree(item, ett_p1_unknown_extension_attribute_type);
 		offset = dissect_unknown_ber(actx->pinfo, tvb, offset, next_tree);
-		expert_add_info_format(actx->pinfo, item, PI_UNDECODED, PI_WARN, "Unknown extension-attribute-type");
+		expert_add_info(actx->pinfo, item, &ei_p1_unknown_extension_attribute_type);
 	}
 
 
@@ -2279,21 +2267,27 @@ dissect_p1_ORName_U(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_
 
 int
 dissect_p1_ORName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1068 "../../asn1/p1/p1.cnf"
-	
-	oraddress = (char *)ep_alloc(MAX_ORA_STR_LEN); oraddress[0] = '\0';	
-	address_item = NULL;
-	doing_address = TRUE;
+#line 1000 "../../asn1/p1/p1.cnf"
+	p1_address_ctx_t* ctx;
+
+	if (actx->subtree.tree_ctx == NULL) {
+		actx->subtree.tree_ctx = wmem_new0(wmem_packet_scope(), p1_address_ctx_t);
+	}
+
+	ctx = (p1_address_ctx_t*)actx->subtree.tree_ctx;
+	ctx->oraddress = wmem_strbuf_new(wmem_packet_scope(), "");
+
+	actx->subtree.tree = NULL;
+	set_do_address(actx, TRUE);
 
 	  offset = dissect_ber_tagged_type(implicit_tag, actx, tree, tvb, offset,
                                       hf_index, BER_CLASS_APP, 0, TRUE, dissect_p1_ORName_U);
 
 
-	if(*oraddress && address_item)
-		proto_item_append_text(address_item, " (%s/)", oraddress);
+	if (ctx->oraddress && (wmem_strbuf_get_len(ctx->oraddress) > 0) && actx->subtree.tree)
+		proto_item_append_text(actx->subtree.tree, " (%s/)", wmem_strbuf_get_str(ctx->oraddress));
 
-	doing_address = FALSE;
-
+	set_do_address(actx, FALSE);
 
 
   return offset;
@@ -2489,24 +2483,30 @@ static const value_string p1_BuiltInContentType_U_vals[] = {
 
 static int
 dissect_p1_BuiltInContentType_U(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 636 "../../asn1/p1/p1.cnf"
-  static guint32	ict = -1;	
+#line 643 "../../asn1/p1/p1.cnf"
+	static guint32	ict = -1;
+	p1_address_ctx_t* ctx;
+
+	if (actx->subtree.tree_ctx == NULL)
+		actx->subtree.tree_ctx = wmem_new0(wmem_packet_scope(), p1_address_ctx_t);
+
+	ctx = (p1_address_ctx_t*)actx->subtree.tree_ctx;
 
     offset = dissect_ber_constrained_integer(implicit_tag, actx, tree, tvb, offset,
                                                             0U, ub_built_in_content_type, hf_index, &ict);
 
 
-  /* convert integer content type to oid for dispatch when the content is found */
-  switch(ict) {
+	/* convert integer content type to oid for dispatch when the content is found */
+	switch(ict) {
 	case 2:
-	content_type_id = ep_strdup("2.6.1.10.0");
-	break;
+		ctx->content_type_id = wmem_strdup(wmem_packet_scope(), "2.6.1.10.0");
+		break;
 	case 22:
-	content_type_id = ep_strdup("2.6.1.10.1");
-	break;
+		ctx->content_type_id = wmem_strdup(wmem_packet_scope(), "2.6.1.10.1");
+		break;
 	default:
-	content_type_id = NULL;
-	break;
+		ctx->content_type_id = NULL;
+		break;
 	}
 
 
@@ -2528,18 +2528,24 @@ dissect_p1_BuiltInContentType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
 
 int
 dissect_p1_ExtendedContentType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 621 "../../asn1/p1/p1.cnf"
+#line 622 "../../asn1/p1/p1.cnf"
 	const char *name = NULL;
+	p1_address_ctx_t* ctx;
 
-	  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &content_type_id);
+	if (actx->subtree.tree_ctx == NULL)
+		actx->subtree.tree_ctx = wmem_new0(wmem_packet_scope(), p1_address_ctx_t);
+
+	ctx = (p1_address_ctx_t*)actx->subtree.tree_ctx;
+
+	  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &ctx->content_type_id);
 
 
-	if(content_type_id) {
-	  name = oid_resolved_from_string(content_type_id);
+	if(ctx->content_type_id) {
+		name = oid_resolved_from_string(ctx->content_type_id);
 
-  	  if(!name) name = content_type_id;
+		if(!name) name = ctx->content_type_id;
 
-	  proto_item_append_text(tree, " (%s)", name);
+		proto_item_append_text(tree, " (%s)", name);
 	}
 
 
@@ -2653,14 +2659,15 @@ dissect_p1_PerMessageIndicators(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 static int
 dissect_p1_Time(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1186 "../../asn1/p1/p1.cnf"
+#line 1123 "../../asn1/p1/p1.cnf"
 	tvbuff_t *arrival = NULL;
+	p1_address_ctx_t* ctx = (p1_address_ctx_t*)actx->subtree.tree_ctx;
 
 	  offset = dissect_ber_UTCTime(implicit_tag, actx, tree, tvb, offset, hf_index);
 
 
-	if(arrival && doing_address)
-		proto_item_append_text(address_item, " %s", tvb_format_text(arrival, 0, tvb_length(arrival)));
+	if(arrival && ctx && ctx->do_address)
+		proto_item_append_text(actx->subtree.tree, " %s", tvb_format_text(arrival, 0, tvb_length(arrival)));
 
 
 
@@ -2717,16 +2724,16 @@ dissect_p1_T_bilateral_domain(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
 
 static int
 dissect_p1_T_bilateral_information(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1254 "../../asn1/p1/p1.cnf"
+#line 1190 "../../asn1/p1/p1.cnf"
 	proto_item *item = NULL;
-	int 	    loffset = 0;
+	int	    loffset = 0;
 	guint32	    len = 0;
 
 	/* work out the length */
 	loffset = dissect_ber_identifier(actx->pinfo, tree, tvb, offset, NULL, NULL, NULL);
 	(void) dissect_ber_length(actx->pinfo, tree, tvb, loffset, &len, NULL);
 
-	/* create some structure so we can tell what this unknown ASN.1 represents */	
+	/* create some structure so we can tell what this unknown ASN.1 represents */
 	item = proto_tree_add_item(tree, hf_index, tvb, offset, len, ENC_BIG_ENDIAN);
 	tree = proto_item_add_subtree(item, ett_p1_bilateral_information);
 
@@ -2785,14 +2792,14 @@ static const value_string p1_RoutingAction_vals[] = {
 
 static int
 dissect_p1_RoutingAction(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1197 "../../asn1/p1/p1.cnf"
+#line 1135 "../../asn1/p1/p1.cnf"
 	int action = 0;
 
 	  offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                   &action);
 
 
-	proto_item_append_text(address_item, " %s", val_to_str(action, p1_RoutingAction_vals, "action(%d)"));
+	proto_item_append_text(actx->subtree.tree, " %s", val_to_str(action, p1_RoutingAction_vals, "action(%d)"));
 
 
 
@@ -2846,15 +2853,15 @@ static const ber_sequence_t DomainSuppliedInformation_set[] = {
 
 static int
 dissect_p1_DomainSuppliedInformation(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1165 "../../asn1/p1/p1.cnf"
+#line 1102 "../../asn1/p1/p1.cnf"
 
-	doing_address = FALSE;
+	set_do_address(actx, FALSE);
 
 	  offset = dissect_ber_set(implicit_tag, actx, tree, tvb, offset,
                               DomainSuppliedInformation_set, hf_index, ett_p1_DomainSuppliedInformation);
 
 
-	doing_address = TRUE;
+	set_do_address(actx, TRUE);
 	proto_item_append_text(tree, ")");
 
 
@@ -2871,15 +2878,15 @@ static const ber_sequence_t TraceInformationElement_sequence[] = {
 
 static int
 dissect_p1_TraceInformationElement(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1149 "../../asn1/p1/p1.cnf"
+#line 1086 "../../asn1/p1/p1.cnf"
 
-	doing_address = TRUE;
+	set_do_address(actx, TRUE);
 
 	  offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    TraceInformationElement_sequence, hf_index, ett_p1_TraceInformationElement);
 
 
-	doing_address = FALSE;
+	set_do_address(actx, FALSE);
 
 
 
@@ -2962,8 +2969,14 @@ static const value_string p1_StandardExtension_vals[] = {
 
 static int
 dissect_p1_StandardExtension(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
-                                                &extension_id);
+#line 608 "../../asn1/p1/p1.cnf"
+	actx->external.indirect_ref_present = TRUE;
+	actx->external.direct_ref_present = FALSE;
+	  offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
+                                                &actx->external.indirect_reference);
+
+
+
 
   return offset;
 }
@@ -2973,10 +2986,11 @@ dissect_p1_StandardExtension(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
 static int
 dissect_p1_T_private_extension(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 #line 613 "../../asn1/p1/p1.cnf"
+	actx->external.indirect_ref_present = FALSE;
+	actx->external.direct_reference = NULL;
+	  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &actx->external.direct_reference);
 
-	  offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &object_identifier_id);
-
-	extension_id = -1;
+	actx->external.direct_ref_present = (actx->external.direct_reference != NULL) ? TRUE : FALSE;
 
 
 
@@ -3029,26 +3043,26 @@ dissect_p1_ExtensionValue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offs
 #line 535 "../../asn1/p1/p1.cnf"
 	const char *name;
 
-	if(extension_id != -1) {
-		proto_item_append_text(tree, " (%s)", val_to_str(extension_id, p1_StandardExtension_vals, "standard-extension %d")); 
-  		if (dissector_try_uint(p1_extension_dissector_table, extension_id, tvb, actx->pinfo, tree)) {
+	if(actx->external.indirect_ref_present) {
+		proto_item_append_text(tree, " (%s)", val_to_str(actx->external.indirect_reference, p1_StandardExtension_vals, "standard-extension %d"));
+		if (dissector_try_uint(p1_extension_dissector_table, actx->external.indirect_reference, tvb, actx->pinfo, tree)) {
 			offset = tvb_length(tvb);
 		} else {
 			proto_item *item = NULL;
 			proto_tree *next_tree = NULL;
 
-			item = proto_tree_add_text(tree, tvb, 0, tvb_length_remaining(tvb, offset), 
-				"Dissector for standard-extension %d not implemented.  Contact Wireshark developers if you want this supported", extension_id);
+			item = proto_tree_add_text(tree, tvb, 0, tvb_length_remaining(tvb, offset),
+				"Dissector for standard-extension %d not implemented.  Contact Wireshark developers if you want this supported", actx->external.indirect_reference);
 			next_tree = proto_item_add_subtree(item, ett_p1_unknown_standard_extension);
 			offset = dissect_unknown_ber(actx->pinfo, tvb, offset, next_tree);
-			expert_add_info_format(actx->pinfo, item, PI_UNDECODED, PI_WARN, "Unknown standard-extension");
+			expert_add_info(actx->pinfo, item, &ei_p1_unknown_standard_extension);
 		}
-	} else if (object_identifier_id) {
-		offset = call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
-		name = oid_resolved_from_string(object_identifier_id);
-		proto_item_append_text(tree, " (%s)", name ? name : object_identifier_id); 
+	} else if (actx->external.direct_ref_present) {
+		offset = call_ber_oid_callback(actx->external.direct_reference, tvb, offset, actx->pinfo, tree, actx->private_data);
+		name = oid_resolved_from_string(actx->external.direct_reference);
+		proto_item_append_text(tree, " (%s)", name ? name : actx->external.direct_reference);
 	}
-		
+
 
 
 
@@ -3209,30 +3223,31 @@ dissect_p1_MessageTransferEnvelope(gboolean implicit_tag _U_, tvbuff_t *tvb _U_,
 
 int
 dissect_p1_Content(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 654 "../../asn1/p1/p1.cnf"
-  tvbuff_t *next_tvb;
+#line 667 "../../asn1/p1/p1.cnf"
+	tvbuff_t *next_tvb;
+	p1_address_ctx_t* ctx = (p1_address_ctx_t*)actx->subtree.tree_ctx;
 
-  /* we can do this now constructed octet strings are supported */
-  offset = dissect_ber_octet_string(FALSE, actx, tree, tvb, offset, hf_index, &next_tvb);
-  proto_item_set_text(actx->created_item, "content (%u bytes)", tvb_length (next_tvb));
+	/* we can do this now constructed octet strings are supported */
+	offset = dissect_ber_octet_string(FALSE, actx, tree, tvb, offset, hf_index, &next_tvb);
+	proto_item_set_text(actx->created_item, "content (%u bytes)", tvb_length (next_tvb));
 
-  if (next_tvb) {
-    if (content_type_id) {
-      (void) call_ber_oid_callback(content_type_id, next_tvb, 0, actx->pinfo, top_tree ? top_tree : tree);
-    } else if (report_unknown_content_type) {
-      proto_item *item = NULL;
-      proto_tree *next_tree = NULL;
+	if (next_tvb) {
+		if (ctx && ctx->content_type_id) {
+			(void) call_ber_oid_callback(ctx->content_type_id, next_tvb, 0, actx->pinfo, actx->subtree.top_tree ? actx->subtree.top_tree : tree, actx->private_data);
+	} else if (ctx && ctx->report_unknown_content_type) {
+		proto_item *item = NULL;
+		proto_tree *next_tree = NULL;
 
-      item = proto_tree_add_text(top_tree ? top_tree : tree, next_tvb, 0, tvb_length_remaining(tvb, offset), "P1 Unknown Content (unknown built-in content-type)");
-      expert_add_info_format(actx->pinfo, item, PI_UNDECODED, PI_WARN, "Unknown built-in content-type");
-      if (item) {
-        next_tree=proto_item_add_subtree(item, ett_p1_content_unknown);
-      }
-      dissect_unknown_ber(actx->pinfo, next_tvb, 0, next_tree);
-    } else {
-      proto_item_append_text (actx->created_item, " (unknown content-type)");
-    }
-  }
+		proto_tree_add_expert(actx->subtree.top_tree ? actx->subtree.top_tree : tree, actx->pinfo, &ei_p1_unknown_built_in_content_type,
+							  next_tvb, 0, tvb_length_remaining(tvb, offset));
+		if (item) {
+			next_tree=proto_item_add_subtree(item, ett_p1_content_unknown);
+		}
+		dissect_unknown_ber(actx->pinfo, next_tvb, 0, next_tree);
+		} else {
+			proto_item_append_text (actx->created_item, " (unknown content-type)");
+		}
+	}
 
 
 
@@ -3414,7 +3429,7 @@ dissect_p1_AdditionalInformation(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 
    item = proto_tree_add_item(tree, hf_index, tvb, offset, len, ENC_BIG_ENDIAN);
    tree = proto_item_add_subtree(item, ett_p1_additional_information);
-   proto_item_append_text(tree, " (The use of this field is \"strongly deprecated\".)"); 
+   proto_item_append_text(tree, " (The use of this field is \"strongly deprecated\".)");
 
    offset = dissect_unknown_ber(actx->pinfo, tvb, offset, tree);
 
@@ -3623,18 +3638,16 @@ static const ber_choice_t ReportType_choice[] = {
 
 static int
 dissect_p1_ReportType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1286 "../../asn1/p1/p1.cnf"
+#line 1222 "../../asn1/p1/p1.cnf"
 	gint report = -1;
 
-  	  offset = dissect_ber_choice(actx, tree, tvb, offset,
+	  offset = dissect_ber_choice(actx, tree, tvb, offset,
                                  ReportType_choice, hf_index, ett_p1_ReportType,
                                  &report);
 
-	
-        if( (report!=-1) && p1_ReportType_vals[report].strptr ){
-		if(check_col(actx->pinfo->cinfo, COL_INFO)) {
+
+		if( (report!=-1) && p1_ReportType_vals[report].strptr ){
 			col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s", p1_ReportType_vals[report].strptr);
-		}
 	}
 
 
@@ -3765,16 +3778,16 @@ static const ber_choice_t MTS_APDU_choice[] = {
 
 static int
 dissect_p1_MTS_APDU(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1272 "../../asn1/p1/p1.cnf"
+#line 1208 "../../asn1/p1/p1.cnf"
 	gint apdu = -1;
 
-  	  offset = dissect_ber_choice(actx, tree, tvb, offset,
+	  offset = dissect_ber_choice(actx, tree, tvb, offset,
                                  MTS_APDU_choice, hf_index, ett_p1_MTS_APDU,
                                  &apdu);
 
-	
+
 	if( (apdu!=-1) && p1_MTS_APDU_vals[apdu].strptr ){
-		if(check_col(actx->pinfo->cinfo, COL_INFO) && (apdu != 0)) { /* we don't show "message" - sub-dissectors have better idea */
+		if(apdu != 0) { /* we don't show "message" - sub-dissectors have better idea */
 			col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s", p1_MTS_APDU_vals[apdu].strptr);
 		}
 	}
@@ -3822,15 +3835,15 @@ static const ber_sequence_t MTASuppliedInformation_set[] = {
 
 static int
 dissect_p1_MTASuppliedInformation(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1174 "../../asn1/p1/p1.cnf"
+#line 1111 "../../asn1/p1/p1.cnf"
 
-	doing_address = FALSE;
+	set_do_address(actx, FALSE);
 
 	  offset = dissect_ber_set(implicit_tag, actx, tree, tvb, offset,
                               MTASuppliedInformation_set, hf_index, ett_p1_MTASuppliedInformation);
 
 
-	doing_address = TRUE;
+	set_do_address(actx, TRUE);
 	proto_item_append_text(tree, ")");
 
 
@@ -3848,15 +3861,15 @@ static const ber_sequence_t InternalTraceInformationElement_sequence[] = {
 
 static int
 dissect_p1_InternalTraceInformationElement(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1157 "../../asn1/p1/p1.cnf"
+#line 1094 "../../asn1/p1/p1.cnf"
 
-	doing_address = TRUE;
+	set_do_address(actx, TRUE);
 
 	  offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    InternalTraceInformationElement_sequence, hf_index, ett_p1_InternalTraceInformationElement);
 
 
-	doing_address = FALSE;
+	set_do_address(actx, FALSE);
 
 
 
@@ -3982,6 +3995,10 @@ static const ber_sequence_t MTSBindResult_set[] = {
 
 static int
 dissect_p1_MTSBindResult(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+#line 1246 "../../asn1/p1/p1.cnf"
+	/* TODO: there may be other entry points where this global should be initialized... */
+	actx->subtree.tree = NULL;
+
   offset = dissect_ber_set(implicit_tag, actx, tree, tvb, offset,
                               MTSBindResult_set, hf_index, ett_p1_MTSBindResult);
 
@@ -4111,12 +4128,12 @@ static const ber_sequence_t MessageSubmissionArgument_sequence[] = {
 
 static int
 dissect_p1_MessageSubmissionArgument(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1297 "../../asn1/p1/p1.cnf"
-	p1_initialize_content_globals(tree, TRUE);
-  	  offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
+#line 1231 "../../asn1/p1/p1.cnf"
+	p1_initialize_content_globals(actx, tree, TRUE);
+	  offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    MessageSubmissionArgument_sequence, hf_index, ett_p1_MessageSubmissionArgument);
 
-	p1_initialize_content_globals(NULL, FALSE);
+	p1_initialize_content_globals(actx, NULL, FALSE);
 
 
 
@@ -4685,12 +4702,12 @@ static const ber_sequence_t MessageDeliveryArgument_sequence[] = {
 
 static int
 dissect_p1_MessageDeliveryArgument(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1302 "../../asn1/p1/p1.cnf"
-	p1_initialize_content_globals(tree, TRUE);
-  	  offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
+#line 1236 "../../asn1/p1/p1.cnf"
+	p1_initialize_content_globals(actx, tree, TRUE);
+	  offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    MessageDeliveryArgument_sequence, hf_index, ett_p1_MessageDeliveryArgument);
 
-	p1_initialize_content_globals(NULL, FALSE);
+	p1_initialize_content_globals(actx, NULL, FALSE);
 
 
 
@@ -4795,12 +4812,12 @@ static const ber_sequence_t ReportDeliveryArgument_set[] = {
 
 static int
 dissect_p1_ReportDeliveryArgument(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1307 "../../asn1/p1/p1.cnf"
-	p1_initialize_content_globals(tree, TRUE);
-  	  offset = dissect_ber_set(implicit_tag, actx, tree, tvb, offset,
+#line 1241 "../../asn1/p1/p1.cnf"
+	p1_initialize_content_globals(actx, tree, TRUE);
+	  offset = dissect_ber_set(implicit_tag, actx, tree, tvb, offset,
                               ReportDeliveryArgument_set, hf_index, ett_p1_ReportDeliveryArgument);
 
-	p1_initialize_content_globals(NULL, FALSE);
+	p1_initialize_content_globals(actx, NULL, FALSE);
 
 
 
@@ -5008,7 +5025,7 @@ dissect_p1_UserName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_
 
 static int
 dissect_p1_T_x121_address(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 858 "../../asn1/p1/p1.cnf"
+#line 835 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*nstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_NumericString,
@@ -5016,8 +5033,7 @@ dissect_p1_T_x121_address(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offs
                                                         1, ub_x121_address_length, hf_index, &nstring);
 
 
-	if(doing_address && nstring)
-		g_strlcat(oraddress, tvb_format_text(nstring, 0, tvb_length(nstring)), MAX_ORA_STR_LEN);
+	do_address(NULL, nstring, actx);
 
 
 
@@ -5714,20 +5730,28 @@ static const ber_sequence_t ORAddress_sequence[] = {
 
 int
 dissect_p1_ORAddress(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1055 "../../asn1/p1/p1.cnf"
-	
-	oraddress = (char *)ep_alloc(MAX_ORA_STR_LEN); oraddress[0] = '\0';	
-	doing_address = TRUE;
-	address_item = NULL;
+#line 979 "../../asn1/p1/p1.cnf"
+	p1_address_ctx_t* ctx;
+
+	if (actx->subtree.tree_ctx == NULL) {
+		actx->subtree.tree_ctx = wmem_new0(wmem_packet_scope(), p1_address_ctx_t);
+	}
+
+	ctx = (p1_address_ctx_t*)actx->subtree.tree_ctx;
+	ctx->oraddress = wmem_strbuf_new(wmem_packet_scope(), "");
+
+	actx->subtree.tree = NULL;
+	set_do_address(actx, TRUE);
 
 	  offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    ORAddress_sequence, hf_index, ett_p1_ORAddress);
 
 
-	if(*oraddress && address_item)
-		proto_item_append_text(address_item, " %s/", oraddress);
 
-	doing_address = FALSE;
+	if (ctx->oraddress && (wmem_strbuf_get_len(ctx->oraddress) > 0) && actx->subtree.tree)
+		proto_item_append_text(actx->subtree.tree, " (%s/)", wmem_strbuf_get_str(ctx->oraddress));
+
+	set_do_address(actx, FALSE);
 
 
 
@@ -6202,7 +6226,7 @@ dissect_p1_CertificateSelectors(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 static int
 dissect_p1_CommonName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 795 "../../asn1/p1/p1.cnf"
+#line 783 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*string = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_PrintableString,
@@ -6210,10 +6234,7 @@ dissect_p1_CommonName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _
                                                         1, ub_common_name_length, hf_index, &string);
 
 
-	if(doing_address && string) {
-		g_strlcat(oraddress, "/CN=", MAX_ORA_STR_LEN);
-		g_strlcat(oraddress, tvb_format_text(string, 0, tvb_length(string)), MAX_ORA_STR_LEN);
-	}
+	do_address("/CN=", string, actx);
 
 
 
@@ -6224,7 +6245,7 @@ dissect_p1_CommonName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _
 
 static int
 dissect_p1_TeletexCommonName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 808 "../../asn1/p1/p1.cnf"
+#line 793 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*string = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_TeletexString,
@@ -6232,10 +6253,7 @@ dissect_p1_TeletexCommonName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
                                                         1, ub_common_name_length, hf_index, &string);
 
 
-	if(doing_address && string) {
-		g_strlcat(oraddress, "/CN=", MAX_ORA_STR_LEN);
-		g_strlcat(oraddress, tvb_format_text(string, 0, tvb_length(string)), MAX_ORA_STR_LEN);
-	}
+	do_address("/CN=", string, actx);
 
 
 
@@ -6325,7 +6343,7 @@ dissect_p1_UniversalCommonName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
 
 static int
 dissect_p1_TeletexOrganizationName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 756 "../../asn1/p1/p1.cnf"
+#line 755 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*string = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_TeletexString,
@@ -6333,10 +6351,7 @@ dissect_p1_TeletexOrganizationName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_,
                                                         1, ub_organization_name_length, hf_index, &string);
 
 
-	if(doing_address && string) {
-		g_strlcat(oraddress, "/O=", MAX_ORA_STR_LEN);
-		g_strlcat(oraddress, tvb_format_text(string, 0, tvb_length(string)), MAX_ORA_STR_LEN);
-	}
+	do_address("/O=", string, actx);
 
 
 
@@ -6356,7 +6371,7 @@ dissect_p1_UniversalOrganizationName(gboolean implicit_tag _U_, tvbuff_t *tvb _U
 
 static int
 dissect_p1_T_teletex_surname(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 986 "../../asn1/p1/p1.cnf"
+#line 932 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*tstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_TeletexString,
@@ -6364,10 +6379,7 @@ dissect_p1_T_teletex_surname(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
                                                         1, ub_surname_length, hf_index, &tstring);
 
 
-	if(doing_address && tstring) {
-	    g_strlcat(oraddress, "/S=", MAX_ORA_STR_LEN);
-	  g_strlcat(oraddress, tvb_format_text(tstring, 0, tvb_length(tstring)), MAX_ORA_STR_LEN);
-	}
+	do_address("/S=", tstring, actx);
 
 
 
@@ -6378,7 +6390,7 @@ dissect_p1_T_teletex_surname(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
 
 static int
 dissect_p1_T_teletex_given_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 996 "../../asn1/p1/p1.cnf"
+#line 939 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*tstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_TeletexString,
@@ -6386,10 +6398,7 @@ dissect_p1_T_teletex_given_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
                                                         1, ub_given_name_length, hf_index, &tstring);
 
 
-	if(doing_address && tstring) {
-	    g_strlcat(oraddress, "/G=", MAX_ORA_STR_LEN);
-	  g_strlcat(oraddress, tvb_format_text(tstring, 0, tvb_length(tstring)), MAX_ORA_STR_LEN);
-	}
+	do_address("/G=", tstring, actx);
 
 
 
@@ -6400,7 +6409,7 @@ dissect_p1_T_teletex_given_name(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, in
 
 static int
 dissect_p1_T_teletex_initials(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1006 "../../asn1/p1/p1.cnf"
+#line 946 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*tstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_TeletexString,
@@ -6408,10 +6417,7 @@ dissect_p1_T_teletex_initials(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
                                                         1, ub_initials_length, hf_index, &tstring);
 
 
-	if(doing_address && tstring) {
-	    g_strlcat(oraddress, "/I=", MAX_ORA_STR_LEN);
-	  g_strlcat(oraddress, tvb_format_text(tstring, 0, tvb_length(tstring)), MAX_ORA_STR_LEN);
-	}
+	do_address("/I=", tstring, actx);
 
 
 
@@ -6422,7 +6428,7 @@ dissect_p1_T_teletex_initials(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
 
 static int
 dissect_p1_T_teletex_generation_qualifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1016 "../../asn1/p1/p1.cnf"
+#line 953 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*tstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_TeletexString,
@@ -6430,10 +6436,7 @@ dissect_p1_T_teletex_generation_qualifier(gboolean implicit_tag _U_, tvbuff_t *t
                                                         1, ub_generation_qualifier_length, hf_index, &tstring);
 
 
-	if(doing_address && tstring) {
-	    g_strlcat(oraddress, "/Q=", MAX_ORA_STR_LEN);
-	  g_strlcat(oraddress, tvb_format_text(tstring, 0, tvb_length(tstring)), MAX_ORA_STR_LEN);
-	}
+	do_address("/Q=", tstring, actx);
 
 
 
@@ -6478,7 +6481,7 @@ dissect_p1_UniversalPersonalName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 
 static int
 dissect_p1_TeletexOrganizationalUnitName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 782 "../../asn1/p1/p1.cnf"
+#line 773 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*string = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_TeletexString,
@@ -6486,10 +6489,7 @@ dissect_p1_TeletexOrganizationalUnitName(gboolean implicit_tag _U_, tvbuff_t *tv
                                                         1, ub_organizational_unit_name_length, hf_index, &string);
 
 
-	if(doing_address && string) {
-		g_strlcat(oraddress, "/OU=", MAX_ORA_STR_LEN);
-		g_strlcat(oraddress, tvb_format_text(string, 0, tvb_length(string)), MAX_ORA_STR_LEN);
-	}
+	do_address("/OU=", string, actx);
 
 
 
@@ -6546,7 +6546,7 @@ dissect_p1_PDSName(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_,
 
 static int
 dissect_p1_T_x121_dcc_code_01(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 898 "../../asn1/p1/p1.cnf"
+#line 870 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*nstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_NumericString,
@@ -6554,8 +6554,7 @@ dissect_p1_T_x121_dcc_code_01(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
                                                         ub_country_name_numeric_length, ub_country_name_numeric_length, hf_index, &nstring);
 
 
-	if(doing_address && nstring)
-		g_strlcat(oraddress, tvb_format_text(nstring, 0, tvb_length(nstring)), MAX_ORA_STR_LEN);
+	do_address(NULL, nstring, actx);
 
 
 
@@ -6566,7 +6565,7 @@ dissect_p1_T_x121_dcc_code_01(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
 
 static int
 dissect_p1_T_iso_3166_alpha2_code_01(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 850 "../../asn1/p1/p1.cnf"
+#line 828 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*nstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_PrintableString,
@@ -6574,8 +6573,7 @@ dissect_p1_T_iso_3166_alpha2_code_01(gboolean implicit_tag _U_, tvbuff_t *tvb _U
                                                         ub_country_name_alpha_length, ub_country_name_alpha_length, hf_index, &nstring);
 
 
-	if(doing_address && nstring)
-		g_strlcat(oraddress, tvb_format_text(nstring, 0, tvb_length(nstring)), MAX_ORA_STR_LEN);
+	do_address(NULL, nstring, actx);
 
 
 
@@ -6608,7 +6606,7 @@ dissect_p1_PhysicalDeliveryCountryName(gboolean implicit_tag _U_, tvbuff_t *tvb 
 
 static int
 dissect_p1_T_numeric_code(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 906 "../../asn1/p1/p1.cnf"
+#line 877 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*nstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_NumericString,
@@ -6616,8 +6614,7 @@ dissect_p1_T_numeric_code(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offs
                                                         1, ub_postal_code_length, hf_index, &nstring);
 
 
-	if(doing_address && nstring)
-		g_strlcat(oraddress, tvb_format_text(nstring, 0, tvb_length(nstring)), MAX_ORA_STR_LEN);
+	do_address(NULL, nstring, actx);
 
 
 
@@ -7033,7 +7030,7 @@ dissect_p1_TerminalType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset
 
 static int
 dissect_p1_T_type(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 915 "../../asn1/p1/p1.cnf"
+#line 885 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*tstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_TeletexString,
@@ -7041,12 +7038,7 @@ dissect_p1_T_type(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, 
                                                         1, ub_domain_defined_attribute_type_length, hf_index, &tstring);
 
 
-	if(doing_address && tstring) {
-		g_strlcat(oraddress, "/DD.", MAX_ORA_STR_LEN);
-		g_strlcat(oraddress, tvb_format_text(tstring, 0, tvb_length(tstring)), MAX_ORA_STR_LEN);
-		g_strlcat(ddatype, tvb_format_text(tstring, 0, tvb_length(tstring)), MAX_ORA_STR_LEN);
-	}
-
+	do_address_str("/DD.", tstring, actx);
 
 
 
@@ -7057,7 +7049,7 @@ dissect_p1_T_type(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, 
 
 static int
 dissect_p1_T_teletex_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 927 "../../asn1/p1/p1.cnf"
+#line 892 "../../asn1/p1/p1.cnf"
 	tvbuff_t	*tstring = NULL;
 
 	  offset = dissect_ber_constrained_restricted_string(implicit_tag, BER_UNI_TAG_TeletexString,
@@ -7065,14 +7057,7 @@ dissect_p1_T_teletex_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
                                                         1, ub_domain_defined_attribute_value_length, hf_index, &tstring);
 
 
-	if(doing_address && tstring) {
-		g_strlcat(oraddress, "=", MAX_ORA_STR_LEN);
-		g_strlcat(oraddress, tvb_format_text(tstring, 0, tvb_length(tstring)), MAX_ORA_STR_LEN);
-		if (*ddatype) {
-		   proto_item_append_text (tree, " (%s=%s)", ddatype, tvb_format_text(tstring, 0, tvb_length(tstring)));
-		}
-	}
-
+	do_address_str_tree("=", tstring, actx, tree);
 
 
 
@@ -7088,8 +7073,8 @@ static const ber_sequence_t TeletexDomainDefinedAttribute_sequence[] = {
 
 static int
 dissect_p1_TeletexDomainDefinedAttribute(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 941 "../../asn1/p1/p1.cnf"
-        ddatype = (char *)ep_alloc(MAX_ORA_STR_LEN); ddatype[0] = '\0';
+#line 899 "../../asn1/p1/p1.cnf"
+	actx->value_ptr = wmem_strbuf_new(wmem_packet_scope(), "");
 
 	  offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    TeletexDomainDefinedAttribute_sequence, hf_index, ett_p1_TeletexDomainDefinedAttribute);
@@ -7151,15 +7136,15 @@ static const ber_sequence_t MTANameAndOptionalGDI_sequence[] = {
 
 static int
 dissect_p1_MTANameAndOptionalGDI(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1134 "../../asn1/p1/p1.cnf"
+#line 1072 "../../asn1/p1/p1.cnf"
 
-	doing_address = TRUE;
+	set_do_address(actx, TRUE);
 
 	  offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
                                    MTANameAndOptionalGDI_sequence, hf_index, ett_p1_MTANameAndOptionalGDI);
 
 
-	doing_address = FALSE;
+	set_do_address(actx, FALSE);
 	proto_item_append_text(tree, ")");
 
 
@@ -7202,7 +7187,7 @@ static const value_string p1_TokenDataType_vals[] = {
 static int
 dissect_p1_TokenDataType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
-                                                &extension_id);
+                                                &actx->external.indirect_reference);
 
   return offset;
 }
@@ -7211,20 +7196,20 @@ dissect_p1_TokenDataType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 static int
 dissect_p1_T_value(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 1238 "../../asn1/p1/p1.cnf"
+#line 1174 "../../asn1/p1/p1.cnf"
 
-	proto_item_append_text(tree, " (%s)", val_to_str(extension_id, p1_TokenDataType_vals, "tokendata-type %d")); 
-	if (dissector_try_uint(p1_tokendata_dissector_table, extension_id, tvb, actx->pinfo, tree)) {
+	proto_item_append_text(tree, " (%s)", val_to_str(actx->external.indirect_reference, p1_TokenDataType_vals, "tokendata-type %d"));
+	if (dissector_try_uint(p1_tokendata_dissector_table, actx->external.indirect_reference, tvb, actx->pinfo, tree)) {
 		offset = tvb_length(tvb);
 	} else {
 		proto_item *item = NULL;
 		proto_tree *next_tree = NULL;
 
-		item = proto_tree_add_text(tree, tvb, 0, tvb_length_remaining(tvb, offset), 
-			"Dissector for tokendata-type %d not implemented.  Contact Wireshark developers if you want this supported", extension_id);
+		item = proto_tree_add_text(tree, tvb, 0, tvb_length_remaining(tvb, offset),
+			"Dissector for tokendata-type %d not implemented.  Contact Wireshark developers if you want this supported", actx->external.indirect_reference);
 		next_tree = proto_item_add_subtree(item, ett_p1_unknown_tokendata_type);
 		offset = dissect_unknown_ber(actx->pinfo, tvb, offset, next_tree);
-		expert_add_info_format(actx->pinfo, item, PI_UNDECODED, PI_WARN, "Unknown tokendata-type");
+		expert_add_info(actx->pinfo, item, &ei_p1_unknown_tokendata_type);
 	}
 
 
@@ -8207,84 +8192,84 @@ static void dissect_SecurityClassification_PDU(tvbuff_t *tvb _U_, packet_info *p
 
 
 /*--- End of included file: packet-p1-fn.c ---*/
-#line 101 "../../asn1/p1/packet-p1-template.c"
+#line 149 "../../asn1/p1/packet-p1-template.c"
 
 
 /*--- Included file: packet-p1-table11.c ---*/
 #line 1 "../../asn1/p1/packet-p1-table11.c"
 
 static const ros_opr_t p3_opr_tab[] = {
-  /* mts-bind */ 
-  { op_ros_bind              ,	dissect_MTSBindArgument_PDU,	dissect_MTSBindResult_PDU }, 
-  /* message-submission */ 
-  { op_message_submission    ,	dissect_MessageSubmissionArgument_PDU,	dissect_MessageSubmissionResult_PDU }, 
-  /* probe-submission */ 
-  { op_probe_submission      ,	dissect_ProbeSubmissionArgument_PDU,	dissect_ProbeSubmissionResult_PDU }, 
-  /* cancel-deferred-delivery */ 
-  { op_cancel_deferred_delivery,	dissect_CancelDeferredDeliveryArgument_PDU,	dissect_CancelDeferredDeliveryResult_PDU }, 
-  /* submission-control */ 
-  { op_submission_control    ,	dissect_SubmissionControlArgument_PDU,	dissect_SubmissionControlResult_PDU }, 
-  /* message-delivery */ 
-  { op_message_delivery      ,	dissect_MessageDeliveryArgument_PDU,	dissect_MessageDeliveryResult_PDU }, 
-  /* report-delivery */ 
-  { op_report_delivery       ,	dissect_ReportDeliveryArgument_PDU,	dissect_ReportDeliveryResult_PDU }, 
-  /* delivery-control */ 
-  { op_delivery_control      ,	dissect_DeliveryControlArgument_PDU,	dissect_DeliveryControlResult_PDU }, 
-  /* register */ 
-  { op_register              ,	dissect_RegisterArgument_PDU,	dissect_RegisterResult_PDU }, 
-  /* change-credentials */ 
-  { op_change_credentials    ,	dissect_ChangeCredentialsArgument_PDU,	dissect_RES_change_credentials_PDU }, 
+  /* mts-bind */
+  { op_ros_bind              ,	dissect_MTSBindArgument_PDU,	dissect_MTSBindResult_PDU },
+  /* message-submission */
+  { op_message_submission    ,	dissect_MessageSubmissionArgument_PDU,	dissect_MessageSubmissionResult_PDU },
+  /* probe-submission */
+  { op_probe_submission      ,	dissect_ProbeSubmissionArgument_PDU,	dissect_ProbeSubmissionResult_PDU },
+  /* cancel-deferred-delivery */
+  { op_cancel_deferred_delivery,	dissect_CancelDeferredDeliveryArgument_PDU,	dissect_CancelDeferredDeliveryResult_PDU },
+  /* submission-control */
+  { op_submission_control    ,	dissect_SubmissionControlArgument_PDU,	dissect_SubmissionControlResult_PDU },
+  /* message-delivery */
+  { op_message_delivery      ,	dissect_MessageDeliveryArgument_PDU,	dissect_MessageDeliveryResult_PDU },
+  /* report-delivery */
+  { op_report_delivery       ,	dissect_ReportDeliveryArgument_PDU,	dissect_ReportDeliveryResult_PDU },
+  /* delivery-control */
+  { op_delivery_control      ,	dissect_DeliveryControlArgument_PDU,	dissect_DeliveryControlResult_PDU },
+  /* register */
+  { op_register              ,	dissect_RegisterArgument_PDU,	dissect_RegisterResult_PDU },
+  /* change-credentials */
+  { op_change_credentials    ,	dissect_ChangeCredentialsArgument_PDU,	dissect_RES_change_credentials_PDU },
   { 0,				(new_dissector_t)(-1),	(new_dissector_t)(-1) },
 };
 
 
 /*--- End of included file: packet-p1-table11.c ---*/
-#line 103 "../../asn1/p1/packet-p1-template.c"
+#line 151 "../../asn1/p1/packet-p1-template.c"
 
 /*--- Included file: packet-p1-table21.c ---*/
 #line 1 "../../asn1/p1/packet-p1-table21.c"
 
 static const ros_err_t p3_err_tab[] = {
-  /* mts-bind-error*/ 
+  /* mts-bind-error*/
   { err_ros_bind,	dissect_PAR_mts_bind_error_PDU },
-  /* submission-control-violated*/ 
+  /* submission-control-violated*/
   { err_submission_control_violated,	dissect_PAR_submission_control_violated_PDU },
-  /* element-of-service-not-subscribed*/ 
+  /* element-of-service-not-subscribed*/
   { err_element_of_service_not_subscribed,	dissect_PAR_element_of_service_not_subscribed_PDU },
-  /* deferred-delivery-cancellation-rejected*/ 
+  /* deferred-delivery-cancellation-rejected*/
   { err_deferred_delivery_cancellation_rejected,	dissect_PAR_deferred_delivery_cancellation_rejected_PDU },
-  /* originator-invalid*/ 
+  /* originator-invalid*/
   { err_originator_invalid,	dissect_PAR_originator_invalid_PDU },
-  /* recipient-improperly-specified*/ 
+  /* recipient-improperly-specified*/
   { err_recipient_improperly_specified,	dissect_ImproperlySpecifiedRecipients_PDU },
-  /* message-submission-identifier-invalid*/ 
+  /* message-submission-identifier-invalid*/
   { err_message_submission_identifier_invalid,	dissect_PAR_message_submission_identifier_invalid_PDU },
-  /* inconsistent-request*/ 
+  /* inconsistent-request*/
   { err_inconsistent_request,	dissect_PAR_inconsistent_request_PDU },
-  /* security-error*/ 
+  /* security-error*/
   { err_security_error,	dissect_SecurityProblem_PDU },
-  /* unsupported-critical-function*/ 
+  /* unsupported-critical-function*/
   { err_unsupported_critical_function,	dissect_PAR_unsupported_critical_function_PDU },
-  /* remote-bind-error*/ 
+  /* remote-bind-error*/
   { err_remote_bind_error,	dissect_PAR_remote_bind_error_PDU },
-  /* delivery-control-violated*/ 
+  /* delivery-control-violated*/
   { err_delivery_control_violated,	dissect_PAR_delivery_control_violated_PDU },
-  /* control-violates-registration*/ 
+  /* control-violates-registration*/
   { err_control_violates_registration,	dissect_PAR_control_violates_registration_PDU },
-  /* operation-refused*/ 
+  /* operation-refused*/
   { err_operation_refused,	dissect_RefusedOperation_PDU },
-  /* register-rejected*/ 
+  /* register-rejected*/
   { err_register_rejected,	dissect_PAR_register_rejected_PDU },
-  /* new-credentials-unacceptable*/ 
+  /* new-credentials-unacceptable*/
   { err_new_credentials_unacceptable,	dissect_PAR_new_credentials_unacceptable_PDU },
-  /* old-credentials-incorrectly-specified*/ 
+  /* old-credentials-incorrectly-specified*/
   { err_old_credentials_incorrectly_specified,	dissect_PAR_old_credentials_incorrectly_specified_PDU },
   { 0,	(new_dissector_t)(-1) },
 };
 
 
 /*--- End of included file: packet-p1-table21.c ---*/
-#line 104 "../../asn1/p1/packet-p1-template.c"
+#line 152 "../../asn1/p1/packet-p1-template.c"
 
 static const ros_info_t p3_ros_info = {
   "P3",
@@ -8296,16 +8281,34 @@ static const ros_info_t p3_ros_info = {
   p3_err_tab
 };
 
-void p1_initialize_content_globals (proto_tree *tree, gboolean report_unknown_cont_type)
+void p1_initialize_content_globals (asn1_ctx_t* actx, proto_tree *tree, gboolean report_unknown_cont_type)
 {
-	top_tree = tree;
-	content_type_id = NULL;
-	report_unknown_content_type = report_unknown_cont_type;
+	p1_address_ctx_t* ctx;
+
+	if (actx->subtree.tree_ctx == NULL) {
+		actx->subtree.tree_ctx = wmem_new0(wmem_packet_scope(), p1_address_ctx_t);
+	}
+
+	ctx = (p1_address_ctx_t*)actx->subtree.tree_ctx;
+
+	actx->subtree.top_tree = tree;
+	actx->external.direct_reference = NULL;
+	ctx->content_type_id = NULL;
+	ctx->report_unknown_content_type = report_unknown_cont_type;
 }
 
-char* p1_get_last_oraddress (void) 
-{ 
-	return oraddress;
+const char* p1_get_last_oraddress (asn1_ctx_t* actx)
+{
+	p1_address_ctx_t* ctx;
+
+	if ((actx == NULL) || (actx->subtree.tree_ctx == NULL))
+		return "";
+
+	ctx = (p1_address_ctx_t*)actx->subtree.tree_ctx;
+	if (wmem_strbuf_get_len(ctx->oraddress) <= 0)
+		return "";
+
+	return wmem_strbuf_get_str(ctx->oraddress);
 }
 
 /*
@@ -8320,7 +8323,7 @@ dissect_p1_mts_apdu (tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
 	/* save parent_tree so subdissectors can create new top nodes */
-	p1_initialize_content_globals (parent_tree, TRUE);
+	p1_initialize_content_globals (&asn1_ctx, parent_tree, TRUE);
 
 	if(parent_tree){
 		item = proto_tree_add_item(parent_tree, proto_p1, tvb, 0, -1, ENC_NA);
@@ -8331,45 +8334,41 @@ dissect_p1_mts_apdu (tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
   	col_set_str(pinfo->cinfo, COL_INFO, "Transfer");
 
 	dissect_p1_MTS_APDU (FALSE, tvb, 0, &asn1_ctx, tree, hf_p1_MTS_APDU_PDU);
-	p1_initialize_content_globals (NULL, FALSE);
+	p1_initialize_content_globals (&asn1_ctx, NULL, FALSE);
 }
 
 /*
 * Dissect P1 PDUs inside a PPDU.
 */
-static void
-dissect_p1(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_p1(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data)
 {
 	int offset = 0;
 	int old_offset;
-	proto_item *item=NULL;
-	proto_tree *tree=NULL;
+	proto_item *item;
+	proto_tree *tree;
+	struct SESSION_DATA_STRUCTURE* session;
 	int (*p1_dissector)(gboolean implicit_tag _U_, tvbuff_t *tvb, int offset, asn1_ctx_t *actx _U_, proto_tree *tree, int hf_index _U_) = NULL;
 	const char *p1_op_name;
 	int hf_p1_index = -1;
 	asn1_ctx_t asn1_ctx;
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
+	/* do we have operation information from the ROS dissector? */
+	if (data == NULL)
+		return 0;
+	session  = (struct SESSION_DATA_STRUCTURE*)data;
+
 	/* save parent_tree so subdissectors can create new top nodes */
-	p1_initialize_content_globals (parent_tree, TRUE);
+	p1_initialize_content_globals (&asn1_ctx, parent_tree, TRUE);
 
-	/* do we have operation information from the ROS dissector?  */
-	if( !pinfo->private_data ){
-		if(parent_tree){
-			proto_tree_add_text(parent_tree, tvb, offset, -1,
-				"Internal error: can't get operation information from ROS dissector.");
-		}
-		return  ;
-	} else {
-		session  = ( (struct SESSION_DATA_STRUCTURE*)(pinfo->private_data) );
-	}
+	asn1_ctx.private_data = session;
 
-	if(parent_tree){
-		item = proto_tree_add_item(parent_tree, proto_p1, tvb, 0, -1, ENC_NA);
-		tree = proto_item_add_subtree(item, ett_p1);
-	}
+	item = proto_tree_add_item(parent_tree, proto_p1, tvb, 0, -1, ENC_NA);
+	tree = proto_item_add_subtree(item, ett_p1);
+
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "P1");
-  	col_clear(pinfo->cinfo, COL_INFO);
+	col_clear(pinfo->cinfo, COL_INFO);
 
 	switch(session->ros_op & ROS_OP_MASK) {
 	case (ROS_OP_BIND | ROS_OP_ARGUMENT):	/*  BindInvoke */
@@ -8394,11 +8393,10 @@ dissect_p1(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 	  break;
 	default:
 	  proto_tree_add_text(tree, tvb, offset, -1,"Unsupported P1 PDU");
-	  return;
+	  return tvb_length(tvb);
 	}
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-	  col_set_str(pinfo->cinfo, COL_INFO, p1_op_name);
+	col_set_str(pinfo->cinfo, COL_INFO, p1_op_name);
 
 	while (tvb_reported_length_remaining(tvb, offset) > 0){
 		old_offset=offset;
@@ -8408,7 +8406,8 @@ dissect_p1(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 			break;
 		}
 	}
-	p1_initialize_content_globals (NULL, FALSE);
+	p1_initialize_content_globals (&asn1_ctx, NULL, FALSE);
+	return tvb_length(tvb);
 }
 
 
@@ -8418,7 +8417,7 @@ void proto_register_p1(void) {
   /* List of fields */
   static hf_register_info hf[] =
   {
-	  /* "Created by defining PDU in .cnf */
+      /* "Created by defining PDU in .cnf */
     { &hf_p1_MTABindArgument_PDU,
       { "MTABindArgument", "p1.MTABindArgument",
         FT_UINT32, BASE_DEC, VALS(p1_MTABindArgument_vals), 0,
@@ -8444,7 +8443,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_InternalTraceInformationElement_PDU,
-      { "InternalTraceInformationElement", "p1.InternalTraceInformationElement",
+      { "InternalTraceInformationElement", "p1.InternalTraceInformationElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_TraceInformation_PDU,
@@ -8452,15 +8451,15 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_TraceInformationElement_PDU,
-      { "TraceInformationElement", "p1.TraceInformationElement",
+      { "TraceInformationElement", "p1.TraceInformationElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_MTSBindArgument_PDU,
-      { "MTSBindArgument", "p1.MTSBindArgument",
+      { "MTSBindArgument", "p1.MTSBindArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_MTSBindResult_PDU,
-      { "MTSBindResult", "p1.MTSBindResult",
+      { "MTSBindResult", "p1.MTSBindResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PAR_mts_bind_error_PDU,
@@ -8468,51 +8467,51 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_PAR_mts_bind_error_vals), 0,
         NULL, HFILL }},
     { &hf_p1_MessageSubmissionArgument_PDU,
-      { "MessageSubmissionArgument", "p1.MessageSubmissionArgument",
+      { "MessageSubmissionArgument", "p1.MessageSubmissionArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_MessageSubmissionResult_PDU,
-      { "MessageSubmissionResult", "p1.MessageSubmissionResult",
+      { "MessageSubmissionResult", "p1.MessageSubmissionResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ProbeSubmissionArgument_PDU,
-      { "ProbeSubmissionArgument", "p1.ProbeSubmissionArgument",
+      { "ProbeSubmissionArgument", "p1.ProbeSubmissionArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ProbeSubmissionResult_PDU,
-      { "ProbeSubmissionResult", "p1.ProbeSubmissionResult",
+      { "ProbeSubmissionResult", "p1.ProbeSubmissionResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_CancelDeferredDeliveryArgument_PDU,
-      { "CancelDeferredDeliveryArgument", "p1.CancelDeferredDeliveryArgument",
+      { "CancelDeferredDeliveryArgument", "p1.CancelDeferredDeliveryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_CancelDeferredDeliveryResult_PDU,
-      { "CancelDeferredDeliveryResult", "p1.CancelDeferredDeliveryResult",
+      { "CancelDeferredDeliveryResult", "p1.CancelDeferredDeliveryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_SubmissionControlArgument_PDU,
-      { "SubmissionControlArgument", "p1.SubmissionControlArgument",
+      { "SubmissionControlArgument", "p1.SubmissionControlArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_SubmissionControlResult_PDU,
-      { "SubmissionControlResult", "p1.SubmissionControlResult",
+      { "SubmissionControlResult", "p1.SubmissionControlResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PAR_submission_control_violated_PDU,
-      { "PAR-submission-control-violated", "p1.PAR_submission_control_violated",
+      { "PAR-submission-control-violated", "p1.PAR_submission_control_violated_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PAR_element_of_service_not_subscribed_PDU,
-      { "PAR-element-of-service-not-subscribed", "p1.PAR_element_of_service_not_subscribed",
+      { "PAR-element-of-service-not-subscribed", "p1.PAR_element_of_service_not_subscribed_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PAR_deferred_delivery_cancellation_rejected_PDU,
-      { "PAR-deferred-delivery-cancellation-rejected", "p1.PAR_deferred_delivery_cancellation_rejected",
+      { "PAR-deferred-delivery-cancellation-rejected", "p1.PAR_deferred_delivery_cancellation_rejected_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PAR_originator_invalid_PDU,
-      { "PAR-originator-invalid", "p1.PAR_originator_invalid",
+      { "PAR-originator-invalid", "p1.PAR_originator_invalid_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ImproperlySpecifiedRecipients_PDU,
@@ -8520,11 +8519,11 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PAR_message_submission_identifier_invalid_PDU,
-      { "PAR-message-submission-identifier-invalid", "p1.PAR_message_submission_identifier_invalid",
+      { "PAR-message-submission-identifier-invalid", "p1.PAR_message_submission_identifier_invalid_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PAR_inconsistent_request_PDU,
-      { "PAR-inconsistent-request", "p1.PAR_inconsistent_request",
+      { "PAR-inconsistent-request", "p1.PAR_inconsistent_request_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_SecurityProblem_PDU,
@@ -8532,11 +8531,11 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_SecurityProblem_vals), 0,
         NULL, HFILL }},
     { &hf_p1_PAR_unsupported_critical_function_PDU,
-      { "PAR-unsupported-critical-function", "p1.PAR_unsupported_critical_function",
+      { "PAR-unsupported-critical-function", "p1.PAR_unsupported_critical_function_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PAR_remote_bind_error_PDU,
-      { "PAR-remote-bind-error", "p1.PAR_remote_bind_error",
+      { "PAR-remote-bind-error", "p1.PAR_remote_bind_error_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_MessageSubmissionTime_PDU,
@@ -8544,15 +8543,15 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_MessageDeliveryArgument_PDU,
-      { "MessageDeliveryArgument", "p1.MessageDeliveryArgument",
+      { "MessageDeliveryArgument", "p1.MessageDeliveryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_MessageDeliveryResult_PDU,
-      { "MessageDeliveryResult", "p1.MessageDeliveryResult",
+      { "MessageDeliveryResult", "p1.MessageDeliveryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ReportDeliveryArgument_PDU,
-      { "ReportDeliveryArgument", "p1.ReportDeliveryArgument",
+      { "ReportDeliveryArgument", "p1.ReportDeliveryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ReportDeliveryResult_PDU,
@@ -8560,35 +8559,35 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_ReportDeliveryResult_vals), 0,
         NULL, HFILL }},
     { &hf_p1_DeliveryControlArgument_PDU,
-      { "DeliveryControlArgument", "p1.DeliveryControlArgument",
+      { "DeliveryControlArgument", "p1.DeliveryControlArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_DeliveryControlResult_PDU,
-      { "DeliveryControlResult", "p1.DeliveryControlResult",
+      { "DeliveryControlResult", "p1.DeliveryControlResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PAR_delivery_control_violated_PDU,
-      { "PAR-delivery-control-violated", "p1.PAR_delivery_control_violated",
+      { "PAR-delivery-control-violated", "p1.PAR_delivery_control_violated_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PAR_control_violates_registration_PDU,
-      { "PAR-control-violates-registration", "p1.PAR_control_violates_registration",
+      { "PAR-control-violates-registration", "p1.PAR_control_violates_registration_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_RefusedOperation_PDU,
-      { "RefusedOperation", "p1.RefusedOperation",
+      { "RefusedOperation", "p1.RefusedOperation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_RecipientCertificate_PDU,
-      { "RecipientCertificate", "p1.RecipientCertificate",
+      { "RecipientCertificate", "p1.RecipientCertificate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ProofOfDelivery_PDU,
-      { "ProofOfDelivery", "p1.ProofOfDelivery",
+      { "ProofOfDelivery", "p1.ProofOfDelivery_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_RegisterArgument_PDU,
-      { "RegisterArgument", "p1.RegisterArgument",
+      { "RegisterArgument", "p1.RegisterArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_RegisterResult_PDU,
@@ -8596,51 +8595,51 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_RegisterResult_vals), 0,
         NULL, HFILL }},
     { &hf_p1_ChangeCredentialsArgument_PDU,
-      { "ChangeCredentialsArgument", "p1.ChangeCredentialsArgument",
+      { "ChangeCredentialsArgument", "p1.ChangeCredentialsArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_RES_change_credentials_PDU,
-      { "RES-change-credentials", "p1.RES_change_credentials",
+      { "RES-change-credentials", "p1.RES_change_credentials_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PAR_register_rejected_PDU,
-      { "PAR-register-rejected", "p1.PAR_register_rejected",
+      { "PAR-register-rejected", "p1.PAR_register_rejected_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PAR_new_credentials_unacceptable_PDU,
-      { "PAR-new-credentials-unacceptable", "p1.PAR_new_credentials_unacceptable",
+      { "PAR-new-credentials-unacceptable", "p1.PAR_new_credentials_unacceptable_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PAR_old_credentials_incorrectly_specified_PDU,
-      { "PAR-old-credentials-incorrectly-specified", "p1.PAR_old_credentials_incorrectly_specified",
+      { "PAR-old-credentials-incorrectly-specified", "p1.PAR_old_credentials_incorrectly_specified_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_MessageSubmissionEnvelope_PDU,
-      { "MessageSubmissionEnvelope", "p1.MessageSubmissionEnvelope",
+      { "MessageSubmissionEnvelope", "p1.MessageSubmissionEnvelope_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PerRecipientMessageSubmissionFields_PDU,
-      { "PerRecipientMessageSubmissionFields", "p1.PerRecipientMessageSubmissionFields",
+      { "PerRecipientMessageSubmissionFields", "p1.PerRecipientMessageSubmissionFields_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ProbeSubmissionEnvelope_PDU,
-      { "ProbeSubmissionEnvelope", "p1.ProbeSubmissionEnvelope",
+      { "ProbeSubmissionEnvelope", "p1.ProbeSubmissionEnvelope_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PerRecipientProbeSubmissionFields_PDU,
-      { "PerRecipientProbeSubmissionFields", "p1.PerRecipientProbeSubmissionFields",
+      { "PerRecipientProbeSubmissionFields", "p1.PerRecipientProbeSubmissionFields_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_MessageDeliveryEnvelope_PDU,
-      { "MessageDeliveryEnvelope", "p1.MessageDeliveryEnvelope",
+      { "MessageDeliveryEnvelope", "p1.MessageDeliveryEnvelope_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ReportDeliveryEnvelope_PDU,
-      { "ReportDeliveryEnvelope", "p1.ReportDeliveryEnvelope",
+      { "ReportDeliveryEnvelope", "p1.ReportDeliveryEnvelope_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PerRecipientReportDeliveryFields_PDU,
-      { "PerRecipientReportDeliveryFields", "p1.PerRecipientReportDeliveryFields",
+      { "PerRecipientReportDeliveryFields", "p1.PerRecipientReportDeliveryFields_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ExtendedContentType_PDU,
@@ -8680,7 +8679,7 @@ void proto_register_p1(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_SubjectSubmissionIdentifier_PDU,
-      { "SubjectSubmissionIdentifier", "p1.SubjectSubmissionIdentifier",
+      { "SubjectSubmissionIdentifier", "p1.SubjectSubmissionIdentifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_RecipientReassignmentProhibited_PDU,
@@ -8688,7 +8687,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_RecipientReassignmentProhibited_vals), 0,
         NULL, HFILL }},
     { &hf_p1_OriginatorRequestedAlternateRecipient_PDU,
-      { "OriginatorRequestedAlternateRecipient", "p1.OriginatorRequestedAlternateRecipient",
+      { "OriginatorRequestedAlternateRecipient", "p1.OriginatorRequestedAlternateRecipient_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_DLExpansionProhibited_PDU,
@@ -8732,7 +8731,7 @@ void proto_register_p1(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_OriginatorReturnAddress_PDU,
-      { "OriginatorReturnAddress", "p1.OriginatorReturnAddress",
+      { "OriginatorReturnAddress", "p1.OriginatorReturnAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PhysicalDeliveryReportRequest_PDU,
@@ -8740,27 +8739,27 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_PhysicalDeliveryReportRequest_vals), 0,
         NULL, HFILL }},
     { &hf_p1_OriginatorCertificate_PDU,
-      { "OriginatorCertificate", "p1.OriginatorCertificate",
+      { "OriginatorCertificate", "p1.OriginatorCertificate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_MessageToken_PDU,
-      { "MessageToken", "p1.MessageToken",
+      { "MessageToken", "p1.MessageToken_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ContentConfidentialityAlgorithmIdentifier_PDU,
-      { "ContentConfidentialityAlgorithmIdentifier", "p1.ContentConfidentialityAlgorithmIdentifier",
+      { "ContentConfidentialityAlgorithmIdentifier", "p1.ContentConfidentialityAlgorithmIdentifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ContentIntegrityCheck_PDU,
-      { "ContentIntegrityCheck", "p1.ContentIntegrityCheck",
+      { "ContentIntegrityCheck", "p1.ContentIntegrityCheck_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_MessageOriginAuthenticationCheck_PDU,
-      { "MessageOriginAuthenticationCheck", "p1.MessageOriginAuthenticationCheck",
+      { "MessageOriginAuthenticationCheck", "p1.MessageOriginAuthenticationCheck_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_p1_MessageSecurityLabel_PDU,
-      { "MessageSecurityLabel", "p1.MessageSecurityLabel",
+      { "MessageSecurityLabel", "p1.MessageSecurityLabel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ProofOfSubmissionRequest_PDU,
@@ -8776,7 +8775,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_ContentCorrelator_vals), 0,
         NULL, HFILL }},
     { &hf_p1_ProbeOriginAuthenticationCheck_PDU,
-      { "ProbeOriginAuthenticationCheck", "p1.ProbeOriginAuthenticationCheck",
+      { "ProbeOriginAuthenticationCheck", "p1.ProbeOriginAuthenticationCheck_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_RedirectionHistory_PDU,
@@ -8784,7 +8783,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_Redirection_PDU,
-      { "Redirection", "p1.Redirection",
+      { "Redirection", "p1.Redirection_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_DLExpansionHistory_PDU,
@@ -8792,11 +8791,11 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_DLExpansion_PDU,
-      { "DLExpansion", "p1.DLExpansion",
+      { "DLExpansion", "p1.DLExpansion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PhysicalForwardingAddress_PDU,
-      { "PhysicalForwardingAddress", "p1.PhysicalForwardingAddress",
+      { "PhysicalForwardingAddress", "p1.PhysicalForwardingAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_OriginatorAndDLExpansionHistory_PDU,
@@ -8804,27 +8803,27 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ReportingDLName_PDU,
-      { "ReportingDLName", "p1.ReportingDLName",
+      { "ReportingDLName", "p1.ReportingDLName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ReportingMTACertificate_PDU,
-      { "ReportingMTACertificate", "p1.ReportingMTACertificate",
+      { "ReportingMTACertificate", "p1.ReportingMTACertificate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ReportOriginAuthenticationCheck_PDU,
-      { "ReportOriginAuthenticationCheck", "p1.ReportOriginAuthenticationCheck",
+      { "ReportOriginAuthenticationCheck", "p1.ReportOriginAuthenticationCheck_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_OriginatingMTACertificate_PDU,
-      { "OriginatingMTACertificate", "p1.OriginatingMTACertificate",
+      { "OriginatingMTACertificate", "p1.OriginatingMTACertificate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ProofOfSubmission_PDU,
-      { "ProofOfSubmission", "p1.ProofOfSubmission",
+      { "ProofOfSubmission", "p1.ProofOfSubmission_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ReportingMTAName_PDU,
-      { "ReportingMTAName", "p1.ReportingMTAName",
+      { "ReportingMTAName", "p1.ReportingMTAName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ExtendedCertificates_PDU,
@@ -8836,7 +8835,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_CertificateSelectors_PDU,
-      { "CertificateSelectors", "p1.CertificateSelectors",
+      { "CertificateSelectors", "p1.CertificateSelectors_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_Content_PDU,
@@ -8844,15 +8843,15 @@ void proto_register_p1(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_MTSIdentifier_PDU,
-      { "MTSIdentifier", "p1.MTSIdentifier",
+      { "MTSIdentifier", "p1.MTSIdentifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ORName_PDU,
-      { "ORName", "p1.ORName",
+      { "ORName", "p1.ORName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ORAddress_PDU,
-      { "ORAddress", "p1.ORAddress",
+      { "ORAddress", "p1.ORAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_CommonName_PDU,
@@ -8864,7 +8863,7 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalCommonName_PDU,
-      { "UniversalCommonName", "p1.UniversalCommonName",
+      { "UniversalCommonName", "p1.UniversalCommonName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_TeletexOrganizationName_PDU,
@@ -8872,15 +8871,15 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalOrganizationName_PDU,
-      { "UniversalOrganizationName", "p1.UniversalOrganizationName",
+      { "UniversalOrganizationName", "p1.UniversalOrganizationName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_TeletexPersonalName_PDU,
-      { "TeletexPersonalName", "p1.TeletexPersonalName",
+      { "TeletexPersonalName", "p1.TeletexPersonalName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalPersonalName_PDU,
-      { "UniversalPersonalName", "p1.UniversalPersonalName",
+      { "UniversalPersonalName", "p1.UniversalPersonalName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_TeletexOrganizationalUnitNames_PDU,
@@ -8904,99 +8903,99 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_PostalCode_vals), 0,
         NULL, HFILL }},
     { &hf_p1_PhysicalDeliveryOfficeName_PDU,
-      { "PhysicalDeliveryOfficeName", "p1.PhysicalDeliveryOfficeName",
+      { "PhysicalDeliveryOfficeName", "p1.PhysicalDeliveryOfficeName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalPhysicalDeliveryOfficeName_PDU,
-      { "UniversalPhysicalDeliveryOfficeName", "p1.UniversalPhysicalDeliveryOfficeName",
+      { "UniversalPhysicalDeliveryOfficeName", "p1.UniversalPhysicalDeliveryOfficeName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PhysicalDeliveryOfficeNumber_PDU,
-      { "PhysicalDeliveryOfficeNumber", "p1.PhysicalDeliveryOfficeNumber",
+      { "PhysicalDeliveryOfficeNumber", "p1.PhysicalDeliveryOfficeNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalPhysicalDeliveryOfficeNumber_PDU,
-      { "UniversalPhysicalDeliveryOfficeNumber", "p1.UniversalPhysicalDeliveryOfficeNumber",
+      { "UniversalPhysicalDeliveryOfficeNumber", "p1.UniversalPhysicalDeliveryOfficeNumber_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ExtensionORAddressComponents_PDU,
-      { "ExtensionORAddressComponents", "p1.ExtensionORAddressComponents",
+      { "ExtensionORAddressComponents", "p1.ExtensionORAddressComponents_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalExtensionORAddressComponents_PDU,
-      { "UniversalExtensionORAddressComponents", "p1.UniversalExtensionORAddressComponents",
+      { "UniversalExtensionORAddressComponents", "p1.UniversalExtensionORAddressComponents_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PhysicalDeliveryPersonalName_PDU,
-      { "PhysicalDeliveryPersonalName", "p1.PhysicalDeliveryPersonalName",
+      { "PhysicalDeliveryPersonalName", "p1.PhysicalDeliveryPersonalName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalPhysicalDeliveryPersonalName_PDU,
-      { "UniversalPhysicalDeliveryPersonalName", "p1.UniversalPhysicalDeliveryPersonalName",
+      { "UniversalPhysicalDeliveryPersonalName", "p1.UniversalPhysicalDeliveryPersonalName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PhysicalDeliveryOrganizationName_PDU,
-      { "PhysicalDeliveryOrganizationName", "p1.PhysicalDeliveryOrganizationName",
+      { "PhysicalDeliveryOrganizationName", "p1.PhysicalDeliveryOrganizationName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalPhysicalDeliveryOrganizationName_PDU,
-      { "UniversalPhysicalDeliveryOrganizationName", "p1.UniversalPhysicalDeliveryOrganizationName",
+      { "UniversalPhysicalDeliveryOrganizationName", "p1.UniversalPhysicalDeliveryOrganizationName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ExtensionPhysicalDeliveryAddressComponents_PDU,
-      { "ExtensionPhysicalDeliveryAddressComponents", "p1.ExtensionPhysicalDeliveryAddressComponents",
+      { "ExtensionPhysicalDeliveryAddressComponents", "p1.ExtensionPhysicalDeliveryAddressComponents_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalExtensionPhysicalDeliveryAddressComponents_PDU,
-      { "UniversalExtensionPhysicalDeliveryAddressComponents", "p1.UniversalExtensionPhysicalDeliveryAddressComponents",
+      { "UniversalExtensionPhysicalDeliveryAddressComponents", "p1.UniversalExtensionPhysicalDeliveryAddressComponents_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UnformattedPostalAddress_PDU,
-      { "UnformattedPostalAddress", "p1.UnformattedPostalAddress",
+      { "UnformattedPostalAddress", "p1.UnformattedPostalAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalUnformattedPostalAddress_PDU,
-      { "UniversalUnformattedPostalAddress", "p1.UniversalUnformattedPostalAddress",
+      { "UniversalUnformattedPostalAddress", "p1.UniversalUnformattedPostalAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_StreetAddress_PDU,
-      { "StreetAddress", "p1.StreetAddress",
+      { "StreetAddress", "p1.StreetAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalStreetAddress_PDU,
-      { "UniversalStreetAddress", "p1.UniversalStreetAddress",
+      { "UniversalStreetAddress", "p1.UniversalStreetAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PostOfficeBoxAddress_PDU,
-      { "PostOfficeBoxAddress", "p1.PostOfficeBoxAddress",
+      { "PostOfficeBoxAddress", "p1.PostOfficeBoxAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalPostOfficeBoxAddress_PDU,
-      { "UniversalPostOfficeBoxAddress", "p1.UniversalPostOfficeBoxAddress",
+      { "UniversalPostOfficeBoxAddress", "p1.UniversalPostOfficeBoxAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_PosteRestanteAddress_PDU,
-      { "PosteRestanteAddress", "p1.PosteRestanteAddress",
+      { "PosteRestanteAddress", "p1.PosteRestanteAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalPosteRestanteAddress_PDU,
-      { "UniversalPosteRestanteAddress", "p1.UniversalPosteRestanteAddress",
+      { "UniversalPosteRestanteAddress", "p1.UniversalPosteRestanteAddress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniquePostalName_PDU,
-      { "UniquePostalName", "p1.UniquePostalName",
+      { "UniquePostalName", "p1.UniquePostalName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalUniquePostalName_PDU,
-      { "UniversalUniquePostalName", "p1.UniversalUniquePostalName",
+      { "UniversalUniquePostalName", "p1.UniversalUniquePostalName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_LocalPostalAttributes_PDU,
-      { "LocalPostalAttributes", "p1.LocalPostalAttributes",
+      { "LocalPostalAttributes", "p1.LocalPostalAttributes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalLocalPostalAttributes_PDU,
-      { "UniversalLocalPostalAttributes", "p1.UniversalLocalPostalAttributes",
+      { "UniversalLocalPostalAttributes", "p1.UniversalLocalPostalAttributes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_ExtendedNetworkAddress_PDU,
@@ -9020,11 +9019,11 @@ void proto_register_p1(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_MTANameAndOptionalGDI_PDU,
-      { "MTANameAndOptionalGDI", "p1.MTANameAndOptionalGDI",
+      { "MTANameAndOptionalGDI", "p1.MTANameAndOptionalGDI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_AsymmetricToken_PDU,
-      { "AsymmetricToken", "p1.AsymmetricToken",
+      { "AsymmetricToken", "p1.AsymmetricToken_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_BindTokenSignedData_PDU,
@@ -9032,15 +9031,15 @@ void proto_register_p1(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_MessageTokenSignedData_PDU,
-      { "MessageTokenSignedData", "p1.MessageTokenSignedData",
+      { "MessageTokenSignedData", "p1.MessageTokenSignedData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_MessageTokenEncryptedData_PDU,
-      { "MessageTokenEncryptedData", "p1.MessageTokenEncryptedData",
+      { "MessageTokenEncryptedData", "p1.MessageTokenEncryptedData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_BindTokenEncryptedData_PDU,
-      { "BindTokenEncryptedData", "p1.BindTokenEncryptedData",
+      { "BindTokenEncryptedData", "p1.BindTokenEncryptedData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_SecurityClassification_PDU,
@@ -9048,11 +9047,11 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_SecurityClassification_vals), 0,
         NULL, HFILL }},
     { &hf_p1_unauthenticated,
-      { "unauthenticated", "p1.unauthenticated",
+      { "unauthenticated", "p1.unauthenticated_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_authenticated_argument,
-      { "authenticated", "p1.authenticated",
+      { "authenticated", "p1.authenticated_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AuthenticatedArgument", HFILL }},
     { &hf_p1_authenticated_initiator_name,
@@ -9068,7 +9067,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SecurityContext", HFILL }},
     { &hf_p1_authenticated_result,
-      { "authenticated", "p1.authenticated",
+      { "authenticated", "p1.authenticated_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AuthenticatedResult", HFILL }},
     { &hf_p1_authenticated_responder_name,
@@ -9080,19 +9079,19 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_Credentials_vals), 0,
         "ResponderCredentials", HFILL }},
     { &hf_p1_message,
-      { "message", "p1.message",
+      { "message", "p1.message_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_probe,
-      { "probe", "p1.probe",
+      { "probe", "p1.probe_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_report,
-      { "report", "p1.report",
+      { "report", "p1.report_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_message_envelope,
-      { "envelope", "p1.envelope",
+      { "envelope", "p1.envelope_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MessageTransferEnvelope", HFILL }},
     { &hf_p1_content,
@@ -9100,23 +9099,23 @@ void proto_register_p1(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_report_envelope,
-      { "envelope", "p1.envelope",
+      { "envelope", "p1.envelope_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReportTransferEnvelope", HFILL }},
     { &hf_p1_report_content,
-      { "content", "p1.content",
+      { "content", "p1.content_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReportTransferContent", HFILL }},
     { &hf_p1_message_identifier,
-      { "message-identifier", "p1.message_identifier",
+      { "message-identifier", "p1.message_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MessageIdentifier", HFILL }},
     { &hf_p1_originator_name,
-      { "originator-name", "p1.originator_name",
+      { "originator-name", "p1.originator_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MTAOriginatorName", HFILL }},
     { &hf_p1_original_encoded_information_types,
-      { "original-encoded-information-types", "p1.original_encoded_information_types",
+      { "original-encoded-information-types", "p1.original_encoded_information_types_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OriginalEncodedInformationTypes", HFILL }},
     { &hf_p1_content_type,
@@ -9144,7 +9143,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_ub_transfers_OF_PerDomainBilateralInformation", HFILL }},
     { &hf_p1_per_domain_bilateral_information_item,
-      { "PerDomainBilateralInformation", "p1.PerDomainBilateralInformation",
+      { "PerDomainBilateralInformation", "p1.PerDomainBilateralInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_trace_information,
@@ -9156,11 +9155,11 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_ExtensionField", HFILL }},
     { &hf_p1_extensions_item,
-      { "ExtensionField", "p1.ExtensionField",
+      { "ExtensionField", "p1.ExtensionField_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_recipient_name,
-      { "recipient-name", "p1.recipient_name",
+      { "recipient-name", "p1.recipient_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MTARecipientName", HFILL }},
     { &hf_p1_originally_specified_recipient_number,
@@ -9176,7 +9175,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_ExplicitConversion_vals), 0,
         "ExplicitConversion", HFILL }},
     { &hf_p1_probe_identifier,
-      { "probe-identifier", "p1.probe_identifier",
+      { "probe-identifier", "p1.probe_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ProbeIdentifier", HFILL }},
     { &hf_p1_content_length,
@@ -9184,15 +9183,15 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ContentLength", HFILL }},
     { &hf_p1_report_identifier,
-      { "report-identifier", "p1.report_identifier",
+      { "report-identifier", "p1.report_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReportIdentifier", HFILL }},
     { &hf_p1_report_destination_name,
-      { "report-destination-name", "p1.report_destination_name",
+      { "report-destination-name", "p1.report_destination_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReportDestinationName", HFILL }},
     { &hf_p1_subject_identifier,
-      { "subject-identifier", "p1.subject_identifier",
+      { "subject-identifier", "p1.subject_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SubjectIdentifier", HFILL }},
     { &hf_p1_subject_intermediate_trace_information,
@@ -9204,19 +9203,19 @@ void proto_register_p1(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "Content", HFILL }},
     { &hf_p1_additional_information,
-      { "additional-information", "p1.additional_information",
+      { "additional-information", "p1.additional_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AdditionalInformation", HFILL }},
     { &hf_p1_mta_actual_recipient_name,
-      { "actual-recipient-name", "p1.actual_recipient_name",
+      { "actual-recipient-name", "p1.actual_recipient_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MTAActualRecipientName", HFILL }},
     { &hf_p1_last_trace_information,
-      { "last-trace-information", "p1.last_trace_information",
+      { "last-trace-information", "p1.last_trace_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "LastTraceInformation", HFILL }},
     { &hf_p1_report_originally_intended_recipient_name,
-      { "originally-intended-recipient-name", "p1.originally_intended_recipient_name",
+      { "originally-intended-recipient-name", "p1.originally_intended_recipient_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OriginallyIntendedRecipientName", HFILL }},
     { &hf_p1_supplementary_information,
@@ -9236,7 +9235,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_AdministrationDomainName_U_vals), 0,
         "AdministrationDomainName", HFILL }},
     { &hf_p1_private_domain,
-      { "private-domain", "p1.private_domain",
+      { "private-domain", "p1.private_domain_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_private_domain_identifier,
@@ -9244,7 +9243,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_PrivateDomainIdentifier_vals), 0,
         "PrivateDomainIdentifier", HFILL }},
     { &hf_p1_bilateral_information,
-      { "bilateral-information", "p1.bilateral_information",
+      { "bilateral-information", "p1.bilateral_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_arrival_time,
@@ -9252,7 +9251,7 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "ArrivalTime", HFILL }},
     { &hf_p1_converted_encoded_information_types,
-      { "converted-encoded-information-types", "p1.converted_encoded_information_types",
+      { "converted-encoded-information-types", "p1.converted_encoded_information_types_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ConvertedEncodedInformationTypes", HFILL }},
     { &hf_p1_trace_report_type,
@@ -9260,11 +9259,11 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_ReportType_vals), 0,
         "ReportType", HFILL }},
     { &hf_p1_InternalTraceInformation_item,
-      { "InternalTraceInformationElement", "p1.InternalTraceInformationElement",
+      { "InternalTraceInformationElement", "p1.InternalTraceInformationElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_global_domain_identifier,
-      { "global-domain-identifier", "p1.global_domain_identifier",
+      { "global-domain-identifier", "p1.global_domain_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GlobalDomainIdentifier", HFILL }},
     { &hf_p1_mta_name,
@@ -9272,15 +9271,15 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "MTAName", HFILL }},
     { &hf_p1_mta_supplied_information,
-      { "mta-supplied-information", "p1.mta_supplied_information",
+      { "mta-supplied-information", "p1.mta_supplied_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MTASuppliedInformation", HFILL }},
     { &hf_p1__untag_item,
-      { "TraceInformationElement", "p1.TraceInformationElement",
+      { "TraceInformationElement", "p1.TraceInformationElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_domain_supplied_information,
-      { "domain-supplied-information", "p1.domain_supplied_information",
+      { "domain-supplied-information", "p1.domain_supplied_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DomainSuppliedInformation", HFILL }},
     { &hf_p1_deferred_time,
@@ -9296,7 +9295,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_ObjectName_vals), 0,
         "ObjectName", HFILL }},
     { &hf_p1_messages_waiting,
-      { "messages-waiting", "p1.messages_waiting",
+      { "messages-waiting", "p1.messages_waiting_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MessagesWaiting", HFILL }},
     { &hf_p1_responder_name,
@@ -9304,7 +9303,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_ObjectName_vals), 0,
         "ObjectName", HFILL }},
     { &hf_p1_user_agent,
-      { "user-agent", "p1.user_agent",
+      { "user-agent", "p1.user_agent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ORAddressAndOptionalDirectoryName", HFILL }},
     { &hf_p1_mTA,
@@ -9312,19 +9311,19 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "MTAName", HFILL }},
     { &hf_p1_message_store,
-      { "message-store", "p1.message_store",
+      { "message-store", "p1.message_store_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ORAddressAndOptionalDirectoryName", HFILL }},
     { &hf_p1_urgent,
-      { "urgent", "p1.urgent",
+      { "urgent", "p1.urgent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DeliveryQueue", HFILL }},
     { &hf_p1_normal,
-      { "normal", "p1.normal",
+      { "normal", "p1.normal_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DeliveryQueue", HFILL }},
     { &hf_p1_non_urgent,
-      { "non-urgent", "p1.non_urgent",
+      { "non-urgent", "p1.non_urgent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DeliveryQueue", HFILL }},
     { &hf_p1_messages,
@@ -9340,11 +9339,11 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_Password_vals), 0,
         "Password", HFILL }},
     { &hf_p1_strong,
-      { "strong", "p1.strong",
+      { "strong", "p1.strong_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "StrongCredentials", HFILL }},
     { &hf_p1_protected,
-      { "protected", "p1.protected",
+      { "protected", "p1.protected_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ProtectedPassword", HFILL }},
     { &hf_p1_ia5_string,
@@ -9356,19 +9355,19 @@ void proto_register_p1(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING_SIZE_0_ub_password_length", HFILL }},
     { &hf_p1_bind_token,
-      { "bind-token", "p1.bind_token",
+      { "bind-token", "p1.bind_token_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Token", HFILL }},
     { &hf_p1_certificate,
-      { "certificate", "p1.certificate",
+      { "certificate", "p1.certificate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Certificates", HFILL }},
     { &hf_p1_certificate_selector,
-      { "certificate-selector", "p1.certificate_selector",
+      { "certificate-selector", "p1.certificate_selector_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CertificateAssertion", HFILL }},
     { &hf_p1_signature,
-      { "signature", "p1.signature",
+      { "signature", "p1.signature_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_time1,
@@ -9388,7 +9387,7 @@ void proto_register_p1(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING", HFILL }},
     { &hf_p1_algorithmIdentifier,
-      { "algorithmIdentifier", "p1.algorithmIdentifier",
+      { "algorithmIdentifier", "p1.algorithmIdentifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_encrypted,
@@ -9396,15 +9395,15 @@ void proto_register_p1(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING", HFILL }},
     { &hf_p1_SecurityContext_item,
-      { "SecurityLabel", "p1.SecurityLabel",
+      { "SecurityLabel", "p1.SecurityLabel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_message_submission_envelope,
-      { "envelope", "p1.envelope",
+      { "envelope", "p1.envelope_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MessageSubmissionEnvelope", HFILL }},
     { &hf_p1_message_submission_identifier,
-      { "message-submission-identifier", "p1.message_submission_identifier",
+      { "message-submission-identifier", "p1.message_submission_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MessageSubmissionIdentifier", HFILL }},
     { &hf_p1_message_submission_time,
@@ -9412,7 +9411,7 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "MessageSubmissionTime", HFILL }},
     { &hf_p1_probe_submission_identifier,
-      { "probe-submission-identifier", "p1.probe_submission_identifier",
+      { "probe-submission-identifier", "p1.probe_submission_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ProbeSubmissionIdentifier", HFILL }},
     { &hf_p1_probe_submission_time,
@@ -9420,7 +9419,7 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "ProbeSubmissionTime", HFILL }},
     { &hf_p1_ImproperlySpecifiedRecipients_item,
-      { "RecipientName", "p1.RecipientName",
+      { "RecipientName", "p1.RecipientName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_waiting_operations,
@@ -9440,19 +9439,19 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_ContentType_vals), 0,
         NULL, HFILL }},
     { &hf_p1_waiting_encoded_information_types,
-      { "waiting-encoded-information-types", "p1.waiting_encoded_information_types",
+      { "waiting-encoded-information-types", "p1.waiting_encoded_information_types_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EncodedInformationTypes", HFILL }},
     { &hf_p1_recipient_certificate,
-      { "recipient-certificate", "p1.recipient_certificate",
+      { "recipient-certificate", "p1.recipient_certificate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RecipientCertificate", HFILL }},
     { &hf_p1_proof_of_delivery,
-      { "proof-of-delivery", "p1.proof_of_delivery",
+      { "proof-of-delivery", "p1.proof_of_delivery_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ProofOfDelivery", HFILL }},
     { &hf_p1_empty_result,
-      { "empty-result", "p1.empty_result",
+      { "empty-result", "p1.empty_result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_max_extensions,
@@ -9460,7 +9459,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_SIZE_1_MAX_OF_ExtensionField", HFILL }},
     { &hf_p1_max_extensions_item,
-      { "ExtensionField", "p1.ExtensionField",
+      { "ExtensionField", "p1.ExtensionField_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_restrict,
@@ -9484,7 +9483,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ContentTypes", HFILL }},
     { &hf_p1_permissible_encoded_information_types,
-      { "permissible-encoded-information-types", "p1.permissible_encoded_information_types",
+      { "permissible-encoded-information-types", "p1.permissible_encoded_information_types_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PermissibleEncodedInformationTypes", HFILL }},
     { &hf_p1_permissible_security_context,
@@ -9508,7 +9507,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_RefusalReason_vals), 0,
         "RefusalReason", HFILL }},
     { &hf_p1_user_name,
-      { "user-name", "p1.user_name",
+      { "user-name", "p1.user_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UserName", HFILL }},
     { &hf_p1_user_address,
@@ -9520,11 +9519,11 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_SIZE_1_ub_deliverable_class_OF_DeliverableClass", HFILL }},
     { &hf_p1_deliverable_class_item,
-      { "DeliverableClass", "p1.DeliverableClass",
+      { "DeliverableClass", "p1.DeliverableClass_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_default_delivery_controls,
-      { "default-delivery-controls", "p1.default_delivery_controls",
+      { "default-delivery-controls", "p1.default_delivery_controls_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DefaultDeliveryControls", HFILL }},
     { &hf_p1_redirections,
@@ -9536,15 +9535,15 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "RestrictedDelivery", HFILL }},
     { &hf_p1_retrieve_registrations,
-      { "retrieve-registrations", "p1.retrieve_registrations",
+      { "retrieve-registrations", "p1.retrieve_registrations_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RegistrationTypes", HFILL }},
     { &hf_p1_non_empty_result,
-      { "non-empty-result", "p1.non_empty_result",
+      { "non-empty-result", "p1.non_empty_result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_registered_information,
-      { "registered-information", "p1.registered_information",
+      { "registered-information", "p1.registered_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RegisterArgument", HFILL }},
     { &hf_p1_old_credentials,
@@ -9556,7 +9555,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_Credentials_vals), 0,
         "Credentials", HFILL }},
     { &hf_p1_x121,
-      { "x121", "p1.x121",
+      { "x121", "p1.x121_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_x121_address,
@@ -9568,11 +9567,11 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "PrintableString_SIZE_1_ub_tsap_id_length", HFILL }},
     { &hf_p1_presentation,
-      { "presentation", "p1.presentation",
+      { "presentation", "p1.presentation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PSAPAddress", HFILL }},
     { &hf_p1_Redirections_item,
-      { "RecipientRedirection", "p1.RecipientRedirection",
+      { "RecipientRedirection", "p1.RecipientRedirection_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_redirection_classes,
@@ -9580,11 +9579,11 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_SIZE_1_ub_redirection_classes_OF_RedirectionClass", HFILL }},
     { &hf_p1_redirection_classes_item,
-      { "RedirectionClass", "p1.RedirectionClass",
+      { "RedirectionClass", "p1.RedirectionClass_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_recipient_assigned_alternate_recipient,
-      { "recipient-assigned-alternate-recipient", "p1.recipient_assigned_alternate_recipient",
+      { "recipient-assigned-alternate-recipient", "p1.recipient_assigned_alternate_recipient_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RecipientAssignedAlternateRecipient", HFILL }},
     { &hf_p1_content_types,
@@ -9596,7 +9595,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ContentLength", HFILL }},
     { &hf_p1_encoded_information_types_constraints,
-      { "encoded-information-types-constraints", "p1.encoded_information_types_constraints",
+      { "encoded-information-types-constraints", "p1.encoded_information_types_constraints_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EncodedInformationTypesConstraints", HFILL }},
     { &hf_p1_security_labels,
@@ -9620,7 +9619,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_Restriction", HFILL }},
     { &hf_p1_applies_only_to_item,
-      { "Restriction", "p1.Restriction",
+      { "Restriction", "p1.Restriction_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_unacceptable_eits,
@@ -9636,7 +9635,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ExtendedEncodedInformationTypes", HFILL }},
     { &hf_p1_RestrictedDelivery_item,
-      { "Restriction", "p1.Restriction",
+      { "Restriction", "p1.Restriction_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_permitted,
@@ -9652,11 +9651,11 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_ExactOrPattern_vals), 0,
         "ExactOrPattern", HFILL }},
     { &hf_p1_exact_match,
-      { "exact-match", "p1.exact_match",
+      { "exact-match", "p1.exact_match_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ORName", HFILL }},
     { &hf_p1_pattern_match,
-      { "pattern-match", "p1.pattern_match",
+      { "pattern-match", "p1.pattern_match_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ORName", HFILL }},
     { &hf_p1_standard_parameters,
@@ -9672,11 +9671,11 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_ExtensionType_vals), 0,
         "T_type_extensions_item", HFILL }},
     { &hf_p1_originator_name_01,
-      { "originator-name", "p1.originator_name",
+      { "originator-name", "p1.originator_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OriginatorName", HFILL }},
     { &hf_p1_submission_recipient_name,
-      { "recipient-name", "p1.recipient_name",
+      { "recipient-name", "p1.recipient_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RecipientName", HFILL }},
     { &hf_p1_originator_report_request,
@@ -9684,11 +9683,11 @@ void proto_register_p1(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OriginatorReportRequest", HFILL }},
     { &hf_p1_probe_recipient_name,
-      { "recipient-name", "p1.recipient_name",
+      { "recipient-name", "p1.recipient_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RecipientName", HFILL }},
     { &hf_p1_message_delivery_identifier,
-      { "message-delivery-identifier", "p1.message_delivery_identifier",
+      { "message-delivery-identifier", "p1.message_delivery_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MessageDeliveryIdentifier", HFILL }},
     { &hf_p1_message_delivery_time,
@@ -9696,7 +9695,7 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "MessageDeliveryTime", HFILL }},
     { &hf_p1_other_fields,
-      { "other-fields", "p1.other_fields",
+      { "other-fields", "p1.other_fields_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OtherMessageDeliveryFields", HFILL }},
     { &hf_p1_delivered_content_type,
@@ -9704,7 +9703,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_DeliveredContentType_vals), 0,
         "DeliveredContentType", HFILL }},
     { &hf_p1_delivered_originator_name,
-      { "originator-name", "p1.originator_name",
+      { "originator-name", "p1.originator_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DeliveredOriginatorName", HFILL }},
     { &hf_p1_delivery_flags,
@@ -9716,19 +9715,19 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "OtherRecipientNames", HFILL }},
     { &hf_p1_this_recipient_name,
-      { "this-recipient-name", "p1.this_recipient_name",
+      { "this-recipient-name", "p1.this_recipient_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ThisRecipientName", HFILL }},
     { &hf_p1_originally_intended_recipient_name,
-      { "originally-intended-recipient-name", "p1.originally_intended_recipient_name",
+      { "originally-intended-recipient-name", "p1.originally_intended_recipient_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OriginallyIntendedRecipientName", HFILL }},
     { &hf_p1_subject_submission_identifier,
-      { "subject-submission-identifier", "p1.subject_submission_identifier",
+      { "subject-submission-identifier", "p1.subject_submission_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SubjectSubmissionIdentifier", HFILL }},
     { &hf_p1_actual_recipient_name,
-      { "actual-recipient-name", "p1.actual_recipient_name",
+      { "actual-recipient-name", "p1.actual_recipient_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ActualRecipientName", HFILL }},
     { &hf_p1_delivery_report_type,
@@ -9736,11 +9735,11 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_ReportType_vals), 0,
         "ReportType", HFILL }},
     { &hf_p1_delivery,
-      { "delivery", "p1.delivery",
+      { "delivery", "p1.delivery_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DeliveryReport", HFILL }},
     { &hf_p1_non_delivery,
-      { "non-delivery", "p1.non_delivery",
+      { "non-delivery", "p1.non_delivery_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NonDeliveryReport", HFILL }},
     { &hf_p1_type_of_MTS_user,
@@ -9768,7 +9767,7 @@ void proto_register_p1(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "ExtendedContentType", HFILL }},
     { &hf_p1_OtherRecipientNames_item,
-      { "OtherRecipientName", "p1.OtherRecipientName",
+      { "OtherRecipientName", "p1.OtherRecipientName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_standard_extension,
@@ -9788,7 +9787,7 @@ void proto_register_p1(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_extension_value,
-      { "value", "p1.value",
+      { "value", "p1.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ExtensionValue", HFILL }},
     { &hf_p1_RequestedDeliveryMethod_item,
@@ -9804,11 +9803,11 @@ void proto_register_p1(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_p1_RedirectionHistory_item,
-      { "Redirection", "p1.Redirection",
+      { "Redirection", "p1.Redirection_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_intended_recipient_name,
-      { "intended-recipient-name", "p1.intended_recipient_name",
+      { "intended-recipient-name", "p1.intended_recipient_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "IntendedRecipientName", HFILL }},
     { &hf_p1_redirection_reason,
@@ -9816,7 +9815,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_RedirectionReason_vals), 0,
         "RedirectionReason", HFILL }},
     { &hf_p1_intended_recipient,
-      { "intended-recipient", "p1.intended_recipient",
+      { "intended-recipient", "p1.intended_recipient_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ORAddressAndOptionalDirectoryName", HFILL }},
     { &hf_p1_redirection_time,
@@ -9824,11 +9823,11 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "Time", HFILL }},
     { &hf_p1_DLExpansionHistory_item,
-      { "DLExpansion", "p1.DLExpansion",
+      { "DLExpansion", "p1.DLExpansion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_dl,
-      { "dl", "p1.dl",
+      { "dl", "p1.dl_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ORAddressAndOptionalDirectoryName", HFILL }},
     { &hf_p1_dl_expansion_time,
@@ -9836,11 +9835,11 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "Time", HFILL }},
     { &hf_p1_OriginatorAndDLExpansionHistory_item,
-      { "OriginatorAndDLExpansion", "p1.OriginatorAndDLExpansion",
+      { "OriginatorAndDLExpansion", "p1.OriginatorAndDLExpansion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_originator_or_dl_name,
-      { "originator-or-dl-name", "p1.originator_or_dl_name",
+      { "originator-or-dl-name", "p1.originator_or_dl_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ORAddressAndOptionalDirectoryName", HFILL }},
     { &hf_p1_origination_or_expansion_time,
@@ -9852,15 +9851,15 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_T_report_type_vals), 0,
         "T_report_type", HFILL }},
     { &hf_p1_report_type_delivery,
-      { "delivery", "p1.delivery",
+      { "delivery", "p1.delivery_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PerRecipientDeliveryReportFields", HFILL }},
     { &hf_p1_non_delivery_report,
-      { "non-delivery", "p1.non_delivery",
+      { "non-delivery", "p1.non_delivery_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PerRecipientNonDeliveryReportFields", HFILL }},
     { &hf_p1_domain,
-      { "domain", "p1.domain",
+      { "domain", "p1.domain_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GlobalDomainIdentifier", HFILL }},
     { &hf_p1_mta_directory_name,
@@ -9876,27 +9875,27 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(x509if_Name_vals), 0,
         "Name", HFILL }},
     { &hf_p1_DLExemptedRecipients_item,
-      { "ORAddressAndOrDirectoryName", "p1.ORAddressAndOrDirectoryName",
+      { "ORAddressAndOrDirectoryName", "p1.ORAddressAndOrDirectoryName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_encryption_recipient,
-      { "encryption-recipient", "p1.encryption_recipient",
+      { "encryption-recipient", "p1.encryption_recipient_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CertificateAssertion", HFILL }},
     { &hf_p1_encryption_originator,
-      { "encryption-originator", "p1.encryption_originator",
+      { "encryption-originator", "p1.encryption_originator_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CertificateAssertion", HFILL }},
     { &hf_p1_selectors_content_integrity_check,
-      { "content-integrity-check", "p1.content_integrity_check",
+      { "content-integrity-check", "p1.content_integrity_check_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CertificateAssertion", HFILL }},
     { &hf_p1_token_signature,
-      { "token-signature", "p1.token_signature",
+      { "token-signature", "p1.token_signature_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CertificateAssertion", HFILL }},
     { &hf_p1_message_origin_authentication,
-      { "message-origin-authentication", "p1.message_origin_authentication",
+      { "message-origin-authentication", "p1.message_origin_authentication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CertificateAssertion", HFILL }},
     { &hf_p1_local_identifier,
@@ -9912,7 +9911,7 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "T_printable_private_domain_identifier", HFILL }},
     { &hf_p1_built_in_standard_attributes,
-      { "built-in-standard-attributes", "p1.built_in_standard_attributes",
+      { "built-in-standard-attributes", "p1.built_in_standard_attributes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "BuiltInStandardAttributes", HFILL }},
     { &hf_p1_built_in_domain_defined_attributes,
@@ -9944,7 +9943,7 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "NumericUserIdentifier", HFILL }},
     { &hf_p1_personal_name,
-      { "personal-name", "p1.personal_name",
+      { "personal-name", "p1.personal_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PersonalName", HFILL }},
     { &hf_p1_organizational_unit_names,
@@ -9996,7 +9995,7 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_BuiltInDomainDefinedAttributes_item,
-      { "BuiltInDomainDefinedAttribute", "p1.BuiltInDomainDefinedAttribute",
+      { "BuiltInDomainDefinedAttribute", "p1.BuiltInDomainDefinedAttribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_printable_type,
@@ -10008,7 +10007,7 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "T_printable_value", HFILL }},
     { &hf_p1_ExtensionAttributes_item,
-      { "ExtensionAttribute", "p1.ExtensionAttribute",
+      { "ExtensionAttribute", "p1.ExtensionAttribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_extension_attribute_type,
@@ -10016,7 +10015,7 @@ void proto_register_p1(void) {
         FT_INT32, BASE_DEC, VALS(p1_ExtensionAttributeType_vals), 0,
         "ExtensionAttributeType", HFILL }},
     { &hf_p1_extension_attribute_value,
-      { "extension-attribute-value", "p1.extension_attribute_value",
+      { "extension-attribute-value", "p1.extension_attribute_value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_teletex_surname,
@@ -10036,19 +10035,19 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "T_teletex_generation_qualifier", HFILL }},
     { &hf_p1_universal_surname,
-      { "surname", "p1.surname",
+      { "surname", "p1.surname_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UniversalOrBMPString", HFILL }},
     { &hf_p1_universal_given_name,
-      { "given-name", "p1.given_name",
+      { "given-name", "p1.given_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UniversalOrBMPString", HFILL }},
     { &hf_p1_universal_initials,
-      { "initials", "p1.initials",
+      { "initials", "p1.initials_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UniversalOrBMPString", HFILL }},
     { &hf_p1_universal_generation_qualifier,
-      { "generation-qualifier", "p1.generation_qualifier",
+      { "generation-qualifier", "p1.generation_qualifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UniversalOrBMPString", HFILL }},
     { &hf_p1_TeletexOrganizationalUnitNames_item,
@@ -10056,7 +10055,7 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_UniversalOrganizationalUnitNames_item,
-      { "UniversalOrganizationalUnitName", "p1.UniversalOrganizationalUnitName",
+      { "UniversalOrganizationalUnitName", "p1.UniversalOrganizationalUnitName_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_character_encoding,
@@ -10112,7 +10111,7 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "TeletexString_SIZE_1_ub_pds_parameter_length", HFILL }},
     { &hf_p1_e163_4_address,
-      { "e163-4-address", "p1.e163_4_address",
+      { "e163-4-address", "p1.e163_4_address_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_number,
@@ -10124,11 +10123,11 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "NumericString_SIZE_1_ub_e163_4_sub_address_length", HFILL }},
     { &hf_p1_psap_address,
-      { "psap-address", "p1.psap_address",
+      { "psap-address", "p1.psap_address_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PresentationAddress", HFILL }},
     { &hf_p1_TeletexDomainDefinedAttributes_item,
-      { "TeletexDomainDefinedAttribute", "p1.TeletexDomainDefinedAttribute",
+      { "TeletexDomainDefinedAttribute", "p1.TeletexDomainDefinedAttribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_type,
@@ -10140,15 +10139,15 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "T_teletex_value", HFILL }},
     { &hf_p1_UniversalDomainDefinedAttributes_item,
-      { "UniversalDomainDefinedAttribute", "p1.UniversalDomainDefinedAttribute",
+      { "UniversalDomainDefinedAttribute", "p1.UniversalDomainDefinedAttribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_universal_type,
-      { "type", "p1.type",
+      { "type", "p1.type_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UniversalOrBMPString", HFILL }},
     { &hf_p1_universal_value,
-      { "value", "p1.value",
+      { "value", "p1.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UniversalOrBMPString", HFILL }},
     { &hf_p1_ExtendedEncodedInformationTypes_item,
@@ -10160,7 +10159,7 @@ void proto_register_p1(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "G3FacsimileNonBasicParameters", HFILL }},
     { &hf_p1_teletex,
-      { "teletex", "p1.teletex",
+      { "teletex", "p1.teletex_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TeletexNonBasicParameters", HFILL }},
     { &hf_p1_graphic_character_sets,
@@ -10188,11 +10187,11 @@ void proto_register_p1(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "TokenTypeIdentifier", HFILL }},
     { &hf_p1_token,
-      { "token", "p1.token",
+      { "token", "p1.token_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TokenTypeData", HFILL }},
     { &hf_p1_signature_algorithm_identifier,
-      { "signature-algorithm-identifier", "p1.signature_algorithm_identifier",
+      { "signature-algorithm-identifier", "p1.signature_algorithm_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_p1_name,
@@ -10200,11 +10199,11 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, VALS(p1_T_name_vals), 0,
         NULL, HFILL }},
     { &hf_p1_token_recipient_name,
-      { "recipient-name", "p1.recipient_name",
+      { "recipient-name", "p1.recipient_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RecipientName", HFILL }},
     { &hf_p1_token_mta,
-      { "mta", "p1.mta",
+      { "mta", "p1.mta_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MTANameAndOptionalGDI", HFILL }},
     { &hf_p1_time,
@@ -10212,11 +10211,11 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_signed_data,
-      { "signed-data", "p1.signed_data",
+      { "signed-data", "p1.signed_data_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TokenData", HFILL }},
     { &hf_p1_encryption_algorithm_identifier,
-      { "encryption-algorithm-identifier", "p1.encryption_algorithm_identifier",
+      { "encryption-algorithm-identifier", "p1.encryption_algorithm_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_p1_encrypted_data,
@@ -10224,11 +10223,11 @@ void proto_register_p1(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING", HFILL }},
     { &hf_p1_asymmetric_token_data,
-      { "asymmetric-token-data", "p1.asymmetric_token_data",
+      { "asymmetric-token-data", "p1.asymmetric_token_data_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AsymmetricTokenData", HFILL }},
     { &hf_p1_algorithm_identifier,
-      { "algorithm-identifier", "p1.algorithm_identifier",
+      { "algorithm-identifier", "p1.algorithm_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_p1_token_data_type,
@@ -10236,19 +10235,19 @@ void proto_register_p1(void) {
         FT_INT32, BASE_DEC, VALS(p1_TokenDataType_vals), 0,
         "TokenDataType", HFILL }},
     { &hf_p1_value,
-      { "value", "p1.value",
+      { "value", "p1.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_content_confidentiality_algorithm_identifier,
-      { "content-confidentiality-algorithm-identifier", "p1.content_confidentiality_algorithm_identifier",
+      { "content-confidentiality-algorithm-identifier", "p1.content_confidentiality_algorithm_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ContentConfidentialityAlgorithmIdentifier", HFILL }},
     { &hf_p1_content_integrity_check,
-      { "content-integrity-check", "p1.content_integrity_check",
+      { "content-integrity-check", "p1.content_integrity_check_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ContentIntegrityCheck", HFILL }},
     { &hf_p1_message_security_label,
-      { "message-security-label", "p1.message_security_label",
+      { "message-security-label", "p1.message_security_label_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MessageSecurityLabel", HFILL }},
     { &hf_p1_proof_of_delivery_request,
@@ -10284,7 +10283,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SecurityCategories", HFILL }},
     { &hf_p1_SecurityCategories_item,
-      { "SecurityCategory", "p1.SecurityCategory",
+      { "SecurityCategory", "p1.SecurityCategory_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_category_type,
@@ -10292,11 +10291,11 @@ void proto_register_p1(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "SecurityCategoryIdentifier", HFILL }},
     { &hf_p1_category_value,
-      { "value", "p1.value",
+      { "value", "p1.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CategoryValue", HFILL }},
     { &hf_p1_mta_originator_name,
-      { "originator-name", "p1.originator_name",
+      { "originator-name", "p1.originator_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MTAOriginatorName", HFILL }},
     { &hf_p1_per_recipient_message_fields,
@@ -10304,7 +10303,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_ub_recipients_OF_PerRecipientMessageTransferFields", HFILL }},
     { &hf_p1_per_recipient_message_fields_item,
-      { "PerRecipientMessageTransferFields", "p1.PerRecipientMessageTransferFields",
+      { "PerRecipientMessageTransferFields", "p1.PerRecipientMessageTransferFields_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_per_recipient_probe_transfer_fields,
@@ -10312,7 +10311,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_ub_recipients_OF_PerRecipientProbeTransferFields", HFILL }},
     { &hf_p1_per_recipient_probe_transfer_fields_item,
-      { "PerRecipientProbeTransferFields", "p1.PerRecipientProbeTransferFields",
+      { "PerRecipientProbeTransferFields", "p1.PerRecipientProbeTransferFields_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_per_recipient_report_fields,
@@ -10320,7 +10319,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_ub_recipients_OF_PerRecipientReportTransferFields", HFILL }},
     { &hf_p1_per_recipient_report_fields_item,
-      { "PerRecipientReportTransferFields", "p1.PerRecipientReportTransferFields",
+      { "PerRecipientReportTransferFields", "p1.PerRecipientReportTransferFields_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_routing_action,
@@ -10336,7 +10335,7 @@ void proto_register_p1(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "MTAName", HFILL }},
     { &hf_p1_attempted_domain,
-      { "attempted-domain", "p1.attempted_domain",
+      { "attempted-domain", "p1.attempted_domain_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GlobalDomainIdentifier", HFILL }},
     { &hf_p1_per_recipient_report_delivery_fields,
@@ -10344,11 +10343,11 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_ub_recipients_OF_PerRecipientReportDeliveryFields", HFILL }},
     { &hf_p1_per_recipient_report_delivery_fields_item,
-      { "PerRecipientReportDeliveryFields", "p1.PerRecipientReportDeliveryFields",
+      { "PerRecipientReportDeliveryFields", "p1.PerRecipientReportDeliveryFields_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_mts_originator_name,
-      { "originator-name", "p1.originator_name",
+      { "originator-name", "p1.originator_name_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OriginatorName", HFILL }},
     { &hf_p1_per_recipient_message_submission_fields,
@@ -10356,7 +10355,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_ub_recipients_OF_PerRecipientMessageSubmissionFields", HFILL }},
     { &hf_p1_per_recipient_message_submission_fields_item,
-      { "PerRecipientMessageSubmissionFields", "p1.PerRecipientMessageSubmissionFields",
+      { "PerRecipientMessageSubmissionFields", "p1.PerRecipientMessageSubmissionFields_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_per_recipient_probe_submission_fields,
@@ -10364,7 +10363,7 @@ void proto_register_p1(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_ub_recipients_OF_PerRecipientProbeSubmissionFields", HFILL }},
     { &hf_p1_per_recipient_probe_submission_fields_item,
-      { "PerRecipientProbeSubmissionFields", "p1.PerRecipientProbeSubmissionFields",
+      { "PerRecipientProbeSubmissionFields", "p1.PerRecipientProbeSubmissionFields_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_p1_directory_name,
@@ -10697,7 +10696,7 @@ void proto_register_p1(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-p1-hfarr.c ---*/
-#line 256 "../../asn1/p1/packet-p1-template.c"
+#line 318 "../../asn1/p1/packet-p1-template.c"
   };
 
   /* List of subtrees */
@@ -10896,20 +10895,30 @@ void proto_register_p1(void) {
     &ett_p1_SEQUENCE_SIZE_1_ub_recipients_OF_PerRecipientProbeSubmissionFields,
 
 /*--- End of included file: packet-p1-ettarr.c ---*/
-#line 269 "../../asn1/p1/packet-p1-template.c"
+#line 331 "../../asn1/p1/packet-p1-template.c"
   };
 
+  static ei_register_info ei[] = {
+     { &ei_p1_unknown_extension_attribute_type, { "p1.unknown.extension_attribute_type", PI_UNDECODED, PI_WARN, "Unknown extension-attribute-type", EXPFILL }},
+     { &ei_p1_unknown_standard_extension, { "p1.unknown.standard_extension", PI_UNDECODED, PI_WARN, "Unknown standard-extension", EXPFILL }},
+     { &ei_p1_unknown_built_in_content_type, { "p1.unknown.built_in_content_type", PI_UNDECODED, PI_WARN, "P1 Unknown Content (unknown built-in content-type)", EXPFILL }},
+     { &ei_p1_unknown_tokendata_type, { "p1.unknown.tokendata_type", PI_UNDECODED, PI_WARN, "Unknown tokendata-type", EXPFILL }},
+  };
+
+  expert_module_t* expert_p1;
   module_t *p1_module;
 
   /* Register protocol */
   proto_p1 = proto_register_protocol(PNAME, PSNAME, PFNAME);
-  register_dissector("p1", dissect_p1, proto_p1);
+  new_register_dissector("p1", dissect_p1, proto_p1);
 
   proto_p3 = proto_register_protocol("X.411 Message Access Service", "P3", "p3");
 
   /* Register fields and subtrees */
   proto_register_field_array(proto_p1, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_p1 = expert_register_protocol(proto_p1);
+  expert_register_field_array(expert_p1, ei, array_length(ei));
 
   p1_extension_dissector_table = register_dissector_table("p1.extension", "P1-EXTENSION", FT_UINT32, BASE_DEC);
   p1_extension_attribute_dissector_table = register_dissector_table("p1.extension-attribute", "P1-EXTENSION-ATTRIBUTE", FT_UINT32, BASE_DEC);
@@ -10968,6 +10977,7 @@ void proto_reg_handoff_p1(void) {
   dissector_add_uint("p1.extension", 31, create_dissector_handle(dissect_ReportingDLName_PDU, proto_p1));
   dissector_add_uint("p1.extension", 32, create_dissector_handle(dissect_ReportingMTACertificate_PDU, proto_p1));
   dissector_add_uint("p1.extension", 33, create_dissector_handle(dissect_ReportOriginAuthenticationCheck_PDU, proto_p1));
+  dissector_add_uint("p1.extension", 34, create_dissector_handle(dissect_OriginatingMTACertificate_PDU, proto_p1));
   dissector_add_uint("p1.extension", 35, create_dissector_handle(dissect_ProofOfSubmission_PDU, proto_p1));
   dissector_add_uint("p1.extension", 37, create_dissector_handle(dissect_TraceInformation_PDU, proto_p1));
   dissector_add_uint("p1.extension", 38, create_dissector_handle(dissect_InternalTraceInformation_PDU, proto_p1));
@@ -11089,7 +11099,7 @@ void proto_reg_handoff_p1(void) {
 
 
 /*--- End of included file: packet-p1-dis-tab.c ---*/
-#line 305 "../../asn1/p1/packet-p1-template.c"
+#line 377 "../../asn1/p1/packet-p1-template.c"
 
   /* APPLICATION CONTEXT */
 

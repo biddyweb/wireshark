@@ -2,8 +2,6 @@
  * Routines for dissecting the ATA over Ethernet protocol.
  *   Ronnie Sahlberg 2004
  *
- * $Id$
- *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
@@ -24,12 +22,14 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/conversation.h>
 #include <etypes.h>
 
 void proto_register_aoe(void);
 void proto_reg_handoff_aoe(void);
+
+static dissector_handle_t aoe_handle;
 
 static int proto_aoe;
 static int hf_aoe_version=-1;
@@ -227,7 +227,7 @@ dissect_ata_pdu(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb, int offset,
       ata_info_t *tmp_ata_info;
       /* first time we see this request so add a struct for request/response
          matching */
-      ata_info=se_new(ata_info_t);
+      ata_info=wmem_new(wmem_file_scope(), ata_info_t);
       ata_info->tag=tag;
       ata_info->conversation=conversation;
       ata_info->request_frame=pinfo->fd->num;
@@ -257,7 +257,7 @@ dissect_ata_pdu(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb, int offset,
       }
     }
   } else {
-    ata_info=g_hash_table_lookup(ata_cmd_matched, GUINT_TO_POINTER(pinfo->fd->num));
+    ata_info=(ata_info_t *)g_hash_table_lookup(ata_cmd_matched, GUINT_TO_POINTER(pinfo->fd->num));
   }
 
   if(ata_info){
@@ -483,16 +483,13 @@ proto_register_aoe(void)
   proto_register_field_array(proto_aoe, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
 
-  register_dissector("aoe", dissect_aoe, proto_aoe);
+  aoe_handle = register_dissector("aoe", dissect_aoe, proto_aoe);
+
   register_init_routine(ata_init);
 }
 
 void
 proto_reg_handoff_aoe(void)
 {
-  dissector_handle_t aoe_handle;
-
-  aoe_handle = find_dissector("aoe");
   dissector_add_uint("ethertype", ETHERTYPE_AOE, aoe_handle);
-
 }

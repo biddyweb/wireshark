@@ -5,8 +5,6 @@
 #
 # Copyright 2012 Jeff Morriss <jeff.morriss.ws [AT] gmail.com>
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -34,18 +32,24 @@ COMMAND_ARGS="-nr"
 COMMAND_ARGS2=
 VALID=0
 PCAP=""
+TOOL="memcheck"
 
-while getopts ":2b:C:lnrtTwcev" OPTCHAR ; do
+while getopts ":2b:C:lmnpP:rtTYwcevWdQ" OPTCHAR ; do
     case $OPTCHAR in
         2) COMMAND_ARGS="-2 $COMMAND_ARGS" ;;
         b) BIN_DIR=$OPTARG ;;
         C) COMMAND_ARGS="-C $OPTARG $COMMAND_ARGS" ;;
         l) LEAK_CHECK="--leak-check=full" ;;
+        m) TOOL="massif" ;;
         n) COMMAND_ARGS="-v"
            VALID=1 ;;
+        p) TOOL="callgrind" ;;
+        P) TOOL="callgrind"
+           CALLGRIND_OUT_FILE="--callgrind-out-file=$OPTARG" ;;
         r) REACHABLE="--show-reachable=yes" ;;
         t) TRACK_ORIGINS="--track-origins=yes" ;;
         T) COMMAND_ARGS="-Vx $COMMAND_ARGS" ;; # "build the Tree"
+        Y) COMMAND_ARGS="-Y frame $COMMAND_ARGS" ;; # Run with a read filter (but no tree)
         w) COMMAND=wireshark
            COMMAND_ARGS="-nr" ;;
         c) COMMAND=capinfos
@@ -55,6 +59,15 @@ while getopts ":2b:C:lnrtTwcev" OPTCHAR ; do
            # We don't care about the output of editcap
            COMMAND_ARGS2="/dev/null" ;;
         v) VERBOSE="--num-callers=256" ;;
+        W) COMMAND=wireshark
+           COMMAND_ARGS=""
+           VALID=1 ;;
+        Q) COMMAND=wireshark-qt
+           COMMAND_ARGS=""
+           VALID=1 ;;
+        d) COMMAND=dumpcap
+           COMMAND_ARGS="-i eth1 -c 3000"
+           VALID=1 ;;
         *) printf "Unknown option -$OPTARG!\n"
            exit ;;
     esac
@@ -69,7 +82,7 @@ fi
 
 if [ $VALID -eq 0 ]
 then
-    printf "Usage: $0 [-2] [-b bin_dir] [-c] [-e] [-C config_profile] [-l] [-n] [-r] [-t] [-T] [-w] [-v] /path/to/file.pcap\n"
+    printf "Usage: $0 [-2] [-b bin_dir] [-c] [-e] [-C config_profile] [-l] [-m] [-n] [-p] [-r] [-t] [-T] [-w] [-v] /path/to/file.pcap\n"
     exit 1
 fi
 
@@ -77,9 +90,24 @@ if [ "$BIN_DIR" = "." ]; then
     export WIRESHARK_RUN_FROM_BUILD_DIRECTORY=
 fi
 
-export WIRESHARK_DEBUG_EP_NO_CHUNKS=
-export WIRESHARK_DEBUG_SE_NO_CHUNKS=
-export WIRESHARK_DEBUG_WMEM_OVERRIDE=simple
-export G_SLICE=always-malloc # or debug-blocks
+if [ "$TOOL" != "callgrind" ]; then
+    export WIRESHARK_DEBUG_EP_NO_CHUNKS=
+    export WIRESHARK_DEBUG_SE_NO_CHUNKS=
+    export WIRESHARK_DEBUG_WMEM_OVERRIDE=simple
+    export G_SLICE=always-malloc # or debug-blocks
+fi
 
-libtool --mode=execute valgrind $VERBOSE $LEAK_CHECK $REACHABLE $TRACK_ORIGINS $BIN_DIR/$COMMAND $COMMAND_ARGS $PCAP $COMMAND_ARGS2 > /dev/null
+COMMAND="$BIN_DIR/$COMMAND"
+
+if file $COMMAND | grep -q "ASCII text"; then
+    if [ -x "`dirname $0`/../libtool" ]; then
+        LIBTOOL="`dirname $0`/../libtool"
+    else
+        LIBTOOL="libtool"
+    fi
+    LIBTOOL="$LIBTOOL --mode=execute"
+else
+    LIBTOOL=""
+fi
+
+$LIBTOOL valgrind --suppressions=`dirname $0`/vg-suppressions --tool=$TOOL $CALLGRIND_OUT_FILE $VERBOSE $LEAK_CHECK $REACHABLE $TRACK_ORIGINS $COMMAND $COMMAND_ARGS $PCAP $COMMAND_ARGS2 > /dev/null

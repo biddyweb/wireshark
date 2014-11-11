@@ -2,8 +2,6 @@
  * Routines for AODV dissection
  * Copyright 2000, Erik Nordstrom <erik.nordstrom@it.uu.se>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,7 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 
 #ifndef offsetof
 #define	offsetof(type, member)	((size_t)(&((type *)0)->member))
@@ -769,7 +768,7 @@ dissect_aodv(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
     /* Check the type of AODV packet. */
     type = tvb_get_guint8(tvb, 0);
-    if (match_strval(type, type_vals) == NULL) {
+    if (try_val_to_str(type, type_vals) == NULL) {
 	/*
 	 * We assume this is not an AODV packet.
 	 */

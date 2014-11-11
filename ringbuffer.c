@@ -1,8 +1,6 @@
 /* ringbuffer.c
  * Routines for packet capture windows
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -117,11 +115,12 @@ static int ringbuf_open_file(rb_file *rfile, int *err)
 			    rb_data.fsuffix, NULL);
 
   if (rfile->name == NULL) {
-    *err = ENOMEM;
+    if (err != NULL)
+      *err = ENOMEM;
     return -1;
   }
 
-  rb_data.fd = ws_open(rfile->name, O_RDWR|O_BINARY|O_TRUNC|O_CREAT, 
+  rb_data.fd = ws_open(rfile->name, O_RDWR|O_BINARY|O_TRUNC|O_CREAT,
                             rb_data.group_read_access ? 0640 : 0600);
 
   if (rb_data.fd == -1 && err != NULL) {

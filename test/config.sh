@@ -2,8 +2,6 @@
 #
 # Configuration of the command line tests
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 2005 Ulf Lamping
@@ -32,22 +30,36 @@ else
 	WS_SYSTEM=`uname -s`
 fi
 
+#
+#
+ENDIANNESS="little"
+echo -n I | od -to2 | awk '{ lastbit = substr($2,6,1); exit lastbit }'
+if [ $? -eq 0 ] ; then
+	ENDIANNESS="big"
+fi
 
-# Path to the Wireshark binaries, only used for the settings below
-WS_BIN_PATH=..
+# Absolute path to the source tree
+SOURCE_DIR="$(cd "$(dirname "$0")" && cd .. && pwd)"
+
+# Absolute path to this test directory (for capture and config files)
+TESTS_DIR="$SOURCE_DIR/test"
 
 # Are we allowed to open interfaces or capture on this system?
 SKIP_CAPTURE=${SKIP_CAPTURE:-1}
 
 # Override the last two items if we're running Windows
 if [ "$WS_SYSTEM" = "Windows" ] ; then
-	WS_BIN_PATH=../wireshark-gtk2
+	WS_BIN_PATH=${WS_BIN_PATH:-$SOURCE_DIR/wireshark-gtk2}
 	SKIP_CAPTURE=0
 fi
+
+# Path to the Wireshark binaries, default to source dir if unset
+WS_BIN_PATH=${WS_BIN_PATH:-$SOURCE_DIR}
 
 # Tweak the following to your liking.
 WIRESHARK=$WS_BIN_PATH/wireshark
 TSHARK=$WS_BIN_PATH/tshark
+RAWSHARK=$WS_BIN_PATH/rawshark
 CAPINFOS=$WS_BIN_PATH/capinfos
 DUMPCAP=$WS_BIN_PATH/dumpcap
 
@@ -64,7 +76,7 @@ TRAFFIC_CAPTURE_IFACE=${TRAFFIC_CAPTURE_IFACE:-1}
 
 # time to capture some traffic (in seconds)
 # (you may increase this if you get errors caused by very low traffic)
-TRAFFIC_CAPTURE_DURATION=60
+TRAFFIC_CAPTURE_DURATION=15
 
 # the default is to not capture in promiscuous mode
 # (this makes known trouble with some Windows WLAN adapters)
@@ -83,17 +95,12 @@ fi
 # Tell Wireshark to quit after capuring packets.
 export WIRESHARK_QUIT_AFTER_CAPTURE="True"
 
-CAPTURE_DIR="captures/"
+CAPTURE_DIR="$TESTS_DIR/captures/"
 
-# Configuration paths
-TEST_HOME="$PWD/fakehome"
-HOME_ENV="HOME"
-
-if [ "$WS_SYSTEM" == "Windows" ] ; then
-	TEST_HOME="`cygpath -w $TEST_HOME`"
-	HOME_ENV="APPDATA"
-	CAPTURE_DIR="`cygpath -w $CAPTURE_DIR`"
-fi
+# Figure out if we were built with lua or not so we can skip the lua tests if we
+# don't have it. Is there a better way to do this than grepping config.h?
+grep -q "#define HAVE_LUA 1" $SOURCE_DIR/config.h
+HAVE_LUA=$?
 
 # Display our environment
 

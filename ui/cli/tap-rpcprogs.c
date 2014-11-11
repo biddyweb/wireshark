@@ -1,8 +1,6 @@
 /* tap-rpcprogs.c
  * rpcstat   2002 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,8 +27,9 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet_info.h"
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
@@ -38,6 +37,8 @@
 
 #define MICROSECS_PER_SEC   1000000
 #define NANOSECS_PER_SEC    1000000000
+
+void register_tap_listener_rpcprogs(void);
 
 /* used to keep track of statistics for a specific program/version */
 typedef struct _rpc_program_t {
@@ -206,7 +207,7 @@ rpcprogs_draw(void *dummy _U_)
 
 
 static void
-rpcprogs_init(const char *optarg _U_, void* userdata _U_)
+rpcprogs_init(const char *opt_arg _U_, void* userdata _U_)
 {
 	GString *error_string;
 

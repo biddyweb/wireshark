@@ -1,8 +1,6 @@
 /* crcdrm.c
  * another CRC 16
- * Copyright 2006, British Broadcasting Corporation 
- *
- * $Id$
+ * Copyright 2006, British Broadcasting Corporation
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>

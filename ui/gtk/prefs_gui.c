@@ -1,8 +1,6 @@
 /* gui_prefs.c
  * Dialog box for GUI preferences
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -23,14 +21,17 @@
  */
 
 #include "config.h"
+
+#include <stdlib.h>
 #include <string.h>
 
 #include <gtk/gtk.h>
 
 #include <epan/prefs.h>
 
+#include "cfile.h"
+
 #include "ui/recent.h"
-#include "ui/simple_dialog.h"
 
 #include "ui/gtk/prefs_gui.h"
 #include "ui/gtk/gtkglobals.h"
@@ -63,9 +64,15 @@ static gint scroll_percent_changed_cb(GtkWidget *recent_df_entry _U_,
 #define GEOMETRY_SIZE_KEY		"geometry_size"
 #define GEOMETRY_MAXIMIZED_KEY		"geometry_maximized"
 
+#if defined(HAVE_IGE_MAC_INTEGRATION) || defined(HAVE_GTKOSXAPPLICATION)
 #define MACOSX_STYLE_KEY		"macosx_style"
+#endif
 
+#ifdef _WIN32
 #define GUI_CONSOLE_OPEN_KEY		"console_open"
+#define ENABLE_UPDATE_KEY		"enable_update"
+#endif
+
 #define GUI_FILEOPEN_KEY		"fileopen_behavior"
 #define GUI_FILEOPEN_PREVIEW_KEY	"fileopen_preview_timeout"
 #define GUI_RECENT_FILES_COUNT_KEY	"recent_files_count"
@@ -79,6 +86,7 @@ static gint scroll_percent_changed_cb(GtkWidget *recent_df_entry _U_,
 #define GUI_EXPERT_EYECANDY_KEY		"expert_eyecandy"
 #define GUI_AUTO_SCROLL_KEY		"auto_scroll_on_expand"
 #define GUI_SCROLL_PERCENT_KEY		"scroll_percent_on_expand"
+#define GUI_PACKET_EDITOR		"packet_editor"
 
 static const enum_val_t filter_toolbar_placement_vals[] _U_ = {
 	{ "FALSE", "Below the main toolbar", FALSE },
@@ -140,7 +148,7 @@ gui_prefs_show(void)
 {
 	GtkWidget *main_grid, *main_vb;
 #ifdef _WIN32
-	GtkWidget *console_open_om;
+	GtkWidget *console_open_om, *enable_update_cb;
 #endif
 	GtkWidget *fileopen_rb, *fileopen_dir_te, *fileopen_preview_te;
 	GtkWidget *recent_files_count_max_te, *recent_df_entries_max_te, *ask_unsaved_cb, *find_wrap_cb;
@@ -153,6 +161,7 @@ gui_prefs_show(void)
 	GtkWidget *macosx_style_cb;
 #endif
 	GtkWidget *expert_info_eyecandy_cb;
+	GtkWidget *packet_editor_cb;
 
 	int        pos = 0;
 	char       current_val_str[128];
@@ -167,32 +176,43 @@ gui_prefs_show(void)
 	/* Main grid */
 	main_grid = ws_gtk_grid_new();
 	gtk_box_pack_start(GTK_BOX(main_vb), main_grid, FALSE, FALSE, 0);
+#if GTK_CHECK_VERSION(3,0,0)
+        gtk_widget_set_vexpand(GTK_WIDGET(main_grid), FALSE); /* Ignore VEXPAND requests from children */
+#endif
 	ws_gtk_grid_set_row_spacing(GTK_GRID(main_grid), 10);
 	ws_gtk_grid_set_column_spacing(GTK_GRID(main_grid), 15);
 
 	/* Geometry prefs */
 	save_position_cb = create_preference_check_button(main_grid, pos++,
 	    "Save window position:",
-	    "Whether to save the position of the main window.",
+	    "Save the position of the main window.",
 	    prefs.gui_geometry_save_position);
 	g_object_set_data(G_OBJECT(main_vb), GEOMETRY_POSITION_KEY, save_position_cb);
 
 	save_size_cb = create_preference_check_button(main_grid, pos++,
 	    "Save window size:",
-	    "Whether to save the size of the main window.",
+	    "Save the size of the main window.",
 	    prefs.gui_geometry_save_size);
 	g_object_set_data(G_OBJECT(main_vb), GEOMETRY_SIZE_KEY, save_size_cb);
 
 	save_maximized_cb = create_preference_check_button(main_grid, pos++,
 	    "Save maximized state:",
-	    "Whether to save the maximized state of the main window.",
+	    "Save the maximized state of the main window.",
 	    prefs.gui_geometry_save_maximized);
 	g_object_set_data(G_OBJECT(main_vb), GEOMETRY_MAXIMIZED_KEY, save_maximized_cb);
+
+#ifdef _WIN32
+	enable_update_cb = create_preference_check_button(main_grid, pos++,
+	    "Check for updates:",
+	    "Periodically check for new versions of Wireshark.",
+	    prefs.gui_update_enabled);
+	g_object_set_data(G_OBJECT(main_vb), ENABLE_UPDATE_KEY, enable_update_cb);
+#endif
 
 #if defined(HAVE_IGE_MAC_INTEGRATION) || defined(HAVE_GTKOSXAPPLICATION)
 	macosx_style_cb = create_preference_check_button(main_grid, pos++,
 	    "Mac OS X style",
-	    "Whether to create a Mac OS X look and feel. Checking this box will move the "
+	    "Create a Mac OS X look and feel. Checking this box will move the "
 	    "menu bar to the top of the screen instead of the top of the Wireshark window. "
 	    "Requires a restart of Wireshark to take effect.",
 	    prefs.gui_macosx_style);
@@ -322,6 +342,13 @@ gui_prefs_show(void)
 	    prefs.gui_expert_composite_eyecandy );
 	g_object_set_data(G_OBJECT(main_vb), GUI_EXPERT_EYECANDY_KEY, expert_info_eyecandy_cb);
 
+	/* Enable Experimental Packet Editor */
+	packet_editor_cb = create_preference_check_button(main_grid, pos++,
+	    "Enable Packet Editor (Experimental):",
+	    "Activate Packet Editor (Experimental)",
+	    prefs.gui_packet_editor);
+	g_object_set_data(G_OBJECT(main_vb), GUI_PACKET_EDITOR, packet_editor_cb);
+
 	/* Show 'em what we got */
 	gtk_widget_show_all(main_vb);
 
@@ -344,6 +371,11 @@ gui_prefs_fetch(GtkWidget *w)
 		gtk_toggle_button_get_active((GtkToggleButton *)g_object_get_data(G_OBJECT(w), GEOMETRY_SIZE_KEY));
 	prefs.gui_geometry_save_maximized =
 		gtk_toggle_button_get_active((GtkToggleButton *)g_object_get_data(G_OBJECT(w), GEOMETRY_MAXIMIZED_KEY));
+
+#ifdef _WIN32
+	prefs.gui_update_enabled =
+		gtk_toggle_button_get_active((GtkToggleButton *)g_object_get_data(G_OBJECT(w), ENABLE_UPDATE_KEY));
+#endif
 
 #if defined(HAVE_IGE_MAC_INTEGRATION) || defined(HAVE_GTKOSXAPPLICATION)
 	prefs.gui_macosx_style =
@@ -370,7 +402,7 @@ gui_prefs_fetch(GtkWidget *w)
 	prefs.gui_use_pref_save =
 		gtk_toggle_button_get_active((GtkToggleButton *)g_object_get_data(G_OBJECT(w), GUI_USE_PREF_SAVE_KEY));
 
-	prefs.gui_version_placement =
+	prefs.gui_version_placement = (version_info_e)
 		fetch_enum_value(g_object_get_data(G_OBJECT(w), GUI_SHOW_VERSION_KEY), gui_version_placement_vals);
 
 	prefs.gui_auto_scroll_on_expand =
@@ -385,6 +417,8 @@ gui_prefs_fetch(GtkWidget *w)
 	prefs.gui_expert_composite_eyecandy =
 		gtk_toggle_button_get_active((GtkToggleButton *)g_object_get_data(G_OBJECT(w), GUI_EXPERT_EYECANDY_KEY));
 
+	prefs.gui_packet_editor =
+		gtk_toggle_button_get_active((GtkToggleButton *)g_object_get_data(G_OBJECT(w), GUI_PACKET_EDITOR));
 }
 
 
@@ -561,3 +595,16 @@ scroll_percent_changed_cb(GtkWidget *recent_files_entry _U_,
 	/* We really should pop up a dialog box is newval < 0 or > 100 */
 	return FALSE;
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

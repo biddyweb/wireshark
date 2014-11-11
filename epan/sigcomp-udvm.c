@@ -3,8 +3,6 @@
  * Signaling Compression (SigComp) dissection.
  * Copyright 2004, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,12 +35,17 @@
 #include <string.h>
 #include <glib.h>
 
+#include <epan/emem.h>
+
+#include <wsutil/sha1.h>
+#include <wsutil/crc16.h>
+
 #include "packet.h"
+#include "exceptions.h"
 #include "strutil.h"
+#include "to_str.h"
 #include "sigcomp-udvm.h"
 #include "sigcomp_state_hdlr.h"
-#include "crypt/sha1.h"
-#include "wsutil/crc16.h"
 #include "except.h"
 
 #define	SIGCOMP_INSTR_DECOMPRESSION_FAILURE     0
@@ -107,6 +110,7 @@ const value_string result_code_vals[] = {
 	{14,	"Input bytes requested beyond end of message" },
 	{15,	"Maximum number of UDVM cycles reached" },
 	{16,	"UDVM stack underflow" },
+	{17,	"state_length is 0, but state_begin is non-zero" },
 	{ 255,	"This branch isn't coded yet" },
 	{ 0,    NULL }
 };
@@ -130,7 +134,7 @@ decompress_sigcomp_message(tvbuff_t *bytecode_tvb, tvbuff_t *message_tvb, packet
 {
 	tvbuff_t	*decomp_tvb;
 	/* UDVM memory must be initialised to zero */
-	guint8		*buff = ep_alloc0(UDVM_MEMORY_SIZE);
+	guint8		*buff = (guint8 *)ep_alloc0(UDVM_MEMORY_SIZE);
 	char		string[2];
 	guint8		*out_buff;		/* Largest allowed size for a message is UDVM_MEMORY_SIZE = 65536 */
 	guint32		i = 0;
@@ -315,15 +319,15 @@ decompress_sigcomp_message(tvbuff_t *bytecode_tvb, tvbuff_t *message_tvb, packet
 		offset++;
 
 	}
-	/* Largest allowed size for a message is UDVM_MEMORY_SIZE = 65536  */
-	out_buff = g_malloc(UDVM_MEMORY_SIZE);
 	/* Start executing code */
 	current_address = udvm_start_ip;
 	input_address = 0;
-	operand_address = 0;
 
 	proto_tree_add_text(udvm_tree, bytecode_tvb, offset, 1,"UDVM EXECUTION STARTED at Address: %u Message size %u",
 		current_address, msg_end);
+
+	/* Largest allowed size for a message is UDVM_MEMORY_SIZE = 65536  */
+	out_buff = (guint8 *)g_malloc(UDVM_MEMORY_SIZE);
 
 execute_next_instruction:
 
@@ -788,7 +792,6 @@ execute_next_instruction:
 				"Addr: %u ## SORT-ASCENDING(11) (start, n, k))",
 				current_address);
 		}
-		operand_address = current_address + 1;
 		proto_tree_add_text(udvm_tree, bytecode_tvb, 0, -1,"Execution of this instruction is NOT implemented");
 		/*
 		 * 	used_udvm_cycles =  1 + k * (ceiling(log2(k)) + n)
@@ -801,7 +804,6 @@ execute_next_instruction:
 				"Addr: %u ## SORT-DESCENDING(12) (start, n, k))",
 				current_address);
 		}
-		operand_address = current_address + 1;
 		proto_tree_add_text(udvm_tree, bytecode_tvb, 0, -1,"Execution of this instruction is NOT implemented");
 		/*
 		 * 	used_udvm_cycles =  1 + k * (ceiling(log2(k)) + n)
@@ -836,7 +838,6 @@ execute_next_instruction:
 			proto_tree_add_text(udvm_tree, bytecode_tvb, 0, -1,"Addr: %u      $destination %u",
 				operand_address, ref_destination);
 		}
-		current_address = next_operand_address;
 		used_udvm_cycles = used_udvm_cycles + length;
 
 		n = 0;
@@ -891,7 +892,7 @@ execute_next_instruction:
 		if (print_level_2 ){
 			proto_tree_add_text(udvm_tree, message_tvb, 0, -1,
 					"Calculated SHA-1: %s",
-					bytes_to_str(sha1_digest_buf, STATE_BUFFER_SIZE));
+					bytes_to_ep_str(sha1_digest_buf, STATE_BUFFER_SIZE));
 		}
 
 		current_address = next_operand_address;
@@ -1496,7 +1497,7 @@ execute_next_instruction:
 		operand_address = current_address + 1;
 		/* @address */
 		 /* operand_value = (memory_address_of_instruction + D) modulo 2^16 */
-		next_operand_address = decode_udvm_address_operand(buff,operand_address, &at_address, current_address);
+		/*next_operand_address = */decode_udvm_address_operand(buff,operand_address, &at_address, current_address);
 		if (show_instr_detail_level == 2 ){
 			proto_tree_add_text(udvm_tree, bytecode_tvb, 0, -1,"Addr: %u      @Address %u",
 				operand_address, at_address);
@@ -1560,7 +1561,7 @@ execute_next_instruction:
 
 		/* @address_3 */
 		 /* operand_value = (memory_address_of_instruction + D) modulo 2^16 */
-		next_operand_address = decode_udvm_multitype_operand(buff, operand_address, &at_address_3);
+		/*next_operand_address = */decode_udvm_multitype_operand(buff, operand_address, &at_address_3);
 		at_address_3 = ( current_address + at_address_3) & 0xffff;
 		if (show_instr_detail_level == 2 ){
 			proto_tree_add_text(udvm_tree, bytecode_tvb, 0, -1,"Addr: %u      @Address %u",
@@ -2630,7 +2631,7 @@ execute_next_instruction:
 		 * %state_retention_priority
 		 */
 		operand_address = next_operand_address;
-		next_operand_address = decode_udvm_multitype_operand(buff, operand_address, &state_retention_priority);
+		/*next_operand_address =*/ decode_udvm_multitype_operand(buff, operand_address, &state_retention_priority);
 		if (show_instr_detail_level == 2 ){
 			proto_tree_add_text(udvm_tree, bytecode_tvb, 0, -1,"Addr: %u      state_retention_priority %u",
 				operand_address, state_retention_priority);
@@ -2641,7 +2642,6 @@ execute_next_instruction:
 				"Addr: %u ## END-MESSAGE (requested_feedback_location=%u, returned_parameters_location=%u, state_length=%u, state_address=%u, state_instruction=%u, minimum_access_length=%u, state_retention_priority=%u)",
 				current_address, requested_feedback_location, returned_parameters_location, state_length, state_address, state_instruction, minimum_access_length,state_retention_priority);
 		}
-		current_address = next_operand_address;
 		/* TODO: This isn't currently totaly correct as END_INSTRUCTION might not create state */
 		no_of_state_create++;
 		if ( no_of_state_create > 4 ){
@@ -2666,7 +2666,7 @@ execute_next_instruction:
 			byte_copy_left = buff[64] << 8;
 			byte_copy_left = byte_copy_left | buff[65];
 			while ( n < no_of_state_create + 1 ){
-				sha1buff = g_malloc(state_length_buff[n]+8);
+				sha1buff = (guint8 *)g_malloc(state_length_buff[n]+8);
 				sha1buff[0] = state_length_buff[n] >> 8;
 				sha1buff[1] = state_length_buff[n] & 0xff;
 				sha1buff[2] = state_address_buff[n] >> 8;
@@ -2695,7 +2695,7 @@ execute_next_instruction:
 				sha1_update( &ctx, (guint8 *) sha1buff, state_length_buff[n] + 8);
 				sha1_finish( &ctx, sha1_digest_buf );
 				if (print_level_3 ){
-					proto_tree_add_text(udvm_tree, bytecode_tvb, 0, -1,"SHA1 digest %s",bytes_to_str(sha1_digest_buf, STATE_BUFFER_SIZE));
+					proto_tree_add_text(udvm_tree, bytecode_tvb, 0, -1,"SHA1 digest %s",bytes_to_ep_str(sha1_digest_buf, STATE_BUFFER_SIZE));
 
 				}
 /* begin partial state-id change cco@iptel.org */
@@ -2705,7 +2705,7 @@ execute_next_instruction:
 				udvm_state_create(sha1buff, sha1_digest_buf, STATE_MIN_ACCESS_LEN);
 /* end partial state-id change cco@iptel.org */
 				proto_tree_add_text(udvm_tree,bytecode_tvb, 0, -1,"### Creating state ###");
-				proto_tree_add_string(udvm_tree,hf_id, bytecode_tvb, 0, 0, bytes_to_str(sha1_digest_buf, state_minimum_access_length_buff[n]));
+				proto_tree_add_string(udvm_tree,hf_id, bytecode_tvb, 0, 0, bytes_to_ep_str(sha1_digest_buf, state_minimum_access_length_buff[n]));
 
 				n++;
 
@@ -2742,8 +2742,8 @@ decompression_failure:
 
 		proto_tree_add_text(udvm_tree, bytecode_tvb, 0, -1,"DECOMPRESSION FAILURE: %s",
 				    val_to_str(result_code, result_code_vals,"Unknown (%u)"));
-		THROW(ReportedBoundsError);
 		g_free(out_buff);
+		THROW(ReportedBoundsError);
 		return NULL;
 
 }
@@ -2910,7 +2910,7 @@ decode_udvm_multitype_operand(guint8 *buff,guint operand_address, guint16 *value
 	guint8 temp_data;
 	guint16 temp_data16;
 	guint16 memmory_addr = 0;
-	
+
 *value = 0;
 
 	bytecode = buff[operand_address];
@@ -3211,3 +3211,15 @@ decomp_dispatch_get_bits(
 
 /* end udvm */
 
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

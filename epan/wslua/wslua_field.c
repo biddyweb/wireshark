@@ -5,8 +5,6 @@
  *
  * (c) 2006, Luis E. Garcia Ontanon <luis@ontanon.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,117 +26,139 @@
 
 #include "config.h"
 
+#include <epan/emem.h>
+#include <epan/dfilter/dfilter.h>
+#include <epan/ftypes/ftypes-int.h>
+
 /* WSLUA_MODULE Field Obtaining dissection data */
 
 #include "wslua.h"
 
-WSLUA_CLASS_DEFINE(FieldInfo,NOP,NOP);
+/* any call to checkFieldInfo() will now error on null or expired, so no need to check again */
+WSLUA_CLASS_DEFINE(FieldInfo,FAIL_ON_NULL_OR_EXPIRED("FieldInfo"),NOP);
 /*
-   An extracted Field
-   */
+   An extracted Field from dissected packet data. A `FieldInfo` object can only be used within
+   the callback functions of dissectors, post-dissectors, heuristic-dissectors, and taps.
 
+   A `FieldInfo` can be called on either existing Wireshark fields by using either `Field.new()`
+   or `Field()` before-hand, or it can be called on new fields created by Lua from a `ProtoField`.
+ */
+
+static GPtrArray* outstanding_FieldInfo = NULL;
+
+#define PUSH_FIELDINFO(L,fi) {g_ptr_array_add(outstanding_FieldInfo,fi);pushFieldInfo(L,fi);}
+
+CLEAR_OUTSTANDING(FieldInfo,expired,TRUE)
+
+/* WSLUA_ATTRIBUTE FieldInfo_len RO The length of this field. */
 WSLUA_METAMETHOD FieldInfo__len(lua_State* L) {
     /*
        Obtain the Length of the field
        */
     FieldInfo fi = checkFieldInfo(L,1);
-    lua_pushnumber(L,fi->length);
+
+    lua_pushnumber(L,fi->ws_fi->length);
     return 1;
 }
 
+/* WSLUA_ATTRIBUTE FieldInfo_offset RO The offset of this field. */
 WSLUA_METAMETHOD FieldInfo__unm(lua_State* L) {
     /*
        Obtain the Offset of the field
        */
     FieldInfo fi = checkFieldInfo(L,1);
-    lua_pushnumber(L,fi->start);
+
+    lua_pushnumber(L,fi->ws_fi->start);
     return 1;
 }
 
+/* WSLUA_ATTRIBUTE FieldInfo_value RO The value of this field. */
 WSLUA_METAMETHOD FieldInfo__call(lua_State* L) {
     /*
-       Obtain the Value of the field
+       Obtain the Value of the field.
+
+       Previous to 1.11.4, this function retrieved the value for most field types,
+       but for `ftypes.UINT_BYTES` it retrieved the `ByteArray` of the field's entire `TvbRange`.
+       In other words, it returned a `ByteArray` that included the leading length byte(s),
+       instead of just the *value* bytes. That was a bug, and has been changed in 1.11.4.
+       Furthermore, it retrieved an `ftypes.GUID` as a `ByteArray`, which is also incorrect.
+
+       If you wish to still get a `ByteArray` of the `TvbRange`, use `FieldInfo:get_range()`
+       to get the `TvbRange`, and then use `Tvb:bytes()` to convert it to a `ByteArray`.
        */
     FieldInfo fi = checkFieldInfo(L,1);
 
-    switch(fi->hfinfo->type) {
-        case FT_NONE:
-                lua_pushnil(L);
-                return 1;
+    switch(fi->ws_fi->hfinfo->type) {
         case FT_BOOLEAN:
-                lua_pushboolean(L,(int)fvalue_get_uinteger(&(fi->value)));
+                lua_pushboolean(L,(int)fvalue_get_uinteger(&(fi->ws_fi->value)));
                 return 1;
         case FT_UINT8:
         case FT_UINT16:
         case FT_UINT24:
         case FT_UINT32:
         case FT_FRAMENUM:
-                lua_pushnumber(L,(lua_Number)fvalue_get_uinteger(&(fi->value)));
+                lua_pushnumber(L,(lua_Number)(fvalue_get_uinteger(&(fi->ws_fi->value))));
                 return 1;
         case FT_INT8:
         case FT_INT16:
         case FT_INT24:
         case FT_INT32:
-                lua_pushnumber(L,(lua_Number)fvalue_get_sinteger(&(fi->value)));
+                lua_pushnumber(L,(lua_Number)(fvalue_get_sinteger(&(fi->ws_fi->value))));
                 return 1;
         case FT_FLOAT:
         case FT_DOUBLE:
-                lua_pushnumber(L,(lua_Number)fvalue_get_floating(&(fi->value)));
+                lua_pushnumber(L,(lua_Number)(fvalue_get_floating(&(fi->ws_fi->value))));
                 return 1;
         case FT_INT64: {
-                Int64 num = g_malloc(sizeof(gint64));
-                *num = fvalue_get_integer64(&(fi->value));
-                pushInt64(L,num);
+                pushInt64(L,(Int64)(fvalue_get_integer64(&(fi->ws_fi->value))));
                 return 1;
             }
         case FT_UINT64: {
-                UInt64 num = g_malloc(sizeof(guint64));
-                *num = fvalue_get_integer64(&(fi->value));
-                pushUInt64(L,num);
+                pushUInt64(L,fvalue_get_integer64(&(fi->ws_fi->value)));
                 return 1;
             }
         case FT_ETHER: {
-                Address eth = g_malloc(sizeof(address));
+                Address eth = (Address)g_malloc(sizeof(address));
                 eth->type = AT_ETHER;
-                eth->len = fi->length;
-                eth->data = tvb_memdup(fi->ds_tvb,fi->start,fi->length);
+                eth->len = fi->ws_fi->length;
+                eth->data = tvb_memdup(NULL,fi->ws_fi->ds_tvb,fi->ws_fi->start,fi->ws_fi->length);
                 pushAddress(L,eth);
                 return 1;
             }
         case FT_IPv4:{
-                Address ipv4 = g_malloc(sizeof(address));
+                Address ipv4 = (Address)g_malloc(sizeof(address));
                 ipv4->type = AT_IPv4;
-                ipv4->len = fi->length;
-                ipv4->data = tvb_memdup(fi->ds_tvb,fi->start,fi->length);
+                ipv4->len = fi->ws_fi->length;
+                ipv4->data = tvb_memdup(NULL,fi->ws_fi->ds_tvb,fi->ws_fi->start,fi->ws_fi->length);
                 pushAddress(L,ipv4);
                 return 1;
             }
         case FT_IPv6: {
-                Address ipv6 = g_malloc(sizeof(address));
+                Address ipv6 = (Address)g_malloc(sizeof(address));
                 ipv6->type = AT_IPv6;
-                ipv6->len = fi->length;
-                ipv6->data = tvb_memdup(fi->ds_tvb,fi->start,fi->length);
+                ipv6->len = fi->ws_fi->length;
+                ipv6->data = tvb_memdup(NULL,fi->ws_fi->ds_tvb,fi->ws_fi->start,fi->ws_fi->length);
                 pushAddress(L,ipv6);
                 return 1;
             }
         case FT_IPXNET:{
-                Address ipx = g_malloc(sizeof(address));
+                Address ipx = (Address)g_malloc(sizeof(address));
                 ipx->type = AT_IPX;
-                ipx->len = fi->length;
-                ipx->data = tvb_memdup(fi->ds_tvb,fi->start,fi->length);
+                ipx->len = fi->ws_fi->length;
+                ipx->data = tvb_memdup(NULL,fi->ws_fi->ds_tvb,fi->ws_fi->start,fi->ws_fi->length);
                 pushAddress(L,ipx);
                 return 1;
             }
         case FT_ABSOLUTE_TIME:
         case FT_RELATIVE_TIME: {
-                NSTime nstime = g_malloc(sizeof(nstime_t));
-                *nstime = *(NSTime)fvalue_get(&(fi->value));
+                NSTime nstime = (NSTime)g_malloc(sizeof(nstime_t));
+                *nstime = *(NSTime)fvalue_get(&(fi->ws_fi->value));
                 pushNSTime(L,nstime);
                 return 1;
             }
         case FT_STRING:
         case FT_STRINGZ: {
-                gchar* repr = fvalue_to_string_repr(&fi->value,FTREPR_DISPLAY,NULL);
+                gchar* repr = fvalue_to_string_repr(&fi->ws_fi->value,FTREPR_DISPLAY,NULL);
                 if (repr)
                     lua_pushstring(L,repr);
                 else
@@ -146,32 +166,39 @@ WSLUA_METAMETHOD FieldInfo__call(lua_State* L) {
 
                 return 1;
             }
+        case FT_NONE:
+                if (fi->ws_fi->length == 0) {
+                        lua_pushnil(L);
+                        return 1;
+                }
+                /* FALLTHROUGH */
         case FT_BYTES:
         case FT_UINT_BYTES:
-        case FT_GUID:
         case FT_PROTOCOL:
-        case FT_OID: {
+        case FT_REL_OID:
+        case FT_SYSTEM_ID:
+        case FT_OID:
+            {
                 ByteArray ba = g_byte_array_new();
-                g_byte_array_append(ba, ep_tvb_memdup(fi->ds_tvb,fi->start,fi->length),fi->length);
+                g_byte_array_append(ba, (const guint8 *) fvalue_get(&fi->ws_fi->value),
+                                    fvalue_length(&fi->ws_fi->value));
                 pushByteArray(L,ba);
                 return 1;
             }
+        case FT_GUID:
         default:
                 luaL_error(L,"FT_ not yet supported");
                 return 1;
     }
 }
 
+/* WSLUA_ATTRIBUTE FieldInfo_label RO The string representing this field */
 WSLUA_METAMETHOD FieldInfo__tostring(lua_State* L) {
-    /* The string representation of the field */
+    /* The string representation of the field. */
     FieldInfo fi = checkFieldInfo(L,1);
 
-    if (!fi) {
-        return luaL_error(L,"Missing FieldInfo object");
-    }
-
-    if (fi->value.ftype->val_to_string_repr) {
-        gchar* repr = fvalue_to_string_repr(&fi->value,FTREPR_DISPLAY,NULL);
+    if (fi->ws_fi->value.ftype->val_to_string_repr) {
+        gchar* repr = fvalue_to_string_repr(&fi->ws_fi->value,FTREPR_DISPLAY,NULL);
         if (repr) {
             lua_pushstring(L,repr);
         }
@@ -179,7 +206,7 @@ WSLUA_METAMETHOD FieldInfo__tostring(lua_State* L) {
             lua_pushstring(L,"(unknown)");
         }
     }
-    else if (fi->hfinfo->type == FT_NONE) {
+    else if (fi->ws_fi->hfinfo->type == FT_NONE) {
         lua_pushstring(L, "(none)");
     }
     else {
@@ -189,20 +216,19 @@ WSLUA_METAMETHOD FieldInfo__tostring(lua_State* L) {
     return 1;
 }
 
-static int FieldInfo_display(lua_State* L) {
-    /* The display string of this field as seen in GUI */
+/* WSLUA_ATTRIBUTE FieldInfo_display RO The string display of this field as seen in GUI */
+static int FieldInfo_get_display(lua_State* L) {
+    /* The display string of this field as seen in GUI. */
     FieldInfo fi = checkFieldInfo(L,1);
     gchar         label_str[ITEM_LABEL_LENGTH+1];
     gchar        *label_ptr;
     gchar        *value_ptr;
 
-    if (!fi) return 0;
-
-    if (!fi->rep) {
+    if (!fi->ws_fi->rep) {
         label_ptr = label_str;
-        proto_item_fill_label(fi, label_str);
-    } else 
-        label_ptr = fi->rep->representation;
+        proto_item_fill_label(fi->ws_fi, label_str);
+    } else
+        label_ptr = fi->ws_fi->rep->representation;
 
     if (!label_ptr) return 0;
 
@@ -218,82 +244,47 @@ static int FieldInfo_display(lua_State* L) {
     return 1;
 }
 
+/* WSLUA_ATTRIBUTE FieldInfo_range RO The `TvbRange` covering this field */
 static int FieldInfo_get_range(lua_State* L) {
-    /* The TvbRange covering this field */
+    /* The `TvbRange` covering this field. */
     FieldInfo fi = checkFieldInfo(L,1);
-    TvbRange r = ep_alloc(sizeof(struct _wslua_tvbrange));
-    r->tvb = ep_alloc(sizeof(struct _wslua_tvb));
 
-    r->tvb->ws_tvb = fi->ds_tvb;
-    r->offset = fi->start;
-    r->len = fi->length;
-
-    pushTvbRange(L,r);
-    return 1;
-}
-
-static int FieldInfo_get_generated(lua_State* L) {
-    /* Whether this field was marked as generated. */
-    FieldInfo fi = checkFieldInfo(L,1);
-    lua_pushboolean(L,FI_GET_FLAG(fi, FI_GENERATED));
-    return 1;
-}
-
-static int FieldInfo_get_name(lua_State* L) {
-    /* The filter name of this field. */
-    FieldInfo fi = checkFieldInfo(L,1);
-    lua_pushstring(L,fi->hfinfo->abbrev);
-    return 1;
-}
-
-static const luaL_Reg FieldInfo_get[] = {
-    /*    {"data_source", FieldInfo_get_data_source }, */
-    {"range", FieldInfo_get_range},
-    /*    {"hidden", FieldInfo_get_hidden}, */
-    {"generated", FieldInfo_get_generated},
-
-    /* WSLUA_ATTRIBUTE FieldInfo_name RO The name of this field */
-    {"name", FieldInfo_get_name},
-    /* WSLUA_ATTRIBUTE FieldInfo_label RO The string representing this field */
-    {"label", FieldInfo__tostring},
-    /* WSLUA_ATTRIBUTE FieldInfo_value RO The value of this field */
-    {"value", FieldInfo__call},
-    /* WSLUA_ATTRIBUTE FieldInfo_len RO The length of this field */
-    {"len", FieldInfo__len},
-    /* WSLUA_ATTRIBUTE FieldInfo_offset RO The offset of this field */
-    {"offset", FieldInfo__unm},
-    /* WSLUA_ATTRIBUTE FieldInfo_display RO The string display of this field as seen in GUI */
-    {"display", FieldInfo_display},
-    { NULL, NULL }
-};
-
-static int FieldInfo__index(lua_State* L) {
-    /*
-       Other attributes:
-       */
-    const gchar* idx = luaL_checkstring(L,2);
-    const luaL_Reg* r;
-
-    checkFieldInfo(L,1);
-
-    for (r = FieldInfo_get; r->name; r++) {
-        if (g_str_equal(r->name, idx)) {
-            return r->func(L);
-        }
+    if (push_TvbRange (L, fi->ws_fi->ds_tvb, fi->ws_fi->start, fi->ws_fi->length)) {
+        return 1;
     }
 
     return 0;
 }
 
+/* WSLUA_ATTRIBUTE FieldInfo_generated RO Whether this field was marked as generated (boolean) */
+static int FieldInfo_get_generated(lua_State* L) {
+    /* Whether this field was marked as generated. */
+    FieldInfo fi = checkFieldInfo(L,1);
+
+    lua_pushboolean(L,FI_GET_FLAG(fi->ws_fi, FI_GENERATED));
+    return 1;
+}
+
+/* WSLUA_ATTRIBUTE FieldInfo_name RO The name of this field */
+static int FieldInfo_get_name(lua_State* L) {
+    /* The filter name of this field. */
+    FieldInfo fi = checkFieldInfo(L,1);
+
+    lua_pushstring(L,fi->ws_fi->hfinfo->abbrev);
+    return 1;
+}
+
 WSLUA_METAMETHOD FieldInfo__eq(lua_State* L) {
-    /* Checks whether lhs is within rhs */
+    /* Checks whether lhs is within rhs. */
     FieldInfo l = checkFieldInfo(L,1);
     FieldInfo r = checkFieldInfo(L,2);
 
-    if (l->ds_tvb != r->ds_tvb)
+    if (l->ws_fi->ds_tvb != r->ws_fi->ds_tvb) {
         WSLUA_ERROR(FieldInfo__eq,"Data source must be the same for both fields");
+        return 0;
+    }
 
-    if (l->start <= r->start && r->start + r->length <= l->start + r->length) {
+    if (l->ws_fi->start <= r->ws_fi->start && r->ws_fi->start + r->ws_fi->length <= l->ws_fi->start + r->ws_fi->length) {
         lua_pushboolean(L,1);
         return 1;
     } else {
@@ -302,14 +293,14 @@ WSLUA_METAMETHOD FieldInfo__eq(lua_State* L) {
 }
 
 WSLUA_METAMETHOD FieldInfo__le(lua_State* L) {
-    /* Checks whether the end byte of lhs is before the end of rhs */
+    /* Checks whether the end byte of lhs is before the end of rhs. */
     FieldInfo l = checkFieldInfo(L,1);
     FieldInfo r = checkFieldInfo(L,2);
 
-    if (l->ds_tvb != r->ds_tvb)
-        return 0;
+    if (l->ws_fi->ds_tvb != r->ws_fi->ds_tvb)
+        WSLUA_ERROR(FieldInfo__le,"Data source must be the same for both fields");
 
-    if (r->start + r->length <= l->start + r->length) {
+    if (r->ws_fi->start + r->ws_fi->length <= l->ws_fi->start + r->ws_fi->length) {
         lua_pushboolean(L,1);
         return 1;
     } else {
@@ -318,14 +309,16 @@ WSLUA_METAMETHOD FieldInfo__le(lua_State* L) {
 }
 
 WSLUA_METAMETHOD FieldInfo__lt(lua_State* L) {
-    /* Checks whether the end byte of rhs is before the beginning of rhs */
+    /* Checks whether the end byte of rhs is before the beginning of rhs. */
     FieldInfo l = checkFieldInfo(L,1);
     FieldInfo r = checkFieldInfo(L,2);
 
-    if (l->ds_tvb != r->ds_tvb)
-        WSLUA_ERROR(FieldInfo__eq,"Data source must be the same for both fields");
+    if (l->ws_fi->ds_tvb != r->ws_fi->ds_tvb) {
+        WSLUA_ERROR(FieldInfo__lt,"Data source must be the same for both fields");
+        return 0;
+    }
 
-    if ( r->start + r->length < l->start ) {
+    if (r->ws_fi->start + r->ws_fi->length < l->ws_fi->start) {
         lua_pushboolean(L,1);
         return 1;
     } else {
@@ -333,48 +326,81 @@ WSLUA_METAMETHOD FieldInfo__lt(lua_State* L) {
     }
 }
 
+/* Gets registered as metamethod automatically by WSLUA_REGISTER_META */
 static int FieldInfo__gc(lua_State* L _U_) {
-    /* do NOT free FieldInfo */
+    FieldInfo fi = toFieldInfo(L,1);
+
+    if (!fi) return 0;
+
+    if (!fi->expired)
+        fi->expired = TRUE;
+    else
+        /* do NOT free fi->ws_fi */
+        g_free(fi);
+
     return 0;
 }
 
-static const luaL_Reg FieldInfo_meta[] = {
-    {"__tostring", FieldInfo__tostring},
-    {"__call", FieldInfo__call},
-    {"__index", FieldInfo__index},
-    {"__len", FieldInfo__len},
-    {"__unm", FieldInfo__unm},
-    {"__eq", FieldInfo__eq},
-    {"__le", FieldInfo__le},
-    {"__lt", FieldInfo__lt},
+/* This table is ultimately registered as a sub-table of the class' metatable,
+ * and if __index/__newindex is invoked then it calls the appropriate function
+ * from this table for getting/setting the members.
+ */
+WSLUA_ATTRIBUTES FieldInfo_attributes[] = {
+    WSLUA_ATTRIBUTE_ROREG(FieldInfo,range),
+    WSLUA_ATTRIBUTE_ROREG(FieldInfo,generated),
+    WSLUA_ATTRIBUTE_ROREG(FieldInfo,name),
+    WSLUA_ATTRIBUTE_ROREG(FieldInfo,display),
+    { "label", FieldInfo__tostring, NULL },
+    { "value", FieldInfo__call, NULL },
+    { "tvb", FieldInfo_get_range, NULL },
+    { "len", FieldInfo__len, NULL },
+    { "offset", FieldInfo__unm, NULL },
+    { NULL, NULL, NULL }
+};
+
+WSLUA_META FieldInfo_meta[] = {
+    WSLUA_CLASS_MTREG(FieldInfo,tostring),
+    WSLUA_CLASS_MTREG(FieldInfo,call),
+    WSLUA_CLASS_MTREG(FieldInfo,len),
+    WSLUA_CLASS_MTREG(FieldInfo,unm),
+    WSLUA_CLASS_MTREG(FieldInfo,eq),
+    WSLUA_CLASS_MTREG(FieldInfo,le),
+    WSLUA_CLASS_MTREG(FieldInfo,lt),
     { NULL, NULL }
 };
 
 int FieldInfo_register(lua_State* L) {
     WSLUA_REGISTER_META(FieldInfo);
-    return 1;
+    WSLUA_REGISTER_ATTRIBUTES(FieldInfo);
+    return 0;
 }
 
 
 WSLUA_FUNCTION wslua_all_field_infos(lua_State* L) {
-	/* Obtain all fields from the current tree.  Note this only gets whatever fields the underlying
-     * dissectors have filled in for this packet at this time - there may be fields applicable to
-     * the packet that simply aren't being filled in because at this time they're not needed for anything.
-     * So this function only gets what the C-side code has currently populated, not the full list.
-     */
-	GPtrArray* found;
-	int items_found = 0;
-	guint i;
+    /*
+    Obtain all fields from the current tree.  Note this only gets whatever fields the underlying
+    dissectors have filled in for this packet at this time - there may be fields applicable to
+    the packet that simply aren't being filled in because at this time they're not needed for anything.
+    This function only gets what the C-side code has currently populated, not the full list.
+    */
+    GPtrArray* found;
+    int items_found = 0;
+    guint i;
 
     if (! lua_tree || ! lua_tree->tree ) {
         WSLUA_ERROR(wslua_all_field_infos,"Cannot be called outside a listener or dissector");
+        return 0;
     }
 
     found = proto_all_finfos(lua_tree->tree);
 
     if (found) {
         for (i=0; i<found->len; i++) {
-            pushFieldInfo(L,g_ptr_array_index(found,i));
+            FieldInfo fi = (FieldInfo)g_malloc(sizeof(struct _wslua_field_info));
+            fi->ws_fi = (field_info *)g_ptr_array_index(found,i);
+            fi->expired = FALSE;
+
+            PUSH_FIELDINFO(L,fi);
             items_found++;
         }
 
@@ -384,17 +410,20 @@ WSLUA_FUNCTION wslua_all_field_infos(lua_State* L) {
     return items_found;
 }
 
-WSLUA_CLASS_DEFINE(Field,NOP,NOP);
+WSLUA_CLASS_DEFINE(Field,FAIL_ON_NULL("Field"),NOP);
 /*
-   A Field extractor to to obtain field values.
+   A Field extractor to to obtain field values. A `Field` object can only be created *outside* of
+   the callback functions of dissectors, post-dissectors, heuristic-dissectors, and taps.
+
+   Once created, it is used *inside* the callback functions, to generate a `FieldInfo` object.
  */
 
 static GPtrArray* wanted_fields = NULL;
 static dfilter_t* wslua_dfilter = NULL;
 
-/* We use a fake dfilter for Lua field extractors, so that 
+/* We use a fake dfilter for Lua field extractors, so that
  * epan_dissect_run() will populate the fields.  This won't happen
- * if the passed-in edt->tree is NULL, which it will be if the 
+ * if the passed-in edt->tree is NULL, which it will be if the
  * proto_tree isn't created by epan_dissect_init().  But that's by
  * design - if shark doesn't pass in a proto_tree, it's probably for
  * a good reason and we shouldn't override that. (right?)
@@ -406,7 +435,7 @@ void wslua_prime_dfilter(epan_dissect_t *edt) {
 }
 
 /*
- * field extractor registartion is tricky, In order to allow
+ * field extractor registration is tricky, In order to allow
  * the user to define them in the body of the script we will
  * populate the Field value with a pointer of the abbrev of it
  * to later replace it with the hfi.
@@ -422,7 +451,7 @@ void lua_prime_all_fields(proto_tree* tree _U_) {
     static gboolean fake_tap = FALSE;
 
     for(i=0; i < wanted_fields->len; i++) {
-        Field f = g_ptr_array_index(wanted_fields,i);
+        Field f = (Field)g_ptr_array_index(wanted_fields,i);
         gchar* name = *((gchar**)f);
 
         *f = proto_registrar_get_byname(name);
@@ -464,7 +493,7 @@ void lua_prime_all_fields(proto_tree* tree _U_) {
 
 WSLUA_CONSTRUCTOR Field_new(lua_State *L) {
     /*
-       Create a Field extractor
+       Create a Field extractor.
        */
 #define WSLUA_ARG_Field_new_FIELDNAME 1 /* The filter name of the field (e.g. ip.addr) */
     const gchar* name = luaL_checkstring(L,WSLUA_ARG_Field_new_FIELDNAME);
@@ -472,14 +501,18 @@ WSLUA_CONSTRUCTOR Field_new(lua_State *L) {
 
     if (!name) return 0;
 
-    if (!proto_registrar_get_byname(name))
+    if (!proto_registrar_get_byname(name) && !wslua_is_field_available(L, name)) {
         WSLUA_ARG_ERROR(Field_new,FIELDNAME,"a field with this name must exist");
+        return 0;
+    }
 
-    if (!wanted_fields)
-        WSLUA_ERROR(Field_get,"A Field extractor must be defined before Taps or Dissectors get called");
+    if (!wanted_fields) {
+        WSLUA_ERROR(Field_new,"A Field extractor must be defined before Taps or Dissectors get called");
+        return 0;
+    }
 
-    f = g_malloc(sizeof(void*));
-    *f = (header_field_info*)g_strdup(name); /* cheating */
+    f = (Field)g_malloc(sizeof(void*));
+    *f = (header_field_info*)(void*)g_strdup(name); /* cheating */
 
     g_ptr_array_add(wanted_fields,f);
 
@@ -487,8 +520,40 @@ WSLUA_CONSTRUCTOR Field_new(lua_State *L) {
     WSLUA_RETURN(1); /* The field extractor */
 }
 
+WSLUA_CONSTRUCTOR Field_list(lua_State *L) {
+    /* Gets a Lua array table of all registered field filter names.
+
+       NOTE: this is an expensive operation, and should only be used for troubleshooting.
+
+       @since 1.11.3
+     */
+    void *cookie, *cookie2;
+    int i = -1;
+    int count = 0;
+    header_field_info *hfinfo = NULL;
+
+    lua_newtable(L);
+
+    for (i = proto_get_first_protocol(&cookie); i != -1;
+         i = proto_get_next_protocol(&cookie)) {
+
+        for (hfinfo = proto_get_first_protocol_field(i, &cookie2); hfinfo != NULL;
+         hfinfo = proto_get_next_protocol_field(i, &cookie2)) {
+
+            if (hfinfo->same_name_prev_id != -1) /* ignore duplicate names */
+                continue;
+
+            count++;
+            lua_pushstring(L,hfinfo->abbrev);
+            lua_rawseti(L,1,count);
+        }
+    }
+
+    WSLUA_RETURN(1); /* The array table of field filter names */
+}
+
 WSLUA_METAMETHOD Field__call (lua_State* L) {
-    /* Obtain all values (see FieldInfo) for this field. */
+    /* Obtain all values (see `FieldInfo`) for this field. */
     Field f = checkField(L,1);
     header_field_info* in = *f;
     int items_found = 0;
@@ -500,30 +565,31 @@ WSLUA_METAMETHOD Field__call (lua_State* L) {
 
     if (! lua_pinfo ) {
         WSLUA_ERROR(Field__call,"Fields cannot be used outside dissectors or taps");
+        return 0;
     }
 
-    for (;in;in = in->same_name_next) {
+    while (in) {
         GPtrArray* found = proto_get_finfo_ptr_array(lua_tree->tree, in->id);
         guint i;
         if (found) {
             for (i=0; i<found->len; i++) {
-                pushFieldInfo(L,g_ptr_array_index(found,i));
+                FieldInfo fi = (FieldInfo)g_malloc(sizeof(struct _wslua_field_info));
+                fi->ws_fi = (field_info *)g_ptr_array_index(found,i);
+                fi->expired = FALSE;
+
+                PUSH_FIELDINFO(L,fi);
                 items_found++;
             }
         }
+	in = (in->same_name_prev_id != -1) ? proto_registrar_get_nth(in->same_name_prev_id) : NULL;
     }
 
     WSLUA_RETURN(items_found); /* All the values of this field */
 }
 
 WSLUA_METAMETHOD Field__tostring(lua_State* L) {
-	/* Obtain a string with the field name */
+	/* Obtain a string with the field name. */
     Field f = checkField(L,1);
-
-    if ( !(f && *f) ) {
-        luaL_error(L,"invalid Field");
-        return 0;
-    }
 
     if (wanted_fields) {
         lua_pushstring(L,*((gchar**)f));
@@ -539,14 +605,15 @@ static int Field__gc(lua_State* L _U_) {
     return 0;
 }
 
-static const luaL_Reg Field_methods[] = {
-    {"new", Field_new},
+WSLUA_METHODS Field_methods[] = {
+    WSLUA_CLASS_FNREG(Field,new),
+    WSLUA_CLASS_FNREG(Field,list),
     { NULL, NULL }
 };
 
-static const luaL_Reg Field_meta[] = {
-    {"__tostring", Field__tostring},
-    {"__call", Field__call},
+WSLUA_META Field_meta[] = {
+    WSLUA_CLASS_MTREG(Field,tostring),
+    WSLUA_CLASS_MTREG(Field,call),
     { NULL, NULL }
 };
 
@@ -555,8 +622,9 @@ int Field_register(lua_State* L) {
     wanted_fields = g_ptr_array_new();
 
     WSLUA_REGISTER_CLASS(Field);
+    outstanding_FieldInfo = g_ptr_array_new();
 
-    return 1;
+    return 0;
 }
 
 /*

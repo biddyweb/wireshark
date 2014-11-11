@@ -2,8 +2,6 @@
  * packet-radius.h
  *
  * Definitions for RADIUS packet disassembly
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -22,6 +20,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
+
+#include <epan/proto.h>
 
 /* radius packet-type codes */
 /* 09/12/2011: Updated from IANA:
@@ -66,6 +66,11 @@
 #define RADIUS_PKT_TYPE_IP_ADDRESS_ALLOCATE			50
 #define RADIUS_PKT_TYPE_IP_ADDRESS_RELEASE			51
 
+/* ALU proprietary packet type codes */
+#define RADIUS_PKT_TYPE_ALU_STATE_REQUEST			129
+#define RADIUS_PKT_TYPE_ALU_STATE_ACCEPT			130
+#define RADIUS_PKT_TYPE_ALU_STATE_REJECT			131
+#define RADIUS_PKT_TYPE_ALU_STATE_ERROR 			132
 
 /* Radius Attribute Types*/
 /* 09/12/2011: Updated from IANA:

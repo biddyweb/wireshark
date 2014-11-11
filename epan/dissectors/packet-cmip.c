@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-cmip.c                                                              */
 /* ../../tools/asn2wrs.py -b -p cmip -c ./cmip.cnf -s ./packet-cmip-template -D . -O ../../epan/dissectors CMIP-1.asn CMIP-A-ABORT-Information.asn CMIP-A-ASSOCIATE-Information.asn ../x721/Attribute-ASN1Module.asn ../ros/Remote-Operations-Information-Objects.asn ../ros/Remote-Operations-Generic-ROS-PDUs.asn */
 
@@ -9,8 +9,6 @@
 /* packet-cmip.c
  * Routines for X.711 CMIP packet dissection
  *   Ronnie Sahlberg 2004
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -46,6 +44,9 @@
 #define PNAME  "X711 CMIP"
 #define PSNAME "CMIP"
 #define PFNAME "cmip"
+
+void proto_register_cmip(void);
+void proto_reg_handoff_cmip(void);
 
 /* XXX some stuff we need until we can get rid of it */
 #include "packet-ses.h"
@@ -342,7 +343,7 @@ static int hf_cmip_T_daysOfWeek_friday = -1;
 static int hf_cmip_T_daysOfWeek_saturday = -1;
 
 /*--- End of included file: packet-cmip-hf.c ---*/
-#line 57 "../../asn1/cmip/packet-cmip-template.c"
+#line 58 "../../asn1/cmip/packet-cmip-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_cmip = -1;
@@ -472,7 +473,7 @@ static gint ett_cmip_T_modificationList = -1;
 static gint ett_cmip_T_modificationList_item = -1;
 
 /*--- End of included file: packet-cmip-ett.c ---*/
-#line 61 "../../asn1/cmip/packet-cmip-template.c"
+#line 62 "../../asn1/cmip/packet-cmip-template.c"
 
 static guint32 opcode;
 
@@ -502,36 +503,36 @@ static const value_string cmip_Opcode_vals[] = {
 
 /* CMIP ERRORS */
 static const value_string cmip_error_code_vals[] = {
-	{ 2, "accessDenied" },  
-	{ 19, "classInstanceConflict" },  
-	{ 20, "complexityLimitation" },  
-	{ 11, "duplicateManagedObjectInstance" },  
-	{ 7, "getListError" },  
-	{ 15, "invalidArgumentValue" },  
-	{ 6, "invalidAttributeValue" },  
-	{ 4, "invalidFilter" },  
-	{ 17, "invalidObjectInstance" },  
-	{ 16, "invalidScope" },  
-	{ 18, "missingAttributeValue" },  
-	{ 21, "mistypedOperation" },  
-	{ 9, "noSuchAction" },  
-	{ 14, "noSuchArgument" },  
-	{ 5, "noSuchAttribute" },  
-	{ 13, "noSuchEventType" },  
-	{ 22, "noSuchInvokeId" },  
-	{ 0, "noSuchObjectClass" },  
-	{ 1, "noSuchObjectInstance" },  
-	{ 12, "noSuchReferenceObject" },  
-	{ 23, "operationCancelled" },  
-	{ 10, "processingFailure" },  
-	{ 8, "setListError" },  
-	{ 3, "syncNotSupported" },  
+	{ 2, "accessDenied" },
+	{ 19, "classInstanceConflict" },
+	{ 20, "complexityLimitation" },
+	{ 11, "duplicateManagedObjectInstance" },
+	{ 7, "getListError" },
+	{ 15, "invalidArgumentValue" },
+	{ 6, "invalidAttributeValue" },
+	{ 4, "invalidFilter" },
+	{ 17, "invalidObjectInstance" },
+	{ 16, "invalidScope" },
+	{ 18, "missingAttributeValue" },
+	{ 21, "mistypedOperation" },
+	{ 9, "noSuchAction" },
+	{ 14, "noSuchArgument" },
+	{ 5, "noSuchAttribute" },
+	{ 13, "noSuchEventType" },
+	{ 22, "noSuchInvokeId" },
+	{ 0, "noSuchObjectClass" },
+	{ 1, "noSuchObjectInstance" },
+	{ 12, "noSuchReferenceObject" },
+	{ 23, "operationCancelled" },
+	{ 10, "processingFailure" },
+	{ 8, "setListError" },
+	{ 3, "syncNotSupported" },
   { 0, NULL }
 };
 
 
 /*--- End of included file: packet-cmip-table.c ---*/
-#line 68 "../../asn1/cmip/packet-cmip-template.c"
+#line 69 "../../asn1/cmip/packet-cmip-template.c"
 
 static int opcode_type;
 #define OPCODE_INVOKE        1
@@ -643,7 +644,7 @@ static const char *objectclass_identifier_id;
 #define noInvokeId                     NULL
 
 /*--- End of included file: packet-cmip-val.h ---*/
-#line 91 "../../asn1/cmip/packet-cmip-template.c"
+#line 92 "../../asn1/cmip/packet-cmip-template.c"
 
 /*--- Included file: packet-cmip-fn.c ---*/
 #line 1 "../../asn1/cmip/packet-cmip-fn.c"
@@ -658,7 +659,7 @@ static int dissect_cmip_CMISFilter(gboolean implicit_tag _U_, tvbuff_t *tvb _U_,
 
 static int
 dissect_cmip_T_attributeId_globalForm(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 266 "../../asn1/cmip/cmip.cnf"
+#line 267 "../../asn1/cmip/cmip.cnf"
   attributeform = ATTRIBUTE_GLOBAL_FORM;
     offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &attribute_identifier_id);
 
@@ -672,7 +673,7 @@ dissect_cmip_T_attributeId_globalForm(gboolean implicit_tag _U_, tvbuff_t *tvb _
 
 static int
 dissect_cmip_T_attributeIdlocalForm(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 270 "../../asn1/cmip/cmip.cnf"
+#line 271 "../../asn1/cmip/cmip.cnf"
   attributeform = ATTRIBUTE_LOCAL_FORM;
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &attribute_local_id);
@@ -731,7 +732,7 @@ dissect_cmip_AccessControl(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
 
 static int
 dissect_cmip_T_objectClass_globalForm(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 430 "../../asn1/cmip/cmip.cnf"
+#line 431 "../../asn1/cmip/cmip.cnf"
   objectclassform = OBJECTCLASS_GLOBAL_FORM;
 
   offset = dissect_ber_object_identifier_str(implicit_tag, actx, tree, tvb, offset, hf_index, &objectclass_identifier_id);
@@ -743,7 +744,7 @@ dissect_cmip_T_objectClass_globalForm(gboolean implicit_tag _U_, tvbuff_t *tvb _
 
 static int
 dissect_cmip_T_objectClasslocalForm(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 435 "../../asn1/cmip/cmip.cnf"
+#line 436 "../../asn1/cmip/cmip.cnf"
   objectclassform = OBJECTCLASS_LOCAL_FORM;
 
 
@@ -788,8 +789,8 @@ dissect_cmip_T_id(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, 
 
 static int
 dissect_cmip_T_attributeValueAssertionvalue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 286 "../../asn1/cmip/cmip.cnf"
-    offset=call_ber_oid_callback(attributevalueassertion_id, tvb, offset, actx->pinfo, tree);
+#line 287 "../../asn1/cmip/cmip.cnf"
+    offset=call_ber_oid_callback(attributevalueassertion_id, tvb, offset, actx->pinfo, tree, actx->private_data);
 
 
 
@@ -951,9 +952,9 @@ dissect_cmip_Scope(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_,
 
 static int
 dissect_cmip_AttributeValue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 274 "../../asn1/cmip/cmip.cnf"
+#line 275 "../../asn1/cmip/cmip.cnf"
   if(attributeform==ATTRIBUTE_GLOBAL_FORM){
-    offset=call_ber_oid_callback(attribute_identifier_id, tvb, offset, actx->pinfo, tree);
+    offset=call_ber_oid_callback(attribute_identifier_id, tvb, offset, actx->pinfo, tree, actx->private_data);
   } else if (dissector_try_uint(attribute_id_dissector_table, attribute_local_id, tvb, actx->pinfo, tree)) {
     offset=tvb_length (tvb);
   } else {
@@ -1125,8 +1126,8 @@ dissect_cmip_ActionTypeId(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offs
 
 static int
 dissect_cmip_T_actionInfoArg(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 441 "../../asn1/cmip/cmip.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 442 "../../asn1/cmip/cmip.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, actx->private_data);
 
 
 
@@ -1282,8 +1283,8 @@ dissect_cmip_NoSuchArgument(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 
 static int
 dissect_cmip_T_eventInfo(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 471 "../../asn1/cmip/cmip.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 472 "../../asn1/cmip/cmip.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, actx->private_data);
 
 
 
@@ -1387,8 +1388,8 @@ dissect_cmip_ActionError(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 
 static int
 dissect_cmip_T_actionReplyInfo(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 474 "../../asn1/cmip/cmip.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 475 "../../asn1/cmip/cmip.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, actx->private_data);
 
 
 
@@ -1469,8 +1470,8 @@ dissect_cmip_ModifyOperator(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
 
 static int
 dissect_cmip_T_attributeValue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 468 "../../asn1/cmip/cmip.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 469 "../../asn1/cmip/cmip.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, actx->private_data);
 
 
 
@@ -1697,8 +1698,8 @@ dissect_cmip_DeleteResult(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offs
 
 static int
 dissect_cmip_T_eventReplyInfo(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 450 "../../asn1/cmip/cmip.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 451 "../../asn1/cmip/cmip.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, actx->private_data);
 
 
 
@@ -1724,8 +1725,8 @@ dissect_cmip_EventReply(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset
 
 static int
 dissect_cmip_EventReportArgumentEventInfo(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 447 "../../asn1/cmip/cmip.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 448 "../../asn1/cmip/cmip.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, actx->private_data);
 
 
 
@@ -1991,8 +1992,8 @@ dissect_cmip_T_errorId(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset 
 
 static int
 dissect_cmip_T_errorInfo(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 465 "../../asn1/cmip/cmip.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 466 "../../asn1/cmip/cmip.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, actx->private_data);
 
 
 
@@ -2030,19 +2031,6 @@ dissect_cmip_ProcessingFailure(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int
   return offset;
 }
 
-
-static const value_string cmip_LinkedReplyArgument_vals[] = {
-  {   0, "getResult" },
-  {   1, "getListError" },
-  {   2, "setResult" },
-  {   3, "setListError" },
-  {   4, "actionResult" },
-  {   5, "processingFailure" },
-  {   6, "deleteResult" },
-  {   7, "actionError" },
-  {   8, "deleteError" },
-  { 0, NULL }
-};
 
 static const ber_choice_t LinkedReplyArgument_choice[] = {
   {   0, &hf_cmip_getResult      , BER_CLASS_CON, 0, BER_FLAGS_IMPLTAG, dissect_cmip_GetResult },
@@ -2100,15 +2088,15 @@ dissect_cmip_NoSuchEventType(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
 
 static int
 dissect_cmip_T_attributevalue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 453 "../../asn1/cmip/cmip.cnf"
+#line 454 "../../asn1/cmip/cmip.cnf"
   if(attributeform==ATTRIBUTE_GLOBAL_FORM){
-    offset=call_ber_oid_callback(attribute_identifier_id, tvb, offset, actx->pinfo, tree);
+    offset=call_ber_oid_callback(attribute_identifier_id, tvb, offset, actx->pinfo, tree, NULL);
   } else if (dissector_try_uint(attribute_id_dissector_table, attribute_local_id, tvb, actx->pinfo, tree)) {
     offset=tvb_length (tvb);
   } else {
     offset=dissect_unknown_ber(actx->pinfo, tvb, offset, tree);
   }
-  
+
 
 
   return offset;
@@ -2173,7 +2161,7 @@ static const value_string cmip_CMIPAbortSource_vals[] = {
 
 static int
 dissect_cmip_CMIPAbortSource(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 230 "../../asn1/cmip/cmip.cnf"
+#line 231 "../../asn1/cmip/cmip.cnf"
   guint32 value;
 
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
@@ -2203,7 +2191,7 @@ static const ber_sequence_t CMIPAbortInfo_sequence[] = {
 
 int
 dissect_cmip_CMIPAbortInfo(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 222 "../../asn1/cmip/cmip.cnf"
+#line 223 "../../asn1/cmip/cmip.cnf"
   col_append_str(actx->pinfo->cinfo, COL_INFO, "CMIP-A-ABORT");
 
   offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
@@ -2258,7 +2246,7 @@ static const ber_sequence_t CMIPUserInfo_sequence[] = {
 
 int
 dissect_cmip_CMIPUserInfo(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 226 "../../asn1/cmip/cmip.cnf"
+#line 227 "../../asn1/cmip/cmip.cnf"
   col_append_str(actx->pinfo->cinfo, COL_INFO, "CMIP-A-ASSOCIATE");
 
   offset = dissect_ber_sequence(implicit_tag, actx, tree, tvb, offset,
@@ -2344,8 +2332,8 @@ dissect_cmip_BOOLEAN(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U
 
 static int
 dissect_cmip_T_information(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 481 "../../asn1/cmip/cmip.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 482 "../../asn1/cmip/cmip.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, actx->private_data);
 
 
 
@@ -2441,8 +2429,8 @@ dissect_cmip_AttributeList(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int off
 
 static int
 dissect_cmip_T_oldAttributeValue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 484 "../../asn1/cmip/cmip.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 485 "../../asn1/cmip/cmip.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, actx->private_data);
 
 
 
@@ -2453,8 +2441,8 @@ dissect_cmip_T_oldAttributeValue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 
 static int
 dissect_cmip_T_newAttributeValue(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 487 "../../asn1/cmip/cmip.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 488 "../../asn1/cmip/cmip.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, actx->private_data);
 
 
 
@@ -3229,8 +3217,8 @@ dissect_cmip_T_serviceUseridentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U
 
 static int
 dissect_cmip_T_details(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 492 "../../asn1/cmip/cmip.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 493 "../../asn1/cmip/cmip.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, actx->private_data);
 
 
 
@@ -3352,8 +3340,8 @@ dissect_cmip_T_featureIdentifier(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, i
 
 static int
 dissect_cmip_T_featureInfo(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 497 "../../asn1/cmip/cmip.cnf"
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+#line 498 "../../asn1/cmip/cmip.cnf"
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, actx->private_data);
 
 
 
@@ -3602,7 +3590,7 @@ dissect_cmip_WeekMask(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _
 
 static int
 dissect_cmip_T_local(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 237 "../../asn1/cmip/cmip.cnf"
+#line 238 "../../asn1/cmip/cmip.cnf"
     offset = dissect_ber_integer(implicit_tag, actx, tree, tvb, offset, hf_index,
                                                 &opcode);
 
@@ -3683,7 +3671,7 @@ dissect_cmip_T_linkedId(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset
 
 static int
 dissect_cmip_InvokeArgument(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 289 "../../asn1/cmip/cmip.cnf"
+#line 290 "../../asn1/cmip/cmip.cnf"
     switch(opcode){
     case 0: /* M-eventreport */
       offset = dissect_cmip_EventReportArgument(FALSE, tvb, offset, actx, tree, -1);
@@ -3719,7 +3707,7 @@ dissect_cmip_InvokeArgument(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
       offset = dissect_cmip_InvokeIDType(FALSE, tvb,  offset, actx, tree, -1);
       break;
     }
-    
+
 
 
 
@@ -3737,7 +3725,7 @@ static const ber_sequence_t Invoke_sequence[] = {
 
 static int
 dissect_cmip_Invoke(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 246 "../../asn1/cmip/cmip.cnf"
+#line 247 "../../asn1/cmip/cmip.cnf"
   opcode_type=OPCODE_INVOKE;
   col_prepend_fstr(actx->pinfo->cinfo, COL_INFO, "Invoke ");
 
@@ -3751,7 +3739,7 @@ dissect_cmip_Invoke(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_
 
 static int
 dissect_cmip_ResultArgument(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 327 "../../asn1/cmip/cmip.cnf"
+#line 328 "../../asn1/cmip/cmip.cnf"
 
     switch(opcode){
     case 0: /* M-eventreport*/
@@ -3784,7 +3772,7 @@ dissect_cmip_ResultArgument(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int of
       break; /* doe this one return any data? */
     }
   /*XXX add more types here */
- 
+
 
 
   return offset;
@@ -3814,7 +3802,7 @@ static const ber_sequence_t ReturnResult_sequence[] = {
 
 static int
 dissect_cmip_ReturnResult(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 251 "../../asn1/cmip/cmip.cnf"
+#line 252 "../../asn1/cmip/cmip.cnf"
   opcode_type=OPCODE_RETURN_RESULT;
   col_prepend_fstr(actx->pinfo->cinfo, COL_INFO, "ReturnResult ");
 
@@ -3828,7 +3816,7 @@ dissect_cmip_ReturnResult(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offs
 
 static int
 dissect_cmip_T_parameter(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 361 "../../asn1/cmip/cmip.cnf"
+#line 362 "../../asn1/cmip/cmip.cnf"
 
     switch(opcode){
 	case 19: /* classInstanceConflict */
@@ -3846,23 +3834,23 @@ dissect_cmip_T_parameter(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 	case 15: /* invalidArgumentValue */
 		dissect_cmip_InvalidArgumentValue(FALSE, tvb,  offset, actx, tree, -1);
 		break;
-	case 6: /* invalidAttributeValue */ 
+	case 6: /* invalidAttributeValue */
 		dissect_cmip_Attribute(FALSE, tvb,  offset, actx, tree, -1);
 		break;
-	case 4: /* invalidFilter */ 
+	case 4: /* invalidFilter */
 		dissect_cmip_CMISFilter(FALSE, tvb,  offset, actx, tree, -1);
 		break;
 	case 17: /* invalidObjectInstance */
 		dissect_cmip_ObjectInstance(FALSE, tvb,  offset, actx, tree, -1);
 		break;
-	case 16: /* invalidScope */ 
+	case 16: /* invalidScope */
 		dissect_cmip_Scope(FALSE, tvb,  offset, actx, tree, -1);
 		break;
 	case 18: /* missingAttributeValue */
 		/* Hmmm  SET OF AttributeId */
 		dissect_cmip_PAR_missingAttributeValue(FALSE, tvb,  offset, actx, tree, -1);
 		break;
-	case 9: /* noSuchAction */ 
+	case 9: /* noSuchAction */
 		dissect_cmip_NoSuchAction(FALSE, tvb,  offset, actx, tree, -1);
 		break;
 	case 14: /* noSuchArgument */
@@ -3912,7 +3900,7 @@ static const ber_sequence_t ReturnError_sequence[] = {
 
 static int
 dissect_cmip_ReturnError(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 256 "../../asn1/cmip/cmip.cnf"
+#line 257 "../../asn1/cmip/cmip.cnf"
   opcode_type=OPCODE_RETURN_ERROR;
   col_prepend_fstr(actx->pinfo->cinfo, COL_INFO, "ReturnError ");
 
@@ -4032,7 +4020,7 @@ static const ber_sequence_t Reject_sequence[] = {
 
 static int
 dissect_cmip_Reject(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 261 "../../asn1/cmip/cmip.cnf"
+#line 262 "../../asn1/cmip/cmip.cnf"
   opcode_type=OPCODE_REJECT;
   col_prepend_fstr(actx->pinfo->cinfo, COL_INFO, "Reject ");
 
@@ -4378,40 +4366,36 @@ static void dissect_WeekMask_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, prot
 
 
 /*--- End of included file: packet-cmip-fn.c ---*/
-#line 92 "../../asn1/cmip/packet-cmip-template.c"
+#line 93 "../../asn1/cmip/packet-cmip-template.c"
 
 
 
 
 /* XXX this one should be broken out later and moved into the conformance file */
-static void
-dissect_cmip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_cmip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* data)
 {
-	static struct SESSION_DATA_STRUCTURE* session;
-	proto_item *item = NULL;
-	proto_tree *tree = NULL;
+	struct SESSION_DATA_STRUCTURE* session;
+	proto_item *item;
+	proto_tree *tree;
 	asn1_ctx_t asn1_ctx;
 	asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
-	session = (struct SESSION_DATA_STRUCTURE*)pinfo->private_data;
+	/* Reject the packet if data is NULL */
+	if (data == NULL)
+		return 0;
+	session = (struct SESSION_DATA_STRUCTURE*)data;
 
-	/* do we have spdu type from the session dissector?  */
-	if( !session ){
-		proto_tree_add_text(tree, tvb, 0, -1,
-			"Internal error:can't get spdu type from session dissector.");
-		return;
-	} else {
-		if(session->spdu_type == 0 ) {
-			proto_tree_add_text(tree, tvb, 0, -1,
-				"Internal error:wrong spdu type %x from session dissector.",session->spdu_type);
-			return;
-		}
+	if(session->spdu_type == 0 ) {
+		proto_tree_add_text(parent_tree, tvb, 0, -1,
+			"Internal error:wrong spdu type %x from session dissector.",session->spdu_type);
+		return 0;
 	}
 
-	if(parent_tree){
-		item = proto_tree_add_item(parent_tree, proto_cmip, tvb, 0, -1, ENC_NA);
-		tree = proto_item_add_subtree(item, ett_cmip);
-	}
+	asn1_ctx.private_data = session;
+
+	item = proto_tree_add_item(parent_tree, proto_cmip, tvb, 0, -1, ENC_NA);
+	tree = proto_item_add_subtree(item, ett_cmip);
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "CMIP");
   	col_clear(pinfo->cinfo, COL_INFO);
@@ -4432,6 +4416,8 @@ dissect_cmip(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
 		default:
 			;
 	}
+
+	return tvb_length(tvb);
 }
 
 /*--- proto_register_cmip ----------------------------------------------*/
@@ -4476,7 +4462,7 @@ void proto_register_cmip(void) {
 /*--- Included file: packet-cmip-hfarr.c ---*/
 #line 1 "../../asn1/cmip/packet-cmip-hfarr.c"
     { &hf_cmip_BaseManagedObjectId_PDU,
-      { "BaseManagedObjectId", "cmip.BaseManagedObjectId",
+      { "BaseManagedObjectId", "cmip.BaseManagedObjectId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_EventTypeId_PDU,
@@ -4656,11 +4642,11 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_SecurityAlarmDetector_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_ServiceProvider_PDU,
-      { "ServiceProvider", "cmip.ServiceProvider",
+      { "ServiceProvider", "cmip.ServiceProvider_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_ServiceUser_PDU,
-      { "ServiceUser", "cmip.ServiceUser",
+      { "ServiceUser", "cmip.ServiceUser_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_SimpleNameType_PDU,
@@ -4700,7 +4686,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_SystemTitle_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_ThresholdInfo_PDU,
-      { "ThresholdInfo", "cmip.ThresholdInfo",
+      { "ThresholdInfo", "cmip.ThresholdInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_TrendIndication_PDU,
@@ -4736,7 +4722,7 @@ void proto_register_cmip(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "GeneralizedTime", HFILL }},
     { &hf_cmip_actionErroractionErrorInfo,
-      { "actionErrorInfo", "cmip.actionErrorInfo",
+      { "actionErrorInfo", "cmip.actionErrorInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_actionErrorInfo_errorStatus,
@@ -4760,15 +4746,15 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_InvalidArgumentValue_vals), 0,
         "InvalidArgumentValue", HFILL }},
     { &hf_cmip_actionInfoArg,
-      { "actionInfoArg", "cmip.actionInfoArg",
+      { "actionInfoArg", "cmip.actionInfoArg_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_actionReplyInfo,
-      { "actionReplyInfo", "cmip.actionReplyInfo",
+      { "actionReplyInfo", "cmip.actionReplyInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_actionReply,
-      { "actionReply", "cmip.actionReply",
+      { "actionReply", "cmip.actionReply_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_actionTypeId_globalForm,
@@ -4784,7 +4770,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_AttributeId_vals), 0,
         "AttributeId", HFILL }},
     { &hf_cmip_value,
-      { "value", "cmip.value",
+      { "value", "cmip.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeValue", HFILL }},
     { &hf_cmip_attributeError_errorStatus,
@@ -4800,7 +4786,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_AttributeId_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_attributeValue,
-      { "attributeValue", "cmip.attributeValue",
+      { "attributeValue", "cmip.attributeValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_attributeId_globalForm,
@@ -4820,7 +4806,7 @@ void proto_register_cmip(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_attributeValueAssertionvalue,
-      { "value", "cmip.value",
+      { "value", "cmip.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_attributeValueAssertionvalue", HFILL }},
     { &hf_cmip_baseManagedObjectClass,
@@ -4876,7 +4862,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObjectInstance_vals), 0,
         "ObjectInstance", HFILL }},
     { &hf_cmip_accessControl,
-      { "accessControl", "cmip.accessControl",
+      { "accessControl", "cmip.accessControl_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_referenceObjectInstance,
@@ -4888,7 +4874,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_Attribute", HFILL }},
     { &hf_cmip_attributeList_item,
-      { "Attribute", "cmip.Attribute",
+      { "Attribute", "cmip.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_deleteErrorInfo,
@@ -4900,7 +4886,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_EventTypeId_vals), 0,
         "EventTypeId", HFILL }},
     { &hf_cmip_eventReplyInfo,
-      { "eventReplyInfo", "cmip.eventReplyInfo",
+      { "eventReplyInfo", "cmip.eventReplyInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_eventTime,
@@ -4908,11 +4894,11 @@ void proto_register_cmip(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "GeneralizedTime", HFILL }},
     { &hf_cmip_eventReportArgumenteventInfo,
-      { "eventInfo", "cmip.eventInfo",
+      { "eventInfo", "cmip.eventInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EventReportArgumentEventInfo", HFILL }},
     { &hf_cmip_eventReply,
-      { "eventReply", "cmip.eventReply",
+      { "eventReply", "cmip.eventReply_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_eventTypeId_globalForm,
@@ -4920,7 +4906,7 @@ void proto_register_cmip(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "T_eventTypeId_globalForm", HFILL }},
     { &hf_cmip_equality,
-      { "equality", "cmip.equality",
+      { "equality", "cmip.equality_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_substrings,
@@ -4932,23 +4918,23 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_T_substrings_item_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_initialString,
-      { "initialString", "cmip.initialString",
+      { "initialString", "cmip.initialString_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_anyString,
-      { "anyString", "cmip.anyString",
+      { "anyString", "cmip.anyString_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_finalString,
-      { "finalString", "cmip.finalString",
+      { "finalString", "cmip.finalString_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_greaterOrEqual,
-      { "greaterOrEqual", "cmip.greaterOrEqual",
+      { "greaterOrEqual", "cmip.greaterOrEqual_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_lessOrEqual,
-      { "lessOrEqual", "cmip.lessOrEqual",
+      { "lessOrEqual", "cmip.lessOrEqual_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_filterItempresent,
@@ -4956,23 +4942,23 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_AttributeId_vals), 0,
         "AttributeId", HFILL }},
     { &hf_cmip_subsetOf,
-      { "subsetOf", "cmip.subsetOf",
+      { "subsetOf", "cmip.subsetOf_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_supersetOf,
-      { "supersetOf", "cmip.supersetOf",
+      { "supersetOf", "cmip.supersetOf_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_nonNullSetIntersection,
-      { "nonNullSetIntersection", "cmip.nonNullSetIntersection",
+      { "nonNullSetIntersection", "cmip.nonNullSetIntersection_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_cmip_attributeIdError,
-      { "attributeIdError", "cmip.attributeIdError",
+      { "attributeIdError", "cmip.attributeIdError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_attribute,
-      { "attribute", "cmip.attribute",
+      { "attribute", "cmip.attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_getInfoList,
@@ -4984,59 +4970,59 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_GetInfoStatus_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_actionValue,
-      { "actionValue", "cmip.actionValue",
+      { "actionValue", "cmip.actionValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ActionInfo", HFILL }},
     { &hf_cmip_eventValue,
-      { "eventValue", "cmip.eventValue",
+      { "eventValue", "cmip.eventValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_eventInfo,
-      { "eventInfo", "cmip.eventInfo",
+      { "eventInfo", "cmip.eventInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_getResult,
-      { "getResult", "cmip.getResult",
+      { "getResult", "cmip.getResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_getListError,
-      { "getListError", "cmip.getListError",
+      { "getListError", "cmip.getListError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_setResult,
-      { "setResult", "cmip.setResult",
+      { "setResult", "cmip.setResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_setListError,
-      { "setListError", "cmip.setListError",
+      { "setListError", "cmip.setListError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_actionResult,
-      { "actionResult", "cmip.actionResult",
+      { "actionResult", "cmip.actionResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_processingFailure,
-      { "processingFailure", "cmip.processingFailure",
+      { "processingFailure", "cmip.processingFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_deleteResult,
-      { "deleteResult", "cmip.deleteResult",
+      { "deleteResult", "cmip.deleteResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_actionError,
-      { "actionError", "cmip.actionError",
+      { "actionError", "cmip.actionError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_deleteError,
-      { "deleteError", "cmip.deleteError",
+      { "deleteError", "cmip.deleteError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_actionId,
-      { "actionId", "cmip.actionId",
+      { "actionId", "cmip.actionId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_eventId,
-      { "eventId", "cmip.eventId",
+      { "eventId", "cmip.eventId_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_objectClass_globalForm,
@@ -5060,7 +5046,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "RDNSequence", HFILL }},
     { &hf_cmip_specificErrorInfo,
-      { "specificErrorInfo", "cmip.specificErrorInfo",
+      { "specificErrorInfo", "cmip.specificErrorInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_RDNSequence_item,
@@ -5068,7 +5054,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_RelativeDistinguishedName_item,
-      { "AttributeValueAssertion", "cmip.AttributeValueAssertion",
+      { "AttributeValueAssertion", "cmip.AttributeValueAssertion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_namedNumbers,
@@ -5084,7 +5070,7 @@ void proto_register_cmip(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_cmip_attributeError,
-      { "attributeError", "cmip.attributeError",
+      { "attributeError", "cmip.attributeError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_setInfoList,
@@ -5100,7 +5086,7 @@ void proto_register_cmip(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_errorInfo,
-      { "errorInfo", "cmip.errorInfo",
+      { "errorInfo", "cmip.errorInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_abortSource,
@@ -5108,7 +5094,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_CMIPAbortSource_vals), 0,
         "CMIPAbortSource", HFILL }},
     { &hf_cmip_userInfo,
-      { "userInfo", "cmip.userInfo",
+      { "userInfo", "cmip.userInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNAL", HFILL }},
     { &hf_cmip_protocolVersion,
@@ -5120,11 +5106,11 @@ void proto_register_cmip(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_cmipUserInfoaccessControl,
-      { "accessControl", "cmip.accessControl",
+      { "accessControl", "cmip.accessControl_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNAL", HFILL }},
     { &hf_cmip_AdditionalInformation_item,
-      { "ManagementExtension", "cmip.ManagementExtension",
+      { "ManagementExtension", "cmip.ManagementExtension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_Allomorphs_item,
@@ -5136,19 +5122,19 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_AttributeId_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_AttributeList_item,
-      { "Attribute", "cmip.Attribute",
+      { "Attribute", "cmip.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_AttributeValueChangeDefinition_item,
-      { "AttributeValueChangeDefinition item", "cmip.AttributeValueChangeDefinition_item",
+      { "AttributeValueChangeDefinition item", "cmip.AttributeValueChangeDefinition_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_oldAttributeValue,
-      { "oldAttributeValue", "cmip.oldAttributeValue",
+      { "oldAttributeValue", "cmip.oldAttributeValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_newAttributeValue,
-      { "newAttributeValue", "cmip.newAttributeValue",
+      { "newAttributeValue", "cmip.newAttributeValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_AlarmStatus_item,
@@ -5168,7 +5154,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObjectInstance_vals), 0,
         "ObjectInstance", HFILL }},
     { &hf_cmip_noObject,
-      { "noObject", "cmip.noObject",
+      { "noObject", "cmip.noObject_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_CapacityAlarmThreshold_item,
@@ -5180,7 +5166,7 @@ void proto_register_cmip(void) {
         FT_INT32, BASE_DEC, VALS(cmip_ControlStatus_item_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_CorrelatedNotifications_item,
-      { "CorrelatedNotifications item", "cmip.CorrelatedNotifications_item",
+      { "CorrelatedNotifications item", "cmip.CorrelatedNotifications_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_correlatedNotifications,
@@ -5212,15 +5198,15 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObjectInstance_vals), 0,
         NULL, HFILL }},
     { &hf_cmip_IntervalsOfDay_item,
-      { "IntervalsOfDay item", "cmip.IntervalsOfDay_item",
+      { "IntervalsOfDay item", "cmip.IntervalsOfDay_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_intervalStart,
-      { "intervalStart", "cmip.intervalStart",
+      { "intervalStart", "cmip.intervalStart_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Time24", HFILL }},
     { &hf_cmip_intervalEnd,
-      { "intervalEnd", "cmip.intervalEnd",
+      { "intervalEnd", "cmip.intervalEnd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Time24", HFILL }},
     { &hf_cmip_managementExtensionidentifier,
@@ -5232,11 +5218,11 @@ void proto_register_cmip(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_cmip_information,
-      { "information", "cmip.information",
+      { "information", "cmip.information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_MonitoredAttributes_item,
-      { "Attribute", "cmip.Attribute",
+      { "Attribute", "cmip.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_integer,
@@ -5252,7 +5238,7 @@ void proto_register_cmip(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_cmip_PrioritisedObject_item,
-      { "PrioritisedObject item", "cmip.PrioritisedObject_item",
+      { "PrioritisedObject item", "cmip.PrioritisedObject_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_object,
@@ -5292,7 +5278,7 @@ void proto_register_cmip(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "T_serviceUseridentifier", HFILL }},
     { &hf_cmip_details,
-      { "details", "cmip.details",
+      { "details", "cmip.details_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_number,
@@ -5320,11 +5306,11 @@ void proto_register_cmip(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "GeneralizedTime", HFILL }},
     { &hf_cmip_continual,
-      { "continual", "cmip.continual",
+      { "continual", "cmip.continual_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_SupportedFeatures_item,
-      { "SupportedFeatures item", "cmip.SupportedFeatures_item",
+      { "SupportedFeatures item", "cmip.SupportedFeatures_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_featureIdentifier,
@@ -5332,7 +5318,7 @@ void proto_register_cmip(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_featureInfo,
-      { "featureInfo", "cmip.featureInfo",
+      { "featureInfo", "cmip.featureInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_name,
@@ -5340,7 +5326,7 @@ void proto_register_cmip(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "GraphicString", HFILL }},
     { &hf_cmip_nothing,
-      { "nothing", "cmip.nothing",
+      { "nothing", "cmip.nothing_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_oid,
@@ -5372,7 +5358,7 @@ void proto_register_cmip(void) {
         FT_STRING, BASE_NONE, NULL, 0,
         "GeneralizedTime", HFILL }},
     { &hf_cmip_up,
-      { "up", "cmip.up",
+      { "up", "cmip.up_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_high,
@@ -5384,11 +5370,11 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_ObservedValue_vals), 0,
         "ObservedValue", HFILL }},
     { &hf_cmip_down,
-      { "down", "cmip.down",
+      { "down", "cmip.down_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_WeekMask_item,
-      { "WeekMask item", "cmip.WeekMask_item",
+      { "WeekMask item", "cmip.WeekMask_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_daysOfWeek,
@@ -5408,19 +5394,19 @@ void proto_register_cmip(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_cmip_invoke,
-      { "invoke", "cmip.invoke",
+      { "invoke", "cmip.invoke_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_returnResult,
-      { "returnResult", "cmip.returnResult",
+      { "returnResult", "cmip.returnResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_returnError,
-      { "returnError", "cmip.returnError",
+      { "returnError", "cmip.returnError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_reject,
-      { "reject", "cmip.reject",
+      { "reject", "cmip.reject_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_invokeId,
@@ -5436,7 +5422,7 @@ void proto_register_cmip(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "T_linkedIdPresent", HFILL }},
     { &hf_cmip_absent,
-      { "absent", "cmip.absent",
+      { "absent", "cmip.absent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_opcode,
@@ -5444,15 +5430,15 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_Code_vals), 0,
         "Code", HFILL }},
     { &hf_cmip_argument,
-      { "argument", "cmip.argument",
+      { "argument", "cmip.argument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "InvokeArgument", HFILL }},
     { &hf_cmip_result,
-      { "result", "cmip.result",
+      { "result", "cmip.result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_resultArgument,
-      { "result", "cmip.result",
+      { "result", "cmip.result_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ResultArgument", HFILL }},
     { &hf_cmip_errcode,
@@ -5460,7 +5446,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_Code_vals), 0,
         "Code", HFILL }},
     { &hf_cmip_parameter,
-      { "parameter", "cmip.parameter",
+      { "parameter", "cmip.parameter_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_problem,
@@ -5492,7 +5478,7 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, VALS(cmip_CMISSync_vals), 0,
         "CMISSync", HFILL }},
     { &hf_cmip_actionInfo,
-      { "actionInfo", "cmip.actionInfo",
+      { "actionInfo", "cmip.actionInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_attributeIdList,
@@ -5508,11 +5494,11 @@ void proto_register_cmip(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_modificationList_item,
-      { "modificationList item", "cmip.modificationList_item",
+      { "modificationList item", "cmip.modificationList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_modificationList_item", HFILL }},
     { &hf_cmip_attributevalue,
-      { "attributeValue", "cmip.attributeValue",
+      { "attributeValue", "cmip.attributeValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_cmip_InvokeId_present,
@@ -5577,7 +5563,7 @@ void proto_register_cmip(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-cmip-hfarr.c ---*/
-#line 186 "../../asn1/cmip/packet-cmip-template.c"
+#line 185 "../../asn1/cmip/packet-cmip-template.c"
   };
 
   /* List of subtrees */
@@ -5709,11 +5695,12 @@ void proto_register_cmip(void) {
     &ett_cmip_T_modificationList_item,
 
 /*--- End of included file: packet-cmip-ettarr.c ---*/
-#line 192 "../../asn1/cmip/packet-cmip-template.c"
+#line 191 "../../asn1/cmip/packet-cmip-template.c"
   };
 
   /* Register protocol */
   proto_cmip = proto_register_protocol(PNAME, PSNAME, PFNAME);
+  new_register_dissector("cmip", dissect_cmip, proto_cmip);
 
   /* Register fields and subtrees */
   proto_register_field_array(proto_cmip, hf, array_length(hf));
@@ -5804,8 +5791,10 @@ void proto_register_cmip(void) {
 
 /*--- proto_reg_handoff_cmip -------------------------------------------*/
 void proto_reg_handoff_cmip(void) {
-	register_ber_oid_dissector("2.9.0.0.2", dissect_cmip, proto_cmip, "cmip");
-	register_ber_oid_dissector("2.9.1.1.4", dissect_cmip, proto_cmip, "joint-iso-itu-t(2) ms(9) cmip(1) cmip-pci(1) abstractSyntax(4)");
+	dissector_handle_t cmip_handle = find_dissector("cmip");
+
+	register_ber_oid_dissector_handle("2.9.0.0.2", cmip_handle, proto_cmip, "cmip");
+	register_ber_oid_dissector_handle("2.9.1.1.4", cmip_handle, proto_cmip, "joint-iso-itu-t(2) ms(9) cmip(1) cmip-pci(1) abstractSyntax(4)");
 
 	oid_add_from_string("2.9.3.2.3.1","managedObjectClass(3) alarmRecord(1)");
 	oid_add_from_string("2.9.3.2.3.2","managedObjectClass(3) attributeValueChangeRecord(2)");

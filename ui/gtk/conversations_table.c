@@ -2,8 +2,6 @@
  * conversations_table   2003 Ronnie Sahlberg
  * Helper routines common to all endpoint conversations tap.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,9 +33,10 @@
 #include <epan/address.h>
 #include <epan/addr_resolv.h>
 #include <epan/tap.h>
-#include <epan/nstime.h>
 
 #include "../globals.h"
+
+#include "../stat_menu.h"
 
 #include "ui/simple_dialog.h"
 #include "ui/utf8_entities.h"
@@ -65,6 +64,7 @@
 #define GRAPH_A_B_BT_KEY     "graph-a-b-button"
 #define GRAPH_B_A_BT_KEY     "graph-b-a-button"
 #define NO_BPS_STR "N/A"
+#define CONV_DLG_HEIGHT 550
 
 #define CMP_NUM(n1, n2)                         \
     if ((n1) > (n2))                            \
@@ -1940,7 +1940,7 @@ ct_create_popup_menu(conversations_table *ct)
 
     action_group = gtk_action_group_new ("ConvActionGroup");
     gtk_action_group_add_actions (action_group,                             /* the action group */
-                                  (gpointer)conv_filter_menu_entries,       /* an array of action descriptions */
+                                  (GtkActionEntry *)conv_filter_menu_entries,       /* an array of action descriptions */
                                   G_N_ELEMENTS(conv_filter_menu_entries),   /* the number of entries */
                                   (gpointer)ct);                            /* data to pass to the action callbacks */
 
@@ -1970,20 +1970,20 @@ get_ct_table_address(conversations_table *ct, conv_t *conv, const char **entries
     if(!ct->resolve_names)
         entries[0] = ep_address_to_str(&conv->src_address);
     else {
-        entries[0] = (const char *)get_addr_name(&conv->src_address);
+        entries[0] = (const char *)ep_address_to_display(&conv->src_address);
     }
 
     pt = conv->port_type;
     if(!ct->resolve_names) pt = PT_NONE;
     switch(pt) {
     case(PT_TCP):
-        entries[1] = get_tcp_port(conv->src_port);
+        entries[1] = ep_tcp_port_to_display(conv->src_port);
         break;
     case(PT_UDP):
-        entries[1] = get_udp_port(conv->src_port);
+        entries[1] = ep_udp_port_to_display(conv->src_port);
         break;
     case(PT_SCTP):
-        entries[1] = get_sctp_port(conv->src_port);
+        entries[1] = ep_sctp_port_to_display(conv->src_port);
         break;
     default:
         port=ct_port_to_str(conv->port_type, conv->src_port);
@@ -1993,18 +1993,18 @@ get_ct_table_address(conversations_table *ct, conv_t *conv, const char **entries
     if(!ct->resolve_names)
         entries[2]=ep_address_to_str(&conv->dst_address);
     else {
-        entries[2]=(const char *)get_addr_name(&conv->dst_address);
+        entries[2]=(const char *)ep_address_to_display(&conv->dst_address);
     }
 
     switch(pt) {
     case(PT_TCP):
-        entries[3]=get_tcp_port(conv->dst_port);
+        entries[3]=ep_tcp_port_to_display(conv->dst_port);
         break;
     case(PT_UDP):
-        entries[3]=get_udp_port(conv->dst_port);
+        entries[3]=ep_udp_port_to_display(conv->dst_port);
         break;
     case(PT_SCTP):
-        entries[3]=get_sctp_port(conv->dst_port);
+        entries[3]=ep_sctp_port_to_display(conv->dst_port);
         break;
     default:
         port=ct_port_to_str(conv->port_type, conv->dst_port);
@@ -2509,11 +2509,13 @@ graph_cb(GtkWidget *follow_stream_bt, gboolean reverse_direction)
         /* Invoke the graph */
         if (!reverse_direction) {
             tcp_graph_known_stream_launch(&conv->src_address, conv->src_port,
-                                          &conv->dst_address, conv->dst_port);
+                                          &conv->dst_address, conv->dst_port,
+                                          conv->conv_id);
         }
         else {
             tcp_graph_known_stream_launch(&conv->dst_address, conv->dst_port,
-                                          &conv->src_address, conv->src_port);
+                                          &conv->src_address, conv->src_port,
+                                          conv->conv_id);
         }
     }
     else {
@@ -2609,6 +2611,7 @@ init_conversation_table(gboolean hide_ports, const char *table_name, const char 
     GtkWidget *graph_b_a_bt;
     gboolean add_follow_stream_button = FALSE;
     gboolean add_graph_buttons = FALSE;
+    window_geometry_t tl_geom;
 
     conversations=g_new0(conversations_table,1);
 
@@ -2621,11 +2624,12 @@ init_conversation_table(gboolean hide_ports, const char *table_name, const char 
     conversations->win = dlg_window_new(title);  /* transient_for top_level */
     gtk_window_set_destroy_with_parent (GTK_WINDOW(conversations->win), TRUE);
 
-    gtk_window_set_default_size(GTK_WINDOW(conversations->win), 750, 400);
+    window_get_geometry(top_level, &tl_geom);
+    gtk_window_set_default_size(GTK_WINDOW(conversations->win), tl_geom.width * 8 / 10, CONV_DLG_HEIGHT);
 
-    vbox=ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 3, FALSE);
+    vbox=ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, DLG_LABEL_SPACING, FALSE);
     gtk_container_add(GTK_CONTAINER(conversations->win), vbox);
-    gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
+    gtk_container_set_border_width(GTK_CONTAINER(vbox), DLG_OUTER_MARGIN);
 
     ret = init_ct_table_page(conversations, vbox, hide_ports, table_name, tap_name, filter, packet_func);
     if(ret == FALSE) {
@@ -2683,14 +2687,14 @@ init_conversation_table(gboolean hide_ports, const char *table_name, const char 
     if (add_graph_buttons) {
         /* Graph A->B */
         graph_a_b_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), WIRESHARK_STOCK_GRAPH_A_B);
-        gtk_widget_set_tooltip_text(graph_a_b_bt, "Graph A->B.");
+        gtk_widget_set_tooltip_text(graph_a_b_bt, "Graph traffic from address A to address B.");
         g_object_set_data(G_OBJECT(graph_a_b_bt), E_DFILTER_TE_KEY, main_display_filter_widget);
         g_object_set_data(G_OBJECT(graph_a_b_bt), CONV_PTR_KEY, conversations);
         g_signal_connect(graph_a_b_bt, "clicked", G_CALLBACK(graph_cb), (gpointer)FALSE);
 
-        /* Graph B->A */
+        /* Graph A<-B */
         graph_b_a_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), WIRESHARK_STOCK_GRAPH_B_A);
-        gtk_widget_set_tooltip_text(graph_b_a_bt, "Graph B->A.");
+        gtk_widget_set_tooltip_text(graph_b_a_bt, "Graph traffic from address B to address A.");
         g_object_set_data(G_OBJECT(graph_b_a_bt), E_DFILTER_TE_KEY, main_display_filter_widget);
         g_object_set_data(G_OBJECT(graph_b_a_bt), CONV_PTR_KEY, conversations);
         g_signal_connect(graph_b_a_bt, "clicked", G_CALLBACK(graph_cb), (gpointer)TRUE);
@@ -2736,7 +2740,7 @@ ct_nb_switch_page_cb(GtkNotebook *nb, gpointer *pg _U_, guint page, gpointer dat
         if (strcmp(((conversations_table *)pages[page])->name, "TCP") == 0) {
             gtk_widget_set_tooltip_text(follow_stream_bt, "Follow TCP Stream.");
             gtk_widget_set_sensitive(follow_stream_bt, TRUE);
-            gtk_widget_set_tooltip_text(follow_stream_bt, "Graph A->B.");
+            gtk_widget_set_tooltip_text(follow_stream_bt, "Graph traffic from address A to address B.");
             gtk_widget_set_sensitive(graph_a_b_bt, TRUE);
             gtk_widget_set_sensitive(graph_b_a_bt, TRUE);
         } else if (strcmp(((conversations_table *)pages[page])->name, "UDP") == 0) {
@@ -2888,6 +2892,7 @@ init_conversation_notebook_cb(GtkWidget *w _U_, gpointer d _U_)
     GtkWidget *follow_stream_bt;
     GtkWidget *graph_a_b_bt;
     GtkWidget *graph_b_a_bt;
+    window_geometry_t tl_geom;
 
     pages = (void **)g_malloc(sizeof(void *) * (g_slist_length(registered_ct_tables) + 1));
 
@@ -2897,11 +2902,12 @@ init_conversation_notebook_cb(GtkWidget *w _U_, gpointer d _U_)
     win = dlg_window_new(title);  /* transient_for top_level */
     gtk_window_set_destroy_with_parent (GTK_WINDOW(win), TRUE);
 
-    gtk_window_set_default_size(GTK_WINDOW(win), 750, 400);
+    window_get_geometry(top_level, &tl_geom);
+    gtk_window_set_default_size(GTK_WINDOW(win), tl_geom.width * 8 / 10, CONV_DLG_HEIGHT);
 
-    vbox=ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 6, FALSE);
+    vbox=ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, DLG_LABEL_SPACING, FALSE);
     gtk_container_add(GTK_CONTAINER(win), vbox);
-    gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
+    gtk_container_set_border_width(GTK_CONTAINER(vbox), DLG_OUTER_MARGIN);
 
     nb = gtk_notebook_new();
     gtk_box_pack_start(GTK_BOX (vbox), nb, TRUE, TRUE, 0);
@@ -2927,18 +2933,18 @@ init_conversation_notebook_cb(GtkWidget *w _U_, gpointer d _U_)
 
     pages[0] = GINT_TO_POINTER(page);
 
-    hbox = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3, FALSE);
+    hbox = ws_gtk_box_new(GTK_ORIENTATION_HORIZONTAL, DLG_UNRELATED_SPACING, FALSE);
     gtk_box_pack_start(GTK_BOX(vbox), hbox, FALSE, FALSE, 0);
 
     resolv_cb = gtk_check_button_new_with_mnemonic("Name resolution");
-    gtk_box_pack_start(GTK_BOX (hbox), resolv_cb, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX (hbox), resolv_cb, FALSE, FALSE, 0);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(resolv_cb), TRUE);
     gtk_widget_set_tooltip_text(resolv_cb, "Show results of name resolutions rather than the \"raw\" values. "
                                  "Please note: The corresponding name resolution must be enabled.");
     g_signal_connect(resolv_cb, "toggled", G_CALLBACK(ct_resolve_toggle_dest), pages);
 
     filter_cb = gtk_check_button_new_with_mnemonic("Limit to display filter");
-    gtk_box_pack_start(GTK_BOX (hbox), filter_cb, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX (hbox), filter_cb, FALSE, FALSE, 0);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(filter_cb), FALSE);
     gtk_widget_set_tooltip_text(filter_cb, "Limit the list to conversations matching the current display filter.");
     g_signal_connect(filter_cb, "toggled", G_CALLBACK(ct_filter_toggle_dest), pages);
@@ -2966,7 +2972,7 @@ init_conversation_notebook_cb(GtkWidget *w _U_, gpointer d _U_)
 
     /* Graph A->B */
     graph_a_b_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), WIRESHARK_STOCK_GRAPH_A_B);
-    gtk_widget_set_tooltip_text(graph_a_b_bt, "Graph A->B.");
+    gtk_widget_set_tooltip_text(graph_a_b_bt, "Graph traffic from address A to address B.");
     g_object_set_data(G_OBJECT(graph_a_b_bt), E_DFILTER_TE_KEY, main_display_filter_widget);
     g_object_set_data(G_OBJECT(graph_a_b_bt), CONV_PTR_KEY, pages[page]);
     g_signal_connect(graph_a_b_bt, "clicked", G_CALLBACK(graph_cb), (gpointer)FALSE);
@@ -2974,7 +2980,7 @@ init_conversation_notebook_cb(GtkWidget *w _U_, gpointer d _U_)
 
     /* Graph B->A */
     graph_b_a_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), WIRESHARK_STOCK_GRAPH_B_A);
-    gtk_widget_set_tooltip_text(graph_b_a_bt, "Graph B->A.");
+    gtk_widget_set_tooltip_text(graph_b_a_bt, "Graph traffic from address B to address A.");
     g_object_set_data(G_OBJECT(graph_b_a_bt), E_DFILTER_TE_KEY, main_display_filter_widget);
     g_object_set_data(G_OBJECT(graph_b_a_bt), CONV_PTR_KEY, pages[page]);
     g_signal_connect(graph_b_a_bt, "clicked", G_CALLBACK(graph_cb), (gpointer)TRUE);

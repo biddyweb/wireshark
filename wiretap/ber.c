@@ -2,8 +2,6 @@
  *
  * Basic Encoding Rules (BER) file reading
  *
- * $Id$
- *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
@@ -29,7 +27,7 @@
 
 #include "wtap-int.h"
 #include "file_wrappers.h"
-#include "buffer.h"
+#include <wsutil/buffer.h>
 #include "ber.h"
 
 
@@ -40,33 +38,11 @@
 #define BER_UNI_TAG_SEQ	16	/* SEQUENCE, SEQUENCE OF */
 #define BER_UNI_TAG_SET	17	/* SET, SET OF */
 
-static void ber_set_pkthdr(struct wtap_pkthdr *phdr, int packet_size)
+static gboolean ber_read_file(wtap *wth, FILE_T fh, struct wtap_pkthdr *phdr,
+                              Buffer *buf, int *err, gchar **err_info)
 {
-  phdr->presence_flags = 0; /* yes, we have no bananas^Wtime stamp */
-
-  phdr->caplen = packet_size;
-  phdr->len = packet_size;
-
-  phdr->ts.secs = 0;
-  phdr->ts.nsecs = 0;
-}
-
-static gboolean ber_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
-{
-  gint64 offset;
-  guint8 *buf;
   gint64 file_size;
   int packet_size;
-
-  *err = 0;
-
-  offset = file_tell(wth->fh);
-
-  /* there is only ever one packet */
-  if (offset != 0)
-    return FALSE;
-
-  *data_offset = offset;
 
   if ((file_size = wtap_file_size(wth, err)) == -1)
     return FALSE;
@@ -83,21 +59,38 @@ static gboolean ber_read(wtap *wth, int *err, gchar **err_info, gint64 *data_off
   }
   packet_size = (int)file_size;
 
-  buffer_assure_space(wth->frame_buffer, packet_size);
-  buf = buffer_start_ptr(wth->frame_buffer);
+  phdr->rec_type = REC_TYPE_PACKET;
+  phdr->presence_flags = 0; /* yes, we have no bananas^Wtime stamp */
 
-  ber_set_pkthdr(&wth->phdr, packet_size);
+  phdr->caplen = packet_size;
+  phdr->len = packet_size;
 
-  wtap_file_read_expected_bytes(buf, packet_size, wth->fh, err, err_info);
+  phdr->ts.secs = 0;
+  phdr->ts.nsecs = 0;
 
-  return TRUE;
+  return wtap_read_packet_bytes(fh, buf, packet_size, err, err_info);
+}
+
+static gboolean ber_read(wtap *wth, int *err, gchar **err_info, gint64 *data_offset)
+{
+  gint64 offset;
+
+  *err = 0;
+
+  offset = file_tell(wth->fh);
+
+  /* there is only ever one packet */
+  if (offset != 0)
+    return FALSE;
+
+  *data_offset = offset;
+
+  return ber_read_file(wth, wth->fh, &wth->phdr, wth->frame_buffer, err, err_info);
 }
 
 static gboolean ber_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *phdr _U_,
-			      guint8 *pd, int length, int *err, gchar **err_info)
+			      Buffer *buf, int *err, gchar **err_info)
 {
-  int packet_size = length;
-
   /* there is only one packet */
   if(seek_off > 0) {
     *err = 0;
@@ -107,11 +100,7 @@ static gboolean ber_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *ph
   if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
     return FALSE;
 
-  ber_set_pkthdr(phdr, packet_size);
-
-  wtap_file_read_expected_bytes(pd, packet_size, wth->random_fh, err, err_info);
-
-  return TRUE;
+  return ber_read_file(wth, wth->random_fh, phdr, buf, err, err_info);
 }
 
 int ber_open(wtap *wth, int *err, gchar **err_info)
@@ -186,7 +175,7 @@ int ber_open(wtap *wth, int *err, gchar **err_info)
   if (file_seek(wth->fh, 0, SEEK_SET, err) == -1)
     return -1;
 
-  wth->file_type = WTAP_FILE_BER;
+  wth->file_type_subtype = WTAP_FILE_TYPE_SUBTYPE_BER;
   wth->file_encap = WTAP_ENCAP_BER;
   wth->snapshot_length = 0;
 

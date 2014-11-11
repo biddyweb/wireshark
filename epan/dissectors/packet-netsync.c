@@ -1,8 +1,6 @@
 /* packet-netsync.c
  * Routines for Monotone Netsync packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2005 by Erwin Rol <erwin@erwinrol.com>
  *
  * Wireshark - Network traffic analyzer
@@ -31,10 +29,12 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/addr_resolv.h>
 #include <epan/prefs.h>
-#include <epan/strutil.h>
+#include "dwarf.h"
 #include "packet-tcp.h"
+
+void proto_register_netsync(void);
+void proto_reg_handoff_netsync(void);
 
 /*
  * See
@@ -90,8 +90,6 @@ static const value_string netsync_cmd_vals[] = {
 };
 
 #define NETSNYC_MERKLE_HASH_LENGTH 20
-
-void proto_reg_handoff_netsync(void);
 
 /* Define the monotone netsync proto */
 static int proto_netsync = -1;
@@ -159,36 +157,15 @@ static int ett_netsync = -1;
 static guint global_tcp_port_netsync = TCP_PORT_NETSYNC;
 static gboolean netsync_desegment = TRUE;
 
-static gint dissect_uleb128( tvbuff_t *tvb, gint offset, guint* size)
-{
-	guint shift = 0;
-	guint8 tmp;
-	guint start_offset = offset;
-
-	*size = 0;
-
-	/* get size */
-	do {
-		tmp = tvb_get_guint8(tvb, offset);
-		offset += 1;
-
-		*size |= (tmp & 0x7F) << shift;
-		shift += 7;
-	} while (tmp & 0x80);
-
-
-	return offset - start_offset;
-}
-
 static gint dissect_netsync_cmd_error( tvbuff_t *tvb,  gint offset, proto_tree *tree, guint size _U_)
 {
-	guint len = 0;
+	guint64 len = 0;
 
 	offset += dissect_uleb128( tvb, offset, &len );
 
 	proto_tree_add_item(tree, hf_netsync_cmd_error_msg, tvb,
-				offset, len, ENC_ASCII|ENC_NA );
-	offset += len;
+				offset, (gint)len, ENC_ASCII|ENC_NA );
+	offset += (gint)len;
 
 	return offset;
 }
@@ -201,20 +178,20 @@ static gint dissect_netsync_cmd_bye(tvbuff_t *tvb _U_,  gint offset, proto_tree 
 
 static gint dissect_netsync_cmd_hello(tvbuff_t *tvb,  gint offset, proto_tree *tree, guint size _U_)
 {
-	guint len = 0;
+	guint64 len = 0;
 
 	offset += dissect_uleb128( tvb, offset, &len );
 
 	proto_tree_add_item(tree, hf_netsync_cmd_hello_keyname, tvb,
-				offset, len, ENC_ASCII|ENC_NA );
-	offset += len;
+				offset, (gint)len, ENC_ASCII|ENC_NA );
+	offset += (gint)len;
 
 
 	offset += dissect_uleb128( tvb, offset, &len );
 
 	proto_tree_add_item(tree, hf_netsync_cmd_hello_key, tvb,
-				offset, len, ENC_NA );
-	offset += len;
+				offset, (gint)len, ENC_NA );
+	offset += (gint)len;
 
 	proto_tree_add_item(tree, hf_netsync_cmd_nonce, tvb,
 				offset, NETSNYC_MERKLE_HASH_LENGTH, ENC_NA );
@@ -226,7 +203,7 @@ static gint dissect_netsync_cmd_hello(tvbuff_t *tvb,  gint offset, proto_tree *t
 
 static gint dissect_netsync_cmd_anonymous(tvbuff_t *tvb,  gint offset, proto_tree *tree, guint size _U_)
 {
-	guint len = 0;
+	guint64 len = 0;
 
 	proto_tree_add_item(tree, hf_netsync_cmd_anonymous_role, tvb,
 				offset, 1, ENC_BIG_ENDIAN );
@@ -235,8 +212,8 @@ static gint dissect_netsync_cmd_anonymous(tvbuff_t *tvb,  gint offset, proto_tre
 	offset += dissect_uleb128( tvb, offset, &len );
 
 	proto_tree_add_item(tree, hf_netsync_cmd_anonymous_collection, tvb,
-				offset, len, ENC_ASCII|ENC_NA );
-	offset += len;
+				offset, (gint)len, ENC_ASCII|ENC_NA );
+	offset += (gint)len;
 
 	proto_tree_add_item(tree, hf_netsync_cmd_nonce, tvb,
 				offset, NETSNYC_MERKLE_HASH_LENGTH, ENC_NA );
@@ -248,7 +225,7 @@ static gint dissect_netsync_cmd_anonymous(tvbuff_t *tvb,  gint offset, proto_tre
 
 static gint dissect_netsync_cmd_auth(tvbuff_t *tvb,  gint offset, proto_tree *tree, guint size _U_)
 {
-	guint len = 0;
+	guint64 len = 0;
 
 	proto_tree_add_item(tree, hf_netsync_cmd_auth_role, tvb,
 				offset, 1, ENC_BIG_ENDIAN );
@@ -258,20 +235,20 @@ static gint dissect_netsync_cmd_auth(tvbuff_t *tvb,  gint offset, proto_tree *tr
 	offset += dissect_uleb128( tvb, offset, &len );
 
 	proto_tree_add_item(tree, hf_netsync_cmd_auth_collection, tvb,
-				offset, len, ENC_ASCII|ENC_NA );
-	offset += len;
+				offset, (gint)len, ENC_ASCII|ENC_NA );
+	offset += (gint)len;
 
 	proto_tree_add_item(tree, hf_netsync_cmd_auth_id, tvb,
 				offset, NETSNYC_MERKLE_HASH_LENGTH, ENC_NA );
 	offset += NETSNYC_MERKLE_HASH_LENGTH;
 
-	offset += len;
+	offset += (gint)len;
 
 	proto_tree_add_item(tree, hf_netsync_cmd_auth_nonce1, tvb,
 				offset, NETSNYC_MERKLE_HASH_LENGTH, ENC_NA );
 	offset += NETSNYC_MERKLE_HASH_LENGTH;
 
-	offset += len;
+	offset += (gint)len;
 
 	proto_tree_add_item(tree, hf_netsync_cmd_auth_nonce2, tvb,
 				offset, NETSNYC_MERKLE_HASH_LENGTH, ENC_NA );
@@ -280,8 +257,8 @@ static gint dissect_netsync_cmd_auth(tvbuff_t *tvb,  gint offset, proto_tree *tr
 	offset += dissect_uleb128( tvb, offset, &len );
 
 	proto_tree_add_item(tree, hf_netsync_cmd_auth_sig, tvb,
-				offset, len, ENC_NA );
-	offset += len;
+				offset, (gint)len, ENC_NA );
+	offset += (gint)len;
 
 	return offset;
 }
@@ -289,13 +266,13 @@ static gint dissect_netsync_cmd_auth(tvbuff_t *tvb,  gint offset, proto_tree *tr
 
 static gint dissect_netsync_cmd_confirm(tvbuff_t *tvb,  gint offset, proto_tree *tree, guint size _U_)
 {
-	guint len = 0;
+	guint64 len = 0;
 
 	offset += dissect_uleb128( tvb, offset, &len );
 
 	proto_tree_add_item(tree, hf_netsync_cmd_confirm_sig, tvb,
-				offset, len, ENC_NA );
-	offset += len;
+				offset, (gint)len, ENC_NA );
+	offset += (gint)len;
 
 
 	return offset;
@@ -314,13 +291,13 @@ static gint dissect_netsync_cmd_refine(tvbuff_t *tvb,  gint offset, proto_tree *
 
 static gint dissect_netsync_cmd_done(tvbuff_t *tvb,  gint offset, proto_tree *tree, guint size _U_)
 {
-	guint len = 0;
+	guint64 len = 0;
 	guint bytes = 0;
 
 	bytes = dissect_uleb128( tvb, offset, &len );
 
 	proto_tree_add_uint(tree, hf_netsync_cmd_done_level, tvb,
-					offset, bytes, len );
+					offset, bytes, (guint32)len );
 	offset += bytes;
 
 	proto_tree_add_item(tree, hf_netsync_cmd_done_type, tvb,
@@ -366,7 +343,7 @@ static gint dissect_netsync_cmd_send_delta(tvbuff_t *tvb,  gint offset, proto_tr
 
 static gint dissect_netsync_cmd_data(tvbuff_t *tvb,  gint offset, proto_tree *tree, guint size _U_)
 {
-	guint len = 0;
+	guint64 len = 0;
 
 	proto_tree_add_item(tree, hf_netsync_cmd_data_type, tvb,
 				offset, 1, ENC_BIG_ENDIAN );
@@ -383,8 +360,8 @@ static gint dissect_netsync_cmd_data(tvbuff_t *tvb,  gint offset, proto_tree *tr
 	offset += dissect_uleb128( tvb, offset, &len );
 
 	proto_tree_add_item(tree, hf_netsync_cmd_data_payload, tvb,
-				offset, len, ENC_NA );
-	offset += len;
+				offset, (gint)len, ENC_NA );
+	offset += (gint)len;
 
 	return offset;
 }
@@ -392,7 +369,7 @@ static gint dissect_netsync_cmd_data(tvbuff_t *tvb,  gint offset, proto_tree *tr
 
 static gint dissect_netsync_cmd_delta(tvbuff_t *tvb,  gint offset, proto_tree *tree, guint size _U_)
 {
-	guint len = 0;
+	guint64 len = 0;
 
 	proto_tree_add_item(tree, hf_netsync_cmd_delta_type, tvb,
 				offset, 1, ENC_BIG_ENDIAN );
@@ -413,8 +390,8 @@ static gint dissect_netsync_cmd_delta(tvbuff_t *tvb,  gint offset, proto_tree *t
 	offset += dissect_uleb128( tvb, offset, &len );
 
 	proto_tree_add_item(tree, hf_netsync_cmd_delta_payload, tvb,
-				offset, len, ENC_NA );
-	offset += len;
+				offset, (gint)len, ENC_NA );
+	offset += (gint)len;
 
 	return offset;
 }
@@ -436,7 +413,8 @@ static gint dissect_netsync_cmd_nonexistent(tvbuff_t *tvb,  gint offset, proto_t
 static guint
 get_netsync_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 {
-	guint size = 0, size_bytes;
+	guint64 size = 0;
+	guint   size_bytes;
 
 	/* skip version and command */
 	offset += 2;
@@ -448,11 +426,11 @@ get_netsync_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 	 * length (size_bytes bytes) and checksum (4 bytes)
 	 */
 
-	return 1 + 1 + size_bytes + size + 4;
+	return 1 + 1 + size_bytes + (guint)size + 4;
 }
 
-static void
-dissect_netsync_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_netsync_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	gint offset = 0;
 	guint8 tmp;
@@ -463,9 +441,8 @@ dissect_netsync_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	/* Set the protocol column */
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "Netsync");
 
-
 	if (tree == NULL)
-		return;
+		return tvb_length(tvb);
 
 	while (tvb_reported_length_remaining(tvb, offset)  > 0) {
 		ti = proto_tree_add_item(tree, proto_netsync, tvb, offset, -1, ENC_NA);
@@ -570,13 +547,16 @@ dissect_netsync_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 		proto_item_set_len(netsync_tree, 1+1+size_bytes+size+4);
 	}
+
+	return tvb_length(tvb);
 }
 
-static void
-dissect_netsync(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_netsync(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
 	tcp_dissect_pdus(tvb, pinfo, tree, netsync_desegment, 7, get_netsync_pdu_len,
-					dissect_netsync_pdu);
+					dissect_netsync_pdu, data);
+	return tvb_length(tvb);
 }
 
 void
@@ -772,7 +752,7 @@ proto_reg_handoff_netsync(void)
 	static gboolean initialized = FALSE;
 
 	if (!initialized) {
-		netsync_handle = create_dissector_handle(dissect_netsync, proto_netsync);
+		netsync_handle = new_create_dissector_handle(dissect_netsync, proto_netsync);
 		initialized = TRUE;
 	} else {
 		dissector_delete_uint("tcp.port", tcp_port_netsync, netsync_handle);

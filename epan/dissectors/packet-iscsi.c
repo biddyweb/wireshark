@@ -11,8 +11,6 @@
  * Copyright 2001, Eurologic and Mark Burton <markb@ordern.com>
  *  2004 Request/Response matching and Service Response Time: ronnie sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -44,10 +42,12 @@
 #include <epan/prefs.h>
 #include <epan/conversation.h>
 #include "packet-scsi.h"
-#include <epan/nstime.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/range.h>
 #include <wsutil/crc32.h>
+
+void proto_register_iscsi(void);
+void proto_reg_handoff_iscsi(void);
 
 /* the absolute values of these constants don't matter as long as
  * latter revisions of the protocol are assigned a larger number */
@@ -219,8 +219,8 @@ static gint ett_iscsi_ISID = -1;
 /* this structure contains session wide state for a specific tcp conversation */
 typedef struct _iscsi_session_t {
     guint32 header_digest;
-    emem_tree_t *itlq;  /* indexed by ITT */
-    emem_tree_t *itl;   /* indexed by LUN */
+    wmem_map_t *itlq;  /* indexed by ITT */
+    wmem_map_t *itl;   /* indexed by LUN */
 } iscsi_session_t;
 
 
@@ -533,7 +533,7 @@ iscsi_dissect_TargetAddress(packet_info *pinfo, proto_tree *tree _U_,char *val)
 {
     address *addr = NULL;
     int port;
-    char *value = ep_strdup(val);
+    char *value = wmem_strdup(wmem_packet_scope(), val);
     char *p = NULL, *pgt = NULL;
 
     if (value[0] == '[') {
@@ -557,6 +557,8 @@ iscsi_dissect_TargetAddress(packet_info *pinfo, proto_tree *tree _U_,char *val)
             /* looks like a ipv4 address */
             p = strchr(value, ':');
             if (p != NULL) {
+                char *addr_data;
+
                 *p++ = 0;
 
                 pgt = strchr(p, ',');
@@ -564,14 +566,16 @@ iscsi_dissect_TargetAddress(packet_info *pinfo, proto_tree *tree _U_,char *val)
                     *pgt++ = 0;
                 }
 
-                addr = ep_alloc(sizeof(address));
+                addr_data = (char *) wmem_alloc(wmem_packet_scope(), 4);
+                addr_data[0] = i0;
+                addr_data[1] = i1;
+                addr_data[2] = i2;
+                addr_data[3] = i3;
+
+                addr = wmem_new(wmem_packet_scope(), address);
                 addr->type = AT_IPv4;
                 addr->len  = 4;
-                addr->data = ep_alloc(4);
-                ((char *)addr->data)[0] = i0;
-                ((char *)addr->data)[1] = i1;
-                ((char *)addr->data)[2] = i2;
-                ((char *)addr->data)[3] = i3;
+                addr->data = addr_data;
 
                 port = atoi(p);
             }
@@ -607,7 +611,7 @@ addTextKeys(packet_info *pinfo, proto_tree *tt, tvbuff_t *tvb, gint offset, guin
             len = len + 1;
         }
 
-        key = tvb_get_ephemeral_string(tvb, offset, len);
+        key = tvb_get_string(wmem_packet_scope(), tvb, offset, len);
         if (key == NULL) {
             break;
         }
@@ -637,9 +641,9 @@ handleHeaderDigest(iscsi_session_t *iscsi_session, proto_item *ti, tvbuff_t *tvb
             guint32 crc = ~crc32c_calculate(tvb_get_ptr(tvb, offset, headerLen), headerLen, CRC32C_PRELOAD);
             guint32 sent = tvb_get_ntohl(tvb, offset + headerLen);
             if(crc == sent) {
-                proto_tree_add_uint_format(ti, hf_iscsi_HeaderDigest32, tvb, offset + headerLen, 4, sent, "HeaderDigest: 0x%08x (Good CRC32)", sent);
+                proto_tree_add_uint_format_value(ti, hf_iscsi_HeaderDigest32, tvb, offset + headerLen, 4, sent, "0x%08x (Good CRC32)", sent);
             } else {
-                proto_tree_add_uint_format(ti, hf_iscsi_HeaderDigest32, tvb, offset + headerLen, 4, sent, "HeaderDigest: 0x%08x (Bad CRC32, should be 0x%08x)", sent, crc);
+                proto_tree_add_uint_format_value(ti, hf_iscsi_HeaderDigest32, tvb, offset + headerLen, 4, sent, "0x%08x (Bad CRC32, should be 0x%08x)", sent, crc);
             }
         }
         return offset + headerLen + 4;
@@ -656,10 +660,10 @@ handleDataDigest(proto_item *ti, tvbuff_t *tvb, guint offset, int dataLen) {
                 guint32 crc = ~crc32c_calculate(tvb_get_ptr(tvb, offset, dataLen), dataLen, CRC32C_PRELOAD);
                 guint32 sent = tvb_get_ntohl(tvb, offset + dataLen);
                 if(crc == sent) {
-                    proto_tree_add_uint_format(ti, hf_iscsi_DataDigest32, tvb, offset + dataLen, 4, sent, "DataDigest: 0x%08x (Good CRC32)", sent);
+                    proto_tree_add_uint_format_value(ti, hf_iscsi_DataDigest32, tvb, offset + dataLen, 4, sent, "0x%08x (Good CRC32)", sent);
                 }
                 else {
-                    proto_tree_add_uint_format(ti, hf_iscsi_DataDigest32, tvb, offset + dataLen, 4, sent, "DataDigest: 0x%08x (Bad CRC32, should be 0x%08x)", sent, crc);
+                    proto_tree_add_uint_format_value(ti, hf_iscsi_DataDigest32, tvb, offset + dataLen, 4, sent, "0x%08x (Bad CRC32, should be 0x%08x)", sent, crc);
                 }
             }
             return offset + dataLen + 4;
@@ -742,9 +746,9 @@ dissect_iscsi_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint off
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "iSCSI");
 
     /* XXX we need a way to handle replayed iscsi itt here */
-    cdata=(iscsi_conv_data_t *)se_tree_lookup32(iscsi_session->itlq, tvb_get_ntohl(tvb, offset+16));
+    cdata=(iscsi_conv_data_t *)wmem_map_lookup(iscsi_session->itlq, GUINT_TO_POINTER(tvb_get_ntohl(tvb, offset+16)));
     if(!cdata){
-        cdata = se_alloc (sizeof(iscsi_conv_data_t));
+        cdata = wmem_new(wmem_file_scope(), iscsi_conv_data_t);
         cdata->itlq.lun=0xffff;
         cdata->itlq.scsi_opcode=0xffff;
         cdata->itlq.task_flags=0;
@@ -759,7 +763,7 @@ dissect_iscsi_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint off
         cdata->data_in_frame=0;
         cdata->data_out_frame=0;
 
-        se_tree_insert32(iscsi_session->itlq, tvb_get_ntohl(tvb, offset+16), cdata);
+        wmem_map_insert(iscsi_session->itlq, GUINT_TO_POINTER(tvb_get_ntohl(tvb, offset+16)), cdata);
     }
 
     if (opcode == ISCSI_OPCODE_SCSI_RESPONSE ||
@@ -812,71 +816,69 @@ dissect_iscsi_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint off
         cdata->itlq.lun=lun;
         cdata->itlq.first_exchange_frame=pinfo->fd->num;
 
-        itl=(itl_nexus_t *)se_tree_lookup32(iscsi_session->itl, lun);
+        itl=(itl_nexus_t *)wmem_map_lookup(iscsi_session->itl, GUINT_TO_POINTER((gulong)lun));
         if(!itl){
-            itl=se_alloc(sizeof(itl_nexus_t));
+            itl=wmem_new(wmem_file_scope(), itl_nexus_t);
             itl->cmdset=0xff;
             itl->conversation=conversation;
-            se_tree_insert32(iscsi_session->itl, lun, itl);
+            wmem_map_insert(iscsi_session->itl, GUINT_TO_POINTER((gulong)lun), itl);
         }
 
     }
 
     if(!itl){
-        itl=(itl_nexus_t *)se_tree_lookup32(iscsi_session->itl, cdata->itlq.lun);
+        itl=(itl_nexus_t *)wmem_map_lookup(iscsi_session->itl, GUINT_TO_POINTER((gulong)cdata->itlq.lun));
     }
 
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
 
-        if (opcode != ISCSI_OPCODE_SCSI_COMMAND) {
+    if (opcode != ISCSI_OPCODE_SCSI_COMMAND) {
 
-            col_append_str(pinfo->cinfo, COL_INFO, opcode_str);
+        col_append_str(pinfo->cinfo, COL_INFO, opcode_str);
 
-            if (opcode == ISCSI_OPCODE_SCSI_RESPONSE ||
-                (opcode == ISCSI_OPCODE_SCSI_DATA_IN &&
-                 (tvb_get_guint8(tvb, offset + 1) & ISCSI_SCSI_DATA_FLAG_S))) {
-                col_append_fstr (pinfo->cinfo, COL_INFO, " (%s)",
-                                 val_to_str (scsi_status, scsi_status_val, "0x%x"));
+        if (opcode == ISCSI_OPCODE_SCSI_RESPONSE ||
+            (opcode == ISCSI_OPCODE_SCSI_DATA_IN &&
+                (tvb_get_guint8(tvb, offset + 1) & ISCSI_SCSI_DATA_FLAG_S))) {
+            col_append_fstr (pinfo->cinfo, COL_INFO, " (%s)",
+                                val_to_str (scsi_status, scsi_status_val, "0x%x"));
+        }
+        else if (opcode == ISCSI_OPCODE_LOGIN_RESPONSE) {
+            guint16 login_status = tvb_get_ntohs(tvb, offset+36);
+            col_append_fstr (pinfo->cinfo, COL_INFO, " (%s)",
+                                val_to_str (login_status, iscsi_login_status, "0x%x"));
+        }
+        else if (opcode == ISCSI_OPCODE_LOGOUT_COMMAND) {
+            guint8 logoutReason;
+            if(iscsi_protocol_version == ISCSI_PROTOCOL_DRAFT08) {
+                logoutReason = tvb_get_guint8(tvb, offset+11);
+            } else if(iscsi_protocol_version >= ISCSI_PROTOCOL_DRAFT13) {
+                logoutReason = tvb_get_guint8(tvb, offset+1) & 0x7f;
             }
-            else if (opcode == ISCSI_OPCODE_LOGIN_RESPONSE) {
-                guint16 login_status = tvb_get_ntohs(tvb, offset+36);
-                col_append_fstr (pinfo->cinfo, COL_INFO, " (%s)",
-                                 val_to_str (login_status, iscsi_login_status, "0x%x"));
+            else {
+                logoutReason = tvb_get_guint8(tvb, offset+23);
             }
-            else if (opcode == ISCSI_OPCODE_LOGOUT_COMMAND) {
-                guint8 logoutReason;
-                if(iscsi_protocol_version == ISCSI_PROTOCOL_DRAFT08) {
-                    logoutReason = tvb_get_guint8(tvb, offset+11);
-                } else if(iscsi_protocol_version >= ISCSI_PROTOCOL_DRAFT13) {
-                    logoutReason = tvb_get_guint8(tvb, offset+1) & 0x7f;
-                }
-                else {
-                    logoutReason = tvb_get_guint8(tvb, offset+23);
-                }
-                col_append_fstr (pinfo->cinfo, COL_INFO, " (%s)",
-                                 val_to_str (logoutReason, iscsi_logout_reasons, "0x%x"));
-            }
-            else if (opcode == ISCSI_OPCODE_TASK_MANAGEMENT_FUNCTION) {
-                guint8 tmf = tvb_get_guint8(tvb, offset + 1);
-                col_append_fstr (pinfo->cinfo, COL_INFO, " (%s)",
-                                 val_to_str (tmf, iscsi_task_management_functions, "0x%x"));
-            }
-            else if (opcode == ISCSI_OPCODE_TASK_MANAGEMENT_FUNCTION_RESPONSE) {
-                guint8 resp = tvb_get_guint8(tvb, offset + 2);
-                col_append_fstr (pinfo->cinfo, COL_INFO, " (%s)",
-                                 val_to_str (resp, iscsi_task_management_responses, "0x%x"));
-            }
-            else if (opcode == ISCSI_OPCODE_REJECT) {
-                guint8 reason = tvb_get_guint8(tvb, offset + 2);
-                col_append_fstr (pinfo->cinfo, COL_INFO, " (%s)",
-                                 val_to_str (reason, iscsi_reject_reasons, "0x%x"));
-            }
-            else if (opcode == ISCSI_OPCODE_ASYNC_MESSAGE) {
-                guint8 asyncEvent = tvb_get_guint8(tvb, offset + 36);
-                col_append_fstr (pinfo->cinfo, COL_INFO, " (%s)",
-                                 val_to_str (asyncEvent, iscsi_asyncevents, "0x%x"));
-            }
+            col_append_fstr (pinfo->cinfo, COL_INFO, " (%s)",
+                                val_to_str (logoutReason, iscsi_logout_reasons, "0x%x"));
+        }
+        else if (opcode == ISCSI_OPCODE_TASK_MANAGEMENT_FUNCTION) {
+            guint8 tmf = tvb_get_guint8(tvb, offset + 1) & 0x7f;
+            col_append_fstr (pinfo->cinfo, COL_INFO, " (%s)",
+                                val_to_str (tmf, iscsi_task_management_functions, "0x%x"));
+        }
+        else if (opcode == ISCSI_OPCODE_TASK_MANAGEMENT_FUNCTION_RESPONSE) {
+            guint8 resp = tvb_get_guint8(tvb, offset + 2);
+            col_append_fstr (pinfo->cinfo, COL_INFO, " (%s)",
+                                val_to_str (resp, iscsi_task_management_responses, "0x%x"));
+        }
+        else if (opcode == ISCSI_OPCODE_REJECT) {
+            guint8 reason = tvb_get_guint8(tvb, offset + 2);
+            col_append_fstr (pinfo->cinfo, COL_INFO, " (%s)",
+                                val_to_str (reason, iscsi_reject_reasons, "0x%x"));
+        }
+        else if (opcode == ISCSI_OPCODE_ASYNC_MESSAGE) {
+            guint8 asyncEvent = tvb_get_guint8(tvb, offset + 36);
+            col_append_fstr (pinfo->cinfo, COL_INFO, " (%s)",
+                                val_to_str (asyncEvent, iscsi_asyncevents, "0x%x"));
         }
     }
 
@@ -1324,6 +1326,7 @@ dissect_iscsi_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint off
             proto_tree_add_item(ti, hf_iscsi_TotalAHSLength, tvb, offset + 4, 1, ENC_BIG_ENDIAN);
         }
         proto_tree_add_uint(ti, hf_iscsi_DataSegmentLength, tvb, offset + 5, 3, tvb_get_ntoh24(tvb, offset + 5));
+        cdata->itlq.data_length=tvb_get_ntoh24(tvb, offset + 5);
         if(iscsi_protocol_version > ISCSI_PROTOCOL_DRAFT09) {
             if (A_bit) {
                 dissect_scsi_lun(ti, tvb, offset + 8);
@@ -1502,7 +1505,7 @@ dissect_iscsi_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint off
         offset = handleHeaderDigest(iscsi_session, ti, tvb, offset, 48);
 
         next_opcode = tvb_get_guint8(tvb, offset) & 0x3f;
-        next_opcode_str = match_strval(next_opcode, iscsi_opcodes);
+        next_opcode_str = try_val_to_str(next_opcode, iscsi_opcodes);
 
         tf = proto_tree_add_text(ti, tvb, offset, -1, "Rejected Header");
         tt = proto_item_add_subtree(tf, ett_iscsi_RejectHeader);
@@ -1595,7 +1598,7 @@ dissect_iscsi_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint off
             /* We have a variable length CDB where bytes >16 is transported
              * in the AHS.
              */
-            cdb_buf=g_malloc(16+ahs_cdb_length);
+            cdb_buf=(guint8 *)wmem_alloc(pinfo->pool, 16+ahs_cdb_length);
             /* the 16 first bytes of the cdb */
             tvb_memcpy(tvb, cdb_buf, cdb_offset, 16);
             /* the remainder of the cdb from the ahs */
@@ -1604,7 +1607,6 @@ dissect_iscsi_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint off
             cdb_tvb = tvb_new_child_real_data(tvb, cdb_buf,
                                               ahs_cdb_length+16,
                                               ahs_cdb_length+16);
-            tvb_set_free_cb(cdb_tvb, g_free);
 
             add_new_data_source(pinfo, cdb_tvb, "CDB+AHS");
         } else {
@@ -1618,9 +1620,8 @@ dissect_iscsi_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint off
         }
         dissect_scsi_cdb(cdb_tvb, pinfo, tree, SCSI_DEV_UNKNOWN, &cdata->itlq, itl);
         /* we dont want the immediata below to overwrite our CDB info */
-        if (check_col(pinfo->cinfo, COL_INFO)) {
-            col_set_fence(pinfo->cinfo, COL_INFO);
-        }
+        col_set_fence(pinfo->cinfo, COL_INFO);
+
         /* where there any ImmediateData ? */
         if(immediate_data_length){
             /* Immediate Data TVB */
@@ -1850,7 +1851,7 @@ dissect_iscsi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean chec
             return FALSE;
         }
         /* Function must be known */
-        if(!match_strval(tmpbyte&0x7f, iscsi_task_management_functions)){
+        if(!try_val_to_str(tmpbyte&0x7f, iscsi_task_management_functions)){
             return FALSE;
         }
         /* bytes 2,3 must be null */
@@ -1904,7 +1905,7 @@ dissect_iscsi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean chec
             return FALSE;
         }
         /* Reason code must be known */
-        if(!match_strval(tmpbyte&0x7f, iscsi_logout_reasons)){
+        if(!try_val_to_str(tmpbyte&0x7f, iscsi_logout_reasons)){
             return FALSE;
         }
         /* bytes 2,3 must be null */
@@ -1935,7 +1936,7 @@ dissect_iscsi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean chec
             return FALSE;
         }
         /* type must be known */
-        if(!match_strval(tmpbyte&0x0f, iscsi_snack_types)){
+        if(!try_val_to_str(tmpbyte&0x0f, iscsi_snack_types)){
             return FALSE;
         }
         /* for status/snack and datack itt must be 0xffffffff
@@ -2003,7 +2004,7 @@ dissect_iscsi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean chec
             return FALSE;
         }
         /* reason must be known */
-        if(!match_strval(tvb_get_guint8(tvb,offset+2), iscsi_reject_reasons)){
+        if(!try_val_to_str(tvb_get_guint8(tvb,offset+2), iscsi_reject_reasons)){
             return FALSE;
         }
         /* byte 3 must be 0 */
@@ -2119,7 +2120,7 @@ dissect_iscsi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean chec
             return FALSE;
         }
         /* status must be known */
-        if(!match_strval(tvb_get_guint8(tvb,offset+3), scsi_status_val)){
+        if(!try_val_to_str(tvb_get_guint8(tvb,offset+3), scsi_status_val)){
             return FALSE;
         }
         /* the 32bit words at offsets 8, 12
@@ -2165,7 +2166,7 @@ dissect_iscsi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean chec
             return FALSE;
         }
         /* response must be known */
-        if(!match_strval(tvb_get_guint8(tvb,offset+2), iscsi_logout_response)){
+        if(!try_val_to_str(tvb_get_guint8(tvb,offset+2), iscsi_logout_response)){
             return FALSE;
         }
         /* byte 3 must be 0 */
@@ -2245,7 +2246,7 @@ dissect_iscsi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean chec
         opcode = tvb_get_guint8(tvb, offset + 0);
         opcode &= OPCODE_MASK;
 
-        opcode_str = match_strval(opcode, iscsi_opcodes);
+        opcode_str = try_val_to_str(opcode, iscsi_opcodes);
         if(opcode == ISCSI_OPCODE_TASK_MANAGEMENT_FUNCTION ||
            opcode == ISCSI_OPCODE_TASK_MANAGEMENT_FUNCTION_RESPONSE ||
            opcode == ISCSI_OPCODE_R2T ||
@@ -2344,12 +2345,12 @@ dissect_iscsi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean chec
         /* make sure we have a conversation for this session */
         conversation = find_or_create_conversation(pinfo);
 
-        iscsi_session=conversation_get_proto_data(conversation, proto_iscsi);
+        iscsi_session=(iscsi_session_t *)conversation_get_proto_data(conversation, proto_iscsi);
         if(!iscsi_session){
-            iscsi_session=se_alloc(sizeof(iscsi_session_t));
-            iscsi_session->header_digest=ISCSI_HEADER_DIGEST_AUTO;
-            iscsi_session->itlq=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "iSCSI ITLQ");
-            iscsi_session->itl=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "iSCSI ITL");
+            iscsi_session = wmem_new(wmem_file_scope(), iscsi_session_t);
+            iscsi_session->header_digest = ISCSI_HEADER_DIGEST_AUTO;
+            iscsi_session->itlq = wmem_map_new(wmem_file_scope(), g_direct_hash, g_direct_equal);
+            iscsi_session->itl  = wmem_map_new(wmem_file_scope(), g_direct_hash, g_direct_equal);
             conversation_add_proto_data(conversation, proto_iscsi, iscsi_session);
 
             /* DataOut PDUs are often mistaken by DCERPC heuristics to be
@@ -2423,12 +2424,10 @@ dissect_iscsi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolean chec
             }
         }
 
-        if(check_col(pinfo->cinfo, COL_INFO)) {
-            if(iSCSIPdusDissected == 0)
-                col_set_str(pinfo->cinfo, COL_INFO, "");
-            else
-                col_append_str(pinfo->cinfo, COL_INFO, ", ");
-        }
+        if(iSCSIPdusDissected == 0)
+            col_set_str(pinfo->cinfo, COL_INFO, "");
+        else
+            col_append_str(pinfo->cinfo, COL_INFO, ", ");
 
         dissect_iscsi_pdu(tvb, pinfo, tree, offset, opcode, opcode_str, data_segment_len, iscsi_session, conversation);
         if(pduLen > available_bytes)
@@ -2624,7 +2623,7 @@ proto_register_iscsi(void)
         },
         { &hf_iscsi_DataSegmentLength,
           { "DataSegmentLength", "iscsi.datasegmentlength",
-            FT_UINT32, BASE_HEX, NULL, 0,
+            FT_UINT32, BASE_DEC_HEX, NULL, 0,
             "Data segment length (bytes)", HFILL }
         },
         { &hf_iscsi_TotalAHSLength,

@@ -2,8 +2,6 @@
  * Routines for RFC 1436 Gopher protocol dissection
  * Copyright 2010, Gerald Combs <gerald@wireshark.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,9 @@
 
 #include <epan/packet.h>
 #include <epan/prefs.h>
+
+void proto_register_gopher(void);
+void proto_reg_handoff_gopher(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_gopher = -1;
@@ -147,7 +148,7 @@ dissect_gopher(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
         if (line_len == 0) {
             request = "[Directory list]";
         } else if (line_len > 0) {
-            request = tvb_get_ephemeral_string(tvb, 0, line_len);
+            request = tvb_get_string(wmem_packet_scope(), tvb, 0, line_len);
         }
         col_add_fstr(pinfo->cinfo, COL_INFO, "Request: %s", request);
     } else {
@@ -169,10 +170,10 @@ dissect_gopher(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             while (find_dir_tokens(tvb, offset + 1, &sel_start, &host_start, &port_start, &line_len, &next_offset)) {
                 if (!is_dir) { /* First time */
                     proto_item_append_text(ti, "[Directory list]");
-                    col_append_fstr(pinfo->cinfo, COL_INFO, ": [Directory list]");
+                    col_append_str(pinfo->cinfo, COL_INFO, ": [Directory list]");
                 }
 
-                name = tvb_get_ephemeral_string(tvb, offset + 1, sel_start - offset - 2);
+                name = tvb_get_string(wmem_packet_scope(), tvb, offset + 1, sel_start - offset - 2);
                 ti = proto_tree_add_string(gopher_tree, hf_gopher_dir_item, tvb,
                                 offset, line_len + 1, name);
                 dir_tree = proto_item_add_subtree(ti, ett_dir_item);

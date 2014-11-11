@@ -1,7 +1,5 @@
 /* airpcap_gui_utils.c
  *
- * $Id$
- *
  * Giorgio Tino <giorgio.tino@cacetech.com>
  * Copyright (c) CACE Technologies, LLC 2006
  *
@@ -32,9 +30,10 @@
 #include <glib.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-#include <epan/filesystem.h>
+#include <wsutil/filesystem.h>
 #include <epan/strutil.h>
 #include <epan/frequency-utils.h>
 #include <epan/crypt/airpdcap_ws.h>

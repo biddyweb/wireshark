@@ -1,7 +1,5 @@
 # CMakeLists.txt
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -32,13 +30,11 @@ set(WIRESHARK_GTK_SRC
 	capture_file_dlg.c
 	capture_if_dlg.c
 	capture_info_dlg.c
-	cfilter_combo_utils.c
 	color_dlg.c
 	color_edit_dlg.c
 	color_utils.c
+	conversation_hastables_dlg.c
 	conversations_table.c
-	decode_as_ber.c
-	decode_as_dcerpc.c
 	decode_as_dlg.c
 	dfilter_expr_dlg.c
 	dissector_tables_dlg.c
@@ -47,6 +43,7 @@ set(WIRESHARK_GTK_SRC
 	edit_packet_comment_dlg.c
 	expert_comp_table.c
 	export_object_dlg.c
+	export_pdu_dlg.c
 	export_sslkeys.c
 	filter_autocomplete.c
 	file_dlg.c
@@ -109,7 +106,6 @@ set(WIRESHARK_GTK_SRC
 	sctp_byte_graph_dlg.c
 	sctp_error_dlg.c
 	sctp_graph_dlg.c
-	sctp_stat.c
 	service_response_time_table.c
 	simple_dialog.c
 	stock_icons.c
@@ -121,6 +117,9 @@ set(WIRESHARK_GTK_SRC
 	uat_gui.c
 	voip_calls.c
 	webbrowser.c
+)
+
+set(WIRESHARK_DIRTY_TAP_SRC
 )
 
 set(WIRESHARK_TAP_SRC
@@ -175,6 +174,8 @@ set(WIRESHARK_TAP_SRC
 	hostlist_wlan.c
 	iax2_analysis.c
 	io_stat.c
+	lbm_stream_dlg.c
+	lbm_uimflow_dlg.c
 	ldap_stat.c
 	mac_lte_stat_dlg.c
 	mcast_stream_dlg.c
@@ -218,7 +219,12 @@ if (WERROR)
 	)
 endif()
 
-if (NOT ENABLE_GTK3)
+if (ENABLE_GTK3)
+	add_definitions(
+		${GTK3_DEFINITIONS}
+		-DGDK_DISABLE_DEPRECATION_WARNINGS
+	)
+else()
 	add_definitions(
 		# We are only allowed to include gtk/gtk.h, no other files. When
 		# violating this with gtk3 the compiler will complain anyway.
@@ -250,16 +256,19 @@ if(WIN32)
 endif()
 
 register_tap_files(wireshark-tap-register.c
+        taps
 	${WIRESHARK_TAP_SRC}
 )
 
 add_library(gtkui STATIC
 	${WIRESHARK_GTK_SRC}
 	${WIRESHARK_TAP_SRC}
+	${WIRESHARK_DIRTY_TAP_SRC}
 	${PLATFORM_UI_SRC}
 	wireshark-tap-register.c
 )
 set_target_properties(gtkui PROPERTIES LINK_FLAGS "${WS_LINK_FLAGS}")
+set_target_properties(gtkui PROPERTIES FOLDER "UI")
 
 install(
 	DIRECTORY

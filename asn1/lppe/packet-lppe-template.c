@@ -1,8 +1,6 @@
 /* packet-lppe.c
  * Routines for LPP Extensions (LLPe) packet dissection
- * Copyright 2012, Pascal Quantin <pascal.quantin@gmail.com>
- *
- * $Id$
+ * Copyright 2012-2014, Pascal Quantin <pascal.quantin@gmail.com>
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -22,7 +20,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * Ref Open Mobile Alliance OMA-TS-LPPe V1_0-20110929-C
+ * Ref Open Mobile Alliance OMA-TS-LPPe V1_1-20140108-C
  */
 
 #include "config.h"
@@ -42,6 +40,9 @@
 /* disable: "warning C4146: unary minus operator applied to unsigned type, result still unsigned" */
 #pragma warning(disable:4146)
 #endif
+
+void proto_register_lppe(void);
+void proto_reg_handoff_lppe(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_lppe = -1;
@@ -83,7 +84,7 @@ void proto_register_lppe(void) {
   proto_register_field_array(proto_lppe, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
 
- 
+
 }
 
 

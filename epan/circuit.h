@@ -1,8 +1,6 @@
 /* circuit.h
  * Routines for building lists of packets that are part of a "circuit"
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -99,7 +97,7 @@ extern dissector_handle_t circuit_get_dissector(circuit_t *circuit);
  */
 extern gboolean
 try_circuit_dissector(circuit_type ctype, guint32 circuit_id, guint32 frame,
-   tvbuff_t *tvb,  packet_info *pinfo, proto_tree *tree);
+   tvbuff_t *tvb,  packet_info *pinfo, proto_tree *tree, void* data);
 
 #ifdef __cplusplus
 }

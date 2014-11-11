@@ -1,8 +1,6 @@
 /* packet-cisco-oui.c
  * Register an LLC dissector table for Cisco's OUI 00:00:0c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,6 +25,8 @@
 #include <epan/packet.h>
 #include "packet-llc.h"
 #include <epan/oui.h>
+
+void proto_register_cisco_oui(void);
 
 static int hf_llc_cisco_pid = -1;
 
@@ -70,6 +70,6 @@ proto_register_cisco_oui(void)
 	  }
 	};
 
-	llc_add_oui(OUI_CISCO, "llc.cisco_pid", "Cisco OUI PID", hf);
+	llc_add_oui(OUI_CISCO, "llc.cisco_pid", "LLC Cisco OUI PID", hf);
 }
 

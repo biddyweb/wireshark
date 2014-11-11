@@ -2,8 +2,6 @@
  * Sub-dissectors for IPMI messages (netFn=Chassis)
  * Copyright 2007-2008, Alexey Neyman, Pigeon Point Systems <avn@pigeonpoint.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -406,7 +404,7 @@ static void
 bootopt_07(tvbuff_t *tvb, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_chs_bo07_block_selector, tvb, 0, 1, ENC_LITTLE_ENDIAN);
-	proto_tree_add_item(tree, hf_ipmi_chs_bo07_block_data, tvb, 1, tvb_length(tvb) - 1, ENC_NA);
+	proto_tree_add_item(tree, hf_ipmi_chs_bo07_block_data, tvb, 1, -1, ENC_NA);
 }
 
 
@@ -428,7 +426,7 @@ static struct {
 /* Get Chassis Capabilities (response)
  */
 static void
-rs00(tvbuff_t *tvb, proto_tree *tree)
+rs00(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_chs_00_capflags_ppi, &hf_ipmi_chs_00_capflags_di,
 		&hf_ipmi_chs_00_capflags_fpl, &hf_ipmi_chs_00_capflags_is, NULL };
@@ -440,7 +438,7 @@ rs00(tvbuff_t *tvb, proto_tree *tree)
 	proto_tree_add_item(tree, hf_ipmi_chs_00_sel_dev_addr, tvb, 3, 1, ENC_LITTLE_ENDIAN);
 	proto_tree_add_item(tree, hf_ipmi_chs_00_sm_dev_addr, tvb, 4, 1, ENC_LITTLE_ENDIAN);
 
-	if (tvb_length(tvb) >= 5) {
+	if (tvb_captured_length(tvb) >= 5) {
 		proto_tree_add_item(tree, hf_ipmi_chs_00_bridge_dev_addr, tvb, 5, 1, ENC_LITTLE_ENDIAN);
 	}
 }
@@ -448,7 +446,7 @@ rs00(tvbuff_t *tvb, proto_tree *tree)
 /* Get Chassis Status.
  */
 static void
-rs01(tvbuff_t *tvb, proto_tree *tree)
+rs01(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_chs_01_pwr_state_policy,
 		&hf_ipmi_chs_01_pwr_state_ctl_fault, &hf_ipmi_chs_01_pwr_state_fault,
@@ -472,7 +470,7 @@ rs01(tvbuff_t *tvb, proto_tree *tree)
 			ett_ipmi_chs_01_last_event, byte2, ENC_LITTLE_ENDIAN, 0);
 	proto_tree_add_bitmask_text(tree, tvb, 2, 1, "Misc. State: ", NULL,
 			ett_ipmi_chs_01_misc, byte3, ENC_LITTLE_ENDIAN, 0);
-	if (tvb_length(tvb) > 3) {
+	if (tvb_captured_length(tvb) > 3) {
 		proto_tree_add_bitmask_text(tree, tvb, 3, 1, "Front panel buttons capabilities: ",
 				NULL, ett_ipmi_chs_01_fpb, byte4, ENC_LITTLE_ENDIAN, BMT_NO_TFS);
 	};
@@ -481,7 +479,7 @@ rs01(tvbuff_t *tvb, proto_tree *tree)
 /* Chassis Control.
  */
 static void
-rq02(tvbuff_t *tvb, proto_tree *tree)
+rq02(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_chs_02_cctrl, NULL };
 
@@ -492,15 +490,15 @@ rq02(tvbuff_t *tvb, proto_tree *tree)
 /* Chassis Identify
  */
 static void
-rq04(tvbuff_t *tvb, proto_tree *tree)
+rq04(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte2[] = { &hf_ipmi_chs_04_perm_on, NULL };
 
-	if (tvb_length(tvb) > 0) {
+	if (tvb_captured_length(tvb) > 0) {
 		proto_tree_add_item(tree, hf_ipmi_chs_04_ival, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 	}
 
-	if (tvb_length(tvb) > 1) {
+	if (tvb_captured_length(tvb) > 1) {
 		proto_tree_add_bitmask_text(tree, tvb, 1, 1, "Flags: ", "None",
 				ett_ipmi_chs_04_byte2, byte2, ENC_LITTLE_ENDIAN, 0);
 	}
@@ -509,7 +507,7 @@ rq04(tvbuff_t *tvb, proto_tree *tree)
 /* Set Chassis Capabilities.
  */
 static void
-rq05(tvbuff_t *tvb, proto_tree *tree)
+rq05(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_chs_05_flags_fpl, &hf_ipmi_chs_05_flags_intrusion, NULL };
 
@@ -519,7 +517,7 @@ rq05(tvbuff_t *tvb, proto_tree *tree)
 	proto_tree_add_item(tree, hf_ipmi_chs_05_sdr_dev_addr, tvb, 2, 1, ENC_LITTLE_ENDIAN);
 	proto_tree_add_item(tree, hf_ipmi_chs_05_sel_dev_addr, tvb, 3, 1, ENC_LITTLE_ENDIAN);
 	proto_tree_add_item(tree, hf_ipmi_chs_05_sm_dev_addr, tvb, 4, 1, ENC_LITTLE_ENDIAN);
-	if (tvb_length(tvb) > 5) {
+	if (tvb_captured_length(tvb) > 5) {
 		/* Bridge device address is optional */
 		proto_tree_add_item(tree, hf_ipmi_chs_05_bridge_dev_addr, tvb, 5, 1, ENC_LITTLE_ENDIAN);
 	}
@@ -528,7 +526,7 @@ rq05(tvbuff_t *tvb, proto_tree *tree)
 /* Set Power Restore Policy
  */
 static void
-rq06(tvbuff_t *tvb, proto_tree *tree)
+rq06(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_chs_06_rq_policy, NULL };
 
@@ -539,7 +537,7 @@ rq06(tvbuff_t *tvb, proto_tree *tree)
 /* Get Power Restore Policy
  */
 static void
-rs06(tvbuff_t *tvb, proto_tree *tree)
+rs06(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_chs_06_rs_policy_support_powerup,
 		&hf_ipmi_chs_06_rs_policy_support_restore, &hf_ipmi_chs_06_rs_policy_support_poweroff, NULL };
@@ -551,7 +549,7 @@ rs06(tvbuff_t *tvb, proto_tree *tree)
 /* Get System Restart Cause
  */
 static void
-rs07(tvbuff_t *tvb, proto_tree *tree)
+rs07(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_chs_07_cause, NULL };
 
@@ -563,7 +561,7 @@ rs07(tvbuff_t *tvb, proto_tree *tree)
 /* Set System Boot Options
  */
 static void
-rq08(tvbuff_t *tvb, proto_tree *tree)
+rq08(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_item *ti;
 	proto_tree *s_tree;
@@ -590,13 +588,13 @@ rq08(tvbuff_t *tvb, proto_tree *tree)
 			ipmi_dcd8(pno, 0x7f), desc, pno);
 
 	/* Data is optional; no data means 'just set validity' */
-	if (tvb_length(tvb) > 1) {
+	if (tvb_captured_length(tvb) > 1) {
 		if (pno < array_length(boot_options)) {
-			sub = tvb_new_subset(tvb, 1, tvb_length(tvb) - 1, tvb_length(tvb) - 1);
+			sub = tvb_new_subset_remaining(tvb, 1);
 			boot_options[pno].intrp(sub, tree);
 		} else {
 			proto_tree_add_none_format(tree, hf_ipmi_chs_08_data, tvb, 1,
-					tvb_length(tvb) - 1, "Parameter data: %s", desc);
+					-1, "Parameter data: %s", desc);
 		}
 	}
 }
@@ -611,7 +609,7 @@ static const value_string cc08[] = {
 /* Get System Boot Options
  */
 static void
-rq09(tvbuff_t *tvb, proto_tree *tree)
+rq09(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_item *ti;
 	proto_tree *s_tree;
@@ -641,7 +639,7 @@ rq09(tvbuff_t *tvb, proto_tree *tree)
 }
 
 static void
-rs09(tvbuff_t *tvb, proto_tree *tree)
+rs09(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	static const int *byte1[] = { &hf_ipmi_chs_09_rs_param_version, NULL };
 	proto_item *ti;
@@ -672,11 +670,10 @@ rs09(tvbuff_t *tvb, proto_tree *tree)
 			ipmi_dcd8(pno, 0x7f), desc, pno);
 
 	if (pno < array_length(boot_options)) {
-		sub = tvb_new_subset(tvb, 2, tvb_length(tvb) - 2, tvb_length(tvb) - 2);
+		sub = tvb_new_subset_remaining(tvb, 2);
 		boot_options[pno].intrp(sub, tree);
 	} else {
-		proto_tree_add_item(tree, hf_ipmi_chs_09_rs_param_data, tvb, 2,
-				tvb_length(tvb) - 2, ENC_NA);
+		proto_tree_add_item(tree, hf_ipmi_chs_09_rs_param_data, tvb, 2, -1, ENC_NA);
 	}
 }
 
@@ -688,7 +685,7 @@ static const value_string cc09[] = {
 /* Get POH Counter
  */
 static void
-rs0f(tvbuff_t *tvb, proto_tree *tree)
+rs0f(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	proto_tree_add_item(tree, hf_ipmi_chs_0f_minpercnt, tvb, 0, 1, ENC_LITTLE_ENDIAN);
 	proto_tree_add_item(tree, hf_ipmi_chs_0f_counter, tvb, 1, 4, ENC_LITTLE_ENDIAN);
@@ -717,7 +714,7 @@ ipmi_register_chassis(gint proto_ipmi)
 	static hf_register_info hf[] = {
 		{ &hf_ipmi_chs_bo00_sip,
 			{ "Set In Progress",
-				"ipmi.bootopt00.sip", FT_UINT8, BASE_HEX, bo00_sip_vals, 0x03, NULL, HFILL }},
+				"ipmi.bootopt00.sip", FT_UINT8, BASE_HEX, VALS(bo00_sip_vals), 0x03, NULL, HFILL }},
 		{ &hf_ipmi_chs_bo01_spsel,
 			{ "Service Partition Selector",
 				"ipmi.bootopt01.spsel", FT_UINT8, BASE_HEX, NULL, 0, NULL, HFILL }},

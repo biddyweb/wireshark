@@ -1,12 +1,10 @@
 /* packet-text-media.c
  * Routines for text-based media dissection.
  *
- * NOTE - The media type is either found in pinfo->match_string
- *        or in pinfo->private_data.
+ * NOTE - The media type is either found in pinfo->match_string,
+ *        pinfo->private_data, or passed into the dissector (preferred)
  *
  * (C) Olivier Biot, 2004.
- *
- * $Id$
  *
  * Refer to the AUTHORS file or the AUTHORS section in the man page
  * for contacting the author(s) of this file.
@@ -37,7 +35,6 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/strutil.h>
 
 
 /*
@@ -45,6 +42,8 @@
  *
  * TODO - character set and chunked transfer-coding
  */
+void proto_register_text_lines(void);
+void proto_reg_handoff_text_lines(void);
 
 /* Filterable header fields */
 static gint proto_text_lines = -1;
@@ -55,15 +54,14 @@ static gint ett_text_lines = -1;
 /* Dissector handles */
 static dissector_handle_t xml_handle;
 
-static void
-dissect_text_lines(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_text_lines(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
 	proto_tree	*subtree;
 	proto_item	*ti;
 	gint		offset = 0, next_offset;
 	gint		len;
 	const char	*data_name;
-	guint8		word[6];
 	int length = tvb_length(tvb);
 
 	/* Check if this is actually xml
@@ -71,10 +69,9 @@ dissect_text_lines(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	 * <?xml version="1.0" encoding="UTF-8"?>
 	 */
 	if(length > 38){
-		tvb_get_nstringz0(tvb, 0, sizeof(word),word);
-		if (g_ascii_strncasecmp(word, "<?xml", 5) == 0){
+		if (tvb_strncaseeql(tvb, 0, "<?xml", 5) == 0){
 			call_dissector(xml_handle, tvb, pinfo, tree);
-			return;
+			return tvb_length(tvb);
 		}
 	}
 
@@ -83,16 +80,22 @@ dissect_text_lines(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		/*
 		 * No information from "match_string"
 		 */
-		data_name = (char *)(pinfo->private_data);
+		data_name = (char *)data;
 		if (! (data_name && data_name[0])) {
 			/*
-			 * No information from "private_data"
+			 * No information from dissector data
 			 */
-			data_name = NULL;
+			data_name = (char *)(pinfo->private_data);
+			if (! (data_name && data_name[0])) {
+				/*
+				 * No information from "private_data"
+				 */
+				data_name = NULL;
+			}
 		}
 	}
 
-	if (data_name && check_col(pinfo->cinfo, COL_INFO))
+	if (data_name)
 		col_append_sep_fstr(pinfo->cinfo, COL_INFO, " ", "(%s)",
 				data_name);
 
@@ -120,15 +123,15 @@ dissect_text_lines(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				break;
 
 			/* We use next_offset - offset instead of len in the
-			 * call to tvb_format_text() so it will include the
+			 * call to proto_tree_add_format_text() so it will include the
 			 * line terminator(s) (\r and/or \n) in the display.
 			 */
-			proto_tree_add_text(subtree, tvb, offset, next_offset - offset,
-					    "%s", tvb_format_text(tvb, offset,
-								  next_offset - offset));
+			proto_tree_add_format_text(subtree, tvb, offset, next_offset - offset);
 			offset = next_offset;
 		}
 	}
+
+	return tvb_length(tvb);
 }
 
 void
@@ -144,7 +147,7 @@ proto_register_text_lines(void)
 			"Line-based text data",	/* Long name */
 			"Line-based text data",	/* Short name */
 			"data-text-lines");		/* Filter name */
-	register_dissector("data-text-lines", dissect_text_lines, proto_text_lines);
+	new_register_dissector("data-text-lines", dissect_text_lines, proto_text_lines);
 }
 
 void
@@ -167,7 +170,6 @@ proto_reg_handoff_text_lines(void)
 	dissector_add_string("media_type", "application/x-javascript", text_lines_handle);
 	dissector_add_string("media_type", "application/x-tia-p25-issi", text_lines_handle);
 	dissector_add_string("media_type", "application/x-tia-p25-sndcp", text_lines_handle);
-	dissector_add_string("media_type", "application/x-www-form-urlencoded", text_lines_handle);
 	dissector_add_string("media_type", "application/x-ns-proxy-autoconfig", text_lines_handle);
 
 	dissector_add_string("media_type", "text/vnd.sun.j2me.app-descriptor", text_lines_handle);

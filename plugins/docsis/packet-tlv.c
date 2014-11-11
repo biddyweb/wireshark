@@ -2,8 +2,6 @@
  * Routines to Dissect Appendix C TLV's
  * Copyright 2002, Anand V. Narwani <anand[AT]narwani.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,8 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
+
 #include "packet-tlv.h"
 
 /* This module will dissect the Appendix C TLV's.  Please see:
@@ -34,6 +34,9 @@
  * The main dissector is dissect_tlv.  This routine will dissect
  * top level TLV's and call sub-dissectors for the sub-TLV's.
  */
+
+void proto_register_docsis_tlv(void);
+void proto_reg_handoff_docsis_tlv(void);
 
 /* Initialize the protocol and registered fields */
 static dissector_handle_t docsis_vsif_handle;
@@ -488,10 +491,12 @@ static const value_string action_vals[] = {
   {0, NULL},
 };
 
+#if 0
 static const true_false_string verify_tfs = {
   "Don't Verify",
   "Verify"
 };
+#endif
 
 static const value_string rng_tech_vals[] = {
   {0, "Perform initial maintenance on new channel"},
@@ -4492,7 +4497,7 @@ proto_register_docsis_tlv (void)
      "Ranging Hold-Off (ePS or eRouter)", HFILL}
     },
     {&hf_docsis_tlv_mcap_rnghoff_emta,
-     {".16 Ranging Hold-Off (eMTA or EDVA)", 
+     {".16 Ranging Hold-Off (eMTA or EDVA)",
       "docsis_tlv.mcap.rnghoffemta",
      FT_UINT32, BASE_DEC, VALS (on_off_vals), 0x4,
      "Ranging Hold-Off (eMTA or EDVA)", HFILL}

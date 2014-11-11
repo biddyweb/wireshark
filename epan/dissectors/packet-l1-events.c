@@ -3,8 +3,6 @@
  *
  * (C) Rolf Fiedler 2008, based on packet-text-media.c by Olivier Biot, 2004.
  *
- * $Id$
- *
  * Refer to the AUTHORS file or the AUTHORS section in the man page
  * for contacting the author(s) of this file.
  *
@@ -34,8 +32,11 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
 #include <epan/strutil.h>
 
+void proto_register_l1_events(void);
+void proto_reg_handoff_l1_events(void);
 
 /*
  * dissector for line-based text messages from layer 1
@@ -47,8 +48,8 @@ static gint proto_l1_events = -1;
 /* Subtrees */
 static gint ett_l1_events = -1;
 
-static void
-dissect_l1_events(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_l1_events(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
 	proto_tree	*subtree;
 	proto_item	*ti;
@@ -61,27 +62,29 @@ dissect_l1_events(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		/*
 		 * No information from "match_string"
 		 */
-		data_name = (char *)(pinfo->private_data);
+		data_name = (char *)data;
 		if (! (data_name && data_name[0])) {
 			/*
-			 * No information from "private_data"
+			 * No information from dissector data
 			 */
-			data_name = NULL;
+			data_name = (char *)(pinfo->private_data);
+			if (! (data_name && data_name[0])) {
+				/*
+				 * No information from "private_data"
+				 */
+				data_name = NULL;
+			}
 		}
 	}
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "Layer1");
-	if (check_col(pinfo->cinfo, COL_DEF_SRC))
-		col_set_str(pinfo->cinfo, COL_DEF_SRC,
+	col_set_str(pinfo->cinfo, COL_DEF_SRC,
 			    pinfo->pseudo_header->l1event.uton? "TE" : "NT");
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-	        len = tvb_find_line_end(tvb, 0,
-					tvb_ensure_length_remaining(tvb, 0),
+	len = tvb_find_line_end(tvb, 0, tvb_ensure_length_remaining(tvb, 0),
 					&next_offset, FALSE);
-	        if(len>0)
-		        col_add_str(pinfo->cinfo, COL_INFO,
-				    tvb_format_text(tvb, 0, len));
-	}
+	if(len>0)
+		col_add_str(pinfo->cinfo, COL_INFO, tvb_format_text(tvb, 0, len));
+
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_l1_events,
 				tvb, 0, -1, ENC_NA);
@@ -106,15 +109,15 @@ dissect_l1_events(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 				break;
 
 			/* We use next_offset - offset instead of len in the
-			 * call to tvb_format_text() so it will include the
+			 * call to proto_tree_add_format_text() so it will include the
 			 * line terminator(s) (\r and/or \n) in the display.
 			 */
-			proto_tree_add_text(subtree, tvb, offset, next_offset - offset,
-					    "%s", tvb_format_text(tvb, offset,
-								  next_offset - offset));
+			proto_tree_add_format_text(subtree, tvb, offset, next_offset - offset);
 			offset = next_offset;
 		}
 	}
+
+	return tvb_length(tvb);
 }
 
 void
@@ -130,7 +133,7 @@ proto_register_l1_events(void)
 			"Layer 1 Event Messages", /* Long name */
 			"Layer 1 Events",	  /* Short name */
 			"data-l1-events");		/* Filter name */
-	register_dissector("data-l1-events", dissect_l1_events, proto_l1_events);
+	new_register_dissector("data-l1-events", dissect_l1_events, proto_l1_events);
 }
 
 void

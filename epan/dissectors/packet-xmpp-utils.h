@@ -2,8 +2,6 @@
  *
  * Copyright 2011, Mariusz Okroj <okrojmariusz[]gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,6 +25,9 @@
 #define XMPP_UTILS_H
 
 #include "ws_symbol_export.h"
+#include "tvbuff.h"
+#include "dissectors/packet-xml.h"
+#include <epan/wmem/wmem.h>
 
 #define xmpp_elem_cdata(elem) \
 elem->data?elem->data->value:""
@@ -75,7 +76,7 @@ typedef struct _xmpp_element_t{
 /*informations about attributes that are displayed in proto tree*/
 typedef struct _xmpp_attr_info{
     const gchar *name;
-    gint hf;
+    const gint *phf;
     gboolean is_required;
     gboolean in_short_list;
 
@@ -112,10 +113,10 @@ typedef struct _xmpp_elem_info{
 } xmpp_elem_info;
 
 typedef struct _xmpp_conv_info_t {
-    emem_tree_t *req_resp;
-    emem_tree_t *jingle_sessions;
-    emem_tree_t *ibb_sessions;
-    emem_tree_t *gtalk_sessions;
+    wmem_tree_t *req_resp;
+    wmem_tree_t *jingle_sessions;
+    wmem_tree_t *ibb_sessions;
+    wmem_tree_t *gtalk_sessions;
     guint32      ssl_start;
     guint32      ssl_proceed;
 } xmpp_conv_info_t;
@@ -130,23 +131,23 @@ typedef struct _xmpp_reqresp_transaction_t {
 
 /** Function that is responsibe for request/response tracking in IQ packets.
  * Each IQ set/get packet should have the response in other IQ result/error packet.
- * Both packet should have the same id attribute. Function saves in emem_tree pairs of
+ * Both packet should have the same id attribute. Function saves in wmem_tree pairs of
  * packet id and struct xmpp_transaction_t.
  */
 extern void xmpp_iq_reqresp_track(packet_info *pinfo, xmpp_element_t *packet, xmpp_conv_info_t *xmpp_info);
 
 /** Function that is responsibe for jingle session tracking in IQ packets.
- * Function saves in emem_tree pairs of packet's id and Jingle session's id.
+ * Function saves in wmem_tree pairs of packet's id and Jingle session's id.
  */
 extern void xmpp_jingle_session_track(packet_info *pinfo, xmpp_element_t *packet, xmpp_conv_info_t *xmpp_info);
 
 /** Function that is responsibe for ibb(in band bytestreams) session tracking in IQ packets.
- * Function saves in emem_tree pairs of packet's id and In-Band Bytestreams session's id.
+ * Function saves in wmem_tree pairs of packet's id and In-Band Bytestreams session's id.
  */
 extern void xmpp_ibb_session_track(packet_info *pinfo, xmpp_element_t *packet, xmpp_conv_info_t *xmpp_info);
 
 /** Function that is responsibe for GTalk session(voice/video) tracking in IQ packets.
- * Function saves in emem_tree pairs of packet's id and GTalk session's id.
+ * Function saves in wmem_tree pairs of packet's id and GTalk session's id.
  */
 extern void xmpp_gtalk_session_track(packet_info *pinfo, xmpp_element_t *packet, xmpp_conv_info_t *xmpp_info);
 
@@ -236,19 +237,21 @@ extern gpointer xmpp_name_attr_struct(const gchar *name, const gchar *attr_name,
  * - val_func - validate function
  * - data - data passes to the val_func
  */
-extern void xmpp_display_attrs(proto_tree *tree, xmpp_element_t *element, packet_info *pinfo, tvbuff_t *tvb, xmpp_attr_info *attrs, guint n);
+extern void xmpp_display_attrs(proto_tree *tree, xmpp_element_t *element, packet_info *pinfo, tvbuff_t *tvb, const xmpp_attr_info *attrs, guint n);
 
 /** Function does the same as shown above. It takes attrs(XMPP_ATTR_INFO_EXT) argument
  * that contains XMPP_ATTR_INFO struct and string with namespace. It is used when packet
  * contains several namespaces and each attribute belongs to particular namespace.
  * E.g.
+ * @code
  * <auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl'
  *  mechanism='PLAIN'
  *  xmlns:ga='http://www.google.com/talk/protocol/auth'
  *  ga:client-uses-full-bind-result='true'>
  * </auth>
+ * @endcode
  */
-extern void xmpp_display_attrs_ext(proto_tree *tree, xmpp_element_t *element, packet_info *pinfo, tvbuff_t *tvb, xmpp_attr_info_ext *attrs, guint n);
+extern void xmpp_display_attrs_ext(proto_tree *tree, xmpp_element_t *element, packet_info *pinfo, tvbuff_t *tvb, const xmpp_attr_info_ext *attrs, guint n);
 
 /** Displays elements from parent element in a way described in elems(XMPP_ELEM_INFO).
  * XMPP_ELEM_INFO describes how to find particular element and what action should be done

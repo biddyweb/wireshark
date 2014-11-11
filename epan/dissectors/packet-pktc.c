@@ -9,8 +9,6 @@
  * Ronnie Sahlberg 2004
  * Thomas Anders 2004
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,8 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
+#include <epan/to_str.h>
 #include <epan/asn1.h>
 #include "packet-pktc.h"
 #include "packet-kerberos.h"
@@ -40,6 +40,11 @@
 
 #define PKTC_PORT	1293
 #define PKTC_MTAFQDN_PORT	2246
+
+void proto_register_pktc(void);
+void proto_reg_handoff_pktc(void);
+void proto_register_pktc_mtafqdn(void);
+void proto_reg_handoff_pktc_mtafqdn(void);
 
 static int proto_pktc = -1;
 static gint hf_pktc_app_spec_data = -1;
@@ -379,7 +384,7 @@ dissect_pktc_ap_reply(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb, int o
     proto_tree_add_uint_format(tree, hf_pktc_sec_param_lifetime, tvb, offset, 4,
                                tvb_get_ntohl(tvb, offset), "%s: %s",
                                proto_registrar_get_name(hf_pktc_sec_param_lifetime),
-                               time_secs_to_str(tvb_get_ntohl(tvb, offset)));
+                               time_secs_to_ep_str(tvb_get_ntohl(tvb, offset)));
     offset+=4;
 
     /* grace period */
@@ -431,9 +436,8 @@ dissect_pktc_rekey(packet_info *pinfo, proto_tree *tree, tvbuff_t *tvb, int offs
     /* Timestamp: YYMMDDhhmmssZ */
     /* They really came up with a two-digit year in late 1990s! =8o */
     timestr=tvb_get_ptr(tvb, offset, 13);
-    proto_tree_add_string_format(tree, hf_pktc_timestamp, tvb, offset, 13, timestr,
-                                "%s: %.2s-%.2s-%.2s %.2s:%.2s:%.2s",
-                                proto_registrar_get_name(hf_pktc_timestamp),
+    proto_tree_add_string_format_value(tree, hf_pktc_timestamp, tvb, offset, 13, timestr,
+                                "%.2s-%.2s-%.2s %.2s:%.2s:%.2s",
 				 timestr, timestr+2, timestr+4, timestr+6, timestr+8, timestr+10);
     offset+=13;
 
@@ -487,8 +491,7 @@ dissect_pktc_mtafqdn_krbsafeuserdata(packet_info *pinfo, tvbuff_t *tvb, proto_tr
     proto_tree_add_uint(tree, hf_pktc_mtafqdn_msgtype, tvb, offset, 1, msgtype);
     offset+=1;
 
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_add_str(pinfo->cinfo, COL_INFO,
+    col_add_str(pinfo->cinfo, COL_INFO,
                    val_to_str(msgtype, pktc_mtafqdn_msgtype_vals, "MsgType %u"));
 
     /* enterprise */
@@ -512,10 +515,12 @@ dissect_pktc_mtafqdn_krbsafeuserdata(packet_info *pinfo, tvbuff_t *tvb, proto_tr
        /* manufacturer cert revocation time */
        bignum = tvb_get_ntohl(tvb, offset);
        ts.secs = bignum;
-       proto_tree_add_time_format(tree, hf_pktc_mtafqdn_manu_cert_revoked, tvb, offset, 4,
-                                  &ts, "%s: %s",
-                                  proto_registrar_get_name(hf_pktc_mtafqdn_manu_cert_revoked),
-                                  (bignum==0) ? "not revoked" : abs_time_secs_to_str(bignum, ABSOLUTE_TIME_LOCAL, TRUE));
+       if (bignum==0) {
+           proto_tree_add_time_format_value(tree, hf_pktc_mtafqdn_manu_cert_revoked, tvb, offset, 4,
+                                  &ts, "not revoked");
+       } else {
+           proto_tree_add_time(tree, hf_pktc_mtafqdn_manu_cert_revoked, tvb, offset, 4, &ts);
+       }
        break;
 
     case PKTC_MTAFQDN_REP:
@@ -556,11 +561,8 @@ dissect_pktc_mtafqdn(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         pktc_mtafqdn_tree = proto_item_add_subtree(item, ett_pktc_mtafqdn);
     }
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        col_add_fstr(pinfo->cinfo, COL_INFO, "MTA FQDN %s",
+    col_add_fstr(pinfo->cinfo, COL_INFO, "MTA FQDN %s",
                     pinfo->srcport == pinfo->match_uint ? "Reply":"Request");
-    }
-
 
     /* KRB_AP_RE[QP] */
     pktc_mtafqdn_tvb = tvb_new_subset_remaining(tvb, offset);
@@ -609,12 +611,10 @@ dissect_pktc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     offset+=1;
 
     /* fill COL_INFO */
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        col_add_str(pinfo->cinfo, COL_INFO,
+    col_add_str(pinfo->cinfo, COL_INFO,
 		    val_to_str(kmmid, kmmid_types, "Unknown KMMID %#x"));
 	col_append_fstr(pinfo->cinfo, COL_INFO, " (%s)",
 		        val_to_str(doi, doi_types, "Unknown DOI %#x"));
-    }
 
     switch(kmmid){
     case KMMID_WAKEUP:

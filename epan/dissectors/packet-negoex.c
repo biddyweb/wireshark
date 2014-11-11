@@ -4,8 +4,6 @@
  * Copyright 2012 Richard Sharpe <realrichardsharpe@gmail.com>
  * Routines for SPNEGO Extended Negotiation Security Mechanism
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -22,17 +20,21 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 #include "config.h"
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/show_exception.h>
 
 #include "packet-dcerpc.h"
 #include "packet-gssapi.h"
+
+void proto_register_negoex(void);
+void proto_reg_handoff_negoex(void);
 
 static int proto_negoex = -1;
 static int hf_negoex_sig = -1;
@@ -101,6 +103,7 @@ static const value_string checksum_schemes[] = {
   {0, NULL}
 };
 
+#if 0
 static const value_string alert_types[] = {
   {1, "ALERT_TYPE_PULSE"},
   {0, NULL}
@@ -110,6 +113,7 @@ static const value_string alert_reasons[] = {
   {1, "ALERT_VERIFY_NO_KEY"},
   {0, NULL}
 };
+#endif
 
 static void
 dissect_negoex_alert_message(tvbuff_t *tvb,
@@ -512,11 +516,6 @@ dissect_negoex(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 }
 
-static void
-negoex_init_protocol(void)
-{
-}
-
 void
 proto_register_negoex(void)
 {
@@ -625,7 +624,6 @@ proto_register_negoex(void)
     );
   proto_register_field_array(proto_negoex, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
-  register_init_routine(&negoex_init_protocol);
 
   /* negoex_module = prefs_register_protocol(proto_negoex, NULL);*/
 

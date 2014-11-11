@@ -5,8 +5,6 @@
  *
  * (c) 2006, Luis E. Garcia Ontanon <luis@ontanon.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -23,7 +21,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. 
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 #include "config.h"
@@ -50,14 +48,14 @@ void funnel_register_menu(const char *name,
                           void (*callback)(gpointer),
                           gpointer callback_data,
                           gboolean retap) {
-    funnel_menu_t* m = g_malloc(sizeof(funnel_menu_t));
+    funnel_menu_t* m = (funnel_menu_t *)g_malloc(sizeof(funnel_menu_t));
     m->name = g_strdup(name);
     m->group = group;
     m->callback = callback;
     m->callback_data = callback_data;
     m->retap = retap;
     m->next = NULL;
-    
+
     if (!menus)  {
         menus = m;
     } else {

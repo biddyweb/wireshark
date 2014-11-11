@@ -3,8 +3,6 @@
  *
  * Copyright 2011, Mike Morrin <mike.morrin [AT] ipaccess.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,9 @@
 #include <epan/packet.h>
 #include <epan/reassemble.h>
 #include "packet-cell_broadcast.h"
+
+void proto_register_gsm_cbch(void);
+void proto_reg_handoff_gsm_cbch(void);
 
 #define CBCH_FRAGMENT_SIZE 22
 
@@ -67,6 +68,7 @@ static int hf_gsm_cbch_sched_type = -1;
 static int hf_gsm_cbch_sched_begin_slot = -1;
 static int hf_gsm_cbch_sched_spare = -1;
 static int hf_gsm_cbch_sched_end_slot = -1;
+static int hf_gsm_cbch_slot = -1;
 /* static int hf_gsm_cbch_sched_msg_id = -1; */
 
 /* These fields are used when reassembling cbch fragments
@@ -93,8 +95,7 @@ static dissector_handle_t data_handle;
 static dissector_handle_t cbs_handle;
 
 /* reassembly of CHCH blocks */
-static GHashTable *fragment_block_table      = NULL;
-static GHashTable *reassembled_message_table = NULL;
+static reassembly_table cbch_block_reassembly_table;
 
 /* Structure needed for the fragmentation routines in reassemble.c
  */
@@ -119,16 +120,16 @@ static const fragment_items cbch_frag_items = {
 static void
 cbch_defragment_init(void)
 {
-    fragment_table_init(&fragment_block_table);
-    reassembled_table_init(&reassembled_message_table);
+    reassembly_table_init(&cbch_block_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 static void
 dissect_schedule_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree)
 {
+    guint       len, offset     = 0;
     guint8      octet1, i, j, k = 0;
-    guint8      len, sched_begin, sched_end, new_slots[48];
-    guint8      offset          = 0;
+    guint8      sched_begin, sched_end, new_slots[48];
     gboolean    valid_message   = TRUE;
     guint16     other_slots[48];
     proto_item *item            = NULL, *schedule_item = NULL;
@@ -196,7 +197,7 @@ dissect_schedule_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree
             sched_subtree = proto_item_add_subtree(item, ett_schedule_new_msg);
             for (i=0; i<k; i++)
             {
-                DISSECTOR_ASSERT(new_slots[i] < 48);
+                DISSECTOR_ASSERT(new_slots[i] <= 48);
                 octet1 = tvb_get_guint8(tvb, offset);
                 if ((octet1 & 0x80) == 0x80)
                 {
@@ -206,8 +207,8 @@ dissect_schedule_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree
 
                     octet2 = tvb_get_guint8(tvb, offset + 1);
                     msg_id = ((octet1 &0x7F) << 8) + octet2;
-                    proto_tree_add_text(sched_subtree, tvb, offset, 2,
-                                        "Slot: %d, Message ID: %d, First transmission of an SMSCB within the Schedule Period",
+                    proto_tree_add_uint_format_value(sched_subtree, hf_gsm_cbch_slot, tvb, offset, 2, new_slots[i],
+                                        "%d, Message ID: %d, First transmission of an SMSCB within the Schedule Period",
                                         new_slots[i], msg_id);
                     offset +=2;
                     other_slots[new_slots[i] - 1] = msg_id;
@@ -215,36 +216,45 @@ dissect_schedule_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree
                 else if ((octet1 & 0xC0) == 0)
                 {
                     /* MDT 00 */
-                    if (octet1 < new_slots[i])
+                    if (octet1 == 0)
                     {
-                        proto_tree_add_text(sched_subtree, tvb, offset++, 1,
-                                            "Slot: %d, Message ID: %d, Repeat of Slot %d",
+                        proto_tree_add_uint_format_value(sched_subtree, hf_gsm_cbch_slot, tvb, offset++, 1, new_slots[i],
+                                            "%d, Repeat of non-existant slot %d",
+                                            new_slots[i], octet1);
+                    }
+                    else if (octet1 < new_slots[i])
+                    {
+                        proto_tree_add_uint_format_value(sched_subtree, hf_gsm_cbch_slot, tvb, offset++, 1, new_slots[i],
+                                            "%d, Message ID: %d, Repeat of Slot %d",
                                             new_slots[i], other_slots[octet1 - 1], octet1);
                         other_slots[new_slots[i] - 1] = other_slots[octet1 - 1];
                     }
                     else
                     {
-                        proto_tree_add_text(sched_subtree, tvb, offset++, 1,
-                                            "Slot: %d, Apparent forward reference to slot %d",
+                        proto_tree_add_uint_format_value(sched_subtree, hf_gsm_cbch_slot, tvb, offset++, 1, new_slots[i],
+                                            "%d, Apparent forward reference to slot %d",
                                             new_slots[i], octet1);
                     }
                 }
                 else if (octet1 == 0x40)
                 {
                     /* MDT 010000000 */
-                    proto_tree_add_text(sched_subtree, tvb, offset++, 1, "Slot: %d Free Message Slot, optional reading", new_slots[k]);
+                    proto_tree_add_uint_format_value(sched_subtree, hf_gsm_cbch_slot, tvb, offset++, 1, new_slots[k],
+                                    "%d Free Message Slot, optional reading", new_slots[k]);
                     other_slots[new_slots[i] - 1] = 0xFFFE;
                 }
                 else if (octet1 == 0x41)
                 {
                     /* MDT 010000001 */
-                    proto_tree_add_text(sched_subtree, tvb, offset++, 1, "Slot: %d Free Message Slot, reading advised", new_slots[k]);
+                    proto_tree_add_uint_format_value(sched_subtree, hf_gsm_cbch_slot, tvb, offset++, 1, new_slots[k],
+                                     "%d Free Message Slot, reading advised", new_slots[k]);
                     other_slots[new_slots[i] - 1] = 0xFFFE;
                 }
                 else
                 {
                     /* reserved MDT */
-                    proto_tree_add_text(sched_subtree, tvb, offset, 1, "Slot: %d reserved MDT: %x", new_slots[k], octet1);
+                    proto_tree_add_uint_format_value(sched_subtree, hf_gsm_cbch_slot, tvb, offset, 1, new_slots[k],
+                                     "%d reserved MDT: %x", new_slots[k], octet1);
                     other_slots[new_slots[i] - 1] = 0xFFFE;
                 }
             }
@@ -253,9 +263,15 @@ dissect_schedule_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree
             /* print schedule of other messages */
             item = proto_tree_add_text(sched_tree, tvb, offset, 0, "Other message slots in this schedule");
             sched_subtree = proto_item_add_subtree(item, ett_schedule_new_msg);
-            for (k=0; offset<len; j++)
+            for (k=0; offset < len; j++)
             {
-                while ((other_slots[k]!=0xFFFF) && (k<sched_end))
+                /* XXX I don't know if a message can validly contain more than
+                 * 48 slots, but that's the size of the array we create so cap
+                 * it there to avoid uninitialized memory errors (see bug
+                 * https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=9270) */
+                if (sched_end > 48)
+                    sched_end = 48;
+                while ((k<sched_end) && (other_slots[k]!=0xFFFF))
                 {
                     k++;
                 }
@@ -274,43 +290,62 @@ dissect_schedule_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree
                         octet2 = tvb_get_guint8(tvb, offset + 1);
                         msg_id = ((octet1 &0x7F) << 8) + octet2;
                         other_slots[k] = msg_id;
-                        proto_tree_add_text(sched_subtree, tvb, offset, 2,
-                                            "Slot: %d, Message: %d, First transmission of an SMSCB within the Schedule Period",
-                                            ++k, msg_id);
+                        k++;
+                        proto_tree_add_uint_format_value(sched_subtree, hf_gsm_cbch_slot, tvb, offset, 2, k,
+                                            "%d, Message: %d, First transmission of an SMSCB within the Schedule Period",
+                                            k, msg_id);
                         offset +=2;
                     }
+                    else
+                    {
+                        /* I'm not sure what's supposed to be dissected in this
+                         * case. Perhaps just an expert info is appropriate?
+                         * Regardless, we need to increment k to prevent an
+                         * infinite loop, see
+                         * https://bugs.wireshark.org/bugzilla/show_bug.cgi?id=8730
+                         */
+                        ++k;
+                    }
                 }
-                else if ((octet1 & 0xC0) == 0)
+                else if (octet1 && ((octet1 & 0xC0) == 0))
                 {
                     /* MDT 00 */
                     if (octet1 < k)
                     {
                         other_slots[k] = other_slots[octet1 - 1];
-                        proto_tree_add_text(sched_subtree, tvb, offset++, 1,
-                                            "Slot: %d, Message ID: %d, Repeat of Slot %d",
-                                            ++k, other_slots[octet1 - 1], octet1);
+                        k++;
+                        proto_tree_add_uint_format_value(sched_subtree, hf_gsm_cbch_slot, tvb, offset++, 1, k,
+                                            "%d, Message ID: %d, Repeat of Slot %d",
+                                            k, other_slots[octet1 - 1], octet1);
                     }
                     else
                     {
-                        proto_tree_add_text(sched_subtree, tvb, offset++, 1,
-                                            "Slot: %d, Apparent forward reference to slot %d",
-                                            ++k, octet1);
+                        k++;
+                        proto_tree_add_uint_format_value(sched_subtree, hf_gsm_cbch_slot, tvb, offset++, 1, k,
+                                            "%d, Apparent forward reference to slot %d",
+                                            k, octet1);
                     }
                 }
                 else if (octet1 == 0x40)
                 {
                     /* MDT 010000000 */
-                    proto_tree_add_text(sched_subtree, tvb, offset++, 1, "Slot: %d Free Message Slot, optional reading", ++k);
+                    k++;
+                    proto_tree_add_uint_format_value(sched_subtree, hf_gsm_cbch_slot, tvb, offset++, 1, k,
+                            "%d Free Message Slot, optional reading", k);
                 }
                 else if (octet1 == 0x41)
                 {
                     /* MDT 010000001 */
-                    proto_tree_add_text(sched_subtree, tvb, offset++, 1, "Slot: %d Free Message Slot, reading advised", ++k);
+                    k++;
+                    proto_tree_add_uint_format_value(sched_subtree, hf_gsm_cbch_slot, tvb, offset++, 1, k,
+                            "%d Free Message Slot, reading advised", k);
                 }
                 else
                 {
                     /* reserved MDT */
-                    proto_tree_add_text(sched_subtree, tvb, offset, 1, "Slot: %d reserved MDT: %x", ++k, octet1);
+                    k++;
+                    proto_tree_add_uint_format_value(sched_subtree, hf_gsm_cbch_slot, tvb, offset, 1, k,
+                            "%d reserved MDT: %x", k, octet1);
                 }
             }
             proto_item_set_end(item, tvb, offset);
@@ -322,7 +357,7 @@ dissect_schedule_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *top_tree
 static void
 dissect_cbch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-    fragment_data *frag_data = NULL;
+    fragment_head *frag_data = NULL;
     guint8         octet, lb, lpd, seq_num;
     guint32        offset;
     guint32        len;
@@ -370,8 +405,8 @@ dissect_cbch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                this information is carried in the initial sequence number, not the payload,
                so we prepend the reassembly with the octet containing the initial sequence number
                to allow later dissection of the payload */
-            frag_data = fragment_add_seq_check(tvb, offset, pinfo, 0,
-                                               fragment_block_table, reassembled_message_table,
+            frag_data = fragment_add_seq_check(&cbch_block_reassembly_table,
+                                               tvb, offset, pinfo, 0, NULL,
                                                seq_num & 0x03, CBCH_FRAGMENT_SIZE + 1, !lb);
             reass_tvb = process_reassembled_data(tvb, offset, pinfo, "Reassembled CBCH message",
                                                  frag_data, &cbch_frag_items, NULL, cbch_tree);
@@ -382,9 +417,9 @@ dissect_cbch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         case 0x03:
             pinfo->fragmented = TRUE;
             offset++; /* step to beginning of payload */
-            frag_data = fragment_add_seq_check(tvb, offset, pinfo, 0,
-                                               fragment_block_table, reassembled_message_table, seq_num,
-                                               CBCH_FRAGMENT_SIZE, !lb);
+            frag_data = fragment_add_seq_check(&cbch_block_reassembly_table,
+                                               tvb, offset, pinfo, 0, NULL,
+                                               seq_num, CBCH_FRAGMENT_SIZE, !lb);
             reass_tvb = process_reassembled_data(tvb, offset, pinfo, "Reassembled CBCH message",
                                                  frag_data, &cbch_frag_items, NULL, cbch_tree);
             break;
@@ -472,6 +507,11 @@ proto_register_gsm_cbch(void)
             { &hf_gsm_cbch_sched_end_slot,
               { "GSM CBCH Schedule End Slot",   "gsm_cbch.sched_end",
                 FT_UINT8, BASE_DEC, NULL, 0x3F,
+                NULL, HFILL}
+            },
+            { &hf_gsm_cbch_slot,
+              { "Slot",   "gsm_cbch.slot",
+                FT_UINT8, BASE_DEC, NULL, 0x0,
                 NULL, HFILL}
             },
 #if 0

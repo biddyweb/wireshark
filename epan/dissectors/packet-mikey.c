@@ -2,8 +2,6 @@
  * Routines for Multimedia Internet KEYing dissection
  * Copyright 2007, Mikael Magnusson <mikma@users.sourceforge.net>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -42,10 +40,13 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/prefs.h>
 #include <epan/asn1.h>
 #include <epan/dissectors/packet-x509af.h>
+
+void proto_register_mikey(void);
+void proto_reg_handoff_mikey(void);
 
 #define PORT_MIKEY 2269
 static guint global_mikey_tcp_port = PORT_MIKEY;
@@ -604,8 +605,7 @@ struct mikey_dissector_entry {
 };
 
 /* Forward declaration we need below */
-void proto_reg_handoff_mikey(void);
-static int dissect_payload(enum payload_t payload, mikey_t *mikey, tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+static int dissect_payload(int payload, mikey_t *mikey, tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 
 
 /* Initialize the protocol and registered fields */
@@ -621,6 +621,7 @@ static gint ett_mikey_sp_param = -1;
 static gint ett_mikey_hdr_id = -1;
 static gint ett_mikey_enc_data = -1;
 
+static dissector_handle_t mikey_handle;
 
 static const struct mikey_dissector_entry *
 mikey_dissector_lookup(const struct mikey_dissector_entry *map, int type)
@@ -675,7 +676,7 @@ static const struct mikey_dissector_entry cs_id_map[] = {
 };
 
 static int
-dissect_payload_cs_id(enum cs_id_map_t type, mikey_t *mikey, tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+dissect_payload_cs_id(int type, mikey_t *mikey, tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	const struct mikey_dissector_entry *entry;
 
@@ -937,7 +938,7 @@ dissect_payload_id(mikey_t *mikey _U_, tvbuff_t *tvb, packet_info *pinfo _U_, pr
 		parent = proto_tree_get_parent(tree);
 		proto_item_append_text(parent, " %s: %s",
 				       val_to_str_const(type, id_type_vals, "Unknown"),
-				       tvb_get_ephemeral_string(tvb, 4, length));
+				       tvb_get_string(wmem_packet_scope(), tvb, 4, length));
 	}
 
 	return 4 + length;
@@ -967,7 +968,7 @@ dissect_payload_idr(mikey_t *mikey _U_, tvbuff_t *tvb, packet_info *pinfo _U_, p
 		parent = proto_tree_get_parent(tree);
 		proto_item_append_text(parent, " %s: %s",
 				       val_to_str_const(type, id_type_vals, "Unknown"),
-				       tvb_get_ephemeral_string(tvb, 5, length));
+				       tvb_get_string(wmem_packet_scope(), tvb, 5, length));
 	}
 
 	return 5 + length;
@@ -1094,7 +1095,7 @@ dissect_payload_sp(mikey_t *mikey _U_, tvbuff_t *tvb, packet_info *pinfo _U_, pr
 	tvb_ensure_bytes_exist(tvb, offset+0, 5);
 	length = tvb_get_ntohs(tvb, offset+3);
 	no     = tvb_get_guint8(tvb, offset+1);
-	type   = tvb_get_guint8(tvb, offset+2);
+	type   = (enum sp_prot_t)tvb_get_guint8(tvb, offset+2);
 
 	if (tree) {
 		proto_item *parent;
@@ -1328,7 +1329,7 @@ static const struct mikey_dissector_entry payload_map[] = {
 };
 
 static int
-dissect_payload(enum payload_t payload, mikey_t *mikey, tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+dissect_payload(int payload, mikey_t *mikey, tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	const struct mikey_dissector_entry *entry;
 
@@ -1352,12 +1353,12 @@ dissect_mikey(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
 	int	    payload;
 	mikey_t	   *mikey;
 
-	mikey = p_get_proto_data(pinfo->fd, proto_mikey);
+	mikey = (mikey_t *)p_get_proto_data(wmem_file_scope(), pinfo, proto_mikey, 0);
 
 	if (!mikey) {
-		mikey = se_alloc0(sizeof(mikey_t));
+		mikey = wmem_new0(wmem_file_scope(), mikey_t);
 		mikey->type = -1;
-		p_add_proto_data(pinfo->fd, proto_mikey, mikey);
+		p_add_proto_data(wmem_file_scope(), pinfo, proto_mikey, 0, mikey);
 	}
 
 
@@ -1419,8 +1420,7 @@ dissect_mikey(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
 
 	col_append_str(pinfo->cinfo, COL_PROTOCOL, "/MIKEY");
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_append_fstr(pinfo->cinfo, COL_INFO, ", Mikey: %s",
+	col_append_fstr(pinfo->cinfo, COL_INFO, ", Mikey: %s",
 				val_to_str_ext_const(mikey->type, &data_type_vals_ext, "Unknown"));
 
 	/* Return the amount of data this dissector was able to dissect */
@@ -1904,7 +1904,8 @@ proto_register_mikey(void)
 	/* Register the protocol name and description */
 	proto_mikey = proto_register_protocol("Multimedia Internet KEYing",
 		"MIKEY", "mikey");
-	new_register_dissector("mikey", dissect_mikey, proto_mikey);
+
+	mikey_handle = new_register_dissector("mikey", dissect_mikey, proto_mikey);
 
 	/* Required function calls to register the header fields and subtrees used */
 	proto_register_field_array(proto_mikey, hf, array_length(hf));
@@ -1927,13 +1928,11 @@ proto_register_mikey(void)
 void
 proto_reg_handoff_mikey(void)
 {
-	static dissector_handle_t mikey_handle;
 	static guint		  mikey_tcp_port;
 	static guint		  mikey_udp_port;
 	static gboolean inited = FALSE;
 
 	if (!inited) {
-		mikey_handle = new_create_dissector_handle(dissect_mikey, proto_mikey);
 		dissector_add_string("key_mgmt", "mikey", mikey_handle);
 		inited = TRUE;
 	} else {

@@ -5,8 +5,6 @@
  *
  * Author: Lu Pan <lu.pan@intel.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1999 Gerald Combs
@@ -34,12 +32,14 @@
 #include <epan/packet.h>
 #include "wimax_mac.h"
 
+void proto_register_mac_mgmt_msg_clk_cmp(void);
+void proto_reg_handoff_mac_mgmt_msg_clk_cmp(void);
+
 static gint proto_mac_mgmt_msg_clk_cmp_decoder = -1;
 
 static gint ett_mac_mgmt_msg_clk_cmp_decoder = -1;
 
 /* CLK_CMP fields */
-static gint hf_clk_cmp_message_type = -1;
 static gint hf_clk_cmp_clock_count = -1;
 static gint hf_clk_cmp_clock_id = -1;
 static gint hf_clk_cmp_seq_number = -1;
@@ -48,34 +48,19 @@ static gint hf_clk_cmp_comparison_value = -1;
 
 
 /* Decode CLK_CMP messages. */
-void dissect_mac_mgmt_msg_clk_cmp_decoder(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
+static void dissect_mac_mgmt_msg_clk_cmp_decoder(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree)
 {
 	guint offset = 0;
 	guint i;
 	guint clock_count;
-	guint tvb_len, payload_type;
-	proto_item *clk_cmp_item = NULL;
-	proto_tree *clk_cmp_tree = NULL;
+	proto_item *clk_cmp_item;
+	proto_tree *clk_cmp_tree;
 
-	/* Ensure the right payload type */
-	payload_type = tvb_get_guint8(tvb, 0);
-	if(payload_type != MAC_MGMT_MSG_CLK_CMP)
-	{
-		return;
-	}
-
-	if (tree)
 	{	/* we are being asked for details */
-		/* Get the tvb reported length */
-		tvb_len =  tvb_reported_length(tvb);
 		/* display MAC payload type CLK_CMP */
-		clk_cmp_item = proto_tree_add_protocol_format(tree, proto_mac_mgmt_msg_clk_cmp_decoder, tvb, offset, tvb_len, "Clock Comparison (CLK-CMP) (%u bytes)", tvb_len);
+		clk_cmp_item = proto_tree_add_protocol_format(tree, proto_mac_mgmt_msg_clk_cmp_decoder, tvb, offset, -1, "Clock Comparison (CLK-CMP)");
 		/* add MAC CLK_CMP subtree */
 		clk_cmp_tree = proto_item_add_subtree(clk_cmp_item, ett_mac_mgmt_msg_clk_cmp_decoder);
-		/* display the Message Type */
-		proto_tree_add_item(clk_cmp_tree, hf_clk_cmp_message_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-		/* set the offset for clock count */
-		offset ++;
 		/* get the clock count */
 		clock_count = tvb_get_guint8(tvb, offset);
 		/* display the clock count */
@@ -99,13 +84,6 @@ void proto_register_mac_mgmt_msg_clk_cmp(void)
 	/* CLK_CMP fields display */
 	static hf_register_info hf_clk_cmp[] =
 	{
-		{
-			&hf_clk_cmp_message_type,
-			{
-				"MAC Management Message Type", "wmx.macmgtmsgtype.clk_cmp",
-				FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL
-			}
-		},
 		{
 			&hf_clk_cmp_clock_count,
 			{
@@ -159,4 +137,13 @@ void proto_register_mac_mgmt_msg_clk_cmp(void)
 
 	proto_register_field_array(proto_mac_mgmt_msg_clk_cmp_decoder, hf_clk_cmp, array_length(hf_clk_cmp));
 	proto_register_subtree_array(ett, array_length(ett));
+}
+
+void
+proto_reg_handoff_mac_mgmt_msg_clk_cmp(void)
+{
+	dissector_handle_t handle;
+
+	handle = create_dissector_handle(dissect_mac_mgmt_msg_clk_cmp_decoder, proto_mac_mgmt_msg_clk_cmp_decoder);
+	dissector_add_uint("wmx.mgmtmsg", MAC_MGMT_MSG_CLK_CMP, handle);
 }

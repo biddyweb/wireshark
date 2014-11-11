@@ -4,8 +4,6 @@
  *
  * Official home page: http://openlito.sourceforge.net/
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,7 +28,10 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
+
+void proto_register_manolito(void);
+void proto_reg_handoff_manolito(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_manolito = -1;
@@ -166,7 +167,7 @@ dissect_manolito(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			 * widen it past 8 bits, so there shouldn't
 			 * be an overflow.
 			 */
-			data = ep_alloc((guint)length + 1);
+			data = (guint8 *)wmem_alloc(wmem_packet_scope(), (guint)length + 1);
 			tvb_memcpy(tvb, data, ++offset, length);
 			offset += length;
 
@@ -278,4 +279,3 @@ proto_reg_handoff_manolito(void)
 	    proto_manolito);
 	dissector_add_uint("udp.port", 41170, manolito_handle);
 }
-

@@ -1,8 +1,6 @@
 /* packet-smb2.h
  * Defines for SMB2 packet dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998, 1999 Gerald Combs
@@ -58,9 +56,9 @@ typedef enum {
 	SMB2_EI_FINDPATTERN	/* find tracking  char * */
 } smb2_extra_info_t;
 typedef struct _smb2_saved_info_t {
-	guint8 class;
+	guint8 smb2_class;
 	guint8 infolevel;
-	guint64 seqnum;
+	guint64 msg_id;
 	guint32 frame_req, frame_res;
 	nstime_t req_time;
 	e_ctx_hnd policy_hnd; 		/* for eo_smb tracking */
@@ -165,14 +163,14 @@ typedef struct _smb2_info_t {
 	guint32 status;
 	guint32 tid;
 	guint64 sesid;
-	gint64  seqnum;
+	gint64  msg_id;
 	guint32 flags;
 	smb2_eo_file_info_t	*eo_file_info; /* eo_smb extra info */
 	smb2_conv_info_t	*conv;
 	smb2_saved_info_t	*saved;
 	smb2_tid_info_t		*tree;
 	smb2_sesid_info_t	*session;
-	proto_tree *top_tree;	
+	proto_tree *top_tree;
 } smb2_info_t;
 
 /* for transform content information */

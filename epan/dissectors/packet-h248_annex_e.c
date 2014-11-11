@@ -4,8 +4,6 @@
  *
  *  (c) 2006, Luis E. Garcia Ontanon <luis@ontanon.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,9 @@
 /*****/
 
 #include "packet-h248.h"
+
+void proto_register_h248_annex_e(void);
+
 #define PNAME  "H.248 Annex E"
 #define PSNAME "H248E"
 #define PFNAME "h248e"
@@ -387,10 +388,12 @@ static const value_string  h248_pkg_dg_signals_vals[] = {
 	{0,NULL}
 };
 
+#if 0
 static const value_string h248_pkg_dg_sig_params_vals[] = {
 	{ 0x0001, "Tone Direction (btd)" },
 	{ 0, NULL }
 };
+#endif
 
 static const value_string h248_pkg_dg_sig_btd_vals[] = {
 	{ 0x0001, "External (EXT)" },
@@ -690,7 +693,7 @@ static h248_package_t h248_pkg_cd = {
 	h248_pkg_cg_sig_cd_evt_vals,
 	NULL,
 	NULL,NULL,
-	(h248_pkg_evt_t *)(void*)h248_pkg_cg_signals_cd_events,
+	(const h248_pkg_evt_t *)(const void*)h248_pkg_cg_signals_cd_events,
 	NULL
 };
 

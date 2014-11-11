@@ -5,8 +5,6 @@
  *
  * Author: John R. Underwood <junderx@yahoo.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1999 Gerald Combs
@@ -39,13 +37,14 @@
 #include "wimax_mac.h"
 #include "wimax_utils.h"
 
-extern gint man_ofdma;
 extern	gboolean include_cor2_changes;
+
+void proto_register_mac_mgmt_msg_dreg_req(void);
+void proto_register_mac_mgmt_msg_dreg_cmd(void);
+void proto_reg_handoff_mac_mgmt_msg_dreg(void);
 
 /* Forward reference */
 static void dissect_dreg_tlv(proto_tree *dreg_tree, gint tlv_type, tvbuff_t *tvb, guint tlv_offset, guint tlv_len);
-void dissect_mac_mgmt_msg_dreg_req_decoder(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
-void dissect_mac_mgmt_msg_dreg_cmd_decoder(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 
 static gint proto_mac_mgmt_msg_dreg_req_decoder = -1;
 static gint proto_mac_mgmt_msg_dreg_cmd_decoder = -1;
@@ -59,8 +58,6 @@ static gint *ett[] =
 };
 
 /* DREG fields */
-static gint hf_dreg_cmd_message_type = -1;
-static gint hf_dreg_req_message_type = -1;
 /* static gint hf_ack_type_reserved = -1; */
 static gint hf_dreg_cmd_action = -1;
 static gint hf_dreg_cmd_action_cor2 = -1;
@@ -299,13 +296,6 @@ void proto_register_mac_mgmt_msg_dreg_req(void)
 			}
 		},
 		{
-			&hf_dreg_cmd_message_type,
-			{
-				"MAC Management Message Type", "wmx.macmgtmsgtype.dreg_cmd",
-				FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL
-			}
-		},
-		{
 			&hf_dreg_cmd_action,
 			{
 				"DREG-CMD Action code", "wmx.dreg_cmd.action",
@@ -324,13 +314,6 @@ void proto_register_mac_mgmt_msg_dreg_req(void)
 			{
 				"Reserved", "wmx.dreg_cmd.action_reserved",
 				FT_UINT8, BASE_DEC, NULL, 0xF8, NULL, HFILL
-			}
-		},
-		{
-			&hf_dreg_req_message_type,
-			{
-				"MAC Management Message Type", "wmx.macmgtmsgtype.dreg_req",
-				FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL
 			}
 		},
 		{
@@ -366,10 +349,9 @@ void proto_register_mac_mgmt_msg_dreg_req(void)
 	};
 
 	proto_mac_mgmt_msg_dreg_req_decoder = proto_register_protocol (
-		"WiMax DREG-REQ/CMD Messages",
- /* name */
-		"WiMax DREG-REQ/CMD (dreg)", /* short name */
-		"wmx.dreg" /* abbrev */
+		"WiMax DREG-REQ Messages", /* name */
+		"WiMax DREG-REQ", /* short name */
+		"wmx.dreg_req" /* abbrev */
 		);
 
 	proto_register_field_array(proto_mac_mgmt_msg_dreg_req_decoder, hf, array_length(hf));
@@ -379,42 +361,35 @@ void proto_register_mac_mgmt_msg_dreg_req(void)
 /* Register Wimax Mac Payload Protocol and Dissector */
 void proto_register_mac_mgmt_msg_dreg_cmd(void)
 {
-	proto_mac_mgmt_msg_dreg_cmd_decoder = proto_mac_mgmt_msg_dreg_req_decoder;
+	proto_mac_mgmt_msg_dreg_cmd_decoder = proto_register_protocol (
+		"WiMax DREG-CMD Messages", /* name */
+		"WiMax DREG-CMD", /* short name */
+		"wmx.dreg_cmd" /* abbrev */
+		);
 }
 
 /* Decode DREG-REQ messages. */
-void dissect_mac_mgmt_msg_dreg_req_decoder(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static void dissect_mac_mgmt_msg_dreg_req_decoder(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	guint offset = 0;
 	guint tlv_offset;
-	guint tvb_len, payload_type;
-	proto_item *dreg_req_item = NULL;
-	proto_tree *dreg_req_tree = NULL;
+	guint tvb_len;
+	proto_item *dreg_req_item;
+	proto_tree *dreg_req_tree;
 	proto_tree *tlv_tree = NULL;
 	tlv_info_t tlv_info;
 	gint tlv_type;
 	gint tlv_len;
 	gboolean hmac_found = FALSE;
 
-	/* Ensure the right payload type */
-	payload_type = tvb_get_guint8(tvb, 0);
-	if(payload_type != MAC_MGMT_MSG_DREG_REQ)
-	{
-		return;
-	}
-
-	if (tree)
 	{	/* we are being asked for details */
 
 		/* Get the tvb reported length */
 		tvb_len =  tvb_reported_length(tvb);
 		/* display MAC payload type DREG-REQ */
-		dreg_req_item = proto_tree_add_protocol_format(tree, proto_mac_mgmt_msg_dreg_req_decoder, tvb, 0, tvb_len, "MAC Management Message, DREG-REQ (49)");
+		dreg_req_item = proto_tree_add_protocol_format(tree, proto_mac_mgmt_msg_dreg_req_decoder, tvb, 0, -1, "MAC Management Message, DREG-REQ");
 		/* add MAC DREG REQ subtree */
 		dreg_req_tree = proto_item_add_subtree(dreg_req_item, ett_mac_mgmt_msg_dreg_decoder);
-		/* display the Message Type */
-		proto_tree_add_item(dreg_req_tree, hf_dreg_req_message_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-		offset++;
 		/* display the Action Code */
 		proto_tree_add_item(dreg_req_tree, hf_dreg_req_action, tvb, offset, 1, ENC_BIG_ENDIAN);
 		/* show the Reserved bits */
@@ -441,18 +416,18 @@ void dissect_mac_mgmt_msg_dreg_req_decoder(tvbuff_t *tvb, packet_info *pinfo, pr
 			switch (tlv_type) {
 				case HMAC_TUPLE:	/* Table 348d */
 					/* decode and display the HMAC Tuple */
-					tlv_tree = add_protocol_subtree(&tlv_info, ett_mac_mgmt_msg_dreg_decoder, dreg_req_tree, proto_mac_mgmt_msg_dreg_req_decoder, tvb, tlv_offset, tlv_len, "HMAC Tuple (%u byte(s))", tlv_len);
+					tlv_tree = add_protocol_subtree(&tlv_info, ett_mac_mgmt_msg_dreg_decoder, dreg_req_tree, proto_mac_mgmt_msg_dreg_req_decoder, tvb, offset, tlv_len, "HMAC Tuple");
 					wimax_hmac_tuple_decoder(tlv_tree, tvb, tlv_offset, tlv_len);
 					hmac_found = TRUE;
 					break;
 				case CMAC_TUPLE:	/* Table 348b */
 					/* decode and display the CMAC Tuple */
-					tlv_tree = add_protocol_subtree(&tlv_info, ett_mac_mgmt_msg_dreg_decoder, dreg_req_tree, proto_mac_mgmt_msg_dreg_req_decoder, tvb, tlv_offset, tlv_len, "CMAC Tuple (%u byte(s))", tlv_len);
+					tlv_tree = add_protocol_subtree(&tlv_info, ett_mac_mgmt_msg_dreg_decoder, dreg_req_tree, proto_mac_mgmt_msg_dreg_req_decoder, tvb, offset, tlv_len, "CMAC Tuple");
 					wimax_cmac_tuple_decoder(tlv_tree, tvb, tlv_offset, tlv_len);
 					break;
 				default:
 					/* Decode DREG-REQ sub-TLV's */
-					tlv_tree = add_protocol_subtree(&tlv_info, ett_mac_mgmt_msg_dreg_decoder, dreg_req_tree, proto_mac_mgmt_msg_dreg_req_decoder, tvb, tlv_offset, tlv_len, "DREG-REQ sub-TLV's (%u byte(s))", tlv_len);
+					tlv_tree = add_protocol_subtree(&tlv_info, ett_mac_mgmt_msg_dreg_decoder, dreg_req_tree, proto_mac_mgmt_msg_dreg_req_decoder, tvb, offset, tlv_len, "DREG-REQ sub-TLV's");
 					dissect_dreg_tlv(tlv_tree, tlv_type, tvb, tlv_offset, tlv_len);
 					break;
 			}
@@ -466,38 +441,27 @@ void dissect_mac_mgmt_msg_dreg_req_decoder(tvbuff_t *tvb, packet_info *pinfo, pr
 }
 
 /* Decode DREG-CMD messages. */
-void dissect_mac_mgmt_msg_dreg_cmd_decoder(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static void dissect_mac_mgmt_msg_dreg_cmd_decoder(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	guint offset = 0;
 	guint tlv_offset;
-	guint tvb_len, payload_type;
-	proto_item *dreg_cmd_item = NULL;
-	proto_tree *dreg_cmd_tree = NULL;
+	guint tvb_len;
+	proto_item *dreg_cmd_item;
+	proto_tree *dreg_cmd_tree;
 	proto_tree *tlv_tree = NULL;
 	tlv_info_t tlv_info;
 	gint tlv_type;
 	gint tlv_len;
 	gboolean hmac_found = FALSE;
 
-	/* Ensure the right payload type */
-	payload_type = tvb_get_guint8(tvb, 0);
-	if(payload_type != MAC_MGMT_MSG_DREG_CMD)
-	{
-		return;
-	}
-
-	if (tree)
 	{	/* we are being asked for details */
 
 		/* Get the tvb reported length */
 		tvb_len =  tvb_reported_length(tvb);
 		/* display MAC payload type DREG-CMD */
-		dreg_cmd_item = proto_tree_add_protocol_format(tree, proto_mac_mgmt_msg_dreg_cmd_decoder, tvb, 0, tvb_len, "MAC Management Message, DREG-CMD (29)");
+		dreg_cmd_item = proto_tree_add_protocol_format(tree, proto_mac_mgmt_msg_dreg_cmd_decoder, tvb, 0, -1, "MAC Management Message, DREG-CMD");
 		/* add MAC DREG CMD subtree */
 		dreg_cmd_tree = proto_item_add_subtree(dreg_cmd_item, ett_mac_mgmt_msg_dreg_decoder);
-		/* display the Message Type */
-		proto_tree_add_item(dreg_cmd_tree, hf_dreg_cmd_message_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-		offset ++;
 		/* display the Action Code */
 		if (include_cor2_changes)
 			proto_tree_add_item(dreg_cmd_tree, hf_dreg_cmd_action_cor2, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -527,18 +491,18 @@ void dissect_mac_mgmt_msg_dreg_cmd_decoder(tvbuff_t *tvb, packet_info *pinfo, pr
 			switch (tlv_type) {
 				case HMAC_TUPLE:	/* Table 348d */
 					/* decode and display the HMAC Tuple */
-					tlv_tree = add_protocol_subtree(&tlv_info, ett_mac_mgmt_msg_dreg_decoder, dreg_cmd_tree, proto_mac_mgmt_msg_dreg_cmd_decoder, tvb, tlv_offset, tlv_len, "HMAC Tuple (%u byte(s))", tlv_len);
+					tlv_tree = add_protocol_subtree(&tlv_info, ett_mac_mgmt_msg_dreg_decoder, dreg_cmd_tree, proto_mac_mgmt_msg_dreg_cmd_decoder, tvb, offset, tlv_len, "HMAC Tuple");
 					wimax_hmac_tuple_decoder(tlv_tree, tvb, tlv_offset, tlv_len);
 					hmac_found = TRUE;
 					break;
 				case CMAC_TUPLE:	/* Table 348b */
 					/* decode and display the CMAC Tuple */
-					tlv_tree = add_protocol_subtree(&tlv_info, ett_mac_mgmt_msg_dreg_decoder, dreg_cmd_tree, proto_mac_mgmt_msg_dreg_cmd_decoder, tvb, tlv_offset, tlv_len, "CMAC Tuple (%u byte(s))", tlv_len);
+					tlv_tree = add_protocol_subtree(&tlv_info, ett_mac_mgmt_msg_dreg_decoder, dreg_cmd_tree, proto_mac_mgmt_msg_dreg_cmd_decoder, tvb, offset, tlv_len, "CMAC Tuple");
 					wimax_cmac_tuple_decoder(tlv_tree, tvb, tlv_offset, tlv_len);
 					break;
 				default:
 					/* Decode DREG-CMD sub-TLV's */
-					tlv_tree = add_protocol_subtree(&tlv_info, ett_mac_mgmt_msg_dreg_decoder, dreg_cmd_tree, proto_mac_mgmt_msg_dreg_cmd_decoder, tvb, tlv_offset, tlv_len, "DREG-CMD sub-TLV's (%u byte(s))", tlv_len);
+					tlv_tree = add_protocol_subtree(&tlv_info, ett_mac_mgmt_msg_dreg_decoder, dreg_cmd_tree, proto_mac_mgmt_msg_dreg_cmd_decoder, tvb, offset, tlv_len, "DREG-CMD sub-TLV's");
 					dissect_dreg_tlv(tlv_tree, tlv_type, tvb, tlv_offset, tlv_len);
 					break;
 			}
@@ -550,3 +514,14 @@ void dissect_mac_mgmt_msg_dreg_cmd_decoder(tvbuff_t *tvb, packet_info *pinfo, pr
 	}
 }
 
+void
+proto_reg_handoff_mac_mgmt_msg_dreg(void)
+{
+	dissector_handle_t dreg_handle;
+
+	dreg_handle = create_dissector_handle(dissect_mac_mgmt_msg_dreg_req_decoder, proto_mac_mgmt_msg_dreg_req_decoder);
+	dissector_add_uint("wmx.mgmtmsg", MAC_MGMT_MSG_DREG_REQ, dreg_handle);
+
+	dreg_handle = create_dissector_handle(dissect_mac_mgmt_msg_dreg_cmd_decoder, proto_mac_mgmt_msg_dreg_cmd_decoder);
+	dissector_add_uint("wmx.mgmtmsg", MAC_MGMT_MSG_DREG_CMD, dreg_handle);
+}

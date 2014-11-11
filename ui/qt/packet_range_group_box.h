@@ -1,7 +1,5 @@
 /* packet_range_group_box.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,7 +26,7 @@
 
 #include <glib.h>
 
-#include "packet-range.h"
+#include "epan/packet-range.h"
 
 #include "syntax_line_edit.h"
 #include <QGroupBox>
@@ -40,7 +38,7 @@ class PacketRangeGroupBox;
 class PacketRangeGroupBox : public QGroupBox
 {
     Q_OBJECT
-    
+
 public:
     explicit PacketRangeGroupBox(QWidget *parent = 0);
     ~PacketRangeGroupBox();

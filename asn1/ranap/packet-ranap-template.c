@@ -2,8 +2,6 @@
  * Routines for UMTS Node B Application Part(RANAP) packet dissection
  * Copyright 2005 - 2010, Anders Broman <anders.broman[AT]ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,7 +28,7 @@
 #include <glib.h>
 #include <epan/packet.h>
 
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/strutil.h>
 #include <epan/asn1.h>
 #include <epan/prefs.h>
@@ -59,6 +57,9 @@
 #define RANAP_MAX_PC  45 /* id_RANAPenhancedRelocation =  45 */
 
 #include "packet-ranap-val.h"
+
+void proto_register_ranap(void);
+void proto_reg_handoff_ranap(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_ranap = -1;
@@ -138,7 +139,6 @@ static int dissect_OutcomeValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
 static int dissect_ranap_SourceRNC_ToTargetRNC_TransparentContainer(tvbuff_t *tvb, int offset, asn1_ctx_t *actx, proto_tree *tree, int hf_index);
 static int dissect_ranap_TargetRNC_ToSourceRNC_TransparentContainer(tvbuff_t *tvb, int offset, asn1_ctx_t *actx, proto_tree *tree, int hf_index);
 
-void proto_reg_handoff_ranap(void);
 
 #include "packet-ranap-fn.c"
 
@@ -247,15 +247,17 @@ dissect_ranap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 		if (! sccp_msg_lcl->data.co.label && ProcedureCode != 0xFFFFFFFF) {
 			const gchar* str = val_to_str(ProcedureCode, ranap_ProcedureCode_vals,"Unknown RANAP");
-			sccp_msg_lcl->data.co.label = se_strdup(str);
+			sccp_msg_lcl->data.co.label = wmem_strdup(wmem_file_scope(), str);
 		}
 	}
 }
 
+#define RANAP_MSG_MIN_LENGTH 7
 static gboolean
 dissect_sccp_ranap_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
     guint8 temp;
+	guint16 word;
 	asn1_ctx_t asn1_ctx;
 	guint length;
 	int offset;
@@ -273,7 +275,7 @@ dissect_sccp_ranap_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
 
     #define LENGTH_OFFSET 3
     #define MSG_TYPE_OFFSET 1
-    if (tvb_length(tvb) < 4) { return FALSE; }
+    if (tvb_length(tvb) < RANAP_MSG_MIN_LENGTH) { return FALSE; }
     /*if (tvb_get_guint8(tvb, LENGTH_OFFSET) != (tvb_length(tvb) - 4)) { return FALSE; }*/
 	/* Read the length NOTE offset in bits */
 	offset = dissect_per_length_determinant(tvb, LENGTH_OFFSET<<3, &asn1_ctx, tree, -1, &length);
@@ -285,6 +287,13 @@ dissect_sccp_ranap_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
     temp = tvb_get_guint8(tvb, MSG_TYPE_OFFSET);
     if (temp > RANAP_MAX_PC) { return FALSE; }
 
+    /* Try to strengthen the heuristic further, by checking byte 6 and 7 which usually is a sequence-of lenght
+     * 
+     */
+    word = tvb_get_ntohs(tvb,5);
+    if(word > 0x1ff){
+        return FALSE;
+    }
     dissect_ranap(tvb, pinfo, tree);
 
     return TRUE;
@@ -352,6 +361,10 @@ void proto_register_ranap(void) {
   prefs_register_uint_preference(ranap_module, "sccp_ssn", "SCCP SSN for RANAP",
 				 "The SCCP SubSystem Number for RANAP (default 142)", 10,
 				 &global_ranap_sccp_ssn);
+  prefs_register_bool_preference(ranap_module, "dissect_rrc_container",
+                                 "Attempt to dissect RRC-Container",
+                                 "Attempt to dissect RRC message embedded in RRC-Container IE",
+                                 &glbl_dissect_container);
 }
 
 

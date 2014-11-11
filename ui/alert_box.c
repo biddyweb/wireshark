@@ -2,8 +2,6 @@
  * Routines to put up various "standard" alert boxes used in multiple
  * places
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,7 +27,8 @@
 
 #include <glib.h>
 
-#include <epan/filesystem.h>
+#include <wiretap/wtap.h>
+#include <wsutil/filesystem.h>
 #include <epan/dfilter/dfilter.h>
 
 #include "ui/alert_box.h"
@@ -66,7 +65,7 @@ open_failure_alert_box(const char *filename, int err, gboolean for_writing)
     simple_message_box(ESD_TYPE_ERROR, NULL, NULL,
                         file_open_error_message(err, for_writing),
                         display_basename);
-     g_free(display_basename);
+    g_free(display_basename);
 }
 
 /*

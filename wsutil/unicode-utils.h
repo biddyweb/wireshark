@@ -1,8 +1,6 @@
 /* unicode-utils.h
  * Unicode utility definitions
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2006 Gerald Combs
@@ -25,20 +23,24 @@
 #ifndef __UNICODEUTIL_H__
 #define __UNICODEUTIL_H__
 
-#include "ws_symbol_export.h"
-
-#ifdef _WIN32
-
 #include "config.h"
 
+#include "ws_symbol_export.h"
+
 #include <glib.h>
-#include <windows.h>
-#include <tchar.h>
-#include <wchar.h>
 
 /**
  * @file Unicode convenience routines.
  */
+
+WS_DLL_PUBLIC
+int ws_utf8_char_len(guint8 ch);
+
+#ifdef _WIN32
+
+#include <windows.h>
+#include <tchar.h>
+#include <wchar.h>
 
 /** Given a UTF-8 string, convert it to UTF-16.  This is meant to be used
  * to convert between GTK+ 2.x (UTF-8) to Windows (UTF-16).
@@ -57,7 +59,8 @@ wchar_t * utf_8to16(const char *utf8str);
  * @param fmt A standard g_printf() format string
  */
 WS_DLL_PUBLIC
-void utf_8to16_snprintf(TCHAR *utf16buf, gint utf16buf_len, const gchar* fmt, ...);
+void utf_8to16_snprintf(TCHAR *utf16buf, gint utf16buf_len, const gchar* fmt,
+	...) G_GNUC_PRINTF(3, 4);
 
 /** Given a UTF-16 string, convert it to UTF-8.  This is meant to be used
  * to convert between GTK+ 2.x (UTF-8) to Windows (UTF-16).
@@ -83,5 +86,16 @@ void arg_list_utf_16to8(int argc, char *argv[]);
 
 
 #endif /* _WIN32 */
+
+/*
+ * defines for helping with UTF-16 surrogate pairs
+ */
+
+#define IS_LEAD_SURROGATE(uchar2) \
+	((uchar2) >= 0xd800 && (uchar2) < 0xdc00)
+#define IS_TRAIL_SURROGATE(uchar2) \
+	((uchar2) >= 0xdc00 && (uchar2) < 0xe000)
+#define SURROGATE_VALUE(lead, trail) \
+	(((((lead) - 0xd800) << 10) | ((trail) - 0xdc00)) + 0x100000)
 
 #endif /* __UNICODEUTIL_H__ */

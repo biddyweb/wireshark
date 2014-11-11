@@ -8,8 +8,6 @@
  * Copyright 2001, 2002, Jeff Morriss <jeff.morriss.ws [AT] gmail.com>,
  * updated by Michael Tuexen <tuexen [AT] fh-muenster.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,15 +33,17 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/prefs.h>
 #include <epan/sctpppids.h>
 #include <epan/expert.h>
 
+void proto_register_m2pa(void);
+void proto_reg_handoff_m2pa(void);
+
 #define SCTP_PORT_M2PA              3565
 
 static guint global_sctp_port       = SCTP_PORT_M2PA;
-
-void proto_reg_handoff_m2pa(void);
 
 static int proto_m2pa      = -1;
 static module_t *m2pa_module;
@@ -73,6 +73,8 @@ static int hf_undecode_data   = -1;
 
 static gint ett_m2pa       = -1;
 static gint ett_m2pa_li    = -1;
+
+static expert_field ei_undecode_data = EI_INIT;
 
 static dissector_handle_t mtp3_handle;
 
@@ -158,8 +160,7 @@ dissect_v2_header(tvbuff_t *header_tvb, packet_info *pinfo, proto_tree *m2pa_tre
 
   message_type  = tvb_get_ntohs(header_tvb, V2_TYPE_OFFSET);
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(message_type, v2_message_type_values, "reserved"));
+  col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(message_type, v2_message_type_values, "reserved"));
 
   if (m2pa_tree) {
     proto_tree_add_item(m2pa_tree, hf_version, header_tvb, VERSION_OFFSET,       VERSION_LENGTH, ENC_BIG_ENDIAN);
@@ -176,8 +177,7 @@ dissect_v8_header(tvbuff_t *header_tvb, packet_info *pinfo, proto_tree *m2pa_tre
 
   message_type  = tvb_get_guint8(header_tvb, V8_TYPE_OFFSET);
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(message_type, v8_message_type_values, "Unknown"));
+  col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(message_type, v8_message_type_values, "Unknown"));
 
   if (m2pa_tree) {
     proto_tree_add_item(m2pa_tree, hf_version, header_tvb, VERSION_OFFSET,       VERSION_LENGTH, ENC_BIG_ENDIAN);
@@ -199,8 +199,7 @@ dissect_header(tvbuff_t *header_tvb, packet_info *pinfo, proto_tree *m2pa_tree)
 
   message_type  = tvb_get_guint8(header_tvb, V8_TYPE_OFFSET);
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(message_type, v8_message_type_values, "Unknown"));
+  col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(message_type, v8_message_type_values, "Unknown"));
 
   if (m2pa_tree) {
     proto_tree_add_item(m2pa_tree, hf_version,  header_tvb, VERSION_OFFSET,       VERSION_LENGTH,  ENC_BIG_ENDIAN);
@@ -316,10 +315,8 @@ static const value_string v2_link_status_values[] = {
 static void
 dissect_v2_link_status_message(tvbuff_t *message_data_tvb, packet_info *pinfo, proto_tree *m2pa_tree)
 {
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_append_fstr(pinfo->cinfo, COL_INFO, "(%s) ", val_to_str_const(tvb_get_ntohl(message_data_tvb, STATUS_OFFSET), v2_link_status_values, "Unknown"));
-  if (m2pa_tree)
-    proto_tree_add_item(m2pa_tree, hf_v2_status, message_data_tvb, STATUS_OFFSET, STATUS_LENGTH, ENC_BIG_ENDIAN);
+  col_append_fstr(pinfo->cinfo, COL_INFO, "(%s) ", val_to_str_const(tvb_get_ntohl(message_data_tvb, STATUS_OFFSET), v2_link_status_values, "Unknown"));
+  proto_tree_add_item(m2pa_tree, hf_v2_status, message_data_tvb, STATUS_OFFSET, STATUS_LENGTH, ENC_BIG_ENDIAN);
 }
 
 static const value_string v8_link_status_values[] = {
@@ -339,8 +336,7 @@ dissect_v8_link_status_message(tvbuff_t *message_data_tvb, packet_info *pinfo, p
 {
   guint16 filler_length;
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_append_fstr(pinfo->cinfo, COL_INFO, "(%s) ", val_to_str_const(tvb_get_ntohl(message_data_tvb, STATUS_OFFSET), v8_link_status_values, "Unknown"));
+  col_append_fstr(pinfo->cinfo, COL_INFO, "(%s) ", val_to_str_const(tvb_get_ntohl(message_data_tvb, STATUS_OFFSET), v8_link_status_values, "Unknown"));
 
   filler_length = tvb_length(message_data_tvb) - STATUS_LENGTH;
 
@@ -366,8 +362,7 @@ dissect_link_status_message(tvbuff_t *message_data_tvb, packet_info *pinfo, prot
 {
   guint16 filler_length;
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_append_fstr(pinfo->cinfo, COL_INFO, "(%s) ", val_to_str_const(tvb_get_ntohl(message_data_tvb, STATUS_OFFSET), link_status_values, "Unknown"));
+  col_append_fstr(pinfo->cinfo, COL_INFO, "(%s) ", val_to_str_const(tvb_get_ntohl(message_data_tvb, STATUS_OFFSET), link_status_values, "Unknown"));
 
   filler_length = tvb_length(message_data_tvb) - STATUS_LENGTH;
 
@@ -483,7 +478,7 @@ dissect_message_data(tvbuff_t *message_tvb, packet_info *pinfo, proto_item *m2pa
     proto_item *pi;
 
     pi = proto_tree_add_item(m2pa_tree, hf_undecode_data, message_tvb, length, (actual_length - length), ENC_NA);
-    expert_add_info_format(pinfo, pi, PI_MALFORMED, PI_WARN,
+    expert_add_info_format(pinfo, pi, &ei_undecode_data,
 			   "There are %d bytes of data which is greater than M2PA's length parameter (%d)",
 			   actual_length, length);
   }
@@ -516,26 +511,20 @@ dissect_m2pa(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   proto_item *m2pa_item;
   proto_tree *m2pa_tree;
 
-  if (check_col(pinfo->cinfo, COL_PROTOCOL))
-    switch(m2pa_version) {
-    case M2PA_V02:
-      col_set_str(pinfo->cinfo, COL_PROTOCOL, "M2PA (ID 02)");
-      break;
-    case M2PA_V08:
-      col_set_str(pinfo->cinfo, COL_PROTOCOL, "M2PA (ID 08)");
-      break;
-    case M2PA_RFC4165:
-      col_set_str(pinfo->cinfo, COL_PROTOCOL, "M2PA");
-      break;
-    };
+  switch(m2pa_version) {
+  case M2PA_V02:
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, "M2PA (ID 02)");
+    break;
+  case M2PA_V08:
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, "M2PA (ID 08)");
+    break;
+  case M2PA_RFC4165:
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, "M2PA");
+    break;
+  };
 
-  if (tree) {
-    m2pa_item = proto_tree_add_item(tree, proto_m2pa, tvb, 0, -1, ENC_NA);
-    m2pa_tree = proto_item_add_subtree(m2pa_item, ett_m2pa);
-  } else {
-    m2pa_item = NULL;
-    m2pa_tree = NULL;
-  }
+  m2pa_item = proto_tree_add_item(tree, proto_m2pa, tvb, 0, -1, ENC_NA);
+  m2pa_tree = proto_item_add_subtree(m2pa_item, ett_m2pa);
 
   switch(m2pa_version) {
     case M2PA_V02:
@@ -590,10 +579,18 @@ proto_register_m2pa(void)
     { NULL, NULL, 0 }
   };
 
+  static ei_register_info ei[] = {
+     { &ei_undecode_data, { "m2pa.undecoded_data.expert", PI_MALFORMED, PI_WARN, "There are bytes of data which is greater than M2PA's length parameter", EXPFILL }},
+  };
+
+  expert_module_t* expert_m2pa;
+
   proto_m2pa = proto_register_protocol("MTP2 Peer Adaptation Layer", "M2PA", "m2pa");
 
   proto_register_field_array(proto_m2pa, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_m2pa = expert_register_protocol(proto_m2pa);
+  expert_register_field_array(expert_m2pa, ei, array_length(ei));
 
   /* Allow other dissectors to find this one by name. */
   register_dissector("m2pa", dissect_m2pa, proto_m2pa);

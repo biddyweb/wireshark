@@ -1,14 +1,11 @@
-/* packet-pnrp.h
+/* packet-pnrp.c
  * Routines for Peer Name Resolution Protocol (PNRP) dissection
  *
  *  Copyright 2010, Jan Gerbecks <jan.gerbecks@stud.uni-due.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
- *
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,9 +22,12 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-/* The official Dokumentation for the Peer Name Resolution Protocol can be found at
- http://msdn.microsoft.com/en-us/library/cc239047(PROT.13).aspx
- This dissector is based on Revision 6.1.2
+/* The official Documentation for the Peer Name Resolution Protocol
+ * ([MS-PNRP]) can be found at
+ *
+ *    http://msdn.microsoft.com/en-us/library/cc239047.aspx
+ *
+ * This dissector is based on Revision 6.1.2
  */
 
 #include "config.h"
@@ -36,7 +36,7 @@
 
 #include <epan/packet.h>
 
-#define PROTONAME "Peer Network Resolution Protocol"
+#define PROTONAME "Peer Name Resolution Protocol"
 #define PROTOSHORTNAME "PNRP"
 #define PROTOABBREV "pnrp"
 
@@ -104,6 +104,9 @@
 #define FLAGS_ENCODED_CPA_A           0x04
 #define FLAGS_ENCODED_CPA_C           0x08
 #define FLAGS_ENCODED_CPA_F           0x10
+
+void proto_register_pnrp(void);
+void proto_reg_handoff_pnrp(void);
 
 /* Define all helper methods  */
 static void dissect_pnrp_ids(tvbuff_t *tvb, gint offset, gint length, proto_tree *tree);
@@ -218,6 +221,7 @@ static const int *inquire_flags[] = {
 static gint hf_pnrp_message_classifier_unicodeCount = -1;
 static gint hf_pnrp_message_classifier_arrayLength = -1;
 static gint hf_pnrp_message_classifier_entryLength = -1;
+static gint hf_pnrp_message_classifier_string = -1;
 /* ACK Message Flags */
 static gint hf_pnrp_message_ack_flags_reserved = -1;
 static gint hf_pnrp_message_ack_flags_Nbit = -1;
@@ -378,7 +382,6 @@ static int dissect_pnrp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
     /* Assign Values to Variables */
     /* Use to track data */
     offset= 0;
-    padding_bytes = 0;
     /* Get the message Information beforehand */
     message_type = tvb_get_guint8(tvb,7);
 
@@ -683,7 +686,7 @@ static int dissect_pnrp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
                         /* Entry Length: Must be 0x0002 */
                         proto_tree_add_item(pnrp_message_tree, hf_pnrp_message_classifier_entryLength, tvb, offset + 10, 2, ENC_BIG_ENDIAN);
                         /* The actual classifier String */
-                        proto_tree_add_text(pnrp_message_tree, tvb, offset + 12, tvb_get_ntohs(tvb,offset+6)-8, "Classifier: %s",tvb_get_ephemeral_unicode_string(tvb, offset + 12, tvb_get_ntohs(tvb,offset+6)-8, ENC_BIG_ENDIAN));
+                        proto_tree_add_item(pnrp_message_tree, hf_pnrp_message_classifier_string, tvb, offset + 12, tvb_get_ntohs(tvb,offset+6)-8, ENC_UTF_16|ENC_BIG_ENDIAN);
                     }
 
                     /* There might be padding, so fill up to the next byte */
@@ -980,7 +983,7 @@ static void dissect_encodedCPA_structure(tvbuff_t *tvb, gint offset, gint length
         offset += tvb_get_letohs(tvb,offset);
         /* Signature */
         dissect_signature_structure(tvb, offset,tvb_get_letohs(tvb,offset),pnrp_encodedCPA_tree);
-        offset += tvb_get_letohs(tvb,offset);
+        /*offset += tvb_get_letohs(tvb,offset);*/
     }
 }
 static void dissect_payload_structure(tvbuff_t *tvb, gint offset, gint length, proto_tree *tree)
@@ -1150,6 +1153,9 @@ void proto_register_pnrp(void)
                 NULL, HFILL }},
         { &hf_pnrp_message_classifier_entryLength,
             { "Entry Length", "pnrp.segment.classifier.entryLength", FT_UINT16, BASE_DEC, NULL, 0x0,
+                NULL, HFILL }},
+        { &hf_pnrp_message_classifier_string,
+            { "Classifier", "pnrp.segment.classifier.string", FT_STRING, STR_UNICODE, NULL, 0x0,
                 NULL, HFILL }},
         /* Ack Flags */
         { &hf_pnrp_message_ack_flags_reserved,

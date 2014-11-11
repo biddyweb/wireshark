@@ -2,8 +2,6 @@
  * Routines for who protocol (see man rwhod)
  * Gilbert Ramirez <gram@alumni.rice.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,7 @@
 #include <time.h>
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/to_str.h>
 
 
 /*
@@ -57,11 +56,11 @@ RWHOD(8)                 UNIX System Manager's Manual                 RWHOD(8)
 (20 each)                  int     we_idle;
                    } wd_we[1024 / sizeof (struct whoent)];
            };
-
- Linux 2.0                       May 13, 1997                                2
-
  *
  */
+ 
+void proto_register_who(void);
+void proto_reg_handoff_who(void);
 
 static int proto_who = -1;
 static int hf_who_vers = -1;
@@ -92,7 +91,7 @@ dissect_who(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	int		offset = 0;
 	proto_tree	*who_tree = NULL;
 	proto_item	*who_ti = NULL;
-	gchar		server_name[33];
+	guint8		*server_name;
 	double		loadav_5 = 0.0, loadav_10 = 0.0, loadav_15 = 0.0;
 	nstime_t	ts;
 
@@ -133,7 +132,7 @@ dissect_who(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	}
 	offset += 4;
 
-	tvb_get_nstringz0(tvb, offset, sizeof(server_name), (guint8*)server_name);
+	server_name = tvb_get_stringzpad(wmem_packet_scope(), tvb, offset, 32, ENC_ASCII|ENC_NA);
 	if (tree)
 		proto_tree_add_string(who_tree, hf_who_hostname, tvb, offset,
 		    32, server_name);
@@ -158,8 +157,7 @@ dissect_who(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	offset += 4;
 
 	/* Summary information */
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_add_fstr(pinfo->cinfo, COL_INFO, "%s: %.02f %.02f %.02f",
+	col_add_fstr(pinfo->cinfo, COL_INFO, "%s: %.02f %.02f %.02f",
 				server_name, loadav_5, loadav_10, loadav_15);
 
 	if (tree) {
@@ -183,8 +181,8 @@ dissect_whoent(tvbuff_t *tvb, int offset, proto_tree *tree)
 	proto_tree	*whoent_tree = NULL;
 	proto_item	*whoent_ti = NULL;
 	int		line_offset = offset;
-	gchar		out_line[9];
-	gchar		out_name[9];
+	guint8		*out_line;
+	guint8		*out_name;
 	nstime_t	ts;
 	int		whoent_num = 0;
 	guint32		idle_secs; /* say that out loud... */
@@ -197,12 +195,12 @@ dissect_whoent(tvbuff_t *tvb, int offset, proto_tree *tree)
 		    line_offset, SIZE_OF_WHOENT, ENC_NA);
 		whoent_tree = proto_item_add_subtree(whoent_ti, ett_whoent);
 
-	    	tvb_get_nstringz0(tvb, line_offset, sizeof(out_line), (guint8*)out_line);
+		out_line = tvb_get_stringzpad(wmem_packet_scope(), tvb, line_offset, 8, ENC_ASCII|ENC_NA);
 		proto_tree_add_string(whoent_tree, hf_who_tty, tvb, line_offset,
 		    8, out_line);
 		line_offset += 8;
 
-	    	tvb_get_nstringz0(tvb, line_offset, sizeof(out_name), (guint8*)out_name);
+		out_name = tvb_get_stringzpad(wmem_packet_scope(), tvb, line_offset, 8, ENC_ASCII|ENC_NA);
 		proto_tree_add_string(whoent_tree, hf_who_uid, tvb, line_offset,
 		    8, out_name);
 		line_offset += 8;
@@ -215,7 +213,7 @@ dissect_whoent(tvbuff_t *tvb, int offset, proto_tree *tree)
 		idle_secs = tvb_get_ntohl(tvb, line_offset);
 		proto_tree_add_uint_format(whoent_tree, hf_who_idle, tvb,
 		    line_offset, 4, idle_secs, "Idle: %s",
-		    time_secs_to_str(idle_secs));
+		    time_secs_to_ep_str(idle_secs));
 		line_offset += 4;
 
 		whoent_num++;

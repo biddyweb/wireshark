@@ -21,7 +21,7 @@ files.
 
 Conformance files are simple text files with a single command on each line.
 Empty lines and lines starting with a '#' character are ignored.
-Arguments to commands are seperated by spaces.
+Arguments to commands are separated by spaces.
 
 The following commands are currently supported:
 
@@ -88,6 +88,14 @@ Force pidl to not generate a particular function but allow the user
 to write a function manually. This can be used to remove the function 
 for only one level for a particular element rather than all the functions and 
 ett/hf variables for a particular element as the NOEMIT command does.
+
+=item I<CODE START>/I<CODE END>
+Begin and end a section of code to be put directly into the generated
+source file for the dissector.
+
+=item I<HEADER START>/I<HEADER END>
+Begin and end a section of code to be put directly into the generated
+header file for the dissector.
 
 =back
 
@@ -284,7 +292,7 @@ sub handle_manual($$$)
 		return;
 	}
 
-    $data->{manual}->{$fn} = 1;
+	$data->{manual}->{$fn} = 1;
 }
 
 sub handle_protocol($$$$$$)
@@ -396,6 +404,7 @@ sub ReadConformanceFH($$$)
 	my ($fh,$data,$f) = @_;
 
 	my $incodeblock = 0;
+	my $inheaderblock = 0;
 
 	my $ln = 0;
 
@@ -407,9 +416,27 @@ sub ReadConformanceFH($$$)
 		s/[\r\n]//g;
 
 		if ($_ eq "CODE START") {
+			if ($incodeblock) {
+				warning({ FILE => $f, LINE => $ln }, 
+					"CODE START inside CODE section");
+			}
+			if ($inheaderblock) {
+				error({ FILE => $f, LINE => $ln }, 
+					"CODE START inside HEADER section");
+				return undef;
+			}
 			$incodeblock = 1;
 			next;
-		} elsif ($incodeblock and $_ eq "CODE END") {
+		} elsif ($_ eq "CODE END") {
+			if (!$incodeblock) {
+				warning({ FILE => $f, LINE => $ln }, 
+					"CODE END outside CODE section");
+			}
+			if ($inheaderblock) {
+				error({ FILE => $f, LINE => $ln }, 
+					"CODE END inside HEADER section");
+				return undef;
+			}
 			$incodeblock = 0;
 			next;
 		} elsif ($incodeblock) {
@@ -417,6 +444,37 @@ sub ReadConformanceFH($$$)
 				$data->{override}.="$_\n";
 			} else {
 				$data->{override} = "$_\n";
+			}
+			next;
+		} elsif ($_ eq "HEADER START") {
+			if ($inheaderblock) {
+				warning({ FILE => $f, LINE => $ln }, 
+					"HEADER START inside HEADER section");
+			}
+			if ($incodeblock) {
+				error({ FILE => $f, LINE => $ln }, 
+					"HEADER START inside CODE section");
+				return undef;
+			}
+			$inheaderblock = 1;
+			next;
+		} elsif ($_ eq "HEADER END") {
+			if (!$inheaderblock) {
+				warning({ FILE => $f, LINE => $ln }, 
+					"HEADER END outside HEADER section");
+			}
+			if ($incodeblock) {
+				error({ FILE => $f, LINE => $ln }, 
+					"CODE END inside HEADER section");
+				return undef;
+			}
+			$inheaderblock = 0;
+			next;
+		} elsif ($inheaderblock) {
+			if (exists $data->{header}) {
+				$data->{header}.="$_\n";
+			} else {
+				$data->{header} = "$_\n";
 			}
 			next;
 		}

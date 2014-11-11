@@ -1,8 +1,6 @@
 /* cfile.h
  * capture_file definition & GUI-independent manipulation
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,9 +23,12 @@
 #ifndef __CFILE_H__
 #define __CFILE_H__
 
+#include <epan/epan.h>
+#include <epan/column-info.h>
 #include <epan/dfilter/dfilter.h>
 #include <epan/frame_data.h>
-#include "frame_data_sequence.h"
+#include <epan/frame_data_sequence.h>
+#include <wiretap/wtap.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,20 +55,16 @@ typedef enum {
   SD_BACKWARD
 } search_direction;
 
-/*
- * We store the frame_data structures in a radix tree, with 1024
- * elements per level.  The leaf nodes are arrays of 1024 frame_data
- * structures; the nodes above them are arrays of 1024 pointers to
- * the nodes below them.  The capture_file structure has a pointer
- * to the root node.
- *
- * As frame numbers are 32 bits, and as 1024 is 2^10, that gives us
- * up to 4 levels of tree.
- */
-#define LOG2_NODES_PER_LEVEL	10
-#define NODES_PER_LEVEL		(1<<LOG2_NODES_PER_LEVEL)
+#ifdef WANT_PACKET_EDITOR
+/* XXX, where this struct should go? */
+typedef struct {
+  struct wtap_pkthdr phdr; /**< Modified packet header */
+  char *pd;                /**< Modified packet data */
+} modified_frame_data;
+#endif
 
 typedef struct _capture_file {
+  epan_t      *epan;
   file_state   state;           /* Current state of capture file */
   gchar       *filename;        /* Name of capture file */
   gchar       *source;          /* Temp file source, e.g. "Pipe from elsewhere" */
@@ -75,6 +72,7 @@ typedef struct _capture_file {
   gboolean     unsaved_changes; /* Does the capture file have changes that have not been saved? */
   gint64       f_datalen;       /* Size of capture file data (uncompressed) */
   guint16      cd_t;            /* File type of capture file */
+  unsigned int open_type;       /* open_routine index+1 used, if selected, or WTAP_TYPE_AUTO */
   gboolean     iscompressed;    /* TRUE if the file is compressed */
   int          lnk_t;           /* File link-layer type; could be WTAP_ENCAP_PER_PACKET */
   GArray      *linktypes;       /* Array of packet link-layer types */
@@ -90,7 +88,8 @@ typedef struct _capture_file {
   gboolean     has_snap;        /* TRUE if maximum capture packet length is known */
   int          snap;            /* Maximum captured packet length */
   wtap        *wth;             /* Wiretap session */
-  dfilter_t   *rfcode;          /* Compiled read (display) filter program */
+  dfilter_t   *rfcode;          /* Compiled read filter program */
+  dfilter_t   *dfcode;          /* Compiled display filter program */
   gchar       *dfilter;         /* Display filter string */
   gboolean     redissecting;    /* TRUE if currently redissecting (cf_redissect_packets) */
   /* search */
@@ -107,7 +106,7 @@ typedef struct _capture_file {
   gboolean     search_in_progress; /* TRUE if user just clicked OK in the Find dialog or hit <control>N/B */
   /* packet data */
   struct wtap_pkthdr phdr;                /* Packet header */
-  guint8       pd[WTAP_MAX_PACKET_SIZE];  /* Packet data */
+  Buffer       buf;             /* Packet data */
   /* frames */
   frame_data_sequence *frames;  /* Sequence of frames, if we're keeping that information */
   guint32      first_displayed; /* Frame number of first frame displayed */
@@ -122,9 +121,18 @@ typedef struct _capture_file {
   GTree       *edited_frames;   /* BST with modified frames */
 #endif
   gpointer     window;		/* Top-level window associated with file */
+  GTree       *frames_user_comments;   /* BST with user comments for frames (key = frame_data) */
+  gulong       computed_elapsed;
+
+  guint32      cum_bytes;
+  const frame_data *ref;
+  frame_data  *prev_dis;
+  frame_data  *prev_cap;
 } capture_file;
 
 extern void cap_file_init(capture_file *cf);
+
+extern const char *cap_file_get_interface_name(void *data, guint32 interface_id);
 
 #ifdef __cplusplus
 }

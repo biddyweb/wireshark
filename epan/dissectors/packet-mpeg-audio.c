@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-mpeg-audio.c                                                        */
 /* ../../tools/asn2wrs.py -p mpeg-audio -c ./mpeg-audio.cnf -s ./packet-mpeg-audio-template -D . -O ../../epan/dissectors mpeg-audio.asn */
 
@@ -9,8 +9,6 @@
 /* MPEG audio packet decoder.
  * Written by Shaun Jackman <sjackman@gmail.com>.
  * Copyright 2007 Shaun Jackman
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -68,7 +66,7 @@ static int hf_mpeg_audio_track = -1;              /* INTEGER_0_255 */
 static int hf_mpeg_audio_genre = -1;              /* T_genre */
 
 /*--- End of included file: packet-mpeg-audio-hf.c ---*/
-#line 37 "../../asn1/mpeg-audio/packet-mpeg-audio-template.c"
+#line 35 "../../asn1/mpeg-audio/packet-mpeg-audio-template.c"
 
 /*--- Included file: packet-mpeg-audio-ett.c ---*/
 #line 1 "../../asn1/mpeg-audio/packet-mpeg-audio-ett.c"
@@ -76,7 +74,7 @@ static gint ett_mpeg_audio_Audio = -1;
 static gint ett_mpeg_audio_ID3v1 = -1;
 
 /*--- End of included file: packet-mpeg-audio-ett.c ---*/
-#line 38 "../../asn1/mpeg-audio/packet-mpeg-audio-template.c"
+#line 36 "../../asn1/mpeg-audio/packet-mpeg-audio-template.c"
 
 /*--- Included file: packet-mpeg-audio-fn.c ---*/
 #line 1 "../../asn1/mpeg-audio/packet-mpeg-audio-fn.c"
@@ -85,7 +83,7 @@ static gint ett_mpeg_audio_ID3v1 = -1;
 static int
 dissect_mpeg_audio_BIT_STRING_SIZE_11(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     11, 11, FALSE, NULL);
+                                     11, 11, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -447,7 +445,10 @@ dissect_mpeg_audio_ID3v1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_
 
 
 /*--- End of included file: packet-mpeg-audio-fn.c ---*/
-#line 39 "../../asn1/mpeg-audio/packet-mpeg-audio-template.c"
+#line 37 "../../asn1/mpeg-audio/packet-mpeg-audio-template.c"
+
+void proto_register_mpeg_audio(void);
+void proto_reg_handoff_mpeg_audio(void);
 
 static int proto_mpeg_audio = -1;
 
@@ -477,23 +478,19 @@ dissect_mpeg_audio_frame(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		return FALSE;
 	if (!MPA_LAYER_VALID(&mpa))
 		return FALSE;
-		
+
 	col_add_fstr(pinfo->cinfo, COL_PROTOCOL,
 			"MPEG-%s", version_names[mpa_version(&mpa)]);
 	col_add_fstr(pinfo->cinfo, COL_INFO,
 				"Audio Layer %d", mpa_layer(&mpa) + 1);
 	if (MPA_BITRATE_VALID(&mpa) && MPA_FREQUENCY_VALID(&mpa)) {
 		data_size = (int)(MPA_DATA_BYTES(&mpa) - sizeof mpa);
-		if (check_col(pinfo->cinfo, COL_DEF_SRC)) {
-			SET_ADDRESS(&pinfo->src, AT_NONE, 0, NULL);
-			col_add_fstr(pinfo->cinfo, COL_DEF_SRC,
+		SET_ADDRESS(&pinfo->src, AT_NONE, 0, NULL);
+		col_add_fstr(pinfo->cinfo, COL_DEF_SRC,
 					"%d kb/s", mpa_bitrate(&mpa) / 1000);
-		}
-		if (check_col(pinfo->cinfo, COL_DEF_DST)) {
-			SET_ADDRESS(&pinfo->dst, AT_NONE, 0, NULL);
-			col_add_fstr(pinfo->cinfo, COL_DEF_DST,
+		SET_ADDRESS(&pinfo->dst, AT_NONE, 0, NULL);
+		col_add_fstr(pinfo->cinfo, COL_DEF_DST,
 					"%g kHz", mpa_frequency(&mpa) / (float)1000);
-		}
 	}
 
 	if (tree == NULL)
@@ -657,7 +654,7 @@ proto_register_mpeg_audio(void)
         NULL, HFILL }},
 
 /*--- End of included file: packet-mpeg-audio-hfarr.c ---*/
-#line 156 "../../asn1/mpeg-audio/packet-mpeg-audio-template.c"
+#line 153 "../../asn1/mpeg-audio/packet-mpeg-audio-template.c"
 		{ &hf_mpeg_audio_data,
 			{ "Data", "mpeg-audio.data",
 				FT_BYTES, BASE_NONE, NULL, 0, NULL, HFILL }},
@@ -666,10 +663,10 @@ proto_register_mpeg_audio(void)
 				FT_BYTES, BASE_NONE, NULL, 0, NULL, HFILL }},
 
 		{ &hf_id3v1,
-			{ "ID3v1", "id3v1",
+			{ "ID3v1", "mpeg-audio.id3v1",
 				FT_NONE, BASE_NONE, NULL, 0, NULL, HFILL }},
 		{ &hf_id3v2,
-			{ "ID3v2", "id3v2",
+			{ "ID3v2", "mpeg-audio.id3v2",
 				FT_NONE, BASE_NONE, NULL, 0, NULL, HFILL }},
 	};
 
@@ -681,7 +678,7 @@ proto_register_mpeg_audio(void)
     &ett_mpeg_audio_ID3v1,
 
 /*--- End of included file: packet-mpeg-audio-ettarr.c ---*/
-#line 173 "../../asn1/mpeg-audio/packet-mpeg-audio-template.c"
+#line 170 "../../asn1/mpeg-audio/packet-mpeg-audio-template.c"
 	};
 
 	proto_mpeg_audio = proto_register_protocol(

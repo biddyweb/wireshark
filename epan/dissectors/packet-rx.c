@@ -4,8 +4,6 @@
  * Based on routines from tcpdump patches by
  *   Ken Hornstein <kenh@cmf.nrl.navy.mil>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -42,6 +40,8 @@
  * XXX - is the "Epoch" really a UN*X time?  The high-order bit, according
  * to that spec, is a flag bit.
  */
+void proto_register_rx(void);
+void proto_reg_handoff_rx(void);
 
 #define UDP_PORT_RX_LOW		7000
 #define UDP_PORT_RX_HIGH	7009
@@ -196,8 +196,7 @@ dissect_rx_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, 
 	guint32 version, tl;
 	int old_offset=offset;
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO,
+	col_add_fstr(pinfo->cinfo, COL_INFO,
 			"RESPONSE  "
 			"Seq: %lu  "
 			"Call: %lu  "
@@ -205,10 +204,9 @@ dissect_rx_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, 
 			"Destination Port: %s  ",
 			(unsigned long)seq,
 			(unsigned long)callnumber,
-			get_udp_port(pinfo->srcport),
-			get_udp_port(pinfo->destport)
+			ep_udp_port_to_display(pinfo->srcport),
+			ep_udp_port_to_display(pinfo->destport)
 		);
-	}
 
 	item = proto_tree_add_item(parent_tree, hf_rx_response, tvb, offset, -1, ENC_NA);
 	tree = proto_item_add_subtree(item, ett_rx_response);
@@ -251,8 +249,7 @@ dissect_rx_abort(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, int
 	proto_item *item;
 	int old_offset=offset;
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO,
+	col_add_fstr(pinfo->cinfo, COL_INFO,
 			"ABORT  "
 			"Seq: %lu  "
 			"Call: %lu  "
@@ -260,10 +257,9 @@ dissect_rx_abort(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, int
 			"Destination Port: %s  ",
 			(unsigned long)seq,
 			(unsigned long)callnumber,
-			get_udp_port(pinfo->srcport),
-			get_udp_port(pinfo->destport)
+			ep_udp_port_to_display(pinfo->srcport),
+			ep_udp_port_to_display(pinfo->destport)
 		);
-	}
 
 	item = proto_tree_add_item(parent_tree, hf_rx_abort, tvb, offset, -1, ENC_NA);
 	tree = proto_item_add_subtree(item, ett_rx_abort);
@@ -285,8 +281,7 @@ dissect_rx_challenge(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree,
 	guint32 version;
 	int old_offset=offset;
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO,
+	col_add_fstr(pinfo->cinfo, COL_INFO,
 			"CHALLENGE  "
 			"Seq: %lu  "
 			"Call: %lu  "
@@ -294,10 +289,9 @@ dissect_rx_challenge(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree,
 			"Destination Port: %s  ",
 			(unsigned long)seq,
 			(unsigned long)callnumber,
-			get_udp_port(pinfo->srcport),
-			get_udp_port(pinfo->destport)
+			ep_udp_port_to_display(pinfo->srcport),
+			ep_udp_port_to_display(pinfo->destport)
 		);
-	}
 
 	item = proto_tree_add_item(parent_tree, hf_rx_challenge, tvb, offset, -1, ENC_NA);
 	tree = proto_item_add_subtree(item, ett_rx_challenge);
@@ -327,8 +321,7 @@ dissect_rx_acks(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, int 
 	guint8 num;
 	int old_offset = offset;
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO,
+	col_add_fstr(pinfo->cinfo, COL_INFO,
 			"ACK  "
 			"Seq: %lu  "
 			"Call: %lu  "
@@ -336,10 +329,9 @@ dissect_rx_acks(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, int 
 			"Destination Port: %s  ",
 			(unsigned long)seq,
 			(unsigned long)callnumber,
-			get_udp_port(pinfo->srcport),
-			get_udp_port(pinfo->destport)
+			ep_udp_port_to_display(pinfo->srcport),
+			ep_udp_port_to_display(pinfo->destport)
 		);
-	}
 
 	item = proto_tree_add_item(parent_tree, hf_rx_ack, tvb, offset, -1, ENC_NA);
 	tree = proto_item_add_subtree(item, ett_rx_ack);
@@ -382,22 +374,22 @@ dissect_rx_acks(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, int 
 
 	/* Some implementations adds some extra fields.
 	 * As far as I can see, these first add 3 padding bytes and then
-         * up to 4 32-bit values. (0,3,4 have been witnessed)
+	 * up to 4 32-bit values. (0,3,4 have been witnessed)
 	 *
 	 * RX as a protocol seems to be completely nondefined and seems to lack
 	 * any sort of documentation other than "read the source of any of the
 	 * (compatible?) implementations.
-         */
+	 */
 	if (tvb_length_remaining(tvb, offset)>3) {
 		offset += 3;	/* guess. some implementations adds 3 bytes */
 
 		if (tvb_reported_length_remaining(tvb, offset) >= 4){
-			proto_tree_add_item(tree, hf_rx_ifmtu, tvb, offset, 4,
+			proto_tree_add_item(tree, hf_rx_maxmtu, tvb, offset, 4,
 				ENC_BIG_ENDIAN);
 			offset += 4;
 		}
 		if (tvb_reported_length_remaining(tvb, offset) >= 4){
-			proto_tree_add_item(tree, hf_rx_maxmtu, tvb, offset, 4,
+			proto_tree_add_item(tree, hf_rx_ifmtu, tvb, offset, 4,
 				ENC_BIG_ENDIAN);
 			offset += 4;
 		}
@@ -550,8 +542,7 @@ dissect_rx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *dat
 		break;
 	case RX_PACKET_TYPE_ACKALL:
 		/* does not contain any payload */
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_add_fstr(pinfo->cinfo, COL_INFO,
+		col_add_fstr(pinfo->cinfo, COL_INFO,
 				"ACKALL  "
 				"Seq: %lu  "
 				"Call: %lu  "
@@ -559,10 +550,9 @@ dissect_rx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *dat
 				"Destination Port: %s  ",
 				(unsigned long)seq,
 				(unsigned long)callnumber,
-				get_udp_port(pinfo->srcport),
-				get_udp_port(pinfo->destport)
+				ep_udp_port_to_display(pinfo->srcport),
+				ep_udp_port_to_display(pinfo->destport)
 			);
-		}
 		break;
 	case RX_PACKET_TYPE_CHALLENGE:
 		dissect_rx_challenge(tvb, pinfo, tree, offset, seq, callnumber);
@@ -572,12 +562,9 @@ dissect_rx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *dat
 		break;
 	case RX_PACKET_TYPE_DATA: {
 		tvbuff_t *next_tvb;
-		void* pd_save;
-		pd_save = pinfo->private_data;
-		pinfo->private_data = &rxinfo;
+
 		next_tvb = tvb_new_subset_remaining(tvb, offset);
-		call_dissector(afs_handle, next_tvb, pinfo, parent_tree);
-		pinfo->private_data = pd_save;
+		call_dissector_with_data(afs_handle, next_tvb, pinfo, parent_tree, &rxinfo);
 		};
 		break;
 	case RX_PACKET_TYPE_ABORT:
@@ -793,3 +780,16 @@ proto_reg_handoff_rx(void)
 		dissector_add_uint("udp.port", port, rx_handle);
 	dissector_add_uint("udp.port", UDP_PORT_RX_AFS_BACKUPS, rx_handle);
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=yes:
+ */

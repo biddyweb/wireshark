@@ -4,8 +4,6 @@
  * Copyright 2008, Yves Geissbuehler <yves.geissbuehler@gmx.net>
  * Copyright 2008, Philip Frey <frey.philip@gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,11 +28,14 @@
 #include "config.h"
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/conversation.h>
 #include <epan/dissectors/packet-tcp.h>
 #include <epan/expert.h>
 #include <wsutil/crc32.h>
+
+void proto_register_mpa(void);
+void proto_reg_handoff_mpa(void);
 
 /* DEFINES */
 
@@ -53,9 +54,9 @@
 #define MPA_CRC_LEN 4
 
 /* protocol constants */
-#define MPA_REQ_REP_FRAME G_GINT64_CONSTANT(0x4d50412049442052U)
-#define MPA_ID_REQ_FRAME G_GINT64_CONSTANT(0x6571204672616d65U)
-#define MPA_ID_REP_FRAME G_GINT64_CONSTANT(0x6570204672616d65U)
+#define MPA_REQ_REP_FRAME G_GUINT64_CONSTANT(0x4d50412049442052)
+#define MPA_ID_REQ_FRAME G_GUINT64_CONSTANT(0x6571204672616d65)
+#define MPA_ID_REP_FRAME G_GUINT64_CONSTANT(0x6570204672616d65)
 #define MPA_MARKER_INTERVAL 512
 #define MPA_MAX_PD_LENGTH 512
 #define MPA_ALIGNMENT 4
@@ -109,6 +110,11 @@ static gint ett_mpa_req = -1;
 static gint ett_mpa_rep = -1;
 static gint ett_mpa_fpdu = -1;
 static gint ett_mpa_marker = -1;
+
+static expert_field ei_mpa_res_field_not_set0 = EI_INIT;
+static expert_field ei_mpa_rev_field_not_set1 = EI_INIT;
+static expert_field ei_mpa_reject_bit_responder = EI_INIT;
+static expert_field ei_mpa_bad_length = EI_INIT;
 
 /* handles of our subdissectors */
 static dissector_handle_t ddp_rdmap_handle = NULL;
@@ -203,7 +209,7 @@ init_mpa_state(void)
 {
 	mpa_state_t *state;
 
-	state = (mpa_state_t *) se_alloc0(sizeof(mpa_state_t));
+	state = (mpa_state_t *) wmem_alloc0(wmem_file_scope(), sizeof(mpa_state_t));
 	state->revision = -1;
 	return state;
 }
@@ -306,7 +312,7 @@ remove_markers(tvbuff_t *tvb, packet_info *pinfo, guint32 marker_offset,
 
 	/* allocate memory for the marker-free buffer */
 	mfree_buff_length = orig_length - (MPA_MARKER_LEN * num_markers);
-	mfree_buff = g_malloc(mfree_buff_length);
+	mfree_buff = (guint8 *)wmem_alloc(pinfo->pool, mfree_buff_length);
 
 	tot_copy = 0;
 	source_offset = 0;
@@ -319,7 +325,6 @@ remove_markers(tvbuff_t *tvb, packet_info *pinfo, guint32 marker_offset,
 	}
 	mfree_tvb = tvb_new_child_real_data(tvb, mfree_buff, mfree_buff_length,
 					    mfree_buff_length);
-	tvb_set_free_cb(mfree_tvb, g_free);
 	add_new_data_source(pinfo, mfree_tvb, "FPDU without Markers");
 
 	return mfree_tvb;
@@ -359,12 +364,10 @@ is_mpa_req(tvbuff_t *tvb, packet_info *pinfo)
 
 		/* update expert info */
 		if (mcrres & MPA_RESERVED_FLAG)
-			expert_add_info_format(pinfo, NULL, PI_REQUEST_CODE, PI_WARN,
-					"Res field is NOT set to zero as required by RFC 5044");
+			expert_add_info(pinfo, NULL, &ei_mpa_res_field_not_set0);
 
 		if (state->revision != 1)
-			expert_add_info_format(pinfo, NULL, PI_REQUEST_CODE, PI_WARN,
-					"Rev field is NOT set to one as required by RFC 5044");
+			expert_add_info(pinfo, NULL, &ei_mpa_rev_field_not_set1);
 	}
 	return TRUE;
 }
@@ -406,8 +409,7 @@ is_mpa_rep(tvbuff_t *tvb, packet_info *pinfo)
 		if (!(mcrres & MPA_REJECT_FLAG))
 			state->full_operation = TRUE;
 		else
-			expert_add_info_format(pinfo, NULL, PI_RESPONSE_CODE, PI_NOTE,
-				"Reject bit set by Responder");
+			expert_add_info(pinfo, NULL, &ei_mpa_reject_bit_responder);
 	}
 	return TRUE;
 }
@@ -451,12 +453,10 @@ mpa_packetlist(packet_info *pinfo, gint message_type)
 {
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "MPA");
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_fstr(pinfo->cinfo, COL_INFO,
+	col_add_fstr(pinfo->cinfo, COL_INFO,
 				"%d > %d %s", pinfo->srcport, pinfo->destport,
 				val_to_str(message_type, mpa_messages,
 						"Unknown %d"));
-	}
 }
 
 /* dissects MPA REQUEST or MPA REPLY */
@@ -469,8 +469,6 @@ dissect_mpa_req_rep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
 	proto_item *mpa_item = NULL;
 	proto_item *mpa_header_item = NULL;
-
-	proto_item* bad_pd_length_pi = NULL;
 
 	guint16 pd_length;
 	guint32 offset = 0;
@@ -518,10 +516,8 @@ dissect_mpa_req_rep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		/* check whether the Private Data Length conforms to RFC 5044 */
 		pd_length = tvb_get_ntohs(tvb, offset);
 		if (pd_length > MPA_MAX_PD_LENGTH) {
-			bad_pd_length_pi = proto_tree_add_text(tree, tvb, offset, 2,
+			proto_tree_add_expert_format(tree, pinfo, &ei_mpa_bad_length, tvb, offset, 2,
 				"[PD length field indicates more 512 bytes of Private Data]");
-			proto_item_set_expert_flags(bad_pd_length_pi,
-				PI_MALFORMED, PI_ERROR);
 			return FALSE;
 		}
 
@@ -682,8 +678,6 @@ dissect_mpa_fpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 	proto_tree *mpa_tree = NULL;
 	proto_tree *mpa_header_tree = NULL;
 
-	proto_item* bad_ulpdu_length_pi = NULL;
-
 	guint8 pad_length;
 	guint16 ulpdu_length, exp_ulpdu_length;
 	guint32 offset, total_length;
@@ -724,12 +718,10 @@ dissect_mpa_fpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		 */
 		exp_ulpdu_length = expected_ulpdu_length(state, tcpinfo, endpoint);
 		if (!exp_ulpdu_length || exp_ulpdu_length != ulpdu_length) {
-			bad_ulpdu_length_pi = proto_tree_add_text(tree, tvb, offset,
+			proto_tree_add_expert_format(tree, pinfo, &ei_mpa_bad_length, tvb, offset,
 				MPA_ULPDU_LENGTH_LEN,
-				"[ULPDU length field does not contain the expected length]");
-			proto_item_set_expert_flags(bad_ulpdu_length_pi,
-				PI_MALFORMED, PI_ERROR);
-			return 0;
+				"[ULPDU length [%u] field does not contain the expected length[%u]]",
+				exp_ulpdu_length, ulpdu_length);
 		}
 
 		mpa_item = proto_tree_add_item(tree, proto_iwarp_mpa, tvb, 0,
@@ -789,19 +781,21 @@ dissect_mpa_fpdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
  * Main dissection routine.
  */
 static gboolean
-dissect_iwarp_mpa(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_iwarp_mpa(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 	tvbuff_t *next_tvb = NULL;
 	conversation_t *conversation = NULL;
 	mpa_state_t *state = NULL;
-	struct tcpinfo *tcpinfo = NULL;
+	struct tcpinfo *tcpinfo;
 	guint8 endpoint = 3;
 	guint16 ulpdu_length = 0;
 
+	if (data == NULL)
+		return FALSE;
+	tcpinfo = (struct tcpinfo *)data;
+
 	/* FPDU */
 	if (tvb_length(tvb) >= MPA_SMALLEST_FPDU_LEN && is_mpa_fpdu(pinfo)) {
-
-		tcpinfo = pinfo->private_data;
 
 		conversation = find_conversation(pinfo->fd->num, &pinfo->src,
 				&pinfo->dst, pinfo->ptype, pinfo->srcport, pinfo->destport, 0);
@@ -960,6 +954,15 @@ void proto_register_mpa(void)
 			&ett_mpa_marker
 	};
 
+	static ei_register_info ei[] = {
+		{ &ei_mpa_res_field_not_set0, { "iwarp_mpa.res.not_set0", PI_REQUEST_CODE, PI_WARN, "Res field is NOT set to zero as required by RFC 5044", EXPFILL }},
+		{ &ei_mpa_rev_field_not_set1, { "iwarp_mpa.rev.not_set1", PI_REQUEST_CODE, PI_WARN, "Rev field is NOT set to one as required by RFC 5044", EXPFILL }},
+		{ &ei_mpa_reject_bit_responder, { "iwarp_mpa.reject_bit_responder", PI_RESPONSE_CODE, PI_NOTE, "Reject bit set by Responder", EXPFILL }},
+		{ &ei_mpa_bad_length, { "iwarp_mpa.bad_length", PI_MALFORMED, PI_ERROR, "Bad length", EXPFILL }},
+	};
+
+	expert_module_t* expert_iwarp_mpa;
+
 	/* register the protocol name and description */
 	proto_iwarp_mpa = proto_register_protocol(
 		"iWARP Marker Protocol data unit Aligned framing",
@@ -968,7 +971,8 @@ void proto_register_mpa(void)
 	/* required function calls to register the header fields and subtrees */
 	proto_register_field_array(proto_iwarp_mpa, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
-
+	expert_iwarp_mpa = expert_register_protocol(proto_iwarp_mpa);
+	expert_register_field_array(expert_iwarp_mpa, ei, array_length(ei));
 }
 
 void

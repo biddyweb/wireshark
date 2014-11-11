@@ -3,7 +3,6 @@
  * Copyright 2007 Anders Broman <anders.broman@ericsson.com>
  * Built from the gsm-map dissector Copyright 2004 - 2005, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,7 +29,7 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/oids.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/asn1.h>
 #include <epan/strutil.h>
 
@@ -38,12 +37,13 @@
 #include "packet-ber.h"
 #include "packet-tcap.h"
 #include "packet-ansi_tcap.h"
-#include <epan/tcap-persistentdata.h>
 
 #define PNAME  "ANSI Transaction Capabilities Application Part"
 #define PSNAME "ANSI_TCAP"
 #define PFNAME "ansi_tcap"
 
+void proto_register_ansi_tcap(void);
+void proto_reg_handoff_ansi_tcap(void);
 
 /* Preferences defaults */
 gint ansi_tcap_response_matching_type = 0;
@@ -86,6 +86,13 @@ static dissector_table_t  ansi_tcap_national_opcode_table; /* National Operation
 extern gboolean gtcap_PersistentSRT;
 extern guint gtcap_RepetitionTimeout;
 extern guint gtcap_LostTimeout;
+
+/* When several Tcap components are received in a single TCAP message,
+   we have to use several buffers for the stored parameters
+   because else this data are erased during TAP dissector call */
+#define MAX_TCAP_INSTANCE 10
+int tcapsrt_global_current=0;
+struct tcapsrt_info_t tcapsrt_global_info[MAX_TCAP_INSTANCE];
 
 static dissector_table_t ber_oid_dissector_table=NULL;
 static const char * cur_oid;
@@ -185,9 +192,11 @@ ansi_tcap_init_protocol(void)
 static void
 save_invoke_data(packet_info *pinfo, proto_tree *tree _U_, tvbuff_t *tvb _U_){
   struct ansi_tcap_invokedata_t *ansi_tcap_saved_invokedata;
-  address* src = &(pinfo->src);
-  address* dst = &(pinfo->dst);
+  gchar *src, *dst;
   char *buf;
+
+  src = address_to_str(wmem_packet_scope(), &(pinfo->src));
+  dst = address_to_str(wmem_packet_scope(), &(pinfo->dst));
 
   if ((!pinfo->fd->flags.visited)&&(ansi_tcap_private.TransactionID_str)){
 
@@ -195,13 +204,13 @@ save_invoke_data(packet_info *pinfo, proto_tree *tree _U_, tvbuff_t *tvb _U_){
           /* The hash string needs to contain src and dest to distiguish differnt flows */
           switch(ansi_tcap_response_matching_type){
                         case 0:
-                                buf = ep_strdup(ansi_tcap_private.TransactionID_str);
+                                buf = wmem_strdup(wmem_packet_scope(), ansi_tcap_private.TransactionID_str);
                                 break;
                         case 1:
-                                buf = ep_strdup_printf("%s%s",ansi_tcap_private.TransactionID_str,ep_address_to_str(src));
+                                buf = wmem_strdup_printf(wmem_packet_scope(), "%s%s",ansi_tcap_private.TransactionID_str,src);
                                 break;
                         default:
-                                buf = ep_strdup_printf("%s%s%s",ansi_tcap_private.TransactionID_str,ep_address_to_str(src),ep_address_to_str(dst));
+                                buf = wmem_strdup_printf(wmem_packet_scope(), "%s%s%s",ansi_tcap_private.TransactionID_str,src,dst);
                                 break;
                 }
 
@@ -210,13 +219,13 @@ save_invoke_data(packet_info *pinfo, proto_tree *tree _U_, tvbuff_t *tvb _U_){
           if(ansi_tcap_saved_invokedata)
                   return;
 
-          ansi_tcap_saved_invokedata = se_new(struct ansi_tcap_invokedata_t);
+          ansi_tcap_saved_invokedata = wmem_new(wmem_file_scope(), struct ansi_tcap_invokedata_t);
           ansi_tcap_saved_invokedata->OperationCode = ansi_tcap_private.d.OperationCode;
           ansi_tcap_saved_invokedata->OperationCode_national = ansi_tcap_private.d.OperationCode_national;
           ansi_tcap_saved_invokedata->OperationCode_private = ansi_tcap_private.d.OperationCode_private;
 
           g_hash_table_insert(TransactionId_table,
-                        se_strdup(buf),
+                        wmem_strdup(wmem_file_scope(), buf),
                         ansi_tcap_saved_invokedata);
           /*
           g_warning("Tcap Invoke Hash string %s",buf);
@@ -227,32 +236,31 @@ save_invoke_data(packet_info *pinfo, proto_tree *tree _U_, tvbuff_t *tvb _U_){
 static gboolean
 find_saved_invokedata(packet_info *pinfo, proto_tree *tree _U_, tvbuff_t *tvb _U_){
   struct ansi_tcap_invokedata_t *ansi_tcap_saved_invokedata;
-  address* src = &(pinfo->src);
-  address* dst = &(pinfo->dst);
+  gchar *src, *dst;
   char *buf;
 
   if (!ansi_tcap_private.TransactionID_str) {
     return FALSE;
   }
 
+  src = address_to_str(wmem_packet_scope(), &(pinfo->src));
+  dst = address_to_str(wmem_packet_scope(), &(pinfo->dst));
+
   /* The hash string needs to contain src and dest to distiguish differnt flows */
-  buf = ep_alloc(MAX_TID_STR_LEN);
+  buf = (char *)wmem_alloc(wmem_packet_scope(), MAX_TID_STR_LEN);
   buf[0] = '\0';
   /* Reverse order to invoke */
-  g_snprintf(buf, MAX_TID_STR_LEN, "%s%s%s",
-        ansi_tcap_private.TransactionID_str, ep_address_to_str(dst),
-        ep_address_to_str(src));
   switch(ansi_tcap_response_matching_type){
         case 0:
                 g_snprintf(buf,MAX_TID_STR_LEN,"%s",ansi_tcap_private.TransactionID_str);
                 break;
         case 1:
-                g_snprintf(buf,MAX_TID_STR_LEN,"%s%s",ansi_tcap_private.TransactionID_str,ep_address_to_str(dst));
+                g_snprintf(buf,MAX_TID_STR_LEN,"%s%s",ansi_tcap_private.TransactionID_str,dst);
                 break;
         default:
-                    g_snprintf(buf,MAX_TID_STR_LEN,"%s%s%s",ansi_tcap_private.TransactionID_str,ep_address_to_str(dst),ep_address_to_str(src));
-                    break;
-    }
+                g_snprintf(buf,MAX_TID_STR_LEN,"%s%s%s",ansi_tcap_private.TransactionID_str,dst,src);
+                break;
+  }
 
   ansi_tcap_saved_invokedata = (struct ansi_tcap_invokedata_t *)g_hash_table_lookup(TransactionId_table, buf);
   if(ansi_tcap_saved_invokedata){
@@ -288,7 +296,7 @@ find_tcap_subdissector(tvbuff_t *tvb, asn1_ctx_t *actx, proto_tree *tree){
          * points to the subdissector this code can be used.
          *
         if(ansi_tcap_private.d.oid_is_present){
-                call_ber_oid_callback(ansi_tcap_private.objectApplicationId_oid, tvb, 0, actx-pinfo, tree);
+                call_ber_oid_callback(ansi_tcap_private.objectApplicationId_oid, tvb, 0, actx-pinfo, tree, NULL);
                 return TRUE;
         }
         */
@@ -341,7 +349,7 @@ find_tcap_subdissector(tvbuff_t *tvb, asn1_ctx_t *actx, proto_tree *tree){
          * Operation Family is coded as decimal 9. Bit H of the Operation Family is always
          * coded as 0.
          */
-        call_dissector(ansi_map_handle, tvb, actx->pinfo, tcap_top_tree);
+        call_dissector_with_data(ansi_map_handle, tvb, actx->pinfo, tcap_top_tree, &ansi_tcap_private);
 
         return TRUE;
 }
@@ -381,7 +389,6 @@ dissect_ansi_tcap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
     cur_oid = NULL;
     tcapext_oid = NULL;
 
-    pinfo->private_data = &ansi_tcap_private;
     gp_tcapsrt_info=tcapsrt_razinfo();
     tcap_subdissector_used=FALSE;
     gp_tcap_context=NULL;

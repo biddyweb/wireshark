@@ -6,8 +6,6 @@
  * Copyright 2003, Vincent JARDIN - 6WIND - <vincent.jardin@6wind.com>
  * Copyright 2004, Remi DENIS-COURMONT
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -40,6 +38,9 @@
 #include <epan/tap.h>
 
 #define UDP_PORT_TEREDO 3544
+
+void proto_reg_handoff_teredo(void);
+void proto_register_teredo(void);
 
 static int teredo_tap = -1;
 
@@ -85,8 +86,7 @@ parse_teredo_auth(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 {
 	guint idlen, aulen;
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_append_sep_str (pinfo->cinfo, COL_INFO, ", ",
+	col_append_sep_str (pinfo->cinfo, COL_INFO, ", ",
 					"Authentication header");
 
 	teredoh->th_indtyp = 1;
@@ -150,8 +150,7 @@ parse_teredo_orig(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 {
 	proto_item *ti = NULL;
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_append_sep_str (pinfo->cinfo, COL_INFO, ", ",
+	col_append_sep_str (pinfo->cinfo, COL_INFO, ", ",
 					"Origin indication");
 
 	if (tree) {

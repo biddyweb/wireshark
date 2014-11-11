@@ -2,8 +2,6 @@
  * Routines for Wireless Certificate Extension (RFC3770)
  *  Ronnie Sahlberg 2005
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -39,6 +37,9 @@
 #define PNAME  "Wlan Certificate Extension"
 #define PSNAME "WLANCERTEXTN"
 #define PFNAME "wlancertextn"
+
+void proto_register_wlancertextn(void);
+void proto_reg_handoff_wlancertextn(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_wlancertextn = -1;

@@ -1,8 +1,6 @@
 /* color_edit_dlg.c
  * Definitions for single color filter edit dialog boxes
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,7 +24,7 @@
 
 #include <gtk/gtk.h>
 
-#include <epan/packet.h>
+#include <epan/dfilter/dfilter.h>
 
 #include "../color.h"
 #include "../color_filters.h"
@@ -274,7 +272,7 @@ color_edit_dlg_new(GtkWidget *color_filters,
 
   /* Create the "Add Expression..." button, to pop up a dialog
      for constructing filter comparison expressions. */
-  add_expression_bt = gtk_button_new_from_stock(WIRESHARK_STOCK_ADD_EXPRESSION);
+  add_expression_bt = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_ADD_EXPRESSION);
   g_signal_connect(add_expression_bt, "clicked", G_CALLBACK(filter_expr_cb), filt_text_entry);
   gtk_box_pack_start (GTK_BOX(filter_string_hbox), add_expression_bt, FALSE, FALSE, 3);
   gtk_widget_set_tooltip_text(add_expression_bt, "Add an expression to the filter string");
@@ -418,8 +416,8 @@ color_edit_dlg_ok_cb(GtkWidget *w _U_, gpointer user_data)
 
     context = gtk_widget_get_style_context (cedi->filt_name_entry);
 
-    gtk_style_context_get_color(context, GTK_STATE_NORMAL, &new_rgba_fg_color);  /* aka foreground color */
-    gtk_style_context_get_background_color(context, GTK_STATE_NORMAL, &new_rgba_bg_color);
+    gtk_style_context_get_color(context, (GtkStateFlags)GTK_STATE_NORMAL, &new_rgba_fg_color);  /* aka foreground color */
+    gtk_style_context_get_background_color(context, (GtkStateFlags)GTK_STATE_NORMAL, &new_rgba_bg_color);
 
     gdkRGBAcolor_to_color_t(&colorf->fg_color, &new_rgba_fg_color);
     gdkRGBAcolor_to_color_t(&colorf->bg_color, &new_rgba_bg_color);

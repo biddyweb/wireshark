@@ -3,8 +3,6 @@
  * Routines for Amateur Packet Radio protocol dissection
  * Copyright 2005,2006,2007,2008,2009,2010,2012 R.W. Stearn <richard@rns-stearn.demon.co.uk>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -49,6 +47,9 @@
 
 #define BPQ_HEADER_SIZE	2 /* length of bpq_len */
 
+void proto_register_bpq(void);
+void proto_reg_handoff_bpq(void);
+
 static dissector_handle_t ax25_handle;
 
 static int proto_bpq            = -1;
@@ -63,7 +64,6 @@ dissect_bpq( tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree )
 	proto_tree *bpq_tree;
 	int	    offset;
 	guint16	    bpq_len;
-	void	   *saved_private_data;
 	tvbuff_t   *next_tvb;
 
 
@@ -97,11 +97,9 @@ dissect_bpq( tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree )
 
 	offset += BPQ_HEADER_SIZE;
 
-	saved_private_data = pinfo->private_data;
 	/* XXX - use the length */
 	next_tvb = tvb_new_subset_remaining( tvb, offset );
 	call_dissector( ax25_handle, next_tvb, pinfo, parent_tree );
-	pinfo->private_data = saved_private_data;
 }
 
 void

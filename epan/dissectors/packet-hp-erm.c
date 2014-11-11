@@ -2,8 +2,6 @@
  * Routines for the disassembly of  HP ProCurve encapsulated remote mirroring frames
  * (Adapted from packet-cisco-erspan.c and packet-vlan.c)
  *
- * $Id$
- *
  * Copyright 2010 2012 William Meier <wmeier [AT] newsguy.com>,
  *                     Zdravko Velinov <z.velinov [AT] vkv5.com>
  *
@@ -39,7 +37,7 @@
  *  of the UDP packet consists of a 12 byte "header" followed by the
  *  bytes of the mirrored frame.
  *
- *  After some additional tests, which involved injecting 802.1Q frames with 
+ *  After some additional tests, which involved injecting 802.1Q frames with
  *  different priorities and VLAN identifiers. It was determined that the HP
  *  ERM header has a part inside its header that closely resembles the 802.1Q
  *  header. The only difference is the priority numbering.
@@ -50,6 +48,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/prefs.h>
+
+void proto_register_hp_erm(void);
+void proto_reg_handoff_hp_erm(void);
 
 #define PROTO_SHORT_NAME "HP_ERM"
 #define PROTO_LONG_NAME  "HP encapsulated remote mirroring"
@@ -119,8 +120,6 @@ dissect_hp_erm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 void
 proto_register_hp_erm(void)
 {
-    void proto_reg_handoff_hp_erm(void);
-
     static hf_register_info hf[] = {
 
         { &hf_hp_erm_unknown1,

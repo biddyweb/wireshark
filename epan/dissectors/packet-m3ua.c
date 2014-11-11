@@ -9,8 +9,6 @@
  *
  * Copyright 2000, 2001, 2002, 2003, 2004 Michael Tuexen <tuexen [AT] fh-muenster.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -39,12 +37,15 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/sctpppids.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include "packet-mtp3.h"
 #include "packet-sccp.h"
 #include "packet-frame.h"
 #include "packet-q708.h"
 #include <epan/tap.h>
+
+void proto_register_m3ua(void);
+void proto_reg_handoff_m3ua(void);
 
 static gint m3ua_pref_mtp3_standard;
 
@@ -338,16 +339,15 @@ dissect_v5_common_header(tvbuff_t *common_header_tvb, packet_info *pinfo, proto_
   message_class  = tvb_get_guint8(common_header_tvb, MESSAGE_CLASS_OFFSET);
   message_type   = tvb_get_guint8(common_header_tvb, MESSAGE_TYPE_OFFSET);
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(message_class * 256 + message_type, v5_message_class_type_acro_values, "reserved"));
+  col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(message_class * 256 + message_type, v5_message_class_type_acro_values, "reserved"));
 
   if (m3ua_tree) {
     /* add the components of the common header to the protocol tree */
     proto_tree_add_item(m3ua_tree, hf_version, common_header_tvb, VERSION_OFFSET, VERSION_LENGTH, ENC_BIG_ENDIAN);
     proto_tree_add_item(m3ua_tree, hf_reserved, common_header_tvb, RESERVED_OFFSET, RESERVED_LENGTH, ENC_BIG_ENDIAN);
     proto_tree_add_item(m3ua_tree, hf_v5_message_class, common_header_tvb, MESSAGE_CLASS_OFFSET, MESSAGE_CLASS_LENGTH, ENC_BIG_ENDIAN);
-    proto_tree_add_uint_format(m3ua_tree, hf_message_type, common_header_tvb, MESSAGE_TYPE_OFFSET, MESSAGE_TYPE_LENGTH, message_type,
-                               "Message type: %s (%u)", val_to_str_const(message_class * 256 + message_type, v5_message_class_type_values, "reserved"), message_type);
+    proto_tree_add_uint_format_value(m3ua_tree, hf_message_type, common_header_tvb, MESSAGE_TYPE_OFFSET, MESSAGE_TYPE_LENGTH, message_type,
+                               "%s (%u)", val_to_str_const(message_class * 256 + message_type, v5_message_class_type_values, "reserved"), message_type);
     proto_tree_add_item(m3ua_tree, hf_message_length, common_header_tvb, MESSAGE_LENGTH_OFFSET, MESSAGE_LENGTH_LENGTH, ENC_BIG_ENDIAN);
   }
 }
@@ -361,16 +361,15 @@ dissect_common_header(tvbuff_t *common_header_tvb, packet_info *pinfo, proto_tre
   message_class  = tvb_get_guint8(common_header_tvb, MESSAGE_CLASS_OFFSET);
   message_type   = tvb_get_guint8(common_header_tvb, MESSAGE_TYPE_OFFSET);
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_add_fstr(pinfo->cinfo, COL_INFO,"%s ", val_to_str_const(message_class * 256 + message_type, message_class_type_acro_values, "reserved"));
+  col_add_fstr(pinfo->cinfo, COL_INFO,"%s ", val_to_str_const(message_class * 256 + message_type, message_class_type_acro_values, "reserved"));
 
   if (m3ua_tree) {
     /* add the components of the common header to the protocol tree */
     proto_tree_add_item(m3ua_tree, hf_version, common_header_tvb, VERSION_OFFSET, VERSION_LENGTH, ENC_BIG_ENDIAN);
     proto_tree_add_item(m3ua_tree, hf_reserved, common_header_tvb, RESERVED_OFFSET, RESERVED_LENGTH, ENC_BIG_ENDIAN);
     proto_tree_add_item(m3ua_tree, hf_message_class, common_header_tvb, MESSAGE_CLASS_OFFSET, MESSAGE_CLASS_LENGTH, ENC_BIG_ENDIAN);
-    proto_tree_add_uint_format(m3ua_tree, hf_message_type, common_header_tvb, MESSAGE_TYPE_OFFSET, MESSAGE_TYPE_LENGTH, message_type,
-                               "Message type: %s (%u)", val_to_str_const(message_class * 256 + message_type, message_class_type_values, "reserved"), message_type);
+    proto_tree_add_uint_format_value(m3ua_tree, hf_message_type, common_header_tvb, MESSAGE_TYPE_OFFSET, MESSAGE_TYPE_LENGTH, message_type,
+                               "%s (%u)", val_to_str_const(message_class * 256 + message_type, message_class_type_values, "reserved"), message_type);
     proto_tree_add_item(m3ua_tree, hf_message_length, common_header_tvb, MESSAGE_LENGTH_OFFSET, MESSAGE_LENGTH_LENGTH, ENC_BIG_ENDIAN);
   }
 }
@@ -411,7 +410,7 @@ dissect_info_string_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tre
   info_string_length = tvb_get_ntohs(parameter_tvb, PARAMETER_LENGTH_OFFSET) - PARAMETER_HEADER_LENGTH;
   proto_tree_add_item(parameter_tree, hf_info_string, parameter_tvb, INFO_STRING_OFFSET, info_string_length, ENC_ASCII|ENC_NA);
   proto_item_append_text(parameter_item, " (%.*s)", info_string_length,
-                         tvb_get_ephemeral_string(parameter_tvb, INFO_STRING_OFFSET, info_string_length));
+                         tvb_get_string(wmem_packet_scope(), parameter_tvb, INFO_STRING_OFFSET, info_string_length));
 }
 
 #define AFFECTED_MASK_LENGTH 1
@@ -755,8 +754,8 @@ dissect_v567_status_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tre
   status_info = tvb_get_ntohs(parameter_tvb, STATUS_INFO_OFFSET);
 
   proto_tree_add_item(parameter_tree, hf_status_type, parameter_tvb, STATUS_TYPE_OFFSET, STATUS_TYPE_LENGTH, ENC_BIG_ENDIAN);
-  proto_tree_add_uint_format(parameter_tree, hf_status_info, parameter_tvb, STATUS_INFO_OFFSET, STATUS_INFO_LENGTH, status_info,
-                             "Status info: %s (%u)", val_to_str_const(status_type * 256 * 256 + status_info, v567_status_type_info_values, "unknown"), status_info);
+  proto_tree_add_uint_format_value(parameter_tree, hf_status_info, parameter_tvb, STATUS_INFO_OFFSET, STATUS_INFO_LENGTH, status_info,
+                             "%s (%u)", val_to_str_const(status_type * 256 * 256 + status_info, v567_status_type_info_values, "unknown"), status_info);
 
   proto_item_append_text(parameter_item, " (%s)", val_to_str_const(status_type * 256 * 256 + status_info, v567_status_type_info_values, "unknown status information"));
 }
@@ -780,8 +779,8 @@ dissect_status_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, pr
   status_info = tvb_get_ntohs(parameter_tvb, STATUS_INFO_OFFSET);
 
   proto_tree_add_item(parameter_tree, hf_status_type, parameter_tvb, STATUS_TYPE_OFFSET, STATUS_TYPE_LENGTH, ENC_BIG_ENDIAN);
-  proto_tree_add_uint_format(parameter_tree, hf_status_info, parameter_tvb, STATUS_INFO_OFFSET, STATUS_INFO_LENGTH, status_info,
-                             "Status info: %s (%u)", val_to_str_const(status_type * 256 * 256 + status_info, status_type_info_values, "unknown"), status_info);
+  proto_tree_add_uint_format_value(parameter_tree, hf_status_info, parameter_tvb, STATUS_INFO_OFFSET, STATUS_INFO_LENGTH, status_info,
+                             "%s (%u)", val_to_str_const(status_type * 256 * 256 + status_info, status_type_info_values, "unknown"), status_info);
 
   proto_item_append_text(parameter_item, " (%s)", val_to_str_const(status_type * 256 * 256 + status_info, status_type_info_values, "unknown status information"));
 }
@@ -1160,11 +1159,13 @@ dissect_protocol_data_parameter(tvbuff_t *parameter_tvb, packet_info *pinfo, pro
   guint16 ulp_length;
   tvbuff_t *payload_tvb;
   proto_item *item, *gen_item;
-  mtp3_tap_rec_t* mtp3_tap = ep_alloc0(sizeof(mtp3_tap_rec_t));
+  mtp3_tap_rec_t* mtp3_tap;
   proto_tree *q708_tree;
   gint heuristic_standard;
   guint8 si;
   guint32 opc, dpc;
+
+  mtp3_tap = wmem_new0(pinfo->pool, mtp3_tap_rec_t);
 
   si = tvb_get_guint8(parameter_tvb, DATA_SI_OFFSET);
   ulp_length  = tvb_get_ntohs(parameter_tvb, PARAMETER_LENGTH_OFFSET) - PARAMETER_HEADER_LENGTH - DATA_HDR_LENGTH;
@@ -1191,13 +1192,13 @@ dissect_protocol_data_parameter(tvbuff_t *parameter_tvb, packet_info *pinfo, pro
       PROTO_ITEM_SET_GENERATED(gen_item);
   }
 
-  mtp3_tap->addr_dpc.type = mtp3_standard;
+  mtp3_tap->addr_dpc.type = (Standard_Type)mtp3_standard;
   mtp3_tap->addr_dpc.pc = dpc;
   mtp3_tap->addr_dpc.ni = tvb_get_guint8(parameter_tvb, DATA_NI_OFFSET);
   SET_ADDRESS(&pinfo->dst, AT_SS7PC, sizeof(mtp3_addr_pc_t), (guint8 *) &mtp3_tap->addr_dpc);
 
 
-  mtp3_tap->addr_opc.type = mtp3_standard;
+  mtp3_tap->addr_opc.type = (Standard_Type)mtp3_standard;
   mtp3_tap->addr_opc.pc = opc;
   mtp3_tap->addr_opc.ni = tvb_get_guint8(parameter_tvb, DATA_NI_OFFSET);
   SET_ADDRESS(&pinfo->src, AT_SS7PC, sizeof(mtp3_addr_pc_t), (guint8 *) &mtp3_tap->addr_opc);
@@ -2008,8 +2009,7 @@ dissect_m3ua(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *tree)
 
 
   /* make entry in the Protocol column on summary display */
-  if (check_col(pinfo->cinfo, COL_PROTOCOL))
-    switch(version) {
+  switch(version) {
       case M3UA_V5:
         col_set_str(pinfo->cinfo, COL_PROTOCOL, "M3UA (ID 05)");
         break;
@@ -2020,23 +2020,16 @@ dissect_m3ua(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *tree)
         col_set_str(pinfo->cinfo, COL_PROTOCOL, "M3UA (ID 07)");
         break;
       case M3UA_RFC:
-        col_set_str(pinfo->cinfo, COL_PROTOCOL, "M3UA (RFC 3332)");
+        col_set_str(pinfo->cinfo, COL_PROTOCOL, "M3UA (RFC 4666)");
         break;
-      };
-
-  /* In the interest of speed, if "tree" is NULL, don't do any work not
-     necessary to generate protocol tree items. */
-  if (tree) {
-    /* create the m3ua protocol tree */
-    m3ua_item = proto_tree_add_item(tree, proto_m3ua, message_tvb, 0, -1, ENC_NA);
-    m3ua_tree = proto_item_add_subtree(m3ua_item, ett_m3ua);
-  } else {
-    m3ua_tree = NULL;
   };
+
+  /* create the m3ua protocol tree */
+  m3ua_item = proto_tree_add_item(tree, proto_m3ua, message_tvb, 0, -1, ENC_NA);
+  m3ua_tree = proto_item_add_subtree(m3ua_item, ett_m3ua);
 
   /* dissect the message */
   dissect_message(message_tvb, pinfo, tree, m3ua_tree);
-
 }
 
 /* Register the protocol with Wireshark */
@@ -2133,7 +2126,7 @@ proto_register_m3ua(void)
     { "draft-5", "Internet Draft version 5",        M3UA_V5  },
     { "draft-6", "Internet Draft version 6",        M3UA_V6  },
     { "draft-7", "Internet Draft version 7",        M3UA_V7  },
-    { "rfc3332", "RFC 3332",                        M3UA_RFC },
+    { "rfc4666", "RFC 4666",                        M3UA_RFC },
     { NULL, NULL, 0 }
   };
 

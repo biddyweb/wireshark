@@ -1,8 +1,6 @@
 /* packet-mndp.c
  * Routines for the disassembly of the Mikrotik Neighbor Discovery Protocol
  *
- * $Id$
- *
  * Copyright 2011 Joerg Mayer (see AUTHORS file)
  *
  * Wireshark - Network traffic analyzer
@@ -36,7 +34,10 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
+
+void proto_register_mndp(void);
+void proto_reg_handoff_mndp(void);
 
 /* protocol handles */
 static int proto_mndp = -1;
@@ -63,6 +64,7 @@ static int hf_mndp_platform = -1;
 static int hf_mndp_board = -1;
 static int hf_mndp_unpack = -1;
 static int hf_mndp_ipv6address = -1;
+static int hf_mndp_interfacename = -1;
 
 #define PROTO_SHORT_NAME "MNDP"
 #define PROTO_LONG_NAME "Mikrotik Neighbor Discovery Protocol"
@@ -111,7 +113,7 @@ extval_to_str_idx(guint32 val, const ext_value_string *vs, gint *idx, const char
   if (ret != NULL)
     return ret;
 
-  return ep_strdup_printf(fmt, val);
+  return wmem_strdup_printf(wmem_packet_scope(), fmt, val);
 }
 /* ============= end copy/paste/modify  ============== */
 
@@ -124,17 +126,18 @@ static const ext_value_string mndp_body_tlv_vals[] = {
 	{ 5, "Identity", &hf_mndp_identity, NULL, NULL },
 	{ 7, "Version", &hf_mndp_version, NULL, NULL },
 	{ 8, "Platform", &hf_mndp_platform, NULL, NULL },
-	{ 10, "Uptime", &hf_mndp_uptime, NULL, (void *)TRUE },
+	{ 10, "Uptime", &hf_mndp_uptime, NULL, (ext_value_string *)TRUE },
 	{ 11, "Software-ID", &hf_mndp_softwareid, NULL, NULL },
 	{ 12, "Board", &hf_mndp_board, NULL, NULL },
 	{ 14, "Unpack", &hf_mndp_unpack, NULL, NULL },
 	{ 15, "IPv6-Address", &hf_mndp_ipv6address, NULL, NULL },
+	{ 16, "Interface name", &hf_mndp_interfacename, NULL, NULL },
 
 	{ 0,	NULL, NULL, NULL, NULL }
 };
 
 static const value_string mndp_unpack_vals[] = {
- 	/* none|simple|uncompressed-headers|uncompressed-all */
+	/* none|simple|uncompressed-headers|uncompressed-all */
 	{ 1,	"None" },
 
 	{ 0,	NULL }
@@ -343,6 +346,10 @@ proto_register_mndp(void)
 		{ "IPv6-Address", "mndp.ipv6address", FT_IPv6, BASE_NONE, NULL,
 				0x0, NULL, HFILL }},
 
+		{ &hf_mndp_interfacename,
+		{ "Interface name", "mndp.interfacename", FT_STRING, BASE_NONE, NULL,
+				0x0, NULL, HFILL }},
+
 	};
 	static gint *ett[] = {
 		&ett_mndp,
@@ -363,4 +370,3 @@ proto_reg_handoff_mndp(void)
 	dissector_add_uint("udp.port", PORT_MNDP, mndp_handle);
 	/* heur_dissector_add("udp", dissect_mndp_heur, proto_mndp); */
 }
-

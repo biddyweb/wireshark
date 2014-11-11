@@ -1,8 +1,6 @@
 /* dftest.c
  * Shows display filter byte-code, for debugging dfilter routines.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,15 +29,18 @@
 #include <errno.h>
 
 #include <glib.h>
-#include <epan/epan.h>
 
+#include <epan/epan.h>
 #include <epan/timestamp.h>
-#include <epan/plugins.h>
-#include <epan/filesystem.h>
-#include <wsutil/privileges.h>
 #include <epan/prefs.h>
+#include <epan/dfilter/dfilter.h>
+
+#include <wsutil/plugins.h>
+#include <wsutil/filesystem.h>
+#include <wsutil/privileges.h>
+#include <wsutil/report_err.h>
+
 #include "ui/util.h"
-#include "epan/dfilter/dfilter.h"
 #include "register.h"
 
 static void failure_message(const char *msg_format, va_list ap);
@@ -72,6 +73,9 @@ main(int argc, char **argv)
 			init_progfile_dir_error);
 	}
 
+	init_report_err(failure_message, open_failure_message,
+			read_failure_message, write_failure_message);
+
 	timestamp_set_type(TS_RELATIVE);
 	timestamp_set_seconds_type(TS_SECONDS_DEFAULT);
 
@@ -79,10 +83,8 @@ main(int argc, char **argv)
 	   "-g" flag, as the "-g" flag dumps a list of fields registered
 	   by the dissectors, and we must do it before we read the preferences,
 	   in case any dissectors register preferences. */
-	epan_init(register_all_protocols,
-		  register_all_protocol_handoffs, NULL, NULL,
-		  failure_message, open_failure_message, read_failure_message,
-		  write_failure_message);
+	epan_init(register_all_protocols, register_all_protocol_handoffs,
+		  NULL, NULL);
 
 	/* set the c-language locale to the native environment. */
 	setlocale(LC_ALL, "");

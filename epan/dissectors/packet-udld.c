@@ -1,8 +1,6 @@
 /* packet-udld.c
  * Routines for the disassembly of the "UniDirectional Link Detection"
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -44,6 +42,9 @@
 /* Offsets in TLV structure. */
 #define	TLV_TYPE	0
 #define	TLV_LENGTH	2
+
+void proto_register_udld(void);
+void proto_reg_handoff_udld(void);
 
 static int proto_udld = -1;
 static int hf_udld_version = -1;
@@ -154,8 +155,7 @@ dissect_udld(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	    case TYPE_DEVICE_ID:
 		/* Device ID */
 
-		if (check_col(pinfo->cinfo, COL_INFO))
-		    col_append_fstr(pinfo->cinfo, COL_INFO,
+	    col_append_fstr(pinfo->cinfo, COL_INFO,
 				    "Device ID: %s  ",
 				    tvb_format_stringzpad(tvb, offset + 4,
 							  length - 4));
@@ -188,8 +188,7 @@ dissect_udld(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		    real_length = length + 3;
 		}
 
-		if (check_col(pinfo->cinfo, COL_INFO))
-		    col_append_fstr(pinfo->cinfo, COL_INFO,
+	    col_append_fstr(pinfo->cinfo, COL_INFO,
 				    "Port ID: %s  ",
 				    tvb_format_stringzpad(tvb, offset + 4, length - 4));
 
@@ -294,5 +293,5 @@ proto_reg_handoff_udld(void)
     data_handle = find_dissector("data");
     udld_handle = create_dissector_handle(dissect_udld, proto_udld);
     dissector_add_uint("llc.cisco_pid", 0x0111, udld_handle);
-    dissector_add_uint("chdlctype", 0x0111, udld_handle);
+    dissector_add_uint("chdlc.protocol", 0x0111, udld_handle);
 }

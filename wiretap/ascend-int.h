@@ -2,8 +2,6 @@
  * Definitions for routines common to multiple modules in the Lucent/Ascend
  * capture file reading code code, but not used outside that code.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,14 +31,6 @@
 #include <glib.h>
 #include "ws_symbol_export.h"
 
-typedef struct {
-  time_t start_time;
-  time_t secs;
-  int usecs;
-  guint32 caplen;
-  guint32 len;
-} ascend_pkthdr;
-
 extern int at_eof;
 
 extern const gchar *ascend_parse_error;
@@ -50,17 +40,24 @@ extern const gchar *ascend_parse_error;
  */
 extern struct ascend_phdr *pseudo_header;
 
+typedef struct {
+	time_t inittime;
+	gboolean adjusted;
+	gint64 next_packet_seek_start;
+} ascend_t;
+
 /* Here we provide interfaces to make our scanner act and look like lex */
 int ascendlex(void);
 
 void init_parse_ascend(void);
 void ascend_init_lexer(FILE_T fh);
+gboolean check_ascend(FILE_T fh, struct wtap_pkthdr *phdr);
 typedef enum {
     PARSED_RECORD,
     PARSED_NONRECORD,
     PARSE_FAILED
 } parse_t;
-parse_t parse_ascend(FILE_T fh, guint8 *pd, struct ascend_phdr *phdr,
-		ascend_pkthdr *hdr, gint64 *start_of_data);
+parse_t parse_ascend(ascend_t *ascend, FILE_T fh, struct wtap_pkthdr *phdr,
+		Buffer *buf, guint length);
 
 #endif /* ! __ASCEND_INT_H__ */

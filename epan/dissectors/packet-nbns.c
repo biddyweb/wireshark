@@ -3,8 +3,6 @@
  * to when it had only NBNS)
  * Guy Harris <guy@alum.mit.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,14 +28,19 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/exceptions.h>
+#include <epan/wmem/wmem.h>
 #include <epan/prefs.h>
 #include <epan/strutil.h>
 #include <epan/show_exception.h>
+#include <epan/to_str.h>
 
 #include "packet-dns.h"
 #include "packet-netbios.h"
 #include "packet-tcp.h"
+
+void proto_register_nbt(void);
+void proto_reg_handoff_nbt(void);
 
 static int proto_nbns = -1;
 static int hf_nbns_flags = -1;
@@ -82,6 +85,9 @@ static int hf_nbdgm_node_type = -1;
 static int hf_nbdgm_datagram_id = -1;
 static int hf_nbdgm_src_ip = -1;
 static int hf_nbdgm_src_port = -1;
+static int hf_nbdgm_datagram_length = -1;
+static int hf_nbdgm_packet_offset = -1;
+static int hf_nbdgm_error_code = -1;
 
 static gint ett_nbdgm = -1;
 
@@ -91,6 +97,9 @@ static int hf_nbss_flags = -1;
 static int hf_nbss_flags_e = -1;
 static int hf_nbss_length = -1;
 static int hf_nbss_cifs_length = -1;
+static int hf_nbss_error_code = -1;
+static int hf_nbss_retarget_ip_address = -1;
+static int hf_nbss_retarget_port = -1;
 
 static gint ett_nbss = -1;
 static gint ett_nbss_flags = -1;
@@ -172,8 +181,8 @@ static const true_false_string tfs_flags_broadcast = {
     "Not a broadcast packet"
 };
 
-static const true_false_string tfs_nbss_flags_e = { 
-    "Add 65536 to length", 
+static const true_false_string tfs_nbss_flags_e = {
+    "Add 65536 to length",
     "Add 0 to length"
 };
 
@@ -296,7 +305,7 @@ add_rr_to_tree(proto_item *trr, int rr_type, tvbuff_t *tvb, int offset,
     proto_tree_add_text(rr_tree, tvb, offset, 2, "Class: %s", class_description);
     offset += 2;
     proto_tree_add_text(rr_tree, tvb, offset, 4, "Time to live: %s",
-                        time_secs_to_str(ttl));
+                        time_secs_to_ep_str(ttl));
     offset += 4;
     proto_tree_add_text(rr_tree, tvb, offset, 2, "Data length: %u", data_len);
     return rr_tree;
@@ -316,7 +325,7 @@ get_nbns_name(tvbuff_t *tvb, int offset, int nbns_data_offset,
     char         *pname_ret;
     size_t        idx = 0;
 
-    nbname_buf = ep_alloc(NBNAME_BUF_LEN);
+    nbname_buf = (char *)wmem_alloc(wmem_packet_scope(), NBNAME_BUF_LEN);
     nbname = nbname_buf;
     /* XXX Fix data len */
     name_len = get_dns_name(tvb, offset, 0, nbns_data_offset, &name);
@@ -404,7 +413,7 @@ get_nbns_name_type_class(tvbuff_t *tvb, int offset, int nbns_data_offset,
 {
     int name_len;
     int type;
-    int class;
+    int rr_class;
 
     name_len = get_nbns_name(tvb, offset, nbns_data_offset, name_ret,
                              *name_len_ret, name_type_ret);
@@ -413,10 +422,10 @@ get_nbns_name_type_class(tvbuff_t *tvb, int offset, int nbns_data_offset,
     type = tvb_get_ntohs(tvb, offset);
     offset += 2;
 
-    class = tvb_get_ntohs(tvb, offset);
+    rr_class = tvb_get_ntohs(tvb, offset);
 
     *type_ret = type;
-    *class_ret = class;
+    *class_ret = rr_class;
     *name_len_ret = name_len;
 
     return name_len + 4;
@@ -446,19 +455,19 @@ dissect_nbns_query(tvbuff_t *tvb, int offset, int nbns_data_offset,
     int         name_len;
     int         name_type;
     int         type;
-    int         class;
+    int         dns_class;
     const char *type_name;
     int         data_offset;
     int         data_start;
     proto_tree *q_tree;
     proto_item *tq;
 
-    name = ep_alloc(MAX_NAME_LEN);
+    name = (char *)wmem_alloc(wmem_packet_scope(), MAX_NAME_LEN);
     data_start = data_offset = offset;
 
     name_len = MAX_NAME_LEN;
     len = get_nbns_name_type_class(tvb, offset, nbns_data_offset, name,
-                                   &name_len, &name_type, &type, &class);
+                                   &name_len, &name_type, &type, &dns_class);
     data_offset += len;
 
     type_name = nbns_type_name(type);
@@ -469,7 +478,7 @@ dissect_nbns_query(tvbuff_t *tvb, int offset, int nbns_data_offset,
     if (nbns_tree != NULL) {
         tq = proto_tree_add_text(nbns_tree, tvb, offset, len,
                                  "%s: type %s, class %s",  name, type_name,
-                                 dns_class_name(class));
+                                 dns_class_name(dns_class));
         q_tree = proto_item_add_subtree(tq, ett_nbns_qd);
 
         add_name_and_type(q_tree, tvb, offset, name_len, "Name", name,
@@ -480,7 +489,7 @@ dissect_nbns_query(tvbuff_t *tvb, int offset, int nbns_data_offset,
         offset += 2;
 
         proto_tree_add_text(q_tree, tvb, offset, 2, "Class: %s",
-                            dns_class_name(class));
+                            dns_class_name(dns_class));
         /*offset += 2;*/
     }
 
@@ -510,7 +519,7 @@ nbns_add_nbns_flags(column_info *cinfo, proto_tree *nbns_tree, tvbuff_t *tvb, in
     if (!nbns_tree)
         return;
 
-    buf = ep_alloc(MAX_BUF_SIZE);
+    buf = (char *)wmem_alloc(wmem_packet_scope(), MAX_BUF_SIZE);
     opcode = (guint16) ((flags & F_OPCODE) >> OPCODE_SHIFT);
     g_snprintf(buf, MAX_BUF_SIZE, "%s", val_to_str_const(opcode, opcode_vals, "Unknown operation"));
     if (flags & F_RESPONSE && !is_wack) {
@@ -519,8 +528,8 @@ nbns_add_nbns_flags(column_info *cinfo, proto_tree *nbns_tree, tvbuff_t *tvb, in
         g_strlcat(buf, val_to_str_const(flags & F_RCODE, rcode_vals, "Unknown error"), MAX_BUF_SIZE);
         buf[MAX_BUF_SIZE-1] = '\0';
     }
-    tf = proto_tree_add_uint_format(nbns_tree, hf_nbns_flags,
-                                    tvb, offset, 2, flags, "Flags: 0x%04x (%s)", flags, buf);
+    tf = proto_tree_add_uint_format_value(nbns_tree, hf_nbns_flags,
+                                    tvb, offset, 2, flags, "0x%04x (%s)", flags, buf);
     field_tree = proto_item_add_subtree(tf, ett_nbns_flags);
     proto_tree_add_item(field_tree, hf_nbns_flags_response,
                         tvb, offset, 2, ENC_BIG_ENDIAN);
@@ -562,7 +571,7 @@ nbns_add_nb_flags(proto_tree *rr_tree, tvbuff_t *tvb, int offset)
     proto_tree_add_item(field_tree, hf_nbns_nb_flags_group, tvb, offset, 2, ENC_BIG_ENDIAN);
     proto_tree_add_item(field_tree, hf_nbns_nb_flags_ont, tvb, offset, 2, ENC_BIG_ENDIAN);
 
-    proto_item_append_text(tf, "(%s, %s", 
+    proto_item_append_text(tf, "(%s, %s",
                 val_to_str_const(flags & NB_FLAGS_ONT, nb_flags_ont_vals, "Unknown"),
                 (flags & NB_FLAGS_G) ? "group" : "unique");
 }
@@ -587,18 +596,18 @@ nbns_add_name_flags(proto_tree *rr_tree, tvbuff_t *tvb, int offset)
     proto_tree_add_item(field_tree, hf_nbns_name_flags_act, tvb, offset, 2, ENC_BIG_ENDIAN);
     proto_tree_add_item(field_tree, hf_nbns_name_flags_prm, tvb, offset, 2, ENC_BIG_ENDIAN);
 
-    proto_item_append_text(tf, "(%s, %s", 
+    proto_item_append_text(tf, "(%s, %s",
                 val_to_str_const(flags & NAME_FLAGS_ONT, name_flags_ont_vals, "Unknown"),
                 (flags & NAME_FLAGS_G) ? "group" : "unique");
     if (flags & NAME_FLAGS_DRG)
-        proto_item_append_text(tf, ", being deregistered"); 
+        proto_item_append_text(tf, ", being deregistered");
     if (flags & NAME_FLAGS_CNF)
-        proto_item_append_text(tf, ", in conflict"); 
+        proto_item_append_text(tf, ", in conflict");
     if (flags & NAME_FLAGS_ACT)
-        proto_item_append_text(tf, ", active"); 
+        proto_item_append_text(tf, ", active");
     if (flags & NAME_FLAGS_PRM)
-        proto_item_append_text(tf, ", permanent node name"); 
-    proto_item_append_text(tf, ")"); 
+        proto_item_append_text(tf, ", permanent node name");
+    proto_item_append_text(tf, ")");
 }
 
 static int
@@ -610,7 +619,7 @@ dissect_nbns_answer(tvbuff_t *tvb, int offset, int nbns_data_offset,
     int         name_len;
     int         name_type;
     int         type;
-    int         class;
+    int         dns_class;
     const char *class_name;
     const char *type_name;
     int         cur_offset;
@@ -625,17 +634,17 @@ dissect_nbns_answer(tvbuff_t *tvb, int offset, int nbns_data_offset,
 
     cur_offset = offset;
 
-    name     = ep_alloc(MAX_NAME_LEN);
-    name_str = ep_alloc(MAX_NAME_LEN);
-    nbname   = ep_alloc(16+4+1); /* 4 for [<last char>] */
+    name     = (char *)wmem_alloc(wmem_packet_scope(), MAX_NAME_LEN);
+    name_str = (char *)wmem_alloc(wmem_packet_scope(), MAX_NAME_LEN);
+    nbname   = (char *)wmem_alloc(wmem_packet_scope(), 16+4+1); /* 4 for [<last char>] */
 
     name_len = MAX_NAME_LEN;
     len      = get_nbns_name_type_class(tvb, offset, nbns_data_offset, name,
-                                        &name_len, &name_type, &type, &class);
+                                        &name_len, &name_type, &type, &dns_class);
     cur_offset  += len;
 
     type_name  = nbns_type_name(type);
-    class_name = dns_class_name(class);
+    class_name = dns_class_name(dns_class);
 
     ttl = tvb_get_ntohl(tvb, cur_offset);
     cur_offset  += 4;
@@ -663,7 +672,7 @@ dissect_nbns_answer(tvbuff_t *tvb, int offset, int nbns_data_offset,
             g_strlcat(name, netbios_name_type_descr(name_type), MAX_NAME_LEN);
             g_strlcat(name, ")", MAX_NAME_LEN);
             rr_tree = add_rr_to_tree(trr, ett_nbns_rr, tvb, offset, name,
-                                 name_len, type_name, dns_class_name(class), ttl, data_len);
+                                 name_len, type_name, dns_class_name(dns_class), ttl, data_len);
         }
         while (data_len > 0) {
             if (opcode == OPCODE_WACK) {
@@ -714,7 +723,7 @@ dissect_nbns_answer(tvbuff_t *tvb, int offset, int nbns_data_offset,
                                       "%s: type %s, class %s",
                                       name, type_name, class_name);
             rr_tree = add_rr_to_tree(trr, ett_nbns_rr, tvb, offset, name,
-                                     name_len, type_name, dns_class_name(class), ttl, data_len);
+                                     name_len, type_name, dns_class_name(dns_class), ttl, data_len);
         }
 
         if (data_len < 1) {
@@ -1001,7 +1010,7 @@ dissect_nbns_answer(tvbuff_t *tvb, int offset, int nbns_data_offset,
                                       "%s: type %s, class %s",
                                       name, type_name, class_name);
             rr_tree = add_rr_to_tree(trr, ett_nbns_rr, tvb, offset, name,
-                                     name_len, type_name, dns_class_name(class), ttl, data_len);
+                                     name_len, type_name, dns_class_name(dns_class), ttl, data_len);
             proto_tree_add_text(rr_tree, tvb, cur_offset, data_len, "Data");
         }
         cur_offset += data_len;
@@ -1064,7 +1073,6 @@ dissect_nbns(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
     int		 offset    = 0;
     int		 nbns_data_offset;
-    column_info	*cinfo;
     proto_tree	*nbns_tree = NULL;
     proto_item	*ti;
     guint16	 id, flags, opcode, quest, ans, auth, add;
@@ -1080,19 +1088,9 @@ dissect_nbns(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     flags  = tvb_get_ntohs(tvb, offset + NBNS_FLAGS);
     opcode = (guint16) ((flags & F_OPCODE) >> OPCODE_SHIFT);
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        col_add_fstr(pinfo->cinfo, COL_INFO, "%s%s",
-                     val_to_str(opcode, opcode_vals, "Unknown operation (%u)"),
-                     (flags & F_RESPONSE) ? " response" : "");
-        cinfo = pinfo->cinfo;
-    } else {
-        /* Set "cinfo" to NULL; we pass a NULL "cinfo" to the query
-           and answer dissectors, as a way of saying that they
-           shouldn't add stuff to the COL_INFO column (a call to
-           "check_col(cinfo, COL_INFO)" is more expensive than
-           a check that a pointer isn't NULL). */
-        cinfo = NULL;
-    }
+    col_add_fstr(pinfo->cinfo, COL_INFO, "%s%s",
+                    val_to_str(opcode, opcode_vals, "Unknown operation (%u)"),
+                    (flags & F_RESPONSE) ? " response" : "");
 
     if (tree) {
         ti = proto_tree_add_item(tree, proto_nbns, tvb, offset, -1,
@@ -1135,7 +1133,7 @@ dissect_nbns(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
            answers. */
         cur_off += dissect_query_records(tvb, cur_off,
                                          nbns_data_offset, quest,
-                                         (!(flags & F_RESPONSE) ? cinfo : NULL), nbns_tree);
+                                         (!(flags & F_RESPONSE) ? pinfo->cinfo : NULL), nbns_tree);
     }
 
     if (ans > 0) {
@@ -1144,7 +1142,7 @@ dissect_nbns(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
            queries. */
         cur_off += dissect_answer_records(tvb, cur_off,
                                           nbns_data_offset, ans,
-                                          ((flags & F_RESPONSE) ? cinfo : NULL), nbns_tree,
+                                          ((flags & F_RESPONSE) ? pinfo->cinfo : NULL), nbns_tree,
                                           opcode, "Answers");
     }
 
@@ -1213,6 +1211,13 @@ static const value_string node_type_vals[] = {
     { 0, NULL }
 };
 
+static const value_string nbds_error_codes[] = {
+    { 0x82, "Destination name not present" },
+    { 0x83, "Invalid source name format" },
+    { 0x84, "Invalid destination name format" },
+    { 0x00, NULL }
+};
+
 static void
 dissect_nbdgm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
@@ -1223,63 +1228,35 @@ dissect_nbdgm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     int                  flags;
     tvbuff_t		*next_tvb;
 
-    static const value_string error_codes[] = {
-        { 0x82, "Destination name not present" },
-        { 0x83, "Invalid source name format" },
-        { 0x84, "Invalid destination name format" },
-        { 0x00,	NULL }
-    };
-
     char *name;
     int name_type;
     int len;
 
-    name = ep_alloc(MAX_NAME_LEN);
-
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "NBDS");
     col_clear(pinfo->cinfo, COL_INFO);
 
+    if (tree) {
+        ti = proto_tree_add_item(tree, proto_nbdgm, tvb, offset, -1,
+                                 ENC_NA);
+        nbdgm_tree = proto_item_add_subtree(ti, ett_nbdgm);
+    }
+
     header.msg_type = tvb_get_guint8(tvb, offset);
-
-    flags = tvb_get_guint8(tvb, offset+1);
-    header.flags.more      = flags & 1;
-    header.flags.first     = (flags & 2) >> 1;
-    header.flags.node_type = (flags & 12) >> 2;
-
-    header.dgm_id          = tvb_get_ntohs(tvb, offset+2);
-    header.src_ip          = tvb_get_ipv4( tvb, offset+4);
-    header.src_port        = tvb_get_ntohs(tvb, offset+8);
-
-    /* avoid gcc warnings */
-    header.dgm_length      = 0;
-    header.pkt_offset      = 0;
-    header.error_code      = 0;
-    switch (header.msg_type) {
-
-    case NBDS_DIRECT_UNIQUE:
-    case NBDS_DIRECT_GROUP:
-    case NBDS_BROADCAST:
-        header.dgm_length = tvb_get_ntohs(tvb, offset+10);
-        header.pkt_offset = tvb_get_ntohs(tvb, offset+12);
-        break;
-
-    case NBDS_ERROR:
-        header.error_code = tvb_get_guint8(tvb, offset+10);
-        break;
+    if (tree) {
+        proto_tree_add_uint(nbdgm_tree, hf_nbdgm_type, tvb,
+                            offset, 1,
+                            header.msg_type);
     }
 
     col_add_str(pinfo->cinfo, COL_INFO,
                 val_to_str(header.msg_type, nbds_msgtype_vals,
                            "Unknown message type (0x%02X)"));
 
+    flags = tvb_get_guint8(tvb, offset+1);
+    header.flags.more      = flags & 1;
+    header.flags.first     = (flags & 2) >> 1;
+    header.flags.node_type = (flags & 12) >> 2;
     if (tree) {
-        ti = proto_tree_add_item(tree, proto_nbdgm, tvb, offset, -1,
-                                 ENC_NA);
-        nbdgm_tree = proto_item_add_subtree(ti, ett_nbdgm);
-
-        proto_tree_add_uint(nbdgm_tree, hf_nbdgm_type, tvb,
-                            offset, 1,
-                            header.msg_type);
         proto_tree_add_boolean(nbdgm_tree, hf_nbdgm_fragment, tvb,
                                offset+1, 1,
                                header.flags.more);
@@ -1289,14 +1266,24 @@ dissect_nbdgm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         proto_tree_add_uint(nbdgm_tree, hf_nbdgm_node_type, tvb,
                             offset+1, 1,
                             header.flags.node_type);
+    }
 
+    header.dgm_id          = tvb_get_ntohs(tvb, offset+2);
+    if (tree) {
         proto_tree_add_uint(nbdgm_tree, hf_nbdgm_datagram_id, tvb,
                             offset+2, 2, header.dgm_id);
+    }
+
+    header.src_ip          = tvb_get_ipv4( tvb, offset+4);
+    if (tree) {
         proto_tree_add_ipv4(nbdgm_tree, hf_nbdgm_src_ip, tvb,
                             offset+4, 4, header.src_ip);
+    }
+
+    header.src_port        = tvb_get_ntohs(tvb, offset+8);
+    if (tree) {
         proto_tree_add_uint(nbdgm_tree, hf_nbdgm_src_port, tvb,
                             offset+8, 2, header.src_port);
-
     }
 
     offset += 10;
@@ -1307,13 +1294,22 @@ dissect_nbdgm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     case NBDS_DIRECT_GROUP:
     case NBDS_BROADCAST:
         if (tree) {
-            proto_tree_add_text(nbdgm_tree, tvb, offset, 2,
-                                "Datagram length: %d bytes", header.dgm_length);
-            proto_tree_add_text(nbdgm_tree, tvb, offset+2, 2,
-                                "Packet offset: %d bytes", header.pkt_offset);
+            header.dgm_length = tvb_get_ntohs(tvb, offset);
+            proto_tree_add_uint_format_value(nbdgm_tree, hf_nbdgm_datagram_length,
+                                             tvb, offset, 2, header.dgm_length,
+                                             "%u bytes", header.dgm_length);
+        }
+
+        if (tree) {
+            header.pkt_offset = tvb_get_ntohs(tvb, offset+2);
+            proto_tree_add_uint_format_value(nbdgm_tree, hf_nbdgm_packet_offset,
+                                             tvb, offset, 2, header.pkt_offset,
+                                             "%u bytes", header.pkt_offset);
         }
 
         offset += 4;
+
+        name = (char *)wmem_alloc(wmem_packet_scope(), MAX_NAME_LEN);
 
         /* Source name */
         len = get_nbns_name(tvb, offset, offset, name, MAX_NAME_LEN, &name_type);
@@ -1338,7 +1334,8 @@ dissect_nbdgm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
          * Set the length of our top-level tree item to include
          * only our stuff.
          *
-         * XXX - take the datagram length into account?
+         * XXX - take the datagram length into account, including
+         * doing datagram reassembly?
          */
         if (ti != NULL)
             proto_item_set_len(ti, offset);
@@ -1348,8 +1345,8 @@ dissect_nbdgm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     case NBDS_ERROR:
         if (tree) {
-            proto_tree_add_text(nbdgm_tree, tvb, offset, 1, "Error code: %s",
-				val_to_str(header.error_code, error_codes, "Unknown (0x%x)"));
+            proto_tree_add_item(nbdgm_tree, hf_nbdgm_error_code, tvb, offset,
+                                1, ENC_NA);
         }
         offset += 1;
         if (ti != NULL)
@@ -1359,6 +1356,8 @@ dissect_nbdgm(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     case NBDS_QUERY_REQUEST:
     case NBDS_POS_QUERY_RESPONSE:
     case NBDS_NEG_QUERY_RESPONSE:
+        name = (char *)wmem_alloc(wmem_packet_scope(), MAX_NAME_LEN);
+
         /* Destination name */
         len = get_nbns_name(tvb, offset, offset, name, MAX_NAME_LEN, &name_type);
 
@@ -1398,7 +1397,7 @@ static const value_string message_types[] = {
  */
 #define	NBSS_FLAGS_E			0x1
 
-static const value_string error_codes[] = {
+static const value_string nbss_error_codes[] = {
     { 0x80, "Not listening on called name" },
     { 0x81, "Not listening for called name" },
     { 0x82, "Called name not present" },
@@ -1421,124 +1420,54 @@ static const value_string error_codes[] = {
  * frequently split over multiple segments, which frustrates decoding
  * (MMM). ]
  */
-static int
-dissect_nbss_packet(tvbuff_t *tvb, int offset, packet_info *pinfo,
-		    proto_tree *tree, int is_cifs)
+static void
+dissect_nbss_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
+                    int is_cifs)
 {
+    int          offset = 0;
     proto_tree   *nbss_tree = NULL;
     proto_item   *ti        = NULL;
     proto_tree   *field_tree;
     proto_item   *tf;
     guint8	  msg_type;
     guint8	  flags;
-    volatile int  length;
-    int           length_remaining;
+    guint32       length;
     int           len;
     char	 *name;
     int           name_type;
-    gint	  reported_len;
+    guint8        error_code;
     tvbuff_t     *next_tvb;
     const char   *saved_proto;
     void	 *pd_save;
 
-    name = ep_alloc(MAX_NAME_LEN);
-
-    /* Desegmentation */
-    length_remaining = tvb_length_remaining(tvb, offset);
-
-    /*
-     * Can we do reassembly?
-     */
-    if (nbss_desegment && pinfo->can_desegment) {
-        /*
-         * Yes - is the NBSS header split across segment boundaries?
-         */
-        if (length_remaining < 4) {
-            /*
-             * Yes.  Tell our caller how many more bytes
-             * we need.
-             */
-            return -(4 - length_remaining);
-        }
-    }
-
-    /*
-     * Get the length of the NBSS message.
-     */
-    if (is_cifs) {
-        flags = 0;
-        length = tvb_get_ntoh24(tvb, offset + 1);
-    } else {
-        flags  = tvb_get_guint8(tvb, offset + 1);
-        length = tvb_get_ntohs(tvb, offset + 2);
-        if (flags & NBSS_FLAGS_E)
-            length += 65536;
-    }
-
-    /* give a hint to TCP where the next PDU starts
-     * so that it can attempt to find it in case it starts
-     * somewhere in the middle of a segment.
-     */
-    if(!pinfo->fd->flags.visited){
-        /* 'Only' SMB is transported ontop of this  so make sure
-         * there is an SMB header there ...
-         */
-        if( ((length+4)>tvb_reported_length_remaining(tvb, offset))
-            &&(tvb_length_remaining(tvb, offset) >= 8)
-            &&(tvb_get_guint8(tvb,offset+5) == 'S')
-            &&(tvb_get_guint8(tvb,offset+6) == 'M')
-            &&(tvb_get_guint8(tvb,offset+7) == 'B') ){
-            pinfo->want_pdu_tracking = 2;
-            pinfo->bytes_until_next_pdu = (length+4)-tvb_reported_length_remaining(tvb, offset);
-        }
-    }
-
-    /*
-     * Can we do reassembly?
-     */
-    if (nbss_desegment && pinfo->can_desegment) {
-        /*
-         * Yes - is the NBSS message split across segment boundaries?
-         */
-        if (length_remaining < length + 4) {
-            /*
-             * Yes.  Tell our caller how many more bytes
-             * we need.
-             */
-            return -((length + 4) - length_remaining);
-        }
-    }
+    name = (char *)wmem_alloc(wmem_packet_scope(), MAX_NAME_LEN);
 
     msg_type = tvb_get_guint8(tvb, offset);
 
-    if (tree) {
-        ti = proto_tree_add_item(tree, proto_nbss, tvb, offset, length + 4, ENC_NA);
-        nbss_tree = proto_item_add_subtree(ti, ett_nbss);
+    ti = proto_tree_add_item(tree, proto_nbss, tvb, offset, -1, ENC_NA);
+    nbss_tree = proto_item_add_subtree(ti, ett_nbss);
 
-        proto_tree_add_item(nbss_tree, hf_nbss_type, tvb, offset, 1, ENC_NA);
-    }
+    proto_tree_add_item(nbss_tree, hf_nbss_type, tvb, offset, 1, ENC_NA);
 
     offset += 1;
 
     if (is_cifs) {
-        if (tree) {
-            proto_tree_add_item(nbss_tree, hf_nbss_cifs_length, tvb, offset, 3, ENC_BIG_ENDIAN);
-        }
+        proto_tree_add_item(nbss_tree, hf_nbss_cifs_length, tvb, offset, 3, ENC_BIG_ENDIAN);
         offset += 3;
     } else {
+        flags = tvb_get_guint8(tvb, offset);
         if (tree) {
             tf = proto_tree_add_uint(nbss_tree, hf_nbss_flags, tvb, offset, 1, flags);
             field_tree = proto_item_add_subtree(tf, ett_nbss_flags);
             proto_tree_add_item(field_tree, hf_nbss_flags_e, tvb, offset, 1, ENC_BIG_ENDIAN);
         }
-        offset += 1;
 
-        if (tree) {
-            proto_tree_add_uint_format(nbss_tree, hf_nbss_length, tvb, offset, 2,
-                                       length, "Length: %u", length);
-        }
+        length = tvb_get_ntohs(tvb, offset + 1);
+        if (flags & NBSS_FLAGS_E)
+            length += 0x10000;
+        proto_tree_add_uint(nbss_tree, hf_nbss_length, tvb, offset, 3, length);
 
-        offset += 2;
+        offset += 3;
     }
 
     switch (msg_type) {
@@ -1563,30 +1492,26 @@ dissect_nbss_packet(tvbuff_t *tvb, int offset, packet_info *pinfo,
         break;
 
     case NEGATIVE_SESSION_RESPONSE:
+        error_code = tvb_get_guint8(tvb, offset);
         if (tree)
-	    proto_tree_add_text(nbss_tree, tvb, offset, 1,
-				"Error code: %s",
-				val_to_str(tvb_get_guint8(tvb, offset),
-					   error_codes, "Unknown (%x)"));
+	    proto_tree_add_uint(nbss_tree, hf_nbss_error_code, tvb, offset, 1,
+	                        error_code);
 
         col_append_fstr(pinfo->cinfo, COL_INFO, ", %s",
-                        val_to_str(tvb_get_guint8(tvb, offset),
-                                   error_codes, "Unknown (%x)"));
+                        val_to_str(error_code, nbss_error_codes, "Unknown (%x)"));
 
         break;
 
     case RETARGET_SESSION_RESPONSE:
         if (tree)
-	    proto_tree_add_text(nbss_tree, tvb, offset, 4,
-				"Retarget IP address: %s",
-				tvb_ip_to_str(tvb, offset));
+	    proto_tree_add_item(nbss_tree, hf_nbss_retarget_ip_address,
+	                        tvb, offset, 4, ENC_BIG_ENDIAN);
 
         offset += 4;
 
         if (tree)
-	    proto_tree_add_text(nbss_tree, tvb, offset, 2,
-				"Retarget port: %u",
-				tvb_get_ntohs(tvb, offset));
+	    proto_tree_add_item(nbss_tree, hf_nbss_retarget_port,
+	                        tvb, offset, 2, ENC_BIG_ENDIAN);
 
         break;
 
@@ -1596,14 +1521,7 @@ dissect_nbss_packet(tvbuff_t *tvb, int offset, packet_info *pinfo,
          * Set the length of our top-level tree item to include
          * only our stuff.
          */
-        len = tvb_length_remaining(tvb, offset);
-        reported_len = tvb_reported_length_remaining(tvb, offset);
-        if (len > length)
-	    len = length;
-        if (reported_len > length)
-	    reported_len = length;
-
-        next_tvb = tvb_new_subset(tvb, offset, len, reported_len);
+        next_tvb = tvb_new_subset_remaining(tvb, offset);
 
         /*
          * Dissect the message.
@@ -1635,22 +1553,46 @@ dissect_nbss_packet(tvbuff_t *tvb, int offset, packet_info *pinfo,
         break;
 
     }
-    return length + 4;
 }
 
-static void
-dissect_nbss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_continuation_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-    struct tcpinfo *tcpinfo = pinfo->private_data;
+    proto_tree     *nbss_tree;
+    proto_item     *ti;
+
+    /*
+     * It looks like a continuation.
+     */
+    col_set_str(pinfo->cinfo, COL_INFO, "NBSS Continuation Message");
+
+    if (tree) {
+        ti = proto_tree_add_item(tree, proto_nbss, tvb, 0, -1, ENC_NA);
+        nbss_tree = proto_item_add_subtree(ti, ett_nbss);
+        proto_tree_add_text(nbss_tree, tvb, 0, -1, "Continuation data");
+    }
+
+    return tvb_length(tvb);
+}
+
+static int
+dissect_nbss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
+{
+    struct tcpinfo *tcpinfo;
     int             offset  = 0;
+    guint           length_remaining;
+    guint           plen;
     int             max_data;
     guint8	    msg_type;
     guint8	    flags;
     guint32	    length;
-    int             len;
     gboolean        is_cifs;
-    proto_tree     *nbss_tree;
-    proto_item     *ti;
+    tvbuff_t       *next_tvb;
+
+    /* Reject the packet if data is NULL */
+    if (data == NULL)
+        return 0;
+    tcpinfo = (struct tcpinfo *)data;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "NBSS");
     col_clear(pinfo->cinfo, COL_INFO);
@@ -1697,7 +1639,7 @@ dissect_nbss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
              * attempt to reassemble the data, if the first byte
              * is a valid message type.
              */
-            goto continuation;
+            return dissect_continuation_packet(tvb, pinfo, tree);
         }
 
         /*
@@ -1739,7 +1681,7 @@ dissect_nbss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             /*
              * A bogus flag was set; assume it's a continuation.
              */
-            goto continuation;
+            return dissect_continuation_packet(tvb, pinfo, tree);
         }
 
         switch (msg_type) {
@@ -1753,7 +1695,7 @@ dissect_nbss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
              * protocols have them.)
              */
             if (length == 0)
-                goto continuation;
+                return dissect_continuation_packet(tvb, pinfo, tree);
 
             break;
 
@@ -1777,7 +1719,7 @@ dissect_nbss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
              * bytes of data.
              */
             if (length < 2 || length > 256)
-                goto continuation;
+                return dissect_continuation_packet(tvb, pinfo, tree);
             break;
 
         case POSITIVE_SESSION_RESPONSE:
@@ -1785,7 +1727,7 @@ dissect_nbss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
              * This has no data, so the length must be zero.
              */
             if (length != 0)
-                goto continuation;
+                return dissect_continuation_packet(tvb, pinfo, tree);
             break;
 
         case NEGATIVE_SESSION_RESPONSE:
@@ -1793,7 +1735,7 @@ dissect_nbss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
              * This has 1 byte of data.
              */
             if (length != 1)
-                goto continuation;
+                return dissect_continuation_packet(tvb, pinfo, tree);
             break;
 
         case RETARGET_SESSION_RESPONSE:
@@ -1801,7 +1743,7 @@ dissect_nbss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
              * This has 6 bytes of data.
              */
             if (length != 6)
-                goto continuation;
+                return dissect_continuation_packet(tvb, pinfo, tree);
             break;
 
         case SESSION_KEEP_ALIVE:
@@ -1809,14 +1751,14 @@ dissect_nbss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
              * This has no data, so the length must be zero.
              */
             if (length != 0)
-                goto continuation;
+                return dissect_continuation_packet(tvb, pinfo, tree);
             break;
 
         default:
             /*
              * Unknown message type; assume it's a continuation.
              */
-            goto continuation;
+            return dissect_continuation_packet(tvb, pinfo, tree);
         }
     }
 
@@ -1824,37 +1766,104 @@ dissect_nbss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 val_to_str(msg_type, message_types, "Unknown (%02x)"));
 
     while (tvb_reported_length_remaining(tvb, offset) > 0) {
-        len = dissect_nbss_packet(tvb, offset, pinfo, tree, is_cifs);
-        if (len < 0) {
+        /*
+         * We use "tvb_ensure_length_remaining()" to make sure there actually
+         * *is* data remaining.  The protocol we're handling could conceivably
+         * consists of a sequence of fixed-length PDUs, and therefore the
+         * "get_pdu_len" routine might not actually fetch anything from
+         * the tvbuff, and thus might not cause an exception to be thrown if
+         * we've run past the end of the tvbuff.
+         *
+         * This means we're guaranteed that "length_remaining" is positive.
+         */
+        length_remaining = tvb_ensure_length_remaining(tvb, offset);
+
+        /*
+         * Can we do reassembly?
+         */
+        if (nbss_desegment && pinfo->can_desegment) {
             /*
-             * We need more data to dissect this, and
-             * desegmentation is enabled.  "-len" is the
-             * number of additional bytes of data we need.
-             *
-             * Tell the TCP dissector where the data for this
-             * message starts in the data it handed us, and
-             * how many more bytes we need, and return.
+             * Yes - is the NBSS header split across segment boundaries?
              */
-            pinfo->desegment_offset = offset;
-            pinfo->desegment_len = -len;
-            return;
+            if (length_remaining < 4) {
+                /*
+                 * Yes.  Tell the TCP dissector where the data for this message
+                 * starts in the data it handed us and that we need "some more
+                 * data."  Don't tell it exactly how many bytes we need because
+                 * if/when we ask for even more (after the header) that will
+                 * break reassembly.
+                 */
+                pinfo->desegment_offset = offset;
+                pinfo->desegment_len = DESEGMENT_ONE_MORE_SEGMENT;
+                return tvb_length(tvb);
+            }
         }
-        offset += len;
+
+        /*
+         * Get the length of the NBSS message.
+         */
+        if (is_cifs) {
+            length = tvb_get_ntoh24(tvb, offset + 1);
+        } else {
+            flags  = tvb_get_guint8(tvb, offset + 1);
+            length = tvb_get_ntohs(tvb, offset + 2);
+            if (flags & NBSS_FLAGS_E)
+                length += 65536;
+        }
+        plen = length + 4; /* Include length of NBSS header */
+
+        /* give a hint to TCP where the next PDU starts
+         * so that it can attempt to find it in case it starts
+         * somewhere in the middle of a segment.
+         */
+        if(!pinfo->fd->flags.visited){
+            /* 'Only' SMB is transported ontop of this  so make sure
+             * there is an SMB header there ...
+             */
+            if( ((int)plen>tvb_reported_length_remaining(tvb, offset))
+                &&(tvb_length_remaining(tvb, offset) >= 8)
+                &&(tvb_get_guint8(tvb,offset+5) == 'S')
+                &&(tvb_get_guint8(tvb,offset+6) == 'M')
+                &&(tvb_get_guint8(tvb,offset+7) == 'B') ){
+                pinfo->want_pdu_tracking = 2;
+                pinfo->bytes_until_next_pdu = (length+4)-tvb_reported_length_remaining(tvb, offset);
+            }
+        }
+
+        /*
+         * Can we do reassembly?
+         */
+        if (nbss_desegment && pinfo->can_desegment) {
+            /*
+             * Yes - is the NBSS message split across segment boundaries?
+             */
+            if (length_remaining < plen) {
+                /*
+                 * Yes.  Tell the TCP dissector where the data for this message
+                 * starts in the data it handed us, and how many more bytes we
+                 * need, and return.
+                 */
+                pinfo->desegment_offset = offset;
+                pinfo->desegment_len = plen - length_remaining;
+                return tvb_length(tvb);
+            }
+        }
+
+        /*
+         * Construct a tvbuff containing the amount of the payload we have
+         * available.  Make its reported length the amount of data in the PDU.
+         */
+        length = length_remaining;
+        if (length > plen)
+            length = plen;
+        next_tvb = tvb_new_subset(tvb, offset, length, plen);
+
+        dissect_nbss_packet(next_tvb, pinfo, tree, is_cifs);
+
+        offset += plen;
     }
 
-    return;
-
-continuation:
-    /*
-     * It looks like a continuation.
-     */
-    col_set_str(pinfo->cinfo, COL_INFO, "NBSS Continuation Message");
-
-    if (tree) {
-        ti = proto_tree_add_item(tree, proto_nbss, tvb, 0, -1, ENC_NA);
-        nbss_tree = proto_item_add_subtree(ti, ett_nbss);
-        proto_tree_add_text(nbss_tree, tvb, 0, -1, "Continuation data");
-    }
+    return tvb_length(tvb);
 }
 
 void
@@ -1988,7 +1997,19 @@ proto_register_nbt(void)
         { &hf_nbdgm_src_port,
           { "Source Port",		"nbdgm.src.port",
             FT_UINT16, BASE_DEC, NULL, 0x0,
-            NULL, HFILL }}
+            NULL, HFILL }},
+        { &hf_nbdgm_datagram_length,
+          { "Datagram length",		"nbdgm.dgram_len",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
+        { &hf_nbdgm_packet_offset,
+          { "Packet offset",		"nbdgm.pkt_offset",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
+        { &hf_nbdgm_error_code,
+          { "Error code",		"nbdgm.error_code",
+            FT_UINT8, BASE_HEX, VALS(nbds_error_codes), 0x0,
+            NULL, HFILL }},
     };
 
     static hf_register_info hf_nbss[] = {
@@ -2006,12 +2027,24 @@ proto_register_nbt(void)
             NULL, HFILL }},
         { &hf_nbss_length,
           { "Length",		"nbss.length",
-            FT_UINT16, BASE_DEC, NULL, 0x0,
+            FT_UINT24, BASE_DEC, NULL, 0x0,
             "Length of trailer (payload) following this field in bytes", HFILL }},
         { &hf_nbss_cifs_length,
           { "Length",		"nbss.length",
             FT_UINT24, BASE_DEC, NULL, 0x0,
-            "Length trailer (payload) following this field in bytes", HFILL }}
+            "Length trailer (payload) following this field in bytes", HFILL }},
+        { &hf_nbss_error_code,
+          { "Error code",	"nbss.error_code",
+            FT_UINT8, BASE_HEX, VALS(nbss_error_codes), 0x0,
+            NULL, HFILL }},
+        { &hf_nbss_retarget_ip_address,
+          { "Retarget IP address",	"nbss.retarget_ip_address",
+            FT_IPv4, BASE_NONE, NULL, 0x0,
+            NULL, HFILL }},
+        { &hf_nbss_retarget_port,
+          { "Retarget port",	"nbss.retarget_port",
+            FT_UINT16, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
     };
     static gint *ett[] = {
         &ett_nbns,
@@ -2061,7 +2094,7 @@ proto_reg_handoff_nbt(void)
     nbdgm_handle = create_dissector_handle(dissect_nbdgm, proto_nbdgm);
     dissector_add_uint("udp.port", UDP_PORT_NBDGM, nbdgm_handle);
 
-    nbss_handle  = create_dissector_handle(dissect_nbss, proto_nbss);
+    nbss_handle  = new_create_dissector_handle(dissect_nbss, proto_nbss);
     dissector_add_uint("tcp.port", TCP_PORT_NBSS, nbss_handle);
     dissector_add_uint("tcp.port", TCP_PORT_CIFS, nbss_handle);
 }

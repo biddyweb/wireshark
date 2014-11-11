@@ -2,8 +2,6 @@
  * Routines for Ranging Response Message dissection
  * Copyright 2002, Anand V. Narwani <anand[AT]narwani.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,7 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 
 #define RNGRSP_TIMING 1
 #define RNGRSP_PWR_LEVEL_ADJ 2
@@ -34,6 +33,9 @@
 #define RNGRSP_RANGING_STATUS 5
 #define RNGRSP_DOWN_FREQ_OVER 6
 #define RNGRSP_UP_CHID_OVER 7
+
+void proto_register_docsis_rngrsp(void);
+void proto_reg_handoff_docsis_rngrsp(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_docsis_rngrsp = -1;
@@ -74,7 +76,6 @@ dissect_rngrsp (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
   sid = tvb_get_ntohs (tvb, 0);
   upchid = tvb_get_guint8 (tvb, 2);
 
-  col_clear (pinfo->cinfo, COL_INFO);
   if (upchid > 0)
 	col_add_fstr (pinfo->cinfo, COL_INFO,
 		      "Ranging Response: SID = %u, Upstream Channel = %u (U%u)",

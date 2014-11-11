@@ -1,7 +1,5 @@
 /* wireshark_application.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -23,23 +21,30 @@
 
 #include "wireshark_application.h"
 
-#include <epan/filesystem.h>
-#include <epan/timestamp.h>
+#include "wsutil/filesystem.h"
 
+#include "epan/disabled_protos.h"
+#include "epan/tap.h"
+#include "epan/timestamp.h"
+
+#include "ui/decode_as_utils.h"
+#include "ui/preference_utils.h"
 #include "ui/recent.h"
 #include "ui/simple_dialog.h"
+#include "ui/util.h"
 
 #include "qt_ui_utils.h"
 
 #include "capture.h"
 #include "color_filters.h"
-#include "disabled_protos.h"
 #include "filters.h"
 #include "log.h"
 #include "recent_file_status.h"
 
 #include "ui/capture_globals.h"
 #include "ui/software_update.h"
+#include "ui/last_open_dir.h"
+#include "ui/recent_utils.h"
 
 #ifdef _WIN32
 #  include "ui/win32/console_win32.h"
@@ -53,7 +58,7 @@
 #include <QTimer>
 #include <QUrl>
 
-#ifdef Q_WS_WIN
+#ifdef Q_OS_WIN
 #include <QDebug>
 #include <QLibrary>
 #endif
@@ -153,14 +158,6 @@ extern "C" void menu_recent_file_write_all(FILE *rf) {
     }
 }
 
-
-
-extern gboolean main_do_quit(void) {
-    WiresharkApplication::quit();
-    return FALSE;
-}
-
-//
 void WiresharkApplication::refreshRecentFiles(void) {
     recent_item_status *ri;
     RecentFileStatus *rf_status;
@@ -181,56 +178,62 @@ void WiresharkApplication::refreshRecentFiles(void) {
         connect(rf_status, SIGNAL(statusFound(QString, qint64, bool)), this, SLOT(itemStatusFinished(QString, qint64, bool)));
         connect(rf_status, SIGNAL(finished()), rf_thread, SLOT(quit()));
         connect(rf_status, SIGNAL(finished()), rf_status, SLOT(deleteLater()));
-//        connect(rf_status, SIGNAL(finished()), rf_thread, SLOT(deleteLater()));
 
         rf_thread->start();
     }
 }
 
-void WiresharkApplication::captureCallback(int event, capture_options * capture_opts)
+void WiresharkApplication::updateTaps()
 {
+    draw_tap_listeners(FALSE);
+}
+
+void WiresharkApplication::captureCallback(int event _U_, capture_session *cap_session _U_)
+{
+#ifdef HAVE_LIBPCAP
     switch(event) {
     case(capture_cb_capture_prepared):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture prepared");
-        emit captureCapturePrepared(capture_opts);
+        emit captureCapturePrepared(cap_session);
         break;
     case(capture_cb_capture_update_started):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture update started");
-        emit captureCaptureUpdateStarted(capture_opts);
+        emit captureCaptureUpdateStarted(cap_session);
         break;
     case(capture_cb_capture_update_continue):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture update continue");
-        emit captureCaptureUpdateContinue(capture_opts);
+        emit captureCaptureUpdateContinue(cap_session);
         break;
     case(capture_cb_capture_update_finished):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture update finished");
-        emit captureCaptureUpdateFinished(capture_opts);
+        emit captureCaptureUpdateFinished(cap_session);
         break;
     case(capture_cb_capture_fixed_started):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture fixed started");
-        emit captureCaptureFixedStarted(capture_opts);
+        emit captureCaptureFixedStarted(cap_session);
         break;
     case(capture_cb_capture_fixed_continue):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture fixed continue");
         break;
     case(capture_cb_capture_fixed_finished):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture fixed finished");
-        emit captureCaptureFixedFinished(capture_opts);
+        emit captureCaptureFixedFinished(cap_session);
         break;
     case(capture_cb_capture_stopping):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture stopping");
         /* Beware: this state won't be called, if the capture child
          * closes the capturing on it's own! */
-        emit captureCaptureStopping(capture_opts);
+        emit captureCaptureStopping(cap_session);
         break;
     case(capture_cb_capture_failed):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: capture failed");
-        emit captureCaptureFailed(capture_opts);
+        emit captureCaptureFailed(cap_session);
         break;
     default:
         g_warning("main_capture_callback: event %u unknown", event);
         g_assert_not_reached();
     }
+#endif // HAVE_LIBPCAP
 }
 
 void WiresharkApplication::captureFileCallback(int event, void * data)
@@ -331,11 +334,11 @@ void WiresharkApplication::setMonospaceFont(const char *font_string) {
     int font_size_adjust = 0;
 
     // Try to pick the latest, shiniest fixed-width font for our OS.
-#if defined(Q_WS_WIN)
+#if defined(Q_OS_WIN)
     const char *default_font = win_default_font;
     substitutes << win_alt_font << osx_default_font << osx_alt_font << x11_default_font << x11_alt_fonts << fallback_fonts;
     font_size_adjust = 2;
-#elif defined(Q_WS_MAC)
+#elif defined(Q_OS_MAC)
     const char *default_font = osx_default_font;
     substitutes << osx_alt_font << win_default_font << win_alt_font << x11_default_font << x11_alt_fonts << fallback_fonts;
 #else
@@ -443,9 +446,9 @@ void WiresharkApplication::setConfigurationProfile(const gchar *profile_name)
     timestamp_set_type (recent.gui_time_format);
     timestamp_set_seconds_type (recent.gui_seconds_format);
     color_filters_enable(recent.packet_list_colorize);
+    tap_update_timer_.setInterval(prefs.tap_update_interval);
 
-
-    prefsToCaptureOpts();
+    prefs_to_capture_opts();
     prefs_apply_all();
     emit filterExpressionsChanged();
 //    macros_post_update();
@@ -465,19 +468,6 @@ void WiresharkApplication::setConfigurationProfile(const gchar *profile_name)
 //    menu_recent_read_finished();
 }
 
-void WiresharkApplication::prefsToCaptureOpts()
-{
-#ifdef HAVE_LIBPCAP
-    /* Set promiscuous mode from the preferences setting. */
-    /* the same applies to other preferences settings as well. */
-    global_capture_opts.default_options.promisc_mode = prefs.capture_prom_mode;
-    global_capture_opts.use_pcapng                   = prefs.capture_pcap_ng;
-    global_capture_opts.show_info                    = prefs.capture_show_info;
-    global_capture_opts.real_time_mode               = prefs.capture_real_time;
-//    auto_scroll_live                                 = prefs.capture_auto_scroll;
-#endif /* HAVE_LIBPCAP */
-}
-
 void WiresharkApplication::setLastOpenDir(const char *dir_name)
 {
     qint64 len;
@@ -486,11 +476,11 @@ void WiresharkApplication::setLastOpenDir(const char *dir_name)
     if (dir_name) {
         len = strlen(dir_name);
         if (dir_name[len-1] == G_DIR_SEPARATOR) {
-            new_last_open_dir = g_strconcat(dir_name, NULL);
+            new_last_open_dir = g_strconcat(dir_name, (char *)NULL);
         }
         else {
             new_last_open_dir = g_strconcat(dir_name,
-                                            G_DIR_SEPARATOR_S, NULL);
+                                            G_DIR_SEPARATOR_S, (char *)NULL);
         }
 
         if (last_open_dir == NULL ||
@@ -509,12 +499,13 @@ void WiresharkApplication::setLastOpenDir(const char *dir_name)
 
 bool WiresharkApplication::event(QEvent *event)
 {
+    QString display_filter = NULL;
     if (event->type() == QEvent::FileOpen) {
         QFileOpenEvent *foe = static_cast<QFileOpenEvent *>(event);
         if (foe && foe->file().length() > 0) {
             QString cf_path(foe->file());
             if (initialized_) {
-                emit openCaptureFile(cf_path);
+                emit openCaptureFile(cf_path, display_filter, WTAP_TYPE_AUTO);
             } else {
                 pending_open_files_.append(cf_path);
             }
@@ -537,11 +528,15 @@ void WiresharkApplication::clearRecentItems() {
 void WiresharkApplication::cleanup()
 {
     software_update_cleanup();
+    /* write user's recent file to disk
+     * It is no problem to write this file, even if we do not quit */
+    write_profile_recent();
+    write_recent();
 }
 
 void WiresharkApplication::itemStatusFinished(const QString &filename, qint64 size, bool accessible) {
     recent_item_status *ri;
-    RecentFileStatus *rf_status = qobject_cast<RecentFileStatus *>(QObject::sender());;
+    RecentFileStatus *rf_status = qobject_cast<RecentFileStatus *>(QObject::sender());
 
 //    g_log(NULL, G_LOG_LEVEL_DEBUG, "rf isf %d", recent_items.count());
     foreach (ri, recent_items) {
@@ -566,6 +561,7 @@ WiresharkApplication::WiresharkApplication(int &argc,  char **argv) :
 {
     wsApp = this;
 
+    Q_INIT_RESOURCE(about);
     Q_INIT_RESOURCE(display_filter);
     Q_INIT_RESOURCE(i18n);
     Q_INIT_RESOURCE(layout);
@@ -573,7 +569,7 @@ WiresharkApplication::WiresharkApplication(int &argc,  char **argv) :
     Q_INIT_RESOURCE(toolbar);
     Q_INIT_RESOURCE(welcome);
 
-#ifdef Q_WS_WIN
+#ifdef Q_OS_WIN
     /* RichEd20.DLL is needed for native file dialog filter entries. */
     if (QLibrary::isLibrary("riched20.dll")) {
         QLibrary riched20("riched20.dll");
@@ -582,15 +578,20 @@ WiresharkApplication::WiresharkApplication(int &argc,  char **argv) :
             qDebug() << riched20.errorString();
         }
     }
-#endif // Q_WS_WIN
+#endif // Q_OS_WIN
 
     setAttribute(Qt::AA_DontShowIconsInMenus, true);
 
-    recent_timer_ = new QTimer(this);
-    connect(recent_timer_, SIGNAL(timeout()), this, SLOT(refreshRecentFiles()));
-    recent_timer_->start(2000);
+    recent_timer_.setParent(this);
+    connect(&recent_timer_, SIGNAL(timeout()), this, SLOT(refreshRecentFiles()));
+    recent_timer_.start(2000);
 
-    connect(this, SIGNAL(aboutToQuit()), this, SLOT(cleanup()));
+    tap_update_timer_.setParent(this);
+    tap_update_timer_.setInterval(TAP_UPDATE_DEFAULT_INTERVAL);
+    connect(this, SIGNAL(appInitialized()), &tap_update_timer_, SLOT(start()));
+    connect(&tap_update_timer_, SIGNAL(timeout()), this, SLOT(updateTaps()));
+
+    connect(qApp, SIGNAL(aboutToQuit()), this, SLOT(cleanup()));
 }
 
 void WiresharkApplication::registerUpdate(register_action_e action, const char *message)
@@ -612,17 +613,21 @@ void WiresharkApplication::emitAppSignal(AppSignal signal)
     case PacketDissectionChanged:
         emit packetDissectionChanged();
         break;
+    case StaticRecentFilesRead:
+        emit recentFilesRead();
+        break;
     default:
         break;
     }
 }
 
 void WiresharkApplication::allSystemsGo()
-{    
+{
+    QString display_filter = NULL;
     initialized_ = true;
     emit appInitialized();
     while (pending_open_files_.length() > 0) {
-        emit openCaptureFile(pending_open_files_.front());
+        emit openCaptureFile(pending_open_files_.front(), display_filter, WTAP_TYPE_AUTO);
         pending_open_files_.pop_front();
     }
     software_update_init();
@@ -638,6 +643,9 @@ e_prefs * WiresharkApplication::readConfigurationFiles(char **gdp_path, char **d
     char                *cf_path, *df_path;
     int                  pf_open_errno, pf_read_errno;
     e_prefs             *prefs_p;
+
+    /* load the decode as entries of this profile */
+    load_decode_as_entries();
 
     /* Read the preference files. */
     prefs_p = read_prefs(&gpf_open_errno, &gpf_read_errno, &gpf_path,

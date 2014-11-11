@@ -2,8 +2,6 @@
 # Automake file for the common-to-all-toolkits user interface routines
 # for Wireshark
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -32,6 +30,7 @@ endif
 noinst_LIBRARIES = libui.a libui_dirty.a
 
 CLEANFILES = \
+	doxygen-ui.tag	\
 	libui.a		\
 	libui_dirty.a	\
 	*~
@@ -69,14 +68,21 @@ if HAVE_DOXYGEN
 	$(DOXYGEN) doxygen.cfg
 endif		# HAVE_DOXYGEN
 
+wsar_html: doxygen.cfg ../doxygen_global.cfg
+if HAVE_DOXYGEN
+	(umask 022 ; $(DOXYGEN) doxygen.cfg)
+endif
+
 checkapi: checkapi-base checkapi-todo
 
 checkapi-base:
-	$(PERL) ../tools/checkAPIs.pl -g deprecated-gtk -build \
+	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -g deprecated-gtk -build \
+	-sourcedir=$(srcdir) \
 	$(WIRESHARK_UI_SRC)
 
 checkapi-todo:
-	$(PERL) ../tools/checkAPIs.pl -M -g deprecated-gtk-todo -build \
+	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -M -g deprecated-gtk-todo -build \
+	-sourcedir=$(srcdir) \
 	$(WIRESHARK_UI_SRC)
 
 EXTRA_DIST = \

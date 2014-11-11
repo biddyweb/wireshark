@@ -1,8 +1,6 @@
 /* tap-icmpv6stat.c
  * icmpv6stat   2011 Christopher Maynard
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,13 +30,16 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet_info.h"
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
 #include <epan/dissectors/packet-icmp.h>
 #include <math.h>
+
+void register_tap_listener_icmpv6stat(void);
 
 /* used to keep track of the ICMPv6 statistics */
 typedef struct _icmpv6stat_t {
@@ -80,8 +81,8 @@ static gint compare_doubles(gconstpointer a, gconstpointer b)
 {
     double ad, bd;
 
-    ad = *(double *)a;
-    bd = *(double *)b;
+    ad = *(const double *)a;
+    bd = *(const double *)b;
 
     if (ad < bd)
         return -1;
@@ -117,7 +118,7 @@ static int
 icmpv6stat_packet(void *tapdata, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const void *data)
 {
     icmpv6stat_t *icmpv6stat = (icmpv6stat_t *)tapdata;
-    const icmp_transaction_t *trans = data;
+    const icmp_transaction_t *trans = (const icmp_transaction_t *)data;
     double resp_time, *rt;
 
     if (trans == NULL)
@@ -129,7 +130,7 @@ icmpv6stat_packet(void *tapdata, packet_info *pinfo _U_, epan_dissect_t *edt _U_
         if (rt == NULL)
             return 0;
         *rt = resp_time;
-        icmpv6stat->rt_list = g_slist_insert_sorted(icmpv6stat->rt_list, rt, compare_doubles);
+        icmpv6stat->rt_list = g_slist_prepend(icmpv6stat->rt_list, rt);
         icmpv6stat->num_resps++;
         if (icmpv6stat->min_msecs > resp_time) {
             icmpv6stat->min_frame = trans->resp_frame;
@@ -154,9 +155,12 @@ icmpv6stat_packet(void *tapdata, packet_info *pinfo _U_, epan_dissect_t *edt _U_
  */
 static void compute_stats(icmpv6stat_t *icmpv6stat, double *mean, double *med, double *sdev)
 {
-    GSList *slist = icmpv6stat->rt_list;
+    GSList *slist;
     double diff;
     double sq_diff_sum = 0.0;
+
+    icmpv6stat->rt_list = g_slist_sort(icmpv6stat->rt_list, compare_doubles);
+    slist = icmpv6stat->rt_list;
 
     if (icmpv6stat->num_resps == 0 || slist == NULL) {
         *mean = 0.0;
@@ -261,14 +265,14 @@ icmpv6stat_draw(void *tapdata)
  * instance for the icmpv6 tap.
  */
 static void
-icmpv6stat_init(const char *optarg, void* userdata _U_)
+icmpv6stat_init(const char *opt_arg, void* userdata _U_)
 {
     icmpv6stat_t *icmpv6stat;
     const char *filter = NULL;
     GString *error_string;
 
-    if (strstr(optarg, "icmpv6,srt,"))
-        filter = optarg + strlen("icmpv6,srt,");
+    if (strstr(opt_arg, "icmpv6,srt,"))
+        filter = opt_arg + strlen("icmpv6,srt,");
 
     icmpv6stat = (icmpv6stat_t *)g_try_malloc(sizeof(icmpv6stat_t));
     if (icmpv6stat == NULL) {

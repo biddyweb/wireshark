@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-gnm.h                                                               */
 /* ../../tools/asn2wrs.py -b -p gnm -c ./gnm.cnf -s ./packet-gnm-template -D . -O ../../epan/dissectors GNM.asn */
 
@@ -10,8 +10,6 @@
  * Routines for GENERIC NETWORK INFORMATION MODEL Data dissection
  *
  * Copyright 2005 , Anders Broman <anders.broman [AT] ericsson.com>
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs

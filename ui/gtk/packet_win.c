@@ -3,8 +3,6 @@
  *
  * Copyright 2000, Jeffrey C. Foster <jfoste@woodward.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -47,13 +45,12 @@
 #include <epan/prefs.h>
 #include <epan/column.h>
 #include <epan/addr_resolv.h>
-#include <epan/plugins.h>
 #include <epan/epan_dissect.h>
 #include <epan/strutil.h>
 #include <epan/tvbuff-int.h>
+#include <epan/print.h>
 
 #include "../file.h"
-#include "../print.h"
 #include "../summary.h"
 
 #include "ui/recent.h"
@@ -67,12 +64,16 @@
 #include "ui/gtk/keys.h"
 #include "ui/gtk/gtkglobals.h"
 #include "ui/gtk/gui_utils.h"
+#include "ui/gtk/old-gtk-compat.h"
+
+#include "frame_tvbuff.h"
 
 #define BV_SIZE 75
 #define TV_SIZE 95
 
 /* Data structure holding information about a packet-detail window. */
 struct PacketWinData {
+	epan_t *epan;
 	frame_data *frame;	   /* The frame being displayed */
 	struct wtap_pkthdr phdr;   /* Packet header */
 	guint8     *pd;		   /* Packet data */
@@ -89,6 +90,7 @@ struct PacketWinData {
 
 #ifdef WANT_PACKET_EDITOR
 struct FieldinfoWinData {
+	epan_t *epan;
 	frame_data *frame;	   /* The frame being displayed */
 	struct wtap_pkthdr phdr;   /* Packet header */
 	guint8     *pd;		   /* Packet data */
@@ -157,6 +159,52 @@ button_press_handler(GtkWidget *widget, GdkEvent *event, gpointer data _U_)
 	return FALSE;
 }
 
+/* Returns dynamically allocated memory, must be freed by caller after use */
+static char*
+create_packet_window_title(void)
+{
+	GString *title;
+	char *ret;
+	int i;
+
+	title = g_string_new("");
+
+	/*
+	 * Build title of window by getting column data constructed when the
+	 * frame was dissected.
+	 */
+	for (i = 0; i < cfile.cinfo.num_cols; ++i) {
+		g_string_append(title, cfile.cinfo.col_data[i]);
+		g_string_append_c(title, ' ');
+	}
+
+	ret = title->str;
+
+	g_string_free(title, FALSE);
+
+	return ret;
+}
+
+static void
+redissect_packet_window(gpointer object, gpointer user_data _U_)
+{
+	struct PacketWinData *DataPtr = (struct PacketWinData *)object;
+	char *title;
+
+	/* XXX, can be optimized? */
+	proto_tree_draw(NULL, DataPtr->tree_view);
+	epan_dissect_cleanup(&(DataPtr->edt));
+	epan_dissect_init(&(DataPtr->edt), DataPtr->epan, TRUE, TRUE);
+	epan_dissect_run(&(DataPtr->edt), cfile.cd_t, &DataPtr->phdr, frame_tvbuff_new(DataPtr->frame, DataPtr->pd), DataPtr->frame, NULL);
+	add_byte_views(&(DataPtr->edt), DataPtr->tree_view, DataPtr->bv_nb_ptr);
+	proto_tree_draw(DataPtr->edt.tree, DataPtr->tree_view);
+
+	/* update the window title */
+	title = create_packet_window_title();
+	gtk_window_set_title(GTK_WINDOW(DataPtr->main), title);
+	g_free(title);
+}
+
 #ifdef WANT_PACKET_EDITOR
 static field_info *
 proto_finfo_find(proto_tree *tree, field_info *old_finfo)
@@ -217,12 +265,12 @@ finfo_window_refresh(struct FieldinfoWinData *DataPtr)
 	}
 
 	/* redisect */
-	epan_dissect_init(&edt, TRUE, TRUE);
+	epan_dissect_init(&edt, DataPtr->epan, TRUE, TRUE);
 	/* Makes any sense?
 	if (old_finfo->hfinfo)
 		proto_tree_prime_hfid(edt.tree, old_finfo->hfinfo->id);
 	*/
-	epan_dissect_run(&edt, &DataPtr->phdr, DataPtr->pd, DataPtr->frame, NULL);
+	epan_dissect_run(&edt, cfile.cd_t, &DataPtr->phdr, frame_tvbuff_new(DataPtr->frame, DataPtr->pd), DataPtr->frame, NULL);
 
 	/* Try to find finfo which looks like old_finfo.
 	 * We might not found one, if protocol requires specific magic values, etc... */
@@ -356,8 +404,8 @@ finfo_integer_changed(GtkSpinButton *spinbutton, gpointer user_data)
 		return;
 	}
 
-	if (hfinfo->bitmask && hfinfo->bitshift > 0)
-		u_val <<= hfinfo->bitshift;
+	if (hfinfo->bitmask)
+		u_val <<= hfinfo_bitshift(hfinfo);
 
 	finfo_integer_common(DataPtr, u_val);
 }
@@ -477,12 +525,21 @@ new_finfo_window(GtkWidget *w, struct FieldinfoWinData *DataPtr)
 	const header_field_info *hfinfo = finfo->hfinfo;
 	int finfo_type = (hfinfo) ? hfinfo->type : FT_NONE;
 
+#if !GTK_CHECK_VERSION(3, 10, 0)
 	GtkWidget *dialog = gtk_dialog_new_with_buttons("Editing finfo: ....",
 			GTK_WINDOW(w),
-			GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+			(GtkDialogFlags) (GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT),
 			GTK_STOCK_OK, GTK_RESPONSE_ACCEPT,
 			GTK_STOCK_CANCEL, GTK_RESPONSE_REJECT,
 			NULL);
+#else
+	GtkWidget *dialog = gtk_dialog_new_with_buttons("Editing finfo: ....",
+			GTK_WINDOW(w),
+			(GtkDialogFlags) (GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT),
+			"_OK", GTK_RESPONSE_ACCEPT,
+			"_Cancel", GTK_RESPONSE_REJECT,
+			NULL);
+#endif
 
 	GtkWidget *dialog_vbox = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
 	GtkWidget *fvalue_edit;
@@ -528,8 +585,8 @@ new_finfo_window(GtkWidget *w, struct FieldinfoWinData *DataPtr)
 		if (finfo->length * 8 < bitcount)
 			bitcount = finfo->length / 8;
 
-		if (hfinfo->bitmask && hfinfo->bitshift > 0)
-			bitcount -= hfinfo->bitshift;
+		if (hfinfo->bitmask)
+			bitcount -= hfinfo_bitshift(hfinfo);
 
 		/* XXX, hfinfo->bitmask: Can we configure GTK_ADJUSTMENT to do custom step? (value-changed signal?) */
 
@@ -538,7 +595,7 @@ new_finfo_window(GtkWidget *w, struct FieldinfoWinData *DataPtr)
 		if (finfo_type == FT_INT8 || finfo_type == FT_INT16 || finfo_type == FT_INT24 || finfo_type == FT_INT32 /* || finfo_type == FT_INT64 */)
 			adj = gtk_adjustment_new((double) fvalue_get_sinteger(&finfo->value), (double) -(G_GINT64_CONSTANT(1) << (bitcount-1)), (double) ((G_GINT64_CONSTANT(1) << (bitcount-1))-1), 1.0, 10.0, 0);
 		else if (finfo_type == FT_UINT8 || finfo_type == FT_UINT16 || finfo_type == FT_UINT24 || finfo_type == FT_UINT32 /* || finfo_type == FT_UINT64 */ )
-			adj = gtk_adjustment_new((double) fvalue_get_uinteger(&finfo->value), 0.0, (double) ((G_GINT64_CONSTANT(1U) << bitcount)-1), 1.0, 10.0, 0);
+			adj = gtk_adjustment_new((double) fvalue_get_uinteger(&finfo->value), 0.0, (double) ((G_GUINT64_CONSTANT(1) << bitcount)-1), 1.0, 10.0, 0);
 		else {
 			g_assert_not_reached();
 			goto not_supported;
@@ -548,10 +605,10 @@ new_finfo_window(GtkWidget *w, struct FieldinfoWinData *DataPtr)
 		gtk_spin_button_set_numeric(GTK_SPIN_BUTTON(fvalue_edit), TRUE);
 		g_signal_connect(fvalue_edit, "value-changed", G_CALLBACK(finfo_integer_changed), DataPtr);
 
-	} else if (finfo_type == FT_STRING || finfo_type == FT_STRINGZ) {
+	} else if (finfo_type == FT_STRING || finfo_type == FT_STRINGZ || finfo_type == FT_STRINGZPAD) {
 		fvalue_edit = gtk_entry_new();
 		gtk_entry_set_max_length(GTK_ENTRY(fvalue_edit), finfo->length);
-		gtk_entry_set_text(GTK_ENTRY(fvalue_edit), fvalue_get(&finfo->value));
+		gtk_entry_set_text(GTK_ENTRY(fvalue_edit), (const gchar*) fvalue_get(&finfo->value));
 		g_signal_connect(fvalue_edit, "changed", G_CALLBACK(finfo_string_changed), DataPtr);
 
 	} else if (finfo_type == FT_BOOLEAN) {
@@ -560,7 +617,7 @@ new_finfo_window(GtkWidget *w, struct FieldinfoWinData *DataPtr)
 		g_signal_connect(fvalue_edit, "toggled", G_CALLBACK(finfo_boolean_changed), DataPtr);
 
 	} else if (finfo_type == FT_IPv4) {
-		guint32 net_addr = ipv4_get_net_order_addr(fvalue_get(&finfo->value));
+		guint32 net_addr = ipv4_get_net_order_addr((ipv4_addr *)fvalue_get(&finfo->value));
 #if GTK_CHECK_VERSION(3,0,0)
 		GtkAdjustment *adj;
 #else
@@ -583,7 +640,7 @@ not_supported:
 			FT_INT64, FT_UINT64,			; should work with FT_INT[8,16,24,32] code
 			FT_FLOAT, FT_DOUBLE,
 			FT_IPXNET, FT_IPv6, FT_ETHER,
-			FT_GUID, FT_OID,
+			FT_GUID, FT_OID, FT_SYSTEM_ID
 			FT_UINT_STRING,
 			FT_ABSOLUTE_TIME, FT_RELATIVE_TIME
 		*/
@@ -666,9 +723,10 @@ edit_pkt_tree_row_activated_cb(GtkTreeView *tree_view, GtkTreePath *path, GtkTre
 	{
 		struct FieldinfoWinData data;
 
+		data.epan = DataPtr->epan;
 		data.frame = DataPtr->frame;
 		data.phdr  = DataPtr->phdr;
-		data.pd = g_memdup(DataPtr->pd, DataPtr->frame->cap_len);
+		data.pd = (guint8 *) g_memdup(DataPtr->pd, DataPtr->frame->cap_len);
 		data.start_offset = (int) (finfo->ds_tvb->real_data - DataPtr->pd);
 
 		data.finfo = finfo;
@@ -684,8 +742,8 @@ edit_pkt_tree_row_activated_cb(GtkTreeView *tree_view, GtkTreePath *path, GtkTre
 
 			proto_tree_draw(NULL, DataPtr->tree_view);
 			epan_dissect_cleanup(&(DataPtr->edt));
-			epan_dissect_init(&(DataPtr->edt), TRUE, TRUE);
-			epan_dissect_run(&(DataPtr->edt), &DataPtr->phdr, DataPtr->pd, DataPtr->frame, NULL);
+			epan_dissect_init(&(DataPtr->edt), DataPtr->epan, TRUE, TRUE);
+			epan_dissect_run(&(DataPtr->edt), cfile.cd_t, &DataPtr->phdr, frame_tvbuff_new(DataPtr->frame, DataPtr->pd), DataPtr->frame, NULL);
 			add_byte_views(&(DataPtr->edt), DataPtr->tree_view, DataPtr->bv_nb_ptr);
 			proto_tree_draw(DataPtr->edt.tree, DataPtr->tree_view);
 		}
@@ -804,17 +862,11 @@ edit_pkt_win_key_pressed_cb(GtkWidget *win _U_, GdkEventKey *event, gpointer use
 
 	/* redissect if changed */
 	if (data.val != -1) {
-		/* XXX, can be optimized? */
-		proto_tree_draw(NULL, DataPtr->tree_view);
-		epan_dissect_cleanup(&(DataPtr->edt));
-		epan_dissect_init(&(DataPtr->edt), TRUE, TRUE);
-		epan_dissect_run(&(DataPtr->edt), &DataPtr->phdr, DataPtr->pd, DataPtr->frame, NULL);
-		add_byte_views(&(DataPtr->edt), DataPtr->tree_view, DataPtr->bv_nb_ptr);
-		proto_tree_draw(DataPtr->edt.tree, DataPtr->tree_view);
+		redissect_packet_window(DataPtr, NULL);
 	}
 
 	for (src_le = DataPtr->edt.pi.data_src; src_le != NULL; src_le = src_le->next) {
-		const struct data_source *src = src_le->data;
+		const struct data_source *src = (const struct data_source *)src_le->data;
 		tvbuff_t *tvb = get_data_source_tvb(src);
 
 		if (tvb && tvb->real_data == DataPtr->pd) {
@@ -837,8 +889,8 @@ edit_pkt_win_key_pressed_cb(GtkWidget *win _U_, GdkEventKey *event, gpointer use
 static void
 edit_pkt_destroy_new_window(GObject *object _U_, gpointer user_data)
 {
-	/* like destroy_new_window, but without freeding DataPtr->pd */
-	struct PacketWinData *DataPtr = user_data;
+	/* like destroy_new_window, but without freeing DataPtr->pd */
+	struct PacketWinData *DataPtr = (struct PacketWinData *)user_data;
 
 	detail_windows = g_list_remove(detail_windows, DataPtr);
 	proto_tree_draw(NULL, DataPtr->tree_view);
@@ -866,54 +918,74 @@ static void modifed_frame_data_free(gpointer data) {
 
 #endif /* WANT_PACKET_EDITOR */
 
-void new_packet_window(GtkWidget *w _U_, gboolean editable _U_)
+void new_packet_window(GtkWidget *w _U_, gboolean reference, gboolean editable _U_)
 {
-#define NewWinTitleLen 1000
-	char Title[NewWinTitleLen] = "";
-	const char *TextPtr;
+	char  *title;
 	GtkWidget *main_w, *main_vbox, *pane,
-		*tree_view, *tv_scrollw,
-		*bv_nb_ptr;
+		  *tree_view, *tv_scrollw,
+		  *bv_nb_ptr;
 	struct PacketWinData *DataPtr;
-	int i;
+	frame_data *fd;
 
-	if (!cfile.current_frame) {
+	if(reference) {
+		guint32            framenum;
+		header_field_info *hfinfo;
+
+		if (! cfile.finfo_selected) {
+			return;
+		}
+
+		hfinfo = cfile.finfo_selected->hfinfo;
+
+		g_assert(hfinfo);
+
+		if (hfinfo->type != FT_FRAMENUM) {
+			return;
+		}
+
+		framenum = fvalue_get_uinteger(&cfile.finfo_selected->value);
+
+		if (framenum == 0) {
+			return;
+		}
+
+		fd = frame_data_sequence_find(cfile.frames, framenum);
+	}
+	else {
+		fd = cfile.current_frame;
+	}
+
+	if (!fd) {
 		/* nothing has been captured so far */
 		return;
 	}
 
-	/* With the new packetlists "lazy columns" it's neccesary to reread the frame */
-	if (!cf_read_frame(&cfile, cfile.current_frame)) {
-		/* error reading the frame */
+	/* With the new packetlists "lazy columns" it's necessary to reread the record */
+	if (!cf_read_record(&cfile, fd)) {
+		/* error reading the record */
 		return;
 	}
 
 	/* Allocate data structure to represent this window. */
 	DataPtr = (struct PacketWinData *) g_malloc(sizeof(struct PacketWinData));
 
-	DataPtr->frame = cfile.current_frame;
+	/* XXX, protect cfile.epan from closing (ref counting?) */
+	DataPtr->epan  = cfile.epan;
+	DataPtr->frame = fd;
 	DataPtr->phdr  = cfile.phdr;
-	DataPtr->pd = g_malloc(DataPtr->frame->cap_len);
-	memcpy(DataPtr->pd, cfile.pd, DataPtr->frame->cap_len);
+	DataPtr->pd = (guint8 *)g_malloc(DataPtr->frame->cap_len);
+	memcpy(DataPtr->pd, buffer_start_ptr(&cfile.buf), DataPtr->frame->cap_len);
 
-	epan_dissect_init(&(DataPtr->edt), TRUE, TRUE);
-	epan_dissect_run(&(DataPtr->edt), &DataPtr->phdr, DataPtr->pd,
+	epan_dissect_init(&(DataPtr->edt), DataPtr->epan, TRUE, TRUE);
+	epan_dissect_run(&(DataPtr->edt), cfile.cd_t, &DataPtr->phdr,
+	                 frame_tvbuff_new(DataPtr->frame, DataPtr->pd),
 			 DataPtr->frame, &cfile.cinfo);
 	epan_dissect_fill_in_columns(&(DataPtr->edt), FALSE, TRUE);
 
-	/*
-	 * Build title of window by getting column data constructed when the
-	 * frame was dissected.
-	 */
-	for (i = 0; i < cfile.cinfo.num_cols; ++i) {
-		TextPtr = cfile.cinfo.col_data[i];
-		if ((strlen(Title) + strlen(TextPtr)) < NewWinTitleLen - 1) {
-			g_strlcat(Title, TextPtr, NewWinTitleLen);
-			g_strlcat(Title, " ", NewWinTitleLen);
-		}
-	}
-
-	main_w = window_new(GTK_WINDOW_TOPLEVEL, Title);
+	/* update the window title */
+	title = create_packet_window_title();
+	main_w = window_new(GTK_WINDOW_TOPLEVEL, title);
+	g_free(title);
 	gtk_window_set_default_size(GTK_WINDOW(main_w), DEF_WIDTH, -1);
 
 	/* Container for paned windows  */
@@ -972,7 +1044,7 @@ void new_packet_window(GtkWidget *w _U_, gboolean editable _U_)
 #ifdef WANT_PACKET_EDITOR
 	if (editable && DataPtr->frame->cap_len != 0) {
 		/* XXX, there's no Save button here, so lets assume packet is always edited */
-		modified_frame_data *mfd = g_malloc(sizeof(modified_frame_data));
+		modified_frame_data *mfd = (modified_frame_data *)g_malloc(sizeof(modified_frame_data));
 
 		mfd->pd = DataPtr->pd;
 		mfd->phdr = DataPtr->phdr;
@@ -985,10 +1057,16 @@ void new_packet_window(GtkWidget *w _U_, gboolean editable _U_)
 #endif
 }
 
+void
+redissect_all_packet_windows(void)
+{
+	g_list_foreach(detail_windows, redissect_packet_window, NULL);
+}
+
 static void
 destroy_new_window(GObject *object _U_, gpointer user_data)
 {
-	struct PacketWinData *DataPtr = user_data;
+	struct PacketWinData *DataPtr = (struct PacketWinData *)user_data;
 
 	detail_windows = g_list_remove(detail_windows, DataPtr);
 	proto_tree_draw(NULL, DataPtr->tree_view);
@@ -1110,3 +1188,16 @@ redraw_packet_bytes_packet_wins(void)
 {
 	g_list_foreach(detail_windows, redraw_packet_bytes_cb, NULL);
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

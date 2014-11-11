@@ -1,6 +1,3 @@
-# $Id$
-#
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -26,13 +23,14 @@ EXPORT_FILES = $(PROTOCOL_NAME)-exp.cnf
 
 EXT_ASN_FILE_LIST =
 
-ASN_FILE_LIST = $(PROTOCOL_NAME).asn \
+ASN_FILE_LIST = \
+	$(PROTOCOL_NAME).asn \
 	Remote-Operations-Information-Objects.asn
 
 # The packet-$(PROTOCOL_NAME)-template.h and $(PROTOCOL_NAME).asn
 # files do not exist # for all protocols: Please add/remove as required.
 EXTRA_DIST = \
-	Makefile.nmake \
+	$(EXTRA_DIST_COMMON) \
 	$(ASN_FILE_LIST) \
 	packet-$(PROTOCOL_NAME)-template.c \
 	packet-$(PROTOCOL_NAME)-template.h \
@@ -44,7 +42,6 @@ EXTRA_DIST = \
 	ros-inv.cnf \
 	ros-rej.cnf \
 	ros-res.cnf
-
 
 SRC_FILES = \
 	$(EXTRA_DIST) \

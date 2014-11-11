@@ -2,8 +2,6 @@
  * conversations_jxta  copyright (c) 2005 Mike Duigou <bondolo@jxta.org>
  * copied from conversations_sctp.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,6 +36,8 @@
 
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/conversations_table.h"
+
+void register_tap_listener_jxta_conversation(void);
 
 static int
 jxta_conversation_packet(void *pct, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const void *vip)

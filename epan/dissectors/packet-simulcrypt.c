@@ -11,8 +11,6 @@
  * EIS <-> SCS support, (P)SIG <-> MUX support, MUX <-> CiM support and (P) <-> CiP support
  * Copyright 2010, Giuliano Fabris <giuliano.fabris@appeartv.com> / AppearTV
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -43,6 +41,8 @@
 #define CA_SYSTEM_ID_MIKEY              0x9999  /* CA_system_ID corresponding to MIKEY ECM */
 #define CA_SYSTEM_ID_MIKEY_PROTO        "mikey" /* Protocol name to be used to "decode as" ECMs with CA_SYSTEM_ID_MIKEY */
 
+void proto_register_simulcrypt(void);
+
 /* Tecm_interpretation links ca_system_id to ecmg port and protocol name for dissection of
  * ecm_datagram in ECM_Response message.
  * Currently size is 1 as only have MIKEY protocol but could add extra protocols
@@ -64,7 +64,7 @@ static ecm_interpretation tab_ecm_inter[] = {
 
 #define ECM_INTERPRETATION_SIZE (sizeof(tab_ecm_inter)/sizeof(ecm_interpretation))
 
-static void  dissect_simulcrypt_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+static int dissect_simulcrypt_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_);
 static guint get_simulcrypt_message_len(packet_info *pinfo, tvbuff_t *tvb, int offset);
 static void dissect_simulcrypt_data(proto_tree *simulcrypt_tree, proto_item *simulcrypt_item, packet_info *pinfo _U_,
                                     tvbuff_t *tvb, proto_tree *tree, int offset,
@@ -536,6 +536,7 @@ static const value_string psig_parametertypenames[] = {
 	{ 0, NULL }
 };
 
+#if 0
 /* Simulcrypt PSIG protocol error values */
 static const value_string psig_error_values[] = {
 	{ 0x0000, "DVB Reserved" },
@@ -567,6 +568,7 @@ static const value_string psig_error_values[] = {
 
 	{ 0, NULL }
 };
+#endif
 
 /* The following hf_* variables are used to hold the Wireshark IDs of
 * our header fields; they are filled out when we call
@@ -680,11 +682,12 @@ static gint ett_simulcrypt_table_period_pair = -1;
 #define FRAME_HEADER_LEN 8
 
 /* The main dissecting routine */
-static void
-dissect_simulcrypt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_simulcrypt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
 	tcp_dissect_pdus(tvb, pinfo, tree, TRUE, FRAME_HEADER_LEN,
-			 get_simulcrypt_message_len, dissect_simulcrypt_message);
+			 get_simulcrypt_message_len, dissect_simulcrypt_message, data);
+	return tvb_length(tvb);
 }
 
 /* Informative tree structure is shown here:
@@ -1195,8 +1198,8 @@ dissect_psig_parameter_value (proto_tree *tree, tvbuff_t *tvb, packet_info *pinf
 }
 
 /* This method dissects fully reassembled messages */
-static void
-dissect_simulcrypt_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_simulcrypt_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	proto_item *simulcrypt_item;
 	proto_tree *simulcrypt_tree;
@@ -1240,8 +1243,8 @@ dissect_simulcrypt_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 		/* Message Type 2 Bytes */
 		proto_tree_add_item(simulcrypt_header_tree, hf_simulcrypt_message_type, tvb, offset, 2, ENC_BIG_ENDIAN);
-		simulcrypt_item = proto_tree_add_uint_format(simulcrypt_header_tree, hf_simulcrypt_interface, tvb, offset, 2, iftype,
-							     "Interface: %s", val_to_str_const(iftype, interfacenames, "Unknown"));
+		simulcrypt_item = proto_tree_add_uint_format_value(simulcrypt_header_tree, hf_simulcrypt_interface, tvb, offset, 2, iftype,
+							     "%s", val_to_str_const(iftype, interfacenames, "Unknown"));
 		PROTO_ITEM_SET_GENERATED (simulcrypt_item);
 		offset+=2;
 
@@ -1266,6 +1269,8 @@ dissect_simulcrypt_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		dissect_simulcrypt_data(simulcrypt_message_tree, simulcrypt_item, pinfo, tvb, tree, offset, (msg_length+5), iftype, FALSE); /* offset is from beginning of the 5 byte header */
 
 	} /* end tree */
+
+	return tvb_length(tvb);
 }
 
 /* this method is used to dissect TLV parameters */
@@ -1299,7 +1304,7 @@ dissect_simulcrypt_data(proto_tree *simulcrypt_tree, proto_item *simulcrypt_item
 		/* Parameter  Length 2 Bytes */
 		plen = tvb_get_ntohs(tvb, offset+2); /* read 2 byte length value */
 		/* Parameter  Value plen Bytes */
-		pvalue_char = tvb_bytes_to_str(tvb, offset+4, plen);
+		pvalue_char = tvb_bytes_to_ep_str(tvb, offset+4, plen);
 
 		simulcrypt_item = proto_tree_add_item(simulcrypt_tree, hf_simulcrypt_parameter, tvb, offset, plen+2+2, ENC_NA );
 
@@ -1836,7 +1841,7 @@ proto_reg_handoff_simulcrypt(void)
 	guint  i;
 
 	if (!initialized) {
-		simulcrypt_handle = create_dissector_handle(dissect_simulcrypt, proto_simulcrypt);
+		simulcrypt_handle = new_create_dissector_handle(dissect_simulcrypt, proto_simulcrypt);
 		for(i=0;i<ECM_INTERPRETATION_SIZE;i++)
 		{
 			tab_ecm_inter[i].protocol_handle = find_dissector(tab_ecm_inter[i].protocol_name);

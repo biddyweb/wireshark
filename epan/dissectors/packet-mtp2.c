@@ -5,8 +5,6 @@
  *
  * Copyright 2001, 2004 Michael Tuexen <tuexen [AT] fh-muenster.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,10 +29,17 @@
 #include "config.h"
 
 #include <glib.h>
+
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/crc16-tvb.h>
 #include <epan/expert.h>
+#include <wiretap/wtap.h>
+
+void proto_register_mtp2(void);
+void proto_reg_handoff_mtp2(void);
+
+static dissector_handle_t mtp2_handle;
 
 /* Initialize the protocol and registered fields */
 static int proto_mtp2        = -1;
@@ -53,6 +58,8 @@ static int hf_mtp2_spare     = -1;
 static int hf_mtp2_ext_spare = -1;
 static int hf_mtp2_sf        = -1;
 static int hf_mtp2_sf_extra  = -1;
+
+static expert_field ei_mtp2_checksum_error = EI_INIT;
 
 /* Initialize the subtree pointers */
 static gint ett_mtp2       = -1;
@@ -182,7 +189,7 @@ mtp2_decode_crc16(tvbuff_t *tvb, proto_tree *fh_tree, packet_info *pinfo)
     len -= 2;
     reported_len -= 2;
     next_tvb = tvb_new_subset(tvb, proto_offset, len, reported_len);
-    
+
     /*
      * Compute the FCS and put it into the tree.
      */
@@ -193,8 +200,7 @@ mtp2_decode_crc16(tvbuff_t *tvb, proto_tree *fh_tree, packet_info *pinfo)
       cause=proto_tree_add_text(fh_tree, tvb, rx_fcs_offset, 2,
 				"FCS 16: 0x%04x [incorrect, should be 0x%04x]",
 				rx_fcs_got, rx_fcs_exp);
-      proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-      expert_add_info_format(pinfo, cause, PI_MALFORMED, PI_WARN, "MTP2 Frame CheckFCS 16 Error");
+      expert_add_info(pinfo, cause, &ei_mtp2_checksum_error);
     } else {
       proto_tree_add_text(fh_tree, tvb, rx_fcs_offset, 2,
 			  "FCS 16: 0x%04x [correct]",
@@ -245,7 +251,7 @@ dissect_mtp2_lssu(tvbuff_t *su_tvb, packet_info *pinfo, proto_item *mtp2_tree)
 {
   guint8 sf = 0xFF;
   guint8 sf_offset, sf_extra_offset;
-  
+
   if (use_extended_sequence_numbers) {
     sf_offset = EXTENDED_SF_OFFSET;
     sf_extra_offset = EXTENDED_SF_EXTRA_OFFSET;
@@ -298,8 +304,8 @@ dissect_mtp2_su(tvbuff_t *su_tvb, packet_info *pinfo, proto_item *mtp2_item, pro
   guint16 li;
   tvbuff_t  *next_tvb = NULL;
 
-  dissect_mtp2_header(su_tvb, mtp2_tree); 
-  if (validate_crc)  
+  dissect_mtp2_header(su_tvb, mtp2_tree);
+  if (validate_crc)
     next_tvb = mtp2_decode_crc16(su_tvb, mtp2_tree, pinfo);
 
   if (use_extended_sequence_numbers)
@@ -311,8 +317,8 @@ dissect_mtp2_su(tvbuff_t *su_tvb, packet_info *pinfo, proto_item *mtp2_item, pro
     dissect_mtp2_fisu(pinfo);
     break;
   case 1:
-  case 2: 
-    if (validate_crc)  
+  case 2:
+    if (validate_crc)
       dissect_mtp2_lssu(next_tvb, pinfo, mtp2_tree);
     else
       dissect_mtp2_lssu(su_tvb, pinfo, mtp2_tree);
@@ -320,9 +326,9 @@ dissect_mtp2_su(tvbuff_t *su_tvb, packet_info *pinfo, proto_item *mtp2_item, pro
   default:
     /* In some capture files (like .rf5), CRC are not present */
     /* So, to avoid trouble, give the complete buffer if CRC validation is disabled */
-    if (validate_crc)  
+    if (validate_crc)
       dissect_mtp2_msu(next_tvb, pinfo, mtp2_item, tree);
-    else 
+    else
       dissect_mtp2_msu(su_tvb, pinfo, mtp2_item, tree);
     break;
   }
@@ -338,9 +344,9 @@ dissect_mtp2_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolea
     use_extended_sequence_numbers = use_extended_sequence_numbers_default;
   else
     use_extended_sequence_numbers = (pinfo->annex_a_used == MTP2_ANNEX_A_USED);
-    
+
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "MTP2");
-  
+
   if (tree) {
     mtp2_item = proto_tree_add_item(tree, proto_mtp2, tvb, 0, -1, ENC_NA);
     mtp2_tree = proto_item_add_subtree(mtp2_item, ett_mtp2);
@@ -388,16 +394,23 @@ proto_register_mtp2(void)
     &ett_mtp2
   };
 
+  static ei_register_info ei[] = {
+     { &ei_mtp2_checksum_error, { "mtp2.checksum.error", PI_CHECKSUM, PI_WARN, "MTP2 Frame CheckFCS 16 Error", EXPFILL }},
+  };
+
   module_t *mtp2_module;
+  expert_module_t* expert_mtp2;
 
   proto_mtp2 = proto_register_protocol("Message Transfer Part Level 2", "MTP2", "mtp2");
-  register_dissector("mtp2", dissect_mtp2, proto_mtp2);
+  mtp2_handle = register_dissector("mtp2", dissect_mtp2, proto_mtp2);
 
   proto_register_field_array(proto_mtp2, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
-  
+  expert_mtp2 = expert_register_protocol(proto_mtp2);
+  expert_register_field_array(expert_mtp2, ei, array_length(ei));
+
   mtp2_module = prefs_register_protocol(proto_mtp2, NULL);
-  prefs_register_bool_preference(mtp2_module, 
+  prefs_register_bool_preference(mtp2_module,
                                  "use_extended_sequence_numbers",
                                  "Use extended sequence numbers",
                                  "Whether the MTP2 dissector should use extended sequence numbers as described in Q.703, Annex A as a default.",
@@ -409,9 +422,6 @@ proto_register_mtp2(void)
 void
 proto_reg_handoff_mtp2(void)
 {
-  dissector_handle_t mtp2_handle;
-
-  mtp2_handle = find_dissector("mtp2");
   dissector_add_uint("wtap_encap", WTAP_ENCAP_MTP2, mtp2_handle);
   dissector_add_uint("wtap_encap", WTAP_ENCAP_MTP2_WITH_PHDR, mtp2_handle);
 

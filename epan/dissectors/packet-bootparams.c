@@ -1,8 +1,6 @@
 /* packet-bootparams.c
  * Routines for bootparams dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,6 +33,9 @@
 #define BOOTPARAMSPROC_GETFILE 2
 
 #define BOOTPARAMS_PROGRAM 100026
+
+void proto_register_bootparams(void);
+void proto_reg_handoff_bootparams(void);
 
 static int proto_bootparams = -1;
 static int hf_bootparams_procedure_v1 = -1;
@@ -86,7 +87,7 @@ dissect_bp_address(tvbuff_t *tvb, int offset, proto_tree *tree, int hfindex)
 
 
 static int
-dissect_getfile_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_getfile_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	if ( tree )
 	{
@@ -98,7 +99,7 @@ dissect_getfile_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tr
 }
 
 static int
-dissect_getfile_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_getfile_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	if ( tree )
 	{
@@ -111,7 +112,7 @@ dissect_getfile_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_t
 }
 
 static int
-dissect_whoami_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_whoami_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	if ( tree )
 	{
@@ -122,7 +123,7 @@ dissect_whoami_call(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tre
 }
 
 static int
-dissect_whoami_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_whoami_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	if ( tree )
 	{

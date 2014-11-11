@@ -2,8 +2,6 @@
  * Routines for 3GPP RTP Multiplex dissection, 3GPP TS 29.414
  * Copyright 2009, ip.access ltd <amp@ipaccess.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,9 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+
+void proto_register_nb_rtpmux(void);
+void proto_reg_handoff_nb_rtpmux(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_nb_rtpmux = -1;

@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-rua.c                                                               */
 /* ../../tools/asn2wrs.py -p rua -c ./rua.cnf -s ./packet-rua-template -D . -O ../../epan/dissectors RUA-CommonDataTypes.asn RUA-Constants.asn RUA-Containers.asn RUA-IEs.asn RUA-PDU-Contents.asn RUA-PDU-Descriptions.asn */
 
@@ -9,8 +9,6 @@
 /* packet-rua-template.c
  * Routines for UMTS Home Node B RANAP User Adaptation (RUA) packet dissection
  * Copyright 2010 Neil Piercy, ip.access Limited <Neil.Piercy@ipaccess.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -55,6 +53,8 @@
 #define PFNAME "rua"
 /* Dissector to use SCTP PPID 19 or a configured SCTP port. IANA assigned port = 29169*/
 #define SCTP_PORT_RUA              29169;
+
+void proto_register_rua(void);
 
 
 /*--- Included file: packet-rua-val.h ---*/
@@ -270,7 +270,7 @@ dissect_rua_ProcedureCode(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 255U, &ProcedureCode, FALSE);
 
-#line 53 "../../asn1/rua/rua.cnf"
+#line 52 "../../asn1/rua/rua.cnf"
   if (strcmp(val_to_str(ProcedureCode, rua_ProcedureCode_vals, "Unknown"), "Unknown") == 0) {
     col_set_str(actx->pinfo->cinfo, COL_INFO,
                       "Unknown Message ");
@@ -340,7 +340,7 @@ dissect_rua_ProtocolIE_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, maxProtocolIEs, &ProtocolIE_ID, FALSE);
 
-#line 42 "../../asn1/rua/rua.cnf"
+#line 41 "../../asn1/rua/rua.cnf"
   if (tree) {
     proto_item_append_text(proto_item_get_parent_nth(actx->created_item, 2), ": %s", val_to_str(ProtocolIE_ID, VALS(rua_ProtocolIE_ID_vals), "unknown (%d)"));
   }
@@ -535,7 +535,7 @@ dissect_rua_Establishment_Cause(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_rua_Context_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     24, 24, FALSE, NULL);
+                                     24, 24, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -545,7 +545,7 @@ dissect_rua_Context_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, 
 static int
 dissect_rua_RoutingParameter(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     10, 10, FALSE, NULL);
+                                     10, 10, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -725,7 +725,7 @@ dissect_rua_Gsm_map_IDNNS(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
 static int
 dissect_rua_Ansi_41_IDNNS(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     14, 14, FALSE, NULL);
+                                     14, 14, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -771,7 +771,7 @@ dissect_rua_T_release99(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_,
 static int
 dissect_rua_BIT_STRING_SIZE_15(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     15, 15, FALSE, NULL);
+                                     15, 15, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -830,15 +830,15 @@ dissect_rua_IntraDomainNasNodeSelector(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 
 static int
 dissect_rua_RANAP_Message(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 96 "../../asn1/rua/rua.cnf"
+#line 95 "../../asn1/rua/rua.cnf"
   tvbuff_t *ranap_message_tvb=NULL;
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
                                        NO_BOUND, NO_BOUND, FALSE, &ranap_message_tvb);
 
  if ((tvb_length(ranap_message_tvb)>0)&&(ranap_handle)) {  /* RUA has a RANAP-PDU */
      col_set_str(actx->pinfo->cinfo, COL_INFO,
-             "(RUA) ");                                    /* Set info to (RUA) to make room for RANAP */ 
-     col_set_fence(actx->pinfo->cinfo, COL_INFO);  
+             "(RUA) ");                                    /* Set info to (RUA) to make room for RANAP */
+     col_set_fence(actx->pinfo->cinfo, COL_INFO);
      call_dissector(ranap_handle,ranap_message_tvb,actx->pinfo, proto_tree_get_root(tree));
   }
 
@@ -1019,7 +1019,7 @@ static const per_sequence_t Connect_sequence[] = {
 
 static int
 dissect_rua_Connect(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 65 "../../asn1/rua/rua.cnf"
+#line 64 "../../asn1/rua/rua.cnf"
     col_set_str(actx->pinfo->cinfo, COL_INFO,
              "CONNECT ");
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
@@ -1040,7 +1040,7 @@ static const per_sequence_t DirectTransfer_sequence[] = {
 
 static int
 dissect_rua_DirectTransfer(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 70 "../../asn1/rua/rua.cnf"
+#line 69 "../../asn1/rua/rua.cnf"
     col_set_str(actx->pinfo->cinfo, COL_INFO,
              "DIRECT_TRANSFER ");
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
@@ -1061,7 +1061,7 @@ static const per_sequence_t Disconnect_sequence[] = {
 
 static int
 dissect_rua_Disconnect(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 75 "../../asn1/rua/rua.cnf"
+#line 74 "../../asn1/rua/rua.cnf"
     col_set_str(actx->pinfo->cinfo, COL_INFO,
              "DISCONNECT ");
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
@@ -1082,7 +1082,7 @@ static const per_sequence_t ConnectionlessTransfer_sequence[] = {
 
 static int
 dissect_rua_ConnectionlessTransfer(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 80 "../../asn1/rua/rua.cnf"
+#line 79 "../../asn1/rua/rua.cnf"
     col_set_str(actx->pinfo->cinfo, COL_INFO,
              "CONNECTIONLESS_TRANSFER ");
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
@@ -1103,7 +1103,7 @@ static const per_sequence_t ErrorIndication_sequence[] = {
 
 static int
 dissect_rua_ErrorIndication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 85 "../../asn1/rua/rua.cnf"
+#line 84 "../../asn1/rua/rua.cnf"
     col_set_str(actx->pinfo->cinfo, COL_INFO,
              "ERROR_INDICATION ");
     col_set_fence(actx->pinfo->cinfo, COL_INFO); /* Protect info from CriticalityDiagnostics decodes */
@@ -1124,7 +1124,7 @@ static const per_sequence_t PrivateMessage_sequence[] = {
 
 static int
 dissect_rua_PrivateMessage(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 91 "../../asn1/rua/rua.cnf"
+#line 90 "../../asn1/rua/rua.cnf"
     col_set_str(actx->pinfo->cinfo, COL_INFO,
              "PRIVATE_MESSAGE ");
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
@@ -1428,7 +1428,7 @@ module_t *rua_module;
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_IntraDomainNasNodeSelector_PDU,
-      { "IntraDomainNasNodeSelector", "rua.IntraDomainNasNodeSelector",
+      { "IntraDomainNasNodeSelector", "rua.IntraDomainNasNodeSelector_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_RANAP_Message_PDU,
@@ -1440,31 +1440,31 @@ module_t *rua_module;
         FT_UINT32, BASE_DEC, VALS(rua_Cause_vals), 0,
         NULL, HFILL }},
     { &hf_rua_CriticalityDiagnostics_PDU,
-      { "CriticalityDiagnostics", "rua.CriticalityDiagnostics",
+      { "CriticalityDiagnostics", "rua.CriticalityDiagnostics_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_Connect_PDU,
-      { "Connect", "rua.Connect",
+      { "Connect", "rua.Connect_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_DirectTransfer_PDU,
-      { "DirectTransfer", "rua.DirectTransfer",
+      { "DirectTransfer", "rua.DirectTransfer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_Disconnect_PDU,
-      { "Disconnect", "rua.Disconnect",
+      { "Disconnect", "rua.Disconnect_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_ConnectionlessTransfer_PDU,
-      { "ConnectionlessTransfer", "rua.ConnectionlessTransfer",
+      { "ConnectionlessTransfer", "rua.ConnectionlessTransfer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_ErrorIndication_PDU,
-      { "ErrorIndication", "rua.ErrorIndication",
+      { "ErrorIndication", "rua.ErrorIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_PrivateMessage_PDU,
-      { "PrivateMessage", "rua.PrivateMessage",
+      { "PrivateMessage", "rua.PrivateMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_RUA_PDU_PDU,
@@ -1480,7 +1480,7 @@ module_t *rua_module;
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_rua_ProtocolIE_Container_item,
-      { "ProtocolIE-Field", "rua.ProtocolIE_Field",
+      { "ProtocolIE-Field", "rua.ProtocolIE_Field_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_protocol_ie_field_id,
@@ -1492,11 +1492,11 @@ module_t *rua_module;
         FT_UINT32, BASE_DEC, VALS(rua_Criticality_vals), 0,
         NULL, HFILL }},
     { &hf_rua_ie_field_value,
-      { "value", "rua.value",
+      { "value", "rua.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ProtocolIE_Field_value", HFILL }},
     { &hf_rua_ProtocolExtensionContainer_item,
-      { "ProtocolExtensionField", "rua.ProtocolExtensionField",
+      { "ProtocolExtensionField", "rua.ProtocolExtensionField_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_id,
@@ -1504,11 +1504,11 @@ module_t *rua_module;
         FT_UINT32, BASE_DEC, VALS(rua_ProtocolIE_ID_vals), 0,
         "ProtocolIE_ID", HFILL }},
     { &hf_rua_extensionValue,
-      { "extensionValue", "rua.extensionValue",
+      { "extensionValue", "rua.extensionValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_PrivateIE_Container_item,
-      { "PrivateIE-Field", "rua.PrivateIE_Field",
+      { "PrivateIE-Field", "rua.PrivateIE_Field_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_private_ie_field_id,
@@ -1516,7 +1516,7 @@ module_t *rua_module;
         FT_UINT32, BASE_DEC, VALS(rua_PrivateIE_ID_vals), 0,
         "PrivateIE_ID", HFILL }},
     { &hf_rua_private_value,
-      { "value", "rua.value",
+      { "value", "rua.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PrivateIE_Field_value", HFILL }},
     { &hf_rua_version,
@@ -1524,7 +1524,7 @@ module_t *rua_module;
         FT_UINT32, BASE_DEC, VALS(rua_T_version_vals), 0,
         NULL, HFILL }},
     { &hf_rua_release99,
-      { "release99", "rua.release99",
+      { "release99", "rua.release99_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_cn_Type,
@@ -1532,7 +1532,7 @@ module_t *rua_module;
         FT_UINT32, BASE_DEC, VALS(rua_T_cn_Type_vals), 0,
         NULL, HFILL }},
     { &hf_rua_gsm_Map_IDNNS,
-      { "gsm-Map-IDNNS", "rua.gsm_Map_IDNNS",
+      { "gsm-Map-IDNNS", "rua.gsm_Map_IDNNS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_ansi_41_IDNNS,
@@ -1540,7 +1540,7 @@ module_t *rua_module;
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_later,
-      { "later", "rua.later",
+      { "later", "rua.later_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_futurecoding,
@@ -1552,7 +1552,7 @@ module_t *rua_module;
         FT_UINT32, BASE_DEC, VALS(rua_T_routingbasis_vals), 0,
         NULL, HFILL }},
     { &hf_rua_localPTMSI,
-      { "localPTMSI", "rua.localPTMSI",
+      { "localPTMSI", "rua.localPTMSI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_routingparameter,
@@ -1560,31 +1560,31 @@ module_t *rua_module;
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_tMSIofsamePLMN,
-      { "tMSIofsamePLMN", "rua.tMSIofsamePLMN",
+      { "tMSIofsamePLMN", "rua.tMSIofsamePLMN_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_tMSIofdifferentPLMN,
-      { "tMSIofdifferentPLMN", "rua.tMSIofdifferentPLMN",
+      { "tMSIofdifferentPLMN", "rua.tMSIofdifferentPLMN_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_iMSIresponsetopaging,
-      { "iMSIresponsetopaging", "rua.iMSIresponsetopaging",
+      { "iMSIresponsetopaging", "rua.iMSIresponsetopaging_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_iMSIcauseUEinitiatedEvent,
-      { "iMSIcauseUEinitiatedEvent", "rua.iMSIcauseUEinitiatedEvent",
+      { "iMSIcauseUEinitiatedEvent", "rua.iMSIcauseUEinitiatedEvent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_iMEI,
-      { "iMEI", "rua.iMEI",
+      { "iMEI", "rua.iMEI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_spare2,
-      { "spare2", "rua.spare2",
+      { "spare2", "rua.spare2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_spare1,
-      { "spare1", "rua.spare1",
+      { "spare1", "rua.spare1_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_dummy,
@@ -1628,7 +1628,7 @@ module_t *rua_module;
         FT_UINT32, BASE_DEC, NULL, 0,
         "ProtocolExtensionContainer", HFILL }},
     { &hf_rua_CriticalityDiagnostics_IE_List_item,
-      { "CriticalityDiagnostics-IE-List item", "rua.CriticalityDiagnostics_IE_List_item",
+      { "CriticalityDiagnostics-IE-List item", "rua.CriticalityDiagnostics_IE_List_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_iECriticality,
@@ -1656,27 +1656,27 @@ module_t *rua_module;
         FT_UINT32, BASE_DEC, NULL, 0,
         "PrivateIE_Container", HFILL }},
     { &hf_rua_initiatingMessage,
-      { "initiatingMessage", "rua.initiatingMessage",
+      { "initiatingMessage", "rua.initiatingMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_successfulOutcome,
-      { "successfulOutcome", "rua.successfulOutcome",
+      { "successfulOutcome", "rua.successfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_unsuccessfulOutcome,
-      { "unsuccessfulOutcome", "rua.unsuccessfulOutcome",
+      { "unsuccessfulOutcome", "rua.unsuccessfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rua_initiatingMessagevalue,
-      { "value", "rua.value",
+      { "value", "rua.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "InitiatingMessage_value", HFILL }},
     { &hf_rua_successfulOutcome_value,
-      { "value", "rua.value",
+      { "value", "rua.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SuccessfulOutcome_value", HFILL }},
     { &hf_rua_unsuccessfulOutcome_value,
-      { "value", "rua.value",
+      { "value", "rua.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UnsuccessfulOutcome_value", HFILL }},
 

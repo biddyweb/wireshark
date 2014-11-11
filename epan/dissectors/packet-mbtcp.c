@@ -2,7 +2,7 @@
  * Routines for Modbus/TCP and Modbus/UDP dissection
  * By Riaan Swart <rswart@cs.sun.ac.za>
  * Copyright 2001, Institute for Applied Computer Science
- * 					 University of Stellenbosch
+ *                   University of Stellenbosch
  *
  * See http://www.modbus.org/ for information on Modbus/TCP.
  *
@@ -15,6 +15,9 @@
  * - Include decoding of holding/input response register data
  * - Optionally decode holding/input registers as UINT16, UINT32, 32-bit Float IEEE/Modicon
  * - Add various register address formatting options as "Raw", "Modicon 5-digit", "Modicon 6-digit"
+ *
+ * Updates Aug 2013 (Chris Bontje)
+ * - Improved dissection support for serial Modbus RTU with detection of query or response messages
  *
  *****************************************************************************************************
  * A brief explanation of the distinction between Modbus/TCP and Modbus RTU over TCP:
@@ -49,8 +52,6 @@
  * H = 16-bit CRC
  *
  *****************************************************************************************************
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -73,11 +74,16 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/wmem/wmem.h>
 #include "packet-tcp.h"
 #include "packet-mbtcp.h"
 #include <epan/prefs.h>
 #include <epan/expert.h>
-#include <epan/crc16-tvb.h> /* For CRC verification */\
+#include <epan/crc16-tvb.h> /* For CRC verification */
+
+void proto_register_modbus(void);
+void proto_reg_handoff_mbtcp(void);
+void proto_reg_handoff_mbrtu(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_mbtcp = -1;
@@ -157,9 +163,15 @@ static gint ett_events_send = -1;
 static gint ett_device_id_objects = -1;
 static gint ett_device_id_object_items = -1;
 
+static expert_field ei_mbrtu_crc16_incorrect = EI_INIT;
+static expert_field ei_modbus_data_decode = EI_INIT;
+
+static dissector_handle_t modbus_handle;
+static dissector_handle_t mbtcp_handle;
+static dissector_handle_t mbrtu_handle;
+
 static dissector_table_t   modbus_data_dissector_table;
 static dissector_table_t   modbus_dissector_table;
-static dissector_handle_t  modbus_handle;
 
 
 /* Globals for Modbus/TCP Preferences */
@@ -195,7 +207,7 @@ classify_mbtcp_packet(packet_info *pinfo)
 }
 
 static int
-classify_mbrtu_packet(packet_info *pinfo)
+classify_mbrtu_packet(packet_info *pinfo, tvbuff_t *tvb)
 {
     /* see if nature of packets can be derived from src/dst ports */
     /* if so, return as found */
@@ -204,10 +216,31 @@ classify_mbrtu_packet(packet_info *pinfo)
     if (( pinfo->srcport != global_mbus_rtu_port ) && ( pinfo->destport == global_mbus_rtu_port ))
         return QUERY_PACKET;
 
-   /* Special case for serial-captured packets that don't have an Ethernet header */
-   /* Default these to a response packet, so they at least attempt to decode a good chunk of data */
-   if (!pinfo->srcport)
-        return RESPONSE_PACKET;
+    /* Special case for serial-captured packets that don't have an Ethernet header */
+    /* Dig into these a little deeper to try to guess the message type */
+    if (!pinfo->srcport) {
+        /* If length is 8, this is either a query or very short response */
+        if (tvb_length(tvb) == 8) {
+            /* Only possible to get a response message of 8 bytes with Discrete or Coils */
+            if ((tvb_get_guint8(tvb, 1) == READ_COILS) || (tvb_get_guint8(tvb, 1) == READ_DISCRETE_INPUTS)) {
+                /* If this is, in fact, a response then the data byte count will be 3 */
+                /* This will correctly identify all messages except for those that are discrete or coil polls */
+                /* where the base address range happens to have 0x03 in the upper 16-bit address register     */
+                if (tvb_get_guint8(tvb, 2) == 3) {
+                    return RESPONSE_PACKET;
+                }
+                else {
+                    return QUERY_PACKET;
+                }
+            }
+            else {
+                return QUERY_PACKET;
+            }
+        }
+        else {
+            return RESPONSE_PACKET;
+        }
+    }
 
     /* else, cannot classify */
     return CANNOT_CLASSIFY;
@@ -336,8 +369,8 @@ static const enum_val_t mbus_register_addr_type[] = {
 };
 
 /* Code to dissect Modbus/TCP packets */
-static void
-dissect_mbtcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_mbtcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 /* Set up structures needed to add the protocol subtree and manage it */
     proto_item    *mi;
@@ -390,52 +423,49 @@ dissect_mbtcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* "Request" or "Response" */
     packet_type = classify_mbtcp_packet(pinfo);
 
-    if (check_col(pinfo->cinfo, COL_INFO))
-    {
-        switch ( packet_type ) {
-            case QUERY_PACKET :
-                pkt_type_str="Query";
-                break;
-            case RESPONSE_PACKET :
-                pkt_type_str="Response";
-                break;
-            case CANNOT_CLASSIFY :
-                err_str="Unable to classify as query or response.";
-                pkt_type_str="unknown";
-                break;
-            default :
-                break;
-        }
-        if ( exception_code != 0 )
-            err_str="Exception returned ";
+    switch ( packet_type ) {
+        case QUERY_PACKET :
+            pkt_type_str="Query";
+            break;
+        case RESPONSE_PACKET :
+            pkt_type_str="Response";
+            break;
+        case CANNOT_CLASSIFY :
+            err_str="Unable to classify as query or response.";
+            pkt_type_str="unknown";
+            break;
+        default :
+            break;
+    }
+    if ( exception_code != 0 )
+        err_str="Exception returned ";
 
-        if (subfunction_code == 0) {
-            if (strlen(err_str) > 0) {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Trans: %5u; Unit: %3u, Func: %3u: %s. %s",
-                      pkt_type_str, transaction_id, unit_id,
-                      function_code, func_string, err_str);
-            }
-            else {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Trans: %5u; Unit: %3u, Func: %3u: %s",
-                      pkt_type_str, transaction_id, unit_id,
-                      function_code, func_string);
-            }
+    if (subfunction_code == 0) {
+        if (strlen(err_str) > 0) {
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Trans: %5u; Unit: %3u, Func: %3u: %s. %s",
+                    pkt_type_str, transaction_id, unit_id,
+                    function_code, func_string, err_str);
         }
         else {
-            if (strlen(err_str) > 0) {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Trans: %5u; Unit: %3u, Func: %3u/%3u: %s. %s",
-                      pkt_type_str, transaction_id, unit_id,
-                      function_code, subfunction_code, func_string, err_str);
-            }
-            else {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Trans: %5u; Unit: %3u, Func: %3u/%3u: %s",
-                      pkt_type_str, transaction_id, unit_id,
-                      function_code, subfunction_code, func_string);
-            }
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Trans: %5u; Unit: %3u, Func: %3u: %s",
+                    pkt_type_str, transaction_id, unit_id,
+                    function_code, func_string);
+        }
+    }
+    else {
+        if (strlen(err_str) > 0) {
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Trans: %5u; Unit: %3u, Func: %3u/%3u: %s. %s",
+                    pkt_type_str, transaction_id, unit_id,
+                    function_code, subfunction_code, func_string, err_str);
+        }
+        else {
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Trans: %5u; Unit: %3u, Func: %3u/%3u: %s",
+                    pkt_type_str, transaction_id, unit_id,
+                    function_code, subfunction_code, func_string);
         }
     }
 
@@ -453,27 +483,28 @@ dissect_mbtcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     next_tvb = tvb_new_subset( tvb, offset+7, len-1, len-1);
 
     /* keep existing context */
-    p_save_proto_data = p_get_proto_data( pinfo->fd, proto_modbus );
-    p_remove_proto_data(pinfo->fd, proto_modbus);
+    p_save_proto_data = p_get_proto_data(wmem_file_scope(), pinfo, proto_modbus, 0 );
+    p_remove_proto_data(wmem_file_scope(), pinfo, proto_modbus, 0);
 
     /* Create enough context for Modbus dissector */
-    request_info = ep_alloc(sizeof(modbus_request_info_t));
+    request_info = wmem_new(wmem_packet_scope(), modbus_request_info_t);
     request_info->packet_type = (guint8)packet_type;
     request_info->register_addr_type = (guint8)global_mbus_tcp_register_addr_type;
     request_info->register_format = (guint8)global_mbus_tcp_register_format;
-    p_add_proto_data(pinfo->fd, proto_modbus, request_info);
+    p_add_proto_data(wmem_file_scope(), pinfo, proto_modbus, 0, request_info);
 
     /* Continue with dissection of Modbus data payload following Modbus/TCP frame */
     if( tvb_length_remaining(tvb, offset) > 0 )
         call_dissector(modbus_handle, next_tvb, pinfo, tree);
 
-    p_remove_proto_data(pinfo->fd, proto_modbus);
-    p_add_proto_data(pinfo->fd, proto_modbus, p_save_proto_data);
+    p_remove_proto_data(wmem_file_scope(), pinfo, proto_modbus, 0);
+    p_add_proto_data(wmem_file_scope(), pinfo, proto_modbus, 0, p_save_proto_data);
+    return tvb_length(tvb);
 }
 
 /* Code to dissect Modbus RTU over TCP packets */
-static void
-dissect_mbrtu_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_mbrtu_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 /* Set up structures needed to add the protocol subtree and manage it */
     proto_item    *mi, *crc_item;
@@ -523,54 +554,51 @@ dissect_mbrtu_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
 
     /* "Request" or "Response" */
-    packet_type = classify_mbrtu_packet(pinfo);
+    packet_type = classify_mbrtu_packet(pinfo, tvb);
 
-    if (check_col(pinfo->cinfo, COL_INFO))
-    {
-        switch ( packet_type ) {
-            case QUERY_PACKET :
-                pkt_type_str="Query";
-                break;
-            case RESPONSE_PACKET :
-                pkt_type_str="Response";
-                break;
-            case CANNOT_CLASSIFY :
-                err_str="Unable to classify as query or response.";
-                pkt_type_str="unknown";
-                break;
-            default :
-                break;
-        }
-        if ( exception_code != 0 )
-            err_str="Exception returned ";
+    switch ( packet_type ) {
+        case QUERY_PACKET :
+            pkt_type_str="Query";
+            break;
+        case RESPONSE_PACKET :
+            pkt_type_str="Response";
+            break;
+        case CANNOT_CLASSIFY :
+            err_str="Unable to classify as query or response.";
+            pkt_type_str="unknown";
+            break;
+        default :
+            break;
+    }
+    if ( exception_code != 0 )
+        err_str="Exception returned ";
 
-        if (subfunction_code == 0) {
-            if (strlen(err_str) > 0) {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Unit: %3u, Func: %3u: %s. %s",
-                      pkt_type_str, unit_id,
-                      function_code, func_string, err_str);
-            }
-            else {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Unit: %3u, Func: %3u: %s",
-                      pkt_type_str, unit_id,
-                      function_code, func_string);
-            }
+    if (subfunction_code == 0) {
+        if (strlen(err_str) > 0) {
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Unit: %3u, Func: %3u: %s. %s",
+                    pkt_type_str, unit_id,
+                    function_code, func_string, err_str);
         }
         else {
-            if (strlen(err_str) > 0) {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Unit: %3u, Func: %3u/%3u: %s. %s",
-                      pkt_type_str, unit_id,
-                      function_code, subfunction_code, func_string, err_str);
-            }
-            else {
-                col_add_fstr(pinfo->cinfo, COL_INFO,
-                      "%8s: Unit: %3u, Func: %3u/%3u: %s",
-                      pkt_type_str, unit_id,
-                      function_code, subfunction_code, func_string);
-            }
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Unit: %3u, Func: %3u: %s",
+                    pkt_type_str, unit_id,
+                    function_code, func_string);
+        }
+    }
+    else {
+        if (strlen(err_str) > 0) {
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Unit: %3u, Func: %3u/%3u: %s. %s",
+                    pkt_type_str, unit_id,
+                    function_code, subfunction_code, func_string, err_str);
+        }
+        else {
+            col_add_fstr(pinfo->cinfo, COL_INFO,
+                    "%8s: Unit: %3u, Func: %3u/%3u: %s",
+                    pkt_type_str, unit_id,
+                    function_code, subfunction_code, func_string);
         }
     }
 
@@ -587,7 +615,7 @@ dissect_mbrtu_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     {
         calc_crc16 = crc16_plain_tvb_offset_seed(tvb, offset, len-2, 0xFFFF);
         if (g_htons(calc_crc16) != crc16)
-            expert_add_info_format(pinfo, crc_item, PI_PROTOCOL, PI_WARN, "Incorrect CRC - should be 0x%04x", g_htons(calc_crc16));
+            expert_add_info_format(pinfo, crc_item, &ei_mbrtu_crc16_incorrect, "Incorrect CRC - should be 0x%04x", g_htons(calc_crc16));
     }
 
     /* make sure to ignore the CRC-16 footer bytes */
@@ -597,22 +625,23 @@ dissect_mbrtu_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     next_tvb = tvb_new_subset( tvb, offset+1, len-1, len-1);
 
     /* keep existing context */
-    p_save_proto_data = p_get_proto_data( pinfo->fd, proto_modbus );
-    p_remove_proto_data(pinfo->fd, proto_modbus);
+    p_save_proto_data = p_get_proto_data(wmem_file_scope(), pinfo, proto_modbus, 0 );
+    p_remove_proto_data(wmem_file_scope(), pinfo, proto_modbus, 0);
 
     /* Create enough context for Modbus dissector */
-    request_info = ep_alloc(sizeof(modbus_request_info_t));
+    request_info = wmem_new(wmem_packet_scope(), modbus_request_info_t);
     request_info->packet_type = (guint8)packet_type;
     request_info->register_addr_type = (guint8)global_mbus_rtu_register_addr_type;
     request_info->register_format = (guint8)global_mbus_rtu_register_format;
-    p_add_proto_data(pinfo->fd, proto_modbus, request_info);
+    p_add_proto_data(wmem_file_scope(), pinfo, proto_modbus, 0, request_info);
 
-    /* Continue with dissection of Modbus data payload following Modbus/TCP frame */
+    /* Continue with dissection of Modbus data payload following Modbus RTU frame */
     if( tvb_length_remaining(tvb, offset) > 0 )
         call_dissector(modbus_handle, next_tvb, pinfo, tree);
 
-    p_remove_proto_data(pinfo->fd, proto_modbus);
-    p_add_proto_data(pinfo->fd, proto_modbus, p_save_proto_data);
+    p_remove_proto_data(wmem_file_scope(), pinfo, proto_modbus, 0);
+    p_add_proto_data(wmem_file_scope(), pinfo, proto_modbus, 0, p_save_proto_data);
+    return tvb_length(tvb);
 }
 
 
@@ -646,7 +675,7 @@ get_mbrtu_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset _U_)
 
 /* Code to dissect Modbus/TCP messages */
 static int
-dissect_mbtcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_mbtcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 
     /* Make sure there's at least enough data to determine it's a Modbus TCP packet */
@@ -665,18 +694,18 @@ dissect_mbtcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
 
     /* build up protocol tree and iterate over multiple packets */
     tcp_dissect_pdus(tvb, pinfo, tree, mbtcp_desegment, 6,
-                     get_mbtcp_pdu_len, dissect_mbtcp_pdu);
+                     get_mbtcp_pdu_len, dissect_mbtcp_pdu, data);
 
     return tvb_length(tvb);
 }
 
 /* Code to dissect Modbus RTU over TCP messages */
 static int
-dissect_mbrtu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_mbrtu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 
     /* Make sure there's at least enough data to determine it's a Modbus packet */
-    if (!tvb_bytes_exist(tvb, 0, 8))
+    if (!tvb_bytes_exist(tvb, 0, 6))
         return 0;
 
     /* For Modbus RTU mode, confirm that the first byte is a valid address (non-zero), */
@@ -686,7 +715,7 @@ dissect_mbrtu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
 
     /* build up protocol tree and iterate over multiple packets */
     tcp_dissect_pdus(tvb, pinfo, tree, mbrtu_desegment, 6,
-                     get_mbrtu_pdu_len, dissect_mbrtu_pdu);
+                     get_mbrtu_pdu_len, dissect_mbrtu_pdu, data);
 
     return tvb_length(tvb);
 }
@@ -717,13 +746,17 @@ dissect_modbus_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 
         return;
     }
 
+    /* If data type of payload is Holding or Input registers */
+    /* AND */
     /* if payload length is not a multiple of 4, don't attempt to decode anything in 32-bit format */
-    if ((payload_len % 4 != 0) && ( (register_format == MBTCP_PREF_REGISTER_FORMAT_UINT32) ||
-        (register_format == MBTCP_PREF_REGISTER_FORMAT_IEEE_FLOAT) ||
-        (register_format == MBTCP_PREF_REGISTER_FORMAT_MODICON_FLOAT) ) ) {
-        register_item = proto_tree_add_item(tree, hf_modbus_data, tvb, payload_start, payload_len, ENC_NA);
-        expert_add_info_format(pinfo, register_item, PI_PROTOCOL, PI_WARN, "Invalid decoding options, register data not a multiple of 4!");
-        return;
+    if ((function_code == READ_HOLDING_REGS) || (function_code == READ_INPUT_REGS) || (function_code == WRITE_MULT_REGS)) {
+        if ((payload_len % 4 != 0) && ( (register_format == MBTCP_PREF_REGISTER_FORMAT_UINT32) ||
+            (register_format == MBTCP_PREF_REGISTER_FORMAT_IEEE_FLOAT) ||
+            (register_format == MBTCP_PREF_REGISTER_FORMAT_MODICON_FLOAT) ) ) {
+            register_item = proto_tree_add_item(tree, hf_modbus_data, tvb, payload_start, payload_len, ENC_NA);
+            expert_add_info(pinfo, register_item, &ei_modbus_data_decode);
+            return;
+        }
     }
 
     /* Build a new tvb containing just the data payload   */
@@ -795,7 +828,7 @@ dissect_modbus_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint8 
                 break;
 
         default:
-            if ( ! dissector_try_string(modbus_data_dissector_table, "data", next_tvb, pinfo, tree) )
+            if ( ! dissector_try_string(modbus_data_dissector_table, "data", next_tvb, pinfo, tree, NULL) )
                 proto_tree_add_item(tree, hf_modbus_data, tvb, payload_start, payload_len, ENC_NA);
             break;
         }
@@ -819,10 +852,6 @@ dissect_modbus(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
     guint16       diagnostic_code;
     modbus_request_info_t *request_info;
 
-    /* Don't need to do anything if there's no tree */
-    if (tree == NULL)
-        return tvb_length(tvb);
-
     len = tvb_length_remaining(tvb, 0);
 
     /* If the packet is zero-length, we should not attempt to dissect any further */
@@ -840,7 +869,7 @@ dissect_modbus(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
     }
 
     /* See if we have any context */
-    request_info = p_get_proto_data( pinfo->fd, proto_modbus );
+    request_info = (modbus_request_info_t *)p_get_proto_data(wmem_file_scope(), pinfo, proto_modbus, 0 );
     if (request_info != NULL)
     {
         packet_type = request_info->packet_type;
@@ -1345,9 +1374,6 @@ dissect_modbus(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 
 /* Register the protocol with Wireshark */
 
-void proto_reg_handoff_mbtcp(void);
-void proto_reg_handoff_mbrtu(void);
-
 void
 proto_register_modbus(void)
 {
@@ -1386,6 +1412,10 @@ proto_register_modbus(void)
             FT_UINT16, BASE_HEX, NULL, 0x0,
             NULL, HFILL }
         },
+    };
+
+    static ei_register_info mbrtu_ei[] = {
+        { &ei_mbrtu_crc16_incorrect, { "mbrtu.crc16.incorrect", PI_CHECKSUM, PI_WARN, "Incorrect CRC", EXPFILL }},
     };
 
     static hf_register_info hf[] = {
@@ -1684,8 +1714,14 @@ proto_register_modbus(void)
         &ett_device_id_object_items
     };
 
+    static ei_register_info ei[] = {
+        { &ei_modbus_data_decode, { "modbus.data.decode", PI_PROTOCOL, PI_WARN, "Invalid decoding options, register data not a multiple of 4!", EXPFILL }},
+    };
+
     module_t *mbtcp_module;
     module_t *mbrtu_module;
+    expert_module_t* expert_mbrtu;
+    expert_module_t* expert_modbus;
 
     /* Register the protocol name and description */
     proto_mbtcp = proto_register_protocol("Modbus/TCP", "Modbus/TCP", "mbtcp");
@@ -1693,19 +1729,23 @@ proto_register_modbus(void)
     proto_modbus = proto_register_protocol("Modbus", "Modbus", "modbus");
 
     /* Registering protocol to be called by another dissector */
-    new_register_dissector("mbtcp", dissect_mbtcp, proto_mbtcp);
-    new_register_dissector("mbrtu", dissect_mbrtu, proto_mbrtu);
-    new_register_dissector("modbus", dissect_modbus, proto_modbus);
+    modbus_handle = new_register_dissector("modbus", dissect_modbus, proto_modbus);
+    mbtcp_handle = new_register_dissector("mbtcp", dissect_mbtcp, proto_mbtcp);
+    mbrtu_handle = new_register_dissector("mbrtu", dissect_mbrtu, proto_mbrtu);
 
     /* Registering subdissectors table */
     modbus_data_dissector_table = register_dissector_table("modbus.data", "Modbus Data", FT_STRING, BASE_NONE);
-    modbus_dissector_table = register_dissector_table("mbtcp.prot_id", "protocol identifier", FT_UINT16, BASE_DEC);
+    modbus_dissector_table = register_dissector_table("mbtcp.prot_id", "Modbus/TCP protocol identifier", FT_UINT16, BASE_DEC);
 
     /* Required function calls to register the header fields and subtrees used */
     proto_register_field_array(proto_mbtcp, mbtcp_hf, array_length(mbtcp_hf));
     proto_register_field_array(proto_mbrtu, mbrtu_hf, array_length(mbrtu_hf));
     proto_register_field_array(proto_modbus, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_mbrtu = expert_register_protocol(proto_mbrtu);
+    expert_register_field_array(expert_mbrtu, mbrtu_ei, array_length(mbrtu_ei));
+    expert_modbus = expert_register_protocol(proto_modbus);
+    expert_register_field_array(expert_modbus, ei, array_length(ei));
 
 
     /* Register required preferences for Modbus Protocol register decoding */
@@ -1783,15 +1823,9 @@ proto_register_modbus(void)
 void
 proto_reg_handoff_mbtcp(void)
 {
-    static int mbtcp_prefs_initialized = FALSE;
-    static dissector_handle_t mbtcp_handle;
     static unsigned int mbtcp_port;
 
     /* Make sure to use Modbus/TCP Preferences field to determine default TCP port */
-    if (! mbtcp_prefs_initialized) {
-        mbtcp_handle = new_create_dissector_handle(dissect_mbtcp, proto_mbtcp);
-        mbtcp_prefs_initialized = TRUE;
-    }
 
     if(mbtcp_port != 0 && mbtcp_port != global_mbus_tcp_port){
         dissector_delete_uint("tcp.port", mbtcp_port, mbtcp_handle);
@@ -1803,7 +1837,6 @@ proto_reg_handoff_mbtcp(void)
 
     mbtcp_port = global_mbus_tcp_port;
 
-    modbus_handle = new_create_dissector_handle(dissect_modbus, proto_modbus);
     dissector_add_uint("mbtcp.prot_id", MODBUS_PROTOCOL_ID, modbus_handle);
 
 }
@@ -1811,15 +1844,9 @@ proto_reg_handoff_mbtcp(void)
 void
 proto_reg_handoff_mbrtu(void)
 {
-    static int mbrtu_prefs_initialized = FALSE;
-    static dissector_handle_t mbrtu_handle;
     static unsigned int mbrtu_port = 0;
 
     /* Make sure to use Modbus RTU Preferences field to determine default TCP port */
-    if (! mbrtu_prefs_initialized) {
-        mbrtu_handle = new_create_dissector_handle(dissect_mbrtu, proto_mbrtu);
-        mbrtu_prefs_initialized = TRUE;
-    }
 
     if(mbrtu_port != 0 && mbrtu_port != global_mbus_rtu_port){
         dissector_delete_uint("tcp.port", mbrtu_port, mbrtu_handle);
@@ -1831,7 +1858,6 @@ proto_reg_handoff_mbrtu(void)
 
     mbrtu_port = global_mbus_rtu_port;
 
-    modbus_handle = new_create_dissector_handle(dissect_modbus, proto_modbus);
     dissector_add_uint("mbtcp.prot_id", MODBUS_PROTOCOL_ID, modbus_handle);
 
 }

@@ -2,8 +2,6 @@
  * Routines for X.509 Selected Attribute Types packet dissection
  *  Ronnie Sahlberg 2004
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,6 +36,9 @@
 #define PNAME  "X.509 Selected Attribute Types"
 #define PSNAME "X509SAT"
 #define PFNAME "x509sat"
+
+void proto_register_x509sat(void);
+void proto_reg_handoff_x509sat(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_x509sat = -1;
@@ -104,7 +105,7 @@ void proto_reg_handoff_x509sat(void) {
   oid_add_from_string("dmd","2.5.6.20");
   oid_add_from_string("pkiUser","2.5.6.21");
   oid_add_from_string("pkiCA","2.5.6.22");
-  
+
   oid_add_from_string("parent","2.5.6.28");
   oid_add_from_string("child","2.5.6.29");
 

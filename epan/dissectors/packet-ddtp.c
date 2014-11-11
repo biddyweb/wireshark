@@ -3,8 +3,6 @@
  * see http://ddt.sourceforge.net/
  * Olivier Abad <oabad@noos.fr>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2000
@@ -29,6 +27,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include "packet-ddtp.h"
+
+void proto_register_ddtp (void);
+void proto_reg_handoff_ddtp (void);
 
 static int proto_ddtp = -1;
 static int hf_ddtp_version = -1;
@@ -96,7 +97,7 @@ dissect_ddtp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
      * If we don't recognize the version number, don't dissect this.
      */
     if (tvb_length(tvb) >= 4) {
-	if (match_strval(tvb_get_ntohl(tvb, 0), vals_ddtp_version) == NULL)
+	if (try_val_to_str(tvb_get_ntohl(tvb, 0), vals_ddtp_version) == NULL)
 	    return 0;
     }
 

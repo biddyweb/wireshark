@@ -43,8 +43,6 @@
 %{
 /* k12text.l
  *
- * $Id$
- *
  * Wiretap Library
  * Copyright (c) 1998 by Gilbert Ramirez <gram@alumni.rice.edu>
  *
@@ -77,7 +75,7 @@
 #include "wtap-int.h"
 #include "wtap.h"
 #include "file_wrappers.h"
-#include "buffer.h"
+#include <wsutil/buffer.h>
 #include "k12.h"
 #include "k12text_lex.h"
 
@@ -103,11 +101,11 @@ static gboolean ok_frame;
 static FILE_T yy_fh;
 
 #define KERROR(text) do { error_str = g_strdup(text); yyterminate(); } while(0)
-#define SET_HOURS(text) g_h = strtoul(text,NULL,10)
-#define SET_MINUTES(text) g_m = strtoul(text,NULL,10)
-#define SET_SECONDS(text) g_s = strtoul(text,NULL,10)
-#define SET_MS(text) g_ms = strtoul(text,NULL,10)
-#define SET_NS(text) g_ns = strtoul(text,NULL,10)
+#define SET_HOURS(text) g_h = (guint) strtoul(text,NULL,10)
+#define SET_MINUTES(text) g_m = (guint) strtoul(text,NULL,10)
+#define SET_SECONDS(text) g_s = (guint) strtoul(text,NULL,10)
+#define SET_MS(text) g_ms = (guint) strtoul(text,NULL,10)
+#define SET_NS(text) g_ns = (guint) strtoul(text,NULL,10)
 #define ADD_BYTE(text) do {if (ii >= WTAP_MAX_PACKET_SIZE) {KERROR("frame too large");} bb[ii++] = (guint8)strtoul(text,NULL,16); } while(0)
 #define FINALIZE_FRAME() finalize_frame()
 /*~ #define ECHO*/
@@ -182,15 +180,25 @@ static void finalize_frame(void) {
 	ok_frame = TRUE;
 }
 
-/* Fill in pseudo-header according to the encapsulation type	*/
+/* Fill in pkthdr */
 
 static void
-k12text_set_pseudo_header(gint encap, union wtap_pseudo_header *pseudo_header)
+k12text_set_headers(struct wtap_pkthdr *phdr)
 {
+	phdr->rec_type = REC_TYPE_PACKET;
+	phdr->presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
+
+	phdr->ts.secs = 946681200 + (3600*g_h) + (60*g_m) + g_s;
+	phdr->ts.nsecs = 1000000*g_ms + 1000*g_ns;
+
+	phdr->caplen = phdr->len = ii;
+
+	phdr->pkt_encap = g_encap;
+
 	/* The file-encap is WTAP_ENCAP_PER_PACKET */
-	switch(encap) {
+	switch(g_encap) {
 	    case WTAP_ENCAP_ETHERNET:
-		    pseudo_header->eth.fcs_len = 0;
+		    phdr->pseudo_header.eth.fcs_len = 0;
 		    break;
 	    case WTAP_ENCAP_MTP3:
 	    case WTAP_ENCAP_CHDLC:
@@ -273,15 +281,7 @@ k12text_read(wtap *wth, int *err, char ** err_info, gint64 *data_offset)
 	*data_offset = k12text->next_frame_offset;       /* file position for beginning of this frame   */
 	k12text->next_frame_offset += file_bytes_read;   /* file position after end of this frame       */
 
-	wth->phdr.presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN;
-
-	wth->phdr.ts.secs = 946681200 + (3600*g_h) + (60*g_m) + g_s;
-	wth->phdr.ts.nsecs = 1000000*g_ms + 1000*g_ns;
-
-	wth->phdr.caplen = wth->phdr.len = ii;
-
-	wth->phdr.pkt_encap = g_encap;
-	k12text_set_pseudo_header(g_encap, &wth->phdr.pseudo_header);
+	k12text_set_headers(&wth->phdr);
 
 	buffer_assure_space(wth->frame_buffer, wth->phdr.caplen);
 	memcpy(buffer_start_ptr(wth->frame_buffer), bb, wth->phdr.caplen);
@@ -290,9 +290,8 @@ k12text_read(wtap *wth, int *err, char ** err_info, gint64 *data_offset)
 }
 
 static gboolean
-k12text_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *phdr, guint8 *pd, int length, int *err, char **err_info)
+k12text_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *phdr, Buffer *buf, int *err, char **err_info)
 {
-	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
 	if ( file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1) {
 		return FALSE;
 	}
@@ -312,17 +311,10 @@ k12text_seek_read(wtap *wth, gint64 seek_off, struct wtap_pkthdr *phdr, guint8 *
 		return FALSE;
 	}
 
-	/* verify frame length parsed this time against original frame length */
-	if (ii != (guint)length) {
-		/* What happened ? This now seems to have a different length than originally */
-		*err = WTAP_ERR_BAD_FILE;
-		*err_info = g_strdup("Incorrect frame length (program error ?)");
-		return FALSE;
-	}
+	k12text_set_headers(phdr);
 
-	k12text_set_pseudo_header(g_encap, pseudo_header);
-
-	memcpy(pd, bb, length);
+	buffer_assure_space(buf, phdr->caplen);
+	memcpy(buffer_start_ptr(buf), bb, phdr->caplen);
 
 	return TRUE;
 }
@@ -346,7 +338,7 @@ k12text_open(wtap *wth, int *err, gchar **err_info _U_)
 	k12text = (k12text_t *)g_malloc(sizeof(k12text_t));
 	wth->priv = (void *)k12text;
 	k12text->next_frame_offset = 0;
-	wth->file_type = WTAP_FILE_K12TEXT;
+	wth->file_type_subtype = WTAP_FILE_TYPE_SUBTYPE_K12TEXT;
 	wth->file_encap = WTAP_ENCAP_PER_PACKET;
 	wth->snapshot_length = 0;
 	wth->subtype_read = k12text_read;
@@ -373,7 +365,7 @@ k12text_dump(wtap_dumper *wdh _U_, const struct wtap_pkthdr *phdr,
 #define K12BUF_SIZE 196808
 	char *buf;
 	size_t left = K12BUF_SIZE;
-	gint wl;
+	size_t wl;
 	char *p;
 	const char* str_enc;
 	guint i;
@@ -381,6 +373,12 @@ k12text_dump(wtap_dumper *wdh _U_, const struct wtap_pkthdr *phdr,
 	guint ms;
 	gboolean ret;
 	struct tm *tmp;
+
+	/* Don't write anything bigger than we're willing to read. */
+	if (phdr->caplen > WTAP_MAX_PACKET_SIZE) {
+		*err = WTAP_ERR_PACKET_TOO_LARGE;
+		return FALSE;
+	}
 
 	str_enc = NULL;
 	for(i=0; encaps[i].s; i++) {
@@ -403,14 +401,6 @@ k12text_dump(wtap_dumper *wdh _U_, const struct wtap_pkthdr *phdr,
 	ms = phdr->ts.nsecs / 1000000;
 	ns = (phdr->ts.nsecs - (1000000*ms))/1000;
 
-#if (defined _WIN32) && (_MSC_VER < 1500)
-	/* calling gmtime() on MSVC 2005 with huge values causes it to crash */
-	/* XXX - find the exact value that still does work */
-	/* XXX - using _USE_32BIT_TIME_T might be another way to circumvent this problem */
-	if (phdr->ts.secs > 2000000000)
-		tmp = NULL;
-	else
-#endif
 	tmp = gmtime(&phdr->ts.secs);
 	if (tmp == NULL)
 		g_snprintf(p, 90, "+---------+---------------+----------+\r\nXX:XX:XX,");

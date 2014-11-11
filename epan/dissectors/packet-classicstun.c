@@ -2,8 +2,6 @@
  * Routines for Simple Traversal of UDP Through NAT dissection
  * Copyright 2003, Shiang-Ming Huang <smhuang@pcs.csie.nctu.edu.tw>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,10 @@
 
 #include <epan/packet.h>
 #include <epan/conversation.h>
+#include <epan/wmem/wmem.h>
+
+void proto_register_classicstun(void);
+void proto_reg_handoff_classicstun(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_classicstun                          = -1;
@@ -77,7 +79,7 @@ typedef struct _classicstun_transaction_t {
 
 /* Structure containing conversation specific information */
 typedef struct _classicstun_conv_info_t {
-    emem_tree_t *pdus;
+    wmem_tree_t *pdus;
 } classicstun_conv_info_t;
 
 
@@ -226,7 +228,7 @@ dissect_classicstun(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
     conversation_t            *conversation;
     classicstun_conv_info_t   *classicstun_info;
     classicstun_transaction_t *classicstun_trans;
-    emem_tree_key_t            transaction_id_key[2];
+    wmem_tree_key_t            transaction_id_key[2];
     guint32                    transaction_id[4];
 
 
@@ -245,7 +247,7 @@ dissect_classicstun(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
         return 0;
 
     /* check if message type is correct */
-    msg_type_str = match_strval(msg_type, messages);
+    msg_type_str = try_val_to_str(msg_type, messages);
     if (msg_type_str == NULL)
         return 0;
 
@@ -277,38 +279,38 @@ dissect_classicstun(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
     /*
      * Do we already have a state structure for this conv
      */
-    classicstun_info = conversation_get_proto_data(conversation, proto_classicstun);
+    classicstun_info = (classicstun_conv_info_t *)conversation_get_proto_data(conversation, proto_classicstun);
     if (!classicstun_info) {
         /* No.  Attach that information to the conversation, and add
          * it to the list of information structures.
          */
-        classicstun_info = se_alloc(sizeof(classicstun_conv_info_t));
-        classicstun_info->pdus=se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK, "classicstun_pdus");
+        classicstun_info = wmem_new(wmem_file_scope(), classicstun_conv_info_t);
+        classicstun_info->pdus=wmem_tree_new(wmem_file_scope());
         conversation_add_proto_data(conversation, proto_classicstun, classicstun_info);
     }
 
     if(!pinfo->fd->flags.visited){
         if (((msg_type & CLASS_MASK) >> 4) == REQUEST) {
             /* This is a request */
-            classicstun_trans=se_alloc(sizeof(classicstun_transaction_t));
+            classicstun_trans=wmem_new(wmem_file_scope(), classicstun_transaction_t);
             classicstun_trans->req_frame=pinfo->fd->num;
             classicstun_trans->rep_frame=0;
             classicstun_trans->req_time=pinfo->fd->abs_ts;
-            se_tree_insert32_array(classicstun_info->pdus, transaction_id_key,
+            wmem_tree_insert32_array(classicstun_info->pdus, transaction_id_key,
                            (void *)classicstun_trans);
         } else {
-            classicstun_trans=se_tree_lookup32_array(classicstun_info->pdus,
+            classicstun_trans=(classicstun_transaction_t *)wmem_tree_lookup32_array(classicstun_info->pdus,
                                  transaction_id_key);
             if(classicstun_trans){
                 classicstun_trans->rep_frame=pinfo->fd->num;
             }
         }
     } else {
-        classicstun_trans=se_tree_lookup32_array(classicstun_info->pdus, transaction_id_key);
+        classicstun_trans=(classicstun_transaction_t *)wmem_tree_lookup32_array(classicstun_info->pdus, transaction_id_key);
     }
     if(!classicstun_trans){
         /* create a "fake" pana_trans structure */
-        classicstun_trans=ep_alloc(sizeof(classicstun_transaction_t));
+        classicstun_trans=wmem_new(wmem_packet_scope(), classicstun_transaction_t);
         classicstun_trans->req_frame=0;
         classicstun_trans->rep_frame=0;
         classicstun_trans->req_time=pinfo->fd->abs_ts;
@@ -381,10 +383,10 @@ dissect_classicstun(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
                             offset, 2, att_type);
                 offset += 2;
                 if (ATTR_HDR_LEN+att_length > msg_length) {
-                    proto_tree_add_uint_format(att_tree,
+                    proto_tree_add_uint_format_value(att_tree,
                                    classicstun_att_length, tvb, offset, 2,
                                    att_length,
-                                   "Attribute Length: %u (bogus, goes past the end of the message)",
+                                   "%u (bogus, goes past the end of the message)",
                                    att_length);
                     break;
                 }
@@ -447,7 +449,7 @@ dissect_classicstun(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
                         proto_tree_add_item(att_tree, classicstun_att_error_number, tvb, offset+3, 1, ENC_BIG_ENDIAN);
                         if (att_length < 5)
                             break;
-                        proto_tree_add_item(att_tree, classicstun_att_error_reason, tvb, offset+4, (att_length-4), ENC_ASCII|ENC_NA);
+                        proto_tree_add_item(att_tree, classicstun_att_error_reason, tvb, offset+4, (att_length-4), ENC_UTF_8|ENC_NA);
                         break;
 
                     case LIFETIME:
@@ -480,7 +482,7 @@ dissect_classicstun(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
                         break;
 
                     case SERVER:
-                        proto_tree_add_item(att_tree, classicstun_att_server_string, tvb, offset, att_length, ENC_ASCII|ENC_NA);
+                        proto_tree_add_item(att_tree, classicstun_att_server_string, tvb, offset, att_length, ENC_UTF_8|ENC_NA);
                         break;
 
                     case XOR_MAPPED_ADDRESS:
@@ -530,7 +532,7 @@ dissect_classicstun(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *d
                         break;
 
                     case CONNECTION_REQUEST_BINDING:
-                        proto_tree_add_item(att_tree, classicstun_att_connection_request_binding, tvb, offset, att_length, ENC_ASCII|ENC_NA);
+                        proto_tree_add_item(att_tree, classicstun_att_connection_request_binding, tvb, offset, att_length, ENC_UTF_8|ENC_NA);
                         break;
 
                     default:

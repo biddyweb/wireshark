@@ -1,7 +1,6 @@
 -- Extracted from http://www.h5l.org/dist/src/heimdal-1.2.tar.gz
 -- Id: k5.asn1 22745 2008-03-24 12:07:54Z lha $
 -- Commented out stuff already in KerberosV5Spec2.asn
--- $Id$
 KERBEROS5 DEFINITIONS ::=
 BEGIN
 
@@ -324,7 +323,7 @@ KDCOptions ::= BIT STRING {
 	renewable(8),
 	unused9(9),
 	unused10(10),
-	unused11(11),
+	opt-hardware-auth(11), -- taken from KerberosV5Spec2.asn
 	request-anonymous(14),
 	canonicalize(15),
 	constrained-delegation(16), -- ms extension

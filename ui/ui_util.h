@@ -3,8 +3,6 @@
  * APIs, but GUI-dependent implementations, so that they can be called by
  * GUI-independent code to affect the GUI.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,7 @@
 #define __UI_UTIL_H__
 
 #include "epan/packet_info.h"
+#include "epan/column-utils.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,8 +48,6 @@ typedef struct window_geometry_s {
 
 /* update the main window */
 extern void main_window_update(void);
-/* exit the main window */
-extern void main_window_exit(void);
 /* quit a nested main window */
 extern void main_window_nested_quit(void);
 /* quit the main window */
@@ -69,7 +66,7 @@ void packet_list_recreate_visible_rows(void);
 void packet_list_thaw(void);
 void packet_list_next(void);
 void packet_list_prev(void);
-guint packet_list_append(column_info *cinfo, frame_data *fdata, packet_info *pinfo);
+guint packet_list_append(column_info *cinfo, frame_data *fdata);
 frame_data * packet_list_get_row_data(gint row);
 void packet_list_set_selected_row(gint row);
 void packet_list_enable_color(gboolean enable);

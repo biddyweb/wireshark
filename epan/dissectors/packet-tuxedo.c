@@ -3,8 +3,6 @@
  *
  * metatech <metatech@flashmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include <epan/conversation.h>
+
+void proto_register_tuxedo(void);
+void proto_reg_handoff_tuxedo(void);
 
 static int proto_tuxedo = -1;
 static int hf_tuxedo_magic = -1;
@@ -115,10 +116,7 @@ dissect_tuxedo(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		{
 			opcode = tvb_get_ntohl(tvb, 4);
 
-			if (check_col(pinfo->cinfo, COL_INFO))
-			{
-				col_add_str(pinfo->cinfo, COL_INFO, val_to_str(opcode, tuxedo_opcode_vals, "Unknown (0x%02x)"));
-			}
+			col_add_str(pinfo->cinfo, COL_INFO, val_to_str(opcode, tuxedo_opcode_vals, "Unknown (0x%02x)"));
 
 			if (tree)
 			{

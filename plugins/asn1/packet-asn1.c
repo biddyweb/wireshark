@@ -3,8 +3,6 @@
  *
  * Copyright (c) 2003 by Matthijs Melchior <matthijs.melchior@xs4all.nl>
  *
- * $Id$
- *
  * A plugin for:
  *
  * Wireshark - Network traffic analyzer
@@ -69,22 +67,23 @@
 #include <glib.h>
 #include <glib/gprintf.h>
 
+#include <wsutil/report_err.h>
+#include <wsutil/file_util.h>
+#include <wsutil/filesystem.h>
+#include <wsutil/tempfile.h>
+
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/addr_resolv.h>
 #include <epan/prefs.h>
-#include <epan/filesystem.h>
-#include <epan/report_err.h>
 #include <epan/dissectors/packet-tcp.h>
 #include <epan/oids.h>
 #include <epan/emem.h>
 #include <plugins/asn1/asn1.h>
-#include <wsutil/file_util.h>
 
 #ifdef DISSECTOR_WITH_GUI
 #include <gtk/gtk.h>
 #endif
-
-#include <epan/ipproto.h>
 
 /* buffer lengths */
 #define BUFLS 32
@@ -728,9 +727,8 @@ checklength(int len, int def, int cls, int tag, char *lenstr, int strmax)
 static guint decode_asn1_sequence(tvbuff_t *tvb, guint offset, guint len, proto_tree *pt, int level);
 static void PDUreset(int count, int counr2);
 
-static void
-dissect_asn1(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
-
+static int
+dissect_asn1(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, struct tcpinfo *info, gboolean is_tcp) {
   ASN1_SCK asn1;
   guint cls, con, tag, len, offset, reassembled;
   gboolean def;
@@ -745,15 +743,17 @@ dissect_asn1(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
   proto_item *hidden_item;
   PDUprops props;
   static guint lastseq;
-  struct tcpinfo *info;
   gint delta;
+
+  /* Reject the packet if info is NULL under conditions where it'll be used. */
+  if (is_tcp && info == NULL)
+    return 0;
 
   pcount++;
   boffset = 0;
 
   reassembled = 1;		/* UDP is not a stream, and thus always reassembled .... */
-  if (pinfo->ipproto == IP_PROTO_TCP) {	/* we have tcpinfo */
-	  info = (struct tcpinfo *)pinfo->private_data;
+  if (is_tcp) {	/* we have tcpinfo */
 	  delta = info->seq - lastseq;
 	  reassembled = info->is_reassembled;
 	  lastseq = info->seq;
@@ -1028,6 +1028,18 @@ dissect_asn1(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
   if (asn1_verbose)
 	g_message("dissect_asn1 finished: desegment_offset=%d desegment_len=%d can_desegment=%d",
 		   pinfo->desegment_offset, pinfo->desegment_len, pinfo->can_desegment);
+
+  return tvb_length(tvb);
+}
+
+static int
+dissect_asn1_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data) {
+    return dissect_asn1(tvb, pinfo, tree, (struct tcpinfo*)data, TRUE);
+}
+
+static int
+dissect_asn1_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_) {
+    return dissect_asn1(tvb, pinfo, tree, NULL, FALSE);
 }
 
 /* decode an ASN.1 sequence, until we have consumed the specified length */
@@ -1122,7 +1134,7 @@ decode_asn1_sequence(tvbuff_t *tvb, guint offset, guint tlen, proto_tree *pt, in
 	    case BER_CLASS_UNI:	/* fprintf(stderr, "Universal\n"); */
 	      switch(tag) {
 	        case BER_UNI_TAG_INTEGER:
-		      ret = asn1_int32_value_decode(&asn1, len, &value); /* read value */
+		      asn1_int32_value_decode(&asn1, len, &value); /* read value */
 		      asn1_close(&asn1, &offset); /* mark where we are now */
 		      if (asn1_debug) {
 			      if ( (props.value_id == -1) ||
@@ -1164,7 +1176,7 @@ decode_asn1_sequence(tvbuff_t *tvb, guint offset, guint tlen, proto_tree *pt, in
 		      break;
 
 	        case BER_UNI_TAG_ENUMERATED:
-		      ret = asn1_int32_value_decode(&asn1, len, &value); /* read value */
+		      asn1_int32_value_decode(&asn1, len, &value); /* read value */
 		      asn1_close(&asn1, &offset); /* mark where we are now */
 		      ename = getPDUenum(&props, boffset, cls, tag, value);
 		      if (asn1_debug) {
@@ -1207,7 +1219,7 @@ decode_asn1_sequence(tvbuff_t *tvb, guint offset, guint tlen, proto_tree *pt, in
 		      break;
 
 	        case BER_UNI_TAG_BOOLEAN:
-		      ret = asn1_bool_decode(&asn1, len, (gboolean *)&value); /* read value */
+		      asn1_bool_decode(&asn1, len, (gboolean *)&value); /* read value */
 		      asn1_close(&asn1, (gint *)&offset); /* mark where we are now */
 		      if (asn1_debug) {
 			      if ( (props.value_id == -1) ||
@@ -1259,7 +1271,7 @@ decode_asn1_sequence(tvbuff_t *tvb, guint offset, guint tlen, proto_tree *pt, in
 		case BER_UNI_TAG_UTCTime:
 		case BER_UNI_TAG_GeneralizedTime:
 			/* read value, \0 terminated */
-		      ret = asn1_string_value_decode(&asn1, len, &octets);
+		      asn1_string_value_decode(&asn1, len, &octets);
 		      asn1_close(&asn1, (gint *)&offset); /* mark where we are now */
 		      ename = showoctets(octets, len, (tag == BER_UNI_TAG_OCTETSTRING) ? 4 : 0 );
 		      if (asn1_debug) {
@@ -1304,7 +1316,7 @@ decode_asn1_sequence(tvbuff_t *tvb, guint offset, guint tlen, proto_tree *pt, in
 		      break;
 
 		case BER_UNI_TAG_BITSTRING:
-		      ret = asn1_bits_decode(&asn1, len, &bits, &con, &unused); /* read value */
+		      asn1_bits_decode(&asn1, len, &bits, &con, &unused); /* read value */
 		      asn1_close(&asn1, &offset); /* mark where we are now */
 		      ename = showbitnames(bits, (con*8)-unused, &props, offset);
 		      if (asn1_debug) {
@@ -1522,7 +1534,7 @@ decode_asn1_sequence(tvbuff_t *tvb, guint offset, guint tlen, proto_tree *pt, in
 		      return offset;
 
 		case BER_UNI_TAG_OID:
-		      ret = asn1_oid_value_decode(&asn1, len, &oid, &con);
+		      asn1_oid_value_decode(&asn1, len, &oid, &con);
 		      asn1_close(&asn1, (gint *)&offset); /* mark where we are now */
 		      ename = showoid(oid, con);
 		      if (asn1_debug) {
@@ -1609,7 +1621,7 @@ decode_asn1_sequence(tvbuff_t *tvb, guint offset, guint tlen, proto_tree *pt, in
 			case TBL_INTEGER:
 				if (len > 4)
 					goto dostring;
-				ret = asn1_int32_value_decode(&asn1, len, (gint32 *)&value); /* read value */
+				asn1_int32_value_decode(&asn1, len, (gint32 *)&value); /* read value */
 				asn1_close(&asn1, &offset); /* mark where we are now */
 				if (asn1_debug) {
 					if ( (props.value_id == -1) ||
@@ -1653,7 +1665,7 @@ decode_asn1_sequence(tvbuff_t *tvb, guint offset, guint tlen, proto_tree *pt, in
 			case TBL_ENUMERATED:
 				if (len > 4)
 					goto dostring;
-				ret = asn1_int32_value_decode(&asn1, len, &value); /* read value */
+				asn1_int32_value_decode(&asn1, len, &value); /* read value */
 		 		asn1_close(&asn1, &offset); /* mark where we are now */
 				ename = getPDUenum(&props, boffset, cls, tag, value);
 				if (asn1_debug) {
@@ -1698,7 +1710,7 @@ decode_asn1_sequence(tvbuff_t *tvb, guint offset, guint tlen, proto_tree *pt, in
 				if (len > (1+4)) /* max 32 bits ...?.. */
 					goto dostring;
 								/* read value */
-				ret = asn1_bits_decode(&asn1, len, &bits, &con, &unused);
+				asn1_bits_decode(&asn1, len, &bits, &con, &unused);
 				asn1_close(&asn1, (gint *)&offset); /* mark where we are now */
 				ename = showbitnames(bits, (con*8)-unused, &props, offset);
 				if (asn1_debug) {
@@ -1748,7 +1760,7 @@ decode_asn1_sequence(tvbuff_t *tvb, guint offset, guint tlen, proto_tree *pt, in
 			case TBL_BOOLEAN:
 				if (len > 1)
 					goto dostring;
-				ret = asn1_bool_decode(&asn1, len, (gboolean *)&value); /* read value */
+				asn1_bool_decode(&asn1, len, (gboolean *)&value); /* read value */
 				asn1_close(&asn1, (gint *)&offset); /* mark where we are now */
 				if (asn1_debug) {
 					if ( (props.value_id == -1) ||
@@ -1811,7 +1823,7 @@ decode_asn1_sequence(tvbuff_t *tvb, guint offset, guint tlen, proto_tree *pt, in
 				/* fallthrough */
 			case TBL_OCTETSTRING:
 				/* defined length, not constructed, must be a string.... */
-				ret = asn1_string_value_decode(&asn1, len, &octets); /* read value */
+				asn1_string_value_decode(&asn1, len, &octets); /* read value */
 				asn1_close(&asn1, (gint *)&offset); /* mark where we are now */
 				ename = showoctets(octets, len, 2); /* convert octets to printable */
 				if (asn1_debug) {
@@ -2727,7 +2739,7 @@ define_module(GNode *p, GNode *q)
 	module->type = TBLTYPE_Module;
 
 	p = g_node_first_child(p);
-	
+
 	if (!p) {
 		return;
 	}
@@ -3133,7 +3145,8 @@ static void
 read_asn1_type_table(const char *filename)
 {
 	FILE *f;
-	guint size;
+	int ret;
+	guint size = 0;
 	guchar *data;
 	struct stat file_stat;
 	static guint mylogh = 0;
@@ -3157,10 +3170,11 @@ read_asn1_type_table(const char *filename)
 				report_open_failure(filename, errno, FALSE);
 		return;
 	}
-	fstat(fileno(f), &file_stat);
-	size = (int)file_stat.st_size;
+	ret = fstat(fileno(f), &file_stat);
+	if (ret!=-1)
+		size = (int)file_stat.st_size;
 	if (size == 0) {
-		if (asn1_verbose) g_message("file %s is empty, ignored", filename);
+		if (asn1_verbose) g_message("file %s is empty or size is unknown, ignored", filename);
 		fclose(f);
 		return;
 	}
@@ -3669,7 +3683,7 @@ PDUtext(char *txt, gulong txt_size, PDUinfo *info) /* say everything we know abo
 		tn = info->asn1typename;
 		fn = info->fullname;
 		if (info->flags & PDU_NAMEDNUM)
-			idx += g_snprintf(&txt[idx], txt_size - idx, "name: %2d %s", info->tag, nn);
+			g_snprintf(&txt[idx], txt_size - idx, "name: %2d %s", info->tag, nn);
 		else {
 			if (info->flags & PDU_TYPEDEF)
 				idx += g_snprintf(&txt[idx], txt_size - idx, "def %d: ", info->typenum);
@@ -4684,8 +4698,6 @@ getPDUprops(PDUprops *out, guint offset, guint cls, guint tag, guint cons)
 
 	showstack(&pos, posstr, 3);
 
-	ret = noname;
-
 	if (cls == ASN1_EOI) { /* end of this input sequence */
 
 		if (pos.type & TBL_REFERENCE_pop) { /* reference finished, return to caller */
@@ -4852,8 +4864,6 @@ getPDUprops(PDUprops *out, guint offset, guint cls, guint tag, guint cons)
 		}
 
 		pos.offset = offset;
-
-		ret = pos.name;	/* for the debug messages */
 
 		if (donext) {
 			if (asn1_verbose) g_message("    donext");
@@ -5059,7 +5069,6 @@ getPDUprops(PDUprops *out, guint offset, guint cls, guint tag, guint cons)
 			out->asn1typename = info->asn1typename;
 			out->type_id = info->typenum;
 			out->flags |= OUT_FLAG_typename;
-			pos2 = pos;
 			PUSHNODE(pos);	/* remember where we were */
 			if (asn1_verbose) g_message("   typeref [push]");
 			typeflags |= TBL_REFERENCE;
@@ -5068,7 +5077,7 @@ getPDUprops(PDUprops *out, guint offset, guint cls, guint tag, guint cons)
 				pos.type = gettype(pos.node); /* the resulting type */
 				info = getinfo(pos.node);
 				tmp = "unknown tag";
-				if ((info->tclass == BER_CLASS_UNI) && (info->tag < 31)) {
+				if (info && (info->tclass == BER_CLASS_UNI) && (info->tag < 31)) {
 					tmp = asn1_tag[info->tag];
 					pos.type = asn1_uni_type[info->tag]; /* get univsrsal type */
 				}
@@ -5295,9 +5304,9 @@ proto_register_asn1(void) {
 				 "ASN.1 messages will be read",
 				 10, &global_sctp_port_asn1);
 #else
-  range_convert_str(&global_tcp_ports_asn1,  ep_strdup_printf("%u", TCP_PORT_ASN1),  65535);
-  range_convert_str(&global_udp_ports_asn1,  ep_strdup_printf("%u", UDP_PORT_ASN1),  65535);
-  range_convert_str(&global_sctp_ports_asn1, ep_strdup_printf("%u", SCTP_PORT_ASN1), 65535);
+  range_convert_str(&global_tcp_ports_asn1,  "0", 65535);
+  range_convert_str(&global_udp_ports_asn1,  "0", 65535);
+  range_convert_str(&global_sctp_ports_asn1, "0", 65535);
 
   prefs_register_range_preference(asn1_module, "tcp_ports",
 				 "ASN.1 TCP Ports",
@@ -5377,48 +5386,49 @@ proto_register_asn1(void) {
 
 /* The registration hand-off routing */
 
-static dissector_handle_t asn1_handle;
+static dissector_handle_t asn1_tcp_handle;
+static dissector_handle_t asn1_udp_handle;
 
 static void
 register_tcp_port(guint32 port)
 {
   if (port != 0)
-    dissector_add_uint("tcp.port", port, asn1_handle);
+    dissector_add_uint("tcp.port", port, asn1_tcp_handle);
 }
 
 static void
 unregister_tcp_port(guint32 port)
 {
   if (port != 0)
-    dissector_delete_uint("tcp.port", port, asn1_handle);
+    dissector_delete_uint("tcp.port", port, asn1_tcp_handle);
 }
 
 static void
 register_udp_port(guint32 port)
 {
   if (port != 0)
-    dissector_add_uint("udp.port", port, asn1_handle);
+    dissector_add_uint("udp.port", port, asn1_udp_handle);
 }
 
 static void
 unregister_udp_port(guint32 port)
 {
   if (port != 0)
-    dissector_delete_uint("udp.port", port, asn1_handle);
+    dissector_delete_uint("udp.port", port, asn1_udp_handle);
 }
 
 static void
 register_sctp_port(guint32 port)
 {
   if (port != 0)
-    dissector_add_uint("sctp.port", port, asn1_handle);
+    dissector_add_uint("sctp.port", port, asn1_udp_handle);
 }
 
 static void
 unregister_sctp_port(guint32 port)
 {
   if (port != 0)
-    dissector_delete_uint("sctp.port", port, asn1_handle);
+    dissector_delete_uint("sctp.port", port, asn1_udp_handle);
 }
 
 void
@@ -5457,7 +5467,8 @@ proto_reg_handoff_asn1(void) {
 #endif /* JUST_ONE_PORT */
 
   if(!asn1_initialized) {
-    asn1_handle = create_dissector_handle(dissect_asn1,proto_asn1);
+    asn1_tcp_handle = new_create_dissector_handle(dissect_asn1_tcp,proto_asn1);
+    asn1_udp_handle = new_create_dissector_handle(dissect_asn1_udp,proto_asn1);
     asn1_initialized = TRUE;
   } else {	/* clean up ports and their lists */
 #ifdef JUST_ONE_PORT

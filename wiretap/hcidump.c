@@ -1,7 +1,5 @@
 /* hcidump.c
  *
- * $Id$
- *
  * Copyright (c) 2003 by Marcel Holtmann <marcel@holtmann.org>
  *
  * This program is free software; you can redistribute it and/or
@@ -23,7 +21,7 @@
 
 #include "wtap-int.h"
 #include "file_wrappers.h"
-#include "buffer.h"
+#include <wsutil/buffer.h>
 #include "hcidump.h"
 
 struct dump_hdr {
@@ -36,18 +34,15 @@ struct dump_hdr {
 
 #define DUMP_HDR_SIZE (sizeof(struct dump_hdr))
 
-static gboolean hcidump_read(wtap *wth, int *err, gchar **err_info,
-    gint64 *data_offset)
+static gboolean hcidump_process_packet(FILE_T fh, struct wtap_pkthdr *phdr,
+    Buffer *buf, int *err, gchar **err_info)
 {
 	struct dump_hdr dh;
-	guint8 *buf;
 	int bytes_read, packet_size;
 
-	*data_offset = file_tell(wth->fh);
-
-	bytes_read = file_read(&dh, DUMP_HDR_SIZE, wth->fh);
+	bytes_read = file_read(&dh, DUMP_HDR_SIZE, fh);
 	if (bytes_read != DUMP_HDR_SIZE) {
-		*err = file_error(wth->fh, err_info);
+		*err = file_error(fh, err_info);
 		if (*err == 0 && bytes_read != 0)
 			*err = WTAP_ERR_SHORT_READ;
 		return FALSE;
@@ -65,58 +60,34 @@ static gboolean hcidump_read(wtap *wth, int *err, gchar **err_info,
 		return FALSE;
 	}
 
-	buffer_assure_space(wth->frame_buffer, packet_size);
-	buf = buffer_start_ptr(wth->frame_buffer);
+	phdr->rec_type = REC_TYPE_PACKET;
+	phdr->presence_flags = WTAP_HAS_TS;
+	phdr->ts.secs = GUINT32_FROM_LE(dh.ts_sec);
+	phdr->ts.nsecs = GUINT32_FROM_LE(dh.ts_usec) * 1000;
+	phdr->caplen = packet_size;
+	phdr->len = packet_size;
 
-	bytes_read = file_read(buf, packet_size, wth->fh);
-	if (bytes_read != packet_size) {
-		*err = file_error(wth->fh, err_info);
-		if (*err == 0)
-			*err = WTAP_ERR_SHORT_READ;
-		return FALSE;
-	}
+	phdr->pseudo_header.p2p.sent = (dh.in ? FALSE : TRUE);
 
-	wth->phdr.presence_flags = WTAP_HAS_TS;
-	wth->phdr.ts.secs = GUINT32_FROM_LE(dh.ts_sec);
-	wth->phdr.ts.nsecs = GUINT32_FROM_LE(dh.ts_usec) * 1000;
-	wth->phdr.caplen = packet_size;
-	wth->phdr.len = packet_size;
+	return wtap_read_packet_bytes(fh, buf, packet_size, err, err_info);
+}
 
-	wth->phdr.pseudo_header.p2p.sent = (dh.in ? FALSE : TRUE);
+static gboolean hcidump_read(wtap *wth, int *err, gchar **err_info,
+    gint64 *data_offset)
+{
+	*data_offset = file_tell(wth->fh);
 
-	return TRUE;
+	return hcidump_process_packet(wth->fh, &wth->phdr, wth->frame_buffer,
+	    err, err_info);
 }
 
 static gboolean hcidump_seek_read(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int length,
-    int *err, gchar **err_info)
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info)
 {
-	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
-	struct dump_hdr dh;
-	int bytes_read;
-
 	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
 		return FALSE;
 
-	bytes_read = file_read(&dh, DUMP_HDR_SIZE, wth->random_fh);
-	if (bytes_read != DUMP_HDR_SIZE) {
-		*err = file_error(wth->random_fh, err_info);
-		if (*err == 0 && bytes_read != 0)
-			*err = WTAP_ERR_SHORT_READ;
-		return FALSE;
-	}
-
-	bytes_read = file_read(pd, length, wth->random_fh);
-	if (bytes_read != length) {
-		*err = file_error(wth->random_fh, err_info);
-		if (*err == 0)
-			*err = WTAP_ERR_SHORT_READ;
-		return FALSE;
-	}
-
-	pseudo_header->p2p.sent = (dh.in ? FALSE : TRUE);
-
-	return TRUE;
+	return hcidump_process_packet(wth->random_fh, phdr, buf, err, err_info);
 }
 
 int hcidump_open(wtap *wth, int *err, gchar **err_info)
@@ -151,7 +122,7 @@ int hcidump_open(wtap *wth, int *err, gchar **err_info)
 	if (file_seek(wth->fh, 0, SEEK_SET, err) == -1)
 		return -1;
 
-	wth->file_type = WTAP_FILE_HCIDUMP;
+	wth->file_type_subtype = WTAP_FILE_TYPE_SUBTYPE_HCIDUMP;
 	wth->file_encap = WTAP_ENCAP_BLUETOOTH_H4_WITH_PHDR;
 	wth->snapshot_length = 0;
 

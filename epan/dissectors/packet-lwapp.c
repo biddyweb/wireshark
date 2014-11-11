@@ -1,9 +1,7 @@
 /* packet-lwapp.c
  *
  * Routines for LWAPP encapsulated packet disassembly
- * draft-ohara-capwap-lwapp-N (the current draft is 0)
- *
- * $Id$
+ * RFC 5412
  *
  * Copyright (c) 2003 by David Frascone <dave@frascone.com>
  *
@@ -29,11 +27,13 @@
 #include "config.h"
 
 #include <glib.h>
-#include <epan/filesystem.h>
+#include <wsutil/filesystem.h>
 #include <epan/packet.h>
 #include <epan/addr_resolv.h>
 #include <epan/prefs.h>
 
+void proto_register_lwapp(void);
+void proto_reg_handoff_lwapp(void);
 
 #define LWAPP_FLAGS_T 0x04
 #define LWAPP_FLAGS_F 0x02
@@ -279,10 +279,8 @@ dissect_control(tvbuff_t *tvb, packet_info *pinfo,
      */
     header.length = g_ntohs(header.length);
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        col_append_str(pinfo->cinfo, COL_INFO,
-            val_to_str_ext(header.type, &control_msg_vals_ext, "Bad Type: 0x%02x"));
-    }
+    col_append_str(pinfo->cinfo, COL_INFO,
+        val_to_str_ext(header.type, &control_msg_vals_ext, "Bad Type: 0x%02x"));
 
     /* In the interest of speed, if "tree" is NULL, don't do any work not
        necessary to generate protocol tree items. */
@@ -396,14 +394,12 @@ dissect_lwapp(tvbuff_t *tvb, packet_info *pinfo,
     version = (header.flags & 0xc0) >> 6;
     slotId = (header.flags & 0x38) >> 3;
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        if ((header.flags & LWAPP_FLAGS_T) != 0)
-            col_append_str(pinfo->cinfo, COL_INFO,
-                           " Control Packet");
-        else
-            col_append_str(pinfo->cinfo, COL_INFO,
-                           " 802.11 Packet");
-    }
+    if ((header.flags & LWAPP_FLAGS_T) != 0)
+        col_append_str(pinfo->cinfo, COL_INFO,
+                        " Control Packet");
+    else
+        col_append_str(pinfo->cinfo, COL_INFO,
+                        " 802.11 Packet");
 
     /* In the interest of speed, if "tree" is NULL, don't do any work not
        necessary to generate protocol tree items. */
@@ -539,7 +535,7 @@ proto_register_lwapp(void)
                                    "Swap frame control bytes (needed for some APs",
                                    &swap_frame_control);
 
-} /* proto_register_diameter */
+}
 
 void
 proto_reg_handoff_lwapp(void)
@@ -551,7 +547,7 @@ proto_reg_handoff_lwapp(void)
      * Get handles for the Ethernet and wireless dissectors.
      */
     eth_withoutfcs_handle = find_dissector("eth_withoutfcs");
-    wlan_handle = find_dissector("wlan");
+    wlan_handle = find_dissector("wlan_withoutfcs");
     wlan_bsfc_handle = find_dissector("wlan_bsfc");
     data_handle = find_dissector("data");
 

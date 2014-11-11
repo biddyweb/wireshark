@@ -6,8 +6,6 @@
  * Routines for WV-CSP 1.3 dissection
  * Copyright 2007, Andrei Rubaniuk.
  *
- * $Id$
- *
  * Refer to the AUTHORS file or the AUTHORS section in the man page
  * for contacting the author(s) of this file.
  *
@@ -51,12 +49,15 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/prefs.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 
 /* We need the function tvb_get_guintvar() */
 #include "packet-wap.h"
 
+void proto_register_wbxml(void);
+void proto_reg_handoff_wbxml(void);
 
 /* General-purpose debug logger.
  * Requires double parentheses because of variable arguments of printf().
@@ -225,7 +226,7 @@ default_opaque_binary_tag(tvbuff_t *tvb, guint32 offset,
 			  guint8 token _U_, guint8 codepage _U_, guint32 *length)
 {
 	guint32 data_len = tvb_get_guintvar(tvb, offset, length);
-	char *str = ep_strdup_printf("(%d bytes of opaque data)", data_len);
+	char *str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of opaque data)", data_len);
 	*length += data_len;
 	return str;
 }
@@ -235,7 +236,7 @@ default_opaque_literal_tag(tvbuff_t *tvb, guint32 offset,
 			   const char *token _U_, guint8 codepage _U_, guint32 *length)
 {
 	guint32 data_len = tvb_get_guintvar(tvb, offset, length);
-	char *str = ep_strdup_printf("(%d bytes of opaque data)", data_len);
+	char *str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of opaque data)", data_len);
 	*length += data_len;
 	return str;
 }
@@ -245,7 +246,7 @@ default_opaque_binary_attr(tvbuff_t *tvb, guint32 offset,
 			   guint8 token _U_, guint8 codepage _U_, guint32 *length)
 {
 	guint32 data_len = tvb_get_guintvar(tvb, offset, length);
-	char *str = ep_strdup_printf("(%d bytes of opaque data)", data_len);
+	char *str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of opaque data)", data_len);
 	*length += data_len;
 	return str;
 }
@@ -255,7 +256,7 @@ default_opaque_literal_attr(tvbuff_t *tvb, guint32 offset,
 			    const char *token _U_, guint8 codepage _U_, guint32 *length)
 {
 	guint32 data_len = tvb_get_guintvar(tvb, offset, length);
-	char *str = ep_strdup_printf("(%d bytes of opaque data)", data_len);
+	char *str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of opaque data)", data_len);
 	*length += data_len;
 	return str;
 }
@@ -269,7 +270,7 @@ date_time_from_opaque(tvbuff_t *tvb, guint32 offset, guint32 data_len)
 
 	switch (data_len) {
 	case 4: /* YYYY-MM-DD[T00:00:00Z] */
-		str = ep_strdup_printf("%%DateTime: "
+		str = wmem_strdup_printf(wmem_packet_scope(), "%%DateTime: "
 				      "%02x%02x-%02x-%02xT00:00:00Z",
 				      tvb_get_guint8(tvb, offset),
 				      tvb_get_guint8(tvb, offset + 1),
@@ -277,7 +278,7 @@ date_time_from_opaque(tvbuff_t *tvb, guint32 offset, guint32 data_len)
 				      tvb_get_guint8(tvb, offset + 3));
 		break;
 	case 5: /* YYYY-MM-DDThh[:00:00Z] */
-		str = ep_strdup_printf("%%DateTime: "
+		str = wmem_strdup_printf(wmem_packet_scope(), "%%DateTime: "
 				      "%02x%02x-%02x-%02xT%02x:00:00Z",
 				      tvb_get_guint8(tvb, offset),
 				      tvb_get_guint8(tvb, offset + 1),
@@ -286,7 +287,7 @@ date_time_from_opaque(tvbuff_t *tvb, guint32 offset, guint32 data_len)
 				      tvb_get_guint8(tvb, offset + 4));
 		break;
 	case 6: /* YYYY-MM-DDThh:mm[:00Z] */
-		str = ep_strdup_printf("%%DateTime: "
+		str = wmem_strdup_printf(wmem_packet_scope(), "%%DateTime: "
 				      "%02x%02x-%02x-%02xT%02x:%02x:00Z",
 				      tvb_get_guint8(tvb, offset),
 				      tvb_get_guint8(tvb, offset + 1),
@@ -296,7 +297,7 @@ date_time_from_opaque(tvbuff_t *tvb, guint32 offset, guint32 data_len)
 				      tvb_get_guint8(tvb, offset + 5));
 		break;
 	case 7: /* YYYY-MM-DDThh:mm[:00Z] */
-		str = ep_strdup_printf("%%DateTime: "
+		str = wmem_strdup_printf(wmem_packet_scope(), "%%DateTime: "
 				      "%02x%02x-%02x-%02xT%02x:%02x:%02xZ",
 				      tvb_get_guint8(tvb, offset),
 				      tvb_get_guint8(tvb, offset + 1),
@@ -307,7 +308,7 @@ date_time_from_opaque(tvbuff_t *tvb, guint32 offset, guint32 data_len)
 				      tvb_get_guint8(tvb, offset + 6));
 		break;
 	default:
-		str = ep_strdup_printf("<Error: invalid binary %%DateTime "
+		str = wmem_strdup_printf(wmem_packet_scope(), "<Error: invalid binary %%DateTime "
 				      "(%d bytes of opaque data)>", data_len);
 		break;
 	}
@@ -350,11 +351,11 @@ wv_datetime_from_opaque(tvbuff_t *tvb, guint32 offset, guint32 data_len)
 		/* octet 6: ZZZZZZZZ */
 		time_zone = tvb_get_guint8(tvb, offset + 5);
 		/* Now construct the string */
-		str = ep_strdup_printf("WV-CSP DateTime: "
+		str = wmem_strdup_printf(wmem_packet_scope(), "WV-CSP DateTime: "
 				      "%04d-%02d-%02dT%02d:%02d:%02d%c",
 				      year, month, day, hour, minute, second, time_zone);
 	} else { /* Invalid length for a WV-CSP DateTime tag value */
-		str = ep_strdup_printf("<Error: invalid binary WV-CSP DateTime value "
+		str = wmem_strdup_printf(wmem_packet_scope(), "<Error: invalid binary WV-CSP DateTime value "
 				      "(%d bytes of opaque data)>", data_len);
 	}
 	return str;
@@ -369,23 +370,23 @@ wv_integer_from_opaque(tvbuff_t *tvb, guint32 offset, guint32 data_len)
 
 	switch (data_len) {
 	case 1:
-		str = ep_strdup_printf("WV-CSP Integer: %d",
+		str = wmem_strdup_printf(wmem_packet_scope(), "WV-CSP Integer: %d",
 				      tvb_get_guint8(tvb, offset));
 		break;
 	case 2:
-		str = ep_strdup_printf("WV-CSP Integer: %d",
+		str = wmem_strdup_printf(wmem_packet_scope(), "WV-CSP Integer: %d",
 				      tvb_get_ntohs(tvb, offset));
 		break;
 	case 3:
-		str = ep_strdup_printf("WV-CSP Integer: %d",
+		str = wmem_strdup_printf(wmem_packet_scope(), "WV-CSP Integer: %d",
 				      tvb_get_ntoh24(tvb, offset));
 		break;
 	case 4:
-		str = ep_strdup_printf("WV-CSP Integer: %d",
+		str = wmem_strdup_printf(wmem_packet_scope(), "WV-CSP Integer: %d",
 				      tvb_get_ntohl(tvb, offset));
 		break;
 	default:
-		str = ep_strdup_printf("<Error: invalid binary WV-CSP Integer value "
+		str = wmem_strdup_printf(wmem_packet_scope(), "<Error: invalid binary WV-CSP Integer value "
 				      "(%d bytes of opaque data)>", data_len);
 		break;
 	}
@@ -449,7 +450,7 @@ wv_csp10_opaque_binary_tag(tvbuff_t *tvb, guint32 offset,
 		break;
 	}
 	if (str == NULL) { /* Error, or not parsed */
-		str = ep_strdup_printf("(%d bytes of unparsed opaque data)", data_len);
+		str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of unparsed opaque data)", data_len);
 	}
 	*length += data_len;
 
@@ -485,7 +486,7 @@ wv_csp10_opaque_literal_tag(tvbuff_t *tvb, guint32 offset,
 		}
 
 	if (str == NULL) { /* Error, or not parsed */
-		str = ep_strdup_printf("(%d bytes of unparsed opaque data)", data_len);
+		str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of unparsed opaque data)", data_len);
 	}
 	*length += data_len;
 	return str;
@@ -556,7 +557,7 @@ wv_csp11_opaque_binary_tag(tvbuff_t *tvb, guint32 offset,
 		break;
 	}
 	if (str == NULL) { /* Error, or not parsed */
-		str = ep_strdup_printf("(%d bytes of unparsed opaque data)", data_len);
+		str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of unparsed opaque data)", data_len);
 	}
 	*length += data_len;
 
@@ -593,7 +594,7 @@ wv_csp11_opaque_literal_tag(tvbuff_t *tvb, guint32 offset,
 			}
 
 	if (str == NULL) { /* Error, or not parsed */
-		str = ep_strdup_printf("(%d bytes of unparsed opaque data)", data_len);
+		str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of unparsed opaque data)", data_len);
 	}
 	*length += data_len;
 	return str;
@@ -676,7 +677,7 @@ wv_csp12_opaque_binary_tag(tvbuff_t *tvb, guint32 offset,
 		break;
 	}
 	if (str == NULL) { /* Error, or not parsed */
-		str = ep_strdup_printf("(%d bytes of unparsed opaque data)", data_len);
+		str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of unparsed opaque data)", data_len);
 	}
 	*length += data_len;
 
@@ -715,7 +716,7 @@ wv_csp12_opaque_literal_tag(tvbuff_t *tvb, guint32 offset,
 			}
 
 	if (str == NULL) { /* Error, or not parsed */
-		str = ep_strdup_printf("(%d bytes of unparsed opaque data)", data_len);
+		str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of unparsed opaque data)", data_len);
 	}
 	*length += data_len;
 	return str;
@@ -852,7 +853,7 @@ wv_csp13_opaque_binary_tag(tvbuff_t *tvb, guint32 offset,
 
 	if (str == NULL)
 		{ /* Error, or not parsed */
-			str = ep_strdup_printf("(%d bytes of unparsed opaque data)", data_len);
+			str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of unparsed opaque data)", data_len);
 		}
 	*length += data_len;
 
@@ -912,7 +913,7 @@ wv_csp13_opaque_literal_tag(tvbuff_t *tvb, guint32 offset,
 			}
 
 	if (str == NULL) { /* Error, or not parsed */
-		str = ep_strdup_printf("(%d bytes of unparsed opaque data)", data_len);
+		str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of unparsed opaque data)", data_len);
 	}
 	*length += data_len;
 	return str;
@@ -931,7 +932,7 @@ sic10_opaque_literal_attr(tvbuff_t *tvb, guint32 offset,
 			str = date_time_from_opaque(tvb, offset + *length, data_len);
 		}
 	if (str == NULL) { /* Error, or not parsed */
-		str = ep_strdup_printf("(%d bytes of unparsed opaque data)", data_len);
+		str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of unparsed opaque data)", data_len);
 	}
 	*length += data_len;
 
@@ -961,7 +962,7 @@ sic10_opaque_binary_attr(tvbuff_t *tvb, guint32 offset,
 		break;
 	}
 	if (str == NULL) { /* Error, or not parsed */
-		str = ep_strdup_printf("(%d bytes of unparsed opaque data)", data_len);
+		str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of unparsed opaque data)", data_len);
 	}
 	*length += data_len;
 
@@ -980,7 +981,7 @@ emnc10_opaque_literal_attr(tvbuff_t *tvb, guint32 offset,
 			str = date_time_from_opaque(tvb, offset + *length, data_len);
 		}
 	if (str == NULL) { /* Error, or not parsed */
-		str = ep_strdup_printf("(%d bytes of unparsed opaque data)", data_len);
+		str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of unparsed opaque data)", data_len);
 	}
 	*length += data_len;
 
@@ -1009,7 +1010,7 @@ emnc10_opaque_binary_attr(tvbuff_t *tvb, guint32 offset,
 		break;
 	}
 	if (str == NULL) { /* Error, or not parsed */
-		str = ep_strdup_printf("(%d bytes of unparsed opaque data)", data_len);
+		str = wmem_strdup_printf(wmem_packet_scope(), "(%d bytes of unparsed opaque data)", data_len);
 	}
 	*length += data_len;
 
@@ -1195,7 +1196,7 @@ static value_string_ext vals_wbxml1x_global_tokens_ext = VALUE_STRING_EXT_INIT(v
 static char *
 ext_t_0_wml_10(tvbuff_t *tvb, guint32 value, guint32 str_tbl)
 {
-	char *str = ep_strdup_printf("Variable substitution - escaped: '%s'",
+	char *str = wmem_strdup_printf(wmem_packet_scope(), "Variable substitution - escaped: '%s'",
 				    tvb_get_const_stringz(tvb, str_tbl + value, NULL));
 	return str;
 }
@@ -1203,7 +1204,7 @@ ext_t_0_wml_10(tvbuff_t *tvb, guint32 value, guint32 str_tbl)
 static char *
 ext_t_1_wml_10(tvbuff_t *tvb, guint32 value, guint32 str_tbl)
 {
-	char *str = ep_strdup_printf("Variable substitution - unescaped: '%s'",
+	char *str = wmem_strdup_printf(wmem_packet_scope(), "Variable substitution - unescaped: '%s'",
 				    tvb_get_const_stringz(tvb, str_tbl + value, NULL));
 	return str;
 }
@@ -1211,7 +1212,7 @@ ext_t_1_wml_10(tvbuff_t *tvb, guint32 value, guint32 str_tbl)
 static char *
 ext_t_2_wml_10(tvbuff_t *tvb, guint32 value, guint32 str_tbl)
 {
-	char *str = ep_strdup_printf("Variable substitution - no transformation: '%s'",
+	char *str = wmem_strdup_printf(wmem_packet_scope(), "Variable substitution - no transformation: '%s'",
 				    tvb_get_const_stringz(tvb, str_tbl + value, NULL));
 	return str;
 }
@@ -5204,7 +5205,7 @@ static value_string_ext vals_wv_csp_11_element_value_tokens_ext = VALUE_STRING_E
 static char *
 ext_t_0_wv_cspc_11(tvbuff_t *tvb _U_, guint32 value, guint32 str_tbl _U_)
 {
-	char *str = ep_strdup_printf("Common Value: '%s'",
+	char *str = wmem_strdup_printf(wmem_packet_scope(), "Common Value: '%s'",
 				    val_to_str_ext(value, &vals_wv_csp_11_element_value_tokens_ext,
 					       "<Unknown WV-CSP 1.1 Common Value token 0x%X>"));
 	return str;
@@ -5815,7 +5816,7 @@ static const value_string vals_wv_csp_12_element_value_tokens[] = {
 static char *
 ext_t_0_wv_cspc_12(tvbuff_t *tvb _U_, guint32 value, guint32 str_tbl _U_)
 {
-	char *str = ep_strdup_printf("Common Value: '%s'",
+	char *str = wmem_strdup_printf(wmem_packet_scope(), "Common Value: '%s'",
 				    val_to_str(value, vals_wv_csp_12_element_value_tokens,
 					       "<Unknown WV-CSP 1.2 Common Value token 0x%X>"));
 	return str;
@@ -6656,7 +6657,7 @@ static const value_string vals_wv_csp_13_element_value_tokens[] = {
 static char *
 ext_t_0_wv_cspc_13(tvbuff_t *tvb _U_, guint32 value, guint32 str_tbl _U_)
 {
-	char *str = ep_strdup_printf("Common Value: '%s'",
+	char *str = wmem_strdup_printf(wmem_packet_scope(), "Common Value: '%s'",
 				    val_to_str(value, vals_wv_csp_13_element_value_tokens,
 					       "<Unknown WV-CSP 1.3 Common Value token 0x%X>"));
 	return str;
@@ -6893,7 +6894,7 @@ map_token (const value_valuestring *token_map, guint8 codepage, guint8 token) {
 	if (token_map) { /* Found map */
 		if ((vs = val_to_valstr (codepage, token_map))) {
 			/* Found codepage map */
-			s = match_strval (token, vs);
+			s = try_val_to_str (token, vs);
 			if (s) { /* Found valid token */
 				DebugLog(("map_token(codepage = %u, token = %u: [%s]\n", codepage, token, s));
 				return s;
@@ -6930,9 +6931,6 @@ dissect_uaprof(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 static void
 dissect_wbxml_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		     const wbxml_decoding *override_content_map);
-
-void
-proto_register_wbxml(void);
 
 /* Parse and display the WBXML string table */
 static void
@@ -7027,8 +7025,7 @@ dissect_wbxml_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 		/* Put some information here, so that the user knows what's going on. */
 
 		/* Add summary to INFO column if it is enabled */
-		if (check_col(pinfo->cinfo, COL_INFO))
-			col_append_fstr(pinfo->cinfo, COL_INFO, " (Unknown WBXML version 0x%02x)", version);
+		col_append_fstr(pinfo->cinfo, COL_INFO, " (Unknown WBXML version 0x%02x)", version);
 		ti = proto_tree_add_item (tree, proto_wbxml, tvb, 0, -1, ENC_NA);
 		proto_item_append_text(ti, ", Unknown version 0x%02x", version);
 		return;
@@ -7073,20 +7070,19 @@ dissect_wbxml_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
 	/* Compose the summary line */
 	if ( publicid ) {
-		summary = ep_strdup_printf("%s, Public ID: \"%s\"",
+		summary = wmem_strdup_printf(wmem_packet_scope(), "%s, Public ID: \"%s\"",
 					  val_to_str_ext (version, &vals_wbxml_versions_ext, "(unknown 0x%x)"),
 					  val_to_str_ext (publicid, &vals_wbxml_public_ids_ext, "(unknown 0x%x)"));
 	} else {
 		/* Read length of Public ID from string table */
 		len = tvb_strsize (tvb, str_tbl + publicid_index);
-		summary = ep_strdup_printf("%s, Public ID: \"%s\"",
+		summary = wmem_strdup_printf(wmem_packet_scope(), "%s, Public ID: \"%s\"",
 					  val_to_str_ext (version, &vals_wbxml_versions_ext, "(unknown 0x%x)"),
 					  tvb_format_text (tvb, str_tbl + publicid_index, len - 1));
 	}
 
 	/* Add summary to INFO column if it is enabled */
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_append_fstr(pinfo->cinfo, COL_INFO, " (WBXML %s)", summary);
+	col_append_fstr(pinfo->cinfo, COL_INFO, " (WBXML %s)", summary);
 
 	/* create display subtree for the protocol */
 	ti = proto_tree_add_item (tree, proto_wbxml, tvb, 0, -1, ENC_NA);
@@ -7429,7 +7425,7 @@ parse_wbxml_tag_defined (proto_tree *tree, tvbuff_t *tvb, guint32 offset,
 				if (map->ext_t[peek & 0x03])
 					s = (map->ext_t[peek & 0x03])(tvb, idx, str_tbl);
 				else
-					s = ep_strdup_printf("EXT_T_%1x (%s)", peek & 0x03,
+					s = wmem_strdup_printf(wmem_packet_scope(), "EXT_T_%1x (%s)", peek & 0x03,
 							    map_token (map->global, 0, peek));
 				proto_tree_add_text (tree, tvb, off, 1+len,
 						     "  %3d | Tag   | T %3d    "
@@ -7523,7 +7519,7 @@ parse_wbxml_tag_defined (proto_tree *tree, tvbuff_t *tvb, guint32 offset,
 				DebugLog(("STAG: LITERAL tag (peek = 0x%02X, off = %u) - TableRef follows!\n", peek, off));
 				idx = tvb_get_guintvar (tvb, off+1, &tag_len);
 				str_len = tvb_strsize (tvb, str_tbl+idx);
-				tag_new_literal = (gchar*)tvb_get_ptr (tvb, str_tbl+idx, str_len);
+				tag_new_literal = (const gchar*)tvb_get_ptr (tvb, str_tbl+idx, str_len);
 				tag_new_known = 0; /* invalidate known tag_new */
 			} else { /* Known tag */
 				tag_new_known = peek & 0x3F;
@@ -7909,11 +7905,11 @@ parse_wbxml_tag (proto_tree *tree, tvbuff_t *tvb, guint32 offset,
 					  " - TableRef follows!\n", peek, off));
 				idx = tvb_get_guintvar (tvb, off+1, &tag_len);
 				str_len = tvb_strsize (tvb, str_tbl+idx);
-				tag_new_literal = (gchar*)tvb_get_ptr (tvb, str_tbl+idx, str_len);
+				tag_new_literal = (const gchar*)tvb_get_ptr (tvb, str_tbl+idx, str_len);
 				tag_new_known = 0; /* invalidate known tag_new */
 			} else { /* Known tag */
 				tag_new_known = peek & 0x3F;
-				tag_new_buf=ep_strdup_printf("Tag_0x%02X",
+				tag_new_buf=wmem_strdup_printf(wmem_packet_scope(), "Tag_0x%02X",
 					    tag_new_known);
 				tag_new_literal = tag_new_buf;
 				/* Stored looked up tag name string */
@@ -7941,7 +7937,7 @@ parse_wbxml_tag (proto_tree *tree, tvbuff_t *tvb, guint32 offset,
 						tag_save_known = 0;
 					} else { /* Known tag */
 						tag_save_known = tag_new_known;
-						tag_save_buf=ep_strdup_printf("Tag_0x%02X",
+						tag_save_buf=wmem_strdup_printf(wmem_packet_scope(), "Tag_0x%02X",
 							    tag_new_known);
 						tag_save_literal = tag_save_buf;
 						/* The last statement avoids needless lookups */
@@ -8228,7 +8224,7 @@ parse_wbxml_attribute_list_defined (proto_tree *tree, tvbuff_t *tvb,
 				if (map->ext_t[peek & 0x03])
 					s = (map->ext_t[peek & 0x03])(tvb, idx, str_tbl);
 				else
-					s = ep_strdup_printf("EXT_T_%1x (%s)", peek & 0x03,
+					s = wmem_strdup_printf(wmem_packet_scope(), "EXT_T_%1x (%s)", peek & 0x03,
 							    map_token (map->global, 0, peek));
 
 				proto_tree_add_text (tree, tvb, off, 1+len,

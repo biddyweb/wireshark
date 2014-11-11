@@ -3,8 +3,6 @@
  * Routines for FCoIB dissection - Fibre Channel over Infiniband
  * Copyright (c) 2010 Mellanox Technologies Ltd. (slavak@mellanox.co.il)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,28 +32,18 @@
 #include <epan/crc32-tvb.h>
 #include <epan/etypes.h>
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
+#include <epan/addr_resolv.h>
 #include <errno.h>
 #include "packet-infiniband.h"
+#include "packet-fc.h"
 
-#ifdef HAVE_ARPA_INET_H
-# include <arpa/inet.h>
-#endif
-#ifdef HAVE_SYS_SOCKET_H
-# include <sys/socket.h>         /* needed to define AF_ values on UNIX */
-#endif
-#ifdef HAVE_WINSOCK2_H
-# include <winsock2.h>           /* needed to define AF_ values on Windows */
-#endif
-#ifdef NEED_INET_V6DEFS_H
-# include "wsutil/inet_v6defs.h"
-#endif
+void proto_register_fcoib(void);
+void proto_reg_handoff_fcoib(void);
 
 #define FCOIB_HEADER_LEN   16        /* header: encap. header, SOF, and padding */
 #define FCOIB_TRAILER_LEN   8        /* trailer: FC-CRC, EOF and padding */
 #define FCOIB_VER_OFFSET    2        /* offset of ver field (in bytes) inside FCoIB Encap. header */
-
-/* Forward declaration we need below (for using proto_reg_handoff as a prefs callback) */
-void proto_reg_handoff_fcoib(void);
 
 typedef enum {
     FCOIB_EOFn    = 0x41,
@@ -114,6 +102,8 @@ static int hf_fcoib_crc_good    = -1;
 
 static int ett_fcoib            = -1;
 static int ett_fcoib_crc        = -1;
+
+static expert_field ei_fcoib_crc = EI_INIT;
 
 static dissector_handle_t data_handle;
 static dissector_handle_t fc_handle;
@@ -181,6 +171,7 @@ dissect_fcoib(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
     guint32     crc_computed = 0;
     guint32     crc          = 0;
     gboolean    packet_match_manual;
+    fc_data_t   fc_data;
 
     tree = proto_tree_get_root(tree);   /* we don't want to add FCoIB under the Infiniband tree */
 
@@ -212,9 +203,9 @@ dissect_fcoib(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
             return FALSE;   /* the sig field in the FCoIB Encap. header MUST be 2'b01*/
         if (!tvb_bytes_exist(tvb, eof_offset + 1, 3) || tvb_get_ntoh24(tvb, eof_offset + 1) != 0)
             return FALSE;   /* 3 bytes of RESERVED field immediately after eEOF MUST be 0 */
-        if (!match_strval(sof, fcoib_sof_vals))
+        if (!try_val_to_str(sof, fcoib_sof_vals))
             return FALSE;   /* invalid value for SOF */
-        if (!match_strval(eof, fcoib_eof_vals))
+        if (!try_val_to_str(eof, fcoib_eof_vals))
             return FALSE;   /* invalid value for EOF */
     }
 
@@ -232,7 +223,7 @@ dissect_fcoib(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
     ver = "";
     version = tvb_get_guint8(tvb, 0 + FCOIB_VER_OFFSET) >> 4;
     if (version != 0)
-        ver = ep_strdup_printf(ver, "ver %d ", version);
+        ver = wmem_strdup_printf(wmem_packet_scope(), ver, "ver %d ", version);
 
     eof_str = "none";
     if (tvb_bytes_exist(tvb, eof_offset, 1)) {
@@ -280,16 +271,15 @@ dissect_fcoib(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
      */
     if (crc_exists) {
         if (crc == crc_computed) {
-            item = proto_tree_add_uint_format(fcoib_tree, hf_fcoib_crc, tvb,
+            item = proto_tree_add_uint_format_value(fcoib_tree, hf_fcoib_crc, tvb,
                                               crc_offset, 4, crc,
-                                              "CRC: %8.8x [valid]", crc);
+                                              "%8.8x [valid]", crc);
         } else {
-            item = proto_tree_add_uint_format(fcoib_tree, hf_fcoib_crc, tvb,
+            item = proto_tree_add_uint_format_value(fcoib_tree, hf_fcoib_crc, tvb,
                                               crc_offset, 4, crc,
-                                              "CRC: %8.8x "
-                                              "[error: should be %8.8x]",
+                                              "%8.8x [error: should be %8.8x]",
                                               crc, crc_computed);
-            expert_add_info_format(pinfo, item, PI_CHECKSUM, PI_ERROR,
+            expert_add_info_format(pinfo, item, &ei_fcoib_crc,
                                    "Bad FC CRC %8.8x %8.x",
                                    crc, crc_computed);
         }
@@ -317,23 +307,24 @@ dissect_fcoib(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U
     }
 
     /* Set the SOF/EOF flags in the packet_info header */
-    pinfo->sof_eof = 0;
+    fc_data.sof_eof = 0;
     if (sof == FCOIB_SOFi3 || sof == FCOIB_SOFi2 || sof == FCOIB_SOFi4) {
-        pinfo->sof_eof = PINFO_SOF_FIRST_FRAME;
+        fc_data.sof_eof = FC_DATA_SOF_FIRST_FRAME;
     } else if (sof == FCOIB_SOFf) {
-        pinfo->sof_eof = PINFO_SOF_SOFF;
+        fc_data.sof_eof = FC_DATA_SOF_SOFF;
     }
 
     if (eof != FCOIB_EOFn) {
-        pinfo->sof_eof |= PINFO_EOF_LAST_FRAME;
+        fc_data.sof_eof |= FC_DATA_EOF_LAST_FRAME;
     } else if (eof != FCOIB_EOFt) {
-        pinfo->sof_eof |= PINFO_EOF_INVALID;
+        fc_data.sof_eof |= FC_DATA_EOF_INVALID;
     }
 
     /* Call the FC Dissector if this is carrying an FC frame */
+    fc_data.ethertype = 0;
 
     if (fc_handle) {
-        call_dissector(fc_handle, next_tvb, pinfo, tree);
+        call_dissector_with_data(fc_handle, next_tvb, pinfo, tree, &fc_data);
     } else if (data_handle) {
         call_dissector(data_handle, next_tvb, pinfo, tree);
     }
@@ -372,6 +363,12 @@ proto_register_fcoib(void)
         &ett_fcoib_crc
     };
 
+    static ei_register_info ei[] = {
+        { &ei_fcoib_crc, { "fcoib.crc.bad", PI_CHECKSUM, PI_ERROR, "Bad checksum", EXPFILL }},
+    };
+
+    expert_module_t* expert_fcoib;
+
     /* Register the protocol name and description */
     proto_fcoib = proto_register_protocol("Fibre Channel over Infiniband",
         "FCoIB", "fcoib");
@@ -380,6 +377,8 @@ proto_register_fcoib(void)
      * subtrees used */
     proto_register_field_array(proto_fcoib, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_fcoib = expert_register_protocol(proto_fcoib);
+    expert_register_field_array(expert_fcoib, ei, array_length(ei));
 
     fcoib_module = prefs_register_protocol(proto_fcoib, proto_reg_handoff_fcoib);
 
@@ -441,7 +440,7 @@ proto_reg_handoff_fcoib(void)
                     SET_ADDRESS(&manual_addr[i], AT_IB, sizeof(guint16), manual_addr_data[i]);
                 }
             } else {    /* GID */
-                if (! inet_pton(AF_INET6, gPREF_ID[i], manual_addr_data[i]) ) {
+                if (!str_to_ip6( gPREF_ID[i], manual_addr_data[i])) {
                     error_occured = TRUE;
                 } else {
                     SET_ADDRESS(&manual_addr[i], AT_IB, GID_SIZE, manual_addr_data[i]);

@@ -2,8 +2,6 @@
  * Routines for SSCOP (Q.2110, Q.SAAL) frame disassembly
  * Guy Harris <guy@alum.mit.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998
@@ -30,6 +28,9 @@
 #include <epan/packet.h>
 #include <prefs.h>
 #include "packet-sscop.h"
+
+void proto_register_sscop(void);
+void proto_reg_handoff_sscop(void);
 
 int proto_sscop = -1;
 
@@ -191,8 +192,7 @@ dissect_sscop_and_payload(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, d
   sscop_info.type = sscop_pdu_type & SSCOP_TYPE_MASK;
 
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "SSCOP");
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_add_str(pinfo->cinfo, COL_INFO, val_to_str(sscop_info.type, sscop_type_vals,
+  col_add_str(pinfo->cinfo, COL_INFO, val_to_str(sscop_info.type, sscop_type_vals,
 					"Unknown PDU type (0x%02x)"));
 
   /*
@@ -339,7 +339,7 @@ static void dissect_sscop(tvbuff_t* tvb, packet_info* pinfo,proto_tree* tree)
     dissector_handle_t subdissector;
 
 	/* Look for packet info for subdissector information */
-    p_sscop_info = p_get_proto_data(pinfo->fd, proto_sscop);
+    p_sscop_info = (struct _sscop_payload_info *)p_get_proto_data(wmem_file_scope(), pinfo, proto_sscop, 0);
 
 	if ( p_sscop_info
 		 && ( subdissector = p_sscop_info->subdissector )
@@ -353,27 +353,10 @@ static void dissect_sscop(tvbuff_t* tvb, packet_info* pinfo,proto_tree* tree)
 		dissect_sscop_and_payload(tvb,pinfo,tree,default_handle);
 }
 
-
-static void range_delete_callback(guint32 port)
-{
-    if (port) {
-	dissector_delete_uint("udp.port", port, sscop_handle);
-    }
-}
-
-static void range_add_callback(guint32 port)
-{
-    if (port) {
-	dissector_add_uint("udp.port", port, sscop_handle);
-    }
-}
-
 /* Make sure handles for various protocols are initialized */
 static void initialize_handles_once(void) {
     static gboolean initialized = FALSE;
     if (!initialized) {
-		sscop_handle = create_dissector_handle(dissect_sscop, proto_sscop);
-
 		q2931_handle = find_dissector("q2931");
 		data_handle = find_dissector("data");
 		sscf_nni_handle = find_dissector("sscf-nni");
@@ -406,14 +389,13 @@ proto_reg_handoff_sscop(void)
 
   } else {
 
-    range_foreach(udp_port_range, range_delete_callback);
+    dissector_delete_uint_range("udp.port", udp_port_range, sscop_handle);
     g_free(udp_port_range);
 
   }
 
   udp_port_range = range_copy(global_udp_port_range);
-
-  range_foreach(udp_port_range, range_add_callback);
+  dissector_add_uint_range("udp.port", udp_port_range, sscop_handle);
 
   switch(sscop_payload_dissector) {
 	  case DATA_DISSECTOR: default_handle = data_handle; break;
@@ -449,7 +431,8 @@ proto_register_sscop(void)
   proto_sscop = proto_register_protocol("SSCOP", "SSCOP", "sscop");
   proto_register_field_array(proto_sscop, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
-  register_dissector("sscop", dissect_sscop, proto_sscop);
+
+  sscop_handle = register_dissector("sscop", dissect_sscop, proto_sscop);
 
   sscop_module = prefs_register_protocol(proto_sscop, proto_reg_handoff_sscop);
 

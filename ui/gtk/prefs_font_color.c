@@ -1,8 +1,6 @@
 /* prefs_font_color.c
  * Font and Color preferences widget
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -23,6 +21,8 @@
  */
 
 #include "config.h"
+
+#include <stdlib.h>
 
 #include <gtk/gtk.h>
 
@@ -73,8 +73,11 @@
 
 #define SAMPLE_MARKED_TEXT  "Sample marked packet text\n"
 #define SAMPLE_IGNORED_TEXT "Sample ignored packet text\n"
-#define SAMPLE_CLIENT_TEXT  "Sample stream client text\n"
-#define SAMPLE_SERVER_TEXT  "Sample stream server text\n"
+#define SAMPLE_CLIENT_TEXT  "Sample 'Follow Stream' client text\n"
+#define SAMPLE_SERVER_TEXT  "Sample 'Follow Stream' server text\n"
+#define SAMPLE_TEXT_VALID_TEXT  "Sample valid filter text\n"
+#define SAMPLE_TEXT_INVALID_TEXT  "Sample invalid filter text\n"
+#define SAMPLE_TEXT_DEPRECATED_TEXT  "Sample deprecated filter text\n"
 
 #define MFG_IDX 0
 #define MBG_IDX 1
@@ -84,7 +87,10 @@
 #define CBG_IDX 5
 #define SFG_IDX 6
 #define SBG_IDX 7
-#define MAX_IDX 8     /* set this to the number of IDX values */
+#define FTV_IDX 8
+#define FTI_IDX 9
+#define FTD_IDX 10
+#define MAX_IDX 11     /* set this to the number of IDX values */
 
 #define COLOR_SAMPLE_KEY "text_color_sample"
 #define FONT_SAMPLE_KEY  "font_sample"
@@ -95,7 +101,8 @@ static void update_font(PangoFontDescription *, GtkWidget *, GtkWidget *);
 static void update_text_color(GObject *obj, GParamSpec *pspec, gpointer data);
 static void update_current_color(GtkWidget *, gpointer);
 
-static GdkXxx tcolors[MAX_IDX], *curcolor = NULL;
+static const color_t filter_text_fg_color = {0, 0, 0, 0}; /* black */
+static GdkXxx tcolors[MAX_IDX], filter_text_fg, *curcolor = NULL;
 
 #if ! GTK_CHECK_VERSION(3,4,0)
 static GdkXxx tcolors_orig[MAX_IDX];
@@ -125,15 +132,18 @@ font_color_prefs_show(void)
 {
   GtkWidget     *main_vb, *main_grid, *label, *combo_box;
   GtkWidget     *font_sample, *color_sample, *colorsel;
-  const gchar   *mt[] = {
-    "Marked packet foreground",  /* MFG_IDX 0*/
-    "Marked packet background",  /* MBG_IDX 1*/
-    "Ignored packet foreground", /* IFG_IDX 2*/
-    "Ignored packet background", /* IBG_IDX 3*/
-    "Stream client foreground",  /* CFG_IDX 4*/
-    "Stream client background",  /* CBG_IDX 5*/
-    "Stream server foreground",  /* SFG_IDX 6*/
-    "Stream server background"   /* SBG_IDX 7*/
+  static const gchar   *mt[] = {
+    "Marked packet foreground",          /* MFG_IDX 0*/
+    "Marked packet background",          /* MBG_IDX 1*/
+    "Ignored packet foreground",         /* IFG_IDX 2*/
+    "Ignored packet background",         /* IBG_IDX 3*/
+    "'Follow Stream' client foreground", /* CFG_IDX 4*/
+    "'Follow Stream' client background", /* CBG_IDX 5*/
+    "'Follow Stream' server foreground", /* SFG_IDX 6*/
+    "'Follow Stream' server background", /* SBG_IDX 7*/
+    "Valid filter text entry",           /* FTV_IDX 8*/
+    "Invalid filter text entry",         /* FTI_IDX 9*/
+    "Deprecated filter text entry"       /* FTD_IDX 10*/
   };
   int            mcount = sizeof(mt) / sizeof (gchar *);
   GtkTextBuffer *buf;
@@ -157,6 +167,10 @@ font_color_prefs_show(void)
   color_t_to_gdkxxx(&tcolors[CBG_IDX], &prefs.st_client_bg);
   color_t_to_gdkxxx(&tcolors[SFG_IDX], &prefs.st_server_fg);
   color_t_to_gdkxxx(&tcolors[SBG_IDX], &prefs.st_server_bg);
+  color_t_to_gdkxxx(&tcolors[FTV_IDX], &prefs.gui_text_valid);
+  color_t_to_gdkxxx(&tcolors[FTI_IDX], &prefs.gui_text_invalid);
+  color_t_to_gdkxxx(&tcolors[FTD_IDX], &prefs.gui_text_deprecated);
+  color_t_to_gdkxxx(&filter_text_fg, &filter_text_fg_color);
 
 #if ! GTK_CHECK_VERSION(3,4,0)
   for (i=0; i<MAX_IDX; i++) {
@@ -180,7 +194,7 @@ font_color_prefs_show(void)
   gtk_misc_set_alignment(GTK_MISC(label), 1.0f, 0.5f);
   ws_gtk_grid_attach_extended(GTK_GRID(main_grid), label,
                               0, GRID_FONT_ROW, 1, 1,
-                              GTK_EXPAND|GTK_FILL, 0, 0, 0);
+                              (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
   gtk_widget_show(label);
 
   font_button = gtk_font_button_new_with_font(prefs.gui_gtk2_font_name);
@@ -200,7 +214,7 @@ font_color_prefs_show(void)
   gtk_text_buffer_insert(buf, &iter, preview_string->str, -1);
   ws_gtk_grid_attach_extended(GTK_GRID(main_grid), font_sample,
                               2, GRID_FONT_ROW, 1, 1,
-                              GTK_EXPAND|GTK_FILL, 0, 0, 0);
+                              (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
   g_signal_connect(font_button, "font-set", G_CALLBACK(select_font), NULL);
   gtk_widget_show(font_sample);
 
@@ -211,7 +225,7 @@ font_color_prefs_show(void)
   gtk_misc_set_alignment(GTK_MISC(label), 1.0f, 0.5f);
   ws_gtk_grid_attach_extended(GTK_GRID(main_grid), label,
                               0, GRID_COLOR_ROW, 1, 1,
-                              GTK_EXPAND|GTK_FILL, 0, 0,0);
+                              (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0,0);
   gtk_widget_show(label);
 
   /* We have to create this now, and configure it below. */
@@ -262,6 +276,18 @@ font_color_prefs_show(void)
                              TAG_PROP_FG_COLOR, &tcolors[SFG_IDX],
                              TAG_PROP_BG_COLOR, &tcolors[SBG_IDX],
                              NULL);
+  gtk_text_buffer_create_tag(buf, "text_valid",
+                             TAG_PROP_FG_COLOR, &filter_text_fg,
+                             TAG_PROP_BG_COLOR, &tcolors[FTV_IDX],
+                             NULL);
+  gtk_text_buffer_create_tag(buf, "text_invalid",
+                             TAG_PROP_FG_COLOR, &filter_text_fg,
+                             TAG_PROP_BG_COLOR, &tcolors[FTI_IDX],
+                             NULL);
+  gtk_text_buffer_create_tag(buf, "text_deprecated",
+                             TAG_PROP_FG_COLOR, &filter_text_fg,
+                             TAG_PROP_BG_COLOR, &tcolors[FTD_IDX],
+                             NULL);
 
   gtk_text_buffer_insert_with_tags_by_name(buf, &iter, SAMPLE_MARKED_TEXT,  -1,
                                            "marked", NULL);
@@ -271,16 +297,22 @@ font_color_prefs_show(void)
                                            "client", NULL);
   gtk_text_buffer_insert_with_tags_by_name(buf, &iter, SAMPLE_SERVER_TEXT,  -1,
                                            "server", NULL);
+  gtk_text_buffer_insert_with_tags_by_name(buf, &iter, SAMPLE_TEXT_VALID_TEXT,  -1,
+                                           "text_valid", NULL);
+  gtk_text_buffer_insert_with_tags_by_name(buf, &iter, SAMPLE_TEXT_INVALID_TEXT,  -1,
+                                           "text_invalid", NULL);
+  gtk_text_buffer_insert_with_tags_by_name(buf, &iter, SAMPLE_TEXT_DEPRECATED_TEXT,  -1,
+                                           "text_deprecated", NULL);
 
   ws_gtk_grid_attach_extended(GTK_GRID(main_grid), color_sample,
                               2, GRID_COLOR_ROW, 1, 2,
-                              GTK_EXPAND|GTK_FILL, 0, 0, 0);
+                              (GtkAttachOptions)(GTK_EXPAND|GTK_FILL), (GtkAttachOptions)0, 0, 0);
   gtk_widget_show(color_sample);
 
   gtk_color_xxx_set_yyy(GTK_COLOR_XXX(colorsel), curcolor);
   ws_gtk_grid_attach_extended(GTK_GRID(main_grid), colorsel,
                               1, GRID_COLOR_SEL_ROW, 2, 1,
-                              GTK_FILL|GTK_EXPAND, 0, 0, 0);
+                              (GtkAttachOptions)(GTK_FILL|GTK_EXPAND), (GtkAttachOptions)0, 0, 0);
 
   g_object_set_data(G_OBJECT(combo_box), COLOR_SAMPLE_KEY, color_sample);
   g_object_set_data(G_OBJECT(colorsel),  COLOR_SAMPLE_KEY, color_sample);
@@ -344,8 +376,8 @@ font_fetch(void)
 static void
 select_font(GtkWidget *w, gpointer data _U_)
 {
-  GtkWidget *font_sample = g_object_get_data(G_OBJECT(w), FONT_SAMPLE_KEY);
-  GtkWidget *color_sample = g_object_get_data(G_OBJECT(w), COLOR_SAMPLE_KEY);
+  GtkWidget *font_sample = (GtkWidget *)g_object_get_data(G_OBJECT(w), FONT_SAMPLE_KEY);
+  GtkWidget *color_sample = (GtkWidget *)g_object_get_data(G_OBJECT(w), COLOR_SAMPLE_KEY);
   const gchar *font_name;
 
   if (!font_sample || !color_sample)
@@ -361,7 +393,7 @@ select_font(GtkWidget *w, gpointer data _U_)
 
 static void
 update_text_color(GObject *obj, GParamSpec *pspec _U_, gpointer data _U_) {
-  GtkTextView   *sample = g_object_get_data(G_OBJECT(obj), COLOR_SAMPLE_KEY);
+  GtkTextView   *sample = (GtkTextView *)g_object_get_data(G_OBJECT(obj), COLOR_SAMPLE_KEY);
   GtkTextBuffer *buf;
   GtkTextTag    *tag;
 
@@ -392,6 +424,25 @@ update_text_color(GObject *obj, GParamSpec *pspec _U_, gpointer data _U_) {
                TAG_PROP_FG_COLOR, &tcolors[SFG_IDX],
                TAG_PROP_BG_COLOR, &tcolors[SBG_IDX],
                NULL);
+
+  tag = gtk_text_tag_table_lookup(gtk_text_buffer_get_tag_table(buf), "text_valid");
+  g_object_set(tag,
+               TAG_PROP_FG_COLOR, &filter_text_fg,
+               TAG_PROP_BG_COLOR, &tcolors[FTV_IDX],
+               NULL);
+
+  tag = gtk_text_tag_table_lookup(gtk_text_buffer_get_tag_table(buf), "text_invalid");
+  g_object_set(tag,
+               TAG_PROP_FG_COLOR, &filter_text_fg,
+               TAG_PROP_BG_COLOR, &tcolors[FTI_IDX],
+               NULL);
+
+  tag = gtk_text_tag_table_lookup(gtk_text_buffer_get_tag_table(buf), "text_deprecated");
+  g_object_set(tag,
+               TAG_PROP_FG_COLOR, &filter_text_fg,
+               TAG_PROP_BG_COLOR, &tcolors[FTD_IDX],
+               NULL);
+
 }
 
 
@@ -429,6 +480,9 @@ font_color_prefs_fetch(GtkWidget *w _U_)
   gdkxxx_to_color_t(&prefs.st_client_bg,   &tcolors[CBG_IDX]);
   gdkxxx_to_color_t(&prefs.st_server_fg,   &tcolors[SFG_IDX]);
   gdkxxx_to_color_t(&prefs.st_server_bg,   &tcolors[SBG_IDX]);
+  gdkxxx_to_color_t(&prefs.gui_text_valid,   &tcolors[FTV_IDX]);
+  gdkxxx_to_color_t(&prefs.gui_text_invalid,   &tcolors[FTI_IDX]);
+  gdkxxx_to_color_t(&prefs.gui_text_deprecated,   &tcolors[FTD_IDX]);
 
   /*
    * XXX - we need to have a way to fetch the preferences into

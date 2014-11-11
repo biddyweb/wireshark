@@ -1,7 +1,5 @@
 /* packet-gsm_a_common.h
  *
- * $Id$
- *
  *   Reference [3]
  *   Mobile radio interface Layer 3 specification;
  *   Core network protocols;
@@ -51,20 +49,14 @@
 #ifndef __PACKET_GSM_A_COMMON_H__
 #define __PACKET_GSM_A_COMMON_H__
 
+#include <epan/proto.h>
+
 #include "packet-sccp.h"
 #include "ws_symbol_export.h"
 
 /* PROTOTYPES/FORWARDS */
 typedef guint16 (*elem_fcn)(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 typedef void (*msg_fcn)(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len);
-#if 0
-/* XXX moved to tvbuff.h, clean up later */
-typedef struct dgt_set_t
-{
-    unsigned char out[15];
-}
-dgt_set_t;
-#endif
 int my_dgt_tbcd_unpack(
     char      *out,       /* ASCII pattern out */
     guchar    *in,        /* packed pattern in */
@@ -83,79 +75,79 @@ extern const value_string gsm_a_pd_short_str_vals[];
 extern guint16 de_cld_party_bcd_num(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 
 /* Needed to share the packet-gsm_a_common.c functions */
-extern const value_string gsm_bssmap_elem_strings[];
+extern value_string_ext gsm_bssmap_elem_strings_ext;
 extern gint ett_gsm_bssmap_elem[];
 extern elem_fcn bssmap_elem_fcn[];
 extern int hf_gsm_a_bssmap_elem_id;
 
-extern const value_string gsm_dtap_elem_strings[];
+extern value_string_ext gsm_dtap_elem_strings_ext;
 extern gint ett_gsm_dtap_elem[];
 extern elem_fcn dtap_elem_fcn[];
 extern int hf_gsm_a_dtap_elem_id;
 
-extern const value_string gsm_rp_elem_strings[];
+extern value_string_ext gsm_rp_elem_strings_ext;
 extern gint ett_gsm_rp_elem[];
 extern elem_fcn rp_elem_fcn[];
 extern int hf_gsm_a_rp_elem_id;
 
-extern const value_string gsm_rr_elem_strings[];
+extern value_string_ext gsm_rr_elem_strings_ext;
 extern gint ett_gsm_rr_elem[];
 extern elem_fcn rr_elem_fcn[];
 extern int hf_gsm_a_rr_elem_id;
 extern void get_rr_msg_params(guint8 oct, const gchar **msg_str, int *ett_tree, int *hf_idx, msg_fcn *msg_fcn);
 
-extern const value_string gsm_common_elem_strings[];
+extern value_string_ext gsm_common_elem_strings_ext;
 extern gint ett_gsm_common_elem[];
 extern elem_fcn common_elem_fcn[];
 extern int hf_gsm_a_common_elem_id;
 
-extern const value_string gsm_gm_elem_strings[];
+extern value_string_ext gsm_gm_elem_strings_ext;
 extern gint ett_gsm_gm_elem[];
 extern elem_fcn gm_elem_fcn[];
 extern int hf_gsm_a_gm_elem_id;
 extern void get_gmm_msg_params(guint8 oct, const gchar **msg_str, int *ett_tree, int *hf_idx, msg_fcn *msg_fcn);
 extern void get_sm_msg_params(guint8 oct, const gchar **msg_str, int *ett_tree, int *hf_idx, msg_fcn *msg_fcn);
 
-extern const value_string gsm_bsslap_elem_strings[];
+extern value_string_ext gsm_bsslap_elem_strings_ext;
 extern gint ett_gsm_bsslap_elem[];
 extern elem_fcn bsslap_elem_fcn[];
 extern int hf_gsm_a_bsslap_elem_id;
 
-extern const value_string gsm_bssmap_le_elem_strings[];
+extern value_string_ext gsm_bssmap_le_elem_strings_ext;
 extern gint ett_gsm_bssmap_le_elem[];
 extern elem_fcn bssmap_le_elem_fcn[];
 extern int hf_gsm_bssmap_le_elem_id;
 
-extern const value_string nas_eps_common_elem_strings[];
+extern value_string_ext nas_eps_common_elem_strings_ext;
 extern gint ett_nas_eps_common_elem[];
 extern elem_fcn nas_eps_common_elem_fcn[];
 extern int hf_nas_eps_common_elem_id;
 
-extern const value_string nas_emm_elem_strings[];
+extern value_string_ext nas_emm_elem_strings_ext;
 extern gint ett_nas_eps_emm_elem[];
 extern elem_fcn emm_elem_fcn[];
 extern int hf_nas_eps_emm_elem_id;
 
-extern const value_string nas_esm_elem_strings[];
+extern value_string_ext nas_esm_elem_strings_ext;
 extern gint ett_nas_eps_esm_elem[];
 extern elem_fcn esm_elem_fcn[];
 extern int hf_nas_eps_esm_elem_id;
 
-extern const value_string sgsap_elem_strings[];
+extern value_string_ext sgsap_elem_strings_ext;
 extern gint ett_sgsap_elem[];
 extern elem_fcn sgsap_elem_fcn[];
 extern int hf_sgsap_elem_id;
 
-extern const value_string bssgp_elem_strings[];
+extern value_string_ext bssgp_elem_strings_ext;
 extern gint ett_bssgp_elem[];
 extern elem_fcn bssgp_elem_fcn[];
 extern int hf_bssgp_elem_id;
 
-extern const value_string gmr1_ie_common_strings[];
+extern value_string_ext gmr1_ie_common_strings_ext;
 extern elem_fcn gmr1_ie_common_func[];
 extern gint ett_gmr1_ie_common[];
 
-extern const value_string gmr1_ie_rr_strings[];
+extern value_string_ext gmr1_ie_rr_strings_ext;
 extern elem_fcn gmr1_ie_rr_func[];
 extern gint ett_gmr1_ie_rr[];
 
@@ -211,7 +203,7 @@ extern const char* get_gsm_a_msg_string(int pdu_type, int idx);
 #define IS_UPLINK_UNKNOWN   2
 
 /* Defines for handling half octet mandatory V IEs
- * Named LEFT and RIGHT (as displayed) because the GSM definitions and our internal representation 
+ * Named LEFT and RIGHT (as displayed) because the GSM definitions and our internal representation
  * have the bits numbered in opposite senses
  */
 #define LEFT_NIBBLE     (2)
@@ -229,14 +221,10 @@ extern const char* get_gsm_a_msg_string(int pdu_type, int idx);
         curr_offset += ((edc_len) - (edc_max_len)); \
     }
 
-#define EXTRANEOUS_DATA_CHECK_EXPERT(edc_len, edc_max_len, pinfo) \
+#define EXTRANEOUS_DATA_CHECK_EXPERT(edc_len, edc_max_len, pinfo, ei) \
     if ((edc_len) > (edc_max_len)) \
     { \
-        proto_item *expert_item; \
-        expert_item = proto_tree_add_text(tree, tvb, \
-            curr_offset, (edc_len) - (edc_max_len), "Extraneous Data, dissector bug or later version spec(report to wireshark.org)"); \
-        expert_add_info_format(pinfo, expert_item, PI_PROTOCOL, PI_NOTE, "Extraneous Data, dissector bug or later version spec(report to wireshark.org)"); \
-        PROTO_ITEM_SET_GENERATED(expert_item); \
+        proto_tree_add_expert(tree, pinfo, ei, tvb, curr_offset, (edc_len) - (edc_max_len)); \
         curr_offset += ((edc_len) - (edc_max_len)); \
     }
 
@@ -259,83 +247,83 @@ extern const char* get_gsm_a_msg_string(int pdu_type, int idx);
     }
 
 #define NO_MORE_DATA_CHECK(nmdc_len) \
-    if ((nmdc_len) == (curr_offset - offset)) return(nmdc_len);
+    if ((nmdc_len) <= (curr_offset - offset)) return(nmdc_len);
 
-#define SET_ELEM_VARS(SEV_pdu_type, SEV_elem_names, SEV_elem_ett, SEV_elem_funcs) \
+#define SET_ELEM_VARS(SEV_pdu_type, SEV_elem_names_ext, SEV_elem_ett, SEV_elem_funcs) \
     switch (SEV_pdu_type) \
     { \
     case GSM_A_PDU_TYPE_BSSMAP: \
-        SEV_elem_names = gsm_bssmap_elem_strings; \
+        SEV_elem_names_ext = gsm_bssmap_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_bssmap_elem; \
         SEV_elem_funcs = bssmap_elem_fcn; \
         break; \
     case GSM_A_PDU_TYPE_DTAP: \
-        SEV_elem_names = gsm_dtap_elem_strings; \
+        SEV_elem_names_ext = gsm_dtap_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_dtap_elem; \
         SEV_elem_funcs = dtap_elem_fcn; \
         break; \
     case GSM_A_PDU_TYPE_RP: \
-        SEV_elem_names = gsm_rp_elem_strings; \
+        SEV_elem_names_ext = gsm_rp_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_rp_elem; \
         SEV_elem_funcs = rp_elem_fcn; \
         break; \
     case GSM_A_PDU_TYPE_RR: \
-        SEV_elem_names = gsm_rr_elem_strings; \
+        SEV_elem_names_ext = gsm_rr_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_rr_elem; \
         SEV_elem_funcs = rr_elem_fcn; \
         break; \
     case GSM_A_PDU_TYPE_COMMON: \
-        SEV_elem_names = gsm_common_elem_strings; \
+        SEV_elem_names_ext = gsm_common_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_common_elem; \
         SEV_elem_funcs = common_elem_fcn; \
         break; \
     case GSM_A_PDU_TYPE_GM: \
-        SEV_elem_names = gsm_gm_elem_strings; \
+        SEV_elem_names_ext = gsm_gm_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_gm_elem; \
         SEV_elem_funcs = gm_elem_fcn; \
         break; \
     case GSM_A_PDU_TYPE_BSSLAP: \
-        SEV_elem_names = gsm_bsslap_elem_strings; \
+        SEV_elem_names_ext = gsm_bsslap_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_bsslap_elem; \
         SEV_elem_funcs = bsslap_elem_fcn; \
         break; \
     case GSM_PDU_TYPE_BSSMAP_LE: \
-        SEV_elem_names = gsm_bssmap_le_elem_strings; \
+        SEV_elem_names_ext = gsm_bssmap_le_elem_strings_ext; \
         SEV_elem_ett = ett_gsm_bssmap_le_elem; \
         SEV_elem_funcs = bssmap_le_elem_fcn; \
         break; \
     case NAS_PDU_TYPE_COMMON: \
-        SEV_elem_names = nas_eps_common_elem_strings; \
+        SEV_elem_names_ext = nas_eps_common_elem_strings_ext; \
         SEV_elem_ett = ett_nas_eps_common_elem; \
         SEV_elem_funcs = nas_eps_common_elem_fcn; \
         break; \
     case NAS_PDU_TYPE_EMM: \
-        SEV_elem_names = nas_emm_elem_strings; \
+        SEV_elem_names_ext = nas_emm_elem_strings_ext; \
         SEV_elem_ett = ett_nas_eps_emm_elem; \
         SEV_elem_funcs = emm_elem_fcn; \
         break; \
     case NAS_PDU_TYPE_ESM: \
-        SEV_elem_names = nas_esm_elem_strings; \
+        SEV_elem_names_ext = nas_esm_elem_strings_ext; \
         SEV_elem_ett = ett_nas_eps_esm_elem; \
         SEV_elem_funcs = esm_elem_fcn; \
         break; \
     case SGSAP_PDU_TYPE: \
-        SEV_elem_names = sgsap_elem_strings; \
+        SEV_elem_names_ext = sgsap_elem_strings_ext; \
         SEV_elem_ett = ett_sgsap_elem; \
         SEV_elem_funcs = sgsap_elem_fcn; \
         break; \
     case BSSGP_PDU_TYPE: \
-        SEV_elem_names = bssgp_elem_strings; \
+        SEV_elem_names_ext = bssgp_elem_strings_ext; \
         SEV_elem_ett = ett_bssgp_elem; \
         SEV_elem_funcs = bssgp_elem_fcn; \
         break; \
     case GMR1_IE_COMMON: \
-        SEV_elem_names = gmr1_ie_common_strings; \
+        SEV_elem_names_ext = gmr1_ie_common_strings_ext; \
         SEV_elem_ett = ett_gmr1_ie_common; \
         SEV_elem_funcs = gmr1_ie_common_func; \
         break; \
     case GMR1_IE_RR: \
-        SEV_elem_names = gmr1_ie_rr_strings; \
+        SEV_elem_names_ext = gmr1_ie_rr_strings_ext; \
         SEV_elem_ett = ett_gmr1_ie_rr; \
         SEV_elem_funcs = gmr1_ie_rr_func; \
         break; \
@@ -404,7 +392,7 @@ WS_DLL_PUBLIC guint16 elem_v(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo
 /*
  * Short Value (V_SHORT) element dissector
  *
- * nibble used in this functions to indicate left or right nibble of the octet 
+ * nibble used in this functions to indicate left or right nibble of the octet
  * This is expected to be used right nibble first, as the tables of 24.008.
  */
 WS_DLL_PUBLIC guint16 elem_v_short(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gint pdu_type, int idx, guint32 offset, guint32 nibble);
@@ -704,7 +692,7 @@ guint16 de_gmm_ms_radio_acc_cap(tvbuff_t *tvb, proto_tree *tree, packet_info *pi
 guint16 de_gmm_voice_domain_pref(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
 
 guint16 de_sup_codec_list(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
- 
+
 
 WS_DLL_PUBLIC
 guint16 de_rr_cause(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len, gchar *add_string, int string_len);
@@ -739,6 +727,7 @@ guint16 de_emm_trac_area_id(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo,
 guint16 de_emm_sec_par_from_eutra(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_);
 guint16 de_emm_sec_par_to_eutra(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len _U_, gchar *add_string _U_, int string_len _U_);
 guint16 de_esm_qos(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo _U_, guint32 offset, guint len, gchar *add_string _U_, int string_len _U_);
+void nas_esm_pdn_con_req(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len);
 
 void dtap_rr_ho_cmd(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len);
 void dtap_rr_cip_mode_cpte(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, guint32 offset, guint len);
@@ -778,6 +767,8 @@ extern const value_string gsm_a_sms_vals[];
 extern const value_string tighter_cap_level_vals[];
 extern value_string_ext gsm_a_rr_rxlev_vals_ext;
 extern const value_string gsm_a_gm_type_of_ciph_alg_vals[];
+
+extern value_string_ext nas_eps_emm_cause_values_ext;
 
 typedef enum
 {
@@ -940,6 +931,24 @@ typedef enum
     BE_UDEF_130,                        /* Undefined */
     BE_KC128,                           /* Kc128 */
     BE_CSG_ID,                          /* CSG Identifier */
+	BE_REDIR_ATT_FLG,                   /* Redirect Attempt Flag               3.2.2.111    */
+	BE_REROUTE_REJ_CAUSE,               /* Reroute Reject Cause                3.2.2.112    */
+	BE_SEND_SEQN,                       /* Send Sequence Number                3.2.2.113    */
+	BE_REROUTE_OUTCOME,                 /* Reroute complete outcome            3.2.2.114    */
+	BE_GLOBAL_CALL_REF,                 /* Global Call Reference               3.2.2.115    */
+	BE_LCLS_CONF,                       /* LCLS-Configuration                  3.2.2.116    */
+	BE_LCLS_CON_STATUS_CONTROL,         /* LCLS-Connection-Status-Control      3.2.2.117    */
+	BE_LCLS_CORR_NOT_NEEDED,            /* LCLS-Correlation-Not-Needed         3.2.2.118    */
+	BE_LCLS_BSS_STATUS,                 /* LCLS-BSS-Status                     3.2.2.119    */
+	BE_LCLS_BREAK_REQ,                  /* LCLS-Break-Request                  3.2.2.120    */
+	BE_CSFB_IND,                        /* CSFB Indication                     3.2.2.121    */
+#if 0
+	BE_CS_TO_PS_SRVCC,                  /* CS to PS SRVCC                      3.2.2.122    */
+	BE_SRC_ENB_2_TGT_ENB_TRANSP_INF,    /* Source eNB to target eNB transparent information (E-UTRAN)" 3.2.2.123    */
+	BE_CS_TO_PS_SRVCC_IND,              /* CS to PS SRVCC Indication           3.2.2.124    */
+	BE_CN_TO_MS_TRANSP,                 /* CN to MS transparent information    3.2.2.125    */
+#endif
+	BE_SELECTED_PLMN_ID,                /* Selected PLMN ID                    3.2.2.126    */
     BE_NONE                             /* NONE */
 }
 bssmap_elem_idx_t;

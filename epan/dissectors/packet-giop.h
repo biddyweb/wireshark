@@ -4,8 +4,6 @@
  *
  * Based on CORBAv2.4.2  Chapter 15 GIOP Description.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -173,7 +171,7 @@ extern void delete_giop_user_module(giop_sub_dissector_t *sub, gchar *name,
  */
 
 WS_DLL_PUBLIC void get_CDR_any(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, proto_item *item,
-                        gint *offset, gboolean stream_is_big_endian, 
+                        gint *offset, gboolean stream_is_big_endian,
                         int boundary, MessageHeader * header);
 
 
@@ -260,7 +258,7 @@ WS_DLL_PUBLIC guint32 get_CDR_enum(tvbuff_t *tvb, int *offset,
  *
  */
 
-WS_DLL_PUBLIC void get_CDR_fixed(tvbuff_t *tvb, packet_info *pinfo, proto_item *item, 
+WS_DLL_PUBLIC void get_CDR_fixed(tvbuff_t *tvb, packet_info *pinfo, proto_item *item,
                           gchar **seq, gint *offset, guint32 digits, gint32 scale);
 
 
@@ -356,8 +354,8 @@ WS_DLL_PUBLIC guint8 get_CDR_octet(tvbuff_t *tvb, int *offset);
 
 
 /* Copy a sequence of octets from the tvbuff.
- * Caller of this function must remember to free the
- * array pointed to by seq.
+ * Memory is allocated in packet pool and will be
+ * automatically freed once the packet dissection is finished.
  * This function also increments offset by len.
  */
 
@@ -386,8 +384,9 @@ extern void giop_add_CDR_string(proto_tree *tree, tvbuff_t *tvb, int *offset,
  * offset is first incremented so that it falls on a proper alignment
  * boundary for string values. (begins with an unsigned long LI)
  *
- * String sequence is copied to a  buffer "seq". This must
- * be freed by the calling program.
+ * String sequence is copied to a buffer "seq".
+ * Memory is allocated in packet pool and will be
+ * automatically freed once the packet dissection is finished.
  * offset is then incremented  , to indicate the  octets which
  * have been processed.
  *
@@ -455,8 +454,8 @@ WS_DLL_PUBLIC guint16 get_CDR_ushort(tvbuff_t *tvb, int *offset,
 
 
 /* Copy a wchar from the tvbuff.
- * Caller of this function must remember to free the
- * array pointed to by seq.
+ * Memory is allocated in packet pool and will be
+ * automatically freed once the packet dissection is finished.
  * This function also increments offset according to
  * the wchar size.
  *
@@ -489,8 +488,8 @@ WS_DLL_PUBLIC gint get_CDR_wchar(tvbuff_t *tvb, const gchar **seq, int *offset,
 
 
 /* Copy a wstring from the tvbuff.
- * Caller of this function must remember to free the
- * array pointed to by seq.
+ * Memory is allocated in packet pool and will be
+ * automatically freed once the packet dissection is finished.
  * This function also increments offset, according to
  * wstring length. length is returned as guint32
  */

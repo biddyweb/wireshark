@@ -2,8 +2,6 @@
  * Routines for DOCSIS 3.0 CM-STATUS Report Message dissection.
  * Copyright 2011, Hendrik Robbel <hendrik.robbel[AT]kabeldeutschland.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,7 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 
 #define SEC_CH_MDD_TIMEOUT      1
 #define QAM_FEC_LOCK_FAILURE    2
@@ -43,6 +42,8 @@
 #define EVENT_US_CH_ID          5
 #define EVENT_DSID              6
 
+void proto_register_docsis_cmstatus(void);
+void proto_reg_handoff_docsis_cmstatus(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_docsis_cmstatus = -1;
@@ -144,7 +145,6 @@ dissect_cmstatus (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
   transid = tvb_get_ntohs (tvb, 0);
   event_type = tvb_get_guint8 (tvb, 2);
   len = tvb_reported_length_remaining (tvb, 3);
-  col_clear (pinfo->cinfo, COL_INFO);
   col_add_fstr (pinfo->cinfo, COL_INFO, "CM-STATUS Report: Transaction ID = %u", transid);
 
   if (tree)

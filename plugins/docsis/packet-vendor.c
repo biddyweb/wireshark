@@ -2,8 +2,6 @@
  * Routines for Vendor Specific Encodings dissection
  * Copyright 2002, Anand V. Narwani <anand[AT]narwani.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -43,18 +41,14 @@
 
 #include "config.h"
 
-#ifdef HAVE_SYS_TYPES_H
-# include <sys/types.h>
-#endif
-
-#ifdef HAVE_NETINET_IN_H
-# include <netinet/in.h>
-#endif
-
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 
 /* Define Vendor ID's here */
 #define VENDOR_CISCO 0x00000C
+
+void proto_register_docsis_vsif(void);
+void proto_reg_handoff_docsis_vsif(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_docsis_vsif = -1;

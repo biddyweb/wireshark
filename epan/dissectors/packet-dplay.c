@@ -2,8 +2,6 @@
  * This is a dissector for the DirectPlay protocol.
  * Copyright 2006 - 2008 by Kai Blin
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,11 +26,14 @@
 #include "config.h"
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/aftypes.h>
 #include <string.h>
 
 /* function declarations */
+void proto_register_dplay(void);
+void proto_reg_handoff_dplay(void);
+
 static void dissect_dplay(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 static gint dissect_type1a_message(proto_tree *tree, tvbuff_t *tvb, gint offset);
 
@@ -425,7 +426,7 @@ static gint display_unicode_string(proto_tree *tree, gint hf_index, tvbuff_t *tv
      * Allocate a buffer for the string; "len" is the length in
      * bytes, not the length in characters.
      */
-    str = ep_alloc(len/2);
+    str = (char *)wmem_alloc(wmem_packet_scope(), len/2);
 
     /*
      * XXX - this assumes the string is just ISO 8859-1; we need
@@ -1150,17 +1151,18 @@ static void dissect_dplay_player_msg(tvbuff_t *tvb, packet_info *pinfo, proto_tr
 }
 static gboolean heur_dissect_dplay(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-    guint8 signature[] = {'p','l','a','y'};
     guint32 dplay_id, token;
 
-    if(!tvb_bytes_exist(tvb, 0, 24))
+    if(tvb_length(tvb) < 25)
         return FALSE;
 
+    /* The string play = 0x706c6179 */
     dplay_id = tvb_get_letohl(tvb, 20);
-    if( memcmp(signature, (guint8 *)&dplay_id, 4) == 0) {
+    if( dplay_id == 0x706c6179) {
         dissect_dplay(tvb, pinfo, tree);
         return TRUE;
     }
+
 
     /* There is a player to player message that does not contain "play" */
     token = tvb_get_letohl(tvb, 0);
@@ -1742,4 +1744,3 @@ void proto_reg_handoff_dplay(void)
     heur_dissector_add("udp", heur_dissect_dplay, proto_dplay);
     heur_dissector_add("tcp", heur_dissect_dplay, proto_dplay);
 }
-

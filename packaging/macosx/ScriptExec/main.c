@@ -3,8 +3,6 @@
         This is the executable that goes into Platypus apps
     Copyright (C) 2003 Sveinbjorn Thordarson <sveinbt@hi.is>
 
-    $Id$
-
     With modifications by Aaron Voisine for gimp.app
     With modifications by Marianne gagnon for Wilber-loves-apple
     With modifications by Michael Wybrow for Inkscape.app
@@ -22,7 +20,8 @@
 
     You should have received a copy of the GNU General Public License
     along with this program; if not, write to the Free Software
-    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301
+    USA.
 
     main.c - main program file
 

@@ -3,8 +3,6 @@
  * RFC 1939
  * Copyright 1999, Richard Sharpe <rsharpe@ns.aus.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,7 +35,11 @@
 #include <epan/conversation.h>
 #include <epan/prefs.h>
 #include <epan/reassemble.h>
+#include <epan/wmem/wmem.h>
 #include "packet-ssl.h"
+
+void proto_register_pop(void);
+void proto_reg_handoff_pop(void);
 
 static int proto_pop = -1;
 
@@ -78,8 +80,7 @@ static dissector_handle_t ssl_handle = NULL;
 /* desegmentation of POP command and response lines */
 static gboolean pop_data_desegment = TRUE;
 
-static GHashTable *pop_data_segment_table = NULL;
-static GHashTable *pop_data_reassembled_table = NULL;
+static reassembly_table pop_data_reassembly_table;
 
 static const fragment_items pop_data_frag_items = {
   /* Fragment subtrees */
@@ -135,7 +136,7 @@ dissect_pop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   int                    linelen;
   int                    tokenlen;
   const guchar           *next_token;
-  fragment_data          *frag_msg = NULL;
+  fragment_head          *frag_msg = NULL;
   tvbuff_t               *next_tvb = NULL;
   conversation_t         *conversation = NULL;
   struct pop_data_val    *data_val = NULL;
@@ -143,16 +144,16 @@ dissect_pop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "POP");
 
-  frame_data_p = p_get_proto_data(pinfo->fd, proto_pop);
+  frame_data_p = (struct pop_proto_data *)p_get_proto_data(wmem_file_scope(), pinfo, proto_pop, 0);
 
   conversation = find_or_create_conversation(pinfo);
-  data_val = conversation_get_proto_data(conversation, proto_pop);
+  data_val = (struct pop_data_val *)conversation_get_proto_data(conversation, proto_pop);
   if (!data_val) {
 
      /*
       * No conversation - create one and attach it.
       */
-     data_val = se_alloc0(sizeof(struct pop_data_val));
+     data_val = wmem_new0(wmem_file_scope(), struct pop_data_val);
 
      conversation_add_proto_data(conversation, proto_pop, data_val);
   }
@@ -195,22 +196,20 @@ dissect_pop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     is_continuation = response_is_continuation(line);
   }
 
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    /*
-     * Put the first line from the buffer into the summary
-     * if it's a POP request or reply (but leave out the
-     * line terminator).
-     * Otherwise, just call it a continuation.
-     */
-    if (is_continuation) {
-      length_remaining = tvb_length_remaining(tvb, offset);
-      col_add_fstr(pinfo->cinfo, COL_INFO, "S: DATA fragment, %d byte%s",
+  /*
+   * Put the first line from the buffer into the summary
+   * if it's a POP request or reply (but leave out the
+   * line terminator).
+   * Otherwise, just call it a continuation.
+   */
+  if (is_continuation) {
+    length_remaining = tvb_length_remaining(tvb, offset);
+    col_add_fstr(pinfo->cinfo, COL_INFO, "S: DATA fragment, %d byte%s",
                    length_remaining, plurality (length_remaining, "", "s"));
-    }
-    else
-      col_add_fstr(pinfo->cinfo, COL_INFO, "%s: %s", is_request ? "C" : "S",
-                   format_text(line, linelen));
   }
+  else
+    col_add_fstr(pinfo->cinfo, COL_INFO, "%s: %s", is_request ? "C" : "S",
+                   format_text(line, linelen));
 
   ti = proto_tree_add_item(tree, proto_pop, tvb, offset, -1, ENC_NA);
   pop_tree = proto_item_add_subtree(ti, ett_pop);
@@ -223,18 +222,18 @@ dissect_pop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
         data_val->msg_read_len += tvb_length(tvb);
 
-        frame_data_p = se_alloc(sizeof(struct pop_proto_data));
+        frame_data_p = wmem_new(wmem_file_scope(), struct pop_proto_data);
 
         frame_data_p->conversation_id = conversation->index;
         frame_data_p->more_frags = data_val->msg_read_len < data_val->msg_tot_len;
 
-        p_add_proto_data(pinfo->fd, proto_pop, frame_data_p);
+        p_add_proto_data(wmem_file_scope(), pinfo, proto_pop, 0, frame_data_p);
       }
 
-      frag_msg = fragment_add_seq_next(tvb, 0, pinfo,
+      frag_msg = fragment_add_seq_next(&pop_data_reassembly_table, tvb, 0,
+                                       pinfo,
                                        frame_data_p->conversation_id,
-                                       pop_data_segment_table,
-                                       pop_data_reassembled_table,
+                                       NULL,
                                        tvb_length(tvb),
                                        frame_data_p->more_frags);
 
@@ -386,8 +385,8 @@ static gboolean response_is_continuation(const guchar *data)
 
 static void pop_data_reassemble_init (void)
 {
-  fragment_table_init (&pop_data_segment_table);
-  reassembled_table_init (&pop_data_reassembled_table);
+  reassembly_table_init (&pop_data_reassembly_table,
+                         &addresses_ports_reassembly_table_functions);
 }
 
 void

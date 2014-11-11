@@ -1,8 +1,6 @@
 /* oui.h
  * Definitions of OUIs
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 - 2000 Gerald Combs
@@ -61,6 +59,7 @@
 #define OUI_SONY_ERICSSON_7 0x001813    /* Sony Ericsson Mobile Communications AB */
 #define OUI_BLUETOOTH       0x001958    /* Bluetooth SIG */
 #define OUI_SONY_ERICSSON_8 0x001963    /* Sony Ericsson Mobile Communications AB */
+#define OUI_DCBX            0x001B21    /* Data Center Bridging Capabilities Exchange Protocol */
 #define OUI_IEEE_802_1QBG   0x001B3F    /* IEEE 802.1 Qbg */
 #define OUI_TURBOCELL       0x0020F6    /* KarlNet, who brought you Turbocell */
 #define OUI_CISCOWL         0x004096    /* Cisco Wireless (Aironet) */
@@ -79,10 +78,46 @@
 #define OUI_HP_2            0x00805F    /* Hewlett-Packard */
 #define OUI_WFA             0x506F9A    /* Wi-Fi Alliance */
 #define OUI_3GPP2           0xCF0002    /* 3GPP2 */
+#define OUI_ARUBA           0x000b86    /* Aruba Networks */
+#define OUI_NINTENDO        0x001F32
+
+#define OUI_WPAWME          0x0050F2    /* Wi-Fi : WPA / WME */
+#define OUI_RSN             0x000FAC    /* Wi-Fi : RSN */
+#define OUI_PRE11N          0x00904C    /* Wi-Fi : 802.11 Pre-N */
 
 /*
  * Defined in packet-llc.c
  */
 extern const value_string oui_vals[];
 
+
+static const value_string tlv_oui_subtype_vals[] = {
+    /* Currently, the manuf file calls this "Ieee8021"; "IEEE 802.1" looks better */
+    { OUI_IEEE_802_1,       "IEEE 802.1" },
+    /* Currently, the manuf file calls this "Ieee8023"; "IEEE 802.3" looks better */
+    { OUI_IEEE_802_3,       "IEEE 802.3" },
+    /* Currently, the manuf file calls this "Telecomm"; "TIA TR-41 Committee" looks better */
+    { OUI_MEDIA_ENDPOINT,   "TIA TR-41 Committee" },
+    /* Currently, the manuf file calls this "Profibus" */
+    { OUI_PROFINET,         "PROFINET" },
+    /* Currently, the manuf file calls this "Procurve", as it's assigned to HP! */
+    { OUI_IEEE_802_1QBG,    "IEEE 802.1Qbg" },
+    /*  Data Center Bridging Exchange */
+    { OUI_DCBX,             "Data Center Bridging Capabilities Exchange" },
+    { 0, NULL }
+};
+
 #endif
+
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

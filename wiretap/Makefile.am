@@ -1,8 +1,6 @@
 # Makefile.am
 # Automake file for Wiretap
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -30,7 +28,7 @@ include Makefile.common
 noinst_LTLIBRARIES = libwiretap_generated.la
 lib_LTLIBRARIES = libwiretap.la
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
-libwiretap_la_LDFLAGS = -version-info 0:0:0 @LDFLAGS_SHAREDLIB@
+libwiretap_la_LDFLAGS = -version-info 4:1:0 @LDFLAGS_SHAREDLIB@
 
 AM_NON_GENERATED_CFLAGS =-DWS_BUILD_DLL
 
@@ -68,7 +66,6 @@ EXTRA_DIST = \
 	README.developer	\
 	Makefile.common		\
 	Makefile.nmake		\
-	libwiretap.vcproj	\
 	$(GENERATOR_FILES) 	\
 	$(GENERATED_FILES)
 
@@ -83,7 +80,9 @@ ascend_scanner_lex.h : ascend_scanner.c
 
 ascend_scanner.c: ascend.h
 
-ascend.c ascend.h: ascend.y
+ascend.h: ascend.c
+
+ascend.c: ascend.y
 	@if [ -z "$(YACC)" ]; then \
 		echo "Neither bison nor byacc has been found"; \
 		exit 1; \
@@ -105,5 +104,7 @@ dumpabi-libwiretap: all abi-descriptor.xml
 
 checkapi:
 ## 'abort' checking disabled for now pending resolution of existing use of g_assert & g_error
-##	$(PERL) ../tools/checkAPIs.pl -g abort -g termoutput $(NONGENERATED_C_FILES) $(GENERATOR_FILES)
-	$(PERL) ../tools/checkAPIs.pl -g termoutput -build $(NONGENERATED_C_FILES) $(GENERATOR_FILES)
+##	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -g abort -g termoutput \
+	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -g termoutput -build \
+	-sourcedir=$(srcdir) \
+	$(NONGENERATED_C_FILES) $(GENERATOR_FILES)

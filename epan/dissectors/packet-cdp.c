@@ -2,8 +2,6 @@
  * Routines for the disassembly of the "Cisco Discovery Protocol"
  * (c) Copyright Hannes R. Boehm <hannes@boehm.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,8 +27,9 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-#include <epan/strutil.h>
+#include <epan/to_str.h>
 #include <epan/in_cksum.h>
+#include <epan/wmem/wmem.h>
 
 #include <epan/oui.h>
 #include <epan/nlpid.h>
@@ -49,6 +48,9 @@
  *
  * for some more information on CDP version 2.
  */
+
+void proto_register_cdp(void);
+void proto_reg_handoff_cdp(void);
 
 /* Offsets in TLV structure. */
 #define TLV_TYPE        0
@@ -132,6 +134,21 @@ add_multi_line_string_to_tree(proto_tree *tree, tvbuff_t *tvb, gint start,
 #define TYPE_NRGYZ              0x001d /* EnergyWise over CDP */
 #define TYPE_SPARE_POE          0x001f /* Spare Pair PoE */
 
+#define TYPE_HP_BSSID           0x1000 /* BSSID */
+#define TYPE_HP_SERIAL          0x1001 /* Serial number */
+#define TYPE_HP_SSID            0x1002 /* SSID */
+#define TYPE_HP_RADIO1_CH       0x1003 /* Radio1 channel */
+/*                              0x1004 */
+/*                              0x1005 */
+#define TYPE_HP_SNMP_PORT       0x1006 /* SNMP listening UDP port */
+#define TYPE_HP_MGMT_PORT       0x1007 /* Web interface TCP port */
+#define TYPE_HP_SOURCE_MAC      0x1008 /* Sender MAC address for the AP, bouth wired and wireless */
+#define TYPE_HP_RADIO2_CH       0x1009 /* Radio2 channel */
+#define TYPE_HP_RADIO1_OMODE    0x100A /* Radio1 Operating mode */
+#define TYPE_HP_RADIO2_OMODE    0x100B /* Radio2 Operating mode */
+#define TYPE_HP_RADIO1_RMODE    0x100C /* Radio1 Radio mode */
+#define TYPE_HP_RADIO2_RMODE    0x100D /* Radio2 Radio mode */
+
 static const value_string type_vals[] = {
     { TYPE_DEVICE_ID,       "Device ID" },
     { TYPE_ADDRESS,         "Addresses" },
@@ -160,6 +177,18 @@ static const value_string type_vals[] = {
     { TYPE_PORT_UNIDIR,     "Port Unidirectional" },
     { TYPE_NRGYZ,           "EnergyWise" },
     { TYPE_SPARE_POE,       "Spare PoE" },
+    { TYPE_HP_BSSID,        "BSSID" },
+    { TYPE_HP_SERIAL,       "Serial number" },
+    { TYPE_HP_SSID,         "SSID" },
+    { TYPE_HP_RADIO1_CH,    "Radio1 channel" },
+    { TYPE_HP_SNMP_PORT,    "SNMP UDP port" },
+    { TYPE_HP_MGMT_PORT,    "Web TCP port" },
+    { TYPE_HP_SOURCE_MAC,   "Source MAC address" },
+    { TYPE_HP_RADIO2_CH,    "Radio2 channel" },
+    { TYPE_HP_RADIO1_OMODE, "Radio1 Operating mode" },
+    { TYPE_HP_RADIO2_OMODE, "Radio2 Operating mode" },
+    { TYPE_HP_RADIO1_RMODE, "Radio1 Radio mode" },
+    { TYPE_HP_RADIO2_RMODE, "Radio2 Radio mode" },
     { 0, NULL }
 };
 
@@ -242,7 +271,7 @@ dissect_cdp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     if (data_length & 1) {
         guint8 *padded_buffer;
         /* Allocate new buffer */
-        padded_buffer = ep_alloc(data_length+1);
+        padded_buffer = (guint8 *)wmem_alloc(wmem_packet_scope(), data_length+1);
         tvb_memcpy(tvb, padded_buffer, 0, data_length);
         /* Swap bytes in last word */
         padded_buffer[data_length] = padded_buffer[data_length-1];
@@ -265,13 +294,13 @@ dissect_cdp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     checksum_good = (computed_checksum == 0);
     checksum_bad = !checksum_good;
     if (checksum_good) {
-        checksum_item = proto_tree_add_uint_format(cdp_tree,
+        checksum_item = proto_tree_add_uint_format_value(cdp_tree,
                                                    hf_cdp_checksum, tvb, offset, 2, packet_checksum,
-                                                   "Checksum: 0x%04x [correct]", packet_checksum);
+                                                   "0x%04x [correct]", packet_checksum);
     } else {
-        checksum_item = proto_tree_add_uint_format(cdp_tree,
+        checksum_item = proto_tree_add_uint_format_value(cdp_tree,
                                                    hf_cdp_checksum, tvb, offset, 2, packet_checksum,
-                                                   "Checksum: 0x%04x [incorrect, should be 0x%04x]",
+                                                   "0x%04x [incorrect, should be 0x%04x]",
                                                    packet_checksum,
                                                    in_cksum_shouldbe(packet_checksum, computed_checksum));
     }
@@ -722,7 +751,7 @@ dissect_cdp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 proto_tree_add_item(tlv_tree, hf_cdp_tlvlength, tvb, offset + TLV_LENGTH, 2, ENC_BIG_ENDIAN);
                 proto_tree_add_text(tlv_tree, tvb, offset + 4,
                                     length - 4, "System Object Identifier: %s",
-                                    tvb_bytes_to_str(tvb, offset + 4, length - 4));
+                                    tvb_bytes_to_ep_str(tvb, offset + 4, length - 4));
             }
             offset += length;
             break;
@@ -916,6 +945,182 @@ dissect_cdp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             offset += length;
             break;
 
+        case TYPE_HP_BSSID:
+            /* BSSID */
+            if (tree) {
+                tlvi = proto_tree_add_text(cdp_tree, tvb,
+                                           offset, length, "BSSID: %s",
+                                           tvb_format_text(tvb, offset + 4, length - 4));
+                tlv_tree = proto_item_add_subtree(tlvi, ett_cdp_tlv);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvtype, tvb, offset + TLV_TYPE, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvlength, tvb, offset + TLV_LENGTH, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_platform, tvb, offset + 4, length - 4, ENC_ASCII|ENC_NA);
+            }
+            offset += length;
+            break;
+
+        case TYPE_HP_SERIAL:
+            /* Serial number */
+            if (tree) {
+                tlvi = proto_tree_add_text(cdp_tree, tvb,
+                                           offset, length, "Serial: %s",
+                                           tvb_format_text(tvb, offset + 4, length - 4));
+                tlv_tree = proto_item_add_subtree(tlvi, ett_cdp_tlv);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvtype, tvb, offset + TLV_TYPE, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvlength, tvb, offset + TLV_LENGTH, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_platform, tvb, offset + 4, length - 4, ENC_ASCII|ENC_NA);
+            }
+            offset += length;
+            break;
+
+        case TYPE_HP_SSID:
+            /* SSID */
+            if (tree) {
+                if (length == 4) {
+                    tlvi = proto_tree_add_text(cdp_tree, tvb,
+                                               offset, length, "SSID: [Empty]");
+                    tlv_tree = proto_item_add_subtree(tlvi, ett_cdp_tlv);
+                    proto_tree_add_item(tlv_tree, hf_cdp_tlvtype, tvb, offset + TLV_TYPE, 2, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(tlv_tree, hf_cdp_tlvlength, tvb, offset + TLV_LENGTH, 2, ENC_BIG_ENDIAN);
+                } else {
+                    tlvi = proto_tree_add_text(cdp_tree, tvb,
+                                               offset, length, "SSID: %s",
+                                               tvb_format_text(tvb, offset + 4, length - 4));
+                    tlv_tree = proto_item_add_subtree(tlvi, ett_cdp_tlv);
+                    proto_tree_add_item(tlv_tree, hf_cdp_tlvtype, tvb, offset + TLV_TYPE, 2, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(tlv_tree, hf_cdp_tlvlength, tvb, offset + TLV_LENGTH, 2, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(tlv_tree, hf_cdp_platform, tvb, offset + 4, length - 4, ENC_ASCII|ENC_NA);
+                }
+            }
+            offset += length;
+            break;
+
+        case TYPE_HP_RADIO1_CH:
+            /* Radio1 channel */
+            if (tree) {
+                tlvi = proto_tree_add_text(cdp_tree, tvb,
+                                           offset, length, "Radio 1 channel: %s",
+                                           tvb_format_text(tvb, offset + 4, length - 4));
+                tlv_tree = proto_item_add_subtree(tlvi, ett_cdp_tlv);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvtype, tvb, offset + TLV_TYPE, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvlength, tvb, offset + TLV_LENGTH, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_platform, tvb, offset + 4, length - 4, ENC_ASCII|ENC_NA);
+            }
+            offset += length;
+            break;
+
+        case TYPE_HP_SNMP_PORT:
+            /* SNMP listening UDP port */
+            if (tree) {
+                tlvi = proto_tree_add_text(cdp_tree, tvb,
+                                           offset, length, "SNMP port: %s",
+                                           tvb_format_text(tvb, offset + 4, length - 4));
+                tlv_tree = proto_item_add_subtree(tlvi, ett_cdp_tlv);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvtype, tvb, offset + TLV_TYPE, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvlength, tvb, offset + TLV_LENGTH, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_platform, tvb, offset + 4, length - 4, ENC_ASCII|ENC_NA);
+            }
+            offset += length;
+            break;
+
+        case TYPE_HP_MGMT_PORT:
+            /* Web interface TCP port */
+            if (tree) {
+                tlvi = proto_tree_add_text(cdp_tree, tvb,
+                                           offset, length, "Web mgmt port: %s",
+                                           tvb_format_text(tvb, offset + 4, length - 4));
+                tlv_tree = proto_item_add_subtree(tlvi, ett_cdp_tlv);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvtype, tvb, offset + TLV_TYPE, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvlength, tvb, offset + TLV_LENGTH, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_platform, tvb, offset + 4, length - 4, ENC_ASCII|ENC_NA);
+            }
+            offset += length;
+            break;
+
+        case TYPE_HP_SOURCE_MAC:
+            /* Sender MAC address for the AP, bouth wired and wireless */
+            if (tree) {
+                tlvi = proto_tree_add_text(cdp_tree, tvb,
+                                           offset, length, "Source MAC: %s",
+                                           tvb_format_text(tvb, offset + 4, length - 4));
+                tlv_tree = proto_item_add_subtree(tlvi, ett_cdp_tlv);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvtype, tvb, offset + TLV_TYPE, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvlength, tvb, offset + TLV_LENGTH, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_platform, tvb, offset + 4, length - 4, ENC_ASCII|ENC_NA);
+            }
+            offset += length;
+            break;
+
+        case TYPE_HP_RADIO2_CH:
+            /* Radio2 channel */
+            if (tree) {
+                tlvi = proto_tree_add_text(cdp_tree, tvb,
+                                           offset, length, "Radio 2 channel: %s",
+                                           tvb_format_text(tvb, offset + 4, length - 4));
+                tlv_tree = proto_item_add_subtree(tlvi, ett_cdp_tlv);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvtype, tvb, offset + TLV_TYPE, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvlength, tvb, offset + TLV_LENGTH, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_platform, tvb, offset + 4, length - 4, ENC_ASCII|ENC_NA);
+            }
+            offset += length;
+            break;
+
+        case TYPE_HP_RADIO1_OMODE:
+            /* Radio1 Operating mode */
+            if (tree) {
+                tlvi = proto_tree_add_text(cdp_tree, tvb,
+                                           offset, length, "Radio 1 operating mode: %s",
+                                           tvb_format_text(tvb, offset + 4, length - 4));
+                tlv_tree = proto_item_add_subtree(tlvi, ett_cdp_tlv);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvtype, tvb, offset + TLV_TYPE, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvlength, tvb, offset + TLV_LENGTH, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_platform, tvb, offset + 4, length - 4, ENC_ASCII|ENC_NA);
+            }
+            offset += length;
+            break;
+
+        case TYPE_HP_RADIO2_OMODE:
+            /* Radio2 Operating mode */
+            if (tree) {
+                tlvi = proto_tree_add_text(cdp_tree, tvb,
+                                           offset, length, "Radio 2 operating mode: %s",
+                                           tvb_format_text(tvb, offset + 4, length - 4));
+                tlv_tree = proto_item_add_subtree(tlvi, ett_cdp_tlv);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvtype, tvb, offset + TLV_TYPE, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvlength, tvb, offset + TLV_LENGTH, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_platform, tvb, offset + 4, length - 4, ENC_ASCII|ENC_NA);
+            }
+            offset += length;
+            break;
+
+        case TYPE_HP_RADIO1_RMODE:
+            /* Radio1 Radio mode */
+            if (tree) {
+                tlvi = proto_tree_add_text(cdp_tree, tvb,
+                                           offset, length, "Radio 1 radio mode: %s",
+                                           tvb_format_text(tvb, offset + 4, length - 4));
+                tlv_tree = proto_item_add_subtree(tlvi, ett_cdp_tlv);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvtype, tvb, offset + TLV_TYPE, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvlength, tvb, offset + TLV_LENGTH, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_platform, tvb, offset + 4, length - 4, ENC_ASCII|ENC_NA);
+            }
+            offset += length;
+            break;
+
+        case TYPE_HP_RADIO2_RMODE:
+            /* Radio2 Radio mode */
+            if (tree) {
+                tlvi = proto_tree_add_text(cdp_tree, tvb,
+                                           offset, length, "Radio 2 radio mode: %s",
+                                           tvb_format_text(tvb, offset + 4, length - 4));
+                tlv_tree = proto_item_add_subtree(tlvi, ett_cdp_tlv);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvtype, tvb, offset + TLV_TYPE, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_tlvlength, tvb, offset + TLV_LENGTH, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tlv_tree, hf_cdp_platform, tvb, offset + 4, length - 4, ENC_ASCII|ENC_NA);
+            }
+            offset += length;
+            break;
+
         default:
             if (tree) {
                 tlvi = proto_tree_add_text(cdp_tree, tvb, offset,
@@ -982,7 +1187,7 @@ dissect_address_tlv(tvbuff_t *tvb, int offset, int length, proto_tree *tree)
         if (length != 0) {
             proto_tree_add_text(address_tree, tvb, offset, length,
               "Protocol: %s (truncated)",
-              tvb_bytes_to_str(tvb, offset, length));
+              tvb_bytes_to_ep_str(tvb, offset, length));
         }
         return -1;
     }
@@ -993,7 +1198,7 @@ dissect_address_tlv(tvbuff_t *tvb, int offset, int length, proto_tree *tree)
     } else
         nlpid = -1;
     if (protocol_str == NULL)
-        protocol_str = tvb_bytes_to_str(tvb, offset, protocol_length);
+        protocol_str = tvb_bytes_to_ep_str(tvb, offset, protocol_length);
     proto_tree_add_text(address_tree, tvb, offset, protocol_length,
                         "Protocol: %s", protocol_str);
     offset += protocol_length;
@@ -1011,14 +1216,13 @@ dissect_address_tlv(tvbuff_t *tvb, int offset, int length, proto_tree *tree)
         if (length != 0) {
             proto_tree_add_text(address_tree, tvb, offset, length,
               "Address: %s (truncated)",
-              tvb_bytes_to_str(tvb, offset, length));
+              tvb_bytes_to_ep_str(tvb, offset, length));
         }
         return -1;
     }
     /* XXX - the Cisco document seems to be saying that, for 802.2-format
        protocol types, 0xAAAA03 0x000000 0x0800 is IPv6, but 0x0800 is
        the Ethernet protocol type for IPv4. */
-    length = 2 + protocol_length + 2 + address_length;
     address_type_str = NULL;
     address_str = NULL;
     if ((protocol_type == PROTO_TYPE_NLPID) && (protocol_length == 1)) {
@@ -1038,7 +1242,7 @@ dissect_address_tlv(tvbuff_t *tvb, int offset, int length, proto_tree *tree)
     if (address_type_str == NULL)
         address_type_str = "Address";
     if (address_str == NULL) {
-        address_str = tvb_bytes_to_str(tvb, offset, address_length);
+        address_str = tvb_bytes_to_ep_str(tvb, offset, address_length);
     }
     proto_item_set_text(ti, "%s: %s", address_type_str, address_str);
     proto_tree_add_text(address_tree, tvb, offset, address_length, "%s: %s",
@@ -1332,6 +1536,6 @@ proto_reg_handoff_cdp(void)
     data_handle = find_dissector("data");
     cdp_handle  = create_dissector_handle(dissect_cdp, proto_cdp);
     dissector_add_uint("llc.cisco_pid", 0x2000, cdp_handle);
-    dissector_add_uint("chdlctype",     0x2000, cdp_handle);
+    dissector_add_uint("chdlc.protocol", 0x2000, cdp_handle);
     dissector_add_uint("ppp.protocol",  0x0207, cdp_handle);
 }

@@ -1,8 +1,6 @@
 /* packet-ypbind.c
  * Routines for ypbind dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,9 @@
 #include "packet-rpc.h"
 #include "packet-ypbind.h"
 
+void proto_register_ypbind(void);
+void proto_reg_handoff_ypbind(void);
+
 static int proto_ypbind = -1;
 static int hf_ypbind_procedure_v1 = -1;
 static int hf_ypbind_procedure_v2 = -1;
@@ -47,7 +48,7 @@ static gint ett_ypbind = -1;
 
 
 static int
-dissect_ypbind_domain_v2_request(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_ypbind_domain_v2_request(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	/* domain */
 	offset = dissect_rpc_string(tvb, tree,
@@ -77,7 +78,7 @@ static const value_string error_vals[] = {
 #endif
 
 static int
-dissect_ypbind_domain_v2_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_ypbind_domain_v2_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	guint32 type;
 
@@ -108,7 +109,7 @@ dissect_ypbind_domain_v2_reply(tvbuff_t *tvb, int offset, packet_info *pinfo _U_
 }
 
 static int
-dissect_ypbind_setdomain_v2_request(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree)
+dissect_ypbind_setdomain_v2_request(tvbuff_t *tvb, int offset, packet_info *pinfo _U_, proto_tree *tree, void* data _U_)
 {
 	/* domain */
 	offset = dissect_rpc_string(tvb, tree,

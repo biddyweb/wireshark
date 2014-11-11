@@ -2,8 +2,6 @@
  * Routines for elcom packet dissection
  * Copyright 2008, 2011 juha.takala@iki.fi (Juha Takala)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -55,6 +53,9 @@
 #define ELCOM_UNKNOWN_ENDIAN 0
 #define ELCOM_LITTLE_ENDIAN  1
 #define ELCOM_BIG_ENDIAN     2
+
+void proto_register_elcom(void);
+void proto_reg_handoff_elcom(void);
 
 static int proto_elcom = -1;
 static int hf_elcom_response = -1;
@@ -215,7 +216,7 @@ dissect_lower_address(proto_item *ti_arg, gint ett_arg,
         offset += 8;                /* skip the zero bytes */
 
         /* SUFFIX */
-        suffix = tvb_get_ephemeral_string(tvb, offset+1, len2);
+        suffix = tvb_get_string(wmem_packet_scope(), tvb, offset+1, len2);
         ti = proto_tree_add_item(tree, hf_suff, tvb, offset, 1, ENC_ASCII|ENC_LITTLE_ENDIAN);
         offset += len2+1;
 
@@ -423,17 +424,17 @@ dissect_elcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         col_set_str(pinfo->cinfo, COL_PROTOCOL, "ELCOM");
         col_clear(pinfo->cinfo, COL_INFO);
 
-        is_request = (pinfo->match_port == pinfo->destport);
+        is_request = (pinfo->match_uint == pinfo->destport);
         elcom_len  = tvb_get_ntohs(tvb, 0);
         length_ok  = (tvb_reported_length(tvb) == (elcom_len+2));
-        if (check_col(pinfo->cinfo, COL_INFO)) {
-                col_add_fstr(pinfo->cinfo, COL_INFO, "%s Len=%d%s",
+
+        col_add_fstr(pinfo->cinfo, COL_INFO, "%s Len=%d%s",
                              is_request ? "Request" : "Response",
                              elcom_len,
                              length_ok ? "" : " (incorrect)");
 
-                elcom_msg_type = tvb_get_guint8(tvb, 2);
-                switch (elcom_msg_type) {
+        elcom_msg_type = tvb_get_guint8(tvb, 2);
+        switch (elcom_msg_type) {
                 case P_CONRQ:
                 case P_CONRS:
 
@@ -447,7 +448,7 @@ dissect_elcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                         if (tvb_get_guint8(tvb, 3+1+TOTAL_LEN+LOWADR_LEN) != SUFFIX_LEN) return;
 
                         /* finally believe that there is valid suffix */
-                        suffix = tvb_get_ephemeral_string(tvb, 3+2+LOWADR_LEN, 2);
+                        suffix = tvb_get_string(wmem_packet_scope(), tvb, 3+2+LOWADR_LEN, 2);
                         col_append_fstr(pinfo->cinfo, COL_INFO, " %s Connect", suffix);
                         break;
 
@@ -471,7 +472,6 @@ dissect_elcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 case P_RELRS:
                         col_append_str(pinfo->cinfo, COL_INFO, " Response");
                         break;
-                }
         }
 
         if (!tree)
@@ -510,7 +510,7 @@ dissect_elcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                  */
 
                 /* We need the length here, hardcode the LOWADR_LEN = 21 */
-                ti = proto_tree_add_item(elcom_tree, hf_elcom_initiator, tvb, offset, TOTAL_LEN, ENC_BIG_ENDIAN);
+                ti = proto_tree_add_item(elcom_tree, hf_elcom_initiator, tvb, offset, TOTAL_LEN, ENC_NA);
                 offset = dissect_lower_address(ti, ett_elcom_initiator, tvb, offset,
                                                hf_elcom_initiator_endian,
                                                hf_elcom_initiator_ip,
@@ -519,7 +519,7 @@ dissect_elcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 if (tvb_length_remaining(tvb, offset) <= 0)
                         return;
 
-                ti = proto_tree_add_item(elcom_tree, hf_elcom_responder, tvb, offset, TOTAL_LEN, ENC_BIG_ENDIAN);
+                ti = proto_tree_add_item(elcom_tree, hf_elcom_responder, tvb, offset, TOTAL_LEN, ENC_NA);
                 offset = dissect_lower_address(ti, ett_elcom_responder, tvb, offset,
                                                hf_elcom_responder_endian,
                                                hf_elcom_responder_ip,

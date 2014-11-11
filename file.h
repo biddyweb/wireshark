@@ -1,8 +1,6 @@
 /* file.h
  * Definitions for file structures and routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,11 +24,11 @@
 #define __FILE_H__
 
 #include "wiretap/wtap.h"
-#include "print.h"
 #include <errno.h>
 #include <epan/epan.h>
 
-#include "packet-range.h"
+#include <epan/print.h>
+#include <epan/packet-range.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -108,11 +106,12 @@ cf_callback_remove(cf_callback_t func);
  *
  * @param cf the capture file to be opened
  * @param fname the filename to be opened
+ * @param type WTAP_TYPE_AUTO for automatic or index to direct open routine
  * @param is_tempfile is this a temporary file?
  * @param err error code
  * @return one of cf_status_t
  */
-cf_status_t cf_open(capture_file *cf, const char *fname, gboolean is_tempfile, int *err);
+cf_status_t cf_open(capture_file *cf, const char *fname, unsigned int type, gboolean is_tempfile, int *err);
 
 /**
  * Close a capture file.
@@ -132,47 +131,35 @@ void cf_reload(capture_file *cf);
  * Read all packets of a capture file into the internal structures.
  *
  * @param cf the capture file to be read
- * @param from_save reread asked from cf_save_packets
+ * @param from_save reread asked from cf_save_records
  * @return one of cf_read_status_t
  */
 cf_read_status_t cf_read(capture_file *cf, gboolean from_save);
 
 /**
- * Read the pseudo-header and raw data for a packet.  It will pop
+ * Read the metadata and raw data for a record.  It will pop
  * up an alert box if there's an error.
  *
- * @param cf the capture file from which to read the packet
- * @param fdata the frame_data structure for the packet in question
- * @param pseudo_header pointer to a wtap_pseudo_header union into
- * which to read the packet's pseudo-header
- * @param pd a guin8 array into which to read the packet's raw data
+ * @param cf the capture file from which to read the record
+ * @param fdata the frame_data structure for the record in question
+ * @param phdr pointer to a wtap_pkthdr structure to contain the
+ * record's metadata
+ * @param buf a Buffer into which to read the record's raw data
  * @return TRUE if the read succeeded, FALSE if there was an error
  */
-gboolean cf_read_frame_r(capture_file *cf, frame_data *fdata,
-                         struct wtap_pkthdr *phdr, guint8 *pd);
+gboolean cf_read_record_r(capture_file *cf, const frame_data *fdata,
+                          struct wtap_pkthdr *phdr, Buffer *buf);
 
 /**
- * Read the pseudo-header and raw data for a packet into a
- * capture_file structure's pseudo_header and pd members.
+ * Read the metadata and raw data for a record into a
+ * capture_file structure's phdr and buf members.
  * It will pop up an alert box if there's an error.
  *
- * @param cf the capture file from which to read the packet
- * @param fdata the frame_data structure for the packet in question
+ * @param cf the capture file from which to read the record
+ * @param fdata the frame_data structure for the record in question
  * @return TRUE if the read succeeded, FALSE if there was an error
  */
-gboolean cf_read_frame(capture_file *cf, frame_data *fdata);
-
-/**
- * Start reading from the end of a capture file.
- * This is used in "Update list of packets in Real-Time".
- *
- * @param cf the capture file to be read from
- * @param fname the filename to be read from
- * @param is_tempfile is this a temporary file?
- * @param err the error code, if an error had occurred
- * @return one of cf_status_t
- */
-cf_status_t cf_start_tail(capture_file *cf, const char *fname, gboolean is_tempfile, int *err);
+gboolean cf_read_record(capture_file *cf, frame_data *fdata);
 
 /**
  * Read packets from the "end" of a capture file.
@@ -201,13 +188,38 @@ void cf_fake_continue_tail(capture_file *cf);
 cf_read_status_t cf_finish_tail(capture_file *cf, int *err);
 
 /**
- * Determine whether this capture file (or a range of it) can be saved
+ * Determine whether this capture file (or a range of it) can be written
  * in any format using Wiretap rather than by copying the raw data.
+ *
+ * @param cf the capture file to check
+ * @return TRUE if it can be written, FALSE if it can't
+ */
+gboolean cf_can_write_with_wiretap(capture_file *cf);
+
+/**
+ * Determine whether this capture file can be saved with a "save" operation;
+ * if there's nothing unsaved, it can't.
  *
  * @param cf the capture file to check
  * @return TRUE if it can be saved, FALSE if it can't
  */
-gboolean cf_can_write_with_wiretap(capture_file *cf);
+gboolean cf_can_save(capture_file *cf);
+
+/**
+ * Determine whether this capture file can be saved with a "save as" operation.
+ *
+ * @param cf the capture file to check
+ * @return TRUE if it can be saved, FALSE if it can't
+ */
+gboolean cf_can_save_as(capture_file *cf);
+
+/**
+ * Determine whether this capture file has unsaved data.
+ *
+ * @param cf the capture file to check
+ * @return TRUE if it has unsaved data, FALSE if it doesn't
+ */
+gboolean cf_has_unsaved_data(capture_file *cf);
 
 /**
  * Save all packets in a capture file to a new file, and, if that succeeds,
@@ -220,14 +232,14 @@ gboolean cf_can_write_with_wiretap(capture_file *cf);
  * @param fname the filename to save to
  * @param save_format the format of the file to save (libpcap, ...)
  * @param compressed whether to gzip compress the file
- * @discard_comments TRUE if we should discard comments if the save
+ * @param discard_comments TRUE if we should discard comments if the save
  * succeeds (because we saved in a format that doesn't support
  * comments)
  * @param dont_reopen TRUE if it shouldn't reopen and make that file the
  * current capture file
  * @return one of cf_write_status_t
  */
-cf_write_status_t cf_save_packets(capture_file * cf, const char *fname,
+cf_write_status_t cf_save_records(capture_file * cf, const char *fname,
                                   guint save_format, gboolean compressed,
                                   gboolean discard_comments,
                                   gboolean dont_reopen);
@@ -367,7 +379,7 @@ void cf_reftime_packets(capture_file *cf);
 /**
  * Return the time it took to load the file
  */
-gulong cf_get_computed_elapsed(void);
+gulong cf_get_computed_elapsed(capture_file *cf);
 
 /**
  * "Something" has changed, rescan all packets.
@@ -642,22 +654,24 @@ const gchar* cf_read_shb_comment(capture_file *cf);
  */
 void cf_update_capture_comment(capture_file *cf, gchar *comment);
 
+char *cf_get_comment(capture_file *cf, const frame_data *fd);
+
 /**
  * Update(replace) the comment on a capture from a frame
  *
  * @param cf the capture file
- * @param fdata the frame_data structure for the frame
- * @param comment the string replacing the old comment
+ * @param fd the frame_data structure for the frame
+ * @param new_comment the string replacing the old comment
  */
-void cf_update_packet_comment(capture_file *cf, frame_data *fdata, gchar *comment);
+gboolean cf_set_user_packet_comment(capture_file *cf, frame_data *fd, const gchar *new_comment);
 
 /**
- * Does this capture file have any comments?
+ * What types of comments does this file have?
  *
  * @param cf the capture file
- * @return TRUE if it does, FALSE if it doesn't
+ * @return bitset of WTAP_COMMENT_ values
  */
-gboolean cf_has_comments(capture_file *cf);
+guint32 cf_comment_types(capture_file *cf);
 
 #if defined(HAVE_HEIMDAL_KERBEROS) || defined(HAVE_MIT_KERBEROS)
 WS_DLL_PUBLIC

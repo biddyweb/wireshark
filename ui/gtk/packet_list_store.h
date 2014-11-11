@@ -1,7 +1,5 @@
 /* packet_list_store.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,7 +28,7 @@
 
 #include <glib.h>
 
-#include "epan/column_info.h"
+#include "epan/column-info.h"
 #include "epan/frame_data.h"
 
 /** @file

@@ -4,8 +4,6 @@
  *
  * See RFC 3244
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,8 +29,10 @@
 #include <epan/asn1.h>
 #include "packet-tcp.h"
 #include "packet-kerberos.h"
-#include "packet-ber.h"
 #include <epan/prefs.h>
+
+void proto_register_kpasswd(void);
+void proto_reg_handoff_kpasswd(void);
 
 /* Desegment Kerberos over TCP messages */
 static gboolean kpasswd_desegment = TRUE;
@@ -51,7 +51,6 @@ static int hf_kpasswd_ChangePasswdData = -1;
 static gint ett_kpasswd = -1;
 static gint ett_ap_req_data = -1;
 static gint ett_krb_priv_message = -1;
-static gint ett_ChangePasswdData = -1;
 
 
 #define UDP_PORT_KPASSWD        464
@@ -79,20 +78,6 @@ dissect_kpasswd_ap_req_data(packet_info *pinfo _U_, tvbuff_t *tvb, proto_tree *p
     dissect_kerberos_main(tvb, pinfo, tree, FALSE, NULL);
 }
 
-
-static int dissect_kpasswd_newpassword(proto_tree *tree, tvbuff_t *tvb, int offset, asn1_ctx_t *actx _U_)
-{
-    offset=dissect_ber_octet_string_wcb(FALSE, actx, tree, tvb, offset, hf_kpasswd_newpassword, NULL);
-    return offset;
-}
-
-static ber_old_sequence_t ChangePasswdData_sequence[] = {
-    { BER_CLASS_CON, 0, 0, dissect_kpasswd_newpassword },
-    { BER_CLASS_CON, 1, BER_FLAGS_OPTIONAL, dissect_krb5_cname },
-    { BER_CLASS_CON, 2, BER_FLAGS_OPTIONAL, dissect_krb5_realm },
-    { 0, 0, 0, NULL }
-};
-
 static int
 dissect_kpasswd_user_data_request(packet_info *pinfo, tvbuff_t *tvb, proto_tree *tree)
 {
@@ -100,7 +85,7 @@ dissect_kpasswd_user_data_request(packet_info *pinfo, tvbuff_t *tvb, proto_tree 
     asn1_ctx_t asn1_ctx;
     asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
-    offset=dissect_ber_old_sequence(FALSE, &asn1_ctx, tree, tvb, offset, ChangePasswdData_sequence, hf_kpasswd_ChangePasswdData, ett_ChangePasswdData);
+    offset=dissect_kerberos_ChangePasswdData (FALSE, tvb, offset, &asn1_ctx, tree, hf_kpasswd_ChangePasswdData);
     return offset;
 }
 
@@ -139,9 +124,8 @@ dissect_kpasswd_user_data_reply(packet_info *pinfo, tvbuff_t *tvb, proto_tree *t
     result = tvb_get_ntohs(tvb, offset);
     proto_tree_add_uint(tree, hf_kpasswd_result, tvb, offset, 2, result);
     offset+=2;
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_add_str(pinfo->cinfo, COL_INFO,
-            val_to_str(result, kpasswd_result_types, "Result: %u"));
+    col_add_str(pinfo->cinfo, COL_INFO,
+        val_to_str(result, kpasswd_result_types, "Result: %u"));
 
 
     /* optional result string */
@@ -233,8 +217,7 @@ dissect_kpasswd_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboo
 
     proto_tree_add_uint(kpasswd_tree, hf_kpasswd_message_len, tvb, offset, 2, message_len);
     proto_tree_add_uint(kpasswd_tree, hf_kpasswd_version, tvb, offset+2, 2, version);
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_add_str(pinfo->cinfo, COL_INFO, val_to_str_const(version, vers_vals, "Unknown command"));
+    col_set_str(pinfo->cinfo, COL_INFO, val_to_str_const(version, vers_vals, "Unknown command"));
     proto_tree_add_uint(kpasswd_tree, hf_kpasswd_ap_req_len, tvb, offset+4, 2, ap_req_len);
     offset+=6;
 
@@ -258,8 +241,8 @@ dissect_kpasswd_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     dissect_kpasswd_common(tvb, pinfo, tree, FALSE);
 }
 
-static void
-dissect_kpasswd_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_kpasswd_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
     pinfo->fragmented = TRUE;
     if (dissect_kpasswd_common(tvb, pinfo, tree, TRUE) < 0) {
@@ -269,16 +252,17 @@ dissect_kpasswd_tcp_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
          */
         col_set_str(pinfo->cinfo, COL_INFO, "Continuation");
     }
+    return tvb_length(tvb);
 }
 
-static void
-dissect_kpasswd_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_kpasswd_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "KPASSWD");
     col_clear(pinfo->cinfo, COL_INFO);
 
-    tcp_dissect_pdus(tvb, pinfo, tree, kpasswd_desegment, 4, get_krb_pdu_len,
-    dissect_kpasswd_tcp_pdu);
+    tcp_dissect_pdus(tvb, pinfo, tree, kpasswd_desegment, 4, get_krb_pdu_len, dissect_kpasswd_tcp_pdu, data);
+    return tvb_length(tvb);
 }
 
 void
@@ -318,7 +302,6 @@ proto_register_kpasswd(void)
         &ett_kpasswd,
         &ett_ap_req_data,
         &ett_krb_priv_message,
-        &ett_ChangePasswdData,
     };
         module_t *kpasswd_module;
 
@@ -343,7 +326,7 @@ proto_reg_handoff_kpasswd(void)
     dissector_handle_t kpasswd_handle_tcp;
 
     kpasswd_handle_udp = create_dissector_handle(dissect_kpasswd_udp, proto_kpasswd);
-    kpasswd_handle_tcp = create_dissector_handle(dissect_kpasswd_tcp, proto_kpasswd);
+    kpasswd_handle_tcp = new_create_dissector_handle(dissect_kpasswd_tcp, proto_kpasswd);
     dissector_add_uint("udp.port", UDP_PORT_KPASSWD, kpasswd_handle_udp);
     dissector_add_uint("tcp.port", TCP_PORT_KPASSWD, kpasswd_handle_tcp);
 }

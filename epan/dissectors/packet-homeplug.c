@@ -4,8 +4,6 @@
  * Copyright 2006, Sebastien Tandel <sebastien[AT]tandel.be>
  * Copyright 2009, Luca Ceresoli <luca[AT]lucaceresoli.net>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,6 +32,9 @@
 #include <epan/etypes.h>
 
 #include <epan/ptvcursor.h>
+
+void proto_reg_handoff_homeplug(void);
+void proto_register_homeplug(void);
 
 static int proto_homeplug                     = -1;
 
@@ -449,7 +450,7 @@ static const value_string homeplug_cer_mod_vals[] = {
 
 /* Constants used by various MMEs */
 
-#define HOMEPLUG_ADDR_INEXISTANT G_GINT64_CONSTANT(010000000000U)
+#define HOMEPLUG_ADDR_INEXISTANT G_GUINT64_CONSTANT(010000000000)
 
 /* string values in function of TXPRIO */
 static const value_string homeplug_txprio_vals[] = {
@@ -856,7 +857,7 @@ static void dissect_homeplug_loader(ptvcursor_t * cursor, packet_info * pinfo)
       ptvcursor_add(cursor, hf_homeplug_loader_module_size, 4, ENC_BIG_ENDIAN);
       break;
     case HOMEPLUG_MID_GNVMP:
-      col_set_str(pinfo->cinfo, COL_INFO, "Loader Get NVM Parametes");
+      col_set_str(pinfo->cinfo, COL_INFO, "Loader Get NVM Parameters");
       ptvcursor_add(cursor, hf_homeplug_loader_gnvmp, 1, ENC_BIG_ENDIAN);
       ptvcursor_add(cursor, hf_homeplug_loader_length, 2, ENC_BIG_ENDIAN);
       if (length == 17) {
@@ -868,7 +869,7 @@ static void dissect_homeplug_loader(ptvcursor_t * cursor, packet_info * pinfo)
       }
       break;
     case HOMEPLUG_MID_SNVMP:
-      col_set_str(pinfo->cinfo, COL_INFO, "Loader Set NVM Parametes");
+      col_set_str(pinfo->cinfo, COL_INFO, "Loader Set NVM Parameters");
       ptvcursor_add(cursor, hf_homeplug_loader_snvmp, 1, ENC_BIG_ENDIAN);
       ptvcursor_add(cursor, hf_homeplug_loader_length, 2, ENC_BIG_ENDIAN);
       if (length == 17)
@@ -1021,8 +1022,7 @@ static void dissect_homeplug_ns(ptvcursor_t * cursor, packet_info * pinfo)
   proto_item * ti;
 
   /* Append Basic/Extender specifier to info column */
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_append_str(pinfo->cinfo, COL_INFO, extended ? " Extended" : " Basic");
+  col_append_str(pinfo->cinfo, COL_INFO, extended ? " Extended" : " Basic");
 
   if (!ptvcursor_tree(cursor))
     return;
@@ -1171,8 +1171,7 @@ static void dissect_homeplug_bc(ptvcursor_t * cursor, packet_info * pinfo)
           & HOMEPLUG_BC_NETWORK;
 
   /* Append Network/Local specifier to info column */
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_append_str(pinfo->cinfo, COL_INFO, network ? " Network" : " Local");
+  col_append_str(pinfo->cinfo, COL_INFO, network ? " Network" : " Local");
 
   /* Call specific dissector */
   if (network)
@@ -1221,10 +1220,8 @@ static void dissect_homeplug_unknown(ptvcursor_t * cursor)
 
 static void dissect_homeplug_mme(ptvcursor_t * cursor, packet_info * pinfo)
 {
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_append_sep_str(pinfo->cinfo, COL_INFO, ", ",
+  col_append_sep_str(pinfo->cinfo, COL_INFO, ", ",
         val_to_str(homeplug_metype, homeplug_metype_vals, "Unknown 0x%x"));
-  }
 
   switch(homeplug_metype) {
     case HOMEPLUG_MME_RCE:
@@ -1313,7 +1310,7 @@ dissect_homeplug(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 {
   proto_item * it= NULL;
   proto_tree * homeplug_tree= NULL;
-  ptvcursor_t * cursor= NULL;
+  ptvcursor_t * cursor;
 
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "HomePlug");
   /* Clear out stuff in the info column */
@@ -1324,8 +1321,9 @@ dissect_homeplug(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
   if (tree) {
     it = proto_tree_add_item(tree, proto_homeplug, tvb, homeplug_offset, -1, ENC_NA);
     homeplug_tree = proto_item_add_subtree(it, ett_homeplug);
-    cursor = ptvcursor_new(homeplug_tree, tvb, 0);
   }
+
+  cursor = ptvcursor_new(homeplug_tree, tvb, 0);
 
   /*  We do not have enough data to read mctrl field stop the dissection */
   if (check_tvb_length(cursor, HOMEPLUG_MCTRL_LEN) != TVB_LEN_SHORTEST) {
@@ -1354,8 +1352,7 @@ dissect_homeplug(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
     }
   }
 
-  if (cursor)
-    ptvcursor_free(cursor);
+  ptvcursor_free(cursor);
 }
 
 

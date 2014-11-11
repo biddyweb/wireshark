@@ -1,7 +1,6 @@
 # h225.cnf
 # H.225 conformation file
 # Copyright 2004 Anders Broman
-# $Id$
 
 #.IMPORT ../h235/h235-exp.cnf
 
@@ -268,6 +267,7 @@ IsupNumber/nationalStandardPartyNumber isupNationalStandardPartyNumber
 #.FN_BODY FastStart/_item  VAL_PTR = &value_tvb
 	tvbuff_t *value_tvb = NULL;
 	char codec_str[50];
+	codec_str[0] = '\0';
 
 %(DEFAULT_BODY)s
 	if (value_tvb && tvb_length(value_tvb)) {
@@ -544,11 +544,11 @@ IsupNumber/nationalStandardPartyNumber isupNationalStandardPartyNumber
   %(ACTX)s->value_ptr = &guid_tvb;
 %(DEFAULT_BODY)s
   if (guid_tvb)
-    tvb_get_ntohguid(guid_tvb, 0, call_id_guid = ep_alloc(sizeof(e_guid_t)));
+    tvb_get_ntohguid(guid_tvb, 0, call_id_guid = wmem_new(wmem_packet_scope(), e_guid_t));
   %(ACTX)s->value_ptr = NULL;
 #.END
 #----------------------------------------------------------------------------------------
-#.FN_PARS GloballyUniqueID  VAL_PTR = %(ACTX)s->value_ptr
+#.FN_PARS GloballyUniqueID  VAL_PTR = (tvbuff_t **)%(ACTX)s->value_ptr
 #----------------------------------------------------------------------------------------
 #.FN_PARS RequestSeqNum  VAL_PTR = &(h225_pi->requestSeqNum)
 #----------------------------------------------------------------------------------------
@@ -646,7 +646,7 @@ H221NonStandard/manufacturerCode  VAL_PTR = &manufacturerCode
   actx->private_data = priv_data;
 #.END
 
-#.FN_HDR GenericData/parameters/_item
+#.FN_HDR EnumeratedParameter
   gef_ctx_t *parent_gefx;
 
   parent_gefx = gef_ctx_get(actx->private_data);
@@ -672,8 +672,7 @@ H221NonStandard/manufacturerCode  VAL_PTR = &manufacturerCode
   gefx = gef_ctx_get(actx->private_data);
   if (gefx) {
     /* DEBUG */ /*proto_tree_add_text(tree, tvb, offset>>3, 0, "*** DEBUG dissector_try_string: %s", gefx->key);*/
-    actx->pinfo->private_data = actx;
-    dissector_try_string(gef_name_dissector_table, gefx->key, tvb_new_subset(tvb, offset>>3, 0, 0), actx->pinfo, tree);
+    dissector_try_string(gef_name_dissector_table, gefx->key, tvb_new_subset(tvb, offset>>3, 0, 0), actx->pinfo, tree, actx);
   }
   actx->private_data = gefx;  /* subdissector could overwrite it */
 #.END
@@ -684,7 +683,7 @@ H221NonStandard/manufacturerCode  VAL_PTR = &manufacturerCode
 
 %(DEFAULT_BODY)s
   gefx = gef_ctx_get(actx->private_data);
-  if (gefx) gefx->id = ep_strdup_printf("%%u", value_int);
+  if (gefx) gefx->id = wmem_strdup_printf(wmem_packet_scope(), "%%u", value_int);
 #.END
 
 #.FN_BODY GenericIdentifier/oid  FN_VARIANT = _str  VAL_PTR = &oid_str
@@ -705,7 +704,7 @@ H221NonStandard/manufacturerCode  VAL_PTR = &manufacturerCode
   gefx = gef_ctx_get(actx->private_data);
   if (gefx) {
     /* DEBUG */ /*proto_tree_add_text(tree, tvb, offset>>3, 0, "*** DEBUG dissector_try_string: %%s", gefx->key);*/
-    dissector_try_string(gef_content_dissector_table, gefx->key, value_tvb, %(ACTX)s->pinfo, %(TREE)s);
+    dissector_try_string(gef_content_dissector_table, gefx->key, value_tvb, %(ACTX)s->pinfo, %(TREE)s, %(ACTX)s);
   }
 #.END
 

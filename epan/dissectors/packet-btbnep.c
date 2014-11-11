@@ -3,8 +3,6 @@
  *
  * Copyright 2012, Michal Labedzki for Tieto Corporation
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -31,6 +29,7 @@
 #include <epan/etypes.h>
 #include <epan/expert.h>
 
+#include "packet-bluetooth-hci.h"
 #include "packet-btl2cap.h"
 #include "packet-btsdp.h"
 
@@ -69,10 +68,15 @@ static int hf_btbnep_multicast_address_end                                 = -1;
 static gint ett_btbnep                                                     = -1;
 static gint ett_addr                                                       = -1;
 
+static expert_field ei_btbnep_src_not_group_address = EI_INIT;
+
+static dissector_handle_t btbnep_handle;
+
 static gboolean top_dissect                                              = TRUE;
 
 static dissector_handle_t eth_handle;
 static dissector_handle_t data_handle;
+static dissector_handle_t ethertype_handle;
 
 static const true_false_string ig_tfs = {
     "Group address (multicast/broadcast)",
@@ -137,6 +141,9 @@ static const value_string filter_multi_addr_response_message_vals[] = {
     { 0, NULL }
 };
 
+void proto_register_btbnep(void);
+void proto_reg_handoff_btbnep(void);
+
 static int
 dissect_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset)
 {
@@ -170,19 +177,19 @@ dissect_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset)
             uuid_size = tvb_get_guint8(tvb, offset);
             offset += 1;
 
-            pitem = proto_tree_add_item(tree, hf_btbnep_destination_service_uuid, tvb, offset, uuid_size, ENC_BIG_ENDIAN);
+            pitem = proto_tree_add_item(tree, hf_btbnep_destination_service_uuid, tvb, offset, uuid_size, ENC_NA);
             uuid_dst = tvb_get_ntohs(tvb, offset);
-            proto_item_append_text(pitem, " (%s)", val_to_str_ext(uuid_dst, &vs_service_classes_ext,  "Unknown uuid"));
+            proto_item_append_text(pitem, " (%s)", val_to_str_ext(uuid_dst, &bt_sig_uuid_vals_ext,  "Unknown uuid"));
             offset += uuid_size;
 
-            pitem = proto_tree_add_item(tree, hf_btbnep_source_service_uuid, tvb, offset, uuid_size, ENC_BIG_ENDIAN);
+            pitem = proto_tree_add_item(tree, hf_btbnep_source_service_uuid, tvb, offset, uuid_size, ENC_NA);
             uuid_src = tvb_get_ntohs(tvb, offset);
-            proto_item_append_text(pitem, " (%s)", val_to_str_ext(uuid_src, &vs_service_classes_ext,  "Unknown uuid"));
+            proto_item_append_text(pitem, " (%s)", val_to_str_ext(uuid_src, &bt_sig_uuid_vals_ext,  "Unknown uuid"));
             offset += uuid_size;
 
             col_append_fstr(pinfo->cinfo, COL_INFO, " - dst: <%s>, src: <%s>",
-                    val_to_str_ext(uuid_dst, &vs_service_classes_ext,  "Unknown uuid"),
-                    val_to_str_ext(uuid_src, &vs_service_classes_ext,  "Unknown uuid"));
+                    val_to_str_ext(uuid_dst, &bt_sig_uuid_vals_ext,  "Unknown uuid"),
+                    val_to_str_ext(uuid_src, &bt_sig_uuid_vals_ext,  "Unknown uuid"));
             break;
         case 0x02: /* Setup Connection Response */
             proto_tree_add_item(tree, hf_btbnep_setup_connection_response_message, tvb, offset, 2, ENC_BIG_ENDIAN);
@@ -217,10 +224,10 @@ dissect_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset)
             offset += 2;
 
             for (i_item = 0; i_item < list_length; i_item += 12) {
-                proto_tree_add_item(tree, hf_btbnep_multicast_address_start, tvb, offset, 6, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tree, hf_btbnep_multicast_address_start, tvb, offset, 6, ENC_NA);
                 offset += 6;
 
-                proto_tree_add_item(tree, hf_btbnep_multicast_address_end, tvb, offset, 6, ENC_BIG_ENDIAN);
+                proto_tree_add_item(tree, hf_btbnep_multicast_address_end, tvb, offset, 6, ENC_NA);
                 offset += 6;
             }
             break;
@@ -268,8 +275,8 @@ dissect_extension(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offse
     return offset;
 }
 
-static void
-dissect_btbnep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static gint
+dissect_btbnep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
     proto_item   *pi;
     proto_tree   *btbnep_tree;
@@ -281,33 +288,25 @@ dissect_btbnep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     proto_tree   *addr_tree = NULL;
     const guint8 *src_addr;
     const guint8 *dst_addr;
-    tvbuff_t     *next_tvb;
+
+    pi = proto_tree_add_item(tree, proto_btbnep, tvb, offset, -1, ENC_NA);
+    btbnep_tree = proto_item_add_subtree(pi, ett_btbnep);
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "BNEP");
     col_clear(pinfo->cinfo, COL_INFO);
 
     switch (pinfo->p2p_dir) {
-
-    case P2P_DIR_SENT:
-        col_add_str(pinfo->cinfo, COL_INFO, "Sent ");
-        break;
-
-    case P2P_DIR_RECV:
-        col_add_str(pinfo->cinfo, COL_INFO, "Rcvd ");
-        break;
-
-    case P2P_DIR_UNKNOWN:
-        col_clear(pinfo->cinfo, COL_INFO);
-        break;
-
-    default:
-        col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
+        case P2P_DIR_SENT:
+            col_set_str(pinfo->cinfo, COL_INFO, "Sent ");
+            break;
+        case P2P_DIR_RECV:
+            col_set_str(pinfo->cinfo, COL_INFO, "Rcvd ");
+            break;
+        default:
+            col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown direction %d ",
                 pinfo->p2p_dir);
-        break;
+            break;
     }
-
-    pi = proto_tree_add_item(tree, proto_btbnep, tvb, offset, -1, ENC_NA);
-    btbnep_tree = proto_item_add_subtree(pi, ett_btbnep);
 
     proto_tree_add_item(btbnep_tree, hf_btbnep_extension_flag, tvb, offset, 1, ENC_BIG_ENDIAN);
     proto_tree_add_item(btbnep_tree, hf_btbnep_bnep_type, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -316,8 +315,8 @@ dissect_btbnep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     bnep_type = bnep_type & 0x7F;
     offset += 1;
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, "%s", val_to_str_const(bnep_type, bnep_type_vals,  "Unknown type"));
-    if (extension_flag) col_append_fstr(pinfo->cinfo, COL_INFO, "+E");
+    col_append_str(pinfo->cinfo, COL_INFO, val_to_str_const(bnep_type, bnep_type_vals,  "Unknown type"));
+    if (extension_flag) col_append_str(pinfo->cinfo, COL_INFO, "+E");
 
     if (bnep_type == BNEP_TYPE_GENERAL_ETHERNET || bnep_type == BNEP_TYPE_COMPRESSED_ETHERNET_DESTINATION_ONLY) {
         dst_addr = tvb_get_ptr(tvb, offset, 6);
@@ -342,8 +341,7 @@ dissect_btbnep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         if (addr_item) {
             addr_tree = proto_item_add_subtree(addr_item, ett_addr);
             if (tvb_get_guint8(tvb, offset) & 0x01) {
-                expert_add_info_format(pinfo, addr_item, PI_PROTOCOL, PI_WARN,
-                        "Source MAC must not be a group address: IEEE 802.3-2002, Section 3.2.3(b)");
+                expert_add_info(pinfo, addr_item, &ei_btbnep_src_not_group_address);
             }
         }
         proto_tree_add_ether(addr_tree, hf_btbnep_addr, tvb, offset, 6, src_addr);
@@ -370,19 +368,32 @@ dissect_btbnep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     if (bnep_type != BNEP_TYPE_CONTROL) {
         /* dissect normal network */
        if (top_dissect) {
-            ethertype(type, tvb, offset, pinfo, tree, btbnep_tree,
-                    hf_btbnep_type, 0, 0);
+           ethertype_data_t ethertype_data;
+
+           ethertype_data.etype = type;
+           ethertype_data.offset_after_ethertype = offset;
+           ethertype_data.fh_tree = btbnep_tree;
+           ethertype_data.etype_id = hf_btbnep_type;
+           ethertype_data.trailer_id = 0;
+           ethertype_data.fcs_len = 0;
+
+           call_dissector_with_data(ethertype_handle, tvb, pinfo, tree, &ethertype_data);
        } else {
+            tvbuff_t  *next_tvb;
+
             next_tvb = tvb_new_subset_remaining(tvb, offset);
             call_dissector(data_handle, next_tvb, pinfo, tree);
        }
     }
+
+    return offset;
 }
 
 void
 proto_register_btbnep(void)
 {
     module_t *module;
+    expert_module_t* expert_btbnep;
 
     static hf_register_info hf[] = {
         { &hf_btbnep_bnep_type,
@@ -508,11 +519,17 @@ proto_register_btbnep(void)
         &ett_addr
     };
 
-    proto_btbnep = proto_register_protocol("Bluetooth BNEP Potocol", "BNEP", "btbnep");
-    register_dissector("btbnep", dissect_btbnep, proto_btbnep);
+    static ei_register_info ei[] = {
+        { &ei_btbnep_src_not_group_address, { "btbnep.src.not_group_address", PI_PROTOCOL, PI_WARN, "Source MAC must not be a group address: IEEE 802.3-2002, Section 3.2.3(b)", EXPFILL }},
+    };
+
+    proto_btbnep = proto_register_protocol("Bluetooth BNEP Protocol", "BT BNEP", "btbnep");
+    btbnep_handle = new_register_dissector("btbnep", dissect_btbnep, proto_btbnep);
 
     proto_register_field_array(proto_btbnep, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_btbnep = expert_register_protocol(proto_btbnep);
+    expert_register_field_array(expert_btbnep, ei, array_length(ei));
 
     module = prefs_register_protocol(proto_btbnep, NULL);
     prefs_register_static_text_preference(module, "bnep.version",
@@ -527,11 +544,9 @@ proto_register_btbnep(void)
 void
 proto_reg_handoff_btbnep(void)
 {
-    dissector_handle_t btbnep_handle;
-
-    btbnep_handle = find_dissector("btbnep");
     eth_handle    = find_dissector("eth");
     data_handle   = find_dissector("data");
+    ethertype_handle = find_dissector("ethertype");
 
     dissector_add_uint("btl2cap.service", BTSDP_PAN_GN_SERVICE_UUID, btbnep_handle);
     dissector_add_uint("btl2cap.service", BTSDP_PAN_NAP_SERVICE_UUID, btbnep_handle);

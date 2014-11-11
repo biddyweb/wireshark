@@ -2,8 +2,6 @@
 #
 # Test backend
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 2005 Ulf Lamping
@@ -34,6 +32,11 @@
 # http://www.tldp.org/LDP/abs/html/options.html
 # bash -u test.sh
 
+# make sure that tput (part of ncurses) is installed
+tput -V >/dev/null 2>/dev/null
+if [ ! $? -eq 0 ]; then
+	USE_COLOR=0
+fi
 
 # coloring the output
 if [ $USE_COLOR -eq 1 ] ; then

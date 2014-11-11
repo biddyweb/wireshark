@@ -1,6 +1,4 @@
 #
-# $Id$
-#
 MACRO(ADD_LEMON_FILES _sources )
     set(_lemonpardir ${CMAKE_SOURCE_DIR}/tools/lemon)
     FOREACH (_current_FILE ${ARGN})
@@ -14,7 +12,7 @@ MACRO(ADD_LEMON_FILES _sources )
 	  ${_out}
          COMMAND lemon
            t=${_lemonpardir}/lempar.c
-           ${srcdir}/${_in}
+           ${_in}
          DEPENDS ${_in}
       )
 

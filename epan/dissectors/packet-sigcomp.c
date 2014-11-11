@@ -2,8 +2,6 @@
  * Routines for Signaling Compression (SigComp) dissection.
  * Copyright 2004-2005, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -39,8 +37,13 @@
 #include <epan/prefs.h>
 #include <epan/strutil.h>
 #include <epan/expert.h>
+#include <epan/to_str.h>
+#include <epan/wmem/wmem.h>
 #include <epan/sigcomp-udvm.h>
 #include <epan/sigcomp_state_hdlr.h>
+
+void proto_register_sigcomp(void);
+void proto_reg_handoff_sigcomp(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_sigcomp                            = -1;
@@ -115,6 +118,8 @@ static gint ett_sigcomp_udvm        = -1;
 static gint ett_sigcomp_udvm_exe    = -1;
 static gint ett_raw_text            = -1;
 
+static expert_field ei_sigcomp_nack_failed_op_code = EI_INIT;
+
 static dissector_handle_t sip_handle;
 /* set the udp ports */
 static guint SigCompUDPPort1 = 5555;
@@ -169,6 +174,8 @@ static const value_string destination_address_encoding_vals[] = {
     { 0x0F, "1024" },
     { 0,    NULL }
 };
+static value_string_ext destination_address_encoding_vals_ext =
+    VALUE_STRING_EXT_INIT(destination_address_encoding_vals);
 
 static const value_string udvm_instruction_code_vals[] = {
     {  0,   "DECOMPRESSION-FAILURE" },
@@ -209,6 +216,9 @@ static const value_string udvm_instruction_code_vals[] = {
     { 35,   "END-MESSAGE" },
     { 0,    NULL }
 };
+static value_string_ext udvm_instruction_code_vals_ext =
+    VALUE_STRING_EXT_INIT(udvm_instruction_code_vals);
+
     /* RFC3320
      * Figure 10: Bytecode for a multitype (%) operand
      * Bytecode:                       Operand value:      Range:               HEX val
@@ -301,6 +311,8 @@ static const value_string sigcomp_nack_reason_code_vals[] = {
     { 25,   "FRAMING_ERROR" },
     { 0,    NULL }
 };
+static value_string_ext sigcomp_nack_reason_code_vals_ext =
+    VALUE_STRING_EXT_INIT(sigcomp_nack_reason_code_vals);
 
 
 static void dissect_udvm_bytecode(tvbuff_t *udvm_tvb, proto_tree *sigcomp_udvm_tree, guint destination);
@@ -417,7 +429,7 @@ try_again:
     sigcomp_tree = proto_item_add_subtree(ti, ett_sigcomp);
     i=0;
     end_off_message = FALSE;
-    buff = g_malloc(length-offset);
+    buff = (guint8 *)wmem_alloc(pinfo->pool, length-offset);
     if (udvm_print_detail_level>2)
         proto_tree_add_text(sigcomp_tree, tvb, offset, -1,"Starting to remove escape digits");
     while ((offset < length) && (end_off_message == FALSE)){
@@ -484,10 +496,6 @@ try_again:
         offset++;
     }
     unescaped_tvb = tvb_new_child_real_data(tvb, buff,i,i);
-    /* Arrange that the allocated packet data copy be freed when the
-     * tvbuff is freed.
-     */
-    tvb_set_free_cb( unescaped_tvb, g_free );
 
     add_new_data_source(pinfo, unescaped_tvb, "Unescaped Data handed to the SigComp dissector");
 
@@ -686,7 +694,7 @@ dissect_sigcomp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sigcomp_tr
             offset = offset + len;
         }
         tvb_memcpy(tvb, partial_state, offset, partial_state_len);
-        partial_state_str = bytes_to_str(partial_state, partial_state_len);
+        partial_state_str = bytes_to_ep_str(partial_state, partial_state_len);
         proto_tree_add_string(sigcomp_tree,hf_sigcomp_partial_state,
             tvb, offset, partial_state_len, partial_state_str);
         offset = offset + partial_state_len;
@@ -714,7 +722,7 @@ dissect_sigcomp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sigcomp_tr
             /*
              * Note: The allocated buffer must be zeroed or some strange effects might occur.
              */
-            buff = g_malloc0(UDVM_MEMORY_SIZE);
+            buff = (guint8 *)wmem_alloc0(pinfo->pool, UDVM_MEMORY_SIZE);
 
 
             p_id_start = 0;
@@ -745,17 +753,11 @@ dissect_sigcomp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sigcomp_tr
                 ti = proto_tree_add_text(sigcomp_tree, tvb, 0, -1,"Failed to Access state Wireshark UDVM diagnostic: %s.",
                                          val_to_str(result_code, result_code_vals,"Unknown (%u)"));
                 PROTO_ITEM_SET_GENERATED(ti);
-                g_free(buff);
                 return tvb_length(tvb);
             }
 
             udvm_tvb = tvb_new_child_real_data(tvb, buff,state_length+state_address,state_length+state_address);
             add_new_data_source(pinfo, udvm_tvb, "State/ExecutionTrace");
-            /* Arrange that the allocated packet data copy be freed when the
-             * tvbuff is freed.
-             */
-            tvb_set_free_cb( udvm_tvb, g_free );
-
 
             udvm2_tvb = tvb_new_subset(udvm_tvb, state_address, state_length, state_length);
             udvm_exe_item = proto_tree_add_item(sigcomp_tree, hf_udvm_execution_trace,
@@ -829,10 +831,10 @@ dissect_sigcomp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sigcomp_tr
             offset++;
 
             /* Add expert item for NACK */
-            expert_add_info_format(pinfo, reason_ti, PI_SEQUENCE, PI_WARN,
+            expert_add_info_format(pinfo, reason_ti, &ei_sigcomp_nack_failed_op_code,
                                    "SigComp NACK (reason=%s, opcode=%s)",
-                                   val_to_str_const(octet, sigcomp_nack_reason_code_vals, "Unknown"),
-                                   val_to_str_const(opcode, udvm_instruction_code_vals, "Unknown"));
+                                   val_to_str_ext_const(octet, &sigcomp_nack_reason_code_vals_ext, "Unknown"),
+                                   val_to_str_ext_const(opcode, &udvm_instruction_code_vals_ext, "Unknown"));
 
             proto_tree_add_item(sigcomp_tree,hf_sigcomp_nack_pc, tvb, offset, 2, ENC_BIG_ENDIAN);
             offset = offset +2;
@@ -841,8 +843,8 @@ dissect_sigcomp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *sigcomp_tr
 
             /* Add NACK info to info column */
             col_append_fstr(pinfo->cinfo, COL_INFO, "  NACK reason=%s, opcode=%s",
-                            val_to_str_const(octet, sigcomp_nack_reason_code_vals, "Unknown"),
-                            val_to_str_const(opcode, udvm_instruction_code_vals, "Unknown"));
+                            val_to_str_ext_const(octet, &sigcomp_nack_reason_code_vals_ext, "Unknown"),
+                            val_to_str_ext_const(opcode, &udvm_instruction_code_vals_ext, "Unknown"));
 
             switch ( octet){
             case SIGCOMP_NACK_STATE_NOT_FOUND:
@@ -2235,10 +2237,7 @@ tvb_raw_text_add(tvbuff_t *tvb, proto_tree *tree)
     while (tvb_offset_exists(tvb, offset)) {
         tvb_find_line_end(tvb, offset, -1, &next_offset, FALSE);
         linelen = next_offset - offset;
-        if(raw_tree) {
-            proto_tree_add_text(raw_tree, tvb, offset, linelen,
-                "%s", tvb_format_text(tvb, offset, linelen));
-        }
+        proto_tree_add_format_text(raw_tree, tvb, offset, linelen);
         offset = next_offset;
     }
 }
@@ -2248,8 +2247,6 @@ tvb_raw_text_add(tvbuff_t *tvb, proto_tree *tree)
 void
 proto_register_sigcomp(void)
 {
-    void proto_reg_handoff_sigcomp(void);
-
 /* Setup list of header fields  See Section 1.6.1 for details*/
     static hf_register_info hf[] = {
         { &hf_sigcomp_t_bit,
@@ -2294,7 +2291,7 @@ proto_register_sigcomp(void)
         },
         { &hf_sigcomp_destination,
             { "Destination","sigcomp.destination",
-            FT_UINT8, BASE_HEX, VALS(destination_address_encoding_vals), 0xf,
+            FT_UINT8, BASE_HEX | BASE_EXT_STRING, &destination_address_encoding_vals_ext, 0xf,
             NULL, HFILL }
         },
         { &hf_sigcomp_udvm_bytecode,
@@ -2304,7 +2301,7 @@ proto_register_sigcomp(void)
         },
         { &hf_sigcomp_udvm_instr,
             { "UDVM instruction code","sigcomp.udvm.instr",
-            FT_UINT8, BASE_DEC, VALS(udvm_instruction_code_vals), 0x0,
+            FT_UINT8, BASE_DEC | BASE_EXT_STRING, &udvm_instruction_code_vals_ext, 0x0,
             NULL, HFILL }
         },
         { &hf_udvm_execution_trace,
@@ -2537,12 +2534,12 @@ proto_register_sigcomp(void)
         },
         { &hf_sigcomp_nack_reason_code,
             { "Reason Code", "sigcomp.nack.reason",
-            FT_UINT8, BASE_DEC, VALS(sigcomp_nack_reason_code_vals), 0x0,
+            FT_UINT8, BASE_DEC | BASE_EXT_STRING, &sigcomp_nack_reason_code_vals_ext, 0x0,
             "NACK Reason Code", HFILL }
         },
         { &hf_sigcomp_nack_failed_op_code,
             { "OPCODE of failed instruction", "sigcomp.nack.failed_op_code",
-            FT_UINT8, BASE_DEC, VALS(udvm_instruction_code_vals), 0x0,
+            FT_UINT8, BASE_DEC | BASE_EXT_STRING, &udvm_instruction_code_vals_ext, 0x0,
             "NACK OPCODE of failed instruction", HFILL }
         },
         { &hf_sigcomp_nack_pc,
@@ -2582,7 +2579,13 @@ proto_register_sigcomp(void)
         &ett_raw_text,
     };
 
+    static ei_register_info ei[] = {
+        { &ei_sigcomp_nack_failed_op_code, { "sigcomp.nack.failed_op_code.expert", PI_SEQUENCE, PI_WARN, "SigComp NACK", EXPFILL }},
+    };
+
     module_t *sigcomp_module;
+    expert_module_t* expert_sigcomp;
+
     static const enum_val_t udvm_detail_vals[] = {
         {"no-printout",   "No-Printout", 0},
         {"low-detail",    "Low-detail", 1},
@@ -2604,6 +2607,8 @@ proto_register_sigcomp(void)
     proto_register_field_array(proto_sigcomp, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
     proto_register_subtree_array(ett_raw, array_length(ett_raw));
+    expert_sigcomp = expert_register_protocol(proto_sigcomp);
+    expert_register_field_array(expert_sigcomp, ei, array_length(ei));
 
 /* Register a configuration option for port */
     sigcomp_module = prefs_register_protocol(proto_sigcomp,
@@ -2698,3 +2703,16 @@ proto_reg_handoff_sigcomp(void)
     dissector_add_uint("tcp.port", SigCompTCPPort2, sigcomp_tcp_handle);
 
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

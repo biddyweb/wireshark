@@ -1,7 +1,5 @@
 # CMakeLists.txt
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -59,6 +57,7 @@ add_library(m2m ${LINK_MODE_MODULE}
 )
 set_target_properties(m2m PROPERTIES PREFIX "")
 set_target_properties(m2m PROPERTIES LINK_FLAGS "${WS_LINK_FLAGS}")
+set_target_properties(m2m PROPERTIES FOLDER "Plugins")
 
 target_link_libraries(m2m epan)
 

@@ -2,8 +2,6 @@
  * Routines for the disassembly of Extreme Networks specific
  * protocols (EDP/ESRP/EAPS(including ESL)/ELSM)
  *
- * $Id$
- *
  * Copyright 2005 Joerg Mayer (see AUTHORS file)
  *
  * Wireshark - Network traffic analyzer
@@ -145,10 +143,15 @@ These are the structures you will see most often in EDP frames.
 #include <string.h>
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <epan/strutil.h>
 #include <epan/in_cksum.h>
 #include "packet-llc.h"
 #include <epan/oui.h>
+
+void proto_register_edp(void);
+void proto_reg_handoff_edp(void);
+void proto_register_extreme_oui(void);
 
 static int hf_llc_extreme_pid = -1;
 
@@ -427,7 +430,7 @@ dissect_display_tlv(tvbuff_t *tvb, packet_info *pinfo, int offset, int length, p
 	offset += 4;
 	length -= 4;
 
-	display_name = tvb_get_ephemeral_string(tvb, offset, length);
+	display_name = tvb_get_string(wmem_packet_scope(), tvb, offset, length);
 	proto_item_append_text(display_item, ": \"%s\"",
 	        format_text(display_name, strlen(display_name)));
 	proto_tree_add_string(display_tree, hf_edp_display_string, tvb, offset, length,
@@ -592,8 +595,7 @@ dissect_vlan_tlv(tvbuff_t *tvb, packet_info *pinfo, int offset, int length, prot
 		return offset;
 	}
 	vlan_id = tvb_get_ntohs(tvb, offset);
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_append_fstr(pinfo->cinfo, COL_INFO, "%d", vlan_id);
+	col_append_fstr(pinfo->cinfo, COL_INFO, "%d", vlan_id);
 	proto_item_append_text(vlan_item, ": ID %d", vlan_id);
 	proto_tree_add_uint(vlan_tree, hf_edp_vlan_id, tvb, offset, 2,
 		vlan_id);
@@ -622,7 +624,7 @@ dissect_vlan_tlv(tvbuff_t *tvb, packet_info *pinfo, int offset, int length, prot
 	offset += 4;
 	length -= 4;
 
-	vlan_name = tvb_get_ephemeral_string(tvb, offset, length);
+	vlan_name = tvb_get_string(wmem_packet_scope(), tvb, offset, length);
 	proto_item_append_text(vlan_item, ", Name \"%s\"",
 	        format_text(vlan_name, strlen(vlan_name)));
 	proto_tree_add_string(vlan_tree, hf_edp_vlan_name, tvb, offset, length,
@@ -755,8 +757,7 @@ dissect_eaps_tlv(tvbuff_t *tvb, packet_info *pinfo, int offset, int length _U_, 
 	offset += 38;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "EAPS");
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_append_fstr(pinfo->cinfo, COL_INFO, " ID: %d, MAC: %s",
+	col_append_fstr(pinfo->cinfo, COL_INFO, " ID: %d, MAC: %s",
 			ctrlvlanid, sysmac_str);
 
 	return offset;
@@ -872,8 +873,7 @@ dissect_esl_tlv(tvbuff_t *tvb, packet_info *pinfo, int offset, int length, proto
 	offset += length;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "ESL");
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_append_fstr(pinfo->cinfo, COL_INFO, " ID: %d, MAC: %s",
+	col_append_fstr(pinfo->cinfo, COL_INFO, " ID: %d, MAC: %s",
 			ctrlvlanid, sysmac_str);
 
 	return offset;
@@ -890,8 +890,7 @@ dissect_elsm_tlv(tvbuff_t *tvb, packet_info *pinfo, int offset, int length,
 	type = tvb_get_guint8(tvb, offset + 4);
 	subtype = tvb_get_guint8(tvb, offset + 4 + 1);
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_append_fstr(pinfo->cinfo, COL_INFO, " %s%s (#%d)",
+	col_append_fstr(pinfo->cinfo, COL_INFO, " %s%s (#%d)",
 			val_to_str(type, elsm_type_vals, "Unknown (0x%02x)"),
 			val_to_str(subtype, elsm_subtype_vals, " Unknown (0x%02x)"),
 			seqno);
@@ -1070,8 +1069,7 @@ dissect_edp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     			"TLV with invalid length: %u", tlv_length);
 				break;
 			}
-			if (check_col(pinfo->cinfo, COL_INFO) &&
-				tlv_type != EDP_TYPE_NULL)
+			if (tlv_type != EDP_TYPE_NULL)
 				col_append_fstr(pinfo->cinfo, COL_INFO, " %s",
 					val_to_str(tlv_type, edp_type_vals, "[0x%02x]"));
 
@@ -1510,5 +1508,5 @@ proto_register_extreme_oui(void)
 	  }
 	};
 
-	llc_add_oui(OUI_EXTREME, "llc.extreme_pid", "Extreme OUI PID", hf);
+	llc_add_oui(OUI_EXTREME, "llc.extreme_pid", "LLC Extreme OUI PID", hf);
 }

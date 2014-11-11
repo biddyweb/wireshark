@@ -9,8 +9,6 @@
  *       In particular I have not had an opportunity to see how it
  *       responds to SRVLOC over TCP.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -46,9 +44,12 @@
 #include <epan/packet.h>
 #include <epan/strutil.h>
 #include <epan/prefs.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include "packet-tcp.h"
 #include <epan/expert.h>
+
+void proto_register_srvloc(void);
+void proto_reg_handoff_srvloc(void);
 
 static gboolean srvloc_desegment = TRUE;
 static int proto_srvloc = -1;
@@ -154,6 +155,9 @@ static gint ett_srvloc = -1;
 static gint ett_srvloc_attr = -1;
 static gint ett_srvloc_flags = -1;
 
+static expert_field ei_srvloc_error = EI_INIT;
+static expert_field ei_srvloc_error_v2 = EI_INIT;
+static expert_field ei_srvloc_function_unknown = EI_INIT;
 
 static const true_false_string tfs_srvloc_flags_overflow = {
     "Message will not fit in datagram",
@@ -353,7 +357,7 @@ dissect_authblk(tvbuff_t *tvb, int offset, proto_tree *tree)
     double 	floatsec;
     guint16 	length;
 
-    seconds = tvb_get_ntohl(tvb, offset) - 2208988800ul;
+    seconds = (time_t)(tvb_get_ntohl(tvb, offset) - 2208988800u); /* epoch is 00:00:00 (midnight) UTC on 1900-01-01 */
     stamp = gmtime(&seconds);
     if (stamp != NULL) {
       floatsec = stamp->tm_sec + tvb_get_ntohl(tvb, offset + 4) / 4294967296.0;
@@ -409,14 +413,10 @@ static void
 add_v1_string(proto_tree *tree, int hf, tvbuff_t *tvb, int offset, int length,
     guint16 encoding)
 {
-        char *unicode_str;
-
         switch (encoding) {
 
         case CHARSET_ISO_10646_UCS_2:
-                unicode_str = tvb_get_ephemeral_unicode_string(tvb, offset, length, ENC_BIG_ENDIAN);
-                proto_tree_add_string(tree, hf, tvb, offset, length,
-                                    unicode_str);
+                proto_tree_add_item(tree, hf, tvb, offset, length, ENC_UCS_2|ENC_BIG_ENDIAN);
                 break;
 
         default:
@@ -438,7 +438,7 @@ add_v1_string(proto_tree *tree, int hf, tvbuff_t *tvb, int offset, int length,
  *	does not specify (it is a 16-bit integer space)
  *
  * Does that mean that in SRVLOC, ISO-10646-UCS-2 is always big-endian?
- * If so, can we just use "tvb_get_ephemeral_unicode_string()" and be
+ * If so, can we just use "tvb_get_string_enc()" and be
  * done with it?
  *
  * XXX - this is also used with CHARSET_UTF_8.  Is that a cut-and-pasteo?
@@ -446,7 +446,7 @@ add_v1_string(proto_tree *tree, int hf, tvbuff_t *tvb, int offset, int length,
 static const guint8*
 unicode_to_bytes(tvbuff_t *tvb, int offset, int length, gboolean endianness)
 {
-  const guint8	*ascii_text = tvb_get_ephemeral_string(tvb, offset, length);
+  const guint8	*ascii_text = tvb_get_string(wmem_packet_scope(), tvb, offset, length);
   int	i, j=0;
   guint8	c_char, c_char1;
   guint8	*byte_array;
@@ -456,7 +456,7 @@ unicode_to_bytes(tvbuff_t *tvb, int offset, int length, gboolean endianness)
     return "";
 
   if (endianness) {
-      byte_array = ep_alloc(length*2 + 1);
+      byte_array = (guint8 *)wmem_alloc(wmem_packet_scope(), length*2 + 1);
       for (i = length; i > 0; i--) {
         c_char = ascii_text[i];
         if (c_char != 0) {
@@ -475,7 +475,7 @@ unicode_to_bytes(tvbuff_t *tvb, int offset, int length, gboolean endianness)
   }
   else
   {
-      byte_array = ep_alloc(length + 1);
+      byte_array = (guint8 *)wmem_alloc(wmem_packet_scope(), length + 1);
       for (i = 0; i < length; i++) {
         c_char = ascii_text[i];
         if (c_char != 0) {
@@ -544,14 +544,14 @@ attr_list(proto_tree *tree, int hf, tvbuff_t *tvb, int offset, int length,
                 break;
             }
             /* Parse the attribute name */
-            tmp = tvb_get_ephemeral_unicode_string(tvb, offset, length-offset, ENC_BIG_ENDIAN);
+            tmp = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, length-offset, ENC_UCS_2|ENC_BIG_ENDIAN);
             type_len = (int)strcspn(tmp, "=");
-            attr_type = tvb_get_ephemeral_unicode_string(tvb, offset, type_len*2, ENC_BIG_ENDIAN);
+            attr_type = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, type_len*2, ENC_UCS_2|ENC_BIG_ENDIAN);
             proto_tree_add_string(tree, hf, tvb, offset, type_len*2, attr_type);
             offset += (type_len*2)+2;
             if (strcmp(attr_type, "svcname-ws")==0) {
                 /* This is the attribute svcname */
-                tmp = tvb_get_ephemeral_unicode_string(tvb, offset, length-offset, ENC_BIG_ENDIAN);
+                tmp = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, length-offset, ENC_UCS_2|ENC_BIG_ENDIAN);
                 type_len = (int)strcspn(tmp, ")");
                 add_v1_string(tree, hf_srvloc_srvrply_svcname, tvb, offset, type_len*2, encoding);
                 offset += (type_len*2)+4;
@@ -629,7 +629,7 @@ attr_list(proto_tree *tree, int hf, tvbuff_t *tvb, int offset, int length,
         break;
 
     case CHARSET_UTF_8:
-        type_len = (int)strcspn(tvb_get_ephemeral_string(tvb, offset, length), "=");
+        type_len = (int)strcspn(tvb_get_string(wmem_packet_scope(), tvb, offset, length), "=");
         attr_type = unicode_to_bytes(tvb, offset+1, type_len-1, FALSE);
         proto_tree_add_string(tree, hf, tvb, offset+1, type_len-1, attr_type);
         i=1;
@@ -723,7 +723,7 @@ attr_list2(proto_tree *tree, int hf, tvbuff_t *tvb, int offset, int length, guin
     attr_tree = proto_item_add_subtree(ti, ett_srvloc_attr);
 
     /* this will ensure there is a terminating null */
-    start = tvb_get_ephemeral_string(tvb, offset, length);
+    start = tvb_get_string(wmem_packet_scope(), tvb, offset, length);
 
     cnt = 0;
     x = 0;
@@ -829,9 +829,8 @@ dissect_srvloc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
     version = tvb_get_guint8(tvb, offset);
     function = tvb_get_guint8(tvb, offset + 1);
 
-    if (check_col(pinfo->cinfo, COL_INFO))
-        col_add_str(pinfo->cinfo, COL_INFO,
-            val_to_str(function, srvloc_functions, "Unknown Function (%u)"));
+    col_add_str(pinfo->cinfo, COL_INFO,
+        val_to_str(function, srvloc_functions, "Unknown Function (%u)"));
 
     ti = proto_tree_add_item(tree, proto_srvloc, tvb, offset, -1, ENC_NA);
     srvloc_tree = proto_item_add_subtree(ti, ett_srvloc);
@@ -869,8 +868,7 @@ dissect_srvloc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
         proto_tree_add_text(srvloc_tree, tvb, offset + 10, 2, "Transaction ID: %u",
                             tvb_get_ntohs(tvb, offset + 10));
         /* added echo of XID to info colomn by Greg Morris 0ct 14, 2005 */
-        if (check_col(pinfo->cinfo, COL_INFO))
-            col_append_fstr(pinfo->cinfo, COL_INFO, ", V1 Transaction ID - %u", tvb_get_ntohs(tvb, offset + 10));
+        col_append_fstr(pinfo->cinfo, COL_INFO, ", V1 Transaction ID - %u", tvb_get_ntohs(tvb, offset + 10));
 
         offset += 12;
 
@@ -893,7 +891,7 @@ dissect_srvloc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             expert_item = proto_tree_add_item(srvloc_tree, hf_srvloc_error, tvb, offset, 2, ENC_BIG_ENDIAN);
             expert_status = tvb_get_ntohs(tvb, offset);
             if (expert_status!=0) {
-                expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Error: %s", val_to_str(expert_status, srvloc_errs, "Unknown SRVLOC Error (0x%02x)"));
+                expert_add_info_format(pinfo, expert_item, &ei_srvloc_error, "Error: %s", val_to_str(expert_status, srvloc_errs, "Unknown SRVLOC Error (0x%02x)"));
             }
             offset += 2;
             count = tvb_get_ntohs(tvb, offset);
@@ -945,7 +943,7 @@ dissect_srvloc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             expert_item = proto_tree_add_item(srvloc_tree, hf_srvloc_error, tvb, offset, 2, ENC_BIG_ENDIAN);
             expert_status = tvb_get_ntohs(tvb, offset);
             if (expert_status!=0) {
-                expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Error: %s", val_to_str(expert_status, srvloc_errs, "Unknown SRVLOC Error (0x%02x)"));
+                expert_add_info_format(pinfo, expert_item, &ei_srvloc_error, "Error: %s", val_to_str(expert_status, srvloc_errs, "Unknown SRVLOC Error (0x%02x)"));
             }
             offset += 2;
             break;
@@ -977,7 +975,7 @@ dissect_srvloc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             expert_item = proto_tree_add_item(srvloc_tree, hf_srvloc_error_v2, tvb, offset, 2, ENC_BIG_ENDIAN);
             expert_status = tvb_get_ntohs(tvb, offset);
             if (expert_status!=0) {
-                expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Error: %s", val_to_str(expert_status, srvloc_errs_v2, "Unknown SRVLOC Error (0x%02x)"));
+                expert_add_info_format(pinfo, expert_item, &ei_srvloc_error, "Error: %s", val_to_str(expert_status, srvloc_errs_v2, "Unknown SRVLOC Error (0x%02x)"));
             }
             offset += 2;
             length = tvb_get_ntohs(tvb, offset);
@@ -995,7 +993,7 @@ dissect_srvloc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             expert_item = proto_tree_add_item(srvloc_tree, hf_srvloc_error, tvb, offset, 2, ENC_BIG_ENDIAN);
             expert_status = tvb_get_ntohs(tvb, offset);
             if (expert_status!=0) {
-                expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Error: %s", val_to_str(expert_status, srvloc_errs, "Unknown SRVLOC Error (0x%02x)"));
+                expert_add_info_format(pinfo, expert_item, &ei_srvloc_error, "Error: %s", val_to_str(expert_status, srvloc_errs, "Unknown SRVLOC Error (0x%02x)"));
             }
             offset += 2;
             length = tvb_get_ntohs(tvb, offset);
@@ -1040,7 +1038,7 @@ dissect_srvloc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             expert_item = proto_tree_add_item(srvloc_tree, hf_srvloc_error, tvb, offset, 2, ENC_BIG_ENDIAN);
             expert_status = tvb_get_ntohs(tvb, offset);
             if (expert_status!=0) {
-                expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Error: %s", val_to_str(expert_status, srvloc_errs, "Unknown SRVLOC Error (0x%02x)"));
+                expert_add_info_format(pinfo, expert_item, &ei_srvloc_error, "Error: %s", val_to_str(expert_status, srvloc_errs, "Unknown SRVLOC Error (0x%02x)"));
             }
             offset += 2;
             count = tvb_get_ntohs(tvb, offset);
@@ -1058,8 +1056,8 @@ dissect_srvloc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             break;
 
         default:
-            expert_item = proto_tree_add_text(srvloc_tree, tvb, offset, -1, "Unknown Function Type");
-            expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Unknown Function Type: %d", function);
+            proto_tree_add_expert_format(srvloc_tree, pinfo, &ei_srvloc_function_unknown,
+                tvb, offset, -1, "Unknown Function Type: %d", function);
         }
     }
     else { /* Version 2 */
@@ -1082,8 +1080,7 @@ dissect_srvloc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
                             next_ext_off);
         proto_tree_add_uint(srvloc_tree, hf_srvloc_xid, tvb, offset + 10, 2,
                             tvb_get_ntohs(tvb, offset + 10));
-        if (check_col(pinfo->cinfo, COL_INFO))
-            col_append_fstr(pinfo->cinfo, COL_INFO, ", V2 XID - %u", tvb_get_ntohs(tvb, offset + 10));
+        col_append_fstr(pinfo->cinfo, COL_INFO, ", V2 XID - %u", tvb_get_ntohs(tvb, offset + 10));
         lang_tag_len = tvb_get_ntohs(tvb, offset + 12);
         proto_tree_add_uint(srvloc_tree, hf_srvloc_langtaglen, tvb, offset + 12, 2, lang_tag_len);
         proto_tree_add_item(srvloc_tree, hf_srvloc_langtag, tvb, offset + 14, lang_tag_len, ENC_ASCII|ENC_NA);
@@ -1133,7 +1130,7 @@ dissect_srvloc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             expert_item = proto_tree_add_item(srvloc_tree, hf_srvloc_error_v2, tvb, offset, 2, ENC_BIG_ENDIAN);
             expert_status = tvb_get_ntohs(tvb, offset);
             if (expert_status!=0) {
-                expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Error: %s", val_to_str(expert_status, srvloc_errs_v2, "Unknown SRVLOC Error (0x%02x)"));
+                expert_add_info_format(pinfo, expert_item, &ei_srvloc_error_v2, "Error: %s", val_to_str(expert_status, srvloc_errs_v2, "Unknown SRVLOC Error (0x%02x)"));
             }
             offset += 2;
             count = tvb_get_ntohs(tvb, offset);
@@ -1199,7 +1196,7 @@ dissect_srvloc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             expert_item = proto_tree_add_item(srvloc_tree, hf_srvloc_error_v2, tvb, offset, 2, ENC_BIG_ENDIAN);
             expert_status = tvb_get_ntohs(tvb, offset);
             if (expert_status!=0) {
-                expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Error: %s", val_to_str(expert_status, srvloc_errs_v2, "Unknown SRVLOC Error (0x%02x)"));
+                expert_add_info_format(pinfo, expert_item, &ei_srvloc_error_v2, "Error: %s", val_to_str(expert_status, srvloc_errs_v2, "Unknown SRVLOC Error (0x%02x)"));
             }
             offset += 2;
             break;
@@ -1246,7 +1243,7 @@ dissect_srvloc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             expert_item = proto_tree_add_item(srvloc_tree, hf_srvloc_error_v2, tvb, offset, 2, ENC_BIG_ENDIAN);
             expert_status = tvb_get_ntohs(tvb, offset);
             if (expert_status!=0) {
-                expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Error: %s", val_to_str(expert_status, srvloc_errs_v2, "Unknown SRVLOC Error (0x%02x)"));
+                expert_add_info_format(pinfo, expert_item, &ei_srvloc_error_v2, "Error: %s", val_to_str(expert_status, srvloc_errs_v2, "Unknown SRVLOC Error (0x%02x)"));
             }
             offset += 2;
             length = tvb_get_ntohs(tvb, offset);
@@ -1269,7 +1266,7 @@ dissect_srvloc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             expert_item = proto_tree_add_item(srvloc_tree, hf_srvloc_error_v2, tvb, offset, 2, ENC_BIG_ENDIAN);
             expert_status = tvb_get_ntohs(tvb, offset);
             if (expert_status!=0) {
-                expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Error: %s", val_to_str(expert_status, srvloc_errs_v2, "Unknown SRVLOC Error (0x%02x)"));
+                expert_add_info_format(pinfo, expert_item, &ei_srvloc_error_v2, "Error: %s", val_to_str(expert_status, srvloc_errs_v2, "Unknown SRVLOC Error (0x%02x)"));
             }
             offset += 2;
             ts.nsecs = 0;
@@ -1347,7 +1344,7 @@ dissect_srvloc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             expert_item = proto_tree_add_item(srvloc_tree, hf_srvloc_error_v2, tvb, offset, 2, ENC_BIG_ENDIAN);
             expert_status = tvb_get_ntohs(tvb, offset);
             if (expert_status!=0) {
-                expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Error: %s", val_to_str(expert_status, srvloc_errs_v2, "Unknown SRVLOC Error (0x%02x)"));
+                expert_add_info_format(pinfo, expert_item, &ei_srvloc_error_v2, "Error: %s", val_to_str(expert_status, srvloc_errs_v2, "Unknown SRVLOC Error (0x%02x)"));
             }
             offset += 2;
             length = tvb_get_ntohs(tvb, offset);
@@ -1391,8 +1388,8 @@ dissect_srvloc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
             break;
 
         default:
-            expert_item = proto_tree_add_text(srvloc_tree, tvb, offset, -1, "Unknown Function Type");
-            expert_add_info_format(pinfo, expert_item, PI_RESPONSE_CODE, PI_ERROR, "Unknown Function Type: %d", function);
+            proto_tree_add_expert_format(srvloc_tree, pinfo, &ei_srvloc_function_unknown,
+                                         tvb, offset, -1, "Unknown Function Type: %d", function);
         }
     }
 return offset;
@@ -1412,8 +1409,8 @@ get_srvloc_pdu_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
         return tvb_get_ntohs(tvb, offset + 2);
 }
 
-static void
-dissect_srvloc_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_srvloc_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
     proto_tree	    *srvloc_tree = NULL;
     proto_item	    *ti;
@@ -1427,10 +1424,11 @@ dissect_srvloc_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         srvloc_tree = proto_item_add_subtree(ti, ett_srvloc);
     }
     dissect_srvloc(tvb, pinfo, srvloc_tree, NULL);
+    return tvb_length(tvb);
 }
 
-static void
-dissect_srvloc_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_srvloc_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
     /*
      * XXX - in SLPv1, the fixed length need only be 4, as the length
@@ -1441,7 +1439,8 @@ dissect_srvloc_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      * and we can't handle a length < 4 anyway.
      */
     tcp_dissect_pdus(tvb, pinfo, tree, srvloc_desegment, 5, get_srvloc_pdu_len,
-	dissect_srvloc_pdu);
+                     dissect_srvloc_pdu, data);
+    return tvb_length(tvb);
 }
 
 /* Register protocol with Wireshark. */
@@ -1886,12 +1885,21 @@ proto_register_srvloc(void)
 	&ett_srvloc_attr,
 	&ett_srvloc_flags,
     };
-	module_t *srvloc_module;
+    static ei_register_info ei[] = {
+        { &ei_srvloc_error, { "srvloc.err.expert", PI_RESPONSE_CODE, PI_ERROR, "Error", EXPFILL }},
+        { &ei_srvloc_error_v2, { "srvloc.errv2.expert", PI_RESPONSE_CODE, PI_ERROR, "Error", EXPFILL }},
+        { &ei_srvloc_function_unknown, { "srvloc.function.unknown", PI_RESPONSE_CODE, PI_ERROR, "Unknown Function Type", EXPFILL }},
+    };
+
+    module_t *srvloc_module;
+    expert_module_t* expert_srvloc;
 
     proto_srvloc = proto_register_protocol("Service Location Protocol",
 					   "SRVLOC", "srvloc");
     proto_register_field_array(proto_srvloc, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_srvloc = expert_register_protocol(proto_srvloc);
+    expert_register_field_array(expert_srvloc, ei, array_length(ei));
 	srvloc_module = prefs_register_protocol(proto_srvloc, NULL);
 	prefs_register_bool_preference(srvloc_module, "desegment_tcp",
 	    "Reassemble SRVLOC messages spanning multiple TCP segments",
@@ -1906,7 +1914,7 @@ proto_reg_handoff_srvloc(void)
     dissector_handle_t srvloc_handle, srvloc_tcp_handle;
     srvloc_handle = new_create_dissector_handle(dissect_srvloc, proto_srvloc);
     dissector_add_uint("udp.port", UDP_PORT_SRVLOC, srvloc_handle);
-    srvloc_tcp_handle = create_dissector_handle(dissect_srvloc_tcp,
+    srvloc_tcp_handle = new_create_dissector_handle(dissect_srvloc_tcp,
 						proto_srvloc);
     dissector_add_uint("tcp.port", TCP_PORT_SRVLOC, srvloc_tcp_handle);
 }

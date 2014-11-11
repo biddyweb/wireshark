@@ -2,8 +2,6 @@
  * Routines for DCC Response Message  dissection
  * Copyright 2004, Darryl Hymel <darryl.hymel[AT]arrisi.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,6 +24,10 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
+
+void proto_register_docsis_dccrsp(void);
+void proto_reg_handoff_docsis_dccrsp(void);
 
 #define DCCRSP_CM_JUMP_TIME 1
 #define DCCRSP_KEY_SEQ_NUM 31
@@ -60,16 +62,16 @@ dissect_dccrsp_cm_jump_time (tvbuff_t * tvb, proto_tree * tree, int start, guint
   proto_item *dcc_item;
   proto_tree *dcc_tree;
   int pos;
-   
+
   pos = start;
   dcc_item = proto_tree_add_text ( tree, tvb, start, len, "2 DCC-RSP CM Time Jump Encodings (Length = %u)", len);
   dcc_tree = proto_item_add_subtree ( dcc_item , ett_docsis_dccrsp_cm_jump_time);
-  
-  while ( pos < ( start + len) ) 
+
+  while ( pos < ( start + len) )
     {
 	type = tvb_get_guint8 (tvb, pos++);
 	length = tvb_get_guint8 (tvb, pos++);
-	
+
 	switch (type)
 	  {
 	    case DCCRSP_CM_JUMP_TIME_LENGTH:
@@ -89,7 +91,7 @@ dissect_dccrsp_cm_jump_time (tvbuff_t * tvb, proto_tree * tree, int start, guint
 	          proto_tree_add_item (dcc_tree, hf_docsis_dccrsp_cm_jump_time_start, tvb,
 				   pos, length, ENC_BIG_ENDIAN);
 		}
-              else 
+              else
 		{
 		  THROW (ReportedBoundsError);
 		}
@@ -173,37 +175,37 @@ proto_register_docsis_dccrsp (void)
   static hf_register_info hf[] = {
     {&hf_docsis_dccrsp_tran_id ,
       {
-      "Transaction ID", 
+      "Transaction ID",
       "docsis_dccrsp.tran_id",
       FT_UINT16, BASE_DEC, NULL, 0x0,
-      NULL, 
+      NULL,
       HFILL
       }
     },
     {&hf_docsis_dccrsp_conf_code ,
       {
-      "Confirmation Code", 
+      "Confirmation Code",
       "docsis_dccrsp.conf_code",
       FT_UINT8, BASE_DEC, NULL, 0x0,
-      NULL, 
+      NULL,
       HFILL
       }
     },
     {&hf_docsis_dccrsp_cm_jump_time_length ,
       {
-      "Jump Time Length", 
+      "Jump Time Length",
       "docsis_dccrsp.cm_jump_time_length",
       FT_UINT32, BASE_DEC, NULL, 0x0,
-      NULL, 
+      NULL,
       HFILL
       }
     },
     {&hf_docsis_dccrsp_cm_jump_time_start ,
       {
-      "Jump Time Start", 
+      "Jump Time Start",
       "docsis_dccrsp.cm_jump_time_start",
       FT_UINT64, BASE_DEC, NULL, 0x0,
-      NULL, 
+      NULL,
       HFILL
       }
     },

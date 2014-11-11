@@ -4,8 +4,6 @@
  * Copyright 2009 by Holger Hans Peter Freyther <zecke@selfish.org>
  * based on A-bis OML code in OpenBSC
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,6 +33,9 @@
 #include <epan/prefs.h>
 
 #include "packet-gsm_a_common.h"
+
+void proto_register_abis_oml(void);
+void proto_reg_handoff_abis_oml(void);
 
 /* From openbsc/include/openbsc/abis_nm.h */
 
@@ -158,7 +159,7 @@ enum abis_nm_msgtype {
 	NM_MT_SET_ALARM_THRES_NACK,
 
 	NM_MT_IPACC_RESTART		= 0x87,
-	NM_MT_IPACC_RESTART_ACK,
+	NM_MT_IPACC_RESTART_ACK
 };
 
 enum abis_nm_msgtype_bs11 {
@@ -193,7 +194,7 @@ enum abis_nm_msgtype_bs11 {
 	NM_MT_BS11_LMT_LOGOFF		= 0xec,
 	NM_MT_BS11_LMT_LOGOFF_ACK,
 	NM_MT_BS11_RECONNECT		= 0xf1,
-	NM_MT_BS11_RECONNECT_ACK,
+	NM_MT_BS11_RECONNECT_ACK
 };
 
 enum abis_nm_msgtype_ipacc {
@@ -227,12 +228,12 @@ enum abis_nm_msgtype_ipacc {
 	NM_MT_IPACC_SW_DEACT_NACK,
 	NM_MT_IPACC_MEAS_RES_REQ_NACK	= 0xfc,
 	NM_MT_IPACC_START_MEAS_NACK,
-	NM_MT_IPACC_STOP_MEAS_NACK,
+	NM_MT_IPACC_STOP_MEAS_NACK
 };
 
 enum abis_nm_bs11_cell_alloc {
 	NM_BS11_CANR_GSM	= 0x00,
-	NM_BS11_CANR_DCS1800	= 0x01,
+	NM_BS11_CANR_DCS1800	= 0x01
 };
 
 /* Section 9.2: Object Class */
@@ -258,7 +259,7 @@ enum abis_nm_obj_class {
 	NM_OC_GPRS_NSVC0		= 0xf2,
 	NM_OC_GPRS_NSVC1		= 0xf3,
 
-	NM_OC_NULL			= 0xff,
+	NM_OC_NULL			= 0xff
 };
 
 /* Section 9.4: Attributes */
@@ -334,7 +335,7 @@ enum abis_nm_attr {
 	NM_ATT_OUTST_ALARM,
 	NM_ATT_FILE_DATA,
 	NM_ATT_MEAS_RES,
-	NM_ATT_MEAS_TYPE,
+	NM_ATT_MEAS_TYPE
 };
 
 enum abis_nm_attr_bs11 {
@@ -409,7 +410,7 @@ enum abis_nm_attr_bs11 {
 	NM_ATT_BS11_RX_OFFSET		= 0xf3,
 	NM_ATT_BS11_ANT_TYPE		= 0xf4,
 	NM_ATT_BS11_PLL_MODE		= 0xfc,
-	NM_ATT_BS11_PASSWORD		= 0xfd,
+	NM_ATT_BS11_PASSWORD		= 0xfd
 };
 
 enum abis_nm_attr_ipa {
@@ -461,7 +462,7 @@ enum abis_nm_attr_ipa {
 	NM_ATT_IPACC_SSL_CFG		= 0xad,
 	NM_ATT_IPACC_SEC_POSSIBLE	= 0xae,
 	NM_ATT_IPACC_IML_SSL_STATE	= 0xaf,
-	NM_ATT_IPACC_REVOC_DATE		= 0xb0,
+	NM_ATT_IPACC_REVOC_DATE		= 0xb0
 };
 
 /* Section 9.4.4: Administrative State */
@@ -469,7 +470,7 @@ enum abis_nm_adm_state {
 	NM_STATE_LOCKED		= 0x01,
 	NM_STATE_UNLOCKED	= 0x02,
 	NM_STATE_SHUTDOWN	= 0x03,
-	NM_STATE_NULL		= 0xff,
+	NM_STATE_NULL		= 0xff
 };
 
 /* Section 9.4.13: Channel Combination */
@@ -482,7 +483,7 @@ enum abis_nm_chan_comb {
 	NM_CHANC_BCCHComb	= 0x05,
 	NM_CHANC_BCCH		= 0x06,
 	NM_CHANC_BCCH_CBCH	= 0x07,
-	NM_CHANC_SDCCH_CBCH	= 0x08,
+	NM_CHANC_SDCCH_CBCH	= 0x08
 };
 
 /* Section 9.4.16: Event Type */
@@ -491,7 +492,7 @@ enum abis_nm_event_type {
 	NM_EVT_QOS_FAIL		= 0x01,
 	NM_EVT_PROC_FAIL	= 0x02,
 	NM_EVT_EQUIP_FAIL	= 0x03,
-	NM_EVT_ENV_FAIL		= 0x04,
+	NM_EVT_ENV_FAIL		= 0x04
 };
 
 /* Section: 9.4.63: Perceived Severity */
@@ -501,16 +502,17 @@ enum abis_nm_severity {
 	NM_SEVER_MAJOR		= 0x02,
 	NM_SEVER_MINOR		= 0x03,
 	NM_SEVER_WARNING	= 0x04,
-	NM_SEVER_INDETERMINATE	= 0x05,
+	NM_SEVER_INDETERMINATE	= 0x05
 };
 
 /* Section 9.4.43: Probable Cause Type */
 enum abis_nm_pcause_type {
 	NM_PCAUSE_T_X721	= 0x01,
 	NM_PCAUSE_T_GSM		= 0x02,
-	NM_PCAUSE_T_MANUF	= 0x03,
+	NM_PCAUSE_T_MANUF	= 0x03
 };
 
+#if 0
 /* Section 9.4.36: NACK Causes */
 enum abis_nm_nack_cause {
 	/* General Nack Causes */
@@ -546,8 +548,9 @@ enum abis_nm_nack_cause {
 	NM_NACK_WAIT			= 0x29,
 	NM_NACK_NOTH_REPORT_EXIST	= 0x2a,
 	NM_NACK_MEAS_NOTSUPP		= 0x2b,
-	NM_NACK_MEAS_NOTSTART		= 0x2c,
+	NM_NACK_MEAS_NOTSTART		= 0x2c
 };
+#endif
 
 /* Section 9.4.1 */
 struct abis_nm_channel {
@@ -565,7 +568,7 @@ enum abis_bs11_objtype {
 	BS11_OBJ_CCLK		= 0x04,
 	BS11_OBJ_GPSU		= 0x06,
 	BS11_OBJ_LI			= 0x07,
-	BS11_OBJ_PA			= 0x09,	/* obj_class: 0, 1*/
+	BS11_OBJ_PA			= 0x09	/* obj_class: 0, 1*/
 };
 
 enum abis_bs11_trx_power {
@@ -576,12 +579,12 @@ enum abis_bs11_trx_power {
 	BS11_TRX_POWER_DCS_3W	= 0x0a,
 	BS11_TRX_POWER_DCS_1W6	= 0x0b,
 	BS11_TRX_POWER_DCS_500mW= 0x0c,
-	BS11_TRX_POWER_DCS_160mW= 0x0d,
+	BS11_TRX_POWER_DCS_160mW= 0x0d
 };
 
 enum abis_bs11_li_pll_mode {
 	BS11_LI_PLL_LOCKED	= 2,
-	BS11_LI_PLL_STANDALONE	= 3,
+	BS11_LI_PLL_STANDALONE	= 3
 };
 
 enum abis_bs11_phase {
@@ -597,7 +600,7 @@ enum abis_bs11_phase {
 	BS11_STATE_LOAD_MBCCU		= 0x92,
 	BS11_STATE_WAIT_MIN_CFG_2	= 0xA2,
 	BS11_STATE_NORMAL		= 0x03,
-	BS11_STATE_ABIS_LOAD		= 0x13,
+	BS11_STATE_ABIS_LOAD		= 0x13
 };
 
 /* From openbsc/include/openbsc/tlv.h */
@@ -608,7 +611,7 @@ enum tlv_type {
 	TLV_TYPE_TV,
 	TLV_TYPE_TLV,
 	TLV_TYPE_TL16V,
-	TLV_TYPE_TLV16,
+	TLV_TYPE_TLV16
 };
 
 struct tlv_def {
@@ -630,7 +633,7 @@ enum abis_nm_ipacc_test_no {
 	NM_IPACC_TESTNO_BCCH_INFO	= 0x43,
 	NM_IPACC_TESTNO_TX_BEACON	= 0x44,
 	NM_IPACC_TESTNO_SYSINFO_MONITOR	= 0x45,
-	NM_IPACC_TESTNO_BCCCH_MONITOR	= 0x46,
+	NM_IPACC_TESTNO_BCCCH_MONITOR	= 0x46
 };
 
 /* first byte after length inside NM_ATT_TEST_REPORT */
@@ -639,7 +642,7 @@ enum abis_nm_ipacc_test_res {
 	NM_IPACC_TESTRES_TIMEOUT	= 1,
 	NM_IPACC_TESTRES_NO_CHANS	= 2,
 	NM_IPACC_TESTRES_PARTIAL	= 3,
-	NM_IPACC_TESTRES_STOPPED	= 4,
+	NM_IPACC_TESTRES_STOPPED	= 4
 };
 
 /* internal IE inside NM_ATT_TEST_REPORT */
@@ -648,7 +651,7 @@ enum abis_nm_ipacc_testres_ie {
 	NM_IPACC_TR_IE_CHAN_USAGE	= 4,
 	NM_IPACC_TR_IE_BCCH_INFO	= 6,
 	NM_IPACC_TR_IE_RESULT_DETAILS	= 8,
-	NM_IPACC_TR_IE_FREQ_ERR		= 18,
+	NM_IPACC_TR_IE_FREQ_ERR		= 18
 };
 
 /* initialize the protocol and registered fields */
@@ -731,7 +734,7 @@ enum {
 	OML_DIALECT_ETSI,
 	OML_DIALECT_SIEMENS,
 	OML_DIALECT_IPA,
-	OML_DIALECT_ERICSSON,
+	OML_DIALECT_ERICSSON
 };
 
 /* which A-bis OML dialect to use (prefrence) */
@@ -1164,10 +1167,10 @@ static void format_custom_msgtype(gchar *out, guint32 in)
 
 	switch (global_oml_dialect) {
 	case OML_DIALECT_SIEMENS:
-		tmp = match_strval(in, oml_fom_msgtype_vals_bs11);
+		tmp = try_val_to_str(in, oml_fom_msgtype_vals_bs11);
 		break;
 	case OML_DIALECT_IPA:
-		tmp = match_strval(in, oml_fom_msgtype_vals_ipa);
+		tmp = try_val_to_str(in, oml_fom_msgtype_vals_ipa);
 		break;
 	case OML_DIALECT_ETSI:
 	default:
@@ -1189,10 +1192,10 @@ static void format_custom_attr(gchar *out, guint32 in)
 
 	switch (global_oml_dialect) {
 	case OML_DIALECT_SIEMENS:
-		tmp = match_strval(in, oml_fom_attr_vals_bs11);
+		tmp = try_val_to_str(in, oml_fom_attr_vals_bs11);
 		break;
 	case OML_DIALECT_IPA:
-		tmp = match_strval(in, oml_fom_attr_vals_ipa);
+		tmp = try_val_to_str(in, oml_fom_attr_vals_ipa);
 		break;
 	case OML_DIALECT_ETSI:
 	default:
@@ -1272,6 +1275,7 @@ static const value_string oml_severity_vals[] = {
 	{ 0, NULL }
 };
 
+#if 0
 /* Section 9.4.36: NACK Causes */
 static const value_string oml_nack_cause[] = {
 	{ NM_NACK_INCORR_STRUCT,	"Incorrect message structure" },
@@ -1309,6 +1313,7 @@ static const value_string oml_nack_cause[] = {
 	{ 0xff,				"NULL" },
 	{ 0, NULL }
 };
+#endif
 
 static const value_string oml_test_no_vals[] = {
 	{ NM_IPACC_TESTNO_RLOOP_ANT,	"Radio Loop test via antenna" },
@@ -2195,39 +2200,39 @@ proto_register_abis_oml(void)
 
 	/* From openbsc/src/abis_nm.c, converted to support ANSI C. */
 	NM_ATT_TLVDEF_BASE(NM_ATT_ABIS_CHANNEL,		TLV_TYPE_FIXED,	3);
-	NM_ATT_TLVDEF_BASE(NM_ATT_ADD_INFO,		TLV_TYPE_TL16V,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_ADD_TEXT,		TLV_TYPE_TL16V,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_ADD_INFO,			TLV_TYPE_TL16V,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_ADD_TEXT,			TLV_TYPE_TL16V,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_ADM_STATE,		TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_ARFCN_LIST,		TLV_TYPE_TL16V,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_AUTON_REPORT,		TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_AVAIL_STATUS,		TLV_TYPE_TL16V,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_BCCH_ARFCN,		TLV_TYPE_FIXED,	2);
-	NM_ATT_TLVDEF_BASE(NM_ATT_BSIC,			TLV_TYPE_TV,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_BSIC,				TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_BTS_AIR_TIMER,	TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_CCCH_L_I_P,		TLV_TYPE_TV,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_CCCH_L_T,		TLV_TYPE_TV,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_CCCH_L_T,			TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_CHAN_COMB,		TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_CONN_FAIL_CRIT,	TLV_TYPE_TL16V,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_DEST,			TLV_TYPE_TL16V, 0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_DEST,				TLV_TYPE_TL16V, 0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_EVENT_TYPE,		TLV_TYPE_TV,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_FILE_ID,		TLV_TYPE_TL16V,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_FILE_ID,			TLV_TYPE_TL16V,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_FILE_VERSION,		TLV_TYPE_TL16V,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_GSM_TIME,		TLV_TYPE_FIXED,	2);
-	NM_ATT_TLVDEF_BASE(NM_ATT_HSN,			TLV_TYPE_TV,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_GSM_TIME,			TLV_TYPE_FIXED,	2);
+	NM_ATT_TLVDEF_BASE(NM_ATT_HSN,				TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_HW_CONFIG,		TLV_TYPE_TL16V,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_HW_DESC,		TLV_TYPE_TLV,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_HW_DESC,			TLV_TYPE_TLV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_INTAVE_PARAM,		TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_INTERF_BOUND,		TLV_TYPE_FIXED,	6);
 	NM_ATT_TLVDEF_BASE(NM_ATT_LIST_REQ_ATTR,	TLV_TYPE_TL16V,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_MAIO,			TLV_TYPE_TV,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_MAIO,				TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_MANUF_STATE,		TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_MANUF_THRESH,		TLV_TYPE_TL16V,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_MANUF_ID,		TLV_TYPE_TL16V,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_MAX_TA,		TLV_TYPE_TV,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_MANUF_ID,			TLV_TYPE_TL16V,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_MAX_TA,			TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_MDROP_LINK,		TLV_TYPE_FIXED,	2);
 	NM_ATT_TLVDEF_BASE(NM_ATT_MDROP_NEXT,		TLV_TYPE_FIXED,	2);
 	NM_ATT_TLVDEF_BASE(NM_ATT_NACK_CAUSES,		TLV_TYPE_TV,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_NY1,			TLV_TYPE_TV,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_NY1,				TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_OPER_STATE,		TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_OVERL_PERIOD,		TLV_TYPE_TL16V,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_PHYS_CONF,		TLV_TYPE_TL16V,	0);
@@ -2236,28 +2241,29 @@ proto_register_abis_oml(void)
 	NM_ATT_TLVDEF_BASE(NM_ATT_PROB_CAUSE,		TLV_TYPE_FIXED,	3);
 	NM_ATT_TLVDEF_BASE(NM_ATT_RACH_B_THRESH,	TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_LDAVG_SLOTS,		TLV_TYPE_FIXED,	2);
-	NM_ATT_TLVDEF_BASE(NM_ATT_RAD_SUBC,		TLV_TYPE_TV,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_RAD_SUBC,			TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_RF_MAXPOWR_R,		TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_SITE_INPUTS,		TLV_TYPE_TL16V,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_SITE_OUTPUTS,		TLV_TYPE_TL16V,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_SOURCE,		TLV_TYPE_TL16V,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_SOURCE,			TLV_TYPE_TL16V,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_SPEC_PROB,		TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_START_TIME,		TLV_TYPE_FIXED,	2);
-	NM_ATT_TLVDEF_BASE(NM_ATT_T200,			TLV_TYPE_FIXED,	7);
-	NM_ATT_TLVDEF_BASE(NM_ATT_TEI,			TLV_TYPE_TV,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_TEST_DUR,		TLV_TYPE_FIXED,	2);
-	NM_ATT_TLVDEF_BASE(NM_ATT_TEST_NO,		TLV_TYPE_TV,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_T200,				TLV_TYPE_FIXED,	7);
+	NM_ATT_TLVDEF_BASE(NM_ATT_TEI,				TLV_TYPE_TV,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_TEST_DUR,			TLV_TYPE_FIXED,	2);
+	NM_ATT_TLVDEF_BASE(NM_ATT_TEST_NO,			TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_TEST_REPORT,		TLV_TYPE_TL16V,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_VSWR_THRESH,		TLV_TYPE_FIXED, 2);
 	NM_ATT_TLVDEF_BASE(NM_ATT_WINDOW_SIZE,		TLV_TYPE_TV,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_TSC,			TLV_TYPE_TV,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_TSC,				TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_SW_CONFIG,		TLV_TYPE_TL16V,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_SEVERITY,		TLV_TYPE_TV,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_GET_ARI,		TLV_TYPE_TL16V,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_SW_DESCR,			TLV_TYPE_T,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_SEVERITY,			TLV_TYPE_TV,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_GET_ARI,			TLV_TYPE_TL16V,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_HW_CONF_CHG,		TLV_TYPE_TL16V,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_OUTST_ALARM,		TLV_TYPE_TV,	0);
 	NM_ATT_TLVDEF_BASE(NM_ATT_FILE_DATA,		TLV_TYPE_TL16V,	0);
-	NM_ATT_TLVDEF_BASE(NM_ATT_MEAS_RES,		TLV_TYPE_TL16V,	0);
+	NM_ATT_TLVDEF_BASE(NM_ATT_MEAS_RES,			TLV_TYPE_TL16V,	0);
 
 	/* BS 11 specifics */
 #define NM_ATT_TLVDEV_BS11(_attr, _type, _fixed_len)		\

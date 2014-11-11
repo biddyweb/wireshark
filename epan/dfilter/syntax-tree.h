@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -65,7 +63,8 @@ typedef struct {
 	 * set aside to time to do so. */
 	gpointer	data;
 	gint32		value;
-        const char      *deprecated_token;
+	gboolean	inside_brackets;
+	const char	*deprecated_token;
 } stnode_t;
 
 /* These are the sttype_t registration function prototypes. */
@@ -87,6 +86,9 @@ sttype_register(sttype_t *type);
 
 stnode_t*
 stnode_new(sttype_id_t type_id, gpointer data);
+
+void
+stnode_set_bracket(stnode_t *node, gboolean bracket);
 
 stnode_t*
 stnode_dup(const stnode_t *org);
@@ -116,22 +118,19 @@ const char *
 stnode_deprecated(stnode_t *node);
 
 #define assert_magic(obj, mnum) \
-        g_assert((obj)); \
-        if ((obj)->magic != (mnum)) { \
-                g_print("\nMagic num is 0x%08x, but should be 0x%08x", \
-                                (obj)->magic, (mnum)); \
-                g_assert((obj)->magic == (mnum)); \
-        }
-
-
-
+	g_assert((obj)); \
+	if ((obj)->magic != (mnum)) { \
+		g_print("\nMagic num is 0x%08x, but should be 0x%08x", \
+			(obj)->magic, (mnum)); \
+			g_assert((obj)->magic == (mnum)); \
+	}
 
 #define STTYPE_ACCESSOR(ret,type,attr,magicnum) \
 	ret \
 	CONCAT(CONCAT(CONCAT(sttype_,type),_),attr) (stnode_t *node) \
 {\
 	CONCAT(type,_t)	*value; \
-	value = stnode_data(node);\
+	value = (CONCAT(type,_t) *)stnode_data(node);\
 	assert_magic(value, magicnum); \
 	return value->attr; \
 }

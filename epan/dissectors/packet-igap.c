@@ -2,8 +2,6 @@
  * Routines for IGMP/IGAP packet disassembly
  * 2003, Endoh Akria (see AUTHORS for email)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -46,10 +44,11 @@
 
 #include <glib.h>
 #include <epan/packet.h>
-#include <epan/strutil.h>
+#include <epan/to_str.h>
 #include "packet-igmp.h"
 #include "packet-igap.h"
 
+void proto_register_igap(void);
 
 static int proto_igap      = -1;
 static int hf_type         = -1;
@@ -148,16 +147,14 @@ dissect_igap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, int off
     col_clear(pinfo->cinfo, COL_INFO);
 
     type = tvb_get_guint8(tvb, offset);
-    if (check_col(pinfo->cinfo, COL_INFO)) {
 	col_add_str(pinfo->cinfo, COL_INFO,
 		     val_to_str(type, igap_types, "Unknown Type: 0x%02x"));
-    }
     proto_tree_add_uint(tree, hf_type, tvb, offset, 1, type);
     offset += 1;
 
     tsecs = tvb_get_guint8(tvb, offset);
-    proto_tree_add_uint_format(tree, hf_max_resp, tvb, offset, 1, tsecs,
-	"Max Response Time: %.1f sec (0x%02x)", tsecs * 0.1, tsecs);
+    proto_tree_add_uint_format_value(tree, hf_max_resp, tvb, offset, 1, tsecs,
+	"%.1f sec (0x%02x)", tsecs * 0.1, tsecs);
     offset += 1;
 
     igmp_checksum(tree, tvb, hf_checksum, hf_checksum_bad, pinfo, 0);
@@ -218,13 +215,13 @@ dissect_igap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, int off
 	    /* Challenge field is the results of MD5 calculation */
 	    proto_tree_add_text(tree, tvb, offset, msize,
 				"Result of MD5 calculation: 0x%s",
-				bytes_to_str(message, msize));
+				bytes_to_ep_str(message, msize));
 	    break;
 	case IGAP_SUBTYPE_CHALLENGE:
 	    /* Challenge field is the challenge value */
 	    proto_tree_add_text(tree, tvb, offset, msize,
 				"Challenge: 0x%s",
-				bytes_to_str(message, msize));
+				bytes_to_ep_str(message, msize));
 	    break;
 	case IGAP_SUBTYPE_AUTH_MESSAGE:
 	    /* Challenge field indicates the result of the authenticaion */
@@ -262,8 +259,8 @@ proto_register_igap(void)
 	},
 
 	{ &hf_max_resp,
-	  { "Max Resp Time", "igap.max_resp", FT_UINT8, BASE_DEC,
-	    NULL, 0, "Max Response Time", HFILL }
+	  { "Max Response Time", "igap.max_resp", FT_UINT8, BASE_DEC,
+	    NULL, 0, NULL, HFILL }
 	},
 
 	{ &hf_checksum,

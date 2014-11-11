@@ -1,8 +1,6 @@
 /* preference_utils.h
  * Routines for handling preferences
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,9 +26,9 @@
 
 #include <glib.h>
 
-#include <epan/column_info.h>
+#include <epan/column-info.h>
 #include <epan/column.h>
-#include <epan/filesystem.h>
+#include <wsutil/filesystem.h>
 #include <epan/prefs.h>
 #include <epan/prefs-int.h>
 
@@ -90,7 +88,7 @@ pref_stash(pref_t *pref, gpointer unused _U_)
 guint
 pref_unstash(pref_t *pref, gpointer changed_p)
 {
-  gboolean *pref_changed_p = changed_p;
+  gboolean *pref_changed_p = (gboolean *)changed_p;
 
   /* Revert the preference to its saved value. */
   switch (pref->type) {
@@ -317,7 +315,7 @@ column_prefs_remove_link(GList *col_link)
     fmt_data *cfmt;
 
     if (!col_link || !col_link->data) return;
-    
+
     cfmt = (fmt_data *) col_link->data;
 
     g_free(cfmt->title);

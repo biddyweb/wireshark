@@ -1,8 +1,6 @@
 /* packet-aarp.c
  * Routines for Appletalk ARP packet disassembly
  *
- * $Id$
- *
  * Simon Wilkinson <sxw@dcs.ed.ac.uk>
  *
  * Wireshark - Network traffic analyzer
@@ -28,8 +26,9 @@
 
 #include <epan/packet.h>
 #include <epan/strutil.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/etypes.h>
+#include <epan/to_str.h>
 
 /* Forward declarations */
 void proto_register_aarp(void);
@@ -109,7 +108,7 @@ tvb_atalkid_to_str(tvbuff_t *tvb, gint offset)
   gint node;
   gchar *cur;
 
-  cur=(gchar *)ep_alloc(16);
+  cur=(gchar *)wmem_alloc(wmem_packet_scope(), 16);
   node=tvb_get_guint8(tvb, offset)<<8|tvb_get_guint8(tvb, offset+1);
   g_snprintf(cur, 16, "%d.%d",node,tvb_get_guint8(tvb, offset+2));
   return cur;
@@ -123,7 +122,7 @@ tvb_aarphrdaddr_to_str(tvbuff_t *tvb, gint offset, int ad_len, guint16 type)
        of address). */
     return tvb_ether_to_str(tvb, offset);
   }
-  return tvb_bytes_to_str(tvb, offset, ad_len);
+  return tvb_bytes_to_ep_str(tvb, offset, ad_len);
 }
 
 static gchar *
@@ -133,7 +132,7 @@ tvb_aarpproaddr_to_str(tvbuff_t *tvb, gint offset, int ad_len, guint16 type)
     /* Appletalk address.  */
     return tvb_atalkid_to_str(tvb, offset);
   }
-  return tvb_bytes_to_str(tvb, offset, ad_len);
+  return tvb_bytes_to_ep_str(tvb, offset, ad_len);
 }
 
 /* Offsets of fields within an AARP packet. */
@@ -200,7 +199,7 @@ dissect_aarp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
   }
 
   if (tree) {
-    if ((op_str = match_strval(ar_op, op_vals)))
+    if ((op_str = try_val_to_str(ar_op, op_vals)))
       ti = proto_tree_add_protocol_format(tree, proto_aarp, tvb, 0,
 				      MIN_AARP_HEADER_SIZE + 2*ar_hln +
 				      2*ar_pln, "AppleTalk Address Resolution Protocol (%s)", op_str);
@@ -345,5 +344,5 @@ proto_reg_handoff_aarp(void)
 
   aarp_handle = create_dissector_handle(dissect_aarp, proto_aarp);
   dissector_add_uint("ethertype", ETHERTYPE_AARP, aarp_handle);
-  dissector_add_uint("chdlctype", ETHERTYPE_AARP, aarp_handle);
+  dissector_add_uint("chdlc.protocol", ETHERTYPE_AARP, aarp_handle);
 }

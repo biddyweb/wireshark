@@ -1,7 +1,5 @@
 # CMakeLists.txt
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -22,11 +20,16 @@
 #
 
 set(CODECS_FILES
+  codecs.c
   G711a/G711adecode.c
   G711u/G711udecode.c
+  G722/G722decode.c
+  G726/G726decode.c
+  sbc/sbc.c
 )
 
 add_library(codecs STATIC
   ${CODECS_FILES}
 )
 set_target_properties(codecs PROPERTIES LINK_FLAGS "${WS_LINK_FLAGS}")
+set_target_properties(codecs PROPERTIES FOLDER "codecs")

@@ -1,8 +1,6 @@
 /* color_dlg.c
  * Definitions for dialog boxes for color filters
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -203,7 +201,7 @@ colorize_dialog_new (char *filter)
   GtkCellRenderer   *renderer;
   GtkTreeViewColumn *column;
   GtkTreeSelection  *selection;
-  const gchar *titles[] = { "Name", "String" };
+  static const gchar *titles[] = { "Name", "String" };
 
 
 
@@ -234,26 +232,26 @@ colorize_dialog_new (char *filter)
   gtk_container_set_border_width  (GTK_CONTAINER (edit_vbox), 5);
   gtk_container_add(GTK_CONTAINER(edit_fr), edit_vbox);
 
-  color_new = gtk_button_new_from_stock(GTK_STOCK_NEW);
+  color_new = ws_gtk_button_new_from_stock(GTK_STOCK_NEW);
   gtk_box_pack_start (GTK_BOX (edit_vbox), color_new, FALSE, FALSE, 5);
   gtk_widget_set_tooltip_text(color_new, "Create a new filter at the top of the list");
 
-  color_edit = gtk_button_new_from_stock(WIRESHARK_STOCK_EDIT);
+  color_edit = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_EDIT);
   gtk_box_pack_start (GTK_BOX (edit_vbox), color_edit, FALSE, FALSE, 5);
   gtk_widget_set_tooltip_text(color_edit, " If more than one filter is selected, edit the first selected one");
   gtk_widget_set_sensitive (color_edit, FALSE);
 
-  color_enable = gtk_button_new_from_stock(WIRESHARK_STOCK_ENABLE);
+  color_enable = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_ENABLE);
   gtk_box_pack_start (GTK_BOX (edit_vbox), color_enable, FALSE, FALSE, 5);
   gtk_widget_set_tooltip_text(color_enable, "Enable the selected filter(s)");
   gtk_widget_set_sensitive (color_enable, FALSE);
 
-  color_disable = gtk_button_new_from_stock(WIRESHARK_STOCK_DISABLE);
+  color_disable = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_DISABLE);
   gtk_box_pack_start (GTK_BOX (edit_vbox), color_disable, FALSE, FALSE, 5);
   gtk_widget_set_tooltip_text(color_disable, "Disable the selected filter(s)");
   gtk_widget_set_sensitive (color_disable, FALSE);
 
-  color_delete = gtk_button_new_from_stock(GTK_STOCK_DELETE);
+  color_delete = ws_gtk_button_new_from_stock(GTK_STOCK_DELETE);
   gtk_box_pack_start (GTK_BOX (edit_vbox), color_delete, FALSE, FALSE, 5);
   gtk_widget_set_tooltip_text(color_delete, "Delete the selected filter(s)");
   gtk_widget_set_sensitive (color_delete, FALSE);
@@ -268,13 +266,13 @@ colorize_dialog_new (char *filter)
   gtk_container_set_border_width  (GTK_CONTAINER (manage_vbox), 5);
   gtk_container_add(GTK_CONTAINER(manage_fr), manage_vbox);
 
-  color_import = gtk_button_new_from_stock(WIRESHARK_STOCK_IMPORT);
+  color_import = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_IMPORT);
   gtk_box_pack_start (GTK_BOX (manage_vbox), color_import, FALSE, FALSE, 5);
   gtk_widget_set_tooltip_text(color_import, "Load filters from a file and append them to the list");
-  color_export = gtk_button_new_from_stock(WIRESHARK_STOCK_EXPORT);
+  color_export = ws_gtk_button_new_from_stock(WIRESHARK_STOCK_EXPORT);
   gtk_box_pack_start (GTK_BOX (manage_vbox), color_export, FALSE, FALSE, 5);
   gtk_widget_set_tooltip_text(color_export, "Save all/selected filters to a file");
-  color_clear = gtk_button_new_from_stock(GTK_STOCK_CLEAR);
+  color_clear = ws_gtk_button_new_from_stock(GTK_STOCK_CLEAR);
   gtk_box_pack_start(GTK_BOX (manage_vbox), color_clear, FALSE, FALSE, 5);
   gtk_widget_set_tooltip_text(color_clear, "Clear the filter list and revert to system-wide default filter set");
 
@@ -341,7 +339,7 @@ colorize_dialog_new (char *filter)
   gtk_container_set_border_width  (GTK_CONTAINER (order_vbox), 5);
   gtk_container_add(GTK_CONTAINER(order_fr), order_vbox);
 
-  color_filter_up = gtk_button_new_from_stock(GTK_STOCK_GO_UP);
+  color_filter_up = ws_gtk_button_new_from_stock(GTK_STOCK_GO_UP);
   gtk_box_pack_start (GTK_BOX (order_vbox), color_filter_up, FALSE, FALSE, 0);
   gtk_widget_set_tooltip_text(color_filter_up, "Move filter higher in list");
   gtk_widget_set_sensitive (color_filter_up, FALSE);
@@ -349,7 +347,7 @@ colorize_dialog_new (char *filter)
   order_move_label = gtk_label_new (("Move\nselected filter\nup or down"));
   gtk_box_pack_start (GTK_BOX (order_vbox), order_move_label, FALSE, FALSE, 0);
 
-  color_filter_down = gtk_button_new_from_stock(GTK_STOCK_GO_DOWN);
+  color_filter_down = ws_gtk_button_new_from_stock(GTK_STOCK_GO_DOWN);
   gtk_box_pack_start (GTK_BOX (order_vbox), color_filter_down, FALSE, FALSE, 0);
   gtk_widget_set_tooltip_text(color_filter_down, "Move filter lower in list");
   gtk_widget_set_sensitive (color_filter_down, FALSE);
@@ -976,35 +974,84 @@ color_clear_cmd(GtkWidget *widget)
   color_filters_read_globals(color_filters);
 }
 
-/* Clear button: user responded to question */
-static void color_clear_answered_cb(gpointer dialog _U_, gint btn, gpointer data)
-{
-  switch(btn) {
-  case(ESD_BTN_CLEAR):
-    color_clear_cmd((GtkWidget*)data);
-    break;
-  case(ESD_BTN_CANCEL):
-    break;
-  default:
-    g_assert_not_reached();
-  }
-}
-
 /* User pressed "clear" button: ask user before really doing it */
 void
 color_clear_cb(GtkWidget *widget, gpointer data _U_) {
-  gpointer  dialog;
+  GtkWidget *msg_dialog;
+  gint       response;
 
   /* ask user, if he/she is really sure */
-  dialog = simple_dialog(ESD_TYPE_CONFIRMATION, ESD_BTN_CLEAR | ESD_BTN_CANCEL,
-                         "%sRemove all your personal color settings?%s\n\n"
-                         "This will revert the color settings to global defaults.\n\n"
-                         "Are you really sure?",
-                         simple_dialog_primary_start(), simple_dialog_primary_end());
+  msg_dialog = gtk_message_dialog_new(GTK_WINDOW(gtk_widget_get_toplevel(widget)),
+                                      (GtkDialogFlags)(GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT),
+                                      GTK_MESSAGE_QUESTION,
+                                      GTK_BUTTONS_NONE,
+                                      "Do you want to remove all your personal color settings?");
+  gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(msg_dialog),
+                                           "This will revert the color settings to global defaults.\n\n"
+                                           "Are you really sure?");
+  gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
+                        GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
+  gtk_dialog_add_button(GTK_DIALOG(msg_dialog),
+                        GTK_STOCK_CLEAR, GTK_RESPONSE_ACCEPT);
+  gtk_dialog_set_alternative_button_order(GTK_DIALOG(msg_dialog),
+                                          GTK_RESPONSE_ACCEPT,
+                                          GTK_RESPONSE_CANCEL,
+                                          -1);
+  gtk_dialog_set_default_response(GTK_DIALOG(msg_dialog), GTK_RESPONSE_CANCEL);
 
-  simple_dialog_set_cb(dialog, color_clear_answered_cb, widget);
+  response = gtk_dialog_run(GTK_DIALOG(msg_dialog));
+  gtk_widget_destroy(msg_dialog);
+
+  switch (response) {
+
+  case GTK_RESPONSE_ACCEPT:
+    color_clear_cmd(widget);
+    break;
+
+  case GTK_RESPONSE_CANCEL:
+  case GTK_RESPONSE_NONE:
+  case GTK_RESPONSE_DELETE_EVENT:
+  default:
+    break;
+  }
 }
 
+
+static void
+overwrite_existing_colorfilters_cb(gpointer dialog _U_, gint btn, gpointer data _U_)
+{
+	switch (btn) {
+	case(ESD_BTN_SAVE):
+	    /* overwrite the file*/
+        if (!color_filters_write(color_filter_edit_list))
+            simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
+                "Could not open colorfilter file: %s", g_strerror(errno));
+        else
+            prefs.unknown_colorfilters = FALSE;
+	    break;
+	case(ESD_BTN_DONT_SAVE):
+	    break;
+	default:
+	    g_assert_not_reached();
+	}
+}
+
+static void
+colorfilters_main_save(void)
+{
+  if (prefs.unknown_colorfilters) {
+    gpointer dialog = simple_dialog(ESD_TYPE_CONFIRMATION, ESD_BTNS_SAVE_DONTSAVE,
+      "Obsolete or unrecognized color filters have been detected. "
+      "If this profile will be used with an older or nonstandard Wireshark version "
+      "or one that includes a proprietary dissector plugin, click 'Continue "
+      "without Saving' and save this profile under a different name.\n\n");
+
+    simple_dialog_set_cb(dialog, overwrite_existing_colorfilters_cb, NULL);
+  } else {
+    if (!color_filters_write(color_filter_edit_list))
+      simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK, "Could not open filter file: %s", g_strerror(errno));
+  }
+}
 
 
 /* User pressed "Ok" button: Exit dialog and apply new list of
@@ -1025,11 +1072,8 @@ static void
 color_apply_cb(GtkButton *button _U_, gpointer user_data _U_)
 {
   /* if we don't have a Save button, just save the settings now */
-  if (!prefs.gui_use_pref_save) {
-      if (!color_filters_write(color_filter_edit_list))
-            simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
-                "Could not open filter file: %s", g_strerror(errno));
-  }
+  if (!prefs.gui_use_pref_save)
+    colorfilters_main_save();
 
   /* Apply the coloring rules, both the temporary ones in
    * color_filter_tmp_list as the permanent ones in color_filter_edit_list
@@ -1045,10 +1089,7 @@ color_apply_cb(GtkButton *button _U_, gpointer user_data _U_)
 static void
 color_save_cb(GtkButton *button _U_, gpointer user_data _U_)
 {
-
-  if (!color_filters_write(color_filter_edit_list))
-        simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
-            "Could not open filter file: %s", g_strerror(errno));
+  colorfilters_main_save();
 }
 
 /* User pressed "Cancel" button (or "ESC" or the 'X'):

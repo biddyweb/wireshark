@@ -2,8 +2,6 @@
  * Routines for XNS SPP
  * Based on the Netware SPX dissector by Gilbert Ramirez <gram@alumni.rice.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include "packet-idp.h"
+
+void proto_register_spp(void);
+void proto_reg_handoff_spp(void);
 
 static int proto_spp = -1;
 static int hf_spp_connection_control = -1;
@@ -126,12 +127,11 @@ dissect_spp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	conn_ctrl = tvb_get_guint8(tvb, 0);
 	spp_msg_string = spp_conn_ctrl(conn_ctrl);
-	if (check_col(pinfo->cinfo, COL_INFO))
-		col_append_fstr(pinfo->cinfo, COL_INFO, " %s", spp_msg_string);
+	col_append_fstr(pinfo->cinfo, COL_INFO, " %s", spp_msg_string);
 	if (tree) {
-		ti = proto_tree_add_uint_format(spp_tree, hf_spp_connection_control, tvb,
+		ti = proto_tree_add_uint_format_value(spp_tree, hf_spp_connection_control, tvb,
 						0, 1, conn_ctrl,
-						"Connection Control: %s (0x%02X)",
+						"%s (0x%02X)",
 						spp_msg_string, conn_ctrl);
 		cc_tree = proto_item_add_subtree(ti, ett_spp_connctrl);
 		proto_tree_add_boolean(cc_tree, hf_spp_connection_control_sys, tvb,
@@ -147,22 +147,18 @@ dissect_spp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	datastream_type = tvb_get_guint8(tvb, 1);
 	datastream_type_string = spp_datastream(datastream_type);
 	if (datastream_type_string != NULL) {
-		if (check_col(pinfo->cinfo, COL_INFO))
-			col_append_fstr(pinfo->cinfo, COL_INFO, " (%s)",
-			    datastream_type_string);
+		col_append_fstr(pinfo->cinfo, COL_INFO, " (%s)", datastream_type_string);
 	}
 	if (tree) {
 		if (datastream_type_string != NULL) {
-			proto_tree_add_uint_format(spp_tree, hf_spp_datastream_type, tvb,
+			proto_tree_add_uint_format_value(spp_tree, hf_spp_datastream_type, tvb,
 						   1, 1, datastream_type,
-						   "Datastream Type: %s (0x%02X)",
+						   "%s (0x%02X)",
 						   datastream_type_string,
 						   datastream_type);
 		} else {
-			proto_tree_add_uint_format(spp_tree, hf_spp_datastream_type, tvb,
-						   1, 1, datastream_type,
-						   "Datastream Type: 0x%02X",
-						   datastream_type);
+			proto_tree_add_uint(spp_tree, hf_spp_datastream_type, tvb,
+						   1, 1, datastream_type);
 		}
 		proto_tree_add_item(spp_tree, hf_spp_src_id, tvb,  2, 2, ENC_BIG_ENDIAN);
 		proto_tree_add_item(spp_tree, hf_spp_dst_id, tvb,  4, 2, ENC_BIG_ENDIAN);
@@ -225,7 +221,7 @@ proto_register_spp(void)
 		  NULL, HFILL }},
 
 		{ &hf_spp_datastream_type,
-		{ "Datastream type",	       	"spp.type",
+		{ "Datastream Type",	       	"spp.type",
 		  FT_UINT8,	BASE_HEX,	NULL,	0x0,
 		  NULL, HFILL }},
 

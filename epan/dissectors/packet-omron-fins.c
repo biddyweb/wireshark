@@ -2,8 +2,6 @@
  * Routines for OMRON FINS UDP dissection
  * Copyright Sourcefire, Inc. 2008-2009, Matthew Watchinski <mwatchinski@sourcefire.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,6 +35,10 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
+
+void proto_register_omron_fins(void);
+void proto_reg_handoff_omron_fins(void);
 
 #define OMRON_FINS_UDP_PORT 9600
 
@@ -424,6 +426,9 @@ static int hf_omron_cyclic_57        = -1;
 static int hf_omron_cyclic_56        = -1;
 static int hf_omron_node_error_count = -1;
 
+static expert_field ei_omron_command_code = EI_INIT;
+static expert_field ei_omron_bad_length = EI_INIT;
+static expert_field ei_oomron_command_memory_area_code = EI_INIT;
 
 
 /* Defines */
@@ -1117,24 +1122,20 @@ dissect_omron_fins(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "OMRON");
 
 
-    cmd_str = match_strval_idx(command_code, command_code_cv, &cmd_str_idx);
+    cmd_str = try_val_to_str_idx(command_code, command_code_cv, &cmd_str_idx);
     if (cmd_str_idx == -1)
-        cmd_str = ep_strdup_printf("Unknown (%d)", command_code);
+        cmd_str = wmem_strdup_printf(wmem_packet_scope(), "Unknown (%d)", command_code);
 
     /* Setup and fill in the INFO column if it's there */
     icf_flags = tvb_get_guint8(tvb, offset);
     if (icf_flags & 0x40) {
         is_response = TRUE;
-        if (check_col(pinfo->cinfo, COL_INFO)) {
-            col_add_fstr(pinfo->cinfo, COL_INFO, "Response : %s", cmd_str);
-        }
+        col_add_fstr(pinfo->cinfo, COL_INFO, "Response : %s", cmd_str);
     }
     else
     {
         is_command = TRUE;
-        if (check_col(pinfo->cinfo, COL_INFO)) {
-            col_add_fstr(pinfo->cinfo, COL_INFO, "Command  : %s", cmd_str);
-        }
+        col_add_fstr(pinfo->cinfo, COL_INFO, "Command  : %s", cmd_str);
     }
 
     if (tree) { /* we are being asked for details */
@@ -1193,7 +1194,7 @@ dissect_omron_fins(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
 
         if (cmd_str_idx == -1) {
             /* Unknown command-code */
-            expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN, "Unknown Command-Code");
+            expert_add_info(pinfo, ti, &ei_omron_command_code);
             return tvb_length(tvb);
         }
 
@@ -1212,7 +1213,7 @@ dissect_omron_fins(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
             /* command data length > 0 is NG;  response data lengths are > 0  */
             if (is_command) {
                 if (reported_length_remaining != 0) {
-                    expert_add_info_format(pinfo, omron_tree, PI_MALFORMED, PI_WARN, "Unexpected Length (Should be 0)");
+                    expert_add_info_format(pinfo, omron_tree, &ei_omron_bad_length, "Unexpected Length (Should be 0)");
                 }
                 return tvb_length(tvb);
             }
@@ -1222,13 +1223,13 @@ dissect_omron_fins(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
             /* command data length should be 0 */
             if (is_command) {
                 if(reported_length_remaining != 0) {
-                    expert_add_info_format(pinfo, omron_tree, PI_MALFORMED, PI_WARN, "Unexpected Length (Should be 0)");
+                    expert_add_info_format(pinfo, omron_tree, &ei_omron_bad_length, "Unexpected Length (Should be 0)");
                 }
             }
             /* There's no response */
             if (is_response)
             {
-                expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN, "Unknown Response Command-Code");
+                expert_add_info_format(pinfo, ti, &ei_omron_command_code, "Unknown Response Command-Code");
             }
             return tvb_length(tvb);
             break;
@@ -1250,7 +1251,7 @@ dissect_omron_fins(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
             /* There's no response */
             if (is_response)
             {
-                expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN, "Unknown Response Command-Code");
+                expert_add_info_format(pinfo, ti, &ei_omron_command_code, "Unknown Response Command-Code");
                 return tvb_length(tvb);
             }
             break;
@@ -1480,8 +1481,7 @@ dissect_omron_fins(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
                         reported_length_remaining = reported_length_remaining - 1;
 
                         if(memory_code_len == 0) {
-                            expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN,
-                                                   "Unknown Memory-Area-Code (%u)", memory_area_code);
+                            expert_add_info_format(pinfo, ti, &ei_oomron_command_memory_area_code, "Unknown Memory-Area-Code (%u)", memory_area_code);
                             return tvb_length(tvb); /* Bail out .... */
                         }
                         proto_tree_add_item(command_tree, hf_omron_data, tvb, offset, memory_code_len, ENC_NA);
@@ -2658,8 +2658,8 @@ dissect_omron_fins(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
                     proto_tree_add_item(omron_disk_data_tree, hf_omron_volume_label, tvb, (offset+2), 12, ENC_ASCII|ENC_NA);
 
                     omron_byte = tvb_get_guint8(tvb, (offset+14));
-                    proto_tree_add_uint_format(omron_disk_data_tree, hf_omron_date_year, tvb, (offset+14), 1, omron_byte,
-                        "Year: %d", ((omron_byte>>1)+1980));
+                    proto_tree_add_uint_format_value(omron_disk_data_tree, hf_omron_date_year, tvb, (offset+14), 1, omron_byte,
+                        "%d", ((omron_byte>>1)+1980));
 
                     proto_tree_add_item(omron_disk_data_tree, hf_omron_date_month, tvb, (offset+14), 4, ENC_BIG_ENDIAN);
                     proto_tree_add_item(omron_disk_data_tree, hf_omron_date_day, tvb, (offset+14), 4, ENC_BIG_ENDIAN);
@@ -2667,8 +2667,8 @@ dissect_omron_fins(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
                     proto_tree_add_item(omron_disk_data_tree, hf_omron_date_minute, tvb, (offset+14), 4, ENC_BIG_ENDIAN);
 
                     omron_byte = tvb_get_guint8(tvb, (offset+17));
-                    proto_tree_add_uint_format(omron_disk_data_tree, hf_omron_date_second, tvb, (offset+17), 1, omron_byte,
-                        "Second: %d", ((omron_byte&0x1F)*2));
+                    proto_tree_add_uint_format_value(omron_disk_data_tree, hf_omron_date_second, tvb, (offset+17), 1, omron_byte,
+                        "%d", ((omron_byte&0x1F)*2));
 
                     proto_tree_add_item(omron_disk_data_tree, hf_omron_total_capacity, tvb, (offset+18), 4, ENC_BIG_ENDIAN);
                     proto_tree_add_item(omron_disk_data_tree, hf_omron_unused_capacity, tvb, (offset+22), 4, ENC_BIG_ENDIAN);
@@ -2686,8 +2686,8 @@ dissect_omron_fins(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
                         proto_tree_add_item(omron_file_data_tree, hf_omron_filename, tvb, offset, 12, ENC_ASCII|ENC_NA);
 
                         omron_byte = tvb_get_guint8(tvb, (offset+12));
-                        proto_tree_add_uint_format(omron_file_data_tree, hf_omron_date_year, tvb, (offset+12), 1, omron_byte,
-                                                   "Year: %d", ((omron_byte>>1)+1980));
+                        proto_tree_add_uint_format_value(omron_file_data_tree, hf_omron_date_year, tvb, (offset+12), 1, omron_byte,
+                                                   "%d", ((omron_byte>>1)+1980));
 
                         proto_tree_add_item(omron_file_data_tree, hf_omron_date_month, tvb, (offset+12), 4, ENC_BIG_ENDIAN);
                         proto_tree_add_item(omron_file_data_tree, hf_omron_date_day, tvb, (offset+12), 4, ENC_BIG_ENDIAN);
@@ -2695,8 +2695,8 @@ dissect_omron_fins(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
                         proto_tree_add_item(omron_file_data_tree, hf_omron_date_minute, tvb, (offset+12), 4, ENC_BIG_ENDIAN);
 
                         omron_byte = tvb_get_guint8(tvb, (offset+15));
-                        proto_tree_add_uint_format(omron_file_data_tree, hf_omron_date_second, tvb, (offset+15), 1, omron_byte,
-                                                   "Second: %d", ((omron_byte&0x1F)*2));
+                        proto_tree_add_uint_format_value(omron_file_data_tree, hf_omron_date_second, tvb, (offset+15), 1, omron_byte,
+                                                   "%d", ((omron_byte&0x1F)*2));
 
                         proto_tree_add_item(omron_file_data_tree, hf_omron_file_capacity, tvb, (offset+16), 4, ENC_BIG_ENDIAN);
 
@@ -3237,7 +3237,7 @@ dissect_omron_fins(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
         } /* switch(command_code) */
 
         if ((guint)offset != tvb_reported_length(tvb)) {
-            expert_add_info_format(pinfo, omron_tree, PI_MALFORMED, PI_WARN, "Unexpected Length");
+            expert_add_info(pinfo, omron_tree, &ei_omron_bad_length);
         }
 
     } /* if(tree) */
@@ -3956,6 +3956,14 @@ proto_register_omron_fins(void)
         &ett_omron_data_link_status_tree,
     };
 
+    static ei_register_info ei[] = {
+        { &ei_omron_command_code, { "omron.command.unknown", PI_UNDECODED, PI_WARN, "Unknown Command-Code", EXPFILL }},
+        { &ei_oomron_command_memory_area_code, { "omron.memory.area.read.unknown", PI_UNDECODED, PI_WARN, "Unknown Memory-Area-Code (%u)", EXPFILL }},
+        { &ei_omron_bad_length, { "omron.bad_length", PI_MALFORMED, PI_WARN, "Unexpected Length", EXPFILL }},
+    };
+
+    expert_module_t* expert_omron_fins;
+
     /* Register the protocol name and description */
     proto_omron_fins = proto_register_protocol (
             "OMRON FINS Protocol", /* name       */
@@ -3966,6 +3974,8 @@ proto_register_omron_fins(void)
     /* Required function calls to register the header fields and subtrees used */
     proto_register_field_array(proto_omron_fins, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_omron_fins = expert_register_protocol(proto_omron_fins);
+    expert_register_field_array(expert_omron_fins, ei, array_length(ei));
 
 #if 0
     /*Register preferences module (See Section 2.6 for more on preferences) */

@@ -8,8 +8,6 @@
  *
  * Copyright 2010, Aniruddha.A (anira@cisco.com)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,7 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/wmem/wmem.h>
 #include <epan/dissectors/packet-tcp.h>
 #include <epan/tap.h>
 #include <epan/stats_tree.h>
@@ -68,6 +67,9 @@
         if ((_len) % 4)                  \
             _ofst += (4 - ((_len) % 4)); \
     } while(0)
+
+void proto_register_ancp(void);
+void proto_reg_handoff_ancp(void);
 
 static int hf_ancp_len = -1;
 static int hf_ancp_ver = -1;
@@ -524,7 +526,7 @@ static int
 ancp_stats_tree_packet(stats_tree* st, packet_info* pinfo _U_,
                        epan_dissect_t* edt _U_ , const void* p)
 {
-    struct ancp_tap_t *pi = (struct ancp_tap_t *) p;
+    const struct ancp_tap_t *pi = (const struct ancp_tap_t *) p;
 
     tick_stat_node(st, st_str_packets, 0, FALSE);
     stats_tree_tick_pivot(st, st_node_packet_types,
@@ -537,8 +539,8 @@ ancp_stats_tree_packet(stats_tree* st, packet_info* pinfo _U_,
     return 1;
 }
 
-static void
-dissect_ancp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_ancp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
     gint               offset;
     guint8             mtype;
@@ -550,14 +552,14 @@ dissect_ancp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     offset = 0;
     if (tvb_get_ntohs(tvb, offset) != ANCP_GSMP_ETHER_TYPE)
-        return; /* XXX: this dissector is not a heuristic dissector */
+        return 0; /* XXX: this dissector is not a heuristic dissector */
                 /* Should do "expert" & dissect rest as "data"      */
                 /*  (after setting COL_PROTOCOL & etc) ?            */
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "ANCP");
     col_clear(pinfo->cinfo, COL_INFO);
 
-    ancp_info = ep_alloc(sizeof(struct ancp_tap_t));
+    ancp_info = wmem_new(wmem_packet_scope(), struct ancp_tap_t);
     ancp_info->ancp_mtype   = 0;
     ancp_info->ancp_adjcode = 0;
 
@@ -631,6 +633,8 @@ dissect_ancp_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         break;
     }
     tap_queue_packet(ancp_tap, pinfo, ancp_info);
+
+    return tvb_length(tvb);
 }
 
 static guint
@@ -639,11 +643,13 @@ get_ancp_msg_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
     return (guint)tvb_get_ntohs(tvb, offset + 2) + 4; /* 2B len + 4B hdr */
 }
 
-static void
-dissect_ancp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_ancp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
     tcp_dissect_pdus(tvb, pinfo, tree, TRUE, ANCP_MIN_HDR,
-            get_ancp_msg_len, dissect_ancp_message);
+            get_ancp_msg_len, dissect_ancp_message, data);
+
+    return tvb_length(tvb);
 }
 
 void
@@ -924,7 +930,7 @@ proto_reg_handoff_ancp(void)
 {
     dissector_handle_t ancp_handle;
 
-    ancp_handle = create_dissector_handle(dissect_ancp, proto_ancp);
+    ancp_handle = new_create_dissector_handle(dissect_ancp, proto_ancp);
     dissector_add_uint("tcp.port", ANCP_PORT, ancp_handle);
     stats_tree_register("ancp", "ancp", "ANCP", 0,
             ancp_stats_tree_packet, ancp_stats_tree_init, NULL);

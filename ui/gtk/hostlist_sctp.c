@@ -1,7 +1,5 @@
 /* hostlist_sctp.c    2008 Stig Bjorlykke
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,11 +35,13 @@
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/hostlist_table.h"
 
+void register_tap_listener_sctp_hostlist(void);
+
 static int
 sctp_hostlist_packet(void *pit, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
 {
         hostlist_table *hosts=(hostlist_table *)pit;
-        const struct _sctp_info *sctphdr=vip;
+        const struct _sctp_info *sctphdr=(const struct _sctp_info *)vip;
 
         /* Take two "add" passes per packet, adding for each direction, ensures that all
         packets are counted properly (even if address is sending to itself)

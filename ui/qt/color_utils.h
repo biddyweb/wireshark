@@ -1,7 +1,5 @@
 /* color_utils.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -40,6 +38,7 @@ public:
     explicit ColorUtils(QObject *parent = 0);
 
     static QColor fromColorT(color_t *color);
+    static QColor fromColorT(color_t color);
 
 signals:
 

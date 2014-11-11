@@ -1,7 +1,5 @@
 /* dfilter-macro.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -32,9 +30,9 @@
 #include "dfilter-int.h"
 #include "dfilter.h"
 #include "dfilter-macro.h"
+#include <ftypes/ftypes-int.h>
 #include <epan/emem.h>
 #include <epan/uat-int.h>
-#include <epan/report_err.h>
 #include <epan/proto.h>
 #include <wsutil/file_util.h>
 
@@ -409,7 +407,7 @@ static void macro_update(void* mp, const gchar** error) {
 		if (m == &(macros[i])) continue;
 
 		if ( g_str_equal(m->name,macros[i].name) ) {
-			*error = ep_strdup_printf("macro '%s' exists already", m->name);
+			*error = g_strdup_printf("macro '%s' exists already", m->name);
 			m->usable = FALSE;
 			return;
 		}
@@ -603,6 +601,9 @@ UAT_CSTRING_CB_DEF(macro,text,dfilter_macro_t)
 void dfilter_macro_init(void) {
 	static uat_field_t uat_fields[] =  {
 		UAT_FLD_CSTRING_OTHER(macro,name,"Name",macro_name_chk,"The name of the macro."),
+		/* N.B. it would be nice if there was a field type for display filters (with
+		   auto-completion & colouring), but this wouldn't work here as the filter string
+		   will contain $1, etc... */
 		UAT_FLD_CSTRING_ISPRINT(macro,text,"Text","The text this macro resolves to."),
 		UAT_END_FIELDS
 	};
@@ -611,7 +612,7 @@ void dfilter_macro_init(void) {
 				    sizeof(dfilter_macro_t),
 				    DFILTER_MACRO_FILENAME,
 				    TRUE,
-				    (void*) &macros,
+				    &macros,
 				    &num_macros,
 				    0, /* doesn't affect anything that requires a GUI update */
 				    "ChDisplayFilterMacrosSection",
@@ -631,7 +632,7 @@ void dfilter_macro_get_uat(void** p) {
 #ifdef DUMP_DFILTER_MACRO
 /*
  * The dfilter_macro_t has several characteristics that are
- * not immediattly obvious. The dump_dfilter_filter_macro_t()
+ * not immediately obvious. The dump_dfilter_filter_macro_t()
  * function can be used to help "visualize" the contents of
  * a dfilter_macro_t.
  *

@@ -3,8 +3,6 @@
  *
  * 2004 Richard van der Hoff <richardv@mxtelecom.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -104,6 +102,18 @@ WS_DLL_PUBLIC guint16 crc16_plain_tvb_offset(tvbuff_t *tvb, guint offset, guint 
  @param crc Starting CRC value
  @return The CRC16 checksum. */
 WS_DLL_PUBLIC guint16 crc16_plain_tvb_offset_seed(tvbuff_t *tvb, guint offset, guint len, guint16 crc);
+
+/** Compute CRC16 checksum of a tv buffer using the parameters
+ *    Width        = 16 bits
+ *    Poly         = 0x9949
+ *    Reflection   = true
+ *    Algorithm    = table-driven
+ @param tvb The tv buffer containing the data.
+ @param offset The offset into the tv buffer.
+ @param len The number of bytes to include in the computation.
+ @param seed The seed to use.
+ @return The CRC16 checksum. */
+WS_DLL_PUBLIC guint16 crc16_0x9949_tvb_offset_seed(tvbuff_t *tvb, guint offset, guint len, guint16 seed);
 
 #ifdef __cplusplus
 }

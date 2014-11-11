@@ -2,8 +2,6 @@
  * Routines for t125 packet dissection
  * Copyright 2007, Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,6 +26,7 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 
 #include <epan/asn1.h>
 #include "packet-ber.h"
@@ -39,6 +38,8 @@
 #define PSNAME "T.125"
 #define PFNAME "t125"
 
+void proto_register_t125(void);
+void proto_reg_handoff_t125(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_t125 = -1;
@@ -94,7 +95,7 @@ dissect_t125_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, vo
   gint32 tag;
   guint32 choice_index = 100;
   asn1_ctx_t asn1_ctx;
-  gboolean failed;
+  volatile gboolean failed;
 
   asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
 

@@ -17,8 +17,6 @@
  * References:
  *     RFC 3450, Asynchronous Layered Coding protocol instantiation
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -40,246 +38,233 @@
 
 #include "config.h"
 
-#include <string.h>
-
 #include <glib.h>
 
 #include <epan/packet.h>
 #include <epan/prefs.h>
+#include <epan/expert.h>
 
-#include "packet-rmt-alc.h"
+#include "packet-rmt-common.h"
 
 /* Initialize the protocol and registered fields */
 /* ============================================= */
 
-static int proto = -1;
+void proto_register_alc(void);
+void proto_reg_handoff_alc(void);
 
-static struct _alc_hf hf;
-static struct _alc_ett ett;
+static int proto_rmt_alc = -1;
 
-static struct _alc_prefs preferences;
+static int hf_version = -1;
+static int hf_payload = -1;
+
+static int ett_main = -1;
+
+static expert_field ei_version1_only = EI_INIT;
+
 static dissector_handle_t xml_handle;
+static dissector_handle_t rmt_lct_handle;
+static dissector_handle_t rmt_fec_handle;
 
-
-/* Preferences */
-/* =========== */
-
-/* Set/Reset preferences to default values */
-static void alc_prefs_set_default(struct _alc_prefs *alc_prefs)
-{
-	alc_prefs->use_default_udp_port = FALSE;
-	alc_prefs->default_udp_port = 4001;
-
-	lct_prefs_set_default(&alc_prefs->lct);
-	fec_prefs_set_default(&alc_prefs->fec);
-}
-
-/* Register preferences */
-static void alc_prefs_register(struct _alc_prefs *alc_prefs, module_t *module)
-{
-	prefs_register_bool_preference(module,
-		"default.udp_port.enabled",
-		"Use default UDP port",
-		"Whether that payload of UDP packets with a specific destination port should be automatically dissected as ALC packets",
-		 &alc_prefs->use_default_udp_port);
-
- 	prefs_register_uint_preference(module,
-		"default.udp_port",
-		"Default UDP destination port",
-		"Specifies the UDP destination port for automatic dissection of ALC packets",
-		 10, &alc_prefs->default_udp_port);
-
-	lct_prefs_register(&alc_prefs->lct, module);
-	fec_prefs_register(&alc_prefs->fec, module);
-}
-
-/* Save preferences to alc_prefs_old */
-static void alc_prefs_save(struct _alc_prefs *p, struct _alc_prefs *p_old)
-{
-	*p_old = *p;
-}
+static guint    g_default_udp_port          = 0; /* 4001 */
+static gboolean g_codepoint_as_fec_encoding = TRUE;
+static gint     g_ext_192                   = LCT_PREFS_EXT_192_FLUTE;
+static gint     g_ext_193                   = LCT_PREFS_EXT_193_FLUTE;
 
 /* Code to actually dissect the packets */
 /* ==================================== */
-
-static void dissect_alc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_alc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-	/* Logical packet representation */
-	struct _alc alc;
+    guint8              version;
+    lct_data_exchange_t lct;
+    fec_data_exchange_t fec;
+    int                 len;
 
-	/* Offset for subpacket dissection */
-	guint offset;
+    /* Offset for subpacket dissection */
+    guint offset = 0;
 
-	/* Set up structures needed to add the protocol subtree and manage it */
-	proto_item *ti;
-	proto_tree *alc_tree;
+    /* Set up structures needed to add the protocol subtree and manage it */
+    proto_item *ti;
+    proto_tree *alc_tree;
 
-	/* Flute or not */
-	tvbuff_t *new_tvb;
-	gboolean is_flute = FALSE;
+    tvbuff_t *new_tvb;
 
-	/* Structures and variables initialization */
-	offset = 0;
-	memset(&alc, 0, sizeof(struct _alc));
+    /* Make entries in Protocol column and Info column on summary display */
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, "ALC");
+    col_clear(pinfo->cinfo, COL_INFO);
 
-	/* Update packet info */
-	pinfo->current_proto = "ALC";
+    /* ALC header dissection */
+    /* --------------------- */
 
-	/* Make entries in Protocol column and Info column on summary display */
-	col_set_str(pinfo->cinfo, COL_PROTOCOL, "ALC");
-	col_clear(pinfo->cinfo, COL_INFO);
+    version = hi_nibble(tvb_get_guint8(tvb, offset));
 
-	/* ALC header dissection */
-	/* --------------------- */
+    /* Create subtree for the ALC protocol */
+    ti = proto_tree_add_item(tree, proto_rmt_alc, tvb, offset, -1, ENC_NA);
+    alc_tree = proto_item_add_subtree(ti, ett_main);
 
-	alc.version = hi_nibble(tvb_get_guint8(tvb, offset));
+    /* Fill the ALC subtree */
+    ti = proto_tree_add_uint(alc_tree, hf_version, tvb, offset, 1, version);
 
-	if (tree)
-	{
-		/* Create subtree for the ALC protocol */
-		ti = proto_tree_add_item(tree, proto, tvb, offset, -1, ENC_NA);
-		alc_tree = proto_item_add_subtree(ti, ett.main);
+    /* This dissector supports only ALCv1 packets.
+     * If version > 1 print only version field and quit.
+     */
+    if (version != 1) {
+        expert_add_info(pinfo, ti, &ei_version1_only);
 
-		/* Fill the ALC subtree */
-		proto_tree_add_uint(alc_tree, hf.version, tvb, offset, 1, alc.version);
+        /* Complete entry in Info column on summary display */
+        col_add_fstr(pinfo->cinfo, COL_INFO, "Version: %u (not supported)", version);
+        return 0;
+    }
 
-	} else
-		alc_tree = NULL;
+    /* LCT header dissection */
+    /* --------------------- */
+    new_tvb = tvb_new_subset_remaining(tvb,offset);
 
-	/* This dissector supports only ALCv1 packets.
-	 * If alc.version > 1 print only version field and quit.
-	 */
-	if (alc.version == 1) {
+    lct.ext_192 = g_ext_192;
+    lct.ext_193 = g_ext_193;
+    lct.codepoint = 0;
+    lct.is_flute = FALSE;
+    len = call_dissector_with_data(rmt_lct_handle, new_tvb, pinfo, alc_tree, &lct);
+    if (len < 0)
+        return offset;
 
-		struct _lct_ptr l;
-		struct _fec_ptr f;
+    offset += len;
 
-		l.lct = &alc.lct;
-		l.hf = &hf.lct;
-		l.ett = &ett.lct;
-		l.prefs = &preferences.lct;
+    /* FEC header dissection */
+    /* --------------------- */
 
-		f.fec = &alc.fec;
-		f.hf = &hf.fec;
-		f.ett = &ett.fec;
-		f.prefs = &preferences.fec;
+    /* Only if LCT dissector has determined FEC Encoding ID */
+    /* FEC dissector needs to be called with encoding_id filled */
+    if (g_codepoint_as_fec_encoding && tvb_reported_length(tvb) > offset)
+    {
+        fec.encoding_id = lct.codepoint;
 
-		/* LCT header dissection */
-		/* --------------------- */
+        new_tvb = tvb_new_subset_remaining(tvb,offset);
+        len = call_dissector_with_data(rmt_fec_handle, new_tvb, pinfo, alc_tree, &fec);
+        if (len < 0)
+            return offset;
 
-		is_flute = lct_dissector(l, f, tvb, alc_tree, &offset);
+        offset += len;
+    }
 
-		/* FEC header dissection */
-		/* --------------------- */
+    /* Add the Payload item */
+    if (tvb_reported_length(tvb) > offset){
+        if(lct.is_flute){
+            new_tvb = tvb_new_subset_remaining(tvb,offset);
+            call_dissector(xml_handle, new_tvb, pinfo, alc_tree);
+        }else{
+            proto_tree_add_item(alc_tree, hf_payload, tvb, offset, -1, ENC_NA);
+        }
+    }
 
-		/* Only if it's present and if LCT dissector has determined FEC Encoding ID
-		 * FEC dissector should be called with fec->encoding_id* and fec->instance_id* filled
-		 */
-		if (alc.fec.encoding_id_present && tvb_length(tvb) > offset)
-			fec_dissector(f, tvb, alc_tree, &offset);
-
-		/* Add the Payload item */
-		if (tvb_length(tvb) > offset){
-			if(is_flute){
-				new_tvb = tvb_new_subset_remaining(tvb,offset);
-				call_dissector(xml_handle, new_tvb, pinfo, alc_tree);
-			}else{
-				proto_tree_add_none_format(alc_tree, hf.payload, tvb, offset, -1, "Payload (%u bytes)", tvb_length(tvb) - offset);
-			}
-		}
-
-		/* Complete entry in Info column on summary display */
-		/* ------------------------------------------------ */
-
-		if (check_col(pinfo->cinfo, COL_INFO))
-		{
-			lct_info_column(&alc.lct, pinfo);
-			fec_info_column(&alc.fec, pinfo);
-		}
-
-		/* Free g_allocated memory */
-		lct_dissector_free(&alc.lct);
-		fec_dissector_free(&alc.fec);
-
-	} else {
-
-		if (tree)
-			proto_tree_add_text(alc_tree, tvb, 0, -1, "Sorry, this dissector supports ALC version 1 only");
-
-		/* Complete entry in Info column on summary display */
-		if (check_col(pinfo->cinfo, COL_INFO))
-			col_add_fstr(pinfo->cinfo, COL_INFO, "Version: %u (not supported)", alc.version);
-	}
-}
-
-void proto_reg_handoff_alc(void)
-{
-	static dissector_handle_t handle;
-	static gboolean preferences_initialized = FALSE;
-	static struct _alc_prefs preferences_old;
-
-	if (!preferences_initialized)
-	{
-		preferences_initialized = TRUE;
-		handle = create_dissector_handle(dissect_alc, proto);
-		dissector_add_handle("udp.port", handle);
-		xml_handle = find_dissector("xml");
-
-	} else {
-
-		if (preferences_old.use_default_udp_port)
-			dissector_delete_uint("udp.port", preferences_old.default_udp_port, handle);
-	}
-
-	if (preferences.use_default_udp_port)
-		dissector_add_uint("udp.port", preferences.default_udp_port, handle);
-
-	alc_prefs_save(&preferences, &preferences_old);
-
+    return tvb_reported_length(tvb);
 }
 
 void proto_register_alc(void)
 {
-	/* Setup ALC header fields */
-	static hf_register_info hf_ptr[] = {
+    /* Setup ALC header fields */
+    static hf_register_info hf_ptr[] = {
 
-		{ &hf.version,
-			{ "Version", "alc.version", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+        { &hf_version,
+          { "Version", "alc.version", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
 
-		LCT_FIELD_ARRAY(hf.lct, "alc"),
-		FEC_FIELD_ARRAY(hf.fec, "alc"),
+        { &hf_payload,
+          { "Payload", "alc.payload", FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL }}
+    };
 
-		{ &hf.payload,
-			{ "Payload", "alc.payload", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL }}
-	};
+    /* Setup protocol subtree array */
+    static gint *ett_ptr[] = {
+        &ett_main,
+    };
 
-	/* Setup protocol subtree array */
-	static gint *ett_ptr[] = {
-		&ett.main,
+    static ei_register_info ei[] = {
+        { &ei_version1_only, { "alc.version1_only", PI_PROTOCOL, PI_WARN, "Sorry, this dissector supports ALC version 1 only", EXPFILL }},
+    };
 
-		LCT_SUBTREE_ARRAY(ett.lct),
-		FEC_SUBTREE_ARRAY(ett.fec)
-	};
+    module_t *module;
+    expert_module_t* expert_rmt_alc;
 
-	module_t *module;
+    /* Register the protocol name and description */
+    proto_rmt_alc = proto_register_protocol("Asynchronous Layered Coding", "ALC", "alc");
+    new_register_dissector("alc", dissect_alc, proto_rmt_alc);
 
-	/* Clear hf and ett fields */
-	memset(&hf, 0xff, sizeof(struct _alc_hf));
-	memset(&ett, 0xff, sizeof(struct _alc_ett));
+    /* Register the header fields and subtrees used */
+    proto_register_field_array(proto_rmt_alc, hf_ptr, array_length(hf_ptr));
+    proto_register_subtree_array(ett_ptr, array_length(ett_ptr));
+    expert_rmt_alc = expert_register_protocol(proto_rmt_alc);
+    expert_register_field_array(expert_rmt_alc, ei, array_length(ei));
 
-	/* Register the protocol name and description */
-	proto = proto_register_protocol("Asynchronous Layered Coding", "ALC", "alc");
+    /* Register preferences */
+    module = prefs_register_protocol(proto_rmt_alc, proto_reg_handoff_alc);
 
-	/* Register the header fields and subtrees used */
-	proto_register_field_array(proto, hf_ptr, array_length(hf_ptr));
-	proto_register_subtree_array(ett_ptr, array_length(ett_ptr));
+    prefs_register_obsolete_preference(module, "default.udp_port.enabled");
 
-	/* Reset preferences */
-	alc_prefs_set_default(&preferences);
+    prefs_register_uint_preference(module,
+                                   "default.udp_port",
+                                   "UDP destination port",
+                                   "Specifies the UDP destination port for automatic dissection of ALC packets",
+                                   10, &g_default_udp_port);
 
-	/* Register preferences */
-	module = prefs_register_protocol(proto, proto_reg_handoff_alc);
-	alc_prefs_register(&preferences, module);
+    prefs_register_bool_preference(module,
+                                   "lct.codepoint_as_fec_id",
+                                   "LCT Codepoint as FEC Encoding ID",
+                                   "Whether the LCT header Codepoint field should be considered the FEC Encoding ID of carried object",
+                                   &g_codepoint_as_fec_encoding);
 
-	register_dissector("alc", dissect_alc, proto);
+    prefs_register_enum_preference(module,
+                                   "lct.ext.192",
+                                   "LCT header extension 192",
+                                   "How to decode LCT header extension 192",
+                                   &g_ext_192,
+                                   enum_lct_ext_192,
+                                   FALSE);
+
+    prefs_register_enum_preference(module,
+                                   "lct.ext.193",
+                                   "LCT header extension 193",
+                                   "How to decode LCT header extension 193",
+                                   &g_ext_193,
+                                   enum_lct_ext_193,
+                                   FALSE);
 }
+
+void proto_reg_handoff_alc(void)
+{
+    static dissector_handle_t handle;
+    static gboolean           preferences_initialized = FALSE;
+    static guint              old_udp_port            = 0;
+
+    if (!preferences_initialized)
+    {
+        preferences_initialized = TRUE;
+        handle = new_create_dissector_handle(dissect_alc, proto_rmt_alc);
+        dissector_add_handle("udp.port", handle);
+        xml_handle = find_dissector("xml");
+        rmt_lct_handle = find_dissector("rmt-lct");
+        rmt_fec_handle = find_dissector("rmt-fec");
+    }
+
+    /* Register UDP port for dissection */
+    if(old_udp_port != 0 && old_udp_port != g_default_udp_port){
+        dissector_delete_uint("udp.port", old_udp_port, handle);
+    }
+
+    if(g_default_udp_port != 0 && old_udp_port != g_default_udp_port) {
+        dissector_add_uint("udp.port", g_default_udp_port, handle);
+    }
+
+    old_udp_port = g_default_udp_port;
+}
+
+/*
+ * Editor modelines - http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

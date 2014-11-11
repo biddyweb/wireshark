@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-pkinit.h                                                            */
 /* ../../tools/asn2wrs.py -b -p pkinit -c ./pkinit.cnf -s ./packet-pkinit-template -D . -O ../../epan/dissectors PKINIT.asn */
 
@@ -9,8 +9,6 @@
 /* packet-pkinit.h
  * Routines for PKINIT packet dissection
  *  Ronnie Sahlberg 2004
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -45,7 +43,7 @@ int dissect_pkinit_PaPkAsReq(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int o
 int dissect_pkinit_PaPkAsRep(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_);
 
 /*--- End of included file: packet-pkinit-exp.h ---*/
-#line 33 "../../asn1/pkinit/packet-pkinit-template.h"
+#line 31 "../../asn1/pkinit/packet-pkinit-template.h"
 
 #endif  /* PACKET_PKINIT_H */
 

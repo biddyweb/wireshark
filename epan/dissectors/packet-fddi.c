@@ -7,8 +7,6 @@
  *
  * Laurent Deniel <laurent.deniel@free.fr>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,13 +31,16 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/bitswap.h>
+#include <wsutil/bitswap.h>
 #include <epan/prefs.h>
 #include "packet-fddi.h"
 #include "packet-llc.h"
 #include <epan/tap.h>
 
 #include <epan/addr_resolv.h>
+
+void proto_register_fddi(void);
+void proto_reg_handoff_fddi(void);
 
 static int proto_fddi = -1;
 static int hf_fddi_fc = -1;
@@ -137,11 +138,8 @@ static dissector_handle_t data_handle;
 static void
 swap_mac_addr(guint8 *swapped_addr, tvbuff_t *tvb, gint offset)
 {
-  int i;
-
-  for (i = 0; i < 6; i++) {
-    swapped_addr[i] = BIT_SWAP(tvb_get_guint8(tvb, offset+i));
-  }
+  tvb_memcpy(tvb, swapped_addr, offset, 6);
+  bitswap_buf_inplace(swapped_addr, 6);
 }
 
 
@@ -291,8 +289,8 @@ dissect_fddi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     ti = proto_tree_add_protocol_format(tree, proto_fddi, tvb, 0, FDDI_HEADER_SIZE+FDDI_PADDING,
                                         "Fiber Distributed Data Interface, %s", fc_str);
     fh_tree = proto_item_add_subtree(ti, ett_fddi);
-    ti = proto_tree_add_uint_format(fh_tree, hf_fddi_fc, tvb, FDDI_P_FC + FDDI_PADDING, 1, fddihdr->fc,
-        "Frame Control: 0x%02x (%s)", fddihdr->fc, fc_str);
+    ti = proto_tree_add_uint_format_value(fh_tree, hf_fddi_fc, tvb, FDDI_P_FC + FDDI_PADDING, 1, fddihdr->fc,
+        "0x%02x (%s)", fddihdr->fc, fc_str);
     fc_tree = proto_item_add_subtree(ti, ett_fddi_fc);
     proto_tree_add_uint(fc_tree, hf_fddi_fc_clf, tvb, FDDI_P_FC + FDDI_PADDING, 1, fddihdr->fc);
     switch ((fddihdr->fc) & FDDI_FC_CLFF) {

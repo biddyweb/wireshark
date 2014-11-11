@@ -4,8 +4,6 @@
  *
  * Copyright 2006 by Thomas Dreibholz <dreibh [AT] exp-math.uni-essen.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,7 @@
 #include <epan/packet.h>
 
 
+#if 0
 #define CSP_VERSION 0x0200
 
 #define CID_GROUP(id)  (((uint64_t) id >> 56) & (0xffffULL)
@@ -44,7 +43,10 @@
 #define CID_COMPOUND(group, object) (((uint64_t) (group & 0xffff) << 56) | CID_OBJECT((uint64_t)object))
 
 #define CSPT_REPORT
+#endif
 
+void proto_register_componentstatusprotocol(void);
+void proto_reg_handoff_componentstatusprotocol(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_componentstatusprotocol             = -1;
@@ -192,7 +194,7 @@ dissect_componentstatusprotocol_message(tvbuff_t *message_tvb, packet_info *pinf
   guint8      type;
 
   type = tvb_get_guint8(message_tvb, MESSAGE_TYPE_OFFSET);
-  col_add_str(pinfo->cinfo, COL_INFO, val_to_str_const(type, message_type_values, "Unknown ComponentStatusProtocol type"));
+  col_set_str(pinfo->cinfo, COL_INFO, val_to_str_const(type, message_type_values, "Unknown ComponentStatusProtocol type"));
   proto_tree_add_item(componentstatusprotocol_tree, hf_message_type,            message_tvb, MESSAGE_TYPE_OFFSET,     MESSAGE_TYPE_LENGTH,     ENC_BIG_ENDIAN);
   flags_item = proto_tree_add_item(componentstatusprotocol_tree, hf_message_flags,           message_tvb, MESSAGE_FLAGS_OFFSET, MESSAGE_FLAGS_LENGTH, ENC_BIG_ENDIAN);
   flags_tree = proto_item_add_subtree(flags_item, ett_message_flags);
@@ -299,3 +301,16 @@ proto_reg_handoff_componentstatusprotocol(void)
   componentstatusprotocol_handle = new_create_dissector_handle(dissect_componentstatusprotocol, proto_componentstatusprotocol);
   dissector_add_uint("udp.port", COMPONENTSTATUSPROTOCOL_PORT, componentstatusprotocol_handle);
 }
+
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 2
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=2 tabstop=8 expandtab:
+ * :indentSize=2:tabSize=8:noTabs=true:
+ */

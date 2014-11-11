@@ -1,5 +1,4 @@
-
-#.OPT 
+#.OPT
 -b
 #-d satcom
 #-s packet-gsm_map-tmp
@@ -40,6 +39,15 @@ DummyMAP						gsm_old
 EricssonMAP                     gsm_map.ericsson
 
 Remote-Operations-Information-Objects ROS
+#.NO_EMIT
+SubscriberData
+
+#.NO_EMIT ONLY_VALS
+CallBarredParam
+PW-RegistrationFailureCause
+SystemFailureParam
+ExtensionType
+NumberPorted/_untag
 
 #.OMIT_ASSIGNMENT
 Code
@@ -48,6 +56,24 @@ CommonComponentId
 SubscriberId
 GuidanceInfo
 SS-InfoList
+# Omitting SubscriberData makes CONTENT OF fail and InsertSubscriberDataArg will not get all its tags
+# Not yet used Nokia extensions
+SS-DataEmoInExt
+EmoInCategoryKey
+ANSIIsdArgExt
+ANSISriResExt
+PrefCarrierIdList
+USSD-Extension
+CosInfo
+AnyTimePO-BarringArg
+AnyTimePO-BarringRes
+CarrierIdCode
+COS-FeatureList
+GprsBarring
+COS-Feature
+CustomerGroupID
+SubGroupID
+ClassOfServiceID
 #.END
 #.PDU_NEW
 LCS-ClientID
@@ -66,6 +92,7 @@ AreaEventInfo
 BasicServiceCode
 CallReferenceNumber
 CCBS-Feature
+CellGlobalIdOrServiceAreaIdOrLAI
 CellGlobalIdOrServiceAreaIdFixedLength
 CUG-CheckInfo
 CUG-Index
@@ -184,10 +211,13 @@ MAP-DialoguePDU				B "0.4.0.0.1.1.1.1" "map-DialogueAS"
   VAL_PTR = &opcode
 
 #.FN_BODY  GSMMAPOperationLocalvalue
+  const char *opcode_string;
 
 %(DEFAULT_BODY)s
-  col_append_str(actx->pinfo->cinfo, COL_INFO, gsm_map_opr_code(opcode));
-  col_append_fstr(actx->pinfo->cinfo, COL_INFO, " ");
+  /* Retrieve opcode string and eventually update item value */
+  opcode_string = gsm_map_opr_code(opcode, actx->created_item);
+  col_append_str(actx->pinfo->cinfo, COL_INFO, opcode_string);
+  col_append_str(actx->pinfo->cinfo, COL_INFO, " ");
 
 #.FN_PARS  GSMMAPLocalErrorcode
 
@@ -200,7 +230,7 @@ MAP-DialoguePDU				B "0.4.0.0.1.1.1.1" "map-DialogueAS"
 #.FN_BODY PrivateExtension/extType
   proto_tree_add_text(tree, tvb, offset, -1, "Extension Data");
   if (obj_id){
-	 offset=call_ber_oid_callback(obj_id, tvb, offset, actx->pinfo, tree);
+	 offset=call_ber_oid_callback(obj_id, tvb, offset, actx->pinfo, tree, NULL);
   }else{
 	 call_dissector(data_handle, tvb, actx->pinfo, tree);
 	 offset = tvb_length_remaining(tvb,offset);
@@ -231,6 +261,8 @@ MAP-DialoguePDU				B "0.4.0.0.1.1.1.1" "map-DialogueAS"
 
  if (!parameter_tvb)
 	return offset;
+ if(tvb_length(parameter_tvb)==0)
+     return offset;
 
  digit_str = unpack_digits(parameter_tvb, 0);
  proto_tree_add_string(tree, hf_gsm_map_TBCD_digits, parameter_tvb, 0, -1, digit_str);
@@ -275,7 +307,7 @@ MAP-DialoguePDU				B "0.4.0.0.1.1.1.1" "map-DialogueAS"
 			call_dissector(dtap_handle, next_tvb, actx->pinfo, subtree);
 		}
 		break;
- 	/* ts3G-25413 */
+	/* ts3G-25413 */
 	case 2:
 		call_dissector(ranap_handle, parameter_tvb, actx->pinfo, tree);
 		break;
@@ -341,8 +373,8 @@ actx->pinfo->p2p_dir = P2P_DIR_RECV;
     return offset;
   /* Detailed diagnostic information contains either a SMS-SUBMIT-REPORT or a SMS-DELIVERY-REPORT */
   oct = tvb_get_guint8((tvbuff_t*)actx->value_ptr, 0);
-  actx->pinfo->p2p_dir = ((oct & 0x03) == 0) ? P2P_DIR_RECV : P2P_DIR_SENT; 
-  dissector_try_uint(sms_dissector_table, 0, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree);
+  actx->pinfo->p2p_dir = ((oct & 0x03) == 0) ? P2P_DIR_RECV : P2P_DIR_SENT;
+  call_dissector_only(gsm_sms_handle, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree, NULL);
 
 #.FN_BODY ForwardSM-Arg
 
@@ -351,7 +383,14 @@ actx->pinfo->p2p_dir = P2P_DIR_RECV;
 
 	if (!actx->value_ptr)
 		return offset;
-	dissector_try_uint(sms_dissector_table, 0, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree);
+	if (actx->pinfo->p2p_dir == P2P_DIR_UNKNOWN) {
+		if (opcode == 44) {
+			actx->pinfo->p2p_dir = P2P_DIR_RECV;
+		} else if (opcode == 46) {
+			actx->pinfo->p2p_dir = P2P_DIR_SENT;
+		}
+	}
+	call_dissector_only(gsm_sms_handle, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree, NULL);
 
 #.FN_BODY MO-ForwardSM-Arg
 
@@ -360,7 +399,10 @@ actx->pinfo->p2p_dir = P2P_DIR_RECV;
 
 	if (!actx->value_ptr)
 		return offset;
-	dissector_try_uint(sms_dissector_table, 0, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree);
+	if (actx->pinfo->p2p_dir == P2P_DIR_UNKNOWN) {
+		actx->pinfo->p2p_dir = P2P_DIR_RECV;
+	}
+	call_dissector_only(gsm_sms_handle, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree, NULL);
 
 #.FN_BODY MO-ForwardSM-Res
 
@@ -369,7 +411,10 @@ actx->pinfo->p2p_dir = P2P_DIR_RECV;
 
         if (!actx->value_ptr)
                 return offset;
-        dissector_try_uint(sms_dissector_table, 0, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree);
+        if (actx->pinfo->p2p_dir == P2P_DIR_UNKNOWN) {
+                actx->pinfo->p2p_dir = P2P_DIR_SENT;
+        }
+        call_dissector_only(gsm_sms_handle, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree, NULL);
 
 #.FN_BODY MT-ForwardSM-Arg
 
@@ -378,7 +423,10 @@ actx->pinfo->p2p_dir = P2P_DIR_RECV;
 
 	if (!actx->value_ptr)
 		return offset;
-	dissector_try_uint(sms_dissector_table, 0, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree);
+	if (actx->pinfo->p2p_dir == P2P_DIR_UNKNOWN) {
+		actx->pinfo->p2p_dir = P2P_DIR_SENT;
+	}
+	call_dissector_only(gsm_sms_handle, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree, NULL);
 
 #.FN_BODY MT-ForwardSM-Res
 
@@ -387,7 +435,10 @@ actx->pinfo->p2p_dir = P2P_DIR_RECV;
 
         if (!actx->value_ptr)
                 return offset;
-        dissector_try_uint(sms_dissector_table, 0, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree);
+        if (actx->pinfo->p2p_dir == P2P_DIR_UNKNOWN) {
+                actx->pinfo->p2p_dir = P2P_DIR_RECV;
+        }
+        call_dissector_only(gsm_sms_handle, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree, NULL);
 
 #.FN_BODY MT-ForwardSM-VGCS-Arg
 
@@ -396,7 +447,10 @@ actx->pinfo->p2p_dir = P2P_DIR_RECV;
 
         if (!actx->value_ptr)
                 return offset;
-        dissector_try_uint(sms_dissector_table, 0, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree);
+        if (actx->pinfo->p2p_dir == P2P_DIR_UNKNOWN) {
+                actx->pinfo->p2p_dir = P2P_DIR_SENT;
+        }
+        call_dissector_only(gsm_sms_handle, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree, NULL);
 
 #.FN_BODY MT-ForwardSM-VGCS-Res
 
@@ -405,7 +459,10 @@ actx->pinfo->p2p_dir = P2P_DIR_RECV;
 
         if (!actx->value_ptr)
                 return offset;
-        dissector_try_uint(sms_dissector_table, 0, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree);
+        if (actx->pinfo->p2p_dir == P2P_DIR_UNKNOWN) {
+                actx->pinfo->p2p_dir = P2P_DIR_RECV;
+        }
+        call_dissector_only(gsm_sms_handle, (tvbuff_t*)actx->value_ptr, actx->pinfo, top_tree, NULL);
 
 #.FN_BODY SS-Status VAL_PTR = &parameter_tvb
 
@@ -469,14 +526,6 @@ actx->pinfo->p2p_dir = P2P_DIR_RECV;
 
   tvbuff_t	*parameter_tvb;
   guint		length;
-  guint8		out_len;
-  /* XXX - The maximum item label length is 240.  Does this really need to be 1024?
-   * use ep_alloc ?
-   */
-  static unsigned char msgbuf[1024];
-  gchar *utf8_text = NULL;
-  GIConv cd;
-  GError *l_conv_error = NULL;
 
 %(DEFAULT_BODY)s
   if (!parameter_tvb)
@@ -486,33 +535,15 @@ actx->pinfo->p2p_dir = P2P_DIR_RECV;
   switch(sms_encoding){
     case SMS_ENCODING_7BIT:
     case SMS_ENCODING_7BIT_LANG:
-	out_len = gsm_sms_char_7bit_unpack(0, length, sizeof(msgbuf),
-					   tvb_get_ptr(parameter_tvb, 0, length),
-						       msgbuf);
-
-	msgbuf[out_len] = '\0';
-	utf8_text = gsm_sms_chars_to_utf8(msgbuf, out_len);
-	proto_tree_add_text(tree, parameter_tvb, 0, length, "USSD String: %%s", utf8_text);
+	proto_tree_add_text(tree, parameter_tvb , 0, length, "USSD String: %%s", tvb_get_string_enc(wmem_packet_scope(), parameter_tvb, 0, length, ENC_3GPP_TS_23_038_7BITS|ENC_NA));
 	break;
     case SMS_ENCODING_8BIT:
-	proto_tree_add_text(tree, parameter_tvb , 0, length, "USSD String: %%s", tvb_get_ephemeral_string(parameter_tvb, 0, length));
+        /* XXX - ASCII, or some extended ASCII? */
+	proto_tree_add_text(tree, parameter_tvb , 0, length, "USSD String: %%s", tvb_get_string_enc(wmem_packet_scope(), parameter_tvb, 0, length, ENC_ASCII|ENC_NA));
 	break;
     case SMS_ENCODING_UCS2:
     case SMS_ENCODING_UCS2_LANG:
-	if ((cd = g_iconv_open("UTF-8","UCS-2BE")) != (GIConv) -1)
-	{
-	    utf8_text = g_convert_with_iconv(tvb_get_ptr(parameter_tvb, 0, length), length, cd, NULL, NULL, &l_conv_error);
-	    if(!l_conv_error)
-		proto_tree_add_text(tree, tvb, 0, length, "USSD String: %%s", utf8_text);
-	    else
-		proto_tree_add_text(tree, tvb, 0, length, "USSD String: g_convert_with_iconv FAILED");
-
-	    g_free(utf8_text);
-	    g_iconv_close(cd);
-	}
-	else
-	    proto_tree_add_text(tree, tvb, 0, length, "USSD String: g_iconv_open FAILED contact wireshark");
-
+	proto_tree_add_text(tree, parameter_tvb , 0, length, "USSD String: %%s", tvb_get_string_enc(wmem_packet_scope(), parameter_tvb, 0, length, ENC_UCS_2|ENC_BIG_ENDIAN));
 	break;
     default:
 	break;
@@ -715,7 +746,7 @@ if (!actx->value_ptr)
 		}/* switch(octet) */
 		break;
 	case 2:
- 		/* gsm-0806 */
+		/* gsm-0806 */
 		octet = tvb_get_guint8((tvbuff_t*)actx->value_ptr,0);
 		/* Discrimination parameter */
 		proto_tree_add_item(subtree, hf_gsm_map_disc_par, (tvbuff_t*)actx->value_ptr, 0,1,ENC_BIG_ENDIAN);
@@ -795,7 +826,7 @@ if (!actx->value_ptr)
 		}/* switch(octet) */
 		break;
 	case 2:
- 		/* gsm-0806 */
+		/* gsm-0806 */
 		octet = tvb_get_guint8((tvbuff_t*)actx->value_ptr,0);
 		/* Discrimination parameter */
 		proto_tree_add_item(subtree, hf_gsm_map_disc_par, (tvbuff_t*)actx->value_ptr, 0,1,ENC_BIG_ENDIAN);
@@ -856,7 +887,7 @@ if (!actx->value_ptr)
 
 
 # APN ::=  OCTET STRING (SIZE (2..63))
-# Octets are coded according to TS 3GPP TS 23.003 
+# Octets are coded according to TS 3GPP TS 23.003
 # 9.1 Structure of APN
 # :
 # The APN consists of one or more labels. Each label is coded as a one octet length field followed by that number of
@@ -873,10 +904,10 @@ if (!actx->value_ptr)
 %(DEFAULT_BODY)s
 	if (!parameter_tvb)
                 return offset;
-                
+
     length = tvb_length(parameter_tvb);
     name_len = tvb_get_guint8(parameter_tvb, 0);
-	apn_str = tvb_get_ephemeral_string(parameter_tvb, 1, length - 1);
+    apn_str = tvb_get_string_enc(wmem_packet_scope(), parameter_tvb, 1, length - 1, ENC_ASCII|ENC_NA);
     if (name_len < length-1) {
 		for (;;) {
 			if (name_len >= length - 1)

@@ -2,8 +2,6 @@
 #
 # rdps.py
 #
-# $Id$
-# 
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -147,3 +145,14 @@ def main():
 if __name__ == "__main__":
     main()
 
+#
+# Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+#
+# Local variables:
+# c-basic-offset: 4
+# indent-tabs-mode: nil
+# End:
+#
+# vi: set shiftwidth=4 expandtab:
+# :indentSize=4:noTabs=true:
+#

@@ -1,7 +1,5 @@
 /* packet-usb-audio.c
  *
- * $Id$
- *
  * usb audio dissector
  * Tomasz Mon 2012
  *
@@ -24,11 +22,13 @@
 
 #include <glib.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
 #include <epan/expert.h>
 #include <epan/packet.h>
 #include <epan/reassemble.h>
 #include "packet-usb.h"
+
+void proto_register_usb_audio(void);
+void proto_reg_handoff_usb_audio(void);
 
 /* protocols and header fields */
 static int proto_usb_audio = -1;
@@ -36,25 +36,27 @@ static int hf_midi_cable_number = -1;
 static int hf_midi_code_index = -1;
 static int hf_midi_event = -1;
 
-static GHashTable *midi_data_segment_table = NULL;
-static GHashTable *midi_data_reassembled_table = NULL;
+static reassembly_table midi_data_reassembly_table;
 
-static gint ett_usb_audio = -1;
+static gint ett_usb_audio      = -1;
+static gint ett_usb_audio_desc = -1;
 
 static dissector_handle_t sysex_handle;
 
-#define AUDIO_SUBCLASS_UNDEFINED	0x00
-#define AUDIO_SUBCLASS_AUDIOCONTROL	0x01
-#define AUDIO_SUBCLASS_AUDIOSTREAMING	0x02
-#define AUDIO_SUBCLASS_MIDISTREAMING	0x03
+#define AUDIO_SUBCLASS_UNDEFINED        0x00
+#define AUDIO_SUBCLASS_AUDIOCONTROL     0x01
+#define AUDIO_SUBCLASS_AUDIOSTREAMING   0x02
+#define AUDIO_SUBCLASS_MIDISTREAMING    0x03
 
+#if 0
 static const value_string usb_audio_subclass_vals[] = {
-    {AUDIO_SUBCLASS_UNDEFINED,		"SUBCLASS_UNDEFINED"},
-    {AUDIO_SUBCLASS_AUDIOCONTROL,	"AUDIOCONSTROL"},
-    {AUDIO_SUBCLASS_AUDIOSTREAMING,	"AUDIOSTREAMING"},
-    {AUDIO_SUBCLASS_MIDISTREAMING,	"MIDISTREAMING"},
+    {AUDIO_SUBCLASS_UNDEFINED,          "SUBCLASS_UNDEFINED"},
+    {AUDIO_SUBCLASS_AUDIOCONTROL,       "AUDIOCONSTROL"},
+    {AUDIO_SUBCLASS_AUDIOSTREAMING,     "AUDIOSTREAMING"},
+    {AUDIO_SUBCLASS_MIDISTREAMING,      "MIDISTREAMING"},
     {0, NULL}
 };
+#endif
 
 static const value_string code_index_vals[] = {
     { 0x0, "Miscellaneous (Reserved)" },
@@ -76,6 +78,18 @@ static const value_string code_index_vals[] = {
     { 0, NULL }
 };
 
+/* USB audio specification, section A.8 */
+#define CS_INTERFACE       0x24
+#define CS_ENDPOINT        0x25
+
+static const value_string aud_descriptor_type_vals[] = {
+        {CS_INTERFACE, "audio class interface"},
+        {CS_ENDPOINT,  "audio class endpoint"},
+        {0,NULL}
+};
+static value_string_ext aud_descriptor_type_vals_ext =
+    VALUE_STRING_EXT_INIT(aud_descriptor_type_vals);
+
 static int hf_sysex_msg_fragments = -1;
 static int hf_sysex_msg_fragment = -1;
 static int hf_sysex_msg_fragment_overlap = -1;
@@ -90,6 +104,8 @@ static int hf_sysex_msg_reassembled_data = -1;
 
 static gint ett_sysex_msg_fragment = -1;
 static gint ett_sysex_msg_fragments = -1;
+
+static expert_field ei_usb_audio_undecoded = EI_INIT;
 
 static const fragment_items sysex_msg_frag_items = {
     /* Fragment subtrees */
@@ -122,8 +138,8 @@ is_sysex_code(guint8 code)
 static gboolean
 is_last_sysex_packet_in_tvb(tvbuff_t *tvb, gint offset)
 {
-    gboolean last = TRUE;
-    gint length = tvb_length(tvb);
+    gboolean last   = TRUE;
+    gint     length = tvb_length(tvb);
 
     offset += 4;
     while (offset < length)
@@ -148,9 +164,9 @@ dissect_usb_midi_event(tvbuff_t *tvb, packet_info *pinfo,
                        proto_tree *usb_audio_tree, proto_tree *parent_tree,
                        gint offset)
 {
-    guint8 code;
-    guint8 cable;
-    gboolean save_fragmented;
+    guint8      code;
+    guint8      cable;
+    gboolean    save_fragmented;
     proto_tree *tree = NULL;
 
     col_set_str(pinfo->cinfo, COL_INFO, "USB-MIDI Event Packets");
@@ -161,7 +177,7 @@ dissect_usb_midi_event(tvbuff_t *tvb, packet_info *pinfo,
 
     if (parent_tree)
     {
-        proto_item *ti = NULL;
+        proto_item *ti;
 
         ti = proto_tree_add_protocol_format(usb_audio_tree, proto_usb_audio, tvb, offset, 4, "USB Midi Event Packet");
         tree = proto_item_add_subtree(ti, ett_usb_audio);
@@ -176,25 +192,27 @@ dissect_usb_midi_event(tvbuff_t *tvb, packet_info *pinfo,
     if (is_sysex_code(code))
     {
         tvbuff_t* new_tvb = NULL;
-        fragment_data *frag_sysex_msg = NULL;
+        fragment_head *frag_sysex_msg = NULL;
 
         pinfo->fragmented = TRUE;
 
         if (code == 0x04)
         {
-            frag_sysex_msg = fragment_add_seq_next(tvb, offset+1, pinfo,
+            frag_sysex_msg = fragment_add_seq_next(&midi_data_reassembly_table,
+                tvb, offset+1,
+                pinfo,
                 cable, /* ID for fragments belonging together */
-                midi_data_segment_table,
-                midi_data_reassembled_table,
+                NULL,
                 3,
                 TRUE);
         }
         else
         {
-            frag_sysex_msg = fragment_add_seq_next(tvb, offset+1, pinfo,
+            frag_sysex_msg = fragment_add_seq_next(&midi_data_reassembly_table,
+                tvb, offset+1,
+                pinfo,
                 cable, /* ID for fragments belonging together */
-                midi_data_segment_table,
-                midi_data_reassembled_table,
+                NULL,
                 (gint)(code - 4),
                 FALSE);
         }
@@ -223,24 +241,62 @@ dissect_usb_midi_event(tvbuff_t *tvb, packet_info *pinfo,
     pinfo->fragmented = save_fragmented;
 }
 
+
+static gint
+dissect_usb_audio_descriptor(tvbuff_t *tvb, packet_info *pinfo _U_,
+        proto_tree *tree, void *data _U_)
+{
+    gint        offset = 0;
+    guint8      descriptor_len;
+    guint8      descriptor_type;
+    proto_item *item = NULL;
+    proto_tree *desc_tree;
+
+    descriptor_len  = tvb_get_guint8(tvb, offset);
+    descriptor_type = tvb_get_guint8(tvb, offset+1);
+
+    if (descriptor_type == CS_INTERFACE) {
+        item = proto_tree_add_text(tree, tvb, offset, descriptor_len,
+                "AUDIO CONTROL INTERFACE DESCRIPTOR");
+    }
+    else if (descriptor_type == CS_ENDPOINT) {
+        item = proto_tree_add_text(tree, tvb, offset, descriptor_len,
+                "AUDIO CONTROL ENDPOINT DESCRIPTOR");
+    }
+    else
+        return 0;
+
+    desc_tree = proto_item_add_subtree(item, ett_usb_audio_desc);
+
+    dissect_usb_descriptor_header(desc_tree, tvb, offset,
+            &aud_descriptor_type_vals_ext);
+
+    return descriptor_len;
+}
+
+
 /* dissector for usb midi bulk data */
-static void
-dissect_usb_audio_bulk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree)
+static int
+dissect_usb_audio_bulk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *data)
 {
     usb_conv_info_t *usb_conv_info;
-    proto_tree *tree = NULL;
-    guint offset;
-    guint length = tvb_length(tvb);
+    proto_tree      *tree   = NULL;
+    guint            offset;
+    guint            length = tvb_length(tvb);
 
-    usb_conv_info = pinfo->usb_conv_info;
+
+    /* Reject the packet if data is NULL */
+    if (data == NULL)
+        return 0;
+    usb_conv_info = (usb_conv_info_t *)data;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "USBAUDIO");
 
     if (parent_tree)
     {
-        proto_item *ti = NULL;
+        proto_item *ti;
 
-        ti = proto_tree_add_protocol_format(parent_tree, proto_usb_audio, tvb, 0, -1, "USB Audio");
+        ti   = proto_tree_add_protocol_format(parent_tree, proto_usb_audio, tvb, 0, -1, "USB Audio");
         tree = proto_item_add_subtree(ti, ett_usb_audio);
     }
 
@@ -258,15 +314,17 @@ dissect_usb_audio_bulk(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tre
             break;
         default:
             offset = 0;
-            expert_add_undecoded_item(tvb, pinfo, tree, offset, length - offset, PI_WARN);
+            proto_tree_add_expert(tree, pinfo, &ei_usb_audio_undecoded, tvb, offset, length - offset);
     }
+
+    return tvb_length(tvb);
 }
 
 static void
 midi_data_reassemble_init(void)
 {
-    fragment_table_init(&midi_data_segment_table);
-    reassembled_table_init(&midi_data_reassembled_table);
+    reassembly_table_init(&midi_data_reassembly_table,
+                          &addresses_reassembly_table_functions);
 }
 
 void
@@ -322,22 +380,35 @@ proto_register_usb_audio(void)
 
     static gint *usb_audio_subtrees[] = {
         &ett_usb_audio,
+        &ett_usb_audio_desc,
         &ett_sysex_msg_fragment,
         &ett_sysex_msg_fragments
     };
 
+    static ei_register_info ei[] = {
+        { &ei_usb_audio_undecoded, { "usbaudio.undecoded", PI_UNDECODED, PI_WARN, "Not dissected yet (report to wireshark.org)", EXPFILL }},
+    };
+
+    expert_module_t* expert_usb_audio;
+
     proto_usb_audio = proto_register_protocol("USB Audio", "USBAUDIO", "usbaudio");
     proto_register_field_array(proto_usb_audio, hf, array_length(hf));
     proto_register_subtree_array(usb_audio_subtrees, array_length(usb_audio_subtrees));
+    expert_usb_audio = expert_register_protocol(proto_usb_audio);
+    expert_register_field_array(expert_usb_audio, ei, array_length(ei));
     register_init_routine(&midi_data_reassemble_init);
 
-    register_dissector("usbaudio", dissect_usb_audio_bulk, proto_usb_audio);
+    new_register_dissector("usbaudio", dissect_usb_audio_bulk, proto_usb_audio);
 }
 
 void
 proto_reg_handoff_usb_audio(void)
 {
-    dissector_handle_t usb_audio_bulk_handle;
+    dissector_handle_t usb_audio_bulk_handle, usb_audio_descr_handle;
+
+    usb_audio_descr_handle = new_create_dissector_handle(
+            dissect_usb_audio_descriptor, proto_usb_audio);
+    dissector_add_uint("usb.descriptor", IF_CLASS_AUDIO, usb_audio_descr_handle);
 
     usb_audio_bulk_handle = find_dissector("usbaudio");
     dissector_add_uint("usb.bulk", IF_CLASS_AUDIO, usb_audio_bulk_handle);

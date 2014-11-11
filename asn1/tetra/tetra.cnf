@@ -3,7 +3,6 @@
 
 #.OPT
 -u
-# $Id$
 
 #.MODULE_IMPORT
 
@@ -13,10 +12,7 @@ ExtendCarrier
 SPEECHMODE
 DATAMODE
 CALLMODE
-MAC-DATA
-FRAG6
-LengthIndicationMacData
-         
+
 #.EXPORTS
 
 #U-ALERT
@@ -72,7 +68,7 @@ MAC-RESOURCE
 MAC-ACCESS
 BSCH
 BNCH
-
+MAC-DATA
 
 
 #.FN_BODY U-RELEASE

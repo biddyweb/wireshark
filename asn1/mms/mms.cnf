@@ -1,8 +1,6 @@
 # mms.cnf
 # mms conformation file
 
-# $Id$
-
 #.MODULE_IMPORT
 ISO-8650-ACSE-1 acse
 
@@ -49,7 +47,6 @@ UtcTime	TYPE = FT_STRING DISPLAY = BASE_NONE
 #.FN_BODY TimeOfDay
 
 	guint32 len;
-	proto_item *cause;
 	guint32 milliseconds;
 	guint16 days;
 	gchar *	ptime;
@@ -60,7 +57,7 @@ UtcTime	TYPE = FT_STRING DISPLAY = BASE_NONE
 	if(len == 4)
 	{
 		milliseconds = tvb_get_ntohl(tvb, offset);
-		ptime = time_msecs_to_str(milliseconds);
+		ptime = time_msecs_to_ep_str(milliseconds);
 
 		if(hf_index >= 0)
 		{
@@ -80,7 +77,7 @@ UtcTime	TYPE = FT_STRING DISPLAY = BASE_NONE
 		ts.secs = (days + 5113) * 86400 + milliseconds / 1000;
 		ts.nsecs = (milliseconds %% 1000) * 1000000U;
 
-		ptime = abs_time_to_str(&ts, ABSOLUTE_TIME_UTC, TRUE);
+		ptime = abs_time_to_ep_str(&ts, ABSOLUTE_TIME_UTC, TRUE);
 		if(hf_index >= 0)
 		{
 			proto_tree_add_string(tree, hf_index, tvb, offset, len, ptime);
@@ -89,11 +86,8 @@ UtcTime	TYPE = FT_STRING DISPLAY = BASE_NONE
 		return offset;
 	}
 
-	cause = proto_tree_add_text(tree, tvb, offset, len,
-			"BER Error: malformed TimeOfDay encoding, "
-			"length must be 4 or 6 bytes");
-	proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-	expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "BER Error: malformed TimeOfDay encoding");
+	proto_tree_add_expert_format(tree, actx->pinfo, &ei_mms_mal_timeofday_encoding,
+			tvb, offset, len, "BER Error: malformed TimeOfDay encoding, length must be 4 or 6 bytes");
 	if(hf_index >= 0)
 	{
 		proto_tree_add_string(tree, hf_index, tvb, offset, len, "????");
@@ -104,7 +98,6 @@ UtcTime	TYPE = FT_STRING DISPLAY = BASE_NONE
 #.FN_BODY UtcTime
 
 	guint32 len;
-	proto_item *cause;
 	guint32 seconds;
 	guint32	fraction;
 	guint32 nanoseconds;
@@ -115,11 +108,8 @@ UtcTime	TYPE = FT_STRING DISPLAY = BASE_NONE
 
 	if(len != 8)
 	{
-		cause = proto_tree_add_text(tree, tvb, offset, len,
-				"BER Error: malformed IEC61850 UTCTime encoding, "
-				"length must be 8 bytes");
-		proto_item_set_expert_flags(cause, PI_MALFORMED, PI_WARN);
-		expert_add_info_format(actx->pinfo, cause, PI_MALFORMED, PI_WARN, "BER Error: malformed IEC61850 UTCTime encoding");
+		proto_tree_add_expert_format(tree, actx->pinfo, &ei_mms_mal_utctime_encoding,
+				tvb, offset, len, "BER Error: malformed IEC61850 UTCTime encoding, length must be 8 bytes");
 		if(hf_index >= 0)
 		{
 			proto_tree_add_string(tree, hf_index, tvb, offset, len, "????");
@@ -129,12 +119,12 @@ UtcTime	TYPE = FT_STRING DISPLAY = BASE_NONE
 
 	seconds = tvb_get_ntohl(tvb, offset);
 	fraction = tvb_get_ntoh24(tvb, offset+4) * 0x100; /* Only 3 bytes are recommended */
-	nanoseconds = (guint32)( ((guint64)fraction * G_GINT64_CONSTANT(1000000000U)) / G_GINT64_CONSTANT(0x100000000U) ) ;
+	nanoseconds = (guint32)( ((guint64)fraction * G_GUINT64_CONSTANT(1000000000)) / G_GUINT64_CONSTANT(0x100000000) ) ;
 
 	ts.secs = seconds;
 	ts.nsecs = nanoseconds;
 
-	ptime = abs_time_to_str(&ts, ABSOLUTE_TIME_UTC, TRUE);
+	ptime = abs_time_to_ep_str(&ts, ABSOLUTE_TIME_UTC, TRUE);
 
 	if(hf_index >= 0)
 	{

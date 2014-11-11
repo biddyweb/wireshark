@@ -1,8 +1,6 @@
 /* main_titlebar.h
  * Declarations of GTK+-specific UI utility routines
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,12 +24,15 @@
 #define __MAIN_TITLEBAR_H__
 
 /** Construct the main window's title with the current main_window_name optionally appended
- *  with the user-specified title and/or wireshark version. 
+ *  with the user-specified title and/or wireshark version.
  *  Display the result in the main window's title bar and in its icon title
  */
 extern void main_titlebar_update(void);
 
-/* Set the name of the top-level window. */
-extern void main_set_window_name(const gchar *);
+/* Set titlebar to reflect the current state of the capture file, if any */
+extern void set_titlebar_for_capture_file(capture_file *cf);
+
+/* Set titlebar to reflect a capture in progress */
+extern void set_titlebar_for_capture_in_progress(capture_file *cf);
 
 #endif /* __MAIN_TITLEBAR_H__ */

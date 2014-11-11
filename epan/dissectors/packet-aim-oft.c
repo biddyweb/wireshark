@@ -1,8 +1,6 @@
-/* packet-aim.c
+/* packet-aim-oft.c
  * Routines for AIM Instant Messenger (OSCAR) dissection
  * Copyright 2004, Jelmer Vernooij <jelmer@samba.org>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -43,7 +41,7 @@ static int proto_aim_oft = -1;
 /*static int ett_aim_recvfile = -1;
 static int ett_aim_sendfile = -1;*/
 
-/* 
+/*
  * cookie (8 chars)
  * encrypt (uint16)
  * compress (uint16)
@@ -70,7 +68,7 @@ static int ett_aim_sendfile = -1;*/
  * nencode (uint16)
  * nlanguage (uint16)
  * filename (raw, 64 chars)
- * 
+ *
  * length of file (uint16)
  * file data
  */
@@ -102,7 +100,7 @@ proto_reg_handoff_aim_oft(void)
 {
 /*  dissector_handle_t aim_handle;*/
 
-  /* FIXME 
+  /* FIXME
   aim_handle = new_create_dissector_handle(dissect_aim, proto_aim);
   dissector_add_uint("tcp.port", TCP_PORT_AIM, aim_handle);*/
 }

@@ -1,7 +1,5 @@
 # CMakeLists.txt
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -21,6 +19,11 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 
+find_package( FOP ) # Call before XSLTPROC
+find_package( LYNX )
+find_package( XSLTPROC )
+find_package( XMLLINT )
+find_package( ASCIIDOC )
 
 set(WSUG_FILES
 	wsug_src/WSUG_app_files.xml
@@ -177,18 +180,17 @@ set(WSUG_GRAPHICS
 )
 
 set(WSDG_FILES
-	wsdg_src/WSDG_chapter_build_intro.xml
-	wsdg_src/WSDG_chapter_capture.xml
-	wsdg_src/WSDG_chapter_dissection.xml
-	wsdg_src/WSDG_chapter_env_intro.xml
-	wsdg_src/WSDG_chapter_libraries.xml
-	wsdg_src/WSDG_chapter_quick_setup.xml
-	wsdg_src/WSDG_chapter_sources.xml
-	wsdg_src/WSDG_chapter_tools.xml
-	wsdg_src/WSDG_chapter_userinterface.xml
-	wsdg_src/WSDG_chapter_works.xml
-	wsdg_src/WSDG_meta_info.xml
-	wsdg_src/WSDG_preface.xml
+	wsdg_src/WSDG_chapter_build_intro.asciidoc
+	wsdg_src/WSDG_chapter_capture.asciidoc
+	wsdg_src/WSDG_chapter_dissection.asciidoc
+	wsdg_src/WSDG_chapter_env_intro.asciidoc
+	wsdg_src/WSDG_chapter_libraries.asciidoc
+	wsdg_src/WSDG_chapter_quick_setup.asciidoc
+	wsdg_src/WSDG_chapter_sources.asciidoc
+	wsdg_src/WSDG_chapter_tools.asciidoc
+	wsdg_src/WSDG_chapter_userinterface.asciidoc
+	wsdg_src/WSDG_chapter_works.asciidoc
+	wsdg_src/WSDG_preface.asciidoc
 	ws.css
 )
 
@@ -208,49 +210,116 @@ set(WSDG_GRAPHICS
 # user-guide.xml must be first in the list
 set(WSUG_SOURCE
 	user-guide.xml
-	svn_version.xml
+	git_version.xml
 	wsluarm
 	${WSUG_FILES}
 	${WSUG_GRAPHICS}
 )
 
+MACRO( ASCIIDOC2DOCBOOK _asciidocsource _conffile )
+	GET_FILENAME_COMPONENT( _source_base_name ${_asciidocsource} NAME_WE )
+	set( A2X_HTML_OPTS --stylesheet=ws.css )
+	set( _output_xml ${_source_base_name}.xml )
+	set( _output_dbk ${_source_base_name}.dbk )
+	ADD_CUSTOM_TARGET(${_output_xml}
+		# XXX - Output to a specific directory, e.g. wsdg_generated_src
+		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+		COMMAND ${A2X_EXECUTABLE}
+			--verbose
+			--attribute=docinfo
+			--destination-dir=${CMAKE_CURRENT_BINARY_DIR}
+			--asciidoc-opts="--conf-file=${CMAKE_CURRENT_SOURCE_DIR}/${_conffile}"
+			--no-xmllint
+			--format=docbook
+			--fop
+			${A2X_HTML_OPTS}
+			${CMAKE_CURRENT_SOURCE_DIR}/${_asciidocsource}
+		DEPENDS
+			${CMAKE_CURRENT_SOURCE_DIR}/${_asciidocsource}
+			${CMAKE_CURRENT_SOURCE_DIR}/${_conffile}
+			${WSDG_GENERATED_FILES}
+	)
+ENDMACRO()
+
+ASCIIDOC2DOCBOOK( developer-guide.asciidoc asciidoc.conf )
+
+SET( WSDG_GENERATED_FILES )
+# Convert an AsciiDoc document to a DocBook chapter
+# Used for chapter-by-chapter conversion from DocBook to AsciiDoc.
+# Can be removed after the User's Guide is converted.
+# .asciidoc -> whole book (.dbk) -> chapter (.xml)
+MACRO( ASCIIDOC2CHAPTER _asciidocsource _conffile )
+	GET_FILENAME_COMPONENT( _source_base_name ${_asciidocsource} NAME_WE )
+	set( A2X_HTML_OPTS --stylesheet=ws.css )
+	set( _output_xml ${_source_base_name}.xml )
+	set( _output_dbk ${_source_base_name}.dbk )
+	ADD_CUSTOM_TARGET(${_output_xml}
+		# XXX - Output to a specific directory, e.g. wsdg_generated_src
+		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+		COMMAND ${A2X_EXECUTABLE}
+			--verbose
+			--destination-dir=${CMAKE_CURRENT_BINARY_DIR}
+			--asciidoc-opts="--conf-file=${CMAKE_CURRENT_SOURCE_DIR}/${_conffile}"
+			--no-xmllint
+			--fop
+			--format=docbook --doctype=book
+			${A2X_HTML_OPTS}
+			${CMAKE_CURRENT_SOURCE_DIR}/${_asciidocsource}
+		COMMAND mv
+			${_output_xml}
+			${_output_dbk}
+		COMMAND ${XMLLINT_EXECUTABLE}
+			--xpath '//chapter | //preface'
+			${_output_dbk}
+			> ${_output_xml}
+		DEPENDS
+			${_outptudir}
+	${CMAKE_CURRENT_SOURCE_DIR}/${_asciidocsource}
+	${CMAKE_CURRENT_SOURCE_DIR}/${_conffile}
+	)
+LIST( APPEND WSDG_GENERATED_FILES ${CMAKE_CURRENT_BINARY_DIR}/${_output_xml} )
+ENDMACRO()
+
+#FOREACH(ASCIIDOCFILE ${WSDG_ASCIIDOC_FILES})
+#	ASCIIDOC2CHAPTER(
+#		${ASCIIDOCFILE}
+#		asciidoc.conf
+#	)
+#ENDFOREACH()
+
+#ADD_CUSTOM_TARGET( wsdg_generated_src DEPENDS ${WSDG_GENERATED_FILES} )
+
 # developer-guide.xml must be first in the list
 set(WSDG_SOURCE
 	developer-guide.xml
-	svn_version.xml
+	git_version.xml
 	${WSDG_FILES}
 	${WSDG_GRAPHICS}
-)
-
-set(RELEASE_NOTES_SOURCE
-	release-notes.xml
-	svn_version.xml
 )
 
 set(WSLUA_MODULES
 	${CMAKE_SOURCE_DIR}/epan/wslua/wslua_dumper.c
 	${CMAKE_SOURCE_DIR}/epan/wslua/wslua_field.c
 	${CMAKE_SOURCE_DIR}/epan/wslua/wslua_gui.c
+	${CMAKE_SOURCE_DIR}/epan/wslua/wslua_int64.c
 	${CMAKE_SOURCE_DIR}/epan/wslua/wslua_listener.c
 	${CMAKE_SOURCE_DIR}/epan/wslua/wslua_pinfo.c
 	${CMAKE_SOURCE_DIR}/epan/wslua/wslua_proto.c
 	${CMAKE_SOURCE_DIR}/epan/wslua/wslua_tree.c
 	${CMAKE_SOURCE_DIR}/epan/wslua/wslua_tvb.c
+	${CMAKE_SOURCE_DIR}/epan/wslua/wslua_file.c
+	${CMAKE_SOURCE_DIR}/epan/wslua/wslua_dir.c
 	${CMAKE_SOURCE_DIR}/epan/wslua/wslua_util.c
+	${CMAKE_SOURCE_DIR}/epan/wslua/wslua_struct.c
 )
-
-find_package( FOP ) # Call before XSLTPROC
-find_package( LYNX )
-find_package( XSLTPROC )
-find_package( XMLLINT )
 
 ADD_CUSTOM_COMMAND(
 	OUTPUT
-		svn_version.xml
+		git_version.xml
 	COMMAND ${SH}
-		${CMAKE_CURRENT_SOURCE_DIR}/check_svn_version.sh
+		${CMAKE_CURRENT_SOURCE_DIR}/check_git_version.sh
 	DEPENDS
-		${CMAKE_CURRENT_SOURCE_DIR}/check_svn_version.sh
+		${CMAKE_CURRENT_SOURCE_DIR}/check_git_version.sh
 )
 
 add_custom_target(
@@ -258,7 +327,7 @@ add_custom_target(
 	DEPENDS
 		wsluarm
 		wsug_html_chunked/index.html
-		wsug_html/user-guide.html
+		wsug_html/index.html
 		user-guide-a4.pdf
 		user-guide-us.pdf
 )
@@ -270,7 +339,7 @@ VALIDATE_XML(
 
 XML2HTML(
 	wsug.validated
-	wsug_html/user-guide.html
+	wsug_html/index.html
 	single-page
 	WSUG_SOURCE
 	WSUG_GRAPHICS
@@ -307,7 +376,7 @@ add_custom_target(
 	DEPENDS
 		wsluarm
 		wsdg_html_chunked/index.html
-		wsdg_html/developer-guide.html
+		wsdg_html/index.html
 		developer-guide-a4.pdf
 		developer-guide-us.pdf
 )
@@ -319,7 +388,7 @@ VALIDATE_XML(
 
 XML2HTML(
 	wsdg.validated
-	wsdg_html/developer-guide.html
+	wsdg_html/index.html
 	single-page
 	WSDG_SOURCE
 	WSDG_GRAPHICS
@@ -348,6 +417,52 @@ XML2PDF(
 )
 
 # release_notes: release-notes.html release-notes.txt release-notes-a4.pdf release-notes-us.pdf
+
+add_custom_target(
+	release_notes ALL
+	DEPENDS
+		release-notes.html
+		release-notes.txt
+		release-notes-a4.pdf
+		release-notes-us.pdf
+		${CMAKE_SOURCE_DIR}/NEWS
+)
+
+ADD_CUSTOM_COMMAND(
+	OUTPUT
+		${CMAKE_SOURCE_DIR}/NEWS
+	COMMAND cp
+		${CMAKE_CURRENT_BINARY_DIR}/release-notes.txt
+		${CMAKE_SOURCE_DIR}/NEWS
+	DEPENDS
+                ${CMAKE_CURRENT_BINARY_DIR}/release-notes.txt
+)
+
+ASCIIDOC2HTML(
+	release-notes.html
+	release-notes.asciidoc
+	asciidoc.conf
+)
+
+ASCIIDOC2TXT(
+	release-notes.txt
+	release-notes.asciidoc
+	asciidoc.conf
+)
+
+ASCIIDOC2PDF(
+	release-notes-a4.pdf
+	release-notes.asciidoc
+	asciidoc.conf
+	A4
+)
+
+ASCIIDOC2PDF(
+	release-notes-us.pdf
+	release-notes.asciidoc
+	asciidoc.conf
+	letter
+)
 
 # wsluarm
 ADD_CUSTOM_COMMAND(

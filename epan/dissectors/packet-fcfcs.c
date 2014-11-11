@@ -2,8 +2,6 @@
  * Routines for FC Fabric Configuration Server
  * Copyright 2001, Dinesh G Dutt <ddutt@andiamo.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,13 +26,16 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/to_str.h>
+#include <epan/wmem/wmem.h>
 #include <epan/conversation.h>
 #include <epan/etypes.h>
-#include "packet-scsi.h"
 #include "packet-fc.h"
 #include "packet-fcct.h"
 #include "packet-fcfcs.h"
+
+void proto_register_fcfcs(void);
+void proto_reg_handoff_fcfcs(void);
 
 /*
  * See the FC-GS3 specification.
@@ -96,8 +97,8 @@ static dissector_handle_t data_handle;
 static gint
 fcfcs_equal(gconstpointer v, gconstpointer w)
 {
-  const fcfcs_conv_key_t *v1 = v;
-  const fcfcs_conv_key_t *v2 = w;
+  const fcfcs_conv_key_t *v1 = (const fcfcs_conv_key_t *)v;
+  const fcfcs_conv_key_t *v2 = (const fcfcs_conv_key_t *)w;
 
   return (v1->conv_idx == v2->conv_idx);
 }
@@ -105,7 +106,7 @@ fcfcs_equal(gconstpointer v, gconstpointer w)
 static guint
 fcfcs_hash (gconstpointer v)
 {
-    const fcfcs_conv_key_t *key = v;
+    const fcfcs_conv_key_t *key = (const fcfcs_conv_key_t *)v;
     guint val;
 
     val = key->conv_idx;
@@ -762,8 +763,8 @@ dissect_fcfcs_rjt (tvbuff_t *tvb, proto_tree *tree)
 
 }
 
-static void
-dissect_fcfcs (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_fcfcs (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
 
 /* Set up structures needed to add the protocol subtree and manage it */
@@ -777,6 +778,12 @@ dissect_fcfcs (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     fcfcs_conv_key_t ckey, *req_key;
     int opcode,
         failed_opcode = 0;
+    fc_hdr *fchdr;
+
+    /* Reject the packet if data is NULL */
+    if (data == NULL)
+        return 0;
+    fchdr = (fc_hdr *)data;
 
     /* Make entries in Protocol column and Info column on summary display */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "FC-FCS");
@@ -797,12 +804,12 @@ dissect_fcfcs (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     if ((opcode != FCCT_MSG_ACC) && (opcode != FCCT_MSG_RJT)) {
         conversation = find_conversation (pinfo->fd->num, &pinfo->src, &pinfo->dst,
-                                          pinfo->ptype, pinfo->oxid,
-                                          pinfo->rxid, NO_PORT2);
+                                          pinfo->ptype, fchdr->oxid,
+                                          fchdr->rxid, NO_PORT2);
         if (!conversation) {
             conversation = conversation_new (pinfo->fd->num, &pinfo->src, &pinfo->dst,
-                                             pinfo->ptype, pinfo->oxid,
-                                             pinfo->rxid, NO_PORT2);
+                                             pinfo->ptype, fchdr->oxid,
+                                             fchdr->rxid, NO_PORT2);
         }
 
         ckey.conv_idx = conversation->index;
@@ -817,36 +824,32 @@ dissect_fcfcs (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             cdata->opcode = opcode;
         }
         else {
-            req_key = se_alloc (sizeof(fcfcs_conv_key_t));
+            req_key = wmem_new(wmem_file_scope(), fcfcs_conv_key_t);
             req_key->conv_idx = conversation->index;
 
-            cdata = se_alloc (sizeof(fcfcs_conv_data_t));
+            cdata = wmem_new(wmem_file_scope(), fcfcs_conv_data_t);
             cdata->opcode = opcode;
 
             g_hash_table_insert (fcfcs_req_hash, req_key, cdata);
         }
-        if (check_col (pinfo->cinfo, COL_INFO)) {
-            col_add_str (pinfo->cinfo, COL_INFO,
+        col_add_str (pinfo->cinfo, COL_INFO,
                          val_to_str (opcode, fc_fcs_opcode_abbrev_val, "0x%x"));
-        }
     }
     else {
         /* Opcode is ACC or RJT */
         conversation = find_conversation (pinfo->fd->num, &pinfo->src, &pinfo->dst,
-                                          pinfo->ptype, pinfo->oxid,
-                                          pinfo->rxid, NO_PORT2);
+                                          pinfo->ptype, fchdr->oxid,
+                                          fchdr->rxid, NO_PORT2);
         isreq = 0;
         if (!conversation) {
-            if (tree && (opcode == FCCT_MSG_ACC)) {
-                if (check_col (pinfo->cinfo, COL_INFO)) {
-                    col_add_str (pinfo->cinfo, COL_INFO,
+            if (opcode == FCCT_MSG_ACC) {
+                col_add_str (pinfo->cinfo, COL_INFO,
                                  val_to_str (opcode, fc_fcs_opcode_abbrev_val,
                                              "0x%x"));
-                }
                 /* No record of what this accept is for. Can't decode */
                 proto_tree_add_text (fcfcs_tree, tvb, 0, tvb_length (tvb),
                                      "No record of Exchg. Unable to decode MSG_ACC/RJT");
-                return;
+                return 0;
             }
         }
         else {
@@ -862,18 +865,16 @@ dissect_fcfcs (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     failed_opcode = cdata->opcode;
             }
 
-            if (check_col (pinfo->cinfo, COL_INFO)) {
-                if (opcode != FCCT_MSG_RJT) {
-                    col_add_fstr (pinfo->cinfo, COL_INFO, "MSG_ACC (%s)",
-                                  val_to_str (opcode, fc_fcs_opcode_abbrev_val,
-                                              "0x%x"));
-                }
-                else {
-                    col_add_fstr (pinfo->cinfo, COL_INFO, "MSG_RJT (%s)",
-                                  val_to_str (failed_opcode,
-                                              fc_fcs_opcode_abbrev_val,
-                                              "0x%x"));
-                }
+            if (opcode != FCCT_MSG_RJT) {
+                col_add_fstr (pinfo->cinfo, COL_INFO, "MSG_ACC (%s)",
+                                val_to_str (opcode, fc_fcs_opcode_abbrev_val,
+                                            "0x%x"));
+            }
+            else {
+                col_add_fstr (pinfo->cinfo, COL_INFO, "MSG_RJT (%s)",
+                                val_to_str (failed_opcode,
+                                            fc_fcs_opcode_abbrev_val,
+                                            "0x%x"));
             }
 
             if (tree) {
@@ -881,7 +882,7 @@ dissect_fcfcs (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     /* No record of what this accept is for. Can't decode */
                     proto_tree_add_text (fcfcs_tree, tvb, 0, tvb_length (tvb),
                                          "No record of Exchg. Unable to decode MSG_ACC/RJT");
-                    return;
+                    return 0;
                 }
             }
         }
@@ -983,6 +984,8 @@ dissect_fcfcs (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         call_dissector (data_handle, tvb, pinfo, fcfcs_tree);
         break;
     }
+
+    return tvb_length(tvb);
 }
 
 /* Register the protocol with Wireshark */
@@ -1104,7 +1107,7 @@ proto_reg_handoff_fcfcs (void)
 {
     dissector_handle_t fcs_handle;
 
-    fcs_handle = create_dissector_handle (dissect_fcfcs, proto_fcfcs);
+    fcs_handle = new_create_dissector_handle (dissect_fcfcs, proto_fcfcs);
 
     dissector_add_uint("fcct.server", FCCT_GSRVR_FCS, fcs_handle);
 

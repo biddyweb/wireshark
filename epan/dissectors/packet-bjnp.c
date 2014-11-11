@@ -3,8 +3,6 @@
  *
  * Copyright 2009, Stig Bjorlykke <stig@bjorlykke.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,7 +24,10 @@
 
 #include "config.h"
 
+#include <ctype.h>
+
 #include <epan/packet.h>
+#include <epan/wmem/wmem.h>
 
 #define PNAME  "Canon BJNP"
 #define PSNAME "BJNP"
@@ -52,6 +53,9 @@
 #define CMD_GET_ID         0x30
 #define CMD_SCAN_JOB       0x32
 
+void proto_register_bjnp(void);
+void proto_reg_handoff_bjnp(void);
+
 static int proto_bjnp = -1;
 
 static int hf_bjnp_id = -1;
@@ -63,6 +67,8 @@ static int hf_payload_len = -1;
 static int hf_payload = -1;
 
 static gint ett_bjnp = -1;
+
+static dissector_handle_t bjnp_handle;
 
 static const value_string dev_type_vals[] = {
   { PRINTER_COMMAND,    "Printer Command"       },
@@ -92,6 +98,10 @@ static int dissect_bjnp (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, vo
   guint8      dev_type, cmd_code;
   gchar      *info;
 
+  /* If it does not start with a printable character it's not BJNP */
+  if(!g_ascii_isprint(tvb_get_guint8(tvb, 0)))
+    return 0;
+
   col_set_str (pinfo->cinfo, COL_PROTOCOL, PSNAME);
   col_clear (pinfo->cinfo, COL_INFO);
 
@@ -109,8 +119,9 @@ static int dissect_bjnp (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, vo
   proto_tree_add_item (bjnp_tree, hf_cmd_code, tvb, offset, 1, ENC_BIG_ENDIAN);
   offset++;
 
-  info = ep_strdup_printf("%s: %s",val_to_str (dev_type, dev_type_vals, "Unknown type (%d)"),
-                          val_to_str (cmd_code, cmd_code_vals, "Unknown code (%d)"));
+  info = wmem_strdup_printf(wmem_packet_scope(), "%s: %s",
+                            val_to_str (dev_type, dev_type_vals, "Unknown type (%d)"),
+                            val_to_str (cmd_code, cmd_code_vals, "Unknown code (%d)"));
 
   proto_item_append_text (ti, ", %s", info);
   col_add_str (pinfo->cinfo, COL_INFO, info);
@@ -164,7 +175,8 @@ void proto_register_bjnp (void)
   };
 
   proto_bjnp = proto_register_protocol (PNAME, PSNAME, PFNAME);
-  new_register_dissector (PFNAME, dissect_bjnp, proto_bjnp);
+
+  bjnp_handle = new_register_dissector (PFNAME, dissect_bjnp, proto_bjnp);
 
   proto_register_field_array (proto_bjnp, hf, array_length (hf));
   proto_register_subtree_array (ett, array_length (ett));
@@ -172,9 +184,6 @@ void proto_register_bjnp (void)
 
 void proto_reg_handoff_bjnp (void)
 {
-  dissector_handle_t bjnp_handle;
-
-  bjnp_handle = find_dissector (PFNAME);
   dissector_add_uint ("udp.port", BJNP_PORT1, bjnp_handle);
   dissector_add_uint ("udp.port", BJNP_PORT2, bjnp_handle);
   dissector_add_uint ("udp.port", BJNP_PORT3, bjnp_handle);

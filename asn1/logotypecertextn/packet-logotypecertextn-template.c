@@ -2,8 +2,6 @@
  * Routines for RFC3709 Logotype Certificate Extensions packet dissection
  *   Ronnie Sahlberg 2004
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,6 +33,9 @@
 #define PNAME  "Logotype Certificate Extensions"
 #define PSNAME "LogotypeCertExtn"
 #define PFNAME "logotypecertextn"
+
+void proto_register_logotypecertextn(void);
+void proto_reg_handoff_logotypecertextn(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_logotypecertextn = -1;

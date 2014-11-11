@@ -5,8 +5,6 @@
  * (3GPP TS 25.423 version 6.7.0 Release 6) packet dissection
  * Copyright 2005 - 2006, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,6 +30,7 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/wmem/wmem.h>
 
 #include <epan/asn1.h>
 
@@ -50,6 +49,9 @@
 #define SCCP_SSN_RNSAP 143
 
 #include "packet-rnsap-val.h"
+
+void proto_register_rnsap(void);
+void proto_reg_handoff_rnsap(void);
 
 static dissector_handle_t rrc_dl_dcch_handle = NULL;
 
@@ -99,25 +101,25 @@ static int dissect_ProtocolExtensionFieldExtensionValue(tvbuff_t *tvb, packet_in
 
 static int dissect_PrivateIEFieldValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-  return (call_ber_oid_callback(obj_id, tvb, 0, pinfo, tree)) ? tvb_length(tvb) : 0;
+  return (call_ber_oid_callback(obj_id, tvb, 0, pinfo, tree, NULL)) ? tvb_length(tvb) : 0;
 }
 
 static int dissect_InitiatingMessageValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
   if (!ProcedureID) return 0;
-  return (dissector_try_string(rnsap_proc_imsg_dissector_table, ProcedureID, tvb, pinfo, tree)) ? tvb_length(tvb) : 0;
+  return (dissector_try_string(rnsap_proc_imsg_dissector_table, ProcedureID, tvb, pinfo, tree, NULL)) ? tvb_length(tvb) : 0;
 }
 
 static int dissect_SuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
   if (!ProcedureID) return 0;
-  return (dissector_try_string(rnsap_proc_sout_dissector_table, ProcedureID, tvb, pinfo, tree)) ? tvb_length(tvb) : 0;
+  return (dissector_try_string(rnsap_proc_sout_dissector_table, ProcedureID, tvb, pinfo, tree, NULL)) ? tvb_length(tvb) : 0;
 }
 
 static int dissect_UnsuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
   if (!ProcedureID) return 0;
-  return (dissector_try_string(rnsap_proc_uout_dissector_table, ProcedureID, tvb, pinfo, tree)) ? tvb_length(tvb) : 0;
+  return (dissector_try_string(rnsap_proc_uout_dissector_table, ProcedureID, tvb, pinfo, tree, NULL)) ? tvb_length(tvb) : 0;
 }
 
 static void
@@ -132,7 +134,7 @@ dissect_rnsap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	/* create the rnsap protocol tree */
 	rnsap_item = proto_tree_add_item(tree, proto_rnsap, tvb, 0, -1, ENC_NA);
 	rnsap_tree = proto_item_add_subtree(rnsap_item, ett_rnsap);
-	
+
 	dissect_RNSAP_PDU_PDU(tvb, pinfo, rnsap_tree);
 }
 
@@ -157,7 +159,7 @@ void proto_register_rnsap(void) {
   /* Register fields and subtrees */
   proto_register_field_array(proto_rnsap, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
- 
+
   /* Register dissector */
   register_dissector("rnsap", dissect_rnsap, proto_rnsap);
 

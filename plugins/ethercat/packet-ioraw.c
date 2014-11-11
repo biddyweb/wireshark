@@ -1,8 +1,6 @@
 /* packet-ioraw.c
  * Routines for ethercat packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2007 by Beckhoff Automation GmbH
  *
  * Wireshark - Network traffic analyzer
@@ -34,6 +32,9 @@
 
 #include "packet-ioraw.h"
 
+void proto_register_ioraw(void);
+void proto_reg_handoff_ioraw(void);
+
 /* Define the ioraw proto */
 int proto_ioraw  = -1;
 
@@ -61,11 +62,8 @@ static void dissect_ioraw(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
    col_set_str(pinfo->cinfo, COL_PROTOCOL, "IO-RAW");
 
-   col_clear(pinfo->cinfo, COL_INFO);
-
-
    IoRawSummaryFormater(szText, nMax);
-   col_append_str(pinfo->cinfo, COL_INFO, szText);
+   col_add_str(pinfo->cinfo, COL_INFO, szText);
 
    if (tree)
    {

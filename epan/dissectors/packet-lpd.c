@@ -2,8 +2,6 @@
  * Routines for LPR and LPRng packet disassembly
  * Gilbert Ramirez <gram@alumni.rice.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,6 +25,9 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+
+void proto_register_lpd(void);
+void proto_reg_handoff_lpd(void);
 
 #define TCP_PORT_PRINTER		515
 
@@ -88,16 +89,14 @@ dissect_lpd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		lpr_packet_type = unknown;
 	}
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		if (lpr_packet_type == request && code !=0) {
-			col_add_str(pinfo->cinfo, COL_INFO, val_to_str(code, lpd_client_code, "Unknown client code: %u"));
-		}
-		else if (lpr_packet_type == response) {
-			col_set_str(pinfo->cinfo, COL_INFO, "LPD response");
-		}
-		else {
-			col_set_str(pinfo->cinfo, COL_INFO, "LPD continuation");
-		}
+	if (lpr_packet_type == request && code !=0) {
+		col_add_str(pinfo->cinfo, COL_INFO, val_to_str(code, lpd_client_code, "Unknown client code: %u"));
+	}
+	else if (lpr_packet_type == response) {
+		col_set_str(pinfo->cinfo, COL_INFO, "LPD response");
+	}
+	else {
+		col_set_str(pinfo->cinfo, COL_INFO, "LPD continuation");
 	}
 
 	if (tree) {

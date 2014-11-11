@@ -1,7 +1,5 @@
 # - Find zlib
 #
-# $Id$
-#
 # Find the native ZLIB includes and library.
 # Once done this will define
 #
@@ -34,14 +32,26 @@
 # (To distribute this file outside of CMake, substitute the full
 #  License text for the above reference.)
 
-FIND_PATH(ZLIB_INCLUDE_DIR zlib.h
-    "[HKEY_LOCAL_MACHINE\\SOFTWARE\\GnuWin32\\Zlib;InstallPath]/include"
+INCLUDE(FindWSWinLibs)
+FindWSWinLibs("zlib" "ZLIB_HINTS")
+
+FIND_PATH(ZLIB_INCLUDE_DIR
+    NAMES
+        zlib.h
+    HINTS
+        ${ZLIB_HINTS}/include
+        ${ZLIB_HINTS}
+    PATHS
+        "[HKEY_LOCAL_MACHINE\\SOFTWARE\\GnuWin32\\Zlib;InstallPath]/include"
 )
 
 SET(ZLIB_NAMES z zlib zdll zlib1 zlibd zlibd1)
 FIND_LIBRARY(ZLIB_LIBRARY
     NAMES
         ${ZLIB_NAMES}
+    HINTS
+        ${ZLIB_HINTS}/lib
+        ${ZLIB_HINTS}
     PATHS
         "[HKEY_LOCAL_MACHINE\\SOFTWARE\\GnuWin32\\Zlib;InstallPath]/lib"
 )
@@ -68,7 +78,7 @@ IF(ZLIB_INCLUDE_DIR AND EXISTS "${ZLIB_INCLUDE_DIR}/zlib.h")
 ENDIF()
 
 INCLUDE(CheckFunctionExists)
-SET(CMAKE_REQUIRED_LIBRARIES ${ZLIB_LIBRARIES})
+SET(CMAKE_REQUIRED_LIBRARIES ${ZLIB_LIBRARY})
 CHECK_FUNCTION_EXISTS("inflatePrime" HAVE_INFLATEPRIME)
 # reset
 SET(CMAKE_REQUIRED_LIBRARIES "")

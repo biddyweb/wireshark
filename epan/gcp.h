@@ -1,8 +1,6 @@
 /* gcp.h
  * Gateway Control Protocol -- Context Tracking
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,10 +26,9 @@
 #include <epan/packet.h>
 #include <epan/conversation.h>
 #include <epan/strutil.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 #include <epan/prefs.h>
-#include <epan/to_str.h>
 #include <epan/asn1.h>
 
 #include <stdio.h>
@@ -149,7 +146,7 @@ typedef enum _gcp_wildcard_t {
 
 typedef struct _gcp_term_t {
     const gchar* str;
-    
+
     const guint8* buffer;
     guint len;
 
@@ -158,7 +155,7 @@ typedef struct _gcp_term_t {
     gchar* nsap;
 
     gcp_msg_t* start;
-    
+
 } gcp_term_t;
 
 typedef struct _gcp_terms_t {
@@ -196,7 +193,7 @@ extern gcp_trx_t* gcp_trx(gcp_msg_t* m ,guint32 t_id , gcp_trx_type_t type, gboo
 extern gcp_ctx_t* gcp_ctx(gcp_msg_t* m, gcp_trx_t* t, guint32 c_id, gboolean persistent);
 extern gcp_cmd_t* gcp_cmd(gcp_msg_t* m, gcp_trx_t* t, gcp_ctx_t* c, gcp_cmd_type_t type, guint offset, gboolean persistent);
 extern gcp_term_t* gcp_cmd_add_term(gcp_msg_t* m, gcp_trx_t* tr, gcp_cmd_t* c, gcp_term_t* t, gcp_wildcard_t wildcard, gboolean persistent);
-extern void gcp_analyze_msg(proto_tree* gcp_tree, tvbuff_t* gcp_tvb, gcp_msg_t* m, gcp_hf_ett_t* ids);
+extern void gcp_analyze_msg(proto_tree* gcp_tree, packet_info* pinfo, tvbuff_t* gcp_tvb, gcp_msg_t* m, gcp_hf_ett_t* ids, expert_field* command_err);
 
 extern const gchar* gcp_cmd_to_str(gcp_cmd_t* c, gboolean persistent);
 extern const gchar* gcp_msg_to_str(gcp_msg_t* m, gboolean persistent);

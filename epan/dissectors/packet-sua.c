@@ -6,8 +6,6 @@
  *
  * Copyright 2002, 2003, 2004 Michael Tuexen <tuexen [AT] fh-muenster.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,10 +34,14 @@
 #include <epan/prefs.h>
 #include <epan/sctpppids.h>
 #include <epan/tap.h>
+#include <epan/to_str.h>
 
 #include "packet-mtp3.h"
 #include "packet-sccp.h"
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
+
+void proto_register_sua(void);
+void proto_reg_handoff_sua(void);
 
 #define ADD_PADDING(x) ((((x) + 3) >> 2) << 2)
 #define SCTP_PORT_SUA          14001
@@ -394,7 +396,7 @@ typedef struct _sua_assoc_info_t {
     gboolean has_fw_key;
 } sua_assoc_info_t;
 
-static emem_tree_t* assocs = NULL;
+static wmem_tree_t* assocs = NULL;
 sua_assoc_info_t* assoc;
 sua_assoc_info_t no_sua_assoc = {
     0,      /* assoc_id */
@@ -411,7 +413,7 @@ sua_assoc_info_t no_sua_assoc = {
 static sua_assoc_info_t *
 new_assoc(guint32 calling, guint32 called)
 {
-    sua_assoc_info_t *a = se_alloc0(sizeof(sua_assoc_info_t));
+    sua_assoc_info_t *a = wmem_new0(wmem_file_scope(), sua_assoc_info_t);
 
     a->assoc_id               = next_assoc_id++;
     a->calling_routing_ind    = 0;
@@ -433,23 +435,31 @@ sua_assoc(packet_info* pinfo, address* opc, address* dpc, guint src_rn, guint ds
             return &no_sua_assoc;
     }
 
-    opck = opc->type == AT_SS7PC ? mtp3_pc_hash(opc->data) : g_str_hash(address_to_str(opc));
-    dpck = dpc->type == AT_SS7PC ? mtp3_pc_hash(dpc->data) : g_str_hash(address_to_str(dpc));
+    opck = opc->type == AT_SS7PC ? mtp3_pc_hash((const mtp3_addr_pc_t *)opc->data) : g_str_hash(address_to_str(wmem_packet_scope(), opc));
+    dpck = dpc->type == AT_SS7PC ? mtp3_pc_hash((const mtp3_addr_pc_t *)dpc->data) : g_str_hash(address_to_str(wmem_packet_scope(), dpc));
 
     switch (message_type) {
         case MESSAGE_TYPE_CORE:
         {
             /* Calling and called is seen from initiator of CORE */
-            emem_tree_key_t bw_key[] = {
-                            {1, &dpck},
-                            {1, &opck},
-                            {1, &src_rn},
-                            {0, NULL}
-                            };
+            wmem_tree_key_t bw_key[4];
 
-            if ( !(assoc = se_tree_lookup32_array(assocs,bw_key)) && ! pinfo->fd->flags.visited) {
+            bw_key[0].length = 1;
+            bw_key[0].key = &dpck;
+
+            bw_key[1].length = 1;
+            bw_key[1].key = &opck;
+
+            bw_key[2].length = 1;
+            bw_key[2].key = &src_rn;
+
+            bw_key[3].length = 0;
+            bw_key[3].key = NULL;
+
+
+            if ( !(assoc = (sua_assoc_info_t *)wmem_tree_lookup32_array(assocs,bw_key)) && ! pinfo->fd->flags.visited) {
                 assoc = new_assoc(opck, dpck);
-                se_tree_insert32_array(assocs,bw_key,assoc);
+                wmem_tree_insert32_array(assocs,bw_key,assoc);
                 assoc->has_bw_key = TRUE;
                 /*g_warning("CORE dpck %u,opck %u,src_rn %u",dpck,opck,src_rn);*/
             }
@@ -459,24 +469,38 @@ sua_assoc(packet_info* pinfo, address* opc, address* dpc, guint src_rn, guint ds
 
         case MESSAGE_TYPE_COAK:
         {
-            /* Calling and called is seen from initiator of CORE */
-            emem_tree_key_t fw_key[] = {
-                                    {1,&dpck},
-                                    {1,&opck},
-                                    {1,&src_rn},
-                                    {0,NULL}
-                                    };
-            emem_tree_key_t bw_key[] = {
-                                    {1,&opck},
-                                    {1,&dpck},
-                                    {1,&dst_rn},
-                                    {0,NULL}
-                                    };
+            wmem_tree_key_t fw_key[4];
+            wmem_tree_key_t bw_key[4];
+
+            fw_key[0].length = 1;
+            fw_key[0].key = &dpck;
+
+            fw_key[1].length = 1;
+            fw_key[1].key = &opck;
+
+            fw_key[2].length = 1;
+            fw_key[2].key = &src_rn;
+
+            fw_key[3].length = 0;
+            fw_key[3].key = NULL;
+
+
+            bw_key[0].length = 1;
+            bw_key[0].key = &opck;
+
+            bw_key[1].length = 1;
+            bw_key[1].key = &dpck;
+
+            bw_key[2].length = 1;
+            bw_key[2].key = &dst_rn;
+
+            bw_key[3].length = 0;
+            bw_key[3].key = NULL;
                     /*g_warning("MESSAGE_TYPE_COAK dst_rn %u,src_rn %u ",dst_rn,src_rn);*/
-                    if ( ( assoc = se_tree_lookup32_array(assocs, bw_key) ) ) {
+                    if ( ( assoc = (sua_assoc_info_t *)wmem_tree_lookup32_array(assocs, bw_key) ) ) {
                             goto got_assoc;
                     }
-                    if ( (assoc = se_tree_lookup32_array(assocs, fw_key) ) ) {
+                    if ( (assoc = (sua_assoc_info_t *)wmem_tree_lookup32_array(assocs, fw_key) ) ) {
                             goto got_assoc;
                     }
 
@@ -487,12 +511,12 @@ got_assoc:
             pinfo->p2p_dir = P2P_DIR_RECV;
 
             if ( ! pinfo->fd->flags.visited && ! assoc->has_bw_key ) {
-                se_tree_insert32_array(assocs, bw_key, assoc);
+                wmem_tree_insert32_array(assocs, bw_key, assoc);
                 assoc->has_bw_key = TRUE;
             }
 
             if ( ! pinfo->fd->flags.visited && ! assoc->has_fw_key ) {
-                se_tree_insert32_array(assocs, fw_key, assoc);
+                wmem_tree_insert32_array(assocs, fw_key, assoc);
                 assoc->has_fw_key = TRUE;
             }
 
@@ -501,13 +525,21 @@ got_assoc:
 
         default:
         {
-            emem_tree_key_t key[] = {
-                                    {1, &opck},
-                                    {1, &dpck},
-                                    {1, &dst_rn},
-                                    {0, NULL}
-                                    };
-                    assoc = se_tree_lookup32_array(assocs,key);
+            wmem_tree_key_t key[4];
+
+            key[0].length = 1;
+            key[0].key = &opck;
+
+            key[1].length = 1;
+            key[1].key = &dpck;
+
+            key[2].length = 1;
+            key[2].key = &dst_rn;
+
+            key[3].length = 0;
+            key[3].key = NULL;
+
+                    assoc = (sua_assoc_info_t *)wmem_tree_lookup32_array(assocs,key);
                     /* Should a check be made on pinfo->p2p_dir ??? */
         break;
         }
@@ -542,7 +574,7 @@ dissect_common_header(tvbuff_t *common_header_tvb, packet_info *pinfo, proto_tre
     proto_tree_add_item(sua_tree, hf_sua_version,        common_header_tvb, VERSION_OFFSET,        VERSION_LENGTH,        ENC_BIG_ENDIAN);
     proto_tree_add_item(sua_tree, hf_sua_reserved,       common_header_tvb, RESERVED_OFFSET,       RESERVED_LENGTH,       ENC_NA);
     proto_tree_add_item(sua_tree, hf_sua_message_class,  common_header_tvb, MESSAGE_CLASS_OFFSET,  MESSAGE_CLASS_LENGTH,  ENC_BIG_ENDIAN);
-    proto_tree_add_uint_format(sua_tree, hf_sua_message_type, common_header_tvb, MESSAGE_TYPE_OFFSET, MESSAGE_TYPE_LENGTH, message_type, "Message Type: %s (%u)",
+    proto_tree_add_uint_format_value(sua_tree, hf_sua_message_type, common_header_tvb, MESSAGE_TYPE_OFFSET, MESSAGE_TYPE_LENGTH, message_type, "%s (%u)",
                                val_to_str_const(message_class * 256 + message_type, message_class_type_values, "reserved"), message_type);
     proto_tree_add_item(sua_tree, hf_sua_message_length, common_header_tvb, MESSAGE_LENGTH_OFFSET, MESSAGE_LENGTH_LENGTH, ENC_BIG_ENDIAN);
   };
@@ -565,9 +597,9 @@ dissect_info_string_parameter(tvbuff_t *parameter_tvb, packet_info *pinfo, proto
     return;
   }
 
-  proto_tree_add_item(parameter_tree, hf_sua_info_string, parameter_tvb, INFO_STRING_OFFSET, info_string_length, ENC_ASCII|ENC_NA);
+  proto_tree_add_item(parameter_tree, hf_sua_info_string, parameter_tvb, INFO_STRING_OFFSET, info_string_length, ENC_UTF_8|ENC_NA);
   proto_item_append_text(parameter_item, " (%.*s)", info_string_length,
-                         tvb_get_ephemeral_string(parameter_tvb, INFO_STRING_OFFSET, info_string_length));
+                         tvb_get_string_enc(wmem_packet_scope(), parameter_tvb, INFO_STRING_OFFSET, info_string_length, ENC_UTF_8|ENC_NA));
 }
 
 #define ROUTING_CONTEXT_LENGTH 4
@@ -730,8 +762,8 @@ dissect_status_type_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tre
   status_info = tvb_get_ntohs(parameter_tvb, STATUS_INFO_OFFSET);
 
   proto_tree_add_item(parameter_tree, hf_sua_status_type, parameter_tvb, STATUS_TYPE_OFFSET, STATUS_TYPE_LENGTH, ENC_BIG_ENDIAN);
-  proto_tree_add_uint_format(parameter_tree, hf_sua_status_info, parameter_tvb, STATUS_INFO_OFFSET, STATUS_INFO_LENGTH,
-                             status_info, "Status info: %s (%u)", val_to_str_const(status_type * 256 * 256 + status_info, status_type_info_values, "unknown"), status_info);
+  proto_tree_add_uint_format_value(parameter_tree, hf_sua_status_info, parameter_tvb, STATUS_INFO_OFFSET, STATUS_INFO_LENGTH,
+                             status_info, "%s (%u)", val_to_str_const(status_type * 256 * 256 + status_info, status_type_info_values, "unknown"), status_info);
 
   proto_item_append_text(parameter_item, " (%s)", val_to_str_const(status_type * 256 * 256 + status_info, status_type_info_values, "unknown"));
 }
@@ -1375,7 +1407,7 @@ dissect_global_title_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tr
   guint8 number_of_digits;
   char *gt_digits;
 
-  gt_digits = ep_alloc0(GT_MAX_SIGNALS+1);
+  gt_digits = (char *)wmem_alloc0(wmem_packet_scope(), GT_MAX_SIGNALS+1);
 
   global_title_length = tvb_get_ntohs(parameter_tvb, PARAMETER_LENGTH_OFFSET) -
                         (PARAMETER_HEADER_LENGTH + RESERVED_3_LENGTH + GTI_LENGTH + NO_OF_DIGITS_LENGTH + TRANSLATION_TYPE_LENGTH + NUMBERING_PLAN_LENGTH + NATURE_OF_ADDRESS_LENGTH);
@@ -1432,10 +1464,10 @@ dissect_point_code_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree
 
   if (sua_ri == ROUTE_ON_SSN_PC_ROUTING_INDICATOR) {
     if (source) {
-      sua_opc->type = mtp3_standard;
+      sua_opc->type = (Standard_Type)mtp3_standard;
       sua_opc->pc = pc;
     } else {
-      sua_dpc->type = mtp3_standard;
+      sua_dpc->type = (Standard_Type)mtp3_standard;
       sua_dpc->pc = pc;
     }
   }
@@ -1480,7 +1512,7 @@ dissect_hostname_parameter(tvbuff_t *parameter_tvb, proto_tree *parameter_tree, 
   hostname_length = tvb_get_ntohs(parameter_tvb, PARAMETER_LENGTH_OFFSET) - PARAMETER_HEADER_LENGTH;
   proto_tree_add_item(parameter_tree, source ? hf_sua_source_hostname : hf_sua_dest_hostname, parameter_tvb, HOSTNAME_OFFSET, hostname_length, ENC_ASCII|ENC_NA);
   proto_item_append_text(parameter_item, " (%.*s)", hostname_length,
-                         tvb_get_ephemeral_string(parameter_tvb, HOSTNAME_OFFSET, hostname_length));
+                         tvb_get_string(wmem_packet_scope(), parameter_tvb, HOSTNAME_OFFSET, hostname_length));
 }
 
 #define IPV6_ADDRESS_LENGTH 16
@@ -1896,7 +1928,7 @@ dissect_parameter(tvbuff_t *parameter_tvb,  packet_info *pinfo, proto_tree *tree
     /* If it's a known parameter it's present in the value_string.
      * If param_tag_str = NULL then this is an unknown parameter
      */
-        param_tag_str    = match_strval(tag, parameter_tag_values);
+        param_tag_str    = try_val_to_str(tag, parameter_tag_values);
         if(param_tag_str) {
             /* The parameter exists */
             parameter_item   = proto_tree_add_text(tree, parameter_tvb, PARAMETER_HEADER_OFFSET, tvb_length(parameter_tvb), "%s", param_tag_str);
@@ -2124,6 +2156,8 @@ dissect_sua_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *sua_t
   tvbuff_t *common_header_tvb;
   tvbuff_t *parameters_tvb;
   tvbuff_t *data_tvb = NULL;
+
+  heur_dtbl_entry_t *hdtbl_entry;
 #if 0
   proto_tree *assoc_tree;
 #endif
@@ -2144,8 +2178,8 @@ dissect_sua_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *sua_t
   no_sua_assoc.has_bw_key = FALSE;
   no_sua_assoc.has_fw_key = FALSE;
 
-  sua_opc = ep_alloc0(sizeof(mtp3_addr_pc_t));
-  sua_dpc = ep_alloc0(sizeof(mtp3_addr_pc_t));
+  sua_opc = wmem_new0(pinfo->pool, mtp3_addr_pc_t);
+  sua_dpc = wmem_new0(pinfo->pool, mtp3_addr_pc_t);
   sua_source_gt = NULL;
   sua_destination_gt = NULL;
 
@@ -2245,7 +2279,7 @@ dissect_sua_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *sua_t
        !dissector_try_uint(sccp_ssn_dissector_table, source_ssn, data_tvb, pinfo, tree)))
     {
       /* try heuristic subdissector list to see if there are any takers */
-      if (dissector_try_heuristic(heur_subdissector_list, data_tvb, pinfo, tree, NULL)) {
+      if (dissector_try_heuristic(heur_subdissector_list, data_tvb, pinfo, tree, &hdtbl_entry, NULL)) {
         return;
       }
       /* No sub-dissection occurred, treat it as raw data */
@@ -2453,10 +2487,10 @@ proto_register_sua(void)
                                  "  This may affect TCAP's ability to recognize which messages belong to which TCAP session.", &set_addresses);
 
   register_heur_dissector_list("sua", &heur_subdissector_list);
-  sua_parameter_table = register_dissector_table("sua.prop.tags", "Proprietary SUA Tags", FT_UINT16, BASE_DEC);
+  sua_parameter_table = register_dissector_table("sua.prop.tags", "SUA Proprietary Tags", FT_UINT16, BASE_DEC);
   sua_tap = register_tap("sua");
 
-  assocs = se_tree_create(EMEM_TREE_TYPE_RED_BLACK, "sua_associations");
+  assocs = wmem_tree_new_autoreset(wmem_epan_scope(), wmem_file_scope());
 }
 
 void

@@ -2,8 +2,6 @@
  * Routines for WaveAgent dissection
  * Copyright 2009-2011, Tom Cook <tcook@ixiacom.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,8 +26,7 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
-#include <epan/strutil.h>
+#include <epan/wmem/wmem.h>
 
 #define ETHERNET_INTERFACE      1
 #define WLAN_INTERFACE          2
@@ -43,6 +40,9 @@
 
 #define WA_V2_PAYLOAD_OFFSET    40
 #define WA_V3_PAYLOAD_OFFSET    44
+
+void proto_register_waveagent(void);
+void proto_reg_handoff_waveagent(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_waveagent = -1;
@@ -248,9 +248,9 @@ static void dissect_wlan_if_stats(guint32 starting_offset, proto_item *parent_tr
             hf_waveagent_ifwlannoise, tvb, starting_offset + 48, 4, ENC_BIG_ENDIAN);
     }
     else {
-        proto_tree_add_int_format(parent_tree,
+        proto_tree_add_int_format_value(parent_tree,
             hf_waveagent_ifwlannoise, tvb, starting_offset + 48, 4, noise_floor,
-            "WLAN Interface Noise Floor (dBm): Not Reported");
+            "Not Reported");
     }
 
     phy_types_bitfield = tvb_get_ntohl(tvb, starting_offset + 52);
@@ -485,7 +485,7 @@ static void dissect_wa_payload(guint32 starting_offset, proto_item *parent_tree,
             guint32        tag_len;
             guint32        delta;
             guint32        iLoop;
-            emem_strbuf_t *sb;
+            wmem_strbuf_t *sb;
 
             proto_tree_add_item(parent_tree,
                 hf_waveagent_ifindex, tvb, starting_offset, 4, ENC_BIG_ENDIAN);
@@ -500,7 +500,7 @@ static void dissect_wa_payload(guint32 starting_offset, proto_item *parent_tree,
             num_bss_entries = tvb_get_ntohl(tvb, starting_offset + 8);
 
             if (num_bss_entries > NUM_BSS) {
-                proto_item_append_text(pi, " [**Too large: Limiting to " STRINGIFY(NUM_BSS) "]");
+                proto_item_append_text(pi, " [**Too large: Limiting to " G_STRINGIFY(NUM_BSS) "]");
                 num_bss_entries = NUM_BSS;
             }
             /* Add 4 bytes of pad for the offset */
@@ -508,7 +508,7 @@ static void dissect_wa_payload(guint32 starting_offset, proto_item *parent_tree,
             offset = starting_offset + 16;
             delta  = 148;
 
-            sb = ep_strbuf_sized_new(8, SHORT_STR);
+            sb = wmem_strbuf_sized_new(wmem_packet_scope(), 8, SHORT_STR);
 
             for (iLoop = 0; iLoop < num_bss_entries; iLoop++)
             {
@@ -516,7 +516,7 @@ static void dissect_wa_payload(guint32 starting_offset, proto_item *parent_tree,
                 proto_tree *bss_tree;
                 int         current_offset;
 
-                ep_strbuf_truncate(sb, 0);
+                wmem_strbuf_truncate(sb, 0);
 
                 current_offset = offset + iLoop * delta;
 
@@ -540,20 +540,20 @@ static void dissect_wa_payload(guint32 starting_offset, proto_item *parent_tree,
                                                    "BSS requires support for mandatory features of HT PHY (IEEE 802.11"
                                                    " - Clause 20)");
                         } else {
-                            ep_strbuf_append_printf(sb, "%2.1f%s ",
+                            wmem_strbuf_append_printf(sb, "%2.1f%s ",
                                       (tag_data_ptr[isr] & 0x7F) * 0.5,
                                       (tag_data_ptr[isr] & 0x80) ? "(B)" : "");
 
                         }
                     }
-                    ep_strbuf_append(sb, " [Mbit/sec]");
+                    wmem_strbuf_append(sb, " [Mbit/sec]");
                 }
                 else {
-                    ep_strbuf_append(sb, "Not defined");
+                    wmem_strbuf_append(sb, "Not defined");
                 }
 
                 proto_tree_add_string (bss_tree, hf_waveagent_ifwlansupprates, tvb, offset + 36,
-                    tag_len, sb->str);
+                    tag_len, wmem_strbuf_get_str(sb));
 
                 proto_tree_add_item(bss_tree,
                     hf_waveagent_scanbssid, tvb, current_offset + 56, 6, ENC_NA);
@@ -1010,17 +1010,22 @@ static int dissect_waveagent(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
     if (tvb_length(tvb) < 52 )
         return 0;
 
+    magic_number    = tvb_get_ntohl(tvb, 16) & 0x0FFFFFFF;  /* Mask magic number off */
+    if(magic_number != 0x0F87C3A5){
+        return 0;
+    }
+
     signature_start = tvb_get_guint8(tvb, 0);
     signature_end   = tvb_get_guint8(tvb, 15);
-    version         = ((tvb_get_ntohl(tvb, 16) & 0xF0000000) >> 28 == 1) ? 3 : 2;       /* Mask version bit off */
-    magic_number    = tvb_get_ntohl(tvb, 16) & 0x0FFFFFFF;  /* Mask magic number off */
 
     if ( ((signature_start != 0xcc) && (signature_start !=0xdd)) ||
-         (signature_end != 0xE2) || (magic_number != 0x0F87C3A5) )
+         (signature_end != 0xE2))
         /*  This packet does not appear to belong to WaveAgent.
          *  Return 0 to give another dissector a chance to dissect it.
          */
         return 0;
+
+    version         = ((tvb_get_ntohl(tvb, 16) & 0xF0000000) >> 28 == 1) ? 3 : 2;       /* Mask version bit off */
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "WA");
     col_clear(pinfo->cinfo, COL_INFO);
@@ -1093,133 +1098,133 @@ static const value_string status_values[] = {
 void proto_register_waveagent(void)
 {
     static const value_string tcp_states[] = {
-        { 0, "Closed" },
-        { 1, "Listen" },
-        { 2, "SYN Sent" },
-        { 3, "SYN received" },
-        { 4, "Established" },
-        { 5, "FIN Wait 1" },
-        { 6, "FIN Wait 2" },
-        { 7, "Close Wait" },
-        { 8, "Closing" },
-        { 9, "Last ACK" },
+        {  0, "Closed" },
+        {  1, "Listen" },
+        {  2, "SYN Sent" },
+        {  3, "SYN received" },
+        {  4, "Established" },
+        {  5, "FIN Wait 1" },
+        {  6, "FIN Wait 2" },
+        {  7, "Close Wait" },
+        {  8, "Closing" },
+        {  9, "Last ACK" },
         { 10, "Time Wait" },
-        { 0, NULL },
+        {  0, NULL },
     };
 
     static const value_string app_states[] = {
-        { 0, "IDLE" },
-        { 1, "READY" },
-        { 0, NULL },
+        {  0, "IDLE" },
+        {  1, "READY" },
+        {  0, NULL },
     };
 
     static const value_string wa_modes[] = {
-        { 0, "In-band" },
-        { 1, "Source" },
-        { 2, "Sink" },
-        { 3, "Loopback" },
-        { 0, NULL },
+        {  0, "In-band" },
+        {  1, "Source" },
+        {  2, "Sink" },
+        {  3, "Loopback" },
+        {  0, NULL },
     };
 
     static const value_string wa_endpointtypes[] = {
-        { 0, "Undefined" },
-        { 1, "Server" },
-        { 2, "Client" },
-        { 0, NULL },
+        {  0, "Undefined" },
+        {  1, "Server" },
+        {  2, "Client" },
+        {  0, NULL },
     };
 
     static const value_string binding_levels[] = {
-        { 0, "WLAN" },
-        { 1, "Ethernet" },
-        { 2, "IP" },
-        { 3, "UDP" },
-        { 4, "TCP" },
-        { 5, "FIN Wait 1" },
-        { 6, "FIN Wait 2" },
-        { 7, "Close Wait" },
-        { 8, "Closing" },
-        { 9, "Last ACK" },
+        {  0, "WLAN" },
+        {  1, "Ethernet" },
+        {  2, "IP" },
+        {  3, "UDP" },
+        {  4, "TCP" },
+        {  5, "FIN Wait 1" },
+        {  6, "FIN Wait 2" },
+        {  7, "Close Wait" },
+        {  8, "Closing" },
+        {  9, "Last ACK" },
         { 10, "Time Wait" },
-        { 0, NULL },
+        {  0, NULL },
     };
 
     static const value_string if_types[] = {
-        { ETHERNET_INTERFACE, "Ethernet" },
-        { WLAN_INTERFACE, "WLAN" },
-        { 0, NULL },
+        {  ETHERNET_INTERFACE, "Ethernet" },
+        {  WLAN_INTERFACE, "WLAN" },
+        {  0, NULL },
     };
 
     static const value_string no_yes[] = {
-        { 0, "No" },
-        { 1, "Yes" },
-        { 0, NULL },
+        {  0, "No" },
+        {  1, "Yes" },
+        {  0, NULL },
     };
 
     static const value_string ip_types[] = {
-        { 0,  "Unspecified" },
-        { IPV4_TYPE,  "IPv4" },
-        { IPV6_TYPE, "IPv6" },
-        { 0, NULL },
+        {  0,  "Unspecified" },
+        {  IPV4_TYPE,  "IPv4" },
+        {  IPV6_TYPE, "IPv6" },
+        {  0, NULL },
     };
 
     static const value_string if_l3_states[] = {
-        { 0, "Uninitialized" },
-        { 1, "Disconnected" },
-        { 2, "Connected" },
-        { 3, "Error" },
-        { 0, NULL },
+        {  0, "Uninitialized" },
+        {  1, "Disconnected" },
+        {  2, "Connected" },
+        {  3, "Error" },
+        {  0, NULL },
     };
 
     static const value_string if_wlan_states[] = {
-        { 0, "Uninitialized" },
-        { 1, "Not ready" },
-        { 2, "Connected" },
-        { 3, "Ad Hoc network formed" },
-        { 4, "Disconnecting" },
-        { 5, "Disconnected" },
-        { 6, "Associating" },
-        { 7, "Discovering" },
-        { 8, "Authenticating" },
-        { 0, NULL },
+        {  0, "Uninitialized" },
+        {  1, "Not ready" },
+        {  2, "Connected" },
+        {  3, "Ad Hoc network formed" },
+        {  4, "Disconnecting" },
+        {  5, "Disconnected" },
+        {  6, "Associating" },
+        {  7, "Discovering" },
+        {  8, "Authenticating" },
+        {  0, NULL },
     };
 
     static const value_string if_eth_states[] = {
-        { 0, "Uninitialized" },
-        { 1, "Not Operational" },
-        { 2, "Unreachable" },
-        { 3, "Disconnected" },
-        { 4, "Connecting" },
-        { 5, "Connected" },
-        { 6, "Operational" },
-        { 7, "Error" },
-        { 0, NULL },
+        {  0, "Uninitialized" },
+        {  1, "Not Operational" },
+        {  2, "Unreachable" },
+        {  3, "Disconnected" },
+        {  4, "Connecting" },
+        {  5, "Connected" },
+        {  6, "Operational" },
+        {  7, "Error" },
+        {  0, NULL },
     };
 
     static const value_string bss_modes[] = {
-        { 0, "Infrastructure" },
-        { 1, "IBSS" },
-        { 2, "Unknown" },
-        { 0, NULL },
+        {  0, "Infrastructure" },
+        {  1, "IBSS" },
+        {  2, "Unknown" },
+        {  0, NULL },
     };
 
     static const value_string auth_algs[] = {
-        { 0,  "Open" },
-        { 1,  "Shared Key" },
-        { 2,  "WPA" },
-        { 4,  "WPA PSK" },
-        { 8,  "WPA2" },
+        {  0,  "Open" },
+        {  1,  "Shared Key" },
+        {  2,  "WPA" },
+        {  4,  "WPA PSK" },
+        {  8,  "WPA2" },
         { 16, "WPA2 PSK" },
-        { 0, NULL },
+        {  0, NULL },
     };
 
     static const value_string cipher_algs[] = {
-        { 0,  "None" },
-        { 1,  "WEP 40" },
-        { 2,  "WEP 104" },
-        { 4,  "WEP" },
-        { 8,  "TKIP" },
+        {  0,  "None" },
+        {  1,  "WEP 40" },
+        {  2,  "WEP 104" },
+        {  4,  "WEP" },
+        {  8,  "TKIP" },
         { 16, "CCMP" },
-        { 0, NULL },
+        {  0, NULL },
     };
 
     /* Setup list of header fields  See Section 1.6.1 for details*/
@@ -1907,3 +1912,17 @@ void proto_reg_handoff_waveagent(void)
 {
     heur_dissector_add("udp", dissect_waveagent_heur, proto_waveagent);
 }
+
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

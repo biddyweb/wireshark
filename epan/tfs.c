@@ -2,8 +2,6 @@
  * true_false strings
  * Copyright 2007, Jaap Keuter <jaap.keuter@xs4all.nl>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -68,7 +66,13 @@ const true_false_string tfs_detected_not_detected = { "Detected", "Not Detected"
 const true_false_string tfs_available_not_available = { "Available", "Not available" };
 const true_false_string tfs_shared_independent = { "Shared", "Independent" };
 const true_false_string tfs_valid_invalid = { "Valid", "Invalid" };
+const true_false_string tfs_invalid_valid = { "Invalid", "Valid" };
 const true_false_string tfs_group_unique_name = { "Group name", "Unique name" };
 const true_false_string tfs_inuse_not_inuse = { "In use", "Not in use" };
-
+const true_false_string tfs_critical_not_critical = { "Critical", "Not critical" };
+const true_false_string tfs_complete_incomplete = { "Complete", "Incomplete" };
+const true_false_string tfs_valid_not_valid = { "Valid", "Not Valid" };
+const true_false_string tfs_do_not_clear_clear = { "Do not clear", "Clear" };
+const true_false_string tfs_confirmed_unconfirmed = { "Confirmed", "Unconfirmed" };
+const true_false_string tfs_enforced_not_enforced = { "Enforced", "Not enforced" };
 

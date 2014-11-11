@@ -1,8 +1,5 @@
 # To be included into the asn1 Makefiles for Windows builds
 #
-# $Id$
-#
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -50,7 +47,7 @@ $(DISSECTOR): ../../tools/asn2wrs.py $(SRC_FILES) $(EXTRA_CNF)
 !ENDIF
 
 !IFDEF EXPORT_FILES
-$(EXPORT_FILES): ../../tools/asn2wrs.py $(SRC_FILES)
+$(EXPORT_FILES): ../../tools/asn2wrs.py $(SRC_FILES) $(EXPORT_DEPENDS)
 !IFDEF PYTHON
 	$(PYTHON) "../../tools/asn2wrs.py" \
 		-E $(A2W_FLAGS) \

@@ -1,10 +1,8 @@
 /* packet-pkixac.c
  *
  * Routines for PKIXAttributeCertificate (RFC3281) packet dissection.
- * 
- * Copyright 2010, Stig Bjorlykke <stig@bjorlykke.org>
  *
- * $Id$
+ * Copyright 2010, Stig Bjorlykke <stig@bjorlykke.org>
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -40,6 +38,9 @@
 #define PNAME  "PKIX Attribute Certificate"
 #define PSNAME "PKIXAC"
 #define PFNAME "pkixac"
+
+void proto_register_pkixac(void);
+void proto_reg_handoff_pkixac(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_pkixac = -1;

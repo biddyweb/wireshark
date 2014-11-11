@@ -2,8 +2,6 @@
  * Routines for USB HUB dissection
  * Copyright 2009, Marton Nemeth <nm127@freemail.hu>
  *
- * $Id$
- *
  * USB HUB Specification can be found in the Universal Serial Bus
  * Specification 2.0, Chapter 11 Hub Specification.
  * http://www.usb.org/developers/docs/usb_20_052709.zip
@@ -32,6 +30,9 @@
 #include <glib.h>
 #include <epan/packet.h>
 #include "packet-usb.h"
+
+void proto_register_usb_hub(void);
+void proto_reg_handoff_usb_hub(void);
 
 /* protocols and header fields */
 static int proto_usb_hub = -1;
@@ -159,7 +160,7 @@ dissect_usb_hub_clear_hub_feature(packet_info *pinfo, proto_tree *tree, tvbuff_t
 	proto_tree *subtree = NULL;
 	const gchar* feature_name;
 
-	feature_name = val_to_str(usb_trans_info->setup.wValue, 
+	feature_name = val_to_str(usb_trans_info->setup.wValue,
 								hub_class_feature_selectors_recipient_hub_vals,
 								"UNKNOWN (0x%x)");
 	col_append_fstr(pinfo->cinfo, COL_INFO, " [Hub: %s]", feature_name);
@@ -191,7 +192,7 @@ dissect_usb_hub_clear_port_feature(packet_info *pinfo, proto_tree *tree, tvbuff_
 	proto_tree *subtree = NULL;
 	const gchar* feature_name;
 
-	feature_name = val_to_str(usb_trans_info->setup.wValue, 
+	feature_name = val_to_str(usb_trans_info->setup.wValue,
 								hub_class_feature_selectors_recipient_port_vals,
 								"UNKNOWN (0x%x)");
 	col_append_fstr(pinfo->cinfo, COL_INFO, " [Port %u: %s]", usb_trans_info->setup.wIndex, feature_name);
@@ -280,7 +281,7 @@ dissect_usb_hub_get_hub_status(packet_info *pinfo, proto_tree *tree, tvbuff_t *t
 	proto_item *item = NULL;
 	proto_tree *subtree = NULL;
 
-	col_append_fstr(pinfo->cinfo, COL_INFO, "    [Hub]");
+	col_append_str(pinfo->cinfo, COL_INFO, "    [Hub]");
 
 	if (is_request) {
 		item = proto_tree_add_item(tree, hf_usb_hub_value, tvb, offset, 2, ENC_LITTLE_ENDIAN);
@@ -469,7 +470,7 @@ dissect_usb_hub_set_hub_feature(packet_info *pinfo, proto_tree *tree, tvbuff_t *
 	proto_item *item = NULL;
 	proto_tree *subtree = NULL;
 	const gchar* feature_name;
-	feature_name = val_to_str(usb_trans_info->setup.wValue, 
+	feature_name = val_to_str(usb_trans_info->setup.wValue,
 								hub_class_feature_selectors_recipient_hub_vals,
 								"UNKNOWN (0x%x)");
 	col_append_fstr(pinfo->cinfo, COL_INFO, "   [Hub: %s]", feature_name);
@@ -501,7 +502,7 @@ dissect_usb_hub_set_port_feature(packet_info *pinfo, proto_tree *tree, tvbuff_t 
 	proto_tree *subtree = NULL;
 	const gchar* feature_name;
 
-	feature_name = val_to_str(usb_trans_info->setup.wValue, 
+	feature_name = val_to_str(usb_trans_info->setup.wValue,
 								hub_class_feature_selectors_recipient_port_vals,
 								"UNKNOWN (0x%x)");
 	col_append_fstr(pinfo->cinfo, COL_INFO, "   [Port %u: %s]", usb_trans_info->setup.wIndex,
@@ -605,11 +606,11 @@ static const usb_setup_dissector_table_t setup_dissectors[] = {
 
 /* Dissector for USB HUB class-specific control request as defined in
  * USB 2.0, Chapter 11.24.2 Class-specific Requests
- * Returns TRUE if a class specific dissector was found
- * and FALSE otherwise.
+ * Returns tvb_length(tvb) if a class specific dissector was found
+ * and 0 otherwise.
  */
 static gint
-dissect_usb_hub_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
+dissect_usb_hub_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
 	gboolean is_request;
 	usb_conv_info_t *usb_conv_info;
@@ -618,10 +619,13 @@ dissect_usb_hub_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
 	usb_setup_dissector dissector;
 	const usb_setup_dissector_table_t *tmp;
 
-	is_request = (pinfo->srcport==NO_ENDPOINT);
-
-	usb_conv_info = pinfo->usb_conv_info;
+	/* Reject the packet if data or usb_trans_info are NULL */
+	if (data == NULL || ((usb_conv_info_t *)data)->usb_trans_info == NULL)
+		return 0;
+	usb_conv_info = (usb_conv_info_t *)data;
 	usb_trans_info = usb_conv_info->usb_trans_info;
+
+	is_request = (pinfo->srcport==NO_ENDPOINT);
 
 	/* See if we can find a class specific dissector for this request */
 	dissector = NULL;
@@ -635,10 +639,10 @@ dissect_usb_hub_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
 		}
 	}
 	/* No, we could not find any class specific dissector for this request
-	 * return FALSE and let USB try any of the standard requests.
+	 * return 0 and let USB try any of the standard requests.
 	 */
 	if (!dissector) {
-		return FALSE;
+		return 0;
 	}
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "USBHUB");
@@ -653,7 +657,7 @@ dissect_usb_hub_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
 	}
 
 	dissector(pinfo, tree, tvb, offset, is_request, usb_trans_info, usb_conv_info);
-	return TRUE;
+	return tvb_length(tvb);
 }
 
 void
@@ -815,7 +819,8 @@ proto_register_usb_hub(void)
 }
 
 void
-proto_reg_handoff_usb_hub(void) {
+proto_reg_handoff_usb_hub(void)
+{
 	dissector_handle_t usb_hub_control_handle;
 
 	usb_hub_control_handle = new_create_dissector_handle(dissect_usb_hub_control, proto_usb_hub);

@@ -2,8 +2,6 @@
  * Routines for ATM over TCP dissection
  * Copyright 2011, Alexis La Goutte <alexis.lagoutte at gmail dot com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,6 +33,7 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 
+void proto_register_atmtcp(void);
 void proto_reg_handoff_atmtcp(void);
 
 static int proto_atmtcp = -1;
@@ -91,11 +90,11 @@ dissect_atmtcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
     length = tvb_get_ntohl(tvb, offset);
     if(length == ATMTCP_HDR_MAGIC)
     {
-    	col_append_fstr(pinfo->cinfo, COL_INFO, " Command");
+   	col_append_str(pinfo->cinfo, COL_INFO, " Command");
     }
     else
     {
-        col_append_fstr(pinfo->cinfo, COL_INFO, " Data");
+        col_append_str(pinfo->cinfo, COL_INFO, " Data");
     }
     offset += 4;
 

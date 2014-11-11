@@ -1,7 +1,5 @@
 /* packet_list_model.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -24,18 +22,21 @@
 #include "packet_list_model.h"
 
 #include <epan/epan_dissect.h>
-#include <epan/column_info.h>
+#include <epan/column-info.h>
 #include <epan/column.h>
-#include <epan/nstime.h>
+#include <wsutil/nstime.h>
 #include <epan/prefs.h>
+
+#include "ui/packet_list_utils.h"
+#include "ui/recent.h"
 
 #include "color.h"
 #include "color_filters.h"
-
-#include "globals.h"
+#include "frame_tvbuff.h"
 
 #include "wireshark_application.h"
 #include <QColor>
+#include <QModelIndex>
 
 PacketListModel::PacketListModel(QObject *parent, capture_file *cf) :
     QAbstractItemModel(parent)
@@ -69,6 +70,11 @@ QModelIndex PacketListModel::parent(const QModelIndex &index) const
     return QModelIndex();
 }
 
+int PacketListModel::packetNumberToRow(int packet_num) const
+{
+    return number_to_row_.value(packet_num, -1);
+}
+
 guint PacketListModel::recreateVisibleRows()
 {
     int pos = visible_rows_.count() + 1;
@@ -76,11 +82,13 @@ guint PacketListModel::recreateVisibleRows()
 
     beginResetModel();
     visible_rows_.clear();
+    number_to_row_.clear();
     endResetModel();
     beginInsertRows(QModelIndex(), pos, pos);
     foreach (record, physical_rows_) {
         if (record->getFdata()->flags.passed_dfilter || record->getFdata()->flags.ref_time) {
             visible_rows_ << record;
+            number_to_row_[record->getFdata()->num] = visible_rows_.count() - 1;
         }
     }
     endInsertRows();
@@ -95,6 +103,13 @@ void PacketListModel::clear() {
     beginResetModel();
     physical_rows_.clear();
     visible_rows_.clear();
+    number_to_row_.clear();
+    endResetModel();
+}
+
+void PacketListModel::resetColumns()
+{
+    beginResetModel();
     endResetModel();
 }
 
@@ -132,7 +147,26 @@ QVariant PacketListModel::data(const QModelIndex &index, int role) const
     switch (role) {
     case Qt::FontRole:
         return wsApp->monospaceFont();
-//    case Qt::TextAlignmentRole:
+    case Qt::TextAlignmentRole:
+        switch(recent_get_column_xalign(index.column())) {
+        case COLUMN_XALIGN_RIGHT:
+            return Qt::AlignRight;
+            break;
+        case COLUMN_XALIGN_CENTER:
+            return Qt::AlignCenter;
+            break;
+        case COLUMN_XALIGN_LEFT:
+            return Qt::AlignLeft;
+            break;
+        case COLUMN_XALIGN_DEFAULT:
+        default:
+            if (right_justify_column(index.column(), cap_file_)) {
+                return Qt::AlignRight;
+            }
+            break;
+        }
+        return Qt::AlignLeft;
+
     case Qt::BackgroundRole:
         const color_t *color;
         if (fdata->flags.ignored) {
@@ -160,7 +194,7 @@ QVariant PacketListModel::data(const QModelIndex &index, int role) const
         }
         return QColor(color->red >> 8, color->green >> 8, color->blue >> 8);
     case Qt::DisplayRole:
-        // Fall through
+        // Need packet data -- fall through
         break;
     default:
         return QVariant();
@@ -176,7 +210,7 @@ QVariant PacketListModel::data(const QModelIndex &index, int role) const
     column_info *cinfo;
     gboolean create_proto_tree;
     struct wtap_pkthdr phdr; /* Packet header */
-    guint8 pd[WTAP_MAX_PACKET_SIZE];  /* Packet data */
+    Buffer buf;  /* Packet data */
     gboolean dissect_columns = TRUE; // XXX - Currently only a placeholder
 
     if (dissect_columns && cap_file_)
@@ -184,9 +218,12 @@ QVariant PacketListModel::data(const QModelIndex &index, int role) const
     else
         cinfo = NULL;
 
-    if (!cap_file_ || !cf_read_frame_r(cap_file_, fdata, &phdr, pd)) {
+    memset(&phdr, 0, sizeof(struct wtap_pkthdr));
+
+    buffer_init(&buf, 1500);
+    if (!cap_file_ || !cf_read_record_r(cap_file_, fdata, &phdr, &buf)) {
         /*
-         * Error reading the frame.
+         * Error reading the record.
          *
          * Don't set the color filter for now (we might want
          * to colorize it in some fashion to warn that the
@@ -209,13 +246,14 @@ QVariant PacketListModel::data(const QModelIndex &index, int role) const
             fdata->color_filter = NULL;
             //            record->colorized = TRUE;
         }
-        return QVariant();	/* error reading the frame */
+        buffer_free(&buf);
+        return QVariant();	/* error reading the record */
     }
 
     create_proto_tree = (color_filters_used() && enable_color_) ||
                         (have_custom_cols(cinfo) && dissect_columns);
 
-    epan_dissect_init(&edt,
+    epan_dissect_init(&edt, cap_file_->epan,
                       create_proto_tree,
                       FALSE /* proto_tree_visible */);
 
@@ -224,7 +262,7 @@ QVariant PacketListModel::data(const QModelIndex &index, int role) const
     if (dissect_columns)
         col_custom_prime_edt(&edt, cinfo);
 
-    epan_dissect_run(&edt, &phdr, pd, fdata, cinfo);
+    epan_dissect_run(&edt, cap_file_->cd_t, &phdr, frame_tvbuff_new_buffer(fdata, &buf), fdata, cinfo);
 
     if (enable_color_)
         fdata->color_filter = color_filters_colorize_packet(&edt);
@@ -247,8 +285,16 @@ QVariant PacketListModel::data(const QModelIndex &index, int role) const
     //            record->colorized = TRUE;
 
     epan_dissect_cleanup(&edt);
+    buffer_free(&buf);
 
-    return record->data(col_num, cinfo);
+    switch (role) {
+    case Qt::DisplayRole:
+        return record->data(col_num, cinfo);
+        break;
+    default:
+        break;
+    }
+    return QVariant();
 }
 
 QVariant PacketListModel::headerData(int section, Qt::Orientation orientation,
@@ -278,6 +324,7 @@ gint PacketListModel::appendPacket(frame_data *fdata)
     if (fdata->flags.passed_dfilter || fdata->flags.ref_time) {
         beginInsertRows(QModelIndex(), pos, pos);
         visible_rows_ << record;
+        number_to_row_[fdata->num] = visible_rows_.count() - 1;
         endInsertRows();
     } else {
         pos = -1;

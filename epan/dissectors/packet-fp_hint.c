@@ -1,7 +1,5 @@
 /* Routines for UMTS FP Hint protocol disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,11 +24,17 @@
 #include <string.h>
 
 #include <glib.h>
+
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
+#include <epan/wmem/wmem.h>
 #include <epan/conversation.h>
 #include "packet-umts_fp.h"
 #include "packet-umts_mac.h"
 #include "packet-rlc.h"
+
+void proto_register_fp_hint(void);
+void proto_reg_handoff_fp_hint(void);
 
 static int proto_fp_hint = -1;
 extern int proto_fp;
@@ -147,15 +151,15 @@ static guint16 assign_rb_info(tvbuff_t *tvb, packet_info *pinfo, guint16 offset,
 	struct umts_mac_info *macinf;
 	struct rlc_info *rlcinf;
 
-	macinf = p_get_proto_data(pinfo->fd, proto_umts_mac);
-	rlcinf = p_get_proto_data(pinfo->fd, proto_rlc);
+	macinf = (umts_mac_info *)p_get_proto_data(wmem_file_scope(), pinfo, proto_umts_mac, 0);
+	rlcinf = (rlc_info *)p_get_proto_data(wmem_file_scope(), pinfo, proto_rlc, 0);
 	if (!macinf) {
-		macinf = se_alloc0(sizeof(struct umts_mac_info));
-		p_add_proto_data(pinfo->fd, proto_umts_mac, macinf);
+		macinf = wmem_new0(wmem_file_scope(), struct umts_mac_info);
+		p_add_proto_data(wmem_file_scope(), pinfo, proto_umts_mac, 0, macinf);
 	}
 	if (!rlcinf) {
-		rlcinf = se_alloc0(sizeof(struct rlc_info));
-		p_add_proto_data(pinfo->fd, proto_rlc, rlcinf);
+		rlcinf = wmem_new0(wmem_file_scope(), struct rlc_info);
+		p_add_proto_data(wmem_file_scope(), pinfo, proto_rlc, 0, rlcinf);
 	}
 
 	while (i < rbcnt) {
@@ -428,10 +432,10 @@ static void attach_info(tvbuff_t *tvb, packet_info *pinfo, guint16 offset, guint
 {
 	fp_info *fpi;
 
-	fpi = p_get_proto_data(pinfo->fd, proto_fp);
+	fpi = (fp_info *)p_get_proto_data(wmem_file_scope(), pinfo, proto_fp, 0);
 	if (!fpi) {
-		fpi = se_alloc0(sizeof(fp_info));
-		p_add_proto_data(pinfo->fd, proto_fp, fpi);
+		fpi = wmem_new0(wmem_file_scope(), fp_info);
+		p_add_proto_data(wmem_file_scope(), pinfo, proto_fp, 0, fpi);
 	}
 
 	fpi->is_uplink = pinfo->p2p_dir == P2P_DIR_RECV;
@@ -491,8 +495,7 @@ static void dissect_fp_hint(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	proto_item *ti;
 	proto_tree *fph_tree = NULL;
 
-	if (check_col(pinfo->cinfo, COL_PROTOCOL))
-		col_set_str(pinfo->cinfo, COL_PROTOCOL, "FP Hint");
+	col_set_str(pinfo->cinfo, COL_PROTOCOL, "FP Hint");
 
 	hdrlen = tvb_get_letohs(tvb, 0);
 	frame_type = tvb_get_guint8(tvb, 2);

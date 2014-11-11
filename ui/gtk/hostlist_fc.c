@@ -1,8 +1,6 @@
 /* hostlist_fc.c   2004 Ian Schorr
  * modified from endpoint_talkers_fc.c   2003 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -32,7 +30,6 @@
 #include <epan/stat_cmd_args.h>
 #include <epan/tap.h>
 #include <epan/conversation.h>
-#include <epan/dissectors/packet-scsi.h>
 #include <epan/dissectors/packet-fc.h>
 
 #include "../stat_menu.h"
@@ -40,12 +37,13 @@
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/hostlist_table.h"
 
+void register_tap_listener_fc_hostlist(void);
 
 static int
 fc_hostlist_packet(void *pit, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
 {
 	hostlist_table *hosts=(hostlist_table *)pit;
-	const fc_hdr *fchdr=vip;
+	const fc_hdr *fchdr=(const fc_hdr *)vip;
 
 	/* Take two "add" passes per packet, adding for each direction, ensures that all
 	packets are counted properly (even if address is sending to itself)

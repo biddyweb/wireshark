@@ -2,8 +2,6 @@
  * Routines for H.223 packet dissection
  * Copyright (c) 2004-5 MX Telecom Ltd <richardv@mxtelecom.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,11 +24,12 @@
 #include "config.h"
 
 #include <glib.h>
-#include <epan/emem.h>
-#include <epan/bitswap.h>
+#include <epan/wmem/wmem.h>
+#include <wsutil/bitswap.h>
 #include <epan/circuit.h>
 #include <epan/conversation.h>
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/stream.h>
 #include <epan/reassemble.h>
 #include <epan/golay.h>
@@ -209,7 +208,7 @@ circuit_chain_lookup(const h223_call_info* call_info, guint32 child_vc)
     key.vc = child_vc;
     circuit_id = GPOINTER_TO_UINT(g_hash_table_lookup( circuit_chain_hashtable, &key ));
     if( circuit_id == 0 ) {
-        new_key = se_alloc(sizeof(circuit_chain_key));
+        new_key = wmem_new(wmem_file_scope(), circuit_chain_key);
         *new_key = key;
         circuit_id = ++circuit_chain_count;
         g_hash_table_insert(circuit_chain_hashtable, new_key, GUINT_TO_POINTER(circuit_id));
@@ -292,7 +291,7 @@ add_h223_mux_element(h223_call_direction_data *direct, guint8 mc, h223_mux_eleme
 
     DISSECTOR_ASSERT(mc < 16);
 
-    li = se_alloc(sizeof(h223_mux_element_listitem));
+    li = wmem_new(wmem_file_scope(), h223_mux_element_listitem);
     old_li_ptr = &(direct->mux_table[mc]);
     old_li = *old_li_ptr;
     if( !old_li ) {
@@ -339,7 +338,7 @@ find_h223_mux_element(h223_call_direction_data* direct, guint8 mc, guint32 frame
 static void
 add_h223_lc_params(h223_vc_info* vc_info, int direction, h223_lc_params *lc_params, guint32 framenum )
 {
-    h223_lc_params_listitem *li = se_alloc(sizeof(h223_lc_params_listitem));
+    h223_lc_params_listitem *li = wmem_new(wmem_file_scope(), h223_lc_params_listitem);
     h223_lc_params_listitem **old_li_ptr = &(vc_info->lc_params[direction ? 0 : 1]);
     h223_lc_params_listitem *old_li = *old_li_ptr;
     if( !old_li ) {
@@ -386,7 +385,7 @@ init_direction_data(h223_call_direction_data *direct)
         direct->mux_table[i] = NULL;
 
     /* set up MC 0 to contain just VC 0 */
-    mc0_element = se_alloc(sizeof(h223_mux_element));
+    mc0_element = wmem_new(wmem_file_scope(), h223_mux_element);
     add_h223_mux_element( direct, 0, mc0_element, 0 );
     mc0_element->sublist = NULL;
     mc0_element->vc = 0;
@@ -397,7 +396,7 @@ init_direction_data(h223_call_direction_data *direct)
 static h223_vc_info*
 h223_vc_info_new( h223_call_info* call_info )
 {
-    h223_vc_info *vc_info = se_alloc(sizeof(h223_vc_info));
+    h223_vc_info *vc_info = wmem_new(wmem_file_scope(), h223_vc_info);
     vc_info->lc_params[0] = vc_info->lc_params[1] = NULL;
     vc_info->call_info = call_info;
     return vc_info;
@@ -419,7 +418,7 @@ init_logical_channel( guint32 start_frame, h223_call_info* call_info, int vc, in
         vc_info = h223_vc_info_new( call_info );
         circuit_add_proto_data( subcircuit, proto_h223, vc_info );
     } else {
-        vc_info = circuit_get_proto_data( subcircuit, proto_h223 );
+        vc_info = (h223_vc_info *)circuit_get_proto_data( subcircuit, proto_h223 );
     }
     add_h223_lc_params( vc_info, direction, params, start_frame );
 }
@@ -431,7 +430,7 @@ create_call_info( guint32 start_frame )
     h223_call_info *datax;
     h223_lc_params *vc0_params;
 
-    datax = se_alloc(sizeof(h223_call_info));
+    datax = wmem_new(wmem_file_scope(), h223_call_info);
 
     /* initialise the call info */
     init_direction_data(&datax -> direction_data[0]);
@@ -440,7 +439,7 @@ create_call_info( guint32 start_frame )
     /* FIXME shouldn't this be figured out dynamically? */
     datax -> h223_level = 2;
 
-    vc0_params = se_alloc(sizeof(h223_lc_params));
+    vc0_params = wmem_new(wmem_file_scope(), h223_lc_params);
     vc0_params->al_type = al1Framed;
     vc0_params->al_params = NULL;
     vc0_params->segmentable = TRUE;
@@ -580,7 +579,7 @@ h223_set_mc( packet_info* pinfo, guint8 mc, h223_mux_element* me )
     /* if this h245 pdu packet came from an h223 circuit, add the details on
      * the new mux entry */
     if(circ) {
-        vc_info = circuit_get_proto_data(circ, proto_h223);
+        vc_info = (h223_vc_info *)circuit_get_proto_data(circ, proto_h223);
         add_h223_mux_element( &(vc_info->call_info->direction_data[pinfo->p2p_dir ? 0 : 1]), mc, me, pinfo->fd->num );
     }
 }
@@ -595,7 +594,7 @@ h223_add_lc( packet_info* pinfo, guint16 lc, h223_lc_params* params )
     /* if this h245 pdu packet came from an h223 circuit, add the details on
      * the new channel */
     if(circ) {
-        vc_info = circuit_get_proto_data(circ, proto_h223);
+        vc_info = (h223_vc_info *)circuit_get_proto_data(circ, proto_h223);
         init_logical_channel( pinfo->fd->num, vc_info->call_info, lc, pinfo->p2p_dir, params );
     }
 }
@@ -697,11 +696,11 @@ dissect_mux_al_pdu( tvbuff_t *tvb, packet_info *pinfo, proto_tree *vc_tree,
             real_checksum = tvb_get_guint8(tvb, len - 1);
 
             if( calc_checksum == real_checksum ) {
-                proto_tree_add_uint_format(al_tree, hf_h223_al2_crc, tvb, len - 1, 1, real_checksum,
-                                           "CRC: 0x%02x (correct)", real_checksum );
+                proto_tree_add_uint_format_value(al_tree, hf_h223_al2_crc, tvb, len - 1, 1, real_checksum,
+                                           "0x%02x (correct)", real_checksum );
             } else {
-                proto_tree_add_uint_format(al_tree, hf_h223_al2_crc, tvb, len - 1, 1, real_checksum,
-                                           "CRC: 0x%02x (incorrect, should be 0x%02x)", real_checksum, calc_checksum );
+                proto_tree_add_uint_format_value(al_tree, hf_h223_al2_crc, tvb, len - 1, 1, real_checksum,
+                                           "0x%02x (incorrect, should be 0x%02x)", real_checksum, calc_checksum );
                 tmp_item = proto_tree_add_boolean( al_tree, hf_h223_al2_crc_bad, tvb, len - 1, 1, TRUE );
                 PROTO_ITEM_SET_GENERATED(tmp_item);
 
@@ -767,7 +766,7 @@ dissect_mux_sdu_fragment(tvbuff_t *volatile next_tvb, packet_info *pinfo,
             g_message( "Frame %d: Subcircuit id %d not found for call %p VC %d", pinfo->fd->num,
                        pinfo->circuit_id, (void *)call_info, vc );
         } else {
-            vc_info = circuit_get_proto_data(subcircuit, proto_h223);
+            vc_info = (h223_vc_info *)circuit_get_proto_data(subcircuit, proto_h223);
             if( vc_info != NULL ) {
                 lc_params = find_h223_lc_params( vc_info, pinfo->p2p_dir, pinfo->fd->num );
             }
@@ -818,7 +817,7 @@ dissect_mux_sdu_fragment(tvbuff_t *volatile next_tvb, packet_info *pinfo,
 
     /* restore the original circuit details for future PDUs */
     FINALLY {
-        pinfo->ctype=orig_ctype;
+        pinfo->ctype=(circuit_type)orig_ctype;
         pinfo->circuit_id=orig_circuit;
     }
     ENDTRY;
@@ -836,10 +835,10 @@ mux_element_sublist_size( h223_mux_element* me )
             length += current_me->repeat_count;
         current_me = current_me->next;
     }
-    if ( length == 0 ) { /* should never happen, but to avoid infinite loops... */
-        DISSECTOR_ASSERT_NOT_REACHED();
-        length = 1;
-    }
+
+    /* should never happen, but to avoid infinite loops... */
+    DISSECTOR_ASSERT(length != 0);
+
     return length;
 }
 
@@ -1031,18 +1030,18 @@ dissect_mux_pdu( tvbuff_t *tvb, packet_info *pinfo, guint32 pkt_offset,
 
             case 2:
                 if( errors == -1 ) {
-                    proto_tree_add_uint_format(hdr_tree, hf_h223_mux_rawhdr, tvb,
+                    proto_tree_add_uint_format_value(hdr_tree, hf_h223_mux_rawhdr, tvb,
                                                0, 3, raw_hdr,
-                                               "Raw value: 0x%06x (uncorrectable errors)", raw_hdr );
+                                               "0x%06x (uncorrectable errors)", raw_hdr );
                 } else {
                     if( errors == 0 ) {
-                        proto_tree_add_uint_format(hdr_tree, hf_h223_mux_rawhdr, tvb,
+                        proto_tree_add_uint_format_value(hdr_tree, hf_h223_mux_rawhdr, tvb,
                                                    0, 3, raw_hdr,
-                                                   "Raw value: 0x%06x (correct)", raw_hdr );
+                                                   "0x%06x (correct)", raw_hdr );
                     } else {
-                        proto_tree_add_uint_format(hdr_tree, hf_h223_mux_rawhdr, tvb,
+                        proto_tree_add_uint_format_value(hdr_tree, hf_h223_mux_rawhdr, tvb,
                                                    0, 3, raw_hdr,
-                                                   "Raw value: 0x%06x (errors are 0x%06x)", raw_hdr, errors );
+                                                   "0x%06x (errors are 0x%06x)", raw_hdr, errors );
                     }
                     item = proto_tree_add_uint(hdr_tree,hf_h223_mux_correctedhdr,tvb,0,3,
                                                correct_hdr);
@@ -1366,12 +1365,10 @@ dissect_h223_bitswapped (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     tvbuff_t *reversed_tvb;
     guint8 *datax;
     guint len;
-    guint i;
 
     len = tvb_length(tvb);
-    datax = g_malloc(len);
-    for( i=0; i<len; i++)
-        datax[i]=BIT_SWAP(tvb_get_guint8(tvb,i));
+    datax = (guint8 *) tvb_memdup(pinfo->pool, tvb, 0, len);
+    bitswap_buf_inplace(datax, len);
 
     /*
      * Add the reversed tvbuff to the list of tvbuffs to which
@@ -1379,9 +1376,6 @@ dissect_h223_bitswapped (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      * cleaned up when that tvbuff is cleaned up.
      */
     reversed_tvb = tvb_new_child_real_data(tvb, datax,len,tvb_reported_length(tvb));
-
-    /* Add a freer */
-    tvb_set_free_cb(reversed_tvb, g_free);
 
     /* Add the reversed data to the data source list. */
     add_new_data_source(pinfo, reversed_tvb, "Bit-swapped H.223 frame" );

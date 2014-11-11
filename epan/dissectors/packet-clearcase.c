@@ -1,8 +1,6 @@
 /* packet-clearcase.c
  * Routines for ClearCase NFS dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,9 @@
 
 #include "packet-rpc.h"
 #include "packet-clearcase.h"
+
+void proto_register_clearcase(void);
+void proto_reg_handoff_clearcase(void);
 
 static int proto_clearcase = -1;
 static int hf_clearcase_procedure_v3 = -1;

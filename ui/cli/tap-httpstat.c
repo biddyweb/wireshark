@@ -1,8 +1,6 @@
 /* tap-httpstat.c
  * tap-httpstat   2003 Jean-Michel FAYARD
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,6 +23,7 @@
 #include "config.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "epan/packet_info.h"
@@ -33,6 +32,7 @@
 #include <epan/stat_cmd_args.h>
 #include <epan/dissectors/packet-http.h>
 
+void register_tap_listener_gtkhttpstat(void);
 
 /* used to keep track of the statictics for an entire program interface */
 typedef struct _http_stats_t {
@@ -278,14 +278,14 @@ httpstat_draw(void *psp  )
 /* When called, this function will create a new instance of gtk_httpstat.
  */
 static void
-gtk_httpstat_init(const char *optarg,void* userdata _U_)
+gtk_httpstat_init(const char *opt_arg,void* userdata _U_)
 {
 	httpstat_t *sp;
 	const char *filter=NULL;
 	GString	*error_string;
 
-	if (!strncmp (optarg, "http,stat,", 10)){
-		filter=optarg+10;
+	if (!strncmp (opt_arg, "http,stat,", 10)){
+		filter=opt_arg+10;
 	} else {
 		filter=NULL;
 	}

@@ -3,8 +3,6 @@
  * Routines for RFC 4695/6295 RTP-MIDI dissection
  * Copyright 2006-2012, Tobias Erichsen <t.erichsen@gmx.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>'
  * Copyright 1998 Gerald Combs
@@ -53,9 +51,12 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/prefs.h>
 #include <epan/conversation.h>
 #include <epan/tap.h>
+
+void proto_register_rtp_midi(void);
 
 /* Definitions for protocol name during dissector-register */
 #define RTP_MIDI_DISSECTOR_NAME						"RFC 4695/6295 RTP-MIDI"
@@ -1284,7 +1285,7 @@ static const value_string rtp_midi_note_values[] = {
 	{ 127,								"G9" },
 	{ 0,								NULL }
 };
-
+static value_string_ext rtp_midi_note_values_ext = VALUE_STRING_EXT_INIT(rtp_midi_note_values);
 
 
 
@@ -1359,7 +1360,7 @@ static const value_string rtp_midi_controller_values[] = {
 	{ RTP_MIDI_CTRL_POLY_MODE_ON,					"Poly Mode On" },
 	{ 0,								NULL }
 };
-
+static value_string_ext rtp_midi_controller_values_ext = VALUE_STRING_EXT_INIT(rtp_midi_controller_values);
 
 
 static const value_string rtp_midi_manu_short_values[] = {
@@ -1403,8 +1404,8 @@ static const value_string rtp_midi_manu_short_values[] = {
 	{ RTP_MIDI_MANU_SHORT_SOLTON,					"Solton" },
 	{ RTP_MIDI_MANU_SHORT_JELLINGHAUS_MS,				"Jellinghaus MS" },
 	{ RTP_MIDI_MANU_SHORT_SOUTHWORK_MUSIC_SYSTEMS,			"Southworks Music Systems" },
-	{ RTP_MIDI_MANU_SHORT_JEN,					"JEN" },
 	{ RTP_MIDI_MANU_SHORT_PPG,					"PPG" },
+	{ RTP_MIDI_MANU_SHORT_JEN,					"JEN" },
 	{ RTP_MIDI_MANU_SHORT_SSL,					"SSL (Solid States Logic)" },
 	{ RTP_MIDI_MANU_SHORT_AUDIO_VERITRIEB,				"Audio Veritrieb" },
 	{ RTP_MIDI_MANU_SHORT_NEVE_HINTON_INSTRUMENTS,			"Neve / Hinton Instruments" },
@@ -1458,6 +1459,7 @@ static const value_string rtp_midi_manu_short_values[] = {
 	{ RTP_MIDI_MANU_SHORT_REALTIME_UNIVERSAL,			"Realtime Universal" },
 	{ 0,								NULL }
 };
+static value_string_ext rtp_midi_manu_short_values_ext = VALUE_STRING_EXT_INIT(rtp_midi_manu_short_values);
 
 static const value_string rtp_midi_manu_long_values[] = {
 	/* North American Manufacturers */
@@ -1851,6 +1853,7 @@ static const value_string rtp_midi_manu_long_values[] = {
 	{ RTP_MIDI_MANU_LONG_DM_HOLDINGS_INC,				"D&M Holdings Inc." },
 	{ 0,								NULL }
 };
+static value_string_ext rtp_midi_manu_long_values_ext = VALUE_STRING_EXT_INIT(rtp_midi_manu_long_values);
 
 static const value_string rtp_midi_channels[] = {
 	{ RTP_MIDI_CHANNEL_1,						"Channel 1" },
@@ -2068,6 +2071,8 @@ static const value_string rtp_midi_sysex_common_rt_show_control[] = {
 	{ RTP_MIDI_SYSEX_COMMON_RT_SC_ALL_TYPES,			"All Types" },
 	{ 0,								NULL }
 };
+static value_string_ext rtp_midi_sysex_common_rt_show_control_ext =
+	VALUE_STRING_EXT_INIT(rtp_midi_sysex_common_rt_show_control);
 
 static const value_string rtp_midi_sysex_common_rt_notations[] = {
 	{ RTP_MIDI_SYSEX_COMMON_RT_NT_BAR_NUMBER,			"Bar Number" },
@@ -2198,7 +2203,7 @@ static const true_false_string rtp_midi_cs_flag_p= {
 };
 
 static const true_false_string rtp_midi_js_flag_y = {
-	"System-jounral present",
+	"System-journal present",
 	"System-journal NOT present"
 };
 
@@ -2909,7 +2914,7 @@ void proto_reg_handoff_rtp_midi( void );
  * This decodes the delta-time before a MIDI-command
  */
 static int
-decodetime(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, unsigned int offset, unsigned int cmd_len)
+decodetime(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, unsigned int offset)
 {
 	guint8		octet;
 	unsigned int	consumed;
@@ -2922,10 +2927,6 @@ decodetime(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, unsigned int
 
 	/* RTP-MIDI deltatime is "compressed" using only the necessary amount of octets */
 	for ( i=0; i < 4; i++ ) {
-
-		if ( !cmd_len ) {
-			return -1;
-		}
 
 		octet = tvb_get_guint8( tvb, offset + consumed );
 		deltatime = ( deltatime << 7 ) | ( octet & RTP_MIDI_DELTA_TIME_OCTET_MASK );
@@ -3010,7 +3011,7 @@ decode_note_off(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, unsigned in
 		return -1;
 	}
 
-	note_str = val_to_str( note, rtp_midi_note_values, rtp_midi_unknown_value_dec );
+	note_str = val_to_str_ext( note, &rtp_midi_note_values_ext, rtp_midi_unknown_value_dec );
 
 	/* broken: we have only one further octet */
 	if ( cmd_len < 2 ) {
@@ -3131,7 +3132,7 @@ decode_note_on(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, unsigned int
 		return -1;
 	}
 
-	note_str = val_to_str( note, rtp_midi_note_values, rtp_midi_unknown_value_dec );
+	note_str = val_to_str_ext( note, &rtp_midi_note_values_ext, rtp_midi_unknown_value_dec );
 
 	/* broken: we have only one further octet */
 	if ( cmd_len < 2 ) {
@@ -3258,7 +3259,7 @@ decode_poly_pressure(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, unsign
 		return -1;
 	}
 
-	note_str = val_to_str( note, rtp_midi_note_values, rtp_midi_unknown_value_dec );
+	note_str = val_to_str_ext( note, &rtp_midi_note_values_ext, rtp_midi_unknown_value_dec );
 
 	/* broken: we have only one further octet */
 	if ( cmd_len < 2 ) {
@@ -3653,7 +3654,7 @@ decode_control_change(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, unsig
 		return -1;
 	}
 
-	ctrl_str = val_to_str( controller, rtp_midi_controller_values, "Unknown: %d" );
+	ctrl_str = val_to_str_ext( controller, &rtp_midi_controller_values_ext, "Unknown: %d" );
 
 	/* broken: we have only one further octet */
 	if ( cmd_len < 2 ) {
@@ -4201,7 +4202,7 @@ decode_sysex_common_tuning( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *t
 			if ( data_len < 3 )
 				return -1;
 
-			note_str = val_to_str( i, rtp_midi_note_values, rtp_midi_unknown_value_dec );
+			note_str = val_to_str_ext( i, &rtp_midi_note_values_ext, rtp_midi_unknown_value_dec );
 
 			tune_item = proto_tree_add_text(tree, tvb, offset, 3, "Note: %s", note_str );
 			tune_tree = proto_item_add_subtree( tune_item, ett_rtp_midi_sysex_common_tune_note );
@@ -4254,7 +4255,7 @@ decode_sysex_common_tuning( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *t
 
 			note = tvb_get_guint8( tvb, offset );
 
-			note_str = val_to_str( note, rtp_midi_note_values, rtp_midi_unknown_value_dec );
+			note_str = val_to_str_ext( note, &rtp_midi_note_values_ext, rtp_midi_unknown_value_dec );
 
 			tune_item = proto_tree_add_text(tree, tvb, offset, 3, "Note: %s", note_str );
 			tune_tree = proto_item_add_subtree( tune_item, ett_rtp_midi_sysex_common_tune_note );
@@ -5574,14 +5575,7 @@ decodemidi(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, unsigned int
 	unsigned int	helpoffset;
 #endif
 
-	/* extra sanity check */
-	if ( !cmd_len ) {
-		return -1;
-	}
-
-
 	octet = tvb_get_guint8( tvb, offset );
-
 
 	/* midi realtime-data -> one octet  -- unlike serial-wired MIDI realtime-commands in RTP-MIDI will
 	 * not be intermingled with other MIDI-commands, so we handle this case right here and return */
@@ -5723,11 +5717,6 @@ decode_cj_chapter_c( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	int				 count;
 	int				 i;
 
-	/* Can we at least read the length of the control changes chapter? */
-	if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-		return -1;
-	}
-
 	octet = tvb_get_guint8( tvb, offset );
 	count = octet & 0x7f;
 
@@ -5747,10 +5736,6 @@ decode_cj_chapter_c( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	rtp_midi_loglist_tree = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_c_loglist );
 
 	for ( i = 0; i < count; i++ ) {
-		/* Can we still read this number/value-pair? */
-		if ( !tvb_bytes_exist( tvb, offset, 2 ) ) {
-			return -1;
-		}
 
 		ti = proto_tree_add_text(rtp_midi_loglist_tree, tvb, offset, 2, RTP_MIDI_TREE_NAME_CJ_CHAPTER_C_LOGITEM );
 		ti = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_c_logitem );
@@ -5797,11 +5782,6 @@ decode_cj_chapter_m( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	gboolean			no_pnum_msb;
 	int				consumed = 0;
 
-	/* Can we read this channel-journals header? */
-	if ( !tvb_bytes_exist( tvb, offset, 2 ) ) {
-		return -1;
-	}
-
 	/* first we need to get the flags & length of this chapter */
 	header = tvb_get_ntohs( tvb, offset );
 	length = header & RTP_MIDI_CJ_CHAPTER_M_MASK_LENGTH;
@@ -5825,10 +5805,6 @@ decode_cj_chapter_m( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 
 	/* do we have the pending field? */
 	if ( header & 0x4000 ) {
-		/* Can we read this pending field? */
-		if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-			return -1;
-		}
 
 		proto_tree_add_item( rtp_midi_cj_chapter_tree, hf_rtp_midi_cj_chapter_m_qflag, tvb, offset, 1, ENC_BIG_ENDIAN );
 		proto_tree_add_item( rtp_midi_cj_chapter_tree, hf_rtp_midi_cj_chapter_m_pending, tvb, offset, 1, ENC_BIG_ENDIAN );
@@ -5849,11 +5825,6 @@ decode_cj_chapter_m( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 
 	/* lets step through the loglist */
 	while ( length > 0 ) {
-
-		/* Can we read this channel-journals header? */
-		if ( !tvb_bytes_exist( tvb, offset, logitemhdrlen ) ) {
-			return -1;
-		}
 
 		if ( no_pnum_msb ) {
 			logitemheader = tvb_get_guint8( tvb, offset + 1 );
@@ -5922,11 +5893,6 @@ decode_cj_chapter_m( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 		/* do we have a entry-msb field? */
 		if ( logitemheader & RTP_MIDI_CJ_CHAPTER_M_FLAG_J ) {
 
-			/* Can we read this table? */
-			if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-				return -1;
-			}
-
 			ti = proto_tree_add_text( rtp_midi_loglist_tree, tvb, offset, 1, RTP_MIDI_TREE_NAME_CJ_CHAPTER_M_LOG_MSB );
 			ti = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_m_log_msb );
 
@@ -5940,10 +5906,6 @@ decode_cj_chapter_m( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 
 		/* do we have a entry-lsb field? */
 		if ( logitemheader & RTP_MIDI_CJ_CHAPTER_M_FLAG_K ) {
-			/* Can we read this table? */
-			if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-				return -1;
-			}
 
 			ti = proto_tree_add_text( rtp_midi_loglist_tree, tvb, offset, 1, RTP_MIDI_TREE_NAME_CJ_CHAPTER_M_LOG_LSB );
 			ti = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_m_log_lsb );
@@ -5958,10 +5920,6 @@ decode_cj_chapter_m( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 
 		/* do we have an a-button field? */
 		if ( logitemheader & RTP_MIDI_CJ_CHAPTER_M_FLAG_L ) {
-			/* Can we read this table? */
-			if ( !tvb_bytes_exist( tvb, offset, 2 ) ) {
-				return -1;
-			}
 
 			ti = proto_tree_add_text( rtp_midi_loglist_tree, tvb, offset, 2, RTP_MIDI_TREE_NAME_CJ_CHAPTER_M_LOG_A_BUTTON );
 			ti = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_m_log_a_button );
@@ -5977,10 +5935,6 @@ decode_cj_chapter_m( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 
 		/* do we have a c-button field? */
 		if ( logitemheader & RTP_MIDI_CJ_CHAPTER_M_FLAG_M ) {
-			/* Can we read this table? */
-			if ( !tvb_bytes_exist( tvb, offset, 2 ) ) {
-				return -1;
-			}
 			ti = proto_tree_add_text( rtp_midi_loglist_tree, tvb, offset, 2, RTP_MIDI_TREE_NAME_CJ_CHAPTER_M_LOG_C_BUTTON );
 			ti = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_m_log_c_button );
 
@@ -5995,10 +5949,6 @@ decode_cj_chapter_m( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 
 		/* do we have a count field? */
 		if ( logitemheader & RTP_MIDI_CJ_CHAPTER_M_FLAG_N ) {
-			/* Can we read this table? */
-			if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-				return -1;
-			}
 			ti = proto_tree_add_text( rtp_midi_loglist_tree, tvb, offset, 1, RTP_MIDI_TREE_NAME_CJ_CHAPTER_M_LOG_COUNT );
 			ti = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_m_log_count );
 
@@ -6036,11 +5986,6 @@ decode_cj_chapter_n( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	int				 high;
 	int				 i;
 
-	/* Can we read this channel-journals header? */
-	if ( !tvb_bytes_exist( tvb, offset, 2 ) ) {
-		return -1;
-	}
-
 	/* first we need to get the flags & length of this chapter */
 	header = tvb_get_ntohs( tvb, offset );
 	log_count = ( header & RTP_MIDI_CJ_CHAPTER_N_MASK_LENGTH ) >> 8;
@@ -6076,11 +6021,6 @@ decode_cj_chapter_n( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 
 	if ( log_count > 0 ) {
 
-		/* Can we read this loglist? */
-		if ( !tvb_bytes_exist( tvb, offset, log_count * 2 ) ) {
-			return -1;
-		}
-
 		ti = proto_tree_add_text( rtp_midi_cj_chapter_tree, tvb, offset, log_count * 2, RTP_MIDI_TREE_NAME_CJ_CHAPTER_N_LOGLIST );
 		rtp_midi_loglist_tree = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_n_loglist );
 
@@ -6089,7 +6029,7 @@ decode_cj_chapter_n( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 			note = tvb_get_guint8( tvb, offset ) & 0x7f;
 			velocity = tvb_get_guint8( tvb, offset + 1 ) & 0x7f;
 
-			note_str = val_to_str( note, rtp_midi_note_values, rtp_midi_unknown_value_dec );
+			note_str = val_to_str_ext( note, &rtp_midi_note_values_ext, rtp_midi_unknown_value_dec );
 
 			ti = proto_tree_add_text(rtp_midi_loglist_tree, tvb, offset, 2, "%s (n=%s, v=%d)", RTP_MIDI_TREE_NAME_CJ_CHAPTER_N_LOGITEM, note_str, velocity );
 			ti = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_n_logitem );
@@ -6111,10 +6051,6 @@ decode_cj_chapter_n( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 
 	if ( octet_count > 0 ) {
 
-		/* Can we read this loglist? */
-		if ( !tvb_bytes_exist( tvb, offset, octet_count ) ) {
-			return -1;
-		}
 		ti = proto_tree_add_text( rtp_midi_cj_chapter_tree, tvb, offset, log_count, RTP_MIDI_TREE_NAME_CJ_CHAPTER_N_OCTETS );
 		rtp_midi_loglist_tree = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_n_octets );
 
@@ -6148,11 +6084,6 @@ decode_cj_chapter_e( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	int				 log_count;
 	int				 i;
 
-	/* Can we read this channel-journals header? */
-	if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-		return -1;
-	}
-
 	/* first we need to get the flags & length of this chapter */
 	header = tvb_get_guint8( tvb, offset );
 	log_count = header & RTP_MIDI_CJ_CHAPTER_E_MASK_LENGTH;
@@ -6169,11 +6100,6 @@ decode_cj_chapter_e( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	offset++;
 	consumed++;
 
-	/* Can we read this loglist? */
-	if ( !tvb_bytes_exist( tvb, offset, log_count * 2 ) ) {
-		return -1;
-	}
-
 	ti = proto_tree_add_text( rtp_midi_cj_chapter_tree, tvb, offset, log_count * 2, RTP_MIDI_TREE_NAME_CJ_CHAPTER_E_LOGLIST );
 	rtp_midi_loglist_tree = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_e_loglist );
 
@@ -6183,7 +6109,7 @@ decode_cj_chapter_e( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 		octet = tvb_get_guint8( tvb, offset + 1 );
 		count_vel = octet & 0x7f;
 
-		note_str = val_to_str( note, rtp_midi_note_values, rtp_midi_unknown_value_dec );
+		note_str = val_to_str_ext( note, &rtp_midi_note_values_ext, rtp_midi_unknown_value_dec );
 
 		if ( octet & 0x80 ) {
 			ti = proto_tree_add_text(rtp_midi_loglist_tree, tvb, offset, 2, "%s (n=%s, v=%d)", RTP_MIDI_TREE_NAME_CJ_CHAPTER_E_LOGITEM1, note_str, count_vel );
@@ -6235,11 +6161,6 @@ decode_cj_chapter_a( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	int				 log_count;
 	int				 i;
 
-	/* Can we read this channel-journals header? */
-	if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-		return -1;
-	}
-
 	/* first we need to get the flags & length of this chapter */
 	header = tvb_get_guint8( tvb, offset );
 	log_count = header & RTP_MIDI_CJ_CHAPTER_A_MASK_LENGTH;
@@ -6256,11 +6177,6 @@ decode_cj_chapter_a( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	offset++;
 	consumed++;
 
-	/* Can we read this loglist? */
-	if ( !tvb_bytes_exist( tvb, offset, log_count * 2 ) ) {
-		return -1;
-	}
-
 	ti = proto_tree_add_text( rtp_midi_cj_chapter_tree, tvb, offset, log_count * 2, RTP_MIDI_TREE_NAME_CJ_CHAPTER_A_LOGLIST );
 	rtp_midi_loglist_tree = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_a_loglist );
 
@@ -6269,7 +6185,7 @@ decode_cj_chapter_a( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 		note	 = tvb_get_guint8( tvb, offset ) & 0x7f;
 		pressure = tvb_get_guint8( tvb, offset + 1 ) & 0x7f;
 
-		note_str = val_to_str( note, rtp_midi_note_values, rtp_midi_unknown_value_dec );
+		note_str = val_to_str_ext( note, &rtp_midi_note_values_ext, rtp_midi_unknown_value_dec );
 
 		ti = proto_tree_add_text(rtp_midi_loglist_tree, tvb, offset, 2, "%s (n=%s, p=%d)", RTP_MIDI_TREE_NAME_CJ_CHAPTER_A_LOGITEM, note_str, pressure );
 		ti = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_a_logitem );
@@ -6308,11 +6224,6 @@ decode_channel_journal( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 	int				consumed = 0;
 	int				ext_consumed = 0;
 
-	/* Can we read this channel-journals header? */
-	if ( !tvb_bytes_exist( tvb, offset, 3 ) ) {
-		return -1;
-	}
-
 	/* first we need to get the flags & length of this channel-journal */
 	chanflags = tvb_get_ntoh24( tvb, offset );
 	chanjourlen = ( chanflags & RTP_MIDI_CJ_MASK_LENGTH ) >> 8;
@@ -6342,11 +6253,6 @@ decode_channel_journal( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 
 	/* Do we have a program change chapter? */
 	if ( chanflags & RTP_MIDI_CJ_FLAG_P ) {
-
-		/* Can we read the program change chapter? */
-		if ( !tvb_bytes_exist( tvb, offset, 3 ) ) {
-			return -1;
-		}
 
 		ti = proto_tree_add_text( rtp_midi_cj_chapters_tree, tvb, offset, 3, RTP_MIDI_TREE_NAME_CJ_CHAPTER_P );
 		rtp_midi_cj_chapter_tree = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_p );
@@ -6386,11 +6292,6 @@ decode_channel_journal( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 	/* Do we have a pitch-wheel chapter? */
 	if ( chanflags & RTP_MIDI_CJ_FLAG_W ) {
 
-		/* Can we get the data for the Pitch Wheel chapter? */
-		if ( !tvb_bytes_exist( tvb, offset, 2 ) ) {
-			return -1;
-		}
-
 		ti = proto_tree_add_text( rtp_midi_cj_chapters_tree, tvb, offset, 2, RTP_MIDI_TREE_NAME_CJ_CHAPTER_W );
 		rtp_midi_cj_chapter_tree = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_w );
 
@@ -6429,10 +6330,6 @@ decode_channel_journal( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 
 	/* Do we have channel aftertouch chapter? */
 	if ( chanflags & RTP_MIDI_CJ_FLAG_T ) {
-		/* Can we get the data for the Pitch Wheel chapter? */
-		if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-			return -1;
-		}
 
 		ti = proto_tree_add_text( rtp_midi_cj_chapters_tree, tvb, offset, 1, RTP_MIDI_TREE_NAME_CJ_CHAPTER_T );
 		rtp_midi_cj_chapter_tree = proto_item_add_subtree( ti, ett_rtp_midi_cj_chapter_t );
@@ -6473,11 +6370,6 @@ decode_sj_chapter_d_f4( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 	guint16		 f4flags;
 	guint16		 f4length;
 
-	/* Can we read this fields header? */
-	if ( !tvb_bytes_exist( tvb, offset, 2 ) ) {
-		return -1;
-	}
-
 	/* Get flags & length */
 	f4flags = tvb_get_ntohs( tvb, offset );
 	f4length = f4flags & RTP_MIDI_SJ_CHAPTER_D_SYSCOM_MASK_LENGTH;
@@ -6499,10 +6391,6 @@ decode_sj_chapter_d_f4( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 
 	if ( f4flags & RTP_MIDI_SJ_CHAPTER_D_SYSCOM_FLAG_C ) {
 
-		if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-			return -1;
-		}
-
 		proto_tree_add_item( rtp_midi_field_tree, hf_rtp_midi_sj_chapter_d_syscom_count, tvb, offset, 1, ENC_BIG_ENDIAN );
 
 		offset++;
@@ -6517,9 +6405,6 @@ decode_sj_chapter_d_f4( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 
 		/* variable length field - ends with an octet with MSB set */
 		for (;;) {
-			if ( !tvb_bytes_exist( tvb, offset+valuelen, 1 ) ) {
-				return -1;
-			}
 			octet = tvb_get_guint8( tvb, offset+valuelen );
 			valuelen++;
 			if ( octet & 0x80 ) {
@@ -6533,10 +6418,6 @@ decode_sj_chapter_d_f4( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 
 	if ( f4flags & RTP_MIDI_SJ_CHAPTER_D_SYSCOM_FLAG_L ) {
 
-		if ( !tvb_bytes_exist( tvb, offset, f4length ) ) {
-			return -1;
-		}
-
 		proto_tree_add_item( rtp_midi_field_tree, hf_rtp_midi_sj_chapter_d_syscom_legal, tvb, offset, f4length, ENC_NA );
 		offset	 += f4length;
 		f4length -= f4length;
@@ -6544,10 +6425,6 @@ decode_sj_chapter_d_f4( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 
 	/* if we still have data, the length-field was incorrect we dump the data here and abort! */
 	if ( f4length > 0 ) {
-
-		if ( !tvb_bytes_exist( tvb, offset, f4length ) ) {
-			return -1;
-		}
 
 		proto_tree_add_item( rtp_midi_field_tree, hf_rtp_midi_sj_chapter_d_syscom_data, tvb, offset, f4length, ENC_NA );
 		consumed += f4length;
@@ -6571,11 +6448,6 @@ decode_sj_chapter_d_f5( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 	guint16		 f5flags;
 	guint16		 f5length;
 
-	/* Can we read this fields header? */
-	if ( !tvb_bytes_exist( tvb, offset, 2 ) ) {
-		return -1;
-	}
-
 	/* Get flags & length */
 	f5flags = tvb_get_ntohs( tvb, offset );
 	f5length = f5flags & RTP_MIDI_SJ_CHAPTER_D_SYSCOM_MASK_LENGTH;
@@ -6597,10 +6469,6 @@ decode_sj_chapter_d_f5( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 
 	if ( f5flags & RTP_MIDI_SJ_CHAPTER_D_SYSCOM_FLAG_C ) {
 
-		if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-			return -1;
-		}
-
 		proto_tree_add_item( rtp_midi_field_tree, hf_rtp_midi_sj_chapter_d_syscom_count, tvb, offset, 1, ENC_BIG_ENDIAN );
 
 		offset++;
@@ -6615,9 +6483,6 @@ decode_sj_chapter_d_f5( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 
 		/* variable length field - ends with an octet with MSB set */
 		for (;;) {
-			if ( !tvb_bytes_exist( tvb, offset+valuelen, 1 ) ) {
-				return -1;
-			}
 			octet = tvb_get_guint8( tvb, offset+valuelen );
 			valuelen++;
 			if ( octet & 0x80 ) {
@@ -6631,10 +6496,6 @@ decode_sj_chapter_d_f5( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 
 	if ( f5flags & RTP_MIDI_SJ_CHAPTER_D_SYSCOM_FLAG_L ) {
 
-		if ( !tvb_bytes_exist( tvb, offset, f5length ) ) {
-			return -1;
-		}
-
 		proto_tree_add_item( rtp_midi_field_tree, hf_rtp_midi_sj_chapter_d_syscom_legal, tvb, offset, f5length, ENC_NA );
 		offset	 += f5length;
 		f5length -= f5length;
@@ -6642,10 +6503,6 @@ decode_sj_chapter_d_f5( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 
 	/* if we still have data, we dump it here - see above! */
 	if ( f5length > 0 ) {
-
-		if ( !tvb_bytes_exist( tvb, offset, f5length ) ) {
-			return -1;
-		}
 
 		proto_tree_add_item( rtp_midi_field_tree, hf_rtp_midi_sj_chapter_d_syscom_data, tvb, offset, f5length, ENC_NA );
 		consumed += f5length;
@@ -6667,11 +6524,6 @@ decode_sj_chapter_d_f9( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 	guint8		 f9flags;
 	guint8		 f9length;
 
-	/* Can we read this fields header? */
-	if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-		return -1;
-	}
-
 	/* Get flags & length */
 	f9flags = tvb_get_guint8( tvb, offset );
 	f9length = f9flags & RTP_MIDI_SJ_CHAPTER_D_SYSREAL_MASK_LENGTH;
@@ -6691,10 +6543,6 @@ decode_sj_chapter_d_f9( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 
 	if ( f9flags & RTP_MIDI_SJ_CHAPTER_D_SYSREAL_FLAG_C ) {
 
-		if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-			return -1;
-		}
-
 		proto_tree_add_item( rtp_midi_field_tree, hf_rtp_midi_sj_chapter_d_sysreal_count, tvb, offset, 1, ENC_BIG_ENDIAN );
 
 		offset++;
@@ -6704,10 +6552,6 @@ decode_sj_chapter_d_f9( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 
 	if ( f9flags & RTP_MIDI_SJ_CHAPTER_D_SYSREAL_FLAG_L ) {
 
-		if ( !tvb_bytes_exist( tvb, offset, f9length ) ) {
-			return -1;
-		}
-
 		proto_tree_add_item( rtp_midi_field_tree, hf_rtp_midi_sj_chapter_d_sysreal_legal, tvb, offset, f9length, ENC_NA );
 		offset	 += f9length;
 		f9length -= f9length;
@@ -6716,10 +6560,6 @@ decode_sj_chapter_d_f9( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 	/* if we still have data, the length-field was incorrect we dump the data here and abort! */
 
 	if ( f9length > 0 ) {
-
-		if ( !tvb_bytes_exist( tvb, offset, f9length ) ) {
-			return -1;
-		}
 
 		proto_tree_add_item( rtp_midi_field_tree, hf_rtp_midi_sj_chapter_d_sysreal_data, tvb, offset, f9length, ENC_NA );
 		consumed += f9length;
@@ -6742,11 +6582,6 @@ decode_sj_chapter_d_fd( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 	guint8		 fdflags;
 	guint8		 fdlength;
 
-	/* Can we read this fields header? */
-	if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-		return -1;
-	}
-
 	/* Get flags & length */
 	fdflags  = tvb_get_guint8( tvb, offset );
 	fdlength = fdflags & RTP_MIDI_SJ_CHAPTER_D_SYSREAL_MASK_LENGTH;
@@ -6766,10 +6601,6 @@ decode_sj_chapter_d_fd( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 
 	if ( fdflags & RTP_MIDI_SJ_CHAPTER_D_SYSREAL_FLAG_C ) {
 
-		if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-			return -1;
-		}
-
 		proto_tree_add_item( rtp_midi_field_tree, hf_rtp_midi_sj_chapter_d_sysreal_count, tvb, offset, 1, ENC_BIG_ENDIAN );
 
 		offset++;
@@ -6779,10 +6610,6 @@ decode_sj_chapter_d_fd( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 
 	if ( fdflags & RTP_MIDI_SJ_CHAPTER_D_SYSREAL_FLAG_L ) {
 
-		if ( !tvb_bytes_exist( tvb, offset, fdlength ) ) {
-			return -1;
-		}
-
 		proto_tree_add_item( rtp_midi_field_tree, hf_rtp_midi_sj_chapter_d_sysreal_legal, tvb, offset, fdlength, ENC_NA );
 		offset	 += fdlength;
 		fdlength -= fdlength;
@@ -6791,10 +6618,6 @@ decode_sj_chapter_d_fd( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
 	/* if we still have data, the length-field was incorrect we dump the data here and abort! */
 
 	if ( fdlength > 0 ) {
-
-		if ( !tvb_bytes_exist( tvb, offset, fdlength ) ) {
-			return -1;
-		}
 
 		proto_tree_add_item( rtp_midi_field_tree, hf_rtp_midi_sj_chapter_d_sysreal_data, tvb, offset, fdlength, ENC_NA );
 
@@ -6819,11 +6642,6 @@ decode_sj_chapter_d( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	guint8				header;
 	int				consumed = 0;
 	int				ext_consumed;
-
-	/* Can we read this channel-journals header? */
-	if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-		return -1;
-	}
 
 	/* first we need to get the flags of this chapter */
 	header = tvb_get_guint8( tvb, offset );
@@ -6850,10 +6668,6 @@ decode_sj_chapter_d( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 
 	/* do we have Reset field? */
 	if ( header & RTP_MIDI_SJ_CHAPTER_D_FLAG_B ) {
-		/* Can we get the data for the Reset chapter? */
-		if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-			return -1;
-		}
 
 		ti = proto_tree_add_text( rtp_midi_sj_chapter_tree, tvb, offset, 1, RTP_MIDI_TREE_NAME_SJ_CHAPTER_D_FIELD_B );
 		rtp_midi_field_tree = proto_item_add_subtree( ti, ett_rtp_midi_sj_chapter_d_field_b );
@@ -6867,10 +6681,6 @@ decode_sj_chapter_d( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 
 	/* do we have Tune request field? */
 	if ( header & RTP_MIDI_SJ_CHAPTER_D_FLAG_G ) {
-		/* Can we get the data for the Reset chapter? */
-		if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-			return -1;
-		}
 
 		ti = proto_tree_add_text( rtp_midi_sj_chapter_tree, tvb, offset, 1, RTP_MIDI_TREE_NAME_SJ_CHAPTER_D_FIELD_G );
 		rtp_midi_field_tree = proto_item_add_subtree( ti, ett_rtp_midi_sj_chapter_d_field_g );
@@ -6884,10 +6694,6 @@ decode_sj_chapter_d( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 
 	/* do we have Song select field? */
 	if ( header & RTP_MIDI_SJ_CHAPTER_D_FLAG_H ) {
-		/* Can we get the data for the Reset chapter? */
-		if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-			return -1;
-		}
 
 		ti = proto_tree_add_text( rtp_midi_sj_chapter_tree, tvb, offset, 1, RTP_MIDI_TREE_NAME_SJ_CHAPTER_D_FIELD_H );
 		rtp_midi_field_tree = proto_item_add_subtree( ti, ett_rtp_midi_sj_chapter_d_field_h );
@@ -6955,11 +6761,6 @@ decode_sj_chapter_q( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	int				consumed = 0;
 	int				len = 1;
 
-	/* Can we read this chapters header? */
-	if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-		return -1;
-	}
-
 	/* first we need to get the flags of this chapter */
 	header = tvb_get_guint8( tvb, offset );
 
@@ -6982,10 +6783,6 @@ decode_sj_chapter_q( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 
 	if ( header & RTP_MIDI_SJ_CHAPTER_Q_FLAG_C ) {
 
-		if ( !tvb_bytes_exist( tvb, offset, 3 ) ) {
-			return -1;
-		}
-
 		proto_tree_add_item( rtp_midi_sj_chapter_tree, hf_rtp_midi_sj_chapter_q_clock, tvb, offset, 3, ENC_BIG_ENDIAN );
 
 		consumed += 3;
@@ -6999,9 +6796,6 @@ decode_sj_chapter_q( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	}
 
 	if ( header & RTP_MIDI_SJ_CHAPTER_Q_FLAG_T ) {
-		if ( !tvb_bytes_exist( tvb, offset, 3 ) ) {
-			return -1;
-		}
 
 		proto_tree_add_item( rtp_midi_sj_chapter_tree, hf_rtp_midi_sj_chapter_q_timetools, tvb, offset, 3, ENC_BIG_ENDIAN );
 
@@ -7022,11 +6816,6 @@ decode_sj_chapter_f( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	guint8				header;
 	int				consumed = 0;
 	int				len = 1;
-
-	/* Can we read this chapters header? */
-	if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-		return -1;
-	}
 
 	/* first we need to get the flags of this chapter */
 	header = tvb_get_guint8( tvb, offset );
@@ -7053,9 +6842,6 @@ decode_sj_chapter_f( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	offset++;
 
 	if ( header & RTP_MIDI_SJ_CHAPTER_F_FLAG_C ) {
-		if ( !tvb_bytes_exist( tvb, offset, 4 ) ) {
-			return -1;
-		}
 
 		ti = proto_tree_add_text( rtp_midi_sj_chapter_tree, tvb, offset, 4, RTP_MIDI_TREE_NAME_SJ_CHAPTER_F_COMPLETE );
 		rtp_midi_sj_field_tree = proto_item_add_subtree( ti, ett_rtp_midi_sj_chapter_f_complete );
@@ -7082,9 +6868,6 @@ decode_sj_chapter_f( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	}
 
 	if ( header & RTP_MIDI_SJ_CHAPTER_F_FLAG_P ) {
-		if ( !tvb_bytes_exist( tvb, offset, 4 ) ) {
-			return -1;
-		}
 
 		ti = proto_tree_add_text( rtp_midi_sj_chapter_tree, tvb, offset, 4, RTP_MIDI_TREE_NAME_SJ_CHAPTER_F_PARTIAL );
 		rtp_midi_sj_field_tree = proto_item_add_subtree( ti, ett_rtp_midi_sj_chapter_f_partial );
@@ -7118,11 +6901,6 @@ decode_sj_chapter_x( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	unsigned int			cmdlen   = 0;
 	unsigned int			i;
 
-	/* Can we read this chapter's header? */
-	if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-		return -1;
-	}
-
 	/* first we need to get the flags of this chapter */
 	header = tvb_get_guint8( tvb, offset );
 
@@ -7142,10 +6920,6 @@ decode_sj_chapter_x( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 
 	if ( header & RTP_MIDI_SJ_CHAPTER_X_FLAG_T ) {
 
-		if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-			return -1;
-		}
-
 		proto_tree_add_item( rtp_midi_sj_chapter_tree, hf_rtp_midi_sj_chapter_x_tcount, tvb, offset, 1, ENC_BIG_ENDIAN );
 
 		consumed++;
@@ -7153,10 +6927,6 @@ decode_sj_chapter_x( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, un
 	}
 
 	if ( header & RTP_MIDI_SJ_CHAPTER_X_FLAG_C ) {
-
-		if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-			return -1;
-		}
 
 		proto_tree_add_item( rtp_midi_sj_chapter_tree, hf_rtp_midi_sj_chapter_x_count, tvb, offset, 1, ENC_BIG_ENDIAN );
 
@@ -7255,13 +7025,6 @@ decode_system_journal( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, 
 	guint16				sysjourlen;
 	guint16				systemflags;
 
-
-
-	/* Can we read this channel-journals header? */
-	if ( !tvb_bytes_exist( tvb, offset, 2 ) ) {
-		return -1;
-	}
-
 	systemflags = tvb_get_ntohs( tvb, offset );
 	sysjourlen  = systemflags & RTP_MIDI_SJ_MASK_LENGTH;
 
@@ -7295,10 +7058,6 @@ decode_system_journal( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, 
 	/* Do we have a active sensing chapter? */
 	if ( systemflags & RTP_MIDI_SJ_FLAG_V ) {
 		proto_tree *rtp_midi_sj_chapter_tree;
-		/* Can we get the data for the Active Sense chapter? */
-		if ( !tvb_bytes_exist( tvb, offset, 1 ) ) {
-			return -1;
-		}
 
 		ti = proto_tree_add_text( rtp_midi_sj_chapters_tree, tvb, offset, 1, RTP_MIDI_TREE_NAME_SJ_CHAPTER_V );
 		rtp_midi_sj_chapter_tree = proto_item_add_subtree( ti, ett_rtp_midi_sj_chapter_v );
@@ -7330,11 +7089,6 @@ decode_system_journal( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, 
 		offset	 += ext_consumed;
 	}
 
-
-	/* Make sanity check for consumed data vs. stated length of system journal */
-	if ( consumed <= sysjourlen ) {
-		return -1;
-	}
 
 	/* Do we have a Sysex chapter? */
 	if ( systemflags & RTP_MIDI_SJ_FLAG_X ) {
@@ -7426,12 +7180,6 @@ dissect_rtp_midi( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree )
 		command_item = proto_tree_add_text( rtp_midi_tree, tvb, offset, cmd_len, RTP_MIDI_TREE_NAME_COMMAND );
 		rtp_midi_commands_tree = proto_item_add_subtree( command_item, ett_rtp_midi_commands );
 
-		/* if the reported command-length larger than data found in packet -> error */
-		if ( !tvb_bytes_exist( tvb, offset, cmd_len ) ) {
-			THROW( ReportedBoundsError );
-			return;
-		}
-
 		/* No commands decoded yet */
 		cmd_count = 0;
 
@@ -7444,12 +7192,8 @@ dissect_rtp_midi( tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree )
 			/* for the first command we only have a delta-time if Z-Flag is set */
 			if ( ( cmd_count ) || ( flags & RTP_MIDI_CS_FLAG_Z ) ) {
 
-				/* Decode a delta-time - if 0 is returned something went wrong */
-				consumed = decodetime( tvb, pinfo, rtp_midi_commands_tree, offset, cmd_len );
-				if ( -1 == consumed ) {
-					THROW( ReportedBoundsError );
-					return;
-				}
+				/* Decode a delta-time */
+				consumed = decodetime( tvb, pinfo, rtp_midi_commands_tree, offset );
 
 				/* seek to next command and set remaining length */
 				offset  += consumed;
@@ -7787,8 +7531,8 @@ proto_register_rtp_midi( void )
 				"Note",
 				"rtpmidi.note",
 				FT_UINT8,
-				BASE_DEC,
-				VALS(rtp_midi_note_values),
+				BASE_DEC | BASE_EXT_STRING,
+				&rtp_midi_note_values_ext,
 				0x7f,
 				NULL, HFILL
 			}
@@ -7821,10 +7565,10 @@ proto_register_rtp_midi( void )
 			&hf_rtp_midi_controller,
 			{
 				"Controller",
-				"rtpevent.controller",
+				"rtpmidi.controller",
 				FT_UINT8,
-				BASE_DEC,
-				VALS(rtp_midi_controller_values),
+				BASE_DEC | BASE_EXT_STRING,
+				&rtp_midi_controller_values_ext,
 				0x7f,
 				NULL, HFILL
 			}
@@ -7895,8 +7639,8 @@ proto_register_rtp_midi( void )
 				"Manufacturer (short)",
 				"rtpmidi.manufacturer_short",
 				FT_UINT8,
-				BASE_HEX,
-				VALS(rtp_midi_manu_short_values),
+				BASE_HEX | BASE_EXT_STRING,
+				&rtp_midi_manu_short_values_ext,
 				0x7f,
 				NULL, HFILL
 			}
@@ -7907,8 +7651,8 @@ proto_register_rtp_midi( void )
 				"Manufacturer (long)",
 				"rtpmidi.manufacturer_long",
 				FT_UINT16,
-				BASE_HEX,
-				VALS(rtp_midi_manu_long_values),
+				BASE_HEX | BASE_EXT_STRING,
+				&rtp_midi_manu_long_values_ext,
 				0x7f7f,
 				NULL, HFILL
 			}
@@ -8251,8 +7995,8 @@ proto_register_rtp_midi( void )
 				"Chapter C Number",
 				"rtpmidi.cj_chapter_c_number",
 				FT_UINT8,
-				BASE_DEC,
-				VALS(rtp_midi_controller_values),
+				BASE_DEC | BASE_EXT_STRING,
+				&rtp_midi_controller_values_ext,
 				0x7f,
 				NULL, HFILL
 			}
@@ -8862,8 +8606,8 @@ proto_register_rtp_midi( void )
 				"Chapter N Log Note",
 				"rtpmidi.cj_chapter_n_log_note",
 				FT_UINT8,
-				BASE_DEC,
-				VALS(rtp_midi_note_values),
+				BASE_DEC | BASE_EXT_STRING,
+				&rtp_midi_note_values_ext,
 				0x7f,
 				NULL, HFILL
 			}
@@ -8953,8 +8697,8 @@ proto_register_rtp_midi( void )
 				"Chapter E Log Note",
 				"rtpmidi.cj_chapter_e_log_note",
 				FT_UINT8,
-				BASE_DEC,
-				VALS(rtp_midi_note_values),
+				BASE_DEC | BASE_EXT_STRING,
+				&rtp_midi_note_values_ext,
 				0x7f,
 				NULL, HFILL
 			}
@@ -9070,8 +8814,8 @@ proto_register_rtp_midi( void )
 				"Chapter A Log Note",
 				"rtpmidi.cj_chapter_a_log_note",
 				FT_UINT8,
-				BASE_DEC,
-				VALS(rtp_midi_note_values),
+				BASE_DEC | BASE_EXT_STRING,
+				&rtp_midi_note_values_ext,
 				0x7f,
 				NULL, HFILL
 			}
@@ -10236,8 +9980,8 @@ proto_register_rtp_midi( void )
 				"Sysex Common Realtime Show Control",
 				"rtpmidi.sysex_common_realtime_sc",
 				FT_UINT8,
-				BASE_HEX,
-				VALS(rtp_midi_sysex_common_rt_show_control),
+				BASE_HEX | BASE_EXT_STRING,
+				&rtp_midi_sysex_common_rt_show_control_ext,
 				0x7f,
 				NULL, HFILL
 			}
@@ -10656,8 +10400,8 @@ proto_register_rtp_midi( void )
 				"Sysex Common (Non-)Realtime Tuning Note",
 				"rtpmidi.sysex_common_tune_note",
 				FT_UINT8,
-				BASE_DEC,
-				VALS(rtp_midi_note_values),
+				BASE_DEC | BASE_EXT_STRING,
+				&rtp_midi_note_values_ext,
 				0x7f,
 				NULL, HFILL
 			}
@@ -11167,3 +10911,16 @@ proto_reg_handoff_rtp_midi( void )
 	}
 
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

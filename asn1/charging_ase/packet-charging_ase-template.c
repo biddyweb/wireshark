@@ -1,8 +1,6 @@
 /* packet-charging_ase-template.c
  * Copyright 2009 , Anders Broman <anders.broman [AT] ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,6 +33,9 @@
 #define PNAME  "Charging ASE"
 #define PSNAME "ChargingASE"
 #define PFNAME "chargingase"
+
+void proto_register_charging_ase(void);
+void proto_reg_handoff_charging_ase(void);
 
 /* Define the Charging ASE proto */
 static int proto_charging_ase = -1;

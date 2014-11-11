@@ -5,8 +5,6 @@
  * This information is based off the released idl files from opengroup.
  * ftp://ftp.opengroup.org/pub/dce122/dce/src/security.tar.gz security/idl/rsecidmap.idl
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,9 @@
 #include <epan/packet.h>
 #include "packet-dcerpc.h"
 
+void proto_register_secidmap (void);
+void proto_reg_handoff_secidmap (void);
+
 static int proto_secidmap = -1;
 static int hf_secidmap_opnum = -1;
 
@@ -45,11 +46,11 @@ static guint16  ver_secidmap = 1;
 
 
 static dcerpc_sub_dissector secidmap_dissectors[] = {
-        { 0, "parse_name", NULL, NULL},
-        { 1, "gen_name", NULL, NULL},
-        { 2, "avoid_cn_bug", NULL, NULL},
+        { 0, "parse_name",       NULL, NULL},
+        { 1, "gen_name",         NULL, NULL},
+        { 2, "avoid_cn_bug",     NULL, NULL},
         { 3, "parse_name_cache", NULL, NULL},
-        { 4, "gen_name_cache", NULL, NULL},
+        { 4, "gen_name_cache",   NULL, NULL},
 
         { 0, NULL, NULL, NULL },
 };

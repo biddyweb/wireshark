@@ -2,8 +2,6 @@
  * Routines for QLLC protocol - Qualified? LLC
  * Gilbert Ramirez <gram@alumni.rice.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2001 Gerald Combs
@@ -27,6 +25,9 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+
+void proto_register_qllc(void);
+void proto_reg_handoff_qllc(void);
 
 static int proto_qllc = -1;
 static int hf_qllc_address = -1;
@@ -71,38 +72,39 @@ static const value_string qllc_control_vals[] = {
 };
 
 
-static void
-dissect_qllc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_qllc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
-    proto_tree	*qllc_tree = NULL;
-    proto_item	*qllc_ti = NULL;
-    gboolean	*q_bit_set = pinfo->private_data;
+    proto_tree	*qllc_tree;
+    proto_item	*qllc_ti;
+    gboolean    *q_bit_set;
     guint8	addr, ctrl;
     gboolean	command = FALSE;
+
+    /* Reject the packet if data is NULL */
+    if (data == NULL)
+        return 0;
+    q_bit_set = (gboolean *)data;
 
     /*
      * If the Q bit isn't set, this is just SNA data.
      */
     if (!(*q_bit_set)) {
-	call_dissector(sna_handle, tvb, pinfo, tree);
-	return;
+        call_dissector(sna_handle, tvb, pinfo, tree);
+        return tvb_length(tvb);
     }
 
     /* Summary information */
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "QLLC");
     col_clear(pinfo->cinfo, COL_INFO);
 
-    if (tree) {
-	qllc_ti = proto_tree_add_item(tree, proto_qllc, tvb, 0, -1, ENC_NA);
-	qllc_tree = proto_item_add_subtree(qllc_ti, ett_qllc);
-    }
+    qllc_ti = proto_tree_add_item(tree, proto_qllc, tvb, 0, -1, ENC_NA);
+    qllc_tree = proto_item_add_subtree(qllc_ti, ett_qllc);
 
     /* Get the address; we need it to determine if this is a
      * COMMAND or a RESPONSE */
     addr = tvb_get_guint8(tvb, 0);
-    if (tree) {
 	proto_tree_add_item(qllc_tree, hf_qllc_address, tvb, 0, 1, ENC_BIG_ENDIAN);
-    }
 
     /* The address field equals X'FF' in commands (except QRR)
      * and anything in responses. */
@@ -116,14 +118,14 @@ dissect_qllc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
      * a COMMAND or RESPONSE. */
     if (ctrl == QRD_QDISC_VALUE) {
         if (command) {
-	    col_set_str(pinfo->cinfo, COL_INFO, QDISC_TEXT);
+        col_set_str(pinfo->cinfo, COL_INFO, QDISC_TEXT);
             if (tree) {
                 proto_tree_add_text(qllc_tree, tvb,
                         1, 1, "Control Field: %s (0x%02x)", QDISC_TEXT, ctrl);
             }
         }
         else {
-	    col_set_str(pinfo->cinfo, COL_INFO, QRD_TEXT);
+        col_set_str(pinfo->cinfo, COL_INFO, QRD_TEXT);
             if (tree) {
                 proto_tree_add_text(qllc_tree, tvb,
                         1, 1, "Control Field: %s (0x%02x)", QRD_TEXT, ctrl);
@@ -140,15 +142,12 @@ dissect_qllc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
     else {
         /* Non-ambiguous control field value */
-        if (check_col(pinfo->cinfo, COL_INFO)) {
-            col_add_str(pinfo->cinfo, COL_INFO,
+        col_add_str(pinfo->cinfo, COL_INFO,
                     val_to_str(ctrl, qllc_control_vals,
                         "Control Field: 0x%02x (unknown)"));
-        }
-        if (tree) {
-            proto_tree_add_uint(qllc_tree, hf_qllc_control, tvb,
+
+        proto_tree_add_uint(qllc_tree, hf_qllc_control, tvb,
                     1, 1, ctrl);
-        }
     }
 
     /* Do we have an I field ? */
@@ -157,6 +156,8 @@ dissect_qllc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     if (ctrl == QXID || ctrl == QTEST || ctrl == QFRMR) {
         /* yes */
     }
+
+    return tvb_length(tvb);
 }
 
 void
@@ -176,11 +177,10 @@ proto_register_qllc(void)
 		&ett_qllc,
 	};
 
-	proto_qllc = proto_register_protocol("Qualified Logical Link Control",
-            "QLLC", "qllc");
+	proto_qllc = proto_register_protocol("Qualified Logical Link Control", "QLLC", "qllc");
 	proto_register_field_array(proto_qllc, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
-	register_dissector("qllc", dissect_qllc, proto_qllc);
+	new_register_dissector("qllc", dissect_qllc, proto_qllc);
 }
 
 void

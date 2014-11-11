@@ -1,7 +1,5 @@
 /* label_stack.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,7 +32,7 @@ class LabelStack : public QLabel
     Q_OBJECT
 public:
     explicit LabelStack(QWidget *parent = 0);
-    void setTemporaryContext(int ctx);
+    void setTemporaryContext(const int ctx);
     void pushText(QString &text, int ctx);
 
 protected:

@@ -2,8 +2,6 @@
  * Routines for dissection of Apple network-midi session establishment.
  * Copyright 2006-2012, Tobias Erichsen <t.erichsen@gmx.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -52,6 +50,7 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/wmem/wmem.h>
 #include <epan/conversation.h>
 
 #include "packet-rtp.h"
@@ -131,9 +130,6 @@ dissect_applemidi_common( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, g
 
 	col_set_str( pinfo->cinfo, COL_PROTOCOL, APPLEMIDI_DISSECTOR_SHORTNAME );
 
-	/* Clear out stuff in the info column */
-	col_clear( pinfo->cinfo, COL_INFO );
-
 	col_add_fstr( pinfo->cinfo, COL_INFO, "%s", val_to_str( command, applemidi_commands, applemidi_unknown_command ) );
 
 	if ( tree ) {
@@ -169,7 +165,7 @@ dissect_applemidi_common( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, g
 
 			/* Name is optional */
 			if ( len > 0 ) {
-				name = tvb_get_ephemeral_string( tvb, offset, len );
+				name = tvb_get_string_enc( wmem_packet_scope(), tvb, offset, len, ENC_UTF_8|ENC_NA );
 				string_size = (gint)( strlen( name ) + 1 );
 				proto_tree_add_item( applemidi_tree, hf_applemidi_name, tvb, offset, string_size, ENC_UTF_8|ENC_NA );
 				col_append_fstr( pinfo->cinfo, COL_INFO, ": peer = \"%s\"", name );
@@ -289,9 +285,7 @@ dissect_applemidi_heur( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
 	guint16		 command;
 	conversation_t	*p_conv;
 	/*struct _rtp_conversation_info *p_conv_data = NULL;*/
-	encoding_name_and_rate_t *encoding_name_and_rate = NULL;
-	GHashTable *rtp_dyn_payload = NULL;
-	gint *key;
+	rtp_dyn_payload_t *rtp_dyn_payload = NULL;
 
 	if ( tvb_length( tvb ) < 4)
 		return FALSE;  /* not enough bytes to check */
@@ -303,13 +297,8 @@ dissect_applemidi_heur( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
 	/* set dynamic payload-type 97 which is used by Apple for their RTP-MIDI implementation for this
 	   address/port-tuple to cause RTP-dissector to call the RTP-MIDI-dissector for payload-decoding */
 
-	encoding_name_and_rate = se_new(encoding_name_and_rate_t);
-	rtp_dyn_payload = g_hash_table_new( g_int_hash, g_int_equal );
-	encoding_name_and_rate->encoding_name = se_strdup( "rtp-midi" );
-	encoding_name_and_rate->sample_rate = 10000;
-	key = se_new(gint);
-	*key = 97;
-	g_hash_table_insert( rtp_dyn_payload, key, encoding_name_and_rate );
+	rtp_dyn_payload = rtp_dyn_payload_new();
+	rtp_dyn_payload_insert(rtp_dyn_payload, 97, "rtp-midi", 10000);
         rtp_add_address( pinfo, &pinfo->src, pinfo->srcport, 0, APPLEMIDI_DISSECTOR_SHORTNAME,
 			 pinfo->fd->num, FALSE, rtp_dyn_payload);
 

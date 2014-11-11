@@ -1,8 +1,6 @@
 # Makefile.am
 # Automake file for OpcUa plugin
 #
-# $Id$
-#
 # Adapted by Gerhard Gappmeier for OpcUa
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
@@ -132,4 +130,5 @@ EXTRA_DIST = \
 
 checkapi:
 	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -g abort -g termoutput -build \
-		$(CLEAN_SRC_FILES) $(CLEAN_HEADER_FILES)
+	-sourcedir=$(srcdir) \
+	$(CLEAN_SRC_FILES) $(CLEAN_HEADER_FILES)

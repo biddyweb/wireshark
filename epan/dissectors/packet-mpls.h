@@ -8,8 +8,6 @@
  * (c) Copyright 2011, Shobhank Sharma <ssharma5@ncsu.edu>
  *                     added MPLS Generic Associated Channel as per RFC 5586
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -41,12 +39,12 @@ enum {
     MPLS_LABEL_GACH              = 13, /* aka GAL */
     MPLS_LABEL_OAM_ALERT         = 14,
     MPLS_LABEL_MAX_RESERVED      = 15,
-    MPLS_LABEL_INVALID           = 0xffffffff
+    MPLS_LABEL_INVALID           = -1
 };
 
 /*
  * FF: private data passed from the MPLS dissector to subdissectors
- * (pinfo->private_data).
+ * (data parameter).
  */
 struct mplsinfo {
     guint32 label; /* last mpls label in label stack */

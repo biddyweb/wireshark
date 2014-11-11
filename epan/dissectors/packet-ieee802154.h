@@ -1,7 +1,5 @@
 /* packet-ieee802154.h
  *
- * $Id$
- *
  * IEEE 802.15.4 Dissectors for Wireshark
  * By Owen Kirby <osk@exegin.com>
  * Copyright 2007 Exegin Technologies Limited
@@ -28,7 +26,10 @@
 #define PACKET_IEEE802154_H
 
 /* Protocol Abbreviation */
-#define IEEE802154_PROTOABBREV_WPAN     "wpan"
+#define IEEE802154_PROTOABBREV_WPAN         "wpan"
+#define IEEE802154_PROTOABBREV_WPAN_BEACON  "wpan.beacon"
+/* PANID dissector list is for Decode-As and stateful dissection only. */
+#define IEEE802154_PROTOABBREV_WPAN_PANID   "wpan.panid"
 
 /*  Packet Overhead from MAC header + footer (excluding addressing) */
 #define IEEE802154_MAX_FRAME_LEN            127

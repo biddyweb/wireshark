@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-rrlp.c                                                              */
 /* ../../tools/asn2wrs.py -p rrlp -c ./rrlp.cnf -s ./packet-rrlp-template -D . -O ../../epan/dissectors ../gsm_map/MAP-ExtensionDataTypes.asn ../gsm_map/MAP-LCS-DataTypes.asn RRLP-Messages.asn RRLP-Components.asn */
 
@@ -9,8 +9,6 @@
 /* packet-rrlp.c
  * Routines for 3GPP Radio Resource LCS Protocol (RRLP) packet dissection
  * Copyright 2006, Anders Broman <anders.broman@ericsson.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -30,7 +28,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * Ref 3GPP TS 44.031 version 9.2.0 Release 9
+ * Ref 3GPP TS 44.031 version 11.0.0 Release 11
  * http://www.3gpp.org
  */
 
@@ -55,6 +53,8 @@
 #pragma warning(disable:4146)
 #endif
 
+void proto_register_rrlp(void);
+void proto_reg_handoff_rrlp(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_rrlp = -1;
@@ -355,6 +355,7 @@ static int hf_rrlp_ganssRefLocation = -1;         /* GANSSRefLocation */
 static int hf_rrlp_ganssIonosphericModel = -1;    /* GANSSIonosphericModel */
 static int hf_rrlp_ganssAddIonosphericModel = -1;  /* GANSSAddIonosphericModel */
 static int hf_rrlp_ganssEarthOrientParam = -1;    /* GANSSEarthOrientParam */
+static int hf_rrlp_ganssReferenceTime_R10_Ext = -1;  /* GANSSReferenceTime_R10_Ext */
 static int hf_rrlp_SeqOfGANSSGenericAssistDataElement_item = -1;  /* GANSSGenericAssistDataElement */
 static int hf_rrlp_ganssID = -1;                  /* INTEGER_0_7 */
 static int hf_rrlp_ganssTimeModel = -1;           /* SeqOfGANSSTimeModel */
@@ -371,12 +372,16 @@ static int hf_rrlp_sbasID = -1;                   /* INTEGER_0_7 */
 static int hf_rrlp_ganssAddUTCModel = -1;         /* GANSSAddUTCModel */
 static int hf_rrlp_ganssAuxiliaryInfo = -1;       /* GANSSAuxiliaryInformation */
 static int hf_rrlp_ganssDiffCorrectionsValidityPeriod = -1;  /* GANSSDiffCorrectionsValidityPeriod */
+static int hf_rrlp_ganssTimeModel_R10_Ext = -1;   /* SeqOfGANSSTimeModel_R10_Ext */
+static int hf_rrlp_ganssRefMeasurementAssist_R10_Ext = -1;  /* GANSSRefMeasurementAssist_R10_Ext */
+static int hf_rrlp_ganssAlmanacModel_R10_Ext = -1;  /* GANSSAlmanacModel_R10_Ext */
 static int hf_rrlp_ganssRefTimeInfo = -1;         /* GANSSRefTimeInfo */
 static int hf_rrlp_ganssTOD_GSMTimeAssociation = -1;  /* GANSSTOD_GSMTimeAssociation */
 static int hf_rrlp_ganssDay = -1;                 /* INTEGER_0_8191 */
 static int hf_rrlp_ganssTOD = -1;                 /* GANSSTOD */
 static int hf_rrlp_ganssTODUncertainty = -1;      /* GANSSTODUncertainty */
 static int hf_rrlp_ganssTimeID = -1;              /* INTEGER_0_7 */
+static int hf_rrlp_ganssDayCycleNumber = -1;      /* INTEGER_0_7 */
 static int hf_rrlp_frameDrift = -1;               /* FrameDrift */
 static int hf_rrlp_ganssIonoModel = -1;           /* GANSSIonosphereModel */
 static int hf_rrlp_ganssIonoStormFlags = -1;      /* GANSSIonoStormFlags */
@@ -404,6 +409,8 @@ static int hf_rrlp_tA1 = -1;                      /* TA1 */
 static int hf_rrlp_tA2 = -1;                      /* TA2 */
 static int hf_rrlp_gnssTOID = -1;                 /* INTEGER_0_7 */
 static int hf_rrlp_weekNumber = -1;               /* INTEGER_0_8191 */
+static int hf_rrlp_SeqOfGANSSTimeModel_R10_Ext_item = -1;  /* GANSSTimeModelElement_R10_Ext */
+static int hf_rrlp_deltaT = -1;                   /* INTEGER_M128_127 */
 static int hf_rrlp_dganssRefTime = -1;            /* INTEGER_0_119 */
 static int hf_rrlp_sgnTypeList = -1;              /* SeqOfSgnTypeElement */
 static int hf_rrlp_SeqOfSgnTypeElement_item = -1;  /* SgnTypeElement */
@@ -558,6 +565,9 @@ static int hf_rrlp_intCodePhase_01 = -1;          /* INTEGER_0_127 */
 static int hf_rrlp_codePhaseSearchWindow_01 = -1;  /* INTEGER_0_31 */
 static int hf_rrlp_additionalAngle = -1;          /* AddionalAngleFields */
 static int hf_rrlp_dopplerUncertainty_01 = -1;    /* INTEGER_0_4 */
+static int hf_rrlp_GANSSRefMeasurementAssist_R10_Ext_item = -1;  /* GANSSRefMeasurement_R10_Ext_Element */
+static int hf_rrlp_azimuthLSB = -1;               /* INTEGER_0_15 */
+static int hf_rrlp_elevationLSB = -1;             /* INTEGER_0_15 */
 static int hf_rrlp_weekNumber_01 = -1;            /* INTEGER_0_255 */
 static int hf_rrlp_toa = -1;                      /* INTEGER_0_255 */
 static int hf_rrlp_ioda = -1;                     /* INTEGER_0_3 */
@@ -629,6 +639,7 @@ static int hf_rrlp_sbasAlmXgdot = -1;             /* INTEGER_M4_3 */
 static int hf_rrlp_sbasAlmYgDot = -1;             /* INTEGER_M4_3 */
 static int hf_rrlp_sbasAlmZgDot = -1;             /* INTEGER_M8_7 */
 static int hf_rrlp_sbasAlmTo = -1;                /* INTEGER_0_2047 */
+static int hf_rrlp_completeAlmanacProvided = -1;  /* BOOLEAN */
 static int hf_rrlp_ganssUtcA1 = -1;               /* INTEGER_M8388608_8388607 */
 static int hf_rrlp_ganssUtcA0 = -1;               /* INTEGER_M2147483648_2147483647 */
 static int hf_rrlp_ganssUtcTot = -1;              /* INTEGER_0_255 */
@@ -726,6 +737,9 @@ static int hf_rrlp_add_GPS_controlHeader = -1;    /* Add_GPS_ControlHeader */
 static int hf_rrlp_gpsEphemerisExtension = -1;    /* GPSEphemerisExtension */
 static int hf_rrlp_gpsEphemerisExtensionCheck = -1;  /* GPSEphemerisExtensionCheck */
 static int hf_rrlp_dgpsCorrectionsValidityPeriod = -1;  /* DGPSCorrectionsValidityPeriod */
+static int hf_rrlp_gpsReferenceTime_R10_Ext = -1;  /* GPSReferenceTime_R10_Ext */
+static int hf_rrlp_gpsAcquisAssist_R10_Ext = -1;  /* GPSAcquisAssist_R10_Ext */
+static int hf_rrlp_gpsAlmanac_R10_Ext = -1;       /* GPSAlmanac_R10_Ext */
 static int hf_rrlp_af2 = -1;                      /* INTEGER_M128_127 */
 static int hf_rrlp_af1 = -1;                      /* INTEGER_M32768_32767 */
 static int hf_rrlp_af0 = -1;                      /* INTEGER_M2097152_2097151 */
@@ -751,6 +765,8 @@ static int hf_rrlp_gpsSatEventsInfo = -1;         /* GPSSatEventsInfo */
 static int hf_rrlp_eventOccured_01 = -1;          /* BIT_STRING_SIZE_32 */
 static int hf_rrlp_futureEventNoted_01 = -1;      /* BIT_STRING_SIZE_32 */
 static int hf_rrlp_DGPSCorrectionsValidityPeriod_item = -1;  /* DGPSExtensionSatElement */
+static int hf_rrlp_gpsWeekCycleNumber = -1;       /* INTEGER_0_7 */
+static int hf_rrlp_GPSAcquisAssist_R10_Ext_item = -1;  /* GPSAcquisAssist_R10_Ext_Element */
 static int hf_rrlp_velEstimate = -1;              /* VelocityEstimate */
 static int hf_rrlp_ganssLocationInfo = -1;        /* GANSSLocationInfo */
 static int hf_rrlp_ganssMeasureInfo = -1;         /* GANSSMeasureInfo */
@@ -988,6 +1004,7 @@ static gint ett_rrlp_SeqOfGANSSGenericAssistDataElement = -1;
 static gint ett_rrlp_GANSSGenericAssistDataElement = -1;
 static gint ett_rrlp_GANSSReferenceTime = -1;
 static gint ett_rrlp_GANSSRefTimeInfo = -1;
+static gint ett_rrlp_GANSSReferenceTime_R10_Ext = -1;
 static gint ett_rrlp_GANSSTOD_GSMTimeAssociation = -1;
 static gint ett_rrlp_GANSSRefLocation = -1;
 static gint ett_rrlp_GANSSIonosphericModel = -1;
@@ -997,6 +1014,8 @@ static gint ett_rrlp_GANSSAddIonosphericModel = -1;
 static gint ett_rrlp_GANSSEarthOrientParam = -1;
 static gint ett_rrlp_SeqOfGANSSTimeModel = -1;
 static gint ett_rrlp_GANSSTimeModelElement = -1;
+static gint ett_rrlp_SeqOfGANSSTimeModel_R10_Ext = -1;
+static gint ett_rrlp_GANSSTimeModelElement_R10_Ext = -1;
 static gint ett_rrlp_GANSSDiffCorrections = -1;
 static gint ett_rrlp_SeqOfSgnTypeElement = -1;
 static gint ett_rrlp_SgnTypeElement = -1;
@@ -1031,6 +1050,8 @@ static gint ett_rrlp_GANSSRefMeasurementAssist = -1;
 static gint ett_rrlp_SeqOfGANSSRefMeasurementElement = -1;
 static gint ett_rrlp_GANSSRefMeasurementElement = -1;
 static gint ett_rrlp_AdditionalDopplerFields = -1;
+static gint ett_rrlp_GANSSRefMeasurementAssist_R10_Ext = -1;
+static gint ett_rrlp_GANSSRefMeasurement_R10_Ext_Element = -1;
 static gint ett_rrlp_GANSSAlmanacModel = -1;
 static gint ett_rrlp_SeqOfGANSSAlmanacElement = -1;
 static gint ett_rrlp_GANSSAlmanacElement = -1;
@@ -1040,6 +1061,7 @@ static gint ett_rrlp_Almanac_ReducedKeplerianSet = -1;
 static gint ett_rrlp_Almanac_MidiAlmanacSet = -1;
 static gint ett_rrlp_Almanac_GlonassAlmanacSet = -1;
 static gint ett_rrlp_Almanac_ECEFsbasAlmanacSet = -1;
+static gint ett_rrlp_GANSSAlmanacModel_R10_Ext = -1;
 static gint ett_rrlp_GANSSUTCModel = -1;
 static gint ett_rrlp_GANSSEphemerisExtension = -1;
 static gint ett_rrlp_GANSSEphemerisExtensionHeader = -1;
@@ -1086,6 +1108,10 @@ static gint ett_rrlp_GPSEphemerisExtensionCheck = -1;
 static gint ett_rrlp_GPSSatEventsInfo = -1;
 static gint ett_rrlp_DGPSCorrectionsValidityPeriod = -1;
 static gint ett_rrlp_DGPSExtensionSatElement = -1;
+static gint ett_rrlp_GPSReferenceTime_R10_Ext = -1;
+static gint ett_rrlp_GPSAcquisAssist_R10_Ext = -1;
+static gint ett_rrlp_GPSAcquisAssist_R10_Ext_Element = -1;
+static gint ett_rrlp_GPSAlmanac_R10_Ext = -1;
 static gint ett_rrlp_Rel_7_MsrPosition_Rsp_Extension = -1;
 static gint ett_rrlp_GANSSLocationInfo = -1;
 static gint ett_rrlp_PositionData = -1;
@@ -1218,7 +1244,7 @@ dissect_rrlp_ExtensionContainer(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 
 static int
 dissect_rrlp_Ext_GeographicalInformation(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 34 "../../asn1/rrlp/rrlp.cnf"
+#line 33 "../../asn1/rrlp/rrlp.cnf"
 
 tvbuff_t *parameter_tvb = NULL;
 
@@ -2745,7 +2771,7 @@ dissect_rrlp_Rel5_MsrPosition_Req_Extension(tvbuff_t *tvb _U_, int offset _U_, a
 static int
 dissect_rrlp_GANSSPositioningMethod(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     2, 16, FALSE, NULL);
+                                     2, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -2919,7 +2945,7 @@ dissect_rrlp_GANSSIonosphericModel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t
 static int
 dissect_rrlp_BIT_STRING_SIZE_2(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     2, 2, FALSE, NULL);
+                                     2, 2, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3000,12 +3026,27 @@ dissect_rrlp_GANSSEarthOrientParam(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t
 }
 
 
+static const per_sequence_t GANSSReferenceTime_R10_Ext_sequence[] = {
+  { &hf_rrlp_ganssDayCycleNumber, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_rrlp_INTEGER_0_7 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_rrlp_GANSSReferenceTime_R10_Ext(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_rrlp_GANSSReferenceTime_R10_Ext, GANSSReferenceTime_R10_Ext_sequence);
+
+  return offset;
+}
+
+
 static const per_sequence_t GANSSCommonAssistData_sequence[] = {
   { &hf_rrlp_ganssReferenceTime, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_rrlp_GANSSReferenceTime },
   { &hf_rrlp_ganssRefLocation, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_rrlp_GANSSRefLocation },
   { &hf_rrlp_ganssIonosphericModel, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_rrlp_GANSSIonosphericModel },
   { &hf_rrlp_ganssAddIonosphericModel, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_rrlp_GANSSAddIonosphericModel },
   { &hf_rrlp_ganssEarthOrientParam, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_rrlp_GANSSEarthOrientParam },
+  { &hf_rrlp_ganssReferenceTime_R10_Ext, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_rrlp_GANSSReferenceTime_R10_Ext },
   { NULL, 0, 0, NULL }
 };
 
@@ -3192,7 +3233,7 @@ dissect_rrlp_GANSSDiffCorrections(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 static int
 dissect_rrlp_BIT_STRING_SIZE_5(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     5, 5, FALSE, NULL);
+                                     5, 5, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3541,7 +3582,7 @@ dissect_rrlp_T_cnavMo(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, p
 static int
 dissect_rrlp_T_cnavE(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_constrained_integer_64b(tvb, offset, actx, tree, hf_index,
-                                                            0U, G_GINT64_CONSTANT(8589934591U), NULL, FALSE);
+                                                            0U, G_GUINT64_CONSTANT(8589934591), NULL, FALSE);
 
   return offset;
 }
@@ -3658,7 +3699,7 @@ dissect_rrlp_NavModel_GLONASSecef(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 static int
 dissect_rrlp_BIT_STRING_SIZE_4(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     4, 4, FALSE, NULL);
+                                     4, 4, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3730,7 +3771,7 @@ dissect_rrlp_GANSSOrbitModel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx
 static int
 dissect_rrlp_BIT_STRING_SIZE_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 1, FALSE, NULL);
+                                     1, 1, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3789,7 +3830,7 @@ dissect_rrlp_GANSSNavModel(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
 static int
 dissect_rrlp_GANSSSignals(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4223,7 +4264,7 @@ dissect_rrlp_Almanac_GlonassAlmanacSet(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 static int
 dissect_rrlp_BIT_STRING_SIZE_8(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4673,7 +4714,7 @@ dissect_rrlp_GANSSEphemerisExtension(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
 static int
 dissect_rrlp_BIT_STRING_SIZE_64(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     64, 64, FALSE, NULL);
+                                     64, 64, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4946,6 +4987,79 @@ dissect_rrlp_GANSSDiffCorrectionsValidityPeriod(tvbuff_t *tvb _U_, int offset _U
 }
 
 
+static const per_sequence_t GANSSTimeModelElement_R10_Ext_sequence[] = {
+  { &hf_rrlp_gnssTOID       , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_rrlp_INTEGER_0_7 },
+  { &hf_rrlp_deltaT         , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_rrlp_INTEGER_M128_127 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_rrlp_GANSSTimeModelElement_R10_Ext(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_rrlp_GANSSTimeModelElement_R10_Ext, GANSSTimeModelElement_R10_Ext_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t SeqOfGANSSTimeModel_R10_Ext_sequence_of[1] = {
+  { &hf_rrlp_SeqOfGANSSTimeModel_R10_Ext_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_rrlp_GANSSTimeModelElement_R10_Ext },
+};
+
+static int
+dissect_rrlp_SeqOfGANSSTimeModel_R10_Ext(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_rrlp_SeqOfGANSSTimeModel_R10_Ext, SeqOfGANSSTimeModel_R10_Ext_sequence_of,
+                                                  1, 7, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t GANSSRefMeasurement_R10_Ext_Element_sequence[] = {
+  { &hf_rrlp_svID           , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_rrlp_SVID },
+  { &hf_rrlp_azimuthLSB     , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_rrlp_INTEGER_0_15 },
+  { &hf_rrlp_elevationLSB   , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_rrlp_INTEGER_0_15 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_rrlp_GANSSRefMeasurement_R10_Ext_Element(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_rrlp_GANSSRefMeasurement_R10_Ext_Element, GANSSRefMeasurement_R10_Ext_Element_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t GANSSRefMeasurementAssist_R10_Ext_sequence_of[1] = {
+  { &hf_rrlp_GANSSRefMeasurementAssist_R10_Ext_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_rrlp_GANSSRefMeasurement_R10_Ext_Element },
+};
+
+static int
+dissect_rrlp_GANSSRefMeasurementAssist_R10_Ext(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_rrlp_GANSSRefMeasurementAssist_R10_Ext, GANSSRefMeasurementAssist_R10_Ext_sequence_of,
+                                                  1, 16, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t GANSSAlmanacModel_R10_Ext_sequence[] = {
+  { &hf_rrlp_completeAlmanacProvided, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_rrlp_BOOLEAN },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_rrlp_GANSSAlmanacModel_R10_Ext(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_rrlp_GANSSAlmanacModel_R10_Ext, GANSSAlmanacModel_R10_Ext_sequence);
+
+  return offset;
+}
+
+
 static const per_sequence_t GANSSGenericAssistDataElement_sequence[] = {
   { &hf_rrlp_ganssID        , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_rrlp_INTEGER_0_7 },
   { &hf_rrlp_ganssTimeModel , ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_rrlp_SeqOfGANSSTimeModel },
@@ -4962,6 +5076,9 @@ static const per_sequence_t GANSSGenericAssistDataElement_sequence[] = {
   { &hf_rrlp_ganssAddUTCModel, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_rrlp_GANSSAddUTCModel },
   { &hf_rrlp_ganssAuxiliaryInfo, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_rrlp_GANSSAuxiliaryInformation },
   { &hf_rrlp_ganssDiffCorrectionsValidityPeriod, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_rrlp_GANSSDiffCorrectionsValidityPeriod },
+  { &hf_rrlp_ganssTimeModel_R10_Ext, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_rrlp_SeqOfGANSSTimeModel_R10_Ext },
+  { &hf_rrlp_ganssRefMeasurementAssist_R10_Ext, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_rrlp_GANSSRefMeasurementAssist_R10_Ext },
+  { &hf_rrlp_ganssAlmanacModel_R10_Ext, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_rrlp_GANSSAlmanacModel_R10_Ext },
   { NULL, 0, 0, NULL }
 };
 
@@ -5252,7 +5369,7 @@ dissect_rrlp_GPSEphemerisExtension(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t
 static int
 dissect_rrlp_BIT_STRING_SIZE_32(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     32, 32, FALSE, NULL);
+                                     32, 32, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -5319,10 +5436,71 @@ dissect_rrlp_DGPSCorrectionsValidityPeriod(tvbuff_t *tvb _U_, int offset _U_, as
 }
 
 
+static const per_sequence_t GPSReferenceTime_R10_Ext_sequence[] = {
+  { &hf_rrlp_gpsWeekCycleNumber, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_rrlp_INTEGER_0_7 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_rrlp_GPSReferenceTime_R10_Ext(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_rrlp_GPSReferenceTime_R10_Ext, GPSReferenceTime_R10_Ext_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t GPSAcquisAssist_R10_Ext_Element_sequence[] = {
+  { &hf_rrlp_satelliteID    , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_rrlp_SatelliteID },
+  { &hf_rrlp_azimuthLSB     , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_rrlp_INTEGER_0_15 },
+  { &hf_rrlp_elevationLSB   , ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_rrlp_INTEGER_0_15 },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_rrlp_GPSAcquisAssist_R10_Ext_Element(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_rrlp_GPSAcquisAssist_R10_Ext_Element, GPSAcquisAssist_R10_Ext_Element_sequence);
+
+  return offset;
+}
+
+
+static const per_sequence_t GPSAcquisAssist_R10_Ext_sequence_of[1] = {
+  { &hf_rrlp_GPSAcquisAssist_R10_Ext_item, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_rrlp_GPSAcquisAssist_R10_Ext_Element },
+};
+
+static int
+dissect_rrlp_GPSAcquisAssist_R10_Ext(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
+                                                  ett_rrlp_GPSAcquisAssist_R10_Ext, GPSAcquisAssist_R10_Ext_sequence_of,
+                                                  1, 16, FALSE);
+
+  return offset;
+}
+
+
+static const per_sequence_t GPSAlmanac_R10_Ext_sequence[] = {
+  { &hf_rrlp_completeAlmanacProvided, ASN1_NO_EXTENSIONS     , ASN1_NOT_OPTIONAL, dissect_rrlp_BOOLEAN },
+  { NULL, 0, 0, NULL }
+};
+
+static int
+dissect_rrlp_GPSAlmanac_R10_Ext(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
+  offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
+                                   ett_rrlp_GPSAlmanac_R10_Ext, GPSAlmanac_R10_Ext_sequence);
+
+  return offset;
+}
+
+
 static const per_sequence_t Add_GPS_ControlHeader_sequence[] = {
   { &hf_rrlp_gpsEphemerisExtension, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_rrlp_GPSEphemerisExtension },
   { &hf_rrlp_gpsEphemerisExtensionCheck, ASN1_EXTENSION_ROOT    , ASN1_OPTIONAL    , dissect_rrlp_GPSEphemerisExtensionCheck },
   { &hf_rrlp_dgpsCorrectionsValidityPeriod, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_rrlp_DGPSCorrectionsValidityPeriod },
+  { &hf_rrlp_gpsReferenceTime_R10_Ext, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_rrlp_GPSReferenceTime_R10_Ext },
+  { &hf_rrlp_gpsAcquisAssist_R10_Ext, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_rrlp_GPSAcquisAssist_R10_Ext },
+  { &hf_rrlp_gpsAlmanac_R10_Ext, ASN1_NOT_EXTENSION_ROOT, ASN1_OPTIONAL    , dissect_rrlp_GPSAlmanac_R10_Ext },
   { NULL, 0, 0, NULL }
 };
 
@@ -6291,7 +6469,7 @@ dissect_rrlp_INTEGER_0_16384(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx
 static int
 dissect_rrlp_PositionData(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     3, 16, FALSE, NULL);
+                                     3, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -6648,7 +6826,7 @@ dissect_rrlp_ProtocolError(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
 static int
 dissect_rrlp_GANSSPositioningMethodTypes(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -6658,7 +6836,7 @@ dissect_rrlp_GANSSPositioningMethodTypes(tvbuff_t *tvb _U_, int offset _U_, asn1
 static int
 dissect_rrlp_SBASID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -6715,7 +6893,7 @@ dissect_rrlp_PosCapability_Req(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_rrlp_NonGANSSPositionMethods(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -6725,7 +6903,7 @@ dissect_rrlp_NonGANSSPositionMethods(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
 static int
 dissect_rrlp_MultipleMeasurementSets(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -6751,7 +6929,7 @@ dissect_rrlp_PosCapabilities(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx
 static int
 dissect_rrlp_GPSAssistance(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -6761,7 +6939,7 @@ dissect_rrlp_GPSAssistance(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
 static int
 dissect_rrlp_CommonGANSSAssistance(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -6771,7 +6949,7 @@ dissect_rrlp_CommonGANSSAssistance(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t
 static int
 dissect_rrlp_GANSSAssistance(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 16, FALSE, NULL);
+                                     1, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -6825,7 +7003,7 @@ dissect_rrlp_GANSSAssistanceSet(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_rrlp_GANSSModelID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 8, FALSE, NULL);
+                                     1, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -6952,8 +7130,8 @@ static const per_sequence_t PDU_sequence[] = {
 
 static int
 dissect_rrlp_PDU(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 26 "../../asn1/rrlp/rrlp.cnf"
-	
+#line 25 "../../asn1/rrlp/rrlp.cnf"
+
 	proto_tree_add_item(tree, proto_rrlp, tvb, 0, -1, ENC_NA);
 
 	col_append_sep_str(actx->pinfo->cinfo, COL_PROTOCOL, "/", "RRLP");
@@ -6987,7 +7165,7 @@ void proto_register_rrlp(void) {
 /*--- Included file: packet-rrlp-hfarr.c ---*/
 #line 1 "../../asn1/rrlp/packet-rrlp-hfarr.c"
     { &hf_rrlp_PDU_PDU,
-      { "PDU", "rrlp.PDU",
+      { "PDU", "rrlp.PDU_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_privateExtensionList,
@@ -6995,11 +7173,11 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_pcs_Extensions,
-      { "pcs-Extensions", "rrlp.pcs_Extensions",
+      { "pcs-Extensions", "rrlp.pcs_Extensions_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_PrivateExtensionList_item,
-      { "PrivateExtension", "rrlp.PrivateExtension",
+      { "PrivateExtension", "rrlp.PrivateExtension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_extId,
@@ -7007,7 +7185,7 @@ void proto_register_rrlp(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_rrlp_extType,
-      { "extType", "rrlp.extType",
+      { "extType", "rrlp.extType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_referenceNumber,
@@ -7019,103 +7197,103 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, VALS(rrlp_RRLP_Component_vals), 0,
         "RRLP_Component", HFILL }},
     { &hf_rrlp_msrPositionReq,
-      { "msrPositionReq", "rrlp.msrPositionReq",
+      { "msrPositionReq", "rrlp.msrPositionReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MsrPosition_Req", HFILL }},
     { &hf_rrlp_msrPositionRsp,
-      { "msrPositionRsp", "rrlp.msrPositionRsp",
+      { "msrPositionRsp", "rrlp.msrPositionRsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MsrPosition_Rsp", HFILL }},
     { &hf_rrlp_assistanceData,
-      { "assistanceData", "rrlp.assistanceData",
+      { "assistanceData", "rrlp.assistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_assistanceDataAck,
-      { "assistanceDataAck", "rrlp.assistanceDataAck",
+      { "assistanceDataAck", "rrlp.assistanceDataAck_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_protocolError,
-      { "protocolError", "rrlp.protocolError",
+      { "protocolError", "rrlp.protocolError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_posCapabilityReq,
-      { "posCapabilityReq", "rrlp.posCapabilityReq",
+      { "posCapabilityReq", "rrlp.posCapabilityReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PosCapability_Req", HFILL }},
     { &hf_rrlp_posCapabilityRsp,
-      { "posCapabilityRsp", "rrlp.posCapabilityRsp",
+      { "posCapabilityRsp", "rrlp.posCapabilityRsp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "PosCapability_Rsp", HFILL }},
     { &hf_rrlp_positionInstruct,
-      { "positionInstruct", "rrlp.positionInstruct",
+      { "positionInstruct", "rrlp.positionInstruct_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_referenceAssistData,
-      { "referenceAssistData", "rrlp.referenceAssistData",
+      { "referenceAssistData", "rrlp.referenceAssistData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_msrAssistData,
-      { "msrAssistData", "rrlp.msrAssistData",
+      { "msrAssistData", "rrlp.msrAssistData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_systemInfoAssistData,
-      { "systemInfoAssistData", "rrlp.systemInfoAssistData",
+      { "systemInfoAssistData", "rrlp.systemInfoAssistData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gps_AssistData,
-      { "gps-AssistData", "rrlp.gps_AssistData",
+      { "gps-AssistData", "rrlp.gps_AssistData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_extensionContainer,
-      { "extensionContainer", "rrlp.extensionContainer",
+      { "extensionContainer", "rrlp.extensionContainer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_rel98_MsrPosition_Req_extension,
-      { "rel98-MsrPosition-Req-extension", "rrlp.rel98_MsrPosition_Req_extension",
+      { "rel98-MsrPosition-Req-extension", "rrlp.rel98_MsrPosition_Req_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_rel5_MsrPosition_Req_extension,
-      { "rel5-MsrPosition-Req-extension", "rrlp.rel5_MsrPosition_Req_extension",
+      { "rel5-MsrPosition-Req-extension", "rrlp.rel5_MsrPosition_Req_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_rel7_MsrPosition_Req_extension,
-      { "rel7-MsrPosition-Req-extension", "rrlp.rel7_MsrPosition_Req_extension",
+      { "rel7-MsrPosition-Req-extension", "rrlp.rel7_MsrPosition_Req_extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_multipleSets,
-      { "multipleSets", "rrlp.multipleSets",
+      { "multipleSets", "rrlp.multipleSets_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_referenceIdentity,
-      { "referenceIdentity", "rrlp.referenceIdentity",
+      { "referenceIdentity", "rrlp.referenceIdentity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_otd_MeasureInfo,
-      { "otd-MeasureInfo", "rrlp.otd_MeasureInfo",
+      { "otd-MeasureInfo", "rrlp.otd_MeasureInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_locationInfo,
-      { "locationInfo", "rrlp.locationInfo",
+      { "locationInfo", "rrlp.locationInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gps_MeasureInfo,
-      { "gps-MeasureInfo", "rrlp.gps_MeasureInfo",
+      { "gps-MeasureInfo", "rrlp.gps_MeasureInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_locationError,
-      { "locationError", "rrlp.locationError",
+      { "locationError", "rrlp.locationError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_rel_98_MsrPosition_Rsp_Extension,
-      { "rel-98-MsrPosition-Rsp-Extension", "rrlp.rel_98_MsrPosition_Rsp_Extension",
+      { "rel-98-MsrPosition-Rsp-Extension", "rrlp.rel_98_MsrPosition_Rsp_Extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_rel_5_MsrPosition_Rsp_Extension,
-      { "rel-5-MsrPosition-Rsp-Extension", "rrlp.rel_5_MsrPosition_Rsp_Extension",
+      { "rel-5-MsrPosition-Rsp-Extension", "rrlp.rel_5_MsrPosition_Rsp_Extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_rel_7_MsrPosition_Rsp_Extension,
-      { "rel-7-MsrPosition-Rsp-Extension", "rrlp.rel_7_MsrPosition_Rsp_Extension",
+      { "rel-7-MsrPosition-Rsp-Extension", "rrlp.rel_7_MsrPosition_Rsp_Extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_moreAssDataToBeSent,
@@ -7123,15 +7301,15 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, VALS(rrlp_MoreAssDataToBeSent_vals), 0,
         NULL, HFILL }},
     { &hf_rrlp_rel98_AssistanceData_Extension,
-      { "rel98-AssistanceData-Extension", "rrlp.rel98_AssistanceData_Extension",
+      { "rel98-AssistanceData-Extension", "rrlp.rel98_AssistanceData_Extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_rel5_AssistanceData_Extension,
-      { "rel5-AssistanceData-Extension", "rrlp.rel5_AssistanceData_Extension",
+      { "rel5-AssistanceData-Extension", "rrlp.rel5_AssistanceData_Extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_rel7_AssistanceData_Extension,
-      { "rel7-AssistanceData-Extension", "rrlp.rel7_AssistanceData_Extension",
+      { "rel7-AssistanceData-Extension", "rrlp.rel7_AssistanceData_Extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_errorCause,
@@ -7139,11 +7317,11 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, VALS(rrlp_ErrorCodes_vals), 0,
         "ErrorCodes", HFILL }},
     { &hf_rrlp_rel_5_ProtocolError_Extension,
-      { "rel-5-ProtocolError-Extension", "rrlp.rel_5_ProtocolError_Extension",
+      { "rel-5-ProtocolError-Extension", "rrlp.rel_5_ProtocolError_Extension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_extended_reference,
-      { "extended-reference", "rrlp.extended_reference",
+      { "extended-reference", "rrlp.extended_reference_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gANSSPositionMethods,
@@ -7151,15 +7329,15 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_posCapabilities,
-      { "posCapabilities", "rrlp.posCapabilities",
+      { "posCapabilities", "rrlp.posCapabilities_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_assistanceSupported,
-      { "assistanceSupported", "rrlp.assistanceSupported",
+      { "assistanceSupported", "rrlp.assistanceSupported_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_assistanceNeeded,
-      { "assistanceNeeded", "rrlp.assistanceNeeded",
+      { "assistanceNeeded", "rrlp.assistanceNeeded_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_methodType,
@@ -7183,7 +7361,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, VALS(rrlp_EnvironmentCharacter_vals), 0,
         NULL, HFILL }},
     { &hf_rrlp_msAssisted,
-      { "msAssisted", "rrlp.msAssisted",
+      { "msAssisted", "rrlp.msAssisted_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AccuracyOpt", HFILL }},
     { &hf_rrlp_msBased,
@@ -7223,7 +7401,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfMsrAssistBTS", HFILL }},
     { &hf_rrlp_SeqOfMsrAssistBTS_item,
-      { "MsrAssistBTS", "rrlp.MsrAssistBTS",
+      { "MsrAssistBTS", "rrlp.MsrAssistBTS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_multiFrameOffset,
@@ -7235,7 +7413,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_calcAssistanceBTS,
-      { "calcAssistanceBTS", "rrlp.calcAssistanceBTS",
+      { "calcAssistanceBTS", "rrlp.calcAssistanceBTS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_systemInfoAssistList,
@@ -7247,11 +7425,11 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, VALS(rrlp_SystemInfoAssistBTS_vals), 0,
         NULL, HFILL }},
     { &hf_rrlp_notPresent,
-      { "notPresent", "rrlp.notPresent",
+      { "notPresent", "rrlp.notPresent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_present,
-      { "present", "rrlp.present",
+      { "present", "rrlp.present_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AssistBTSData", HFILL }},
     { &hf_rrlp_fineRTD,
@@ -7259,7 +7437,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_referenceWGS84,
-      { "referenceWGS84", "rrlp.referenceWGS84",
+      { "referenceWGS84", "rrlp.referenceWGS84_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_relativeNorth,
@@ -7295,7 +7473,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, VALS(rrlp_ReferenceIdentityType_vals), 0,
         NULL, HFILL }},
     { &hf_rrlp_bsicAndCarrier,
-      { "bsicAndCarrier", "rrlp.bsicAndCarrier",
+      { "bsicAndCarrier", "rrlp.bsicAndCarrier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ci,
@@ -7311,7 +7489,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ciAndLAC,
-      { "ciAndLAC", "rrlp.ciAndLAC",
+      { "ciAndLAC", "rrlp.ciAndLAC_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CellIDAndLAC", HFILL }},
     { &hf_rrlp_carrier,
@@ -7327,7 +7505,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "CellID", HFILL }},
     { &hf_rrlp_otdMsrFirstSets,
-      { "otdMsrFirstSets", "rrlp.otdMsrFirstSets",
+      { "otdMsrFirstSets", "rrlp.otdMsrFirstSets_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OTD_MsrElementFirst", HFILL }},
     { &hf_rrlp_otdMsrRestSets,
@@ -7335,7 +7513,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfOTD_MsrElementRest", HFILL }},
     { &hf_rrlp_SeqOfOTD_MsrElementRest_item,
-      { "OTD-MsrElementRest", "rrlp.OTD_MsrElementRest",
+      { "OTD-MsrElementRest", "rrlp.OTD_MsrElementRest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_refFrameNumber,
@@ -7347,7 +7525,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ModuloTimeSlot", HFILL }},
     { &hf_rrlp_toaMeasurementsOfRef,
-      { "toaMeasurementsOfRef", "rrlp.toaMeasurementsOfRef",
+      { "toaMeasurementsOfRef", "rrlp.toaMeasurementsOfRef_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TOA_MeasurementsOfRef", HFILL }},
     { &hf_rrlp_stdResolution,
@@ -7363,7 +7541,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfOTD_FirstSetMsrs", HFILL }},
     { &hf_rrlp_SeqOfOTD_FirstSetMsrs_item,
-      { "OTD-FirstSetMsrs", "rrlp.OTD_FirstSetMsrs",
+      { "OTD-FirstSetMsrs", "rrlp.OTD_FirstSetMsrs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_otd_MsrsOfOtherSets,
@@ -7383,11 +7561,11 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_identityNotPresent,
-      { "identityNotPresent", "rrlp.identityNotPresent",
+      { "identityNotPresent", "rrlp.identityNotPresent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OTD_Measurement", HFILL }},
     { &hf_rrlp_identityPresent,
-      { "identityPresent", "rrlp.identityPresent",
+      { "identityPresent", "rrlp.identityPresent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OTD_MeasurementWithID", HFILL }},
     { &hf_rrlp_nborTimeSlot,
@@ -7395,7 +7573,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ModuloTimeSlot", HFILL }},
     { &hf_rrlp_eotdQuality,
-      { "eotdQuality", "rrlp.eotdQuality",
+      { "eotdQuality", "rrlp.eotdQuality_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_otdValue,
@@ -7415,7 +7593,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_31", HFILL }},
     { &hf_rrlp_multiFrameCarrier,
-      { "multiFrameCarrier", "rrlp.multiFrameCarrier",
+      { "multiFrameCarrier", "rrlp.multiFrameCarrier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_refFrame,
@@ -7439,7 +7617,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfGPS_MsrSetElement", HFILL }},
     { &hf_rrlp_SeqOfGPS_MsrSetElement_item,
-      { "GPS-MsrSetElement", "rrlp.GPS_MsrSetElement",
+      { "GPS-MsrSetElement", "rrlp.GPS_MsrSetElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gpsTOW_01,
@@ -7451,7 +7629,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfGPS_MsrElement", HFILL }},
     { &hf_rrlp_SeqOfGPS_MsrElement_item,
-      { "GPS-MsrElement", "rrlp.GPS_MsrElement",
+      { "GPS-MsrElement", "rrlp.GPS_MsrElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_satelliteID,
@@ -7487,7 +7665,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, VALS(rrlp_LocErrorReason_vals), 0,
         NULL, HFILL }},
     { &hf_rrlp_additionalAssistanceData,
-      { "additionalAssistanceData", "rrlp.additionalAssistanceData",
+      { "additionalAssistanceData", "rrlp.additionalAssistanceData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gpsAssistanceData,
@@ -7499,39 +7677,39 @@ void proto_register_rrlp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_controlHeader,
-      { "controlHeader", "rrlp.controlHeader",
+      { "controlHeader", "rrlp.controlHeader_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_referenceTime,
-      { "referenceTime", "rrlp.referenceTime",
+      { "referenceTime", "rrlp.referenceTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_refLocation,
-      { "refLocation", "rrlp.refLocation",
+      { "refLocation", "rrlp.refLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_dgpsCorrections,
-      { "dgpsCorrections", "rrlp.dgpsCorrections",
+      { "dgpsCorrections", "rrlp.dgpsCorrections_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_navigationModel,
-      { "navigationModel", "rrlp.navigationModel",
+      { "navigationModel", "rrlp.navigationModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ionosphericModel,
-      { "ionosphericModel", "rrlp.ionosphericModel",
+      { "ionosphericModel", "rrlp.ionosphericModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_utcModel,
-      { "utcModel", "rrlp.utcModel",
+      { "utcModel", "rrlp.utcModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_almanac,
-      { "almanac", "rrlp.almanac",
+      { "almanac", "rrlp.almanac_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_acquisAssist,
-      { "acquisAssist", "rrlp.acquisAssist",
+      { "acquisAssist", "rrlp.acquisAssist_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_realTimeIntegrity,
@@ -7539,11 +7717,11 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOf_BadSatelliteSet", HFILL }},
     { &hf_rrlp_gpsTime,
-      { "gpsTime", "rrlp.gpsTime",
+      { "gpsTime", "rrlp.gpsTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gsmTime,
-      { "gsmTime", "rrlp.gsmTime",
+      { "gsmTime", "rrlp.gsmTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gpsTowAssist,
@@ -7559,7 +7737,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_GPSTOWAssist_item,
-      { "GPSTOWAssistElement", "rrlp.GPSTOWAssistElement",
+      { "GPSTOWAssistElement", "rrlp.GPSTOWAssistElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_tlmWord,
@@ -7607,7 +7785,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfSatElement", HFILL }},
     { &hf_rrlp_SeqOfSatElement_item,
-      { "SatElement", "rrlp.SatElement",
+      { "SatElement", "rrlp.SatElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_iode,
@@ -7647,7 +7825,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfNavModelElement", HFILL }},
     { &hf_rrlp_SeqOfNavModelElement_item,
-      { "NavModelElement", "rrlp.NavModelElement",
+      { "NavModelElement", "rrlp.NavModelElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_satStatus,
@@ -7655,15 +7833,15 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, VALS(rrlp_SatStatus_vals), 0,
         NULL, HFILL }},
     { &hf_rrlp_newSatelliteAndModelUC,
-      { "newSatelliteAndModelUC", "rrlp.newSatelliteAndModelUC",
+      { "newSatelliteAndModelUC", "rrlp.newSatelliteAndModelUC_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UncompressedEphemeris", HFILL }},
     { &hf_rrlp_oldSatelliteAndModel,
-      { "oldSatelliteAndModel", "rrlp.oldSatelliteAndModel",
+      { "oldSatelliteAndModel", "rrlp.oldSatelliteAndModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_newNaviModelUC,
-      { "newNaviModelUC", "rrlp.newNaviModelUC",
+      { "newNaviModelUC", "rrlp.newNaviModelUC_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UncompressedEphemeris", HFILL }},
     { &hf_rrlp_ephemCodeOnL2,
@@ -7687,7 +7865,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_1", HFILL }},
     { &hf_rrlp_ephemSF1Rsvd,
-      { "ephemSF1Rsvd", "rrlp.ephemSF1Rsvd",
+      { "ephemSF1Rsvd", "rrlp.ephemSF1Rsvd_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EphemerisSubframe1Reserved", HFILL }},
     { &hf_rrlp_ephemTgd,
@@ -7871,7 +8049,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfAlmanacElement", HFILL }},
     { &hf_rrlp_SeqOfAlmanacElement_item,
-      { "AlmanacElement", "rrlp.AlmanacElement",
+      { "AlmanacElement", "rrlp.AlmanacElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_almanacE,
@@ -7919,7 +8097,7 @@ void proto_register_rrlp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M1024_1023", HFILL }},
     { &hf_rrlp_timeRelation,
-      { "timeRelation", "rrlp.timeRelation",
+      { "timeRelation", "rrlp.timeRelation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_acquisList,
@@ -7927,7 +8105,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfAcquisElement", HFILL }},
     { &hf_rrlp_SeqOfAcquisElement_item,
-      { "AcquisElement", "rrlp.AcquisElement",
+      { "AcquisElement", "rrlp.AcquisElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gpsTOW_03,
@@ -7943,7 +8121,7 @@ void proto_register_rrlp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M2048_2047", HFILL }},
     { &hf_rrlp_addionalDoppler,
-      { "addionalDoppler", "rrlp.addionalDoppler",
+      { "addionalDoppler", "rrlp.addionalDoppler_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AddionalDopplerFields", HFILL }},
     { &hf_rrlp_codePhase,
@@ -7963,7 +8141,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_15", HFILL }},
     { &hf_rrlp_addionalAngle,
-      { "addionalAngle", "rrlp.addionalAngle",
+      { "addionalAngle", "rrlp.addionalAngle_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AddionalAngleFields", HFILL }},
     { &hf_rrlp_doppler1,
@@ -7987,11 +8165,11 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_rel98_Ext_ExpOTD,
-      { "rel98-Ext-ExpOTD", "rrlp.rel98_Ext_ExpOTD",
+      { "rel98-Ext-ExpOTD", "rrlp.rel98_Ext_ExpOTD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gpsTimeAssistanceMeasurementRequest,
-      { "gpsTimeAssistanceMeasurementRequest", "rrlp.gpsTimeAssistanceMeasurementRequest",
+      { "gpsTimeAssistanceMeasurementRequest", "rrlp.gpsTimeAssistanceMeasurementRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gpsReferenceTimeUncertainty,
@@ -7999,11 +8177,11 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_msrAssistData_R98_ExpOTD,
-      { "msrAssistData-R98-ExpOTD", "rrlp.msrAssistData_R98_ExpOTD",
+      { "msrAssistData-R98-ExpOTD", "rrlp.msrAssistData_R98_ExpOTD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_systemInfoAssistData_R98_ExpOTD,
-      { "systemInfoAssistData-R98-ExpOTD", "rrlp.systemInfoAssistData_R98_ExpOTD",
+      { "systemInfoAssistData-R98-ExpOTD", "rrlp.systemInfoAssistData_R98_ExpOTD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_msrAssistList_R98_ExpOTD,
@@ -8011,7 +8189,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfMsrAssistBTS_R98_ExpOTD", HFILL }},
     { &hf_rrlp_SeqOfMsrAssistBTS_R98_ExpOTD_item,
-      { "MsrAssistBTS-R98-ExpOTD", "rrlp.MsrAssistBTS_R98_ExpOTD",
+      { "MsrAssistBTS-R98-ExpOTD", "rrlp.MsrAssistBTS_R98_ExpOTD_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_expectedOTD,
@@ -8031,7 +8209,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, VALS(rrlp_SystemInfoAssistBTS_R98_ExpOTD_vals), 0,
         NULL, HFILL }},
     { &hf_rrlp_present_01,
-      { "present", "rrlp.present",
+      { "present", "rrlp.present_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AssistBTSData_R98_ExpOTD", HFILL }},
     { &hf_rrlp_expOTDuncertainty,
@@ -8051,19 +8229,19 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_127", HFILL }},
     { &hf_rrlp_rel_98_Ext_MeasureInfo,
-      { "rel-98-Ext-MeasureInfo", "rrlp.rel_98_Ext_MeasureInfo",
+      { "rel-98-Ext-MeasureInfo", "rrlp.rel_98_Ext_MeasureInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_rel_98_Ext_MeasureInfo", HFILL }},
     { &hf_rrlp_otd_MeasureInfo_R98_Ext,
-      { "otd-MeasureInfo-R98-Ext", "rrlp.otd_MeasureInfo_R98_Ext",
+      { "otd-MeasureInfo-R98-Ext", "rrlp.otd_MeasureInfo_R98_Ext_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_timeAssistanceMeasurements,
-      { "timeAssistanceMeasurements", "rrlp.timeAssistanceMeasurements",
+      { "timeAssistanceMeasurements", "rrlp.timeAssistanceMeasurements_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPSTimeAssistanceMeasurements", HFILL }},
     { &hf_rrlp_otdMsrFirstSets_R98_Ext,
-      { "otdMsrFirstSets-R98-Ext", "rrlp.otdMsrFirstSets_R98_Ext",
+      { "otdMsrFirstSets-R98-Ext", "rrlp.otdMsrFirstSets_R98_Ext_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "OTD_MsrElementFirst_R98_Ext", HFILL }},
     { &hf_rrlp_otd_FirstSetMsrs_R98_Ext,
@@ -8071,7 +8249,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfOTD_FirstSetMsrs_R98_Ext", HFILL }},
     { &hf_rrlp_SeqOfOTD_FirstSetMsrs_R98_Ext_item,
-      { "OTD-FirstSetMsrs", "rrlp.OTD_FirstSetMsrs",
+      { "OTD-FirstSetMsrs", "rrlp.OTD_FirstSetMsrs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_otd_MeasureInfo_5_Ext,
@@ -8091,7 +8269,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_262143", HFILL }},
     { &hf_rrlp_velocityRequested,
-      { "velocityRequested", "rrlp.velocityRequested",
+      { "velocityRequested", "rrlp.velocityRequested_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssPositionMethod,
@@ -8099,15 +8277,15 @@ void proto_register_rrlp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "GANSSPositioningMethod", HFILL }},
     { &hf_rrlp_ganss_AssistData,
-      { "ganss-AssistData", "rrlp.ganss_AssistData",
+      { "ganss-AssistData", "rrlp.ganss_AssistData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssCarrierPhaseMeasurementRequest,
-      { "ganssCarrierPhaseMeasurementRequest", "rrlp.ganssCarrierPhaseMeasurementRequest",
+      { "ganssCarrierPhaseMeasurementRequest", "rrlp.ganssCarrierPhaseMeasurementRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssTODGSMTimeAssociationMeasurementRequest,
-      { "ganssTODGSMTimeAssociationMeasurementRequest", "rrlp.ganssTODGSMTimeAssociationMeasurementRequest",
+      { "ganssTODGSMTimeAssociationMeasurementRequest", "rrlp.ganssTODGSMTimeAssociationMeasurementRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_requiredResponseTime,
@@ -8115,19 +8293,19 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_add_GPS_AssistData,
-      { "add-GPS-AssistData", "rrlp.add_GPS_AssistData",
+      { "add-GPS-AssistData", "rrlp.add_GPS_AssistData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssMultiFreqMeasurementRequest,
-      { "ganssMultiFreqMeasurementRequest", "rrlp.ganssMultiFreqMeasurementRequest",
+      { "ganssMultiFreqMeasurementRequest", "rrlp.ganssMultiFreqMeasurementRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganss_controlHeader,
-      { "ganss-controlHeader", "rrlp.ganss_controlHeader",
+      { "ganss-controlHeader", "rrlp.ganss_controlHeader_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssCommonAssistData,
-      { "ganssCommonAssistData", "rrlp.ganssCommonAssistData",
+      { "ganssCommonAssistData", "rrlp.ganssCommonAssistData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssGenericAssistDataList,
@@ -8135,27 +8313,31 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfGANSSGenericAssistDataElement", HFILL }},
     { &hf_rrlp_ganssReferenceTime,
-      { "ganssReferenceTime", "rrlp.ganssReferenceTime",
+      { "ganssReferenceTime", "rrlp.ganssReferenceTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssRefLocation,
-      { "ganssRefLocation", "rrlp.ganssRefLocation",
+      { "ganssRefLocation", "rrlp.ganssRefLocation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssIonosphericModel,
-      { "ganssIonosphericModel", "rrlp.ganssIonosphericModel",
+      { "ganssIonosphericModel", "rrlp.ganssIonosphericModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssAddIonosphericModel,
-      { "ganssAddIonosphericModel", "rrlp.ganssAddIonosphericModel",
+      { "ganssAddIonosphericModel", "rrlp.ganssAddIonosphericModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssEarthOrientParam,
-      { "ganssEarthOrientParam", "rrlp.ganssEarthOrientParam",
+      { "ganssEarthOrientParam", "rrlp.ganssEarthOrientParam_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_rrlp_ganssReferenceTime_R10_Ext,
+      { "ganssReferenceTime-R10-Ext", "rrlp.ganssReferenceTime_R10_Ext_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_SeqOfGANSSGenericAssistDataElement_item,
-      { "GANSSGenericAssistDataElement", "rrlp.GANSSGenericAssistDataElement",
+      { "GANSSGenericAssistDataElement", "rrlp.GANSSGenericAssistDataElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssID,
@@ -8167,39 +8349,39 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfGANSSTimeModel", HFILL }},
     { &hf_rrlp_ganssDiffCorrections,
-      { "ganssDiffCorrections", "rrlp.ganssDiffCorrections",
+      { "ganssDiffCorrections", "rrlp.ganssDiffCorrections_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssNavigationModel,
-      { "ganssNavigationModel", "rrlp.ganssNavigationModel",
+      { "ganssNavigationModel", "rrlp.ganssNavigationModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSNavModel", HFILL }},
     { &hf_rrlp_ganssRealTimeIntegrity,
-      { "ganssRealTimeIntegrity", "rrlp.ganssRealTimeIntegrity",
+      { "ganssRealTimeIntegrity", "rrlp.ganssRealTimeIntegrity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssDataBitAssist,
-      { "ganssDataBitAssist", "rrlp.ganssDataBitAssist",
+      { "ganssDataBitAssist", "rrlp.ganssDataBitAssist_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssRefMeasurementAssist,
-      { "ganssRefMeasurementAssist", "rrlp.ganssRefMeasurementAssist",
+      { "ganssRefMeasurementAssist", "rrlp.ganssRefMeasurementAssist_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssAlmanacModel,
-      { "ganssAlmanacModel", "rrlp.ganssAlmanacModel",
+      { "ganssAlmanacModel", "rrlp.ganssAlmanacModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssUTCModel,
-      { "ganssUTCModel", "rrlp.ganssUTCModel",
+      { "ganssUTCModel", "rrlp.ganssUTCModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssEphemerisExtension,
-      { "ganssEphemerisExtension", "rrlp.ganssEphemerisExtension",
+      { "ganssEphemerisExtension", "rrlp.ganssEphemerisExtension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssEphemerisExtCheck,
-      { "ganssEphemerisExtCheck", "rrlp.ganssEphemerisExtCheck",
+      { "ganssEphemerisExtCheck", "rrlp.ganssEphemerisExtCheck_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSEphemerisExtensionCheck", HFILL }},
     { &hf_rrlp_sbasID,
@@ -8218,12 +8400,24 @@ void proto_register_rrlp(void) {
       { "ganssDiffCorrectionsValidityPeriod", "rrlp.ganssDiffCorrectionsValidityPeriod",
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
+    { &hf_rrlp_ganssTimeModel_R10_Ext,
+      { "ganssTimeModel-R10-Ext", "rrlp.ganssTimeModel_R10_Ext",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "SeqOfGANSSTimeModel_R10_Ext", HFILL }},
+    { &hf_rrlp_ganssRefMeasurementAssist_R10_Ext,
+      { "ganssRefMeasurementAssist-R10-Ext", "rrlp.ganssRefMeasurementAssist_R10_Ext",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_rrlp_ganssAlmanacModel_R10_Ext,
+      { "ganssAlmanacModel-R10-Ext", "rrlp.ganssAlmanacModel_R10_Ext_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
     { &hf_rrlp_ganssRefTimeInfo,
-      { "ganssRefTimeInfo", "rrlp.ganssRefTimeInfo",
+      { "ganssRefTimeInfo", "rrlp.ganssRefTimeInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssTOD_GSMTimeAssociation,
-      { "ganssTOD-GSMTimeAssociation", "rrlp.ganssTOD_GSMTimeAssociation",
+      { "ganssTOD-GSMTimeAssociation", "rrlp.ganssTOD_GSMTimeAssociation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssDay,
@@ -8242,16 +8436,20 @@ void proto_register_rrlp(void) {
       { "ganssTimeID", "rrlp.ganssTimeID",
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_7", HFILL }},
+    { &hf_rrlp_ganssDayCycleNumber,
+      { "ganssDayCycleNumber", "rrlp.ganssDayCycleNumber",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_7", HFILL }},
     { &hf_rrlp_frameDrift,
       { "frameDrift", "rrlp.frameDrift",
         FT_INT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssIonoModel,
-      { "ganssIonoModel", "rrlp.ganssIonoModel",
+      { "ganssIonoModel", "rrlp.ganssIonoModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSIonosphereModel", HFILL }},
     { &hf_rrlp_ganssIonoStormFlags,
-      { "ganssIonoStormFlags", "rrlp.ganssIonoStormFlags",
+      { "ganssIonoStormFlags", "rrlp.ganssIonoStormFlags_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ai0,
@@ -8291,7 +8489,7 @@ void proto_register_rrlp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_2", HFILL }},
     { &hf_rrlp_ionoModel,
-      { "ionoModel", "rrlp.ionoModel",
+      { "ionoModel", "rrlp.ionoModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "IonosphericModel", HFILL }},
     { &hf_rrlp_teop,
@@ -8323,7 +8521,7 @@ void proto_register_rrlp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M262144_262143", HFILL }},
     { &hf_rrlp_SeqOfGANSSTimeModel_item,
-      { "GANSSTimeModelElement", "rrlp.GANSSTimeModelElement",
+      { "GANSSTimeModelElement", "rrlp.GANSSTimeModelElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssTimeModelRefTime,
@@ -8350,6 +8548,14 @@ void proto_register_rrlp(void) {
       { "weekNumber", "rrlp.weekNumber",
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_8191", HFILL }},
+    { &hf_rrlp_SeqOfGANSSTimeModel_R10_Ext_item,
+      { "GANSSTimeModelElement-R10-Ext", "rrlp.GANSSTimeModelElement_R10_Ext_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_rrlp_deltaT,
+      { "deltaT", "rrlp.deltaT",
+        FT_INT32, BASE_DEC, NULL, 0,
+        "INTEGER_M128_127", HFILL }},
     { &hf_rrlp_dganssRefTime,
       { "dganssRefTime", "rrlp.dganssRefTime",
         FT_UINT32, BASE_DEC, NULL, 0,
@@ -8359,7 +8565,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfSgnTypeElement", HFILL }},
     { &hf_rrlp_SeqOfSgnTypeElement_item,
-      { "SgnTypeElement", "rrlp.SgnTypeElement",
+      { "SgnTypeElement", "rrlp.SgnTypeElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssSignalID,
@@ -8375,7 +8581,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfDGANSSSgnElement", HFILL }},
     { &hf_rrlp_SeqOfDGANSSSgnElement_item,
-      { "DGANSSSgnElement", "rrlp.DGANSSSgnElement",
+      { "DGANSSSgnElement", "rrlp.DGANSSSgnElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_svID,
@@ -8395,7 +8601,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfGANSSSatelliteElement", HFILL }},
     { &hf_rrlp_SeqOfGANSSSatelliteElement_item,
-      { "GANSSSatelliteElement", "rrlp.GANSSSatelliteElement",
+      { "GANSSSatelliteElement", "rrlp.GANSSSatelliteElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_svHealth,
@@ -8419,23 +8625,23 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_1", HFILL }},
     { &hf_rrlp_keplerianSet,
-      { "keplerianSet", "rrlp.keplerianSet",
+      { "keplerianSet", "rrlp.keplerianSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavModel_KeplerianSet", HFILL }},
     { &hf_rrlp_navKeplerianSet,
-      { "navKeplerianSet", "rrlp.navKeplerianSet",
+      { "navKeplerianSet", "rrlp.navKeplerianSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavModel_NAVKeplerianSet", HFILL }},
     { &hf_rrlp_cnavKeplerianSet,
-      { "cnavKeplerianSet", "rrlp.cnavKeplerianSet",
+      { "cnavKeplerianSet", "rrlp.cnavKeplerianSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavModel_CNAVKeplerianSet", HFILL }},
     { &hf_rrlp_glonassECEF,
-      { "glonassECEF", "rrlp.glonassECEF",
+      { "glonassECEF", "rrlp.glonassECEF_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavModel_GLONASSecef", HFILL }},
     { &hf_rrlp_sbasECEF,
-      { "sbasECEF", "rrlp.sbasECEF",
+      { "sbasECEF", "rrlp.sbasECEF_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NavModel_SBASecef", HFILL }},
     { &hf_rrlp_keplerToe,
@@ -8751,23 +8957,23 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfStandardClockModelElement", HFILL }},
     { &hf_rrlp_navClockModel,
-      { "navClockModel", "rrlp.navClockModel",
+      { "navClockModel", "rrlp.navClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_cnavClockModel,
-      { "cnavClockModel", "rrlp.cnavClockModel",
+      { "cnavClockModel", "rrlp.cnavClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_glonassClockModel,
-      { "glonassClockModel", "rrlp.glonassClockModel",
+      { "glonassClockModel", "rrlp.glonassClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_sbasClockModel,
-      { "sbasClockModel", "rrlp.sbasClockModel",
+      { "sbasClockModel", "rrlp.sbasClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_SeqOfStandardClockModelElement_item,
-      { "StandardClockModelElement", "rrlp.StandardClockModelElement",
+      { "StandardClockModelElement", "rrlp.StandardClockModelElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_stanClockToc,
@@ -8895,7 +9101,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfBadSignalElement", HFILL }},
     { &hf_rrlp_SeqOfBadSignalElement_item,
-      { "BadSignalElement", "rrlp.BadSignalElement",
+      { "BadSignalElement", "rrlp.BadSignalElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_badSVID,
@@ -8915,7 +9121,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfGanssDataBitsElement", HFILL }},
     { &hf_rrlp_SeqOfGanssDataBitsElement_item,
-      { "GanssDataBitsElement", "rrlp.GanssDataBitsElement",
+      { "GanssDataBitsElement", "rrlp.GanssDataBitsElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssDataBitsSgnList,
@@ -8923,7 +9129,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "Seq_OfGANSSDataBitsSgn", HFILL }},
     { &hf_rrlp_Seq_OfGANSSDataBitsSgn_item,
-      { "GANSSDataBitsSgnElement", "rrlp.GANSSDataBitsSgnElement",
+      { "GANSSDataBitsSgnElement", "rrlp.GANSSDataBitsSgnElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssSignalType,
@@ -8943,11 +9149,11 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfGANSSRefMeasurementElement", HFILL }},
     { &hf_rrlp_SeqOfGANSSRefMeasurementElement_item,
-      { "GANSSRefMeasurementElement", "rrlp.GANSSRefMeasurementElement",
+      { "GANSSRefMeasurementElement", "rrlp.GANSSRefMeasurementElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_additionalDoppler,
-      { "additionalDoppler", "rrlp.additionalDoppler",
+      { "additionalDoppler", "rrlp.additionalDoppler_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AdditionalDopplerFields", HFILL }},
     { &hf_rrlp_intCodePhase_01,
@@ -8959,13 +9165,25 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_31", HFILL }},
     { &hf_rrlp_additionalAngle,
-      { "additionalAngle", "rrlp.additionalAngle",
+      { "additionalAngle", "rrlp.additionalAngle_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AddionalAngleFields", HFILL }},
     { &hf_rrlp_dopplerUncertainty_01,
       { "dopplerUncertainty", "rrlp.dopplerUncertainty",
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_4", HFILL }},
+    { &hf_rrlp_GANSSRefMeasurementAssist_R10_Ext_item,
+      { "GANSSRefMeasurement-R10-Ext-Element", "rrlp.GANSSRefMeasurement_R10_Ext_Element_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_rrlp_azimuthLSB,
+      { "azimuthLSB", "rrlp.azimuthLSB",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_15", HFILL }},
+    { &hf_rrlp_elevationLSB,
+      { "elevationLSB", "rrlp.elevationLSB",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_15", HFILL }},
     { &hf_rrlp_weekNumber_01,
       { "weekNumber", "rrlp.weekNumber",
         FT_UINT32, BASE_DEC, NULL, 0,
@@ -8987,27 +9205,27 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, VALS(rrlp_GANSSAlmanacElement_vals), 0,
         NULL, HFILL }},
     { &hf_rrlp_keplerianAlmanacSet,
-      { "keplerianAlmanacSet", "rrlp.keplerianAlmanacSet",
+      { "keplerianAlmanacSet", "rrlp.keplerianAlmanacSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Almanac_KeplerianSet", HFILL }},
     { &hf_rrlp_keplerianNAVAlmanac,
-      { "keplerianNAVAlmanac", "rrlp.keplerianNAVAlmanac",
+      { "keplerianNAVAlmanac", "rrlp.keplerianNAVAlmanac_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Almanac_NAVKeplerianSet", HFILL }},
     { &hf_rrlp_keplerianReducedAlmanac,
-      { "keplerianReducedAlmanac", "rrlp.keplerianReducedAlmanac",
+      { "keplerianReducedAlmanac", "rrlp.keplerianReducedAlmanac_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Almanac_ReducedKeplerianSet", HFILL }},
     { &hf_rrlp_keplerianMidiAlmanac,
-      { "keplerianMidiAlmanac", "rrlp.keplerianMidiAlmanac",
+      { "keplerianMidiAlmanac", "rrlp.keplerianMidiAlmanac_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Almanac_MidiAlmanacSet", HFILL }},
     { &hf_rrlp_keplerianGLONASS,
-      { "keplerianGLONASS", "rrlp.keplerianGLONASS",
+      { "keplerianGLONASS", "rrlp.keplerianGLONASS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Almanac_GlonassAlmanacSet", HFILL }},
     { &hf_rrlp_ecefSBASAlmanac,
-      { "ecefSBASAlmanac", "rrlp.ecefSBASAlmanac",
+      { "ecefSBASAlmanac", "rrlp.ecefSBASAlmanac_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Almanac_ECEFsbasAlmanacSet", HFILL }},
     { &hf_rrlp_kepAlmanacE,
@@ -9250,6 +9468,10 @@ void proto_register_rrlp(void) {
       { "sbasAlmTo", "rrlp.sbasAlmTo",
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_2047", HFILL }},
+    { &hf_rrlp_completeAlmanacProvided,
+      { "completeAlmanacProvided", "rrlp.completeAlmanacProvided",
+        FT_BOOLEAN, BASE_NONE, NULL, 0,
+        "BOOLEAN", HFILL }},
     { &hf_rrlp_ganssUtcA1,
       { "ganssUtcA1", "rrlp.ganssUtcA1",
         FT_INT32, BASE_DEC, NULL, 0,
@@ -9283,7 +9505,7 @@ void proto_register_rrlp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M128_127", HFILL }},
     { &hf_rrlp_ganssEphemerisHeader,
-      { "ganssEphemerisHeader", "rrlp.ganssEphemerisHeader",
+      { "ganssEphemerisHeader", "rrlp.ganssEphemerisHeader_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSEphemerisExtensionHeader", HFILL }},
     { &hf_rrlp_ganssReferenceSet,
@@ -9295,7 +9517,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "GANSSEphemerisDeltaMatrix", HFILL }},
     { &hf_rrlp_timeAtEstimation,
-      { "timeAtEstimation", "rrlp.timeAtEstimation",
+      { "timeAtEstimation", "rrlp.timeAtEstimation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSEphemerisExtensionTime", HFILL }},
     { &hf_rrlp_validityPeriod,
@@ -9323,19 +9545,19 @@ void proto_register_rrlp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_SeqOfGANSSRefOrbit_item,
-      { "GANSSReferenceOrbit", "rrlp.GANSSReferenceOrbit",
+      { "GANSSReferenceOrbit", "rrlp.GANSSReferenceOrbit_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssOrbitModel_01,
-      { "ganssOrbitModel", "rrlp.ganssOrbitModel",
+      { "ganssOrbitModel", "rrlp.ganssOrbitModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReferenceNavModel", HFILL }},
     { &hf_rrlp_GANSSEphemerisDeltaMatrix_item,
-      { "GANSSEphemerisDeltaEpoch", "rrlp.GANSSEphemerisDeltaEpoch",
+      { "GANSSEphemerisDeltaEpoch", "rrlp.GANSSEphemerisDeltaEpoch_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssDeltaEpochHeader,
-      { "ganssDeltaEpochHeader", "rrlp.ganssDeltaEpochHeader",
+      { "ganssDeltaEpochHeader", "rrlp.ganssDeltaEpochHeader_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssDeltaElementList,
@@ -9343,11 +9565,11 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ephemerisDeltaSizes,
-      { "ephemerisDeltaSizes", "rrlp.ephemerisDeltaSizes",
+      { "ephemerisDeltaSizes", "rrlp.ephemerisDeltaSizes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSEphemerisDeltaBitSizes", HFILL }},
     { &hf_rrlp_ephemerisDeltaScales,
-      { "ephemerisDeltaScales", "rrlp.ephemerisDeltaScales",
+      { "ephemerisDeltaScales", "rrlp.ephemerisDeltaScales_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSEphemerisDeltaScales", HFILL }},
     { &hf_rrlp_GANSSDeltaElementList_item,
@@ -9491,15 +9713,15 @@ void proto_register_rrlp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M16_15", HFILL }},
     { &hf_rrlp_ganssBeginTime,
-      { "ganssBeginTime", "rrlp.ganssBeginTime",
+      { "ganssBeginTime", "rrlp.ganssBeginTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSEphemerisExtensionTime", HFILL }},
     { &hf_rrlp_ganssEndTime,
-      { "ganssEndTime", "rrlp.ganssEndTime",
+      { "ganssEndTime", "rrlp.ganssEndTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GANSSEphemerisExtensionTime", HFILL }},
     { &hf_rrlp_ganssSatEventsInfo,
-      { "ganssSatEventsInfo", "rrlp.ganssSatEventsInfo",
+      { "ganssSatEventsInfo", "rrlp.ganssSatEventsInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_eventOccured,
@@ -9511,15 +9733,15 @@ void proto_register_rrlp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_64", HFILL }},
     { &hf_rrlp_utcModel2,
-      { "utcModel2", "rrlp.utcModel2",
+      { "utcModel2", "rrlp.utcModel2_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UTCmodelSet2", HFILL }},
     { &hf_rrlp_utcModel3,
-      { "utcModel3", "rrlp.utcModel3",
+      { "utcModel3", "rrlp.utcModel3_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UTCmodelSet3", HFILL }},
     { &hf_rrlp_utcModel4,
-      { "utcModel4", "rrlp.utcModel4",
+      { "utcModel4", "rrlp.utcModel4_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UTCmodelSet4", HFILL }},
     { &hf_rrlp_utcA0_01,
@@ -9587,7 +9809,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "GANSS_ID3", HFILL }},
     { &hf_rrlp_GANSS_ID1_item,
-      { "GANSS-ID1-element", "rrlp.GANSS_ID1_element",
+      { "GANSS-ID1-element", "rrlp.GANSS_ID1_element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_signalsAvailable,
@@ -9595,7 +9817,7 @@ void proto_register_rrlp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "GANSSSignals", HFILL }},
     { &hf_rrlp_GANSS_ID3_item,
-      { "GANSS-ID3-element", "rrlp.GANSS_ID3_element",
+      { "GANSS-ID3-element", "rrlp.GANSS_ID3_element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_channelNumber,
@@ -9603,7 +9825,7 @@ void proto_register_rrlp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M7_13", HFILL }},
     { &hf_rrlp_GANSSDiffCorrectionsValidityPeriod_item,
-      { "DGANSSExtensionSgnTypeElement", "rrlp.DGANSSExtensionSgnTypeElement",
+      { "DGANSSExtensionSgnTypeElement", "rrlp.DGANSSExtensionSgnTypeElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_dganssExtensionSgnList,
@@ -9611,7 +9833,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfDGANSSExtensionSgnElement", HFILL }},
     { &hf_rrlp_SeqOfDGANSSExtensionSgnElement_item,
-      { "DGANSSExtensionSgnElement", "rrlp.DGANSSExtensionSgnElement",
+      { "DGANSSExtensionSgnElement", "rrlp.DGANSSExtensionSgnElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_udreGrowthRate,
@@ -9623,20 +9845,32 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_7", HFILL }},
     { &hf_rrlp_add_GPS_controlHeader,
-      { "add-GPS-controlHeader", "rrlp.add_GPS_controlHeader",
+      { "add-GPS-controlHeader", "rrlp.add_GPS_controlHeader_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gpsEphemerisExtension,
-      { "gpsEphemerisExtension", "rrlp.gpsEphemerisExtension",
+      { "gpsEphemerisExtension", "rrlp.gpsEphemerisExtension_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gpsEphemerisExtensionCheck,
-      { "gpsEphemerisExtensionCheck", "rrlp.gpsEphemerisExtensionCheck",
+      { "gpsEphemerisExtensionCheck", "rrlp.gpsEphemerisExtensionCheck_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_dgpsCorrectionsValidityPeriod,
       { "dgpsCorrectionsValidityPeriod", "rrlp.dgpsCorrectionsValidityPeriod",
         FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_rrlp_gpsReferenceTime_R10_Ext,
+      { "gpsReferenceTime-R10-Ext", "rrlp.gpsReferenceTime_R10_Ext_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_rrlp_gpsAcquisAssist_R10_Ext,
+      { "gpsAcquisAssist-R10-Ext", "rrlp.gpsAcquisAssist_R10_Ext",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_rrlp_gpsAlmanac_R10_Ext,
+      { "gpsAlmanac-R10-Ext", "rrlp.gpsAlmanac_R10_Ext_element",
+        FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_af2,
       { "af2", "rrlp.af2",
@@ -9655,7 +9889,7 @@ void proto_register_rrlp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M128_127", HFILL }},
     { &hf_rrlp_gpsEphemerisHeader,
-      { "gpsEphemerisHeader", "rrlp.gpsEphemerisHeader",
+      { "gpsEphemerisHeader", "rrlp.gpsEphemerisHeader_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPSEphemerisExtensionHeader", HFILL }},
     { &hf_rrlp_gpsReferenceSet,
@@ -9667,27 +9901,27 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_timeofEstimation,
-      { "timeofEstimation", "rrlp.timeofEstimation",
+      { "timeofEstimation", "rrlp.timeofEstimation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPSEphemerisExtensionTime", HFILL }},
     { &hf_rrlp_SeqOfGPSRefOrbit_item,
-      { "GPSReferenceOrbit", "rrlp.GPSReferenceOrbit",
+      { "GPSReferenceOrbit", "rrlp.GPSReferenceOrbit_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gpsOrbitModel,
-      { "gpsOrbitModel", "rrlp.gpsOrbitModel",
+      { "gpsOrbitModel", "rrlp.gpsOrbitModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReferenceNavModel", HFILL }},
     { &hf_rrlp_gpsClockModel,
-      { "gpsClockModel", "rrlp.gpsClockModel",
+      { "gpsClockModel", "rrlp.gpsClockModel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_GPSEphemerisDeltaMatrix_item,
-      { "GPSEphemerisDeltaEpoch", "rrlp.GPSEphemerisDeltaEpoch",
+      { "GPSEphemerisDeltaEpoch", "rrlp.GPSEphemerisDeltaEpoch_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gpsDeltaEpochHeader,
-      { "gpsDeltaEpochHeader", "rrlp.gpsDeltaEpochHeader",
+      { "gpsDeltaEpochHeader", "rrlp.gpsDeltaEpochHeader_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gpsDeltaElementList,
@@ -9695,11 +9929,11 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ephemerisDeltaSizes_01,
-      { "ephemerisDeltaSizes", "rrlp.ephemerisDeltaSizes",
+      { "ephemerisDeltaSizes", "rrlp.ephemerisDeltaSizes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPSEphemerisDeltaBitSizes", HFILL }},
     { &hf_rrlp_ephemerisDeltaScales_01,
-      { "ephemerisDeltaScales", "rrlp.ephemerisDeltaScales",
+      { "ephemerisDeltaScales", "rrlp.ephemerisDeltaScales_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPSEphemerisDeltaScales", HFILL }},
     { &hf_rrlp_GPSDeltaElementList_item,
@@ -9715,15 +9949,15 @@ void proto_register_rrlp(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER_M16_15", HFILL }},
     { &hf_rrlp_gpsBeginTime,
-      { "gpsBeginTime", "rrlp.gpsBeginTime",
+      { "gpsBeginTime", "rrlp.gpsBeginTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPSEphemerisExtensionTime", HFILL }},
     { &hf_rrlp_gpsEndTime,
-      { "gpsEndTime", "rrlp.gpsEndTime",
+      { "gpsEndTime", "rrlp.gpsEndTime_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GPSEphemerisExtensionTime", HFILL }},
     { &hf_rrlp_gpsSatEventsInfo,
-      { "gpsSatEventsInfo", "rrlp.gpsSatEventsInfo",
+      { "gpsSatEventsInfo", "rrlp.gpsSatEventsInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_eventOccured_01,
@@ -9735,7 +9969,15 @@ void proto_register_rrlp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING_SIZE_32", HFILL }},
     { &hf_rrlp_DGPSCorrectionsValidityPeriod_item,
-      { "DGPSExtensionSatElement", "rrlp.DGPSExtensionSatElement",
+      { "DGPSExtensionSatElement", "rrlp.DGPSExtensionSatElement_element",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_rrlp_gpsWeekCycleNumber,
+      { "gpsWeekCycleNumber", "rrlp.gpsWeekCycleNumber",
+        FT_UINT32, BASE_DEC, NULL, 0,
+        "INTEGER_0_7", HFILL }},
+    { &hf_rrlp_GPSAcquisAssist_R10_Ext_item,
+      { "GPSAcquisAssist-R10-Ext-Element", "rrlp.GPSAcquisAssist_R10_Ext_Element_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_velEstimate,
@@ -9743,15 +9985,15 @@ void proto_register_rrlp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "VelocityEstimate", HFILL }},
     { &hf_rrlp_ganssLocationInfo,
-      { "ganssLocationInfo", "rrlp.ganssLocationInfo",
+      { "ganssLocationInfo", "rrlp.ganssLocationInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssMeasureInfo,
-      { "ganssMeasureInfo", "rrlp.ganssMeasureInfo",
+      { "ganssMeasureInfo", "rrlp.ganssMeasureInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_referenceFrame,
-      { "referenceFrame", "rrlp.referenceFrame",
+      { "referenceFrame", "rrlp.referenceFrame_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssTODm,
@@ -9783,7 +10025,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfGANSS_MsrSetElement", HFILL }},
     { &hf_rrlp_SeqOfGANSS_MsrSetElement_item,
-      { "GANSS-MsrSetElement", "rrlp.GANSS_MsrSetElement",
+      { "GANSS-MsrSetElement", "rrlp.GANSS_MsrSetElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_deltaGANSSTOD,
@@ -9795,7 +10037,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfGANSS_MsrElement", HFILL }},
     { &hf_rrlp_SeqOfGANSS_MsrElement_item,
-      { "GANSS-MsrElement", "rrlp.GANSS_MsrElement",
+      { "GANSS-MsrElement", "rrlp.GANSS_MsrElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganss_SgnTypeList,
@@ -9803,7 +10045,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfGANSS_SgnTypeElement", HFILL }},
     { &hf_rrlp_SeqOfGANSS_SgnTypeElement_item,
-      { "GANSS-SgnTypeElement", "rrlp.GANSS_SgnTypeElement",
+      { "GANSS-SgnTypeElement", "rrlp.GANSS_SgnTypeElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssCodePhaseAmbiguity,
@@ -9815,7 +10057,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SeqOfGANSS_SgnElement", HFILL }},
     { &hf_rrlp_SeqOfGANSS_SgnElement_item,
-      { "GANSS-SgnElement", "rrlp.GANSS_SgnElement",
+      { "GANSS-SgnElement", "rrlp.GANSS_SgnElement_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_mpathDet,
@@ -9851,7 +10093,7 @@ void proto_register_rrlp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_GANSSPositionMethods_item,
-      { "GANSSPositionMethod", "rrlp.GANSSPositionMethod",
+      { "GANSSPositionMethod", "rrlp.GANSSPositionMethod_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gANSSPositioningMethodTypes,
@@ -9871,7 +10113,7 @@ void proto_register_rrlp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gANSSAssistanceSet,
-      { "gANSSAssistanceSet", "rrlp.gANSSAssistanceSet",
+      { "gANSSAssistanceSet", "rrlp.gANSSAssistanceSet_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gANSSAdditionalAssistanceChoices,
@@ -9887,7 +10129,7 @@ void proto_register_rrlp(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_SpecificGANSSAssistance_item,
-      { "GANSSAssistanceForOneGANSS", "rrlp.GANSSAssistanceForOneGANSS",
+      { "GANSSAssistanceForOneGANSS", "rrlp.GANSSAssistanceForOneGANSS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_gANSSAssistance,
@@ -9895,7 +10137,7 @@ void proto_register_rrlp(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_GANSSAdditionalAssistanceChoices_item,
-      { "GANSSAdditionalAssistanceChoicesForOneGANSS", "rrlp.GANSSAdditionalAssistanceChoicesForOneGANSS",
+      { "GANSSAdditionalAssistanceChoicesForOneGANSS", "rrlp.GANSSAdditionalAssistanceChoicesForOneGANSS_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_rrlp_ganssClockModelChoice,
@@ -10324,6 +10566,7 @@ void proto_register_rrlp(void) {
     &ett_rrlp_GANSSGenericAssistDataElement,
     &ett_rrlp_GANSSReferenceTime,
     &ett_rrlp_GANSSRefTimeInfo,
+    &ett_rrlp_GANSSReferenceTime_R10_Ext,
     &ett_rrlp_GANSSTOD_GSMTimeAssociation,
     &ett_rrlp_GANSSRefLocation,
     &ett_rrlp_GANSSIonosphericModel,
@@ -10333,6 +10576,8 @@ void proto_register_rrlp(void) {
     &ett_rrlp_GANSSEarthOrientParam,
     &ett_rrlp_SeqOfGANSSTimeModel,
     &ett_rrlp_GANSSTimeModelElement,
+    &ett_rrlp_SeqOfGANSSTimeModel_R10_Ext,
+    &ett_rrlp_GANSSTimeModelElement_R10_Ext,
     &ett_rrlp_GANSSDiffCorrections,
     &ett_rrlp_SeqOfSgnTypeElement,
     &ett_rrlp_SgnTypeElement,
@@ -10367,6 +10612,8 @@ void proto_register_rrlp(void) {
     &ett_rrlp_SeqOfGANSSRefMeasurementElement,
     &ett_rrlp_GANSSRefMeasurementElement,
     &ett_rrlp_AdditionalDopplerFields,
+    &ett_rrlp_GANSSRefMeasurementAssist_R10_Ext,
+    &ett_rrlp_GANSSRefMeasurement_R10_Ext_Element,
     &ett_rrlp_GANSSAlmanacModel,
     &ett_rrlp_SeqOfGANSSAlmanacElement,
     &ett_rrlp_GANSSAlmanacElement,
@@ -10376,6 +10623,7 @@ void proto_register_rrlp(void) {
     &ett_rrlp_Almanac_MidiAlmanacSet,
     &ett_rrlp_Almanac_GlonassAlmanacSet,
     &ett_rrlp_Almanac_ECEFsbasAlmanacSet,
+    &ett_rrlp_GANSSAlmanacModel_R10_Ext,
     &ett_rrlp_GANSSUTCModel,
     &ett_rrlp_GANSSEphemerisExtension,
     &ett_rrlp_GANSSEphemerisExtensionHeader,
@@ -10422,6 +10670,10 @@ void proto_register_rrlp(void) {
     &ett_rrlp_GPSSatEventsInfo,
     &ett_rrlp_DGPSCorrectionsValidityPeriod,
     &ett_rrlp_DGPSExtensionSatElement,
+    &ett_rrlp_GPSReferenceTime_R10_Ext,
+    &ett_rrlp_GPSAcquisAssist_R10_Ext,
+    &ett_rrlp_GPSAcquisAssist_R10_Ext_Element,
+    &ett_rrlp_GPSAlmanac_R10_Ext,
     &ett_rrlp_Rel_7_MsrPosition_Rsp_Extension,
     &ett_rrlp_GANSSLocationInfo,
     &ett_rrlp_PositionData,
@@ -10469,7 +10721,7 @@ void proto_register_rrlp(void) {
   proto_register_field_array(proto_rrlp, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
 
- 
+
 }
 
 

@@ -1,8 +1,6 @@
 /* packet-null.c
  * Routines for null packet disassembly
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  *
@@ -27,8 +25,8 @@
 #include "config.h"
 
 #include <glib.h>
-
 #include <string.h>
+
 #include <epan/packet.h>
 #include "packet-null.h"
 #include <epan/atalk-utils.h>
@@ -40,6 +38,10 @@
 #include "packet-ppp.h"
 #include <epan/etypes.h>
 #include <epan/aftypes.h>
+#include <wiretap/wtap.h>
+
+void proto_register_null(void);
+void proto_reg_handoff_null(void);
 
 static dissector_table_t null_dissector_table;
 static dissector_table_t ethertype_dissector_table;
@@ -292,7 +294,7 @@ capture_null( const guchar *pd, int len, packet_counts *ld )
         null_header >>= 16;
       } else {
         /* Byte-swap it. */
-        null_header = BSWAP32(null_header);
+        null_header = GUINT32_SWAP_LE_BE(null_header);
       }
     } else {
       /*
@@ -306,7 +308,7 @@ capture_null( const guchar *pd, int len, packet_counts *ld )
          * type; that's in the lower 16 bits of "null_header", but
          * is byte-swapped.
          */
-        null_header = BSWAP16(null_header & 0xFFFF);
+        null_header = GUINT16_SWAP_LE_BE(null_header & 0xFFFF);
       }
     }
 
@@ -392,7 +394,7 @@ dissect_null(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         null_header >>= 16;
       } else {
         /* Byte-swap it. */
-        null_header = BSWAP32(null_header);
+        null_header = GUINT32_SWAP_LE_BE(null_header);
       }
     } else {
       /*
@@ -406,7 +408,7 @@ dissect_null(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
          * type; that's in the lower 16 bits of "null_header", but
          * is byte-swapped.
          */
-        null_header = BSWAP16(null_header & 0xFFFF);
+        null_header = GUINT16_SWAP_LE_BE(null_header & 0xFFFF);
       }
     }
 
@@ -474,7 +476,7 @@ proto_register_null(void)
 
 	/* subdissector code */
 	null_dissector_table = register_dissector_table("null.type",
-	   "BSD AF_ type", FT_UINT32, BASE_DEC);
+	   "Null type", FT_UINT32, BASE_DEC);
 }
 
 void

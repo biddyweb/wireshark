@@ -6,8 +6,6 @@
 #
 # Usage: checkhf.pl [--debug=?] <file or files>
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -35,7 +33,7 @@
 ##
 ##       This program can be used to scan original .c source files or source
 ##        files which have been passed through a C pre-processor.
-##       Operating on pre-prosessed source files is optimal; There should be
+##       Operating on pre-processed source files is optimal; There should be
 ##        minimal false positives.
 ##       If the .c input is an original source file there may very well be
 ##        false positives/negatives due to the fact that the hf_... variables & etc
@@ -563,6 +561,7 @@ sub debug_print_hash {
 
     ##print "==> $title\n";
     for my $k (sort keys %{$href}) {
-        printf "%-40.40s %5.5s %s\n", $title, $href->{$k} // "undef", $k;
+        my $h = defined($href->{$k}) ?  $href->{$k} : "undef";
+        printf "%-40.40s %5.5s %s\n", $title, $h, $k;
     }
 }

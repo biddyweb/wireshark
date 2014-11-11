@@ -1,7 +1,5 @@
 /* packet-http.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -22,6 +20,8 @@
  */
 
 #include "config.h"
+
+#include <epan/wmem/wmem.h>
 
 #include "http-parser.h"
 #include <gmodule.h>
@@ -47,7 +47,7 @@ static int hf_http_request_uri = -1;
 static dissector_handle_t http_handle;
 
 static void dissect_http(tvbuff_t* tvb, packet_info* pinfo _U_, proto_tree* tree) {
-    http_info_value_t* msgdata = ep_alloc0(sizeof(http_info_value_t));
+    http_info_value_t* msgdata = wmem_alloc0(wmem_packet_scope(), sizeof(http_info_value_t));
     tvbparse_elem_t* reqresp;
     tpg_parser_data_t* tpg;
     proto_item* pi = proto_tree_add_item(tree,proto_http,tvb,0,-1,ENC_NA);
@@ -122,9 +122,9 @@ static void proto_reg_handoff_http(void) {
 
 #ifndef ENABLE_STATIC
 
-WS_DLL_PUBLIC_NOEXTERN const gchar version[] = "0.0.0";
+WS_DLL_PUBLIC_DEF const gchar version[] = "0.0.0";
 
-WS_DLL_PUBLIC_NOEXTERN void
+WS_DLL_PUBLIC_DEF void
 plugin_register(void)
 {
     /* register the new protocol, protocol fields, and subtrees */
@@ -133,7 +133,7 @@ plugin_register(void)
     }
 }
 
-WS_DLL_PUBLIC_NOEXTERN void
+WS_DLL_PUBLIC_DEF void
 plugin_reg_handoff(void){
     proto_reg_handoff_http();
 }

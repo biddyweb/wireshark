@@ -14,8 +14,6 @@
  *
  * Copyright 2003, Jeff Morriss <jeff.morriss.ws [AT] gmail.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -44,6 +42,9 @@
 #include <epan/packet.h>
 
 #include <packet-mtp3.h>
+
+void proto_register_mtp3mg(void);
+void proto_reg_handoff_mtp3mg(void);
 
 #define H0H1_LENGTH 1
 #define H0_MASK     0x0f

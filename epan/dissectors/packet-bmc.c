@@ -2,8 +2,6 @@
  * Routines for Broadcast/Multicast Control dissection
  * Copyright 2011, Neil Piercy <Neil.Piercy@ipaccess.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,11 +26,13 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/bitswap.h>
+#include <wsutil/bitswap.h>
 #include <epan/asn1.h> /* needed for packet-gsm_map.h */
 
 #include "packet-cell_broadcast.h"
 #include "packet-gsm_map.h"
+
+void proto_register_bmc(void);
 
 static int dissect_bmc_cbs_message     (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 static int dissect_bmc_schedule_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
@@ -86,9 +86,9 @@ static int
 dissect_bmc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
     guint8      message_type;
-    guint8     *p_rev, *reversing_buffer;
+    guint8     *reversing_buffer;
     gint        offset = 0;
-    gint        i, len;
+    gint        len;
     proto_item *ti;
     proto_tree *bmc_tree;
     tvbuff_t   *bit_reversed_tvb;
@@ -101,14 +101,12 @@ dissect_bmc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 
     /* Needs bit-reversing. Create a new buffer, copy the message to it and bit-reverse */
     len = tvb_length(tvb);
-    reversing_buffer = ep_tvb_memdup(tvb, offset, len);
-    p_rev = reversing_buffer;
-    /* Entire message is bit reversed */
-    for (i=0; i<len; i++, p_rev++)
-        *p_rev = BIT_SWAP(*p_rev);
+    reversing_buffer = (guint8 *)tvb_memdup(NULL, tvb, offset, len);
+    bitswap_buf_inplace(reversing_buffer, len);
 
     /* Make this new buffer part of the display and provide a way to dispose of it */
     bit_reversed_tvb = tvb_new_child_real_data(tvb, reversing_buffer, len, len);
+    tvb_set_free_cb(bit_reversed_tvb, g_free);
     add_new_data_source(pinfo, bit_reversed_tvb, "Bit-reversed Data");
 
     message_type = tvb_get_guint8(bit_reversed_tvb, offset);

@@ -1,7 +1,5 @@
 /* packet-usb.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -24,6 +22,9 @@
 #ifndef __PACKET_USB_H__
 #define __PACKET_USB_H__
 
+#include <epan/value_string.h>
+#include <epan/wmem/wmem.h>
+
 typedef struct _usb_address_t {
     guint32 device;
     guint32 endpoint;
@@ -38,12 +39,17 @@ typedef struct _usb_address_t {
 
 typedef struct _usb_conv_info_t usb_conv_info_t;
 
+/* header flags */
+#define USB_HEADER_IS_LINUX    (1 << 0)
+#define USB_HEADER_IS_64_BYTES (1 << 1)
+#define USB_HEADER_IS_USBPCAP  (1 << 2)
+
 /* there is one such structure for each request/response */
 typedef struct _usb_trans_info_t {
     guint32 request_in;
     guint32 response_in;
     nstime_t req_time;
-    gboolean header_len_64;
+    guint8 header_info;
 
     /* Valid only for SETUP transactions */
     struct _usb_setup {
@@ -73,17 +79,29 @@ typedef struct _usb_trans_info_t {
     usb_conv_info_t *interface_info;
 } usb_trans_info_t;
 
-/* Conversation Structure 
+/* Conversation Structure
  * there is one such structure for each device/endpoint conversation */
 struct _usb_conv_info_t {
+    guint16  bus_id;
+    guint16  device_address;
+    guint8   endpoint;
+    gint     direction;
+    guint8   transfer_type;
+    guint32  device_protocol;
+    gboolean is_request;
+    gboolean is_setup;
+    guint8   setup_requesttype;
+
     guint16 interfaceClass;     /* Interface Descriptor - class          */
     guint16 interfaceSubclass;  /* Interface Descriptor - subclass       */
     guint16 interfaceProtocol;  /* Interface Descriptor - protocol       */
     guint8  interfaceNum;       /* Most recent interface number          */
+
     guint16 deviceVendor;       /* Device    Descriptor - USB Vendor  ID */
     guint32 deviceProduct;      /* Device    Descriptor - USB Product ID - MSBs only for encoding unknown */
-    emem_tree_t *transactions;
+    wmem_tree_t *transactions;
     usb_trans_info_t *usb_trans_info; /* pointer to the current transaction */
+
     void *class_data;	/* private class/id decode data */
 };
 
@@ -95,12 +113,6 @@ typedef struct _usb_tap_data_t {
     usb_trans_info_t *trans_info;
 } usb_tap_data_t;
 
-typedef struct _usb_data_t {
-    guint16  bus_id;
-    guint8   device_address;
-    guint8   endpoint;
-    gint     direction;
-} usb_data_t;
 
 /* This is the endpoint number used for "no endpoint" or the fake endpoint
  * for the host side since we need two endpoints to manage conversations
@@ -184,7 +196,20 @@ typedef struct _usb_data_t {
 
 usb_conv_info_t *get_usb_iface_conv_info(packet_info *pinfo, guint8 interface_num);
 
-void dissect_usb_descriptor_header(proto_tree *tree, tvbuff_t *tvb, int offset);
+proto_item * dissect_usb_descriptor_header(proto_tree *tree,
+                                           tvbuff_t *tvb, int offset,
+                                           value_string_ext *type_val_str);
 void dissect_usb_endpoint_address(proto_tree *tree, tvbuff_t *tvb, int offset);
 
+int
+dissect_usb_endpoint_descriptor(packet_info *pinfo, proto_tree *parent_tree,
+                                tvbuff_t *tvb, int offset,
+                                usb_trans_info_t *usb_trans_info,
+                                usb_conv_info_t  *usb_conv_info _U_);
+
+int
+dissect_usb_unknown_descriptor(packet_info *pinfo _U_, proto_tree *parent_tree,
+                               tvbuff_t *tvb, int offset,
+                               usb_trans_info_t *usb_trans_info _U_,
+                               usb_conv_info_t  *usb_conv_info _U_);
 #endif

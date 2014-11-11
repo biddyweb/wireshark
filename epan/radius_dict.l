@@ -74,7 +74,7 @@
 #define MAX_INCLUDE_DEPTH 10
 
 	static void add_vendor(const gchar* name, guint32 id, guint type_octets, guint length_octets, gboolean has_flags);
-	static void add_value(const gchar* attrib_name,const  gchar* repr, long value);
+	static void add_value(const gchar* attrib_name,const  gchar* repr, guint32 value);
 	static void add_tlv(const gchar* name, const  gchar* code, radius_attr_dissector_t type, const gchar* attr);
 	static void add_attribute(const gchar*,const  gchar*, radius_attr_dissector_t,const  gchar*, guint, gboolean, const gchar*);
 
@@ -166,22 +166,22 @@
     BEGIN VENDOR_W_NAME;
 }
 <VENDOR_W_NAME>[0-9]+   {
-    vendor_id = strtol(yytext,NULL,10);
+    vendor_id = (guint32) strtoul(yytext,NULL,10);
     BEGIN VENDOR_W_ID;
 }
 <VENDOR_W_NAME>0x[0-9a-f]+   {
-    vendor_id = strtol(yytext,NULL,16);
+    vendor_id = (guint32) strtoul(yytext,NULL,16);
     BEGIN VENDOR_W_ID;
 }
 <VENDOR_W_ID>format= {
     BEGIN VENDOR_W_FORMAT;
 }
 <VENDOR_W_FORMAT>[124] {
-    vendor_type_octets = strtol(yytext,NULL,10);
+    vendor_type_octets = (guint) strtoul(yytext,NULL,10);
     BEGIN VENDOR_W_TYPE_OCTETS;
 }
 <VENDOR_W_TYPE_OCTETS>,[012] {
-    vendor_length_octets = strtol(yytext+1,NULL,10);
+    vendor_length_octets = (guint) strtoul(yytext+1,NULL,10);
     BEGIN VENDOR_W_LENGTH_OCTETS;
 }
 <VENDOR_W_LENGTH_OCTETS>,c {
@@ -219,7 +219,7 @@
 <ATTR_W_ID>tlv				{ attr_type = radius_tlv;  BEGIN ATTR_W_TYPE; }
 <ATTR_W_ID>[0-9a-z_-]+			{ attr_type = radius_octets;  BEGIN ATTR_W_TYPE; }
 <ATTR_W_TYPE>has_tag[,]?		{ has_tag = TRUE; }
-<ATTR_W_TYPE>encrypt=[123][,]?		{ encrypted = strtol(yytext+8,NULL,10); }
+<ATTR_W_TYPE>encrypt=[123][,]?		{ encrypted = (guint) strtoul(yytext+8,NULL,10); }
 <ATTR_W_TYPE>[0-9a-z_-]+=([^\n]*)	;
 <ATTR_W_TYPE>[0-9a-z_-]+		{
     attr_vendor = g_strdup(yytext);
@@ -250,10 +250,10 @@
     BEGIN WS_OUT;
 };
 
-<VALUE>[0-9a-z_/-]+					{ attr_name = g_strdup(yytext); BEGIN VALUE_W_ATTR; }
+<VALUE>[0-9a-z_/-]+				{ attr_name = g_strdup(yytext); BEGIN VALUE_W_ATTR; }
 <VALUE_W_ATTR>[^[:blank:]]+			{ value_repr = g_strdup(yytext); BEGIN VALUE_W_NAME; }
-<VALUE_W_NAME>[0-9]+				{ add_value(attr_name,value_repr,strtol(yytext,NULL,10));  g_free(attr_name); g_free(value_repr); BEGIN WS_OUT;}
-<VALUE_W_NAME>0x[0-9a-f]+			{ add_value(attr_name,value_repr,strtol(yytext,NULL,16));  g_free(attr_name); g_free(value_repr); BEGIN WS_OUT;}
+<VALUE_W_NAME>[0-9]+				{ add_value(attr_name,value_repr, (guint32) strtoul(yytext,NULL,10));  g_free(attr_name); g_free(value_repr); BEGIN WS_OUT;}
+<VALUE_W_NAME>0x[0-9a-f]+			{ add_value(attr_name,value_repr, (guint32) strtoul(yytext,NULL,16));  g_free(attr_name); g_free(value_repr); BEGIN WS_OUT;}
 
 <INCLUDE>[^[:blank:]\n]+   {
 	if ( include_stack_ptr >= MAX_INCLUDE_DEPTH ) {
@@ -317,10 +317,10 @@
 static void add_vendor(const gchar* name, guint32 id, guint type_octets, guint length_octets, gboolean has_flags) {
 	radius_vendor_info_t* v;
 
-	v = g_hash_table_lookup(dict->vendors_by_id, GUINT_TO_POINTER(id));
+	v = (radius_vendor_info_t *)g_hash_table_lookup(dict->vendors_by_id, GUINT_TO_POINTER(id));
 
 	if (!v) {
-		v = g_malloc(sizeof(radius_vendor_info_t));
+		v = g_new(radius_vendor_info_t,1);
 		v->attrs_by_id = g_hash_table_new(g_direct_hash,g_direct_equal);
 		v->code = id;
 		v->ett = -1;
@@ -357,7 +357,7 @@ static void add_attribute(const gchar* name, const  gchar* codestr, radius_attr_
 
 	if (vendor) {
 		radius_vendor_info_t* v;
-		v = g_hash_table_lookup(dict->vendors_by_name,vendor);
+		v = (radius_vendor_info_t *)g_hash_table_lookup(dict->vendors_by_name,vendor);
 
 		if (! v) {
 			g_string_append_printf(error, "Vendor: '%s', does not exist in %s:%i \n", vendor, fullpaths[include_stack_ptr], linenums[include_stack_ptr] );
@@ -370,12 +370,12 @@ static void add_attribute(const gchar* name, const  gchar* codestr, radius_attr_
 		by_id = dict->attrs_by_id;
 	}
 
-	code=strtol(codestr, NULL, 10);
+	code= (guint32) strtoul(codestr, NULL, 10);
 
-	a=g_hash_table_lookup(by_id, GUINT_TO_POINTER(code));
+	a=(radius_attr_info_t*)g_hash_table_lookup(by_id, GUINT_TO_POINTER(code));
 
 	if (!a) {
-		a = g_malloc(sizeof(radius_attr_info_t));
+		a = g_new(radius_attr_info_t,1);
 		a->name = NULL;
 		a->dissector = NULL;
 	}
@@ -413,7 +413,7 @@ static void add_tlv(const gchar* name, const  gchar* codestr, radius_attr_dissec
 	radius_attr_info_t* s;
 	guint32 code;
 
-	a = g_hash_table_lookup(dict->attrs_by_name, attr);
+	a = (radius_attr_info_t*)g_hash_table_lookup(dict->attrs_by_name, attr);
 
 	if (! a) {
 		g_string_append_printf(error, "Attr: '%s', does not exist in %s:%i \n", attr, fullpaths[include_stack_ptr], linenums[include_stack_ptr]);
@@ -432,12 +432,12 @@ static void add_tlv(const gchar* name, const  gchar* codestr, radius_attr_dissec
 		a->tlvs_by_id = g_hash_table_new(g_direct_hash,g_direct_equal);
 	}
 
-	code=strtol(codestr, NULL, 10);
+	code = (guint32) strtoul(codestr, NULL, 10);
 
-	s = g_hash_table_lookup(a->tlvs_by_id, GUINT_TO_POINTER(code));
+	s = (radius_attr_info_t*)g_hash_table_lookup(a->tlvs_by_id, GUINT_TO_POINTER(code));
 
 	if (!s) {
-		s = g_malloc(sizeof(radius_attr_info_t));
+		s = g_new(radius_attr_info_t,1);
 		s->name = NULL;
 		s->dissector = NULL;
 	}
@@ -463,9 +463,9 @@ static void add_tlv(const gchar* name, const  gchar* codestr, radius_attr_dissec
 	g_hash_table_insert(dict->tlvs_by_name,(gpointer) (s->name),s);
 }
 
-void add_value(const gchar* attrib_name, const gchar* repr, long value) {
+void add_value(const gchar* attrib_name, const gchar* repr, guint32 value) {
 	value_string v;
-	GArray* a = g_hash_table_lookup(value_strings,attrib_name);
+	GArray* a = (GArray*)g_hash_table_lookup(value_strings,attrib_name);
 
 	if (! a) {
 		a = g_array_new(TRUE,TRUE,sizeof(value_string));
@@ -479,7 +479,7 @@ void add_value(const gchar* attrib_name, const gchar* repr, long value) {
 }
 
 static void setup_tlvs(gpointer k _U_, gpointer v, gpointer p _U_) {
-	radius_attr_info_t* s = v;
+	radius_attr_info_t* s = (radius_attr_info_t*)v;
 	gpointer key;
 
 	union {
@@ -496,7 +496,7 @@ static void setup_tlvs(gpointer k _U_, gpointer v, gpointer p _U_) {
 }
 
 static void setup_attrs(gpointer k _U_, gpointer v, gpointer p _U_) {
-	radius_attr_info_t* a = v;
+	radius_attr_info_t* a = (radius_attr_info_t*)v;
 	gpointer key;
 
 	union {
@@ -517,7 +517,7 @@ static void setup_attrs(gpointer k _U_, gpointer v, gpointer p _U_) {
 }
 
 static void setup_vendors(gpointer k _U_, gpointer v, gpointer p) {
-	radius_vendor_info_t* vnd = v;
+	radius_vendor_info_t* vnd = (radius_vendor_info_t*)v;
 
 	g_hash_table_foreach(vnd->attrs_by_id,setup_attrs,p);
 }
@@ -531,7 +531,7 @@ static gboolean destroy_value_strings(gpointer k, gpointer v, gpointer p _U_) {
 		g_free((void*)vs->strptr);
 	}
 
-	g_array_free(v,TRUE);
+	g_array_free((GArray*)v,TRUE);
 	return TRUE;
 }
 

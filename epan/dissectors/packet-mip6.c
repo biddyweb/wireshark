@@ -1,7 +1,5 @@
 /* packet-mip6.c
  *
- * $Id$
- *
  * Definitions and Routines for Mobile IPv6 dissection (RFC 3775)
  * Copyright 2003 Oy L M Ericsson Ab <teemu.rinta-aho@ericsson.fi>
  *
@@ -50,8 +48,10 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 
 #include <epan/ipproto.h>
+#include <epan/expert.h>
 #include <epan/ip_opts.h>
 #include <epan/expert.h>
 #include <epan/sminmpec.h>
@@ -62,7 +62,12 @@
 #include "packet-e212.h"
 #include "packet-gsm_a_common.h"
 
+void proto_register_mip6(void);
+void proto_reg_handoff_mip6(void);
+
 #define UDP_PORT_PMIP6_CNTL 5436
+
+static dissector_table_t mip6_vsm_dissector_table;
 
 /* Mobility Header types */
 typedef enum {
@@ -169,7 +174,7 @@ typedef enum {
     MIP6_ALT_IP4_CO= 49,        /* 49 Alternate IPv4 Care-of Address [RFC6463] */
     MIP6_MNG       = 50,        /* 50 Mobile Node Group Identifier [RFC6602] */
     MIP6_MAG_IPv6  = 51,        /* 51 MAG IPv6 Address [RFC6705] */
-    MIP6_ACC_NET_ID= 52,        /* 52 Access Network Identifier [RFC6757] */
+    MIP6_ACC_NET_ID= 52         /* 52 Access Network Identifier [RFC6757] */
 
 } optTypes;
 
@@ -582,6 +587,7 @@ static const value_string pmip6_bri_status[] = {
     { 0,        NULL},
 };
 
+#if 0
 /* Handoff Indicator values */
 static const range_string handoff_indicator[] = {
     { 0x00, 0x00,   "Reserved"                              },
@@ -593,6 +599,7 @@ static const range_string handoff_indicator[] = {
     { 0x06, 0xff,   "Unassigned"                                                    },
     { 0,    0,      NULL                                                            }
 };
+#endif
 
 /* Mobile Node Group Identifier Type
  * http://www.iana.org/assignments/mobility-parameters/mobility-parameters.xml#mobile-node-group-id-type
@@ -778,8 +785,7 @@ static const value_string mip6_mng_id_type_vals[] = {
 #define PMIP6_BRI_RTRIGGER_LEN   1
 #define PMIP6_BRI_STATUS_LEN     1
 #define PMIP6_BRI_SEQNR_LEN      2
-#define PMIP6_BRI_FLAGS_LEN      1
-#define PMIP6_BRI_RES_LEN        1
+#define PMIP6_BRI_FLAGS_LEN      2
 
 /* Field offsets & field and option lengths for mobility options.
  * The option length does *not* include the option type and length
@@ -834,7 +840,7 @@ static const value_string mip6_mng_id_type_vals[] = {
 #define MIP6_VSM_DATA_OFF     7
 
 
-#define MIP6_SSM_MINLEN       2
+#define MIP6_SSM_MINLEN       1
 #define MIP6_SSM_SSM_OFF      2
 
 #define MIP6_BADFF_MINLEN     4
@@ -908,6 +914,15 @@ static const value_string mip6_mng_id_type_vals[] = {
 #define MIP6_CR_MIN_LEN       4
 
 #define MIP6_LMAA_MIN_LEN     6
+
+#define MIP6_RECAP_LEN        2
+#define MIP6_REDIR_MIN_LEN    6
+#define MIP6_REDIR_FLAG_K     0x80
+#define MIP6_REDIR_FLAG_N     0x40
+#define MIP6_REDIR_FLAG_RSV   0x3F
+
+#define MIP6_LOAD_INF_LEN     18
+#define MIP6_ALT_IP4_LEN      4
 
 #define MIP6_MNG_LEN          6
 
@@ -1019,6 +1034,8 @@ static int hf_mip6_vsm_vid = -1;
 static int hf_mip6_vsm_subtype = -1;
 static int hf_mip6_vsm_subtype_3gpp = -1;
 
+static int hf_mip6_opt_ss_identifier = -1;
+
 static int hf_mip6_opt_badff_spi = -1;
 static int hf_mip6_opt_badff_auth = -1;
 
@@ -1093,10 +1110,24 @@ static int hf_pmip6_bri_status = -1;
 static int hf_pmip6_bri_seqnr = -1;
 static int hf_pmip6_bri_ip_flag = -1;
 static int hf_pmip6_bri_ap_flag = -1;
-static int hf_pmip6_bri_ia_flag = -1;
+static int hf_pmip6_bri_iv_flag = -1;
+static int hf_pmip6_bri_av_flag = -1;
 static int hf_pmip6_bri_ig_flag = -1;
 static int hf_pmip6_bri_ag_flag = -1;
 static int hf_pmip6_bri_res = -1;
+
+static int hf_mip6_opt_recap_reserved = -1;
+static int hf_mip6_opt_redir_k = -1;
+static int hf_mip6_opt_redir_n = -1;
+static int hf_mip6_opt_redir_reserved = -1;
+static int hf_mip6_opt_redir_addr_r2LMA_ipv6 = -1;
+static int hf_mip6_opt_redir_addr_r2LMA_ipv4 = -1;
+static int hf_mip6_opt_load_inf_priority = -1;
+static int hf_mip6_opt_load_inf_sessions_in_use = -1;
+static int hf_mip6_opt_load_inf_maximum_sessions = -1;
+static int hf_mip6_opt_load_inf_used_capacity = -1;
+static int hf_mip6_opt_load_inf_maximum_capacity = -1;
+static int hf_mip6_opt_alt_ip4 = -1;
 
 /* Mobile Node Group Identifier Optionm */
 static int hf_mip6_opt_mng_sub_type = -1;
@@ -1150,7 +1181,13 @@ static gint ett_mip6_opt_ipv4dra = -1;
 static gint ett_mip6_opt_ipv4dsm = -1;
 static gint ett_mip6_opt_cr = -1;
 static gint ett_mip6_opt_lmaa = -1;
+static gint ett_mip6_opt_recap = -1;
+static gint ett_mip6_opt_redir = -1;
+static gint ett_mip6_opt_load_inf = -1;
+static gint ett_mip6_opt_alt_ip4 = -1;
 static gint ett_mip6_opt_mng = -1;
+
+static expert_field ei_mip6_ie_not_dissected = EI_INIT;
 
 
 typedef struct mip6_opt {
@@ -1319,10 +1356,10 @@ dissect_mip6_bu(tvbuff_t *tvb, proto_tree *mip6_tree, packet_info *pinfo _U_)
             proto_nemo = 1;
 
         lifetime = tvb_get_ntohs(tvb, MIP6_BU_LIFETIME_OFF);
-        proto_tree_add_uint_format(data_tree, hf_mip6_bu_lifetime, tvb,
+        proto_tree_add_uint_format_value(data_tree, hf_mip6_bu_lifetime, tvb,
                 MIP6_BU_LIFETIME_OFF,
                 MIP6_BU_LIFETIME_LEN, lifetime,
-                "Lifetime: %d (%ld seconds)",
+                "%d (%ld seconds)",
                 lifetime, (long)lifetime * 4);
     }
 
@@ -1360,10 +1397,10 @@ dissect_mip6_ba(tvbuff_t *tvb, proto_tree *mip6_tree, packet_info *pinfo _U_)
                 MIP6_BA_SEQNR_OFF, MIP6_BA_SEQNR_LEN, ENC_BIG_ENDIAN);
 
         lifetime = tvb_get_ntohs(tvb, MIP6_BA_LIFETIME_OFF);
-        proto_tree_add_uint_format(data_tree, hf_mip6_ba_lifetime, tvb,
+        proto_tree_add_uint_format_value(data_tree, hf_mip6_ba_lifetime, tvb,
                 MIP6_BA_LIFETIME_OFF,
                 MIP6_BA_LIFETIME_LEN, lifetime,
-                "Lifetime: %d (%ld seconds)",
+                "%d (%ld seconds)",
                 lifetime, (long)lifetime * 4);
     }
 
@@ -1444,7 +1481,7 @@ dissect_mip6_hi(tvbuff_t *tvb, proto_tree *mip6_tree, packet_info *pinfo _U_)
         proto_tree_add_item(data_tree, hf_mip6_hi_seqnr, tvb,
                 MIP6_DATA_OFF, 2, ENC_BIG_ENDIAN);
 
-		proto_tree_add_item(data_tree, hf_mip6_hi_s_flag, tvb,
+        proto_tree_add_item(data_tree, hf_mip6_hi_s_flag, tvb,
                 MIP6_DATA_OFF+2, 1, ENC_BIG_ENDIAN);
         proto_tree_add_item(data_tree, hf_mip6_hi_u_flag, tvb,
                 MIP6_DATA_OFF+2, 1, ENC_BIG_ENDIAN);
@@ -1452,7 +1489,7 @@ dissect_mip6_hi(tvbuff_t *tvb, proto_tree *mip6_tree, packet_info *pinfo _U_)
         proto_tree_add_item(data_tree, hf_mip6_hi_code, tvb,
                 MIP6_DATA_OFF+3, 1, ENC_BIG_ENDIAN);
 
-	}
+    }
 
     return MIP6_DATA_OFF + 4;
 }
@@ -1493,7 +1530,7 @@ dissect_mip6_hack(tvbuff_t *tvb, proto_tree *mip6_tree, packet_info *pinfo _U_)
         proto_tree_add_item(data_tree, hf_mip6_hack_code, tvb,
                 MIP6_DATA_OFF+3, 1, ENC_BIG_ENDIAN);
 
-	}
+    }
 
     return MIP6_DATA_OFF + 4;
 }
@@ -1538,10 +1575,10 @@ dissect_fmip6_fbu(tvbuff_t *tvb, proto_tree *mip6_tree, packet_info *pinfo _U_)
                 FMIP6_FBU_FLAGS_OFF, FMIP6_FBU_FLAGS_LEN, ENC_BIG_ENDIAN);
 
         lifetime = tvb_get_ntohs(tvb, FMIP6_FBU_LIFETIME_OFF);
-        proto_tree_add_uint_format(data_tree, hf_fmip6_fbu_lifetime, tvb,
+        proto_tree_add_uint_format_value(data_tree, hf_fmip6_fbu_lifetime, tvb,
                 FMIP6_FBU_LIFETIME_OFF,
                 FMIP6_FBU_LIFETIME_LEN, lifetime,
-                "Lifetime: %d (%ld seconds)",
+                "%d (%ld seconds)",
                 lifetime, (long)lifetime * 4);
     }
 
@@ -1567,10 +1604,10 @@ dissect_fmip6_fback(tvbuff_t *tvb, proto_tree *mip6_tree, packet_info *pinfo _U_
         proto_tree_add_item(data_tree, hf_fmip6_fback_seqnr, tvb,
                 FMIP6_FBACK_SEQNR_OFF, FMIP6_FBACK_SEQNR_LEN, ENC_BIG_ENDIAN);
         lifetime = tvb_get_ntohs(tvb, FMIP6_FBACK_LIFETIME_OFF);
-        proto_tree_add_uint_format(data_tree, hf_fmip6_fback_lifetime, tvb,
+        proto_tree_add_uint_format_value(data_tree, hf_fmip6_fback_lifetime, tvb,
                 FMIP6_FBACK_LIFETIME_OFF,
                 FMIP6_FBACK_LIFETIME_LEN, lifetime,
-                "Lifetime: %d (%ld seconds)",
+                "%d (%ld seconds)",
                 lifetime, (long)lifetime * 4);
     }
 
@@ -1629,14 +1666,14 @@ dissect_pmip6_bri(tvbuff_t *tvb, proto_tree *mip6_tree, packet_info *pinfo)
             proto_tree_add_item(field_tree, hf_pmip6_bri_ip_flag, tvb,
                 PMIP6_BRI_FLAGS_OFF, PMIP6_BRI_FLAGS_LEN, ENC_BIG_ENDIAN);
 
-            proto_tree_add_item(field_tree, hf_pmip6_bri_ia_flag, tvb,
+            proto_tree_add_item(field_tree, hf_pmip6_bri_iv_flag, tvb,
                 PMIP6_BRI_FLAGS_OFF, PMIP6_BRI_FLAGS_LEN, ENC_BIG_ENDIAN);
 
             proto_tree_add_item(field_tree, hf_pmip6_bri_ig_flag, tvb,
                 PMIP6_BRI_FLAGS_OFF, PMIP6_BRI_FLAGS_LEN, ENC_BIG_ENDIAN);
 
             proto_tree_add_item(field_tree, hf_pmip6_bri_res, tvb,
-                PMIP6_BRI_RES_OFF, PMIP6_BRI_RES_LEN, ENC_BIG_ENDIAN);
+                PMIP6_BRI_FLAGS_OFF, PMIP6_BRI_FLAGS_LEN, ENC_BIG_ENDIAN);
         }
     } else if ( br_type == ACKNOWLEDGE ) {
 
@@ -1661,11 +1698,14 @@ dissect_pmip6_bri(tvbuff_t *tvb, proto_tree *mip6_tree, packet_info *pinfo)
             proto_tree_add_item(field_tree, hf_pmip6_bri_ap_flag, tvb,
                 PMIP6_BRI_FLAGS_OFF, PMIP6_BRI_FLAGS_LEN, ENC_BIG_ENDIAN);
 
+            proto_tree_add_item(field_tree, hf_pmip6_bri_av_flag, tvb,
+                PMIP6_BRI_FLAGS_OFF, PMIP6_BRI_FLAGS_LEN, ENC_BIG_ENDIAN);
+
             proto_tree_add_item(field_tree, hf_pmip6_bri_ag_flag, tvb,
                 PMIP6_BRI_FLAGS_OFF, PMIP6_BRI_FLAGS_LEN, ENC_BIG_ENDIAN);
 
             proto_tree_add_item(field_tree, hf_pmip6_bri_res, tvb,
-                PMIP6_BRI_RES_OFF, PMIP6_BRI_RES_LEN, ENC_BIG_ENDIAN);
+                PMIP6_BRI_FLAGS_OFF, PMIP6_BRI_FLAGS_LEN, ENC_BIG_ENDIAN);
         }
     }
 
@@ -1691,11 +1731,13 @@ dissect_pmip6_bri(tvbuff_t *tvb, proto_tree *mip6_tree, packet_info *pinfo)
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 */
-static void
-dissect_mip6_opt_vsm_3gpp(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
-             guint optlen, packet_info *pinfo, proto_tree *opt_tree, proto_item *hdr_item _U_ )
+
+static int
+dissect_mip6_opt_vsm_3gpp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-    int    len = optlen;
+    proto_item *hdr_item = tree;
+    int    len = tvb_reported_length(tvb);
+    int offset = 0;
     guint8 sub_type, m_flag;
     tvbuff_t *next_tvb;
     const gchar *mei_str;
@@ -1705,36 +1747,36 @@ dissect_mip6_opt_vsm_3gpp(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
 
     /* offset points to the sub type */
     sub_type = tvb_get_guint8(tvb,offset);
-    proto_tree_add_item(opt_tree, hf_mip6_vsm_subtype_3gpp, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_mip6_vsm_subtype_3gpp, tvb, offset, 1, ENC_BIG_ENDIAN);
     proto_item_append_text(hdr_item, " %s", val_to_str_ext_const(sub_type, &mip6_vsm_subtype_3gpp_value_ext, "<unknown>"));
     offset++;
     m_flag = tvb_get_guint8(tvb,offset) & 0x01;
-    proto_tree_add_item(opt_tree, hf_mip6_opt_3gpp_reserved, tvb, offset, 1, ENC_BIG_ENDIAN);
-    proto_tree_add_item(opt_tree, hf_mip6_opt_3gpp_flag_m, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_mip6_opt_3gpp_reserved, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_mip6_opt_3gpp_flag_m, tvb, offset, 1, ENC_BIG_ENDIAN);
     offset++;
 
     /* set len to the length of the data section */
-    len = optlen - 8;
+    len = len - 2;
 
     if(m_flag){
-        proto_tree_add_text(opt_tree, tvb, offset, len, "Data fragment, handling not implemented yet");
-        return;
+        proto_tree_add_text(tree, tvb, offset, len, "Data fragment, handling not implemented yet");
+        return len;
     }
 
     /* see 3GPP TS 29.275 version 10.5.0 Release 10 */
     switch (sub_type) {
-    /*  1, Protocol Configuration Options 
+    /*  1, Protocol Configuration Options
      *     3GPP PCO data, in the format from 3GPP TS 24.008 [16] subclause 10.5.6.3, starting with octet 3
      *     de_sm_pco(tvb, tree, pinfo, 0, length, NULL, 0);
      *     Note needs pinfo->link_dir ?
      */
-	case 1:
-		/* pinfo->link_dir == P2P_DIR_UNKNOWN */
-		de_sm_pco(tvb, opt_tree, pinfo, offset, len, NULL, 0);
-		break;
+    case 1:
+        /* pinfo->link_dir == P2P_DIR_UNKNOWN */
+        de_sm_pco(tvb, tree, pinfo, offset, len, NULL, 0);
+        break;
     /*  2, 3GPP Specific PMIPv6 Error Code */
     case 2:
-        proto_tree_add_item(opt_tree, hf_mip6_opt_3gpp_spec_pmipv6_err_code, tvb, offset, 4, ENC_BIG_ENDIAN);
+        proto_tree_add_item(tree, hf_mip6_opt_3gpp_spec_pmipv6_err_code, tvb, offset, 1, ENC_BIG_ENDIAN);
         break;
     /*  3, PMIPv6 PDN GW IP Address
      *     PDN GW IP address, as specified in subclause 12.1.1.4
@@ -1742,119 +1784,124 @@ dissect_mip6_opt_vsm_3gpp(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
     case 3:
         if(len == 4){
             /* Ipv4 address */
-            proto_tree_add_item(opt_tree, hf_mip6_opt_3gpp_pdn_gw_ipv4_addr, tvb, offset, 4, ENC_BIG_ENDIAN);
+            proto_tree_add_item(tree, hf_mip6_opt_3gpp_pdn_gw_ipv4_addr, tvb, offset, 4, ENC_BIG_ENDIAN);
         }else if(len == 16){
             /* IPv6 address */
-            proto_tree_add_item(opt_tree, hf_mip6_opt_3gpp_pdn_gw_ipv6_addr, tvb, offset, 16, ENC_BIG_ENDIAN);
+            proto_tree_add_item(tree, hf_mip6_opt_3gpp_pdn_gw_ipv6_addr, tvb, offset, 16, ENC_NA);
         }
         break;
-    /*  4, PMIPv6 DHCPv4 Address Allocation Procedure Indication 
+    /*  4, PMIPv6 DHCPv4 Address Allocation Procedure Indication
      *     DHCPv4 Address Allocation Procedure Indication, as specified in subclause 12.1.1.5
      */
     case 4:
-        proto_tree_add_item(opt_tree, hf_mip6_opt_3gpp_dhcpv4_addr_all_proc_ind, tvb, offset, 1, ENC_BIG_ENDIAN);
+        proto_tree_add_item(tree, hf_mip6_opt_3gpp_dhcpv4_addr_all_proc_ind, tvb, offset, 1, ENC_BIG_ENDIAN);
         break;
-    /*  5, PMIPv6 Fully Qualified PDN Connection Set Identifier 
+    /*  5, PMIPv6 Fully Qualified PDN Connection Set Identifier
      * FQ-CSID as specified in subclause 12.1.1.2
      */
     case 5:
         next_tvb = tvb_new_subset(tvb, offset, len, len);
-        dissect_gtpv2_fq_csid(next_tvb, pinfo, opt_tree, hdr_item, len, 0, 0);
+        dissect_gtpv2_fq_csid(next_tvb, pinfo, tree, hdr_item, len, 0, 0);
         break;
     /*  6, PMIPv6 PDN type indication */
     case 6:
-        proto_tree_add_item(opt_tree, hf_mip6_opt_3gpp_pdn_type, tvb, offset, 1, ENC_BIG_ENDIAN);
+        proto_tree_add_item(tree, hf_mip6_opt_3gpp_pdn_type, tvb, offset, 1, ENC_BIG_ENDIAN);
         offset++;
-        proto_tree_add_item(opt_tree, hf_mip6_opt_3gpp_pdn_ind_cause, tvb, offset, 1, ENC_BIG_ENDIAN);
+        proto_tree_add_item(tree, hf_mip6_opt_3gpp_pdn_ind_cause, tvb, offset, 1, ENC_BIG_ENDIAN);
         break;
     /*  7, Charging ID
      *     Charging ID as specified in subclause 12.1.1.6
      */
     case 7:
-        proto_tree_add_item(opt_tree, hf_mip6_opt_3gpp_chg_id, tvb, offset, 4, ENC_BIG_ENDIAN);
+        proto_tree_add_item(tree, hf_mip6_opt_3gpp_chg_id, tvb, offset, 4, ENC_BIG_ENDIAN);
         proto_item_append_text(hdr_item, " %u", tvb_get_ntohl(tvb, offset));
         break;
     /*  8, Selection Mode */
     case 8:
         next_tvb = tvb_new_subset(tvb, offset, len, len);
-        dissect_gtpv2_selec_mode(next_tvb, pinfo, opt_tree, hdr_item, len, 0, 0);
+        dissect_gtpv2_selec_mode(next_tvb, pinfo, tree, hdr_item, len, 0, 0);
         break;
     /*  9, I-WLAN Mobility Access Point Name (APN) */
     /* 10, Charging Characteristics */
     case 10:
-        proto_tree_add_item(opt_tree, hf_mip6_opt_3gpp_charging_characteristic, tvb, offset, 2, ENC_BIG_ENDIAN);
+        proto_tree_add_item(tree, hf_mip6_opt_3gpp_charging_characteristic, tvb, offset, 2, ENC_BIG_ENDIAN);
         break;
     /* 11, Mobile Equipment Identity (MEI) */
     case 11:
-        mei_str = tvb_bcd_dig_to_ep_str( tvb, offset, len, NULL, FALSE);
-        proto_tree_add_string(opt_tree, hf_mip6_opt_3gpp_mei, tvb, offset, len, mei_str);
+        mei_str = tvb_bcd_dig_to_wmem_packet_str( tvb, offset, len, NULL, FALSE);
+        proto_tree_add_string(tree, hf_mip6_opt_3gpp_mei, tvb, offset, len, mei_str);
         proto_item_append_text(hdr_item, " %s", mei_str);
         break;
     /* 12, MSISDN */
     case 12:
-        dissect_e164_cc(tvb, opt_tree, offset, TRUE);
-        digit_str = tvb_bcd_dig_to_ep_str( tvb, offset, len, NULL, FALSE);
-        proto_tree_add_string(opt_tree, hf_mip6_opt_3gpp_msisdn, tvb, offset, len, digit_str);
+        dissect_e164_cc(tvb, tree, offset, TRUE);
+        digit_str = tvb_bcd_dig_to_wmem_packet_str( tvb, offset, len, NULL, FALSE);
+        proto_tree_add_string(tree, hf_mip6_opt_3gpp_msisdn, tvb, offset, len, digit_str);
         proto_item_append_text(hdr_item, " %s", digit_str);
         break;
     /* 13, Serving Network */
     case 13:
-        mcc_mnc_str = dissect_e212_mcc_mnc_ep_str(tvb, pinfo, opt_tree, offset, TRUE);
+        mcc_mnc_str = dissect_e212_mcc_mnc_wmem_packet_str(tvb, pinfo, tree, offset, TRUE);
         proto_item_append_text(hdr_item," %s", mcc_mnc_str);
         break;
     /* 14, APN Restriction */
     case 14:
-         proto_tree_add_item(opt_tree, hf_mip6_opt_3gpp_apn_rest, tvb, offset, 1, ENC_BIG_ENDIAN);
+         proto_tree_add_item(tree, hf_mip6_opt_3gpp_apn_rest, tvb, offset, 1, ENC_BIG_ENDIAN);
          break;
     /* 15, Maximum APN Restriction */
     case 15:
-         proto_tree_add_item(opt_tree, hf_mip6_opt_3gpp_max_apn_rest, tvb, offset, 1, ENC_BIG_ENDIAN);
+         proto_tree_add_item(tree, hf_mip6_opt_3gpp_max_apn_rest, tvb, offset, 1, ENC_BIG_ENDIAN);
          break;
     /* 16, Unauthenticated IMSI */
     case 16:
-        imsi_str = tvb_bcd_dig_to_ep_str( tvb, offset, len, NULL, FALSE);
-        proto_tree_add_string(opt_tree, hf_mip6_opt_3gpp_imsi, tvb, offset, len, imsi_str);
+        imsi_str = tvb_bcd_dig_to_wmem_packet_str( tvb, offset, len, NULL, FALSE);
+        proto_tree_add_string(tree, hf_mip6_opt_3gpp_imsi, tvb, offset, len, imsi_str);
         proto_item_append_text(hdr_item," %s", imsi_str);
         break;
     /* 17, PDN Connection ID */
     case 17:
-         proto_tree_add_item(opt_tree, hf_mip6_opt_3gpp_pdn_conn_id, tvb, offset, 1, ENC_BIG_ENDIAN);
+         proto_tree_add_item(tree, hf_mip6_opt_3gpp_pdn_conn_id, tvb, offset, 1, ENC_BIG_ENDIAN);
          break;
     /* 18, PGW Back-Off Time */
     case 18:
         next_tvb = tvb_new_subset(tvb, offset, len, len);
-        dissect_gtpv2_epc_timer(next_tvb, pinfo, opt_tree, hdr_item, len, 0, 0);
+        dissect_gtpv2_epc_timer(next_tvb, pinfo, tree, hdr_item, len, 0, 0);
         break;
     /* 19, Signalling Priority Indication */
     case 19:
-         proto_tree_add_item(opt_tree, hf_hf_mip6_opt_3gpp_lapi, tvb, offset, 1, ENC_BIG_ENDIAN);
+         proto_tree_add_item(tree, hf_hf_mip6_opt_3gpp_lapi, tvb, offset, 1, ENC_BIG_ENDIAN);
          break;
-    /* 20, Additional Protocol Configuration Options 
+    /* 20, Additional Protocol Configuration Options
      *     12.1.1.19 Additional Protocol Configuration Options
      *     The Additional Protocol Configuration Options IE contains additional 3GPP protocol configuration options
      *     information. The IE is in the same format as the PCO IE specified in 3GPP TS 24.008 [16] subclause 10.5.6.3, starting
      *     with octet 3.
      */
     default:
-        proto_tree_add_text(opt_tree, tvb, offset, len, "Data(Not dissected yet)");
+        proto_tree_add_text(tree, tvb, offset, len, "Data(Not dissected yet)");
         break;
     }
 
-
+    return len;
 }
 /* 1 PadN [RFC3775] */
 static void
 dissect_mip6_opt_padn(const mip6_opt *optp, tvbuff_t *tvb, int offset,
-              guint optlen, packet_info *pinfo _U_,
+              guint optlen _U_, packet_info *pinfo _U_,
               proto_tree *opt_tree, proto_item *hdr_item _U_ )
 {
+    guint8 len;
+
     /* offset points to tag(opt) */
     offset++;
+    len = tvb_get_guint8(tvb, offset);
     proto_tree_add_item(opt_tree, hf_mip6_opt_len, tvb, offset, 1, ENC_BIG_ENDIAN);
     offset++;
 
-    proto_tree_add_text(opt_tree, tvb, offset, optlen,
-            "%s: %u bytes", optp->name, optlen);
+    if (len > 0) {
+        proto_tree_add_text(opt_tree, tvb, offset, len,
+                "%s: %u bytes", optp->name, len);
+    }
 }
 
 /* 2 Binding Refresh Advice */
@@ -1866,9 +1913,9 @@ dissect_mip6_opt_bra(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
     int ri;
 
     ri = tvb_get_ntohs(tvb, offset + MIP6_BRA_RI_OFF);
-    proto_tree_add_uint_format(opt_tree, hf_mip6_bra_interval, tvb,
+    proto_tree_add_uint_format_value(opt_tree, hf_mip6_bra_interval, tvb,
             offset, optlen,
-            ri, "Refresh interval: %d (%ld seconds)",
+            ri, "%d (%ld seconds)",
             ri, (long)ri * 4);
 }
 
@@ -1879,7 +1926,7 @@ dissect_mip6_opt_acoa(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
               proto_tree *opt_tree, proto_item *hdr_item _U_ )
 {
     proto_tree_add_item(opt_tree, hf_mip6_acoa_acoa, tvb,
-        offset + MIP6_ACOA_ACOA_OFF, MIP6_ACOA_ACOA_LEN, ENC_BIG_ENDIAN);
+        offset + MIP6_ACOA_ACOA_OFF, MIP6_ACOA_ACOA_LEN, ENC_NA);
 }
 
 /* 4 Nonce Indices */
@@ -1948,6 +1995,8 @@ dissect_fmip6_opt_lla(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
     tf = proto_tree_add_text(opt_tree, tvb, offset, optlen, "%s", optp->name);
     field_tree = proto_item_add_subtree(tf, *optp->subtree_index);
 
+    proto_tree_add_item(field_tree, hf_mip6_opt_len, tvb, offset+1, 1, ENC_BIG_ENDIAN);
+
     proto_tree_add_item(field_tree, hf_fmip6_lla_optcode, tvb,
             offset + FMIP6_LLA_OPTCODE_OFF, FMIP6_LLA_OPTCODE_LEN, ENC_BIG_ENDIAN);
 
@@ -1981,7 +2030,7 @@ dissect_fmip6_opt_lla(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
             len -= 1;
             proto_tree_add_text(field_tree, tvb,
                     p, len, "Link-layer address: %s",
-                    tvb_bytes_to_str_punct(tvb, p, len, ':'));
+                    tvb_bytes_to_ep_str_punct(tvb, p, len, ':'));
         }
     }
 }
@@ -2174,6 +2223,7 @@ static void
 dissect_mip6_opt_vsm(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
              guint optlen, packet_info *pinfo _U_, proto_tree *opt_tree, proto_item *hdr_item _U_ )
 {
+    tvbuff_t *next_tvb;
     int     len;
     guint32 vendorid;
 
@@ -2187,34 +2237,28 @@ dissect_mip6_opt_vsm(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
     vendorid = tvb_get_ntohl(tvb, offset);
     proto_item_append_text(hdr_item, ": %s", val_to_str_ext_const(vendorid, &sminmpec_values_ext, "<unknown>"));
     offset += 4;
-    switch (vendorid) {
-    case VENDOR_THE3GPP:
-        dissect_mip6_opt_vsm_3gpp(optp, tvb, offset, optlen, pinfo, opt_tree, hdr_item);
-        return;
-    default:
-        break;
+
+    next_tvb = tvb_new_subset(tvb, offset, optlen-MIP6_VSM_SUBTYPE_OFF, optlen-MIP6_VSM_SUBTYPE_OFF);
+    if (!dissector_try_uint(mip6_vsm_dissector_table, vendorid, next_tvb, pinfo, opt_tree)){
+        proto_tree_add_item(opt_tree, hf_mip6_vsm_subtype, tvb,
+                offset, MIP6_VSM_SUBTYPE_LEN, ENC_BIG_ENDIAN);
+        offset++;
+
+        len = optlen - MIP6_VSM_DATA_OFF;
+        if (len > 0){
+            proto_tree_add_text(opt_tree, tvb, offset, len, "Data");
+        }
     }
-
-    proto_tree_add_item(opt_tree, hf_mip6_vsm_subtype, tvb,
-            offset, MIP6_VSM_SUBTYPE_LEN, ENC_BIG_ENDIAN);
-    offset++;
-
-    len = optlen - MIP6_VSM_DATA_OFF;
-    if (len > 0)
-        proto_tree_add_text(opt_tree, tvb, offset, len, "Data");
-
 }
 
 /* 20 Service Selection Mobility Option [RFC5149]  */
-#define MAX_APN_LENGTH		100
 
 static void
 dissect_mip6_opt_ssm(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
              guint optlen, packet_info *pinfo _U_, proto_tree *opt_tree, proto_item *hdr_item _U_ )
 {
     int    len;
-	guint8	str[MAX_APN_LENGTH+1];
-	int	curr_len;
+    guint8 *str;
 
     /* offset points to tag(opt) */
     offset++;
@@ -2223,34 +2267,23 @@ dissect_mip6_opt_ssm(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
 
     len = optlen - MIP6_SSM_SSM_OFF;
 
-    /* 3GPP TS 29.275 version 10.5.0 Release 10, Table 5.1.1.1-2 
-	 * Set to the EPS Access Point Name to which the UE
-	 * attaches the new PDN connection.
-	 * The encoding the APN field follows 3GPP TS 23.003
-	 * [12] subclause 9.1 but excluding the trailing zero byte.
-	 * The content of the APN field shall be the full APN with
-	 * both the APN Network Identifier and default APN
-	 * Operator Identifier being present as specified in 3GPP
-	 * TS 23.003 [12] subclauses 9.1.1 and 9.1.2
-	 * NOTE 4.
-	 * NOTE 4: The APN field is not encoded as a dotted string as commonly used in documentation
-	 */
+    /* 3GPP TS 29.275 version 10.5.0 Release 10, Table 5.1.1.1-2
+     * Set to the EPS Access Point Name to which the UE
+     * attaches the new PDN connection.
+     * The encoding the APN field follows 3GPP TS 23.003
+     * [12] subclause 9.1 but excluding the trailing zero byte.
+     * The content of the APN field shall be the full APN with
+     * both the APN Network Identifier and default APN
+     * Operator Identifier being present as specified in 3GPP
+     * TS 23.003 [12] subclauses 9.1.1 and 9.1.2
+     * NOTE 4.
+     * NOTE 4: The APN field is not encoded as a dotted string as commonly used in documentation
+     */
 
     if (len > 0) {
-		/* init buffer and copy it */
-		memset(str, 0, MAX_APN_LENGTH);
-		tvb_memcpy(tvb, str, offset, len<MAX_APN_LENGTH?len:MAX_APN_LENGTH);
-
-		curr_len = 0;
-		while ((curr_len < len) && (curr_len < MAX_APN_LENGTH))
-		{
-			guint step    = str[curr_len];
-			str[curr_len] = '.';
-			curr_len     += step+1;
-		}
-		/* High light bytes including the first lenght byte, excluded from str(str+1) */
-        proto_tree_add_text(opt_tree, tvb, offset, len, "Identifier: %s", str+1);
-        proto_item_append_text(hdr_item, ": %s", str+1);
+        str = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, len, ENC_UTF_8|ENC_NA);
+        proto_tree_add_string(opt_tree, hf_mip6_opt_ss_identifier, tvb, offset, len, str);
+        proto_item_append_text(hdr_item, ": %s", str);
     }
 }
 
@@ -2656,7 +2689,7 @@ dissect_pmip6_opt_bi(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
         proto_tree_add_item(opt_tree, hf_mip6_bi_coa_ipv4, tvb, offset, 4, ENC_BIG_ENDIAN);
     }else if (optlen == 20) {
         /* Ipv6 Addr */
-        proto_tree_add_item(opt_tree, hf_mip6_bi_coa_ipv6, tvb, offset, 16, ENC_BIG_ENDIAN);
+        proto_tree_add_item(opt_tree, hf_mip6_bi_coa_ipv6, tvb, offset, 16, ENC_NA);
     }
 }
 
@@ -2793,13 +2826,8 @@ dissect_pmip6_opt_ipv4dsm(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
     proto_tree_add_item(opt_tree, hf_mip6_ipv4dsm_reserved, tvb,
             offset, 2, ENC_BIG_ENDIAN);
     proto_tree_add_item(opt_tree, hf_mip6_ipv4dsm_s_flag, tvb, offset, 2, ENC_BIG_ENDIAN);
-
-    offset += 2;
-
-
-    proto_item_append_text(hdr_item, ": %s", tvb_ip_to_str(tvb,offset));
-
 }
+
 /* 40 Context Request Option [RFC5949] */
 /*
      0                   1                   2                   3
@@ -2895,12 +2923,86 @@ dissect_pmip6_opt_lmaa(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
         proto_item_append_text(hdr_item, ": %s", tvb_ip_to_str(tvb,offset));
     }else if (opt_code == 2) {
         /* Ipv6 Addr */
-        proto_tree_add_item(opt_tree, hf_mip6_lmaa_ipv6, tvb, offset, 16, ENC_BIG_ENDIAN);
+        proto_tree_add_item(opt_tree, hf_mip6_lmaa_ipv6, tvb, offset, 16, ENC_NA);
         proto_item_append_text(hdr_item, ": %s", tvb_ip6_to_str(tvb,offset));
     }
 
 }
 
+static void
+dissect_pmip6_opt_recap(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
+              guint optlen _U_, packet_info *pinfo _U_, proto_tree *opt_tree, proto_item *hdr_item _U_ )
+{
+
+    offset++;
+    proto_tree_add_item(opt_tree, hf_mip6_opt_len, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset++;
+    proto_tree_add_item(opt_tree, hf_mip6_opt_recap_reserved, tvb, offset, 2, ENC_BIG_ENDIAN);
+    /*offset +=2;*/
+
+}
+
+static void
+dissect_pmip6_opt_redir(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
+              guint optlen _U_, packet_info *pinfo _U_, proto_tree *opt_tree, proto_item *hdr_item _U_ )
+{
+    guint16 flag;
+
+    offset++;
+    proto_tree_add_item(opt_tree, hf_mip6_opt_len, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset++;
+    proto_tree_add_item(opt_tree, hf_mip6_opt_redir_k, tvb, offset, 2, ENC_BIG_ENDIAN);
+    proto_tree_add_item(opt_tree, hf_mip6_opt_redir_n, tvb, offset, 2, ENC_BIG_ENDIAN);
+    proto_tree_add_item(opt_tree, hf_mip6_opt_redir_reserved, tvb, offset, 2, ENC_BIG_ENDIAN);
+    flag = tvb_get_ntohs(tvb ,offset);
+    offset +=2;
+
+    if (flag & MIP6_REDIR_FLAG_K) {
+        proto_tree_add_item(opt_tree, hf_mip6_opt_redir_addr_r2LMA_ipv6, tvb, offset, 16, ENC_NA);
+        offset +=16;
+    }
+
+
+    if (flag & MIP6_REDIR_FLAG_N) {
+        proto_tree_add_item(opt_tree, hf_mip6_opt_redir_addr_r2LMA_ipv4, tvb, offset, 4, ENC_BIG_ENDIAN);
+        /*offset +=4;*/
+    }
+
+}
+
+static void
+dissect_pmip6_opt_load_inf(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
+              guint optlen _U_, packet_info *pinfo _U_, proto_tree *opt_tree, proto_item *hdr_item _U_ )
+{
+
+    offset++;
+    proto_tree_add_item(opt_tree, hf_mip6_opt_len, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset++;
+    proto_tree_add_item(opt_tree, hf_mip6_opt_load_inf_priority, tvb, offset, 2, ENC_BIG_ENDIAN);
+    offset +=2;
+    proto_tree_add_item(opt_tree, hf_mip6_opt_load_inf_sessions_in_use, tvb, offset, 4, ENC_BIG_ENDIAN);
+    offset +=4;
+    proto_tree_add_item(opt_tree, hf_mip6_opt_load_inf_maximum_sessions, tvb, offset, 4, ENC_BIG_ENDIAN);
+    offset +=4;
+    proto_tree_add_item(opt_tree, hf_mip6_opt_load_inf_used_capacity, tvb, offset, 4, ENC_BIG_ENDIAN);
+    offset +=4;
+    proto_tree_add_item(opt_tree, hf_mip6_opt_load_inf_maximum_capacity, tvb, offset, 4, ENC_BIG_ENDIAN);
+    /*offset +=4;*/
+}
+
+
+static void
+dissect_pmip6_opt_alt_ip4(const mip6_opt *optp _U_, tvbuff_t *tvb, int offset,
+              guint optlen _U_, packet_info *pinfo _U_, proto_tree *opt_tree, proto_item *hdr_item _U_ )
+{
+
+    offset++;
+    proto_tree_add_item(opt_tree, hf_mip6_opt_len, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset++;
+    proto_tree_add_item(opt_tree, hf_mip6_opt_alt_ip4, tvb, offset, 4, ENC_BIG_ENDIAN);
+    /*offset +=4;*/
+
+}
 /* RFC 6602
     The type value for this option is 50.
 
@@ -3295,10 +3397,42 @@ static const mip6_opt mip6_opts[] = {
 /* 43 Transient Binding [RFC-ietf-mipshop-transient-bce-pmipv6-07] */
 /* 44 Flow Summary Mobility Option [RFC-ietf-mext-flow-binding-11] */
 /* 45 Flow Identification Mobility Option [RFC-ietf-mext-flow-binding-11]] */
-/* 46 Redirect-Capability Mobility Option [RFC6463] */
-/* 47 Redirect Mobility Option [RFC6463] */
-/* 48 Load Information Mobility Option [RFC6463] */
-/* 49 Alternate IPv4 Care-of Address [RFC6463] */
+
+{
+    MIP6_RECAP,               /* 46 Redirect-Capability Mobility Option [RFC6463] */
+    "Redirect-Capability",
+    &ett_mip6_opt_recap,
+    OPT_LEN_FIXED_LENGTH,
+    MIP6_RECAP_LEN,
+    dissect_pmip6_opt_recap
+},
+{
+    MIP6_REDIR,               /* 47 Redirect Mobility Option [RFC6463] */
+    "Redirect",
+    &ett_mip6_opt_redir,
+    OPT_LEN_VARIABLE_LENGTH,
+    MIP6_REDIR_MIN_LEN,
+    dissect_pmip6_opt_redir
+},
+{
+    MIP6_LOAD_INF,               /* 48 Load Information Mobility Option [RFC6463] */
+    "Load Information",
+    &ett_mip6_opt_load_inf,
+    OPT_LEN_FIXED_LENGTH,
+    MIP6_LOAD_INF_LEN,
+    dissect_pmip6_opt_load_inf
+},
+
+{
+    MIP6_ALT_IP4_CO,               /* 49 Alternate IPv4 Care-of Address [RFC6463] */
+    "Alternate IPv4",
+    &ett_mip6_opt_alt_ip4,
+    OPT_LEN_FIXED_LENGTH,
+    MIP6_ALT_IP4_LEN,
+    dissect_pmip6_opt_alt_ip4
+},
+
+
 {
     MIP6_MNG,               /* 50 Mobile Node Group Identifier [RFC6602] */
     "Mobile Node Group Identifier",
@@ -3401,11 +3535,8 @@ dissect_mipv6_options(tvbuff_t *tvb, int offset, guint length,
                 }
                 proto_tree_add_item(opt_data_tree, hf_mip6_mobility_opt, tvb, offset, 1, ENC_BIG_ENDIAN);
                 if (optp == NULL) {
-                    proto_item *expert_item;
                     proto_item_append_text(ti, "(%u byte%s)",len, plurality(len, "", "s"));
-                    expert_item = proto_tree_add_text(opt_tree, tvb,  offset+2, len, "IE data not dissected yet");
-                    expert_add_info_format(pinfo, expert_item, PI_PROTOCOL, PI_NOTE, "IE data not dissected yet");
-                    PROTO_ITEM_SET_GENERATED(expert_item);
+                    expert_add_info(pinfo, ti, &ei_mip6_ie_not_dissected);
                 } else {
                     if (dissect != NULL) {
                         /* Option has a dissector. */
@@ -3482,10 +3613,10 @@ dissect_mip6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         proto_tree_add_item(mip6_tree, hf_mip6_proto, tvb,
                 MIP6_PROTO_OFF, 1, ENC_BIG_ENDIAN);
 
-        proto_tree_add_uint_format(mip6_tree, hf_mip6_hlen, tvb,
+        proto_tree_add_uint_format_value(mip6_tree, hf_mip6_hlen, tvb,
                 MIP6_HLEN_OFF, 1,
                 tvb_get_guint8(tvb, MIP6_HLEN_OFF),
-                "Header length: %u (%u bytes)",
+                "%u (%u bytes)",
                 tvb_get_guint8(tvb, MIP6_HLEN_OFF),
                 len);
 
@@ -3525,7 +3656,7 @@ dissect_mip6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         break;
     case MIP6_BU:
         /* 5 Binding Update */
-		pinfo->link_dir = P2P_DIR_UL;
+        pinfo->link_dir = P2P_DIR_UL;
         offset = dissect_mip6_bu(tvb, mip6_tree, pinfo);
         if (proto_nemo == 1) {
             col_set_str(pinfo->cinfo, COL_PROTOCOL, "NEMO");
@@ -3533,7 +3664,7 @@ dissect_mip6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         break;
     case MIP6_BA:
         /* 6 Binding Acknowledgement */
-		pinfo->link_dir = P2P_DIR_DL;
+        pinfo->link_dir = P2P_DIR_DL;
         offset = dissect_mip6_ba(tvb, mip6_tree, pinfo);
         if (proto_nemo == 1) {
             col_set_str(pinfo->cinfo, COL_PROTOCOL, "NEMO");
@@ -3557,10 +3688,10 @@ dissect_mip6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         break;
     case MIP6_EMH:
         /* 11 Experimental Mobility Header RFC5096 */
-		/* There are no fields in the message beyond the required fields 
+        /* There are no fields in the message beyond the required fields
          * in the Mobility Header.
          */
-		offset = MIP6_DATA_OFF;
+        offset = MIP6_DATA_OFF;
         break;
     case MIP6_HAS:
         /* 12 Home Agent Switch */
@@ -3585,10 +3716,10 @@ dissect_mip6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         break;
     case MIP6_LRI:
         /* 17 Localized Routing Initiation */
-		/* Fall trough */
+        /* Fall trough */
     case MIP6_LRA:
         /* 18 Localized Routing Acknowledgment */
-		/* Fall trough */
+        /* Fall trough */
     default:
         dissect_mip6_unknown(tvb, mip6_tree, pinfo);
         offset = len;
@@ -3614,6 +3745,17 @@ dissect_mip6(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         dissector_try_uint(ip_dissector_table, pproto, ipv6_tvb, pinfo, tree);
 
         col_set_str(pinfo->cinfo, COL_INFO, "Fast Neighbor Advertisement[Fast Binding Update]");
+    }
+
+    if ((type == MIP6_FBACK) && (pproto == IP_PROTO_AH)) {
+        tvbuff_t *ipv6_tvb;
+
+        ipv6_tvb = tvb_new_subset_remaining(tvb, len + offset);
+
+        /* Call the IPv6 dissector */
+        dissector_try_uint(ip_dissector_table, pproto, ipv6_tvb, pinfo, tree);
+
+        col_set_str(pinfo->cinfo, COL_INFO, "Fast Binding Acknowledgment");
     }
 }
 
@@ -3922,12 +4064,12 @@ proto_register_mip6(void)
         FT_UINT8, BASE_DEC|BASE_EXT_STRING, &gtpv2_cause_vals_ext, 0x0,
         "GTPv2 Cause values", HFILL }
     },
-	{ &hf_mip6_opt_3gpp_pdn_gw_ipv4_addr,
+    { &hf_mip6_opt_3gpp_pdn_gw_ipv4_addr,
       { "PDN GW IPv4 address", "mip6.3gpp.pdn_gw_ipv4_addr",
         FT_IPv4, BASE_NONE, NULL, 0,
         NULL, HFILL }
     },
-	{ &hf_mip6_opt_3gpp_pdn_gw_ipv6_addr,
+    { &hf_mip6_opt_3gpp_pdn_gw_ipv6_addr,
       { "PDN GW IPv6 address", "mip6.3gpp.pdn_gw_ipv6_addr",
         FT_IPv6, BASE_NONE, NULL, 0,
         NULL, HFILL }
@@ -3952,17 +4094,17 @@ proto_register_mip6(void)
         FT_UINT32, BASE_DEC, NULL, 0x0,
         NULL, HFILL }
     },
-	{ &hf_mip6_opt_3gpp_charging_characteristic,
+    { &hf_mip6_opt_3gpp_charging_characteristic,
       {"Charging Characteristic", "mip6.3gpp.charging_characteristic",
         FT_UINT16, BASE_HEX, NULL, 0xffff,
         NULL, HFILL}
       },
-	{ &hf_mip6_opt_3gpp_mei,
+    { &hf_mip6_opt_3gpp_mei,
       {"Mobile Equipment Identity (MEI)", "mip6.3gpp.mei",
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL}
     },
-	{ &hf_mip6_opt_3gpp_msisdn,
+    { &hf_mip6_opt_3gpp_msisdn,
       {"MSISDN", "mip6.3gpp.msisdn",
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL}
@@ -3977,7 +4119,7 @@ proto_register_mip6(void)
         FT_UINT8, BASE_DEC, NULL, 0x0,
         NULL, HFILL }
     },
-	{ &hf_mip6_opt_3gpp_imsi,
+    { &hf_mip6_opt_3gpp_imsi,
       {"Unauthenticated IMSI", "mip6.3gpp.imsi",
         FT_STRING, BASE_NONE, NULL, 0,
         NULL, HFILL}
@@ -3993,7 +4135,7 @@ proto_register_mip6(void)
         NULL, HFILL}
     },
 
-	{ &hf_mip6_bra_interval,
+    { &hf_mip6_bra_interval,
       { "Refresh interval", "mip6.bra.interval",
         FT_UINT16, BASE_DEC, NULL, 0,
         NULL, HFILL }
@@ -4114,6 +4256,11 @@ proto_register_mip6(void)
     { &hf_mip6_vsm_subtype_3gpp,
       { "Subtype", "mip6.vsm.subtype",
         FT_UINT8, BASE_DEC | BASE_EXT_STRING, &mip6_vsm_subtype_3gpp_value_ext, 0,
+        NULL, HFILL }
+    },
+    { &hf_mip6_opt_ss_identifier,
+      { "Identifier", "mip6.ss.identifier",
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }
     },
     { &hf_mip6_opt_badff_spi,
@@ -4352,37 +4499,106 @@ proto_register_mip6(void)
 
     { &hf_pmip6_bri_ip_flag,
       { "Proxy Binding (P) Flag", "mip6.bri_ip",
-        FT_BOOLEAN, 8, TFS(&tfs_set_notset), 0x80,
+        FT_BOOLEAN, 16, TFS(&tfs_set_notset), 0x8000,
         NULL, HFILL }
     },
 
-    { &hf_pmip6_bri_ia_flag,
-      { "Acknowledge (A) Flag", "mip6.bri_ia",
-        FT_BOOLEAN, 8, TFS(&tfs_set_notset), 0x40,
+    { &hf_pmip6_bri_iv_flag,
+      { "IPv4 HoA Binding Only (V) Flag", "mip6.bri_iv",
+        FT_BOOLEAN, 16, TFS(&tfs_set_notset), 0x4000,
         NULL, HFILL }
     },
 
     { &hf_pmip6_bri_ig_flag,
       { "Global (G) Flag", "mip6.bri_ig",
-        FT_BOOLEAN, 8, TFS(&tfs_set_notset), 0x20,
+        FT_BOOLEAN, 16, TFS(&tfs_set_notset), 0x2000,
         NULL, HFILL }
     },
 
     { &hf_pmip6_bri_ap_flag,
       { "Proxy Binding (P) Flag", "mip6.bri_ap",
-        FT_BOOLEAN, 8, TFS(&tfs_set_notset), 0x80,
+        FT_BOOLEAN, 16, TFS(&tfs_set_notset), 0x8000,
+        NULL, HFILL }
+    },
+    { &hf_pmip6_bri_av_flag,
+      { "IPv4 HoA Binding Only (V) Flag", "mip6.bri_av",
+        FT_BOOLEAN, 16, TFS(&tfs_set_notset), 0x4000,
         NULL, HFILL }
     },
 
     { &hf_pmip6_bri_ag_flag,
       { "Global (G) Flag", "mip6.bri_ag",
-        FT_BOOLEAN, 8, TFS(&tfs_set_notset), 0x40,
+        FT_BOOLEAN, 16, TFS(&tfs_set_notset), 0x2000,
         NULL, HFILL }
     },
 
     { &hf_pmip6_bri_res,
-      { "Reserved: 1 byte", "mip6.bri_res",
-        FT_UINT8, BASE_DEC, NULL, 0x0,
+      { "Reserved", "mip6.bri_res",
+        FT_UINT16, BASE_HEX, NULL, 0x1FFF,
+        "Must be zero", HFILL }
+    },
+
+    { &hf_mip6_opt_recap_reserved,
+      { "Reserved", "mip6.recap.reserved",
+        FT_UINT16, BASE_HEX, NULL, 0x0,
+        "Must be zero", HFILL }
+    },
+
+    { &hf_mip6_opt_redir_k,
+      { "K", "mip6.redir.k",
+        FT_BOOLEAN, 16, NULL, MIP6_REDIR_FLAG_K,
+        "bit is set (1) if the Optional IPv6 r2LMA Address is included in the mobility option", HFILL }
+    },
+    { &hf_mip6_opt_redir_n,
+      { "N", "mip6.redir.n",
+        FT_BOOLEAN, 16, NULL, MIP6_REDIR_FLAG_K,
+        "bit is set (1) if the Optional IPv4 r2LMA Address is included in the mobility option", HFILL }
+    },
+    { &hf_mip6_opt_redir_reserved,
+      { "Reserved", "mip6.redir.reserved",
+        FT_UINT16, BASE_HEX, NULL, MIP6_REDIR_FLAG_RSV,
+        "Must be zero", HFILL }
+    },
+    { &hf_mip6_opt_redir_addr_r2LMA_ipv6,
+      { "IPv6 r2LMA Address", "mip6.redir.addr_r2lma_ipv6",
+        FT_IPv6, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }
+    },
+    { &hf_mip6_opt_redir_addr_r2LMA_ipv4,
+      { "IPv4 r2LMA Address", "mip6.redir.addr_r2lma_ipv4",
+        FT_IPv4, BASE_NONE, NULL, 0x0,
+        NULL, HFILL }
+    },
+
+    { &hf_mip6_opt_load_inf_priority,
+      { "Priority", "mip6.load_inf.priority",
+        FT_UINT16, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }
+    },
+    { &hf_mip6_opt_load_inf_sessions_in_use,
+      { "Sessions in Use", "mip6.load_inf.sessions_in_use",
+        FT_UINT32, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }
+    },
+    { &hf_mip6_opt_load_inf_maximum_sessions,
+      { "Maximum Sessions", "mip6.load_inf.maximum_sessions",
+        FT_UINT32, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }
+    },
+    { &hf_mip6_opt_load_inf_used_capacity,
+      { "Used Capacity", "mip6.load_inf.used_capacity",
+        FT_UINT32, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }
+    },
+    { &hf_mip6_opt_load_inf_maximum_capacity,
+      { "Maximum Capacity", "mip6.load_inf.maximum_capacity",
+        FT_UINT32, BASE_DEC, NULL, 0x0,
+        NULL, HFILL }
+    },
+
+    { &hf_mip6_opt_alt_ip4,
+      { "Alternate IPv4 Care-of Address", "mip6.alt_ip4",
+        FT_IPv4, BASE_NONE, NULL, 0x0,
         NULL, HFILL }
     },
 
@@ -4451,8 +4667,18 @@ proto_register_mip6(void)
         &ett_mip6_opt_ipv4dsm,
         &ett_mip6_opt_cr,
         &ett_mip6_opt_lmaa,
+        &ett_mip6_opt_recap,
+        &ett_mip6_opt_redir,
+        &ett_mip6_opt_load_inf,
+        &ett_mip6_opt_alt_ip4,
         &ett_mip6_opt_mng,
     };
+
+    static ei_register_info ei[] = {
+        { &ei_mip6_ie_not_dissected, { "mip6.ie_not_dissected", PI_UNDECODED, PI_NOTE, "IE data not dissected yet", EXPFILL }},
+    };
+
+    expert_module_t* expert_mip6;
 
     /* Register the protocol name and description */
     proto_mip6 = proto_register_protocol("Mobile IPv6 / Network Mobility", "MIPv6", "mipv6");
@@ -4463,6 +4689,10 @@ proto_register_mip6(void)
     /* Required function calls to register the header fields and subtrees used */
     proto_register_field_array(proto_mip6, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_mip6 = expert_register_protocol(proto_mip6);
+    expert_register_field_array(expert_mip6, ei, array_length(ei));
+
+    mip6_vsm_dissector_table = register_dissector_table("mip6.vsm", "Mobile IPv6 vendor specific option", FT_UINT32, BASE_DEC);
 }
 
 void
@@ -4477,4 +4707,19 @@ proto_reg_handoff_mip6(void)
     /* Add support for PMIPv6 control messages over IPV4 */
     dissector_add_uint("udp.port", UDP_PORT_PMIP6_CNTL, mip6_handle);
     ip_dissector_table = find_dissector_table("ip.proto");
+
+    dissector_add_uint("mip6.vsm", VENDOR_THE3GPP, new_create_dissector_handle(dissect_mip6_opt_vsm_3gpp, proto_mip6));
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

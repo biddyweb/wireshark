@@ -1,8 +1,6 @@
 /* conversations_rsvp.c
  * conversations_rsvp.c  August 2005, Manu Pathak <mapathak@cisco.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -38,14 +36,16 @@
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/conversations_table.h"
 
+void register_tap_listener_rsvp_conversation(void);
+
 static int
 rsvp_conversation_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
 {
-	const rsvp_conversation_info *rsvph = vip;
+	const rsvp_conversation_info *rsvph = (const rsvp_conversation_info *)vip;
 
 	add_conversation_table_data((conversations_table *)pct,
 				    &rsvph->source, &rsvph->destination, 0, 0, 1,
-				    pinfo->fd->pkt_len, &pinfo->fd->rel_ts, SAT_NONE, PT_NONE);
+				    pinfo->fd->pkt_len, &pinfo->rel_ts, SAT_NONE, PT_NONE);
 
 	return 1;
 }

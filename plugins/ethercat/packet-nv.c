@@ -1,8 +1,6 @@
 /* packet-nv.c
  * Routines for ethercat packet disassembly
  *
- * $Id$
- *
  * Copyright (c) 2007 by Beckhoff Automation GmbH
  *
  * Wireshark - Network traffic analyzer
@@ -33,6 +31,9 @@
 #include <epan/packet.h>
 
 #include "packet-nv.h"
+
+void proto_register_nv(void);
+void proto_reg_handoff_nv(void);
 
 /* Define the nv proto */
 int proto_nv  = -1;

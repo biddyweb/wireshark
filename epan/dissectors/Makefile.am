@@ -1,7 +1,5 @@
 # Makefile.am
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 2004 Gerald Combs
@@ -20,7 +18,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-noinst_LTLIBRARIES = libdirtydissectors.la libdissectors.la
+noinst_LTLIBRARIES = libdirtydissectors.la libfiledissectors.la libdissectors.la
 
 AM_CPPFLAGS = -I$(srcdir)/../.. -I$(srcdir)/.. \
 	$(LIBGNUTLS_CFLAGS) $(LIBGCRYPT_CFLAGS)
@@ -28,13 +26,16 @@ AM_CPPFLAGS = -I$(srcdir)/../.. -I$(srcdir)/.. \
 include Makefile.common
 
 libdirtydissectors_la_SOURCES = \
-	$(DIRTY_DISSECTOR_SRC)      \
-	$(DIRTY_ASN1_DISSECTOR_SRC) \
+	$(DIRTY_DISSECTOR_SRC)		\
+	$(DIRTY_ASN1_DISSECTOR_SRC)	\
 	$(DIRTY_PIDL_DISSECTOR_SRC)
 
 if HAVE_WARNINGS_AS_ERRORS
 AM_CLEAN_CFLAGS = -Werror
 endif
+
+libfiledissectors_la_SOURCES = \
+	$(FILE_DISSECTOR_SRC)
 
 libdissectors_la_SOURCES = \
 	$(DISSECTOR_SRC) \
@@ -43,7 +44,7 @@ libdissectors_la_SOURCES = \
 	$(DISSECTOR_SUPPORT_SRC)
 libdissectors_la_CFLAGS = $(AM_CLEAN_CFLAGS)
 
-# include dceprc and pidl in the source tarball.  But nothing to build...
+# include dceprc and pidl in the source tarball. But nothing to build...
 DIST_SUBDIRS = dcerpc pidl
 
 EXTRA_DIST = \
@@ -52,7 +53,6 @@ EXTRA_DIST = \
 	Makefile.nmake		\
 	packet-ncp2222.inc	\
 	README.X11		\
-	dissectors.vcproj	\
 	x11-fields
 
 packet-ncp2222.c : $(top_srcdir)/tools/ncp2222.py
@@ -70,11 +70,11 @@ x11-dissector: $(top_srcdir)/tools/process-x11-fields.pl x11-fields $(top_srcdir
 # register_all_protocol_handoffs() that calls the handoff registration
 # routines for all protocols.
 #
-# We do this by scanning through sources.  If that turns out to be too slow,
+# We do this by scanning through sources. If that turns out to be too slow,
 # maybe we could just require every .o file to have an register routine
 # of a given name (packet-aarp.o -> proto_register_aarp, etc.).
 #
-# Formatting conventions:  The name of the proto_register_* routines an
+# Formatting conventions: The name of the proto_register_* routines an
 # proto_reg_handoff_* routines must start in column zero, or must be
 # preceded only by "void " starting in column zero, and must not be
 # inside #if.
@@ -88,7 +88,7 @@ x11-dissector: $(top_srcdir)/tools/process-x11-fields.pl x11-fields $(top_srcdir
 #
 # Therefore, we have a script to generate the register.c file.
 # The shell script runs slowly, as multiple greps and seds are run
-# for each input file; this is especially slow on Windows.  Therefore,
+# for each input file; this is especially slow on Windows. Therefore,
 # if Python is present (as indicated by PYTHON being defined), we run
 # a faster Python script to do that work instead.
 #
@@ -115,7 +115,7 @@ register.c: $(plugin_src) $(ALL_DISSECTORS_SRC) Makefile.common Custom.common $(
 # variably build something, making register.c non-portable, uncomment
 # the dist-hook line below.
 #
-# Oh, yuk.  We don't want to include "register.c" in the distribution, as
+# Oh, yuk. We don't want to include "register.c" in the distribution, as
 # its contents depend on the configuration, and therefore we want it
 # to be built when the first "make" is done; however, Automake insists
 # on putting *all* source into the distribution.
@@ -127,7 +127,7 @@ register.c: $(plugin_src) $(ALL_DISSECTORS_SRC) Makefile.common Custom.common $(
 #	@rm -f $(distdir)/register.c
 
 # XXX - We may want to add register-cache.pkl to the distribution at
-# some point.  It should be portable across architectures.
+# some point. It should be portable across architectures.
 CLEANFILES = \
 	libdissectors.a			\
 	libdissectors.la		\
@@ -143,5 +143,6 @@ MAINTAINERCLEANFILES =	\
 	Makefile.in
 
 checkapi:
-	$(PERL) ../../tools/checkAPIs.pl -g abort -g termoutput -build \
-		$(ALL_DISSECTORS_SRC) $(DISSECTOR_INCLUDES) $(DISSECTOR_SUPPORT_SRC)
+	$(PERL) $(top_srcdir)/tools/checkAPIs.pl -g abort -g termoutput -build \
+	-sourcedir=$(srcdir) \
+	$(ALL_DISSECTORS_SRC) $(DISSECTOR_INCLUDES) $(DISSECTOR_SUPPORT_SRC)

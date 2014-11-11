@@ -6,8 +6,6 @@
  * Portions Copyright (c) Gilbert Ramirez 2000-2002
  * Portions Copyright (c) Novell, Inc. 2000-2003
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2000 Gerald Combs
@@ -78,7 +76,7 @@ struct _sub_ptvc_record {
 
 typedef struct {
 	const char		*dfilter_text;
-	dfilter_t		*dfilter;
+	struct epan_dfilter	*dfilter;
 } conditional_record;
 
 typedef struct {
@@ -155,8 +153,6 @@ extern gint ett_nds_segments;
 extern gint ett_nds_segment;
 
 /*extern dissector_handle_t nds_data_handle;*/
-extern GHashTable *nds_fragment_table;
-extern GHashTable *nds_reassembled_table;
 
 /*
  * NCP packet types.

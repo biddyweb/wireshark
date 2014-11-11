@@ -4,8 +4,6 @@
  * NET/ROM inter-node frames.
  * Copyright 2005,2006,2007,2008,2009,2010,2012 R.W. Stearn <richard@rns-stearn.demon.co.uk>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -48,10 +46,14 @@
 #include <glib.h>
 
 #include <epan/packet.h>
-#include <epan/emem.h>
+#include <epan/to_str.h>
+#include <epan/wmem/wmem.h>
 #include <epan/ax25_pids.h>
 
 #include "packet-netrom.h"
+
+void proto_register_netrom(void);
+void proto_reg_handoff_netrom(void);
 
 #define STRLEN 80
 
@@ -73,9 +75,6 @@
 #define	NETROM_CHOKE_FLAG	0x80
 
 #define NETROM_PROTO_IP		0x0C
-
-/* Forward declaration we need below */
-void proto_reg_handoff_netrom(void);
 
 /* Dissector handles - all the possibles are listed */
 static dissector_handle_t ip_handle;
@@ -163,7 +162,7 @@ dissect_netrom_type(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *t
 	type    =  tvb_get_guint8( tvb, offset );
 	op_code = type &0x0f;
 
-	info_buffer = ep_strdup_printf( "%s%s%s%s (0x%02x)",
+	info_buffer = wmem_strdup_printf( wmem_packet_scope(), "%s%s%s%s (0x%02x)",
 					val_to_str_const( op_code, op_code_vals_text, "Unknown" ),
 					( type & NETROM_MORE_FLAG  ) ? ", More"  : "",
 					( type & NETROM_NAK_FLAG   ) ? ", NAK"   : "",
@@ -184,10 +183,10 @@ dissect_netrom_type(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree *t
 						);
 		type_tree = proto_item_add_subtree( tc, ett_netrom_type_param );
 
-		proto_tree_add_item( type_tree, *type_items->hf_tf_op, tvb, offset, 1, FALSE );
-		proto_tree_add_item( type_tree, *type_items->hf_tf_choke, tvb, offset, 1, FALSE );
-		proto_tree_add_item( type_tree, *type_items->hf_tf_nak, tvb, offset, 1, FALSE );
-		proto_tree_add_item( type_tree, *type_items->hf_tf_more, tvb, offset, 1, FALSE );
+		proto_tree_add_item( type_tree, *type_items->hf_tf_op, tvb, offset, 1, ENC_BIG_ENDIAN );
+		proto_tree_add_item( type_tree, *type_items->hf_tf_choke, tvb, offset, 1, ENC_BIG_ENDIAN );
+		proto_tree_add_item( type_tree, *type_items->hf_tf_nak, tvb, offset, 1, ENC_BIG_ENDIAN );
+		proto_tree_add_item( type_tree, *type_items->hf_tf_more, tvb, offset, 1, ENC_BIG_ENDIAN );
 		}
 }
 
@@ -208,7 +207,6 @@ dissect_netrom_proto(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	guint8        op_code;
 	guint8        cct_index;
 	guint8        cct_id;
-	void         *saved_private_data;
 	tvbuff_t     *next_tvb = NULL;
 
 	col_set_str( pinfo->cinfo, COL_PROTOCOL, "NET/ROM" );
@@ -448,7 +446,6 @@ dissect_netrom_proto(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	/* Call sub-dissectors here */
 
-	saved_private_data = pinfo->private_data;
 	next_tvb = tvb_new_subset_remaining(tvb, offset);
 
 	switch ( op_code )
@@ -465,14 +462,11 @@ dissect_netrom_proto(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 					call_dissector( default_handle , next_tvb, pinfo, tree );
 					break;
 		}
-
-	pinfo->private_data = saved_private_data;
 }
 
 static void
 dissect_netrom_routing(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-	void     *saved_private_data;
 	tvbuff_t *next_tvb;
 
 	col_set_str( pinfo->cinfo, COL_PROTOCOL, "NET/ROM");
@@ -492,13 +486,9 @@ dissect_netrom_routing(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		proto_tree_add_item( netrom_tree, hf_netrom_mnemonic, tvb, 1, 6, ENC_ASCII|ENC_NA );
 		}
 
-	saved_private_data = pinfo->private_data;
 	next_tvb = tvb_new_subset_remaining(tvb, 7);
 
 	call_dissector( default_handle , next_tvb, pinfo, tree );
-
-	pinfo->private_data = saved_private_data;
-
 }
 
 /* Code to actually dissect the packets */

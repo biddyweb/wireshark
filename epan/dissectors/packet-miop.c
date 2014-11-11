@@ -8,8 +8,6 @@
  * Chapter 29: Unreliable Multicast Inter-ORB Protocol (MIOP)
  * http://www.omg.org/technology/documents/specialized_corba.htm
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,11 +32,14 @@
 
 #include <epan/packet.h>
 
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/expert.h>
 
 #include "packet-giop.h"
 #include "packet-tcp.h"
+
+void proto_register_miop(void);
+void proto_reg_handoff_miop(void);
 
 /*
  * Useful visible data/structs
@@ -79,7 +80,10 @@ static gint hf_miop_unique_id = -1;
 
 static gint ett_miop = -1;
 
-#define MIOP_MAGIC   "MIOP"
+static expert_field ei_miop_version_not_supported = EI_INIT;
+static expert_field ei_miop_unique_id_len_exceed_max_value = EI_INIT;
+
+#define MIOP_MAGIC   0x4d494f50 /* "MIOP" */
 
 static void dissect_miop (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree);
 
@@ -87,6 +91,7 @@ static gboolean
 dissect_miop_heur (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree, void * data _U_) {
 
   guint tot_len;
+  guint32 magic;
 
   /* check magic number and version */
 
@@ -100,8 +105,11 @@ dissect_miop_heur (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree, void 
       return FALSE;
     }
 
-  if ( tvb_memeql(tvb, 0, MIOP_MAGIC ,4) != 0)
-    return FALSE;
+    magic = tvb_get_ntohl(tvb,0);
+    if(magic != MIOP_MAGIC){
+        /* Not a MIOP packet. */
+        return FALSE;
+    }
 
   if (pinfo->ptype != PT_UDP)
     return FALSE;
@@ -135,9 +143,10 @@ static void dissect_miop (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree
 
   guint32 unique_id_len;
 
-  emem_strbuf_t *flags_strbuf = ep_strbuf_new_label("none");
+  wmem_strbuf_t *flags_strbuf = wmem_strbuf_new_label(wmem_packet_scope());
+  wmem_strbuf_append(flags_strbuf, "none");
 
-  col_set_str (pinfo->cinfo, COL_PROTOCOL, MIOP_MAGIC);
+  col_set_str (pinfo->cinfo, COL_PROTOCOL, "MIOP");
   /* Clear out stuff in the info column */
   col_clear(pinfo->cinfo, COL_INFO);
 
@@ -147,22 +156,18 @@ static void dissect_miop (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree
   version_minor =  (hdr_version & 0x0f);
 
   if (hdr_version != 16)
-    {
+  {
       col_add_fstr (pinfo->cinfo, COL_INFO, "Version %u.%u",
                     version_major, version_minor);
-      if (tree)
-        {
-          ti = proto_tree_add_item (tree, proto_miop, tvb, 0, -1, ENC_NA);
-          miop_tree = proto_item_add_subtree (ti, ett_miop);
-          proto_tree_add_text (miop_tree, tvb, 0, -1,
-                               "Version %u.%u",
-                               version_major, version_minor);
-          expert_add_info_format(pinfo, ti, PI_UNDECODED, PI_WARN,
+
+      ti = proto_tree_add_item (tree, proto_miop, tvb, 0, -1, ENC_NA);
+      miop_tree = proto_item_add_subtree (ti, ett_miop);
+      proto_tree_add_expert_format(miop_tree, pinfo, &ei_miop_version_not_supported,
+                               tvb, 0, -1,
                                "MIOP version %u.%u not supported",
                                version_major, version_minor);
-        }
       return;
-    }
+  }
 
   flags = tvb_get_guint8(tvb, 5);
   byte_order = (flags & 0x01) ? ENC_LITTLE_ENDIAN : ENC_BIG_ENDIAN;
@@ -194,18 +199,19 @@ static void dissect_miop (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree
       /* XXX - Should we bail out if we don't have the right magic number? */
       proto_tree_add_item(miop_tree, hf_miop_magic, tvb, offset, 4, ENC_ASCII|ENC_NA);
       offset += 4;
-      proto_tree_add_uint_format(miop_tree, hf_miop_hdr_version, tvb, offset, 1, hdr_version,
-                                 "Version: %u.%u", version_major, version_minor);
+      proto_tree_add_uint_format_value(miop_tree, hf_miop_hdr_version, tvb, offset, 1, hdr_version,
+                                 "%u.%u", version_major, version_minor);
       offset++;
       if (flags & 0x01) {
-        ep_strbuf_printf(flags_strbuf, "little-endian");
+        wmem_strbuf_truncate(flags_strbuf, 0);
+        wmem_strbuf_append(flags_strbuf, "little-endian");
       }
       if (flags & 0x02) {
-        ep_strbuf_append_printf(flags_strbuf, "%s%s",
-                                flags_strbuf->len ? ", " : "", "last message");
+        wmem_strbuf_append_printf(flags_strbuf, "%s%s",
+                                  wmem_strbuf_get_len(flags_strbuf) ? ", " : "", "last message");
       }
       proto_tree_add_uint_format_value(miop_tree, hf_miop_flags, tvb, offset, 1,
-                                       flags, "0x%02x (%s)", flags, flags_strbuf->str);
+                                       flags, "0x%02x (%s)", flags, wmem_strbuf_get_str(flags_strbuf));
       offset++;
       proto_tree_add_item(miop_tree, hf_miop_packet_length, tvb, offset, 2, byte_order);
       offset += 2;
@@ -217,7 +223,7 @@ static void dissect_miop (tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree
       ti = proto_tree_add_item(miop_tree, hf_miop_unique_id_len, tvb, offset, 4, byte_order);
 
       if (unique_id_len >= MIOP_MAX_UNIQUE_ID_LENGTH) {
-        expert_add_info_format(pinfo, ti, PI_MALFORMED, PI_WARN,
+        expert_add_info_format(pinfo, ti, &ei_miop_unique_id_len_exceed_max_value,
                        "Unique Id length (%u) exceeds max value (%u)",
                        unique_id_len, MIOP_MAX_UNIQUE_ID_LENGTH);
         return;
@@ -285,10 +291,18 @@ void proto_register_miop (void) {
     &ett_miop
   };
 
-  proto_miop = proto_register_protocol("Unreliable Multicast Inter-ORB Protocol", "MIOP",
-                                       "miop");
+  static ei_register_info ei[] = {
+     { &ei_miop_version_not_supported, { "miop.version.not_supported", PI_UNDECODED, PI_WARN, "MIOP version not supported", EXPFILL }},
+     { &ei_miop_unique_id_len_exceed_max_value, { "miop.unique_id_len.exceed_max_value", PI_MALFORMED, PI_WARN, "Unique Id length exceeds max value", EXPFILL }},
+  };
+
+  expert_module_t* expert_miop;
+
+  proto_miop = proto_register_protocol("Unreliable Multicast Inter-ORB Protocol", "MIOP", "miop");
   proto_register_field_array (proto_miop, hf, array_length (hf));
   proto_register_subtree_array (ett, array_length (ett));
+  expert_miop = expert_register_protocol(proto_miop);
+  expert_register_field_array(expert_miop, ei, array_length(ei));
 
   register_dissector("miop", dissect_miop, proto_miop);
 
@@ -305,3 +319,16 @@ void proto_reg_handoff_miop (void) {
   heur_dissector_add("udp", dissect_miop_heur, proto_miop);
 
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 2
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=2 tabstop=8 expandtab:
+ * :indentSize=2:tabSize=8:noTabs=true:
+ */

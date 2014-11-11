@@ -1,8 +1,6 @@
 # ess.cnf
 # ExtendedSecurityServices conformation file
 
-# $Id$
-
 #.IMPORT ../x509af/x509af-exp.cnf
 #.IMPORT ../x509ce/x509ce-exp.cnf
 #.IMPORT ../cms/cms-exp.cnf
@@ -48,7 +46,7 @@ FreeFormField/bitSetAttributes  informativeAttributeFlags
   FN_VARIANT = _str  HF_INDEX = hf_ess_SecurityCategory_type_OID  VAL_PTR = &object_identifier_id
 
 #.FN_BODY SecurityCategory/value
-  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree);
+  offset=call_ber_oid_callback(object_identifier_id, tvb, offset, actx->pinfo, tree, NULL);
 
 #.FN_PARS RestrictiveTag/tagName
   FN_VARIANT = _str  VAL_PTR = &object_identifier_id
@@ -58,46 +56,46 @@ FreeFormField/bitSetAttributes  informativeAttributeFlags
 
 #.FN_PARS PermissiveTag/tagName
   FN_VARIANT = _str  VAL_PTR = &object_identifier_id
-  
+
 #.FN_PARS InformativeTag/tagName
   FN_VARIANT = _str  VAL_PTR = &object_identifier_id
 
 #.FN_PARS SecurityAttribute
   VAL_PTR = &attribute
-  
+
 #.FN_BODY SecurityAttribute
   guint32 attribute;
-  
+
   %(DEFAULT_BODY)s
   ess_dissect_attribute (attribute, actx);
-  
+
 #.FN_PARS RestrictiveTag/attributeFlags
   VAL_PTR = &attributes
-  
+
 #.FN_BODY RestrictiveTag/attributeFlags
   tvbuff_t *attributes;
-  
+
   %(DEFAULT_BODY)s
   ess_dissect_attribute_flags (attributes, actx);
-  
+
 #.FN_PARS PermissiveTag/attributeFlags
   VAL_PTR = &attributes
-  
+
 #.FN_BODY PermissiveTag/attributeFlags
   tvbuff_t *attributes;
-  
+
   %(DEFAULT_BODY)s
   ess_dissect_attribute_flags (attributes, actx);
-  
+
 #.FN_PARS FreeFormField/bitSetAttributes
   VAL_PTR = &attributes
-  
+
 #.FN_BODY FreeFormField/bitSetAttributes
   tvbuff_t *attributes;
-  
+
   %(DEFAULT_BODY)s
   ess_dissect_attribute_flags (attributes, actx);
-  
+
 #.FN_BODY Receipt
   col_set_str(actx->pinfo->cinfo, COL_PROTOCOL, "ESS");
   col_set_str(actx->pinfo->cinfo, COL_INFO, "Signed Receipt");

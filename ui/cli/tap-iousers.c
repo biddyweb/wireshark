@@ -1,8 +1,6 @@
 /* tap-iousers.c
  * iostat   2003 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -47,6 +45,8 @@
 #include <epan/dissectors/packet-fc.h>
 #include <epan/dissectors/packet-fddi.h>
 
+void register_tap_listener_iousers(void);
+
 typedef struct _io_users_t {
 	const char *type;
 	char *filter;
@@ -72,7 +72,7 @@ typedef struct _io_users_item_t {
 #define iousers_process_name_packet(iu, name1, name2, direction, pkt_len, rel_ts, abs_ts) \
     iousers_process_name_packet_with_conv_id(iu, name1, name2, CONV_ID_UNSET, direction, pkt_len, rel_ts, abs_ts)
 
-void
+static void
 iousers_process_name_packet_with_conv_id(
 	io_users_t *iu,
 	char *name1,
@@ -126,8 +126,8 @@ iousers_process_name_packet_with_conv_id(
 	}
 }
 
-void
-iousers_process_address_packet(io_users_t *iu, const address *src, const address *dst, guint64 pkt_len, 
+static void
+iousers_process_address_packet(io_users_t *iu, const address *src, const address *dst, guint64 pkt_len,
 								nstime_t *ts)
 {
 	const address *addr1, *addr2;
@@ -190,24 +190,24 @@ iousers_udpip_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, con
 
 	if(udph->uh_sport>udph->uh_dport){
 		direction=0;
-		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&udph->ip_src),get_udp_port(udph->uh_sport));
-		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&udph->ip_dst),get_udp_port(udph->uh_dport));
+		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&udph->ip_src),ep_udp_port_to_display(udph->uh_sport));
+		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&udph->ip_dst),ep_udp_port_to_display(udph->uh_dport));
 	} else if(udph->uh_sport<udph->uh_dport){
 		direction=1;
-		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&udph->ip_src),get_udp_port(udph->uh_sport));
-		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&udph->ip_dst),get_udp_port(udph->uh_dport));
+		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&udph->ip_src),ep_udp_port_to_display(udph->uh_sport));
+		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&udph->ip_dst),ep_udp_port_to_display(udph->uh_dport));
 	} else if(CMP_ADDRESS(&udph->ip_src, &udph->ip_dst)>0){
 		direction=0;
-		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&udph->ip_src),get_udp_port(udph->uh_sport));
-		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&udph->ip_dst),get_udp_port(udph->uh_dport));
+		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&udph->ip_src),ep_udp_port_to_display(udph->uh_sport));
+		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&udph->ip_dst),ep_udp_port_to_display(udph->uh_dport));
 	} else {
 		direction=1;
-		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&udph->ip_src),get_udp_port(udph->uh_sport));
-		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&udph->ip_dst),get_udp_port(udph->uh_dport));
+		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&udph->ip_src),ep_udp_port_to_display(udph->uh_sport));
+		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&udph->ip_dst),ep_udp_port_to_display(udph->uh_dport));
 	}
 
-	iousers_process_name_packet(iu, name1, name2, direction, pinfo->fd->pkt_len, &pinfo->fd->rel_ts, &pinfo->fd->abs_ts);
-	
+	iousers_process_name_packet(iu, name1, name2, direction, pinfo->fd->pkt_len, &pinfo->rel_ts, &pinfo->fd->abs_ts);
+
 	return 1;
 }
 
@@ -237,7 +237,7 @@ iousers_sctp_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, cons
 		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&sctph->ip_dst),s_dport);
 	}
 
-	iousers_process_name_packet(iu, name1, name2, direction, pinfo->fd->pkt_len, &pinfo->fd->rel_ts, &pinfo->fd->abs_ts);
+	iousers_process_name_packet(iu, name1, name2, direction, pinfo->fd->pkt_len, &pinfo->rel_ts, &pinfo->fd->abs_ts);
 
 	return 1;
 }
@@ -253,23 +253,23 @@ iousers_tcpip_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, con
 
 	if(tcph->th_sport>tcph->th_dport){
 		direction=0;
-		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&tcph->ip_src),get_tcp_port(tcph->th_sport));
-		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&tcph->ip_dst),get_tcp_port(tcph->th_dport));
+		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&tcph->ip_src),ep_tcp_port_to_display(tcph->th_sport));
+		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&tcph->ip_dst),ep_tcp_port_to_display(tcph->th_dport));
 	} else if(tcph->th_sport<tcph->th_dport){
 		direction=1;
-		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&tcph->ip_src),get_tcp_port(tcph->th_sport));
-		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&tcph->ip_dst),get_tcp_port(tcph->th_dport));
+		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&tcph->ip_src),ep_tcp_port_to_display(tcph->th_sport));
+		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&tcph->ip_dst),ep_tcp_port_to_display(tcph->th_dport));
 	} else if(CMP_ADDRESS(&tcph->ip_src, &tcph->ip_dst)>0){
 		direction=0;
-		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&tcph->ip_src),get_tcp_port(tcph->th_sport));
-		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&tcph->ip_dst),get_tcp_port(tcph->th_dport));
+		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&tcph->ip_src),ep_tcp_port_to_display(tcph->th_sport));
+		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&tcph->ip_dst),ep_tcp_port_to_display(tcph->th_dport));
 	} else {
 		direction=1;
-		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&tcph->ip_src),get_tcp_port(tcph->th_sport));
-		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&tcph->ip_dst),get_tcp_port(tcph->th_dport));
+		g_snprintf(name2,256,"%s:%s",ep_address_to_str(&tcph->ip_src),ep_tcp_port_to_display(tcph->th_sport));
+		g_snprintf(name1,256,"%s:%s",ep_address_to_str(&tcph->ip_dst),ep_tcp_port_to_display(tcph->th_dport));
 	}
 
-	iousers_process_name_packet_with_conv_id(iu, name1, name2, tcph->th_stream, direction, pinfo->fd->pkt_len, &pinfo->fd->rel_ts, &pinfo->fd->abs_ts);
+	iousers_process_name_packet_with_conv_id(iu, name1, name2, tcph->th_stream, direction, pinfo->fd->pkt_len, &pinfo->rel_ts, &pinfo->fd->abs_ts);
 
 	return 1;
 }
@@ -281,7 +281,7 @@ iousers_ip_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, const 
 	io_users_t *iu=(io_users_t *)arg;
 	const ws_ip *iph=(const ws_ip *)vip;
 
-	iousers_process_address_packet(iu, &iph->ip_src, &iph->ip_dst, pinfo->fd->pkt_len, &pinfo->fd->rel_ts);
+	iousers_process_address_packet(iu, &iph->ip_src, &iph->ip_dst, pinfo->fd->pkt_len, &pinfo->rel_ts);
 
 	return 1;
 }
@@ -299,7 +299,7 @@ iousers_ipv6_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, cons
 	src.data = &ip6h->ip6_src;
 	dst.data = &ip6h->ip6_dst;
 
-	iousers_process_address_packet(iu, &src, &dst, pinfo->fd->pkt_len, &pinfo->fd->rel_ts);
+	iousers_process_address_packet(iu, &src, &dst, pinfo->fd->pkt_len, &pinfo->rel_ts);
 
 	return 1;
 }
@@ -310,7 +310,7 @@ iousers_ipx_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, const
 	io_users_t *iu=(io_users_t *)arg;
 	const ipxhdr_t *ipxh=(const ipxhdr_t *)vipx;
 
-	iousers_process_address_packet(iu, &ipxh->ipx_src, &ipxh->ipx_dst, pinfo->fd->pkt_len, &pinfo->fd->rel_ts);
+	iousers_process_address_packet(iu, &ipxh->ipx_src, &ipxh->ipx_dst, pinfo->fd->pkt_len, &pinfo->rel_ts);
 
 	return 1;
 }
@@ -321,7 +321,7 @@ iousers_fc_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, const 
 	io_users_t *iu=(io_users_t *)arg;
 	const fc_hdr *fchdr=(const fc_hdr *)vfc;
 
-	iousers_process_address_packet(iu, &fchdr->s_id, &fchdr->d_id, pinfo->fd->pkt_len, &pinfo->fd->rel_ts);
+	iousers_process_address_packet(iu, &fchdr->s_id, &fchdr->d_id, pinfo->fd->pkt_len, &pinfo->rel_ts);
 
 	return 1;
 }
@@ -332,7 +332,7 @@ iousers_eth_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, const
 	io_users_t *iu=(io_users_t *)arg;
 	const eth_hdr *ehdr=(const eth_hdr *)veth;
 
-	iousers_process_address_packet(iu, &ehdr->src, &ehdr->dst, pinfo->fd->pkt_len, &pinfo->fd->rel_ts);
+	iousers_process_address_packet(iu, &ehdr->src, &ehdr->dst, pinfo->fd->pkt_len, &pinfo->rel_ts);
 
 	return 1;
 }
@@ -343,7 +343,7 @@ iousers_fddi_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, cons
 	io_users_t *iu=(io_users_t *)arg;
 	const fddi_hdr *ehdr=(const fddi_hdr *)veth;
 
-	iousers_process_address_packet(iu, &ehdr->src, &ehdr->dst, pinfo->fd->pkt_len, &pinfo->fd->rel_ts);
+	iousers_process_address_packet(iu, &ehdr->src, &ehdr->dst, pinfo->fd->pkt_len, &pinfo->rel_ts);
 
 	return 1;
 }
@@ -354,7 +354,7 @@ iousers_tr_packet(void *arg, packet_info *pinfo, epan_dissect_t *edt _U_, const 
 	io_users_t *iu=(io_users_t *)arg;
 	const tr_hdr *trhdr=(const tr_hdr *)vtr;
 
-	iousers_process_address_packet(iu, &trhdr->src, &trhdr->dst, pinfo->fd->pkt_len, &pinfo->fd->rel_ts);
+	iousers_process_address_packet(iu, &trhdr->src, &trhdr->dst, pinfo->fd->pkt_len, &pinfo->rel_ts);
 
 	return 1;
 }
@@ -373,10 +373,14 @@ iousers_draw(void *arg)
 
 	switch (timestamp_get_type()) {
 	case TS_ABSOLUTE:
+	case TS_UTC:
 		printf("                                               |       <-      | |       ->      | |     Total     | Absolute Time  |   Duration   |\n");
 		printf("                                               | Frames  Bytes | | Frames  Bytes | | Frames  Bytes |      Start     |              |\n");
 		break;
-	case TS_ABSOLUTE_WITH_DATE:
+	case TS_ABSOLUTE_WITH_YMD:
+	case TS_ABSOLUTE_WITH_YDOY:
+	case TS_UTC_WITH_YMD:
+	case TS_UTC_WITH_YDOY:
 		printf("                                               |       <-      | |       ->      | |     Total     | Absolute Date  |   Duration   |\n");
 		printf("                                               | Frames  Bytes | | Frames  Bytes | | Frames  Bytes |     Start      |              |\n");
 		break;
@@ -413,20 +417,60 @@ iousers_draw(void *arg)
 					iui->bytes1+iui->bytes2
 				);
 
-				tm_time = localtime(&iui->start_abs_time.secs);
 				switch (timestamp_get_type()) {
 				case TS_ABSOLUTE:
+					tm_time = localtime(&iui->start_abs_time.secs);
 					printf("%02d:%02d:%02d   %12.4f\n",
 						 tm_time->tm_hour,
 						 tm_time->tm_min,
 						 tm_time->tm_sec,
 						 nstime_to_sec(&iui->stop_rel_time) - nstime_to_sec(&iui->start_rel_time));
 					break;
-				case TS_ABSOLUTE_WITH_DATE:
+				case TS_ABSOLUTE_WITH_YMD:
+					tm_time = localtime(&iui->start_abs_time.secs);
 					printf("%04d-%02d-%02d %02d:%02d:%02d   %12.4f\n",
 						 tm_time->tm_year + 1900,
 						 tm_time->tm_mon + 1,
 						 tm_time->tm_mday,
+						 tm_time->tm_hour,
+						 tm_time->tm_min,
+						 tm_time->tm_sec,
+						 nstime_to_sec(&iui->stop_rel_time) - nstime_to_sec(&iui->start_rel_time));
+					break;
+				case TS_ABSOLUTE_WITH_YDOY:
+					tm_time = localtime(&iui->start_abs_time.secs);
+					printf("%04d/%03d %02d:%02d:%02d   %12.4f\n",
+						 tm_time->tm_year + 1900,
+						 tm_time->tm_yday + 1,
+						 tm_time->tm_hour,
+						 tm_time->tm_min,
+						 tm_time->tm_sec,
+						 nstime_to_sec(&iui->stop_rel_time) - nstime_to_sec(&iui->start_rel_time));
+					break;
+				case TS_UTC:
+					tm_time = gmtime(&iui->start_abs_time.secs);
+					printf("%02d:%02d:%02d   %12.4f\n",
+						 tm_time->tm_hour,
+						 tm_time->tm_min,
+						 tm_time->tm_sec,
+						 nstime_to_sec(&iui->stop_rel_time) - nstime_to_sec(&iui->start_rel_time));
+					break;
+				case TS_UTC_WITH_YMD:
+					tm_time = gmtime(&iui->start_abs_time.secs);
+					printf("%04d-%02d-%02d %02d:%02d:%02d   %12.4f\n",
+						 tm_time->tm_year + 1900,
+						 tm_time->tm_mon + 1,
+						 tm_time->tm_mday,
+						 tm_time->tm_hour,
+						 tm_time->tm_min,
+						 tm_time->tm_sec,
+						 nstime_to_sec(&iui->stop_rel_time) - nstime_to_sec(&iui->start_rel_time));
+					break;
+				case TS_UTC_WITH_YDOY:
+					tm_time = gmtime(&iui->start_abs_time.secs);
+					printf("%04d/%03d %02d:%02d:%02d   %12.4f\n",
+						 tm_time->tm_year + 1900,
+						 tm_time->tm_yday + 1,
 						 tm_time->tm_hour,
 						 tm_time->tm_min,
 						 tm_time->tm_sec,
@@ -449,7 +493,7 @@ iousers_draw(void *arg)
 }
 
 static void
-iousers_init(const char *optarg, void* userdata _U_)
+iousers_init(const char *opt_arg, void* userdata _U_)
 {
 	const char *filter=NULL;
 	const char *tap_type, *tap_type_name;
@@ -457,90 +501,90 @@ iousers_init(const char *optarg, void* userdata _U_)
 	io_users_t *iu=NULL;
 	GString *error_string;
 
-	if(!strncmp(optarg,"conv,eth",8)){
-		if(optarg[8]==','){
-			filter=optarg+9;
+	if(!strncmp(opt_arg,"conv,eth",8)){
+		if(opt_arg[8]==','){
+			filter=opt_arg+9;
 		} else {
 			filter=NULL;
 		}
 		tap_type="eth";
 		tap_type_name="Ethernet";
 		packet_func=iousers_eth_packet;
-	} else if(!strncmp(optarg,"conv,fc",7)){
-		if(optarg[7]==','){
-			filter=optarg+8;
+	} else if(!strncmp(opt_arg,"conv,fc",7)){
+		if(opt_arg[7]==','){
+			filter=opt_arg+8;
 		} else {
 			filter=NULL;
 		}
 		tap_type="fc";
 		tap_type_name="Fibre Channel";
 		packet_func=iousers_fc_packet;
-	} else if(!strncmp(optarg,"conv,fddi",9)){
-		if(optarg[9]==','){
-			filter=optarg+10;
+	} else if(!strncmp(opt_arg,"conv,fddi",9)){
+		if(opt_arg[9]==','){
+			filter=opt_arg+10;
 		} else {
 			filter=NULL;
 		}
 		tap_type="fddi";
 		tap_type_name="FDDI";
 		packet_func=iousers_fddi_packet;
-	} else if(!strncmp(optarg,"conv,tcp",8)){
-		if(optarg[8]==','){
-			filter=optarg+9;
+	} else if(!strncmp(opt_arg,"conv,tcp",8)){
+		if(opt_arg[8]==','){
+			filter=opt_arg+9;
 		} else {
 			filter=NULL;
 		}
 		tap_type="tcp";
 		tap_type_name="TCP";
 		packet_func=iousers_tcpip_packet;
-	} else if(!strncmp(optarg,"conv,udp",8)){
-		if(optarg[8]==','){
-			filter=optarg+9;
+	} else if(!strncmp(opt_arg,"conv,udp",8)){
+		if(opt_arg[8]==','){
+			filter=opt_arg+9;
 		} else {
 			filter=NULL;
 		}
 		tap_type="udp";
 		tap_type_name="UDP";
 		packet_func=iousers_udpip_packet;
-	} else if(!strncmp(optarg,"conv,tr",7)){
-		if(optarg[7]==','){
-			filter=optarg+8;
+	} else if(!strncmp(opt_arg,"conv,tr",7)){
+		if(opt_arg[7]==','){
+			filter=opt_arg+8;
 		} else {
 			filter=NULL;
 		}
 		tap_type="tr";
 		tap_type_name="Token Ring";
 		packet_func=iousers_tr_packet;
-	} else if(!strncmp(optarg,"conv,ipx",8)){
-		if(optarg[8]==','){
-			filter=optarg+9;
+	} else if(!strncmp(opt_arg,"conv,ipx",8)){
+		if(opt_arg[8]==','){
+			filter=opt_arg+9;
 		} else {
 			filter=NULL;
 		}
 		tap_type="ipx";
 		tap_type_name="IPX";
 		packet_func=iousers_ipx_packet;
-	} else if(!strncmp(optarg,"conv,ipv6",9)){
-		if(optarg[9]==','){
-			filter=optarg+10;
+	} else if(!strncmp(opt_arg,"conv,ipv6",9)){
+		if(opt_arg[9]==','){
+			filter=opt_arg+10;
 		} else {
 			filter=NULL;
 		}
 		tap_type="ipv6";
 		tap_type_name="IPv6";
 		packet_func=iousers_ipv6_packet;
-	} else if(!strncmp(optarg,"conv,ip",7)){
-		if(optarg[7]==','){
-			filter=optarg+8;
+	} else if(!strncmp(opt_arg,"conv,ip",7)){
+		if(opt_arg[7]==','){
+			filter=opt_arg+8;
 		} else {
 			filter=NULL;
 		}
 		tap_type="ip";
 		tap_type_name="IPv4";
 		packet_func=iousers_ip_packet;
-	} else if(!strncmp(optarg,"conv,sctp",9)) {
-		if(optarg[9]==','){
-				filter=optarg+10;
+	} else if(!strncmp(opt_arg,"conv,sctp",9)) {
+		if(opt_arg[9]==','){
+				filter=opt_arg+10;
 		} else {
                         filter=NULL;
                 }

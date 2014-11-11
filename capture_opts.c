@@ -1,8 +1,6 @@
 /* capture_opts.c
  * Routines for capture options setting
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,6 +23,7 @@
 #include "config.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #ifdef HAVE_LIBPCAP
 
@@ -39,13 +38,11 @@
 
 #include <epan/packet.h>
 #include <epan/prefs.h>
-#include "ui/simple_dialog.h"
 #include "capture_ui_utils.h"
 
 #include "capture_opts.h"
 #include "ringbuffer.h"
 #include "clopts_common.h"
-#include "console_io.h"
 #include "cmdarg_err.h"
 
 #include "capture_ifinfo.h"
@@ -56,9 +53,8 @@ static gboolean capture_opts_output_to_pipe(const char *save_file, gboolean *is_
 
 
 void
-capture_opts_init(capture_options *capture_opts, void *cf)
+capture_opts_init(capture_options *capture_opts)
 {
-  capture_opts->cf                              = cf;
   capture_opts->ifaces                          = g_array_new(FALSE, FALSE, sizeof(interface_options));
   capture_opts->all_ifaces                      = g_array_new(FALSE, FALSE, sizeof(interface_t));
   capture_opts->num_selected                    = 0;
@@ -67,8 +63,9 @@ capture_opts_init(capture_options *capture_opts, void *cf)
   capture_opts->default_options.cfilter         = NULL;
   capture_opts->default_options.has_snaplen     = FALSE;
   capture_opts->default_options.snaplen         = WTAP_MAX_PACKET_SIZE;
-  capture_opts->default_options.linktype        = -1;
+  capture_opts->default_options.linktype        = -1; /* use interface default */
   capture_opts->default_options.promisc_mode    = TRUE;
+  capture_opts->default_options.if_type         = IF_WIRED;
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
   capture_opts->default_options.buffer_size     = DEFAULT_CAPTURE_BUFFER_SIZE;
 #endif
@@ -100,6 +97,7 @@ capture_opts_init(capture_options *capture_opts, void *cf)
   capture_opts->show_info                       = TRUE;
   capture_opts->quit_after_cap                  = getenv("WIRESHARK_QUIT_AFTER_CAPTURE") ? TRUE : FALSE;
   capture_opts->restart                         = FALSE;
+  capture_opts->orig_save_file                  = NULL;
 
   capture_opts->multi_files_on                  = FALSE;
   capture_opts->has_file_duration               = FALSE;
@@ -112,21 +110,13 @@ capture_opts_init(capture_options *capture_opts, void *cf)
   capture_opts->has_autostop_packets            = FALSE;
   capture_opts->autostop_packets                = 0;
   capture_opts->has_autostop_filesize           = FALSE;
-  capture_opts->autostop_filesize               = 1024;             /* 1 MB */
+  capture_opts->autostop_filesize               = 1000;             /* 1 MB */
   capture_opts->has_autostop_duration           = FALSE;
   capture_opts->autostop_duration               = 60;               /* 1 min */
+  capture_opts->capture_comment                 = NULL;
 
-
-  capture_opts->fork_child                      = -1;               /* invalid process handle */
-#ifdef _WIN32
-  capture_opts->signal_pipe_write_fd            = -1;
-#endif
-  capture_opts->state                           = CAPTURE_STOPPED;
   capture_opts->output_to_pipe                  = FALSE;
-#ifndef _WIN32
-  capture_opts->owner                           = getuid();
-  capture_opts->group                           = getgid();
-#endif
+  capture_opts->capture_child                   = FALSE;
 }
 
 
@@ -136,7 +126,6 @@ capture_opts_log(const char *log_domain, GLogLevelFlags log_level, capture_optio
     guint i;
 
     g_log(log_domain, log_level, "CAPTURE OPTIONS     :");
-    g_log(log_domain, log_level, "CFile               : %p", capture_opts->cf);
 
     for (i = 0; i < capture_opts->ifaces->len; i++) {
         interface_options interface_opts;
@@ -230,11 +219,6 @@ capture_opts_log(const char *log_domain, GLogLevelFlags log_level, capture_optio
     g_log(log_domain, log_level, "AutostopPackets (%u) : %u", capture_opts->has_autostop_packets, capture_opts->autostop_packets);
     g_log(log_domain, log_level, "AutostopFilesize(%u) : %u (KB)", capture_opts->has_autostop_filesize, capture_opts->autostop_filesize);
     g_log(log_domain, log_level, "AutostopDuration(%u) : %u", capture_opts->has_autostop_duration, capture_opts->autostop_duration);
-
-    g_log(log_domain, log_level, "ForkChild           : %d", capture_opts->fork_child);
-#ifdef _WIN32
-    g_log(log_domain, log_level, "SignalPipeWrite     : %d", capture_opts->signal_pipe_write_fd);
-#endif
 }
 
 /*
@@ -471,7 +455,7 @@ capture_opts_add_iface_opt(capture_options *capture_opts, const char *optarg_str
             cmdarg_err("There is no interface with that adapter index");
             return 1;
         }
-        if_list = capture_interface_list(&err, &err_str);
+        if_list = capture_interface_list(&err, &err_str, NULL);
         if (if_list == NULL) {
             switch (err) {
 
@@ -507,6 +491,11 @@ capture_opts_add_iface_opt(capture_options *capture_opts, const char *optarg_str
             interface_opts.console_display_name = g_strdup(if_info->name);
         }
         free_interface_list(if_list);
+    } else if (capture_opts->capture_child) {
+        /* In Wireshark capture child mode, thus proper device name is supplied. */
+        /* No need for trying to match it for friendly names. */
+        interface_opts.name = g_strdup(optarg_str_p);
+        interface_opts.console_display_name = g_strdup(optarg_str_p);
     } else {
         /*
          * Retrieve the interface list so that we can search for the
@@ -518,7 +507,7 @@ capture_opts_add_iface_opt(capture_options *capture_opts, const char *optarg_str
          * the interface name, so that the user can try specifying an
          * interface explicitly for testing purposes.
          */
-        if_list = capture_interface_list(&err, &err_str);
+        if_list = capture_interface_list(&err, NULL, NULL);
         if (if_list != NULL) {
             /* try and do an exact match (case insensitive) */
             GList   *if_entry;
@@ -607,6 +596,7 @@ capture_opts_add_iface_opt(capture_options *capture_opts, const char *optarg_str
     interface_opts.has_snaplen = capture_opts->default_options.has_snaplen;
     interface_opts.linktype = capture_opts->default_options.linktype;
     interface_opts.promisc_mode = capture_opts->default_options.promisc_mode;
+    interface_opts.if_type = capture_opts->default_options.if_type;
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
     interface_opts.buffer_size = capture_opts->default_options.buffer_size;
 #endif
@@ -639,6 +629,13 @@ capture_opts_add_opt(capture_options *capture_opts, int opt, const char *optarg_
     int status, snaplen;
 
     switch(opt) {
+    case LONGOPT_NUM_CAP_COMMENT:  /* capture comment */
+        if (capture_opts->capture_comment) {
+            cmdarg_err("--capture-comment can be set only once per file");
+            return 1;
+        }
+        capture_opts->capture_comment = g_strdup(optarg_str_p);
+        break;
     case 'a':        /* autostop criteria */
         if (set_autostop_criterion(capture_opts, optarg_str_p) == FALSE) {
             cmdarg_err("Invalid or unknown -a flag \"%s\"", optarg_str_p);
@@ -844,19 +841,19 @@ capture_opts_print_if_capabilities(if_capabilities_t *caps, char *name,
     data_link_info_t *data_link_info;
 
     if (caps->can_set_rfmon)
-        fprintf_stderr("Data link types of interface %s when %sin monitor mode (use option -y to set):\n",
-                       name, monitor_mode ? "" : "not ");
+        printf("Data link types of interface %s when %sin monitor mode (use option -y to set):\n",
+               name, monitor_mode ? "" : "not ");
     else
-        fprintf_stderr("Data link types of interface %s (use option -y to set):\n", name);
+        printf("Data link types of interface %s (use option -y to set):\n", name);
     for (lt_entry = caps->data_link_types; lt_entry != NULL;
          lt_entry = g_list_next(lt_entry)) {
         data_link_info = (data_link_info_t *)lt_entry->data;
-        fprintf_stderr("  %s", data_link_info->name);
+        printf("  %s", data_link_info->name);
         if (data_link_info->description != NULL)
-            fprintf_stderr(" (%s)", data_link_info->description);
+            printf(" (%s)", data_link_info->description);
         else
-            fprintf_stderr(" (not supported)");
-        fprintf_stderr("\n");
+            printf(" (not supported)");
+        printf("\n");
     }
 }
 
@@ -872,17 +869,17 @@ capture_opts_print_interfaces(GList *if_list)
     for (if_entry = g_list_first(if_list); if_entry != NULL;
          if_entry = g_list_next(if_entry)) {
         if_info = (if_info_t *)if_entry->data;
-        fprintf_stderr("%d. %s", i++, if_info->name);
+        printf("%d. %s", i++, if_info->name);
 
         /* Print the interface friendly name, if it exists;
           if not fall back to vendor description, if it exists. */
         if (if_info->friendly_name != NULL){
-            fprintf_stderr(" (%s)", if_info->friendly_name);
+            printf(" (%s)", if_info->friendly_name);
         } else {
             if (if_info->vendor_description != NULL)
-                fprintf_stderr(" (%s)", if_info->vendor_description);
+                printf(" (%s)", if_info->vendor_description);
         }
-        fprintf_stderr("\n");
+        printf("\n");
     }
 }
 
@@ -929,9 +926,12 @@ capture_opts_trim_ring_num_files(capture_options *capture_opts)
 #endif
 }
 
-
+/*
+ * If no interface was specified explicitly, pick a default.
+ */
 int
-capture_opts_trim_iface(capture_options *capture_opts, const char *capture_device)
+capture_opts_default_iface_if_necessary(capture_options *capture_opts,
+                                        const char *capture_device)
 {
     int status;
 
@@ -1055,6 +1055,7 @@ collect_ifaces(capture_options *capture_opts)
       interface_opts.snaplen = device.snaplen;
       interface_opts.has_snaplen = device.has_snaplen;
       interface_opts.promisc_mode = device.pmode;
+      interface_opts.if_type = device.if_info.type;
 #if defined(_WIN32) || defined(HAVE_PCAP_CREATE)
       interface_opts.buffer_size =  device.buffer;
 #endif

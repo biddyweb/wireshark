@@ -2,8 +2,6 @@
  * Routines for HP remote management protocol
  * Gilbert Ramirez <jochen@scram.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,9 @@
 #include <epan/etypes.h>
 
 #include "packet-hpext.h"
+
+void proto_register_rmp(void);
+void proto_reg_handoff_rmp(void);
 
 static dissector_handle_t data_handle;
 
@@ -110,10 +111,8 @@ dissect_rmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 	type = tvb_get_guint8(tvb, 0);
 
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		col_add_str(pinfo->cinfo, COL_INFO,
+	col_set_str(pinfo->cinfo, COL_INFO,
 		    val_to_str_const(type, rmp_type_vals, "Unknown Type"));
-	}
 
 	if (tree) {
 		ti = proto_tree_add_item(tree, proto_rmp, tvb, 0, -1, ENC_NA);

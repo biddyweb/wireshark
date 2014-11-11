@@ -1,7 +1,5 @@
 /* byte_view_text.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -263,7 +261,7 @@ void ByteViewText::lineCommon(const int org_off)
                         EBCDIC_to_ASCII1(pd[off]) :
                         pd[off];
 
-            str += isprint(c) ? c : '.';
+            str += g_ascii_isprint(c) ? c : '.';
         } else
             str += ' ';
 

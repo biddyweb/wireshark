@@ -1,8 +1,6 @@
 /*
  * Copyright 2004, Irene Ruengeler <i.ruengeler [AT] fh-muenster.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,7 +25,8 @@
 #include <gtk/gtk.h>
 
 #include <epan/epan_dissect.h>
-#include "epan/filesystem.h"
+#include "wsutil/filesystem.h"
+#include <epan/to_str.h>
 #include <epan/strutil.h>
 
 #include "../globals.h"
@@ -38,8 +37,12 @@
 #include "ui/gtk/dlg_utils.h"
 #include "ui/gtk/gui_utils.h"
 #include "ui/gtk/main.h"
-#include "ui/gtk/sctp_stat.h"
+#include "ui/tap-sctp-analysis.h"
+#include "ui/gtk/sctp_stat_gtk.h"
 #include "ui/gtk/gtkglobals.h"
+#include "ui/gtk/stock_icons.h"
+
+#include "frame_tvbuff.h"
 
 static sctp_assoc_info_t static_assoc;
 
@@ -317,7 +320,7 @@ update_analyse_dlg(struct sctp_analyse *u_data)
 			   "Minimum Number of Outbound Streams: %u",
 			   ((u_data->assoc->outstream1 > u_data->assoc->instream2) ?
 			    u_data->assoc->instream2 : u_data->assoc->outstream1));
-		gtk_label_set_text(GTK_LABEL(u_data->analyse_nb->page2->max_out), label_txt);
+		gtk_label_set_text(GTK_LABEL(u_data->analyse_nb->page2->min_out), label_txt);
 	}
 	else
 	{
@@ -351,7 +354,7 @@ update_analyse_dlg(struct sctp_analyse *u_data)
 			GtkListStore *list_store;
 
 			store = (address *)(list->data);
-			if (store->type != AT_NONE) {			
+			if (store->type != AT_NONE) {
 				if (store->type == AT_IPv4)
 				{
 					g_snprintf(field[0], 30, "%s", ip_to_str((const guint8 *)(store->data)));
@@ -422,6 +425,8 @@ sctp_set_filter(GtkButton *button _U_, struct sctp_analyse *u_data)
 	gchar *filter_string = NULL;
 
 	selected_stream = u_data->assoc;
+	if (selected_stream == NULL)
+		return;
 
 	if (selected_stream->check_address == FALSE)
 	{
@@ -606,7 +611,7 @@ create_analyse_window(struct sctp_analyse *u_data)
 	GtkWidget *hbox_l1, *hbox_l2, *label, *h_button_box;
 	GtkWidget *chunk_stat_bt, *close_bt, *graph_bt1, *graph_bt2, *chunk_bt1, *bt_filter;
 
-	u_data->analyse_nb = g_malloc(sizeof(struct notes));
+	u_data->analyse_nb = (struct notes *)g_malloc(sizeof(struct notes));
 	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_position (GTK_WINDOW(window), GTK_WIN_POS_CENTER);
 	g_signal_connect(window, "destroy", G_CALLBACK(on_destroy), u_data);
@@ -682,7 +687,7 @@ create_analyse_window(struct sctp_analyse *u_data)
 	gtk_widget_show (bt_filter);
 	g_signal_connect(bt_filter, "clicked", G_CALLBACK(sctp_set_filter), u_data);
 
-	close_bt = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
+	close_bt = ws_gtk_button_new_from_stock(GTK_STOCK_CLOSE);
 	gtk_box_pack_start(GTK_BOX(hbox), close_bt, FALSE, FALSE, 0);
 	gtk_widget_show(close_bt);
 	g_signal_connect(close_bt, "clicked", G_CALLBACK(on_close_dlg), u_data);
@@ -696,7 +701,7 @@ create_analyse_window(struct sctp_analyse *u_data)
 	page2 = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 8, FALSE);
 	gtk_container_set_border_width(GTK_CONTAINER(page2), 8);
 
-	u_data->analyse_nb->page2 = g_malloc(sizeof(struct page));
+	u_data->analyse_nb->page2 = (struct page *)g_malloc(sizeof(struct page));
 
 	u_data->analyse_nb->page2->addr_frame = gtk_frame_new(NULL);
 	gtk_box_pack_start(GTK_BOX(page2), u_data->analyse_nb->page2->addr_frame, TRUE, TRUE, 0);
@@ -791,7 +796,7 @@ create_analyse_window(struct sctp_analyse *u_data)
 		gtk_widget_set_sensitive(graph_bt1, FALSE);
 		gtk_widget_set_sensitive(graph_bt2, FALSE);
 	}
-	close_bt = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
+	close_bt = ws_gtk_button_new_from_stock(GTK_STOCK_CLOSE);
 	gtk_box_pack_start(GTK_BOX(h_button_box), close_bt, FALSE, FALSE, 0);
 	gtk_widget_show(close_bt);
 	g_signal_connect(close_bt, "clicked", G_CALLBACK(on_close_dlg), u_data);
@@ -804,7 +809,7 @@ create_analyse_window(struct sctp_analyse *u_data)
 	page3 = ws_gtk_box_new(GTK_ORIENTATION_VERTICAL, 8, FALSE);
 	gtk_container_set_border_width(GTK_CONTAINER(page3), 8);
 
-	u_data->analyse_nb->page3 = g_malloc(sizeof(struct page));
+	u_data->analyse_nb->page3 = (struct page *)g_malloc(sizeof(struct page));
 
 	u_data->analyse_nb->page3->addr_frame = gtk_frame_new(NULL);
 	gtk_box_pack_start(GTK_BOX(page3), u_data->analyse_nb->page3->addr_frame, TRUE, TRUE, 0);
@@ -895,7 +900,7 @@ create_analyse_window(struct sctp_analyse *u_data)
 		gtk_widget_set_sensitive(graph_bt1, FALSE);
 		gtk_widget_set_sensitive(graph_bt2, FALSE);
 	}
-	close_bt = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
+	close_bt = ws_gtk_button_new_from_stock(GTK_STOCK_CLOSE);
 	gtk_box_pack_start(GTK_BOX(h_button_box), close_bt, FALSE, FALSE, 0);
 	gtk_widget_show(close_bt);
 	g_signal_connect(close_bt, "clicked", G_CALLBACK(on_close_dlg), u_data);
@@ -922,7 +927,7 @@ assoc_analyse(sctp_assoc_info_t* assoc)
 	struct sctp_analyse *u_data;
 	int i;
 
-	u_data = g_malloc(sizeof(struct sctp_analyse));
+	u_data = (struct sctp_analyse *)g_malloc(sizeof(struct sctp_analyse));
 	u_data->assoc			= assoc;
 	u_data->assoc->addr_chunk_count = assoc->addr_chunk_count;
 	u_data->window			= NULL;
@@ -952,7 +957,7 @@ sctp_analyse_cb(struct sctp_analyse *u_data, gboolean ext)
 	dfilter_t      *sfcode;
 	capture_file   *cf;
 	epan_dissect_t	edt;
-	gboolean	frame_matched, frame_found = FALSE;
+	gboolean	frame_found = FALSE;
 	frame_data     *fdata;
 	gchar		filter_text[256];
 
@@ -969,18 +974,16 @@ sctp_analyse_cb(struct sctp_analyse *u_data, gboolean ext)
 	if (fdata == NULL)
 		return; /* if we exit here it's an error */
 
-	/* dissect the current frame */
-	if (!cf_read_frame(cf, fdata))
-		return;	/* error reading the frame */
+	/* dissect the current record */
+	if (!cf_read_record(cf, fdata))
+		return;	/* error reading the record */
 
-	epan_dissect_init(&edt, TRUE, FALSE);
+	epan_dissect_init(&edt, cf->epan, TRUE, FALSE);
 	epan_dissect_prime_dfilter(&edt, sfcode);
-	epan_dissect_run(&edt, &cf->phdr, cf->pd, fdata, NULL);
-	frame_matched = dfilter_apply_edt(sfcode, &edt);
+	epan_dissect_run(&edt, cf->cd_t, &cf->phdr, frame_tvbuff_new_buffer(fdata, &cf->buf), fdata, NULL);
 
-	/* if it is not an sctp frame, show the dialog */
-
-	if (frame_matched != 1) {
+	/* if it is not an sctp packet, show the dialog */
+	if (!dfilter_apply_edt(sfcode, &edt)) {
 		epan_dissect_cleanup(&edt);
 		simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
 		    "Please choose an SCTP packet.");
@@ -1043,8 +1046,7 @@ struct sctp_analyse *u_data;
 		register_tap_listener_sctp_stat();
 	/* (redissect all packets) */
 
-	sctp_stat_scan();
-	u_data = g_malloc(sizeof(struct sctp_analyse));
+	u_data = (struct sctp_analyse *)g_malloc(sizeof(struct sctp_analyse));
 	u_data->assoc        = NULL;
 	u_data->children     = NULL;
 	u_data->analyse_nb   = NULL;
@@ -1065,9 +1067,8 @@ sctp_analyse_start(GtkAction *action _U_, gpointer user_data _U_)
 		register_tap_listener_sctp_stat();
 	/* (redissect all packets) */
 
-	sctp_stat_scan();
 
-	u_data = g_malloc(sizeof(struct sctp_analyse));
+	u_data = (struct sctp_analyse *)g_malloc(sizeof(struct sctp_analyse));
 	u_data->assoc        = NULL;
 	u_data->children     = NULL;
 	u_data->analyse_nb   = NULL;
@@ -1078,9 +1079,4 @@ sctp_analyse_start(GtkAction *action _U_, gpointer user_data _U_)
 	sctp_analyse_cb(u_data, FALSE);
 }
 
-
-void
-register_tap_listener_sctp_analyse(void)
-{
-}
 

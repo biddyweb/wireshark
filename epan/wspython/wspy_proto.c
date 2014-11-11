@@ -1,7 +1,5 @@
 /* wspy_proto.c
  *
- * $Id$
- *
  * Wireshark Protocol Python Binding
  *
  * Copyright (c) 2009 by Sebastien Tandel <sebastien [AT] tandel [dot] be>
@@ -69,9 +67,8 @@ void hf_register_info_add(hf_register_info *hf, guint8 index,
   hf[index].hfinfo.id = 0;
   hf[index].hfinfo.parent = 0;
   hf[index].hfinfo.ref_type = HF_REF_TYPE_NONE;
-  hf[index].hfinfo.bitshift = 0;
   hf[index].hfinfo.same_name_next = NULL;
-  hf[index].hfinfo.same_name_prev = NULL;
+  hf[index].hfinfo.same_name_prev_id = -1;
 }
 
 void hf_register_info_print(hf_register_info *hf, guint8 size)

@@ -2,8 +2,6 @@
  * camel Service Response Time statistics for Wireshark
  * Copyright 2006 Florent Drouin (based on h225_ras_srt.c from Lars Roland)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,9 +32,8 @@
 #include <epan/tap.h>
 #include <epan/packet.h>
 #include <epan/asn1.h>
-#include <epan/camel-persistentdata.h>
+#include <epan/dissectors/packet-camel.h>
 
-#include "../timestats.h"
 #include "../file.h"
 #include "../stat_menu.h"
 
@@ -95,7 +92,7 @@ static int camelsrt_packet(void *phs,
 			   const void *phi)
 {
   struct camelsrt_t *hs=(struct camelsrt_t *)phs;
-  const struct camelsrt_info_t * pi=phi;
+  const struct camelsrt_info_t * pi=(const struct camelsrt_info_t *)phi;
   int i;
 
   for (i=1; i<NB_CAMELSRT_CATEGORY; i++) {
@@ -152,7 +149,7 @@ static void gtk_camelsrt_init(const char *opt_arg, void *userdata _U_)
     filter=NULL;
   }
 
-  p_camelsrt=g_malloc(sizeof(struct camelsrt_t));
+  p_camelsrt=(struct camelsrt_t *)g_malloc(sizeof(struct camelsrt_t));
 
   p_camelsrt->win= dlg_window_new("camel-srt");  /* transient_for top_level */
   gtk_window_set_destroy_with_parent (GTK_WINDOW(p_camelsrt->win), TRUE);
@@ -207,7 +204,7 @@ static void gtk_camelsrt_init(const char *opt_arg, void *userdata _U_)
   bbox = dlg_button_row_new(GTK_STOCK_CLOSE, NULL);
   gtk_box_pack_end(GTK_BOX(vbox), bbox, FALSE, FALSE, 0);
 
-  close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+  close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
   window_set_cancel_button(p_camelsrt->win, close_bt, window_cancel_button_cb);
 
   g_signal_connect(p_camelsrt->win, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);
@@ -236,12 +233,6 @@ static tap_param_dlg camel_srt_dlg = {
 void /* Next line mandatory */
 register_tap_listener_gtk_camelsrt(void)
 {
-  register_dfilter_stat(&camel_srt_dlg, "CAMEL",
+  register_param_stat(&camel_srt_dlg, "CAMEL",
 			REGISTER_STAT_GROUP_RESPONSE_TIME);
 }
-
-void camel_srt_cb(GtkAction *action, gpointer user_data _U_)
-{
-	tap_param_dlg_cb(action, &camel_srt_dlg);
-}
-

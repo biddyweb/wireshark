@@ -1,7 +1,5 @@
 /* export_object_dialog.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -55,7 +53,7 @@ struct _export_object_list_t {
 class ExportObjectDialog : public QDialog
 {
     Q_OBJECT
-    
+
 public:
     enum ObjectType { Dicom, Http, Smb };
 

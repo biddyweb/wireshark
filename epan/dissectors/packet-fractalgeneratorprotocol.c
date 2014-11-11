@@ -5,8 +5,6 @@
  *
  * Copyright 2006 by Thomas Dreibholz <dreibh [AT] exp-math.uni-essen.de>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,6 +31,8 @@
 #include <epan/packet.h>
 #include <epan/sctpppids.h>
 
+void proto_register_fractalgeneratorprotocol(void);
+void proto_reg_handoff_fractalgeneratorprotocol(void);
 
 #define FRACTALGENERATORPROTOCOL_PAYLOAD_PROTOCOL_ID_LEGACY 0x29097601
 
@@ -149,9 +149,8 @@ dissect_fractalgeneratorprotocol_message(tvbuff_t *message_tvb, packet_info *pin
   guint8 type;
 
   type = tvb_get_guint8(message_tvb, MESSAGE_TYPE_OFFSET);
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(type, message_type_values, "Unknown FractalGeneratorProtocol type"));
-  }
+  col_add_fstr(pinfo->cinfo, COL_INFO, "%s ", val_to_str_const(type, message_type_values, "Unknown FractalGeneratorProtocol type"));
+
   proto_tree_add_item(fractalgeneratorprotocol_tree, hf_message_type,   message_tvb, MESSAGE_TYPE_OFFSET,   MESSAGE_TYPE_LENGTH,   ENC_BIG_ENDIAN);
   proto_tree_add_item(fractalgeneratorprotocol_tree, hf_message_flags,  message_tvb, MESSAGE_FLAGS_OFFSET,  MESSAGE_FLAGS_LENGTH,  ENC_BIG_ENDIAN);
   proto_tree_add_item(fractalgeneratorprotocol_tree, hf_message_length, message_tvb, MESSAGE_LENGTH_OFFSET, MESSAGE_LENGTH_LENGTH, ENC_BIG_ENDIAN);

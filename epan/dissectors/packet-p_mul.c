@@ -6,8 +6,6 @@
  *
  * Copyright 2005, Stig Bjorlykke <stig@bjorlykke.org>, Thales Norway AS
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -43,10 +41,14 @@
 #include <epan/reassemble.h>
 #include <epan/expert.h>
 #include <epan/asn1.h>
+#include <epan/wmem/wmem.h>
 #include <string.h>
 
 #include "packet-cdt.h"
 #include "packet-ber.h"
+
+void proto_register_p_mul(void);
+void proto_reg_handoff_p_mul(void);
 
 #define PNAME  "P_Mul (ACP142)"
 #define PSNAME "P_MUL"
@@ -73,8 +75,6 @@
 #define DECODE_NONE      0
 #define DECODE_BER       1
 #define DECODE_CDT       2
-
-void proto_reg_handoff_p_mul (void);
 
 static int proto_p_mul = -1;
 
@@ -134,10 +134,8 @@ static int hf_analysis_total_retrans_time = -1;
 static int hf_analysis_last_pdu_num = -1;
 static int hf_analysis_addr_pdu_num = -1;
 static int hf_analysis_addr_pdu_time = -1;
-static int hf_analysis_addr_pdu_missing = -1;
 static int hf_analysis_prev_pdu_num = -1;
 static int hf_analysis_prev_pdu_time = -1;
-static int hf_analysis_prev_pdu_missing = -1;
 static int hf_analysis_retrans_no = -1;
 static int hf_analysis_ack_num = -1;
 static int hf_analysis_ack_missing = -1;
@@ -158,7 +156,22 @@ static gint ett_seq_ack_analysis = -1;
 static gint ett_msg_fragment = -1;
 static gint ett_msg_fragments = -1;
 
+static expert_field ei_more_data = EI_INIT;
+static expert_field ei_checksum_bad = EI_INIT;
+static expert_field ei_tot_miss_seq_no = EI_INIT;
+static expert_field ei_miss_seq_no = EI_INIT;
+static expert_field ei_analysis_ack_missing = EI_INIT;
+static expert_field ei_miss_seq_range = EI_INIT;
+static expert_field ei_address_pdu_missing = EI_INIT;
+static expert_field ei_analysis_ack_dup_no = EI_INIT;
+static expert_field ei_length = EI_INIT;
+static expert_field ei_analysis_prev_pdu_missing = EI_INIT;
+static expert_field ei_message_discarded = EI_INIT;
+static expert_field ei_ack_length = EI_INIT;
+static expert_field ei_analysis_retrans_no = EI_INIT;
+
 static dissector_handle_t p_mul_handle = NULL;
+
 static dissector_handle_t data_handle = NULL;
 
 typedef struct _p_mul_id_key {
@@ -201,8 +214,7 @@ static gint decode_option = DECODE_NONE;
 static gboolean use_relative_msgid = TRUE;
 static gboolean use_seq_ack_analysis = TRUE;
 
-static GHashTable *p_mul_fragment_table = NULL;
-static GHashTable *p_mul_reassembled_table = NULL;
+static reassembly_table p_mul_reassembly_table;
 
 static guint32 message_id_offset = 0;
 
@@ -265,12 +277,12 @@ static const gchar *get_type (guint8 value)
 /*Function checksum, found in ACP142 annex B-3 */
 static guint16 checksum (guint8 *buffer, gint len, gint offset)
 {
-  guint16 c0 = 0, c1 = 0, ret, ctmp;
-  gint16 cs;
-  guint8 *hpp, *pls;
+  guint16  c0 = 0, c1 = 0, ret, ctmp;
+  gint16   cs;
+  guint8  *hpp, *pls;
 
   if (len < offset+2) {
-    /* Buffer to small */
+    /* Buffer too small */
     return 0;
   }
 
@@ -296,14 +308,14 @@ static guint16 checksum (guint8 *buffer, gint len, gint offset)
 
 static guint p_mul_id_hash (gconstpointer k)
 {
-  p_mul_id_key *p_mul = (p_mul_id_key *)k;
+  const p_mul_id_key *p_mul = (const p_mul_id_key *)k;
   return p_mul->id;
 }
 
 static gint p_mul_id_hash_equal (gconstpointer k1, gconstpointer k2)
 {
-  p_mul_id_key *p_mul1 = (p_mul_id_key *)k1;
-  p_mul_id_key *p_mul2 = (p_mul_id_key *)k2;
+  const p_mul_id_key *p_mul1 = (const p_mul_id_key *)k1;
+  const p_mul_id_key *p_mul2 = (const p_mul_id_key *)k2;
 
   if (p_mul1->id != p_mul2->id)
     return 0;
@@ -318,7 +330,7 @@ static p_mul_seq_val *lookup_seq_val (guint32 message_id, guint16 seq_no,
                                       address *addr)
 {
   p_mul_seq_val *pkg_data;
-  p_mul_id_key  *p_mul_key = se_alloc (sizeof (p_mul_id_key));
+  p_mul_id_key  *p_mul_key = wmem_new(wmem_file_scope(), p_mul_id_key);
 
   p_mul_key->id = message_id;
   p_mul_key->seq = seq_no;
@@ -346,7 +358,7 @@ static void copy_hashtable_data (gpointer key, p_mul_ack_data *ack_data1, GHashT
 {
   p_mul_ack_data *ack_data2;
 
-  ack_data2 = se_alloc (sizeof (p_mul_ack_data));
+  ack_data2 = wmem_new(wmem_file_scope(), p_mul_ack_data);
   ack_data2->ack_id = ack_data1->ack_id;
   ack_data2->ack_resend_count = ack_data1->ack_resend_count;
 
@@ -363,7 +375,7 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
   nstime_t        addr_time, prev_time;
   guint           addr_id = 0, prev_id = 0;
   guint16         last_found_pdu = 0;
-  gboolean        missing_pdu = FALSE, set_address = FALSE;
+  gboolean        missing_pdu = FALSE, need_set_address = FALSE;
   GHashTable     *pkg_list;
 
   if (pinfo->flags.in_error_pkt) {
@@ -374,7 +386,7 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
   nstime_set_zero(&addr_time);
   nstime_set_zero(&prev_time);
 
-  p_mul_key = se_alloc (sizeof (p_mul_id_key));
+  p_mul_key = wmem_new(wmem_file_scope(), p_mul_id_key);
 
   if (!pinfo->fd->flags.visited &&
       (pdu_type == Address_PDU || pdu_type == Data_PDU || pdu_type == Discard_Message_PDU))
@@ -383,7 +395,7 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
     p_mul_key->id = message_id;
     p_mul_key->seq = 0;
     SE_COPY_ADDRESS(&p_mul_key->addr, addr);
-    set_address = TRUE;
+    need_set_address = TRUE;
 
     p_mul_data = (p_mul_seq_val *) g_hash_table_lookup (p_mul_id_hash_table, p_mul_key);
 
@@ -424,18 +436,18 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
     }
   }
 
-  pkg_list = p_get_proto_data (pinfo->fd, proto_p_mul);
+  pkg_list = (GHashTable *)p_get_proto_data(wmem_file_scope(), pinfo, proto_p_mul, 0);
   if (!pkg_list) {
     /* Never saved list for this packet, create a new */
     pkg_list = g_hash_table_new (NULL, NULL);
     p_mul_package_data_list = g_list_append (p_mul_package_data_list, pkg_list);
-    p_add_proto_data (pinfo->fd, proto_p_mul, pkg_list);
+    p_add_proto_data(wmem_file_scope(), pinfo, proto_p_mul, 0, pkg_list);
   }
 
   if (!pinfo->fd->flags.visited) {
     p_mul_key->id = message_id;
     p_mul_key->seq = seq_no;
-    if (!set_address) {
+    if (!need_set_address) {
       SE_COPY_ADDRESS(&p_mul_key->addr, addr);
     }
     p_mul_data = (p_mul_seq_val *) g_hash_table_lookup (p_mul_id_hash_table, p_mul_key);
@@ -444,10 +456,10 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
       if (pdu_type == Ack_PDU) {
         /* Only save this data if positive ack */
         if (no_missing == 0) {
-          ack_data = g_hash_table_lookup (p_mul_data->ack_data, GUINT_TO_POINTER(dstIP));
+          ack_data = (p_mul_ack_data *)g_hash_table_lookup (p_mul_data->ack_data, GUINT_TO_POINTER(dstIP));
           if (!ack_data) {
             /* Only save reference to first ACK */
-            ack_data = se_alloc0 (sizeof (p_mul_ack_data));
+            ack_data = wmem_new0(wmem_file_scope(), p_mul_ack_data);
             ack_data->ack_id = pinfo->fd->num;
             g_hash_table_insert (p_mul_data->ack_data, GUINT_TO_POINTER(dstIP), ack_data);
           } else {
@@ -470,9 +482,9 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
     } else {
       /* New message */
       if (pdu_type == Ack_PDU) {
-        p_mul_data = se_alloc0 (sizeof (p_mul_seq_val));
+        p_mul_data = wmem_new0(wmem_file_scope(), p_mul_seq_val);
       } else {
-        p_mul_data = g_malloc0 (sizeof (p_mul_seq_val));
+        p_mul_data = (p_mul_seq_val *)g_malloc0(sizeof (p_mul_seq_val));
       }
       p_mul_data->msg_type = pdu_type;
       if (pdu_type == Address_PDU || pdu_type == Ack_PDU) {
@@ -481,7 +493,7 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
 
       if (pdu_type == Ack_PDU) {
         /* No matching message for this ack */
-        ack_data = se_alloc0 (sizeof (p_mul_ack_data));
+        ack_data = wmem_new0(wmem_file_scope(), p_mul_ack_data);
         ack_data->ack_id = pinfo->fd->num;
         g_hash_table_insert (p_mul_data->ack_data, GUINT_TO_POINTER(dstIP), ack_data);
       } else {
@@ -501,7 +513,7 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
     }
 
     /* Copy the current package data to the frame */
-    pkg_data = se_alloc (sizeof (p_mul_seq_val));
+    pkg_data = wmem_new(wmem_file_scope(), p_mul_seq_val);
     *pkg_data = *p_mul_data;
     if (p_mul_data->ack_data) {
       /* Copy the hash table for ack data */
@@ -511,7 +523,7 @@ static p_mul_seq_val *register_p_mul_id (packet_info *pinfo, address *addr, guin
     g_hash_table_insert (pkg_list, GUINT_TO_POINTER(message_id), pkg_data);
   } else {
     /* Fetch last values from data saved in packet */
-    pkg_data = g_hash_table_lookup (pkg_list, GUINT_TO_POINTER(message_id));
+    pkg_data = (p_mul_seq_val *)g_hash_table_lookup (pkg_list, GUINT_TO_POINTER(message_id));
   }
 
   DISSECTOR_ASSERT (pkg_data);
@@ -559,18 +571,13 @@ static void add_ack_analysis (tvbuff_t *tvb, packet_info *pinfo, proto_tree *p_m
                                   tvb, 0, 0, &ns);
         PROTO_ITEM_SET_GENERATED (en);
       } else {
-        en = proto_tree_add_item (analysis_tree,
-                                  hf_analysis_addr_pdu_missing,
-                                  tvb, offset, 0, ENC_NA);
-        expert_add_info_format (pinfo, en, PI_SEQUENCE, PI_NOTE,
-                                "Address PDU missing");
-        PROTO_ITEM_SET_GENERATED (en);
+        proto_tree_add_expert(analysis_tree, pinfo, &ei_address_pdu_missing, tvb, offset, 0);
       }
       item_added = TRUE;
     } else {
       memcpy((guint8 *)&dstIp, dst->data, 4);
       if (pkg_data->ack_data) {
-        ack_data = g_hash_table_lookup (pkg_data->ack_data, GUINT_TO_POINTER(dstIp));
+        ack_data = (p_mul_ack_data *)g_hash_table_lookup (pkg_data->ack_data, GUINT_TO_POINTER(dstIp));
       }
 
       /* Add reference to Ack_PDU */
@@ -586,8 +593,7 @@ static void add_ack_analysis (tvbuff_t *tvb, packet_info *pinfo, proto_tree *p_m
         if (pinfo->fd->flags.visited) {
           /* We do not know this on first visit and we do not want to
              add a entry in the "Expert Severity Info" for this note */
-          expert_add_info_format (pinfo, en, PI_SEQUENCE, PI_NOTE,
-                                  "Ack PDU missing");
+          expert_add_info(pinfo, en, &ei_analysis_ack_missing);
           PROTO_ITEM_SET_GENERATED (en);
         }
         item_added = TRUE;
@@ -609,7 +615,7 @@ static void add_ack_analysis (tvbuff_t *tvb, packet_info *pinfo, proto_tree *p_m
       return;
     }
     if (pkg_data->ack_data) {
-      ack_data = g_hash_table_lookup (pkg_data->ack_data, GUINT_TO_POINTER(dstIp));
+      ack_data = (p_mul_ack_data *)g_hash_table_lookup (pkg_data->ack_data, GUINT_TO_POINTER(dstIp));
     }
 
     /* Add reference to Address_PDU */
@@ -625,12 +631,7 @@ static void add_ack_analysis (tvbuff_t *tvb, packet_info *pinfo, proto_tree *p_m
         PROTO_ITEM_SET_GENERATED (en);
       }
     } else {
-      en = proto_tree_add_item (analysis_tree,
-                                hf_analysis_addr_pdu_missing,
-                                tvb, offset, 0, ENC_NA);
-      expert_add_info_format (pinfo, en, PI_SEQUENCE, PI_NOTE,
-                              "Address PDU missing");
-      PROTO_ITEM_SET_GENERATED (en);
+      proto_tree_add_expert(analysis_tree, pinfo, &ei_address_pdu_missing, tvb, offset, 0);
     }
 
     if (pkg_data->msg_type != Ack_PDU && pkg_data->prev_pdu_id) {
@@ -651,8 +652,7 @@ static void add_ack_analysis (tvbuff_t *tvb, packet_info *pinfo, proto_tree *p_m
                                 tvb, 0, 0, ack_data->ack_resend_count);
       PROTO_ITEM_SET_GENERATED (en);
 
-      expert_add_info_format (pinfo, en, PI_SEQUENCE, PI_NOTE,
-                              "Dup ACK #%d", ack_data->ack_resend_count);
+      expert_add_info_format(pinfo, en, &ei_analysis_ack_dup_no, "Dup ACK #%d", ack_data->ack_resend_count);
 
       en = proto_tree_add_uint (analysis_tree, hf_analysis_ack_resend_from,
                                 tvb, 0, 0, ack_data->ack_id);
@@ -708,12 +708,7 @@ static p_mul_seq_val *add_seq_analysis (tvbuff_t *tvb, packet_info *pinfo,
       }
       item_added = TRUE;
     } else if (!pkg_data->msg_resend_count) {
-      en = proto_tree_add_item (analysis_tree,
-                                hf_analysis_addr_pdu_missing,
-                                tvb, offset, 0, ENC_NA);
-      expert_add_info_format (pinfo, en, PI_SEQUENCE, PI_NOTE,
-                              "Address PDU missing");
-      PROTO_ITEM_SET_GENERATED (en);
+      proto_tree_add_expert(analysis_tree, pinfo, &ei_address_pdu_missing, tvb, offset, 0);
       item_added = TRUE;
     }
   }
@@ -731,12 +726,7 @@ static p_mul_seq_val *add_seq_analysis (tvbuff_t *tvb, packet_info *pinfo,
       PROTO_ITEM_SET_GENERATED (en);
       item_added = TRUE;
     } else if (!pkg_data->msg_resend_count) {
-      en = proto_tree_add_item (analysis_tree,
-                                hf_analysis_prev_pdu_missing,
-                                tvb, offset, 0, ENC_NA);
-      expert_add_info_format (pinfo, en, PI_SEQUENCE, PI_NOTE,
-                              "Previous PDU missing");
-      PROTO_ITEM_SET_GENERATED (en);
+      proto_tree_add_expert(analysis_tree, pinfo, &ei_analysis_prev_pdu_missing, tvb, offset, 0);
       item_added = TRUE;
     }
   }
@@ -753,9 +743,7 @@ static p_mul_seq_val *add_seq_analysis (tvbuff_t *tvb, packet_info *pinfo,
                                 tvb, 0, 0, pkg_data->pdu_id);
       PROTO_ITEM_SET_GENERATED (en);
 
-      expert_add_info_format (pinfo, en, PI_SEQUENCE, PI_NOTE,
-                              "Retransmission #%d",
-                              pkg_data->msg_resend_count);
+      expert_add_info_format(pinfo, en, &ei_analysis_retrans_no, "Retransmission #%d", pkg_data->msg_resend_count);
 
       nstime_delta (&ns, &pinfo->fd->abs_ts, &pkg_data->prev_msg_time);
       en = proto_tree_add_time (analysis_tree, hf_analysis_retrans_time,
@@ -816,7 +804,7 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   guint8         pdu_type, *value, map = 0, fec_len;
   gint           i, tot_no_missing = 0, no_missing = 0, offset = 0;
   address        src, dst;
-  emem_strbuf_t *message_id_list = NULL;
+  wmem_strbuf_t *message_id_list = NULL;
   nstime_t       ts;
 
   col_set_str (pinfo->cinfo, COL_PROTOCOL, "P_MUL");
@@ -860,8 +848,7 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   field_tree = proto_item_add_subtree (en, ett_pdu_type);
 
   if (pdu_type == Discard_Message_PDU) {
-    expert_add_info_format (pinfo, en, PI_RESPONSE_CODE, PI_NOTE,
-                            "Message discarded");
+    expert_add_info(pinfo, en, &ei_message_discarded);
   }
 
   switch (pdu_type) {
@@ -927,7 +914,7 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   en = proto_tree_add_item (p_mul_tree, hf_checksum, tvb, offset, 2, ENC_BIG_ENDIAN);
   checksum_tree = proto_item_add_subtree (en, ett_checksum);
   len = tvb_length (tvb);
-  value = tvb_get_ephemeral_string (tvb, 0, len);
+  value = (guint8 *)tvb_memdup (wmem_packet_scope(), tvb, 0, len);
   checksum1 = checksum (value, len, offset);
   checksum2 = tvb_get_ntohs (tvb, offset);
   if (checksum1 == checksum2) {
@@ -940,7 +927,7 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     PROTO_ITEM_SET_GENERATED (en);
   } else {
     proto_item_append_text (en, " (incorrect, should be 0x%04x)", checksum1);
-    expert_add_info_format (pinfo, en, PI_CHECKSUM, PI_WARN, "Bad checksum");
+    expert_add_info(pinfo, en, &ei_checksum_bad);
     en = proto_tree_add_boolean (checksum_tree, hf_checksum_good, tvb,
                                  offset, 2, FALSE);
     PROTO_ITEM_SET_GENERATED (en);
@@ -953,7 +940,7 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   if (pdu_type == Ack_PDU) {
     /* Source ID of Ack Sender */
     ip = tvb_get_ipv4 (tvb, offset);
-    SET_ADDRESS (&dst, AT_IPv4, sizeof(ip), ep_memdup (&ip, 4));
+    SET_ADDRESS (&dst, AT_IPv4, sizeof(ip), wmem_memdup (wmem_packet_scope(), &ip, 4));
     proto_tree_add_item (p_mul_tree, hf_source_id_ack, tvb, offset, 4, ENC_BIG_ENDIAN);
     offset += 4;
 
@@ -964,7 +951,7 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   } else {
     /* Source Id */
     ip = tvb_get_ipv4 (tvb, offset);
-    SET_ADDRESS (&src, AT_IPv4, sizeof(ip), ep_memdup (&ip, 4));
+    SET_ADDRESS (&src, AT_IPv4, sizeof(ip), wmem_memdup (wmem_packet_scope(), &ip, 4));
     proto_tree_add_item (p_mul_tree, hf_source_id, tvb, offset, 4, ENC_BIG_ENDIAN);
     offset += 4;
 
@@ -976,9 +963,8 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         message_id_offset = message_id;
       }
       message_id -= message_id_offset;
-      proto_tree_add_uint_format (p_mul_tree, hf_message_id, tvb, offset, 4,
-                                  message_id, "Message ID (MSID): %u"
-                                  "    (relative message id)", message_id);
+      proto_tree_add_uint_format_value(p_mul_tree, hf_message_id, tvb, offset, 4,
+                                  message_id, "%u    (relative message id)", message_id);
     } else {
       proto_tree_add_item (p_mul_tree, hf_message_id, tvb, offset, 4, ENC_BIG_ENDIAN);
     }
@@ -1041,7 +1027,7 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
       /* Destination Id */
       ip = tvb_get_ipv4 (tvb, offset);
-      SET_ADDRESS (&dst, AT_IPv4, sizeof(ip), ep_memdup(&ip, 4));
+      SET_ADDRESS (&dst, AT_IPv4, sizeof(ip), wmem_memdup(wmem_packet_scope(), &ip, 4));
       proto_tree_add_item (field_tree, hf_dest_id, tvb, offset, 4, ENC_BIG_ENDIAN);
       offset += 4;
 
@@ -1081,9 +1067,8 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     break;
 
   case Ack_PDU:
-    if (check_col (pinfo->cinfo, COL_INFO)) {
-      message_id_list = ep_strbuf_new_label("");
-    }
+    message_id_list = wmem_strbuf_new_label(wmem_packet_scope());
+
     for (i = 0; i < count; i++) {
       /* Ack Info Entry */
       len = tvb_get_ntohs (tvb, offset);
@@ -1099,13 +1084,12 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
       if (len < 10) {
         proto_item_append_text (en, "    (invalid length)");
-        expert_add_info_format (pinfo, en, PI_MALFORMED, PI_WARN,
-                                "Invalid ack info length");
+        expert_add_info(pinfo, en, &ei_ack_length);
       }
 
       /* Source Id */
       ip = tvb_get_ipv4 (tvb, offset);
-      SET_ADDRESS (&src, AT_IPv4, sizeof(ip), ep_memdup (&ip, 4));
+      SET_ADDRESS (&src, AT_IPv4, sizeof(ip), wmem_memdup (wmem_packet_scope(), &ip, 4));
       proto_tree_add_item (field_tree, hf_source_id, tvb, offset, 4, ENC_BIG_ENDIAN);
       offset += 4;
 
@@ -1117,20 +1101,17 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
           message_id_offset = message_id;
         }
         message_id -= message_id_offset;
-        proto_tree_add_uint_format (field_tree, hf_message_id, tvb, offset, 4,
-                                    message_id, "Message ID (MSID): %u"
-                                    "    (relative message id)", message_id);
+        proto_tree_add_uint_format_value(field_tree, hf_message_id, tvb, offset, 4,
+                                    message_id, "%u    (relative message id)", message_id);
       } else {
         proto_tree_add_item (field_tree, hf_message_id, tvb, offset, 4, ENC_BIG_ENDIAN);
       }
       offset += 4;
 
-      if (check_col (pinfo->cinfo, COL_INFO)) {
-        if (i == 0) {
-          ep_strbuf_printf (message_id_list, "%u", message_id);
-        } else {
-          ep_strbuf_append_printf (message_id_list, ",%u", message_id);
-        }
+      if (i == 0) {
+        wmem_strbuf_append_printf (message_id_list, "%u", message_id);
+      } else {
+        wmem_strbuf_append_printf (message_id_list, ",%u", message_id);
       }
 
       if (len > 10) {
@@ -1143,14 +1124,13 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             /* We are handling a range */
             guint16 end_seq_no = tvb_get_ntohs (tvb, offset + 4);
 
-            en = proto_tree_add_bytes_format (field_tree, hf_miss_seq_range,
+            en = proto_tree_add_bytes_format_value(field_tree, hf_miss_seq_range,
                                               tvb, offset, 6, NULL,
-                                             "Missing Data PDU Seq Range: %d - %d",
+                                             "%d - %d",
                                              ack_seq_no, end_seq_no);
             if (ack_seq_no >= end_seq_no) {
               proto_item_append_text (en, "    (invalid)");
-              expert_add_info_format (pinfo, en, PI_UNDECODED, PI_WARN,
-                                      "Invalid missing sequence range");
+              expert_add_info(pinfo, en, &ei_miss_seq_range);
             } else {
               proto_tree *missing_tree;
               guint16 sno;
@@ -1158,9 +1138,9 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
               missing_tree = proto_item_add_subtree (en, ett_range_entry);
 
               for (sno = ack_seq_no; sno <= end_seq_no; sno++) {
-                en = proto_tree_add_uint_format (missing_tree, hf_miss_seq_no,
+                en = proto_tree_add_uint_format_value(missing_tree, hf_miss_seq_no,
                                                  tvb, offset, 6, sno,
-                                                 "Missing Data PDU Seq Number: %d", sno);
+                                                 "%d", sno);
                 PROTO_ITEM_SET_GENERATED (en);
               }
               tot_no_missing += (end_seq_no - ack_seq_no + 1);
@@ -1176,8 +1156,7 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
             if (ack_seq_no == 0) {
               proto_item_append_text (en, "    (invalid)");
-              expert_add_info_format (pinfo, en, PI_UNDECODED, PI_WARN,
-                                      "Invalid missing seq number");
+              expert_add_info(pinfo, en, &ei_miss_seq_no);
             } else if (ack_seq_no <= prev_ack_seq_no) {
               proto_item_append_text (en, "    (end of list indicator)");
             } else {
@@ -1200,9 +1179,9 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       guint64 timestamp;
 
       timestamp = tvb_get_ntoh64 (tvb, offset);
-      proto_tree_add_uint64_format (p_mul_tree, hf_timestamp_option, tvb,
+      proto_tree_add_uint64_format_value(p_mul_tree, hf_timestamp_option, tvb,
                                     offset, 8, timestamp,
-                                    "Timestamp: %" G_GINT64_MODIFIER "d.%d second%s (%" G_GINT64_MODIFIER "u)",
+                                    "%" G_GINT64_MODIFIER "d.%d second%s (%" G_GINT64_MODIFIER "u)",
                                     timestamp / 10, (int) timestamp % 10,
                                     (timestamp == 10) ? "" : "s", timestamp);
       offset += 8;
@@ -1213,8 +1192,7 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
       en = proto_tree_add_uint (p_mul_tree, hf_tot_miss_seq_no, tvb, 0, 0,
                                 tot_no_missing);
       PROTO_ITEM_SET_GENERATED (en);
-      expert_add_info_format (pinfo, en, PI_RESPONSE_CODE, PI_NOTE,
-                              "Missing seq numbers: %d", tot_no_missing);
+      expert_add_info_format(pinfo, en, &ei_tot_miss_seq_no, "Missing seq numbers: %d", tot_no_missing);
     }
     break;
 
@@ -1255,37 +1233,35 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                                  message_id, seq_no, tot_no_missing);
   }
 
-  if (check_col (pinfo->cinfo, COL_INFO)) {
-    /* Check if printing Ack-Ack */
-    if (pdu_type == Address_PDU && no_dest == 0) {
-      col_append_str (pinfo->cinfo, COL_INFO, get_type (Ack_Ack_PDU));
-    } else {
-      col_append_str (pinfo->cinfo, COL_INFO, get_type (pdu_type));
+  /* Check if printing Ack-Ack */
+  if (pdu_type == Address_PDU && no_dest == 0) {
+    col_append_str (pinfo->cinfo, COL_INFO, get_type (Ack_Ack_PDU));
+  } else {
+    col_append_str (pinfo->cinfo, COL_INFO, get_type (pdu_type));
+  }
+  if (pdu_type == Address_PDU || pdu_type == Extra_Address_PDU ||
+      pdu_type == FEC_Address_PDU || pdu_type == Extra_FEC_Address_PDU) {
+    col_append_fstr (pinfo->cinfo, COL_INFO, ", No PDUs: %u", no_pdus);
+  } else if (pdu_type == Data_PDU) {
+    col_append_fstr (pinfo->cinfo, COL_INFO, ", Seq no: %u", seq_no);
+  }
+  if (pdu_type == Address_PDU || pdu_type == Extra_Address_PDU ||
+      pdu_type == FEC_Address_PDU || pdu_type == Extra_FEC_Address_PDU) {
+    if (no_dest > 0) {
+      col_append_fstr (pinfo->cinfo, COL_INFO, ", Count of Dest: %u", no_dest);
     }
-    if (pdu_type == Address_PDU || pdu_type == Extra_Address_PDU ||
-        pdu_type == FEC_Address_PDU || pdu_type == Extra_FEC_Address_PDU) {
-      col_append_fstr (pinfo->cinfo, COL_INFO, ", No PDUs: %u", no_pdus);
-    } else if (pdu_type == Data_PDU) {
-      col_append_fstr (pinfo->cinfo, COL_INFO, ", Seq no: %u", seq_no);
+  } else if (pdu_type == Ack_PDU) {
+    if (tot_no_missing) {
+      col_append_fstr (pinfo->cinfo, COL_INFO, ", Missing seq numbers: %u",
+                       tot_no_missing);
     }
-    if (pdu_type == Address_PDU || pdu_type == Extra_Address_PDU ||
-        pdu_type == FEC_Address_PDU || pdu_type == Extra_FEC_Address_PDU) {
-      if (no_dest > 0) {
-        col_append_fstr (pinfo->cinfo, COL_INFO, ", Count of Dest: %u", no_dest);
-      }
-    } else if (pdu_type == Ack_PDU) {
-      if (tot_no_missing) {
-        col_append_fstr (pinfo->cinfo, COL_INFO, ", Missing seq numbers: %u",
-                         tot_no_missing);
-      }
-      col_append_fstr (pinfo->cinfo, COL_INFO, ", Count of Ack: %u", count);
-    }
-    if (pdu_type != Ack_PDU) {
-      col_append_fstr (pinfo->cinfo, COL_INFO, ", MSID: %u", message_id);
-    } else {
-      if (message_id_list && message_id_list->len > 0) {
-        col_append_fstr (pinfo->cinfo, COL_INFO, ", MSID: %s", message_id_list->str);
-      }
+    col_append_fstr (pinfo->cinfo, COL_INFO, ", Count of Ack: %u", count);
+  }
+  if (pdu_type != Ack_PDU) {
+    col_append_fstr (pinfo->cinfo, COL_INFO, ", MSID: %u", message_id);
+  } else {
+    if (message_id_list && wmem_strbuf_get_len(message_id_list) > 0) {
+      col_append_fstr (pinfo->cinfo, COL_INFO, ", MSID: %s", wmem_strbuf_get_str(message_id_list));
     }
   }
 
@@ -1294,19 +1270,18 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
     if (pdu_type == Address_PDU && no_pdus > 0) {
       /* Start fragment table */
-      fragment_start_seq_check (pinfo, message_id, p_mul_fragment_table,
-                                no_pdus - 1);
+      fragment_start_seq_check (&p_mul_reassembly_table,
+                                pinfo, message_id, NULL, no_pdus - 1);
     } else if (pdu_type == Data_PDU) {
-      fragment_data *frag_msg;
+      fragment_head *frag_msg;
       tvbuff_t      *new_tvb;
 
       pinfo->fragmented = TRUE;
 
       /* Add fragment to fragment table */
-      frag_msg = fragment_add_seq_check (tvb, offset, pinfo, message_id,
-                                         p_mul_fragment_table,
-                                         p_mul_reassembled_table, seq_no - 1,
-                                         data_len, TRUE);
+      frag_msg = fragment_add_seq_check (&p_mul_reassembly_table,
+                                         tvb, offset, pinfo, message_id, NULL,
+                                         seq_no - 1, data_len, TRUE);
       new_tvb = process_reassembled_data (tvb, offset, pinfo,
                                           "Reassembled P_MUL", frag_msg,
                                           &p_mul_frag_items, NULL, tree);
@@ -1327,19 +1302,17 @@ static void dissect_p_mul (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   if (pdu_length != (offset + data_len)) {
     proto_item_append_text (len_en, " (incorrect, should be: %d)",
                             offset + data_len);
-    expert_add_info_format (pinfo, len_en, PI_MALFORMED, PI_WARN,
-                            "Incorrect length field");
+    expert_add_info(pinfo, len_en, &ei_length);
   } else if ((len = tvb_length_remaining (tvb, pdu_length)) > 0) {
     proto_item_append_text (len_en, " (more data in packet: %d)", len);
-    expert_add_info_format (pinfo, len_en, PI_MALFORMED, PI_WARN,
-                            "More data in packet");
+    expert_add_info(pinfo, len_en, &ei_more_data);
   }
 }
 
 static void p_mul_init_routine (void)
 {
-  fragment_table_init (&p_mul_fragment_table);
-  reassembled_table_init (&p_mul_reassembled_table);
+  reassembly_table_init (&p_mul_reassembly_table,
+                         &addresses_reassembly_table_functions);
   message_id_offset = 0;
 
   if (p_mul_id_hash_table) {
@@ -1453,7 +1426,7 @@ void proto_register_p_mul (void)
         "p_mul.no_missing_seq_no", FT_UINT16, BASE_DEC, NULL, 0x0,
         NULL, HFILL } },
     { &hf_timestamp_option,
-      { "Timestamp Option", "p_mul.timestamp", FT_UINT64, BASE_DEC,
+      { "Timestamp", "p_mul.timestamp", FT_UINT64, BASE_DEC,
         NULL, 0x0, "Timestamp Option (in units of 100ms)", HFILL } },
     { &hf_dest_entry,
       { "Destination Entry", "p_mul.dest_entry", FT_NONE, BASE_NONE,
@@ -1539,12 +1512,6 @@ void proto_register_p_mul (void)
     { &hf_analysis_ack_num,
       { "Ack PDU in", "p_mul.analysis.ack_in", FT_FRAMENUM, BASE_NONE,
         NULL, 0x0, "This packet has an Ack in this frame", HFILL } },
-    { &hf_analysis_addr_pdu_missing,
-      { "Address PDU missing", "p_mul.analysis.addr_pdu_missing", FT_NONE, BASE_NONE,
-        NULL, 0x0, "The Address PDU for this packet is missing", HFILL } },
-    { &hf_analysis_prev_pdu_missing,
-      { "Previous PDU missing", "p_mul.analysis.prev_pdu_missing", FT_NONE, BASE_NONE,
-        NULL, 0x0, "The previous PDU for this packet is missing", HFILL } },
     { &hf_analysis_ack_missing,
       { "Ack PDU missing", "p_mul.analysis.ack_missing", FT_NONE, BASE_NONE,
         NULL, 0x0, "The acknowledgement for this packet is missing", HFILL } },
@@ -1580,14 +1547,33 @@ void proto_register_p_mul (void)
     &ett_msg_fragment,
     &ett_msg_fragments
   };
+  static ei_register_info ei[] = {
+      { &ei_address_pdu_missing, { "p_mul.analysis.addr_pdu_missing", PI_SEQUENCE, PI_NOTE, "Address PDU missing", EXPFILL }},
+      { &ei_analysis_ack_missing, { "p_mul.analysis.ack_missing.expert", PI_SEQUENCE, PI_NOTE, "Ack PDU missing", EXPFILL }},
+      { &ei_analysis_ack_dup_no, { "p_mul.analysis.dup_ack_no.expert", PI_SEQUENCE, PI_NOTE, "Dup ACK #", EXPFILL }},
+      { &ei_analysis_prev_pdu_missing, { "p_mul.analysis.prev_pdu_missing", PI_SEQUENCE, PI_NOTE, "Previous PDU missing", EXPFILL }},
+      { &ei_analysis_retrans_no, { "p_mul.analysis.retrans_no.expert", PI_SEQUENCE, PI_NOTE, "Retransmission #", EXPFILL }},
+      { &ei_message_discarded, { "p_mul.message_discarded", PI_RESPONSE_CODE, PI_NOTE, "Message discarded", EXPFILL }},
+      { &ei_checksum_bad, { "p_mul.checksum_bad.expert", PI_CHECKSUM, PI_WARN, "Bad checksum", EXPFILL }},
+      { &ei_ack_length, { "p_mul.ack_length.invalid", PI_MALFORMED, PI_WARN, "Invalid ack info length", EXPFILL }},
+      { &ei_miss_seq_range, { "p_mul.missing_seq_range.invalid", PI_UNDECODED, PI_WARN, "Invalid missing sequence range", EXPFILL }},
+      { &ei_miss_seq_no, { "p_mul.missing_seq_no.invalid", PI_UNDECODED, PI_WARN, "Invalid missing seq number", EXPFILL }},
+      { &ei_tot_miss_seq_no, { "p_mul.no_missing_seq_no.expert", PI_RESPONSE_CODE, PI_NOTE, "Missing seq numbers", EXPFILL }},
+      { &ei_length, { "p_mul.length.invalid", PI_MALFORMED, PI_WARN, "Incorrect length field", EXPFILL }},
+      { &ei_more_data, { "p_mul.more_data", PI_MALFORMED, PI_WARN, "More data in packet", EXPFILL }},
+  };
 
   module_t *p_mul_module;
+  expert_module_t* expert_p_mul;
 
   proto_p_mul = proto_register_protocol (PNAME, PSNAME, PFNAME);
-  register_dissector(PFNAME, dissect_p_mul, proto_p_mul);
+
+  p_mul_handle = register_dissector(PFNAME, dissect_p_mul, proto_p_mul);
 
   proto_register_field_array (proto_p_mul, hf, array_length (hf));
   proto_register_subtree_array (ett, array_length (ett));
+  expert_p_mul = expert_register_protocol(proto_p_mul);
+  expert_register_field_array(expert_p_mul, ei, array_length(ei));
   register_init_routine (&p_mul_init_routine);
 
   /* Set default UDP ports */
@@ -1626,34 +1612,23 @@ void proto_register_p_mul (void)
                                   &decode_option, decode_options, FALSE);
 }
 
-static void range_delete_callback (guint32 port)
-{
-    dissector_delete_uint ("udp.port", port, p_mul_handle);
-}
-
-static void range_add_callback (guint32 port)
-{
-    dissector_add_uint ("udp.port", port, p_mul_handle);
-}
-
 void proto_reg_handoff_p_mul (void)
 {
-  static gboolean p_mul_prefs_initialized = FALSE;
-  static range_t *p_mul_port_range;
+  static gboolean  p_mul_prefs_initialized = FALSE;
+  static range_t  *p_mul_port_range;
 
   if (!p_mul_prefs_initialized) {
-    p_mul_handle = find_dissector(PFNAME);
     p_mul_prefs_initialized = TRUE;
     data_handle = find_dissector ("data");
   } else {
-    range_foreach (p_mul_port_range, range_delete_callback);
+    dissector_delete_uint_range ("udp.port", p_mul_port_range, p_mul_handle);
     g_free (p_mul_port_range);
   }
 
   /* Save port number for later deletion */
   p_mul_port_range = range_copy (global_p_mul_port_range);
 
-  range_foreach (p_mul_port_range, range_add_callback);
+  dissector_add_uint_range ("udp.port", p_mul_port_range, p_mul_handle);
 }
 
 /*

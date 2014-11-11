@@ -2,8 +2,6 @@
  * Routines for SMB mailslot packet dissection
  * Copyright 2000, Jeffrey C. Foster <jfoste@woodward.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,9 @@
 #include "packet-smb-mailslot.h"
 #include "packet-smb-browse.h"
 #include "packet-smb-pipe.h"
+
+void proto_register_smb_mailslot(void);
+void proto_reg_handoff_smb_mailslot(void);
 
 static int proto_smb_msp = -1;
 static int hf_opcode = -1;
@@ -81,9 +82,8 @@ static const value_string class_vals[] = {
 gboolean
 dissect_mailslot_smb(tvbuff_t *mshdr_tvb, tvbuff_t *setup_tvb,
 		     tvbuff_t *tvb, const char *mailslot, packet_info *pinfo,
-		     proto_tree *parent_tree)
+		     proto_tree *parent_tree, smb_info_t* smb_info)
 {
-	smb_info_t *smb_info;
 	smb_transact_info_t *tri;
 	int             trans_subcmd;
 	proto_tree      *tree = NULL;
@@ -107,9 +107,8 @@ dissect_mailslot_smb(tvbuff_t *mshdr_tvb, tvbuff_t *setup_tvb,
 
 	col_clear(pinfo->cinfo, COL_INFO);
 
-	smb_info = pinfo->private_data;
 	if (smb_info->sip != NULL && smb_info->sip->extra_info_type == SMB_EI_TRI)
-		tri = smb_info->sip->extra_info;
+		tri = (smb_transact_info_t *)smb_info->sip->extra_info;
 	else
 		tri = NULL;
 
@@ -152,10 +151,8 @@ dissect_mailslot_smb(tvbuff_t *mshdr_tvb, tvbuff_t *setup_tvb,
 		/* do the opcode field */
 		opcode = tvb_get_letohs(setup_tvb, offset);
 
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			col_add_str(pinfo->cinfo, COL_INFO,
+		col_add_str(pinfo->cinfo, COL_INFO,
 				    val_to_str(opcode, opcode_vals, "Unknown opcode: 0x%04x"));
-		}
 
 
 		/* These are in the setup words; use "setup_tvb". */

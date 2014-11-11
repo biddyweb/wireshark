@@ -7,8 +7,6 @@
  * Routine to dissect RFC 1006 TPKT packet containing OSI TP PDU
  * Copyright 2001, Martin Thomas <Martin_A_Thomas@yahoo.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,10 +33,14 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/prefs.h>
 #include <epan/show_exception.h>
 
 #include "packet-tpkt.h"
+
+void proto_register_tpkt(void);
+void proto_reg_handoff_tpkt(void);
 
 /* TPKT header fields             */
 static int proto_tpkt          = -1;
@@ -231,7 +233,7 @@ dissect_asciitpkt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
      * anyway.
      */
     if (tpkt_desegment)
-        col_add_str(pinfo->cinfo, COL_INFO, "");
+        col_set_str(pinfo->cinfo, COL_INFO, "");
 
     while (tvb_reported_length_remaining(tvb, offset) != 0) {
         /*

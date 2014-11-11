@@ -2,8 +2,6 @@
  * Copyright 2009 Martin Mathieson
  * (originally based upon wlan_stat_dlg.c)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -47,6 +45,8 @@
 #include "ui/gtk/main.h"
 
 #include "ui/gtk/old-gtk-compat.h"
+
+void register_tap_listener_mac_lte_stat(void);
 
 /**********************************************/
 /* Table column identifiers and title strings */
@@ -149,10 +149,12 @@ typedef struct mac_lte_ep {
 /* Common channel stats */
 typedef struct mac_lte_common_stats {
     guint32 all_frames;
-    guint32 bch_frames;
-    guint32 bch_bytes;
+    guint32 mib_frames;
+    guint32 sib_frames;
+    guint32 sib_bytes;
     guint32 pch_frames;
     guint32 pch_bytes;
+    guint32 pch_paging_ids;
     guint32 rar_frames;
     guint32 rar_entries;
 
@@ -188,10 +190,12 @@ typedef struct mac_lte_stat_t {
 
     /* Common stats */
     mac_lte_common_stats common_stats;
-    GtkWidget    *common_bch_frames;
-    GtkWidget    *common_bch_bytes;
+    GtkWidget    *common_mib_frames;
+    GtkWidget    *common_sib_frames;
+    GtkWidget    *common_sib_bytes;
     GtkWidget    *common_pch_frames;
     GtkWidget    *common_pch_bytes;
+    GtkWidget    *common_pch_paging_ids;
     GtkWidget    *common_rar_frames;
     GtkWidget    *common_rar_entries;
 
@@ -273,7 +277,7 @@ static mac_lte_ep_t* alloc_mac_lte_ep(const struct mac_lte_tap_info *si, packet_
         return NULL;
     }
 
-    if (!(ep = g_malloc(sizeof(mac_lte_ep_t)))) {
+    if (!(ep = (mac_lte_ep_t *)g_malloc(sizeof(mac_lte_ep_t)))) {
         return NULL;
     }
 
@@ -355,11 +359,14 @@ static int mac_lte_stat_packet(void *phs, packet_info *pinfo, epan_dissect_t *ed
         case P_RNTI:
             hs->common_stats.pch_frames++;
             hs->common_stats.pch_bytes += si->single_number_of_bytes;
+            hs->common_stats.pch_paging_ids += si->number_of_paging_ids;
             return 1;
         case SI_RNTI:
+            hs->common_stats.sib_frames++;
+            hs->common_stats.sib_bytes += si->single_number_of_bytes;
+            return 1;
         case NO_RNTI:
-            hs->common_stats.bch_frames++;
-            hs->common_stats.bch_bytes += si->single_number_of_bytes;
+            hs->common_stats.mib_frames++;
             return 1;
         case RA_RNTI:
             hs->common_stats.rar_frames++;
@@ -461,9 +468,7 @@ static int mac_lte_stat_packet(void *phs, packet_info *pinfo, epan_dissect_t *ed
         }
         else {
             for (n=0; n < 11; n++) {
-                if (si->bytes_for_lcid[n]) {
-                    te->stats.UL_sdus_for_lcid[n] += si->sdus_for_lcid[n];
-                }
+                te->stats.UL_sdus_for_lcid[n] += si->sdus_for_lcid[n];
                 te->stats.UL_bytes_for_lcid[n] += si->bytes_for_lcid[n];
                 te->stats.UL_total_bytes += si->bytes_for_lcid[n];
             }
@@ -515,9 +520,7 @@ static int mac_lte_stat_packet(void *phs, packet_info *pinfo, epan_dissect_t *ed
         }
         else {
             for (n=0; n < 11; n++) {
-                if (si->bytes_for_lcid[n]) {
-                    te->stats.DL_sdus_for_lcid[n] += si->sdus_for_lcid[n];
-                }
+                te->stats.DL_sdus_for_lcid[n] += si->sdus_for_lcid[n];
                 te->stats.DL_bytes_for_lcid[n] += si->bytes_for_lcid[n];
                 te->stats.DL_total_bytes += si->bytes_for_lcid[n];
             }
@@ -673,14 +676,18 @@ static void mac_lte_stat_draw(void *phs)
     gtk_label_set_text(GTK_LABEL(hs->dl_max_ues_per_tti), buff);
 
     /* Common channel data */
-    g_snprintf(buff, sizeof(buff), "BCH Frames: %u", hs->common_stats.bch_frames);
-    gtk_label_set_text(GTK_LABEL(hs->common_bch_frames), buff);
-    g_snprintf(buff, sizeof(buff), "BCH Bytes: %u", hs->common_stats.bch_bytes);
-    gtk_label_set_text(GTK_LABEL(hs->common_bch_bytes), buff);
+    g_snprintf(buff, sizeof(buff), "MIBs: %u", hs->common_stats.mib_frames);
+    gtk_label_set_text(GTK_LABEL(hs->common_mib_frames), buff);
+    g_snprintf(buff, sizeof(buff), "SIB Frames: %u", hs->common_stats.sib_frames);
+    gtk_label_set_text(GTK_LABEL(hs->common_sib_frames), buff);
+    g_snprintf(buff, sizeof(buff), "SIB Bytes: %u", hs->common_stats.sib_bytes);
+    gtk_label_set_text(GTK_LABEL(hs->common_sib_bytes), buff);
     g_snprintf(buff, sizeof(buff), "PCH Frames: %u", hs->common_stats.pch_frames);
     gtk_label_set_text(GTK_LABEL(hs->common_pch_frames), buff);
     g_snprintf(buff, sizeof(buff), "PCH Bytes: %u", hs->common_stats.pch_bytes);
     gtk_label_set_text(GTK_LABEL(hs->common_pch_bytes), buff);
+    g_snprintf(buff, sizeof(buff), "PCH Paging Ids: %u", hs->common_stats.pch_paging_ids);
+    gtk_label_set_text(GTK_LABEL(hs->common_pch_paging_ids), buff);
     g_snprintf(buff, sizeof(buff), "RAR Frames: %u", hs->common_stats.rar_frames);
     gtk_label_set_text(GTK_LABEL(hs->common_rar_frames), buff);
     g_snprintf(buff, sizeof(buff), "RAR Entries: %u", hs->common_stats.rar_entries);
@@ -995,8 +1002,7 @@ static void win_destroy_cb(GtkWindow *win _U_, gpointer data)
 
 
 /* Create a new MAC LTE stats dialog */
-static void
-gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
+static void gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
 {
     mac_lte_stat_t *hs;
     const char *filter = NULL;
@@ -1044,7 +1050,7 @@ gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
 
 
     /* Create dialog */
-    hs = g_malloc(sizeof(mac_lte_stat_t));
+    hs = (mac_lte_stat_t *)g_malloc(sizeof(mac_lte_stat_t));
     hs->ep_list = NULL;
 
     /* Copy filter (so can be used for window title at reset) */
@@ -1112,15 +1118,20 @@ gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
     gtk_box_pack_start(GTK_BOX(top_level_vbox), mac_lte_stat_common_channel_lb, FALSE, FALSE, 0);
 
     /* Create labels (that will hold label and counter value) */
-    hs->common_bch_frames = gtk_label_new("BCH Frames:");
-    gtk_misc_set_alignment(GTK_MISC(hs->common_bch_frames), 0.0f, .5f);
-    gtk_box_pack_start(GTK_BOX(common_row_hbox), hs->common_bch_frames, TRUE, TRUE, 0);
-    gtk_widget_show(hs->common_bch_frames);
+    hs->common_mib_frames = gtk_label_new("MIBs:");
+    gtk_misc_set_alignment(GTK_MISC(hs->common_mib_frames), 0.0f, .5f);
+    gtk_box_pack_start(GTK_BOX(common_row_hbox), hs->common_mib_frames, TRUE, TRUE, 0);
+    gtk_widget_show(hs->common_mib_frames);
 
-    hs->common_bch_bytes = gtk_label_new("BCH Bytes:");
-    gtk_misc_set_alignment(GTK_MISC(hs->common_bch_bytes), 0.0f, .5f);
-    gtk_box_pack_start(GTK_BOX(common_row_hbox), hs->common_bch_bytes, TRUE, TRUE, 0);
-    gtk_widget_show(hs->common_bch_bytes);
+    hs->common_sib_frames = gtk_label_new("SIB Frames:");
+    gtk_misc_set_alignment(GTK_MISC(hs->common_sib_frames), 0.0f, .5f);
+    gtk_box_pack_start(GTK_BOX(common_row_hbox), hs->common_sib_frames, TRUE, TRUE, 0);
+    gtk_widget_show(hs->common_sib_frames);
+
+    hs->common_sib_bytes = gtk_label_new("SIB Bytes:");
+    gtk_misc_set_alignment(GTK_MISC(hs->common_sib_bytes), 0.0f, .5f);
+    gtk_box_pack_start(GTK_BOX(common_row_hbox), hs->common_sib_bytes, TRUE, TRUE, 0);
+    gtk_widget_show(hs->common_sib_bytes);
 
     hs->common_pch_frames = gtk_label_new("PCH Frames:");
     gtk_misc_set_alignment(GTK_MISC(hs->common_pch_frames), 0.0f, .5f);
@@ -1131,6 +1142,12 @@ gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
     gtk_misc_set_alignment(GTK_MISC(hs->common_pch_bytes), 0.0f, .5f);
     gtk_box_pack_start(GTK_BOX(common_row_hbox), hs->common_pch_bytes, TRUE, TRUE, 0);
     gtk_widget_show(hs->common_pch_bytes);
+
+    hs->common_pch_paging_ids = gtk_label_new("PCH Paging IDs:");
+    gtk_misc_set_alignment(GTK_MISC(hs->common_pch_paging_ids), 0.0f, .5f);
+    gtk_box_pack_start(GTK_BOX(common_row_hbox), hs->common_pch_paging_ids, TRUE, TRUE, 0);
+    gtk_widget_show(hs->common_pch_paging_ids);
+
 
     hs->common_rar_frames = gtk_label_new("RAR Frames:");
     gtk_misc_set_alignment(GTK_MISC(hs->common_rar_frames), 0.0f, .5f);
@@ -1367,10 +1384,10 @@ gtk_mac_lte_stat_init(const char *opt_arg, void *userdata _U_)
     gtk_box_pack_end (GTK_BOX(top_level_vbox), bbox, FALSE, FALSE, 0);
 
     /* Add the close button */
-    close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+    close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
     window_set_cancel_button(hs->mac_lte_stat_dlg_w, close_bt, window_cancel_button_cb);
 
-    help_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+    help_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
     g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), (gpointer)HELP_STATS_LTE_MAC_TRAFFIC_DIALOG);
 
     /* Set callbacks */
@@ -1404,11 +1421,5 @@ static tap_param_dlg mac_lte_stat_dlg = {
 /* Register this tap listener (need void on own so line register function found) */
 void register_tap_listener_mac_lte_stat(void)
 {
-    register_dfilter_stat(&mac_lte_stat_dlg, "_LTE/_MAC", REGISTER_STAT_GROUP_TELEPHONY);
+    register_param_stat(&mac_lte_stat_dlg, "_MAC", REGISTER_STAT_GROUP_TELEPHONY_LTE);
 }
-
-void mac_lte_stat_cb(GtkAction *action, gpointer user_data _U_)
-{
-    tap_param_dlg_cb(action, &mac_lte_stat_dlg);
-}
-

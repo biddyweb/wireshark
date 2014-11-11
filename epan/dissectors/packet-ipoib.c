@@ -2,8 +2,6 @@
  * Routines for decoding IP over InfiniBand (IPoIB) packet disassembly
  * See: http://tools.ietf.org/html/rfc4391#section-6
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,8 +24,13 @@
 #include "config.h"
 
 #include <glib.h>
+
 #include <epan/packet.h>
 #include <epan/etypes.h>
+#include <wiretap/wtap.h>
+
+void proto_register_ipoib(void);
+void proto_reg_handoff_ipoib(void);
 
 static int proto_ipoib = -1;
 static int hf_type     = -1;

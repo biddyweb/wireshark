@@ -1,7 +1,5 @@
 /* iptrace.c
  *
- * $Id$
- *
  * Wiretap Library
  * Copyright (c) 1998 by Gilbert Ramirez <gram@alumni.rice.edu>
  *
@@ -26,7 +24,7 @@
 #include <string.h>
 #include "wtap-int.h"
 #include "file_wrappers.h"
-#include "buffer.h"
+#include <wsutil/buffer.h>
 #include "atm.h"
 #include "iptrace.h"
 
@@ -36,20 +34,18 @@
 static gboolean iptrace_read_1_0(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset);
 static gboolean iptrace_seek_read_1_0(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int packet_size,
-    int *err, gchar **err_info);
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info);
 
 static gboolean iptrace_read_2_0(wtap *wth, int *err, gchar **err_info,
     gint64 *data_offset);
 static gboolean iptrace_seek_read_2_0(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int packet_size,
-    int *err, gchar **err_info);
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info);
 
 static int iptrace_read_rec_header(FILE_T fh, guint8 *header, int header_len,
     int *err, gchar **err_info);
-static gboolean iptrace_read_rec_data(FILE_T fh, guint8 *data_ptr,
-    int packet_size, int *err, gchar **err_info);
-static void fill_in_pseudo_header(int encap, const guint8 *pd, guint32 len,
+static gboolean iptrace_read_rec_data(FILE_T fh, Buffer *buf,
+    struct wtap_pkthdr *phdr, int *err, gchar **err_info);
+static void fill_in_pseudo_header(int encap,
     union wtap_pseudo_header *pseudo_header, guint8 *header);
 static int wtap_encap_ift(unsigned int  ift);
 
@@ -69,13 +65,13 @@ int iptrace_open(wtap *wth, int *err, gchar **err_info)
 	name[11] = '\0';
 
 	if (strcmp(name, "iptrace 1.0") == 0) {
-		wth->file_type = WTAP_FILE_IPTRACE_1_0;
+		wth->file_type_subtype = WTAP_FILE_TYPE_SUBTYPE_IPTRACE_1_0;
 		wth->subtype_read = iptrace_read_1_0;
 		wth->subtype_seek_read = iptrace_seek_read_1_0;
 		wth->tsprecision = WTAP_FILE_TSPREC_SEC;
 	}
 	else if (strcmp(name, "iptrace 2.0") == 0) {
-		wth->file_type = WTAP_FILE_IPTRACE_2_0;
+		wth->file_type_subtype = WTAP_FILE_TYPE_SUBTYPE_IPTRACE_2_0;
 		wth->subtype_read = iptrace_read_2_0;
 		wth->subtype_seek_read = iptrace_seek_read_2_0;
 		wth->tsprecision = WTAP_FILE_TSPREC_NSEC;
@@ -122,20 +118,16 @@ typedef struct {
 #define IPTRACE_1_0_PHDR_SIZE	30	/* initial header plus packet data */
 #define IPTRACE_1_0_PDATA_SIZE	22	/* packet data */
 
-/* Read the next packet */
-static gboolean iptrace_read_1_0(wtap *wth, int *err, gchar **err_info,
-    gint64 *data_offset)
+static gboolean
+iptrace_read_rec_1_0(FILE_T fh, struct wtap_pkthdr *phdr, Buffer *buf,
+    int *err, gchar **err_info)
 {
-	int			ret;
-	guint32			packet_size;
 	guint8			header[IPTRACE_1_0_PHDR_SIZE];
-	guint8			*data_ptr;
+	int			ret;
 	iptrace_1_0_phdr	pkt_hdr;
-	guint8			fddi_padding[3];
+	guint32			packet_size;
 
-	/* Read the descriptor data */
-	*data_offset = file_tell(wth->fh);
-	ret = iptrace_read_rec_header(wth->fh, header, IPTRACE_1_0_PHDR_SIZE,
+	ret = iptrace_read_rec_header(fh, header, IPTRACE_1_0_PHDR_SIZE,
 	    err, err_info);
 	if (ret <= 0) {
 		/* Read error or EOF */
@@ -148,10 +140,16 @@ static gboolean iptrace_read_1_0(wtap *wth, int *err, gchar **err_info,
 	 * <net/if_types.h> header file.
 	 */
 	pkt_hdr.if_type = header[28];
-	wth->phdr.pkt_encap = wtap_encap_ift(pkt_hdr.if_type);
+	phdr->pkt_encap = wtap_encap_ift(pkt_hdr.if_type);
+	if (phdr->pkt_encap == WTAP_ENCAP_UNKNOWN) {
+		*err = WTAP_ERR_UNSUPPORTED_ENCAP;
+		*err_info = g_strdup_printf("iptrace: interface type IFT=0x%02x unknown or unsupported",
+		    pkt_hdr.if_type);
+		return FALSE;
+	}
 
-	/* Read the packet data */
-	packet_size = pntohl(&header[0]);
+	/* Read the packet metadata */
+	packet_size = pntoh32(&header[0]);
 	if (packet_size < IPTRACE_1_0_PDATA_SIZE) {
 		/*
 		 * Uh-oh, the record isn't big enough to even have a
@@ -168,7 +166,7 @@ static gboolean iptrace_read_1_0(wtap *wth, int *err, gchar **err_info,
 	 * AIX appears to put 3 bytes of padding in front of FDDI
 	 * frames; strip that crap off.
 	 */
-	if (wth->phdr.pkt_encap == WTAP_ENCAP_FDDI_BITSWAPPED) {
+	if (phdr->pkt_encap == WTAP_ENCAP_FDDI_BITSWAPPED) {
 		/*
 		 * The packet size is really a record size and includes
 		 * the padding.
@@ -186,11 +184,10 @@ static gboolean iptrace_read_1_0(wtap *wth, int *err, gchar **err_info,
 		packet_size -= 3;
 
 		/*
-		 * Read the padding.
+		 * Skip the padding.
 		 */
-		if (!iptrace_read_rec_data(wth->fh, fddi_padding, 3, err,
-		    err_info))
-			return FALSE;	/* Read error */
+		if (!file_skip(fh, 3, err))
+			return FALSE;
 	}
 	if (packet_size > WTAP_MAX_PACKET_SIZE) {
 		/*
@@ -203,28 +200,32 @@ static gboolean iptrace_read_1_0(wtap *wth, int *err, gchar **err_info,
 		return FALSE;
 	}
 
-	buffer_assure_space( wth->frame_buffer, packet_size );
-	data_ptr = buffer_start_ptr( wth->frame_buffer );
-	if (!iptrace_read_rec_data(wth->fh, data_ptr, packet_size, err,
-	    err_info))
-		return FALSE;	/* Read error */
-
-	wth->phdr.presence_flags = WTAP_HAS_TS;
-	wth->phdr.len = packet_size;
-	wth->phdr.caplen = packet_size;
-	wth->phdr.ts.secs = pntohl(&header[4]);
-	wth->phdr.ts.nsecs = 0;
-
-	if (wth->phdr.pkt_encap == WTAP_ENCAP_UNKNOWN) {
-		*err = WTAP_ERR_UNSUPPORTED_ENCAP;
-		*err_info = g_strdup_printf("iptrace: interface type IFT=0x%02x unknown or unsupported",
-		    pkt_hdr.if_type);
-		return FALSE;
-	}
+	phdr->rec_type = REC_TYPE_PACKET;
+	phdr->presence_flags = WTAP_HAS_TS;
+	phdr->len = packet_size;
+	phdr->caplen = packet_size;
+	phdr->ts.secs = pntoh32(&header[4]);
+	phdr->ts.nsecs = 0;
 
 	/* Fill in the pseudo-header. */
-	fill_in_pseudo_header(wth->phdr.pkt_encap, data_ptr, wth->phdr.caplen,
-	    &wth->phdr.pseudo_header, header);
+	fill_in_pseudo_header(phdr->pkt_encap, &phdr->pseudo_header, header);
+
+	/* Get the packet data */
+	return iptrace_read_rec_data(fh, buf, phdr, err, err_info);
+}
+
+/* Read the next packet */
+static gboolean iptrace_read_1_0(wtap *wth, int *err, gchar **err_info,
+    gint64 *data_offset)
+{
+	*data_offset = file_tell(wth->fh);
+
+	/* Read the packet */
+	if (!iptrace_read_rec_1_0(wth->fh, &wth->phdr, wth->frame_buffer,
+	    err, err_info)) {
+		/* Read error or EOF */
+		return FALSE;
+	}
 
 	/* If the per-file encapsulation isn't known, set it to this
 	   packet's encapsulation.
@@ -243,57 +244,17 @@ static gboolean iptrace_read_1_0(wtap *wth, int *err, gchar **err_info,
 }
 
 static gboolean iptrace_seek_read_1_0(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int packet_size,
-    int *err, gchar **err_info)
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info)
 {
-	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
-	int			ret;
-	guint8			header[IPTRACE_1_0_PHDR_SIZE];
-	int			pkt_encap;
-	guint8			fddi_padding[3];
-
 	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
 		return FALSE;
 
-	/* Read the descriptor data */
-	ret = iptrace_read_rec_header(wth->random_fh, header,
-	    IPTRACE_1_0_PHDR_SIZE, err, err_info);
-	if (ret <= 0) {
-		/* Read error or EOF */
-		if (ret == 0) {
-			/* EOF means "short read" in random-access mode */
+	/* Read the packet */
+	if (!iptrace_read_rec_1_0(wth->random_fh, phdr, buf, err, err_info)) {
+		if (*err == 0)
 			*err = WTAP_ERR_SHORT_READ;
-		}
 		return FALSE;
 	}
-
-	/*
-	 * Get the interface type.
-	 */
-	pkt_encap = wtap_encap_ift(header[28]);
-
-	/*
-	 * AIX appears to put 3 bytes of padding in front of FDDI
-	 * frames; strip that crap off.
-	 */
-	if (pkt_encap == WTAP_ENCAP_FDDI_BITSWAPPED) {
-		/*
-		 * Read the padding.
-		 */
-		if (!iptrace_read_rec_data(wth->random_fh, fddi_padding, 3,
-		    err, err_info))
-			return FALSE;	/* Read error */
-	}
-
-	/* Get the packet data */
-	if (!iptrace_read_rec_data(wth->random_fh, pd, packet_size, err,
-	    err_info))
-		return FALSE;
-
-	/* Fill in the pseudo_header. */
-	fill_in_pseudo_header(pkt_encap, pd, packet_size, pseudo_header,
-	    header);
-
 	return TRUE;
 }
 
@@ -335,20 +296,16 @@ typedef struct {
 #define IPTRACE_2_0_PHDR_SIZE	40	/* initial header plus packet data */
 #define IPTRACE_2_0_PDATA_SIZE	32	/* packet data */
 
-/* Read the next packet */
-static gboolean iptrace_read_2_0(wtap *wth, int *err, gchar **err_info,
-    gint64 *data_offset)
+static gboolean
+iptrace_read_rec_2_0(FILE_T fh, struct wtap_pkthdr *phdr, Buffer *buf,
+    int *err, gchar **err_info)
 {
-	int			ret;
-	guint32			packet_size;
 	guint8			header[IPTRACE_2_0_PHDR_SIZE];
-	guint8			*data_ptr;
+	int			ret;
 	iptrace_2_0_phdr	pkt_hdr;
-	guint8			fddi_padding[3];
+	guint32			packet_size;
 
-	/* Read the descriptor data */
-	*data_offset = file_tell(wth->fh);
-	ret = iptrace_read_rec_header(wth->fh, header, IPTRACE_2_0_PHDR_SIZE,
+	ret = iptrace_read_rec_header(fh, header, IPTRACE_2_0_PHDR_SIZE,
 	    err, err_info);
 	if (ret <= 0) {
 		/* Read error or EOF */
@@ -361,10 +318,34 @@ static gboolean iptrace_read_2_0(wtap *wth, int *err, gchar **err_info,
 	 * <net/if_types.h> header file.
 	 */
 	pkt_hdr.if_type = header[28];
-	wth->phdr.pkt_encap = wtap_encap_ift(pkt_hdr.if_type);
+	phdr->pkt_encap = wtap_encap_ift(pkt_hdr.if_type);
+#if 0
+	/*
+	 * We used to error out if the interface type in iptrace was
+	 * unknown/unhandled, but an iptrace may contain packets
+	 * from a variety of interfaces, some known, and others
+	 * unknown.
+	 *
+	 * It is better to display the data even for unknown interface
+	 * types, isntead of erroring out. In the future, it would be
+	 * nice to be able to flag which frames are shown as data
+	 * because their interface type is unknown, and also present
+	 * the interface type number to the user so that it can be
+	 * reported easily back to the Wireshark developer.
+	 *
+	 * XXX - what types are there that are used in files but
+	 * that we don't handle?
+	 */
+	if (phdr->pkt_encap == WTAP_ENCAP_UNKNOWN) {
+		*err = WTAP_ERR_UNSUPPORTED_ENCAP;
+		*err_info = g_strdup_printf("iptrace: interface type IFT=0x%02x unknown or unsupported",
+		    pkt_hdr.if_type);
+		return FALSE;
+	}
+#endif
 
-	/* Read the packet data */
-	packet_size = pntohl(&header[0]);
+	/* Read the packet metadata */
+	packet_size = pntoh32(&header[0]);
 	if (packet_size < IPTRACE_2_0_PDATA_SIZE) {
 		/*
 		 * Uh-oh, the record isn't big enough to even have a
@@ -381,7 +362,7 @@ static gboolean iptrace_read_2_0(wtap *wth, int *err, gchar **err_info,
 	 * AIX appears to put 3 bytes of padding in front of FDDI
 	 * frames; strip that crap off.
 	 */
-	if (wth->phdr.pkt_encap == WTAP_ENCAP_FDDI_BITSWAPPED) {
+	if (phdr->pkt_encap == WTAP_ENCAP_FDDI_BITSWAPPED) {
 		/*
 		 * The packet size is really a record size and includes
 		 * the padding.
@@ -399,11 +380,10 @@ static gboolean iptrace_read_2_0(wtap *wth, int *err, gchar **err_info,
 		packet_size -= 3;
 
 		/*
-		 * Read the padding.
+		 * Skip the padding.
 		 */
-		if (!iptrace_read_rec_data(wth->fh, fddi_padding, 3, err,
-		    err_info))
-			return FALSE;	/* Read error */
+		if (!file_skip(fh, 3, err))
+			return FALSE;
 	}
 	if (packet_size > WTAP_MAX_PACKET_SIZE) {
 		/*
@@ -416,37 +396,32 @@ static gboolean iptrace_read_2_0(wtap *wth, int *err, gchar **err_info,
 		return FALSE;
 	}
 
-	buffer_assure_space( wth->frame_buffer, packet_size );
-	data_ptr = buffer_start_ptr( wth->frame_buffer );
-	if (!iptrace_read_rec_data(wth->fh, data_ptr, packet_size, err,
-	    err_info))
-		return FALSE;	/* Read error */
+	phdr->rec_type = REC_TYPE_PACKET;
+	phdr->presence_flags = WTAP_HAS_TS;
+	phdr->len = packet_size;
+	phdr->caplen = packet_size;
+	phdr->ts.secs = pntoh32(&header[32]);
+	phdr->ts.nsecs = pntoh32(&header[36]);
 
-	wth->phdr.presence_flags = WTAP_HAS_TS;
-	wth->phdr.len = packet_size;
-	wth->phdr.caplen = packet_size;
-	wth->phdr.ts.secs = pntohl(&header[32]);
-	wth->phdr.ts.nsecs = pntohl(&header[36]);
+	/* Fill in the pseudo_header. */
+	fill_in_pseudo_header(phdr->pkt_encap, &phdr->pseudo_header, header);
 
-/* We used to error out if the interface in iptrace was unknown/unhandled,
- * but an iptrace may contain packets from a variety of interfaces, ome known,
- * and others unknown. It is better to display the data even for unknown interface
- * types, isntead of erroring out. In the future, it would be nice to be able to
- * flag which frames are shown as data because their interface type is unknown,
- * and also preset the interface type number to the user so that it can be
- * reported easily back to the Wireshark develoer.
+	/* Get the packet data */
+	return iptrace_read_rec_data(fh, buf, phdr, err, err_info);
+}
 
-	if (wth->phdr.pkt_encap == WTAP_ENCAP_UNKNOWN) {
-		*err = WTAP_ERR_UNSUPPORTED_ENCAP;
-		*err_info = g_strdup_printf("iptrace: interface type IFT=0x%02x unknown or unsupported",
-		    pkt_hdr.if_type);
+/* Read the next packet */
+static gboolean iptrace_read_2_0(wtap *wth, int *err, gchar **err_info,
+    gint64 *data_offset)
+{
+	*data_offset = file_tell(wth->fh);
+
+	/* Read the packet */
+	if (!iptrace_read_rec_2_0(wth->fh, &wth->phdr, wth->frame_buffer,
+	    err, err_info)) {
+		/* Read error or EOF */
 		return FALSE;
 	}
-*/
-
-	/* Fill in the pseudo-header. */
-	fill_in_pseudo_header(wth->phdr.pkt_encap, data_ptr, wth->phdr.caplen,
-	    &wth->phdr.pseudo_header, header);
 
 	/* If the per-file encapsulation isn't known, set it to this
 	   packet's encapsulation.
@@ -465,57 +440,17 @@ static gboolean iptrace_read_2_0(wtap *wth, int *err, gchar **err_info,
 }
 
 static gboolean iptrace_seek_read_2_0(wtap *wth, gint64 seek_off,
-    struct wtap_pkthdr *phdr, guint8 *pd, int packet_size,
-    int *err, gchar **err_info)
+    struct wtap_pkthdr *phdr, Buffer *buf, int *err, gchar **err_info)
 {
-	union wtap_pseudo_header *pseudo_header = &phdr->pseudo_header;
-	int			ret;
-	guint8			header[IPTRACE_2_0_PHDR_SIZE];
-	int			pkt_encap;
-	guint8			fddi_padding[3];
-
 	if (file_seek(wth->random_fh, seek_off, SEEK_SET, err) == -1)
 		return FALSE;
 
-	/* Read the descriptor data */
-	ret = iptrace_read_rec_header(wth->random_fh, header,
-	    IPTRACE_2_0_PHDR_SIZE, err, err_info);
-	if (ret <= 0) {
-		/* Read error or EOF */
-		if (ret == 0) {
-			/* EOF means "short read" in random-access mode */
+	/* Read the packet */
+	if (!iptrace_read_rec_2_0(wth->random_fh, phdr, buf, err, err_info)) {
+		if (*err == 0)
 			*err = WTAP_ERR_SHORT_READ;
-		}
 		return FALSE;
 	}
-
-	/*
-	 * Get the interface type.
-	 */
-	pkt_encap = wtap_encap_ift(header[28]);
-
-	/*
-	 * AIX appears to put 3 bytes of padding in front of FDDI
-	 * frames; strip that crap off.
-	 */
-	if (pkt_encap == WTAP_ENCAP_FDDI_BITSWAPPED) {
-		/*
-		 * Read the padding.
-		 */
-		if (!iptrace_read_rec_data(wth->random_fh, fddi_padding, 3,
-		    err, err_info))
-			return FALSE;	/* Read error */
-	}
-
-	/* Get the packet data */
-	if (!iptrace_read_rec_data(wth->random_fh, pd, packet_size, err,
-	    err_info))
-		return FALSE;
-
-	/* Fill in the pseudo-header. */
-	fill_in_pseudo_header(pkt_encap, pd, packet_size, pseudo_header,
-	    header);
-
 	return TRUE;
 }
 
@@ -541,20 +476,20 @@ iptrace_read_rec_header(FILE_T fh, guint8 *header, int header_len, int *err,
 }
 
 static gboolean
-iptrace_read_rec_data(FILE_T fh, guint8 *data_ptr, int packet_size, int *err,
-    gchar **err_info)
+iptrace_read_rec_data(FILE_T fh, Buffer *buf, struct wtap_pkthdr *phdr,
+    int *err, gchar **err_info)
 {
-	int	bytes_read;
-
-	errno = WTAP_ERR_CANT_READ;
-	bytes_read = file_read( data_ptr, packet_size, fh );
-
-	if (bytes_read != packet_size) {
-		*err = file_error(fh, err_info);
-		if (*err == 0)
-			*err = WTAP_ERR_SHORT_READ;
+	if (!wtap_read_packet_bytes(fh, buf, phdr->caplen, err, err_info))
 		return FALSE;
+
+	if (phdr->pkt_encap == WTAP_ENCAP_ATM_PDUS) {
+		/*
+		 * Attempt to guess from the packet data, the VPI,
+		 * and the VCI information about the type of traffic.
+		 */
+		atm_guess_traffic_type(phdr, buffer_start_ptr(buf));
 	}
+
 	return TRUE;
 }
 
@@ -576,8 +511,8 @@ iptrace_read_rec_data(FILE_T fh, guint8 *data_ptr, int packet_size, int *err,
  * in some fashion what sort of traffic it is, or being told by the user.
  */
 static void
-fill_in_pseudo_header(int encap, const guint8 *pd, guint32 len,
-    union wtap_pseudo_header *pseudo_header, guint8 *header)
+fill_in_pseudo_header(int encap, union wtap_pseudo_header *pseudo_header,
+    guint8 *header)
 {
 	char	if_text[9];
 	char	*decimal;
@@ -606,12 +541,6 @@ fill_in_pseudo_header(int encap, const guint8 *pd, guint32 len,
 
 		pseudo_header->atm.vpi = Vpi;
 		pseudo_header->atm.vci = Vci;
-
-		/*
-		 * Attempt to guess from the packet data, the VPI,
-		 * and the VCI information about the type of traffic.
-		 */
-		atm_guess_traffic_type(pd, len, pseudo_header);
 
 		/* We don't have this information */
 		pseudo_header->atm.flags = 0;

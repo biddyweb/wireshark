@@ -2,8 +2,6 @@
  * Routines for dissecting wireless ids packets sent from a Cisco
  * access point to the WLSE (or whatever)
  *
- * $Id$
- *
  * Copyright 2006 Joerg Mayer (see AUTHORS file)
  *
  * Wireshark - Network traffic analyzer
@@ -49,6 +47,7 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/etypes.h>
 #include <epan/expert.h>
 #include <epan/prefs.h>
@@ -197,7 +196,7 @@ proto_reg_handoff_cwids(void)
 	if (!initialized) {
 		cwids_handle = create_dissector_handle(dissect_cwids, proto_cwids);
 		dissector_add_handle("udp.port", cwids_handle);
-		ieee80211_handle = find_dissector("wlan");
+		ieee80211_handle = find_dissector("wlan_withoutfcs");
 		initialized = TRUE;
 	} else {
 		if (saved_udp_port != 0) {

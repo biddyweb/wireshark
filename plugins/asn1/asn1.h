@@ -1,8 +1,6 @@
 /* asn1.h
  * Definitions for ASN.1 BER dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  *
@@ -24,7 +22,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  */
 #ifndef __ASN1_H__
@@ -55,7 +53,7 @@
 #define BER_UNI_TAG_EMBEDDED_PDV	    11
 #define BER_UNI_TAG_UTF8String		    12
 #define BER_UNI_TAG_RELATIVE_OID	    13
-/* UNIVERSAL 14-15	
+/* UNIVERSAL 14-15
  * Reserved for future editions of this
  * Recommendation | International Standard
  */

@@ -2,8 +2,6 @@
  * Routines for h245 packet dissection
  * Copyright 2005, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,7 +34,7 @@ typedef enum _h245_msg_type {
 	H245_OpenLogChn,
 	H245_OpenLogChnCnf,
 	H245_OpenLogChnAck,
-	H245_OpenLogChnRjc,	
+	H245_OpenLogChnRjc,
 	H245_CloseLogChn,
 	H245_CloseLogChnAck,
 	H245_MastSlvDet,

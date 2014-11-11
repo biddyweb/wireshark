@@ -2,7 +2,6 @@
  * Routines for ISO/OSI End System to Intermediate System
  * Routing Exchange Protocol ISO 9542.
  *
- * $Id$
  * Ralf Schneider <Ralf.Schneider@t-online.de>
  *
  * Wireshark - Network traffic analyzer
@@ -28,11 +27,14 @@
 
 #include <glib.h>
 #include <epan/packet.h>
+#include <wsutil/pint.h>
 #include <epan/nlpid.h>
 #include "packet-osi.h"
 #include "packet-osi-options.h"
 #include "packet-esis.h"
 
+void proto_register_esis(void);
+void proto_reg_handoff_esis(void);
 
 /* esis base header */
 static int  proto_esis        = -1;
@@ -44,6 +46,15 @@ static int  hf_esis_reserved  = -1;
 static int  hf_esis_type      = -1;
 static int  hf_esis_holdtime  = -1;
 static int  hf_esis_checksum  = -1;
+/* Generated from convert_proto_tree_add_text.pl */
+static int hf_esis_dal = -1;
+static int hf_esis_number_of_source_addresses = -1;
+static int hf_esis_netl = -1;
+static int hf_esis_sal = -1;
+static int hf_esis_bsnpal = -1;
+static int hf_esis_net = -1;
+static int hf_esis_da = -1;
+static int hf_esis_bsnpa = -1;
 
 static gint ett_esis              = -1;
 static gint ett_esis_area_addr    = -1;
@@ -159,14 +170,13 @@ esis_dissect_esh_pdu( guint8 len, tvbuff_t *tvb, proto_tree *tree) {
     no_sa  = tvb_get_guint8(tvb, offset);
     len   -= 1;
 
-    ti = proto_tree_add_text( tree, tvb, offset, -1,
-                              "Number of Source Addresses (SA, Format: NSAP) : %u", no_sa );
+    ti = proto_tree_add_uint( tree, hf_esis_number_of_source_addresses, tvb, offset, 1, no_sa);
     offset++;
 
     esis_area_tree = proto_item_add_subtree( ti, ett_esis_area_addr );
     while ( no_sa-- > 0 ) {
       sal = (int) tvb_get_guint8(tvb, offset);
-      proto_tree_add_text(esis_area_tree, tvb, offset, 1, "SAL: %2u Octets", sal);
+      proto_tree_add_uint_format_value(esis_area_tree, hf_esis_sal, tvb, offset, 1, sal, "%2u Octets", sal);
       offset++;
       proto_tree_add_text(esis_area_tree, tvb, offset, sal,
                           " SA: %s",
@@ -190,10 +200,8 @@ esis_dissect_ish_pdu( guint8 len, tvbuff_t *tvb, proto_tree *tree) {
     netl = (int) tvb_get_guint8(tvb, offset);
     proto_tree_add_text( tree, tvb, offset, netl + 1,
                          "### Network Entity Title Section ###");
-    proto_tree_add_text( tree, tvb, offset++, 1, "NETL: %2u Octets", netl);
-    proto_tree_add_text( tree, tvb, offset, netl,
-                         " NET: %s",
-                         print_nsap_net( tvb_get_ptr(tvb, offset, netl), netl ) );
+    proto_tree_add_uint_format_value(tree, hf_esis_netl, tvb, offset++, 1, netl, "%2u Octets", netl);
+    proto_tree_add_string( tree, hf_esis_net, tvb, offset, netl, print_nsap_net( tvb_get_ptr(tvb, offset, netl), netl ) );
     offset += netl;
     len    -= ( netl + 1 );
 
@@ -213,9 +221,8 @@ esis_dissect_redirect_pdu( guint8 len, tvbuff_t *tvb, proto_tree *tree) {
     tmpl = (int) tvb_get_guint8(tvb, offset);
     proto_tree_add_text( tree, tvb, offset, tmpl + 1,
                          "### Destination Address Section ###" );
-    proto_tree_add_text( tree, tvb, offset++, 1, "DAL: %2u Octets", tmpl);
-    proto_tree_add_text( tree, tvb, offset, tmpl,
-                         " DA : %s",
+    proto_tree_add_uint_format_value(tree, hf_esis_dal, tvb, offset++, 1, tmpl, "%2u Octets", tmpl);
+    proto_tree_add_string( tree, hf_esis_da, tvb, offset, tmpl,
                          print_nsap_net( tvb_get_ptr(tvb, offset, tmpl), tmpl ) );
     offset += tmpl;
     len    -= ( tmpl + 1 );
@@ -223,10 +230,8 @@ esis_dissect_redirect_pdu( guint8 len, tvbuff_t *tvb, proto_tree *tree) {
 
     proto_tree_add_text( tree, tvb, offset, tmpl + 1,
                          "###  Subnetwork Address Section ###");
-    proto_tree_add_text( tree, tvb, offset++, 1, "BSNPAL: %2u Octets", tmpl);
-    proto_tree_add_text( tree, tvb, offset, tmpl,
-                         " BSNPA: %s",
-                         print_system_id( tvb_get_ptr(tvb, offset, tmpl), tmpl ) );
+    proto_tree_add_uint_format_value(tree, hf_esis_bsnpal, tvb, offset++, 1, tmpl, "%2u Octets", tmpl);
+    proto_tree_add_item( tree, hf_esis_bsnpa, tvb, offset, tmpl, ENC_NA);
     offset += tmpl;
     len    -= ( tmpl + 1 );
     tmpl    = (int) tvb_get_guint8(tvb, offset);
@@ -240,9 +245,8 @@ esis_dissect_redirect_pdu( guint8 len, tvbuff_t *tvb, proto_tree *tree) {
     else {
       proto_tree_add_text( tree, tvb, offset, 1,
                            "### Network Entity Title Section ###" );
-      proto_tree_add_text( tree, tvb, offset++, 1, "NETL: %2u Octets", tmpl );
-      proto_tree_add_text( tree, tvb, offset, tmpl,
-                           " NET: %s",
+      proto_tree_add_uint_format_value(tree, hf_esis_netl, tvb, offset++, 1, tmpl, "%2u Octets", tmpl );
+      proto_tree_add_string( tree, hf_esis_net, tvb, offset, tmpl,
                            print_nsap_net( tvb_get_ptr(tvb, offset, tmpl), tmpl ) );
       offset += tmpl;
       len    -= ( tmpl + 1 );
@@ -315,16 +319,16 @@ dissect_esis(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
                                 ehdr.esis_type,
                                 pdu_type_format_string,
                                 pdu_type_string,
-                                (ehdr.esis_type&BIT_8) ? "1" : "0",
-                                (ehdr.esis_type&BIT_7) ? "1" : "0",
-                                (ehdr.esis_type&BIT_6) ? "1" : "0");
+                                (ehdr.esis_type&0x80) ? "1" : "0",
+                                (ehdr.esis_type&0x40) ? "1" : "0",
+                                (ehdr.esis_type&0x20) ? "1" : "0");
 
-    tmp_uint = pntohs( ehdr.esis_holdtime );
-    proto_tree_add_uint_format(esis_tree, hf_esis_holdtime, tvb, 5, 2,
-                               tmp_uint, "Holding Time  : %u seconds",
+    tmp_uint = pntoh16( ehdr.esis_holdtime );
+    proto_tree_add_uint_format_value(esis_tree, hf_esis_holdtime, tvb, 5, 2,
+                               tmp_uint, "%u seconds",
                                tmp_uint );
 
-    tmp_uint = pntohs( ehdr.esis_checksum );
+    tmp_uint = pntoh16( ehdr.esis_checksum );
 
     switch (calc_checksum( tvb, 0, ehdr.esis_length, tmp_uint )) {
 
@@ -348,8 +352,8 @@ dissect_esis(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
       cksum_status = NULL;
       DISSECTOR_ASSERT_NOT_REACHED();
     }
-    proto_tree_add_uint_format( esis_tree, hf_esis_checksum, tvb, 7, 2,
-                                tmp_uint, "Checksum      : 0x%x ( %s )",
+    proto_tree_add_uint_format_value( esis_tree, hf_esis_checksum, tvb, 7, 2,
+                                tmp_uint, "0x%x ( %s )",
                                 tmp_uint, cksum_status );
   }
 
@@ -359,11 +363,9 @@ dissect_esis(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
    * here.  First, dump the name into info column, and THEN
    * dispatch the sub-type.
    */
-  if (check_col(pinfo->cinfo, COL_INFO)) {
-    col_add_str(pinfo->cinfo, COL_INFO,
+  col_add_str(pinfo->cinfo, COL_INFO,
                 val_to_str( ehdr.esis_type&OSI_PDU_TYPE_MASK, esis_vals,
                             "Unknown (0x%x)" ) );
-  }
 
   variable_len = ehdr.esis_length - ESIS_HDR_FIXED_LENGTH;
 
@@ -424,7 +426,17 @@ proto_register_esis(void) {
       { "Holding Time", "esis.htime", FT_UINT16, BASE_DEC, NULL, 0x0, "s", HFILL }},
 
     { &hf_esis_checksum,
-      { "Checksum", "esis.chksum",    FT_UINT16, BASE_HEX, NULL, 0x0, NULL, HFILL }}
+      { "Checksum", "esis.chksum",    FT_UINT16, BASE_HEX, NULL, 0x0, NULL, HFILL }},
+
+      /* Generated from convert_proto_tree_add_text.pl */
+      { &hf_esis_number_of_source_addresses, { "Number of Source Addresses (SA, Format: NSAP)", "esis.number_of_source_addresses", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+      { &hf_esis_sal, { "SAL", "esis.sal", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+      { &hf_esis_netl, { "NETL", "esis.netl", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+      { &hf_esis_dal, { "DAL", "esis.dal", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+      { &hf_esis_bsnpal, { "BSNPAL", "esis.bsnpal", FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+      { &hf_esis_net, { "NET", "esis.net", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+      { &hf_esis_da, { "DA", "esis.da", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+      { &hf_esis_bsnpa, { "BSNPA", "esis.bsnpa", FT_SYSTEM_ID, BASE_NONE, NULL, 0x0, NULL, HFILL }},
   };
   /*
    *
@@ -447,5 +459,5 @@ proto_reg_handoff_esis(void)
   dissector_handle_t esis_handle;
 
   esis_handle = find_dissector("esis");
-  dissector_add_uint("osinl", NLPID_ISO9542_ESIS, esis_handle);
+  dissector_add_uint("osinl.incl", NLPID_ISO9542_ESIS, esis_handle);
 }

@@ -1,7 +1,5 @@
 /* libpcap.h
  *
- * $Id$
- *
  * Wiretap Library
  * Copyright (c) 1998 by Gilbert Ramirez <gram@alumni.rice.edu>
  *
@@ -41,10 +39,10 @@
 
 	http://ftp.sunet.se/pub/os/Linux/ip-routing/lbl-tools/
 
-   applied; PCAP_SWAPPED_MODIFIED_MAGIC is the byte-swapped version. 
+   applied; PCAP_SWAPPED_MODIFIED_MAGIC is the byte-swapped version.
 
    PCAP_NSEC_MAGIC is for Ulf Lamping's modified "libpcap" format,
-   which uses the same common file format as PCAP_MAGIC, but the 
+   which uses the same common file format as PCAP_MAGIC, but the
    timestamps are saved in nanosecond resolution instead of microseconds.
    PCAP_SWAPPED_NSEC_MAGIC is a byte-swapped version of that. */
 #define	PCAP_MAGIC			0xa1b2c3d4

@@ -3,8 +3,6 @@
  * Copyright 2008, Ericsson AB
  * By Balint Reczey <balint.reczey@ericsson.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -27,19 +25,20 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet_info.h"
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
 #include "epan/value_string.h"
 #include "epan/gcp.h"
-#include "timestats.h"
+#include "epan/timestats.h"
 #include <epan/prefs-int.h>
 
-#include "tap-megaco-common.h"
+#include "ui/tap-megaco-common.h"
 
-
+void register_tap_listener_megacostat(void);
 
 static void
 megacostat_draw(void *pms)
@@ -72,7 +71,7 @@ megacostat_draw(void *pms)
 
 
 static void
-megacostat_init(const char *optarg, void* userdata _U_)
+megacostat_init(const char *opt_arg, void* userdata _U_)
 {
 	megacostat_t *ms;
 	int i;
@@ -94,8 +93,8 @@ megacostat_init(const char *optarg, void* userdata _U_)
 	}
 
 	ms=g_new(megacostat_t,1);
-	if(!strncmp(optarg,"megaco,rtd,",11)){
-		ms->filter=g_strdup(optarg+11);
+	if(!strncmp(opt_arg,"megaco,rtd,",11)){
+		ms->filter=g_strdup(opt_arg+11);
 	} else {
 		ms->filter=NULL;
 	}

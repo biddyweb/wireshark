@@ -7,8 +7,6 @@
 #
 # (c) 2006 Luis E. Garcia Ontanon <luis@ontanon.org>
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 2006 Gerald Combs
@@ -30,8 +28,8 @@
 use strict;
 
 my %types = %{{
-	'gchar[]' => 'lua_pushstring(L,(char*)v->%s);',
-	'gchar*' => 'lua_pushstring(L,(char*)v->%s);',
+	'gchar[]' => 'lua_pushstring(L,(const char*)v->%s);',
+	'gchar*' => 'lua_pushstring(L,(const char*)v->%s);',
 	'guint' => 'lua_pushnumber(L,(lua_Number)v->%s);',
 	'guint8' => 'lua_pushnumber(L,(lua_Number)v->%s);',
 	'guint16' => 'lua_pushnumber(L,(lua_Number)v->%s);',
@@ -41,8 +39,8 @@ my %types = %{{
 	'gint16' => 'lua_pushnumber(L,(lua_Number)v->%s);',
 	'gint32' => 'lua_pushnumber(L,(lua_Number)v->%s);',
 	'gboolean' => 'lua_pushboolean(L,(int)v->%s);',
-	'address' => '{ Address a = g_malloc(sizeof(address)); COPY_ADDRESS(a, &(v->%s)); pushAddress(L,a); }',
-	'address*' => '{ Address a = g_malloc(sizeof(address)); COPY_ADDRESS(a, v->%s); pushAddress(L,a); }',
+	'address' => '{ Address a = (Address)g_malloc(sizeof(address)); COPY_ADDRESS(a, &(v->%s)); pushAddress(L,a); }',
+	'address*' => '{ Address a = (Address)g_malloc(sizeof(address)); COPY_ADDRESS(a, v->%s); pushAddress(L,a); }',
 	'int' => 'lua_pushnumber(L,(lua_Number)v->%s);',
 	'nstime_t' => '{lua_Number t = (lua_Number) v->%s.secs; t += v->%s.nsecs * 1e-9; lua_pushnumber(L,t); }',
 	'nstime_t*' => '{lua_Number t = (lua_Number) v->%s->secs; t += v->%s->nsecs * 1e-9; lua_pushnumber(L,t); }',
@@ -124,7 +122,7 @@ sub dotap {
 		  $elems{$k} = $v;
 	}
 
-	my $code = "static void wslua_${tname}_to_table(lua_State* L, const void* p) { $sname* v _U_; v = (void*)p; lua_newtable(L);\n";
+	my $code = "static void wslua_${tname}_to_table(lua_State* L, const void* p) { const $sname* v _U_; v = (const $sname*)p; lua_newtable(L);\n";
 	my $doc = "Tap: $tname\n";
 
 	for my $n (sort keys %elems) {

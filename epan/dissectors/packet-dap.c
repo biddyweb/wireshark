@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-dap.c                                                               */
 /* ../../tools/asn2wrs.py -b -L -p dap -c ./dap.cnf -s ./packet-dap-template -D . -O ../../epan/dissectors dap.asn DirectoryAccessProtocol.asn */
 
@@ -9,8 +9,6 @@
 /* packet-dap.c
  * Routines for X.511 (X.500 Directory Asbtract Service) and X.519 DAP  packet dissection
  * Graeme Lunt 2005
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -59,6 +57,9 @@
 #define PNAME  "X.519 Directory Access Protocol"
 #define PSNAME "DAP"
 #define PFNAME "dap"
+
+void proto_register_dap(void);
+void proto_reg_handoff_dap(void);
 
 static guint global_dap_tcp_port = 102;
 static dissector_handle_t tpkt_handle;
@@ -479,7 +480,7 @@ static int hf_dap_SearchControlOptions_separateFamilyMembers = -1;
 static int hf_dap_SearchControlOptions_searchFamily = -1;
 
 /*--- End of included file: packet-dap-hf.c ---*/
-#line 65 "../../asn1/dap/packet-dap-template.c"
+#line 66 "../../asn1/dap/packet-dap-template.c"
 
 /* Initialize the subtree pointers */
 static gint ett_dap = -1;
@@ -658,7 +659,7 @@ static gint ett_dap_UpdateError = -1;
 static gint ett_dap_T_signedUpdateError = -1;
 
 /*--- End of included file: packet-dap-ett.c ---*/
-#line 69 "../../asn1/dap/packet-dap-template.c"
+#line 70 "../../asn1/dap/packet-dap-template.c"
 
 
 /*--- Included file: packet-dap-val.h ---*/
@@ -683,7 +684,7 @@ static gint ett_dap_T_signedUpdateError = -1;
 #define id_errcode_dsaReferral         9
 
 /*--- End of included file: packet-dap-val.h ---*/
-#line 71 "../../asn1/dap/packet-dap-template.c"
+#line 72 "../../asn1/dap/packet-dap-template.c"
 
 
 /*--- Included file: packet-dap-table.c ---*/
@@ -707,21 +708,21 @@ const value_string dap_opr_code_string_vals[] = {
 
 /* DAP ERRORS */
 static const value_string dap_err_code_string_vals[] = {
-	{ err_ros_bind, "directoryBindError" },  
-	{ id_errcode_abandoned, "abandoned" },  
-	{ id_errcode_abandonFailed, "abandonFailed" },  
-	{ id_errcode_attributeError, "attributeError" },  
-	{ id_errcode_nameError, "nameError" },  
-	{ id_errcode_referral, "referral" },  
-	{ id_errcode_securityError, "securityError" },  
-	{ id_errcode_serviceError, "serviceError" },  
-	{ id_errcode_updateError, "updateError" },  
+	{ err_ros_bind, "directoryBindError" },
+	{ id_errcode_abandoned, "abandoned" },
+	{ id_errcode_abandonFailed, "abandonFailed" },
+	{ id_errcode_attributeError, "attributeError" },
+	{ id_errcode_nameError, "nameError" },
+	{ id_errcode_referral, "referral" },
+	{ id_errcode_securityError, "securityError" },
+	{ id_errcode_serviceError, "serviceError" },
+	{ id_errcode_updateError, "updateError" },
 	  { 0, NULL }
 };
 
 
 /*--- End of included file: packet-dap-table.c ---*/
-#line 73 "../../asn1/dap/packet-dap-template.c"
+#line 74 "../../asn1/dap/packet-dap-template.c"
 
 
 /*--- Included file: packet-dap-fn.c ---*/
@@ -833,11 +834,6 @@ dissect_dap_T_scopeOfReferral(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
   return offset;
 }
 
-
-static const value_string dap_Name_vals[] = {
-  {   0, "rdnSequence" },
-  { 0, NULL }
-};
 
 static const ber_choice_t Name_choice[] = {
   {   0, &hf_dap_rdnSequence     , BER_CLASS_UNI, BER_UNI_TAG_SEQUENCE, BER_FLAGS_NOOWNTAG, dissect_x509if_RDNSequence },
@@ -1567,10 +1563,10 @@ dissect_dap_T_newRequest(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offse
 static int
 dissect_dap_T_pagedResultsQueryReference(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
 	tvbuff_t *out_tvb;
-	int 	i;
+	int	i;
 	int	len;
 
-    	  offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
+	  offset = dissect_ber_octet_string(implicit_tag, actx, tree, tvb, offset, hf_index,
                                        &out_tvb);
 
 
@@ -1580,7 +1576,7 @@ dissect_dap_T_pagedResultsQueryReference(gboolean implicit_tag _U_, tvbuff_t *tv
 		for(i=0; i<len; i++)
 			if(!g_ascii_isprint(tvb_get_guint8(out_tvb, i)))
 				break;
-	
+
 		if(i == len) {
 			if(actx->created_item) {
 
@@ -1591,7 +1587,7 @@ dissect_dap_T_pagedResultsQueryReference(gboolean implicit_tag _U_, tvbuff_t *tv
 			}
 		}
 	}
-	
+
 
   return offset;
 }
@@ -1855,8 +1851,8 @@ dissect_dap_SimpleCredentials(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, int 
 	col_append_fstr(actx->pinfo->cinfo, COL_INFO, " %s", x509if_get_last_dn());
 
 
-	
-	
+
+
 
   return offset;
 }
@@ -2077,7 +2073,7 @@ dissect_dap_DirectoryBindArgument(gboolean implicit_tag _U_, tvbuff_t *tvb _U_, 
 
 	  offset = dissect_ber_set(implicit_tag, actx, tree, tvb, offset,
                               DirectoryBindArgument_set, hf_index, ett_dap_DirectoryBindArgument);
-	
+
 
 
   return offset;
@@ -4776,68 +4772,68 @@ static int dissect_UpdateError_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, pr
 
 
 /*--- End of included file: packet-dap-fn.c ---*/
-#line 75 "../../asn1/dap/packet-dap-template.c"
+#line 76 "../../asn1/dap/packet-dap-template.c"
 
 
 /*--- Included file: packet-dap-table11.c ---*/
 #line 1 "../../asn1/dap/packet-dap-table11.c"
 
 static const ros_opr_t dap_opr_tab[] = {
-  /* directoryBind */ 
-  { op_ros_bind              ,	dissect_DirectoryBindArgument_PDU,	dissect_DirectoryBindResult_PDU }, 
-  /* read */ 
-  { id_opcode_read           ,	dissect_ReadArgument_PDU,	dissect_ReadResult_PDU }, 
-  /* compare */ 
-  { id_opcode_compare        ,	dissect_CompareArgument_PDU,	dissect_CompareResult_PDU }, 
-  /* abandon */ 
-  { id_opcode_abandon        ,	dissect_AbandonArgument_PDU,	dissect_AbandonResult_PDU }, 
-  /* list */ 
-  { id_opcode_list           ,	dissect_ListArgument_PDU,	dissect_ListResult_PDU }, 
-  /* search */ 
-  { id_opcode_search         ,	dissect_SearchArgument_PDU,	dissect_SearchResult_PDU }, 
-  /* addEntry */ 
-  { id_opcode_addEntry       ,	dissect_AddEntryArgument_PDU,	dissect_AddEntryResult_PDU }, 
-  /* removeEntry */ 
-  { id_opcode_removeEntry    ,	dissect_RemoveEntryArgument_PDU,	dissect_RemoveEntryResult_PDU }, 
-  /* modifyEntry */ 
-  { id_opcode_modifyEntry    ,	dissect_ModifyEntryArgument_PDU,	dissect_ModifyEntryResult_PDU }, 
-  /* modifyDN */ 
-  { id_opcode_modifyDN       ,	dissect_ModifyDNArgument_PDU,	dissect_ModifyDNResult_PDU }, 
+  /* directoryBind */
+  { op_ros_bind              ,	dissect_DirectoryBindArgument_PDU,	dissect_DirectoryBindResult_PDU },
+  /* read */
+  { id_opcode_read           ,	dissect_ReadArgument_PDU,	dissect_ReadResult_PDU },
+  /* compare */
+  { id_opcode_compare        ,	dissect_CompareArgument_PDU,	dissect_CompareResult_PDU },
+  /* abandon */
+  { id_opcode_abandon        ,	dissect_AbandonArgument_PDU,	dissect_AbandonResult_PDU },
+  /* list */
+  { id_opcode_list           ,	dissect_ListArgument_PDU,	dissect_ListResult_PDU },
+  /* search */
+  { id_opcode_search         ,	dissect_SearchArgument_PDU,	dissect_SearchResult_PDU },
+  /* addEntry */
+  { id_opcode_addEntry       ,	dissect_AddEntryArgument_PDU,	dissect_AddEntryResult_PDU },
+  /* removeEntry */
+  { id_opcode_removeEntry    ,	dissect_RemoveEntryArgument_PDU,	dissect_RemoveEntryResult_PDU },
+  /* modifyEntry */
+  { id_opcode_modifyEntry    ,	dissect_ModifyEntryArgument_PDU,	dissect_ModifyEntryResult_PDU },
+  /* modifyDN */
+  { id_opcode_modifyDN       ,	dissect_ModifyDNArgument_PDU,	dissect_ModifyDNResult_PDU },
   { 0,				(new_dissector_t)(-1),	(new_dissector_t)(-1) },
 };
 
 
 /*--- End of included file: packet-dap-table11.c ---*/
-#line 77 "../../asn1/dap/packet-dap-template.c"
+#line 78 "../../asn1/dap/packet-dap-template.c"
 
 /*--- Included file: packet-dap-table21.c ---*/
 #line 1 "../../asn1/dap/packet-dap-table21.c"
 
 static const ros_err_t dap_err_tab[] = {
-  /* directoryBindError*/ 
+  /* directoryBindError*/
   { err_ros_bind,	dissect_DirectoryBindError_PDU },
-  /* abandoned*/ 
+  /* abandoned*/
   { id_errcode_abandoned,	dissect_Abandoned_PDU },
-  /* abandonFailed*/ 
+  /* abandonFailed*/
   { id_errcode_abandonFailed,	dissect_AbandonFailedError_PDU },
-  /* attributeError*/ 
+  /* attributeError*/
   { id_errcode_attributeError,	dissect_AttributeError_PDU },
-  /* nameError*/ 
+  /* nameError*/
   { id_errcode_nameError,	dissect_NameError_PDU },
-  /* referral*/ 
+  /* referral*/
   { id_errcode_referral,	dissect_Referral_PDU },
-  /* securityError*/ 
+  /* securityError*/
   { id_errcode_securityError,	dissect_SecurityError_PDU },
-  /* serviceError*/ 
+  /* serviceError*/
   { id_errcode_serviceError,	dissect_ServiceError_PDU },
-  /* updateError*/ 
+  /* updateError*/
   { id_errcode_updateError,	dissect_UpdateError_PDU },
   { 0,	(new_dissector_t)(-1) },
 };
 
 
 /*--- End of included file: packet-dap-table21.c ---*/
-#line 78 "../../asn1/dap/packet-dap-template.c"
+#line 79 "../../asn1/dap/packet-dap-template.c"
 
 static const ros_info_t dap_ros_info = {
   "DAP",
@@ -4860,11 +4856,11 @@ void proto_register_dap(void) {
 /*--- Included file: packet-dap-hfarr.c ---*/
 #line 1 "../../asn1/dap/packet-dap-hfarr.c"
     { &hf_dap_DirectoryBindArgument_PDU,
-      { "DirectoryBindArgument", "dap.DirectoryBindArgument",
+      { "DirectoryBindArgument", "dap.DirectoryBindArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_DirectoryBindResult_PDU,
-      { "DirectoryBindResult", "dap.DirectoryBindResult",
+      { "DirectoryBindResult", "dap.DirectoryBindResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_DirectoryBindError_PDU,
@@ -4936,7 +4932,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_ModifyEntryResult_vals), 0,
         NULL, HFILL }},
     { &hf_dap_ModifyDNArgument_PDU,
-      { "ModifyDNArgument", "dap.ModifyDNArgument",
+      { "ModifyDNArgument", "dap.ModifyDNArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_ModifyDNResult_PDU,
@@ -5000,7 +4996,7 @@ void proto_register_dap(void) {
         FT_INT32, BASE_DEC, NULL, 0,
         "INTEGER", HFILL }},
     { &hf_dap_manageDSAITPlaneRef,
-      { "manageDSAITPlaneRef", "dap.manageDSAITPlaneRef",
+      { "manageDSAITPlaneRef", "dap.manageDSAITPlaneRef_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_dsaName,
@@ -5008,7 +5004,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(x509if_Name_vals), 0,
         "Name", HFILL }},
     { &hf_dap_agreementID,
-      { "agreementID", "dap.agreementID",
+      { "agreementID", "dap.agreementID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_serviceType,
@@ -5024,7 +5020,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_T_attributes_vals), 0,
         NULL, HFILL }},
     { &hf_dap_allUserAttributes,
-      { "allUserAttributes", "dap.allUserAttributes",
+      { "allUserAttributes", "dap.allUserAttributes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_select,
@@ -5044,7 +5040,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_T_extraAttributes_vals), 0,
         NULL, HFILL }},
     { &hf_dap_allOperationalAttributes,
-      { "allOperationalAttributes", "dap.allOperationalAttributes",
+      { "allOperationalAttributes", "dap.allOperationalAttributes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_extraSelect,
@@ -5064,11 +5060,11 @@ void proto_register_dap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_dap_familyReturn,
-      { "familyReturn", "dap.familyReturn",
+      { "familyReturn", "dap.familyReturn_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_allContexts,
-      { "allContexts", "dap.allContexts",
+      { "allContexts", "dap.allContexts_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_selectedContexts,
@@ -5076,7 +5072,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_SIZE_1_MAX_OF_TypeAndContextAssertion", HFILL }},
     { &hf_dap_selectedContexts_item,
-      { "TypeAndContextAssertion", "dap.TypeAndContextAssertion",
+      { "TypeAndContextAssertion", "dap.TypeAndContextAssertion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_type,
@@ -5092,7 +5088,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_ContextAssertion", HFILL }},
     { &hf_dap_preference_item,
-      { "ContextAssertion", "dap.ContextAssertion",
+      { "ContextAssertion", "dap.ContextAssertion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_all,
@@ -5100,7 +5096,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_ContextAssertion", HFILL }},
     { &hf_dap_all_item,
-      { "ContextAssertion", "dap.ContextAssertion",
+      { "ContextAssertion", "dap.ContextAssertion_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_memberSelect,
@@ -5136,7 +5132,7 @@ void proto_register_dap(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_attribute,
-      { "attribute", "dap.attribute",
+      { "attribute", "dap.attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_incompleteEntry,
@@ -5160,7 +5156,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_OF_FamilyEntry", HFILL }},
     { &hf_dap_familyEntries_item,
-      { "FamilyEntry", "dap.FamilyEntry",
+      { "FamilyEntry", "dap.FamilyEntry_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_rdn,
@@ -5180,7 +5176,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_FamilyEntries", HFILL }},
     { &hf_dap_family_info_item,
-      { "FamilyEntries", "dap.FamilyEntries",
+      { "FamilyEntries", "dap.FamilyEntries_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_filter_item,
@@ -5204,11 +5200,11 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_Filter_vals), 0,
         NULL, HFILL }},
     { &hf_dap_equality,
-      { "equality", "dap.equality",
+      { "equality", "dap.equality_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeValueAssertion", HFILL }},
     { &hf_dap_substrings,
-      { "substrings", "dap.substrings",
+      { "substrings", "dap.substrings_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_sunstringType,
@@ -5224,27 +5220,27 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_T_strings_item_vals), 0,
         NULL, HFILL }},
     { &hf_dap_initial,
-      { "initial", "dap.initial",
+      { "initial", "dap.initial_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_any,
-      { "any", "dap.any",
+      { "any", "dap.any_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_final,
-      { "final", "dap.final",
+      { "final", "dap.final_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_control,
-      { "control", "dap.control",
+      { "control", "dap.control_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_dap_greaterOrEqual,
-      { "greaterOrEqual", "dap.greaterOrEqual",
+      { "greaterOrEqual", "dap.greaterOrEqual_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeValueAssertion", HFILL }},
     { &hf_dap_lessOrEqual,
-      { "lessOrEqual", "dap.lessOrEqual",
+      { "lessOrEqual", "dap.lessOrEqual_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeValueAssertion", HFILL }},
     { &hf_dap_present,
@@ -5252,15 +5248,15 @@ void proto_register_dap(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "AttributeType", HFILL }},
     { &hf_dap_approximateMatch,
-      { "approximateMatch", "dap.approximateMatch",
+      { "approximateMatch", "dap.approximateMatch_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeValueAssertion", HFILL }},
     { &hf_dap_extensibleMatch,
-      { "extensibleMatch", "dap.extensibleMatch",
+      { "extensibleMatch", "dap.extensibleMatch_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MatchingRuleAssertion", HFILL }},
     { &hf_dap_contextPresent,
-      { "contextPresent", "dap.contextPresent",
+      { "contextPresent", "dap.contextPresent_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeTypeAssertion", HFILL }},
     { &hf_dap_matchingRule,
@@ -5272,7 +5268,7 @@ void proto_register_dap(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_dap_matchValue,
-      { "matchValue", "dap.matchValue",
+      { "matchValue", "dap.matchValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_dnAttributes,
@@ -5280,7 +5276,7 @@ void proto_register_dap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_dap_newRequest,
-      { "newRequest", "dap.newRequest",
+      { "newRequest", "dap.newRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_pageSize,
@@ -5292,7 +5288,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_SortKey", HFILL }},
     { &hf_dap_sortKeys_item,
-      { "SortKey", "dap.SortKey",
+      { "SortKey", "dap.SortKey_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_reverse,
@@ -5312,7 +5308,7 @@ void proto_register_dap(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_dap_certification_path,
-      { "certification-path", "dap.certification_path",
+      { "certification-path", "dap.certification_path_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CertificationPath", HFILL }},
     { &hf_dap_distinguished_name,
@@ -5340,7 +5336,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(ros_Code_vals), 0,
         "Code", HFILL }},
     { &hf_dap_attributeCertificationPath,
-      { "attributeCertificationPath", "dap.attributeCertificationPath",
+      { "attributeCertificationPath", "dap.attributeCertificationPath_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_errorProtection,
@@ -5368,15 +5364,15 @@ void proto_register_dap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_simple,
-      { "simple", "dap.simple",
+      { "simple", "dap.simple_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SimpleCredentials", HFILL }},
     { &hf_dap_strong,
-      { "strong", "dap.strong",
+      { "strong", "dap.strong_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "StrongCredentials", HFILL }},
     { &hf_dap_externalProcedure,
-      { "externalProcedure", "dap.externalProcedure",
+      { "externalProcedure", "dap.externalProcedure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EXTERNAL", HFILL }},
     { &hf_dap_spkm,
@@ -5384,11 +5380,11 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_SpkmCredentials_vals), 0,
         "SpkmCredentials", HFILL }},
     { &hf_dap_sasl,
-      { "sasl", "dap.sasl",
+      { "sasl", "dap.sasl_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SaslCredentials", HFILL }},
     { &hf_dap_validity,
-      { "validity", "dap.validity",
+      { "validity", "dap.validity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_time1,
@@ -5424,7 +5420,7 @@ void proto_register_dap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_dap_protected,
-      { "protected", "dap.protected",
+      { "protected", "dap.protected_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_protectedPassword,
@@ -5432,7 +5428,7 @@ void proto_register_dap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "OCTET_STRING", HFILL }},
     { &hf_dap_algorithmIdentifier,
-      { "algorithmIdentifier", "dap.algorithmIdentifier",
+      { "algorithmIdentifier", "dap.algorithmIdentifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_encrypted,
@@ -5440,15 +5436,15 @@ void proto_register_dap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BIT_STRING", HFILL }},
     { &hf_dap_bind_token,
-      { "bind-token", "dap.bind_token",
+      { "bind-token", "dap.bind_token_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Token", HFILL }},
     { &hf_dap_req,
-      { "req", "dap.req",
+      { "req", "dap.req_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_rep,
-      { "rep", "dap.rep",
+      { "rep", "dap.rep_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_mechanism,
@@ -5464,7 +5460,7 @@ void proto_register_dap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_dap_algorithm,
-      { "algorithm", "dap.algorithm",
+      { "algorithm", "dap.algorithm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_dap_utctime,
@@ -5476,7 +5472,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_AlgorithmIdentifier", HFILL }},
     { &hf_dap_bindIntAlgorithm_item,
-      { "AlgorithmIdentifier", "dap.AlgorithmIdentifier",
+      { "AlgorithmIdentifier", "dap.AlgorithmIdentifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_bindIntKeyInfo,
@@ -5488,7 +5484,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_AlgorithmIdentifier", HFILL }},
     { &hf_dap_bindConfAlgorithm_item,
-      { "AlgorithmIdentifier", "dap.AlgorithmIdentifier",
+      { "AlgorithmIdentifier", "dap.AlgorithmIdentifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_bindConfKeyInfo,
@@ -5496,23 +5492,23 @@ void proto_register_dap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "BindKeyInfo", HFILL }},
     { &hf_dap_token_data,
-      { "token-data", "dap.token_data",
+      { "token-data", "dap.token_data_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TokenData", HFILL }},
     { &hf_dap_algorithm_identifier,
-      { "algorithm-identifier", "dap.algorithm_identifier",
+      { "algorithm-identifier", "dap.algorithm_identifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AlgorithmIdentifier", HFILL }},
     { &hf_dap_unsignedDirectoryBindError,
-      { "unsignedDirectoryBindError", "dap.unsignedDirectoryBindError",
+      { "unsignedDirectoryBindError", "dap.unsignedDirectoryBindError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DirectoryBindErrorData", HFILL }},
     { &hf_dap_signedDirectoryBindError,
-      { "signedDirectoryBindError", "dap.signedDirectoryBindError",
+      { "signedDirectoryBindError", "dap.signedDirectoryBindError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_directoryBindError,
-      { "directoryBindError", "dap.directoryBindError",
+      { "directoryBindError", "dap.directoryBindError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "DirectoryBindErrorData", HFILL }},
     { &hf_dap_error,
@@ -5528,7 +5524,7 @@ void proto_register_dap(void) {
         FT_INT32, BASE_DEC, VALS(dap_SecurityProblem_vals), 0,
         "SecurityProblem", HFILL }},
     { &hf_dap_securityParameters,
-      { "securityParameters", "dap.securityParameters",
+      { "securityParameters", "dap.securityParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_object,
@@ -5536,7 +5532,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(x509if_Name_vals), 0,
         "Name", HFILL }},
     { &hf_dap_selection,
-      { "selection", "dap.selection",
+      { "selection", "dap.selection_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EntryInformationSelection", HFILL }},
     { &hf_dap_modifyRightsRequest,
@@ -5544,7 +5540,7 @@ void proto_register_dap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_dap_serviceControls,
-      { "serviceControls", "dap.serviceControls",
+      { "serviceControls", "dap.serviceControls_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_requestor,
@@ -5552,7 +5548,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "DistinguishedName", HFILL }},
     { &hf_dap_operationProgress,
-      { "operationProgress", "dap.operationProgress",
+      { "operationProgress", "dap.operationProgress_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_aliasedRDNs,
@@ -5592,19 +5588,19 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_unsignedReadArgument,
-      { "unsignedReadArgument", "dap.unsignedReadArgument",
+      { "unsignedReadArgument", "dap.unsignedReadArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReadArgumentData", HFILL }},
     { &hf_dap_signedReadArgument,
-      { "signedReadArgument", "dap.signedReadArgument",
+      { "signedReadArgument", "dap.signedReadArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_readArgument,
-      { "readArgument", "dap.readArgument",
+      { "readArgument", "dap.readArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReadArgumentData", HFILL }},
     { &hf_dap_entry,
-      { "entry", "dap.entry",
+      { "entry", "dap.entry_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EntryInformation", HFILL }},
     { &hf_dap_modifyRights,
@@ -5624,23 +5620,23 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_Attribute", HFILL }},
     { &hf_dap_notification_item,
-      { "Attribute", "dap.Attribute",
+      { "Attribute", "dap.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_unsignedReadResult,
-      { "unsignedReadResult", "dap.unsignedReadResult",
+      { "unsignedReadResult", "dap.unsignedReadResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReadResultData", HFILL }},
     { &hf_dap_signedReadResult,
-      { "signedReadResult", "dap.signedReadResult",
+      { "signedReadResult", "dap.signedReadResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_readResult,
-      { "readResult", "dap.readResult",
+      { "readResult", "dap.readResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReadResultData", HFILL }},
     { &hf_dap_ModifyRights_item,
-      { "ModifyRights item", "dap.ModifyRights_item",
+      { "ModifyRights item", "dap.ModifyRights_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_item,
@@ -5648,7 +5644,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_T_item_vals), 0,
         NULL, HFILL }},
     { &hf_dap_item_entry,
-      { "entry", "dap.entry",
+      { "entry", "dap.entry_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_attribute_type,
@@ -5656,7 +5652,7 @@ void proto_register_dap(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "AttributeType", HFILL }},
     { &hf_dap_value_assertion,
-      { "value", "dap.value",
+      { "value", "dap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeValueAssertion", HFILL }},
     { &hf_dap_permission,
@@ -5664,19 +5660,19 @@ void proto_register_dap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_purported,
-      { "purported", "dap.purported",
+      { "purported", "dap.purported_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeValueAssertion", HFILL }},
     { &hf_dap_unsignedCompareArgument,
-      { "unsignedCompareArgument", "dap.unsignedCompareArgument",
+      { "unsignedCompareArgument", "dap.unsignedCompareArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CompareArgumentData", HFILL }},
     { &hf_dap_signedCompareArgument,
-      { "signedCompareArgument", "dap.signedCompareArgument",
+      { "signedCompareArgument", "dap.signedCompareArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_compareArgument,
-      { "compareArgument", "dap.compareArgument",
+      { "compareArgument", "dap.compareArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CompareArgumentData", HFILL }},
     { &hf_dap_matched,
@@ -5688,15 +5684,15 @@ void proto_register_dap(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "AttributeType", HFILL }},
     { &hf_dap_unsignedCompareResult,
-      { "unsignedCompareResult", "dap.unsignedCompareResult",
+      { "unsignedCompareResult", "dap.unsignedCompareResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CompareResultData", HFILL }},
     { &hf_dap_signedCompareResult,
-      { "signedCompareResult", "dap.signedCompareResult",
+      { "signedCompareResult", "dap.signedCompareResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_compareResult,
-      { "compareResult", "dap.compareResult",
+      { "compareResult", "dap.compareResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CompareResultData", HFILL }},
     { &hf_dap_invokeID,
@@ -5704,19 +5700,19 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(ros_InvokeId_vals), 0,
         NULL, HFILL }},
     { &hf_dap_unsignedAbandonArgument,
-      { "unsignedAbandonArgument", "dap.unsignedAbandonArgument",
+      { "unsignedAbandonArgument", "dap.unsignedAbandonArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AbandonArgumentData", HFILL }},
     { &hf_dap_signedAbandonArgument,
-      { "signedAbandonArgument", "dap.signedAbandonArgument",
+      { "signedAbandonArgument", "dap.signedAbandonArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_abandonArgument,
-      { "abandonArgument", "dap.abandonArgument",
+      { "abandonArgument", "dap.abandonArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AbandonArgumentData", HFILL }},
     { &hf_dap_null,
-      { "null", "dap.null",
+      { "null", "dap.null_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_abandon_information,
@@ -5724,15 +5720,15 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_AbandonInformation_vals), 0,
         "AbandonInformation", HFILL }},
     { &hf_dap_unsignedAbandonResult,
-      { "unsignedAbandonResult", "dap.unsignedAbandonResult",
+      { "unsignedAbandonResult", "dap.unsignedAbandonResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AbandonResultData", HFILL }},
     { &hf_dap_signedAbandonResult,
-      { "signedAbandonResult", "dap.signedAbandonResult",
+      { "signedAbandonResult", "dap.signedAbandonResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_abandonResult,
-      { "abandonResult", "dap.abandonResult",
+      { "abandonResult", "dap.abandonResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AbandonResultData", HFILL }},
     { &hf_dap_pagedResults,
@@ -5744,19 +5740,19 @@ void proto_register_dap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_dap_unsignedListArgument,
-      { "unsignedListArgument", "dap.unsignedListArgument",
+      { "unsignedListArgument", "dap.unsignedListArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ListArgumentData", HFILL }},
     { &hf_dap_signedListArgument,
-      { "signedListArgument", "dap.signedListArgument",
+      { "signedListArgument", "dap.signedListArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_listArgument,
-      { "listArgument", "dap.listArgument",
+      { "listArgument", "dap.listArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ListArgumentData", HFILL }},
     { &hf_dap_listInfo,
-      { "listInfo", "dap.listInfo",
+      { "listInfo", "dap.listInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_subordinates,
@@ -5764,7 +5760,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_subordinates_item,
-      { "subordinates item", "dap.subordinates_item",
+      { "subordinates item", "dap.subordinates_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_aliasEntry,
@@ -5772,7 +5768,7 @@ void proto_register_dap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_dap_partialOutcomeQualifier,
-      { "partialOutcomeQualifier", "dap.partialOutcomeQualifier",
+      { "partialOutcomeQualifier", "dap.partialOutcomeQualifier_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_uncorrelatedListInfo,
@@ -5788,7 +5784,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_ListResultData_vals), 0,
         "ListResultData", HFILL }},
     { &hf_dap_signedListResult,
-      { "signedListResult", "dap.signedListResult",
+      { "signedListResult", "dap.signedListResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_listResult,
@@ -5804,7 +5800,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_SIZE_1_MAX_OF_ContinuationReference", HFILL }},
     { &hf_dap_unexplored_item,
-      { "ContinuationReference", "dap.ContinuationReference",
+      { "ContinuationReference", "dap.ContinuationReference_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_unavailableCriticalExtensions,
@@ -5876,7 +5872,7 @@ void proto_register_dap(void) {
         FT_BOOLEAN, BASE_NONE, NULL, 0,
         "BOOLEAN", HFILL }},
     { &hf_dap_relaxation,
-      { "relaxation", "dap.relaxation",
+      { "relaxation", "dap.relaxation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RelaxationPolicy", HFILL }},
     { &hf_dap_extendedArea,
@@ -5896,7 +5892,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_JoinArgument", HFILL }},
     { &hf_dap_joinArguments_item,
-      { "JoinArgument", "dap.JoinArgument",
+      { "JoinArgument", "dap.JoinArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_joinType,
@@ -5904,15 +5900,15 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_T_joinType_vals), 0,
         NULL, HFILL }},
     { &hf_dap_unsignedSearchArgument,
-      { "unsignedSearchArgument", "dap.unsignedSearchArgument",
+      { "unsignedSearchArgument", "dap.unsignedSearchArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SearchArgumentData", HFILL }},
     { &hf_dap_signedSearchArgument,
-      { "signedSearchArgument", "dap.signedSearchArgument",
+      { "signedSearchArgument", "dap.signedSearchArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_searchArgument,
-      { "searchArgument", "dap.searchArgument",
+      { "searchArgument", "dap.searchArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SearchArgumentData", HFILL }},
     { &hf_dap_joinBaseObject,
@@ -5936,11 +5932,11 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SEQUENCE_SIZE_1_MAX_OF_JoinAttPair", HFILL }},
     { &hf_dap_joinAttributes_item,
-      { "JoinAttPair", "dap.JoinAttPair",
+      { "JoinAttPair", "dap.JoinAttPair_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_joinSelection,
-      { "joinSelection", "dap.joinSelection",
+      { "joinSelection", "dap.joinSelection_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "EntryInformationSelection", HFILL }},
     { &hf_dap_baseAtt,
@@ -5960,7 +5956,7 @@ void proto_register_dap(void) {
         FT_OID, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_searchInfo,
-      { "searchInfo", "dap.searchInfo",
+      { "searchInfo", "dap.searchInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_entries,
@@ -5968,7 +5964,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_EntryInformation", HFILL }},
     { &hf_dap_entries_item,
-      { "EntryInformation", "dap.EntryInformation",
+      { "EntryInformation", "dap.EntryInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_altMatching,
@@ -5988,7 +5984,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_SearchResultData_vals), 0,
         "SearchResultData", HFILL }},
     { &hf_dap_signedSearchResult,
-      { "signedSearchResult", "dap.signedSearchResult",
+      { "signedSearchResult", "dap.signedSearchResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_searchResult,
@@ -6000,23 +5996,23 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "SET_OF_Attribute", HFILL }},
     { &hf_dap_add_entry_item,
-      { "Attribute", "dap.Attribute",
+      { "Attribute", "dap.Attribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_targetSystem,
-      { "targetSystem", "dap.targetSystem",
+      { "targetSystem", "dap.targetSystem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AccessPoint", HFILL }},
     { &hf_dap_unsignedAddEntryArgument,
-      { "unsignedAddEntryArgument", "dap.unsignedAddEntryArgument",
+      { "unsignedAddEntryArgument", "dap.unsignedAddEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AddEntryArgumentData", HFILL }},
     { &hf_dap_signedAddEntryArgument,
-      { "signedAddEntryArgument", "dap.signedAddEntryArgument",
+      { "signedAddEntryArgument", "dap.signedAddEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_addEntryArgument,
-      { "addEntryArgument", "dap.addEntryArgument",
+      { "addEntryArgument", "dap.addEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AddEntryArgumentData", HFILL }},
     { &hf_dap_add_entry_information,
@@ -6024,27 +6020,27 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_AddEntryInformation_vals), 0,
         "AddEntryInformation", HFILL }},
     { &hf_dap_unsignedAddEntryResult,
-      { "unsignedAddEntryResult", "dap.unsignedAddEntryResult",
+      { "unsignedAddEntryResult", "dap.unsignedAddEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AddEntryResultData", HFILL }},
     { &hf_dap_signedAddEntryResult,
-      { "signedAddEntryResult", "dap.signedAddEntryResult",
+      { "signedAddEntryResult", "dap.signedAddEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_addEntryResult,
-      { "addEntryResult", "dap.addEntryResult",
+      { "addEntryResult", "dap.addEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AddEntryResultData", HFILL }},
     { &hf_dap_unsignedRemoveEntryArgument,
-      { "unsignedRemoveEntryArgument", "dap.unsignedRemoveEntryArgument",
+      { "unsignedRemoveEntryArgument", "dap.unsignedRemoveEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RemoveEntryArgumentData", HFILL }},
     { &hf_dap_signedRemoveEntryArgument,
-      { "signedRemoveEntryArgument", "dap.signedRemoveEntryArgument",
+      { "signedRemoveEntryArgument", "dap.signedRemoveEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_removeEntryArgument,
-      { "removeEntryArgument", "dap.removeEntryArgument",
+      { "removeEntryArgument", "dap.removeEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RemoveEntryArgumentData", HFILL }},
     { &hf_dap_remove_entry_information,
@@ -6052,15 +6048,15 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_RemoveEntryInformation_vals), 0,
         "RemoveEntryInformation", HFILL }},
     { &hf_dap_unsignedRemoveEntryResult,
-      { "unsignedRemoveEntryResult", "dap.unsignedRemoveEntryResult",
+      { "unsignedRemoveEntryResult", "dap.unsignedRemoveEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RemoveEntryResultData", HFILL }},
     { &hf_dap_signedRemoveEntryResult,
-      { "signedRemoveEntryResult", "dap.signedRemoveEntryResult",
+      { "signedRemoveEntryResult", "dap.signedRemoveEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_removeEntryResult,
-      { "removeEntryResult", "dap.removeEntryResult",
+      { "removeEntryResult", "dap.removeEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "RemoveEntryResultData", HFILL }},
     { &hf_dap_changes,
@@ -6072,15 +6068,15 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_EntryModification_vals), 0,
         NULL, HFILL }},
     { &hf_dap_unsignedModifyEntryArgument,
-      { "unsignedModifyEntryArgument", "dap.unsignedModifyEntryArgument",
+      { "unsignedModifyEntryArgument", "dap.unsignedModifyEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ModifyEntryArgumentData", HFILL }},
     { &hf_dap_signedModifyEntryArgument,
-      { "signedModifyEntryArgument", "dap.signedModifyEntryArgument",
+      { "signedModifyEntryArgument", "dap.signedModifyEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_modifyEntryArgument,
-      { "modifyEntryArgument", "dap.modifyEntryArgument",
+      { "modifyEntryArgument", "dap.modifyEntryArgument_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ModifyEntryArgumentData", HFILL }},
     { &hf_dap_modify_entry_information,
@@ -6088,19 +6084,19 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_ModifyEntryInformation_vals), 0,
         "ModifyEntryInformation", HFILL }},
     { &hf_dap_unsignedModifyEntryResult,
-      { "unsignedModifyEntryResult", "dap.unsignedModifyEntryResult",
+      { "unsignedModifyEntryResult", "dap.unsignedModifyEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ModifyEntryResultData", HFILL }},
     { &hf_dap_signedModifyEntryResult,
-      { "signedModifyEntryResult", "dap.signedModifyEntryResult",
+      { "signedModifyEntryResult", "dap.signedModifyEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_modifyEntryResult,
-      { "modifyEntryResult", "dap.modifyEntryResult",
+      { "modifyEntryResult", "dap.modifyEntryResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ModifyEntryResultData", HFILL }},
     { &hf_dap_addAttribute,
-      { "addAttribute", "dap.addAttribute",
+      { "addAttribute", "dap.addAttribute_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_dap_removeAttribute,
@@ -6108,15 +6104,15 @@ void proto_register_dap(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "AttributeType", HFILL }},
     { &hf_dap_addValues,
-      { "addValues", "dap.addValues",
+      { "addValues", "dap.addValues_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_dap_removeValues,
-      { "removeValues", "dap.removeValues",
+      { "removeValues", "dap.removeValues_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Attribute", HFILL }},
     { &hf_dap_alterValues,
-      { "alterValues", "dap.alterValues",
+      { "alterValues", "dap.alterValues_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeTypeAndValue", HFILL }},
     { &hf_dap_resetValue,
@@ -6140,27 +6136,27 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_ModifyDNInformation_vals), 0,
         "ModifyDNInformation", HFILL }},
     { &hf_dap_unsignedModifyDNResult,
-      { "unsignedModifyDNResult", "dap.unsignedModifyDNResult",
+      { "unsignedModifyDNResult", "dap.unsignedModifyDNResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ModifyDNResultData", HFILL }},
     { &hf_dap_signedModifyDNResult,
-      { "signedModifyDNResult", "dap.signedModifyDNResult",
+      { "signedModifyDNResult", "dap.signedModifyDNResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_modifyDNResult,
-      { "modifyDNResult", "dap.modifyDNResult",
+      { "modifyDNResult", "dap.modifyDNResult_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ModifyDNResultData", HFILL }},
     { &hf_dap_unsignedAbandoned,
-      { "unsignedAbandoned", "dap.unsignedAbandoned",
+      { "unsignedAbandoned", "dap.unsignedAbandoned_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AbandonedData", HFILL }},
     { &hf_dap_signedAbandoned,
-      { "signedAbandoned", "dap.signedAbandoned",
+      { "signedAbandoned", "dap.signedAbandoned_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_abandoned,
-      { "abandoned", "dap.abandoned",
+      { "abandoned", "dap.abandoned_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AbandonedData", HFILL }},
     { &hf_dap_abandon_failed_problem,
@@ -6172,15 +6168,15 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(ros_InvokeId_vals), 0,
         "InvokeId", HFILL }},
     { &hf_dap_unsignedAbandonFailedError,
-      { "unsignedAbandonFailedError", "dap.unsignedAbandonFailedError",
+      { "unsignedAbandonFailedError", "dap.unsignedAbandonFailedError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AbandonFailedErrorData", HFILL }},
     { &hf_dap_signedAbandonFailedError,
-      { "signedAbandonFailedError", "dap.signedAbandonFailedError",
+      { "signedAbandonFailedError", "dap.signedAbandonFailedError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_abandonFailedError,
-      { "abandonFailedError", "dap.abandonFailedError",
+      { "abandonFailedError", "dap.abandonFailedError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AbandonFailedErrorData", HFILL }},
     { &hf_dap_problems,
@@ -6188,7 +6184,7 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_problems_item,
-      { "problems item", "dap.problems_item",
+      { "problems item", "dap.problems_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_attribute_error_problem,
@@ -6196,19 +6192,19 @@ void proto_register_dap(void) {
         FT_INT32, BASE_DEC, VALS(dap_AttributeProblem_vals), 0,
         "AttributeProblem", HFILL }},
     { &hf_dap_value,
-      { "value", "dap.value",
+      { "value", "dap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeValue", HFILL }},
     { &hf_dap_unsignedAttributeError,
-      { "unsignedAttributeError", "dap.unsignedAttributeError",
+      { "unsignedAttributeError", "dap.unsignedAttributeError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeErrorData", HFILL }},
     { &hf_dap_signedAttributeError,
-      { "signedAttributeError", "dap.signedAttributeError",
+      { "signedAttributeError", "dap.signedAttributeError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_attributeError,
-      { "attributeError", "dap.attributeError",
+      { "attributeError", "dap.attributeError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "AttributeErrorData", HFILL }},
     { &hf_dap_name_error_problem,
@@ -6220,31 +6216,31 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(x509if_Name_vals), 0,
         "Name", HFILL }},
     { &hf_dap_unsignedNameError,
-      { "unsignedNameError", "dap.unsignedNameError",
+      { "unsignedNameError", "dap.unsignedNameError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NameErrorData", HFILL }},
     { &hf_dap_signedNameError,
-      { "signedNameError", "dap.signedNameError",
+      { "signedNameError", "dap.signedNameError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_nameError,
-      { "nameError", "dap.nameError",
+      { "nameError", "dap.nameError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "NameErrorData", HFILL }},
     { &hf_dap_candidate,
-      { "candidate", "dap.candidate",
+      { "candidate", "dap.candidate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ContinuationReference", HFILL }},
     { &hf_dap_unsignedReferral,
-      { "unsignedReferral", "dap.unsignedReferral",
+      { "unsignedReferral", "dap.unsignedReferral_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReferralData", HFILL }},
     { &hf_dap_signedReferral,
-      { "signedReferral", "dap.signedReferral",
+      { "signedReferral", "dap.signedReferral_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_referral,
-      { "referral", "dap.referral",
+      { "referral", "dap.referral_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ReferralData", HFILL }},
     { &hf_dap_security_error_problem,
@@ -6252,19 +6248,19 @@ void proto_register_dap(void) {
         FT_INT32, BASE_DEC, VALS(dap_SecurityProblem_vals), 0,
         "SecurityProblem", HFILL }},
     { &hf_dap_spkmInfo,
-      { "spkmInfo", "dap.spkmInfo",
+      { "spkmInfo", "dap.spkmInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_unsignedSecurityError,
-      { "unsignedSecurityError", "dap.unsignedSecurityError",
+      { "unsignedSecurityError", "dap.unsignedSecurityError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SecurityErrorData", HFILL }},
     { &hf_dap_signedSecurityError,
-      { "signedSecurityError", "dap.signedSecurityError",
+      { "signedSecurityError", "dap.signedSecurityError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_securityErrorData,
-      { "securityError", "dap.securityError",
+      { "securityError", "dap.securityError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SecurityErrorData", HFILL }},
     { &hf_dap_service_error_problem,
@@ -6272,15 +6268,15 @@ void proto_register_dap(void) {
         FT_INT32, BASE_DEC, VALS(dap_ServiceProblem_vals), 0,
         "ServiceProblem", HFILL }},
     { &hf_dap_unsignedServiceError,
-      { "unsignedServiceError", "dap.unsignedServiceError",
+      { "unsignedServiceError", "dap.unsignedServiceError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ServiceErrorData", HFILL }},
     { &hf_dap_signedServiceError,
-      { "signedServiceError", "dap.signedServiceError",
+      { "signedServiceError", "dap.signedServiceError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_serviceError,
-      { "serviceError", "dap.serviceError",
+      { "serviceError", "dap.serviceError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "ServiceErrorData", HFILL }},
     { &hf_dap_update_error_problem,
@@ -6296,15 +6292,15 @@ void proto_register_dap(void) {
         FT_UINT32, BASE_DEC, VALS(dap_T_attributeInfo_item_vals), 0,
         NULL, HFILL }},
     { &hf_dap_unsignedUpdateError,
-      { "unsignedUpdateError", "dap.unsignedUpdateError",
+      { "unsignedUpdateError", "dap.unsignedUpdateError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UpdateErrorData", HFILL }},
     { &hf_dap_signedUpdateError,
-      { "signedUpdateError", "dap.signedUpdateError",
+      { "signedUpdateError", "dap.signedUpdateError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_dap_updateError,
-      { "updateError", "dap.updateError",
+      { "updateError", "dap.updateError_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UpdateErrorData", HFILL }},
     { &hf_dap_ServiceControlOptions_preferChaining,
@@ -6477,7 +6473,7 @@ void proto_register_dap(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-dap-hfarr.c ---*/
-#line 97 "../../asn1/dap/packet-dap-template.c"
+#line 98 "../../asn1/dap/packet-dap-template.c"
   };
 
   /* List of subtrees */
@@ -6658,7 +6654,7 @@ void proto_register_dap(void) {
     &ett_dap_T_signedUpdateError,
 
 /*--- End of included file: packet-dap-ettarr.c ---*/
-#line 103 "../../asn1/dap/packet-dap-template.c"
+#line 104 "../../asn1/dap/packet-dap-template.c"
   };
   module_t *dap_module;
 

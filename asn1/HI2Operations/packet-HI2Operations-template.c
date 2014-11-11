@@ -2,8 +2,6 @@
  * Routines for HI2 (ETSI TS 101 671 V3.5.1 (2009-11))
  *  Erwin van Eijk 2010
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -36,6 +34,9 @@
 #define PNAME  "HI2Operations"
 #define PSNAME "HI2OPERATIONS"
 #define PFNAME "hi2operations"
+
+void proto_register_HI2Operations(void);
+void proto_reg_handoff_HI2Operations(void);
 
 /* Initialize the protocol and registered fields */
 int proto_HI2Operations = -1;

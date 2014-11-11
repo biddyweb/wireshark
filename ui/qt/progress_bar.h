@@ -1,7 +1,5 @@
 /* progress_bar.h
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,8 +32,8 @@ class ProgressBar;
 
 // Define the structure describing a progress dialog.
 struct progdlg {
-    ProgressBar *progressBar;       // This progress bar
-    QWidget *topLevelWindow;	// Top-level window widget
+    ProgressBar *progress_bar;       // This progress bar
+    QWidget *top_level_window;	// Top-level window widget
 };
 
 class ProgressBar : public QProgressBar
@@ -47,11 +45,11 @@ public:
     progdlg_t *show(bool animate, bool terminate_is_stop, gboolean *stop_flag, int value);
 
 private:
-    progdlg_t m_dlg;
-    QString m_message;
-    QString m_status;
-    bool m_terminate_is_stop;
-    gboolean *m_stop_flag;
+    progdlg_t progress_dialog_;
+    QString message_;
+    QString status_;
+    bool terminate_is_stop_;
+    gboolean *stop_flag_;
 
 public slots:
 

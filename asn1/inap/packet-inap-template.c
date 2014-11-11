@@ -3,7 +3,6 @@
  * Copyright 2004, Tim Endean <endeant@hotmail.com>
  * Built from the gsm-map dissector Copyright 2004, Anders Broman <anders.broman@ericsson.com>
  *
- * $Id$
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -47,6 +46,10 @@
 #define PSNAME "INAP"
 #define PFNAME "inap"
 
+void proto_register_inap(void);
+void proto_reg_handoff_inap(void);
+
+
 /* Initialize the protocol and registered fields */
 static int proto_inap = -1;
 
@@ -77,6 +80,10 @@ static gint ett_inap = -1;
 static gint ett_inapisup_parameter = -1;
 static gint ett_inap_HighLayerCompatibility = -1;
 #include "packet-inap-ett.c"
+
+static expert_field ei_inap_unknown_invokeData = EI_INIT;
+static expert_field ei_inap_unknown_returnResultData = EI_INIT;
+static expert_field ei_inap_unknown_returnErrorData = EI_INIT;
 
 #include "packet-inap-table.c"
 
@@ -210,12 +217,22 @@ void proto_register_inap(void) {
 #include "packet-inap-ettarr.c"
   };
 
+  static ei_register_info ei[] = {
+     { &ei_inap_unknown_invokeData, { "inap.unknown.invokeData", PI_MALFORMED, PI_WARN, "Unknown invokeData", EXPFILL }},
+     { &ei_inap_unknown_returnResultData, { "inap.unknown.returnResultData", PI_MALFORMED, PI_WARN, "Unknown returnResultData", EXPFILL }},
+     { &ei_inap_unknown_returnErrorData, { "inap.unknown.returnErrorData", PI_MALFORMED, PI_WARN, "Unknown returnResultData", EXPFILL }},
+  };
+
+  expert_module_t* expert_inap;
+
   /* Register protocol */
   proto_inap = proto_register_protocol(PNAME, PSNAME, PFNAME);
   register_dissector("inap", dissect_inap, proto_inap);
   /* Register fields and subtrees */
   proto_register_field_array(proto_inap, hf, array_length(hf));
   proto_register_subtree_array(ett, array_length(ett));
+  expert_inap = expert_register_protocol(proto_inap);
+  expert_register_field_array(expert_inap, ei, array_length(ei));
 
   /* Set default SSNs */
   range_convert_str(&global_ssn_range, "106,241", MAX_SSN);

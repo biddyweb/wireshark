@@ -1,8 +1,6 @@
 /* hostlist_rsvp.c
  * hostlist_rsvp.c August 2005, Manu Pathak <mapathak@cisco.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -39,11 +37,13 @@
 #include "ui/gtk/gui_stat_menu.h"
 #include "ui/gtk/hostlist_table.h"
 
+void register_tap_listener_rsvp_hostlist(void);
+
 static int
 rsvp_hostlist_packet(void *pit, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
 {
 	hostlist_table *hosts=(hostlist_table *)pit;
-	const rsvp_conversation_info *rsvph = vip;
+	const rsvp_conversation_info *rsvph = (const rsvp_conversation_info *)vip;
 
 	/* Take two "add" passes per packet, adding for each direction, ensures
 	 * that all packets are counted properly (even if address is sending to

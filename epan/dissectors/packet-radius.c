@@ -6,8 +6,6 @@
  * Changed 07/2005 Luis Ontanon <luis@ontanon.org> - use FreeRADIUS' dictionary
  * Changed 10/2006 Alejandro Vaquero <alejandrovaquero@yahoo.com> - add Conversations support
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -62,20 +60,23 @@
 
 #include <glib.h>
 
+#include <wsutil/report_err.h>
+#include <wsutil/md5.h>
+
 #include <epan/packet.h>
+#include <epan/exceptions.h>
 #include <epan/prefs.h>
-#include <epan/report_err.h>
-#include <epan/crypt/md5.h>
 #include <epan/sminmpec.h>
-#include <epan/filesystem.h>
+#include <wsutil/filesystem.h>
 #include <epan/conversation.h>
 #include <epan/tap.h>
 #include <epan/addr_resolv.h>
-#include <epan/emem.h>
 #include <epan/garrayfix.h>
+#include <epan/wmem/wmem.h>
 
 #include "packet-radius.h"
 
+void proto_register_radius(void);
 void proto_reg_handoff_radius(void);
 
 typedef struct _e_radiushdr {
@@ -85,9 +86,9 @@ typedef struct _e_radiushdr {
 } e_radiushdr;
 
 typedef struct {
-	GArray* hf;
-	GArray* ett;
-	GArray* vend_vs;
+	wmem_array_t* hf;
+	wmem_array_t* ett;
+	wmem_array_t* vend_vs;
 } hfett_t;
 
 #define AUTHENTICATOR_LENGTH	16
@@ -196,6 +197,11 @@ static const value_string radius_pkt_type_codes[] =
 
 	{RADIUS_PKT_TYPE_IP_ADDRESS_ALLOCATE,			"IP-Address-Allocate"},			/* 50 RFC3575 */
 	{RADIUS_PKT_TYPE_IP_ADDRESS_RELEASE,			"IP-Address-Release"},			/* 51 RFC3575 */
+
+	{RADIUS_PKT_TYPE_ALU_STATE_REQUEST,			"ALU-State-Request"},			/* 129 ALU AAA */
+	{RADIUS_PKT_TYPE_ALU_STATE_ACCEPT,			"ALU-State-Accept"},			/* 130 ALU AAA */
+	{RADIUS_PKT_TYPE_ALU_STATE_REJECT,			"ALU-State-Reject"},			/* 131 ALU AAA */
+	{RADIUS_PKT_TYPE_ALU_STATE_ERROR,			"ALU-State-Error"},				/* 132 ALU AAA */
 /*
 250-253  Experimental Use             [RFC3575]
 254-255  Reserved                     [RFC3575]
@@ -301,6 +307,12 @@ static gboolean radius_call_equal(gconstpointer k1, gconstpointer k2)
 		if ((key1->code == RADIUS_PKT_TYPE_COA_REQUEST) &&
 		    ((key2->code == RADIUS_PKT_TYPE_COA_ACK) || (key2->code == RADIUS_PKT_TYPE_COA_NAK)))
 			return TRUE;
+
+		if ((key1->code == RADIUS_PKT_TYPE_ALU_STATE_REQUEST) &&
+		    ((key2->code == RADIUS_PKT_TYPE_ALU_STATE_ACCEPT) ||
+		     (key2->code == RADIUS_PKT_TYPE_ALU_STATE_REJECT) ||
+		     (key2->code == RADIUS_PKT_TYPE_ALU_STATE_ERROR)))
+			return TRUE;
 	}
 	return FALSE;
 }
@@ -327,7 +339,7 @@ static const gchar *dissect_chap_password(proto_tree* tree, tvbuff_t* tvb, packe
 		chap_tree = proto_item_add_subtree(ti, ett_chap);
 		proto_tree_add_item(chap_tree, hf_radius_chap_ident, tvb, 0, 1, ENC_NA);
 		proto_tree_add_item(chap_tree, hf_radius_chap_string, tvb, 1, 16, ENC_NA);
-	return (tvb_bytes_to_str(tvb, 0, len));
+	return (tvb_bytes_to_ep_str(tvb, 0, len));
 }
 
 static const gchar *dissect_framed_ip_address(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo _U_) {
@@ -345,16 +357,16 @@ static const gchar *dissect_framed_ip_address(proto_tree* tree, tvbuff_t* tvb, p
 
 	if (ip_h == 0xFFFFFFFF) {
 		str = "Negotiated";
-		proto_tree_add_ipv4_format(tree, hf_radius_framed_ip_address,
-					   tvb, 0, len, ip, "Framed-IP-Address: %s", str);
+		proto_tree_add_ipv4_format_value(tree, hf_radius_framed_ip_address,
+					   tvb, 0, len, ip, "%s", str);
 	} else if (ip_h == 0xFFFFFFFE) {
 		str = "Assigned";
-		proto_tree_add_ipv4_format(tree, hf_radius_framed_ip_address,
-					   tvb, 0, len, ip, "Framed-IP-Address: %s", str);
+		proto_tree_add_ipv4_format_value(tree, hf_radius_framed_ip_address,
+					   tvb, 0, len, ip, "%s", str);
 	} else {
 		str = ip_to_str((guint8 *)&ip);
-		proto_tree_add_ipv4_format(tree, hf_radius_framed_ip_address,
-					   tvb, 0, len, ip, "Framed-IP-Address: %s (%s)",
+		proto_tree_add_ipv4_format_value(tree, hf_radius_framed_ip_address,
+					   tvb, 0, len, ip, "%s (%s)",
 					   get_hostname(ip), str);
 	}
 
@@ -376,16 +388,16 @@ static const gchar *dissect_login_ip_host(proto_tree* tree, tvbuff_t* tvb, packe
 
 	if (ip_h == 0xFFFFFFFF) {
 		str = "User-selected";
-		proto_tree_add_ipv4_format(tree, hf_radius_login_ip_host,
-					   tvb, 0, len, ip, "Login-IP-Host: %s", str);
+		proto_tree_add_ipv4_format_value(tree, hf_radius_login_ip_host,
+					   tvb, 0, len, ip, "%s", str);
 	} else if (ip_h == 0) {
 		str = "NAS-selected";
-		proto_tree_add_ipv4_format(tree, hf_radius_login_ip_host,
-					   tvb, 0, len, ip, "Login-IP-Host: %s", str);
+		proto_tree_add_ipv4_format_value(tree, hf_radius_login_ip_host,
+					   tvb, 0, len, ip, "%s", str);
 	} else {
 		str = ip_to_str((guint8 *)&ip);
-		proto_tree_add_ipv4_format(tree, hf_radius_framed_ip_address,
-					   tvb, 0, len, ip, "Login-IP-Host: %s (%s)",
+		proto_tree_add_ipv4_format_value(tree, hf_radius_login_ip_host,
+					   tvb, 0, len, ip, "%s (%s)",
 					   get_hostname(ip), str);
 	}
 
@@ -399,8 +411,7 @@ static const value_string ascenddf_proto[]      = { {1, "icmp"}, {6, "tcp"}, {17
 static const value_string ascenddf_portq[]      = { {1, "lt"}, {2, "eq"}, {3, "gt"}, {4, "ne"}, {0, NULL} };
 
 static const gchar *dissect_ascend_data_filter(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo _U_) {
-	const gchar *str;
-	emem_strbuf_t *filterstr;
+	wmem_strbuf_t *filterstr;
 	int len;
 	guint8 proto, srclen, dstlen;
 	guint32 srcip, dstip;
@@ -410,23 +421,22 @@ static const gchar *dissect_ascend_data_filter(proto_tree* tree, tvbuff_t* tvb, 
 	len=tvb_length(tvb);
 
 	if (len != 24) {
-		str = ep_strdup_printf("Wrong attribute length %d", len);
-		return str;
+		return wmem_strdup_printf(wmem_packet_scope(), "Wrong attribute length %d", len);
 	}
 
-	filterstr=ep_strbuf_sized_new(64, 64);
+	filterstr=wmem_strbuf_sized_new(wmem_packet_scope(), 64, 64);
 
 	proto_tree_add_item(tree, hf_radius_ascend_data_filter, tvb, 0, -1, ENC_NA);
 
-	ep_strbuf_printf(filterstr, "%s %s %s",
+	wmem_strbuf_append_printf(filterstr, "%s %s %s",
 		val_to_str(tvb_get_guint8(tvb, 0), ascenddf_filtertype, "%u"),
 		val_to_str(tvb_get_guint8(tvb, 2), ascenddf_inout, "%u"),
 		val_to_str(tvb_get_guint8(tvb, 1), ascenddf_filteror, "%u"));
 
 	proto=tvb_get_guint8(tvb, 14);
 	if (proto) {
-		str=val_to_str(proto, ascenddf_proto, "%u");
-		ep_strbuf_append_printf(filterstr, " %s", str);
+		wmem_strbuf_append_printf(filterstr, " %s",
+				val_to_str(proto, ascenddf_proto, "%u"));
 	}
 
 	srcip=tvb_get_ipv4(tvb, 4);
@@ -435,9 +445,9 @@ static const gchar *dissect_ascend_data_filter(proto_tree* tree, tvbuff_t* tvb, 
 	srcportq=tvb_get_guint8(tvb, 20);
 
 	if (srcip || srclen || srcportq) {
-		ep_strbuf_append_printf(filterstr, " srcip %s/%d", ip_to_str((guint8 *) &srcip), srclen);
+		wmem_strbuf_append_printf(filterstr, " srcip %s/%d", ip_to_str((guint8 *) &srcip), srclen);
 		if (srcportq)
-			ep_strbuf_append_printf(filterstr, " srcport %s %d",
+			wmem_strbuf_append_printf(filterstr, " srcport %s %d",
 				val_to_str(srcportq, ascenddf_portq, "%u"), srcport);
 	}
 
@@ -447,15 +457,13 @@ static const gchar *dissect_ascend_data_filter(proto_tree* tree, tvbuff_t* tvb, 
 	dstportq=tvb_get_guint8(tvb, 21);
 
 	if (dstip || dstlen || dstportq) {
-		ep_strbuf_append_printf(filterstr, " dstip %s/%d", ip_to_str((guint8 *) &dstip), dstlen);
+		wmem_strbuf_append_printf(filterstr, " dstip %s/%d", ip_to_str((guint8 *) &dstip), dstlen);
 		if (dstportq)
-			ep_strbuf_append_printf(filterstr, " dstport %s %d",
+			wmem_strbuf_append_printf(filterstr, " dstport %s %d",
 				val_to_str(dstportq, ascenddf_portq, "%u"), dstport);
 	}
 
-	str=ep_strdup(filterstr->str);
-
-	return str;
+	return wmem_strbuf_get_str(filterstr);
 }
 
 static const gchar *dissect_framed_ipx_network(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo _U_) {
@@ -472,8 +480,8 @@ static const gchar *dissect_framed_ipx_network(proto_tree* tree, tvbuff_t* tvb, 
 	if (net == 0xFFFFFFFE)
 		str = "NAS-selected";
 	else
-		str = ep_strdup_printf("0x%08X", net);
-	proto_tree_add_ipxnet_format(tree, hf_radius_framed_ipx_network, tvb, 0,
+		str = wmem_strdup_printf(wmem_packet_scope(), "0x%08X", net);
+	proto_tree_add_ipxnet_format_value(tree, hf_radius_framed_ipx_network, tvb, 0,
 				     len, net, "Framed-IPX-Network: %s", str);
 
 	return str;
@@ -491,7 +499,46 @@ static const gchar* dissect_cosine_vpvc(proto_tree* tree, tvbuff_t* tvb, packet_
 	proto_tree_add_uint(tree,hf_radius_cosine_vpi,tvb,0,2,vpi);
 	proto_tree_add_uint(tree,hf_radius_cosine_vci,tvb,2,2,vci);
 
-	return ep_strdup_printf("%u/%u",vpi,vci);
+	return wmem_strdup_printf(wmem_packet_scope(), "%u/%u",vpi,vci);
+}
+
+static const value_string daylight_saving_time_vals[] = {
+    {0, "No adjustment"},
+    {1, "+1 hour adjustment for Daylight Saving Time"},
+    {2, "+2 hours adjustment for Daylight Saving Time"},
+    {3, "Reserved"},
+    {0, NULL}
+};
+
+static const gchar*
+dissect_radius_3gpp_ms_tmime_zone(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo _U_) {
+
+    int offset = 0;
+    guint8      oct, daylight_saving_time;
+    char        sign;
+
+    /* 3GPP TS 23.040 version 6.6.0 Release 6
+     * 9.2.3.11 TP-Service-Centre-Time-Stamp (TP-SCTS)
+     * :
+     * The Time Zone indicates the difference, expressed in quarters of an hour,
+     * between the local time and GMT. In the first of the two semi-octets,
+     * the first bit (bit 3 of the seventh octet of the TP-Service-Centre-Time-Stamp field)
+     * represents the algebraic sign of this difference (0: positive, 1: negative).
+     */
+
+    oct = tvb_get_guint8(tvb, offset);
+    sign = (oct & 0x08) ? '-' : '+';
+    oct = (oct >> 4) + (oct & 0x07) * 10;
+
+    proto_tree_add_text(tree, tvb, offset, 1, "Timezone: GMT %c%d hours %d minutes", sign, oct / 4, oct % 4 * 15);
+    offset++;
+
+    daylight_saving_time = tvb_get_guint8(tvb, offset) & 0x3;
+    proto_tree_add_text(tree, tvb, offset, 1, "%s", val_to_str_const(daylight_saving_time, daylight_saving_time_vals, "Unknown"));
+
+	return wmem_strdup_printf(wmem_packet_scope(), "Timezone: GMT %c%d hours %d minutes %s ",
+		sign, oct / 4, oct % 4 * 15, val_to_str_const(daylight_saving_time, daylight_saving_time_vals, "Unknown"));
+
 }
 
 static void
@@ -525,13 +572,13 @@ radius_decrypt_avp(gchar *dest,int dest_len,tvbuff_t *tvb,int offset,int length)
 
 	padded_length = length + ((length % AUTHENTICATOR_LENGTH) ?
 		(AUTHENTICATOR_LENGTH - (length % AUTHENTICATOR_LENGTH)) : 0);
-	pd = ep_alloc0(padded_length);
+	pd = (guint8 *)wmem_alloc0(wmem_packet_scope(), padded_length);
 	tvb_memcpy(tvb, pd, offset, length);
 
 	for ( i = 0; i < padded_length; i += AUTHENTICATOR_LENGTH ) {
 		for ( j = 0; j < AUTHENTICATOR_LENGTH; j++ ) {
 			c = pd[i + j] ^ digest[j];
-			if ( isprint(c) ) {
+			if ( g_ascii_isprint(c) ) {
 				returned_length = g_snprintf(&dest[totlen], dest_len - totlen,
 					"%c", c);
 				totlen += MIN(returned_length, dest_len - totlen - 1);
@@ -635,7 +682,7 @@ void radius_string(radius_attr_info_t* a, proto_tree* tree, packet_info *pinfo _
 			proto_tree_add_item(tree, a->hf_alt, tvb, offset, len, ENC_NA);
 		} else {
 			gchar *buffer;
-			buffer=ep_alloc(1024); /* an AVP value can be at most 253 bytes */
+			buffer=(gchar *)wmem_alloc(wmem_packet_scope(), 1024); /* an AVP value can be at most 253 bytes */
 			radius_decrypt_avp(buffer,1024,tvb,offset,len);
 			proto_item_append_text(avp_item, "Decrypted: %s", buffer);
 			proto_tree_add_string(tree, a->hf, tvb, offset, len, buffer);
@@ -656,7 +703,7 @@ void radius_string(radius_attr_info_t* a, proto_tree* tree, packet_info *pinfo _
 
 void radius_octets(radius_attr_info_t* a, proto_tree* tree, packet_info *pinfo _U_, tvbuff_t* tvb, int offset, int len, proto_item* avp_item) {
 	proto_tree_add_item(tree, a->hf, tvb, offset, len, ENC_NA);
-	proto_item_append_text(avp_item, "%s", tvb_bytes_to_str(tvb, offset, len));
+	proto_item_append_text(avp_item, "%s", tvb_bytes_to_ep_str(tvb, offset, len));
 }
 
 void radius_ipaddr(radius_attr_info_t* a, proto_tree* tree, packet_info *pinfo _U_, tvbuff_t* tvb, int offset, int len, proto_item* avp_item) {
@@ -775,7 +822,7 @@ void radius_date(radius_attr_info_t* a, proto_tree* tree, packet_info *pinfo _U_
 	time_ptr.nsecs = 0;
 
 	proto_tree_add_time(tree, a->hf, tvb, offset, len, &time_ptr);
-	proto_item_append_text(avp_item, "%s", abs_time_to_str(&time_ptr, ABSOLUTE_TIME_LOCAL, TRUE));
+	proto_item_append_text(avp_item, "%s", abs_time_to_ep_str(&time_ptr, ABSOLUTE_TIME_LOCAL, TRUE));
 }
 
 /*
@@ -783,7 +830,7 @@ void radius_date(radius_attr_info_t* a, proto_tree* tree, packet_info *pinfo _U_
  */
 void radius_abinary(radius_attr_info_t* a, proto_tree* tree, packet_info *pinfo _U_, tvbuff_t* tvb, int offset, int len, proto_item* avp_item) {
 	proto_tree_add_item(tree, a->hf, tvb, offset, len, ENC_NA);
-	proto_item_append_text(avp_item, "%s", tvb_bytes_to_str(tvb, offset, len));
+	proto_item_append_text(avp_item, "%s", tvb_bytes_to_ep_str(tvb, offset, len));
 }
 
 void radius_ether(radius_attr_info_t* a, proto_tree* tree, packet_info *pinfo _U_, tvbuff_t* tvb, int offset, int len, proto_item* avp_item) {
@@ -798,7 +845,7 @@ void radius_ether(radius_attr_info_t* a, proto_tree* tree, packet_info *pinfo _U
 
 void radius_ifid(radius_attr_info_t* a, proto_tree* tree, packet_info *pinfo _U_, tvbuff_t* tvb, int offset, int len, proto_item* avp_item) {
 	proto_tree_add_item(tree, a->hf, tvb, offset, len, ENC_NA);
-	proto_item_append_text(avp_item, "%s", tvb_bytes_to_str(tvb, offset, len));
+	proto_item_append_text(avp_item, "%s", tvb_bytes_to_ep_str(tvb, offset, len));
 }
 
 static void add_tlv_to_tree(proto_tree* tlv_tree, proto_item* tlv_item, packet_info* pinfo, tvbuff_t* tvb, radius_attr_info_t* dictionary_entry, guint32 tlv_length, guint32 offset) {
@@ -844,14 +891,14 @@ void radius_tlv(radius_attr_info_t* a, proto_tree* tree, packet_info *pinfo _U_,
 
 		len -= tlv_length;
 
-		dictionary_entry = g_hash_table_lookup(a->tlvs_by_id,GUINT_TO_POINTER(tlv_type));
+		dictionary_entry = (radius_attr_info_t *)g_hash_table_lookup(a->tlvs_by_id,GUINT_TO_POINTER(tlv_type));
 
 		if (! dictionary_entry ) {
 			dictionary_entry = &no_dictionary_entry;
 		}
 
 		tlv_item = proto_tree_add_text(tree, tvb, offset, tlv_length,
-					       "TLV: l=%u  t=%s(%u)", tlv_length,
+					       "TLV: l=%u t=%s(%u)", tlv_length,
 					       dictionary_entry->name, tlv_type);
 
 		tlv_length -= 2;
@@ -992,14 +1039,14 @@ void dissect_attribute_value_pairs(proto_tree *tree, packet_info *pinfo, tvbuff_
 
 		length -= avp_length;
 
-		dictionary_entry = g_hash_table_lookup(dict->attrs_by_id, GUINT_TO_POINTER(avp_type));
+		dictionary_entry = (radius_attr_info_t *)g_hash_table_lookup(dict->attrs_by_id, GUINT_TO_POINTER(avp_type));
 
 		if (! dictionary_entry ) {
 			dictionary_entry = &no_dictionary_entry;
 		}
 
 		avp_item = proto_tree_add_text(tree, tvb, offset, avp_length,
-					       "AVP: l=%u  t=%s(%u)", avp_length,
+					       "AVP: l=%u t=%s(%u)", avp_length,
 					       dictionary_entry->name, avp_type);
 
 		avp_length -= 2;
@@ -1023,7 +1070,7 @@ void dissect_attribute_value_pairs(proto_tree *tree, packet_info *pinfo, tvbuff_
 			avp_length -= 4;
 			offset += 4;
 
-			vendor = g_hash_table_lookup(dict->vendors_by_id,GUINT_TO_POINTER(vendor_id));
+			vendor = (radius_vendor_info_t *)g_hash_table_lookup(dict->vendors_by_id,GUINT_TO_POINTER(vendor_id));
 			vendor_str = val_to_str_ext_const(vendor_id, &sminmpec_values_ext, "Unknown");
 			if (!vendor) {
 				vendor = &no_vendor;
@@ -1082,7 +1129,7 @@ void dissect_attribute_value_pairs(proto_tree *tree, packet_info *pinfo, tvbuff_
 
 				avp_vsa_len -= avp_vsa_header_len;
 
-				dictionary_entry = g_hash_table_lookup(vendor->attrs_by_id,GUINT_TO_POINTER(avp_vsa_type));
+				dictionary_entry = (radius_attr_info_t *)g_hash_table_lookup(vendor->attrs_by_id,GUINT_TO_POINTER(avp_vsa_type));
 
 				if ( !dictionary_entry ) {
 					dictionary_entry = &no_dictionary_entry;
@@ -1117,9 +1164,9 @@ void dissect_attribute_value_pairs(proto_tree *tree, packet_info *pinfo, tvbuff_
 						vsa_buffer_table = g_hash_table_new(radius_vsa_hash, radius_vsa_equal);
 					}
 
-					vsa_buffer = g_hash_table_lookup(vsa_buffer_table, &key);
+					vsa_buffer = (radius_vsa_buffer *)g_hash_table_lookup(vsa_buffer_table, &key);
 					if (vsa_buffer) {
-						vsa_buffer->data = g_realloc(vsa_buffer->data, vsa_buffer->len + avp_vsa_len);
+						vsa_buffer->data = (guint8 *)g_realloc(vsa_buffer->data, vsa_buffer->len + avp_vsa_len);
 						tvb_memcpy(tvb, vsa_buffer->data + vsa_buffer->len, offset, avp_vsa_len);
 						vsa_buffer->len += avp_vsa_len;
 						vsa_buffer->seg_num++;
@@ -1127,12 +1174,12 @@ void dissect_attribute_value_pairs(proto_tree *tree, packet_info *pinfo, tvbuff_
 
 					if (avp_vsa_flags & 0x80) {
 						if (!vsa_buffer) {
-							vsa_buffer = g_malloc(sizeof(radius_vsa_buffer));
+							vsa_buffer = (radius_vsa_buffer *)g_malloc(sizeof(radius_vsa_buffer));
 							vsa_buffer->key.vendor_id = vendor_id;
 							vsa_buffer->key.vsa_type = avp_vsa_type;
 							vsa_buffer->len = avp_vsa_len;
 							vsa_buffer->seg_num = 1;
-							vsa_buffer->data = g_malloc(avp_vsa_len);
+							vsa_buffer->data = (guint8 *)g_malloc(avp_vsa_len);
 							tvb_memcpy(tvb, vsa_buffer->data, offset, avp_vsa_len);
 							g_hash_table_insert(vsa_buffer_table, &(vsa_buffer->key), vsa_buffer);
 						}
@@ -1159,7 +1206,7 @@ void dissect_attribute_value_pairs(proto_tree *tree, packet_info *pinfo, tvbuff_
 				}
 
 				offset += avp_vsa_len;
-			}; /* while (offset < max_offset) */
+			} /* while (offset < max_offset) */
 			continue;  /* while (length > 0) */
 		}
 
@@ -1226,9 +1273,9 @@ void dissect_attribute_value_pairs(proto_tree *tree, packet_info *pinfo, tvbuff_
 				 */
 
 				if (eap_buffer == NULL)
-					eap_buffer = g_malloc(eap_tot_len_captured + tvb_len);
+					eap_buffer = (guint8 *)g_malloc(eap_tot_len_captured + tvb_len);
 				else
-					eap_buffer = g_realloc(eap_buffer,
+					eap_buffer = (guint8 *)g_realloc(eap_buffer,
 							       eap_tot_len_captured + tvb_len);
 				tvb_memcpy(tvb, eap_buffer + eap_tot_len_captured, offset,
 					   tvb_len);
@@ -1316,7 +1363,7 @@ is_radius(tvbuff_t *tvb)
 	guint16 length;
 
 	code=tvb_get_guint8(tvb, 0);
-	if (match_strval_ext(code, &radius_pkt_type_codes_ext) == NULL) {
+	if (try_val_to_str_ext(code, &radius_pkt_type_codes_ext) == NULL) {
 		return FALSE;
 	}
 
@@ -1372,7 +1419,7 @@ dissect_radius(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 
 
 	/* Initialise stat info for passing to tap */
-	rad_info = ep_alloc(sizeof(radius_info_t));
+	rad_info = wmem_new(wmem_packet_scope(), radius_info_t);
 	rad_info->code = 0;
 	rad_info->ident = 0;
 	rad_info->req_time.secs = 0;
@@ -1386,12 +1433,9 @@ dissect_radius(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 	rad_info->ident = rh.rh_ident;
 	tap_queue_packet(radius_tap, pinfo, rad_info);
 
-	if (check_col(pinfo->cinfo, COL_INFO))
-	{
-		col_add_fstr(pinfo->cinfo,COL_INFO,"%s(%d) (id=%d, l=%d)",
+	col_add_fstr(pinfo->cinfo,COL_INFO,"%s(%d) (id=%d, l=%d)",
 			val_to_str_ext_const(rh.rh_code, &radius_pkt_type_codes_ext, "Unknown Packet"),
 			rh.rh_code, rh.rh_ident, rh.rh_pktlength);
-	}
 
 	if (tree)
 	{
@@ -1412,8 +1456,8 @@ dissect_radius(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 	{
 		if (tree)
 		{
-			proto_tree_add_uint_format(radius_tree, hf_radius_length,
-				tvb, 2, 2, rh.rh_pktlength, "Length: %u (bogus, < %u)",
+			proto_tree_add_uint_format_value(radius_tree, hf_radius_length,
+				tvb, 2, 2, rh.rh_pktlength, "%u (bogus, < %u)",
 				rh.rh_pktlength, HDR_LENGTH);
 		}
 		return tvb_length(tvb);
@@ -1439,6 +1483,7 @@ dissect_radius(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 		case RADIUS_PKT_TYPE_EVENT_REQUEST:
 		case RADIUS_PKT_TYPE_DISCONNECT_REQUEST:
 		case RADIUS_PKT_TYPE_COA_REQUEST:
+		case RADIUS_PKT_TYPE_ALU_STATE_REQUEST:
 			/* Don't bother creating conversations if we're encapsulated within
 			 * an error packet, such as an ICMP destination unreachable */
 			if (pinfo->flags.in_error_pkt)
@@ -1483,7 +1528,7 @@ dissect_radius(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 			radius_call_key.req_time = pinfo->fd->abs_ts;
 
 			/* Look up the request */
-			radius_call = g_hash_table_lookup(radius_calls, &radius_call_key);
+			radius_call = (radius_call_t *)g_hash_table_lookup(radius_calls, &radius_call_key);
 			if (radius_call != NULL)
 			{
 				/* We've seen a request with this ID, with the same
@@ -1493,11 +1538,9 @@ dissect_radius(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 					/* No, so it's a duplicate request. Mark it as such. */
 					rad_info->is_duplicate = TRUE;
 					rad_info->req_num = radius_call->req_num;
-					if (check_col(pinfo->cinfo, COL_INFO))
-					{
-						col_append_fstr(pinfo->cinfo, COL_INFO,
+					col_append_fstr(pinfo->cinfo, COL_INFO,
 							", Duplicate Request ID:%u", rh.rh_ident);
-					}
+
 					if (tree)
 					{
 						proto_item* item;
@@ -1515,9 +1558,9 @@ dissect_radius(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 				   frame numbers are 1-origin, so we use 0
 				   to mean "we don't yet know in which frame
 				   the reply for this call appears". */
-				new_radius_call_key = se_alloc(sizeof(radius_call_info_key));
+				new_radius_call_key = wmem_new(wmem_file_scope(), radius_call_info_key);
 				*new_radius_call_key = radius_call_key;
-				radius_call = se_alloc(sizeof(radius_call_t));
+				radius_call = wmem_new(wmem_file_scope(), radius_call_t);
 				radius_call->req_num = pinfo->fd->num;
 				radius_call->rsp_num = 0;
 				radius_call->ident = rh.rh_ident;
@@ -1553,6 +1596,9 @@ dissect_radius(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 		case RADIUS_PKT_TYPE_COA_ACK:
 		case RADIUS_PKT_TYPE_COA_NAK:
 		case RADIUS_PKT_TYPE_ACCESS_CHALLENGE:
+		case RADIUS_PKT_TYPE_ALU_STATE_ACCEPT:
+		case RADIUS_PKT_TYPE_ALU_STATE_REJECT:
+		case RADIUS_PKT_TYPE_ALU_STATE_ERROR:
 			/* Don't bother finding conversations if we're encapsulated within
 			 * an error packet, such as an ICMP destination unreachable */
 			if (pinfo->flags.in_error_pkt)
@@ -1591,7 +1637,7 @@ dissect_radius(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 				radius_call_key.conversation = conversation;
 				radius_call_key.req_time = pinfo->fd->abs_ts;
 
-				radius_call = g_hash_table_lookup(radius_calls, &radius_call_key);
+				radius_call = (radius_call_t *)g_hash_table_lookup(radius_calls, &radius_call_key);
 				if (radius_call)
 				{
 					/* Indicate the frame to which this is a reply. */
@@ -1632,11 +1678,9 @@ dissect_radius(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 						{
 							/* No, so it's a duplicate response. Mark it as such. */
 							rad_info->is_duplicate = TRUE;
-							if (check_col(pinfo->cinfo, COL_INFO))
-							{
-								col_append_fstr(pinfo->cinfo, COL_INFO,
+							col_append_fstr(pinfo->cinfo, COL_INFO,
 									", Duplicate Response ID:%u", rh.rh_ident);
-							}
+
 							if (tree)
 							{
 								proto_item* item;
@@ -1680,10 +1724,10 @@ dissect_radius(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 
 
 static void register_attrs(gpointer k _U_, gpointer v, gpointer p) {
-	radius_attr_info_t* a = v;
+	radius_attr_info_t* a = (radius_attr_info_t *)v;
 	int i;
 	gint* ett = &(a->ett);
-	gchar* abbrev = g_strconcat("radius.",a->name,NULL);
+	gchar* abbrev = wmem_strdup_printf(wmem_epan_scope(), "radius.%s", a->name);
 	hf_register_info hfri[] = {
 		{ NULL, { NULL,NULL, FT_NONE,  BASE_NONE, NULL, 0x0, NULL, HFILL }},
 		{ NULL, { NULL,NULL, FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
@@ -1691,7 +1735,7 @@ static void register_attrs(gpointer k _U_, gpointer v, gpointer p) {
 		{ NULL, { NULL,NULL, FT_NONE,  BASE_NONE, NULL, 0x0, NULL, HFILL }}
 	};
 	guint len_hf = 2;
-	hfett_t* ri = p;
+	hfett_t* ri = (hfett_t *)p;
 
 	for(i=0; abbrev[i]; i++) {
 		if(abbrev[i] == '-') abbrev[i] = '_';
@@ -1705,15 +1749,15 @@ static void register_attrs(gpointer k _U_, gpointer v, gpointer p) {
 	hfri[0].hfinfo.abbrev = abbrev;
 
 	hfri[1].hfinfo.name = "Length";
-	hfri[1].hfinfo.abbrev = g_strconcat(abbrev,".len",NULL);
-	hfri[1].hfinfo.blurb = g_strconcat(a->name," Length",NULL);
+	hfri[1].hfinfo.abbrev = wmem_strdup_printf(wmem_epan_scope(), "%s.len", abbrev);
+	hfri[1].hfinfo.blurb = wmem_strdup_printf(wmem_epan_scope(), "%s Length", a->name);
 
 	if (a->type == radius_integer) {
 		hfri[0].hfinfo.type = FT_UINT32;
 		hfri[0].hfinfo.display = BASE_DEC;
 
 		hfri[2].p_id = &(a->hf_alt);
-		hfri[2].hfinfo.name = g_strdup(a->name);
+		hfri[2].hfinfo.name = wmem_strdup(wmem_epan_scope(), a->name);
 		hfri[2].hfinfo.abbrev = abbrev;
 		hfri[2].hfinfo.type = FT_UINT64;
 		hfri[2].hfinfo.display = BASE_DEC;
@@ -1728,7 +1772,7 @@ static void register_attrs(gpointer k _U_, gpointer v, gpointer p) {
 		hfri[0].hfinfo.display = BASE_DEC;
 
 		hfri[2].p_id = &(a->hf_alt);
-		hfri[2].hfinfo.name = g_strdup(a->name);
+		hfri[2].hfinfo.name = wmem_strdup(wmem_epan_scope(), a->name);
 		hfri[2].hfinfo.abbrev = abbrev;
 		hfri[2].hfinfo.type = FT_INT64;
 		hfri[2].hfinfo.display = BASE_DEC;
@@ -1748,8 +1792,8 @@ static void register_attrs(gpointer k _U_, gpointer v, gpointer p) {
 			 * alternative field for the encrypted value.
 			 */
 			hfri[2].p_id = &(a->hf_alt);
-			hfri[2].hfinfo.name = g_strdup_printf("%s (encrypted)", a->name);
-			hfri[2].hfinfo.abbrev = g_strdup_printf("%s_encrypted", abbrev);
+			hfri[2].hfinfo.name = wmem_strdup_printf(wmem_epan_scope(), "%s (encrypted)", a->name);
+			hfri[2].hfinfo.abbrev = wmem_strdup_printf(wmem_epan_scope(), "%s_encrypted", abbrev);
 			hfri[2].hfinfo.type = FT_BYTES;
 			hfri[2].hfinfo.display = BASE_NONE;
 
@@ -1784,8 +1828,8 @@ static void register_attrs(gpointer k _U_, gpointer v, gpointer p) {
 		hfri[0].hfinfo.display = BASE_NONE;
 
 		hfri[2].p_id = &(a->hf_alt);
-		hfri[2].hfinfo.name = g_strdup(a->name);
-		hfri[2].hfinfo.abbrev = g_strdup(abbrev);
+		hfri[2].hfinfo.name = wmem_strdup(wmem_epan_scope(), a->name);
+		hfri[2].hfinfo.abbrev = wmem_strdup(wmem_epan_scope(), abbrev);
 		hfri[2].hfinfo.type = FT_IPv6;
 		hfri[2].hfinfo.display = BASE_NONE;
 
@@ -1801,15 +1845,15 @@ static void register_attrs(gpointer k _U_, gpointer v, gpointer p) {
 	if (a->tagged) {
 		hfri[len_hf].p_id = &(a->hf_tag);
 		hfri[len_hf].hfinfo.name = "Tag";
-		hfri[len_hf].hfinfo.abbrev = g_strconcat(abbrev,".tag",NULL);
-		hfri[len_hf].hfinfo.blurb = g_strconcat(a->name," Tag",NULL);
+		hfri[len_hf].hfinfo.abbrev = wmem_strdup_printf(wmem_epan_scope(), "%s.tag", abbrev);
+		hfri[len_hf].hfinfo.blurb = wmem_strdup_printf(wmem_epan_scope(), "%s Tag", a->name);
 		hfri[len_hf].hfinfo.type = FT_UINT8;
 		hfri[len_hf].hfinfo.display = BASE_HEX;
 		len_hf++;
 	}
 
-	g_array_append_vals(ri->hf,hfri,len_hf);
-	g_array_append_val(ri->ett,ett);
+	wmem_array_append(ri->hf,hfri,len_hf);
+	wmem_array_append_one(ri->ett,ett);
 
 	if (a->tlvs_by_id) {
 		g_hash_table_foreach(a->tlvs_by_id,register_attrs,ri);
@@ -1817,16 +1861,16 @@ static void register_attrs(gpointer k _U_, gpointer v, gpointer p) {
 }
 
 static void register_vendors(gpointer k _U_, gpointer v, gpointer p) {
-	radius_vendor_info_t* vnd = v;
-	hfett_t* ri = p;
+	radius_vendor_info_t* vnd = (radius_vendor_info_t *)v;
+	hfett_t* ri = (hfett_t *)p;
 	value_string vnd_vs;
 	gint* ett_p = &(vnd->ett);
 
 	vnd_vs.value = vnd->code;
 	vnd_vs.strptr = vnd->name;
 
-	g_array_append_val(ri->vend_vs,vnd_vs);
-	g_array_append_val(ri->ett,ett_p);
+	wmem_array_append_one(ri->vend_vs,vnd_vs);
+	wmem_array_append_one(ri->ett,ett_p);
 
 	g_hash_table_foreach(vnd->attrs_by_id,register_attrs,ri);
 
@@ -1840,10 +1884,10 @@ extern void radius_register_avp_dissector(guint32 vendor_id, guint32 attribute_i
 	DISSECTOR_ASSERT(radius_avp_dissector != NULL);
 
 	if (vendor_id) {
-		vendor = g_hash_table_lookup(dict->vendors_by_id,GUINT_TO_POINTER(vendor_id));
+		vendor = (radius_vendor_info_t *)g_hash_table_lookup(dict->vendors_by_id,GUINT_TO_POINTER(vendor_id));
 
 		if ( ! vendor ) {
-			vendor = g_malloc(sizeof(radius_vendor_info_t));
+			vendor = (radius_vendor_info_t *)g_malloc(sizeof(radius_vendor_info_t));
 
 			vendor->name = g_strdup_printf("%s-%u",
 						       val_to_str_ext_const(vendor_id, &sminmpec_values_ext, "Unknown"),
@@ -1861,15 +1905,15 @@ extern void radius_register_avp_dissector(guint32 vendor_id, guint32 attribute_i
 			g_hash_table_insert(dict->vendors_by_name,(gpointer)(vendor->name),vendor);
 		}
 
-		dictionary_entry = g_hash_table_lookup(vendor->attrs_by_id,GUINT_TO_POINTER(attribute_id));
+		dictionary_entry = (radius_attr_info_t *)g_hash_table_lookup(vendor->attrs_by_id,GUINT_TO_POINTER(attribute_id));
 		by_id = vendor->attrs_by_id;
 	} else {
-		dictionary_entry = g_hash_table_lookup(dict->attrs_by_id,GUINT_TO_POINTER(attribute_id));
+		dictionary_entry = (radius_attr_info_t *)g_hash_table_lookup(dict->attrs_by_id,GUINT_TO_POINTER(attribute_id));
 		by_id = dict->attrs_by_id;
 	}
 
 	if (!dictionary_entry) {
-		dictionary_entry = g_malloc(sizeof(radius_attr_info_t));
+		dictionary_entry = (radius_attr_info_t *)g_malloc(sizeof(radius_attr_info_t));
 
 		dictionary_entry->name = g_strdup_printf("Unknown-Attribute-%u",attribute_id);
 		dictionary_entry->code = attribute_id;
@@ -1989,14 +2033,14 @@ static void register_radius_fields(const char* unused _U_) {
 	 char* dir = NULL;
 	 gchar* dict_err_str = NULL;
 
-	 ri.hf = g_array_new(FALSE,TRUE,sizeof(hf_register_info));
-	 ri.ett = g_array_new(FALSE,TRUE,sizeof(gint *));
-	 ri.vend_vs = g_array_new(TRUE,TRUE,sizeof(value_string));
+	 ri.hf = wmem_array_new(wmem_epan_scope(), sizeof(hf_register_info));
+	 ri.ett = wmem_array_new(wmem_epan_scope(), sizeof(gint *));
+	 ri.vend_vs = wmem_array_new(wmem_epan_scope(), sizeof(value_string));
 
-	 g_array_append_vals(ri.hf, base_hf, array_length(base_hf));
-	 g_array_append_vals(ri.ett, base_ett, array_length(base_ett));
+	 wmem_array_append(ri.hf, base_hf, array_length(base_hf));
+	 wmem_array_append(ri.ett, base_ett, array_length(base_ett));
 
-	 dir = get_persconffile_path("radius", FALSE, FALSE);
+	 dir = get_persconffile_path("radius", FALSE);
 
 	 if (test_for_directory(dir) != EISDIR) {
 		 /* Although dir isn't a directory it may still use memory */
@@ -2024,12 +2068,8 @@ static void register_radius_fields(const char* unused _U_) {
 
 	g_free(dir);
 
-	proto_register_field_array(proto_radius,(hf_register_info*)g_array_data(ri.hf),ri.hf->len);
-	proto_register_subtree_array((gint**)g_array_data(ri.ett), ri.ett->len);
-
-	g_array_free(ri.hf,FALSE);
-	g_array_free(ri.ett,FALSE);
-	g_array_free(ri.vend_vs,FALSE);
+	proto_register_field_array(proto_radius,(hf_register_info*)wmem_array_get_raw(ri.hf),wmem_array_get_count(ri.hf));
+	proto_register_subtree_array((gint**)wmem_array_get_raw(ri.ett), wmem_array_get_count(ri.ett));
 
 	no_vendor.attrs_by_id = g_hash_table_new(g_direct_hash,g_direct_equal);
 
@@ -2055,6 +2095,7 @@ static void register_radius_fields(const char* unused _U_) {
 	 * XXX - we should special-case Cisco attribute 252; see the comment in
 	 * dictionary.cisco.
 	 */
+	radius_register_avp_dissector(VENDOR_THE3GPP,23,dissect_radius_3gpp_ms_tmime_zone);
 }
 
 
@@ -2080,7 +2121,7 @@ proto_register_radius(void)
 	radius_tap = register_tap("radius");
 	proto_register_prefix("radius",register_radius_fields);
 
-	dict = g_malloc(sizeof(radius_dictionary_t));
+	dict = (radius_dictionary_t *)g_malloc(sizeof(radius_dictionary_t));
 	dict->attrs_by_id     = g_hash_table_new(g_direct_hash,g_direct_equal);
 	dict->attrs_by_name   = g_hash_table_new(g_str_hash,g_str_equal);
 	dict->vendors_by_id   = g_hash_table_new(g_direct_hash,g_direct_equal);

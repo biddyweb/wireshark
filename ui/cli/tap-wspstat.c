@@ -1,8 +1,6 @@
 /* tap-rpcstat.c
  * wspstat   2003 Jean-Michel FAYARD
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,13 +28,16 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include "epan/packet_info.h"
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
 #include "epan/value_string.h"
 #include <epan/dissectors/packet-wsp.h>
+
+void register_tap_listener_wspstat(void);
 
 /* used to keep track of the stats for a specific PDU type*/
 typedef struct _wsp_pdu_t {
@@ -94,7 +95,7 @@ wspstat_reset(void *psp)
  * the window to be redrawn, return 1 and (*draw) will be called sometime
  * later.
  *
- * We didnt apply a filter when we registered so we will be called for
+ * We didn't apply a filter when we registered so we will be called for
  * ALL packets and not just the ones we are collecting stats for.
  *
  */
@@ -134,7 +135,7 @@ wspstat_packet(void *psp, packet_info *pinfo _U_, epan_dissect_t *edt _U_, const
 		gint *key=g_new(gint,1);
 		wsp_status_code_t *sc;
 		*key=value->status_code ;
-		sc = g_hash_table_lookup(
+		sc = (wsp_status_code_t *)g_hash_table_lookup(
 				sp->hash,
 				key);
 		if (!sc) {
@@ -207,7 +208,7 @@ wspstat_draw(void *psp)
  * new instance for the wsp tap.
  */
 static void
-wspstat_init(const char *optarg, void* userdata _U_)
+wspstat_init(const char *opt_arg, void* userdata _U_)
 {
 	wspstat_t          *sp;
 	const char         *filter=NULL;
@@ -216,8 +217,8 @@ wspstat_init(const char *optarg, void* userdata _U_)
 	wsp_status_code_t  *sc;
 	const value_string *wsp_vals_status_p;
 
-	if (!strncmp (optarg, "wsp,stat," , 9)){
-		filter=optarg+9;
+	if (!strncmp (opt_arg, "wsp,stat," , 9)){
+		filter=opt_arg+9;
 	} else {
 		filter=NULL;
 	}
@@ -249,7 +250,7 @@ wspstat_init(const char *optarg, void* userdata _U_)
 	for (i=0;i<sp->num_pdus; i++)
 	{
 		sp->pdu_stats[i].packets=0;
-		sp->pdu_stats[i].type = match_strval_ext( index2pdut( i ), &wsp_vals_pdu_type_ext) ;
+		sp->pdu_stats[i].type = try_val_to_str_ext( index2pdut( i ), &wsp_vals_pdu_type_ext) ;
 	}
 
 	error_string = register_tap_listener(

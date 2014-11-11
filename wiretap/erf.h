@@ -31,8 +31,6 @@
 * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 * POSSIBILITY OF SUCH DAMAGE.
-*
-* $Id$
 */
 
 #ifndef __W_ERF_H__
@@ -96,7 +94,7 @@ typedef struct erf_eth_hdr {
 	guint16	eth;
 } erf_eth_header_t;
 
-union erf_subhdr { 
+union erf_subhdr {
   struct erf_mc_hdr mc_hdr;
   struct erf_eth_hdr eth_hdr;
 };

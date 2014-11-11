@@ -2,8 +2,6 @@
  * Routines for FC Common Transport Protocol (used by GS3 services)
  * Copyright 2001, Dinesh G Dutt <ddutt@andiamo.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -28,11 +26,14 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
 #include <epan/etypes.h>
 #include <epan/conversation.h>
-#include "packet-scsi.h"
 #include "packet-fc.h"
 #include "packet-fcct.h"
+
+void proto_register_fcct(void);
+void proto_reg_handoff_fcct(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_fcct           = -1;
@@ -133,8 +134,8 @@ get_gs_server (guint8 gstype, guint8 gssubtype)
 }
 
 /* Code to actually dissect the packets */
-static void
-dissect_fcct (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static int
+dissect_fcct (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
 
 /* Set up structures needed to add the protocol subtree and manage it */
@@ -163,20 +164,18 @@ dissect_fcct (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     cthdr.opcode = g_ntohs (cthdr.opcode);
     cthdr.maxres_size = g_ntohs (cthdr.maxres_size);
 
-    if (check_col (pinfo->cinfo, COL_INFO)) {
-        if (cthdr.opcode < FCCT_MSG_REQ_MAX) {
-            col_append_str (pinfo->cinfo, COL_INFO, " Request");
-        }
-        else if (cthdr.opcode == FCCT_MSG_ACC) {
-            col_append_str (pinfo->cinfo, COL_INFO, " Accept");
-        }
-        else if (cthdr.opcode == FCCT_MSG_RJT) {
-            col_append_fstr (pinfo->cinfo, COL_INFO, " Reject (%s)",
-                             val_to_str (cthdr.rjt_code, fc_ct_rjt_code_vals, "0x%x"));
-        }
-        else {
-            col_append_str (pinfo->cinfo, COL_INFO, " Reserved");
-        }
+    if (cthdr.opcode < FCCT_MSG_REQ_MAX) {
+        col_append_str (pinfo->cinfo, COL_INFO, " Request");
+    }
+    else if (cthdr.opcode == FCCT_MSG_ACC) {
+        col_append_str (pinfo->cinfo, COL_INFO, " Accept");
+    }
+    else if (cthdr.opcode == FCCT_MSG_RJT) {
+        col_append_fstr (pinfo->cinfo, COL_INFO, " Reject (%s)",
+                            val_to_str (cthdr.rjt_code, fc_ct_rjt_code_vals, "0x%x"));
+    }
+    else {
+        col_append_str (pinfo->cinfo, COL_INFO, " Reserved");
     }
 
     in_id = cthdr.in_id;
@@ -209,12 +208,15 @@ dissect_fcct (tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
     /* We do not change the starting offset for the next protocol in the
      * chain since the fc_ct header is common to the sub-protocols.
+     * Pass the fchdr* received from parent dissector through to sub-protocols
      */
     next_tvb = tvb_new_subset_remaining (tvb, 0);
-    if (!dissector_try_uint (fcct_gserver_table, server, next_tvb, pinfo,
-                             tree)) {
+    if (!dissector_try_uint_new(fcct_gserver_table, server, next_tvb, pinfo,
+                             tree, TRUE, data)) {
         call_dissector (data_handle, next_tvb, pinfo, tree);
     }
+
+    return tvb_length(tvb);
 }
 
 /* Register the protocol with Wireshark */
@@ -279,7 +281,7 @@ proto_register_fcct(void)
     proto_register_subtree_array(ett, array_length(ett));
 
     fcct_gserver_table = register_dissector_table ("fcct.server",
-                                                   "Server",
+                                                   "FCCT Server",
                                                    FT_UINT8, BASE_HEX);
 }
 
@@ -292,7 +294,7 @@ proto_reg_handoff_fcct (void)
 {
     dissector_handle_t fcct_handle;
 
-    fcct_handle = create_dissector_handle (dissect_fcct, proto_fcct);
+    fcct_handle = new_create_dissector_handle (dissect_fcct, proto_fcct);
     dissector_add_uint("fc.ftype", FC_FTYPE_FCCT, fcct_handle);
 
     data_handle = find_dissector ("data");

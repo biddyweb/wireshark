@@ -3,8 +3,6 @@
  *
  * Copyright (c) 2011 by Spenser Sheng <spenser.sheng@ericsson.com>
  *
- * $Id: packet-lcsap.c 28770 2011-06-18 21:30:42Z stig  Spenser Sheng$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1999 Gerald Combs
@@ -45,6 +43,7 @@
 #include "packet-per.h"
 #include "packet-e212.h"
 #include "packet-sccp.h"
+#include "packet-lcsap.h"
 
 #ifdef _MSC_VER
 /* disable: "warning C4146: unary minus operator applied to unsigned type, result still unsigned" */
@@ -54,6 +53,9 @@
 #define PNAME  "LCS Application Protocol"
 #define PSNAME "LCSAP"
 #define PFNAME "lcsap"
+
+void proto_register_lcsap(void);
+void proto_reg_handoff_lcsap(void);
 
 static dissector_handle_t lpp_handle;
 static dissector_handle_t lppa_handle;
@@ -103,92 +105,90 @@ static int dissect_SuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, pro
 static int dissect_UnsuccessfulOutcomeValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *);
 
 
-/* 7.4.13 Positioning Data 
+/* 7.4.13 Positioning Data
  * Coding of positioning method (bits 8-4)
  */
 static const value_string lcsap_pos_method_vals[] = {
- 	{ 0x00, "Cell ID" },
- 	{ 0x01, "Reserved" },
- 	{ 0x02, "E-CID" },
- 	{ 0x03, "Reserved" },
- 	{ 0x04, "OTDOA" },
- 	{ 0x05, "Reserved" },
- 	{ 0x06, "Reserved" },
- 	{ 0x07, "Reserved" },
- 	{ 0x08, "U-TDOA" },
- 	{ 0x09, "Reserved" },
- 	{ 0x0a, "Reserved" },
- 	{ 0x0b, "Reserved" },
- 	{ 0x0c, "Reserved for other location technologies" },
- 	{ 0x0d, "Reserved for other location technologies" },
- 	{ 0x0e, "Reserved for other location technologies" },
- 	{ 0x0f, "Reserved for other location technologies" },
- 	{ 0x10, "Reserved for network specific positioning methods" },
- 	{ 0x11, "Reserved for network specific positioning methods" },
- 	{ 0x12, "Reserved for network specific positioning methods" },
- 	{ 0x13, "Reserved for network specific positioning methods" },
- 	{ 0x14, "Reserved for network specific positioning methods" },
- 	{ 0x15, "Reserved for network specific positioning methods" },
- 	{ 0x16, "Reserved for network specific positioning methods" },
- 	{ 0x17, "Reserved for network specific positioning methods" },
- 	{ 0x18, "Reserved for network specific positioning methods" },
- 	{ 0x19, "Reserved for network specific positioning methods" },
- 	{ 0x1a, "Reserved for network specific positioning methods" },
- 	{ 0x1b, "Reserved for network specific positioning methods" },
- 	{ 0x1c, "RReserved for network specific positioning methods" },
- 	{ 0x1d, "Reserved for network specific positioning methods" },
- 	{ 0x1e, "Reserved for network specific positioning methods" },
- 	{ 0x0f, "Reserved for network specific positioning methods" },
+	{ 0x00, "Cell ID" },
+	{ 0x01, "Reserved" },
+	{ 0x02, "E-CID" },
+	{ 0x03, "Reserved" },
+	{ 0x04, "OTDOA" },
+	{ 0x05, "Reserved" },
+	{ 0x06, "Reserved" },
+	{ 0x07, "Reserved" },
+	{ 0x08, "U-TDOA" },
+	{ 0x09, "Reserved" },
+	{ 0x0a, "Reserved" },
+	{ 0x0b, "Reserved" },
+	{ 0x0c, "Reserved for other location technologies" },
+	{ 0x0d, "Reserved for other location technologies" },
+	{ 0x0e, "Reserved for other location technologies" },
+	{ 0x0f, "Reserved for other location technologies" },
+	{ 0x10, "Reserved for network specific positioning methods" },
+	{ 0x11, "Reserved for network specific positioning methods" },
+	{ 0x12, "Reserved for network specific positioning methods" },
+	{ 0x13, "Reserved for network specific positioning methods" },
+	{ 0x14, "Reserved for network specific positioning methods" },
+	{ 0x15, "Reserved for network specific positioning methods" },
+	{ 0x16, "Reserved for network specific positioning methods" },
+	{ 0x17, "Reserved for network specific positioning methods" },
+	{ 0x18, "Reserved for network specific positioning methods" },
+	{ 0x19, "Reserved for network specific positioning methods" },
+	{ 0x1a, "Reserved for network specific positioning methods" },
+	{ 0x1b, "Reserved for network specific positioning methods" },
+	{ 0x1c, "RReserved for network specific positioning methods" },
+	{ 0x1d, "Reserved for network specific positioning methods" },
+	{ 0x1e, "Reserved for network specific positioning methods" },
+	{ 0x0f, "Reserved for network specific positioning methods" },
 	{ 0, NULL }
 };
 
 /* Coding of usage (bits 3-1)*/
 static const value_string lcsap_pos_usage_vals[] = {
- 	{ 0x00, "Attempted unsuccessfully due to failure or interruption - not used" },
- 	{ 0x01, "Attempted successfully: results not used to generate location - not used." },
- 	{ 0x02, "Attempted successfully: results used to verify but not generate location - not used." },
- 	{ 0x03, "Attempted successfully: results used to generate location" },
- 	{ 0x04, "Attempted successfully: case where UE supports multiple mobile based positioning methods \n"
-	        "and the actual method or methods used by the UE cannot be determined." },
- 	{ 0x05, "Reserved" },
- 	{ 0x06, "Reserved" },
- 	{ 0x07, "Reserved" },
+	{ 0x00, "Attempted unsuccessfully due to failure or interruption - not used" },
+	{ 0x01, "Attempted successfully: results not used to generate location - not used." },
+	{ 0x02, "Attempted successfully: results used to verify but not generate location - not used." },
+	{ 0x03, "Attempted successfully: results used to generate location" },
+	{ 0x04, "Attempted successfully: case where UE supports multiple mobile based positioning methods and the actual method or methods used by the UE cannot be determined." },
+	{ 0x05, "Reserved" },
+	{ 0x06, "Reserved" },
+	{ 0x07, "Reserved" },
 	{ 0, NULL }
 };
 
 /* Coding of Method (Bits 8-7) */
 static const value_string lcsap_gnss_pos_method_vals[] = {
 	{ 0x00, "UE-Based" },
- 	{ 0x01, "UE-Assisted" },
- 	{ 0x02, "Conventional" },
- 	{ 0x03, "Reserved" },
+	{ 0x01, "UE-Assisted" },
+	{ 0x02, "Conventional" },
+	{ 0x03, "Reserved" },
 	{ 0, NULL }
 };
 
 /* Coding of GNSS ID (Bits 6-4) */
 static const value_string lcsap_gnss_id_vals[] = {
- 	{ 0x00, "GPS" },
- 	{ 0x01, "Galileo" },
- 	{ 0x02, "SBAS" },
- 	{ 0x03, "Modernized GPS" },
- 	{ 0x04, "QZSS" },
- 	{ 0x05, "GLONASS" },
- 	{ 0x06, "Reserved" },
+	{ 0x00, "GPS" },
+	{ 0x01, "Galileo" },
+	{ 0x02, "SBAS" },
+	{ 0x03, "Modernized GPS" },
+	{ 0x04, "QZSS" },
+	{ 0x05, "GLONASS" },
+	{ 0x06, "Reserved" },
 	{ 0x07, "Reserved" },
 	{ 0, NULL }
 };
 
 /* Coding of usage (bits 3- 1) */
 static const value_string lcsap_gnss_pos_usage_vals[] = {
- 	{ 0x00, "Attempted unsuccessfully due to failure or interruption" },
- 	{ 0x01, "Attempted successfully: results not used to generate location" },
- 	{ 0x02, "Attempted successfully: results used to verify but not generate location" },
- 	{ 0x03, "Attempted successfully: results used to generate location" },
- 	{ 0x04, "Attempted successfully: case where UE supports multiple mobile based positioning methods \n"
-	        "and the actual method or methods used by the UE cannot be determined." },
- 	{ 0x05, "Reserved" },
- 	{ 0x06, "Reserved" },
- 	{ 0x07, "Reserved" },
+	{ 0x00, "Attempted unsuccessfully due to failure or interruption" },
+	{ 0x01, "Attempted successfully: results not used to generate location" },
+	{ 0x02, "Attempted successfully: results used to verify but not generate location" },
+	{ 0x03, "Attempted successfully: results used to generate location" },
+	{ 0x04, "Attempted successfully: case where UE supports multiple mobile based positioning methods and the actual method or methods used by the UE cannot be determined." },
+	{ 0x05, "Reserved" },
+	{ 0x06, "Reserved" },
+	{ 0x07, "Reserved" },
 	{ 0, NULL }
 };
 
@@ -229,8 +229,7 @@ dissect_lcsap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	proto_tree	*lcsap_tree = NULL;
 
 	/* make entry in the Protocol column on summary display */
-	if (check_col(pinfo->cinfo, COL_PROTOCOL))
-		col_set_str(pinfo->cinfo, COL_PROTOCOL, "LCSAP");
+	col_set_str(pinfo->cinfo, COL_PROTOCOL, "LCSAP");
 
 	/* create the lcsap protocol tree */
 	lcsap_item = proto_tree_add_item(tree, proto_lcsap, tvb, 0, -1, ENC_NA);

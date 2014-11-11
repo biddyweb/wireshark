@@ -2,8 +2,6 @@
  * Routines for SMB packet dissection
  * Copyright 1999, Richard Sharpe <rsharpe@ns.aus.com>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,7 +35,7 @@ int display_unicode_string(tvbuff_t *tvb, proto_tree *tree, int offset, int hf_i
 int display_ms_string(tvbuff_t *tvb, proto_tree *tree, int offset, int hf_index, char **data);
 
 int dissect_ms_compressed_string(tvbuff_t *tvb, proto_tree *tree, int offset, int hf_index,
-				 char **data);
+				 const char **data);
 
 const gchar *get_unicode_or_ascii_string(tvbuff_t *tvb, int *offsetp,
     gboolean useunicode, int *len, gboolean nopad, gboolean exactlen,

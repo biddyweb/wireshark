@@ -4,12 +4,10 @@
  * Approved for Public Release; Distribution Unlimited.
  * Tracking Number 07-0090.
  *
- * The US Government will not be charged any license fee and/or royalties 
- * related to this software. Neither name of The MITRE Corporation; nor the 
- * names of its contributors may be used to endorse or promote products 
+ * The US Government will not be charged any license fee and/or royalties
+ * related to this software. Neither name of The MITRE Corporation; nor the
+ * names of its contributors may be used to endorse or promote products
  * derived from this software without specific prior written permission.
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -151,6 +149,5 @@
 
 int evaluate_sdnv(tvbuff_t *tvb, int offset, int *bytecount);
 gint64 evaluate_sdnv_64(tvbuff_t *tvb, int offset, int *bytecount);
-int dissect_complete_bundle(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 
 

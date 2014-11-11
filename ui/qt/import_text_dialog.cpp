@@ -1,7 +1,5 @@
 /* import_text_dialog.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -25,7 +23,7 @@
 
 #include <time.h>
 
-#include <import_text_dialog.h>
+#include "import_text_dialog.h"
 
 #include "wiretap/wtap.h"
 #include "wiretap/pcap-encap.h"
@@ -39,10 +37,10 @@
 
 #include "file.h"
 #include "wsutil/file_util.h"
-#include "tempfile.h"
+#include "wsutil/tempfile.h"
 
 #include <ui_import_text_dialog.h>
-#include <wireshark_application.h>
+#include "wireshark_application.h"
 
 #include <QFileDialog>
 #include <QDebug>
@@ -62,7 +60,7 @@ ImportTextDialog::ImportTextDialog(QWidget *parent) :
     ok_button_ = ti_ui_->buttonBox->button(QDialogButtonBox::Ok);
     ok_button_->setEnabled(false);
 
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     // The grid layout squishes each line edit otherwise.
     int le_height = ti_ui_->textFileLineEdit->sizeHint().height();
     ti_ui_->ethertypeLineEdit->setMinimumHeight(le_height);
@@ -100,6 +98,7 @@ ImportTextDialog::ImportTextDialog(QWidget *parent) :
             }
         }
     }
+    ti_ui_->encapComboBox->model()->sort(0);
 }
 
 ImportTextDialog::~ImportTextDialog()
@@ -121,7 +120,7 @@ void ImportTextDialog::convertTextFile() {
     import_file_fd = create_tempfile(&tmpname, "import");
     capfile_name_.append(tmpname);
 
-    import_info_.wdh = wtap_dump_fdopen(import_file_fd, WTAP_FILE_PCAP, import_info_.encapsulation, import_info_.max_frame_length, FALSE, &err);
+    import_info_.wdh = wtap_dump_fdopen(import_file_fd, WTAP_FILE_TYPE_SUBTYPE_PCAP, import_info_.encapsulation, import_info_.max_frame_length, FALSE, &err);
     qDebug() << capfile_name_ << ":" << import_info_.wdh << import_info_.encapsulation << import_info_.max_frame_length;
     if (import_info_.wdh == NULL) {
         open_failure_alert_box(capfile_name_.toUtf8().constData(), err, TRUE);
@@ -211,7 +210,7 @@ int ImportTextDialog::exec() {
         return result();
     }
 
-    import_info_.import_text_filename = ti_ui_->textFileLineEdit->text().toUtf8().data();
+    import_info_.import_text_filename = strdup(ti_ui_->textFileLineEdit->text().toUtf8().data());
     import_info_.import_text_file = ws_fopen(import_info_.import_text_filename, "rb");
     if (!import_info_.import_text_file) {
         open_failure_alert_box(import_info_.import_text_filename, errno, FALSE);
@@ -225,7 +224,7 @@ int ImportTextDialog::exec() {
         ti_ui_->octalOffsetButton->isChecked()   ? OFFSET_OCT :
         OFFSET_NONE;
     import_info_.date_timestamp = ti_ui_->dateTimeLineEdit->text().length() > 0;
-    import_info_.date_timestamp_format = ti_ui_->dateTimeLineEdit->text().toUtf8().data();
+    import_info_.date_timestamp_format = strdup(ti_ui_->dateTimeLineEdit->text().toUtf8().data());
 
     encap_val = ti_ui_->encapComboBox->itemData(ti_ui_->encapComboBox->currentIndex());
     import_info_.dummy_header_type = HEADER_NONE;
@@ -323,6 +322,11 @@ void ImportTextDialog::on_dateTimeLineEdit_textChanged(const QString &time_forma
     } else {
         ti_ui_->timestampExampleLabel->setText(tr("<i>(No format will be applied)</i>"));
     }
+}
+
+void ImportTextDialog::on_directionIndicationCheckBox_toggled(bool checked)
+{
+    import_info_.has_direction = checked;
 }
 
 void ImportTextDialog::on_noDummyButton_toggled(bool checked)

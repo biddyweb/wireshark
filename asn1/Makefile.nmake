@@ -2,9 +2,6 @@
 ## Use: $(MAKE) /$(MAKEFLAGS) -f makefile.nmake
 ##  (See 'Logic' below for additional details)
 #
-# $Id$
-#
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -40,13 +37,16 @@
 #       copy_files           : generate the dissectors into epan\dissectors
 #                            :  (This is, in effect, the same as invoking this makefile w/o a target).
 
-include Custom.make 
+include Custom.make
 
 BER_LIST= \
 	acp133			\
 	acse			\
 	ansi_map		\
 	ansi_tcap		\
+	atn-cm		\
+	atn-cpdlc	\
+	atn-ulcs	\
 	camel			\
 	cdt			\
 	charging_ase		\
@@ -61,7 +61,6 @@ BER_LIST= \
 	dsp			\
 	ess			\
 	ftam			\
-	gnm			\
 	goose			\
 	gsm_map			\
 	gprscdr			\
@@ -70,11 +69,12 @@ BER_LIST= \
 	idmp			\
 	inap			\
 	isdn-sup		\
-###	kerberos		\
+	kerberos		\
 	ldap 			\
 	logotypecertextn	\
 	mms			\
 	ns_cert_exts		\
+	novell_pkis			\
 	ocsp			\
 	p1			\
 	p22			\
@@ -120,6 +120,7 @@ PER_LIST= \
 	h460			\
 	h501			\
 	hnbap			\
+	ilp			\
 	lcsap			\
 	lpp			\
 	lppa			\

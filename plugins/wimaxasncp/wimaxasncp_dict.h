@@ -2,8 +2,6 @@
  ** wimaxasncp_dict.h
  ** WIMAXASNCP Dictionary Import Routines
  **
- ** $Id$
- **
  ** (c) 2007, Stephen Croll <stephen.d.croll@gmail.com>
  **
  ** This library is free software; you can redistribute it and/or
@@ -18,8 +16,8 @@
  **
  ** You should have received a copy of the GNU Library General Public
  ** License along with this library; if not, write to the
- ** Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- ** Boston, MA  02111-1307, USA.
+ ** Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+ ** Boston, MA  02110-1301 USA.
  */
 
 #ifndef _WIMAXASNCP_DICT_H_

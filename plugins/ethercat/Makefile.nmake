@@ -1,8 +1,6 @@
 # Makefile.nmake
 # nmake file for EtherCAT plugin
 #
-# $Id$
-#
 
 include ..\..\config.nmake
 include ..\..\Makefile.nmake.inc
@@ -21,7 +19,7 @@ CFLAGS=$(WARNINGS_ARE_ERRORS) $(STANDARD_CFLAGS) \
 LDFLAGS = $(PLUGIN_LDFLAGS)
 
 !IFDEF ENABLE_LIBWIRESHARK
-LINK_PLUGIN_WITH=..\..\epan\libwireshark.lib
+LINK_PLUGIN_WITH=..\..\epan\libwireshark.lib ..\..\wsutil\libwsutil.lib
 CFLAGS=$(CFLAGS)
 
 OBJECTS = $(C_FILES:.c=.obj) $(CPP_FILES:.cpp=.obj) plugin.obj

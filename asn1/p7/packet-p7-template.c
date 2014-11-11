@@ -2,8 +2,6 @@
  * Routines for X.413 (P7) packet dissection
  * Graeme Lunt 2007
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -35,6 +33,7 @@
 #include "packet-acse.h"
 #include "packet-ros.h"
 #include "packet-rtse.h"
+#include "packet-p7.h"
 
 #include "packet-p1.h"
 #include <epan/strutil.h>
@@ -43,9 +42,11 @@
 #define PSNAME "P7"
 #define PFNAME "p7"
 
+void proto_register_p7(void);
+void proto_reg_handoff_p7(void);
+
 static guint global_p7_tcp_port = 102;
 static dissector_handle_t tpkt_handle;
-static const char *object_identifier_id = NULL; /* attribute identifier */
 static int seqno = 0;
 
 static void prefs_register_p7(void); /* forward declaration for use in preferences registration */

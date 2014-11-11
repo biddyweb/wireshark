@@ -4,8 +4,6 @@
  *
  * Copyright 2001, Heikki Vatiainen <hessu@cs.tut.fi>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -30,6 +28,10 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <epan/to_str.h>
+
+void proto_register_msdp(void);
+void proto_reg_handoff_msdp(void);
 
 /* MSDP message types. The messages are TLV (Type-Length-Value) encoded */
 enum { MSDP_SA     = 1,
@@ -147,7 +149,9 @@ static int hf_msdp_not_o = -1;
 static int hf_msdp_not_error = -1;
 static int hf_msdp_not_error_sub = -1;
 
-static int hf_msdp_not_ipv4 = -1;
+static int hf_msdp_not_group_address = -1;
+static int hf_msdp_not_rp_address = -1;
+static int hf_msdp_not_source_address = -1;
 static int hf_msdp_not_res = -1;
 static int hf_msdp_not_entry_count = -1;
 static int hf_msdp_not_sprefix_len = -1;
@@ -181,8 +185,7 @@ dissect_msdp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
         col_set_str(pinfo->cinfo, COL_PROTOCOL, "MSDP");
 
-        if (check_col(pinfo->cinfo, COL_INFO))
-                col_add_str(pinfo->cinfo, COL_INFO, val_to_str_const(tvb_get_guint8(tvb, 0),
+        col_set_str(pinfo->cinfo, COL_INFO, val_to_str_const(tvb_get_guint8(tvb, 0),
                                                                      msdp_types,
                                                                      "<Unknown MSDP message type>"));
 
@@ -324,15 +327,11 @@ static void dissect_msdp_sa(tvbuff_t *tvb, packet_info *pinfo,
 }
 
 /* Note: updates *offset */
-static void add_notification_data_ipv4addr(tvbuff_t *tvb, proto_tree *tree, int *offset, const char *addrtype)
+static void add_notification_data_ipv4addr(tvbuff_t *tvb, proto_tree *tree, int *offset, int hf_addr)
 {
-        guint32 ipaddr;
-
         proto_tree_add_item(tree, hf_msdp_not_res, tvb, *offset, 3, ENC_BIG_ENDIAN);
         *offset += 3;
-        ipaddr = tvb_get_ipv4(tvb, *offset);
-        proto_tree_add_ipv4_format(tree, hf_msdp_not_ipv4, tvb, *offset, 4, ipaddr,
-                                   "%s: %s", addrtype, ip_to_str((guint8 *)&ipaddr));
+        proto_tree_add_item(tree, hf_addr, tvb, *offset, 4, ENC_BIG_ENDIAN);
         *offset += 4;
 
         return;
@@ -376,8 +375,8 @@ static void dissect_msdp_notification(tvbuff_t *tvb, packet_info *pinfo, proto_t
         }
 
         error_sub = tvb_get_guint8(tvb, *offset);
-        proto_tree_add_uint_format(tree, hf_msdp_not_error_sub, tvb, *offset, 1,
-                                   error_sub, "Error subcode: %s (%u)",
+        proto_tree_add_uint_format_value(tree, hf_msdp_not_error_sub, tvb, *offset, 1,
+                                   error_sub, "%s (%u)",
                                    val_to_str_const(error_sub, vals, "<Unknown Error subcode>"),
                                    error_sub);
         *offset += 1;
@@ -388,7 +387,7 @@ static void dissect_msdp_notification(tvbuff_t *tvb, packet_info *pinfo, proto_t
         switch (error) {
                 tvbuff_t *next_tvb;
         case SA_REQUEST_ERROR:
-                add_notification_data_ipv4addr(tvb, tree, offset, "Group address");
+                add_notification_data_ipv4addr(tvb, tree, offset, hf_msdp_not_group_address);
                 break;
         case SA_MESSAGE_SA_RESPONSE_ERROR:
                 if (error_sub == 0) {
@@ -398,13 +397,13 @@ static void dissect_msdp_notification(tvbuff_t *tvb, packet_info *pinfo, proto_t
                         *offset += 1;
                         break;
                 } else if (error_sub == 2) {
-                        add_notification_data_ipv4addr(tvb, tree, offset, "RP address");
+                        add_notification_data_ipv4addr(tvb, tree, offset, hf_msdp_not_rp_address);
                         break;
                 } else if (error_sub == 3 || error_sub == 8) {
-                        add_notification_data_ipv4addr(tvb, tree, offset, "Group address");
+                        add_notification_data_ipv4addr(tvb, tree, offset, hf_msdp_not_group_address);
                         break;
                 } else if (error_sub == 4) {
-                        add_notification_data_ipv4addr(tvb, tree, offset, "Source address");
+                        add_notification_data_ipv4addr(tvb, tree, offset, hf_msdp_not_source_address);
                         break;
                 } else if (error_sub == 5) {
                         proto_tree_add_item(tree, hf_msdp_not_sprefix_len, tvb, *offset, 1, ENC_BIG_ENDIAN);
@@ -518,14 +517,24 @@ proto_register_msdp(void)
                         "Indicates the type of Notification", HFILL }
                 },
                 { &hf_msdp_not_error_sub,
-                        { "Error subode",           "msdp.not.error_sub",
+                        { "Error subcode",           "msdp.not.error_sub",
                         FT_UINT8, BASE_DEC, NULL, 0,
-                        "Error subcode", HFILL }
+                        NULL, HFILL }
                 },
-                { &hf_msdp_not_ipv4,
-                        { "IPv4 address",           "msdp.not.ipv4",
+                { &hf_msdp_not_group_address,
+                        { "Group address",           "msdp.not.group_address",
                         FT_IPv4, BASE_NONE, NULL, 0,
-                        "Group/RP/Source address in Notification messages", HFILL }
+                        "Group address in Notification messages", HFILL }
+                },
+                { &hf_msdp_not_rp_address,
+                        { "RP address",           "msdp.not.rp_address",
+                        FT_IPv4, BASE_NONE, NULL, 0,
+                        "RP address in Notification messages", HFILL }
+                },
+                { &hf_msdp_not_source_address,
+                        { "Source address",           "msdp.not.source_address",
+                        FT_IPv4, BASE_NONE, NULL, 0,
+                        "Source address in Notification messages", HFILL }
                 },
                 { &hf_msdp_not_res,
                         { "Reserved",           "msdp.not.res",
@@ -567,6 +576,17 @@ proto_reg_handoff_msdp(void)
         dissector_add_uint("tcp.port", 639, msdp_handle);
 
         ip_handle = find_dissector("ip");
-
-        return;
 }
+
+/*
+ * Editor modelines
+ *
+ * Local Variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * ex: set shiftwidth=8 tabstop=8 expandtab:
+ * :indentSize=8:tabSize=8:noTabs=true:
+ */

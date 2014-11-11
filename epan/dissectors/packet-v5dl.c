@@ -3,8 +3,6 @@
  * Rolf Fiedler <rolf.fiedler@innoventif.de> using the LAPD code of
  * Gilbert Ramirez <gram@alumni.rice.edu>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998
@@ -40,6 +38,8 @@
 #include <epan/conversation.h>
 #include <epan/xdlc.h>
 #include <epan/crc16-tvb.h>
+
+void proto_register_v5dl(void);
 
 static int proto_v5dl = -1;
 static int hf_v5dl_direction = -1;
@@ -253,17 +253,17 @@ dissect_v5dl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 		checksum_calculated = g_htons(checksum_calculated);  /* Note: g_htons() macro may eval arg multiple times */
 
 		if (checksum == checksum_calculated) {
-			checksum_ti = proto_tree_add_uint_format(v5dl_tree, hf_v5dl_checksum, tvb, checksum_offset,
+			checksum_ti = proto_tree_add_uint_format_value(v5dl_tree, hf_v5dl_checksum, tvb, checksum_offset,
 								 2, 0,
-								 "Checksum: 0x%04x [correct]",
+								 "0x%04x [correct]",
 								 checksum);
 			checksum_tree = proto_item_add_subtree(checksum_ti, ett_v5dl_checksum);
 			proto_tree_add_boolean(checksum_tree, hf_v5dl_checksum_good, tvb, checksum_offset, 2, TRUE);
 			proto_tree_add_boolean(checksum_tree, hf_v5dl_checksum_bad, tvb, checksum_offset, 2, FALSE);
 		} else {
-			checksum_ti = proto_tree_add_uint_format(v5dl_tree, hf_v5dl_checksum, tvb, checksum_offset,
+			checksum_ti = proto_tree_add_uint_format_value(v5dl_tree, hf_v5dl_checksum, tvb, checksum_offset,
 								 2, 0,
-								 "Checksum: 0x%04x [incorrect, should be 0x%04x]",
+								 "0x%04x [incorrect, should be 0x%04x]",
 								 checksum, checksum_calculated);
 			checksum_tree = proto_item_add_subtree(checksum_ti, ett_v5dl_checksum);
 			proto_tree_add_boolean(checksum_tree, hf_v5dl_checksum_good, tvb, checksum_offset, 2, FALSE);

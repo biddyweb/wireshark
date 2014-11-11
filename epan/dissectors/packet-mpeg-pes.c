@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-mpeg-pes.c                                                          */
 /* ../../tools/asn2wrs.py -p mpeg-pes -c ./mpeg-pes.cnf -s ./packet-mpeg-pes-template -D . -O ../../epan/dissectors mpeg-pes.asn */
 
@@ -9,8 +9,6 @@
 /* MPEG Packetized Elementary Stream (PES) packet decoder.
  * Written by Shaun Jackman <sjackman@gmail.com>.
  * Copyright 2007 Shaun Jackman
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -36,6 +34,7 @@
 #include <glib.h>
 
 #include <epan/packet.h>
+#include <wiretap/wtap.h>
 #include <epan/asn1.h>
 
 #include "packet-per.h"
@@ -95,7 +94,7 @@ static int hf_mpeg_pes_frame_type = -1;           /* T_frame_type */
 static int hf_mpeg_pes_vbv_delay = -1;            /* BIT_STRING_SIZE_16 */
 
 /*--- End of included file: packet-mpeg-pes-hf.c ---*/
-#line 36 "../../asn1/mpeg-pes/packet-mpeg-pes-template.c"
+#line 35 "../../asn1/mpeg-pes/packet-mpeg-pes-template.c"
 
 /*--- Included file: packet-mpeg-pes-ett.c ---*/
 #line 1 "../../asn1/mpeg-pes/packet-mpeg-pes-ett.c"
@@ -107,7 +106,7 @@ static gint ett_mpeg_pes_Group_of_pictures = -1;
 static gint ett_mpeg_pes_Picture = -1;
 
 /*--- End of included file: packet-mpeg-pes-ett.c ---*/
-#line 37 "../../asn1/mpeg-pes/packet-mpeg-pes-template.c"
+#line 36 "../../asn1/mpeg-pes/packet-mpeg-pes-template.c"
 
 /*--- Included file: packet-mpeg-pes-fn.c ---*/
 #line 1 "../../asn1/mpeg-pes/packet-mpeg-pes-fn.c"
@@ -242,7 +241,7 @@ dissect_mpeg_pes_Stream(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_,
 static int
 dissect_mpeg_pes_BIT_STRING_SIZE_12(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     12, 12, FALSE, NULL);
+                                     12, 12, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -294,7 +293,7 @@ dissect_mpeg_pes_T_frame_rate(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 static int
 dissect_mpeg_pes_BIT_STRING_SIZE_18(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     18, 18, FALSE, NULL);
+                                     18, 18, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -304,7 +303,7 @@ dissect_mpeg_pes_BIT_STRING_SIZE_18(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_
 static int
 dissect_mpeg_pes_BIT_STRING_SIZE_10(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     10, 10, FALSE, NULL);
+                                     10, 10, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -337,7 +336,7 @@ dissect_mpeg_pes_Sequence_header(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *
 static int
 dissect_mpeg_pes_BIT_STRING_SIZE_4(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     4, 4, FALSE, NULL);
+                                     4, 4, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -402,7 +401,7 @@ dissect_mpeg_pes_INTEGER_0_64(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 static int
 dissect_mpeg_pes_BIT_STRING_SIZE_5(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     5, 5, FALSE, NULL);
+                                     5, 5, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -452,7 +451,7 @@ dissect_mpeg_pes_T_frame_type(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 static int
 dissect_mpeg_pes_BIT_STRING_SIZE_16(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     16, 16, FALSE, NULL);
+                                     16, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -475,7 +474,10 @@ dissect_mpeg_pes_Picture(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_
 
 
 /*--- End of included file: packet-mpeg-pes-fn.c ---*/
-#line 38 "../../asn1/mpeg-pes/packet-mpeg-pes-template.c"
+#line 37 "../../asn1/mpeg-pes/packet-mpeg-pes-template.c"
+
+void proto_register_mpeg_pes(void);
+void proto_reg_handoff_mpeg_pes(void);
 
 static int proto_mpeg = -1;
 static int proto_mpeg_pes = -1;
@@ -648,12 +650,10 @@ dissect_mpeg_pes_header_data(tvbuff_t *tvb, packet_info *pinfo,
 				offset, 5, &nst);
 		offset += 5;
 
-		if (check_col(pinfo->cinfo, COL_DEF_DST)) {
-			SET_ADDRESS(&pinfo->dst, AT_NONE, 0, NULL);
-			col_add_fstr(pinfo->cinfo, COL_DEF_DST,
+		SET_ADDRESS(&pinfo->dst, AT_NONE, 0, NULL);
+		col_add_fstr(pinfo->cinfo, COL_DEF_DST,
 					"PTS %ld.%09u",
 					(long) nst.secs, nst.nsecs);
-		}
 	}
 	if (flags & DTS_FLAG) {
 		nstime_t nst;
@@ -662,12 +662,10 @@ dissect_mpeg_pes_header_data(tvbuff_t *tvb, packet_info *pinfo,
 				offset, 5, &nst);
 		offset += 5;
 
-		if (check_col(pinfo->cinfo, COL_DEF_SRC)) {
-			SET_ADDRESS(&pinfo->src, AT_NONE, 0, NULL);
-			col_add_fstr(pinfo->cinfo, COL_DEF_SRC,
+		SET_ADDRESS(&pinfo->src, AT_NONE, 0, NULL);
+		col_add_fstr(pinfo->cinfo, COL_DEF_SRC,
 					"DTS %ld.%09u",
 					(long) nst.secs, nst.nsecs);
-		}
 	}
 	if (flags & ESCR_FLAG) {
 		nstime_t nst;
@@ -757,8 +755,8 @@ dissect_mpeg_pes_header_data(tvbuff_t *tvb, packet_info *pinfo,
 
 		if (flags2 & PRIVATE_DATA_FLAG) {
 			proto_tree_add_item(tree, hf_mpeg_pes_private_data, tvb,
-					offset, 2, ENC_BIG_ENDIAN);
-			offset += 2;
+					offset, 16, ENC_NA);
+			offset += 16;
 		}
 		if (flags2 & PACK_LENGTH_FLAG) {
 			proto_tree_add_item(tree, hf_mpeg_pes_pack_length, tvb,
@@ -805,10 +803,8 @@ dissect_mpeg_pes_pack_header(tvbuff_t *tvb, gint offset,
 			program_mux_rate);
 	offset += 3 * 8;
 
-	if (check_col(pinfo->cinfo, COL_DEF_SRC)) {
-		SET_ADDRESS(&pinfo->src, AT_NONE, 0, NULL);
-		col_add_fstr(pinfo->cinfo, COL_DEF_SRC, "%u B/s", program_mux_rate);
-	}
+	SET_ADDRESS(&pinfo->src, AT_NONE, 0, NULL);
+	col_add_fstr(pinfo->cinfo, COL_DEF_SRC, "%u B/s", program_mux_rate);
 
 	stuffing_length = tvb_get_guint8(tvb, offset / 8) & 0x07;
 	proto_tree_add_item(tree, hf_mpeg_pes_stuffing_length, tvb,
@@ -834,6 +830,7 @@ dissect_mpeg_pes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
 	int stream;
 	asn1_ctx_t asn1_ctx;
 	gint offset = 0;
+	const char *s;
 
 	if (!tvb_bytes_exist(tvb, 0, 3))
 		return FALSE;	/* not enough bytes for a PES prefix */
@@ -845,11 +842,9 @@ dissect_mpeg_pes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
 	col_clear(pinfo->cinfo, COL_INFO);
 
 	stream = tvb_get_guint8(tvb, 3);
-	if (check_col(pinfo->cinfo, COL_INFO)) {
-		const char *s = match_strval(stream, mpeg_pes_T_stream_vals);
-		if (s != NULL)
-			col_set_str(pinfo->cinfo, COL_INFO, s);
-	}
+	s = try_val_to_str(stream, mpeg_pes_T_stream_vals);
+	if (s != NULL)
+		col_set_str(pinfo->cinfo, COL_INFO, s);
 
 #if 0
 	if (tree == NULL)
@@ -863,12 +858,9 @@ dissect_mpeg_pes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
 		int frame_type;
 
 		frame_type = tvb_get_guint8(tvb, 5) >> 3 & 0x07;
-		if (check_col(pinfo->cinfo, COL_INFO)) {
-			const char *s = match_strval(frame_type,
-					mpeg_pes_T_frame_type_vals);
-			if (s != NULL)
-				col_set_str(pinfo->cinfo, COL_INFO, s);
-		}
+		s = try_val_to_str(frame_type, mpeg_pes_T_frame_type_vals);
+		if (s != NULL)
+			col_set_str(pinfo->cinfo, COL_INFO, s);
 
 		offset = dissect_mpeg_pes_Picture(tvb, offset, &asn1_ctx,
 				tree, hf_mpeg_video_picture);
@@ -942,7 +934,7 @@ dissect_mpeg_pes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
 			 * XXX Some one with access to the spec should check this
 			 */
 			 if(length !=0 && stream != STREAM_VIDEO){
-				 length -= 5 * 8;
+				 length -= 5;
 			 }
 
 			header_length = tvb_get_guint8(tvb, 8);
@@ -954,7 +946,7 @@ dissect_mpeg_pes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
 				offset += header_length * 8;
 				 /* length may be zero for Video stream */
 				if(length !=0 && stream != STREAM_VIDEO){
-					length -= header_length * 8;
+					length -= header_length;
 				}
 			}
 
@@ -964,7 +956,7 @@ dissect_mpeg_pes(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data
 				return TRUE;
 			}
 
-			es = tvb_new_subset(tvb, offset / 8, -1, length / 8);
+			es = tvb_new_subset(tvb, offset / 8, -1, length);
 			if (tvb_get_ntoh24(es, 0) == PES_PREFIX)
 				dissect_mpeg_pes(es, pinfo, tree, NULL);
 			else if (tvb_get_guint8(es, 0) == 0xff)
@@ -993,7 +985,9 @@ static heur_dissector_list_t heur_subdissector_list;
 static void
 dissect_mpeg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-    if (!dissector_try_heuristic(heur_subdissector_list, tvb, pinfo, tree, NULL)) {
+    heur_dtbl_entry_t *hdtbl_entry;
+
+    if (!dissector_try_heuristic(heur_subdissector_list, tvb, pinfo, tree, &hdtbl_entry, NULL)) {
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "MPEG");
 	col_clear(pinfo->cinfo, COL_INFO);
 	if (tree)
@@ -1210,7 +1204,7 @@ proto_register_mpeg_pes(void)
         "BIT_STRING_SIZE_16", HFILL }},
 
 /*--- End of included file: packet-mpeg-pes-hfarr.c ---*/
-#line 568 "../../asn1/mpeg-pes/packet-mpeg-pes-template.c"
+#line 562 "../../asn1/mpeg-pes/packet-mpeg-pes-template.c"
 		{ &hf_mpeg_pes_pack_header,
 			{ "Pack header", "mpeg-pes.pack",
 				FT_NONE, BASE_NONE, NULL, 0, NULL, HFILL }},
@@ -1277,7 +1271,7 @@ proto_register_mpeg_pes(void)
 				FT_UINT8, BASE_HEX, NULL, 0, NULL, HFILL }},
 		{ &hf_mpeg_pes_private_data,
 			{ "private data", "mpeg-pes.private-data",
-				FT_UINT16, BASE_HEX, NULL, 0, NULL, HFILL }},
+				FT_BYTES, BASE_NONE, NULL, 0, NULL, HFILL }},
 		{ &hf_mpeg_pes_pack_length,
 			{ "pack length", "mpeg-pes.pack-length",
 				FT_UINT8, BASE_DEC, NULL, 0, NULL, HFILL }},
@@ -1328,7 +1322,7 @@ proto_register_mpeg_pes(void)
     &ett_mpeg_pes_Picture,
 
 /*--- End of included file: packet-mpeg-pes-ettarr.c ---*/
-#line 675 "../../asn1/mpeg-pes/packet-mpeg-pes-template.c"
+#line 669 "../../asn1/mpeg-pes/packet-mpeg-pes-template.c"
 		&ett_mpeg_pes_pack_header,
 		&ett_mpeg_pes_header_data,
 		&ett_mpeg_pes_trick_mode

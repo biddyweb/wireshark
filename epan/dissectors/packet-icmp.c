@@ -1,8 +1,6 @@
 /* packet-icmp.c
  * Routines for ICMP - Internet Control Message Protocol
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,32 +32,40 @@
 
 #include "config.h"
 
+#include <stdlib.h>
+
 #include <glib.h>
 #include <time.h>
 
 #include <epan/packet.h>
 #include <epan/ipproto.h>
 #include <epan/prefs.h>
+#include <epan/expert.h>
 #include <epan/in_cksum.h>
+#include <epan/to_str.h>
 
 #include "packet-ip.h"
 #include "packet-icmp.h"
 #include <epan/conversation.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/tap.h>
+
+void proto_register_icmp(void);
+void proto_reg_handoff_icmp(void);
 
 static int icmp_tap = -1;
 
 /* Conversation related data */
 static int hf_icmp_resp_in = -1;
 static int hf_icmp_resp_to = -1;
+static int hf_icmp_no_resp = -1;
 static int hf_icmp_resptime = -1;
 static int hf_icmp_data_time = -1;
 static int hf_icmp_data_time_relative = -1;
 
 typedef struct _icmp_conv_info_t {
-	emem_tree_t *unmatched_pdus;
-	emem_tree_t *matched_pdus;
+	wmem_tree_t *unmatched_pdus;
+	wmem_tree_t *matched_pdus;
 } icmp_conv_info_t;
 
 static icmp_transaction_t *transaction_start(packet_info * pinfo,
@@ -73,7 +79,7 @@ static icmp_transaction_t *transaction_end(packet_info * pinfo,
 if the packet in the payload has more than 128 bytes */
 static gboolean favor_icmp_mpls_ext = FALSE;
 
-static int proto_icmp = -1;
+int proto_icmp = -1;
 static int hf_icmp_type = -1;
 static int hf_icmp_code = -1;
 static int hf_icmp_checksum = -1;
@@ -146,6 +152,9 @@ static gint ett_icmp_ext_object = -1;
 
 /* MPLS extensions */
 static gint ett_icmp_mpls_stack_object = -1;
+
+static expert_field ei_icmp_resp_not_found = EI_INIT;
+
 
 /* ICMP definitions */
 #define ICMP_ECHOREPLY     0
@@ -826,7 +835,6 @@ dissect_extensions(tvbuff_t * tvb, gint offset, proto_tree * tree)
 	guint8 version;
 	guint8 class_num;
 	guint8 c_type;
-	guint16 reserved;
 	guint16 cksum, computed_cksum;
 	guint16 obj_length, obj_trunc_length;
 	proto_item *ti, *tf_object, *hidden_item;
@@ -864,10 +872,8 @@ dissect_extensions(tvbuff_t * tvb, gint offset, proto_tree * tree)
 			    version);
 
 	/* Reserved */
-	reserved = tvb_get_ntohs(tvb, offset) & 0x0fff;
-	proto_tree_add_uint_format(ext_tree, hf_icmp_ext_reserved,
-				   tvb, offset, 2, reserved,
-				   "Reserved: 0x%03x", reserved);
+	proto_tree_add_item(ext_tree, hf_icmp_ext_reserved,
+				   tvb, offset, 2, ENC_BIG_ENDIAN);
 
 	/* Checksum */
 	cksum = tvb_get_ntohs(tvb, offset + 2);
@@ -877,23 +883,26 @@ dissect_extensions(tvbuff_t * tvb, gint offset, proto_tree * tree)
 			reported_length);
 
 	if (computed_cksum == 0) {
-		proto_tree_add_uint_format(ext_tree, hf_icmp_ext_checksum,
+		proto_tree_add_uint_format_value(ext_tree, hf_icmp_ext_checksum,
 					   tvb, offset + 2, 2, cksum,
-					   "Checksum: 0x%04x [correct]",
+					   "0x%04x [correct]",
 					   cksum);
+		hidden_item =
+		    proto_tree_add_boolean(ext_tree,
+					   hf_icmp_ext_checksum_bad, tvb,
+					   offset + 2, 2, FALSE);
 	} else {
+		proto_tree_add_uint_format_value(ext_tree, hf_icmp_ext_checksum,
+					   tvb, offset + 2, 2, cksum,
+					   "0x%04x [incorrect, should be 0x%04x]",
+					   cksum, in_cksum_shouldbe(cksum,
+								    computed_cksum));
 		hidden_item =
 		    proto_tree_add_boolean(ext_tree,
 					   hf_icmp_ext_checksum_bad, tvb,
 					   offset + 2, 2, TRUE);
-		PROTO_ITEM_SET_HIDDEN(hidden_item);
-
-		proto_tree_add_uint_format(ext_tree, hf_icmp_ext_checksum,
-					   tvb, offset + 2, 2, cksum,
-					   "Checksum: 0x%04x [incorrect, should be 0x%04x]",
-					   cksum, in_cksum_shouldbe(cksum,
-								    computed_cksum));
 	}
+	PROTO_ITEM_SET_HIDDEN(hidden_item);
 
 	if (version != 1 && version != 2) {
 		/* Unsupported version */
@@ -1014,26 +1023,22 @@ static icmp_transaction_t *transaction_start(packet_info * pinfo,
 	conversation_t *conversation;
 	icmp_conv_info_t *icmp_info;
 	icmp_transaction_t *icmp_trans;
-	emem_tree_key_t icmp_key[3];
+	wmem_tree_key_t icmp_key[3];
 	proto_item *it;
 
 	/* Handle the conversation tracking */
 	conversation = _find_or_create_conversation(pinfo);
-	icmp_info = conversation_get_proto_data(conversation, proto_icmp);
+	icmp_info = (icmp_conv_info_t *)conversation_get_proto_data(conversation, proto_icmp);
 	if (icmp_info == NULL) {
-		icmp_info = se_alloc(sizeof(icmp_conv_info_t));
-		icmp_info->unmatched_pdus =
-		    se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK,
-						  "icmp_unmatched_pdus");
-		icmp_info->matched_pdus =
-		    se_tree_create_non_persistent(EMEM_TREE_TYPE_RED_BLACK,
-						  "icmp_matched_pdus");
+		icmp_info = wmem_new(wmem_file_scope(), icmp_conv_info_t);
+		icmp_info->unmatched_pdus = wmem_tree_new(wmem_file_scope());
+		icmp_info->matched_pdus   = wmem_tree_new(wmem_file_scope());
 		conversation_add_proto_data(conversation, proto_icmp,
 					    icmp_info);
 	}
 
 	if (!PINFO_FD_VISITED(pinfo)) {
-		/* this is a new request, create a new transaction structure and map it to the 
+		/* this is a new request, create a new transaction structure and map it to the
 		   unmatched table
 		 */
 		icmp_key[0].length = 2;
@@ -1041,12 +1046,12 @@ static icmp_transaction_t *transaction_start(packet_info * pinfo,
 		icmp_key[1].length = 0;
 		icmp_key[1].key = NULL;
 
-		icmp_trans = se_alloc(sizeof(icmp_transaction_t));
+		icmp_trans = wmem_new(wmem_file_scope(), icmp_transaction_t);
 		icmp_trans->rqst_frame = PINFO_FD_NUM(pinfo);
 		icmp_trans->resp_frame = 0;
 		icmp_trans->rqst_time = pinfo->fd->abs_ts;
 		nstime_set_zero(&icmp_trans->resp_time);
-		se_tree_insert32_array(icmp_info->unmatched_pdus, icmp_key,
+		wmem_tree_insert32_array(icmp_info->unmatched_pdus, icmp_key,
 				       (void *) icmp_trans);
 	} else {
 		/* Already visited this frame */
@@ -1060,10 +1065,25 @@ static icmp_transaction_t *transaction_start(packet_info * pinfo,
 		icmp_key[2].key = NULL;
 
 		icmp_trans =
-		    se_tree_lookup32_array(icmp_info->matched_pdus,
+		    (icmp_transaction_t *)wmem_tree_lookup32_array(icmp_info->matched_pdus,
 					   icmp_key);
 	}
 	if (icmp_trans == NULL) {
+		if (PINFO_FD_VISITED(pinfo)) {
+			/* No response found - add field and expert info */
+			it = proto_tree_add_item(tree, hf_icmp_no_resp, NULL, 0, 0,
+						 ENC_NA);
+			PROTO_ITEM_SET_GENERATED(it);
+
+			col_append_fstr(pinfo->cinfo, COL_INFO, " (no response found!)");
+
+			/* Expert info.  TODO: add to _icmp_transaction_t type and sequence number
+			   so can report here (and in taps) */
+			expert_add_info_format(pinfo, it, &ei_icmp_resp_not_found,
+					       "No response seen to ICMP request in frame %u",
+					       pinfo->fd->num);
+		}
+
 		return NULL;
 	}
 
@@ -1089,7 +1109,7 @@ static icmp_transaction_t *transaction_end(packet_info * pinfo,
 	conversation_t *conversation;
 	icmp_conv_info_t *icmp_info;
 	icmp_transaction_t *icmp_trans;
-	emem_tree_key_t icmp_key[3];
+	wmem_tree_key_t icmp_key[3];
 	proto_item *it;
 	nstime_t ns;
 	double resp_time;
@@ -1101,7 +1121,7 @@ static icmp_transaction_t *transaction_end(packet_info * pinfo,
 		return NULL;
 	}
 
-	icmp_info = conversation_get_proto_data(conversation, proto_icmp);
+	icmp_info = (icmp_conv_info_t *)conversation_get_proto_data(conversation, proto_icmp);
 	if (icmp_info == NULL) {
 		return NULL;
 	}
@@ -1114,7 +1134,7 @@ static icmp_transaction_t *transaction_end(packet_info * pinfo,
 		icmp_key[1].length = 0;
 		icmp_key[1].key = NULL;
 		icmp_trans =
-		    se_tree_lookup32_array(icmp_info->unmatched_pdus,
+		    (icmp_transaction_t *)wmem_tree_lookup32_array(icmp_info->unmatched_pdus,
 					   icmp_key);
 		if (icmp_trans == NULL) {
 			return NULL;
@@ -1137,11 +1157,11 @@ static icmp_transaction_t *transaction_end(packet_info * pinfo,
 		icmp_key[2].key = NULL;
 
 		frame_num = icmp_trans->rqst_frame;
-		se_tree_insert32_array(icmp_info->matched_pdus, icmp_key,
+		wmem_tree_insert32_array(icmp_info->matched_pdus, icmp_key,
 				       (void *) icmp_trans);
 
 		frame_num = icmp_trans->resp_frame;
-		se_tree_insert32_array(icmp_info->matched_pdus, icmp_key,
+		wmem_tree_insert32_array(icmp_info->matched_pdus, icmp_key,
 				       (void *) icmp_trans);
 	} else {
 		/* Already visited this frame */
@@ -1155,7 +1175,7 @@ static icmp_transaction_t *transaction_end(packet_info * pinfo,
 		icmp_key[2].key = NULL;
 
 		icmp_trans =
-		    se_tree_lookup32_array(icmp_info->matched_pdus,
+		    (icmp_transaction_t *)wmem_tree_lookup32_array(icmp_info->matched_pdus,
 					   icmp_key);
 
 		if (icmp_trans == NULL) {
@@ -1222,7 +1242,7 @@ get_best_guess_mstimeofday(tvbuff_t * tvb, gint offset, guint32 comp_ts)
 		if (le_ts < comp_ts && le_ts <= (MSPERDAY / 4)
 		    && comp_ts >= (MSPERDAY - (MSPERDAY / 4)))
 			le_ts += MSPERDAY;	/* Assume a rollover to a new day */
-		if (abs(be_ts - comp_ts) < abs(le_ts - comp_ts))
+		if ((be_ts - comp_ts) < (le_ts - comp_ts))
 			return saved_be_ts;
 		return saved_le_ts;
 	}
@@ -1231,7 +1251,7 @@ get_best_guess_mstimeofday(tvbuff_t * tvb, gint offset, guint32 comp_ts)
 	 * is clearly invalid, but now what TODO?  For now, take the one closest to
 	 * the comparative timestamp, which is another way of saying, "let's
 	 * return a deterministic wild guess. */
-	if (abs(be_ts - comp_ts) < abs(le_ts - comp_ts)) {
+	if ((be_ts - comp_ts) < (le_ts - comp_ts)) {
 		return be_ts;
 	}
 	return le_ts;
@@ -1243,8 +1263,8 @@ get_best_guess_mstimeofday(tvbuff_t * tvb, gint offset, guint32 comp_ts)
  * RFC 1256 for router discovery messages.
  * RFC 2002 and 3012 for Mobile IP stuff.
  */
-static void
-dissect_icmp(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
+static int
+dissect_icmp(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree, void* data)
 {
 	proto_tree *icmp_tree = NULL;
 	proto_item *ti;
@@ -1263,6 +1283,7 @@ dissect_icmp(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 	guint32 conv_key[2];
 	icmp_transaction_t *trans = NULL;
 	nstime_t ts, time_relative;
+	ws_ip *iph = (ws_ip*)data;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "ICMP");
 	col_clear(pinfo->cinfo, COL_INFO);
@@ -1357,24 +1378,29 @@ dissect_icmp(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 		    ip_checksum(tvb_get_ptr(tvb, 0, reported_length),
 				reported_length);
 		if (computed_cksum == 0) {
-			proto_tree_add_uint_format(icmp_tree,
+			proto_tree_add_uint_format_value(icmp_tree,
 						   hf_icmp_checksum, tvb,
 						   2, 2, cksum,
-						   "Checksum: 0x%04x [correct]",
+						   "0x%04x [correct]",
 						   cksum);
+			item =
+			    proto_tree_add_boolean(icmp_tree,
+						   hf_icmp_checksum_bad,
+						   tvb, 2, 2, FALSE);
+			PROTO_ITEM_SET_HIDDEN(item);
 		} else {
+			proto_tree_add_uint_format_value(icmp_tree,
+						   hf_icmp_checksum, tvb,
+						   2, 2, cksum,
+						   "0x%04x [incorrect, should be 0x%04x]",
+						   cksum,
+						   in_cksum_shouldbe(cksum,
+								     computed_cksum));
 			item =
 			    proto_tree_add_boolean(icmp_tree,
 						   hf_icmp_checksum_bad,
 						   tvb, 2, 2, TRUE);
 			PROTO_ITEM_SET_HIDDEN(item);
-			proto_tree_add_uint_format(icmp_tree,
-						   hf_icmp_checksum, tvb,
-						   2, 2, cksum,
-						   "Checksum: 0x%04x [incorrect, should be 0x%04x]",
-						   cksum,
-						   in_cksum_shouldbe(cksum,
-								     computed_cksum));
 		}
 	} else {
 		proto_tree_add_uint(icmp_tree, hf_icmp_checksum, tvb, 2, 2,
@@ -1403,7 +1429,7 @@ dissect_icmp(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 				" id=0x%04x, seq=%u/%u, ttl=%u",
 				tvb_get_ntohs(tvb, 4), tvb_get_ntohs(tvb,
 								     6),
-				tvb_get_letohs(tvb, 6), pinfo->ip_ttl);
+				tvb_get_letohs(tvb, 6), (iph != NULL) ? iph->ip_ttl : 0);
 		break;
 
 	case ICMP_UNREACH:
@@ -1439,7 +1465,7 @@ dissect_icmp(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 				    "Address entry size: %u",
 				    addr_entry_size);
 		proto_tree_add_text(icmp_tree, tvb, 6, 2, "Lifetime: %s",
-				    time_secs_to_str(tvb_get_ntohs
+				    time_secs_to_ep_str(tvb_get_ntohs
 						     (tvb, 6)));
 		break;
 
@@ -1594,13 +1620,13 @@ dissect_icmp(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 		 */
 		ts.secs = tvb_get_ntohl(tvb, 8);
 		ts.nsecs = tvb_get_ntohl(tvb, 8 + 4);	/* Leave at microsec resolution for now */
-		if (abs((guint32) (ts.secs - pinfo->fd->abs_ts.secs)) >=
+		if ((guint32) (ts.secs - pinfo->fd->abs_ts.secs) >=
 		    3600 * 24 || ts.nsecs >= 1000000) {
 			/* Timestamp does not look right in BE, try LE representation */
 			ts.secs = tvb_get_letohl(tvb, 8);
 			ts.nsecs = tvb_get_letohl(tvb, 8 + 4);	/* Leave at microsec resolution for now */
 		}
-		if (abs((guint32) (ts.secs - pinfo->fd->abs_ts.secs)) <
+		if ((guint32) (ts.secs - pinfo->fd->abs_ts.secs) <
 		    3600 * 24 && ts.nsecs < 1000000) {
 			ts.nsecs *= 1000;	/* Convert to nanosec resolution */
 			proto_tree_add_time(icmp_tree, hf_icmp_data_time,
@@ -1666,16 +1692,16 @@ dissect_icmp(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 			    get_best_guess_mstimeofday(tvb, 8, frame_ts);
 			proto_tree_add_text(icmp_tree, tvb, 8, 4,
 					    "Originate timestamp: %s after midnight UTC",
-					    time_msecs_to_str(orig_ts));
+					    time_msecs_to_ep_str(orig_ts));
 
 			proto_tree_add_text(icmp_tree, tvb, 12, 4,
 					    "Receive timestamp: %s after midnight UTC",
-					    time_msecs_to_str
+					    time_msecs_to_ep_str
 					    (get_best_guess_mstimeofday
 					     (tvb, 12, orig_ts)));
 			proto_tree_add_text(icmp_tree, tvb, 16, 4,
 					    "Transmit timestamp: %s after midnight UTC",
-					    time_msecs_to_str
+					    time_msecs_to_ep_str
 					    (get_best_guess_mstimeofday
 					     (tvb, 16, orig_ts)));
 		}
@@ -1693,6 +1719,8 @@ dissect_icmp(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree)
 	if (trans) {
 		tap_queue_packet(icmp_tap, pinfo, trans);
 	}
+
+	return tvb_length(tvb);
 }
 
 void proto_register_icmp(void)
@@ -1851,7 +1879,7 @@ void proto_register_icmp(void)
 
 		{&hf_icmp_ext_reserved,
 		 {"Reserved", "icmp.ext.res", FT_UINT16, BASE_HEX, NULL,
-		  0x0,
+		  0x0fff,
 		  NULL, HFILL}},
 
 		{&hf_icmp_ext_checksum,
@@ -1903,6 +1931,12 @@ void proto_register_icmp(void)
 		 {"Response frame", "icmp.resp_in", FT_FRAMENUM, BASE_NONE,
 		  NULL, 0x0,
 		  "The frame number of the corresponding response",
+		  HFILL}},
+
+		{&hf_icmp_no_resp,
+		 {"No response seen", "icmp.no_resp", FT_NONE, BASE_NONE,
+		  NULL, 0x0,
+		  "No corresponding response frame was seen",
 		  HFILL}},
 
 		{&hf_icmp_resp_to,
@@ -1994,12 +2028,19 @@ void proto_register_icmp(void)
 		&ett_icmp_interface_name
 	};
 
+	static ei_register_info ei[] = {
+		{ &ei_icmp_resp_not_found, { "icmp.resp_not_found", PI_SEQUENCE, PI_WARN, "Response not found", EXPFILL }},
+	};
+
 	module_t *icmp_module;
+	expert_module_t* expert_icmp;
 
 	proto_icmp =
 	    proto_register_protocol("Internet Control Message Protocol",
 				    "ICMP", "icmp");
 	proto_register_field_array(proto_icmp, hf, array_length(hf));
+	expert_icmp = expert_register_protocol(proto_icmp);
+	expert_register_field_array(expert_icmp, ei, array_length(ei));
 	proto_register_subtree_array(ett, array_length(ett));
 
 	icmp_module = prefs_register_protocol(proto_icmp, NULL);
@@ -2009,7 +2050,7 @@ void proto_register_icmp(void)
 				       "Whether the 128th and following bytes of the ICMP payload should be decoded as MPLS extensions or as a portion of the original packet",
 				       &favor_icmp_mpls_ext);
 
-	register_dissector("icmp", dissect_icmp, proto_icmp);
+	new_register_dissector("icmp", dissect_icmp, proto_icmp);
 	icmp_tap = register_tap("icmp");
 }
 

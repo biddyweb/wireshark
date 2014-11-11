@@ -1,8 +1,6 @@
 /* main_filter_toolbar.c
  * The filter toolbar
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -34,6 +32,7 @@
 #include <gtk/gtk.h>
 
 #include "ui/recent.h"
+#include "ui/recent_utils.h"
 
 #include "ui/gtk/old-gtk-compat.h"
 
@@ -88,9 +87,9 @@ filter_activate_cb(GtkWidget *w _U_, gpointer data)
 static void
 filter_changed_cb(GtkWidget *w _U_, gpointer data)
 {
-    gtk_widget_set_sensitive (g_object_get_data (G_OBJECT(data), E_DFILTER_APPLY_KEY), TRUE);
-    gtk_widget_set_sensitive (g_object_get_data (G_OBJECT(data), E_DFILTER_CLEAR_KEY), TRUE);
-    gtk_widget_set_sensitive (g_object_get_data (G_OBJECT(data), E_DFILTER_SAVE_KEY), TRUE);
+    gtk_widget_set_sensitive ((GtkWidget *)g_object_get_data (G_OBJECT(data), E_DFILTER_APPLY_KEY), TRUE);
+    gtk_widget_set_sensitive ((GtkWidget *)g_object_get_data (G_OBJECT(data), E_DFILTER_CLEAR_KEY), TRUE);
+    gtk_widget_set_sensitive ((GtkWidget *)g_object_get_data (G_OBJECT(data), E_DFILTER_SAVE_KEY), TRUE);
 }
 
 /* redisplay with no display filter */
@@ -99,7 +98,7 @@ filter_reset_cb(GtkWidget *w, gpointer data _U_)
 {
     GtkWidget *filter_te = NULL;
 
-    if ((filter_te = g_object_get_data(G_OBJECT(w), E_DFILTER_TE_KEY))) {
+    if ((filter_te = (GtkWidget *)g_object_get_data(G_OBJECT(w), E_DFILTER_TE_KEY))) {
         gtk_entry_set_text(GTK_ENTRY(filter_te), "");
     }
     main_filter_packets(&cfile, NULL, FALSE);
@@ -141,7 +140,7 @@ filter_toolbar_new(void)
     gtk_widget_show(filter_tb);
 
     /* Create the "Filter:" button */
-    filter_bt = gtk_tool_button_new_from_stock (WIRESHARK_STOCK_DISPLAY_FILTER_ENTRY);
+    filter_bt = ws_gtk_tool_button_new_from_stock (WIRESHARK_STOCK_DISPLAY_FILTER_ENTRY);
     g_signal_connect(filter_bt, "clicked", G_CALLBACK(display_filter_construct_cb), &args);
     gtk_widget_show(GTK_WIDGET (filter_bt));
     g_object_set_data(G_OBJECT(top_level), E_FILT_BT_PTR_KEY, filter_bt);
@@ -182,7 +181,7 @@ filter_toolbar_new(void)
 
     /* Create the "Add Expression..." button, to pop up a dialog
        for constructing filter comparison expressions. */
-    filter_add_expr_bt = gtk_tool_button_new_from_stock(WIRESHARK_STOCK_ADD_EXPRESSION);
+    filter_add_expr_bt = ws_gtk_tool_button_new_from_stock(WIRESHARK_STOCK_ADD_EXPRESSION);
     g_object_set_data(G_OBJECT(filter_tb), E_FILT_FILTER_TE_KEY, filter_te);
     g_signal_connect(filter_add_expr_bt, "clicked", G_CALLBACK(filter_add_expr_bt_cb), filter_tb);
     gtk_widget_show(GTK_WIDGET(filter_add_expr_bt));
@@ -194,7 +193,7 @@ filter_toolbar_new(void)
     gtk_widget_set_tooltip_text(GTK_WIDGET(filter_add_expr_bt), "Add an expression to this filter string");
 
     /* Create the "Clear" button */
-    filter_reset = gtk_tool_button_new_from_stock(WIRESHARK_STOCK_CLEAR_EXPRESSION);
+    filter_reset = ws_gtk_tool_button_new_from_stock(WIRESHARK_STOCK_CLEAR_EXPRESSION);
     g_object_set_data(G_OBJECT(filter_reset), E_DFILTER_TE_KEY, filter_te);
     g_object_set_data (G_OBJECT(filter_cm), E_DFILTER_CLEAR_KEY, filter_reset);
     g_signal_connect(filter_reset, "clicked", G_CALLBACK(filter_reset_cb), NULL);
@@ -207,7 +206,7 @@ filter_toolbar_new(void)
     gtk_widget_set_tooltip_text(GTK_WIDGET(filter_reset), "Clear this filter string and update the display");
 
     /* Create the "Apply" button */
-    filter_apply = gtk_tool_button_new_from_stock(WIRESHARK_STOCK_APPLY_EXPRESSION);
+    filter_apply = ws_gtk_tool_button_new_from_stock(WIRESHARK_STOCK_APPLY_EXPRESSION);
     g_object_set_data(G_OBJECT(filter_apply), E_DFILTER_CM_KEY, filter_cm);
     g_object_set_data (G_OBJECT(filter_cm), E_DFILTER_APPLY_KEY, filter_apply);
     g_signal_connect(filter_apply, "clicked", G_CALLBACK(filter_activate_cb), filter_te);
@@ -221,7 +220,7 @@ filter_toolbar_new(void)
     gtk_widget_set_tooltip_text(GTK_WIDGET(filter_apply), "Apply this filter string to the display");
 
     /* Create the "Save" button */
-    filter_save = gtk_tool_button_new_from_stock(GTK_STOCK_SAVE);
+    filter_save = ws_gtk_tool_button_new_from_stock(GTK_STOCK_SAVE);
     g_object_set_data(G_OBJECT(filter_save), E_DFILTER_CM_KEY, filter_cm);
     g_object_set_data(G_OBJECT(filter_cm), E_DFILTER_SAVE_KEY, filter_save);
     g_signal_connect(filter_save, "clicked", G_CALLBACK(filter_save_cb), filter_te);
@@ -334,7 +333,7 @@ dfilter_combo_add(GtkWidget *filter_cm, char *s) {
  * of the combo box GList to the user's recent file */
 void
 dfilter_recent_combo_write_all(FILE *rf) {
-    GtkWidget *filter_cm = g_object_get_data(G_OBJECT(top_level), E_DFILTER_CM_KEY);
+    GtkWidget *filter_cm = (GtkWidget *)g_object_get_data(G_OBJECT(top_level), E_DFILTER_CM_KEY);
     GtkTreeModel *model = gtk_combo_box_get_model (GTK_COMBO_BOX(filter_cm));
     GtkTreeIter   iter;
     GValue value = { 0, {{0}}};
@@ -357,7 +356,7 @@ dfilter_recent_combo_write_all(FILE *rf) {
 /* add a display filter coming from the user's recent file to the dfilter combo box */
 gboolean
 dfilter_combo_add_recent(const gchar *s) {
-    GtkWidget *filter_cm = g_object_get_data(G_OBJECT(top_level), E_DFILTER_CM_KEY);
+    GtkWidget *filter_cm = (GtkWidget *)g_object_get_data(G_OBJECT(top_level), E_DFILTER_CM_KEY);
     char      *dupstr;
 
     dupstr = g_strdup(s);
@@ -369,29 +368,27 @@ dfilter_combo_add_recent(const gchar *s) {
 gboolean
 main_filter_packets(capture_file *cf, const gchar *dftext, gboolean force)
 {
-    GtkWidget *filter_cm = g_object_get_data(G_OBJECT(top_level), E_DFILTER_CM_KEY);
+    GtkWidget *filter_cm = (GtkWidget *)g_object_get_data(G_OBJECT(top_level), E_DFILTER_CM_KEY);
     gboolean   free_filter = TRUE;
     char      *s;
     cf_status_t cf_status;
+    gint filter_count;
 
     s = g_strdup(dftext);
 
     cf_status = cf_filter_packets(cf, s, force);
 
     if (cf_status == CF_OK) {
-        gtk_widget_set_sensitive (g_object_get_data (G_OBJECT(filter_cm), E_DFILTER_APPLY_KEY), FALSE);
+        gtk_widget_set_sensitive ((GtkWidget *)g_object_get_data (G_OBJECT(filter_cm), E_DFILTER_APPLY_KEY), FALSE);
         if (!s || strlen (s) == 0) {
-            gtk_widget_set_sensitive (g_object_get_data (G_OBJECT(filter_cm), E_DFILTER_CLEAR_KEY), FALSE);
-            gtk_widget_set_sensitive (g_object_get_data (G_OBJECT(filter_cm), E_DFILTER_SAVE_KEY), FALSE);
+            gtk_widget_set_sensitive ((GtkWidget *)g_object_get_data (G_OBJECT(filter_cm), E_DFILTER_CLEAR_KEY), FALSE);
+            gtk_widget_set_sensitive ((GtkWidget *)g_object_get_data (G_OBJECT(filter_cm), E_DFILTER_SAVE_KEY), FALSE);
         }
     }
 
     if (!s)
         return (cf_status == CF_OK);
 
-    /* GtkCombos don't let us get at their list contents easily, so we maintain
-       our own filter list, and feed it to gtk_combo_set_popdown_strings when
-       a new filter is added. */
     if (cf_status == CF_OK && strlen(s) > 0) {
         int indx;
 
@@ -407,15 +404,16 @@ main_filter_packets(capture_file *cf, const gchar *dftext, gboolean force)
             gtk_combo_box_text_prepend_text(GTK_COMBO_BOX_TEXT(filter_cm), s);
             indx++;
         }
-
-        /* If we have too many entries, remove some */
-        while ((guint)indx >= prefs.gui_recent_df_entries_max) {
-            gtk_combo_box_text_remove(GTK_COMBO_BOX_TEXT(filter_cm), indx);
-            indx--;
-        }
     }
     if (free_filter)
         g_free(s);
+
+    /* If we have too many entries, remove some */
+    filter_count = gtk_tree_model_iter_n_children(gtk_combo_box_get_model(GTK_COMBO_BOX(filter_cm)), NULL);
+    while (filter_count >= (gint)prefs.gui_recent_df_entries_max) {
+        filter_count--;
+        gtk_combo_box_text_remove(GTK_COMBO_BOX_TEXT(filter_cm), filter_count);
+    }
 
     return (cf_status == CF_OK);
 }

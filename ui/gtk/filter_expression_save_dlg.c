@@ -2,8 +2,6 @@
  * Routines for "Filter Save" window
  * Submitted by Edwin Groothuis <wireshark@mavetju.org>
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -33,7 +31,6 @@
 
 #include <epan/proto.h>
 #include <epan/dfilter/dfilter.h>
-#include <epan/nstime.h>
 #include <epan/strutil.h>
 #include <epan/prefs.h>
 #include <epan/filter_expressions.h>
@@ -43,7 +40,6 @@
 #include "ui/alert_box.h"
 #include "ui/main_statusbar.h"
 #include "ui/preference_utils.h"
-#include "ui/simple_dialog.h"
 #include "ui/ui_util.h"
 
 #include "ui/gtk/gui_utils.h"
@@ -104,7 +100,7 @@ filter_expression_save_dlg_init(gpointer filter_tb, gpointer filter_te)
 	}
 }
 
-void
+static void
 filter_expression_nuke(struct filter_expression *fe)
 {
 	if (fe == NULL)

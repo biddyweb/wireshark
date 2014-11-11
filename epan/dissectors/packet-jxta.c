@@ -10,8 +10,6 @@
  * packet-imap.c, Copyright 1999, Richard Sharpe <rsharpe@ns.aus.com>
  * Copied from packet-pop.c, packet-jabber.c, packet-udp.c, packet-http.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 2000 Gerald Combs
@@ -44,9 +42,13 @@
 #include <epan/strutil.h>
 #include <epan/prefs.h>
 #include <epan/tap.h>
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
+#include <epan/to_str.h>
 
 #include "packet-jxta.h"
+
+void proto_register_jxta(void);
+void proto_reg_handoff_jxta(void);
 
 static const gchar JXTA_UDP_SIG[] = { 'J', 'X', 'T', 'A' };
 static const gchar JXTA_MSG_SIG[] = { 'j', 'x', 'm', 'g' };
@@ -168,8 +170,8 @@ static gint *const ett[] = {
 *   global preferences
 **/
 static gboolean gDESEGMENT = TRUE;
-static gboolean gUDP_HEUR = TRUE;
-static gboolean gTCP_HEUR = TRUE;
+static gboolean gUDP_HEUR  = TRUE;
+static gboolean gTCP_HEUR  = TRUE;
 static gboolean gSCTP_HEUR = TRUE;
 static gboolean gMSG_MEDIA = TRUE;
 
@@ -210,8 +212,6 @@ static int dissect_jxta_message_element_2(tvbuff_t * tvb, packet_info * pinfo, p
                                         const gchar ** namespaces);
 static int dissect_media( const gchar* fullmediatype, tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree);
 
-void proto_reg_handoff_jxta(void);
-
 /**
 *   Heuristically dissect a tvbuff containing a JXTA UDP Message
 *
@@ -230,7 +230,8 @@ static gboolean dissect_jxta_UDP_heur(tvbuff_t * tvb, packet_info * pinfo, proto
     guint32 save_desegment_len;
     int ret;
 
-    if (tvb_memeql(tvb, 0, JXTA_UDP_SIG, sizeof(JXTA_UDP_SIG)) != 0) {
+    if (tvb_strneql(tvb, 0, JXTA_UDP_SIG, sizeof (JXTA_UDP_SIG)) != 0) {
+        /* Not a JXTA UDP packet (or not enough bytes to check for the sig) */
         return FALSE;
     }
 
@@ -577,7 +578,7 @@ static int dissect_jxta_stream(tvbuff_t * tvb, packet_info * pinfo, proto_tree *
         processed = dissect_jxta_welcome(tvb, pinfo, jxta_tree, welcome_addr, initiator);
     } else {
         /* Somewhere in the middle of a JXTA stream connection */
-        gint64 content_length = -1L;
+        gint64 content_length = G_GINT64_CONSTANT(-1);
         gchar *content_type = NULL;
         gint headers_len = dissect_jxta_message_framing(tvb, pinfo, NULL, (guint64*) &content_length, &content_type);
 
@@ -587,8 +588,8 @@ static int dissect_jxta_stream(tvbuff_t * tvb, packet_info * pinfo, proto_tree *
         }
 
         /* g_message("%d Tpt %s:%d -> %s:%d tvb len=%d\n\t%s %d", pinfo->fd->num,
-                  ep_address_to_str(&pinfo->src), pinfo->srcport,
-                  ep_address_to_str(&pinfo->dst), pinfo->destport,
+                  address_to_str(wmem_packet_scope(), &pinfo->src), pinfo->srcport,
+                  address_to_str(wmem_packet_scope(), &pinfo->dst), pinfo->destport,
                   tvb_reported_length_remaining(tvb, 0),
                   content_type ? content_type : "[unknown content type]", (gint) content_length); */
 
@@ -615,14 +616,14 @@ static int dissect_jxta_stream(tvbuff_t * tvb, packet_info * pinfo, proto_tree *
             /* Use our source and destination addresses if we have them */
             if (NULL != peer_conversation) {
                 /* g_message("%d Tpt %s:%d -> %s:%d", pinfo->fd->num,
-                          ep_address_to_str(&tpt_conv_data->initiator_tpt_address), tpt_conv_data->initiator_tpt_port,
-                          ep_address_to_str(&tpt_conv_data->receiver_tpt_address), tpt_conv_data->receiver_tpt_port); */
+                          address_to_str(wmem_packet_scope(), &tpt_conv_data->initiator_tpt_address), tpt_conv_data->initiator_tpt_port,
+                          address_to_str(wmem_packet_scope(), &tpt_conv_data->receiver_tpt_address), tpt_conv_data->receiver_tpt_port); */
 
                 if (ADDRESSES_EQUAL(&pinfo->src, &tpt_conv_data->initiator_tpt_address)
                     && tpt_conv_data->initiator_tpt_port == pinfo->srcport) {
                     /* g_message("%d From initiator : %s -> %s ", pinfo->fd->num,
-                              ep_address_to_str(&tpt_conv_data->initiator_address),
-                              ep_address_to_str(&tpt_conv_data->receiver_address)); */
+                              address_to_str(wmem_packet_scope(), &tpt_conv_data->initiator_address),
+                              address_to_str(wmem_packet_scope(), &tpt_conv_data->receiver_address)); */
                     pinfo->src = tpt_conv_data->initiator_address;
                     pinfo->srcport = 0;
                     pinfo->dst = tpt_conv_data->receiver_address;
@@ -631,8 +632,8 @@ static int dissect_jxta_stream(tvbuff_t * tvb, packet_info * pinfo, proto_tree *
                 } else if (ADDRESSES_EQUAL(&pinfo->src, &tpt_conv_data->receiver_tpt_address) &&
                            tpt_conv_data->receiver_tpt_port == pinfo->srcport) {
                     /* g_message("%d From receiver : %s -> %s ", pinfo->fd->num,
-                              ep_address_to_str(&tpt_conv_data->receiver_address),
-                              ep_address_to_str(&tpt_conv_data->initiator_address)); */
+                              address_to_str(wmem_packet_scope(), &tpt_conv_data->receiver_address),
+                              address_to_str(wmem_packet_scope(), &tpt_conv_data->initiator_address)); */
                     pinfo->src = tpt_conv_data->receiver_address;
                     pinfo->srcport = 0;
                     pinfo->dst = tpt_conv_data->initiator_address;
@@ -640,8 +641,8 @@ static int dissect_jxta_stream(tvbuff_t * tvb, packet_info * pinfo, proto_tree *
                     pinfo->ptype = PT_NONE;
                 } else {
                     /* g_message("%d Nothing matches %s:%d -> %s:%d", pinfo->fd->num,
-                              ep_address_to_str(&pinfo->src), pinfo->srcport,
-                              ep_address_to_str(&pinfo->dst), pinfo->destport); */
+                              address_to_str(wmem_packet_scope(), &pinfo->src), pinfo->srcport,
+                              address_to_str(wmem_packet_scope(), &pinfo->dst), pinfo->destport); */
                 }
             }
 
@@ -693,7 +694,7 @@ static jxta_stream_conversation_data *get_tpt_conversation(packet_info * pinfo)
     tpt_conv_data = (jxta_stream_conversation_data *) conversation_get_proto_data(tpt_conversation, proto_jxta);
 
     if (NULL == tpt_conv_data) {
-        tpt_conv_data = se_alloc(sizeof(jxta_stream_conversation_data));
+        tpt_conv_data = wmem_new(wmem_file_scope(), jxta_stream_conversation_data);
         tpt_conv_data->tpt_ptype = pinfo->ptype;
 
         SE_COPY_ADDRESS(&tpt_conv_data->initiator_tpt_address, &pinfo->src);
@@ -779,7 +780,7 @@ static int dissect_jxta_welcome(tvbuff_t * tvb, packet_info * pinfo, proto_tree 
             return 0;
         } else {
             /* ask for more bytes */
-            return -1;
+            return -DESEGMENT_ONE_MORE_SEGMENT;
         }
     }
 
@@ -790,7 +791,7 @@ static int dissect_jxta_welcome(tvbuff_t * tvb, packet_info * pinfo, proto_tree 
     col_set_str(pinfo->cinfo, COL_INFO, "Welcome");
 
     {
-        gchar *welcomeline = tvb_get_ephemeral_string(tvb, offset, first_linelen);
+        gchar *welcomeline = tvb_get_string(wmem_packet_scope(), tvb, offset, first_linelen);
         gchar **current_token;
         guint token_offset = offset;
         proto_item *jxta_welcome_tree_item = NULL;
@@ -857,15 +858,13 @@ static int dissect_jxta_welcome(tvbuff_t * tvb, packet_info * pinfo, proto_tree 
                 proto_tree_add_item(jxta_welcome_tree, hf_jxta_welcome_peerid, tvb, token_offset, (gint) strlen(*current_token), ENC_ASCII|ENC_NA);
             }
 
-            if (check_col(pinfo->cinfo, COL_INFO)) {
-                col_append_str(pinfo->cinfo, COL_INFO, (initiator ? " -> " : " <- ") );
-                col_append_str(pinfo->cinfo, COL_INFO, *current_token);
-            }
+            col_append_str(pinfo->cinfo, COL_INFO, (initiator ? " -> " : " <- ") );
+            col_append_str(pinfo->cinfo, COL_INFO, *current_token);
 
             if (NULL != found_addr) {
                 found_addr->type = AT_URI;
                 found_addr->len = (int) strlen(*current_token);
-                found_addr->data = se_strdup(*current_token);
+                found_addr->data = wmem_strdup(wmem_file_scope(), *current_token);
             }
 
             token_offset += (guint) strlen(*current_token) + 1;
@@ -1023,7 +1022,7 @@ static int dissect_jxta_message_framing(tvbuff_t * tvb, packet_info * pinfo, pro
 
         if (content_type && (sizeof("content-type") - 1) == headername_len) {
             if (0 == tvb_strncaseeql(tvb, headername_offset, "content-type", sizeof("content-type") - 1)) {
-                *content_type = tvb_get_ephemeral_string(tvb, headervalue_offset, headervalue_len);
+                *content_type = tvb_get_string(wmem_packet_scope(), tvb, headervalue_offset, headervalue_len);
             }
         }
 
@@ -1052,7 +1051,7 @@ static int dissect_jxta_message_framing(tvbuff_t * tvb, packet_info * pinfo, pro
 
         /* Disable speed optimization because of use of append_text */
         proto_tree_set_visible(tree, TRUE);
-        
+
         framing_tree_item =
             proto_tree_add_none_format(tree, hf_jxta_framing, tvb, tree_offset, -1, "JXTA Message Framing Headers");
         framing_tree = proto_item_add_subtree(framing_tree_item, ett_jxta_framing);
@@ -1131,8 +1130,8 @@ static int dissect_jxta_message(tvbuff_t * tvb, packet_info * pinfo, proto_tree 
     guint tree_offset = 0;
     guint available;
     gint needed = 0;
-    emem_strbuf_t* src_addr;
-    emem_strbuf_t* dst_addr;
+    wmem_strbuf_t* src_addr;
+    wmem_strbuf_t* dst_addr;
 
     while (TRUE) {
         guint8 message_version;
@@ -1248,7 +1247,15 @@ static int dissect_jxta_message(tvbuff_t * tvb, packet_info * pinfo, proto_tree 
 
                 if (0 == processed) {
                     /* XXX bondolo Not really clear what we should do! */
-                    g_warning( "Failure processing message element #%d of %d of frame %d", each_elem, elem_count, pinfo->fd->num );
+                    /* eapache: based on reading the code, I believe this can occur
+                     * when the message_version is valid but the JXTA_MSGELEM_SIG
+                     * (some sort of magic number?) is not. This almost
+                     * certainly indicates a corrupt packet, so this should
+                     * probably be expert info, not a g_warning. Pending confirmation
+                     * just comment it out since a g_warning is definitely the
+                     * wrong thing to do.
+                     * g_warning( "Failure processing message element #%d of %d of frame %d", each_elem, elem_count, pinfo->fd->num );
+                     */
                     return 0;
                 }
 
@@ -1257,7 +1264,7 @@ static int dissect_jxta_message(tvbuff_t * tvb, packet_info * pinfo, proto_tree 
         }
 
         if ((AT_URI == pinfo->src.type) && (AT_URI == pinfo->dst.type)) {
-            jxta_tap_header *tap_header = se_alloc(sizeof(jxta_tap_header));
+            jxta_tap_header *tap_header = wmem_new(wmem_file_scope(), jxta_tap_header);
 
             tap_header->src_address = pinfo->src;
             tap_header->dest_address = pinfo->dst;
@@ -1278,26 +1285,28 @@ static int dissect_jxta_message(tvbuff_t * tvb, packet_info * pinfo, proto_tree 
         return -needed;
     }
 
-    src_addr = ep_strbuf_new_label(ep_address_to_str(&pinfo->src));
-    dst_addr = ep_strbuf_new_label(ep_address_to_str(&pinfo->dst));
+    src_addr = wmem_strbuf_new_label(wmem_packet_scope());
+    wmem_strbuf_append(src_addr, address_to_str(wmem_packet_scope(), &pinfo->src));
+    dst_addr = wmem_strbuf_new_label(wmem_packet_scope());
+    wmem_strbuf_append(dst_addr, address_to_str(wmem_packet_scope(), &pinfo->dst));
 
     /* append the port if appropriate */
     if (PT_NONE != pinfo->ptype) {
-        ep_strbuf_append_printf(src_addr, ":%d", pinfo->srcport);
-        ep_strbuf_append_printf(dst_addr, ":%d", pinfo->destport);
+        wmem_strbuf_append_printf(src_addr, ":%d", pinfo->srcport);
+        wmem_strbuf_append_printf(dst_addr, ":%d", pinfo->destport);
     }
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "JXTA");
 
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        if( complete_messages > 1 ) {
-            col_add_fstr(pinfo->cinfo, COL_INFO, "%d Messages, %s -> %s", complete_messages, src_addr->str, dst_addr->str);
-        } else {
-            col_add_fstr(pinfo->cinfo, COL_INFO, "Message, %s -> %s", src_addr->str, dst_addr->str);
-        }
-
-        col_set_writable(pinfo->cinfo, FALSE);
+    if( complete_messages > 1 ) {
+        col_add_fstr(pinfo->cinfo, COL_INFO, "%d Messages, %s -> %s", complete_messages,
+                     wmem_strbuf_get_str(src_addr), wmem_strbuf_get_str(dst_addr));
+    } else {
+        col_add_fstr(pinfo->cinfo, COL_INFO, "Message, %s -> %s",
+                     wmem_strbuf_get_str(src_addr), wmem_strbuf_get_str(dst_addr));
     }
+
+    col_set_writable(pinfo->cinfo, FALSE);
 
     while( tree && (complete_messages > 0) ) {
         proto_item *jxta_msg_tree_item = NULL;
@@ -1311,41 +1320,42 @@ static int dissect_jxta_message(tvbuff_t * tvb, packet_info * pinfo, proto_tree 
         proto_item *tree_item;
 
         jxta_msg_tree_item = proto_tree_add_protocol_format(tree, proto_message_jxta, tvb, tree_offset, -1,
-                                                            "JXTA Message, %s -> %s", src_addr->str, dst_addr->str);
+                                                            "JXTA Message, %s -> %s", wmem_strbuf_get_str(src_addr),
+                                                            wmem_strbuf_get_str(dst_addr));
 
         jxta_msg_tree = proto_item_add_subtree(jxta_msg_tree_item, ett_jxta_msg);
 
         proto_tree_add_item(jxta_msg_tree, hf_jxta_message_sig, tvb, tree_offset, (int)sizeof(JXTA_MSG_SIG), ENC_ASCII|ENC_NA);
         tree_offset += (int)sizeof(JXTA_MSG_SIG);
 
-        tree_item = proto_tree_add_string(jxta_msg_tree, hf_jxta_message_src, tvb, 0, 0, src_addr->str);
+        tree_item = proto_tree_add_string(jxta_msg_tree, hf_jxta_message_src, tvb, 0, 0, wmem_strbuf_get_str(src_addr));
         PROTO_ITEM_SET_GENERATED(tree_item);
 
-        tree_item = proto_tree_add_string(jxta_msg_tree, hf_jxta_message_address, tvb, 0, 0, src_addr->str);
+        tree_item = proto_tree_add_string(jxta_msg_tree, hf_jxta_message_address, tvb, 0, 0, wmem_strbuf_get_str(src_addr));
         PROTO_ITEM_SET_HIDDEN(tree_item);
         PROTO_ITEM_SET_GENERATED(tree_item);
 
         if(AT_URI == pinfo->src.type) {
-            tree_item = proto_tree_add_string(jxta_msg_tree, hf_uri_src, tvb, 0, 0, src_addr->str);
+            tree_item = proto_tree_add_string(jxta_msg_tree, hf_uri_src, tvb, 0, 0, wmem_strbuf_get_str(src_addr));
             PROTO_ITEM_SET_HIDDEN(tree_item);
             PROTO_ITEM_SET_GENERATED(tree_item);
-            tree_item = proto_tree_add_string(jxta_msg_tree, hf_uri_addr, tvb, 0, 0, src_addr->str);
+            tree_item = proto_tree_add_string(jxta_msg_tree, hf_uri_addr, tvb, 0, 0, wmem_strbuf_get_str(src_addr));
             PROTO_ITEM_SET_HIDDEN(tree_item);
             PROTO_ITEM_SET_GENERATED(tree_item);
         }
 
-        tree_item = proto_tree_add_string(jxta_msg_tree, hf_jxta_message_dst, tvb, 0, 0, dst_addr->str);
+        tree_item = proto_tree_add_string(jxta_msg_tree, hf_jxta_message_dst, tvb, 0, 0, wmem_strbuf_get_str(dst_addr));
         PROTO_ITEM_SET_GENERATED(tree_item);
 
-        tree_item = proto_tree_add_string(jxta_msg_tree, hf_jxta_message_address, tvb, 0, 0, dst_addr->str);
+        tree_item = proto_tree_add_string(jxta_msg_tree, hf_jxta_message_address, tvb, 0, 0, wmem_strbuf_get_str(dst_addr));
         PROTO_ITEM_SET_HIDDEN(tree_item);
         PROTO_ITEM_SET_GENERATED(tree_item);
 
         if(AT_URI == pinfo->dst.type) {
-            tree_item = proto_tree_add_string(jxta_msg_tree, hf_uri_dst, tvb, 0, 0, src_addr->str);
+            tree_item = proto_tree_add_string(jxta_msg_tree, hf_uri_dst, tvb, 0, 0, wmem_strbuf_get_str(src_addr));
             PROTO_ITEM_SET_HIDDEN(tree_item);
             PROTO_ITEM_SET_GENERATED(tree_item);
-            tree_item = proto_tree_add_string(jxta_msg_tree, hf_uri_addr, tvb, 0, 0, dst_addr->str);
+            tree_item = proto_tree_add_string(jxta_msg_tree, hf_uri_addr, tvb, 0, 0, wmem_strbuf_get_str(dst_addr));
             PROTO_ITEM_SET_HIDDEN(tree_item);
             PROTO_ITEM_SET_GENERATED(tree_item);
         }
@@ -1367,7 +1377,7 @@ static int dissect_jxta_message(tvbuff_t * tvb, packet_info * pinfo, proto_tree 
         proto_tree_add_uint(jxta_msg_tree, hf_jxta_message_names_count, tvb, tree_offset, (int)sizeof(guint16), msg_names_count);
         tree_offset += (int)sizeof(guint16);
 
-        names_table = ep_alloc((msg_names_count + 2) * sizeof(const gchar *));
+        names_table = (const gchar **)wmem_alloc(wmem_packet_scope(), (msg_names_count + 2) * sizeof(const gchar *));
         names_table[0] = "";
         names_table[1] = "jxta";
 
@@ -1375,7 +1385,7 @@ static int dissect_jxta_message(tvbuff_t * tvb, packet_info * pinfo, proto_tree 
         for (each_name = 0; each_name < msg_names_count; each_name++) {
             guint16 name_len = tvb_get_ntohs(tvb, tree_offset);
 
-            names_table[2 + each_name] = tvb_get_ephemeral_string(tvb, tree_offset + (int)sizeof(name_len), name_len);
+            names_table[2 + each_name] = tvb_get_string(wmem_packet_scope(), tvb, tree_offset + (int)sizeof(name_len), name_len);
             proto_tree_add_item(jxta_msg_tree, hf_jxta_message_names_name, tvb, tree_offset, (int)sizeof(name_len), ENC_ASCII|ENC_NA);
             tree_offset += (int)sizeof(name_len) + name_len;
         }
@@ -1626,7 +1636,7 @@ static int dissect_jxta_message_element_1(tvbuff_t * tvb, packet_info * pinfo, p
             proto_tree_add_item(jxta_elem_tree, hf_jxta_element_type, tvb, tree_offset, (int)sizeof(guint16), ENC_ASCII|ENC_NA);
             tree_offset += (int)sizeof(guint16);
 
-            mediatype = tvb_get_ephemeral_string(tvb, tree_offset, type_len);
+            mediatype = tvb_get_string(wmem_packet_scope(), tvb, tree_offset, type_len);
 
             tree_offset += type_len;
         }
@@ -1669,7 +1679,7 @@ static int dissect_jxta_message_element_1(tvbuff_t * tvb, packet_info * pinfo, p
 *   @param  pinfo Packet Info.
 *   @param  tree The protocol tree.
 *   @param  names_count The number of elements in the names table.
-*   @param  names The table of names.
+*   @param  names_table The table of names.
 *   @return Number of bytes from the tvbuff_t which were processed, 0 (zero) if
 *           the packet was not recognized as a JXTA packet and negative if the
 *           dissector needs more bytes in order to process a PDU.
@@ -1904,7 +1914,7 @@ static int dissect_jxta_message_element_2(tvbuff_t * tvb, packet_info * pinfo, p
 
             if (mimeID < names_count) {
                 proto_item_append_text(mime_ti, " (%s)", names_table[mimeID]);
-                mediatype = ep_strdup( names_table[mimeID] );
+                mediatype = wmem_strdup( wmem_packet_scope(), names_table[mimeID] );
             } else {
                 proto_item_append_text(mime_ti, " * BAD *");
             }
@@ -1983,21 +1993,21 @@ static int dissect_media( const gchar* fullmediatype, tvbuff_t * tvb, packet_inf
     int dissected = 0;
 
     if (fullmediatype) {
-        gchar *mediatype = ep_strdup(fullmediatype);
+        gchar *mediatype = wmem_strdup(wmem_packet_scope(), fullmediatype);
         gchar *parms_at = strchr(mediatype, ';');
         const char *save_match_string = pinfo->match_string;
         void * save_private_data = pinfo->private_data;
 
         /* Based upon what is done in packet-media.c we set up type and params */
         if (NULL != parms_at) {
-            pinfo->private_data = ep_strdup( parms_at + 1 );
+            pinfo->private_data = wmem_strdup( wmem_packet_scope(), parms_at + 1 );
             *parms_at = '\0';
         } else {
             pinfo->private_data = NULL;
         }
 
         /* Set the version that goes to packet-media.c before converting case */
-        pinfo->match_string = ep_strdup(mediatype);
+        pinfo->match_string = wmem_strdup(wmem_packet_scope(), mediatype);
 
         /* force to lower case */
         ascii_strdown_inplace(mediatype);
@@ -2023,7 +2033,7 @@ static int dissect_media( const gchar* fullmediatype, tvbuff_t * tvb, packet_inf
                 }
             }
         } else {
-            dissected = dissector_try_string(media_type_dissector_table, mediatype, tvb, pinfo, tree) ? tvb_length(tvb) : 0;
+            dissected = dissector_try_string(media_type_dissector_table, mediatype, tvb, pinfo, tree, NULL) ? tvb_length(tvb) : 0;
 
             if( dissected != (int) tvb_length(tvb) ) {
                 /* g_message( "%s : %d expected, %d dissected", mediatype, tvb_length(tvb), dissected ); */
@@ -2324,9 +2334,9 @@ void proto_reg_handoff_jxta(void)
     static dissector_handle_t message_jxta_handle;
 
     static gboolean msg_media_register_done = FALSE;
-    static gboolean udp_register_done = FALSE;
-    static gboolean tcp_register_done = FALSE;
-    static gboolean sctp_register_done = FALSE;
+    static gboolean udp_register_done       = FALSE;
+    static gboolean tcp_register_done       = FALSE;
+    static gboolean sctp_register_done      = FALSE;
 
     if(!init_done) {
         message_jxta_handle = new_create_dissector_handle(dissect_jxta_message, proto_message_jxta);

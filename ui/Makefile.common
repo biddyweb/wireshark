@@ -3,8 +3,6 @@
 #     a) common to both files and
 #     b) portable between both files
 #
-# $Id$
-#
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
 # Copyright 1998 Gerald Combs
@@ -45,17 +43,28 @@ GENERATOR_FILES = \
 
 WIRESHARK_UI_SRC = \
 	alert_box.c		\
-	export_object.c	\
+	decode_as_utils.c	\
+	export_object.c		\
 	export_object_dicom.c	\
 	export_object_http.c	\
 	export_object_smb.c	\
+	follow.c		\
 	iface_lists.c		\
+	io_graph_item.c		\
 	help_url.c		\
+	packet_list_utils.c	\
+	persfilepath_opt.c	\
 	preference_utils.c	\
 	profile.c		\
 	recent.c		\
 	software_update.c	\
 	ssl_key_export.c	\
+	tap_export_pdu.c	\
+	tap-megaco-common.c	\
+	tap-rtp-common.c	\
+	tap-sctp-analysis.c \
+	tap-sequence-analysis.c	\
+	tap-tcp-stream.c	\
 	text_import.c		\
 	time_shift.c		\
 	util.c
@@ -63,20 +72,33 @@ WIRESHARK_UI_SRC = \
 noinst_HEADERS = \
 	alert_box.h		\
 	capture_globals.h	\
+	decode_as_utils.h	\
 	export_object.h		\
 	last_open_dir.h		\
 	file_dialog.h		\
+	follow.h		\
 	help_url.h		\
+	packet_list_utils.h	\
 	iface_lists.h		\
+	io_graph_item.h		\
 	main_statusbar.h	\
+	persfilepath_opt.h	\
 	preference_utils.h	\
 	profile.h		\
 	progress_dlg.h		\
 	recent.h		\
 	recent_utils.h		\
+	rtp_analysis.h		\
+	rtp_stream.h		\
 	simple_dialog.h		\
 	software_update.h	\
 	ssl_key_export.h	\
+	tap_export_pdu.h	\
+	tap-megaco-common.h	\
+	tap-rtp-common.h	\
+	tap-sctp-analysis.h  \
+	tap-sequence-analysis.h	\
+	tap-tcp-stream.h	\
 	text_import.h		\
 	text_import_scanner.h	\
 	time_shift.h		\

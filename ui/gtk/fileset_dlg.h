@@ -1,8 +1,6 @@
 /* fileset_dlg.h
  * Definitions for the fileset dialog box
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,8 +35,6 @@
 extern void fileset_file_opened(const capture_file *cf);
 
 /** Disable file set menu items
- *
- * @param cf Capture file struct
  */
 extern void fileset_file_closed(void);
 

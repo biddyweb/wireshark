@@ -2,8 +2,6 @@
  * Routines for RFC2511 Certificate Request Message Format packet dissection
  *   Ronnie Sahlberg 2004
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -40,6 +38,9 @@
 #define PSNAME "CRMF"
 #define PFNAME "crmf"
 
+void proto_register_crmf(void);
+void proto_reg_handoff_crmf(void);
+
 /* Initialize the protocol and registered fields */
 static int proto_crmf = -1;
 static int hf_crmf_type_oid = -1;
@@ -47,9 +48,6 @@ static int hf_crmf_type_oid = -1;
 
 /* Initialize the subtree pointers */
 #include "packet-crmf-ett.c"
-
-static const char *object_identifier_id;
-
 #include "packet-crmf-fn.c"
 
 

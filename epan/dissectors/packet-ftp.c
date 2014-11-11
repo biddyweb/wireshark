@@ -3,8 +3,6 @@
  * Copyright 1999, Richard Sharpe <rsharpe@ns.aus.com>
  * Copyright 2001, Juan Toledo <toledo@users.sourceforge.net> (Passive FTP)
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -37,23 +35,12 @@
 #include <epan/packet.h>
 #include <epan/strutil.h>
 #include <epan/conversation.h>
-#include <epan/emem.h>
 #include <epan/expert.h>
+#include <epan/wmem/wmem.h>
+#include <epan/addr_resolv.h>
 
-#ifdef HAVE_ARPA_INET_H
-#include <arpa/inet.h>
-#endif
-#ifdef HAVE_SYS_SOCKET_H
-#include <sys/socket.h>     /* needed to define AF_ values on UNIX */
-#endif
-#ifdef HAVE_WINSOCK2_H
-#include <winsock2.h>       /* needed to define AF_ values on Windows */
-#endif
-#ifdef NEED_INET_V6DEFS_H
-#include "wsutil/inet_v6defs.h" /* if not a *NIX system */
-#endif
-
-
+void proto_register_ftp(void);
+void proto_reg_handoff_ftp(void);
 
 static int proto_ftp = -1;
 static int proto_ftp_data = -1;
@@ -79,6 +66,9 @@ static int hf_ftp_epsv_port = -1;
 
 static gint ett_ftp = -1;
 static gint ett_ftp_reqresp = -1;
+
+static expert_field ei_ftp_eprt_args_invalid = EI_INIT;
+static expert_field ei_ftp_epsv_args_invalid = EI_INIT;
 
 static dissector_handle_t ftpdata_handle;
 
@@ -221,7 +211,7 @@ parse_port_pasv(const guchar *line, int linelen, guint32 *ftp_ip, guint16 *ftp_p
     /*
      * Copy the rest of the line into a null-terminated buffer.
      */
-    args = ep_strndup(line, linelen);
+    args = wmem_strndup(wmem_packet_scope(), line, linelen);
     p = args;
 
     for (;;) {
@@ -250,11 +240,11 @@ parse_port_pasv(const guchar *line, int linelen, guint32 *ftp_ip, guint16 *ftp_p
              */
             *ftp_port = ((port[0] & 0xFF)<<8) | (port[1] & 0xFF);
             *ftp_ip = g_htonl((ip_address[0] << 24) | (ip_address[1] <<16) | (ip_address[2] <<8) | ip_address[3]);
-            *pasv_offset = (guint32)(p - args); 
-            *ftp_port_len = (port[0] < 10 ? 1 : (port[0] < 100 ? 2 : 3 )) + 1 + 
+            *pasv_offset = (guint32)(p - args);
+            *ftp_port_len = (port[0] < 10 ? 1 : (port[0] < 100 ? 2 : 3 )) + 1 +
                             (port[1] < 10 ? 1 : (port[1] < 100 ? 2 : 3 ));
-            *ftp_ip_len = (ip_address[0] < 10 ? 1 : (ip_address[0] < 100 ? 2 : 3)) + 1 + 
-                          (ip_address[1] < 10 ? 1 : (ip_address[1] < 100 ? 2 : 3)) + 1 + 
+            *ftp_ip_len = (ip_address[0] < 10 ? 1 : (ip_address[0] < 100 ? 2 : 3)) + 1 +
+                          (ip_address[1] < 10 ? 1 : (ip_address[1] < 100 ? 2 : 3)) + 1 +
                           (ip_address[2] < 10 ? 1 : (ip_address[2] < 100 ? 2 : 3)) + 1 +
                           (ip_address[3] < 10 ? 1 : (ip_address[3] < 100 ? 2 : 3));
             ret = TRUE;
@@ -276,50 +266,49 @@ static gboolean
 isvalid_rfc2428_delimiter(const guchar c)
 {
     /* RFC2428 sect. 2 states rules for a valid delimiter */
-    static const gchar forbidden[] = {"0123456789abcdef.:"};
+    const gchar *forbidden = "0123456789abcdef.:";
     if (c < 33 || c > 126)
         return FALSE;
-    else if (strchr(forbidden, tolower(c)))
+    if (strchr(forbidden, tolower(c)))
         return FALSE;
-    else
-        return TRUE;
+    return TRUE;
 }
 
 
 /*
  * RFC2428 states...
  *
- *     AF Number   Protocol 
- *     ---------   --------         
- *     1           Internet Protocol, Version 4 
- *     2           Internet Protocol, Version 6 
- *     
- *     AF Number   Address Format      Example         
- *     ---------   --------------      -------         
- *     1           dotted decimal      132.235.1.2         
- *     2           IPv6 string         1080::8:800:200C:417A                     
- *                 representations                     
- *                 defined in 
- *     
- *     The following are sample EPRT commands:         
- *          EPRT |1|132.235.1.2|6275|         
+ *     AF Number   Protocol
+ *     ---------   --------
+ *     1           Internet Protocol, Version 4
+ *     2           Internet Protocol, Version 6
+ *
+ *     AF Number   Address Format      Example
+ *     ---------   --------------      -------
+ *     1           dotted decimal      132.235.1.2
+ *     2           IPv6 string         1080::8:800:200C:417A
+ *                 representations
+ *                 defined in
+ *
+ *     The following are sample EPRT commands:
+ *          EPRT |1|132.235.1.2|6275|
  *          EPRT |2|1080::8:800:200C:417A|5282|
- *     
- *     The first command specifies that the server should use IPv4 to open a    
- *     data connection to the host "132.235.1.2" on TCP port 6275.  The    
- *     second command specifies that the server should use the IPv6 network    
- *     protocol and the network address "1080::8:800:200C:417A" to open a    
+ *
+ *     The first command specifies that the server should use IPv4 to open a
+ *     data connection to the host "132.235.1.2" on TCP port 6275.  The
+ *     second command specifies that the server should use the IPv6 network
+ *     protocol and the network address "1080::8:800:200C:417A" to open a
  *     TCP data connection on port 5282.
- * 
- * ... which means in fact that RFC2428 is capable to handle both, 
+ *
+ * ... which means in fact that RFC2428 is capable to handle both,
  * IPv4 and IPv6 so we have to care about the address family and properly
  * act depending on it.
- * 
+ *
  */
 static gboolean
-parse_eprt_request(const guchar* line, gint linelen, guint32 *eprt_af, 
-        guint32 *eprt_ip, guint16 *eprt_ipv6, guint16 *ftp_port, 
-        guint32 *eprt_ip_len, guint32 *ftp_port_len) 
+parse_eprt_request(const guchar* line, gint linelen, guint32 *eprt_af,
+        guint32 *eprt_ip, guint16 *eprt_ipv6, guint16 *ftp_port,
+        guint32 *eprt_ip_len, guint32 *ftp_port_len)
 {
     gint      delimiters_seen = 0;
     gchar     delimiter;
@@ -336,12 +325,12 @@ parse_eprt_request(const guchar* line, gint linelen, guint32 *eprt_af,
         return FALSE;
 
     /* Copy the rest of the line into a null-terminated buffer. */
-    args = ep_strndup(line, linelen);
+    args = wmem_strndup(wmem_packet_scope(), line, linelen);
     p = args;
 
     /*
      * RFC2428 sect. 2 states ...
-     * 
+     *
      *     The EPRT command keyword MUST be followed by a single space (ASCII
      *     32). Following the space, a delimiter character (<d>) MUST be
      *     specified.
@@ -353,14 +342,14 @@ parse_eprt_request(const guchar* line, gint linelen, guint32 *eprt_af,
         return FALSE;  /* EPRT command does not follow a vaild delimiter;
                         * malformed EPRT command - immediate escape */
 
-    delimiter = *p; 
+    delimiter = *p;
     /* Validate that the delimiter occurs 4 times in the string */
     for (n = 0; n < linelen; n++) {
-        if (*(p+n) == delimiter) 
+        if (*(p+n) == delimiter)
             delimiters_seen++;
     }
     if (delimiters_seen != 4)
-        return FALSE; /* delimiter doesn't occur 4 times 
+        return FALSE; /* delimiter doesn't occur 4 times
                        * probably no EPRT request - immediate escape */
 
     /* we know that the first character is a delimiter... */
@@ -382,21 +371,21 @@ parse_eprt_request(const guchar* line, gint linelen, guint32 *eprt_af,
 
         if (delimiters_seen == 2) {     /* end of address family field */
             gchar *af_str;
-            af_str = ep_strndup(field, fieldlen);
+            af_str = wmem_strndup(wmem_packet_scope(), field, fieldlen);
             *eprt_af = atoi(af_str);
         }
         else if (delimiters_seen == 3) {/* end of IP address field */
             gchar *ip_str;
-            ip_str = ep_strndup(field, fieldlen);
+            ip_str = wmem_strndup(wmem_packet_scope(), field, fieldlen);
 
             if (*eprt_af == EPRT_AF_IPv4) {
-                if (inet_pton(AF_INET, ip_str, eprt_ip) == 1)
+                if (str_to_ip(ip_str, eprt_ip))
                    ret = TRUE;
                 else
                    ret = FALSE;
             }
             else if (*eprt_af == EPRT_AF_IPv6) {
-                if (inet_pton(AF_INET6, ip_str, eprt_ipv6) == 1)
+                if (str_to_ip6(ip_str, eprt_ipv6))
                    ret = TRUE;
                 else
                    ret = FALSE;
@@ -408,7 +397,7 @@ parse_eprt_request(const guchar* line, gint linelen, guint32 *eprt_af,
         }
         else if (delimiters_seen == 4) {/* end of port field */
             gchar *pt_str;
-            pt_str = ep_strndup(field, fieldlen);
+            pt_str = wmem_strndup(wmem_packet_scope(), field, fieldlen);
 
             *ftp_port = atoi(pt_str);
             *ftp_port_len = fieldlen;
@@ -423,24 +412,24 @@ parse_eprt_request(const guchar* line, gint linelen, guint32 *eprt_af,
 /*
  * RFC2428 states ....
  *
- *   The first two fields contained in the parenthesis MUST be blank. The   
- *   third field MUST be the string representation of the TCP port number    
- *   on which the server is listening for a data connection. 
- *     
+ *   The first two fields contained in the parenthesis MUST be blank. The
+ *   third field MUST be the string representation of the TCP port number
+ *   on which the server is listening for a data connection.
+ *
  *   The network protocol used by the data connection will be the same network
- *   protocol used by the control connection. In addition, the network    
- *   address used to establish the data connection will be the same    
+ *   protocol used by the control connection. In addition, the network
+ *   address used to establish the data connection will be the same
  *   network address used for the control connection.
- *     
- *   An example response    string follows:         
- *         
+ *
+ *   An example response    string follows:
+ *
  *       Entering Extended Passive Mode (|||6446|)
- * 
+ *
  * ... which in fact means that again both address families IPv4 and IPv6
  * are supported. But gladly it's not necessary to parse because it doesn't
- * occur in EPSV responses. We can leverage ftp_ip_address which is 
+ * occur in EPSV responses. We can leverage ftp_ip_address which is
  * protocol independent and already set.
- * 
+ *
  */
 static gboolean
 parse_extended_pasv_response(const guchar *line, gint linelen, guint16 *ftp_port,
@@ -457,7 +446,7 @@ parse_extended_pasv_response(const guchar *line, gint linelen, guint16 *ftp_port
     /*
      * Copy the rest of the line into a null-terminated buffer.
      */
-    args = ep_strndup(line, linelen);
+    args = wmem_strndup(wmem_packet_scope(), line, linelen);
     p = args;
 
     /*
@@ -523,8 +512,8 @@ static void
 dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
     gboolean        is_request;
-    proto_tree     *ftp_tree          = NULL;
-    proto_tree     *reqresp_tree      = NULL;
+    proto_tree     *ftp_tree;
+    proto_tree     *reqresp_tree;
     proto_item     *ti, *hidden_item;
     gint            offset;
     const guchar   *line;
@@ -600,8 +589,7 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
 
     /* Put the line into the protocol tree. */
-    ti = proto_tree_add_text(ftp_tree, tvb, 0, next_offset, "%s",
-            tvb_format_text(tvb, 0, next_offset));
+    ti = proto_tree_add_format_text(ftp_tree, tvb, 0, next_offset);
     reqresp_tree = proto_item_add_subtree(ti, ett_ftp_reqresp);
 
     if (is_request) {
@@ -777,9 +765,9 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     }
 
     if (is_eprt_request) {
-        /* 
+        /*
          * RFC2428 - sect. 2
-         * This frame contains a EPRT request; let's dissect it and set up a 
+         * This frame contains a EPRT request; let's dissect it and set up a
          * conversation for the data connection.
          */
         if (parse_eprt_request(line, linelen,
@@ -789,7 +777,7 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
             /* since parse_eprt_request() returned TRUE,
                we know that we have a valid address family */
             eprt_offset = tokenlen + 1 + 1;  /* token, space, 1st delimiter */
-            proto_tree_add_uint(reqresp_tree, hf_ftp_eprt_af, tvb, 
+            proto_tree_add_uint(reqresp_tree, hf_ftp_eprt_af, tvb,
                     eprt_offset, 1, eprt_af);
             eprt_offset += 1 + 1; /* addr family, 2nd delimiter */
 
@@ -816,7 +804,7 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                     PT_TCP, ftp_port, 0, NO_PORT_B);
             if (conversation == NULL) {
                 conversation = conversation_new(
-                        pinfo->fd->num, &pinfo->src, &ftp_ip_address, 
+                        pinfo->fd->num, &pinfo->src, &ftp_ip_address,
                         PT_TCP, ftp_port, 0, NO_PORT2);
                 conversation_set_dissector(conversation,
                         ftpdata_handle);
@@ -824,10 +812,9 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         }
         else {
             proto_item *item;
-            item = proto_tree_add_text(reqresp_tree, 
+            item = proto_tree_add_text(reqresp_tree,
                     tvb, offset - linelen - 1, linelen, "Invalid EPRT arguments");
-            expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN,
-                    "EPRT arguments must have the form: |<family>|<addr>|<port>|");
+            expert_add_info(pinfo, item, &ei_ftp_eprt_args_invalid);
         }
     }
 
@@ -853,12 +840,12 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 else if (ftp_ip_address.type == AT_IPv6) {
                     addr_it = proto_tree_add_ipv6(reqresp_tree,
                             hf_ftp_epsv_ipv6, tvb, 0, 0,
-                            (guint8*)ftp_ip_address.data);
+                            (const guint8*)ftp_ip_address.data);
                     PROTO_ITEM_SET_GENERATED(addr_it);
                 }
 
-                proto_tree_add_uint(reqresp_tree, 
-                        hf_ftp_epsv_port, tvb, pasv_offset + 4, 
+                proto_tree_add_uint(reqresp_tree,
+                        hf_ftp_epsv_port, tvb, pasv_offset + 4,
                         ftp_port_len, ftp_port);
 
                 /* Find/create conversation for data */
@@ -877,8 +864,7 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
                 proto_item *item;
                 item = proto_tree_add_text(reqresp_tree,
                         tvb, offset - linelen - 1, linelen, "Invalid EPSV arguments");
-                expert_add_info_format(pinfo, item, PI_MALFORMED, PI_WARN,
-                        "EPSV arguments must have the form (|||<port>|)");
+                expert_add_info(pinfo, item, &ei_ftp_epsv_args_invalid);
             }
         }
     }
@@ -897,9 +883,8 @@ dissect_ftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
         /*
          * Put this line.
          */
-        proto_tree_add_text(ftp_tree, tvb, offset,
-                next_offset - offset, "%s",
-                tvb_format_text(tvb, offset, next_offset - offset));
+        proto_tree_add_format_text(ftp_tree, tvb, offset,
+                next_offset - offset);
         offset = next_offset;
     }
 }
@@ -924,7 +909,7 @@ dissect_ftpdata(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     /* Check the first few chars to see whether it looks like a text file or not */
     check_chars = MIN(10, data_length);
     for (i=0; i < check_chars; i++) {
-        if (!isprint(tvb_get_guint8(tvb, i))) {
+        if (!g_ascii_isprint(tvb_get_guint8(tvb, i))) {
             is_text = FALSE;
             break;
         }
@@ -1045,13 +1030,22 @@ proto_register_ftp(void)
         &ett_ftp_reqresp
     };
 
-    proto_ftp = proto_register_protocol("File Transfer Protocol (FTP)", "FTP",
-                                        "ftp");
+    static ei_register_info ei[] = {
+        { &ei_ftp_eprt_args_invalid, { "ftp.eprt.args_invalid", PI_MALFORMED, PI_WARN, "EPRT arguments must have the form: |<family>|<addr>|<port>|", EXPFILL }},
+        { &ei_ftp_epsv_args_invalid, { "ftp.epsv.args_invalid", PI_MALFORMED, PI_WARN, "EPSV arguments must have the form (|||<port>|)", EXPFILL }},
+    };
+
+    expert_module_t* expert_ftp;
+
+    proto_ftp = proto_register_protocol("File Transfer Protocol (FTP)", "FTP", "ftp");
+
     register_dissector("ftp", dissect_ftp, proto_ftp);
     proto_ftp_data = proto_register_protocol("FTP Data", "FTP-DATA", "ftp-data");
     register_dissector("ftp-data", dissect_ftpdata, proto_ftp_data);
     proto_register_field_array(proto_ftp, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
+    expert_ftp = expert_register_protocol(proto_ftp);
+    expert_register_field_array(expert_ftp, ei, array_length(ei));
 }
 
 void
@@ -1070,10 +1064,10 @@ proto_reg_handoff_ftp(void)
  *
  * Local variables:
  * c-basic-offset: 4
- * tab-width: 4
+ * tab-width: 8
  * indent-tabs-mode: nil
  * End:
  *
- * vi: set shiftwidth=4 tabstop=4 expandtab:
- * :indentSize=4:tabSize=4:noTabs=true:
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
  */

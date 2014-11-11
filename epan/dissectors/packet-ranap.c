@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-ranap.c                                                             */
 /* ../../tools/asn2wrs.py -p ranap -c ./ranap.cnf -s ./packet-ranap-template -D . -O ../../epan/dissectors RANAP-CommonDataTypes.asn RANAP-Constants.asn RANAP-Containers.asn RANAP-IEs.asn RANAP-PDU-Contents.asn RANAP-PDU-Descriptions.asn */
 
@@ -9,8 +9,6 @@
 /* packet-ranap.c
  * Routines for UMTS Node B Application Part(RANAP) packet dissection
  * Copyright 2005 - 2010, Anders Broman <anders.broman[AT]ericsson.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -38,7 +36,7 @@
 #include <glib.h>
 #include <epan/packet.h>
 
-#include <epan/emem.h>
+#include <epan/wmem/wmem.h>
 #include <epan/strutil.h>
 #include <epan/asn1.h>
 #include <epan/prefs.h>
@@ -411,7 +409,10 @@ typedef enum _ProtocolIE_ID_enum {
 } ProtocolIE_ID_enum;
 
 /*--- End of included file: packet-ranap-val.h ---*/
-#line 62 "../../asn1/ranap/packet-ranap-template.c"
+#line 60 "../../asn1/ranap/packet-ranap-template.c"
+
+void proto_register_ranap(void);
+void proto_reg_handoff_ranap(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_ranap = -1;
@@ -1147,7 +1148,7 @@ static int hf_ranap_unsuccessfulOutcome_value = -1;  /* UnsuccessfulOutcome_valu
 static int hf_ranap_value = -1;                   /* T_value */
 
 /*--- End of included file: packet-ranap-hf.c ---*/
-#line 77 "../../asn1/ranap/packet-ranap-template.c"
+#line 78 "../../asn1/ranap/packet-ranap-template.c"
 
 /* Initialize the subtree pointers */
 static int ett_ranap = -1;
@@ -1483,7 +1484,7 @@ static gint ett_ranap_UnsuccessfulOutcome = -1;
 static gint ett_ranap_Outcome = -1;
 
 /*--- End of included file: packet-ranap-ett.c ---*/
-#line 84 "../../asn1/ranap/packet-ranap-template.c"
+#line 85 "../../asn1/ranap/packet-ranap-template.c"
 
 /* Global variables */
 static guint32 ProcedureCode;
@@ -1541,7 +1542,6 @@ static int dissect_OutcomeValue(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
 static int dissect_ranap_SourceRNC_ToTargetRNC_TransparentContainer(tvbuff_t *tvb, int offset, asn1_ctx_t *actx, proto_tree *tree, int hf_index);
 static int dissect_ranap_TargetRNC_ToSourceRNC_TransparentContainer(tvbuff_t *tvb, int offset, asn1_ctx_t *actx, proto_tree *tree, int hf_index);
 
-void proto_reg_handoff_ranap(void);
 
 
 /*--- Included file: packet-ranap-fn.c ---*/
@@ -1664,7 +1664,7 @@ dissect_ranap_ProcedureCode(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 255U, &ProcedureCode, FALSE);
 
-#line 94 "../../asn1/ranap/ranap.cnf"
+#line 92 "../../asn1/ranap/ranap.cnf"
      col_add_fstr(actx->pinfo->cinfo, COL_INFO, "%s ",
                  val_to_str_ext_const(ProcedureCode, &ranap_ProcedureCode_vals_ext,
                             "unknown message"));
@@ -1948,7 +1948,7 @@ dissect_ranap_ProtocolIE_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
   offset = dissect_per_constrained_integer(tvb, offset, actx, tree, hf_index,
                                                             0U, 65535U, &ProtocolIE_ID, FALSE);
 
-#line 78 "../../asn1/ranap/ranap.cnf"
+#line 76 "../../asn1/ranap/ranap.cnf"
   if (tree) {
     proto_item_append_text(proto_item_get_parent_nth(actx->created_item, 2), ": %s", val_to_str_ext(ProtocolIE_ID, &ranap_ProtocolIE_ID_vals_ext, "unknown (%d)"));
   }
@@ -2070,11 +2070,11 @@ static const per_sequence_t ProtocolIE_ContainerList_sequence_of[1] = {
 
 static int
 dissect_ranap_ProtocolIE_ContainerList(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 118 "../../asn1/ranap/ranap.cnf"
+#line 116 "../../asn1/ranap/ranap.cnf"
   static const asn1_par_def_t ProtocolIE_ContainerList_pars[] = {
     { "lowerBound", ASN1_PAR_INTEGER },
     { "upperBound", ASN1_PAR_INTEGER },
-    { NULL, 0 }
+    { NULL, (asn1_par_type)0 }
   };
   asn1_stack_frame_check(actx, "ProtocolIE-ContainerList", ProtocolIE_ContainerList_pars);
 
@@ -2092,11 +2092,11 @@ static const per_sequence_t ProtocolIE_ContainerPairList_sequence_of[1] = {
 
 static int
 dissect_ranap_ProtocolIE_ContainerPairList(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 134 "../../asn1/ranap/ranap.cnf"
+#line 132 "../../asn1/ranap/ranap.cnf"
   static const asn1_par_def_t ProtocolIE_ContainerPairList_pars[] = {
     { "lowerBound", ASN1_PAR_INTEGER },
     { "upperBound", ASN1_PAR_INTEGER },
-    { NULL, 0 }
+    { NULL, (asn1_par_type)0 }
   };
   asn1_stack_frame_check(actx, "ProtocolIE-ContainerPairList", ProtocolIE_ContainerPairList_pars);
 
@@ -2661,7 +2661,7 @@ dissect_ranap_APN(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto
 
 static int
 dissect_ranap_PLMNidentity(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 281 "../../asn1/ranap/ranap.cnf"
+#line 279 "../../asn1/ranap/ranap.cnf"
   tvbuff_t *parameter_tvb=NULL;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
@@ -3169,7 +3169,7 @@ dissect_ranap_BindingID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_,
 static int
 dissect_ranap_BIT_STRING_SIZE_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 1, FALSE, NULL);
+                                     1, 1, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3179,7 +3179,7 @@ dissect_ranap_BIT_STRING_SIZE_1(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_ranap_BIT_STRING_SIZE_56(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     56, 56, FALSE, NULL);
+                                     56, 56, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -3875,7 +3875,7 @@ dissect_ranap_CSFB_Information(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_ranap_CSG_Id(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     27, 27, FALSE, NULL);
+                                     27, 27, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4114,7 +4114,7 @@ dissect_ranap_E_DCH_MAC_d_Flow_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 static int
 dissect_ranap_BIT_STRING_SIZE_20(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     20, 20, FALSE, NULL);
+                                     20, 20, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4124,7 +4124,7 @@ dissect_ranap_BIT_STRING_SIZE_20(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *
 static int
 dissect_ranap_BIT_STRING_SIZE_28(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     28, 28, FALSE, NULL);
+                                     28, 28, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4170,7 +4170,7 @@ dissect_ranap_PermittedEncryptionAlgorithms(tvbuff_t *tvb _U_, int offset _U_, a
 static int
 dissect_ranap_EncryptionKey(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     128, 128, FALSE, NULL);
+                                     128, 128, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4259,7 +4259,7 @@ dissect_ranap_IMEISVList(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_
 static int
 dissect_ranap_BIT_STRING_SIZE_7(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     7, 7, FALSE, NULL);
+                                     7, 7, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4579,10 +4579,10 @@ dissect_ranap_GlobalRNC_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
 
 static int
 dissect_ranap_GTP_TEI(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 332 "../../asn1/ranap/ranap.cnf"
-  tvbuff_t *parameter_tvb=NULL;	
+#line 330 "../../asn1/ranap/ranap.cnf"
+  tvbuff_t *parameter_tvb=NULL;
   int saved_hf;
-  
+
   saved_hf = hf_index;
   hf_index = -1;
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
@@ -4591,7 +4591,7 @@ dissect_ranap_GTP_TEI(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, p
 
   if (!parameter_tvb)
     return offset;
-  proto_tree_add_item(tree, saved_hf, parameter_tvb, 0, 4, ENC_BIG_ENDIAN);  
+  proto_tree_add_item(tree, saved_hf, parameter_tvb, 0, 4, ENC_BIG_ENDIAN);
 
 
 
@@ -4629,7 +4629,7 @@ dissect_ranap_HS_DSCH_MAC_d_Flow_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_
 static int
 dissect_ranap_MeasurementsToActivate(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -4762,24 +4762,24 @@ dissect_ranap_ImmediateMDT(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
 
 static int
 dissect_ranap_IMSI(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 191 "../../asn1/ranap/ranap.cnf"
+#line 189 "../../asn1/ranap/ranap.cnf"
   tvbuff_t* imsi_tvb;
   const char	*digit_str;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
                                        3, 8, FALSE, &imsi_tvb);
-  
+
 	if(!imsi_tvb)
 		return offset;
 	if ( actx->pinfo->sccp_info
 		 && actx->pinfo->sccp_info->data.co.assoc
 		 && ! actx->pinfo->sccp_info->data.co.assoc->calling_party ) {
-	   
-		guint len = tvb_length(imsi_tvb);
-		guint8* bytes = ep_tvb_memdup(imsi_tvb,0,len);
 
-		actx->pinfo->sccp_info->data.co.assoc->calling_party = 
-			se_strdup_printf("IMSI: %s", bytes_to_str(bytes, len) );
+		guint len = tvb_length(imsi_tvb);
+		guint8* bytes = (guint8 *)tvb_memdup(wmem_packet_scope(),imsi_tvb,0,len);
+
+		actx->pinfo->sccp_info->data.co.assoc->calling_party =
+			wmem_strdup_printf(wmem_file_scope(), "IMSI: %s", bytes_to_ep_str(bytes, len) );
 	}
 	digit_str = unpack_digits(imsi_tvb, 0);
 	proto_tree_add_string(tree, hf_ranap_imsi_digits, imsi_tvb, 0, -1, digit_str);
@@ -5080,7 +5080,7 @@ dissect_ranap_PermittedIntegrityProtectionAlgorithms(tvbuff_t *tvb _U_, int offs
 static int
 dissect_ranap_IntegrityProtectionKey(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     128, 128, FALSE, NULL);
+                                     128, 128, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -5252,7 +5252,7 @@ dissect_ranap_InterSystemInformation_TransparentContainer(tvbuff_t *tvb _U_, int
 static int
 dissect_ranap_IuSignallingConnectionIdentifier(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     24, 24, FALSE, NULL);
+                                     24, 24, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -5611,7 +5611,7 @@ dissect_ranap_LocationReportingTransferInformation(tvbuff_t *tvb _U_, int offset
 
 static int
 dissect_ranap_L3_Information(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 269 "../../asn1/ranap/ranap.cnf"
+#line 267 "../../asn1/ranap/ranap.cnf"
   tvbuff_t *l3_info_tvb=NULL;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
@@ -5654,7 +5654,7 @@ dissect_ranap_MaxSDU_Size(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
 static int
 dissect_ranap_MBMS_PTP_RAB_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -6031,7 +6031,7 @@ dissect_ranap_MSISDN(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, pr
 
 static int
 dissect_ranap_NAS_PDU(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 214 "../../asn1/ranap/ranap.cnf"
+#line 212 "../../asn1/ranap/ranap.cnf"
   tvbuff_t *nas_pdu_tvb=NULL;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
@@ -6050,7 +6050,7 @@ dissect_ranap_NAS_PDU(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, p
 static int
 dissect_ranap_NAS_SequenceNumber(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     2, 2, FALSE, NULL);
+                                     2, 2, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -6060,7 +6060,7 @@ dissect_ranap_NAS_SequenceNumber(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *
 static int
 dissect_ranap_NAS_SynchronisationIndicator(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     4, 4, FALSE, NULL);
+                                     4, 4, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -6069,7 +6069,7 @@ dissect_ranap_NAS_SynchronisationIndicator(tvbuff_t *tvb _U_, int offset _U_, as
 
 static int
 dissect_ranap_NewBSS_To_OldBSS_Information(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 261 "../../asn1/ranap/ranap.cnf"
+#line 259 "../../asn1/ranap/ranap.cnf"
   tvbuff_t *bss_info_tvb=NULL;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
@@ -6158,7 +6158,7 @@ dissect_ranap_Offload_RAB_Parameters(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
 
 static int
 dissect_ranap_OldBSS_ToNewBSS_Information(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 253 "../../asn1/ranap/ranap.cnf"
+#line 251 "../../asn1/ranap/ranap.cnf"
   tvbuff_t *bss_info_tvb=NULL;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
@@ -6330,7 +6330,7 @@ dissect_ranap_PLMNs_in_shared_network(tvbuff_t *tvb _U_, int offset _U_, asn1_ct
 static int
 dissect_ranap_PositioningDataDiscriminator(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     4, 4, FALSE, NULL);
+                                     4, 4, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -6390,7 +6390,7 @@ dissect_ranap_PositionDataSpecificToGERANIuMode(tvbuff_t *tvb _U_, int offset _U
 static int
 dissect_ranap_Priority_Class_Indicator(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -6503,7 +6503,7 @@ dissect_ranap_RABDataVolumeReport(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 static int
 dissect_ranap_RAB_ID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, NULL);
+                                     8, 8, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -7324,7 +7324,7 @@ dissect_ranap_RNSAPRelocationParameters(tvbuff_t *tvb _U_, int offset _U_, asn1_
 
 static int
 dissect_ranap_RRC_Container(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 223 "../../asn1/ranap/ranap.cnf"
+#line 221 "../../asn1/ranap/ranap.cnf"
   tvbuff_t *rrc_message_tvb=NULL;
 
   offset = dissect_per_octet_string(tvb, offset, actx, tree, hf_index,
@@ -7336,7 +7336,7 @@ dissect_ranap_RRC_Container(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
 			case id_Source_ToTarget_TransparentContainer: /* INTEGER ::= 61 */
 				/* 9.2.1.30a Source to Target Transparent Container
 				 * Note: In the current version of this specification, this IE may
-				 * either carry the Source RNC to Target RNC Transparent Container 
+				 * either carry the Source RNC to Target RNC Transparent Container
 				 * or the Source eNB to Target eNB Transparent Container IE as defined in [49]...
 				 */
 				call_dissector(rrc_s_to_trnc_handle,rrc_message_tvb,actx->pinfo, proto_tree_get_root(tree));
@@ -7344,7 +7344,7 @@ dissect_ranap_RRC_Container(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
 			case id_Target_ToSource_TransparentContainer: /* INTEGER ::= 63 */
 				/* 9.2.1.30b Target to Source Transparent Container
 				 * In the current version of this specification, this IE may
-				 * either carry the Target RNC to Source RNC Transparent Container 
+				 * either carry the Target RNC to Source RNC Transparent Container
 				 * or the Target eNB to Source eNB Transparent Container IE as defined in [49]...
 				 */
 				call_dissector(rrc_t_to_srnc_handle,rrc_message_tvb,actx->pinfo, proto_tree_get_root(tree));
@@ -7436,7 +7436,7 @@ dissect_ranap_Service_Handover(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 
 static int
 dissect_ranap_Source_ToTarget_TransparentContainer(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 358 "../../asn1/ranap/ranap.cnf"
+#line 356 "../../asn1/ranap/ranap.cnf"
 
 dissect_ranap_SourceRNC_ToTargetRNC_TransparentContainer(tvb , offset, actx ,tree , hf_ranap_ranap_SourceRNC_ToTargetRNC_TransparentContainer_PDU );
 
@@ -7513,14 +7513,14 @@ static const per_sequence_t SourceRNC_ToTargetRNC_TransparentContainer_sequence[
 
 static int
 dissect_ranap_SourceRNC_ToTargetRNC_TransparentContainer(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 344 "../../asn1/ranap/ranap.cnf"
-/* If SourceRNC-ToTargetRNC-TransparentContainer is called trough 
+#line 342 "../../asn1/ranap/ranap.cnf"
+/* If SourceRNC-ToTargetRNC-TransparentContainer is called trough
    dissect_ranap_SourceRNC_ToTargetRNC_TransparentContainer_PDU
    ProtocolIE_ID may be unset
    */
-   
-   
-   ProtocolIE_ID = id_Source_ToTarget_TransparentContainer; 
+
+
+   ProtocolIE_ID = id_Source_ToTarget_TransparentContainer;
 
 
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
@@ -7713,7 +7713,7 @@ dissect_ranap_SRVCC_HO_Indication(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 static int
 dissect_ranap_BIT_STRING_SIZE_128(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     128, 128, FALSE, NULL);
+                                     128, 128, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -7752,7 +7752,7 @@ dissect_ranap_SRVCC_Operation_Possible(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 
 static int
 dissect_ranap_Target_ToSource_TransparentContainer(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 368 "../../asn1/ranap/ranap.cnf"
+#line 366 "../../asn1/ranap/ranap.cnf"
 
 dissect_ranap_TargetRNC_ToSourceRNC_TransparentContainer(tvb , offset, actx ,tree , hf_ranap_ranap_TargetRNC_ToSourceRNC_TransparentContainer_PDU );
 
@@ -7883,14 +7883,14 @@ dissect_ranap_TraceType(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_,
 
 static int
 dissect_ranap_TransportLayerAddress(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 304 "../../asn1/ranap/ranap.cnf"
+#line 302 "../../asn1/ranap/ranap.cnf"
   tvbuff_t *parameter_tvb=NULL;
   proto_item *item;
   proto_tree *subtree, *nsap_tree;
   gint tvb_len;
-  
+
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 160, TRUE, &parameter_tvb);
+                                     1, 160, TRUE, &parameter_tvb, NULL);
 
   if (!parameter_tvb)
     return offset;
@@ -7910,7 +7910,7 @@ dissect_ranap_TransportLayerAddress(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_
 		nsap_tree = proto_item_add_subtree(item, ett_ranap_TransportLayerAddress_nsap);
 		dissect_nsap(parameter_tvb, 0, 20, nsap_tree);
 	}
-	
+
 
 
   return offset;
@@ -7992,7 +7992,7 @@ dissect_ranap_UE_History_Information(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
 static int
 dissect_ranap_UESBI_IuA(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 128, FALSE, NULL);
+                                     1, 128, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -8002,7 +8002,7 @@ dissect_ranap_UESBI_IuA(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_,
 static int
 dissect_ranap_UESBI_IuB(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     1, 128, FALSE, NULL);
+                                     1, 128, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -8048,7 +8048,7 @@ dissect_ranap_UL_N_PDU_SequenceNumber(tvbuff_t *tvb _U_, int offset _U_, asn1_ct
 static int
 dissect_ranap_UP_ModeVersions(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_per_bit_string(tvb, offset, actx, tree, hf_index,
-                                     16, 16, FALSE, NULL);
+                                     16, 16, FALSE, NULL, NULL);
 
   return offset;
 }
@@ -8240,7 +8240,7 @@ dissect_ranap_VelocityEstimate(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 
 static int
 dissect_ranap_RAB_IE_ContainerList(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 144 "../../asn1/ranap/ranap.cnf"
+#line 142 "../../asn1/ranap/ranap.cnf"
   asn1_stack_frame_push(actx, "ProtocolIE-ContainerList");
   asn1_param_push_integer(actx, 1);
   asn1_param_push_integer(actx, maxNrOfRABs);
@@ -8256,7 +8256,7 @@ dissect_ranap_RAB_IE_ContainerList(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t
 
 static int
 dissect_ranap_RAB_IE_ContainerPairList(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 152 "../../asn1/ranap/ranap.cnf"
+#line 150 "../../asn1/ranap/ranap.cnf"
   asn1_stack_frame_push(actx, "ProtocolIE-ContainerPairList");
   asn1_param_push_integer(actx, 1);
   asn1_param_push_integer(actx, maxNrOfRABs);
@@ -8272,7 +8272,7 @@ dissect_ranap_RAB_IE_ContainerPairList(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 
 static int
 dissect_ranap_IuSigConId_IE_ContainerList(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 169 "../../asn1/ranap/ranap.cnf"
+#line 167 "../../asn1/ranap/ranap.cnf"
   asn1_stack_frame_push(actx, "ProtocolIE-ContainerList");
   asn1_param_push_integer(actx, 1);
   asn1_param_push_integer(actx, maxNrOfIuSigConIds);
@@ -8288,7 +8288,7 @@ dissect_ranap_IuSigConId_IE_ContainerList(tvbuff_t *tvb _U_, int offset _U_, asn
 
 static int
 dissect_ranap_DirectTransfer_IE_ContainerList(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-#line 177 "../../asn1/ranap/ranap.cnf"
+#line 175 "../../asn1/ranap/ranap.cnf"
   asn1_stack_frame_push(actx, "ProtocolIE-ContainerList");
   asn1_param_push_integer(actx, 1);
   asn1_param_push_integer(actx, maxNrOfDTs);
@@ -13176,15 +13176,17 @@ dissect_ranap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 
 		if (! sccp_msg_lcl->data.co.label && ProcedureCode != 0xFFFFFFFF) {
 			const gchar* str = val_to_str(ProcedureCode, ranap_ProcedureCode_vals,"Unknown RANAP");
-			sccp_msg_lcl->data.co.label = se_strdup(str);
+			sccp_msg_lcl->data.co.label = wmem_strdup(wmem_file_scope(), str);
 		}
 	}
 }
 
+#define RANAP_MSG_MIN_LENGTH 7
 static gboolean
 dissect_sccp_ranap_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
     guint8 temp;
+	guint16 word;
 	asn1_ctx_t asn1_ctx;
 	guint length;
 	int offset;
@@ -13202,7 +13204,7 @@ dissect_sccp_ranap_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
 
     #define LENGTH_OFFSET 3
     #define MSG_TYPE_OFFSET 1
-    if (tvb_length(tvb) < 4) { return FALSE; }
+    if (tvb_length(tvb) < RANAP_MSG_MIN_LENGTH) { return FALSE; }
     /*if (tvb_get_guint8(tvb, LENGTH_OFFSET) != (tvb_length(tvb) - 4)) { return FALSE; }*/
 	/* Read the length NOTE offset in bits */
 	offset = dissect_per_length_determinant(tvb, LENGTH_OFFSET<<3, &asn1_ctx, tree, -1, &length);
@@ -13214,6 +13216,13 @@ dissect_sccp_ranap_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
     temp = tvb_get_guint8(tvb, MSG_TYPE_OFFSET);
     if (temp > RANAP_MAX_PC) { return FALSE; }
 
+    /* Try to strengthen the heuristic further, by checking byte 6 and 7 which usually is a sequence-of lenght
+     * 
+     */
+    word = tvb_get_ntohs(tvb,5);
+    if(word > 0x1ff){
+        return FALSE;
+    }
     dissect_ranap(tvb, pinfo, tree);
 
     return TRUE;
@@ -13252,23 +13261,23 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_AccuracyFulfilmentIndicator_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_Alt_RAB_Parameters_PDU,
-      { "Alt-RAB-Parameters", "ranap.Alt_RAB_Parameters",
+      { "Alt-RAB-Parameters", "ranap.Alt_RAB_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_Alt_RAB_Parameter_ExtendedGuaranteedBitrateInf_PDU,
-      { "Alt-RAB-Parameter-ExtendedGuaranteedBitrateInf", "ranap.Alt_RAB_Parameter_ExtendedGuaranteedBitrateInf",
+      { "Alt-RAB-Parameter-ExtendedGuaranteedBitrateInf", "ranap.Alt_RAB_Parameter_ExtendedGuaranteedBitrateInf_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_Alt_RAB_Parameter_SupportedGuaranteedBitrateInf_PDU,
-      { "Alt-RAB-Parameter-SupportedGuaranteedBitrateInf", "ranap.Alt_RAB_Parameter_SupportedGuaranteedBitrateInf",
+      { "Alt-RAB-Parameter-SupportedGuaranteedBitrateInf", "ranap.Alt_RAB_Parameter_SupportedGuaranteedBitrateInf_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_Alt_RAB_Parameter_ExtendedMaxBitrateInf_PDU,
-      { "Alt-RAB-Parameter-ExtendedMaxBitrateInf", "ranap.Alt_RAB_Parameter_ExtendedMaxBitrateInf",
+      { "Alt-RAB-Parameter-ExtendedMaxBitrateInf", "ranap.Alt_RAB_Parameter_ExtendedMaxBitrateInf_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_Alt_RAB_Parameter_SupportedMaxBitrateInf_PDU,
-      { "Alt-RAB-Parameter-SupportedMaxBitrateInf", "ranap.Alt_RAB_Parameter_SupportedMaxBitrateInf",
+      { "Alt-RAB-Parameter-SupportedMaxBitrateInf", "ranap.Alt_RAB_Parameter_SupportedMaxBitrateInf_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_AlternativeRABConfigurationRequest_PDU,
@@ -13284,7 +13293,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_AreaIdentity_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_Ass_RAB_Parameters_PDU,
-      { "Ass-RAB-Parameters", "ranap.Ass_RAB_Parameters",
+      { "Ass-RAB-Parameters", "ranap.Ass_RAB_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_Ass_RAB_Parameter_ExtendedGuaranteedBitrateList_PDU,
@@ -13296,7 +13305,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_BroadcastAssistanceDataDecipheringKeys_PDU,
-      { "BroadcastAssistanceDataDecipheringKeys", "ranap.BroadcastAssistanceDataDecipheringKeys",
+      { "BroadcastAssistanceDataDecipheringKeys", "ranap.BroadcastAssistanceDataDecipheringKeys_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_Cause_PDU,
@@ -13308,7 +13317,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_Cell_Access_Mode_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_CellLoadInformationGroup_PDU,
-      { "CellLoadInformationGroup", "ranap.CellLoadInformationGroup",
+      { "CellLoadInformationGroup", "ranap.CellLoadInformationGroup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ClientType_PDU,
@@ -13316,7 +13325,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_ClientType_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_CriticalityDiagnostics_PDU,
-      { "CriticalityDiagnostics", "ranap.CriticalityDiagnostics",
+      { "CriticalityDiagnostics", "ranap.CriticalityDiagnostics_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MessageStructure_PDU,
@@ -13364,7 +13373,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_CSG_Membership_Status_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_DeltaRAListofIdleModeUEs_PDU,
-      { "DeltaRAListofIdleModeUEs", "ranap.DeltaRAListofIdleModeUEs",
+      { "DeltaRAListofIdleModeUEs", "ranap.DeltaRAListofIdleModeUEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_DRX_CycleLengthCoefficient_PDU,
@@ -13376,7 +13385,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_EncryptionInformation_PDU,
-      { "EncryptionInformation", "ranap.EncryptionInformation",
+      { "EncryptionInformation", "ranap.EncryptionInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_EncryptionKey_PDU,
@@ -13412,11 +13421,11 @@ void proto_register_ranap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_GlobalCN_ID_PDU,
-      { "GlobalCN-ID", "ranap.GlobalCN_ID",
+      { "GlobalCN-ID", "ranap.GlobalCN_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_GlobalRNC_ID_PDU,
-      { "GlobalRNC-ID", "ranap.GlobalRNC_ID",
+      { "GlobalRNC-ID", "ranap.GlobalRNC_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_HigherBitratesThan16MbpsFlag_PDU,
@@ -13456,7 +13465,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_InformationTransferType_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_IntegrityProtectionInformation_PDU,
-      { "IntegrityProtectionInformation", "ranap.IntegrityProtectionInformation",
+      { "IntegrityProtectionInformation", "ranap.IntegrityProtectionInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_IntegrityProtectionKey_PDU,
@@ -13468,7 +13477,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_InterSystemInformationTransferType_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_ranap_InterSystemInformation_TransparentContainer_PDU,
-      { "InterSystemInformation-TransparentContainer", "ranap.InterSystemInformation_TransparentContainer",
+      { "InterSystemInformation-TransparentContainer", "ranap.InterSystemInformation_TransparentContainer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_IPMulticastAddress_PDU,
@@ -13488,15 +13497,15 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_KeyStatus_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_LAI_PDU,
-      { "LAI", "ranap.LAI",
+      { "LAI", "ranap.LAI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_LastKnownServiceArea_PDU,
-      { "LastKnownServiceArea", "ranap.LastKnownServiceArea",
+      { "LastKnownServiceArea", "ranap.LastKnownServiceArea_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_LocationRelatedDataRequestType_PDU,
-      { "LocationRelatedDataRequestType", "ranap.LocationRelatedDataRequestType",
+      { "LocationRelatedDataRequestType", "ranap.LocationRelatedDataRequestType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_LocationRelatedDataRequestTypeSpecificToGERANIuMode_PDU,
@@ -13548,7 +13557,7 @@ void proto_register_ranap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MDT_Configuration_PDU,
-      { "MDT-Configuration", "ranap.MDT_Configuration",
+      { "MDT-Configuration", "ranap.MDT_Configuration_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MSISDN_PDU,
@@ -13576,7 +13585,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_Offload_RAB_Parameters_PDU,
-      { "Offload-RAB-Parameters", "ranap.Offload_RAB_Parameters",
+      { "Offload-RAB-Parameters", "ranap.Offload_RAB_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_OldBSS_ToNewBSS_Information_PDU,
@@ -13604,7 +13613,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_PeriodicLocationInfo_PDU,
-      { "PeriodicLocationInfo", "ranap.PeriodicLocationInfo",
+      { "PeriodicLocationInfo", "ranap.PeriodicLocationInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_PermanentNAS_UE_ID_PDU,
@@ -13620,7 +13629,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_PositioningPriority_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_PositionData_PDU,
-      { "PositionData", "ranap.PositionData",
+      { "PositionData", "ranap.PositionData_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_PositionDataSpecificToGERANIuMode_PDU,
@@ -13648,7 +13657,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_Parameters_PDU,
-      { "RAB-Parameters", "ranap.RAB_Parameters",
+      { "RAB-Parameters", "ranap.RAB_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RABParametersList_PDU,
@@ -13672,7 +13681,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_RAT_Type_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_RedirectAttemptFlag_PDU,
-      { "RedirectAttemptFlag", "ranap.RedirectAttemptFlag",
+      { "RedirectAttemptFlag", "ranap.RedirectAttemptFlag_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RedirectionCompleted_PDU,
@@ -13700,7 +13709,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RequestType_PDU,
-      { "RequestType", "ranap.RequestType",
+      { "RequestType", "ranap.RequestType_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ResponseTime_PDU,
@@ -13708,7 +13717,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_ResponseTime_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_RNSAPRelocationParameters_PDU,
-      { "RNSAPRelocationParameters", "ranap.RNSAPRelocationParameters",
+      { "RNSAPRelocationParameters", "ranap.RNSAPRelocationParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RRC_Container_PDU,
@@ -13716,7 +13725,7 @@ void proto_register_ranap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_SAI_PDU,
-      { "SAI", "ranap.SAI",
+      { "SAI", "ranap.SAI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_SAPI_PDU,
@@ -13732,7 +13741,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_SignallingIndication_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_SNA_Access_Information_PDU,
-      { "SNA-Access-Information", "ranap.SNA_Access_Information",
+      { "SNA-Access-Information", "ranap.SNA_Access_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_Source_ToTarget_TransparentContainer_PDU,
@@ -13752,11 +13761,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_SourceID_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_ranap_SourceRNC_ToTargetRNC_TransparentContainer_PDU,
-      { "SourceRNC-ToTargetRNC-TransparentContainer", "ranap.SourceRNC_ToTargetRNC_TransparentContainer",
+      { "SourceRNC-ToTargetRNC-TransparentContainer", "ranap.SourceRNC_ToTargetRNC_TransparentContainer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_IRAT_Measurement_Configuration_PDU,
-      { "IRAT-Measurement-Configuration", "ranap.IRAT_Measurement_Configuration",
+      { "IRAT-Measurement-Configuration", "ranap.IRAT_Measurement_Configuration_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_SubscriberProfileIDforRFP_PDU,
@@ -13776,7 +13785,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_SRVCC_HO_Indication_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_SRVCC_Information_PDU,
-      { "SRVCC-Information", "ranap.SRVCC_Information",
+      { "SRVCC-Information", "ranap.SRVCC_Information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_SRVCC_Operation_Possible_PDU,
@@ -13796,11 +13805,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_TargetID_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_ranap_TargetRNC_ID_PDU,
-      { "TargetRNC-ID", "ranap.TargetRNC_ID",
+      { "TargetRNC-ID", "ranap.TargetRNC_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ranap_TargetRNC_ToSourceRNC_TransparentContainer_PDU,
-      { "TargetRNC-ToSourceRNC-TransparentContainer", "ranap.TargetRNC_ToSourceRNC_TransparentContainer",
+      { "TargetRNC-ToSourceRNC-TransparentContainer", "ranap.TargetRNC_ToSourceRNC_TransparentContainer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_TemporaryUE_ID_PDU,
@@ -13812,15 +13821,15 @@ void proto_register_ranap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_TMGI_PDU,
-      { "TMGI", "ranap.TMGI",
+      { "TMGI", "ranap.TMGI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_TracePropagationParameters_PDU,
-      { "TracePropagationParameters", "ranap.TracePropagationParameters",
+      { "TracePropagationParameters", "ranap.TracePropagationParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_TraceRecordingSessionInformation_PDU,
-      { "TraceRecordingSessionInformation", "ranap.TraceRecordingSessionInformation",
+      { "TraceRecordingSessionInformation", "ranap.TraceRecordingSessionInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_TraceReference_PDU,
@@ -13844,7 +13853,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_TypeOfError_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_UE_AggregateMaximumBitRate_PDU,
-      { "UE-AggregateMaximumBitRate", "ranap.UE_AggregateMaximumBitRate",
+      { "UE-AggregateMaximumBitRate", "ranap.UE_AggregateMaximumBitRate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_UE_History_Information_PDU,
@@ -13856,7 +13865,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_UE_ID_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_UESBI_Iu_PDU,
-      { "UESBI-Iu", "ranap.UESBI_Iu",
+      { "UESBI-Iu", "ranap.UESBI_Iu_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_VelocityEstimate_PDU,
@@ -13868,11 +13877,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_Iu_ReleaseCommand_PDU,
-      { "Iu-ReleaseCommand", "ranap.Iu_ReleaseCommand",
+      { "Iu-ReleaseCommand", "ranap.Iu_ReleaseCommand_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_Iu_ReleaseComplete_PDU,
-      { "Iu-ReleaseComplete", "ranap.Iu_ReleaseComplete",
+      { "Iu-ReleaseComplete", "ranap.Iu_ReleaseComplete_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_DataVolumeReportList_PDU,
@@ -13880,7 +13889,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_DataVolumeReportItem_PDU,
-      { "RAB-DataVolumeReportItem", "ranap.RAB_DataVolumeReportItem",
+      { "RAB-DataVolumeReportItem", "ranap.RAB_DataVolumeReportItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ReleasedList_IuRelComp_PDU,
@@ -13888,15 +13897,15 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ReleasedItem_IuRelComp_PDU,
-      { "RAB-ReleasedItem-IuRelComp", "ranap.RAB_ReleasedItem_IuRelComp",
+      { "RAB-ReleasedItem-IuRelComp", "ranap.RAB_ReleasedItem_IuRelComp_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RelocationRequired_PDU,
-      { "RelocationRequired", "ranap.RelocationRequired",
+      { "RelocationRequired", "ranap.RelocationRequired_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RelocationCommand_PDU,
-      { "RelocationCommand", "ranap.RelocationCommand",
+      { "RelocationCommand", "ranap.RelocationCommand_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_RelocationReleaseList_PDU,
@@ -13904,7 +13913,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_RelocationReleaseItem_PDU,
-      { "RAB-RelocationReleaseItem", "ranap.RAB_RelocationReleaseItem",
+      { "RAB-RelocationReleaseItem", "ranap.RAB_RelocationReleaseItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_DataForwardingList_PDU,
@@ -13912,15 +13921,15 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_DataForwardingItem_PDU,
-      { "RAB-DataForwardingItem", "ranap.RAB_DataForwardingItem",
+      { "RAB-DataForwardingItem", "ranap.RAB_DataForwardingItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RelocationPreparationFailure_PDU,
-      { "RelocationPreparationFailure", "ranap.RelocationPreparationFailure",
+      { "RelocationPreparationFailure", "ranap.RelocationPreparationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RelocationRequest_PDU,
-      { "RelocationRequest", "ranap.RelocationRequest",
+      { "RelocationRequest", "ranap.RelocationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupList_RelocReq_PDU,
@@ -13928,11 +13937,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupItem_RelocReq_PDU,
-      { "RAB-SetupItem-RelocReq", "ranap.RAB_SetupItem_RelocReq",
+      { "RAB-SetupItem-RelocReq", "ranap.RAB_SetupItem_RelocReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_CNMBMSLinkingInformation_PDU,
-      { "CNMBMSLinkingInformation", "ranap.CNMBMSLinkingInformation",
+      { "CNMBMSLinkingInformation", "ranap.CNMBMSLinkingInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_JoinedMBMSBearerService_IEs_PDU,
@@ -13940,7 +13949,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RelocationRequestAcknowledge_PDU,
-      { "RelocationRequestAcknowledge", "ranap.RelocationRequestAcknowledge",
+      { "RelocationRequestAcknowledge", "ranap.RelocationRequestAcknowledge_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupList_RelocReqAck_PDU,
@@ -13948,7 +13957,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupItem_RelocReqAck_PDU,
-      { "RAB-SetupItem-RelocReqAck", "ranap.RAB_SetupItem_RelocReqAck",
+      { "RAB-SetupItem-RelocReqAck", "ranap.RAB_SetupItem_RelocReqAck_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_FailedList_PDU,
@@ -13956,23 +13965,23 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_FailedItem_PDU,
-      { "RAB-FailedItem", "ranap.RAB_FailedItem",
+      { "RAB-FailedItem", "ranap.RAB_FailedItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RelocationFailure_PDU,
-      { "RelocationFailure", "ranap.RelocationFailure",
+      { "RelocationFailure", "ranap.RelocationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RelocationCancel_PDU,
-      { "RelocationCancel", "ranap.RelocationCancel",
+      { "RelocationCancel", "ranap.RelocationCancel_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RelocationCancelAcknowledge_PDU,
-      { "RelocationCancelAcknowledge", "ranap.RelocationCancelAcknowledge",
+      { "RelocationCancelAcknowledge", "ranap.RelocationCancelAcknowledge_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_SRNS_ContextRequest_PDU,
-      { "SRNS-ContextRequest", "ranap.SRNS_ContextRequest",
+      { "SRNS-ContextRequest", "ranap.SRNS_ContextRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_DataForwardingList_SRNS_CtxReq_PDU,
@@ -13980,11 +13989,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_DataForwardingItem_SRNS_CtxReq_PDU,
-      { "RAB-DataForwardingItem-SRNS-CtxReq", "ranap.RAB_DataForwardingItem_SRNS_CtxReq",
+      { "RAB-DataForwardingItem-SRNS-CtxReq", "ranap.RAB_DataForwardingItem_SRNS_CtxReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_SRNS_ContextResponse_PDU,
-      { "SRNS-ContextResponse", "ranap.SRNS_ContextResponse",
+      { "SRNS-ContextResponse", "ranap.SRNS_ContextResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ContextList_PDU,
@@ -13992,7 +14001,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ContextItem_PDU,
-      { "RAB-ContextItem", "ranap.RAB_ContextItem",
+      { "RAB-ContextItem", "ranap.RAB_ContextItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ContextFailedtoTransferList_PDU,
@@ -14000,23 +14009,23 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RABs_ContextFailedtoTransferItem_PDU,
-      { "RABs-ContextFailedtoTransferItem", "ranap.RABs_ContextFailedtoTransferItem",
+      { "RABs-ContextFailedtoTransferItem", "ranap.RABs_ContextFailedtoTransferItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_SecurityModeCommand_PDU,
-      { "SecurityModeCommand", "ranap.SecurityModeCommand",
+      { "SecurityModeCommand", "ranap.SecurityModeCommand_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_SecurityModeComplete_PDU,
-      { "SecurityModeComplete", "ranap.SecurityModeComplete",
+      { "SecurityModeComplete", "ranap.SecurityModeComplete_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_SecurityModeReject_PDU,
-      { "SecurityModeReject", "ranap.SecurityModeReject",
+      { "SecurityModeReject", "ranap.SecurityModeReject_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_DataVolumeReportRequest_PDU,
-      { "DataVolumeReportRequest", "ranap.DataVolumeReportRequest",
+      { "DataVolumeReportRequest", "ranap.DataVolumeReportRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_DataVolumeReportRequestList_PDU,
@@ -14024,11 +14033,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_DataVolumeReportRequestItem_PDU,
-      { "RAB-DataVolumeReportRequestItem", "ranap.RAB_DataVolumeReportRequestItem",
+      { "RAB-DataVolumeReportRequestItem", "ranap.RAB_DataVolumeReportRequestItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_DataVolumeReport_PDU,
-      { "DataVolumeReport", "ranap.DataVolumeReport",
+      { "DataVolumeReport", "ranap.DataVolumeReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_FailedtoReportList_PDU,
@@ -14036,19 +14045,19 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RABs_failed_to_reportItem_PDU,
-      { "RABs-failed-to-reportItem", "ranap.RABs_failed_to_reportItem",
+      { "RABs-failed-to-reportItem", "ranap.RABs_failed_to_reportItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_Reset_PDU,
-      { "Reset", "ranap.Reset",
+      { "Reset", "ranap.Reset_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ResetAcknowledge_PDU,
-      { "ResetAcknowledge", "ranap.ResetAcknowledge",
+      { "ResetAcknowledge", "ranap.ResetAcknowledge_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ResetResource_PDU,
-      { "ResetResource", "ranap.ResetResource",
+      { "ResetResource", "ranap.ResetResource_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ResetResourceList_PDU,
@@ -14056,11 +14065,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ResetResourceItem_PDU,
-      { "ResetResourceItem", "ranap.ResetResourceItem",
+      { "ResetResourceItem", "ranap.ResetResourceItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ResetResourceAcknowledge_PDU,
-      { "ResetResourceAcknowledge", "ranap.ResetResourceAcknowledge",
+      { "ResetResourceAcknowledge", "ranap.ResetResourceAcknowledge_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ResetResourceAckList_PDU,
@@ -14068,11 +14077,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ResetResourceAckItem_PDU,
-      { "ResetResourceAckItem", "ranap.ResetResourceAckItem",
+      { "ResetResourceAckItem", "ranap.ResetResourceAckItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ReleaseRequest_PDU,
-      { "RAB-ReleaseRequest", "ranap.RAB_ReleaseRequest",
+      { "RAB-ReleaseRequest", "ranap.RAB_ReleaseRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ReleaseList_PDU,
@@ -14080,23 +14089,23 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ReleaseItem_PDU,
-      { "RAB-ReleaseItem", "ranap.RAB_ReleaseItem",
+      { "RAB-ReleaseItem", "ranap.RAB_ReleaseItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_Iu_ReleaseRequest_PDU,
-      { "Iu-ReleaseRequest", "ranap.Iu_ReleaseRequest",
+      { "Iu-ReleaseRequest", "ranap.Iu_ReleaseRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RelocationDetect_PDU,
-      { "RelocationDetect", "ranap.RelocationDetect",
+      { "RelocationDetect", "ranap.RelocationDetect_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RelocationComplete_PDU,
-      { "RelocationComplete", "ranap.RelocationComplete",
+      { "RelocationComplete", "ranap.RelocationComplete_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_EnhancedRelocationCompleteRequest_PDU,
-      { "EnhancedRelocationCompleteRequest", "ranap.EnhancedRelocationCompleteRequest",
+      { "EnhancedRelocationCompleteRequest", "ranap.EnhancedRelocationCompleteRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupList_EnhancedRelocCompleteReq_PDU,
@@ -14104,11 +14113,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupItem_EnhancedRelocCompleteReq_PDU,
-      { "RAB-SetupItem-EnhancedRelocCompleteReq", "ranap.RAB_SetupItem_EnhancedRelocCompleteReq",
+      { "RAB-SetupItem-EnhancedRelocCompleteReq", "ranap.RAB_SetupItem_EnhancedRelocCompleteReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_EnhancedRelocationCompleteResponse_PDU,
-      { "EnhancedRelocationCompleteResponse", "ranap.EnhancedRelocationCompleteResponse",
+      { "EnhancedRelocationCompleteResponse", "ranap.EnhancedRelocationCompleteResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupList_EnhancedRelocCompleteRes_PDU,
@@ -14116,7 +14125,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupItem_EnhancedRelocCompleteRes_PDU,
-      { "RAB-SetupItem-EnhancedRelocCompleteRes", "ranap.RAB_SetupItem_EnhancedRelocCompleteRes",
+      { "RAB-SetupItem-EnhancedRelocCompleteRes", "ranap.RAB_SetupItem_EnhancedRelocCompleteRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ToBeReleasedList_EnhancedRelocCompleteRes_PDU,
@@ -14124,47 +14133,47 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ToBeReleasedItem_EnhancedRelocCompleteRes_PDU,
-      { "RAB-ToBeReleasedItem-EnhancedRelocCompleteRes", "ranap.RAB_ToBeReleasedItem_EnhancedRelocCompleteRes",
+      { "RAB-ToBeReleasedItem-EnhancedRelocCompleteRes", "ranap.RAB_ToBeReleasedItem_EnhancedRelocCompleteRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_EnhancedRelocationCompleteFailure_PDU,
-      { "EnhancedRelocationCompleteFailure", "ranap.EnhancedRelocationCompleteFailure",
+      { "EnhancedRelocationCompleteFailure", "ranap.EnhancedRelocationCompleteFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_EnhancedRelocationCompleteConfirm_PDU,
-      { "EnhancedRelocationCompleteConfirm", "ranap.EnhancedRelocationCompleteConfirm",
+      { "EnhancedRelocationCompleteConfirm", "ranap.EnhancedRelocationCompleteConfirm_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_Paging_PDU,
-      { "Paging", "ranap.Paging",
+      { "Paging", "ranap.Paging_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_CommonID_PDU,
-      { "CommonID", "ranap.CommonID",
+      { "CommonID", "ranap.CommonID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_CN_InvokeTrace_PDU,
-      { "CN-InvokeTrace", "ranap.CN_InvokeTrace",
+      { "CN-InvokeTrace", "ranap.CN_InvokeTrace_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_CN_DeactivateTrace_PDU,
-      { "CN-DeactivateTrace", "ranap.CN_DeactivateTrace",
+      { "CN-DeactivateTrace", "ranap.CN_DeactivateTrace_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_LocationReportingControl_PDU,
-      { "LocationReportingControl", "ranap.LocationReportingControl",
+      { "LocationReportingControl", "ranap.LocationReportingControl_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_LocationReport_PDU,
-      { "LocationReport", "ranap.LocationReport",
+      { "LocationReport", "ranap.LocationReport_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_InitialUE_Message_PDU,
-      { "InitialUE-Message", "ranap.InitialUE_Message",
+      { "InitialUE-Message", "ranap.InitialUE_Message_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_DirectTransfer_PDU,
-      { "DirectTransfer", "ranap.DirectTransfer",
+      { "DirectTransfer", "ranap.DirectTransfer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RedirectionIndication_PDU,
@@ -14172,23 +14181,23 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_Overload_PDU,
-      { "Overload", "ranap.Overload",
+      { "Overload", "ranap.Overload_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ErrorIndication_PDU,
-      { "ErrorIndication", "ranap.ErrorIndication",
+      { "ErrorIndication", "ranap.ErrorIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_SRNS_DataForwardCommand_PDU,
-      { "SRNS-DataForwardCommand", "ranap.SRNS_DataForwardCommand",
+      { "SRNS-DataForwardCommand", "ranap.SRNS_DataForwardCommand_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ForwardSRNS_Context_PDU,
-      { "ForwardSRNS-Context", "ranap.ForwardSRNS_Context",
+      { "ForwardSRNS-Context", "ranap.ForwardSRNS_Context_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_AssignmentRequest_PDU,
-      { "RAB-AssignmentRequest", "ranap.RAB_AssignmentRequest",
+      { "RAB-AssignmentRequest", "ranap.RAB_AssignmentRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupOrModifyList_PDU,
@@ -14196,19 +14205,19 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupOrModifyItemFirst_PDU,
-      { "RAB-SetupOrModifyItemFirst", "ranap.RAB_SetupOrModifyItemFirst",
+      { "RAB-SetupOrModifyItemFirst", "ranap.RAB_SetupOrModifyItemFirst_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_TransportLayerInformation_PDU,
-      { "TransportLayerInformation", "ranap.TransportLayerInformation",
+      { "TransportLayerInformation", "ranap.TransportLayerInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupOrModifyItemSecond_PDU,
-      { "RAB-SetupOrModifyItemSecond", "ranap.RAB_SetupOrModifyItemSecond",
+      { "RAB-SetupOrModifyItemSecond", "ranap.RAB_SetupOrModifyItemSecond_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_AssignmentResponse_PDU,
-      { "RAB-AssignmentResponse", "ranap.RAB_AssignmentResponse",
+      { "RAB-AssignmentResponse", "ranap.RAB_AssignmentResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupOrModifiedList_PDU,
@@ -14216,7 +14225,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupOrModifiedItem_PDU,
-      { "RAB-SetupOrModifiedItem", "ranap.RAB_SetupOrModifiedItem",
+      { "RAB-SetupOrModifiedItem", "ranap.RAB_SetupOrModifiedItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ReleasedList_PDU,
@@ -14224,7 +14233,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ReleasedItem_PDU,
-      { "RAB-ReleasedItem", "ranap.RAB_ReleasedItem",
+      { "RAB-ReleasedItem", "ranap.RAB_ReleasedItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_QueuedList_PDU,
@@ -14232,7 +14241,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_QueuedItem_PDU,
-      { "RAB-QueuedItem", "ranap.RAB_QueuedItem",
+      { "RAB-QueuedItem", "ranap.RAB_QueuedItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ReleaseFailedList_PDU,
@@ -14244,15 +14253,15 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_GERAN_Iumode_RAB_Failed_RABAssgntResponse_Item_PDU,
-      { "GERAN-Iumode-RAB-Failed-RABAssgntResponse-Item", "ranap.GERAN_Iumode_RAB_Failed_RABAssgntResponse_Item",
+      { "GERAN-Iumode-RAB-Failed-RABAssgntResponse-Item", "ranap.GERAN_Iumode_RAB_Failed_RABAssgntResponse_Item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_PrivateMessage_PDU,
-      { "PrivateMessage", "ranap.PrivateMessage",
+      { "PrivateMessage", "ranap.PrivateMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RANAP_RelocationInformation_PDU,
-      { "RANAP-RelocationInformation", "ranap.RANAP_RelocationInformation",
+      { "RANAP-RelocationInformation", "ranap.RANAP_RelocationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_DirectTransferInformationList_RANAP_RelocInf_PDU,
@@ -14260,7 +14269,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_DirectTransferInformationItem_RANAP_RelocInf_PDU,
-      { "DirectTransferInformationItem-RANAP-RelocInf", "ranap.DirectTransferInformationItem_RANAP_RelocInf",
+      { "DirectTransferInformationItem-RANAP-RelocInf", "ranap.DirectTransferInformationItem_RANAP_RelocInf_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ContextList_RANAP_RelocInf_PDU,
@@ -14268,11 +14277,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ContextItem_RANAP_RelocInf_PDU,
-      { "RAB-ContextItem-RANAP-RelocInf", "ranap.RAB_ContextItem_RANAP_RelocInf",
+      { "RAB-ContextItem-RANAP-RelocInf", "ranap.RAB_ContextItem_RANAP_RelocInf_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RANAP_EnhancedRelocationInformationRequest_PDU,
-      { "RANAP-EnhancedRelocationInformationRequest", "ranap.RANAP_EnhancedRelocationInformationRequest",
+      { "RANAP-EnhancedRelocationInformationRequest", "ranap.RANAP_EnhancedRelocationInformationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupList_EnhRelocInfoReq_PDU,
@@ -14280,11 +14289,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupItem_EnhRelocInfoReq_PDU,
-      { "RAB-SetupItem-EnhRelocInfoReq", "ranap.RAB_SetupItem_EnhRelocInfoReq",
+      { "RAB-SetupItem-EnhRelocInfoReq", "ranap.RAB_SetupItem_EnhRelocInfoReq_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RANAP_EnhancedRelocationInformationResponse_PDU,
-      { "RANAP-EnhancedRelocationInformationResponse", "ranap.RANAP_EnhancedRelocationInformationResponse",
+      { "RANAP-EnhancedRelocationInformationResponse", "ranap.RANAP_EnhancedRelocationInformationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupList_EnhRelocInfoRes_PDU,
@@ -14292,7 +14301,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_SetupItem_EnhRelocInfoRes_PDU,
-      { "RAB-SetupItem-EnhRelocInfoRes", "ranap.RAB_SetupItem_EnhRelocInfoRes",
+      { "RAB-SetupItem-EnhRelocInfoRes", "ranap.RAB_SetupItem_EnhRelocInfoRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_FailedList_EnhRelocInfoRes_PDU,
@@ -14300,11 +14309,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_FailedItem_EnhRelocInfoRes_PDU,
-      { "RAB-FailedItem-EnhRelocInfoRes", "ranap.RAB_FailedItem_EnhRelocInfoRes",
+      { "RAB-FailedItem-EnhRelocInfoRes", "ranap.RAB_FailedItem_EnhRelocInfoRes_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ModifyRequest_PDU,
-      { "RAB-ModifyRequest", "ranap.RAB_ModifyRequest",
+      { "RAB-ModifyRequest", "ranap.RAB_ModifyRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ModifyList_PDU,
@@ -14312,91 +14321,91 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_ModifyItem_PDU,
-      { "RAB-ModifyItem", "ranap.RAB_ModifyItem",
+      { "RAB-ModifyItem", "ranap.RAB_ModifyItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_LocationRelatedDataRequest_PDU,
-      { "LocationRelatedDataRequest", "ranap.LocationRelatedDataRequest",
+      { "LocationRelatedDataRequest", "ranap.LocationRelatedDataRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_LocationRelatedDataResponse_PDU,
-      { "LocationRelatedDataResponse", "ranap.LocationRelatedDataResponse",
+      { "LocationRelatedDataResponse", "ranap.LocationRelatedDataResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_LocationRelatedDataFailure_PDU,
-      { "LocationRelatedDataFailure", "ranap.LocationRelatedDataFailure",
+      { "LocationRelatedDataFailure", "ranap.LocationRelatedDataFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_InformationTransferIndication_PDU,
-      { "InformationTransferIndication", "ranap.InformationTransferIndication",
+      { "InformationTransferIndication", "ranap.InformationTransferIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_InformationTransferConfirmation_PDU,
-      { "InformationTransferConfirmation", "ranap.InformationTransferConfirmation",
+      { "InformationTransferConfirmation", "ranap.InformationTransferConfirmation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_InformationTransferFailure_PDU,
-      { "InformationTransferFailure", "ranap.InformationTransferFailure",
+      { "InformationTransferFailure", "ranap.InformationTransferFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_UESpecificInformationIndication_PDU,
-      { "UESpecificInformationIndication", "ranap.UESpecificInformationIndication",
+      { "UESpecificInformationIndication", "ranap.UESpecificInformationIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_DirectInformationTransfer_PDU,
-      { "DirectInformationTransfer", "ranap.DirectInformationTransfer",
+      { "DirectInformationTransfer", "ranap.DirectInformationTransfer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_UplinkInformationExchangeRequest_PDU,
-      { "UplinkInformationExchangeRequest", "ranap.UplinkInformationExchangeRequest",
+      { "UplinkInformationExchangeRequest", "ranap.UplinkInformationExchangeRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_UplinkInformationExchangeResponse_PDU,
-      { "UplinkInformationExchangeResponse", "ranap.UplinkInformationExchangeResponse",
+      { "UplinkInformationExchangeResponse", "ranap.UplinkInformationExchangeResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_UplinkInformationExchangeFailure_PDU,
-      { "UplinkInformationExchangeFailure", "ranap.UplinkInformationExchangeFailure",
+      { "UplinkInformationExchangeFailure", "ranap.UplinkInformationExchangeFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSSessionStart_PDU,
-      { "MBMSSessionStart", "ranap.MBMSSessionStart",
+      { "MBMSSessionStart", "ranap.MBMSSessionStart_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSSynchronisationInformation_PDU,
-      { "MBMSSynchronisationInformation", "ranap.MBMSSynchronisationInformation",
+      { "MBMSSynchronisationInformation", "ranap.MBMSSynchronisationInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSSessionStartResponse_PDU,
-      { "MBMSSessionStartResponse", "ranap.MBMSSessionStartResponse",
+      { "MBMSSessionStartResponse", "ranap.MBMSSessionStartResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSSessionStartFailure_PDU,
-      { "MBMSSessionStartFailure", "ranap.MBMSSessionStartFailure",
+      { "MBMSSessionStartFailure", "ranap.MBMSSessionStartFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSSessionUpdate_PDU,
-      { "MBMSSessionUpdate", "ranap.MBMSSessionUpdate",
+      { "MBMSSessionUpdate", "ranap.MBMSSessionUpdate_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSSessionUpdateResponse_PDU,
-      { "MBMSSessionUpdateResponse", "ranap.MBMSSessionUpdateResponse",
+      { "MBMSSessionUpdateResponse", "ranap.MBMSSessionUpdateResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSSessionUpdateFailure_PDU,
-      { "MBMSSessionUpdateFailure", "ranap.MBMSSessionUpdateFailure",
+      { "MBMSSessionUpdateFailure", "ranap.MBMSSessionUpdateFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSSessionStop_PDU,
-      { "MBMSSessionStop", "ranap.MBMSSessionStop",
+      { "MBMSSessionStop", "ranap.MBMSSessionStop_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSSessionStopResponse_PDU,
-      { "MBMSSessionStopResponse", "ranap.MBMSSessionStopResponse",
+      { "MBMSSessionStopResponse", "ranap.MBMSSessionStopResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSUELinkingRequest_PDU,
-      { "MBMSUELinkingRequest", "ranap.MBMSUELinkingRequest",
+      { "MBMSUELinkingRequest", "ranap.MBMSUELinkingRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_LeftMBMSBearerService_IEs_PDU,
@@ -14404,7 +14413,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSUELinkingResponse_PDU,
-      { "MBMSUELinkingResponse", "ranap.MBMSUELinkingResponse",
+      { "MBMSUELinkingResponse", "ranap.MBMSUELinkingResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_UnsuccessfulLinking_IEs_PDU,
@@ -14412,47 +14421,47 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSRegistrationRequest_PDU,
-      { "MBMSRegistrationRequest", "ranap.MBMSRegistrationRequest",
+      { "MBMSRegistrationRequest", "ranap.MBMSRegistrationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSRegistrationResponse_PDU,
-      { "MBMSRegistrationResponse", "ranap.MBMSRegistrationResponse",
+      { "MBMSRegistrationResponse", "ranap.MBMSRegistrationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSRegistrationFailure_PDU,
-      { "MBMSRegistrationFailure", "ranap.MBMSRegistrationFailure",
+      { "MBMSRegistrationFailure", "ranap.MBMSRegistrationFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSCNDe_RegistrationRequest_PDU,
-      { "MBMSCNDe-RegistrationRequest", "ranap.MBMSCNDe_RegistrationRequest",
+      { "MBMSCNDe-RegistrationRequest", "ranap.MBMSCNDe_RegistrationRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSCNDe_RegistrationResponse_PDU,
-      { "MBMSCNDe-RegistrationResponse", "ranap.MBMSCNDe_RegistrationResponse",
+      { "MBMSCNDe-RegistrationResponse", "ranap.MBMSCNDe_RegistrationResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSRABEstablishmentIndication_PDU,
-      { "MBMSRABEstablishmentIndication", "ranap.MBMSRABEstablishmentIndication",
+      { "MBMSRABEstablishmentIndication", "ranap.MBMSRABEstablishmentIndication_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSRABReleaseRequest_PDU,
-      { "MBMSRABReleaseRequest", "ranap.MBMSRABReleaseRequest",
+      { "MBMSRABReleaseRequest", "ranap.MBMSRABReleaseRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSRABRelease_PDU,
-      { "MBMSRABRelease", "ranap.MBMSRABRelease",
+      { "MBMSRABRelease", "ranap.MBMSRABRelease_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_MBMSRABReleaseFailure_PDU,
-      { "MBMSRABReleaseFailure", "ranap.MBMSRABReleaseFailure",
+      { "MBMSRABReleaseFailure", "ranap.MBMSRABReleaseFailure_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_SRVCC_CSKeysRequest_PDU,
-      { "SRVCC-CSKeysRequest", "ranap.SRVCC_CSKeysRequest",
+      { "SRVCC-CSKeysRequest", "ranap.SRVCC_CSKeysRequest_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_SRVCC_CSKeysResponse_PDU,
-      { "SRVCC-CSKeysResponse", "ranap.SRVCC_CSKeysResponse",
+      { "SRVCC-CSKeysResponse", "ranap.SRVCC_CSKeysResponse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RANAP_PDU_PDU,
@@ -14468,7 +14477,7 @@ void proto_register_ranap(void) {
         FT_OID, BASE_NONE, NULL, 0,
         "OBJECT_IDENTIFIER", HFILL }},
     { &hf_ranap_ProtocolIE_Container_item,
-      { "ProtocolIE-Field", "ranap.ProtocolIE_Field",
+      { "ProtocolIE-Field", "ranap.ProtocolIE_Field_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_id,
@@ -14480,11 +14489,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_Criticality_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_ie_field_value,
-      { "value", "ranap.value",
+      { "value", "ranap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_ie_field_value", HFILL }},
     { &hf_ranap_ProtocolIE_ContainerPair_item,
-      { "ProtocolIE-FieldPair", "ranap.ProtocolIE_FieldPair",
+      { "ProtocolIE-FieldPair", "ranap.ProtocolIE_FieldPair_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_firstCriticality,
@@ -14492,7 +14501,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_Criticality_vals), 0,
         "Criticality", HFILL }},
     { &hf_ranap_firstValue,
-      { "firstValue", "ranap.firstValue",
+      { "firstValue", "ranap.firstValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_secondCriticality,
@@ -14500,7 +14509,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_Criticality_vals), 0,
         "Criticality", HFILL }},
     { &hf_ranap_secondValue,
-      { "secondValue", "ranap.secondValue",
+      { "secondValue", "ranap.secondValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ProtocolIE_ContainerList_item,
@@ -14512,7 +14521,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ProtocolExtensionContainer_item,
-      { "ProtocolExtensionField", "ranap.ProtocolExtensionField",
+      { "ProtocolExtensionField", "ranap.ProtocolExtensionField_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ext_id,
@@ -14520,11 +14529,11 @@ void proto_register_ranap(void) {
         FT_UINT8, BASE_DEC|BASE_EXT_STRING, &ranap_ProtocolIE_ID_vals_ext, 0,
         "ProtocolExtensionID", HFILL }},
     { &hf_ranap_extensionValue,
-      { "extensionValue", "ranap.extensionValue",
+      { "extensionValue", "ranap.extensionValue_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_PrivateIE_Container_item,
-      { "PrivateIE-Field", "ranap.PrivateIE_Field",
+      { "PrivateIE-Field", "ranap.PrivateIE_Field_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_private_id,
@@ -14532,7 +14541,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_PrivateIE_ID_vals), 0,
         "PrivateIE_ID", HFILL }},
     { &hf_ranap_private_value,
-      { "value", "ranap.value",
+      { "value", "ranap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "T_private_value", HFILL }},
     { &hf_ranap_priorityLevel,
@@ -14556,11 +14565,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "ProtocolExtensionContainer", HFILL }},
     { &hf_ranap_altMaxBitrateInf,
-      { "altMaxBitrateInf", "ranap.altMaxBitrateInf",
+      { "altMaxBitrateInf", "ranap.altMaxBitrateInf_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Alt_RAB_Parameter_MaxBitrateInf", HFILL }},
     { &hf_ranap_altGuaranteedBitRateInf,
-      { "altGuaranteedBitRateInf", "ranap.altGuaranteedBitRateInf",
+      { "altGuaranteedBitRateInf", "ranap.altGuaranteedBitRateInf_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Alt_RAB_Parameter_GuaranteedBitrateInf", HFILL }},
     { &hf_ranap_altExtendedGuaranteedBitrateType,
@@ -14652,7 +14661,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_sAI,
-      { "sAI", "ranap.sAI",
+      { "sAI", "ranap.sAI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_geographicalArea,
@@ -14684,7 +14693,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_AuthorisedPLMNs_item,
-      { "AuthorisedPLMNs item", "ranap.AuthorisedPLMNs_item",
+      { "AuthorisedPLMNs item", "ranap.AuthorisedPLMNs_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_pLMNidentity,
@@ -14768,11 +14777,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_SourceCellID_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_uplinkCellLoadInformation,
-      { "uplinkCellLoadInformation", "ranap.uplinkCellLoadInformation",
+      { "uplinkCellLoadInformation", "ranap.uplinkCellLoadInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CellLoadInformation", HFILL }},
     { &hf_ranap_downlinkCellLoadInformation,
-      { "downlinkCellLoadInformation", "ranap.downlinkCellLoadInformation",
+      { "downlinkCellLoadInformation", "ranap.downlinkCellLoadInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CellLoadInformation", HFILL }},
     { &hf_ranap_procedureCode,
@@ -14792,7 +14801,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "CriticalityDiagnostics_IE_List", HFILL }},
     { &hf_ranap_CriticalityDiagnostics_IE_List_item,
-      { "CriticalityDiagnostics-IE-List item", "ranap.CriticalityDiagnostics_IE_List_item",
+      { "CriticalityDiagnostics-IE-List item", "ranap.CriticalityDiagnostics_IE_List_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_iECriticality,
@@ -14808,7 +14817,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "RepetitionNumber0", HFILL }},
     { &hf_ranap_MessageStructure_item,
-      { "MessageStructure item", "ranap.MessageStructure_item",
+      { "MessageStructure item", "ranap.MessageStructure_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_item_repetitionNumber,
@@ -14868,11 +14877,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_iMEIgroup,
-      { "iMEIgroup", "ranap.iMEIgroup",
+      { "iMEIgroup", "ranap.iMEIgroup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_iMEISVgroup,
-      { "iMEISVgroup", "ranap.iMEISVgroup",
+      { "iMEISVgroup", "ranap.iMEISVgroup_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_measurementQuantity,
@@ -14892,11 +14901,11 @@ void proto_register_ranap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_point,
-      { "point", "ranap.point",
+      { "point", "ranap.point_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_Point", HFILL }},
     { &hf_ranap_pointWithUnCertainty,
-      { "pointWithUnCertainty", "ranap.pointWithUnCertainty",
+      { "pointWithUnCertainty", "ranap.pointWithUnCertainty_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_PointWithUnCertainty", HFILL }},
     { &hf_ranap_polygon,
@@ -14904,19 +14913,19 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "GA_Polygon", HFILL }},
     { &hf_ranap_pointWithUncertaintyEllipse,
-      { "pointWithUncertaintyEllipse", "ranap.pointWithUncertaintyEllipse",
+      { "pointWithUncertaintyEllipse", "ranap.pointWithUncertaintyEllipse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_PointWithUnCertaintyEllipse", HFILL }},
     { &hf_ranap_pointWithAltitude,
-      { "pointWithAltitude", "ranap.pointWithAltitude",
+      { "pointWithAltitude", "ranap.pointWithAltitude_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_PointWithAltitude", HFILL }},
     { &hf_ranap_pointWithAltitudeAndUncertaintyEllipsoid,
-      { "pointWithAltitudeAndUncertaintyEllipsoid", "ranap.pointWithAltitudeAndUncertaintyEllipsoid",
+      { "pointWithAltitudeAndUncertaintyEllipsoid", "ranap.pointWithAltitudeAndUncertaintyEllipsoid_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_PointWithAltitudeAndUncertaintyEllipsoid", HFILL }},
     { &hf_ranap_ellipsoidArc,
-      { "ellipsoidArc", "ranap.ellipsoidArc",
+      { "ellipsoidArc", "ranap.ellipsoidArc_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_EllipsoidArc", HFILL }},
     { &hf_ranap_latitudeSign,
@@ -14940,7 +14949,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_32767", HFILL }},
     { &hf_ranap_geographicalCoordinates,
-      { "geographicalCoordinates", "ranap.geographicalCoordinates",
+      { "geographicalCoordinates", "ranap.geographicalCoordinates_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_innerRadius,
@@ -14964,11 +14973,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_127", HFILL }},
     { &hf_ranap_altitudeAndDirection,
-      { "altitudeAndDirection", "ranap.altitudeAndDirection",
+      { "altitudeAndDirection", "ranap.altitudeAndDirection_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_AltitudeAndDirection", HFILL }},
     { &hf_ranap_uncertaintyEllipse,
-      { "uncertaintyEllipse", "ranap.uncertaintyEllipse",
+      { "uncertaintyEllipse", "ranap.uncertaintyEllipse_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "GA_UncertaintyEllipse", HFILL }},
     { &hf_ranap_uncertaintyAltitude,
@@ -14980,7 +14989,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_127", HFILL }},
     { &hf_ranap_GA_Polygon_item,
-      { "GA-Polygon item", "ranap.GA_Polygon_item",
+      { "GA-Polygon item", "ranap.GA_Polygon_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_uncertaintySemi_major,
@@ -14996,7 +15005,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_179", HFILL }},
     { &hf_ranap_lAI,
-      { "lAI", "ranap.lAI",
+      { "lAI", "ranap.lAI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_rAC,
@@ -15064,7 +15073,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_PermanentNAS_UE_ID_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_rNCTraceInformation,
-      { "rNCTraceInformation", "ranap.rNCTraceInformation",
+      { "rNCTraceInformation", "ranap.rNCTraceInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_permittedAlgorithms_01,
@@ -15076,7 +15085,7 @@ void proto_register_ranap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "IntegrityProtectionKey", HFILL }},
     { &hf_ranap_rIM_Transfer,
-      { "rIM-Transfer", "ranap.rIM_Transfer",
+      { "rIM-Transfer", "ranap.rIM_Transfer_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_gTP_TEI,
@@ -15088,7 +15097,7 @@ void proto_register_ranap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_LA_LIST_item,
-      { "LA-LIST item", "ranap.LA_LIST_item",
+      { "LA-LIST item", "ranap.LA_LIST_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_listOF_SNAs,
@@ -15104,7 +15113,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_ListOfInterfacesToTrace_item,
-      { "InterfacesToTraceItem", "ranap.InterfacesToTraceItem",
+      { "InterfacesToTraceItem", "ranap.InterfacesToTraceItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_interface,
@@ -15160,39 +15169,39 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_IncludeVelocity_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_periodicLocationInfo,
-      { "periodicLocationInfo", "ranap.periodicLocationInfo",
+      { "periodicLocationInfo", "ranap.periodicLocationInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_periodic,
-      { "periodic", "ranap.periodic",
+      { "periodic", "ranap.periodic_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "MDT_Report_Parameters", HFILL }},
     { &hf_ranap_event1F,
-      { "event1F", "ranap.event1F",
+      { "event1F", "ranap.event1F_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Event1F_Parameters", HFILL }},
     { &hf_ranap_event1I,
-      { "event1I", "ranap.event1I",
+      { "event1I", "ranap.event1I_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "Event1I_Parameters", HFILL }},
     { &hf_ranap_MBMSIPMulticastAddressandAPNRequest_item,
-      { "TMGI", "ranap.TMGI",
+      { "TMGI", "ranap.TMGI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_cellbased,
-      { "cellbased", "ranap.cellbased",
+      { "cellbased", "ranap.cellbased_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_labased,
-      { "labased", "ranap.labased",
+      { "labased", "ranap.labased_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_rabased,
-      { "rabased", "ranap.rabased",
+      { "rabased", "ranap.rabased_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_plmn_area_based,
-      { "plmn-area-based", "ranap.plmn_area_based",
+      { "plmn-area-based", "ranap.plmn_area_based_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_mdtActivation,
@@ -15208,11 +15217,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_MDTMode_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_immediateMDT,
-      { "immediateMDT", "ranap.immediateMDT",
+      { "immediateMDT", "ranap.immediateMDT_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_loggedMDT,
-      { "loggedMDT", "ranap.loggedMDT",
+      { "loggedMDT", "ranap.loggedMDT_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_reportInterval,
@@ -15232,7 +15241,7 @@ void proto_register_ranap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         "Offload_RAB_Parameters_ChargingCharacteristics", HFILL }},
     { &hf_ranap_rAI,
-      { "rAI", "ranap.rAI",
+      { "rAI", "ranap.rAI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_PDP_TypeInformation_item,
@@ -15268,7 +15277,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "LAI_List", HFILL }},
     { &hf_ranap_LAI_List_item,
-      { "LAI", "ranap.LAI",
+      { "LAI", "ranap.LAI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_loggingInterval,
@@ -15280,7 +15289,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_LoggingDuration_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_PLMNs_in_shared_network_item,
-      { "PLMNs-in-shared-network item", "ranap.PLMNs_in_shared_network_item",
+      { "PLMNs-in-shared-network item", "ranap.PLMNs_in_shared_network_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_lA_LIST,
@@ -15300,7 +15309,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_shared_network_information,
-      { "shared-network-information", "ranap.shared_network_information",
+      { "shared-network-information", "ranap.shared_network_information_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_raiList,
@@ -15308,11 +15317,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "RAI_List", HFILL }},
     { &hf_ranap_RAI_List_item,
-      { "RAI", "ranap.RAI",
+      { "RAI", "ranap.RAI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RABDataVolumeReport_item,
-      { "RABDataVolumeReport item", "ranap.RABDataVolumeReport_item",
+      { "RABDataVolumeReport item", "ranap.RABDataVolumeReport_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_dl_UnsuccessfullyTransmittedDataVolume,
@@ -15376,7 +15385,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_TrafficHandlingPriority_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_allocationOrRetentionPriority,
-      { "allocationOrRetentionPriority", "ranap.allocationOrRetentionPriority",
+      { "allocationOrRetentionPriority", "ranap.allocationOrRetentionPriority_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_sourceStatisticsDescriptor,
@@ -15388,7 +15397,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_RelocationRequirement_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_RABParametersList_item,
-      { "RABParametersList item", "ranap.RABParametersList_item",
+      { "RABParametersList item", "ranap.RABParametersList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_rab_Id,
@@ -15404,11 +15413,11 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_upInformation,
-      { "upInformation", "ranap.upInformation",
+      { "upInformation", "ranap.upInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RAB_TrCH_Mapping_item,
-      { "RAB-TrCH-MappingItem", "ranap.RAB_TrCH_MappingItem",
+      { "RAB-TrCH-MappingItem", "ranap.RAB_TrCH_MappingItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_rAB_ID,
@@ -15420,7 +15429,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_notEmptyRAListofIdleModeUEs,
-      { "notEmptyRAListofIdleModeUEs", "ranap.notEmptyRAListofIdleModeUEs",
+      { "notEmptyRAListofIdleModeUEs", "ranap.notEmptyRAListofIdleModeUEs_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_emptyFullRAListofIdleModeUEs,
@@ -15436,15 +15445,15 @@ void proto_register_ranap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_LAListofIdleModeUEs_item,
-      { "LAI", "ranap.LAI",
+      { "LAI", "ranap.LAI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RequestedMBMSIPMulticastAddressandAPNRequest_item,
-      { "MBMSIPMulticastAddressandAPNlist", "ranap.MBMSIPMulticastAddressandAPNlist",
+      { "MBMSIPMulticastAddressandAPNlist", "ranap.MBMSIPMulticastAddressandAPNlist_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_tMGI,
-      { "tMGI", "ranap.tMGI",
+      { "tMGI", "ranap.tMGI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_iPMulticastAddress,
@@ -15456,7 +15465,7 @@ void proto_register_ranap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_RequestedMulticastServiceList_item,
-      { "TMGI", "ranap.TMGI",
+      { "TMGI", "ranap.TMGI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_requestedMaxBitrates,
@@ -15512,15 +15521,15 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_RIMRoutingAddress_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_targetRNC_ID,
-      { "targetRNC-ID", "ranap.targetRNC_ID",
+      { "targetRNC-ID", "ranap.targetRNC_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_gERAN_Cell_ID,
-      { "gERAN-Cell-ID", "ranap.gERAN_Cell_ID",
+      { "gERAN-Cell-ID", "ranap.gERAN_Cell_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_targeteNB_ID,
-      { "targeteNB-ID", "ranap.targeteNB_ID",
+      { "targeteNB-ID", "ranap.targeteNB_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_traceReference,
@@ -15540,15 +15549,15 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "RABParametersList", HFILL }},
     { &hf_ranap_locationReporting,
-      { "locationReporting", "ranap.locationReporting",
+      { "locationReporting", "ranap.locationReporting_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "LocationReportingTransferInformation", HFILL }},
     { &hf_ranap_traceInformation,
-      { "traceInformation", "ranap.traceInformation",
+      { "traceInformation", "ranap.traceInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_sourceSAI,
-      { "sourceSAI", "ranap.sourceSAI",
+      { "sourceSAI", "ranap.sourceSAI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SAI", HFILL }},
     { &hf_ranap_sAC,
@@ -15564,7 +15573,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_1_6", HFILL }},
     { &hf_ranap_SDU_FormatInformationParameters_item,
-      { "SDU-FormatInformationParameters item", "ranap.SDU_FormatInformationParameters_item",
+      { "SDU-FormatInformationParameters item", "ranap.SDU_FormatInformationParameters_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_subflowSDU_Size,
@@ -15576,15 +15585,15 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_SDU_Parameters_item,
-      { "SDU-Parameters item", "ranap.SDU_Parameters_item",
+      { "SDU-Parameters item", "ranap.SDU_Parameters_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_sDU_ErrorRatio,
-      { "sDU-ErrorRatio", "ranap.sDU_ErrorRatio",
+      { "sDU-ErrorRatio", "ranap.sDU_ErrorRatio_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_residualBitErrorRatio,
-      { "residualBitErrorRatio", "ranap.residualBitErrorRatio",
+      { "residualBitErrorRatio", "ranap.residualBitErrorRatio_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_deliveryOfErroneousSDU,
@@ -15600,15 +15609,15 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_sourceUTRANCellID,
-      { "sourceUTRANCellID", "ranap.sourceUTRANCellID",
+      { "sourceUTRANCellID", "ranap.sourceUTRANCellID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_sourceGERANCellID,
-      { "sourceGERANCellID", "ranap.sourceGERANCellID",
+      { "sourceGERANCellID", "ranap.sourceGERANCellID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "CGI", HFILL }},
     { &hf_ranap_sourceRNC_ID,
-      { "sourceRNC-ID", "ranap.sourceRNC_ID",
+      { "sourceRNC-ID", "ranap.sourceRNC_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_rRC_Container,
@@ -15668,7 +15677,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "INTEGER_0_34", HFILL }},
     { &hf_ranap_iRATmeasurementParameters,
-      { "iRATmeasurementParameters", "ranap.iRATmeasurementParameters",
+      { "iRATmeasurementParameters", "ranap.iRATmeasurementParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_measurementDuration,
@@ -15680,7 +15689,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_EUTRANFrequencies_item,
-      { "EUTRANFrequencies item", "ranap.EUTRANFrequencies_item",
+      { "EUTRANFrequencies item", "ranap.EUTRANFrequencies_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_earfcn,
@@ -15700,7 +15709,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "TargetCellId", HFILL }},
     { &hf_ranap_SRB_TrCH_Mapping_item,
-      { "SRB-TrCH-MappingItem", "ranap.SRB_TrCH_MappingItem",
+      { "SRB-TrCH-MappingItem", "ranap.SRB_TrCH_MappingItem_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_sRB_ID,
@@ -15708,7 +15717,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_trCH_ID,
-      { "trCH-ID", "ranap.trCH_ID",
+      { "trCH-ID", "ranap.trCH_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_nonce,
@@ -15720,7 +15729,7 @@ void proto_register_ranap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_cGI,
-      { "cGI", "ranap.cGI",
+      { "cGI", "ranap.cGI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_eNB_ID,
@@ -15728,7 +15737,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_ENB_ID_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_selectedTAI,
-      { "selectedTAI", "ranap.selectedTAI",
+      { "selectedTAI", "ranap.selectedTAI_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TAI", HFILL }},
     { &hf_ranap_tMSI,
@@ -15748,7 +15757,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_UE_ID_vals), 0,
         "UE_ID", HFILL }},
     { &hf_ranap_tracePropagationParameters,
-      { "tracePropagationParameters", "ranap.tracePropagationParameters",
+      { "tracePropagationParameters", "ranap.tracePropagationParameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_traceRecordingSessionReference,
@@ -15776,7 +15785,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_TrCH_ID_List_item,
-      { "TrCH-ID", "ranap.TrCH_ID",
+      { "TrCH-ID", "ranap.TrCH_ID_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_uE_AggregateMaximumBitRateDownlink,
@@ -15832,27 +15841,27 @@ void proto_register_ranap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_horizontalVelocity,
-      { "horizontalVelocity", "ranap.horizontalVelocity",
+      { "horizontalVelocity", "ranap.horizontalVelocity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_horizontalWithVerticalVelocity,
-      { "horizontalWithVerticalVelocity", "ranap.horizontalWithVerticalVelocity",
+      { "horizontalWithVerticalVelocity", "ranap.horizontalWithVerticalVelocity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_horizontalVelocityWithUncertainty,
-      { "horizontalVelocityWithUncertainty", "ranap.horizontalVelocityWithUncertainty",
+      { "horizontalVelocityWithUncertainty", "ranap.horizontalVelocityWithUncertainty_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_horizontalWithVeritcalVelocityAndUncertainty,
-      { "horizontalWithVeritcalVelocityAndUncertainty", "ranap.horizontalWithVeritcalVelocityAndUncertainty",
+      { "horizontalWithVeritcalVelocityAndUncertainty", "ranap.horizontalWithVeritcalVelocityAndUncertainty_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "HorizontalWithVerticalVelocityAndUncertainty", HFILL }},
     { &hf_ranap_horizontalSpeedAndBearing,
-      { "horizontalSpeedAndBearing", "ranap.horizontalSpeedAndBearing",
+      { "horizontalSpeedAndBearing", "ranap.horizontalSpeedAndBearing_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_veritcalVelocity,
-      { "veritcalVelocity", "ranap.veritcalVelocity",
+      { "veritcalVelocity", "ranap.veritcalVelocity_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "VerticalVelocity", HFILL }},
     { &hf_ranap_uncertaintySpeed,
@@ -15916,7 +15925,7 @@ void proto_register_ranap(void) {
         FT_BYTES, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_rAB_Parameters,
-      { "rAB-Parameters", "ranap.rAB_Parameters",
+      { "rAB-Parameters", "ranap.rAB_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_dataVolumeReportingIndication,
@@ -15928,7 +15937,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_userPlaneInformation,
-      { "userPlaneInformation", "ranap.userPlaneInformation",
+      { "userPlaneInformation", "ranap.userPlaneInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_service_Handover,
@@ -15948,7 +15957,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_JoinedMBMSBearerService_IEs_item,
-      { "JoinedMBMSBearerService-IEs item", "ranap.JoinedMBMSBearerService_IEs_item",
+      { "JoinedMBMSBearerService-IEs item", "ranap.JoinedMBMSBearerService_IEs_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_mBMS_PTP_RAB_ID,
@@ -15988,7 +15997,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_IuTransportAssociation_vals), 0,
         "IuTransportAssociation", HFILL }},
     { &hf_ranap_ass_RAB_Parameters,
-      { "ass-RAB-Parameters", "ranap.ass_RAB_Parameters",
+      { "ass-RAB-Parameters", "ranap.ass_RAB_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_transportLayerAddressRes1,
@@ -16004,7 +16013,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "RAB_ToBeReleasedList_EnhancedRelocCompleteRes", HFILL }},
     { &hf_ranap_transportLayerInformation,
-      { "transportLayerInformation", "ranap.transportLayerInformation",
+      { "transportLayerInformation", "ranap.transportLayerInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_dl_dataVolumes,
@@ -16012,7 +16021,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, NULL, 0,
         "DataVolumeList", HFILL }},
     { &hf_ranap_DataVolumeList_item,
-      { "DataVolumeList item", "ranap.DataVolumeList_item",
+      { "DataVolumeList item", "ranap.DataVolumeList_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_gERAN_Classmark,
@@ -16036,19 +16045,19 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_CN_DomainIndicator_vals), 0,
         NULL, HFILL }},
     { &hf_ranap_dataForwardingInformation,
-      { "dataForwardingInformation", "ranap.dataForwardingInformation",
+      { "dataForwardingInformation", "ranap.dataForwardingInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TNLInformationEnhRelInfoReq", HFILL }},
     { &hf_ranap_sourceSideIuULTNLInfo,
-      { "sourceSideIuULTNLInfo", "ranap.sourceSideIuULTNLInfo",
+      { "sourceSideIuULTNLInfo", "ranap.sourceSideIuULTNLInfo_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TNLInformationEnhRelInfoReq", HFILL }},
     { &hf_ranap_alt_RAB_Parameters,
-      { "alt-RAB-Parameters", "ranap.alt_RAB_Parameters",
+      { "alt-RAB-Parameters", "ranap.alt_RAB_Parameters_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_dataForwardingInformation_01,
-      { "dataForwardingInformation", "ranap.dataForwardingInformation",
+      { "dataForwardingInformation", "ranap.dataForwardingInformation_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "TNLInformationEnhRelInfoRes", HFILL }},
     { &hf_ranap_dl_forwardingTransportLayerAddress,
@@ -16060,7 +16069,7 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_DEC, VALS(ranap_IuTransportAssociation_vals), 0,
         "IuTransportAssociation", HFILL }},
     { &hf_ranap_requested_RAB_Parameter_Values,
-      { "requested-RAB-Parameter-Values", "ranap.requested_RAB_Parameter_Values",
+      { "requested-RAB-Parameter-Values", "ranap.requested_RAB_Parameter_Values_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_mBMSHCIndicator,
@@ -16072,48 +16081,48 @@ void proto_register_ranap(void) {
         FT_UINT32, BASE_HEX_DEC, NULL, 0,
         "GTP_TEI", HFILL }},
     { &hf_ranap_LeftMBMSBearerService_IEs_item,
-      { "LeftMBMSBearerService-IEs item", "ranap.LeftMBMSBearerService_IEs_item",
+      { "LeftMBMSBearerService-IEs item", "ranap.LeftMBMSBearerService_IEs_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_UnsuccessfulLinking_IEs_item,
-      { "UnsuccessfulLinking-IEs item", "ranap.UnsuccessfulLinking_IEs_item",
+      { "UnsuccessfulLinking-IEs item", "ranap.UnsuccessfulLinking_IEs_item_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_initiatingMessage,
-      { "initiatingMessage", "ranap.initiatingMessage",
+      { "initiatingMessage", "ranap.initiatingMessage_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_successfulOutcome,
-      { "successfulOutcome", "ranap.successfulOutcome",
+      { "successfulOutcome", "ranap.successfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_unsuccessfulOutcome,
-      { "unsuccessfulOutcome", "ranap.unsuccessfulOutcome",
+      { "unsuccessfulOutcome", "ranap.unsuccessfulOutcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_outcome,
-      { "outcome", "ranap.outcome",
+      { "outcome", "ranap.outcome_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
     { &hf_ranap_initiatingMessagevalue,
-      { "value", "ranap.value",
+      { "value", "ranap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "InitiatingMessage_value", HFILL }},
     { &hf_ranap_successfulOutcome_value,
-      { "value", "ranap.value",
+      { "value", "ranap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "SuccessfulOutcome_value", HFILL }},
     { &hf_ranap_unsuccessfulOutcome_value,
-      { "value", "ranap.value",
+      { "value", "ranap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         "UnsuccessfulOutcome_value", HFILL }},
     { &hf_ranap_value,
-      { "value", "ranap.value",
+      { "value", "ranap.value_element",
         FT_NONE, BASE_NONE, NULL, 0,
         NULL, HFILL }},
 
 /*--- End of included file: packet-ranap-hfarr.c ---*/
-#line 319 "../../asn1/ranap/packet-ranap-template.c"
+#line 328 "../../asn1/ranap/packet-ranap-template.c"
   };
 
   /* List of subtrees */
@@ -16450,7 +16459,7 @@ void proto_register_ranap(void) {
     &ett_ranap_Outcome,
 
 /*--- End of included file: packet-ranap-ettarr.c ---*/
-#line 327 "../../asn1/ranap/packet-ranap-template.c"
+#line 336 "../../asn1/ranap/packet-ranap-template.c"
   };
 
 
@@ -16479,6 +16488,10 @@ void proto_register_ranap(void) {
   prefs_register_uint_preference(ranap_module, "sccp_ssn", "SCCP SSN for RANAP",
 				 "The SCCP SubSystem Number for RANAP (default 142)", 10,
 				 &global_ranap_sccp_ssn);
+  prefs_register_bool_preference(ranap_module, "dissect_rrc_container",
+                                 "Attempt to dissect RRC-Container",
+                                 "Attempt to dissect RRC message embedded in RRC-Container IE",
+                                 &glbl_dissect_container);
 }
 
 
@@ -16829,7 +16842,7 @@ proto_reg_handoff_ranap(void)
 
 
 /*--- End of included file: packet-ranap-dis-tab.c ---*/
-#line 373 "../../asn1/ranap/packet-ranap-template.c"
+#line 386 "../../asn1/ranap/packet-ranap-template.c"
 	} else {
 		dissector_delete_uint("sccp.ssn", local_ranap_sccp_ssn, ranap_handle);
 	}

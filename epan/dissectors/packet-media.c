@@ -4,8 +4,6 @@
  *
  * (C) Olivier Biot, 2004
  *
- * $Id$
- *
  * Refer to the AUTHORS file or the AUTHORS section in the man page
  * for contacting the author(s) of this file.
  *
@@ -33,6 +31,8 @@
 #include <glib.h>
 #include <epan/packet.h>
 
+void proto_register_media(void);
+
 /* proto_media cannot be static because it's referenced in the
  * print routines
  */
@@ -40,21 +40,20 @@ int proto_media = -1;
 static gint ett_media = -1;
 static heur_dissector_list_t heur_subdissector_list;
 
-static void
-dissect_media(tvbuff_t *tvb, packet_info *pinfo , proto_tree *tree)
+static int
+dissect_media(tvbuff_t *tvb, packet_info *pinfo , proto_tree *tree, void* data)
 {
     int bytes;
     proto_item *ti;
     proto_tree *media_tree = 0;
+    heur_dtbl_entry_t *hdtbl_entry;
 
-    if (dissector_try_heuristic(heur_subdissector_list, tvb, pinfo, tree, NULL)) {
-        return;
+    if (dissector_try_heuristic(heur_subdissector_list, tvb, pinfo, tree, &hdtbl_entry, data)) {
+        return tvb_length(tvb);
     }
 
     /* Add media type to the INFO column if it is visible */
-    if (check_col(pinfo->cinfo, COL_INFO)) {
-        col_append_fstr(pinfo->cinfo, COL_INFO, " (%s)", (pinfo->match_string) ? pinfo->match_string : "");
-    }
+    col_append_fstr(pinfo->cinfo, COL_INFO, " (%s)", (pinfo->match_string) ? pinfo->match_string : "");
 
     if (tree) {
         if ( (bytes = tvb_length(tvb)) > 0 )
@@ -77,6 +76,8 @@ dissect_media(tvbuff_t *tvb, packet_info *pinfo , proto_tree *tree)
             }
         }
     }
+
+    return tvb_length(tvb);
 }
 
 void
@@ -91,7 +92,7 @@ proto_register_media(void)
         "Media",        /* short name */
         "media"         /* abbrev */
         );
-    register_dissector("media", dissect_media, proto_media);
+    new_register_dissector("media", dissect_media, proto_media);
     register_heur_dissector_list("media", &heur_subdissector_list);
     proto_register_subtree_array(ett, array_length(ett));
 

@@ -2,8 +2,6 @@
  * Routines for H.501 packet dissection
  * 2007  Tomas Kukosa
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -39,6 +37,8 @@
 #define PNAME  "H.501 Mobility"
 #define PSNAME "H.501"
 #define PFNAME "h501"
+
+void proto_register_h501(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_h501 = -1;

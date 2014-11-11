@@ -1,7 +1,5 @@
 /* color_utils.cpp
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -55,6 +53,11 @@ ColorUtils::ColorUtils(QObject *parent) :
 QColor ColorUtils::fromColorT (color_t *color) {
     if (!color) return QColor();
     return QColor(color->red >> 8, color->green >> 8, color->blue >> 8);
+}
+
+QColor ColorUtils::fromColorT(color_t color)
+{
+    return fromColorT(&color);
 }
 
 /*

@@ -1,8 +1,6 @@
 /* rlc_lte_stat_dlg.c
  * Copyright 2010 Martin Mathieson
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -29,6 +27,7 @@
 
 #include "config.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #include <gtk/gtk.h>
@@ -51,6 +50,8 @@
 #include "ui/gtk/main.h"
 
 #include "ui/gtk/old-gtk-compat.h"
+
+void register_tap_listener_rlc_lte_stat(void);
 
 /**********************************************/
 /* Table column identifiers and title strings */
@@ -321,7 +322,7 @@ static rlc_lte_ep_t* alloc_rlc_lte_ep(const struct rlc_lte_tap_info *si, packet_
         return NULL;
     }
 
-    if (!(ep = g_malloc(sizeof(rlc_lte_ep_t)))) {
+    if (!(ep = (rlc_lte_ep_t *)g_malloc(sizeof(rlc_lte_ep_t)))) {
         return NULL;
     }
 
@@ -809,6 +810,9 @@ static void rlc_lte_stat_draw(void *phs)
     }
 
     /* Reselect UE? */
+    /* Note that this no longer works well, as we now get spurious UE selection callbacks
+       while packets are being retapped (seen with Gtk 3.4.4 at least), leading to the wrong
+       UE being reselected! */
     if (hs->reselect_ue != 0) {
         GtkTreeIter *ue_iter = NULL;
         rlc_lte_ep_t *ep = hs->ep_list;
@@ -1295,7 +1299,7 @@ static void gtk_rlc_lte_stat_init(const char *opt_arg, void *userdata _U_)
 
 
     /* Create dialog */
-    hs = g_malloc(sizeof(rlc_lte_stat_t));
+    hs = (rlc_lte_stat_t *)g_malloc(sizeof(rlc_lte_stat_t));
     hs->ep_list = NULL;
 
     /* Copy filter (so can be used for window title at reset) */
@@ -1624,10 +1628,10 @@ static void gtk_rlc_lte_stat_init(const char *opt_arg, void *userdata _U_)
     gtk_box_pack_end(GTK_BOX(top_level_vbox), bbox, FALSE, FALSE, 0);
 
     /* Add the close button */
-    close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+    close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
     window_set_cancel_button(hs->dlg_w, close_bt, window_cancel_button_cb);
 
-    help_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
+    help_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_HELP);
     g_signal_connect(help_bt, "clicked", G_CALLBACK(topic_cb), (gpointer)HELP_STATS_LTE_RLC_TRAFFIC_DIALOG);
 
     /* Set callbacks */
@@ -1662,11 +1666,5 @@ static tap_param_dlg rlc_lte_stat_dlg = {
 void
 register_tap_listener_rlc_lte_stat(void)
 {
-    register_dfilter_stat(&rlc_lte_stat_dlg, "_LTE/_RLC", REGISTER_STAT_GROUP_TELEPHONY);
+    register_param_stat(&rlc_lte_stat_dlg, "_RLC", REGISTER_STAT_GROUP_TELEPHONY_LTE);
 }
-
-void rlc_lte_stat_cb(GtkAction *action, gpointer user_data _U_)
-{
-    tap_param_dlg_cb(action, &rlc_lte_stat_dlg);
-}
-

@@ -6,8 +6,6 @@
  *
  * Modified from gsm_map_summary.c
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -51,6 +49,7 @@
 
 #define SUM_STR_MAX 1024
 
+void register_tap_listener_gtkmtp3_summary(void);
 
 typedef struct _my_columns_t {
     guint32           value;
@@ -316,7 +315,7 @@ mtp3_sum_gtk_sum_cb(GtkAction *action _U_, gpointer user_data _U_)
     add_string_to_box(string_buff, file_box);
 
     /* format */
-    file_type = wtap_file_type_string(summary.file_type);
+    file_type = wtap_file_type_subtype_string(summary.file_type);
     g_snprintf(string_buff, SUM_STR_MAX, "Format: %s", (file_type ? file_type : "N/A"));
     add_string_to_box(string_buff, file_box);
 
@@ -430,7 +429,7 @@ mtp3_sum_gtk_sum_cb(GtkAction *action _U_, gpointer user_data _U_)
     gtk_box_pack_start(GTK_BOX(main_vb), bbox, FALSE, FALSE, 0);
     gtk_widget_show(bbox);
 
-    close_bt = g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
+    close_bt = (GtkWidget *)g_object_get_data(G_OBJECT(bbox), GTK_STOCK_CLOSE);
     window_set_cancel_button(sum_open_w, close_bt, window_cancel_button_cb);
 
     g_signal_connect(sum_open_w, "delete_event", G_CALLBACK(window_delete_event_cb), NULL);

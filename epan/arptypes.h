@@ -1,8 +1,6 @@
 /* arptypes.h
  * Declarations of ARP address types.
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -78,6 +76,7 @@ extern "C" {
 
 /* Virtual ARP types for non ARP hardware used in Linux cooked mode. */
 #define ARPHRD_IPGRE	778		/* GRE over IP */
+#define ARPHRD_NETLINK  824		/* netlink */
 
 #ifdef __cplusplus
 }

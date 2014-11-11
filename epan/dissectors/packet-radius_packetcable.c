@@ -3,8 +3,6 @@
  *
  * Routines for Packetcable's RADIUS AVPs dissection
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -49,7 +47,8 @@
 
 #include "packet-radius.h"
 
-
+void proto_register_packetcable(void);
+void proto_reg_handoff_packetcable(void);
 
 static int proto_packetcable = -1;
 

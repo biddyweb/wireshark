@@ -4,8 +4,6 @@
  * By Peter Torvals
  * Copyright 1999 Peter Torvals
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998
@@ -32,6 +30,9 @@
 
 #include <epan/packet.h>
 #include <epan/addr_resolv.h>
+
+void proto_register_icp(void);
+void proto_reg_handoff_icp(void);
 
 static int proto_icp=-1;
 static int hf_icp_length=-1;
@@ -97,7 +98,7 @@ static void dissect_icp_payload(tvbuff_t *tvb, int offset,
 		/* null terminated URL */
 		stringlength = tvb_strsize(tvb, offset);
 		proto_tree_add_text(pload_tree, tvb, offset, stringlength,
-			"URL: %s", tvb_get_ephemeral_string(tvb, offset, stringlength));
+			"URL: %s", tvb_get_string(wmem_packet_scope(), tvb, offset, stringlength));
 		break;
 
 	case CODE_ICP_OP_SECHO:
@@ -109,14 +110,14 @@ static void dissect_icp_payload(tvbuff_t *tvb, int offset,
 	case CODE_ICP_OP_DENIED:
 		stringlength = tvb_strsize(tvb, offset);
 		proto_tree_add_text(pload_tree, tvb, offset, stringlength,
-			"URL: %s", tvb_get_ephemeral_string(tvb, offset, stringlength));
+			"URL: %s", tvb_get_string(wmem_packet_scope(), tvb, offset, stringlength));
 		break;
 
 	case CODE_ICP_OP_HIT_OBJ:
 		/* null terminated URL */
 		stringlength = tvb_strsize(tvb, offset);
 		proto_tree_add_text(pload_tree, tvb, offset, stringlength,
-			"URL: %s", tvb_get_ephemeral_string(tvb, offset, stringlength));
+			"URL: %s", tvb_get_string(wmem_packet_scope(), tvb, offset, stringlength));
 		offset += stringlength;
 
 		/* 2 byte object size */
@@ -155,12 +156,9 @@ static void dissect_icp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   message_length=tvb_get_ntohs(tvb, 2);
   request_number=tvb_get_ntohl(tvb, 4);
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-  {
-        col_add_fstr(pinfo->cinfo,COL_INFO,"Opcode: %s (%u), Req Nr: %u",
-		val_to_str_const(opcode, opcode_vals, "Unknown"), opcode,
-		request_number);
-  }
+  col_add_fstr(pinfo->cinfo,COL_INFO,"Opcode: %s (%u), Req Nr: %u",
+  val_to_str_const(opcode, opcode_vals, "Unknown"), opcode,
+  request_number);
 
   if (tree)
   {

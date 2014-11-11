@@ -71,6 +71,7 @@
 #endif
 
 static uat_t* uat;
+static gboolean valid_record;
 static guint colnum;
 static gchar* ptrx;
 static guint len;
@@ -80,13 +81,17 @@ static guint linenum;
 static gchar *parse_str;
 static guint parse_str_pos;
 
-#define ERROR(fmtd) do { error = ep_strdup_printf("%s:%d: %s",uat->filename,linenum,ep_strdup_printf fmtd); yyterminate(); } while(0)
+#define ERROR(fmtd) do { \
+    error = ep_strdup_printf("%s:%d: %s",uat->filename,linenum,ep_strdup_printf fmtd); \
+    yyterminate(); \
+} while(0)
 
 #define SET_FIELD() \
 	{ const gchar* errx; \
 	if (uat->fields[colnum].cb.chk) { \
 		if ( ! uat->fields[colnum].cb.chk(record, ptrx, len, uat->fields[colnum].cbdata.chk, uat->fields[colnum].fld_data, &errx) ) { \
-			ERROR(("%s",errx)); \
+			error = ep_strdup_printf("%s:%d: %s",uat->filename,linenum,ep_strdup_printf("%s",errx)); \
+			valid_record = FALSE; \
 		}\
 	}\
 	uat->fields[colnum].cb.set(record, ptrx, len, uat->fields[colnum].cbdata.chk, uat->fields[colnum].fld_data);\
@@ -108,8 +113,8 @@ static guint parse_str_pos;
 #define YY_INPUT(buf,result,max_size) \
 	if ( parse_str ) \
 		{ \
-		int n = 0; \
-		guint pslen = strlen(parse_str); \
+		size_t n = 0; \
+		size_t pslen = strlen(parse_str); \
 		if (parse_str_pos < pslen) \
 			{ \
 			n = pslen - parse_str_pos; \
@@ -175,11 +180,11 @@ comment #[^\n]*\n
 
 	BEGIN END_OF_RECORD;
 
-	yyless(yyleng);
+	yyless((int) yyleng);
 }
 
 <START_OF_LINE,NEXT_FIELD>{quoted_string} {
-	ptrx = uat_undquote(yytext,yyleng,&len);
+	ptrx = uat_undquote(yytext, (guint) yyleng, &len);
 
 
 	if (colnum < uat->ncols - 1) {
@@ -192,7 +197,7 @@ comment #[^\n]*\n
 }
 
 <START_OF_LINE,NEXT_FIELD>{binstring} {
-	ptrx = uat_unbinstring(yytext,yyleng,&len);
+	ptrx = uat_unbinstring(yytext,  (guint) yyleng, &len);
 
 	if (!ptrx) {
 		ERROR(("uneven hexstring for field %s",uat->fields[colnum].name));
@@ -235,7 +240,7 @@ comment #[^\n]*\n
 
 <END_OF_RECORD>{newline} {
 	void* rec;
-	const gchar* err = NULL;
+	const char* err = NULL;
 
 	linenum++;
 
@@ -243,15 +248,21 @@ comment #[^\n]*\n
 
 	SET_FIELD();
 
-	rec = uat_add_record(uat, record);
+	rec = uat_add_record(uat, record, valid_record);
 
-	if (uat->update_cb)
+	if ((uat->update_cb) && (rec != NULL))
 		uat->update_cb(rec,&err);
 
 	if (err) {
-		ERROR(("%s",err));
+		char *tmp = ep_strdup(err);
+		/* XXX bit of a hack to remove emem from dissectors, this can
+		 * be removed as proper use of glib memory is propogated
+		 * through the rest of the UAT code */
+		g_free((char*)err);
+		ERROR(("%s",tmp));
 	}
 
+	valid_record = TRUE;
 	colnum = 0;
 	ptrx = NULL;
 	len = 0;
@@ -302,6 +313,7 @@ uat_load(uat_t *uat_in, const char **errx)
 	}
 
 	error = NULL;
+	valid_record = TRUE;
 	colnum = 0;
 	g_free(record);
 	record = g_malloc0(uat->record_size);
@@ -340,6 +352,7 @@ uat_load_str(uat_t *uat_in, char *entry, char **err)
 	yyin = NULL;
 
 	error = NULL;
+	valid_record = TRUE;
 	colnum = 0;
 	g_free(record);
 	record = g_malloc0(uat->record_size);

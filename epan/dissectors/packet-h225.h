@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-h225.h                                                              */
 /* ../../tools/asn2wrs.py -p h225 -c ./h225.cnf -s ./packet-h225-template -D . -O ../../epan/dissectors H323-MESSAGES.asn */
 
@@ -9,8 +9,6 @@
 /* packet-h225.h
  * Routines for h225 packet dissection
  * Copyright 2005, Anders Broman <anders.broman@ericsson.com>
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -80,7 +78,7 @@ typedef struct _h225_packet_info {
 
 /*
  * the following allows TAP code access to the messages
- * without having to duplicate it. With MSVC and a 
+ * without having to duplicate it. With MSVC and a
  * libwireshark.dll, we need a special declaration.
  */
 
@@ -151,7 +149,7 @@ int dissect_h225_TransportQOS(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 int dissect_h225_ExtendedAliasAddress_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_);
 
 /*--- End of included file: packet-h225-exp.h ---*/
-#line 83 "../../asn1/h225/packet-h225-template.h"
+#line 81 "../../asn1/h225/packet-h225-template.h"
 
 #endif  /* PACKET_H225_H */
 

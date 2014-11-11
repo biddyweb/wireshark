@@ -2,8 +2,6 @@
  * ws80211 utilities
  * Copyright 2012, Pontus Fuchs <pontus.fuchs@gmail.com>
 
-$Id$
-
 Parts of this file was copied from iw:
 
 Copyright (c) 2007, 2008	Johannes Berg
@@ -24,7 +22,7 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 
@@ -34,7 +32,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include "ws80211_utils.h"
 
 #if defined(HAVE_LIBNL) && defined(HAVE_NL80211)
-#include <strings.h>
+#include <string.h>
 #include <errno.h>
 #include <unistd.h>
 
@@ -106,28 +104,28 @@ int ws80211_init(void)
 static int error_handler(struct sockaddr_nl *nla _U_, struct nlmsgerr *err,
 			 void *arg)
 {
-	int *ret = arg;
+	int *ret = (int *)arg;
 	*ret = err->error;
 	return NL_STOP;
 }
 
 static int finish_handler(struct nl_msg *msg _U_, void *arg)
 {
-	int *ret = arg;
+	int *ret = (int *)arg;
 	*ret = 0;
 	return NL_SKIP;
 }
 
 static int ack_handler(struct nl_msg *msg _U_, void *arg)
 {
-	int *ret = arg;
+	int *ret = (int *)arg;
 	*ret = 0;
 	return NL_STOP;
 }
 
 static int nl80211_do_cmd(struct nl_msg *msg, struct nl_cb *cb)
 {
-	int err;
+	volatile int err;
 
 	if (!nl_state.nl_sock)
 		return -ENOLINK;
@@ -138,9 +136,9 @@ static int nl80211_do_cmd(struct nl_msg *msg, struct nl_cb *cb)
 
 	err = 1;
 
-	nl_cb_err(cb, NL_CB_CUSTOM, error_handler, &err);
-	nl_cb_set(cb, NL_CB_FINISH, NL_CB_CUSTOM, finish_handler, &err);
-	nl_cb_set(cb, NL_CB_ACK, NL_CB_CUSTOM, ack_handler, &err);
+	nl_cb_err(cb, NL_CB_CUSTOM, error_handler, (void *)&err);
+	nl_cb_set(cb, NL_CB_FINISH, NL_CB_CUSTOM, finish_handler, (void *)&err);
+	nl_cb_set(cb, NL_CB_ACK, NL_CB_CUSTOM, ack_handler, (void *)&err);
 
 	while (err > 0)
 		nl_recvmsgs(nl_state.nl_sock, cb);
@@ -156,23 +154,45 @@ struct nliface_cookie
 	GArray *interfaces;
 };
 
+/*
+ * And now for a steaming heap of suck.
+ *
+ * The nla_for_each_nested() macro defined by at least some versions of the
+ * Linux kernel's headers doesn't do the casting required when compiling
+ * with a C++ compiler or with -Wc++-compat, so we get warnings, and those
+ * warnings are fatal when we compile this file.
+ *
+ * So we replace it with our own version, which does the requisite cast.
+ */
+
+/**
+ * nla_for_each_nested - iterate over nested attributes
+ * @pos: loop counter, set to current attribute
+ * @nla: attribute containing the nested attributes
+ * @rem: initialized to len, holds bytes currently remaining in stream
+ */
+#undef nla_for_each_nested
+#define nla_for_each_nested(pos, nla, rem) \
+	nla_for_each_attr(pos, (struct nlattr *)nla_data(nla), nla_len(nla), rem)
+
 static int get_phys_handler(struct nl_msg *msg, void *arg)
 {
 	struct nlattr *tb_msg[NL80211_ATTR_MAX + 1];
-	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+	struct genlmsghdr *gnlh = (struct genlmsghdr *)nlmsg_data(nlmsg_hdr(msg));
 
-	struct nliface_cookie *cookie = arg;
+	struct nliface_cookie *cookie = (struct nliface_cookie *)arg;
 
 	struct nlattr *tb_band[NL80211_BAND_ATTR_MAX + 1];
 
 	struct nlattr *tb_freq[NL80211_FREQUENCY_ATTR_MAX + 1];
 	static struct nla_policy freq_policy[NL80211_FREQUENCY_ATTR_MAX + 1] = {
-		[NL80211_FREQUENCY_ATTR_FREQ] = { .type = NLA_U32 },
-		[NL80211_FREQUENCY_ATTR_DISABLED] = { .type = NLA_FLAG },
-		[NL80211_FREQUENCY_ATTR_PASSIVE_SCAN] = { .type = NLA_FLAG },
-		[NL80211_FREQUENCY_ATTR_NO_IBSS] = { .type = NLA_FLAG },
-		[NL80211_FREQUENCY_ATTR_RADAR] = { .type = NLA_FLAG },
-		[NL80211_FREQUENCY_ATTR_MAX_TX_POWER] = { .type = NLA_U32 },
+		{NLA_UNSPEC, 0, 0},		/* __NL80211_FREQUENCY_ATTR_INVALID */
+		{NLA_U32, 0, 0},		/* NL80211_FREQUENCY_ATTR_FREQ */
+		{NLA_FLAG, 0, 0},		/* NL80211_FREQUENCY_ATTR_DISABLED */
+		{NLA_FLAG, 0, 0},		/* NL80211_FREQUENCY_ATTR_PASSIVE_SCAN */
+		{NLA_FLAG, 0, 0},		/* NL80211_FREQUENCY_ATTR_NO_IBSS */
+		{NLA_FLAG, 0, 0},		/* NL80211_FREQUENCY_ATTR_RADAR */
+		{NLA_U32, 0, 0}			/* NL80211_FREQUENCY_ATTR_MAX_TX_POWER */
 	};
 
 	struct nlattr *nl_band;
@@ -198,7 +218,7 @@ static int get_phys_handler(struct nl_msg *msg, void *arg)
 	if (!cap_monitor)
 		return NL_SKIP;
 
-	iface = g_malloc0(sizeof(*iface));
+	iface = (struct ws80211_interface *)g_malloc0(sizeof(*iface));
 	if (!iface)
 		return NL_SKIP;
 
@@ -213,7 +233,8 @@ static int get_phys_handler(struct nl_msg *msg, void *arg)
 	nla_for_each_nested(nl_band, tb_msg[NL80211_ATTR_WIPHY_BANDS], rem_band) {
 		bandidx++;
 
-		nla_parse(tb_band, NL80211_BAND_ATTR_MAX, nla_data(nl_band),
+		nla_parse(tb_band, NL80211_BAND_ATTR_MAX,
+			  (struct nlattr *)nla_data(nl_band),
 			  nla_len(nl_band), NULL);
 
 #ifdef NL80211_BAND_ATTR_HT_CAPA
@@ -230,7 +251,8 @@ static int get_phys_handler(struct nl_msg *msg, void *arg)
 
 		nla_for_each_nested(nl_freq, tb_band[NL80211_BAND_ATTR_FREQS], rem_freq) {
 			uint32_t freq;
-			nla_parse(tb_freq, NL80211_FREQUENCY_ATTR_MAX, nla_data(nl_freq),
+			nla_parse(tb_freq, NL80211_FREQUENCY_ATTR_MAX,
+				  (struct nlattr *)nla_data(nl_freq),
 				  nla_len(nl_freq), freq_policy);
 			if (!tb_freq[NL80211_FREQUENCY_ATTR_FREQ])
 				continue;
@@ -289,7 +311,7 @@ static int get_freq_wext(const char *ifname)
 {
 	int fd;
 	int ret = -1;
-	/* Ugly hack to avoid incuding wireless.h */
+	/* Ugly hack to avoid including wireless.h */
 	struct {
 		char name1[IFNAMSIZ];
 		__s32 m;
@@ -321,9 +343,9 @@ struct __iface_info
 
 static int get_iface_info_handler(struct nl_msg *msg, void *arg)
 {
-	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+	struct genlmsghdr *gnlh = (struct genlmsghdr *)nlmsg_data(nlmsg_hdr(msg));
 	struct nlattr *tb_msg[NL80211_ATTR_MAX + 1];
-	struct __iface_info *iface_info = arg;
+	struct __iface_info *iface_info = (struct __iface_info *)arg;
 
 	nla_parse(tb_msg, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
 		  genlmsg_attrlen(gnlh, 0), NULL);
@@ -337,10 +359,28 @@ static int get_iface_info_handler(struct nl_msg *msg, void *arg)
 
 	if (tb_msg[NL80211_ATTR_WIPHY_FREQ]) {
 		iface_info->pub->current_freq = nla_get_u32(tb_msg[NL80211_ATTR_WIPHY_FREQ]);
-		iface_info->pub->current_chan_type = NL80211_CHAN_NO_HT;
+		iface_info->pub->current_chan_type = WS80211_CHAN_NO_HT;
 
-		if (tb_msg[NL80211_ATTR_WIPHY_CHANNEL_TYPE])
-			iface_info->pub->current_chan_type =  nla_get_u32(tb_msg[NL80211_ATTR_WIPHY_CHANNEL_TYPE]);
+		if (tb_msg[NL80211_ATTR_WIPHY_CHANNEL_TYPE]) {
+			switch (nla_get_u32(tb_msg[NL80211_ATTR_WIPHY_CHANNEL_TYPE])) {
+
+			case NL80211_CHAN_NO_HT:
+				iface_info->pub->current_chan_type = WS80211_CHAN_NO_HT;
+				break;
+
+			case NL80211_CHAN_HT20:
+				iface_info->pub->current_chan_type = WS80211_CHAN_HT20;
+				break;
+
+			case NL80211_CHAN_HT40MINUS:
+				iface_info->pub->current_chan_type = WS80211_CHAN_HT40MINUS;
+				break;
+
+			case NL80211_CHAN_HT40PLUS:
+				iface_info->pub->current_chan_type = WS80211_CHAN_HT40PLUS;
+				break;
+			}
+		}
 
 	}
 	return NL_SKIP;
@@ -390,7 +430,7 @@ int ws80211_get_iface_info(const char *name, struct ws80211_iface_info *iface_in
 	__iface_info.type = -1;
 	__iface_info.phyidx= -1;
 	__iface_info.pub->current_freq = -1;
-	__iface_info.pub->current_chan_type = -1;
+	__iface_info.pub->current_chan_type = WS80211_CHAN_NO_HT;
 
 	return __ws80211_get_iface_info(name, &__iface_info);
 }

@@ -1,5 +1,5 @@
-/* Do not modify this file.                                                   */
-/* It is created automatically by the ASN.1 to Wireshark dissector compiler   */
+/* Do not modify this file. Changes will be overwritten.                      */
+/* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-pkixproxy.h                                                         */
 /* ../../tools/asn2wrs.py -b -p pkixproxy -c ./pkixproxy.cnf -s ./packet-pkixproxy-template -D . -O ../../epan/dissectors PKIXProxy.asn */
 
@@ -9,8 +9,6 @@
 /* packet-pkixproxy.h
  * Routines for RFC3820 PKIXProxy packet dissection
  *  Ronnie Sahlberg 2004
- *
- * $Id$
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>

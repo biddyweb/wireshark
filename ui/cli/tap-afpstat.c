@@ -2,8 +2,6 @@
  * Based on
  * smbstat   2003 Ronnie Sahlberg
  *
- * $Id$
- *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
  * Copyright 1998 Gerald Combs
@@ -26,14 +24,17 @@
 #include "config.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
 #include <epan/packet_info.h>
 #include <epan/tap.h>
 #include <epan/stat_cmd_args.h>
 #include <epan/value_string.h>
 #include <epan/dissectors/packet-afp.h>
-#include "timestats.h"
+#include "epan/timestats.h"
+
+void register_tap_listener_afpstat(void);
 
 /* used to keep track of the statistics for an entire program interface */
 typedef struct _afpstat_t {
@@ -106,15 +107,15 @@ afpstat_draw(void *pss)
 
 
 static void
-afpstat_init(const char *optarg, void* userdata _U_)
+afpstat_init(const char *opt_arg, void* userdata _U_)
 {
 	afpstat_t *ss;
 	guint32 i;
 	const char *filter=NULL;
 	GString *error_string;
 
-	if(!strncmp(optarg,"afp,srt,",8)){
-		filter=optarg+8;
+	if(!strncmp(opt_arg,"afp,srt,",8)){
+		filter=opt_arg+8;
 	} else {
 		filter=NULL;
 	}
