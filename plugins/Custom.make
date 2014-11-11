@@ -2,6 +2,12 @@
 # $Id$
 #
 
+_CUSTOM_SUBDIRS_ = \
+  tosam \
+  rf212 \
+  tosdis \
+  tosctp
+
 _CUSTOM_EXTRA_DIST_ = \
 	Custom.m4 \
 	Custom.make

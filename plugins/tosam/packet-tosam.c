@@ -100,11 +100,9 @@ dissect_tosam(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   }
 
   /* Make entries in Protocol column and Info column on summary display */
-  if (check_col(pinfo->cinfo, COL_PROTOCOL))
-    col_set_str(pinfo->cinfo, COL_PROTOCOL, "TOS AM");
+  col_set_str(pinfo->cinfo, COL_PROTOCOL, "TOS AM");
 
-  if (check_col(pinfo->cinfo, COL_INFO))
-    col_prepend_fstr(pinfo->cinfo, COL_INFO, "AM: 0x%02x, ", am_type);
+  col_prepend_fstr(pinfo->cinfo, COL_INFO, "AM: 0x%02x, ", am_type);
 
   /* Create the tvbuffer for the next dissector */
   next_tvb = tvb_new_subset(tvb, TOSAM_HEADER_LEN, -1, -1);

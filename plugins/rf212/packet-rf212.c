@@ -90,13 +90,14 @@ dissect_rf212(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   }
 
   /* Make entries in Protocol column and Info column on summary display */
-  if (check_col(pinfo->cinfo, COL_PROTOCOL))
-    col_set_str(pinfo->cinfo, COL_PROTOCOL, "RF212 Frame");
+  col_set_str(pinfo->cinfo, COL_PROTOCOL, "RF212 Frame");
 
   /* Create the tvbuffer for the next dissector */
   next_tvb = tvb_new_subset(tvb, 2, tvb_length(tvb) - 5, len);
 
-  if (dissector_try_heuristic(heur_subdissector_list, next_tvb, pinfo, tree, NULL)) {
+  heur_dtbl_entry_t *hdtbl_entry;
+
+  if (dissector_try_heuristic(heur_subdissector_list, next_tvb, pinfo, tree, &hdtbl_entry, NULL)) {
     return;
   }
 

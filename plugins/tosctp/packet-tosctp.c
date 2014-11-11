@@ -84,8 +84,7 @@ dissect_ctp_routing(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   }
 
   /* Make entries in Protocol column and Info column on summary display */
-  if (check_col(pinfo->cinfo, COL_PROTOCOL))
-    col_set_str(pinfo->cinfo, COL_PROTOCOL, "TOS CTP Routing");
+  col_set_str(pinfo->cinfo, COL_PROTOCOL, "TOS CTP Routing");
 
   /* Create the tvbuffer for the next dissector */
   next_tvb = tvb_new_subset(tvb, TOS_CTP_ROUTING_HEADER_LEN,
@@ -129,8 +128,7 @@ dissect_ctp_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   }
 
   /* Make entries in Protocol column and Info column on summary display */
-  if (check_col(pinfo->cinfo, COL_PROTOCOL))
-    col_set_str(pinfo->cinfo, COL_PROTOCOL, "TOS CTP Data");
+  col_set_str(pinfo->cinfo, COL_PROTOCOL, "TOS CTP Data");
 
   /* Create the tvbuffer for the next dissector */
   next_tvb = tvb_new_subset(tvb, TOS_CTP_DATA_HEADER_LEN,
