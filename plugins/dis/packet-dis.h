@@ -16,16 +16,16 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.*/
 
-#ifndef PACKET_TOSDIS_H
-#define PACKET_TOSDIS_H
+#ifndef PACKET_DIS_H
+#define PACKET_DIS_H
 
-#define TOSDIS_KEY_LEN 2
-#define TOSDIS_SEQNO_LEN 4
+#define DIS_KEY_LEN 2
+#define DIS_SEQNO_LEN 4
 
-#define TOSDIS_KEY_OFFSET 0
-#define TOSDIS_SEQNO_OFFSET (TOSDIS_KEY_OFFSET+TOSDIS_KEY_LEN)
-#define TOS_DIS_HEADER_LEN (TOSDIS_SEQNO_OFFSET+TOSDIS_SEQNO_LEN)
+#define DIS_KEY_OFFSET 0
+#define DIS_SEQNO_OFFSET (DIS_KEY_OFFSET+DIS_KEY_LEN)
+#define TOS_DIS_HEADER_LEN (DIS_SEQNO_OFFSET+DIS_SEQNO_LEN)
 
-static void dissect_tosdis(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+static void dissect_dis(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
 
 #endif

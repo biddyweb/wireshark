@@ -22,14 +22,12 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.*/
 
-#ifndef PACKET_TOSAM_H
-#define PACKET_TOSAM_H
+#ifndef PACKET_TOS_H
+#define PACKET_TOS_H
 
-#define TOSAM_IEEE_HEADER_LEN 0
-#define TOSAM_HEADER_ID_LEN 1
-#define TOSAM_HEADER_TYPE_LEN 1
-#define TOSAM_HEADER_LEN (TOSAM_IEEE_HEADER_LEN+TOSAM_HEADER_ID_LEN+TOSAM_HEADER_TYPE_LEN)
-
-static void dissect_tosam(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree);
+#define TOS_IEEE_HEADER_LEN 0
+#define TOS_HEADER_ID_LEN 1
+#define TOS_HEADER_TYPE_LEN 1
+#define TOS_HEADER_LEN (TOS_IEEE_HEADER_LEN+TOS_HEADER_ID_LEN+TOS_HEADER_TYPE_LEN)
 
 #endif

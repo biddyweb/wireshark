@@ -5,7 +5,7 @@
 #endif
 
 /* Name of package */
-#define PACKAGE "tosctp"
+#define PACKAGE "dis"
 
 
 #ifdef VERSION

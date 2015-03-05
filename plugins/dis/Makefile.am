@@ -1,5 +1,5 @@
 # Makefile.am
-# Automake file for tosam plugin
+# Automake file for dis plugin
 # By Steve Limkemann <stevelim@dgtech.com>
 # Copyright 1998 Steve Limkemann
 #
@@ -36,16 +36,16 @@ endif
 
 plugindir = @plugindir@
 
-plugin_LTLIBRARIES = tosam.la
+plugin_LTLIBRARIES = dis.la
 
-tosam_la_SOURCES = \
+dis_la_SOURCES = \
 	plugin.c \
 	moduleinfo.h \
 	$(SRC_FILES)	\
 	$(HEADER_FILES)
 
-tosam_la_LDFLAGS = -module -avoid-version
-tosam_la_LIBADD = @PLUGIN_LIBS@
+dis_la_LDFLAGS = -module -avoid-version
+dis_la_LIBADD = @PLUGIN_LIBS@
 
 # Libs must be cleared, or else libtool won't create a shared module.
 # If your module needs to be linked against any particular libraries,
@@ -116,7 +116,7 @@ plugin.c: $(REGISTER_SRC_FILES) Makefile.common $(top_srcdir)/tools/make-dissect
 #	@rm -f $(distdir)/plugin.c
 
 CLEANFILES = \
-	tosam \
+	dis \
 	*~
 
 MAINTAINERCLEANFILES = \

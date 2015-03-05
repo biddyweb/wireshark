@@ -5,7 +5,7 @@
 #endif
 
 /* Name of package */
-#define PACKAGE "tosam"
+#define PACKAGE "tos"
 
 
 #ifdef VERSION

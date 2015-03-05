@@ -3,10 +3,10 @@
 #
 
 _CUSTOM_SUBDIRS_ = \
-  tosam \
+  tos \
   rf212 \
-  tosdis \
-  tosctp
+  dis \
+  ctp
 
 _CUSTOM_EXTRA_DIST_ = \
 	Custom.m4 \
@@ -14,6 +14,6 @@ _CUSTOM_EXTRA_DIST_ = \
 
 _CUSTOM_plugin_ldadd_ = \
   -dlopen plugins/tosam/rf212.la \
-  -dlopen plugins/tosam/tosam.la \
-  -dlopen plugins/tosdis/tosdis.la \
-  -dlopen plugins/tosctp/tosctp.la 
+  -dlopen plugins/tosam/tos.la \
+  -dlopen plugins/tosdis/dis.la \
+  -dlopen plugins/tosctp/ctp.la
