@@ -112,7 +112,7 @@ proto_register_tos(void)
   static hf_register_info hf[] =
   {
   { &hf_tos_id,
-  { "Udid", "tos.udid", FT_UINT8, BASE_HEX, NULL, 0x0, "Unique Dispatch Id", HFILL } },
+  { "UdId", "tos.udid", FT_UINT8, BASE_HEX, NULL, 0x0, "Unique Dispatch Id", HFILL } },
   { &hf_tos_type,
   { "Type", "tos.amid", FT_UINT8, BASE_HEX, NULL, 0x0, "Active Message Type", HFILL } }};
 
